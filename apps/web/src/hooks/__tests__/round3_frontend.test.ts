@@ -79,7 +79,7 @@ describe('round3 前端终止路径', () => {
 
       // 用户点击停止按钮
       act(() => {
-        result.current.cancel()
+        result.current.stop()
       })
 
       expect(controller.mockAbortController.abort).toHaveBeenCalled()
@@ -114,7 +114,7 @@ describe('round3 前端终止路径', () => {
       act(() => {
         callbacks.onContentStart?.()
         callbacks.onContent?.('片段')
-        result.current.cancel()
+        result.current.stop()
       })
 
       // abort 之后迟到的 done（isStaleEvent 本就会拦），再补一刀确认幂等
@@ -145,7 +145,7 @@ describe('round3 前端终止路径', () => {
       expect(onComplete).toHaveBeenCalledTimes(1)
 
       act(() => {
-        result.current.cancel()
+        result.current.stop()
       })
       expect(onComplete).toHaveBeenCalledTimes(1)
     })

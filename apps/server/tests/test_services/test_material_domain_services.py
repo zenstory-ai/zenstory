@@ -11,6 +11,7 @@ from models.material_models import (
     Plot,
     Story,
     StoryLine,
+    StoryPlotLink,
 )
 from services.material.golden_finger_service import GoldenFingerService
 from services.material.relationships_service import RelationshipsService
@@ -35,7 +36,7 @@ def _create_chapter(db_session: Session, novel_id: int, chapter_number: int) -> 
     return chapter
 
 
-def test_golden_finger_service_upsert_paths_and_bulk_counts(db_session: Session):
+def test_golden_finger_service_upsert_paths(db_session: Session):
     novel = _create_novel(db_session)
     chapter = _create_chapter(db_session, novel.id, 1)
     service = GoldenFingerService()
@@ -67,27 +68,13 @@ def test_golden_finger_service_upsert_paths_and_bulk_counts(db_session: Session)
         },
     ) == "updated"
 
+    db_session.commit()
     db_session.refresh(created)
     assert created.description == "升级后版本"
     assert json.loads(created.evolution_history or "[]") == [{"stage": 2}]
 
-    created_count, updated_count = service.upsert_golden_fingers(
-        db_session,
-        novel.id,
-        [
-            {"name": "系统", "type": "space"},
-            {"name": "空间", "description": "新建"},
-            {"description": "missing-name-is-skipped"},
-        ],
-    )
 
-    db_session.commit()
-    assert (created_count, updated_count) == (1, 1)
-    assert service.get_by_name(db_session, novel.id, "空间") is not None
-    assert service.get_by_name(db_session, novel.id, "系统").type == "space"
-
-
-def test_relationships_service_handles_bidirectional_upsert_and_name_resolution(db_session: Session):
+def test_relationships_service_handles_bidirectional_upsert(db_session: Session):
     novel = _create_novel(db_session)
     alice = Character(novel_id=novel.id, name="Alice")
     bob = Character(novel_id=novel.id, name="Bob")
@@ -118,22 +105,6 @@ def test_relationships_service_handles_bidirectional_upsert_and_name_resolution(
     assert rel is not None
     assert reverse_rel is not None
     assert rel.id == reverse_rel.id
-    assert len(service.list_by_character(db_session, novel.id, alice.id)) == 1
-
-    with_names = service.list_relationships_with_names(db_session, novel.id)
-    assert with_names == [
-        {
-            "id": rel.id,
-            "novel_id": novel.id,
-            "character_a_id": alice.id,
-            "character_b_id": bob.id,
-            "character_a_name": "Alice",
-            "character_b_name": "Bob",
-            "relationship_type": "ally",
-            "sentiment": "friendly",
-            "description": "初次合作",
-        }
-    ]
 
     created, updated = service.upsert_relationships(
         db_session,
@@ -195,7 +166,10 @@ def test_story_services_attach_storylines_and_story_plot_links(db_session: Sessi
         {"title": "主线", "description": "贯穿始终", "themes": ["成长"]},
     )
     assert stories_service.attach_stories_to_storyline(db_session, storyline_id, [story_id, 999999]) == 1
-    assert stories_service.attach_plots_to_story(db_session, story_id, [plot_one.id, 999999, plot_two.id]) == 2
+    assert stories_service.attach_plots_to_story(db_session, story_id, [plot_one.id, 999999]) == 1
+
+    plot_link_service = StoryPlotsService()
+    link = plot_link_service.link_plot_to_story(db_session, story_id, plot_two.id, order_index=1)
 
     db_session.commit()
     story = db_session.get(Story, story_id)
@@ -204,20 +178,12 @@ def test_story_services_attach_storylines_and_story_plot_links(db_session: Sessi
     assert storyline is not None
     assert story.story_line_id == storyline_id
     assert json.loads(storyline.themes or "[]") == ["成长"]
-
-    plot_link_service = StoryPlotsService()
-    assert {plot.id for plot in plot_link_service.get_plots_by_story(db_session, story_id)} == {
-        plot_one.id,
-        plot_two.id,
-    }
-    assert [linked_story.id for linked_story in plot_link_service.get_stories_by_plot(db_session, plot_one.id)] == [
-        story_id
-    ]
-    assert plot_link_service.unlink_plot_from_story(db_session, story_id, plot_one.id) is True
-    assert plot_link_service.unlink_plot_from_story(db_session, story_id, plot_one.id) is False
+    assert isinstance(link, StoryPlotLink)
+    assert link.story_id == story_id
+    assert link.plot_id == plot_two.id
 
 
-def test_world_view_service_upsert_and_entity_return_paths(db_session: Session):
+def test_world_view_service_upsert_paths(db_session: Session):
     novel = _create_novel(db_session)
     service = WorldViewService()
 
@@ -238,18 +204,12 @@ def test_world_view_service_upsert_and_entity_return_paths(db_session: Session):
         {"world_structure": "三界", "special_rules": ["渡劫"]},
     ) == "updated"
 
-    updated = service.upsert_world_view(
-        db_session,
-        novel.id,
-        {"power_system": "Aura", "special_rules": ["结界"]},
-    )
     db_session.commit()
-
+    updated = service.get_by_novel(db_session, novel.id)
+    assert updated is not None
     assert updated.id == created.id
-    assert updated.power_system == "Aura"
-    assert json.loads(updated.special_rules or "[]") == ["结界"]
-    assert service.get_by_novel(db_session, novel.id).world_structure == "三界"
-
+    assert updated.world_structure == "三界"
+    assert json.loads(updated.special_rules or "[]") == ["渡劫"]
 
 
 def test_attach_plots_to_story_rejects_foreign_novel_plots_and_duplicates(db_session):

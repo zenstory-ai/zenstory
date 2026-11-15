@@ -43,12 +43,7 @@ import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../hooks/useDraftImport";
 import { requestChatOnOpen } from "../lib/pendingInspiration";
 import { Upload } from "lucide-react";
 import { DashboardBannerSlot } from "../components/announcements/DashboardBannerSlot";
-
-const SUPPORTED_PROJECT_TYPES: ProjectType[] = ["novel", "short", "screenplay"];
-
-function isProjectType(value: string): value is ProjectType {
-  return SUPPORTED_PROJECT_TYPES.includes(value as ProjectType);
-}
+import { PREFERABLE_PROJECT_TYPES, isPreferableProjectType } from "../lib/preferredProjectType";
 
 
 /** A default name the author already uses gets the next number (「我的小说 2」), so the list never shows twins. */
@@ -168,7 +163,7 @@ export default function DashboardHome() {
   // Helper to get translated config
   const getTranslatedConfig = (type: string | undefined) => {
     const rawType = type ?? "";
-    const safeType = isProjectType(rawType) ? rawType : "novel";
+    const safeType = isPreferableProjectType(rawType) ? rawType : "novel";
     const config = PROJECT_TYPE_CONFIG[safeType];
     return {
       ...config,
@@ -180,10 +175,10 @@ export default function DashboardHome() {
 
   const availableProjectTypes = useMemo(() => {
     if (!templates) {
-      return SUPPORTED_PROJECT_TYPES;
+      return PREFERABLE_PROJECT_TYPES;
     }
-    const available = Object.keys(templates).filter(isProjectType);
-    return available.length > 0 ? available : SUPPORTED_PROJECT_TYPES;
+    const available = Object.keys(templates).filter(isPreferableProjectType);
+    return available.length > 0 ? available : PREFERABLE_PROJECT_TYPES;
   }, [templates]);
 
   // Filter and sort projects for recent display
@@ -235,78 +230,6 @@ export default function DashboardHome() {
   useEffect(() => {
     let cancelled = false;
 
-    // 先用本地 fallback 模板渲染（避免进入 Dashboard 还要再挡一层全屏 loading）
-    const buildFallbackTemplates = (): Record<string, ProjectTemplate> => {
-      const novelFolders = [
-        { id: "lore-folder", title: t('folders.worldBuilding'), file_type: "folder", order: 0 },
-        { id: "character-folder", title: t('folders.characters'), file_type: "folder", order: 1 },
-        { id: "material-folder", title: t('folders.materials'), file_type: "folder", order: 2 },
-        { id: "outline-folder", title: t('folders.outlines'), file_type: "folder", order: 3 },
-        { id: "draft-folder", title: t('folders.drafts'), file_type: "folder", order: 4 },
-      ];
-
-      const shortFolders = [
-        { id: "character-folder", title: t('folders.people'), file_type: "folder", order: 0 },
-        { id: "outline-folder", title: t('folders.concept'), file_type: "folder", order: 1 },
-        { id: "material-folder", title: t('folders.materials'), file_type: "folder", order: 2 },
-        { id: "draft-folder", title: t('folders.drafts'), file_type: "folder", order: 3 },
-      ];
-
-      const screenplayFolders = [
-        { id: "character-folder", title: t('folders.characters'), file_type: "folder", order: 0 },
-        { id: "lore-folder", title: t('folders.worldBuilding'), file_type: "folder", order: 1 },
-        { id: "material-folder", title: t('folders.materials'), file_type: "folder", order: 2 },
-        { id: "outline-folder", title: t('folders.episodeOutlines'), file_type: "folder", order: 3 },
-        { id: "script-folder", title: t('folders.scripts'), file_type: "folder", order: 4 },
-      ];
-
-      return {
-        novel: {
-          name: t("projectType.novel.name"),
-          description: t("inspiration.novelDesc"),
-          icon: "book",
-          folders: novelFolders,
-          file_type_mapping: {
-            [t('folders.worldBuilding')]: "lore",
-            [t('folders.characters')]: "character",
-            [t('folders.materials')]: "snippet",
-            [t('folders.outlines')]: "outline",
-            [t('folders.drafts')]: "draft",
-          },
-          default_project_name: t('defaults.novel'),
-        },
-        short: {
-          name: t("projectType.short.name"),
-          description: t("inspiration.shortDesc"),
-          icon: "file-text",
-          folders: shortFolders,
-          file_type_mapping: {
-            [t('folders.people')]: "character",
-            [t('folders.concept')]: "outline",
-            [t('folders.materials')]: "snippet",
-            [t('folders.drafts')]: "draft",
-          },
-          default_project_name: t('defaults.short'),
-        },
-        screenplay: {
-          name: t("projectType.screenplay.name"),
-          description: t("inspiration.screenplayDesc"),
-          icon: "clapperboard",
-          folders: screenplayFolders,
-          file_type_mapping: {
-            [t('folders.characters')]: "character",
-            [t('folders.worldBuilding')]: "lore",
-            [t('folders.materials')]: "snippet",
-            [t('folders.episodeOutlines')]: "outline",
-            [t('folders.scripts')]: "script",
-          },
-          default_project_name: t('defaults.screenplay'),
-        },
-      };
-    };
-
-    setTemplates(buildFallbackTemplates());
-
     const loadTemplates = async () => {
       try {
         // Projects are now managed by ProjectContext, just load templates
@@ -324,7 +247,7 @@ export default function DashboardHome() {
     return () => {
       cancelled = true;
     };
-  }, [i18n.language, t]);
+  }, [i18n.language]);
 
   useEffect(() => {
     if (!availableProjectTypes.includes(activeTab)) {
@@ -343,11 +266,12 @@ export default function DashboardHome() {
     if (picked.length === 0 || isQuickCreating || isImportingDrafts) return;
     setIsQuickCreating(true);
     const stem = picked[0].name.replace(/\.(txt|md)$/i, "").trim().slice(0, 40);
-    const name = uniqueWorkName(stem || templates?.[activeTab]?.default_project_name || t('defaults.untitled'), projects);
+    const name = uniqueWorkName(stem || templates?.[activeTab]?.default_project_name || t(`defaults.${activeTab}`) || t('defaults.untitled'), projects);
     try {
       const project = await contextCreateProject(name, undefined, activeTab);
       if (!project.id) {
         logger.error("Create project succeeded but missing project id:", project);
+        toast.error(t('common:operationFailed'));
         return;
       }
       rememberCreatedType(activeTab);
@@ -406,8 +330,10 @@ export default function DashboardHome() {
     }
 
     setIsQuickCreating(true);
-    const fallbackTemplates = templates;
-    const defaultName = uniqueWorkName(fallbackTemplates?.[activeTab]?.default_project_name || t('defaults.untitled'), projects);
+    const defaultName = uniqueWorkName(
+      templates?.[activeTab]?.default_project_name || t(`defaults.${activeTab}`) || t('defaults.untitled'),
+      projects,
+    );
 
     try {
       // Use ProjectContext's createProject for unified state management
@@ -416,6 +342,7 @@ export default function DashboardHome() {
 
       if (!projectId) {
         logger.error("Create project succeeded but missing project id:", project);
+        toast.error(t('common:operationFailed'));
         return;
       }
 
@@ -505,9 +432,7 @@ export default function DashboardHome() {
                   dashboard-type-button flex items-center gap-2 rounded-lg font-medium transition-colors border-transparent! border touch-target
                   ${isMobile
                     ? "px-2.5 py-2 text-xs"
-                    : isTablet
-                      ? "px-3 py-2 text-sm"
-                      : "px-3 py-2 text-sm"
+                    : "px-3 py-2 text-sm"
                   }
                   ${isActive
                     ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] border-transparent!"

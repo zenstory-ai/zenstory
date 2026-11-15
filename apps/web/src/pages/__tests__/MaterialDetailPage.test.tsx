@@ -22,6 +22,7 @@ const mockGetRelationships = vi.fn();
 const mockGetGoldenFingers = vi.fn();
 const mockGetWorldView = vi.fn();
 const mockRetry = vi.fn();
+const mockExportBreakdown = vi.fn();
 const materialsConfigState = vi.hoisted(() => ({
   relationshipsEnabled: false,
 }));
@@ -112,6 +113,7 @@ vi.mock("../../lib/materialsApi", () => ({
     getGoldenFingers: (...args: unknown[]) => mockGetGoldenFingers(...args),
     getWorldView: (...args: unknown[]) => mockGetWorldView(...args),
     retry: (...args: unknown[]) => mockRetry(...args),
+    exportBreakdown: (...args: unknown[]) => mockExportBreakdown(...args),
   },
 }));
 
@@ -1522,5 +1524,52 @@ describe("MaterialDetailPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/Hidden betrayal/)).toBeInTheDocument();
     });
+  });
+
+  it("exports breakdown as TXT from detail header and disables export while processing", async () => {
+    const { toast } = await import("../../lib/toast");
+    const toastSuccessSpy = vi.spyOn(toast, "success").mockImplementation(() => "");
+    const toastErrorSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
+
+    mockExportBreakdown.mockResolvedValueOnce({ filename: "九天斩神诀_拆解.txt" });
+    mockGet.mockResolvedValueOnce({
+      ...referenceMaterial,
+      id: "novel-1",
+      title: "九天斩神诀",
+      status: "completed",
+    });
+
+    const { unmount } = render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    expect(await screen.findByText("九天斩神诀")).toBeInTheDocument();
+
+    const exportButton = screen.getByRole("button", { name: "导出拆解（TXT）" });
+    expect(exportButton).toBeEnabled();
+    fireEvent.click(exportButton);
+
+    await waitFor(() => {
+      expect(mockExportBreakdown).toHaveBeenCalledWith("novel-1", "九天斩神诀");
+      expect(toastSuccessSpy).toHaveBeenCalledWith("拆解结果已导出为 TXT 文件");
+    });
+
+    mockExportBreakdown.mockRejectedValueOnce(new ApiError(404, "ERR_MATERIAL_EXPORT_EMPTY"));
+    fireEvent.click(exportButton);
+    await waitFor(() => {
+      expect(toastErrorSpy).toHaveBeenCalledWith(
+        "This material doesn't have any breakdown content to export yet",
+      );
+    });
+
+    unmount();
+
+    mockGet.mockResolvedValueOnce({
+      ...referenceMaterial,
+      id: "novel-2",
+      title: "拆解中的书",
+      status: "processing",
+    });
+    routeState.novelId = "novel-2";
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    expect(await screen.findByText("拆解中的书")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出拆解（TXT）" })).toBeDisabled();
   });
 });

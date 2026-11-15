@@ -109,7 +109,7 @@ async def test_materials_contract_root_status_tree_and_delete_roundtrip(
     )
     db_session.commit()
 
-    list_response = await client.get("/api/v1/materials", headers=headers)
+    list_response = await client.get("/api/v1/materials/list", headers=headers)
     assert list_response.status_code == 200
     list_payload = list_response.json()
     assert len(list_payload) == 1
@@ -119,13 +119,11 @@ async def test_materials_contract_root_status_tree_and_delete_roundtrip(
     assert list_payload[0]["chapters_count"] == 2
     assert list_payload[0]["original_filename"] == "tree-contract.txt"
 
-    status_response = await client.get(f"/api/v1/materials/{novel.id}/status", headers=headers)
-    assert status_response.status_code == 200
-    status_payload = status_response.json()
-    assert status_payload["job_id"] == completed_job.id
-    assert status_payload["status"] == "completed"
-    assert status_payload["progress_percentage"] == 100.0
-    assert status_payload["stage_progress"]["extract"]["status"] == "completed"
+    detail_response = await client.get(f"/api/v1/materials/{novel.id}", headers=headers)
+    assert detail_response.status_code == 200
+    detail_payload = detail_response.json()
+    assert detail_payload["status"] == "completed"
+    assert detail_payload["chapters_count"] == 2
 
     tree_response = await client.get(f"/api/v1/materials/{novel.id}/tree", headers=headers)
     assert tree_response.status_code == 200
@@ -140,7 +138,7 @@ async def test_materials_contract_root_status_tree_and_delete_roundtrip(
     assert delete_response.status_code == 200
     assert delete_response.json()["message"] == "Material library deleted successfully"
 
-    list_after_delete = await client.get("/api/v1/materials", headers=headers)
+    list_after_delete = await client.get("/api/v1/materials/list", headers=headers)
     assert list_after_delete.status_code == 200
     assert list_after_delete.json() == []
 
@@ -213,13 +211,16 @@ async def test_materials_contract_retry_creates_pending_job_and_consumes_quota(
     assert retry_payload["job_id"] != failed_job.id
     flow_dispatch.assert_awaited_once()
 
-    status_response = await client.get(f"/api/v1/materials/{novel.id}/status", headers=headers)
-    assert status_response.status_code == 200
-    status_payload = status_response.json()
-    assert status_payload["job_id"] == retry_payload["job_id"]
-    assert status_payload["status"] == "pending"
-    assert status_payload["processed_chapters"] == 0
-    assert status_payload["stage_progress"]["queue"]["status"] == "pending"
+    detail_response = await client.get(f"/api/v1/materials/{novel.id}", headers=headers)
+    assert detail_response.status_code == 200
+    detail_payload = detail_response.json()
+    assert detail_payload["status"] == "pending"
+
+    persisted_job = db_session.get(IngestionJob, retry_payload["job_id"])
+    assert persisted_job is not None
+    assert persisted_job.status == "pending"
+    assert persisted_job.processed_chapters == 0
+    assert json.loads(persisted_job.stage_progress)["queue"]["status"] == "pending"
 
     quota_response = await client.get("/api/v1/subscription/quota", headers=headers)
     assert quota_response.status_code == 200

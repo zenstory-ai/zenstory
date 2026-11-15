@@ -3,7 +3,6 @@ Agent API endpoints.
 
 Provides FastAPI router for agent endpoints:
 - POST /api/v1/agent/stream - Stream AI response with Function Calling
-- GET /api/v1/agent/health - Health check
 - POST /api/v1/agent/suggest - Generate intelligent next-step suggestions
 - POST /api/v1/agent/steer - Inject steering message into a running session
 - POST /api/v1/agent/stop - Author stops a running /stream (graceful stop + billing)
@@ -1294,12 +1293,6 @@ async def stream_request(
             "X-Agent-Run-ID": agent_run_id,
         },
     )
-
-
-@router.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "service": "agent"}
 
 
 @router.post("/suggest", response_model=SuggestResponse)

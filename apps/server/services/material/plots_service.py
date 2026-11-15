@@ -16,7 +16,7 @@ class PlotsService:
     """Plot domain service using SQLModel patterns."""
 
     def bulk_insert(
-        self, session: Session, _novel_id: int, plots: Iterable[dict]
+        self, session: Session, _novel_id: int | None = None, plots: Iterable[dict] = ()
     ) -> int:
         """Bulk insert plots for a novel. Returns count of created plots."""
         created = 0

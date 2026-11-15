@@ -6,39 +6,26 @@
 from .aliases import merge_aliases, normalize_alias
 from .checkpoint_manager import CheckpointManager, create_checkpoint_manager
 from .filters import filter_character_data, is_generic_title, is_valid_character_name
-from .index import AliasEntity, build_alias_index
 from .ingestion import (
     calculate_checksum,
-    detect_encoding,
-    extract_metadata,
-    normalize_content,
-    normalize_filename,
     validate_input,
 )
-from .logging import get_logger, log_error_with_context, log_execution_time
+from .logging import get_logger, log_error_with_context
 from .novel_parser import parse_novel_chapters
 from .performance_monitor import PerformanceMonitor, create_performance_monitor
 from .plot_calculator import calculate_plots_range
-from .scan import scan_chapter_for_aliases
-from .text import truncate
 
 __all__ = [
     # Aliases
     "normalize_alias",
     "merge_aliases",
-    "build_alias_index",
-    "AliasEntity",
-    "scan_chapter_for_aliases",
     # Filters
     "is_generic_title",
     "is_valid_character_name",
     "filter_character_data",
-    # Text utilities
-    "truncate",
     # Logging
     "get_logger",
     "log_error_with_context",
-    "log_execution_time",
     # Checkpoint management
     "CheckpointManager",
     "create_checkpoint_manager",
@@ -48,12 +35,8 @@ __all__ = [
     # Ingestion utilities
     "validate_input",
     "calculate_checksum",
-    "detect_encoding",
-    "extract_metadata",
-    "normalize_content",
-    "normalize_filename",
     # Novel parsing
     "parse_novel_chapters",
-    # Plot calculation (新增)
+    # Plot calculation
     "calculate_plots_range",
 ]

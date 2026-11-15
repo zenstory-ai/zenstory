@@ -32,6 +32,7 @@
   "confirmDelete": "Are you sure you want to delete?",
   "operationSuccess": "Operation successful",
   "operationFailed": "Operation failed",
+  "copyFailed": "Couldn't copy. Please copy manually.",
   "errors": {
     "network": "Network error. Please try again."
   },

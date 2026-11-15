@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PROSE_MIN_CHARS, createBodyWriteProgress, createProseCounter, isRealProse, isInternalOrderingRefusal, isWriteToolResult } from '../agentRoundProgress'
+import { PROSE_MIN_CHARS, createBodyWriteProgress, createProseCounter, isInternalOrderingRefusal, isWriteToolResult } from '../agentRoundProgress'
 
 describe('agentRoundProgress (same output rules as the server bills a stopped round by)', () => {
   it('does not count an empty chapter that create_file just made', () => {
@@ -44,16 +44,6 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
       updated_fields: [], project_name_updated: false, title_skipped: 'author_named',
     })).toBe(false)
     expect(isWriteToolResult('update_project', 'error', { updated_fields: ['summary'] })).toBe(false)
-  })
-
-  it('treats a one-line narration before a tool call as not yet prose', () => {
-    expect(isRealProse('我先看一遍全书大纲。')).toBe(false)
-    expect(isRealProse('正在查看已有的全书大纲，确认现有设定后再梳理主线。')).toBe(false)
-    expect(isRealProse('字'.repeat(PROSE_MIN_CHARS))).toBe(true)
-    expect(isRealProse(' \n'.repeat(PROSE_MIN_CHARS))).toBe(false)
-    // English counts words, so a one-sentence narration stays below the bar like its Chinese twin.
-    expect(isRealProse('Let me check the outline and the character sheet before I start drafting chapter three.')).toBe(false)
-    expect(isRealProse("Chapter three drags: the first two scenes explain the bookshop's history, and the hero only finds the untitled ledger in scene three. Readers wait too long, so move the ledger to the opening page and let the history surface while she reads it.")).toBe(true)
   })
 
   it('restarts the prose count at a segment boundary inside one streamed segment, like the server', () => {

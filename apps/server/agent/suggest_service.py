@@ -14,12 +14,14 @@ from typing import Any
 from sqlalchemy import desc
 from sqlmodel import Session, select
 
+from core.error_handler import APIException
 from database import create_session
 from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST
 from services.chat_session_service import latest_active_chat_session
 from services.usage.llm_usage_service import LLMUsageAttribution
 from utils.logger import get_logger, log_with_context
 
+from .constants import should_offload_session_work
 from .context import get_context_assembler
 from .core.llm_client import get_llm_client
 from .prompts import get_suggestion_prompt
@@ -147,9 +149,10 @@ class SuggestService:
         if self.llm is None:
             return self._get_fallback_suggestions(count, language)
 
+        offloaded = should_offload_session_work(session)
         try:
             # Step 1: Assemble project context
-            if self._should_offload_session_work(session):
+            if offloaded:
                 context_data = await asyncio.to_thread(
                     self._load_context_data,
                     project_id,
@@ -175,7 +178,7 @@ class SuggestService:
 
             # Step 2: Get recent chat history
             if not recent_messages:
-                if self._should_offload_session_work(session):
+                if offloaded:
                     recent_messages = await asyncio.to_thread(
                         self._load_recent_chat_history,
                         project_id,
@@ -202,7 +205,6 @@ class SuggestService:
                 system_prompt=prompt_config["system_prompt"],
                 context=context_data.context,
                 recent_messages=recent_messages,
-                _count=count,
                 language=language,
             )
             log_with_context(
@@ -256,7 +258,11 @@ class SuggestService:
 
             return suggestions[:count]
 
+        except APIException:
+            raise
         except Exception as e:
+            if not offloaded and hasattr(session, "rollback"):
+                session.rollback()
             log_with_context(
                 logger,
                 logging.ERROR,
@@ -271,12 +277,6 @@ class SuggestService:
     # -------------------------------------------------------------------------
     # Private Helper Methods
     # -------------------------------------------------------------------------
-
-    def _should_offload_session_work(self, session: Session) -> bool:
-        """Only offload when running against PostgreSQL production-style sessions."""
-        bind = session.get_bind() if hasattr(session, "get_bind") else None
-        dialect_name = getattr(getattr(bind, "dialect", None), "name", "")
-        return dialect_name == "postgresql"
 
     def _load_context_data(
         self,
@@ -493,7 +493,6 @@ class SuggestService:
         system_prompt: str,
         context: str,
         recent_messages: list[dict[str, str]],
-        _count: int,
         language: str | None = None,
     ) -> str:
         """
@@ -503,7 +502,6 @@ class SuggestService:
             system_prompt: System prompt from prompt config
             context: Assembled project context
             recent_messages: List of recent messages
-            count: Number of suggestions to generate
             language: Language preference
 
         Returns:

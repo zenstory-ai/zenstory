@@ -10,7 +10,6 @@ import {
   MATERIALS_UPLOAD_MAX_CHARACTERS,
   prepareMaterialUpload,
   resolveMaterialUploadErrorMessage,
-  validateMaterialUploadFile,
 } from "../materialUploadValidation";
 import { ApiError } from "../apiClient";
 
@@ -37,7 +36,7 @@ function createRepeatedUtf16LeFile(charCount: number): File {
   return new File([bytes], "limit-ok-utf16.txt", { type: "text/plain" });
 }
 
-describe("validateMaterialUploadFile", () => {
+describe("prepareMaterialUpload character and encoding checks", () => {
   const t = (key: string) => key;
 
   it("accepts files at the 300k-character limit", async () => {
@@ -47,7 +46,7 @@ describe("validateMaterialUploadFile", () => {
       { type: "text/plain" },
     );
 
-    await expect(validateMaterialUploadFile(file, t)).resolves.toBeNull();
+    await expect(prepareMaterialUpload(file, t)).resolves.toEqual({ error: null, trial: null });
   });
 
   it("rejects files over the 300k-character limit and says how long the book is", async () => {
@@ -60,21 +59,21 @@ describe("validateMaterialUploadFile", () => {
       options ? `${key}:${String(options.wan)}` : key,
     );
 
-    await expect(validateMaterialUploadFile(file, translate)).resolves.toBe(
-      "materials:uploadModal.errors.tooManyCharactersCounted:30.0",
-    );
+    await expect(prepareMaterialUpload(file, translate)).resolves.toEqual({
+      error: "materials:uploadModal.errors.tooManyCharactersCounted:30.0",
+    });
   });
 
   it("accepts gbk files at the 300k-character limit", async () => {
     const file = createRepeatedGbkFile(MATERIALS_UPLOAD_MAX_CHARACTERS);
 
-    await expect(validateMaterialUploadFile(file, t)).resolves.toBeNull();
+    await expect(prepareMaterialUpload(file, t)).resolves.toEqual({ error: null, trial: null });
   });
 
   it("accepts utf-16 files at the 300k-character limit", async () => {
     const file = createRepeatedUtf16LeFile(MATERIALS_UPLOAD_MAX_CHARACTERS);
 
-    await expect(validateMaterialUploadFile(file, t)).resolves.toBeNull();
+    await expect(prepareMaterialUpload(file, t)).resolves.toEqual({ error: null, trial: null });
   });
 });
 
@@ -150,9 +149,9 @@ describe("material upload size limit", () => {
     const file = new File(["x"], "big.txt", { type: "text/plain" });
     Object.defineProperty(file, "size", { value: MATERIALS_UPLOAD_MAX_BYTES + 1 });
 
-    await expect(validateMaterialUploadFile(file, t)).resolves.toBe(
-      "materials:uploadModal.errors.tooLarge",
-    );
+    await expect(prepareMaterialUpload(file, t)).resolves.toEqual({
+      error: "materials:uploadModal.errors.tooLarge",
+    });
   });
 });
 
@@ -163,10 +162,18 @@ describe("resolveMaterialUploadErrorMessage", () => {
     "ERR_MATERIAL_NO_CHAPTERS",
     "ERR_MATERIAL_TOO_MANY_CHAPTERS",
     "ERR_FILE_ENCODING_UNSUPPORTED",
-  ])("translates the upload pre-check rejection %s", (code) => {
+    "ERR_RATE_LIMIT_EXCEEDED",
+    "ERR_QUOTA_EXCEEDED",
+  ])("translates ApiError code %s instead of leaking raw ERR_* tokens", (code) => {
     expect(
       resolveMaterialUploadErrorMessage(new ApiError(400, code), t, "fallback"),
     ).toBe(`translated:${code}`);
+  });
+
+  it("falls back to fallback message on non-JSON gateway ApiError without errorCode", () => {
+    expect(
+      resolveMaterialUploadErrorMessage(new ApiError(502, "API error: 502"), t, "materials:uploadError"),
+    ).toBe("materials:uploadError");
   });
 
   it("maps backend over-limit errors to materials-specific copy", () => {

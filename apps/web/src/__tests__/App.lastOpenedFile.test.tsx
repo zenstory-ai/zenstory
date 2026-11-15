@@ -51,9 +51,6 @@ vi.mock("../components/Helmet", () => ({ SEOHelmet: () => null }));
 vi.mock("../providers/SEOProvider", () => ({
   SEOProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
-vi.mock("../providers/CommonProviders", () => ({
-  CommonProviders: ({ children }: { children: ReactNode }) => <>{children}</>,
-}));
 vi.mock("../providers/ProtectedProviders", () => ({
   ProtectedProviders: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
@@ -79,9 +76,6 @@ vi.mock("../contexts/ProjectContext", () => ({
     selectedItem: state.project.selectedItem,
     setSelectedItem: state.project.setSelectedItem,
   }),
-}));
-vi.mock("../lib/onboardingPersona", () => ({
-  shouldRequirePersonaOnboarding: () => false,
 }));
 vi.mock("../lib/onboardingPersonaApi", async () => {
   const actual = await vi.importActual<typeof import("../lib/onboardingPersonaApi")>("../lib/onboardingPersonaApi");

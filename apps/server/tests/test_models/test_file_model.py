@@ -18,7 +18,6 @@ from models.file_model import (
     FILE_TYPE_DRAFT,
     FILE_TYPE_FOLDER,
     FILE_TYPE_LORE,
-    FILE_TYPE_METADATA_SCHEMA,
     FILE_TYPE_OUTLINE,
     FILE_TYPE_SCRIPT,
     FILE_TYPE_SNIPPET,
@@ -37,21 +36,6 @@ def test_file_type_constants():
     assert FILE_TYPE_SNIPPET == "snippet"
     assert FILE_TYPE_SCRIPT == "script"
     assert FILE_TYPE_FOLDER == "folder"
-
-
-@pytest.mark.unit
-def test_file_metadata_schema():
-    """Test that FILE_TYPE_METADATA_SCHEMA is properly defined."""
-    assert isinstance(FILE_TYPE_METADATA_SCHEMA, dict)
-    assert FILE_TYPE_OUTLINE in FILE_TYPE_METADATA_SCHEMA
-    assert FILE_TYPE_DRAFT in FILE_TYPE_METADATA_SCHEMA
-    assert FILE_TYPE_CHARACTER in FILE_TYPE_METADATA_SCHEMA
-    assert FILE_TYPE_LORE in FILE_TYPE_METADATA_SCHEMA
-
-    # Check schema structure
-    outline_schema = FILE_TYPE_METADATA_SCHEMA[FILE_TYPE_OUTLINE]
-    assert "description" in outline_schema
-    assert "optional_fields" in outline_schema
 
 
 @pytest.mark.unit
@@ -230,7 +214,7 @@ def test_file_snippet_type(db_session: Session):
     db_session.refresh(file)
 
     assert file.file_type == FILE_TYPE_SNIPPET
-    assert file.get_metadata_field("source") == "inspiration"
+    assert file.get_metadata()["source"] == "inspiration"
 
 
 @pytest.mark.unit
@@ -433,72 +417,6 @@ def test_file_metadata_json_serialization(db_session: Session):
 
 
 @pytest.mark.unit
-def test_file_metadata_get_field(db_session: Session):
-    """Test File get_metadata_field method."""
-    user = User(username="testuser", email="test@example.com", hashed_password="pass")
-    db_session.add(user)
-    db_session.commit()
-
-    project = Project(name="Test Novel", owner_id=user.id)
-    db_session.add(project)
-    db_session.commit()
-    db_session.refresh(project)
-
-    file = File(
-        project_id=project.id,
-        title="Character",
-        file_type=FILE_TYPE_CHARACTER
-    )
-    file.set_metadata({
-        "age": 25,
-        "name": "Hero"
-    })
-
-    db_session.add(file)
-    db_session.commit()
-
-    # Test get_metadata_field
-    assert file.get_metadata_field("age") == 25
-    assert file.get_metadata_field("name") == "Hero"
-    assert file.get_metadata_field("nonexistent") is None
-    assert file.get_metadata_field("nonexistent", default="N/A") == "N/A"
-
-
-@pytest.mark.unit
-def test_file_metadata_set_field(db_session: Session):
-    """Test File set_metadata_field method."""
-    user = User(username="testuser", email="test@example.com", hashed_password="pass")
-    db_session.add(user)
-    db_session.commit()
-
-    project = Project(name="Test Novel", owner_id=user.id)
-    db_session.add(project)
-    db_session.commit()
-    db_session.refresh(project)
-
-    file = File(
-        project_id=project.id,
-        title="Character",
-        file_type=FILE_TYPE_CHARACTER
-    )
-    file.set_metadata({"age": 25})
-
-    db_session.add(file)
-    db_session.commit()
-    db_session.refresh(file)
-
-    # Update single field
-    file.set_metadata_field("age", 26)
-    file.set_metadata_field("name", "Hero")
-    db_session.commit()
-    db_session.refresh(file)
-
-    metadata = file.get_metadata()
-    assert metadata["age"] == 26
-    assert metadata["name"] == "Hero"
-
-
-@pytest.mark.unit
 def test_file_metadata_invalid_json():
     """Test File metadata handling with invalid JSON."""
     file = File(
@@ -541,9 +459,6 @@ def test_file_metadata_none(db_session: Session):
     metadata = file.get_metadata()
     assert metadata == {}
 
-    # get_metadata_field should return default
-    assert file.get_metadata_field("test", default="default") == "default"
-
 
 @pytest.mark.unit
 def test_draft_word_count_follows_every_content_write(db_session: Session):
@@ -568,7 +483,7 @@ def test_draft_word_count_follows_every_content_write(db_session: Session):
     db_session.refresh(draft)
 
     assert cached_word_count(draft.file_metadata) == 14
-    assert draft.get_metadata_field("chapter_number") == 1
+    assert draft.get_metadata()["chapter_number"] == 1
 
 
 @pytest.mark.unit

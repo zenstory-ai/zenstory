@@ -26,6 +26,7 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Download,
 } from "../components/icons";
 import { materialsApi } from "../lib/materialsApi";
 import { ApiError } from "../lib/apiClient";
@@ -67,7 +68,6 @@ type TreeItemType =
   | "character"
   | "story"
   | "worldview"
-  | "cheat"
   | "plot"
   | "storyline"
   | "relationship"
@@ -83,8 +83,6 @@ interface TreeItem {
   searchText?: string;
   /** Aggregate count from the material detail response; undefined means unknown. */
   count?: number;
-  /** Folder whose decomposition stage was not enabled and that has no data: muted, not expandable. */
-  disabled?: boolean;
 }
 
 const ITEM_FOLDERS: Partial<Record<TreeItemType, string>> = {
@@ -180,6 +178,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   });
   const queryClient = useQueryClient();
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   // Retrying charges a monthly breakdown: a free-trial author can only get 402.
   const { data: subscriptionStatus } = useQuery({
     queryKey: subscriptionQueryKeys.status(),
@@ -209,6 +208,23 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       toast.error(handleApiError(err));
     } finally {
       setIsRetrying(false);
+    }
+  };
+
+  const handleExport = async () => {
+    if (!novelId || !material) return;
+    setIsExporting(true);
+    try {
+      await materialsApi.exportBreakdown(novelId, material.title);
+      toast.success(
+        t("materials:export.success", {
+          defaultValue: "拆解结果已导出为 TXT 文件",
+        }),
+      );
+    } catch (err) {
+      toast.error(handleApiError(err));
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -426,10 +442,6 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
           story.core_conflict,
           parseThemes(story.themes),
         ]),
-        metadata: {
-          description: story.synopsis,
-          plot_type: story.story_type,
-        },
       })),
     });
 
@@ -577,7 +589,6 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   };
 
   const handleItemClick = (item: TreeItem) => {
-    if (item.disabled) return;
     if (item.type === "folder") {
       toggleFolder(item.id);
     } else {
@@ -699,14 +710,27 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
               </p>
             </div>
           </div>
-          {!(isMobile && showMobileContent) && (
-            <DashboardSearchBar
-              value={searchQuery}
-              onChange={handleSearchChange}
-              placeholder={t("materials:detail.searchPlaceholder")}
-              className={isMobile ? "w-full" : "w-56 shrink-0 lg:w-64"}
-            />
-          )}
+          <div className={`flex items-center gap-2 ${isMobile ? "w-full" : "shrink-0"}`}>
+            {!(isMobile && showMobileContent) && (
+              <DashboardSearchBar
+                value={searchQuery}
+                onChange={handleSearchChange}
+                placeholder={t("materials:detail.searchPlaceholder")}
+                className={isMobile ? "min-w-0 flex-1" : "w-56 shrink-0 lg:w-64"}
+              />
+            )}
+            <Button
+              variant="secondary"
+              size={isMobile ? "touch" : "md"}
+              onClick={() => void handleExport()}
+              isLoading={isExporting}
+              disabled={isActiveMaterialStatus(material.status)}
+              leftIcon={<Download className="h-4 w-4" />}
+              className={isMobile && showMobileContent ? "w-full" : "shrink-0"}
+            >
+              {t("materials:export.button", { defaultValue: "导出拆解（TXT）" })}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -854,8 +878,6 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
         return <Sparkles className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
       case "worldview":
         return <Globe className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
-      case "cheat":
-        return <Zap className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
       case "plot":
         return <File className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
       case "storyline":
@@ -872,8 +894,7 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
   return (
     <div className="space-y-1">
       {items.map((item) => {
-        const isDisabled = Boolean(item.disabled);
-        const isExpanded = !isDisabled && (searchActive || expandedFolders.has(item.id));
+        const isExpanded = searchActive || expandedFolders.has(item.id);
         const isSelected = selectedKey === treeItemKey(item);
         const hasChildren = item.children && item.children.length > 0;
 
@@ -882,22 +903,17 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
             <button
               id={item.type === "folder" ? `material-folder-${item.id}` : undefined}
               onClick={() => onItemClick(item)}
-              disabled={isDisabled}
-              aria-disabled={isDisabled || undefined}
               aria-expanded={item.type === "folder" ? isExpanded : undefined}
               aria-current={isSelected ? "true" : undefined}
               title={item.title}
               className={`w-full flex items-center gap-2 px-2 py-2 min-h-10 max-md:min-h-11 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] ${
-                isDisabled
-                  ? "cursor-not-allowed text-[hsl(var(--text-tertiary))]"
-                  : isSelected
+                isSelected
                   ? "bg-[hsl(var(--accent-primary)/0.08)] text-[hsl(var(--accent-primary))]"
                   : "hover:bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] active:bg-[hsl(var(--bg-hover))]"
               }`}
               style={{ paddingLeft: `${level * 12 + 8}px` }}
             >
-              {item.type === "folder" && isDisabled && <span className="shrink-0 w-3.5" />}
-              {item.type === "folder" && !isDisabled && (
+              {item.type === "folder" && (
                 <span className="shrink-0">
                   {isExpanded ? (
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -908,11 +924,6 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
               )}
               <span className="shrink-0">{getIcon(item.type, isExpanded)}</span>
               <span className="truncate flex-1 text-left">{item.title}</span>
-              {isDisabled && (
-                <span className="shrink-0 text-xs text-[hsl(var(--text-tertiary))]">
-                  {t("materials:detail.notEnabled")}
-                </span>
-              )}
               {item.type === "folder" && loadingStates[item.id] && (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[hsl(var(--accent-primary))]" />
               )}
@@ -1073,15 +1084,6 @@ function ContentDetail({ item }: ContentDetailProps) {
 
   if (item.type === "story") {
     const story = item.data as MaterialStory;
-    const parseThemes = (themes: string | null | undefined): string[] => {
-      if (!themes) return [];
-      try {
-        const parsed = JSON.parse(themes);
-        return Array.isArray(parsed) ? parsed : [themes];
-      } catch {
-        return themes.split(',').map(theme => theme.trim()).filter(Boolean);
-      }
-    };
     const themes = parseThemes(story.themes);
     return (
       <article className="material-detail material-analysis" aria-labelledby={titleId}>

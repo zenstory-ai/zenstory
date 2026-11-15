@@ -12,7 +12,23 @@ from prefect import get_run_logger
 from flows.database_session import get_db_session
 from flows.utils import call_material_llm, get_material_llm_client
 from flows.utils.decorators import api_task, database_task
+from flows.utils.helpers.exceptions import LLMNonRetryableError, ValidationError, is_llm_fatal_stop
 from prompts import create_orphan_assignment_prompt
+
+
+def _parse_characters_json(raw: Any) -> list[str]:
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, str)]
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, str)]
+    return []
 
 
 @database_task(name="handle_orphan_plots", retries=2)
@@ -48,10 +64,10 @@ def handle_orphan_plots_task(
             {
                 "id": p.id,
                 "chapter_id": p.chapter_id,
-                "index": getattr(p, "index", None),
-                "plot_type": getattr(p, "plot_type", None),
-                "description": getattr(p, "description", None),
-                "characters": getattr(p, "characters", []) or [],
+                "index": p.index,
+                "plot_type": p.plot_type,
+                "description": p.description,
+                "characters": _parse_characters_json(p.characters),
             }
             for p in all_plots
         ]
@@ -86,7 +102,7 @@ def handle_orphan_plots_task(
         return {
             "orphan_count": 0,
             "assigned_count": 0,
-            "new_stories_count": 0,
+            "unassigned_count": 0,
             "orphan_ratio": 0,
         }
 
@@ -97,7 +113,7 @@ def handle_orphan_plots_task(
         return {
             "orphan_count": len(orphan_plot_ids),
             "assigned_count": 0,
-            "new_stories_count": 0,
+            "unassigned_count": len(orphan_plot_ids),
             "orphan_ratio": orphan_ratio,
             "skipped": True,
         }
@@ -172,8 +188,11 @@ def assign_orphans_with_llm_task(
             )
             total_assigned += result["assigned_count"]
             total_unassigned += result["unassigned_count"]
-        except Exception as e:
-            logger.error(f"❌ 批次 {batch_num} 处理失败: {e}")
+        except (LLMNonRetryableError, ValidationError, ValueError) as e:
+            if is_llm_fatal_stop(e):
+                raise
+            logger.error(f"❌ 批次 {batch_num} 失败，跳过该批次: {e}")
+            total_unassigned += len(batch_ids)
 
     logger.info(
         f"✅ 所有批次处理完成: "
@@ -231,7 +250,7 @@ def _assign_single_batch_task(
             "id": p.get("id"),
             "chapter_id": p.get("chapter_id"),
             "description": desc,
-            "characters": p.get("characters", []),
+            "characters": _parse_characters_json(p.get("characters")),
         })
 
     # 2. 准备现有剧情数据（精简版：移除sample_plots）
@@ -248,7 +267,7 @@ def _assign_single_batch_task(
         core_characters = set()
         for p in all_plots:
             if p.get("id") in story_plot_ids:
-                core_characters.update(p.get("characters", []))
+                core_characters.update(_parse_characters_json(p.get("characters")))
 
         # 计算章节范围
         chapter_ids = set()
@@ -400,11 +419,12 @@ def _execute_assignments(
                 continue
 
             try:
-                StoryPlotsService().link_plot_to_story(
-                    db,
-                    story_id=story_id,
-                    plot_id=plot_id,
-                )
+                with db.begin_nested():
+                    StoryPlotsService().link_plot_to_story(
+                        db,
+                        story_id=story_id,
+                        plot_id=plot_id,
+                    )
                 existing_pairs.add((story_id, plot_id))
                 assigned_count += 1
                 affected_story_ids.add(story_id)
@@ -432,7 +452,6 @@ def _execute_assignments(
                 link = db.get(StoryPlotLink, row.id)
                 if link:
                     link.order_index = new_idx
-        db.commit()
 
     return assigned_count
 

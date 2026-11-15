@@ -5,6 +5,8 @@
 """
 
 
+from .aliases import normalize_alias
+
 # 通用称呼黑名单（这些称呼缺乏唯一性，不能作为别名或实体）
 GENERIC_TITLES: set[str] = {
     # 亲属关系
@@ -123,57 +125,82 @@ def filter_character_data(characters_data: list, logger=None) -> list:
     filtered_characters = []
 
     for char in characters_data:
-        char_name = (char.get("name") or "").strip()
+        raw_char_name = (char.get("name") or "").strip()
+        char_name = normalize_alias(raw_char_name) if not is_generic_title(raw_char_name) else raw_char_name
 
         # 过滤无效的主名
         if not is_valid_character_name(char_name):
             if logger:
                 logger.warning(
-                    f"[人物过滤] 删除无效人物: name='{char_name}' "
+                    f"[人物过滤] 删除无效人物: name='{raw_char_name}' "
                     f"(原因: {'长度不足' if len(char_name) < 2 else '通用称呼'})"
                 )
             continue
 
-        # 过滤别名
+        char["name"] = char_name
+
+        # 过滤并规范化别名
         raw_aliases = char.get("aliases", []) or []
-        valid_aliases = []
+        valid_aliases: list[str] = []
+        seen_aliases: set[str] = set()
         rejected_count = 0
 
         if raw_aliases and isinstance(raw_aliases, list):
             for alias_item in raw_aliases:
                 if isinstance(alias_item, dict):
-                    alias = (alias_item.get("alias") or "").strip()
+                    raw_alias = (alias_item.get("alias") or "").strip()
                 elif isinstance(alias_item, str):
-                    alias = alias_item.strip()
+                    raw_alias = alias_item.strip()
                 else:
                     continue
 
-                # 检查别名有效性
-                if not is_valid_character_name(alias, min_length=1) and is_generic_title(alias):
-                    # 别名允许单字（如"雷"），但不允许通用称呼
+                if is_generic_title(raw_alias):
                     if logger:
                         logger.debug(
-                            f"[别名过滤] 角色 '{char_name}': 删除通用称呼别名 '{alias}'"
+                            f"[别名过滤] 角色 '{char_name}': 删除通用称呼别名 '{raw_alias}'"
+                        )
+                    rejected_count += 1
+                    continue
+
+                alias = normalize_alias(raw_alias)
+
+                # 检查别名有效性
+                if not is_valid_character_name(alias, min_length=1):
+                    # 别名允许单字（如"雷"），但不允许通用称呼或空字符串
+                    if logger:
+                        logger.debug(
+                            f"[别名过滤] 角色 '{char_name}': 删除通用称呼别名 '{raw_alias}'"
                         )
                     rejected_count += 1
                     continue
 
                 # 检查单字别名（需要更严格的判断）
-                if len(alias) == 1 and isinstance(alias_item, dict):
-                    # 单字别名风险较高，仅在 confidence 很高时保留
-                    confidence = alias_item.get("confidence", 0.0)
-                    alias_type = alias_item.get("alias_type", "")
+                if len(alias) == 1:
+                    if isinstance(alias_item, dict):
+                        confidence = alias_item.get("confidence", 0.0)
+                        alias_type = alias_item.get("alias_type", "")
 
-                    # 单字别名必须是 nickname 且 confidence >= 0.95
-                    if (alias_type != "nickname" or confidence < 0.95) and logger:
-                        logger.debug(
-                            f"[别名过滤] 角色 '{char_name}': 删除低置信度单字别名 '{alias}' "
-                            f"(type={alias_type}, confidence={confidence})"
-                        )
+                        # 单字别名必须是 nickname 且 confidence >= 0.95
+                        if alias_type != "nickname" or confidence < 0.95:
+                            if logger:
+                                logger.debug(
+                                    f"[别名过滤] 角色 '{char_name}': 删除低置信度单字别名 '{alias}' "
+                                    f"(type={alias_type}, confidence={confidence})"
+                                )
+                            rejected_count += 1
+                            continue
+                    else:
+                        # 纯字符串单字别名无置信度依据，避免误匹配风险
+                        if logger:
+                            logger.debug(
+                                f"[别名过滤] 角色 '{char_name}': 删除单字别名 '{alias}'"
+                            )
                         rejected_count += 1
                         continue
 
-                valid_aliases.append(alias_item)
+                if alias not in seen_aliases:
+                    valid_aliases.append(alias)
+                    seen_aliases.add(alias)
 
         # 更新别名列表
         char["aliases"] = valid_aliases

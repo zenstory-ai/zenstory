@@ -87,7 +87,6 @@ class TestSteeringMessage:
         assert msg.id == "steer-123"
         assert msg.content == "Change direction"
         assert msg.processed is False
-        assert msg.processed_at is None
 
     def test_message_processed(self):
         """Test marking message as processed."""
@@ -97,9 +96,7 @@ class TestSteeringMessage:
             created_at=datetime.now(),
         )
         msg.processed = True
-        msg.processed_at = datetime.now()
         assert msg.processed is True
-        assert msg.processed_at is not None
 
 
 @pytest.mark.asyncio
@@ -131,6 +128,7 @@ class TestSteeringQueue:
         messages = await queue.get_pending()
         assert len(messages) == 2
         assert all(m.processed for m in messages)
+        assert len(queue._messages) == 0
 
         # Second call should return empty (all processed)
         messages2 = await queue.get_pending()
@@ -267,10 +265,8 @@ class TestSteeringIntegration:
         to_process = await queue.get_pending()
         assert len(to_process) == 1
         assert to_process[0].content == "Focus on the main character"
-
-        # Mark processed (simulated)
-        to_process[0].processed = True
-        to_process[0].processed_at = datetime.now()
+        assert to_process[0].processed is True
+        assert len(queue._messages) == 0
 
         # Verify no more pending
         remaining = await queue.get_pending()
@@ -308,7 +304,6 @@ class TestSteeringIntegration:
         msg = await queue.add("Test lifecycle")
         assert msg.processed is False
         assert msg.created_at is not None
-        assert msg.processed_at is None
 
         # Process
         pending = await queue.get_pending()
@@ -316,8 +311,7 @@ class TestSteeringIntegration:
         processed_msg = pending[0]
 
         assert processed_msg.processed is True
-        assert processed_msg.processed_at is not None
-        assert processed_msg.processed_at >= processed_msg.created_at
+        assert len(queue._messages) == 0
 
     async def test_get_queue_for_user_authorized(self):
         """Test owned steering queue can be retrieved by owner."""

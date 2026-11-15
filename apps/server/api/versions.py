@@ -12,14 +12,18 @@ from typing import Literal, cast
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict
 from services.auth import get_current_active_user
-from services.file_version import get_file_version_service
+from services.file_version import (
+    FileLookupNotFoundError,
+    VersionNotFoundError,
+    get_file_version_service,
+)
 from sqlalchemy.orm import InstrumentedAttribute, defer
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
-from models import File, FileVersion, Project, User
+from models import File, Project, User
 from models.file_version import CHANGE_SOURCE_USER
 from utils.logger import get_logger, log_with_context
 
@@ -374,30 +378,27 @@ def get_version_content(
 
     service = get_file_version_service()
 
+    version = service.get_version_by_number(session, file_id, version_number)
+    if not version:
+        raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404)
+
     try:
         content = service.get_content_at_version(session, file_id, version_number)
-
-        # Get target version metadata directly (avoid pagination limits).
-        version = session.exec(
-            select(FileVersion).where(
-                FileVersion.file_id == file_id,
-                FileVersion.version_number == version_number,
-            )
-        ).first()
-
-        if not version:
-            raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404)
-
-        return VersionContentResponse(
-            file_id=file_id,
-            version_number=version_number,
-            content=content,
-            word_count=version.word_count,
-            char_count=version.char_count,
-            created_at=version.created_at.isoformat(),
+    except Exception as e:
+        logger.exception(
+            "Failed to reconstruct file version content",
+            extra={"file_id": file_id, "version_number": version_number},
         )
-    except ValueError as e:
-        raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404, detail=str(e)) from e
+        raise APIException(error_code=ErrorCode.INTERNAL_SERVER_ERROR, status_code=500) from e
+
+    return VersionContentResponse(
+        file_id=file_id,
+        version_number=version_number,
+        content=content,
+        word_count=version.word_count,
+        char_count=version.char_count,
+        created_at=version.created_at.isoformat(),
+    )
 
 
 @router.get(
@@ -424,8 +425,14 @@ def compare_versions(
     try:
         comparison = service.compare_versions(session, file_id, v1, v2)
         return VersionComparisonResponse(**comparison)
-    except ValueError as e:
-        raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404, detail=str(e)) from e
+    except VersionNotFoundError:
+        raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404) from None
+    except Exception as e:
+        logger.exception(
+            "Failed to compare file versions",
+            extra={"file_id": file_id, "v1": v1, "v2": v2},
+        )
+        raise APIException(error_code=ErrorCode.INTERNAL_SERVER_ERROR, status_code=500) from e
 
 
 @router.post("/files/{file_id}/versions/{version_number}/rollback", response_model=RollbackResponse)
@@ -488,8 +495,22 @@ def rollback_to_version(
             version_quota_exceeded=version_quota_exceeded,
             undo_recorded=undo_recorded,
         )
-    except ValueError as e:
-        raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404, detail=str(e)) from e
+    except APIException:
+        session.rollback()
+        raise
+    except FileLookupNotFoundError:
+        session.rollback()
+        raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404) from None
+    except VersionNotFoundError:
+        session.rollback()
+        raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404) from None
+    except Exception as e:
+        session.rollback()
+        logger.exception(
+            "Unexpected error rolling back file version",
+            extra={"file_id": file_id, "version_number": version_number},
+        )
+        raise APIException(error_code=ErrorCode.INTERNAL_SERVER_ERROR, status_code=500) from e
 
 
 @router.get("/files/{file_id}/versions/latest", response_model=FileVersionResponse)

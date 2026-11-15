@@ -149,6 +149,10 @@
     "checkoutUnavailable": "Online payment isn't available right now. If you have a redeem code, choose “Redeem a code” to activate Pro."
   },
   "retrySuccess": "Breakdown restarted",
+  "export": {
+    "button": "Export breakdown (TXT)",
+    "success": "Breakdown exported as TXT"
+  },
   "toast": {
     "loadListFailed": "Couldn't load. Please retry.",
     "importSuccess": "Added to your project",

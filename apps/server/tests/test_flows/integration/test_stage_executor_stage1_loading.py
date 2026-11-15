@@ -31,10 +31,13 @@ class TestLoadStage1Result:
         monkeypatch.setattr(se_mod, "ProgressPublisher", _DummyPublisher)
 
         cp = MagicMock()
-        cp.get_checkpoint.side_effect = [
-            SimpleNamespace(checkpoint_data={"summaries_count": 2, "plots_count": 6}),
-            SimpleNamespace(checkpoint_data={"mentions_extracted": True}),
-        ]
+        cp.get_checkpoint.return_value = SimpleNamespace(
+            checkpoint_data={
+                "summaries_count": 2,
+                "plots_count": 6,
+                "mentions_extracted": True,
+            }
+        )
 
         executor = se_mod.StageExecutor(novel_id=1, chapter_ids=[1], checkpoint_manager=cp, correlation_id=None)
         result = executor._load_stage1_result()
@@ -42,13 +45,14 @@ class TestLoadStage1Result:
         assert result["summaries_count"] == 2
         assert result["plots_count"] == 6
         assert result["mentions_extracted"] is True
+        cp.get_checkpoint.assert_called_once_with("stage1")
 
     def test_loads_from_stats_service_when_checkpoint_missing(self, monkeypatch):
         monkeypatch.setattr(se_mod, "get_run_logger", lambda: MagicMock())
         monkeypatch.setattr(se_mod, "ProgressPublisher", _DummyPublisher)
 
         cp = MagicMock()
-        cp.get_checkpoint.side_effect = [None, None]
+        cp.get_checkpoint.return_value = None
 
         import services.material.stats_service as stats_mod
 
@@ -65,3 +69,4 @@ class TestLoadStage1Result:
         assert result["summaries_count"] == 3
         assert result["plots_count"] == 9
         assert result["mentions_extracted"] is False
+        cp.get_checkpoint.assert_called_once_with("stage1")

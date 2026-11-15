@@ -51,7 +51,7 @@ def test_backfill_stamps_an_untouched_stale_cache(db_session: Session):
     assert counts == {draft.id: 6}
     stored = _stored(draft.id)
     assert cached_word_count(stored.file_metadata) == 6
-    assert stored.get_metadata_field("chapter_number") == 1
+    assert stored.get_metadata().get("chapter_number") == 1
 
 
 @pytest.mark.unit
@@ -117,4 +117,4 @@ def test_backfill_does_not_overwrite_a_save_that_lands_between_read_and_write_ba
     assert stored.content == "山风吹过断崖，他回头看了一眼 village。"
     # The concurrent save's own stamp and its other metadata survive.
     assert cached_word_count(stored.file_metadata) == 14
-    assert stored.get_metadata_field("word_count_target") == 3000
+    assert stored.get_metadata().get("word_count_target") == 3000

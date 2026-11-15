@@ -1,8 +1,5 @@
 """Shared utilities for formatting material entities to markdown."""
 
-import json
-from typing import Any
-
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
@@ -13,6 +10,12 @@ from models.material_models import (
     Story,
     StoryLine,
     WorldView,
+)
+from services.material.export_service import (
+    enum_label as _enum_label,
+)
+from services.material.export_service import (
+    parse_json_list as _safe_json_parse,
 )
 
 # Heading/label text per language. Keep "zh" the default: the agent context
@@ -74,95 +77,13 @@ _TEXT: dict[str, dict[str, str]] = {
     },
 }
 
-# Enum value -> (zh, en) label. The story/relationship/golden-finger tables mirror
-# the "enums" block of apps/web/public/locales/{zh,en}/materials.json; keep them in sync.
-_ENUM_LABELS: dict[str, dict[str, tuple[str, str]]] = {
-    "story_type": {
-        "main": ("主线", "Main plot"),
-        "romance": ("感情线", "Romance"),
-        "growth": ("成长线", "Growth"),
-        "revenge": ("复仇线", "Revenge"),
-        "treasure": ("夺宝线", "Treasure hunt"),
-        "conflict": ("冲突线", "Conflict"),
-        "mystery": ("悬疑线", "Mystery"),
-        "cultivation": ("修炼线", "Cultivation"),
-        "daily": ("日常线", "Daily life"),
-        "battle": ("战斗线", "Battle"),
-        "exploration": ("探索线", "Exploration"),
-        "crisis": ("危机线", "Crisis"),
-        "other": ("其他", "Other"),
-    },
-    "relationship_type": {
-        "family": ("亲人", "Family"),
-        "master_disciple": ("师徒", "Mentor & disciple"),
-        "friend": ("朋友", "Friends"),
-        "enemy": ("敌对", "Enemies"),
-        "lover": ("恋人", "Lovers"),
-        "colleague": ("同事", "Colleagues"),
-        "superior_subordinate": ("上下级", "Superior & subordinate"),
-        "business": ("合作", "Business"),
-        "mentor": ("师徒", "Mentor & disciple"),
-        "ally": ("盟友", "Allies"),
-        "other": ("其他", "Other"),
-    },
-    "golden_finger_type": {
-        "system": ("系统", "System"),
-        "space": ("随身空间", "Pocket space"),
-        "rebirth": ("重生", "Rebirth"),
-        "transmigration": ("穿越", "Transmigration"),
-        "special_physique": ("特殊体质", "Special physique"),
-        "special_ability": ("特殊能力", "Special ability"),
-        "artifact": ("法宝", "Artifact"),
-        "bloodline": ("血脉", "Bloodline"),
-        "other": ("其他", "Other"),
-    },
-    # Values written by the ingestion flows (character_tasks_v2 / relationship validator).
-    "archetype": {
-        "protagonist": ("主角", "Protagonist"),
-        "antagonist": ("反派", "Antagonist"),
-        "supporting": ("配角", "Supporting"),
-        "minor": ("次要角色", "Minor"),
-    },
-    "sentiment": {
-        "positive": ("正面", "Positive"),
-        "negative": ("负面", "Negative"),
-        "neutral": ("中立", "Neutral"),
-        "complex": ("复杂", "Complex"),
-    },
-}
-
-
 def _text(lang: str) -> dict[str, str]:
     return _TEXT["en"] if lang == "en" else _TEXT["zh"]
-
-
-def _enum_label(kind: str, value: str | None, lang: str) -> str:
-    """Label an extracted enum value; unknown English values become "other", Chinese pass through."""
-    text = _text(lang)
-    if not value or not value.strip():
-        return text["unknown"]
-    labels = _ENUM_LABELS[kind].get(value.strip().lower())
-    if labels:
-        return labels[1] if lang == "en" else labels[0]
-    if value.isascii():
-        return text["other"]
-    return value
 
 
 def _source_line(novel_title: str, lang: str) -> str:
     quoted = f"*{novel_title}*" if lang == "en" else f"《{novel_title}》"
     return f"---\n> {_text(lang)['source']}: {quoted}\n"
-
-
-def _safe_json_parse(json_str: str | None) -> list[Any]:
-    """Safely parse JSON string, returning empty list on failure."""
-    if not json_str:
-        return []
-    try:
-        parsed = json.loads(json_str)
-        return parsed if isinstance(parsed, list) else []
-    except json.JSONDecodeError:
-        return []
 
 
 def format_character_to_markdown(

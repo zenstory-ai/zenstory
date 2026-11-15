@@ -10,7 +10,7 @@ import type { ProjectType } from "../types";
 export const PREFERRED_PROJECT_TYPE_STORAGE_KEY = "zenstory_preferred_project_type";
 export const PREFERRED_PROJECT_TYPE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const PREFERABLE_PROJECT_TYPES: readonly ProjectType[] = ["novel", "short", "screenplay"];
+export const PREFERABLE_PROJECT_TYPES: readonly ProjectType[] = ["novel", "short", "screenplay"];
 
 interface StoredPreferredProjectType {
   type: ProjectType;

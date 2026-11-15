@@ -21,11 +21,6 @@ class PermissionError(Exception):
     pass
 
 
-class UnauthorizedError(PermissionError):
-    """User is not authorized."""
-    pass
-
-
 class ForbiddenError(PermissionError):
     """User does not have permission."""
     pass
@@ -179,63 +174,3 @@ def check_file_access_in_tool_context(
     except NotFoundError as e:
         # 与按 id 加载失败共用同一条用户可见文案（真实原因已在权限层日志中）
         raise NotFoundError("文件不存在或已删除") from e
-
-
-class PermissionContext:
-    """
-    Context manager for checking permissions with automatic cleanup.
-    """
-
-    def __init__(
-        self,
-        session: Session,
-        project_id: str,
-        user_id: str | None = None,
-    ):
-        """
-        Initialize permission context.
-
-        Args:
-            session: Database session
-            project_id: Project ID
-            user_id: User ID
-        """
-        self.session = session
-        self.project_id = project_id
-        self.user_id = user_id
-        self._project = None
-
-    def __enter__(self):
-        """Check permissions on enter."""
-        self._project = check_project_ownership(
-            self.session,
-            self.project_id,
-            self.user_id,
-        )
-        return self._project
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Cleanup on exit."""
-        pass
-
-
-def format_permission_error(error: PermissionError) -> str:
-    """
-    Format a permission error for AI response.
-
-    Args:
-        error: The permission error
-
-    Returns:
-        User-friendly error message
-    """
-    if isinstance(error, NotFoundError):
-        return f"错误：找不到请求的资源。{str(error)}"
-
-    if isinstance(error, ForbiddenError):
-        return f"错误：您没有权限执行此操作。{str(error)}"
-
-    if isinstance(error, UnauthorizedError):
-        return f"错误：未授权。请先登录。{str(error)}"
-
-    return f"权限错误：{str(error)}"

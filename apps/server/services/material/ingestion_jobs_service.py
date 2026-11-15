@@ -148,19 +148,6 @@ class IngestionJobsService:
             return None
         return job
 
-    def update_status(self, session: Session, job_id: int, status: str) -> None:
-        """Update job status."""
-        job = self._lock_running_job(session, job_id)
-        if job:
-            job.status = status
-            if status == "processing" and job.started_at is None:
-                job.started_at = utcnow()
-            if status in {"completed", "completed_with_errors", "failed"}:
-                job.completed_at = utcnow()
-            job.updated_at = utcnow()
-            session.add(job)
-            session.flush()
-
     def update_processed(
         self,
         session: Session,
@@ -201,25 +188,6 @@ class IngestionJobsService:
         if error_details:
             job.error_details = json.dumps(error_details, ensure_ascii=False)
 
-        job.updated_at = utcnow()
-        session.add(job)
-        session.flush()
-
-    def update_stage_progress(
-        self,
-        session: Session,
-        job_id: int,
-        stage: str,
-        status: str,
-        **stage_payload: Any,
-    ) -> None:
-        """Update only stage progress payload for the job."""
-        job = self._lock_running_job(session, job_id)
-        if not job:
-            return
-        if status == "processing" and job.started_at is None:
-            job.started_at = utcnow()
-        job.update_stage_progress(stage, status, **stage_payload)
         job.updated_at = utcnow()
         session.add(job)
         session.flush()

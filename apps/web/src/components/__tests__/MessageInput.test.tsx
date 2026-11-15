@@ -341,7 +341,6 @@ describe('MessageInput', () => {
       <MessageInput
         {...defaultProps}
         aiSuggestions={[]}
-        messageCount={0}
         suggestionDisplayState="fallback"
       />
     )
@@ -896,6 +895,37 @@ describe('MessageInput', () => {
 
       expect(onSteer).not.toHaveBeenCalled()
     })
+  })
+
+  it('shows retryable error state instead of noResults when skill list fails to load', async () => {
+    vi.mocked(skillsApi.list)
+      .mockRejectedValueOnce(new Error('500'))
+      .mockResolvedValueOnce({
+        skills: [
+          {
+            id: 's1',
+            name: '节拍规划',
+            description: 'desc',
+            triggers: ['beat'],
+            instructions: 'inst',
+            is_active: true,
+            is_builtin: true,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+        ],
+        total: 1,
+      })
+
+    const user = userEvent.setup({ delay: null })
+    render(<MessageInput {...defaultProps} />)
+
+    await user.type(screen.getByPlaceholderText('chat:input.placeholder'), '/')
+    expect(await screen.findByText('chat:skill.loadFailed')).toBeInTheDocument()
+    expect(screen.queryByText('chat:skill.noResults')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'chat:skill.retry' }))
+    expect(await screen.findByText('节拍规划')).toBeInTheDocument()
   })
 })
 

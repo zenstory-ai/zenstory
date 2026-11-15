@@ -344,7 +344,7 @@ async def test_recognize_success_mocked(client: AsyncClient, db_session):
             assert data["success"] is True
             assert data["text"] == "你好世界"
             assert data["duration_ms"] == 2500
-            assert data["error"] is None
+            assert "error" not in data
 
 
 @pytest.mark.integration

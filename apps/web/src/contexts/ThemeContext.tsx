@@ -12,13 +12,13 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 // Default colors
-const ACCENT_COLORS: Record<string, { primary: string; dark: string; light: string }> = {
-  '#4a9eff': { primary: '217 91% 64%', dark: '217 91% 54%', light: '217 91% 74%' },
-  '#22c55e': { primary: '142 71% 45%', dark: '142 71% 35%', light: '142 71% 55%' },
-  '#fbbf24': { primary: '38 92% 50%', dark: '38 92% 40%', light: '38 92% 60%' },
-  '#f87171': { primary: '0 84% 60%', dark: '0 84% 50%', light: '0 84% 70%' },
-  '#ec4899': { primary: '330 81% 60%', dark: '330 81% 50%', light: '330 81% 70%' },
-  '#8b5cf6': { primary: '262 83% 64%', dark: '262 83% 54%', light: '262 83% 74%' },
+const ACCENT_COLORS: Record<string, { primary: string; light: string }> = {
+  '#4a9eff': { primary: '217 91% 64%', light: '217 91% 74%' },
+  '#22c55e': { primary: '142 71% 45%', light: '142 71% 55%' },
+  '#fbbf24': { primary: '38 92% 50%', light: '38 92% 60%' },
+  '#f87171': { primary: '0 84% 60%', light: '0 84% 70%' },
+  '#ec4899': { primary: '330 81% 60%', light: '330 81% 70%' },
+  '#8b5cf6': { primary: '262 83% 64%', light: '262 83% 74%' },
 };
 
 // Helper function to get initial theme from localStorage

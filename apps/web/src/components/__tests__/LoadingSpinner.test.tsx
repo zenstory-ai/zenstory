@@ -1,14 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { LoadingSpinner, PageLoader, InlineLoader } from '../LoadingSpinner'
-
-// Resolve only real keys (default namespace is `common`), so a wrong key path
-// shows up as the raw key instead of being masked by the inline fallback.
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => ({ 'common:loading': "加载中…" } as Record<string, string>)[key] ?? key,
-  }),
-}))
+import { LoadingSpinner } from '../LoadingSpinner'
 
 // Mock lucide-react
 vi.mock('lucide-react', () => ({
@@ -242,94 +234,5 @@ describe('LoadingSpinner', () => {
       const spinner = container.querySelector('.w-5.h-5')
       expect(spinner).toBeInTheDocument()
     })
-  })
-})
-
-describe('PageLoader', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('renders with default label', () => {
-    render(<PageLoader />)
-    expect(screen.getByText("加载中…")).toBeInTheDocument()
-  })
-
-  it('renders with custom label', () => {
-    render(<PageLoader label="Loading your workspace..." />)
-    expect(screen.getByText('Loading your workspace...')).toBeInTheDocument()
-  })
-
-  it('centers content on page', () => {
-    const { container } = render(<PageLoader />)
-    const wrapper = container.firstChild as HTMLElement
-    expect(wrapper.className).toContain('flex')
-    expect(wrapper.className).toContain('items-center')
-    expect(wrapper.className).toContain('justify-center')
-  })
-
-  it('has min-h-screen class', () => {
-    const { container } = render(<PageLoader />)
-    const wrapper = container.firstChild as HTMLElement
-    expect(wrapper.className).toContain('min-h-screen')
-  })
-
-  it('uses large spinner size', () => {
-    render(<PageLoader />)
-    const icon = screen.getByTestId('loader-icon')
-    expect(icon).toHaveAttribute('data-size', '32')
-  })
-
-  it('uses vertical layout', () => {
-    const { container } = render(<PageLoader label="Loading…" />)
-    const flexContainer = container.querySelector('.flex-col')
-    expect(flexContainer).toBeInTheDocument()
-  })
-
-  it('applies background color class', () => {
-    const { container } = render(<PageLoader />)
-    const wrapper = container.firstChild as HTMLElement
-    expect(wrapper.className).toContain('bg-[hsl(var(--bg-primary))]')
-  })
-})
-
-describe('InlineLoader', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('renders with default label', () => {
-    render(<InlineLoader />)
-    expect(screen.getByText("加载中…")).toBeInTheDocument()
-  })
-
-  it('renders with custom label', () => {
-    render(<InlineLoader label="Fetching data..." />)
-    expect(screen.getByText('Fetching data...')).toBeInTheDocument()
-  })
-
-  it('uses small spinner size', () => {
-    render(<InlineLoader />)
-    const icon = screen.getByTestId('loader-icon')
-    expect(icon).toHaveAttribute('data-size', '16')
-  })
-
-  it('applies horizontal layout with items-center', () => {
-    const { container } = render(<InlineLoader label="Loading…" />)
-    const wrapper = container.firstChild as HTMLElement
-    expect(wrapper.className).toContain('flex')
-    expect(wrapper.className).toContain('items-center')
-  })
-
-  it('applies padding classes', () => {
-    const { container } = render(<InlineLoader />)
-    const wrapper = container.firstChild as HTMLElement
-    expect(wrapper.className).toContain('py-8')
-  })
-
-  it('applies gap-2 class', () => {
-    const { container } = render(<InlineLoader />)
-    const wrapper = container.firstChild as HTMLElement
-    expect(wrapper.className).toContain('gap-2')
   })
 })

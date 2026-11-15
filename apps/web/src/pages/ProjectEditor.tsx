@@ -3,7 +3,6 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FirstWorkOpenTracker } from "../components/FirstWorkGuidance";
 import { Layout } from "../components/Layout";
-import { Sidebar } from "../components/sidebar/Sidebar";
 import { Editor } from "../components/Editor";
 import { ChatPanel } from "../components/ChatPanel";
 import { ErrorBoundary } from "../components/ErrorBoundary";
@@ -284,7 +283,6 @@ export default function ProjectEditor() {
     <>
     <FirstWorkOpenTracker userId={userId} projectId={isRouteProjectActive ? projectId ?? null : null} />
     <Layout
-      left={<Sidebar />}
       middle={(
         // ph-no-capture: manuscript text must never reach analytics capture.
         <ErrorBoundary area="editor" className="ph-no-capture">

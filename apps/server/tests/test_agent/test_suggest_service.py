@@ -1229,7 +1229,6 @@ class TestHelperMethods:
             system_prompt="You are a helpful assistant",
             context="项目上下文",
             recent_messages=[{"role": "user", "content": "Hello"}],
-            _count=3,
             language="zh",
         )
 
@@ -1244,7 +1243,6 @@ class TestHelperMethods:
             system_prompt="System",
             context="",
             recent_messages=[],
-            _count=3,
             language="zh",
         )
 
@@ -1254,7 +1252,7 @@ class TestHelperMethods:
         """英文界面的建议提示词要求英文输出；中文界面不变。"""
         from agent.suggest_service import ENGLISH_OUTPUT_RULE
 
-        kwargs = {"system_prompt": "System", "context": "", "recent_messages": [], "_count": 3}
+        kwargs = {"system_prompt": "System", "context": "", "recent_messages": []}
         assert suggest_service._build_prompt(**kwargs, language="en-US").endswith(ENGLISH_OUTPUT_RULE)
         assert ENGLISH_OUTPUT_RULE not in suggest_service._build_prompt(**kwargs, language="zh")
 

@@ -81,9 +81,7 @@ export function languageDetectionFor(userAgent: string) {
   };
 }
 
-export const languageDetection = languageDetectionFor(
-  typeof navigator === 'undefined' ? '' : navigator.userAgent,
-);
+export const languageDetection = languageDetectionFor(navigator.userAgent);
 
 export const languageOptions = {
   /** Default language when detection fails */

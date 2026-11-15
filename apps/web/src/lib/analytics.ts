@@ -50,14 +50,6 @@ declare global {
   }
 }
 
-function isBrowser(): boolean {
-  return typeof window !== "undefined";
-}
-
-export function isAnalyticsEnabled(env: AnalyticsEnv = import.meta.env): boolean {
-  return parseEnvBoolean(env.VITE_POSTHOG_ENABLED, false) && Boolean(env.VITE_POSTHOG_KEY?.trim());
-}
-
 export function getAnalyticsHost(env: AnalyticsEnv = import.meta.env): string {
   return env.VITE_POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST;
 }
@@ -89,8 +81,7 @@ export function sanitizeUrl(raw: string): string {
   if (!raw) return raw;
   try {
     const isRelative = raw.startsWith("/") && !raw.startsWith("//");
-    const base = isBrowser() ? window.location.origin : "http://localhost";
-    const url = new URL(raw, base);
+    const url = new URL(raw, window.location.origin);
     const path = `${url.pathname}${sanitizeSearch(url.search)}`;
     return isRelative ? path : `${url.origin}${path}`;
   } catch {
@@ -182,8 +173,6 @@ export function sanitizeCaptureResult(result: CaptureResult | null): CaptureResu
 }
 
 function getCommonProperties(): AnalyticsProperties {
-  if (!isBrowser()) return {};
-
   return {
     page_path: window.location.pathname,
     page_url: sanitizeUrl(window.location.href),
@@ -194,7 +183,6 @@ function getCommonProperties(): AnalyticsProperties {
 }
 
 function readOptOut(): boolean {
-  if (!isBrowser()) return false;
   try {
     return window.localStorage.getItem(ANALYTICS_OPT_OUT_STORAGE_KEY) === "true";
   } catch {
@@ -212,7 +200,6 @@ export function isAnalyticsOptedOut(): boolean {
  * browser; opting back in starts it again without a reload.
  */
 export function setAnalyticsOptOut(optOut: boolean): void {
-  if (!isBrowser()) return;
   try {
     if (optOut) {
       window.localStorage.setItem(ANALYTICS_OPT_OUT_STORAGE_KEY, "true");
@@ -245,7 +232,7 @@ function shouldSkipPageView(pageViewKey: string): boolean {
 }
 
 function setAnalyticsStatus(status: AnalyticsInitStatus): void {
-  if (isBrowser() && import.meta.env.DEV) {
+  if (import.meta.env.DEV) {
     window.__zenstoryAnalyticsStatus = status;
   }
 }
@@ -254,7 +241,6 @@ export function initAnalytics(
   env: AnalyticsEnv = import.meta.env,
   options: { ignoreOptOut?: boolean } = {},
 ): boolean {
-  if (!isBrowser()) return false;
   if (isInitialized) return true;
   lastInitEnv = env;
 
@@ -336,7 +322,7 @@ export function initAnalytics(
     hasKey: true,
     host: getAnalyticsHost(env),
   });
-  if (env.DEV && isBrowser()) {
+  if (env.DEV) {
     window.__zenstoryPosthog = posthog;
   }
 
@@ -348,7 +334,7 @@ export function initAnalytics(
 }
 
 export function trackEvent(eventName: string, properties: AnalyticsProperties = {}): void {
-  if (!isInitialized || !isBrowser()) return;
+  if (!isInitialized) return;
   const normalizedEventName = eventName.trim();
   if (!normalizedEventName) return;
 
@@ -359,7 +345,7 @@ export function trackEvent(eventName: string, properties: AnalyticsProperties = 
 }
 
 export function trackPageView(properties: AnalyticsProperties = {}): void {
-  if (!isInitialized || !isBrowser()) return;
+  if (!isInitialized) return;
 
   const path = window.location.pathname;
   if (UNTRACKED_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))) return;

@@ -85,7 +85,6 @@ class SteeringMessage:
     content: str
     created_at: datetime
     processed: bool = False
-    processed_at: datetime | None = None
 
 
 @dataclass
@@ -127,15 +126,17 @@ class SteeringQueue:
             return msg
 
     async def get_pending(self) -> list[SteeringMessage]:
-        """Get all pending steering messages and mark as processed."""
+        """Pop all pending steering messages and mark as processed."""
         async with self._lock:
             if self.on_poll is not None:
                 # 轮询即心跳：与 Redis 后端的 _pop_all_sync 保持同一语义。
                 self.on_poll()
-            pending = [m for m in self._messages if not m.processed]
-            for m in pending:
-                m.processed = True
-                m.processed_at = datetime.now()
+            pending: list[SteeringMessage] = []
+            while self._messages:
+                msg = self._messages.popleft()
+                if not msg.processed:
+                    msg.processed = True
+                    pending.append(msg)
             if pending:
                 log_with_context(
                     logger,
@@ -544,7 +545,6 @@ class RedisSteeringQueue:
             content=content,
             created_at=_parse_created_at(data.get("created_at")),
             processed=True,
-            processed_at=datetime.now(),
         )
 
 

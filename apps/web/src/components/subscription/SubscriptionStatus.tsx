@@ -18,16 +18,36 @@ interface SubscriptionStatusProps {
 }
 
 export function SubscriptionStatus({ onRedeemClick, onUpgradeClick, onRenewClick }: SubscriptionStatusProps) {
-  const { t, i18n } = useTranslation(['settings', 'dashboard']);
+  const { t, i18n } = useTranslation(['settings', 'dashboard', 'common']);
   // Phones get the 44px touch size, matching the other settings tabs' actions.
   const actionSize = useIsMobile() ? 'touch' : 'md';
-  const { data: status, isLoading } = useQuery({
+  const { data: status, isLoading, isError, refetch } = useQuery({
     queryKey: subscriptionQueryKeys.status(),
     queryFn: () => subscriptionApi.getStatus(),
   });
 
   if (isLoading) {
     return <div className="h-20 animate-pulse rounded-lg bg-[hsl(var(--bg-tertiary))]" />;
+  }
+
+  if (isError && !status) {
+    return (
+      <div className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4 space-y-3">
+        <p role="alert" className="text-xs text-[hsl(var(--error-text))]">
+          {t('settings:subscription.loadFailed', '套餐状态加载失败，请重试')}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" size={actionSize} onClick={() => void refetch()}>
+            {t('common:retry', '重试')}
+          </Button>
+          {onRedeemClick && (
+            <Button type="button" variant="secondary" size={actionSize} onClick={onRedeemClick}>
+              {t('settings:subscription.redeemCode', '兑换码')}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
   }
 
   if (!status) return null;

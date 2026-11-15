@@ -6,7 +6,7 @@
 
 ## Decision
 
-`quota()` 和兼容导出 `quotaLite()` 共同返回 `['subscription-quota', accountId]`。所有 observer 直接复用 `subscriptionApi.getQuota` 的规范 `QuotaResponse`，不再为旧测试 mock 在某个 hook 内制造另一种缓存形状。`useQuota` 直接使用 `quota()`；聊天、去 AI 味、离页结算和积分兑换 Pro 只失效一次统一缓存，确认退款也只乐观回写一次。账号 ID 继续来自原有缓存作用域，不同登录账号不会共享额度数据。
+`quota()` 和兼容导出 `quotaLite()` 共同返回 `['subscription-quota', accountId]`。所有 observer 直接复用 `subscriptionApi.getQuota` 的规范 `QuotaResponse`，不再为旧测试 mock 在某个 hook 内制造另一种缓存形状。聊天、去 AI 味、离页结算和积分兑换 Pro 只失效一次统一缓存，确认退款也只乐观回写一次。账号 ID 继续来自原有缓存作用域，不同登录账号不会共享额度数据。
 
 保留原有刷新时机：AI 开轮预扣完成、正常结束、错误、确认退款、去 AI 味结束和离开生成中的页面仍会重读服务器真值。首页的 `refetchOnMount: "always"`、徽标的 60 秒轮询、北京时间重置、Pro 规则、预扣和退款语义均不改变。
 

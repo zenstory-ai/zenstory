@@ -16,7 +16,12 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
   const { t } = useTranslation(['points', 'common']);
   const queryClient = useQueryClient();
 
-  const { data: status, isLoading: statusLoading } = useQuery({
+  const {
+    data: status,
+    isLoading: statusLoading,
+    isError: statusError,
+    refetch: refetchStatus,
+  } = useQuery({
     queryKey: ['check-in-status'],
     queryFn: () => pointsApi.getCheckInStatus(),
   });
@@ -55,7 +60,20 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
         )}
       </div>
 
-      {isCheckedIn ? (
+      {statusError && !status ? (
+        <div className="space-y-2">
+          <p role="alert" className="text-xs text-[hsl(var(--error-text))]">
+            {t('checkInStatusLoadFailed', '签到状态加载失败，请重试')}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void refetchStatus()}
+          >
+            {t('common:retry', '重试')}
+          </Button>
+        </div>
+      ) : isCheckedIn ? (
         <div className="flex items-center gap-2 text-[hsl(var(--success-text))]">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

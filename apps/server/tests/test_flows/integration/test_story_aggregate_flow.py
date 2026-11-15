@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -24,30 +23,6 @@ class _FakeCheckpointManager:
 
 @pytest.mark.integration
 class TestStoryAggregateFlow:
-    def test_meta_status_reads_stage2_writer_checkpoint(self, monkeypatch):
-        cp = _FakeCheckpointManager()
-        requested_stages = []
-
-        def _get_checkpoint(stage):
-            requested_stages.append(stage)
-            if stage == "stage2":
-                return SimpleNamespace(checkpoint_data={"meta_extracted": True})
-            return None
-
-        cp.get_checkpoint = _get_checkpoint
-        monkeypatch.setattr(story_mod, "get_run_logger", lambda: MagicMock())
-        monkeypatch.setattr(story_mod, "create_performance_monitor", lambda _name: FakeMonitor())
-        monkeypatch.setattr(story_mod, "create_checkpoint_manager", lambda *_args, **_kwargs: cp)
-        monkeypatch.setattr(story_mod.settings, "ENABLE_NOVEL_SYNOPSIS", False)
-        monkeypatch.setattr(story_mod.settings, "ENABLE_STORY_AGGREGATION", False)
-        monkeypatch.setattr(story_mod.settings, "ENABLE_STORYLINE_GENERATION", False)
-        monkeypatch.setattr(story_mod.settings, "ENABLE_META_EXTRACTION", True)
-
-        result = story_mod.story_aggregate_flow.fn(novel_id=1, chapter_ids=[1])
-
-        assert result["meta_extracted"] is True
-        assert requested_stages == ["stage2"]
-
     def test_flow_with_all_feature_flags_disabled(self, monkeypatch):
         cp = _FakeCheckpointManager()
 
@@ -135,10 +110,10 @@ class TestStoryAggregateFlow:
                     return FakeFuture({"story": {"title": "ok"}})
                 return FakeFuture(error=RuntimeError("aggregate fail"))
 
-        monkeypatch.setattr(story_mod, "aggregate_plots_to_stories_task", _AggregateTask())
+        monkeypatch.setattr(story_mod, "aggregate_plots_for_story_framework", _AggregateTask())
         monkeypatch.setattr(
             story_mod,
-            "save_stories_task",
+            "save_stories_with_plots",
             lambda stories, novel_id: {"saved_count": len(stories), "story_id_map": {"ok": 1}},
         )
         monkeypatch.setattr(
@@ -154,12 +129,12 @@ class TestStoryAggregateFlow:
         )
         monkeypatch.setattr(
             story_mod,
-            "generate_storylines_task",
+            "extract_storylines_from_stories",
             lambda stories, novel_id: {"storylines": [{"title": "line"}]},
         )
         monkeypatch.setattr(
             story_mod,
-            "save_storylines_task",
+            "save_storylines_with_stories",
             lambda storylines, novel_id: {"saved_count": len(storylines)},
         )
 
@@ -198,10 +173,10 @@ class TestStoryAggregateFlow:
         def _forbidden(*_args, **_kwargs):
             raise AssertionError("storyline tasks must not run when the storyline stage is disabled")
 
-        monkeypatch.setattr(story_mod, "aggregate_plots_to_stories_task", _AggregateTask())
+        monkeypatch.setattr(story_mod, "aggregate_plots_for_story_framework", _AggregateTask())
         monkeypatch.setattr(
             story_mod,
-            "save_stories_task",
+            "save_stories_with_plots",
             lambda stories, novel_id: {"saved_count": len(stories), "story_id_map": {"ok": 1}},
         )
         monkeypatch.setattr(
@@ -209,8 +184,8 @@ class TestStoryAggregateFlow:
             "handle_orphan_plots_task",
             lambda **kwargs: {"assigned_count": 0, "skipped": True, "orphan_ratio": 0.0},
         )
-        monkeypatch.setattr(story_mod, "generate_storylines_task", _forbidden)
-        monkeypatch.setattr(story_mod, "save_storylines_task", _forbidden)
+        monkeypatch.setattr(story_mod, "extract_storylines_from_stories", _forbidden)
+        monkeypatch.setattr(story_mod, "save_storylines_with_stories", _forbidden)
 
         result = story_mod.story_aggregate_flow.fn(novel_id=4, chapter_ids=[1])
 

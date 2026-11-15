@@ -453,20 +453,25 @@ def stage_pre_ai_write_backup(session: Session, file_id: str, current_content: s
 def attach_author_edits_for_agent(session: Session, file: Any, row: dict[str, Any]) -> None:
     """应用内 agent 按 id 读全文时，在返回行里附上作者在 AI 之后的手改（agent/tools/author_changes.py）。
 
-    只在请求上下文里有快照容器（应用内对话）时算，外部 Agent API 与列表查询不受影响；出错时什么也不加。
+    只在请求上下文里有快照容器（应用内对话）时算，外部 Agent API 与列表查询不受影响；
+    核对失败时回滚 savepoint 并如实附上未算出的 author_edits 说明。
     """
+    from agent.tools.mcp_tools import ToolContext
+
+    if not ToolContext.tracks_reads() or not str(getattr(file, "id", "") or ""):
+        return
+    from agent.tools.author_changes import AuthorChanges, author_changes, author_edits_payload
+
     try:
-        from agent.tools.mcp_tools import ToolContext
-
-        if not ToolContext.tracks_reads():
-            return
-        from agent.tools.author_changes import author_changes, author_edits_payload
-
-        changes = author_changes(session, file)
-        if changes is not None:
-            row["author_edits"] = author_edits_payload(changes)
-    except Exception as exc:  # pragma: no cover - 防御：辅助信息不能拖垮读取
+        with session.begin_nested() as nested:
+            changes = author_changes(session, file)
+            if changes is not None and changes.failed:
+                nested.rollback()
+    except Exception as exc:
         logger.debug("Failed to attach author edits", extra={"file_id": getattr(file, "id", ""), "error": str(exc)})
+        changes = AuthorChanges(hunks=[], complete=False, failed=True)
+    if changes is not None:
+        row["author_edits"] = author_edits_payload(changes)
 
 
 @contextmanager

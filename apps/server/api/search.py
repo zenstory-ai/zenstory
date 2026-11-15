@@ -81,8 +81,6 @@ async def search(
     """
     _session, user_id, api_key = context
 
-    top_k = max(1, min(body.top_k, 50))
-
     try:
         from services.infra.file_search_service import FileSearchService
 
@@ -91,13 +89,17 @@ async def search(
             return svc.search(
                 project_id=project_id,
                 query=body.query,
-                top_k=top_k,
+                top_k=body.top_k,
                 entity_types=body.file_types,
                 include_content=body.include_content,
             )
 
         results = await asyncio.to_thread(run_search)
     except Exception as e:
+        logger.exception(
+            "Agent API: File search failed",
+            extra={"user_id": user_id, "project_id": project_id},
+        )
         raise APIException(
             error_code=ErrorCode.SERVICE_UNAVAILABLE,
             status_code=503,
@@ -114,10 +116,10 @@ async def search(
                 file_type=r.entity_type,
                 content=r.content if body.include_content else None,
                 score=r.score or 0.0,
-                snippet=getattr(r, "snippet", None),
-                line_start=getattr(r, "line_start", None),
-                fused_score=getattr(r, "fused_score", None),
-                sources=getattr(r, "sources", None),
+                snippet=r.snippet,
+                line_start=r.line_start,
+                fused_score=r.fused_score,
+                sources=r.sources,
                 metadata=r.metadata,
             )
         )

@@ -3,8 +3,6 @@
 
 核心任务:
 - intelligent_chunking_task: 基于章节摘要的智能分块
-- save_chunks_task: 保存分块结果到数据库
-- get_novel_chunks: 查询小说的分块结果
 """
 
 from typing import Any
@@ -13,7 +11,7 @@ from prefect import get_run_logger
 from pydantic import BaseModel, Field
 
 from flows.database_session import get_db_session
-from flows.utils import api_task, call_material_llm, database_task, get_material_llm_client
+from flows.utils import api_task, call_material_llm, get_material_llm_client
 
 # ==================== 数据模型 ====================
 
@@ -26,11 +24,6 @@ class ChapterChunk(BaseModel):
     end_chapter: int = Field(description="结束章节号")
     chapter_count: int = Field(description="包含的章节数")
     key_themes: list[str] = Field(description="主要主题标签", default_factory=list)
-
-    @property
-    def chapter_range(self) -> str:
-        """章节范围字符串"""
-        return f"第{self.start_chapter}-{self.end_chapter}章"
 
 
 class ChunkingResult(BaseModel):
@@ -196,92 +189,6 @@ def intelligent_chunking_task(
         "chunking_strategy": chunking_result.chunking_strategy,
         "chunks": [chunk.model_dump() for chunk in chunking_result.chunks],
     }
-
-
-@database_task(name="save_chunks", retries=2)
-def save_chunks_task(
-    novel_id: int,
-    chunking_data: dict[str, Any],
-) -> dict[str, Any]:
-    """
-    保存分块结果到数据库
-
-    Args:
-        novel_id: 小说ID
-        chunking_data: 分块数据
-
-    Returns:
-        Dict: 保存结果
-    """
-    logger = get_run_logger()
-
-    logger.info(f"开始保存分块结果: novel_id={novel_id}")
-
-    from services.material.novels_service import NovelsService
-
-    with get_db_session() as db:
-        svc = NovelsService()
-        svc.set_intelligent_chunks(db, novel_id, chunking_data)
-        db.commit()
-
-    logger.info("分块结果保存成功")
-
-    return {
-        "novel_id": novel_id,
-        "saved": True,
-        "chunk_count": chunking_data.get("chunk_count", 0),
-    }
-
-
-# ==================== 查询函数 ====================
-
-def get_novel_chunks(novel_id: int) -> ChunkingResult | None:
-    """
-    获取小说的分块结果
-
-    Args:
-        novel_id: 小说ID
-
-    Returns:
-        分块结果，如果不存在返回 None
-    """
-    from services.material.novels_service import NovelsService
-
-    with get_db_session() as db:
-        chunks_data = NovelsService().get_intelligent_chunks(db, novel_id)
-        if not chunks_data:
-            return None
-
-        return ChunkingResult(**chunks_data)
-
-
-def get_chunk_chapters(novel_id: int, chunk_id: int) -> list[Any]:
-    """
-    获取指定块的所有章节
-
-    Args:
-        novel_id: 小说ID
-        chunk_id: 块ID
-
-    Returns:
-        章节列表
-    """
-    from services.material.chapters_service import ChaptersService
-
-    chunks_result = get_novel_chunks(novel_id)
-    if not chunks_result:
-        return []
-
-    chunk = next((c for c in chunks_result.chunks if c.chunk_id == chunk_id), None)
-    if not chunk:
-        return []
-
-    with get_db_session() as db:
-        chapters = ChaptersService().list_by_novel_ordered(db, novel_id)
-        return [
-            ch for ch in chapters
-            if chunk.start_chapter <= ch.chapter_number <= chunk.end_chapter
-        ]
 
 
 # ==================== 辅助函数 ====================

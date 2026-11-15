@@ -146,17 +146,10 @@ async def test_admin_feedback_review_loop_covers_list_detail_status_and_screensh
     item = list_payload["items"][0]
     assert item["id"] == feedback_id
     assert item["username"] == reporter.username
+    assert item["issue_text"] == "Admin review flow should expose this issue."
+    assert item["status"] == "open"
     assert item["has_screenshot"] is True
     assert item["trace_id"] == "trace-admin-feedback"
-
-    detail_response = await client.get(
-        f"/api/admin/feedback/{feedback_id}",
-        headers=_auth_headers(admin_login["access_token"]),
-    )
-    assert detail_response.status_code == 200
-    detail_payload = detail_response.json()
-    assert detail_payload["issue_text"] == "Admin review flow should expose this issue."
-    assert detail_payload["status"] == "open"
 
     status_response = await client.patch(
         f"/api/admin/feedback/{feedback_id}/status",

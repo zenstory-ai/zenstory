@@ -113,7 +113,6 @@ vi.mock('react-i18next', () => ({
 import { Layout } from '../Layout'
 import { requestChatOnOpen } from '../../lib/pendingInspiration'
 
-const leftPanel = React.createElement('div', { 'data-testid': 'left-panel' }, 'Left Panel')
 const middlePanel = React.createElement('div', { 'data-testid': 'middle-panel' }, 'Middle Panel')
 const rightPanel = React.createElement('div', { 'data-testid': 'right-panel' }, 'Right Panel')
 
@@ -149,7 +148,7 @@ describe('Layout', () => {
 
   describe('Desktop Layout', () => {
     it('uses explicit percentage defaults and usable pixel minimums under panel API v4', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
       const panels = screen.getAllByTestId('panel')
       expect(panels.map((panel) => panel.dataset.defaultSize)).toEqual(['20%', '48%', '32%'])
       expect(panels.map((panel) => panel.dataset.minSize)).toEqual(['180', '30%', '300'])
@@ -157,14 +156,14 @@ describe('Layout', () => {
 
     it('keeps tablet panels usable without treating percentages as pixels', () => {
       mockIsTablet = true
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
       const panels = screen.getAllByTestId('panel')
       expect(panels.map((panel) => panel.dataset.defaultSize)).toEqual(['25%', '40%', '35%'])
       expect(panels.map((panel) => panel.dataset.minSize)).toEqual(['20%', '30%', '280'])
     })
 
     it('renders three-panel layout', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(screen.getByTestId('header')).toBeInTheDocument()
       // Desktop layout uses Sidebar component (not left prop), editor-panel, and chat-panel
@@ -176,35 +175,35 @@ describe('Layout', () => {
     })
 
     it('renders panels in correct order', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       const panels = screen.getAllByTestId('panel')
       expect(panels).toHaveLength(3)
     })
 
     it('renders separators between panels', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       const separators = screen.getAllByTestId('separator')
       expect(separators).toHaveLength(2)
     })
 
     it('renders header at the top', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       const header = screen.getByTestId('header')
       expect(header.tagName).toBe('HEADER')
     })
 
     it('contains group element for panel layout', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       const group = screen.getByTestId('group')
       expect(group).toBeInTheDocument()
     })
 
     it('has proper panel structure', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       const panels = screen.getAllByTestId('panel')
       expect(panels).toHaveLength(3)
@@ -216,7 +215,7 @@ describe('Layout', () => {
     })
 
     it('listens for Cmd+K keyboard shortcut', async () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       fireEvent.keyDown(window, { metaKey: true, key: 'k' })
 
@@ -226,7 +225,7 @@ describe('Layout', () => {
     })
 
     it('listens for Ctrl+K keyboard shortcut', async () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       fireEvent.keyDown(window, { ctrlKey: true, key: 'k' })
 
@@ -236,7 +235,7 @@ describe('Layout', () => {
     })
 
     it('does not trigger search on regular key press', async () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Clear any previous calls
       mockOpenSearch.mockClear()
@@ -250,7 +249,7 @@ describe('Layout', () => {
     })
 
     it('does not trigger search on Cmd+other key', async () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Clear any previous calls
       mockOpenSearch.mockClear()
@@ -263,7 +262,7 @@ describe('Layout', () => {
     })
 
     it('does not render bottom tabs in desktop mode', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(screen.queryByTestId('bottom-tabs')).not.toBeInTheDocument()
     })
@@ -281,7 +280,7 @@ describe('Layout', () => {
         projectType: 'short',
         timestamp: Date.now(),
       }))
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(mockSetActivePanel).toHaveBeenCalledWith('chat')
     })
@@ -293,7 +292,7 @@ describe('Layout', () => {
         content: '写一篇反转短篇',
         timestamp: Date.now() - 10 * 60 * 1000,
       }))
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(mockSetActivePanel).not.toHaveBeenCalled()
     })
@@ -301,19 +300,19 @@ describe('Layout', () => {
     it('opens a work just created from the dashboard without an idea on the AI tab, once', () => {
       mockCurrentProjectId = 'project-without-idea'
       requestChatOnOpen('project-without-idea')
-      const first = renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      const first = renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(mockSetActivePanel).toHaveBeenCalledWith('chat')
       first.unmount()
       mockSetActivePanel.mockClear()
 
       // Reopening the same work later stays on the editor.
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
       expect(mockSetActivePanel).not.toHaveBeenCalled()
     })
 
     it('renders mobile layout when isMobile is true', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(screen.getByTestId('header')).toBeInTheDocument()
       expect(screen.getByTestId('bottom-tabs')).toBeInTheDocument()
@@ -321,7 +320,7 @@ describe('Layout', () => {
 
     it('renders only active panel in mobile mode', () => {
       mockActivePanel = 'editor'
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // In mobile layout, all panels are rendered but hidden with CSS (opacity-0, aria-hidden)
       // The active panel should be visible (not aria-hidden), inactive panels should be hidden
@@ -330,11 +329,6 @@ describe('Layout', () => {
       expect(middlePanelElement.closest('[aria-hidden="true"]')).toBeNull()
 
       // Inactive panels exist in DOM but are hidden
-      const leftPanelElement = screen.queryByTestId('left-panel')
-      if (leftPanelElement) {
-        expect(leftPanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
-      }
-
       const rightPanelElement = screen.queryByTestId('right-panel')
       if (rightPanelElement) {
         expect(rightPanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
@@ -350,7 +344,7 @@ describe('Layout', () => {
 
     it('shows files panel when activePanel is files', () => {
       mockActivePanel = 'files'
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Files panel in mobile layout uses MobileFileTree, not the left prop
       // Check that inactive panels are hidden (aria-hidden)
@@ -367,7 +361,7 @@ describe('Layout', () => {
 
     it('shows chat panel when activePanel is chat', () => {
       mockActivePanel = 'chat'
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Chat panel should be visible (not aria-hidden)
       const rightPanelElement = screen.getByTestId('right-panel')
@@ -375,11 +369,6 @@ describe('Layout', () => {
       expect(rightPanelElement.closest('[aria-hidden="true"]')).toBeNull()
 
       // Inactive panels should be hidden
-      const leftPanelElement = screen.queryByTestId('left-panel')
-      if (leftPanelElement) {
-        expect(leftPanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
-      }
-
       const middlePanelElement = screen.queryByTestId('middle-panel')
       if (middlePanelElement) {
         expect(middlePanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
@@ -387,14 +376,14 @@ describe('Layout', () => {
     })
 
     it('renders bottom navigation tabs', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(screen.getByTestId('bottom-tabs')).toBeInTheDocument()
       expect(screen.getByText(/Active: editor/i)).toBeInTheDocument()
     })
 
     it('calls setActivePanel when tab is clicked', async () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       const filesButton = screen.getByRole('button', { name: 'Files' })
       fireEvent.click(filesButton)
@@ -405,7 +394,7 @@ describe('Layout', () => {
     })
 
     it('listens for Cmd+K keyboard shortcut in mobile mode', async () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       fireEvent.keyDown(window, { metaKey: true, key: 'k' })
 
@@ -415,7 +404,7 @@ describe('Layout', () => {
     })
 
     it('listens for Ctrl+K keyboard shortcut in mobile mode', async () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       fireEvent.keyDown(window, { ctrlKey: true, key: 'k' })
 
@@ -427,7 +416,7 @@ describe('Layout', () => {
     it('removes keyboard event listener on unmount in mobile mode', () => {
       const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
 
-      const { unmount } = renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      const { unmount } = renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       unmount()
 
@@ -440,14 +429,14 @@ describe('Layout', () => {
   describe('Responsive Behavior', () => {
     it('switches to mobile layout when isMobile becomes true', () => {
       mockIsMobile = false
-      const { rerenderWithRouter } = renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      const { rerenderWithRouter } = renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Desktop mode - no bottom tabs
       expect(screen.queryByTestId('bottom-tabs')).not.toBeInTheDocument()
 
       // Switch to mobile
       mockIsMobile = true
-      rerenderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      rerenderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Mobile mode - has bottom tabs
       expect(screen.getByTestId('bottom-tabs')).toBeInTheDocument()
@@ -456,13 +445,13 @@ describe('Layout', () => {
 
   describe('Accessibility', () => {
     it('has proper document structure', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(screen.getByTestId('header')).toBeInTheDocument()
     })
 
     it('maintains focus management', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Focus should not be trapped
       expect(document.activeElement).toBe(document.body)
@@ -470,7 +459,7 @@ describe('Layout', () => {
 
     it('mobile layout has proper document structure', () => {
       mockIsMobile = true
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(screen.getByTestId('header')).toBeInTheDocument()
       expect(screen.getByTestId('bottom-tabs')).toBeInTheDocument()
@@ -481,7 +470,7 @@ describe('Layout', () => {
     it('removes keyboard event listener on unmount', () => {
       const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
 
-      const { unmount } = renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      const { unmount } = renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       unmount()
 
@@ -493,7 +482,7 @@ describe('Layout', () => {
 
   describe('Styling', () => {
     it('has full screen container', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       const header = screen.getByTestId('header')
       const container = header.closest('div')
@@ -503,7 +492,7 @@ describe('Layout', () => {
     })
 
     it('has fixed positioning', () => {
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       const header = screen.getByTestId('header')
       const container = header.closest('div')
@@ -513,7 +502,7 @@ describe('Layout', () => {
 
     it('mobile layout has full screen container', () => {
       mockIsMobile = true
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       const header = screen.getByTestId('header')
       const container = header.closest('div')
@@ -525,7 +514,7 @@ describe('Layout', () => {
 
     it('mobile layout has padding for bottom tabs', () => {
       mockIsMobile = true
-      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+      renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       const mainElement = screen.getByTestId('middle-panel').closest('main')
       expect(mainElement).toHaveClass('pb-14')

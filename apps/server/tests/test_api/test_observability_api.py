@@ -162,7 +162,7 @@ async def test_register_hashes_and_sends_mail_off_the_event_loop(client: AsyncCl
     monkeypatch.setattr(email_client, "RESEND_API_KEY", "re_test")
     monkeypatch.setattr(email_client.resend.Emails, "send", recording_send)
     for name in (
-        "check_resend_cooldown",
+        "get_resend_cooldown_ttl",
         "store_verification_code",
         "set_resend_cooldown",
         "reset_verification_attempts",
@@ -171,7 +171,7 @@ async def test_register_hashes_and_sends_mail_off_the_event_loop(client: AsyncCl
     ):
         def recording_redis(*args, _name=name, **kwargs):
             seen[_name] = threading.get_ident()
-            return _name != "check_resend_cooldown"
+            return 0 if _name == "get_resend_cooldown_ttl" else True
 
         monkeypatch.setattr(f"services.features.verification_service.{name}", recording_redis)
 
@@ -185,7 +185,7 @@ async def test_register_hashes_and_sends_mail_off_the_event_loop(client: AsyncCl
     assert set(seen) == {
         "hash",
         "send",
-        "check_resend_cooldown",
+        "get_resend_cooldown_ttl",
         "store_verification_code",
         "set_resend_cooldown",
         "reset_verification_attempts",

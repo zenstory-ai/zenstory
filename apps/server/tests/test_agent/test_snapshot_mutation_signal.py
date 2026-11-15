@@ -181,8 +181,8 @@ async def test_done_carries_only_confirmed_mutation_and_resets(payload, expected
     done = [event for event in events if event.type == "done"]
     assert len(done) == 1
     assert done[0].data["file_mutated"] is expected
-    adapter.reset()
-    reset_done = await _drive(adapter, [StreamEvent(type=StreamEventType.TEXT, data={"text": "AI prose"})])
+    fresh_adapter = StreamAdapter(StreamAdapterConfig(process_file_markers=False))
+    reset_done = await _drive(fresh_adapter, [StreamEvent(type=StreamEventType.TEXT, data={"text": "AI prose"})])
     assert reset_done[-1].data["file_mutated"] is False
 
 
@@ -236,10 +236,10 @@ async def test_abort_background_save_is_not_a_new_turn_mutation(monkeypatch):
         pass
     task = adapter._persist_active_capture_in_background()
     assert task is not None
-    adapter.reset()
+    fresh_adapter = StreamAdapter(StreamAdapterConfig())
     assert await task is True
     assert saved == [("file", "partial")]
-    assert (await _drive(adapter, []))[-1].data["file_mutated"] is False
+    assert (await _drive(fresh_adapter, []))[-1].data["file_mutated"] is False
 
 
 @pytest.mark.asyncio

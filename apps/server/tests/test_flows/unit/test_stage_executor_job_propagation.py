@@ -36,10 +36,10 @@ def test_task_wrappers_forward_job_id_to_subflows(monkeypatch):
         lambda **kwargs: relationship_calls.append(kwargs) or {"status": "completed"},
     )
 
-    assert se_mod._task_run_story_aggregate.fn(1, [2], "corr", 33)["status"] == "completed"
-    assert se_mod._task_run_relationship.fn(1, [2], "corr", 33)["status"] == "completed"
+    assert se_mod._task_run_story_aggregate.fn(1, [2], 33)["status"] == "completed"
+    assert se_mod._task_run_relationship.fn(1, [2], 33)["status"] == "completed"
 
-    expected = {"novel_id": 1, "chapter_ids": [2], "correlation_id": "corr", "job_id": 33}
+    expected = {"novel_id": 1, "chapter_ids": [2], "job_id": 33}
     assert story_calls == [expected]
     assert relationship_calls == [expected]
 
@@ -65,5 +65,5 @@ def test_stage_executor_forwards_current_job_id_to_stage2_tasks(monkeypatch, job
     executor._execute_relationship_stage(stage2b_done=False)
 
     expected_kwargs = {} if job_id is None else {"job_id": job_id}
-    assert story_task.calls == [((1, [2], "corr"), expected_kwargs)]
-    assert relationship_task.calls == [((1, [2], "corr"), expected_kwargs)]
+    assert story_task.calls == [((1, [2]), expected_kwargs)]
+    assert relationship_task.calls == [((1, [2]), expected_kwargs)]

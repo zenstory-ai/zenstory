@@ -12,7 +12,6 @@ vi.mock('@/lib/api', () => ({
   authApi: {
     login: vi.fn(),
     register: vi.fn(),
-    refreshToken: vi.fn(),
     verifyEmail: vi.fn(),
     resendVerification: vi.fn(),
   },
@@ -577,154 +576,6 @@ describe('AuthContext', () => {
     })
   })
 
-  describe('refreshToken', () => {
-    it('refreshes tokens successfully', async () => {
-      // Set both tokens so initialization doesn't clear them
-      // access_token is needed so the init flow doesn't call clearAuthState
-      localStorage.setItem('access_token', 'existing-access-token')
-      localStorage.setItem('refresh_token', 'old-refresh-token')
-
-      const mockResponse = createMockAuthResponse()
-      vi.mocked(api.authApi.refreshToken).mockResolvedValueOnce(mockResponse)
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
-
-      await act(async () => {
-        await result.current.refreshToken()
-      })
-
-      expect(api.authApi.refreshToken).toHaveBeenCalledWith('old-refresh-token')
-      expect(result.current.user).toEqual(mockResponse.user)
-      expect(localStorage.getItem('access_token')).toBe(mockResponse.access_token)
-    })
-
-    it('throws error when no refresh token available', async () => {
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
-
-      await expect(
-        act(async () => {
-          await result.current.refreshToken()
-        })
-      ).rejects.toThrow('No refresh token available')
-    })
-
-    it('logs out on refresh failure', async () => {
-      const mockUser = createMockUser()
-
-      // Set all tokens and cached user with valid timestamp so init uses cache
-      localStorage.setItem('refresh_token', 'invalid-refresh-token')
-      localStorage.setItem('access_token', 'some-access-token')
-      localStorage.setItem('user', JSON.stringify(mockUser))
-      localStorage.setItem('auth_validated_at', Date.now().toString())
-
-      vi.mocked(api.authApi.refreshToken).mockRejectedValueOnce(
-        Object.assign(new Error('Refresh failed'), { status: 401 }),
-      )
-
-      // Mock background validation to succeed (so cache stays valid during init)
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockUser),
-      })
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
-
-      // User should be set from cache
-      expect(result.current.user).toEqual(mockUser)
-      expect(localStorage.getItem('refresh_token')).toBe('invalid-refresh-token')
-
-      // Now try to refresh - this should fail and trigger logout
-      let error: Error | null = null
-      await act(async () => {
-        try {
-          await result.current.refreshToken()
-        } catch (e) {
-          error = e as Error
-        }
-      })
-
-      // Should have thrown the expected error
-      expect(error).toBeInstanceOf(Error)
-      expect(error?.message).toBe('Refresh failed')
-
-      // The logout() function should have been called which clears all auth state
-      // Check localStorage first (synchronous)
-      expect(localStorage.getItem('access_token')).toBe(null)
-      expect(localStorage.getItem('refresh_token')).toBe(null)
-
-      // Then check the user state
-      await waitFor(() => {
-        expect(result.current.user).toBe(null)
-      })
-    })
-
-    it('preserves the current session on retryable direct refresh failure', async () => {
-      const mockUser = createMockUser()
-      localStorage.setItem('refresh_token', 'valid-refresh-token')
-      localStorage.setItem('access_token', 'some-access-token')
-      localStorage.setItem('user', JSON.stringify(mockUser))
-      localStorage.setItem('auth_validated_at', Date.now().toString())
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockUser) })
-      vi.mocked(api.authApi.refreshToken).mockRejectedValueOnce(
-        Object.assign(new Error('Service unavailable'), { status: 503 }),
-      )
-      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
-      await waitFor(() => expect(result.current.user).toEqual(mockUser))
-
-      await expect(act(async () => result.current.refreshToken())).rejects.toThrow('Service unavailable')
-
-      expect(result.current.user).toEqual(mockUser)
-      expect(localStorage.getItem('access_token')).toBe('some-access-token')
-      expect(localStorage.getItem('refresh_token')).toBe('valid-refresh-token')
-    })
-
-    it('ignores a late direct refresh after switching accounts', async () => {
-      const oldUser = createMockUser({ id: 'old-user' })
-      const newResponse = createMockAuthResponse({ id: 'new-user' })
-      const staleResponse = createMockAuthResponse({ id: 'old-user' })
-      localStorage.setItem('refresh_token', 'old-refresh')
-      localStorage.setItem('access_token', 'old-access')
-      localStorage.setItem('user', JSON.stringify(oldUser))
-      localStorage.setItem('auth_validated_at', Date.now().toString())
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(oldUser) })
-      let resolveRefresh!: (value: typeof staleResponse) => void
-      vi.mocked(api.authApi.refreshToken).mockReturnValueOnce(
-        new Promise(resolve => { resolveRefresh = resolve }),
-      )
-      vi.mocked(api.authApi.login).mockResolvedValueOnce(newResponse)
-      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
-      await waitFor(() => expect(result.current.user).toEqual(oldUser))
-
-      let refreshPromise!: Promise<void>
-      act(() => { refreshPromise = result.current.refreshToken() })
-      await act(async () => result.current.login('new-user', 'password'))
-      resolveRefresh(staleResponse)
-      await act(async () => refreshPromise)
-
-      expect(result.current.user).toEqual(newResponse.user)
-      expect(localStorage.getItem('access_token')).toBe(newResponse.access_token)
-      expect(localStorage.getItem('refresh_token')).toBe(newResponse.refresh_token)
-    })
-  })
-
   describe('handleOAuthCallback', () => {
     it('counts a Google sign-up as register_success only for new users', async () => {
       const mockUser = createMockUser()
@@ -1043,7 +894,6 @@ describe('AuthContext', () => {
       expect(result.current).toHaveProperty('login')
       expect(result.current).toHaveProperty('register')
       expect(result.current).toHaveProperty('logout')
-      expect(result.current).toHaveProperty('refreshToken')
       expect(result.current).toHaveProperty('handleOAuthCallback')
       expect(result.current).toHaveProperty('verifyEmail')
       expect(result.current).toHaveProperty('resendVerification')
@@ -1053,7 +903,6 @@ describe('AuthContext', () => {
       expect(typeof result.current.login).toBe('function')
       expect(typeof result.current.register).toBe('function')
       expect(typeof result.current.logout).toBe('function')
-      expect(typeof result.current.refreshToken).toBe('function')
     })
   })
 

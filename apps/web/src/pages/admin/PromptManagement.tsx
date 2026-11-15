@@ -15,7 +15,6 @@ export const PromptManagement: React.FC = () => {
   const { t } = useTranslation(["admin", "common"]);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [isReloading, setIsReloading] = useState(false);
   const [deletingPrompt, setDeletingPrompt] = useState<{ project_type: string } | null>(null);
 
   // 获取所有 Prompt 配置
@@ -31,11 +30,9 @@ export const PromptManagement: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "prompts"] });
       toast.success(t("prompts.reloadSuccess"));
-      setIsReloading(false);
     },
     onError: () => {
       toast.error(t("prompts.reloadFailed"));
-      setIsReloading(false);
     },
   });
 
@@ -55,7 +52,6 @@ export const PromptManagement: React.FC = () => {
   };
 
   const handleReload = () => {
-    setIsReloading(true);
     reloadMutation.mutate();
   };
 
@@ -96,10 +92,10 @@ export const PromptManagement: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={handleReload}
-            disabled={isReloading || reloadMutation.isPending}
+            disabled={reloadMutation.isPending}
             variant="secondary"
             size="touch"
-            leftIcon={<RefreshCw size={16} className={isReloading || reloadMutation.isPending ? "animate-spin" : ""} />}
+            leftIcon={<RefreshCw size={16} className={reloadMutation.isPending ? "animate-spin" : ""} />}
           >
             {t("prompts.reload")}
           </Button>

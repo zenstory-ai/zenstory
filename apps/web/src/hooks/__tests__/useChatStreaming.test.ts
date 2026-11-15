@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { useChatStreaming, throttle, generateUniqueId } from '../useChatStreaming'
+import { useChatStreaming, generateUniqueId } from '../useChatStreaming'
 import { PROJECT_STATUS_UPDATED_EVENT } from '../../lib/projectStatusEvents'
 import type { UseChatStreamingDependencies } from '../useChatStreaming'
 
@@ -1773,63 +1773,6 @@ describe('useChatStreaming', () => {
         expect(deps.finishFileStreaming).toHaveBeenCalledWith('file-123')
       })
     })
-  })
-})
-
-describe('throttle utility', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('executes immediately on first call', () => {
-    const fn = vi.fn()
-    const throttled = throttle(fn, 100)
-
-    throttled('first')
-
-    expect(fn).toHaveBeenCalledTimes(1)
-    expect(fn).toHaveBeenCalledWith('first')
-  })
-
-  it('throttles subsequent calls', () => {
-    const fn = vi.fn()
-    const throttled = throttle(fn, 100)
-
-    throttled('first')
-    throttled('second')
-    throttled('third')
-
-    expect(fn).toHaveBeenCalledTimes(1) // Only first call executed immediately
-  })
-
-  it('executes latest call after delay', () => {
-    const fn = vi.fn()
-    const throttled = throttle(fn, 100)
-
-    throttled('first')
-    throttled('second')
-
-    vi.advanceTimersByTime(100)
-
-    expect(fn).toHaveBeenCalledTimes(2)
-    expect(fn).toHaveBeenLastCalledWith('second')
-  })
-
-  it('can cancel pending execution', () => {
-    const fn = vi.fn()
-    const throttled = throttle(fn, 100)
-
-    throttled('first')
-    throttled('second')
-    throttled.cancel()
-
-    vi.advanceTimersByTime(100)
-
-    expect(fn).toHaveBeenCalledTimes(1) // Only first call, second was cancelled
   })
 })
 

@@ -13,12 +13,14 @@ export function FeaturedInspirationsSection({
   isMobile,
   isTablet,
 }: FeaturedInspirationsSectionProps) {
-  const { t } = useTranslation("dashboard");
+  const { t } = useTranslation(["dashboard", "common"]);
   const navigate = useNavigate();
   const {
     featured: featuredInspirations,
     isLoading,
     isFetching,
+    error,
+    refetch,
   } = useFeaturedInspirations(3);
   const showLoading = isLoading || (isFetching && featuredInspirations.length === 0);
   const skeletonCount = isMobile ? 1 : isTablet ? 2 : 3;
@@ -93,6 +95,22 @@ export function FeaturedInspirationsSection({
               </div>
             </button>
           ))}
+        </div>
+      ) : error ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6 text-center"
+        >
+          <p className="mb-3 text-sm text-[hsl(var(--error-text))]">
+            {t("inspirations.loadFailed")}
+          </p>
+          <button
+            type="button"
+            onClick={() => void refetch?.()}
+            className="text-sm font-medium text-[hsl(var(--accent-primary))] hover:underline"
+          >
+            {t("common:retry")}
+          </button>
         </div>
       ) : (
         <DashboardEmptyState

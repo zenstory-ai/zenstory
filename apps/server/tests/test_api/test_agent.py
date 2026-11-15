@@ -140,16 +140,6 @@ async def test_agent_stream_missing_message(client: AsyncClient, db_session: Ses
 
 
 @pytest.mark.integration
-async def test_agent_health_check(client: AsyncClient):
-    """Test agent health check endpoint."""
-    response = await client.get("/api/v1/agent/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
-    assert data["service"] == "agent"
-
-
-@pytest.mark.integration
 async def test_agent_stream_workflow_error(client: AsyncClient, db_session: Session, writing_prompt_configs):
     """Test agent stream when the writing workflow returns an error."""
     # Create user

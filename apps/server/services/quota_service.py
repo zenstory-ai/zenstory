@@ -37,11 +37,6 @@ FEATURE_RESPONSE_KEY_MAP = {
     "inspiration_copy": "inspiration_copies",
 }
 
-FEATURE_ACCESS_MAP = {
-    "material_upload": "materials_library_access",
-    "material_decompose": "materials_library_access",
-}
-
 # Default free tier features (canonical fallback)
 DEFAULT_FREE_TIER_FEATURES = clone_default_free_features()
 
@@ -233,10 +228,6 @@ class QuotaService:
 
         return (used < limit, used, limit)
 
-    def get_plan_limits(self, plan: SubscriptionPlan) -> dict:
-        """Get limits dict from plan features."""
-        return plan.features
-
     def has_feature_access(
         self,
         session: Session,
@@ -412,10 +403,6 @@ class QuotaService:
             "skills_created": int(totals[2] or 0),
         }
 
-    def consume_ai_conversation(self, session: Session, user_id: str) -> bool:
-        """Consume a daily unit; use reserve_ai_conversation when it may be refunded."""
-        return self.reserve_ai_conversation(session, user_id) is not None
-
     def reserve_ai_conversation(
         self,
         session: Session,
@@ -580,15 +567,6 @@ class QuotaService:
         else:
             session.flush()
         return quota
-
-    def ensure_default_quota(
-        self, session: Session, user_id: str, commit: bool = True
-    ) -> UsageQuota:
-        """Get existing quota or create a default one if missing."""
-        existing = self.get_user_quota(session, user_id)
-        if existing:
-            return existing
-        return self.create_default_quota(session, user_id, commit=commit)
 
     def _get_or_create_quota(self, session: Session, user_id: str, *, commit: bool = True) -> UsageQuota:
         """Get existing quota or create new one."""

@@ -155,12 +155,12 @@ def test_real_storage_helpers_keep_current_contracts(code_store):
     assert storage.consume_verification_code(email, "wrong") is False
     assert storage.consume_verification_code(email, "654321") is True
     assert storage.set_resend_cooldown(email, 60) is True
-    assert storage.check_resend_cooldown(email) is True
+    assert (storage.get_resend_cooldown_ttl(email) or 0) > 0
     assert storage.delete_resend_cooldown(email) is True
-    assert storage.check_resend_cooldown(email) is False
-    assert storage.increment_verification_attempts(email, 1) is True
+    assert storage.get_resend_cooldown_ttl(email) == 0
+    assert storage.increment_verification_attempts(email) == 1
     assert client.ttl(f"attempts:{email}") > 0
-    assert storage.increment_verification_attempts(email, 1) is False
+    assert storage.increment_verification_attempts(email) == 2
     assert storage.get_verification_attempts(email) == 2
     assert storage.reset_verification_attempts(email) is True
     assert storage.get_verification_attempts(email) == 0
@@ -171,11 +171,11 @@ def test_real_storage_helpers_keep_current_contracts(code_store):
     (storage.get_verification_code, (), None),
     (storage.delete_verification_code, (), False),
     (storage.consume_verification_code, ("123456",), False),
-    (storage.check_resend_cooldown, (), False),
+    (storage.get_resend_cooldown_ttl, (), None),
     (storage.set_resend_cooldown, (), False),
     (storage.delete_resend_cooldown, (), False),
-    (storage.get_verification_attempts, (), 0),
-    (storage.increment_verification_attempts, (), False),
+    (storage.get_verification_attempts, (), None),
+    (storage.increment_verification_attempts, (), None),
     (storage.reset_verification_attempts, (), False),
 ])
 def test_storage_client_failures_keep_current_return_contract(function, args, expected, monkeypatch):

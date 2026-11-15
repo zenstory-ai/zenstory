@@ -8,24 +8,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const mockGetAccessToken = vi.fn<() => string | null>(() => 'test-token')
 const mockTryRefreshToken = vi.fn(() => Promise.resolve(true))
 
-vi.mock('../apiClient', async importOriginal => ({
-  resolveOwnedAuthSession: (await importOriginal<typeof import('../apiClient')>()).resolveOwnedAuthSession,
-  api: {},
-  getApiBase: vi.fn(() => 'http://localhost:8000'),
-  getAccessToken: () => mockGetAccessToken(),
-  tryRefreshToken: () => mockTryRefreshToken(),
-  ApiError: class ApiError extends Error {
-    status: number
-    constructor(
-      status: number,
-      message: string
-    ) {
-      super(message)
-      this.status = status
-      this.name = 'ApiError'
-    }
-  },
-}))
+vi.mock('../apiClient', async importOriginal => {
+  const actual = await importOriginal<typeof import('../apiClient')>()
+  return {
+    resolveOwnedAuthSession: actual.resolveOwnedAuthSession,
+    apiErrorFromPayload: actual.apiErrorFromPayload,
+    ApiError: actual.ApiError,
+    api: {},
+    getApiBase: vi.fn(() => 'http://localhost:8000'),
+    getAccessToken: () => mockGetAccessToken(),
+    tryRefreshToken: () => mockTryRefreshToken(),
+  }
+})
 
 // Mock fetch globally
 global.fetch = vi.fn()

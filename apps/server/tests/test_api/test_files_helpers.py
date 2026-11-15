@@ -11,7 +11,6 @@ from api.files import (
     _build_upload_snippets,
     _ensure_material_folder,
     _extract_chapter_segments,
-    _resolve_change_source,
     _resolve_change_type,
     _split_content_by_length,
     _truncate_title,
@@ -76,17 +75,13 @@ def test_build_upload_snippets_and_title_truncation(monkeypatch):
     assert _truncate_title("x" * 90, max_length=10) == "xxxxxxxxx…"
 
 
-def test_resolve_change_type_and_source_raise_validation_errors():
+def test_resolve_change_type_raises_validation_errors():
     assert _resolve_change_type(None) == "edit"
-    assert _resolve_change_source(None) == "user"
 
     with pytest.raises(APIException) as change_type_exc:
         _resolve_change_type("bad-type")
-    with pytest.raises(APIException) as change_source_exc:
-        _resolve_change_source("bad-source")
 
     assert change_type_exc.value.error_code == ErrorCode.VALIDATION_ERROR
-    assert change_source_exc.value.error_code == ErrorCode.VALIDATION_ERROR
 
 
 def _create_project(db_session: Session, name: str = "Files helper project") -> Project:

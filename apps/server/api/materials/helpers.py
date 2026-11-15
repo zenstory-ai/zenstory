@@ -3,9 +3,7 @@ Helper functions for materials API.
 
 Contains shared utility functions used across material library endpoints.
 """
-import asyncio
-
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
@@ -16,6 +14,14 @@ from services.material.ingestion_jobs_service import IngestionJobsService
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _resolve_lang(accept_language: str | None) -> str:
+    """Resolve supported language code from Accept-Language header."""
+    if not accept_language:
+        return "zh"
+    lang = accept_language.split(",")[0].split("-")[0].strip().lower()
+    return "en" if lang == "en" else "zh"
 
 
 def _get_novel_or_404(session: Session, novel_id: int, user_id: str) -> Novel:
@@ -39,53 +45,13 @@ def _get_novel_or_404(session: Session, novel_id: int, user_id: str) -> Novel:
     return novel
 
 
-def _start_flow_in_background(
-    file_path: str,
-    novel_title: str,
-    author: str | None,
-    user_id: str,
-    novel_id: int,
-    job_id: int | None = None,
-):
-    """
-    Wrapper to run flow deployment in background task.
-
-    This function handles the event loop setup required for running
-    async flow deployment in a background thread.
-
-    Args:
-        file_path: Path to the uploaded novel file
-        novel_title: Title of the novel
-        author: Author name (optional)
-        user_id: User ID who uploaded the novel
-        novel_id: Novel ID in the database
-        job_id: Exact ingestion job ID for new API dispatches
-    """
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    loop.run_until_complete(
-        _start_flow_deployment(
-            file_path,
-            novel_title,
-            author,
-            user_id,
-            novel_id,
-            job_id=job_id,
-        )
-    )
-
-
 async def _start_flow_deployment(
     file_path: str,
     novel_title: str,
     author: str | None,
     user_id: str,
     novel_id: int,
-    job_id: int | None = None,
+    job_id: int,
 ):
     """
     Start the novel ingestion flow via Prefect deployment.
@@ -100,25 +66,16 @@ async def _start_flow_deployment(
         author: Author name (optional)
         user_id: User ID who uploaded the novel
         novel_id: Novel ID in the database
-        job_id: Exact ingestion job ID; omitted only by legacy/manual callers
+        job_id: Exact ingestion job ID
 
     Returns:
         Flow run ID if successful, None if failed
     """
     def _get_target_job(session: Session) -> IngestionJob | None:
-        if job_id is not None:
-            job = session.get(IngestionJob, job_id)
-            if job is None or job.novel_id != novel_id:
-                return None
-            return job
-
-        # Compatibility for legacy/manual callers only. New API paths always
-        # pass job_id and never infer identity from the latest novel job.
-        return session.exec(
-            select(IngestionJob)
-            .where(IngestionJob.novel_id == novel_id)
-            .order_by(IngestionJob.created_at.desc())
-        ).first()
+        job = session.get(IngestionJob, job_id)
+        if job is None or job.novel_id != novel_id:
+            return None
+        return job
 
     def _mark_target_job_failed() -> None:
         session = create_session()
@@ -142,36 +99,30 @@ async def _start_flow_deployment(
                 return
 
             target_job.correlation_id = flow_run_id
-            if hasattr(target_job, "update_stage_progress"):
-                target_job.update_stage_progress(
-                    "queue",
-                    "processing",
-                    message="调度成功，等待工作流执行",
-                    flow_run_id=flow_run_id,
-                )
+            target_job.update_stage_progress(
+                "queue",
+                "processing",
+                message="调度成功，等待工作流执行",
+                flow_run_id=flow_run_id,
+            )
             target_job.updated_at = utcnow()
             session.add(target_job)
             session.commit()
         finally:
             session.close()
 
-    if job_id is None:
-        logger.warning(
-            "Legacy material deployment without job_id: novel_id=%s", novel_id,
-        )
-    else:
-        validation_session = create_session()
-        try:
-            if _get_target_job(validation_session) is None:
-                logger.error(
-                    "Refusing material deployment for missing or mismatched job: "
-                    "novel_id=%s job_id=%s",
-                    novel_id,
-                    job_id,
-                )
-                return None
-        finally:
-            validation_session.close()
+    validation_session = create_session()
+    try:
+        if _get_target_job(validation_session) is None:
+            logger.error(
+                "Refusing material deployment for missing or mismatched job: "
+                "novel_id=%s job_id=%s",
+                novel_id,
+                job_id,
+            )
+            return None
+    finally:
+        validation_session.close()
 
     try:
         from prefect.deployments import run_deployment
@@ -186,9 +137,8 @@ async def _start_flow_deployment(
             "author": author,
             "resume_from_checkpoint": True,
             "novel_id": novel_id,
+            "job_id": job_id,
         }
-        if job_id is not None:
-            parameters["job_id"] = job_id
 
         flow_run = await run_deployment(
             name="novel_ingestion_v3/novel_ingestion_v3",
@@ -217,6 +167,6 @@ async def _start_flow_deployment(
 
 __all__ = [
     "_get_novel_or_404",
-    "_start_flow_in_background",
+    "_resolve_lang",
     "_start_flow_deployment",
 ]

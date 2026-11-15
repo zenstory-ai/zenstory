@@ -19,8 +19,3 @@ def log_error_with_context(
         exc_info=True,
         extra=kwargs,
     )
-
-
-def log_execution_time(task_name: str, elapsed: float, logger: logging.Logger) -> None:
-    """记录任务执行时间"""
-    logger.info(f"Task '{task_name}' completed in {elapsed:.3f}s")

@@ -247,7 +247,6 @@ def submit_inspiration(
         )
 
     inspiration = create_inspiration_from_project(
-        session=session,
         project=project,
         files=list(files),
         source="community",
@@ -478,7 +477,7 @@ def copy_inspiration(
     # Advisory checks may normalize/create monthly quota before taking the
     # project creation gate; no commit-capable helper runs inside that gate.
     plan = quota_service.get_user_plan(session, current_user.id)
-    should_consume_quota = not (plan and plan.name == "pro")
+    should_consume_quota = plan.name != "pro"
     if should_consume_quota:
         allowed, used, limit = quota_service.check_feature_quota(
             session,

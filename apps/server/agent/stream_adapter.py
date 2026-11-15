@@ -169,8 +169,6 @@ class StreamAdapter:
         # Track content streaming state
         self._content_started = False
 
-        # Track current tool call for result matching
-        self._current_tool_calls: dict[str, dict[str, Any]] = {}
         # delete_file 调用要删的 id（按 call id）：删掉的正是在等正文的文件时，收尾这份捕获。
         self._delete_targets: dict[str, str] = {}
 
@@ -197,25 +195,6 @@ class StreamAdapter:
             project_id=self.config.project_id,
             user_id=self.config.user_id,
         )
-
-    def reset(self) -> None:
-        """Reset adapter state for new conversation turn."""
-        self._stream_processor.reset()
-        self._held_reply = []
-        self._held_reply_tools_done = False
-        self._abort_capture = None
-        self._saved_file_word_counts.clear()
-        self._pending_file_write = None
-        self._content_started = False
-        self._current_tool_calls.clear()
-        self._delete_targets.clear()
-        self._last_message_stop_reason = None
-        self._last_message_usage = None
-        self._matched_skill_ids = set(self.config.matched_skill_ids)
-        self._fatal_stream_error = False
-        self._file_mutated = False
-        self._chat_hold_active = False
-        self._held_chat = []
 
     # usage 键别名 → 规范键。Chat Completions 用 prompt/completion，
     # Responses/SDK 用 input/output；两族键名若同时进同一个累加字典，
@@ -482,44 +461,7 @@ class StreamAdapter:
                 yield thinking_content_event(thinking_text, is_complete=False)
 
         elif event_type == StreamEventType.TOOL_USE:
-            # Tool use event
-            status = data.get("status")
-            if status == "start":
-                tool_id = data.get("id", "")
-                tool_name = data.get("name", "")
-                if tool_id:
-                    self._current_tool_calls[tool_id] = {
-                        "name": tool_name,
-                        "input_json": "",
-                    }
-            elif status == "delta":
-                # Accumulate partial JSON for tool input
-                partial_json = data.get("partial_json", "")
-                # Find the tool call to update (use the most recent one)
-                for tool_id in reversed(list(self._current_tool_calls.keys())):
-                    self._current_tool_calls[tool_id]["input_json"] += partial_json
-                    break
-            elif status == "stop":
-                # Emit tool_call event when complete
-                tool_id = data.get("id", "")
-                tool_name = data.get("name", "")
-
-                # First try to get input directly from data (workflow can send complete input)
-                tool_input = data.get("input", {})
-
-                # If no input in data, try to get from accumulated JSON from streaming tool-call deltas)
-                if not tool_input and tool_id and tool_id in self._current_tool_calls:
-                    input_json = self._current_tool_calls[tool_id].get("input_json", "")
-                    if input_json:
-                        import json
-                        with contextlib.suppress(json.JSONDecodeError):
-                            tool_input = json.loads(input_json)
-                    # Clean up
-                    del self._current_tool_calls[tool_id]
-
-                yield tool_call_event(tool_name, tool_input, tool_use_id=tool_id or None)
-            elif status == "complete":
-                # Complete status (has full input already)
+            if data.get("status") == "complete":
                 tool_id = data.get("id", "")
                 tool_name = data.get("name", "")
                 tool_input = data.get("input", {})
@@ -1413,10 +1355,9 @@ class StreamAdapter:
         实现上直接把 file_id 交给 ToolContext 做精确摘除：标记现在是集合，
         「读最近一个再无参清空」在同时存在多个待写空文件时会一次清光其余条目。
         """
-        with contextlib.suppress(Exception):
-            from agent.tools.mcp_tools import ToolContext
+        from agent.tools.mcp_tools import ToolContext
 
-            ToolContext.clear_pending_empty_file(file_id or None)
+        ToolContext.clear_pending_empty_file(file_id or None)
 
     async def _save_file_content(
         self,
@@ -1676,14 +1617,6 @@ class StreamAdapter:
             reasons = [str(w) for w in result.get("warnings") or [] if w]
         detail = "；".join(reasons) if reasons else "未提供原因"
         return f"全部 {len(failures)} 处编辑均未生效：{detail}"
-
-    def get_file_content(self) -> str:
-        """Get accumulated file content from StreamProcessor."""
-        return self._stream_processor.get_final_content()
-
-    def get_history_buffer(self) -> str:
-        """Get content buffer for LLM history."""
-        return self._stream_processor.get_history_buffer()
 
 
 # 这些事件之前，图没有丢掉的扣留文字照常放出（保持在本 agent 的段落里）。

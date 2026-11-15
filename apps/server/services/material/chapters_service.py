@@ -5,6 +5,7 @@ Handles Chapter read/write operations.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
 from sqlmodel import Session, select
 
@@ -18,12 +19,6 @@ class ChaptersService:
         """Get chapter by ID."""
         return session.get(Chapter, chapter_id)
 
-    def list_ids_by_novel(self, session: Session, novel_id: int) -> list[int]:
-        """List all chapter IDs for a novel."""
-        statement = select(Chapter.id).where(Chapter.novel_id == novel_id)
-        results = session.exec(statement).all()
-        return list(results)
-
     def list_by_novel_ordered(
         self, session: Session, novel_id: int, chapter_ids: list[int] | None = None
     ) -> list[Chapter]:
@@ -34,23 +29,9 @@ class ChaptersService:
         statement = statement.order_by(Chapter.chapter_number)
         return list(session.exec(statement).all())
 
-    def list_ids_by_number_range(
-        self, session: Session, novel_id: int, start_number: int, end_number: int
-    ) -> list[int]:
-        """List chapter IDs within a chapter number range."""
-        statement = (
-            select(Chapter.id)
-            .where(Chapter.novel_id == novel_id)
-            .where(Chapter.chapter_number >= start_number)
-            .where(Chapter.chapter_number <= end_number)
-            .order_by(Chapter.chapter_number)
-        )
-        results = session.exec(statement).all()
-        return list(results)
-
     def get_chapter_core_fields(
         self, session: Session, chapter_id: int
-    ) -> dict[str, str] | None:
+    ) -> dict[str, Any] | None:
         """Get core fields of a chapter."""
         chapter = session.get(Chapter, chapter_id)
         if not chapter:
@@ -73,7 +54,6 @@ class ChaptersService:
                 chapter_number=data["chapter_number"],
                 title=data.get("title"),
                 original_content=data.get("content"),
-                content_hash=data.get("content_hash"),
             )
             session.add(chapter)
             session.flush()

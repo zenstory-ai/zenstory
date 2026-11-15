@@ -24,14 +24,13 @@ from flows.atomic_tasks.entities.character_tasks_v2 import (
 from flows.atomic_tasks.parsing import (
     extract_chapter_plots_task,
     save_plots_task,
-    validate_plots_task,
 )
 from flows.atomic_tasks.summaries import (
     generate_chapter_summary_task,
     update_chapter_summary_task,
 )
 from flows.utils.helpers import create_checkpoint_manager, create_performance_monitor
-from flows.utils.helpers.exceptions import is_llm_account_failure, is_llm_service_failure
+from flows.utils.helpers.exceptions import is_llm_fatal_stop, is_llm_service_failure
 from services.material.job_errors import MaterialPipelineError, job_error_code_for_exception
 
 # 并发任务运行器
@@ -44,13 +43,10 @@ def _elapsed_ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
 
-def _raise_if_llm_account_failure(capability: str, error: Exception) -> None:
-    """模型供应商鉴权/余额故障：后续章节只会同样失败，立即终止整次拆解。"""
-    if is_llm_account_failure(error):
-        raise MaterialPipelineError(
-            ErrorCode.MATERIAL_LLM_UNAVAILABLE,
-            f"{capability}: LLM account failure",
-        ) from error
+def _raise_if_llm_account_failure(_capability: str, error: Exception) -> None:
+    """模型供应商鉴权/余额故障或成本熔断：立即终止整次拆解并保留原始错误码。"""
+    if is_llm_fatal_stop(error) or isinstance(error, MaterialPipelineError):
+        raise error
 
 
 def _raise_if_all_failed(
@@ -61,11 +57,15 @@ def _raise_if_all_failed(
     """
     某能力本轮提交的章节全部失败时判定整次拆解失败，不再标成「部分完成」。
 
+    若包含致命停止错误码则保留原始 LLMNonRetryableError；
     全部是调用失败（重试耗尽的超时/连接/5xx/429）视为 AI 服务不可用（可退额度）；
     否则为章节内容拆解失败。
     """
     if attempted == 0 or len(errors) < attempted:
         return
+    for error in errors:
+        if is_llm_fatal_stop(error) or isinstance(error, MaterialPipelineError):
+            raise error
     code = (
         ErrorCode.MATERIAL_LLM_UNAVAILABLE
         if all(is_llm_service_failure(error) for error in errors)
@@ -111,7 +111,6 @@ def _sync_stage1_job_progress(
                 stage_data=payload or {},
                 error_message=error_message,
             )
-            session.commit()
     except Exception:
         # Keep stage processing resilient; progress sync failure must not fail the flow.
         return
@@ -126,7 +125,6 @@ def _sync_stage1_job_progress(
 def chapter_extraction_flow(
     novel_id: int,
     chapter_ids: list[int],
-    correlation_id: str | None = None,  # noqa: ARG001
     job_id: int | None = None,
 ) -> dict[str, Any]:
     """
@@ -176,24 +174,20 @@ def chapter_extraction_flow(
         monitor = create_performance_monitor("chapter_extraction_flow")
         # 初始化 checkpoint 管理器（用于逐章追踪）
         checkpoint = create_checkpoint_manager(novel_id, job_id)
-        # Older test fakes may not implement get_completed_chapters.
-        if hasattr(checkpoint, "get_completed_chapters"):
-            enabled_capabilities = [
-                capability
-                for capability, enabled in (
-                    ("summaries", stages.chapter_summaries),
-                    ("plots", stages.plots),
-                    ("mentions", stages.characters),
-                )
-                if enabled
-            ]
-            completed_sets = [
-                set(checkpoint.get_completed_chapters("stage1", capability))
-                for capability in enabled_capabilities
-            ]
-            baseline_completed = len(set.intersection(*completed_sets)) if completed_sets else 0
-        else:
-            baseline_completed = 0
+        enabled_capabilities = [
+            capability
+            for capability, enabled in (
+                ("summaries", stages.chapter_summaries),
+                ("plots", stages.plots),
+                ("mentions", stages.characters),
+            )
+            if enabled
+        ]
+        completed_sets = [
+            set(checkpoint.get_completed_chapters("stage1", capability))
+            for capability in enabled_capabilities
+        ]
+        baseline_completed = len(set.intersection(*completed_sets)) if completed_sets else 0
 
         # Each capability resumes independently. An explicit empty list means zero
         # submissions and must never fall back to the full chapter list.
@@ -353,32 +347,17 @@ def chapter_extraction_flow(
 
             _raise_if_all_failed("plots", len(plot_futures), plot_errors)
 
-            # 验证情节点
-            validate_futures = []
-            for result in plot_results:
-                future = validate_plots_task.submit(plots=result["plots"])
-                validate_futures.append(future)
-
-            validated_results = [f.result() for f in validate_futures]
-
-            # 保存情节点
+            # 保存情节点（extract_chapter_plots_task 已完成 validate_plots_response 校验）
             save_futures = []
             completed_plot_chapter_ids: list[int] = []
-            for i, result in enumerate(plot_results):
-                if validated_results[i]["valid"]:
-                    future = save_plots_task.submit(
-                        novel_id=novel_id,
-                        chapter_id=result["chapter_id"],
-                        plots=result["plots"],
-                    )
-                    save_futures.append(future)
-                    completed_plot_chapter_ids.append(result["chapter_id"])
-                else:
-                    logger.warning(
-                        f"章节 {result['chapter_id']} 情节点验证失败: "
-                        f"{validated_results[i].get('errors', [])}"
-                    )
-                    failed_plot_chapters.append(result["chapter_id"])
+            for result in plot_results:
+                future = save_plots_task.submit(
+                    novel_id=novel_id,
+                    chapter_id=result["chapter_id"],
+                    plots=result["plots"],
+                )
+                save_futures.append(future)
+                completed_plot_chapter_ids.append(result["chapter_id"])
 
             # 等待所有保存完成
             save_results = [f.result() for f in save_futures]

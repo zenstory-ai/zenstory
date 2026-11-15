@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 import pytest
 
 from flows.utils.clients import llm as llm_mod
@@ -56,30 +54,6 @@ class TestLLMClientHelpers:
         response = llm_mod.LLMResponse(content="not a json", usage={}, model="m", finish_reason="stop")
         with pytest.raises(LLMAPIError):
             client.extract_json_from_response(response)
-
-    def test_validate_response_format_missing_field_returns_false(self, monkeypatch):
-        client = self._new_client()
-        logger = MagicMock()
-        monkeypatch.setattr(llm_mod, "get_logger", lambda _name: logger)
-
-        response = llm_mod.LLMResponse(content='{"a": 1}', usage={}, model="m", finish_reason="stop")
-        ok = client.validate_response_format(response, ["a", "b"])
-
-        assert ok is False
-        assert logger.warning.call_count >= 1
-
-    def test_validate_response_format_invalid_json_logs_error(self, monkeypatch):
-        client = self._new_client()
-        logger = MagicMock()
-        log_error = MagicMock()
-        monkeypatch.setattr(llm_mod, "get_logger", lambda _name: logger)
-        monkeypatch.setattr(llm_mod, "log_error_with_context", log_error)
-
-        response = llm_mod.LLMResponse(content="invalid", usage={}, model="m", finish_reason="stop")
-        ok = client.validate_response_format(response, ["a"])
-
-        assert ok is False
-        assert log_error.call_count == 1
 
     def test_material_llm_client_requires_key(self, monkeypatch):
         monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)

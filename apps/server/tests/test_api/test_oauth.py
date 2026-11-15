@@ -182,47 +182,6 @@ async def test_google_oauth_callback_token_exchange_failure_redirects_to_fronten
 
 
 @pytest.mark.integration
-async def test_validate_token_rejects_refresh_token(client: AsyncClient, db_session):
-    """validate-token endpoint should accept access token and reject refresh token."""
-    from models import User
-    from services.core.auth_service import hash_password
-
-    user = User(
-        username="oauth_validate_user",
-        email="oauth_validate@example.com",
-        hashed_password=hash_password("testpassword123"),
-        email_verified=True,
-        is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-
-    login_response = await client.post(
-        "/api/auth/login",
-        data={
-            "username": "oauth_validate_user",
-            "password": "testpassword123",
-        },
-    )
-    assert login_response.status_code == 200
-    login_data = login_response.json()
-
-    access_response = await client.get(
-        "/api/auth/validate-token",
-        params={"token": login_data["access_token"]},
-    )
-    assert access_response.status_code == 200
-    access_data = access_response.json()
-    assert access_data["email"] == "oauth_validate@example.com"
-
-    refresh_response = await client.get(
-        "/api/auth/validate-token",
-        params={"token": login_data["refresh_token"]},
-    )
-    assert refresh_response.status_code == 401
-
-
-@pytest.mark.integration
 async def test_google_oauth_callback_bootstraps_subscription_and_quota(
     client: AsyncClient, db_session, monkeypatch
 ):

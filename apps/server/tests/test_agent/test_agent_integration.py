@@ -190,19 +190,6 @@ class TestStreamAdapter:
         assert adapter.config.user_id == "test-user"
         assert adapter.config.process_file_markers is True
 
-    def test_stream_adapter_reset(self):
-        """Test stream adapter reset."""
-        from agent.stream_adapter import create_stream_adapter
-
-        adapter = create_stream_adapter()
-        adapter._content_started = True
-        adapter._current_tool_calls["test"] = {"name": "test"}
-
-        adapter.reset()
-
-        assert adapter._content_started is False
-        assert len(adapter._current_tool_calls) == 0
-
     def test_pending_file_write(self):
         """Test pending file write tracking."""
         from agent.stream_adapter import create_stream_adapter
@@ -256,11 +243,7 @@ class TestStreamAdapterWorkflowEvents:
         async def mock_events():
             yield StreamEvent(
                 type=StreamEventType.TOOL_USE,
-                data={"id": "tool-1", "name": "create_file", "status": "start"},
-            )
-            yield StreamEvent(
-                type=StreamEventType.TOOL_USE,
-                data={"name": "create_file", "input": {"title": "Test"}, "status": "stop"},
+                data={"id": "tool-1", "name": "create_file", "input": {"title": "Test"}, "status": "complete"},
             )
 
         events = []

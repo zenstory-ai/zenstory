@@ -28,7 +28,6 @@ logger = get_logger(__name__)
 
 # SentenceRecognition Data is capped after Base64; use conservative decimal MB.
 MAX_BASE64_LENGTH = 3_000_000
-MAX_AUDIO_BYTES = MAX_BASE64_LENGTH // 4 * 3
 MAX_VOICE_REQUEST_BYTES = MAX_BASE64_LENGTH + 4096
 VOICE_RATE_LIMIT_MAX_REQUESTS = 60
 VOICE_RATE_LIMIT_WINDOW_SECONDS = 3600
@@ -97,7 +96,6 @@ class VoiceRecognizeResponse(BaseModel):
     """语音识别响应"""
     text: str
     success: bool
-    error: str | None = None
     duration_ms: int | None = None  # 音频时长（毫秒）
 
 
@@ -184,6 +182,8 @@ async def call_tencent_asr(
     secret_id: str,
     secret_key: str,
     language: str = "zh",
+    *,
+    data_len: int | None = None,
 ) -> dict:
     """
     调用腾讯云一句话识别 API
@@ -212,18 +212,16 @@ async def call_tencent_asr(
 
     engine_type = f"16k_{lang}" if sample_rate >= 16000 else f"8k_{lang}"
 
-    # 计算音频数据长度
-    try:
-        # 清理Base64字符串（移除可能的空白字符和换行符）
-        clean_audio_data = audio_data
-        audio_bytes = base64.b64decode(clean_audio_data, validate=True)
-        data_len = len(audio_bytes)
-    except Exception as e:
-        raise APIException(
-            error_code=ErrorCode.VOICE_AUDIO_DECODE_FAILED,
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Audio data must be strict Base64"
-        ) from e
+    clean_audio_data = audio_data
+    if data_len is None:
+        try:
+            data_len = len(base64.b64decode(clean_audio_data, validate=True))
+        except Exception as e:
+            raise APIException(
+                error_code=ErrorCode.VOICE_AUDIO_DECODE_FAILED,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Audio data must be strict Base64"
+            ) from e
 
     # 请求参数
     params = {
@@ -348,13 +346,6 @@ async def recognize_voice(
                 detail="Audio data must be strict Base64",
             ) from exc
 
-        if len(audio_bytes) > MAX_AUDIO_BYTES:
-            raise APIException(
-                error_code=ErrorCode.VOICE_AUDIO_DECODE_FAILED,
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="Audio data exceeds the supported encoded-data limit",
-            )
-
         # 获取凭证
         secret_id, secret_key = get_tencent_credentials()
 
@@ -366,6 +357,7 @@ async def recognize_voice(
             secret_id=secret_id,
             secret_key=secret_key,
             language=request.language,
+            data_len=len(audio_bytes),
         )
 
         # 解析响应

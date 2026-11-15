@@ -44,7 +44,7 @@ def _ordered(rows):
 
 
 async def test_full_round_user_row_keeps_the_send_time(
-    round3_service, round3_user_with_project, db_session: Session, message_clock
+    round3_service, round3_user_with_project, db_session: Session, message_clock  # noqa: F811
 ):
     from agent.core.workflow_events import StreamEvent, StreamEventType
 
@@ -77,7 +77,7 @@ async def test_full_round_user_row_keeps_the_send_time(
 
 
 async def test_stopped_round_partial_save_keeps_the_send_time(
-    round3_service, round3_user_with_project, db_session: Session, message_clock
+    round3_service, round3_user_with_project, db_session: Session, message_clock  # noqa: F811
 ):
     """停止 / 断线：补偿保存（_save_partial_history_sync）也用发出时间。"""
     from agent.core.workflow_events import StreamEvent, StreamEventType
@@ -122,7 +122,7 @@ async def test_stopped_round_partial_save_keeps_the_send_time(
 
 
 async def test_round_without_output_keeps_the_send_time(
-    round3_service, round3_user_with_project, db_session: Session, message_clock
+    round3_service, round3_user_with_project, db_session: Session, message_clock  # noqa: F811
 ):
     """一个字都没产出就取消：只留用户消息（_append_user_messages_sync），时间仍是发出时间。"""
     from agent.core.workflow_events import StreamEvent, StreamEventType
@@ -163,7 +163,7 @@ async def test_round_without_output_keeps_the_send_time(
 
 
 async def test_steering_after_the_save_stays_after_the_reply(
-    round3_service, round3_user_with_project, db_session: Session
+    round3_service, round3_user_with_project, db_session: Session  # noqa: F811
 ):
     """整轮保存之后才到的 steering 单独追加，不拿发出时间：按时间排序仍在助手回复之后。"""
     from agent.core.message_manager import MessageManager

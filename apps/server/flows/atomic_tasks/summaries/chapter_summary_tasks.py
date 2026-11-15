@@ -14,6 +14,7 @@ from flows.database_session import get_db_session
 from flows.utils import (
     api_task,
     call_material_llm,
+    database_task,
     get_material_llm_client,
 )
 from prompts import create_chapter_summary_prompt
@@ -116,7 +117,7 @@ def generate_chapter_summary_task(
     }
 
 
-@api_task(name="update_chapter_summary", retries=2)
+@database_task(name="update_chapter_summary", retries=2)
 def update_chapter_summary_task(
     chapter_id: int,
     summary: str,
@@ -144,7 +145,6 @@ def update_chapter_summary_task(
         if not exists:
             raise ValueError(f"章节 {chapter_id} 不存在")
         svc.save_summary(db, chapter_id, summary)
-        db.commit()
 
     logger.info(f"[章节摘要更新] 完成: chapter_id={chapter_id}")
 

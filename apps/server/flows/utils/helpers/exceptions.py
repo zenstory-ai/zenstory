@@ -46,18 +46,29 @@ def is_retryable_exception(exc: BaseException | None) -> bool:
     return not isinstance(exc, (LLMNonRetryableError, ValidationError, MaterialPipelineError))
 
 
-def is_llm_account_failure(exc: BaseException | None) -> bool:
-    """模型供应商账号级故障（401/402/403、未配置密钥）：继续调用只会全部失败。"""
+def is_llm_fatal_stop(exc: BaseException | None) -> bool:
+    """致命非重试终止（供应商鉴权/余额故障、试用额度上限、每日成本熔断）：必须立即中止。"""
     from core.error_codes import ErrorCode
 
-    return (
-        isinstance(exc, LLMNonRetryableError)
-        and exc.error_code == ErrorCode.MATERIAL_LLM_UNAVAILABLE
-    )
+    fatal_codes = {
+        ErrorCode.MATERIAL_LLM_UNAVAILABLE,
+        ErrorCode.MATERIAL_TRIAL_COST_LIMIT,
+        ErrorCode.QUOTA_AI_DAILY_COST_EXCEEDED,
+        ErrorCode.AI_COST_BUDGET_UNAVAILABLE,
+        ErrorCode.MATERIAL_TRIAL_LIMIT_INVALID,
+    }
+    return isinstance(exc, LLMNonRetryableError) and exc.error_code in fatal_codes
+
+
+def is_llm_account_failure(exc: BaseException | None) -> bool:
+    """模型供应商账号级故障或成本熔断：继续调用只会失败或越界。"""
+    return is_llm_fatal_stop(exc)
 
 
 def is_llm_service_failure(exc: BaseException | None) -> bool:
-    """调用 LLM 本身失败（账号故障，或重试耗尽后的超时/连接/5xx/429）。"""
-    if is_llm_account_failure(exc):
-        return True
-    return isinstance(exc, LLMAPIError) and not isinstance(exc, LLMNonRetryableError)
+    """调用 LLM 本身失败（平台账号故障，或重试耗尽后的超时/连接/5xx/429）。"""
+    from core.error_codes import ErrorCode
+
+    if isinstance(exc, LLMNonRetryableError):
+        return exc.error_code == ErrorCode.MATERIAL_LLM_UNAVAILABLE
+    return isinstance(exc, LLMAPIError)

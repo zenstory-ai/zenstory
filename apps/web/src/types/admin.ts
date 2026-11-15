@@ -540,3 +540,37 @@ export interface AcquisitionStats {
   channels: AcquisitionChannelRow[];
   sources: AcquisitionSourceRow[];
 }
+
+// ==================== Redemption Codes & Audit Logs ====================
+
+/** Represents a redemption code for subscription or benefits. */
+export interface RedemptionCode {
+  id: string;
+  code: string;
+  tier: string;
+  duration_days: number;
+  code_type: string;
+  max_uses: number | null;
+  current_uses: number;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Represents an admin action audit log entry. */
+export interface AuditLog {
+  id: string;
+  admin_id: string;
+  admin_name: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export type AdminAuditLog = AuditLog;

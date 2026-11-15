@@ -169,4 +169,24 @@ describe('SubscriptionStatus', () => {
     })
     expect(screen.queryByText('兑换码')).not.toBeInTheDocument()
   })
+
+  it('shows error card with retry when subscription status query fails', async () => {
+    mockGetStatus
+      .mockRejectedValueOnce(new Error('status failed'))
+      .mockResolvedValueOnce({
+        tier: 'free',
+        status: 'none',
+        display_name: '免费版',
+        display_name_en: 'Free',
+        current_period_end: null,
+        days_remaining: null,
+        features: { ai_conversations_per_day: 3 },
+      })
+
+    renderWithQuery(<SubscriptionStatus onRedeemClick={vi.fn()} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('套餐状态加载失败，请重试')
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    expect(await screen.findByText('免费版')).toBeInTheDocument()
+  })
 })

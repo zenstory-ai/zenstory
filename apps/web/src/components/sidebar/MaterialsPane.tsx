@@ -51,7 +51,7 @@ type MaterialCountKey =
 export const MaterialsPane: React.FC = () => {
   const { t } = useTranslation(['editor', 'common', 'materials']);
   const { currentProjectId, triggerFileTreeRefresh } = useProject();
-  const { addMaterial } = useMaterialAttachment();
+  const { addMaterial, isMaterialAttached, isAtLimit, maxMaterials = 5 } = useMaterialAttachment();
   const materialLib = useMaterialLibraryContext();
   const isLibraryLoading = materialLib.isLoading || (materialLib.isFetching && materialLib.libraries.length === 0);
   const { refreshIfStale } = materialLib;
@@ -64,6 +64,7 @@ export const MaterialsPane: React.FC = () => {
   // Entity lists state
   const [entityLists, setEntityLists] = useState<Record<string, { id: number; name: string }[]>>({});
   const [entityListLoading, setEntityListLoading] = useState<Record<string, boolean>>({});
+  const [entityListError, setEntityListError] = useState<Record<string, boolean>>({});
 
   // Batch selection state
   const [batchMode, setBatchMode] = useState(false);
@@ -87,28 +88,41 @@ export const MaterialsPane: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
 
-  // Track loading state with ref to avoid stale closure
+  // Track loading state and request ownership with refs to avoid stale closures / unmount races
   const entityListLoadingRef = useRef<Record<string, boolean>>({});
+  const entityListRequestSeqRef = useRef<Record<string, number>>({});
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      entityListLoadingRef.current = {};
+    };
+  }, []);
 
   // Load entity list for a specific novel + entity type
-  const loadEntityList = useCallback(async (novelId: number, entityType: MaterialEntityType) => {
+  const loadEntityList = useCallback(async (novelId: number, entityType: MaterialEntityType, force = false) => {
     const key = `${novelId}:${entityType}`;
 
     // Check ref to avoid duplicate requests
     if (entityListLoadingRef.current[key]) return;
 
-    // Also check if already loaded
-    if (entityLists[key]) return;
+    // Also check if already loaded (unless explicitly retrying)
+    if (!force && entityLists[key]) return;
 
+    const novel = materialLib.libraries.find(l => l.id === novelId);
+    if (!novel) return;
+
+    const requestSeq = (entityListRequestSeqRef.current[key] ?? 0) + 1;
+    entityListRequestSeqRef.current[key] = requestSeq;
     entityListLoadingRef.current[key] = true;
     setEntityListLoading(prev => ({ ...prev, [key]: true }));
+    setEntityListError(prev => ({ ...prev, [key]: false }));
 
     try {
-      let items: { id: number; name: string }[] = [];
-      const novel = materialLib.libraries.find(l => l.id === novelId);
-      if (!novel) return;
+      let items = await materialsApi.getEntityNavigation(String(novelId), entityType);
+      if (!mountedRef.current || entityListRequestSeqRef.current[key] !== requestSeq) return;
 
-      items = await materialsApi.getEntityNavigation(String(novelId), entityType);
       if (entityType === 'worldview') {
         items = items.map((item) => ({
           ...item,
@@ -118,11 +132,17 @@ export const MaterialsPane: React.FC = () => {
 
       setEntityLists(prev => ({ ...prev, [key]: items }));
     } catch (err) {
+      if (!mountedRef.current || entityListRequestSeqRef.current[key] !== requestSeq) return;
       logger.error('Failed to load entity list:', err);
+      setEntityListError(prev => ({ ...prev, [key]: true }));
       toast.error(t('materials:toast.loadListFailed'));
     } finally {
-      entityListLoadingRef.current[key] = false;
-      setEntityListLoading(prev => ({ ...prev, [key]: false }));
+      if (entityListRequestSeqRef.current[key] === requestSeq) {
+        entityListLoadingRef.current[key] = false;
+        if (mountedRef.current) {
+          setEntityListLoading(prev => ({ ...prev, [key]: false }));
+        }
+      }
     }
   }, [entityLists, materialLib.libraries, t]);
 
@@ -160,12 +180,23 @@ export const MaterialsPane: React.FC = () => {
   const handleAttachToChat = useCallback((novelId: number, entityType: MaterialEntityType, entityId: number, itemName: string) => {
     // Use a virtual ID for library materials
     const virtualId = `lib_${novelId}_${entityType}_${entityId}`;
-    addMaterial(virtualId, itemName, {
+    if (isMaterialAttached?.(virtualId)) {
+      toast.info(t('editor:fileTree.alreadyAttached'));
+      return;
+    }
+    const added = addMaterial(virtualId, itemName, {
       novelId,
       entityType,
       entityId,
     });
-  }, [addMaterial]);
+    if (!added) {
+      toast.info(
+        isAtLimit === false
+          ? t('editor:fileTree.alreadyAttached')
+          : t('editor:fileTree.maxMaterials', { max: maxMaterials }),
+      );
+    }
+  }, [addMaterial, isAtLimit, isMaterialAttached, maxMaterials, t]);
 
   // Search timeout and request ordering refs
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -436,6 +467,7 @@ export const MaterialsPane: React.FC = () => {
                         const isTypeExpanded = materialLib.expandedTypes.get(typeKey) || false;
                         const items = entityLists[typeKey] || [];
                         const isLoadingItems = entityListLoading[typeKey] || false;
+                        const hasItemsError = entityListError[typeKey] || false;
 
                         return (
                           <div key={type}>
@@ -465,6 +497,17 @@ export const MaterialsPane: React.FC = () => {
                                 {isLoadingItems ? (
                                   <div className="px-2 py-1 text-[hsl(var(--text-secondary))] text-xs italic" style={{ marginLeft: 24 }}>
                                     {t('common:loading')}
+                                  </div>
+                                ) : hasItemsError ? (
+                                  <div className="px-2 py-1 text-xs text-[hsl(var(--error-text))] flex items-center gap-2" style={{ marginLeft: 24 }}>
+                                    <span>{t('materials:detail.folderLoadError')}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => void loadEntityList(lib.id, type, true)}
+                                      className="underline hover:no-underline"
+                                    >
+                                      {t('common:retry')}
+                                    </button>
                                   </div>
                                 ) : (
                                   items.map((item) => (

@@ -70,14 +70,12 @@ class ResultBuilder:
                 - stories_count: 剧情数量
                 - storylines_count: 剧情线数量
                 - relationships_count: 人物关系数量
-                - neo4j_persisted: 是否存储到 Neo4j
                 - characters_created: 新创建的角色数量
                 - characters_updated: 更新的角色数量
                 - failed_count: 总失败计数（当前汇总已知失败）
                 - failed_chapters: 阶段1失败章节
                 - failed_mention_chapters: 角色提及失败章节
                 - failed_stories: 聚合失败的剧情
-                - neo4j_failed_chapters: 写入 Neo4j 失败的章节
                 - failed_characters: 角色实体构建失败角色
                 - status: completed / completed_with_errors / failed
                 - elapsed_ms: 总耗时（毫秒）
@@ -87,7 +85,6 @@ class ResultBuilder:
         failed_chapters = stage1_data.get("failed_chapters", [])
         failed_mention_chapters = stage1_data.get("failed_mention_chapters", [])
         failed_stories = story_result.get("failed_stories", [])
-        neo4j_failed_chapters = relationship_result.get("neo4j_failed_chapters", [])
         failed_characters = character_entity_result.get("failed_characters", [])
         meta_extraction = stage1_data.get("meta_extraction")
         meta_failed = bool(meta_extraction and meta_extraction.get("succeeded") is False)
@@ -95,7 +92,6 @@ class ResultBuilder:
             int(stage1_data.get("failed_count", 0) or 0)
             + len(failed_stories)
             + int(character_entity_result.get("failed_count", 0) or 0)
-            + len(neo4j_failed_chapters)
             + int(meta_failed)
         )
 
@@ -110,14 +106,12 @@ class ResultBuilder:
             "stories_count": story_result.get("stories_count", 0),
             "storylines_count": story_result.get("storylines_count", 0),
             "relationships_count": relationship_result.get("relationships_count", 0),
-            "neo4j_persisted": relationship_result.get("neo4j_persisted", False),
             "characters_created": character_entity_result.get("created_count", 0),
             "characters_updated": character_entity_result.get("updated_count", 0),
             "failed_count": failed_count,
             "failed_chapters": failed_chapters,
             "failed_mention_chapters": failed_mention_chapters,
             "failed_stories": failed_stories,
-            "neo4j_failed_chapters": neo4j_failed_chapters,
             "failed_characters": failed_characters,
             "status": status,
             "elapsed_ms": elapsed_ms,

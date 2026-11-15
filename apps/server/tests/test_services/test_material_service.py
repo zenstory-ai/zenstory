@@ -348,48 +348,6 @@ class TestNovelsServiceListChapterIds:
         assert ids == []
 
 
-@pytest.mark.unit
-class TestNovelsServiceIntelligentChunks:
-    """Tests for intelligent chunks read/write on source_meta."""
-
-    def test_set_and_get_intelligent_chunks(
-        self, db_session: Session, novels_svc: NovelsService, test_novel: Novel
-    ):
-        """Should persist chunk metadata into source_meta and read it back."""
-        test_novel.source_meta = json.dumps({"file_path": "/tmp/test.txt"})
-        db_session.add(test_novel)
-        db_session.commit()
-
-        chunks_data = {
-            "chunk_count": 2,
-            "chunks": [{"chunk_id": 1, "start_chapter": 1, "end_chapter": 3}],
-        }
-        novels_svc.set_intelligent_chunks(db_session, test_novel.id, chunks_data)
-        db_session.commit()
-
-        db_session.refresh(test_novel)
-        parsed_meta = json.loads(test_novel.source_meta or "{}")
-        assert parsed_meta.get("file_path") == "/tmp/test.txt"
-        assert parsed_meta.get("intelligent_chunks") == chunks_data
-
-        loaded = novels_svc.get_intelligent_chunks(db_session, test_novel.id)
-        assert loaded == chunks_data
-
-    def test_get_intelligent_chunks_when_missing(
-        self, db_session: Session, novels_svc: NovelsService, test_novel: Novel
-    ):
-        """Should return None when intelligent chunk data is absent."""
-        loaded = novels_svc.get_intelligent_chunks(db_session, test_novel.id)
-        assert loaded is None
-
-    def test_set_intelligent_chunks_novel_not_found(
-        self, db_session: Session, novels_svc: NovelsService
-    ):
-        """Setting chunks for missing novel should raise ValueError."""
-        with pytest.raises(ValueError, match="小说不存在"):
-            novels_svc.set_intelligent_chunks(db_session, 99999, {"chunk_count": 1})
-
-
 # ============ ChaptersService Tests ============
 
 @pytest.mark.unit
@@ -416,15 +374,6 @@ class TestChaptersServiceGetById:
 class TestChaptersServiceListByNovel:
     """Tests for ChaptersService list methods."""
 
-    def test_list_ids_by_novel(
-        self, db_session: Session, chapters_svc: ChaptersService, test_chapters: list[Chapter]
-    ):
-        """Test listing chapter IDs by novel."""
-        novel_id = test_chapters[0].novel_id
-        ids = chapters_svc.list_ids_by_novel(db_session, novel_id)
-
-        assert len(ids) == 3
-
     def test_list_by_novel_ordered(
         self, db_session: Session, chapters_svc: ChaptersService, test_chapters: list[Chapter]
     ):
@@ -448,17 +397,6 @@ class TestChaptersServiceListByNovel:
         )
 
         assert len(chapters) == 2
-
-    def test_list_ids_by_number_range(
-        self, db_session: Session, chapters_svc: ChaptersService, test_chapters: list[Chapter]
-    ):
-        """Test listing chapter IDs by number range."""
-        novel_id = test_chapters[0].novel_id
-        ids = chapters_svc.list_ids_by_number_range(
-            db_session, novel_id, start_number=1, end_number=2
-        )
-
-        assert len(ids) == 2
 
 
 @pytest.mark.unit
@@ -520,29 +458,6 @@ class TestChaptersServiceSaveSummary:
 # ============ CharactersService Tests ============
 
 @pytest.mark.unit
-class TestCharactersServiceGetByName:
-    """Tests for CharactersService.get_by_name method."""
-
-    def test_get_by_name_found(
-        self, db_session: Session, characters_svc: CharactersService,
-        test_novel: Novel, test_character: Character
-    ):
-        """Test finding character by name."""
-        char = characters_svc.get_by_name(db_session, test_novel.id, "张三")
-
-        assert char is not None
-        assert char.name == "张三"
-
-    def test_get_by_name_not_found(
-        self, db_session: Session, characters_svc: CharactersService, test_novel: Novel
-    ):
-        """Test finding non-existent character."""
-        char = characters_svc.get_by_name(db_session, test_novel.id, "不存在")
-
-        assert char is None
-
-
-@pytest.mark.unit
 class TestCharactersServiceListByNovel:
     """Tests for CharactersService.list_by_novel method."""
 
@@ -568,66 +483,6 @@ class TestCharactersServiceListByNovel:
         chars = characters_svc.list_by_novel(db_session, novel2.id)
 
         assert chars == []
-
-
-@pytest.mark.unit
-class TestCharactersServiceUpsert:
-    """Tests for CharactersService.upsert_characters method."""
-
-    def test_upsert_create_new(
-        self, db_session: Session, characters_svc: CharactersService, test_novel: Novel
-    ):
-        """Test creating new characters via upsert."""
-        items = [
-            {"name": "李四", "description": "New character"},
-            {"name": "王五", "description": "Another character"},
-        ]
-        created, updated = characters_svc.upsert_characters(db_session, test_novel.id, items)
-
-        assert created == 2
-        assert updated == 0
-
-    def test_upsert_update_existing(
-        self, db_session: Session, characters_svc: CharactersService,
-        test_novel: Novel, test_character: Character
-    ):
-        """Test updating existing character via upsert."""
-        items = [
-            {"name": "张三", "description": "Updated description"},
-        ]
-        created, updated = characters_svc.upsert_characters(db_session, test_novel.id, items)
-
-        assert created == 0
-        assert updated == 1
-
-        db_session.refresh(test_character)
-        assert test_character.description == "Updated description"
-
-    def test_upsert_mixed(
-        self, db_session: Session, characters_svc: CharactersService,
-        test_novel: Novel, test_character: Character
-    ):
-        """Test upsert with both create and update."""
-        items = [
-            {"name": "张三", "description": "Updated"},
-            {"name": "新角色", "description": "New"},
-        ]
-        created, updated = characters_svc.upsert_characters(db_session, test_novel.id, items)
-
-        assert created == 1
-        assert updated == 1
-
-    def test_upsert_skip_missing_name(
-        self, db_session: Session, characters_svc: CharactersService, test_novel: Novel
-    ):
-        """Test upsert skips items without name."""
-        items = [
-            {"description": "No name"},
-            {"name": "有名字", "description": "Has name"},
-        ]
-        created, updated = characters_svc.upsert_characters(db_session, test_novel.id, items)
-
-        assert created == 1
 
 
 # ============ PlotsService Tests ============
@@ -789,18 +644,6 @@ class TestIngestionJobsServiceGetLatest:
 @pytest.mark.unit
 class TestIngestionJobsServiceUpdate:
     """Tests for IngestionJobsService update methods."""
-
-    def test_update_status(
-        self, db_session: Session, ingestion_jobs_svc: IngestionJobsService,
-        test_ingestion_job: IngestionJob
-    ):
-        """Test updating job status."""
-        ingestion_jobs_svc.update_status(
-            db_session, test_ingestion_job.id, "processing"
-        )
-
-        db_session.refresh(test_ingestion_job)
-        assert test_ingestion_job.status == "processing"
 
     def test_update_processed(
         self, db_session: Session, ingestion_jobs_svc: IngestionJobsService,
@@ -1019,101 +862,7 @@ class TestCheckpointServiceUpsert:
         assert cp.error_message == "Something went wrong"
 
 
-@pytest.mark.unit
-class TestCheckpointServiceDeleteAll:
-    """Tests for CheckpointService.delete_all method."""
-
-    def test_delete_all(
-        self, db_session: Session, checkpoint_svc: CheckpointService,
-        test_novel: Novel
-    ):
-        """Test deleting all checkpoints for a novel."""
-        cp1 = ProcessCheckpoint(novel_id=test_novel.id, stage="stage0", stage_status="completed")
-        cp2 = ProcessCheckpoint(novel_id=test_novel.id, stage="stage1", stage_status="completed")
-        db_session.add_all([cp1, cp2])
-        db_session.commit()
-
-        checkpoint_svc.delete_all(db_session, test_novel.id)
-
-        remaining = db_session.exec(
-            ProcessCheckpoint.__table__.select().where(
-                ProcessCheckpoint.novel_id == test_novel.id
-            )
-        ).all()
-        assert len(remaining) == 0
-
-
 # ============ StatsService Tests ============
-
-@pytest.mark.unit
-class TestStatsServiceGetNovelStats:
-    """Tests for StatsService.get_novel_stats method."""
-
-    def test_get_novel_stats_empty(
-        self, db_session: Session, stats_svc: StatsService, test_novel: Novel
-    ):
-        """Test stats for novel with no content."""
-        stats = stats_svc.get_novel_stats(db_session, test_novel.id)
-
-        assert stats["novel_id"] == test_novel.id
-        assert stats["chapter_count"] == 0
-        assert stats["plot_count"] == 0
-        assert stats["character_count"] == 0
-
-    def test_get_novel_stats_with_content(
-        self, db_session: Session, stats_svc: StatsService,
-        test_novel: Novel
-    ):
-        """Test stats for novel with content."""
-        # Create chapters
-        for i in range(1, 4):
-            chapter = Chapter(
-                novel_id=test_novel.id,
-                chapter_number=i,
-                title=f"Chapter {i}",
-                original_content=f"Content {i}",
-                summary=f"Summary {i}" if i < 3 else None,
-            )
-            db_session.add(chapter)
-        db_session.commit()
-
-        # Create character
-        character = Character(
-            novel_id=test_novel.id,
-            name="测试角色",
-        )
-        db_session.add(character)
-        db_session.commit()
-
-        stats = stats_svc.get_novel_stats(db_session, test_novel.id)
-
-        assert stats["chapter_count"] == 3
-        assert stats["character_count"] == 1
-
-
-@pytest.mark.unit
-class TestStatsServiceGetChapterStats:
-    """Tests for StatsService.get_chapter_stats method."""
-
-    def test_get_chapter_stats(
-        self, db_session: Session, stats_svc: StatsService,
-        test_chapter: Chapter, test_plot: Plot
-    ):
-        """Test getting chapter stats."""
-        stats = stats_svc.get_chapter_stats(db_session, test_chapter.id)
-
-        assert stats["chapter_id"] == test_chapter.id
-        assert stats["chapter_number"] == 1
-        assert stats["plot_count"] >= 1
-
-    def test_get_chapter_stats_not_found(
-        self, db_session: Session, stats_svc: StatsService
-    ):
-        """Test stats for non-existent chapter."""
-        stats = stats_svc.get_chapter_stats(db_session, 99999)
-
-        assert stats == {}
-
 
 @pytest.mark.unit
 class TestStatsServiceCountStage1:
@@ -1181,13 +930,13 @@ class TestMaterialDataIsolation:
         db_session.add(char2)
         db_session.commit()
 
-        # Both should exist
-        char1 = characters_svc.get_by_name(db_session, test_novel.id, "张三")
-        char2_found = characters_svc.get_by_name(db_session, novel2.id, "张三")
+        # Both should exist in their own novels only
+        chars1 = characters_svc.list_by_novel(db_session, test_novel.id)
+        chars2 = characters_svc.list_by_novel(db_session, novel2.id)
 
-        assert char1 is not None
-        assert char2_found is not None
-        assert char1.novel_id != char2_found.novel_id
+        assert len(chars1) == 1
+        assert len(chars2) == 1
+        assert chars1[0].novel_id != chars2[0].novel_id
 
 
 @pytest.mark.unit
@@ -1250,25 +999,6 @@ class TestIngestionJobProgress:
 @pytest.mark.unit
 class TestProcessCheckpointHelpers:
     """Tests for ProcessCheckpoint helper methods."""
-
-    def test_mark_completed(
-        self, db_session: Session, test_novel: Novel
-    ):
-        """Test marking checkpoint as completed."""
-        cp = ProcessCheckpoint(
-            novel_id=test_novel.id,
-            stage="stage0",
-            stage_status="processing",
-        )
-        db_session.add(cp)
-        db_session.commit()
-
-        cp.mark_completed({"processed": 10})
-        db_session.commit()
-
-        assert cp.stage_status == "completed"
-        data = json.loads(cp.checkpoint_data)
-        assert data["processed"] == 10
 
     def test_mark_failed(
         self, db_session: Session, test_novel: Novel

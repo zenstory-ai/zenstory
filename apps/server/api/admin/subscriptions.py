@@ -15,7 +15,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from models import User
-from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
+from models.subscription import SubscriptionPlan, UserSubscription
 from services.admin_audit_service import admin_audit_service
 from services.core.auth_service import get_current_superuser
 from services.subscription.defaults import DEFAULT_FREE_PLAN_DISPLAY_NAME, DEFAULT_FREE_PLAN_DISPLAY_NAME_EN
@@ -250,9 +250,6 @@ def get_user_subscription(
         )
 
     plan = session.get(SubscriptionPlan, sub.plan_id)
-    quota = session.exec(
-        select(UsageQuota).where(UsageQuota.user_id == user_id)
-    ).first()
 
     log_with_context(
         logger,
@@ -265,7 +262,6 @@ def get_user_subscription(
     return {
         "subscription": sub.model_dump(),
         "plan": plan.model_dump() if plan else None,
-        "quota": quota.model_dump() if quota else None
     }
 
 

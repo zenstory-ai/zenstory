@@ -329,15 +329,11 @@ def _agent_can_write_files(agent_type: str | None) -> bool:
     """
     if not agent_type:
         return False
-    try:
-        # 写文件工具集合与 runner 的只读拒绝共用 registry.FILE_WRITE_TOOL_NAMES，
-        # 「谁算有写权限」与「只读请求下拒绝哪些工具」不会各说各话。
-        from agent.tools.registry import AGENT_TOOL_NAME_MAP, FILE_WRITE_TOOL_NAMES
+    # 写文件工具集合与 runner 的只读拒绝共用 registry.FILE_WRITE_TOOL_NAMES，
+    # 「谁算有写权限」与「只读请求下拒绝哪些工具」不会各说各话。
+    from agent.tools.registry import AGENT_TOOL_NAME_MAP, FILE_WRITE_TOOL_NAMES
 
-        tool_names = AGENT_TOOL_NAME_MAP.get(agent_type)
-    except Exception as e:  # pragma: no cover - registry 导入失败属异常路径
-        logger.debug(f"Failed to resolve agent toolset for {agent_type}: {e}")
-        return True
+    tool_names = AGENT_TOOL_NAME_MAP.get(agent_type)
     if tool_names is None:
         # 未知 agent 类型走 registry 的 writer 兜底，视为有写权限。
         return True
@@ -1419,15 +1415,11 @@ def _extract_review_payload(agent_content: str) -> str:
     if "<file" not in raw.lower():
         return raw
 
-    # Normalize file marker variants (best-effort). We reuse the same normalization
+    # Normalize file marker variants. We reuse the same normalization
     # logic as StreamProcessor so reviewer extraction is consistent with file writes.
-    normalized = raw
-    try:
-        from agent.core.stream_processor import normalize_file_markers
+    from agent.core.stream_processor import normalize_file_markers
 
-        normalized = normalize_file_markers(raw)
-    except Exception:
-        normalized = raw
+    normalized = normalize_file_markers(raw)
 
     start_tag = "<file>"
     end_tag = "</file>"
@@ -3400,13 +3392,10 @@ async def run_writing_workflow_streaming(
             # 检测任务完成。
             # - 显式 handoff 优先级最高（继续协作，不触发 stop/complete）。
             # - 计划交接（作者范围内还没跑的阶段）不被完成标记打断。
-            # - 自动送审仅在显式完成标记时允许打断。
-            # - 无待交接时允许启发式完成。
+            # - 仅显式末尾完成标记（[TASK_COMPLETE] / [任务完成]）可触发完成收尾。
             if agent_content:
-                evaluation = evaluate_agent_output(agent_content, current_agent_type)
-                complete_result = detect_task_complete(agent_content, current_agent_type)
-
-                explicit_complete = complete_result.reason == "explicit_complete_marker"
+                evaluation = evaluate_agent_output(agent_content)
+                complete_result = detect_task_complete(agent_content, evaluation=evaluation)
 
                 if has_explicit_handoff:
                     can_stop_for_completion = False
@@ -3423,9 +3412,7 @@ async def run_writing_workflow_streaming(
                             next_planned=pending_next_agent,
                         )
                 else:
-                    can_stop_for_completion = complete_result.is_complete and (
-                        explicit_complete or not has_pending_handoff
-                    )
+                    can_stop_for_completion = complete_result.is_complete
 
                 if can_stop_for_completion:
                     log_with_context(

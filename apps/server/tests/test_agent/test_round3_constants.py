@@ -8,14 +8,18 @@ agent/constants.py 共享基础设施的单元测试。
 
 import pytest
 
-from agent.constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES, coerce_bool
+from agent.constants import (
+    CONTENT_FILE_TYPES,
+    INVENTORY_FILE_TYPES,
+    coerce_bool,
+    should_offload_session_work,
+)
 from models.file_model import (
     FILE_TYPE_CHARACTER,
     FILE_TYPE_DOCUMENT,
     FILE_TYPE_DRAFT,
     FILE_TYPE_FOLDER,
     FILE_TYPE_LORE,
-    FILE_TYPE_METADATA_SCHEMA,
     FILE_TYPE_OUTLINE,
     FILE_TYPE_SCRIPT,
     FILE_TYPE_SNIPPET,
@@ -170,4 +174,28 @@ def test_content_types_are_subset_of_inventory_types():
 def test_file_type_document_constant_exists():
     """document 是 create_file 的默认类型，必须有常量而非字面量。"""
     assert FILE_TYPE_DOCUMENT == "document"
-    assert FILE_TYPE_DOCUMENT in FILE_TYPE_METADATA_SCHEMA
+    assert FILE_TYPE_DOCUMENT in INVENTORY_FILE_TYPES
+
+
+@pytest.mark.unit
+def test_should_offload_session_work_only_for_postgresql_sessions():
+    """共享 helper：仅当传入绑定为 postgresql 的 session 时返回 True。"""
+    assert should_offload_session_work(None) is False
+
+    class _FakeDialect:
+        def __init__(self, name: str):
+            self.name = name
+
+    class _FakeBind:
+        def __init__(self, dialect_name: str):
+            self.dialect = _FakeDialect(dialect_name)
+
+    class _FakeSession:
+        def __init__(self, dialect_name: str):
+            self._bind = _FakeBind(dialect_name)
+
+        def get_bind(self):
+            return self._bind
+
+    assert should_offload_session_work(_FakeSession("sqlite")) is False
+    assert should_offload_session_work(_FakeSession("postgresql")) is True

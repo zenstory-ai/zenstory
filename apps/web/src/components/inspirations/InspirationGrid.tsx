@@ -109,6 +109,13 @@ export function InspirationGrid({
   const [upgradeModalVariant, setUpgradeModalVariant] = useState<"inspiration_copy" | "project_quota">(
     "inspiration_copy"
   );
+  const viewRequestRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      viewRequestRef.current += 1;
+    };
+  }, []);
 
   // Debounce search input before passing to API
   const debouncedSearch = useDebouncedValue(searchInput, 300);
@@ -140,8 +147,14 @@ export function InspirationGrid({
   };
 
   const handleViewInspiration = async (id: string) => {
+    const seq = ++viewRequestRef.current;
     const detail = await getDetail(id);
-    if (detail) setIsDialogOpen(true);
+    if (viewRequestRef.current !== seq) return;
+    if (detail) {
+      setIsDialogOpen(true);
+    } else {
+      toast.error(t("loadError"));
+    }
   };
 
   const handleCopyInspiration = async (

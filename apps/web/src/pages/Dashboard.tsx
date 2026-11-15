@@ -21,7 +21,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { useIsMobile, useIsTablet, useIsDesktop } from "../hooks/useMediaQuery";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { UserAvatar } from "../components/UserMenu";
-import { normalizeLocale } from "../lib/i18n-helpers";
+import { normalizeLocale, switchLocale } from "../lib/i18n-helpers";
 import { inspirationsConfig } from "../config/inspirations";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import { getUserDisplayName } from "../lib/userDisplayName";
@@ -112,15 +112,8 @@ function DashboardContent() {
     setTheme(nextTheme);
   };
 
-  const handleLanguageSwitch = async (lang: 'zh' | 'en') => {
-    if (currentLanguage === lang) return;
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('zenstory-language', lang);
-    }
-
-    await i18n.changeLanguage(lang);
-  };
+  const handleLanguageSwitch = (lang: 'zh' | 'en') =>
+    switchLocale(i18n, currentLanguage, lang);
 
   const handleOpenSettings = () => {
     setShowSettings(true);

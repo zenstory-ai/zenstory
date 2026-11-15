@@ -288,22 +288,6 @@ async def test_admin_update_subscription_bootstraps_missing_record(
 
 
 @pytest.mark.integration
-async def test_admin_get_code_not_found_returns_404(
-    client: AsyncClient, db_session: Session
-):
-    """Admin get code should return 404 instead of internal error when code does not exist."""
-    admin = await create_user(db_session, "admin_sub_3", "admin_sub_3@example.com", is_superuser=True)
-    token = await login_user(client, admin.username)
-
-    response = await client.get(
-        "/api/admin/codes/non-existent-code-id",
-        headers=auth_headers(token),
-    )
-
-    assert response.status_code == 404
-
-
-@pytest.mark.integration
 async def test_admin_update_plan_not_found_returns_404(
     client: AsyncClient, db_session: Session
 ):
@@ -716,7 +700,7 @@ async def test_admin_get_user_subscription_returns_plan_and_quota_when_present(
     payload = response.json()
     assert payload["subscription"]["user_id"] == target.id
     assert payload["plan"]["name"] == "free"
-    assert payload["quota"]["user_id"] == target.id
+    assert "quota" not in payload
 
 
 @pytest.mark.integration

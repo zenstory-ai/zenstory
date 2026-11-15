@@ -194,24 +194,206 @@ def _patch_stage1(monkeypatch, *, summaries: bool, mentions: bool):
 
 
 @pytest.mark.unit
-def test_llm_account_failure_aborts_extraction_with_code(monkeypatch):
+@pytest.mark.parametrize(
+    "fatal_code",
+    [
+        ErrorCode.MATERIAL_LLM_UNAVAILABLE,
+        ErrorCode.MATERIAL_TRIAL_COST_LIMIT,
+        ErrorCode.QUOTA_AI_DAILY_COST_EXCEEDED,
+        ErrorCode.AI_COST_BUDGET_UNAVAILABLE,
+        ErrorCode.MATERIAL_TRIAL_LIMIT_INVALID,
+    ],
+)
+def test_llm_fatal_stop_aborts_extraction_preserving_original_error(monkeypatch, fatal_code):
+    from flows.utils.helpers.exceptions import is_llm_account_failure
+
     _patch_stage1(monkeypatch, summaries=True, mentions=False)
-    account_error = LLMNonRetryableError("402 balance", ErrorCode.MATERIAL_LLM_UNAVAILABLE)
+    fatal_error = LLMNonRetryableError("fatal stop", fatal_code)
+    assert is_llm_account_failure(fatal_error) is True
+    assert is_llm_account_failure(LLMNonRetryableError("400 bad request", None)) is False
+    assert is_llm_account_failure(LLMOutputError("bad json")) is False
 
-    class _SummaryTask:
-        def submit(self, chapter_id):
-            if chapter_id == 10:
-                return FakeFuture({"chapter_id": 10, "summary": "ok"})
-            return FakeFuture(error=account_error)
-
+    monkeypatch.setattr(chapter_mod, "generate_chapter_summary_task", FakeTask(error=fatal_error))
     writes = FakeTask({})
-    monkeypatch.setattr(chapter_mod, "generate_chapter_summary_task", _SummaryTask())
     monkeypatch.setattr(chapter_mod, "update_chapter_summary_task", writes)
 
-    with pytest.raises(MaterialPipelineError) as raised:
+    with pytest.raises(LLMNonRetryableError) as raised:
         chapter_mod.chapter_extraction_flow.fn(novel_id=1, chapter_ids=[10, 20, 30], job_id=1)
 
-    assert raised.value.error_code == ErrorCode.MATERIAL_LLM_UNAVAILABLE
+    assert raised.value is fatal_error
+    assert raised.value.error_code == fatal_code
+    assert writes.submit_calls == []
+
+
+@pytest.mark.unit
+def test_story_aggregate_flow_aborts_on_fatal_stop_and_total_failure(monkeypatch):
+    story_mod = importlib.import_module("flows.pipelines.subflows.story_aggregate_flow")
+    monkeypatch.setattr(story_mod, "get_run_logger", lambda: MagicMock())
+    monkeypatch.setattr(story_mod, "create_performance_monitor", lambda _name: FakeMonitor())
+    monkeypatch.setattr(
+        story_mod, "create_checkpoint_manager", lambda *_a, **_k: MagicMock()
+    )
+    monkeypatch.setattr(story_mod.settings, "ENABLE_NOVEL_SYNOPSIS", False)
+    monkeypatch.setattr(story_mod.settings, "ENABLE_PLOT_EXTRACTION", True)
+    monkeypatch.setattr(story_mod.settings, "ENABLE_CHAPTER_SUMMARIES", True)
+    monkeypatch.setattr(story_mod.settings, "ENABLE_STORY_AGGREGATION", True)
+    monkeypatch.setattr(story_mod.settings, "ENABLE_STORYLINE_GENERATION", False)
+    monkeypatch.setattr(story_mod.settings, "MAX_CONCURRENT_WORKFLOWS", 1)
+    monkeypatch.setattr(
+        story_mod,
+        "identify_story_frameworks_with_chunking",
+        lambda **_k: {
+            "story_frameworks": [{"title": "S1"}, {"title": "S2"}],
+            "chunking_info": {"chunking_strategy": "single", "chunk_count": 1},
+        },
+    )
+
+    fatal_err = LLMNonRetryableError("trial cap", ErrorCode.MATERIAL_TRIAL_COST_LIMIT)
+    submitted: list[str] = []
+
+    class _AggTaskFatal:
+        def submit(self, *, story_framework, novel_id):
+            submitted.append(story_framework["title"])
+            return FakeFuture(error=fatal_err)
+
+    # Support both old alias and direct task attribute name
+    agg_attr = (
+        "aggregate_plots_for_story_framework"
+        if hasattr(story_mod, "aggregate_plots_for_story_framework")
+        else "aggregate_plots_to_stories_task"
+    )
+    monkeypatch.setattr(story_mod, agg_attr, _AggTaskFatal())
+
+    with pytest.raises(LLMNonRetryableError) as raised:
+        story_mod.story_aggregate_flow.fn(novel_id=1, chapter_ids=[1, 2], job_id=1)
+
+    assert raised.value is fatal_err
+    assert submitted == ["S1"]  # batch 2 was NOT submitted after fatal stop
+
+    # Total non-fatal failure across all story frameworks must raise instead of completed_with_errors
+    monkeypatch.setattr(
+        story_mod, agg_attr, FakeTask(error=LLMOutputError("malformed story json"))
+    )
+    with pytest.raises(MaterialPipelineError) as total_raised:
+        story_mod.story_aggregate_flow.fn(novel_id=1, chapter_ids=[1, 2], job_id=1)
+    assert total_raised.value.error_code == ErrorCode.MATERIAL_EXTRACTION_FAILED
+
+
+@pytest.mark.unit
+def test_character_entity_build_flow_aborts_on_fatal_stop_and_total_failure(monkeypatch):
+    from types import SimpleNamespace
+
+    char_mod = importlib.import_module("flows.pipelines.subflows.character_entity_build_flow")
+    import services.material.character_mentions_service as mentions_mod
+    import services.material.ingestion_jobs_service as jobs_mod
+
+    monkeypatch.setattr(char_mod, "get_run_logger", lambda: MagicMock())
+    monkeypatch.setattr(char_mod, "create_performance_monitor", lambda _name: FakeMonitor())
+    monkeypatch.setattr(dbs, "get_db_session", lambda: _SessionCtx(MagicMock()))
+    monkeypatch.setattr(jobs_mod, "executing_trial_job", lambda _db, _nid: None)
+
+    class _FakeMentionsSvc:
+        def get_by_novel(self, _db, _nid):
+            return [
+                SimpleNamespace(character_name="林雷", importance="major"),
+                SimpleNamespace(character_name="贝贝", importance="supporting"),
+            ]
+
+    monkeypatch.setattr(mentions_mod, "CharacterMentionsService", _FakeMentionsSvc)
+
+    fatal_err = LLMNonRetryableError("daily cap", ErrorCode.QUOTA_AI_DAILY_COST_EXCEEDED)
+    monkeypatch.setattr(char_mod, "build_character_entity_task", FakeTask(error=fatal_err))
+
+    with pytest.raises(LLMNonRetryableError) as raised:
+        char_mod.character_entity_build_flow.fn(novel_id=1)
+    assert raised.value is fatal_err
+
+    # 100% failure with non-fatal output error must raise instead of completed_with_errors
+    monkeypatch.setattr(
+        char_mod, "build_character_entity_task", FakeTask(error=LLMOutputError("bad char json"))
+    )
+    with pytest.raises(MaterialPipelineError) as total_raised:
+        char_mod.character_entity_build_flow.fn(novel_id=1)
+    assert total_raised.value.error_code == ErrorCode.MATERIAL_EXTRACTION_FAILED
+
+
+@pytest.mark.integration
+def test_stage_executor_propagates_fatal_meta_terminal_db_and_ownership_errors(
+    monkeypatch, db_session
+):
+    from flows.pipelines.stages import stage_executor as se_mod
+    from models.material_models import IngestionJob, Novel
+
+    novel = Novel(user_id="u-se", title="Mine")
+    other = Novel(user_id="u-se-2", title="Other")
+    db_session.add_all([novel, other])
+    db_session.commit()
+    foreign_job = IngestionJob(novel_id=other.id, source_path="/tmp/other.txt", status="processing")
+    db_session.add(foreign_job)
+    db_session.commit()
+
+    monkeypatch.setattr(se_mod, "get_prefect_db_session", lambda: _SessionCtx(db_session))
+    monkeypatch.setattr(se_mod, "get_run_logger", lambda: MagicMock())
+    pub = MagicMock()
+    monkeypatch.setattr(se_mod, "ProgressPublisher", lambda *_a, **_k: pub)
+    cp = MagicMock()
+    cp.get_checkpoint.return_value = None
+
+    # 1. Cross-novel job ownership ValueError must NOT be swallowed by _get_job_id / _sync_job_stage
+    executor_foreign = se_mod.StageExecutor(
+        novel_id=novel.id,
+        chapter_ids=[1],
+        checkpoint_manager=cp,
+        correlation_id="c1",
+        job_id=foreign_job.id,
+    )
+    with pytest.raises(ValueError, match="不属于"):
+        executor_foreign._get_job_id()
+    with pytest.raises(ValueError, match="不属于"):
+        executor_foreign._sync_job_stage("stage1", "processing")
+
+    # 2. Fatal budget LLMNonRetryableError in meta extraction must NOT be overwritten
+    own_job = IngestionJob(novel_id=novel.id, source_path="/tmp/mine.txt", status="processing")
+    db_session.add(own_job)
+    db_session.commit()
+
+    executor = se_mod.StageExecutor(
+        novel_id=novel.id,
+        chapter_ids=[1],
+        checkpoint_manager=cp,
+        correlation_id="c2",
+        job_id=own_job.id,
+    )
+    fatal_meta = LLMNonRetryableError("budget stop", ErrorCode.QUOTA_AI_DAILY_COST_EXCEEDED)
+    monkeypatch.setattr(executor, "_handle_meta_extraction", lambda *_a, **_k: FakeFuture(error=fatal_meta))
+    monkeypatch.setattr(
+        chapter_mod,
+        "chapter_extraction_flow",
+        lambda **_k: {"summaries_count": 1, "plots_count": 1, "failed_count": 0, "status": "completed"},
+    )
+    with pytest.raises(LLMNonRetryableError) as meta_raised:
+        executor.execute_stage1()
+    assert meta_raised.value is fatal_meta
+
+    # 3. Terminal _update_job_status DB failure must raise and NEVER publish 100% completion SSE
+    monkeypatch.setattr(executor, "_check_stage2_completion", lambda: (True, True, True))
+    monkeypatch.setattr(
+        executor,
+        "_execute_parallel_stages",
+        lambda *_a: ({"stories_count": 1}, {"created_count": 1, "updated_count": 0}),
+    )
+    monkeypatch.setattr(
+        executor, "_execute_relationship_stage", lambda *_a: {"relationships_count": 0, "status": "completed"}
+    )
+    monkeypatch.setattr(executor, "_sync_job_stage", lambda *_a, **_k: None)
+
+    def _broken_db():
+        raise RuntimeError("db write failed during terminal status commit")
+
+    monkeypatch.setattr(se_mod, "get_prefect_db_session", _broken_db)
+    with pytest.raises(RuntimeError, match="db write failed"):
+        executor.execute_stage2(stage1_result={"summaries_count": 1, "plots_count": 1, "failed_count": 0})
+    pub.publish_completion.assert_not_called()
 
 
 @pytest.mark.unit
@@ -389,3 +571,28 @@ def test_worker_postgres_engine_pings_and_recycles_connections():
         assert engine.pool._recycle == dbs.POSTGRES_POOL_RECYCLE_SECONDS
     finally:
         engine.dispose()
+
+
+def test_cross_chunk_merge_judgment_keeps_stories_apart_on_provider_rejection(monkeypatch):
+    agg_mod = importlib.import_module("flows.atomic_tasks.narrative.summary_based_aggregation")
+    story1 = {"title": "a", "chapter_ids": [1, 2]}
+    story2 = {"title": "b", "chapter_ids": [3, 4]}
+
+    monkeypatch.setattr(
+        agg_mod, "call_material_llm", MagicMock(side_effect=LLMNonRetryableError("400 bad request"))
+    )
+    assert agg_mod._llm_judge_merge(story1, story2, novel_id=1)["should_merge"] is False
+
+    fatal = LLMNonRetryableError("trial cap", ErrorCode.MATERIAL_TRIAL_COST_LIMIT)
+    monkeypatch.setattr(agg_mod, "call_material_llm", MagicMock(side_effect=fatal))
+    with pytest.raises(LLMNonRetryableError) as raised:
+        agg_mod._llm_judge_merge(story1, story2, novel_id=1)
+    assert raised.value is fatal
+
+
+def test_meta_response_skips_null_golden_finger_entries():
+    from flows.utils.validators import validate_meta_response
+
+    valid = {"name": "戒指", "type": "artifact", "description": "盘龙戒指中寄居着一位魔法师的灵魂。" * 15}
+    result = validate_meta_response({"golden_fingers": [None, valid]})
+    assert result["golden_fingers"] == [valid]

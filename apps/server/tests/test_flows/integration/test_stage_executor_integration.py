@@ -45,7 +45,7 @@ class TestStageExecutorIntegration:
         monkeypatch.setattr(
             chapter_flow_mod,
             "chapter_extraction_flow",
-            lambda novel_id, chapter_ids, correlation_id=None, job_id=None: {
+            lambda novel_id, chapter_ids, job_id=None: {
                 "summaries_count": len(chapter_ids),
                 "plots_count": len(chapter_ids) * 2,
                 "mentions_extracted": True,
@@ -57,12 +57,13 @@ class TestStageExecutorIntegration:
 
         cp = _FakeCheckpointManager()
         executor = se_mod.StageExecutor(novel_id=7, chapter_ids=[1, 2], checkpoint_manager=cp, correlation_id="cid")
-        monkeypatch.setattr(executor, "_handle_meta_extraction", lambda is_parallel=True: None)
+        monkeypatch.setattr(executor, "_handle_meta_extraction", lambda: None)
 
         result = executor.execute_stage1()
 
         assert result["summaries_count"] == 2
         assert cp.completed_calls[0][0] == "stage1"
+        assert cp.completed_calls[0][1]["mentions_extracted"] is True
         event_types = [e for e, _ in executor.publisher.events]
         assert "stage1_started" in event_types
         assert "stage1_completed" in event_types
@@ -86,7 +87,7 @@ class TestStageExecutorIntegration:
         monkeypatch.setattr(
             executor,
             "_execute_relationship_stage",
-            lambda _done: {"relationships_count": 4, "neo4j_persisted": False, "neo4j_failed_chapters": [], "status": "completed"},
+            lambda _done: {"relationships_count": 4, "status": "completed"},
         )
         monkeypatch.setattr(executor, "_update_stage2_checkpoints", lambda *args, **kwargs: None)
         monkeypatch.setattr(executor, "_update_job_status", lambda *args, **kwargs: None)

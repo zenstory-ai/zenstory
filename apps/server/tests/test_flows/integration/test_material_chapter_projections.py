@@ -23,7 +23,7 @@ from flows import database_session
 from flows.atomic_tasks.entities import meta_tasks
 from flows.atomic_tasks.linking import relationship_tasks
 from flows.atomic_tasks.summaries import novel_synopsis_tasks
-from flows.utils.clients.llm import MaterialLLMClient, LLMResponse
+from flows.utils.clients.llm import LLMResponse, MaterialLLMClient
 from models import User
 from models.material_models import Chapter, GoldenFinger, Novel, Plot, WorldView
 
@@ -227,7 +227,6 @@ def workflow_boundary(store, monkeypatch):
         "ENABLE_STORY_AGGREGATION": False,
         "ENABLE_STORYLINE_GENERATION": False,
         "ENABLE_RELATIONSHIP_EXTRACTION": False,
-        "ENABLE_NEO4J_STORAGE": False,
     }
     monkeypatch.setattr(story_module, "settings", story_module.settings.model_copy(update=flags))
     return captures
@@ -379,28 +378,25 @@ def test_meta_projection_empty_novel_never_calls_provider(store, workflow_bounda
     assert workflow_boundary == {}
 
 
-def test_meta_result_persistence_preserves_fallbacks_and_upserts(store, workflow_boundary):
+def test_meta_result_persistence_upserts(store, workflow_boundary):
     chapter_id = store.ordered[0]["id"]
     data = {
         "golden_fingers": [
-            "ignored non-object",
             {"name": "Named", "type": "system", "description": "original"},
-            {"type": "天赋"},
-            {"description": "abcdefghijklmnopqrst"},
-            {},
+            {"name": "Bloodline", "type": "天赋", "description": "dragon blood"},
         ],
         "world_view": {"power_system": "levels", "key_factions": ["local faction"]},
     }
     first = meta_tasks.build_meta_entities_task.fn(data, store.novel_id, chapter_id)
-    assert first == {"golden_finger_actions": ["created"] * 4, "world_view_action": "created"}
-    data["golden_fingers"][1]["description"] = "updated"
+    assert first == {"golden_finger_actions": ["created", "created"], "world_view_action": "created"}
+    data["golden_fingers"][0]["description"] = "updated"
     data["world_view"]["world_structure"] = "updated structure"
     second = meta_tasks.build_meta_entities_task.fn(data, store.novel_id, chapter_id)
-    assert second == {"golden_finger_actions": ["updated"] * 4, "world_view_action": "updated"}
+    assert second == {"golden_finger_actions": ["updated", "updated"], "world_view_action": "updated"}
     with Session(store.engine) as session:
         rows = session.exec(select(GoldenFinger).where(GoldenFinger.novel_id == store.novel_id)).all()
         by_name = {row.name: row for row in rows}
-        assert set(by_name) == {"Named", "天赋-金手指", "abcdefghijkl", "未命名金手指"}
+        assert set(by_name) == {"Named", "Bloodline"}
         assert by_name["Named"].description == "updated"
         assert all(row.first_appearance_chapter_id == chapter_id for row in rows)
         world = session.exec(select(WorldView).where(WorldView.novel_id == store.novel_id)).one()

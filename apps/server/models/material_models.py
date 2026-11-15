@@ -18,15 +18,11 @@ Defines SQLModel entities for the material library feature:
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
 from config.datetime_utils import utcnow
-
-if TYPE_CHECKING:
-    pass
-
 
 # ============ Core Models ============
 
@@ -276,17 +272,6 @@ class ProcessCheckpoint(SQLModel, table=True):
     retry_count: int = Field(default=0)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    def mark_completed(self, data: dict = None):
-        """标记阶段完成"""
-        import json
-        self.stage_status = "completed"
-        if data:
-            if self.checkpoint_data is None:
-                self.checkpoint_data = "{}"
-            existing = json.loads(self.checkpoint_data)
-            existing.update(data)
-            self.checkpoint_data = json.dumps(existing)
 
     def mark_failed(self, error: str):
         """标记阶段失败"""

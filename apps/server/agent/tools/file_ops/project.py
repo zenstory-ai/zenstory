@@ -353,11 +353,24 @@ class ProjectOperations:
         """
         recorded = {self._task_identity(task): task for task in previous_tasks if isinstance(task, dict)}
         needs_files = any(task_artifact_type(task) is not None for task in tasks)
-        try:
-            artifacts = self._live_artifacts(project_id) if needs_files else []
-        except Exception as exc:
-            logger.warning("Task artifact verification unavailable", extra={"error_type": type(exc).__name__})
-            artifacts = []
+        verification_unavailable = False
+        artifacts: list[ArtifactEvidence] = []
+        if needs_files:
+            in_tx = bool(self.session.in_transaction())
+            try:
+                if in_tx:
+                    with self.session.begin_nested():
+                        artifacts = self._live_artifacts(project_id)
+                else:
+                    artifacts = self._live_artifacts(project_id)
+            except Exception as exc:
+                if not in_tx:
+                    self.session.rollback()
+                logger.warning(
+                    "Task artifact verification unavailable",
+                    extra={"error_type": type(exc).__name__},
+                )
+                verification_unavailable = True
         written_ids = set(written_artifact_ids or [])
         unverified = []
         for task in tasks:
@@ -372,6 +385,18 @@ class ProjectOperations:
                 historical_done = same_contract and prior.get("status") == "done"
                 if task.get("status") == "done" and not is_conversation and not historical_done:
                     unverified.append({"task": str(task["task"]), "missing": self._missing_artifact_evidence(task, [])})
+                continue
+
+            if verification_unavailable:
+                if same_contract and prior is not None:
+                    for field in self._SERVER_PROGRESS_FIELDS:
+                        if field in prior:
+                            task[field] = prior[field]
+                    if prior.get("status") == "done":
+                        task["status"] = "done"
+                        continue
+                if task.get("status") == "done":
+                    unverified.append({"task": str(task["task"]), "missing": "产物核验暂不可用"})
                 continue
 
             matching = self._matching_artifacts(task, artifacts)
@@ -580,24 +605,25 @@ class ProjectOperations:
         try:
             # Human ownership is permanent in this tool's contract. Do not let
             # timestamp ties (or clock skew) resurrect an older AI naming grant.
-            author_event = self.session.exec(
-                select(AgentArtifactLedger.id).where(
-                    AgentArtifactLedger.project_id == project.id,
-                    AgentArtifactLedger.action == PROJECT_TITLE_LEDGER_ACTION,
-                    AgentArtifactLedger.tool_name == PROJECT_TITLE_AUTHOR_TOOL,
-                ).limit(1)
-            ).first()
-            if author_event is not None:
-                return PROJECT_TITLE_SOURCE_AUTHOR
-            payload = self.session.exec(
-                select(AgentArtifactLedger.payload)
-                .where(
-                    AgentArtifactLedger.project_id == project.id,
-                    AgentArtifactLedger.action == PROJECT_TITLE_LEDGER_ACTION,
-                )
-                .order_by(desc(AgentArtifactLedger.created_at))
-                .limit(1)
-            ).first()
+            with self.session.begin_nested():
+                author_event = self.session.exec(
+                    select(AgentArtifactLedger.id).where(
+                        AgentArtifactLedger.project_id == project.id,
+                        AgentArtifactLedger.action == PROJECT_TITLE_LEDGER_ACTION,
+                        AgentArtifactLedger.tool_name == PROJECT_TITLE_AUTHOR_TOOL,
+                    ).limit(1)
+                ).first()
+                if author_event is not None:
+                    return PROJECT_TITLE_SOURCE_AUTHOR
+                payload = self.session.exec(
+                    select(AgentArtifactLedger.payload)
+                    .where(
+                        AgentArtifactLedger.project_id == project.id,
+                        AgentArtifactLedger.action == PROJECT_TITLE_LEDGER_ACTION,
+                    )
+                    .order_by(desc(AgentArtifactLedger.created_at))
+                    .limit(1)
+                ).first()
         except Exception as exc:  # 读不到记录时按作者起的名字处理，宁可不改
             log_with_context(
                 logger,

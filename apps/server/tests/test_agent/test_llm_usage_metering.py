@@ -132,7 +132,7 @@ def test_hooks_bind_attribution_from_request_context(bound_request):
     from agent.openai_agents.usage_hooks import build_agent_run_hooks
 
     hooks = build_agent_run_hooks("deepseek-flash")
-    assert hooks.attribution == LLMUsageAttribution(
+    assert hooks._attribution == LLMUsageAttribution(
         user_id=bound_request.id, source="agent", project_id="project-9", correlation_id="run-abc"
     )
 
@@ -163,8 +163,8 @@ async def test_runner_passes_metering_hooks_to_sdk(bound_request):
             pass
 
     hooks = mock_run.call_args.kwargs["hooks"]
-    assert hooks.attribution.user_id == bound_request.id
-    assert hooks.attribution.correlation_id == "run-abc"
+    assert hooks._attribution.user_id == bound_request.id
+    assert hooks._attribution.correlation_id == "run-abc"
 
 
 # ---------------------------------------------------------------------------

@@ -771,80 +771,61 @@ class TestRedeemForPro:
         balance = points_service.get_balance(db_session, test_user.id)
         assert balance["available"] == 50  # Remaining points
 
+    def test_redeem_for_pro_does_not_refresh_or_lazy_load_after_commit(
+        self, db_session: Session, test_user
+    ):
+        """Post-commit refresh/lazy-load failures must not raise 500 after points commit."""
+        from models.subscription import SubscriptionPlan
 
-@pytest.mark.unit
-class TestExpireStalePoints:
-    """Tests for expire_stale_points function."""
+        plan = SubscriptionPlan(
+            name="pro",
+            display_name="专业版",
+            display_name_en="Pro",
+            price_monthly_cents=1900,
+            price_yearly_cents=19000,
+            features={},
+            is_active=True,
+        )
+        db_session.add(plan)
+        db_session.commit()
 
-    def test_expire_stale_points_marks_expired(self, db_session: Session, test_user):
-        """Test that expired points are marked as expired."""
-        # Create an expired transaction
-        expired_tx = PointsTransaction(
+        points_service.earn_points(
+            session=db_session,
             user_id=test_user.id,
-            amount=100,
-            balance_after=100,
+            amount=POINTS_PRO_7DAYS_COST,
             transaction_type="test",
-            expires_at=datetime.utcnow() - timedelta(days=1),
-            is_expired=False,
         )
-        db_session.add(expired_tx)
-        db_session.commit()
 
-        # Run expiration
-        count = points_service.expire_stale_points(db_session)
+        real_commit = db_session.commit
+        real_execute = db_session.execute
+        committed = False
 
-        assert count == 1
+        def commit_then_disconnect() -> None:
+            nonlocal committed
+            real_commit()
+            db_session.expire_all()
+            committed = True
 
-        # Verify it's marked as expired
-        db_session.refresh(expired_tx)
-        assert expired_tx.is_expired is True
-        assert expired_tx.expired_at is not None
+        def guarded_execute(*args, **kwargs):
+            if committed:
+                raise RuntimeError("post-commit lazy load triggered")
+            return real_execute(*args, **kwargs)
 
-    def test_expire_stale_points_skips_non_expired(self, db_session: Session, test_user):
-        """Test that non-expired points are not marked."""
-        # Create a non-expired transaction
-        valid_tx = PointsTransaction(
-            user_id=test_user.id,
-            amount=100,
-            balance_after=100,
-            transaction_type="test",
-            expires_at=datetime.utcnow() + timedelta(days=30),
-            is_expired=False,
-        )
-        db_session.add(valid_tx)
-        db_session.commit()
+        with (
+            patch.object(db_session, "commit", side_effect=commit_then_disconnect),
+            patch.object(
+                db_session,
+                "refresh",
+                side_effect=RuntimeError("post-commit refresh must not happen"),
+            ),
+            patch.object(db_session, "execute", side_effect=guarded_execute),
+        ):
+            result = points_service.redeem_for_pro(db_session, test_user.id, days=7)
 
-        # Run expiration
-        count = points_service.expire_stale_points(db_session)
-
-        assert count == 0
-
-        # Verify it's not marked
-        db_session.refresh(valid_tx)
-        assert valid_tx.is_expired is False
-
-    def test_expire_stale_points_skips_spending(self, db_session: Session, test_user):
-        """Test that spending transactions are not affected."""
-        # Create a spending transaction (negative amount)
-        spend_tx = PointsTransaction(
-            user_id=test_user.id,
-            amount=-50,
-            balance_after=50,
-            transaction_type="spend",
-            expires_at=datetime.utcnow() - timedelta(days=1),
-            is_expired=False,
-        )
-        db_session.add(spend_tx)
-        db_session.commit()
-
-        # Run expiration
-        count = points_service.expire_stale_points(db_session)
-
-        assert count == 0
-
-        # Verify it's not marked
-        db_session.refresh(spend_tx)
-        assert spend_tx.is_expired is False
+        assert result["success"] is True
+        assert result["points_spent"] == POINTS_PRO_7DAYS_COST
+        assert result["pro_days"] == 7
+        assert isinstance(result["new_period_end"], str) and result["new_period_end"]
 
 
 @pytest.mark.unit

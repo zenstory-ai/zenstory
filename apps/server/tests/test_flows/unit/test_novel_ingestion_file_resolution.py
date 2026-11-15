@@ -194,6 +194,8 @@ async def test_start_flow_deployment_persists_flow_run_id(monkeypatch):
 
     class _Job:
         def __init__(self):
+            self.id = 10
+            self.novel_id = 1
             self.correlation_id = None
             self.updated_at = None
             self.stage_progress = "{}"
@@ -201,20 +203,13 @@ async def test_start_flow_deployment_persists_flow_run_id(monkeypatch):
         def update_stage_progress(self, stage: str, status: str, **kwargs):
             self.stage_progress = f"{stage}:{status}:{kwargs.get('flow_run_id')}"
 
-    class _QueryResult:
-        def __init__(self, job):
-            self._job = job
-
-        def first(self):
-            return self._job
-
     class _Session:
         def __init__(self, job):
             self.job = job
             self.commits = 0
 
-        def exec(self, _stmt):
-            return _QueryResult(self.job)
+        def get(self, _model, job_id):
+            return self.job if job_id == self.job.id else None
 
         def add(self, _obj):
             return None
@@ -239,6 +234,7 @@ async def test_start_flow_deployment_persists_flow_run_id(monkeypatch):
         author="Author",
         user_id="user-1",
         novel_id=1,
+        job_id=10,
     )
 
     assert str(flow_run_id) == "flow-run-123"

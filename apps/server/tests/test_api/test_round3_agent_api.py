@@ -328,10 +328,9 @@ async def test_stream_busy_resolved_session_returns_409_and_refunds(client: Asyn
 
 @pytest.mark.unit
 def test_all_llm_endpoints_have_user_scoped_rate_limit():
-    """守卫用例：agent router 下所有触发 LLM 的端点都必须挂按用户限流依赖。
+    """守卫用例：agent router 下所有端点都必须挂按用户限流依赖。
 
-    只有 /health（无鉴权、无 LLM、无 DB 的探活接口）豁免。/stop 不触发 LLM，
-    但同样是登录后的写操作，一并按用户限流。
+    /stop 不触发 LLM，但同样是登录后的写操作，一并按用户限流。
     """
     llm_endpoints = {
         "/api/v1/agent/stream": STREAM_RATE_LIMIT_MAX_REQUESTS,
@@ -342,7 +341,7 @@ def test_all_llm_endpoints_have_user_scoped_rate_limit():
 
     routes_by_path = {route.path: route for route in agent_router.routes}
     # 端点清单本身也要守住：新增端点必须显式在这里表态
-    assert set(routes_by_path) == set(llm_endpoints) | {"/api/v1/agent/health"}
+    assert set(routes_by_path) == set(llm_endpoints)
 
     for path, expected_max in llm_endpoints.items():
         dependencies = routes_by_path[path].dependant.dependencies

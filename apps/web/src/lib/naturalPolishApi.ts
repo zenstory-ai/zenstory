@@ -31,7 +31,6 @@ type NaturalPolishResponse = {
 };
 
 function extractResult(payload: unknown): NaturalPolishResult {
-  if (typeof payload === "string") return { text: payload, unchanged: false };
   if (!payload || typeof payload !== "object") {
     throw new Error("Invalid natural polish response");
   }
@@ -57,7 +56,7 @@ export const naturalPolishApi = {
       },
     };
 
-    const result = await api.post<NaturalPolishResponse | string>(
+    const result = await api.post<NaturalPolishResponse>(
       "/api/v1/editor/natural-polish",
       payload,
       { signal: opts?.signal },

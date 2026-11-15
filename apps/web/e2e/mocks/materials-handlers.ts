@@ -43,21 +43,6 @@ interface MaterialDetailResponse {
   has_world_view: boolean
 }
 
-interface JobStatusResponse {
-  job_id: number
-  novel_id: number
-  status: string
-  total_chapters: number
-  processed_chapters: number
-  progress_percentage: number
-  stage_progress: Record<string, unknown> | null
-  error_message: string | null
-  started_at: string | null
-  completed_at: string | null
-  created_at: string
-  updated_at: string
-}
-
 interface CharacterListItem {
   id: number
   name: string
@@ -155,40 +140,10 @@ export const mockMaterialsUploadHandler = http.post('/api/v1/materials/upload', 
 })
 
 /**
- * MSW handler for GET /api/v1/materials/:novelId/status
- * Always returns 100% completed status
- */
-export const mockMaterialsStatusHandler = http.get(
-  '/api/v1/materials/:novelId/status',
-  ({ params }) => {
-    const novelId = Number(params.novelId)
-    const response: JobStatusResponse = {
-      job_id: 1001,
-      novel_id: novelId,
-      status: 'completed',
-      total_chapters: 10,
-      processed_chapters: 10,
-      progress_percentage: 100,
-      stage_progress: {
-        chapter_split: 100,
-        entity_extraction: 100,
-        relationship_building: 100,
-      },
-      error_message: null,
-      started_at: mockTimestamp,
-      completed_at: mockTimestamp,
-      created_at: mockTimestamp,
-      updated_at: mockTimestamp,
-    }
-    return HttpResponse.json(response)
-  }
-)
-
-/**
- * MSW handler for GET /api/v1/materials
+ * MSW handler for GET /api/v1/materials/list
  * Returns test material list
  */
-export const mockMaterialsListHandler = http.get('/api/v1/materials', () => {
+export const mockMaterialsListHandler = http.get('/api/v1/materials/list', () => {
   return HttpResponse.json(mockNovels)
 })
 
@@ -247,27 +202,6 @@ export const mockMaterialsImportHandler = http.post('/api/v1/materials/import', 
   }
   return HttpResponse.json(response)
 })
-
-/**
- * MSW handler for GET /api/v1/materials/:novelId/summary
- * Returns entity count summary
- */
-export const mockMaterialsSummaryHandler = http.get(
-  '/api/v1/materials/:novelId/summary',
-  () => {
-    return HttpResponse.json({
-      chapters_count: 10,
-      characters_count: 5,
-      plots_count: 25,
-      stories_count: 8,
-      storylines_count: 3,
-      relationships_count: 7,
-      goldenfingers_count: 2,
-      has_worldview: true,
-      timeline_count: 15,
-    })
-  }
-)
 
 /**
  * MSW handler for GET /api/v1/materials/:novelId/tree
@@ -450,12 +384,10 @@ export const mockMaterialsRetryHandler = http.post(
  */
 export const materialsHandlers = [
   mockMaterialsUploadHandler,
-  mockMaterialsStatusHandler,
   mockMaterialsListHandler,
   mockMaterialsDetailHandler,
   mockMaterialsCharactersHandler,
   mockMaterialsImportHandler,
-  mockMaterialsSummaryHandler,
   mockMaterialsTreeHandler,
   mockMaterialsStorylinesHandler,
   mockMaterialsWorldviewHandler,

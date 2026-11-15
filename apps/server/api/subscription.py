@@ -20,8 +20,6 @@ from models import (
     UPGRADE_FUNNEL_ACTION_CLICK,
     UPGRADE_FUNNEL_ACTION_CONVERSION,
     UPGRADE_FUNNEL_ACTION_EXPOSE,
-    UPGRADE_FUNNEL_CTAS,
-    UPGRADE_FUNNEL_SURFACES,
 )
 from models.entities import Project, User
 from models.subscription import SubscriptionHistory, SubscriptionPlan
@@ -29,9 +27,8 @@ from services.core.auth_service import get_current_active_user
 from services.features.upgrade_funnel_event_service import upgrade_funnel_event_service
 from services.quota_service import quota_service
 from services.subscription.defaults import (
-    DEFAULT_FREE_PLAN_DISPLAY_NAME,
-    DEFAULT_FREE_PLAN_DISPLAY_NAME_EN,
     DEFAULT_FREE_PLAN_FEATURES,
+    DEFAULT_FREE_TIER,
     clone_default_free_features,
     normalize_export_formats,
     resolve_plan_feature,
@@ -194,17 +191,6 @@ class UpgradeFunnelEventResponse(BaseModel):
     success: bool
 
 
-# ============== Default Free Tier ==============
-
-# Default free tier values used when subscription_plans table is empty or unavailable
-DEFAULT_FREE_TIER = {
-    "name": "free",
-    "display_name": DEFAULT_FREE_PLAN_DISPLAY_NAME,
-    "display_name_en": DEFAULT_FREE_PLAN_DISPLAY_NAME_EN,
-    "features": clone_default_free_features(),
-}
-
-
 # Only entitlements the backend enforces belong here. Context window and priority
 # queue were advertised without an implementation and are intentionally absent.
 CATALOG_VERSION = "2026-03"
@@ -343,25 +329,11 @@ def get_subscription_status(
     """Get current user's subscription status."""
     subscription = subscription_service.get_user_subscription(session, current_user.id)
     plan = quota_service.get_user_plan(session, current_user.id)
-
-    # Graceful degradation: Use default free tier if plan is not found
-    # This handles cases where:
-    # 1. No "free" plan exists in subscription_plans table
-    # 2. Database query fails silently
-    if not plan:
-        plan_name = DEFAULT_FREE_TIER["name"]
-        display_name = DEFAULT_FREE_TIER["display_name"]
-        display_name_en = DEFAULT_FREE_TIER["display_name_en"]
-        features = _normalize_plan_features_for_response(clone_default_free_features(), "free")
-    else:
-        plan_name = plan.name
-        display_name = plan.display_name
-        display_name_en = plan.display_name_en
-        features = _normalize_plan_features_for_response(plan.features, plan.name)
+    features = _normalize_plan_features_for_response(plan.features, plan.name)
 
     # A lapsed paid subscription falls back to the free plan; report the plan
     # the user is actually on instead of pairing "Free" with "expired".
-    if subscription and (plan is None or plan.id != subscription.plan_id):
+    if subscription and plan.id != subscription.plan_id:
         subscription = None
         status_value = "active"
     else:
@@ -376,10 +348,10 @@ def get_subscription_status(
         days_remaining = max(0, delta.days)
 
     return SubscriptionStatusResponse(
-        tier=plan_name,
+        tier=plan.name,
         status=status_value,
-        display_name=display_name,
-        display_name_en=display_name_en,
+        display_name=plan.display_name,
+        display_name_en=plan.display_name_en,
         current_period_end=subscription.current_period_end if subscription else None,
         days_remaining=days_remaining,
         features=features,
@@ -554,18 +526,6 @@ def track_upgrade_funnel_event(
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded",
-        )
-
-    if request.surface not in UPGRADE_FUNNEL_SURFACES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported upgrade funnel surface",
-        )
-
-    if request.cta and request.cta not in UPGRADE_FUNNEL_CTAS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported upgrade funnel cta",
         )
 
     try:

@@ -156,8 +156,6 @@ export interface Message {
 interface MessageListProps {
   /** Array of messages to display in the conversation */
   messages: Message[];
-  /** ID of the message currently being streamed (enables cursor animation) */
-  streamingMessageId?: string;
   /** Callback invoked when user requests to undo a file edit operation */
   onUndo?: (target: FileEditUndoTarget) => void;
   /** Open a successful file result in the current project. */
@@ -170,10 +168,6 @@ interface MessageListProps {
   feedbackPendingMessageId?: string | null;
   /** Stop notes may mention today's AI message count (false on plans without a daily limit). */
   showDailyCount?: boolean;
-  /** Real-time thinking content from the streaming agent response */
-  streamingThinkingContent?: string;
-  /** Whether the agent is actively thinking/processing */
-  isThinking?: boolean;
   /**
    * Stream render items for real-time display during streaming.
    * Items are rendered in server-sent order.
@@ -720,7 +714,6 @@ interface RowDataProps {
   message: Message;
   previousRole?: Message['role'];
   nextRole?: Message['role'];
-  isStreaming: boolean;
   /** Function to format timestamps for display */
   formatTime: (date: Date) => string;
   /** Callback to undo a file edit */
@@ -737,10 +730,6 @@ interface RowDataProps {
   /** Callback invoked when user chooses a guided action after iteration exhaustion */
   onIterationAssistAction?: MessageListProps["onIterationAssistAction"];
   nextStepsBlocked?: boolean;
-  /** Real-time thinking content from streaming */
-  streamingThinkingContent?: string;
-  /** Whether agent is actively thinking */
-  isThinking?: boolean;
 }
 
 /**
@@ -758,7 +747,6 @@ const Row = React.memo(function Row({
   message,
   previousRole,
   nextRole,
-  isStreaming,
   formatTime,
   onUndo,
   onOpenFile,
@@ -768,8 +756,6 @@ const Row = React.memo(function Row({
   showDailyCount = true,
   onIterationAssistAction,
   nextStepsBlocked = false,
-  streamingThinkingContent,
-  isThinking,
 }: RowDataProps): React.ReactElement {
   const { t } = useTranslation(['chat']);
   const { user } = useAuth();
@@ -781,8 +767,6 @@ const Row = React.memo(function Row({
     && message.role === 'assistant'
     && message.stopOutcome?.reason === 'completed'
     && message.stopOutcome.writtenFiles.length > 0;
-  // Show streaming thinking content only for the currently streaming message
-  const showStreamingThinking = isStreaming && streamingThinkingContent;
   const displayContent =
     message.role === 'assistant' ? stripThinkTags(message.content) : message.content;
   const hasDisplayContent = Boolean(displayContent && displayContent.trim());
@@ -856,30 +840,26 @@ const Row = React.memo(function Row({
       {/* Content */}
       <div className="flex-1 min-w-0 overflow-hidden">
         {hasDisplayItems ? (
-          <OrderedMessageItems items={orderedDisplayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={isStreaming} chatMessageId={message.backendMessageId} />
+          <OrderedMessageItems items={orderedDisplayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={false} chatMessageId={message.backendMessageId} />
         ) : <>
-        {/* Thinking content - show streaming if active, otherwise show historical segments */}
+        {/* Thinking content - historical segments */}
         {message.role === 'assistant' && (
-          showStreamingThinking ? (
-            <ThinkingContent content={streamingThinkingContent} isStreaming={isThinking} />
-          ) : (
-            <>
-              {/* Show all reasoning segments */}
-              {message.reasoningSegments && message.reasoningSegments.length > 0 && message.reasoningSegments.map((segment, idx) => (
-                <ThinkingContent
-                  key={`reasoning-${idx}`}
-                  content={segment.content}
-                  isStreaming={false}
-                />
-              ))}
-              {/* Fallback to legacy reasoningContent */}
-              {!message.reasoningSegments || message.reasoningSegments.length === 0 ? (
-                message.reasoningContent ? (
-                  <ThinkingContent content={message.reasoningContent} isStreaming={false} />
-                ) : null
-              ) : null}
-            </>
-          )
+          <>
+            {/* Show all reasoning segments */}
+            {message.reasoningSegments && message.reasoningSegments.length > 0 && message.reasoningSegments.map((segment, idx) => (
+              <ThinkingContent
+                key={`reasoning-${idx}`}
+                content={segment.content}
+                isStreaming={false}
+              />
+            ))}
+            {/* Fallback to legacy reasoningContent */}
+            {!message.reasoningSegments || message.reasoningSegments.length === 0 ? (
+              message.reasoningContent ? (
+                <ThinkingContent content={message.reasoningContent} isStreaming={false} />
+              ) : null
+            ) : null}
+          </>
         )}
 
         {/* Message bubble - only show if there's visible content */}
@@ -904,10 +884,6 @@ const Row = React.memo(function Row({
                 </div>
               )}
             </div>
-            {/* Streaming cursor */}
-            {isStreaming && message.role === 'assistant' && (
-              <span className="inline-block w-1.5 h-4 bg-[hsl(var(--accent-primary))] animate-pulse shrink-0" />
-            )}
           </div>
         )}
 
@@ -1022,8 +998,8 @@ const Row = React.memo(function Row({
                 toolName={toolCall.tool_name}
                 result={toolCall.result ?? (toolCall.arguments as Record<string, unknown>)}
                 error={toolCall.status === 'error' ? toolCall.error : undefined}
-                isPending={toolCall.status === 'pending' && isStreaming}
-                interrupted={toolCall.status === 'pending' && !isStreaming}
+                isPending={false}
+                interrupted={toolCall.status === 'pending'}
                 onUndo={onUndo}
                 toolUseId={toolCall.id}
                 chatMessageId={message.backendMessageId}
@@ -1205,15 +1181,12 @@ const Row = React.memo(function Row({
 export const MessageList = React.memo(
   forwardRef<MessageListRef, MessageListProps>(({
   messages,
-  streamingMessageId,
   onUndo,
   onOpenFile,
   onOpenAIMemory,
   onSubmitFeedback,
   feedbackPendingMessageId,
   showDailyCount,
-  streamingThinkingContent,
-  isThinking,
   streamRenderItems,
   onIterationAssistAction,
   nextStepsBlocked,
@@ -1312,14 +1285,8 @@ export const MessageList = React.memo(
     };
   }, []); // Empty deps since getLocaleCode reads from localStorage which is stable
 
-  // Show streaming thinking content when there are no messages yet
-  // or when the thinking is not yet attached to a message
-  const shouldShowFloatingThinking =
-    streamingThinkingContent &&
-    (!streamingMessageId || !visibleMessages.find(m => m.id === streamingMessageId));
-
-  // Don't render anything if there are no visible messages and no thinking content and no stream items
-  if (visibleMessages.length === 0 && !shouldShowFloatingThinking && !shouldShowStreamItems) {
+  // Don't render anything if there are no visible messages and no stream items
+  if (visibleMessages.length === 0 && !shouldShowStreamItems) {
     return null;
   }
 
@@ -1332,7 +1299,6 @@ export const MessageList = React.memo(
           message={message}
           previousRole={visibleMessages[index - 1]?.role}
           nextRole={visibleMessages[index + 1]?.role}
-          isStreaming={message.id === streamingMessageId}
           formatTime={formatTime}
           onUndo={onUndo}
           onOpenFile={onOpenFile}
@@ -1342,8 +1308,6 @@ export const MessageList = React.memo(
           showDailyCount={showDailyCount}
           onIterationAssistAction={onIterationAssistAction}
           nextStepsBlocked={nextStepsBlocked}
-          streamingThinkingContent={message.id === streamingMessageId ? streamingThinkingContent : undefined}
-          isThinking={message.id === streamingMessageId ? isThinking : undefined}
         />
       ))}
 
@@ -1363,12 +1327,10 @@ export const MessageList = React.memo(
           <div className="flex-1 min-w-0 overflow-hidden">
             <OrderedMessageItems items={safeStreamRenderItems} onUndo={onUndo} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={true} />
 
-            {/* Timestamp - 只在非 streaming 状态时显示 */}
-            {!streamingMessageId && streamRenderItems && streamRenderItems.length > 0 && (
-              <div className={`text-xs text-[hsl(var(--text-secondary))] ${isMobile ? 'mt-2' : 'mt-3'}`}>
-                {formatTime(streamRenderItems[streamRenderItems.length - 1].timestamp)}
-              </div>
-            )}
+            {/* Timestamp */}
+            <div className={`text-xs text-[hsl(var(--text-secondary))] ${isMobile ? 'mt-2' : 'mt-3'}`}>
+              {formatTime(safeStreamRenderItems[safeStreamRenderItems.length - 1].timestamp)}
+            </div>
           </div>
         </div>
       )}
@@ -1378,7 +1340,6 @@ export const MessageList = React.memo(
 (prevProps, nextProps) => {
   // Custom comparison function for React.memo.
   // Prefer cheap reference checks to avoid O(n) message comparisons.
-  if (prevProps.streamingMessageId !== nextProps.streamingMessageId) return false;
   if (prevProps.onUndo !== nextProps.onUndo) return false;
   if (prevProps.onOpenFile !== nextProps.onOpenFile) return false;
   if (prevProps.onOpenAIMemory !== nextProps.onOpenAIMemory) return false;
@@ -1389,8 +1350,6 @@ export const MessageList = React.memo(
   if (prevProps.feedbackPendingMessageId !== nextProps.feedbackPendingMessageId) return false;
   if (prevProps.showDailyCount !== nextProps.showDailyCount) return false;
   if (prevProps.nextStepsBlocked !== nextProps.nextStepsBlocked) return false;
-  if (prevProps.streamingThinkingContent !== nextProps.streamingThinkingContent) return false;
-  if (prevProps.isThinking !== nextProps.isThinking) return false;
   if (prevProps.messages !== nextProps.messages) return false;
   if (prevProps.streamRenderItems !== nextProps.streamRenderItems) return false;
 

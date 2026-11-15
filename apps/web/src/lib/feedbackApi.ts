@@ -1,5 +1,4 @@
-import { ApiError, getAccessToken, getApiBase, resolveOwnedAuthSession, tryRefreshToken } from "./apiClient";
-import { resolveApiErrorMessage } from "./errorHandler";
+import { apiErrorFromPayload, clearAuthStorage, getAccessToken, getApiBase, resolveOwnedAuthSession, tryRefreshToken } from "./apiClient";
 
 export type FeedbackSourcePage = "dashboard" | "editor";
 
@@ -58,28 +57,51 @@ export const feedbackApi = {
     };
 
     let response = await fetchOnce(entryAccess);
-    if (response.status === 401 && entryAccess && entryRefresh) {
-      let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
-      if (ownedSession?.accessToken && ownedSession.refreshToken) {
-        if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-          const refreshed = await tryRefreshToken();
-          ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-        }
-        if (ownedSession?.accessToken && ownedSession.refreshToken) {
-          response = await fetchOnce(ownedSession.accessToken);
+    if (response.status === 401) {
+      const currentAccessToken = localStorage.getItem("access_token");
+      const currentRefreshToken = localStorage.getItem("refresh_token");
+      const stillOwnsRequestSession =
+        currentAccessToken === entryAccess &&
+        currentRefreshToken === entryRefresh;
+      const belongsToRotatedSession =
+        resolveOwnedAuthSession(entryAccess, entryRefresh) !== null;
+
+      if (stillOwnsRequestSession || belongsToRotatedSession) {
+        if (!entryAccess || !entryRefresh) {
+          if (stillOwnsRequestSession) {
+            clearAuthStorage("missing_token");
+          }
+        } else {
+          let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
+          if (ownedSession?.accessToken && ownedSession.refreshToken) {
+            if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+              const refreshed = await tryRefreshToken();
+              ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+            }
+            if (ownedSession?.accessToken && ownedSession.refreshToken) {
+              const { accessToken: retryAccess, refreshToken: retryRefresh } = ownedSession;
+              response = await fetchOnce(retryAccess);
+              if (
+                response.status === 401 &&
+                localStorage.getItem("access_token") === retryAccess &&
+                localStorage.getItem("refresh_token") === retryRefresh
+              ) {
+                clearAuthStorage("retry_still_unauthorized");
+              }
+            }
+          }
         }
       }
     }
 
     if (!response.ok) {
-      let errorMessage = "ERR_INTERNAL_SERVER_ERROR";
+      let errorData: unknown = null;
       try {
-        const errorData = await response.json();
-        errorMessage = resolveApiErrorMessage(errorData, errorMessage);
+        errorData = await response.json();
       } catch {
-        // ignore parse failure and keep fallback message
+        // Non-JSON gateway or proxy error body; fall back to status-based ApiError
       }
-      throw new ApiError(response.status, errorMessage);
+      throw apiErrorFromPayload(response.status, errorData);
     }
 
     return response.json();

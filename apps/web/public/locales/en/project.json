@@ -10,6 +10,8 @@
     "save": "Save",
     "saving": "Saving…",
     "saveFailed": "Couldn't save. Please try again.",
+    "loadFailed": "Couldn't load project details. Please try again.",
+    "retry": "Retry",
     "notesConflictTitle": "Writing Conventions changed elsewhere",
     "notesConflict": "Your changes have not been saved. Review the latest version before choosing.",
     "viewLatestNotes": "View latest version",

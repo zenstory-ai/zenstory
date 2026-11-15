@@ -25,15 +25,31 @@ from prefect import get_run_logger
 
 from flows.database_session import get_db_session
 from flows.utils import api_task, call_material_llm, database_task, get_material_llm_client
+from flows.utils.helpers.exceptions import LLMNonRetryableError, is_llm_fatal_stop
 
 from .intelligent_chunking import intelligent_chunking_task
+
+
+def _parse_json_str_list(raw: Any) -> list[str]:
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, str)]
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, str)]
+    return []
+
 
 # ==================== 核心任务 ====================
 
 @api_task(name="identify_story_frameworks_with_chunking", retries=3)
 def identify_story_frameworks_with_chunking(
     novel_id: int,
-    enable_chunking: bool = True,
     max_chunks: int = 15,  # 增加最大块数，与intelligent_chunking保持一致
 ) -> dict[str, Any]:
     """
@@ -46,17 +62,12 @@ def identify_story_frameworks_with_chunking(
 
     Args:
         novel_id: 小说ID
-        enable_chunking: 是否启用智能分块
         max_chunks: 最大分块数量
 
     Returns:
         Dict: 剧情框架列表
     """
     logger = get_run_logger()
-
-    if not enable_chunking:
-        logger.info("智能分块未启用，使用原有逻辑")
-        return identify_story_frameworks_from_summaries(novel_id)
 
     logger.info(f"开始基于智能分块的剧情识别: novel_id={novel_id}")
 
@@ -253,7 +264,7 @@ def aggregate_plots_for_story_framework(
                 "index": p.index,
                 "plot_type": p.plot_type,
                 "description": p.description,
-                "characters": p.characters or [],
+                "characters": _parse_json_str_list(p.characters),
             }
             for p in plots
         ]
@@ -420,8 +431,6 @@ def save_stories_with_plots(
                 logger.warning(f"检测到重名剧情: '{title}', 使用索引区分: {map_key}")
             story_id_map[map_key] = story_id
 
-        db.commit()
-
     logger.info(f"剧情保存完成: {len(story_ids)} 个")
 
     return {
@@ -468,8 +477,6 @@ def save_storylines_with_stories(
             )
             storyline_ids.append(storyline_id)
 
-        db.commit()
-
     logger.info(f"剧情线保存完成: {len(storyline_ids)} 条")
 
     return {
@@ -480,117 +487,7 @@ def save_storylines_with_stories(
     }
 
 
-@api_task(name="summary_based_story_aggregation", retries=2)
-def summary_based_story_aggregation(
-    novel_id: int,
-    chapter_ids: list[int] | None = None,
-) -> dict[str, Any]:
-    """
-    基于章节摘要的剧情聚合主流程
-
-    流程:
-    1. 从章节摘要识别剧情框架
-    2. 根据章节范围聚合情节点
-    3. 保存剧情到数据库
-    4. 从剧情中提炼剧情线
-    5. 保存剧情线到数据库
-
-    Args:
-        novel_id: 小说ID
-        chapter_ids: 章节ID列表（可选）
-
-    Returns:
-        Dict: 聚合结果
-    """
-    logger = get_run_logger()
-
-    logger.info(f"开始基于章节摘要的剧情聚合: novel_id={novel_id}")
-
-    # 第一步：识别剧情框架
-    framework_result = identify_story_frameworks_from_summaries(
-        novel_id=novel_id,
-        chapter_ids=chapter_ids,
-    )
-
-    story_frameworks = framework_result["story_frameworks"]
-    logger.info(f"识别出 {len(story_frameworks)} 个剧情框架")
-
-    if not story_frameworks:
-        logger.warning("未识别出任何剧情框架")
-        return {
-            "novel_id": novel_id,
-            "stories_count": 0,
-            "storylines_count": 0,
-        }
-
-    # 第二步：聚合情节点
-    stories = []
-    for framework in story_frameworks:
-        try:
-            result = aggregate_plots_for_story_framework(
-                story_framework=framework,
-                novel_id=novel_id,
-            )
-            stories.append(result["story"])
-        except Exception as e:
-            logger.error(f"聚合剧情失败: {framework.get('title')}, error={e}")
-            continue
-
-    logger.info(f"成功聚合 {len(stories)} 个剧情")
-
-    if not stories:
-        logger.warning("未成功聚合任何剧情")
-        return {
-            "novel_id": novel_id,
-            "stories_count": 0,
-            "storylines_count": 0,
-        }
-
-    # 第三步：保存剧情
-    save_result = save_stories_with_plots(
-        stories=stories,
-        novel_id=novel_id,
-    )
-
-    # 第四步：提炼剧情线
-    storyline_result = extract_storylines_from_stories(
-        stories=stories,
-        novel_id=novel_id,
-    )
-
-    storylines = storyline_result["storylines"]
-    logger.info(f"提炼出 {len(storylines)} 条剧情线")
-
-    # 第五步：保存剧情线
-    storyline_save_result = save_storylines_with_stories(
-        storylines=storylines,
-        novel_id=novel_id,
-    )
-
-    logger.info("基于章节摘要的剧情聚合完成")
-
-    return {
-        "novel_id": novel_id,
-        "frameworks_count": len(story_frameworks),
-        "stories_count": save_result["created_count"],
-        "storylines_count": storyline_save_result["created_count"],
-        "story_ids": save_result["story_ids"],
-        "storyline_ids": storyline_save_result["storyline_ids"],
-    }
-
-
 # ==================== 辅助函数 ====================
-
-def _get_chunk_chapter_ids(_novel_id: int, chunk: dict[str, Any]) -> list[int]:
-    """获取块内的章节ID列表"""
-    from services.material.chapters_service import ChaptersService
-    with get_db_session() as db:
-        return ChaptersService().list_ids_by_number_range(
-            db,
-            _novel_id,
-            chunk["start_chapter"],
-            chunk["end_chapter"],
-        )
 
 
 @api_task(name="merge_cross_chunk_stories", retries=2)
@@ -614,40 +511,35 @@ def _merge_cross_chunk_stories(
 
     logger.info(f"开始跨块剧情合并: {len(chunk_frameworks)} 个剧情")
 
-    try:
-        # 第一步：找出所有跨块边界的剧情对
-        boundary_pairs = _find_boundary_story_pairs(chunk_frameworks, chunks)
-        logger.info(f"发现 {len(boundary_pairs)} 对跨块边界的剧情候选")
+    # 第一步：找出所有跨块边界的剧情对
+    boundary_pairs = _find_boundary_story_pairs(chunk_frameworks, chunks)
+    logger.info(f"发现 {len(boundary_pairs)} 对跨块边界的剧情候选")
 
-        if not boundary_pairs:
-            logger.info("没有跨块边界的剧情对，无需合并")
-            return chunk_frameworks
-
-        # 第二步：让LLM逐对判断
-        merge_decisions = []
-        for story1, story2 in boundary_pairs:
-            decision = _llm_judge_merge(story1, story2, novel_id=novel_id)
-            merge_decisions.append({
-                "story1": story1,
-                "story2": story2,
-                "should_merge": decision["should_merge"],
-                "reason": decision["reason"]
-            })
-
-            logger.info(
-                f"{'✓ 合并' if decision['should_merge'] else '✗ 保持独立'}: "
-                f"'{story1.get('title')}' + '{story2.get('title')}' - {decision['reason']}"
-            )
-
-        # 第三步：执行合并
-        merged_stories = _execute_merge_decisions(chunk_frameworks, merge_decisions)
-
-        logger.info(f"跨块合并完成: {len(chunk_frameworks)} 个剧情 → {len(merged_stories)} 个剧情")
-        return merged_stories
-
-    except Exception as e:
-        logger.error(f"LLM跨块合并失败，保持原样: {e}")
+    if not boundary_pairs:
+        logger.info("没有跨块边界的剧情对，无需合并")
         return chunk_frameworks
+
+    # 第二步：让LLM逐对判断
+    merge_decisions = []
+    for story1, story2 in boundary_pairs:
+        decision = _llm_judge_merge(story1, story2, novel_id=novel_id)
+        merge_decisions.append({
+            "story1": story1,
+            "story2": story2,
+            "should_merge": decision["should_merge"],
+            "reason": decision["reason"]
+        })
+
+        logger.info(
+            f"{'✓ 合并' if decision['should_merge'] else '✗ 保持独立'}: "
+            f"'{story1.get('title')}' + '{story2.get('title')}' - {decision['reason']}"
+        )
+
+    # 第三步：执行合并
+    merged_stories = _execute_merge_decisions(chunk_frameworks, merge_decisions)
+
+    logger.info(f"跨块合并完成: {len(chunk_frameworks)} 个剧情 → {len(merged_stories)} 个剧情")
+    return merged_stories
 
 
 def _find_boundary_story_pairs(
@@ -785,22 +677,18 @@ def _llm_judge_merge(
             temperature=0.1,  # 低温度=更保守
             usage_novel_id=novel_id,
         )
-
-        # 解析响应：call_material_llm 返回 LLMResponse 对象，必须用客户端方法提取 JSON。
-        # （此前这里把 LLMResponse 当字符串做 re.search，必然抛 TypeError 并被下方 except
-        # 吞掉，导致合并判断永远返回 should_merge=False。改为与本文件其它调用点一致的写法。）
         client = get_material_llm_client()
         result = client.extract_json_from_response(response)
+    except (LLMNonRetryableError, ValueError, TypeError) as e:
+        # 合并判断失败时保持两段剧情独立；只有致命终止才中止整次拆解。
+        if is_llm_fatal_stop(e):
+            raise
+        return {"should_merge": False, "reason": f"LLM判断失败: {e}"}
 
-        # 验证返回格式
-        if "should_merge" not in result or "reason" not in result:
-            return {"should_merge": False, "reason": "LLM返回格式错误"}
+    if not isinstance(result, dict) or "should_merge" not in result or "reason" not in result:
+        return {"should_merge": False, "reason": "LLM返回格式错误"}
 
-        return result
-
-    except Exception as e:
-        # 失败时保守处理：不合并
-        return {"should_merge": False, "reason": f"LLM调用失败: {str(e)}"}
+    return result
 
 
 def _execute_merge_decisions(

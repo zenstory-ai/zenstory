@@ -108,7 +108,6 @@ const isSameReview = (review: DiffReviewState | null, conflict: ConflictReview |
 
 /** Apple keyboards label the search shortcut ⌘ K; everything else uses Ctrl K. */
 const isApplePlatform = (): boolean => {
-  if (typeof navigator === 'undefined') return false;
   const uaDataPlatform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
   return /mac|iphone|ipad|ipod/i.test(uaDataPlatform || navigator.platform || '');
 };
@@ -163,7 +162,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
   // Material library context
   const materialLib = useMaterialLibraryContext();
-  const { addMaterial } = useMaterialAttachment();
+  const { addMaterial, isMaterialAttached, isAtLimit, maxMaterials = 5 } = useMaterialAttachment();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   // Authors who arrive with a manuscript import it from the empty state and land on chapter 1.
   const draftInputRef = useRef<HTMLInputElement>(null);
@@ -1281,6 +1280,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
         return;
       }
       logger.error("Failed to save reviewed changes:", err);
+      toast.error(handleApiError(err));
       captureException(err, {
         feature_area: "editor",
         action: "ai_edit_review_apply",
@@ -1362,7 +1362,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
   }, [currentProjectId, triggerFileTreeRefresh, setSelectedItem, t, resolveCreateParentId]);
 
   // Render material preview mode
-  if (materialLib.preview && materialLib.previewEntityInfo) {
+  if (materialLib.previewEntityInfo && (materialLib.isPreviewLoading || materialLib.preview)) {
+    const previewEntityInfo = materialLib.previewEntityInfo;
     return renderWithUpgradeModal(
       <>
         <MaterialPreview
@@ -1370,29 +1371,41 @@ const EditorComponent: React.FC<EditorProps> = () => {
           isLoading={materialLib.isPreviewLoading}
           onAddToProject={() => setImportDialogOpen(true)}
           onAttachToChat={() => {
-            if (materialLib.preview && materialLib.previewEntityInfo) {
-              addMaterial(
-                `material_${Date.now()}`,
-                materialLib.preview.title,
-                {
-                  novelId: materialLib.previewEntityInfo.novelId,
-                  entityType: materialLib.previewEntityInfo.entityType,
-                  entityId: materialLib.previewEntityInfo.entityId,
-                }
+            if (!materialLib.preview) return;
+            const virtualId = `lib_${previewEntityInfo.novelId}_${previewEntityInfo.entityType}_${previewEntityInfo.entityId}`;
+            if (isMaterialAttached?.(virtualId)) {
+              toast.info(t('editor:fileTree.alreadyAttached'));
+              return;
+            }
+            const added = addMaterial(
+              virtualId,
+              materialLib.preview.title,
+              {
+                novelId: previewEntityInfo.novelId,
+                entityType: previewEntityInfo.entityType,
+                entityId: previewEntityInfo.entityId,
+              }
+            );
+            if (!added) {
+              toast.info(
+                isAtLimit === false
+                  ? t('editor:fileTree.alreadyAttached')
+                  : t('editor:fileTree.maxMaterials', { max: maxMaterials }),
               );
+              return;
             }
             materialLib.clearPreview();
           }}
           onBack={() => materialLib.clearPreview()}
         />
-        {importDialogOpen && (
+        {importDialogOpen && materialLib.preview && (
           <ImportMaterialDialog
             isOpen={importDialogOpen}
             onClose={() => setImportDialogOpen(false)}
             preview={materialLib.preview}
-            novelId={materialLib.previewEntityInfo.novelId}
-            entityType={materialLib.previewEntityInfo.entityType}
-            entityId={materialLib.previewEntityInfo.entityId}
+            novelId={previewEntityInfo.novelId}
+            entityType={previewEntityInfo.entityType}
+            entityId={previewEntityInfo.entityId}
             onSuccess={() => {
               setImportDialogOpen(false);
               materialLib.clearPreview();

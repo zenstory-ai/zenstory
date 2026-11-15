@@ -93,11 +93,32 @@ describe('dashboardInspirationSource', () => {
     await expect(mod.loadDashboardInspirationBundle('en')).resolves.toBeNull()
   })
 
-  it('returns null for non-ok responses', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
+  it('returns null for non-ok responses and evicts failed cache entries so retries recover', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 502 })
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          version: 1,
+          locale: 'en',
+          generated_at: '2026-04-07T00:00:00Z',
+          items: {
+            novel: [{ id: 'n-recovered', title: 'Recovered', hook: 'H', tags: [], source: 'seed' }],
+            short: [{ id: 's-recovered', title: 'Short', hook: 'H', tags: [], source: 'seed' }],
+            screenplay: [{ id: 'sp-recovered', title: 'Scene', hook: 'H', tags: [], source: 'seed' }],
+          },
+        }),
+      })
+    vi.stubGlobal('fetch', fetchMock)
 
     const mod = await import('../dashboardInspirationSource')
 
     await expect(mod.loadDashboardInspirationBundle('en')).resolves.toBeNull()
+    await expect(mod.loadDashboardInspirationBundle('en')).rejects.toThrow('Failed to fetch')
+    const recovered = await mod.loadDashboardInspirationBundle('en')
+    expect(recovered?.items.novel[0]?.id).toBe('n-recovered')
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

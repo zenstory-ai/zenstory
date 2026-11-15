@@ -94,8 +94,6 @@ class File(SQLModel, table=True):
     # Metadata convenience helpers
     def get_metadata(self) -> dict[str, Any]:
         """Parse file_metadata JSON to dict."""
-        import json
-
         if self.file_metadata:
             try:
                 result: Any = json.loads(self.file_metadata)
@@ -108,19 +106,7 @@ class File(SQLModel, table=True):
 
     def set_metadata(self, data: dict[str, Any]) -> None:
         """Set file_metadata from dict."""
-        import json
-
         self.file_metadata = json.dumps(data)
-
-    def get_metadata_field(self, key: str, default: Any = None) -> Any:
-        """Get a specific metadata field."""
-        return self.get_metadata().get(key, default)
-
-    def set_metadata_field(self, key: str, value: Any) -> None:
-        """Set a specific metadata field."""
-        metadata = self.get_metadata()
-        metadata[key] = value
-        self.set_metadata(metadata)
 
 
 # File type constants (for convenience)
@@ -135,45 +121,6 @@ FILE_TYPE_SCRIPT = "script"  # Script content (for screenplay)
 # 导致文件清单等按常量枚举类型的地方会整类漏掉 document 文件。
 FILE_TYPE_DOCUMENT = "document"
 FILE_TYPE_FOLDER = "folder"
-
-
-# Standard file type metadata schemas
-# These help AI understand what metadata fields are expected for each type
-
-FILE_TYPE_METADATA_SCHEMA = {
-    FILE_TYPE_OUTLINE: {
-        "description": "章节大纲",
-        "optional_fields": ["chapter_number", "status", "word_count_target"],
-    },
-    FILE_TYPE_DRAFT: {
-        "description": "草稿内容",
-        "optional_fields": ["version", "is_current", "word_count"],
-    },
-    FILE_TYPE_CHARACTER: {
-        "description": "角色档案",
-        "optional_fields": ["age", "gender", "role", "personality", "appearance"],
-    },
-    FILE_TYPE_LORE: {
-        "description": "世界设定",
-        "optional_fields": ["category", "importance", "tags"],
-    },
-    FILE_TYPE_SNIPPET: {
-        "description": "文本素材",
-        "optional_fields": ["source", "tags", "importance"],
-    },
-    FILE_TYPE_SCRIPT: {
-        "description": "剧本内容（短剧专用）",
-        "optional_fields": ["episode_number", "scene_count", "duration"],
-    },
-    FILE_TYPE_DOCUMENT: {
-        "description": "通用文档（默认类型）",
-        "optional_fields": ["tags", "word_count"],
-    },
-    FILE_TYPE_FOLDER: {
-        "description": "文件夹（用于组织）",
-        "optional_fields": [],
-    },
-}
 
 
 # ---------------------------------------------------------------------------

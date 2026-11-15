@@ -107,7 +107,7 @@ export function dismissAppUpdate(): void {
  * Does nothing when the document has no built entry script (development).
  */
 export function startAppUpdateChecks(doc: Document = document): () => void {
-  if (typeof window === "undefined" || !currentEntry(doc)) return () => undefined;
+  if (!currentEntry(doc)) return () => undefined;
 
   const checkIfDue = () => {
     if (doc.visibilityState !== "visible") return;

@@ -70,12 +70,11 @@ vi.mock('../../lib/api', () => ({
   },
   fileVersionApi: {
     getVersions: vi.fn(),
-    createVersion: vi.fn(),
   },
 }))
 
 vi.mock('../../lib/toast', () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }))
 
 vi.mock('../../lib/analytics', () => ({
@@ -84,20 +83,25 @@ vi.mock('../../lib/analytics', () => ({
 }))
 
 let mockProjectContext: Record<string, unknown> | null = null
+const mockClearPreview = vi.fn()
+const mockAddMaterial = vi.fn(() => true)
+let mockMaterialLibrary: Record<string, unknown> = {
+  preview: null,
+  previewEntityInfo: null,
+  isPreviewLoading: false,
+  libraries: [],
+  clearPreview: mockClearPreview,
+}
 
 vi.mock('../../contexts/MaterialLibraryContext', () => ({
-  useMaterialLibraryContext: () => ({
-    preview: null,
-    isPreviewLoading: false,
-    libraries: [],
-    clearPreview: vi.fn(),
-  }),
+  useMaterialLibraryContext: () => mockMaterialLibrary,
   MaterialLibraryProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }))
 
 vi.mock('../../contexts/MaterialAttachmentContext', () => ({
-  useMaterialAttachment: () => ({ addMaterial: vi.fn(), removeMaterial: vi.fn() }),
+  MAX_ATTACHED_MATERIALS: 5,
+  useMaterialAttachment: () => ({ addMaterial: mockAddMaterial, removeMaterial: vi.fn() }),
   MaterialAttachmentProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }))
@@ -299,5 +303,71 @@ describe('Editor: 整篇覆盖写的两条入口都不得丢用户输入', () =>
     )
     // 审阅态不能就这么退出：定稿还没落库
     expect(exitDiffReview).not.toHaveBeenCalled()
+  })
+
+  it('shows error toast when handleFinishReview fails with a non-409 error', async () => {
+    mockMaterialLibrary = {
+      preview: null,
+      previewEntityInfo: null,
+      isPreviewLoading: false,
+      libraries: [],
+      clearPreview: mockClearPreview,
+    }
+    mockProjectContext = createContext({
+      applyDiffReviewChanges: vi.fn().mockReturnValue('审阅后的定稿'),
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: '原始正文',
+        modifiedContent: '审阅后的定稿',
+        pendingEdits: [],
+      },
+    })
+    vi.mocked(api.fileApi.update).mockRejectedValue(new ApiError(500, 'ERR_INTERNAL_SERVER_ERROR'))
+
+    render(<Editor />)
+    await waitFor(() => expect(screen.getByTestId('simple-editor')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('finish-review-button'))
+
+    const { toast } = await import('../../lib/toast')
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalled()
+    })
+  })
+
+  it('uses canonical lib_* virtual ID on MaterialPreview attach and keeps preview open when addMaterial returns false', async () => {
+    mockMaterialLibrary = {
+      preview: { title: 'Hero Profile', markdown: 'Hero bio', suggested_folder_name: '角色' },
+      previewEntityInfo: { novelId: 7, entityType: 'characters', entityId: 42 },
+      isPreviewLoading: false,
+      libraries: [],
+      clearPreview: mockClearPreview,
+    }
+    mockAddMaterial.mockReturnValueOnce(false).mockReturnValueOnce(true)
+    mockProjectContext = createContext()
+
+    render(<Editor />)
+    const attachButton = await screen.findByRole('button', { name: /editor:fileTree\.attachToChat/ })
+
+    fireEvent.click(attachButton)
+    expect(mockAddMaterial).toHaveBeenCalledWith('lib_7_characters_42', 'Hero Profile', {
+      novelId: 7,
+      entityType: 'characters',
+      entityId: 42,
+    })
+    expect(mockClearPreview).not.toHaveBeenCalled()
+    const { toast } = await import('../../lib/toast')
+    expect(toast.info).toHaveBeenCalled()
+
+    fireEvent.click(attachButton)
+    expect(mockClearPreview).toHaveBeenCalledTimes(1)
+
+    mockMaterialLibrary = {
+      preview: null,
+      previewEntityInfo: null,
+      isPreviewLoading: false,
+      libraries: [],
+      clearPreview: mockClearPreview,
+    }
   })
 })

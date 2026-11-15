@@ -471,7 +471,7 @@ async def test_chat_session_lifecycle_covers_messages_recent_clear_and_new_sessi
     db_session.commit()
 
     messages_response = await client.get(
-        f"/api/v1/chat/session/{project_id}/messages",
+        f"/api/v1/chat/session/{project_id}/recent?limit=10",
         headers=_auth_headers(access_token),
     )
     assert messages_response.status_code == 200
@@ -926,7 +926,7 @@ async def test_materials_library_roundtrip_covers_list_detail_and_summary(
     db_session.commit()
 
     list_response = await client.get(
-        "/api/v1/materials",
+        "/api/v1/materials/list",
         headers=_auth_headers(access_token),
     )
     assert list_response.status_code == 200
@@ -946,17 +946,6 @@ async def test_materials_library_roundtrip_covers_list_detail_and_summary(
     assert detail_payload["characters_count"] == 1
     assert detail_payload["story_lines_count"] == 1
     assert detail_payload["has_world_view"] is True
-
-    summary_response = await client.get(
-        f"/api/v1/materials/{novel.id}/summary",
-        headers=_auth_headers(access_token),
-    )
-    assert summary_response.status_code == 200
-    summary_payload = summary_response.json()
-    assert summary_payload["chapters_count"] == 2
-    assert summary_payload["characters_count"] == 1
-    assert summary_payload["storylines_count"] == 1
-    assert summary_payload["has_worldview"] is True
 
 
 @pytest.mark.asyncio

@@ -56,7 +56,6 @@ import {
   type OpenEditorFlushResult,
 } from "../lib/editorSaveTracker";
 import type {
-  AgentContextItem,
   AgentRequest,
   ApplyAction,
   FileEditUndoTarget,
@@ -619,7 +618,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
   const aiSuggestionsRef = useRef<string[]>([]);
 
-  const contextItemsRef = useRef<AgentContextItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showAIMemory, setShowAIMemory] = useState(false);
   const [aiMemoryInitialSection, setAIMemoryInitialSection] = useState<'writing-agreements' | undefined>();
@@ -1346,7 +1344,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     whenStreamClosed,
     isStreaming,
     isThinking,
-    thinkingContent,
     conflicts,
     error,
     errorCode,
@@ -1372,7 +1369,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     // Context and Thinking callbacks
     onContext: (items) => {
-      contextItemsRef.current = items || [];
       streamCallbacks.onContext(items);
     },
 
@@ -1785,7 +1781,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     suggestionRequestSeqRef.current += 1;  // the previous project's suggestions never land here
     setAiSuggestions([]);
     setSuggestionDisplayState("loading");
-    contextItemsRef.current = [];
 
     frameworkReadyRef.current = null;
     setFrameworkReadyProjectId(null);
@@ -1827,7 +1822,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, [
     messages.length,
     state.content,
-    thinkingContent,
     conflictCount,
     streamRenderItemCount,
     isStreaming,
@@ -2832,15 +2826,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 streamRenderItems={streamRenderItems}
                 onIterationAssistAction={handleIterationAssistAction}
                 nextStepsBlocked={aiSendBlocked}
-                streamingMessageId={undefined}
                 onUndo={handleUndo}
                 onOpenFile={currentProjectId && currentProject?.id === currentProjectId ? handleOpenFile : undefined}
                 onOpenAIMemory={currentProjectId ? openWritingAgreements : undefined}
                 onSubmitFeedback={handleSubmitFeedback}
                 feedbackPendingMessageId={feedbackPendingMessageId}
                 showDailyCount={showDailyCount}
-                streamingThinkingContent={thinkingContent}
-                isThinking={isThinking}
                 scrollContainerRef={messagesScrollContainerRef}
               />
               </UndoneEditsContext.Provider>
@@ -3112,7 +3103,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             aiSuggestions={aiSuggestions}
             // While the card offers "write chapter 1", chips (AI or fallback) saying the same are dropped: one entry for it.
             hideSuggestion={showNextStep ? duplicatesNextStep : undefined}
-            messageCount={messages.length}
             suggestionDisplayState={staticFirstWork || !firstWork.isSuccess ? "ready" : suggestionDisplayState}
             onRefreshSuggestions={refreshSuggestionsNow}
             isRefreshingSuggestions={isRefreshingSuggestions}

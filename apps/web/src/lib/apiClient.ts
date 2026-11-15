@@ -26,7 +26,7 @@ import { resolveApiErrorMessage, toUserErrorMessage } from './errorHandler';
 import { logger } from './logger';
 
 const API_BASE_RAW = import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.PROD && typeof window !== 'undefined'
+  (import.meta.env.PROD
     ? window.location.origin
     : 'http://localhost:8000');
 
@@ -39,8 +39,7 @@ const API_BASE_RAW = import.meta.env.VITE_API_BASE_URL ||
  * @returns The appropriate API base URL
  */
 export function getApiBase(): string {
-  if (typeof window !== 'undefined' &&
-      window.location.protocol === 'https:' &&
+  if (window.location.protocol === 'https:' &&
       API_BASE_RAW.startsWith('http:')) {
     return API_BASE_RAW.replace('http:', 'https:');
   }
@@ -176,15 +175,13 @@ export function clearAuthStorage(reason?: string): void {
   localStorage.removeItem('auth_validated_at'); // Clear cache timestamp
 
   // Notify AuthContext to update state (same-tab)
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent('auth:logout', {
-        detail: {
-          reason: reason || 'unknown',
-        },
-      }),
-    );
-  }
+  window.dispatchEvent(
+    new CustomEvent('auth:logout', {
+      detail: {
+        reason: reason || 'unknown',
+      },
+    }),
+  );
 }
 
 /**
@@ -280,7 +277,7 @@ export async function tryRefreshToken(): Promise<boolean> {
           return false;
         }
       };
-      if (typeof navigator === 'undefined' || !navigator.locks) return await refreshUnderLock();
+      if (!navigator.locks) return await refreshUnderLock();
       return await navigator.locks.request('zenstory-auth-refresh', async () => {
         let refreshed = false;
         try {

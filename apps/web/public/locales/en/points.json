@@ -67,5 +67,7 @@
     "daysAgo_plural": "{{count}} days ago"
   },
   "balanceLoadFailed": "Couldn't load your points balance. Please try again.",
-  "configLoadFailed": "Couldn't load redemption prices. Please try again."
+  "configLoadFailed": "Couldn't load redemption prices. Please try again.",
+  "checkInStatusLoadFailed": "Couldn't load check-in status. Please try again.",
+  "opportunitiesLoadFailed": "Couldn't load point tasks. Please try again."
 }

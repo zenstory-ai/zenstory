@@ -15,16 +15,18 @@ from sqlalchemy.pool import NullPool
 from sqlmodel import Session, SQLModel
 
 from database import get_session
+from flows import database_session as flows_database_session
 from main import app
 from middleware.rate_limit import _rate_limit_store
 
 # Tests should not depend on external Redis availability.
 os.environ.setdefault("RATE_LIMIT_BACKEND", "memory")
 
-# `from main import app` ran load_dotenv(), so a developer's .env REDIS_URL (often
-# pointing at a Redis that isn't running) is now in this process. CI never has
-# one; drop it so local runs match CI. Real-Redis lanes use ZENSTORY_TEST_REDIS_URL,
-# and ZENSTORY_TEST_KEEP_REDIS_URL=1 opts back in explicitly.
+# `from main import app` and `flows.database_session` ran load_dotenv(), so a
+# developer's .env REDIS_URL (often pointing at a Redis that isn't running) is
+# now in this process. CI never has one; drop it so local runs match CI.
+# Real-Redis lanes use ZENSTORY_TEST_REDIS_URL, and ZENSTORY_TEST_KEEP_REDIS_URL=1
+# opts back in explicitly.
 if os.getenv("ZENSTORY_TEST_KEEP_REDIS_URL") != "1":
     os.environ.pop("REDIS_URL", None)
 
@@ -78,7 +80,6 @@ def initialized_test_schema():
 @pytest.fixture(autouse=True)
 def isolated_llm_usage_ledger(monkeypatch):
     """Usage metering writes through its own session; keep it on the test database."""
-    from flows import database_session as flows_database_session
     from services.usage import cost_budget, llm_usage_service
 
     monkeypatch.setattr(llm_usage_service, "_session_factory", TestSessionLocal)

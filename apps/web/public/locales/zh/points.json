@@ -67,5 +67,7 @@
     "daysAgo_plural": "{{count}} 天前"
   },
   "balanceLoadFailed": "积分余额没加载出来，请重试",
-  "configLoadFailed": "兑换价格没加载出来，请重试"
+  "configLoadFailed": "兑换价格没加载出来，请重试",
+  "checkInStatusLoadFailed": "签到状态加载失败，请重试",
+  "opportunitiesLoadFailed": "积分任务加载失败，请重试"
 }

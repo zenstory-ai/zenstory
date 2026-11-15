@@ -263,16 +263,6 @@ def task_unit_spec(text: str) -> UnitSpec | None:
     return UnitSpec(unit=unit, numbers=frozenset(numbers))
 
 
-def title_units(titles: list[str], unit: str) -> set[int]:
-    """这些文件标题里出现的某一单位的编号（含标题里的范围，如「第1-10章大纲」）。"""
-    numbers: set[int] = set()
-    for title in titles:
-        text = title or ""
-        numbers.update(_ranges(text).get(unit, set()))
-        numbers.update(_singles(text).get(unit, set()))
-    return numbers
-
-
 def format_units(numbers: set[int] | frozenset[int] | list[int], unit: str) -> str:
     """把编号写成「第2集」「第3–5集」「第2、4–6集」。"""
     ordered = sorted(set(numbers))
@@ -305,6 +295,5 @@ __all__ = [
     "task_evidence_spec",
     "task_text",
     "task_unit_spec",
-    "title_units",
     "validate_task_artifact_fields",
 ]

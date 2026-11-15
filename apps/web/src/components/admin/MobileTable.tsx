@@ -1,27 +1,8 @@
-import React from "react";
 import { Edit, UserX } from "lucide-react";
 import type { User } from "../../types/admin";
 import type { TFunction } from "i18next";
 import { formatAdminDateTime } from "../../lib/dateUtils";
 import { AdminUserLink } from "./AdminUserLink";
-
-interface MobileTableProps<T> {
-  data: T[];
-  renderItem: (item: T, index: number) => React.ReactNode;
-  className?: string;
-}
-
-export function MobileTable<T>({
-  data,
-  renderItem,
-  className = "",
-}: MobileTableProps<T>) {
-  return (
-    <div className={className}>
-      {data.map((item, index) => renderItem(item, index))}
-    </div>
-  );
-}
 
 interface UserCardProps {
   user: User;

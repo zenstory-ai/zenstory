@@ -16,16 +16,10 @@ from sqlmodel import Session
 
 from models import User
 from models.referral import (
+    REWARD_TYPE_POINTS,
     InviteCode,
-    Referral,
     UserReward,
     UserStats,
-    REFERRAL_STATUS_PENDING,
-    REFERRAL_STATUS_COMPLETED,
-    REFERRAL_STATUS_REWARDED,
-    REWARD_TYPE_POINTS,
-    REWARD_TYPE_PRO_TRIAL,
-    REWARD_TYPE_CREDITS,
 )
 from services.core.auth_service import hash_password
 
@@ -470,7 +464,7 @@ class TestUserRewardsExtended:
         # Create a reward with expiration
         reward = UserReward(
             user_id=user_id,
-            reward_type=REWARD_TYPE_PRO_TRIAL,
+            reward_type=REWARD_TYPE_POINTS,
             amount=14,
             source="referral",
             is_used=False,
@@ -489,9 +483,9 @@ class TestUserRewardsExtended:
         assert len(data) >= 1
 
         # Find our reward
-        trial_rewards = [r for r in data if r["reward_type"] == REWARD_TYPE_PRO_TRIAL]
-        assert len(trial_rewards) >= 1
-        assert trial_rewards[0]["expires_at"] is not None
+        expiring_rewards = [r for r in data if r["amount"] == 14]
+        assert len(expiring_rewards) >= 1
+        assert expiring_rewards[0]["expires_at"] is not None
 
     async def test_rewards_ordered_by_created_desc(self, client: AsyncClient, auth_headers, db_session: Session):
         """Test that rewards are returned in descending order by creation date."""
@@ -529,40 +523,6 @@ class TestUserRewardsExtended:
         if len(our_rewards) >= 2:
             created_times = [datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")) for r in our_rewards]
             assert created_times == sorted(created_times, reverse=True)
-
-    async def test_rewards_include_all_types(self, client: AsyncClient, auth_headers, db_session: Session):
-        """Test that all reward types are returned."""
-        from sqlalchemy import text as sql_text
-
-        user_result = db_session.exec(
-            sql_text("SELECT id FROM user WHERE email = 'extended@example.com'")
-        ).first()
-        user_id = user_result[0] if user_result else None
-
-        # Create rewards of each type
-        reward_types = [REWARD_TYPE_POINTS, REWARD_TYPE_PRO_TRIAL, REWARD_TYPE_CREDITS]
-        for reward_type in reward_types:
-            reward = UserReward(
-                user_id=user_id,
-                reward_type=reward_type,
-                amount=100,
-                source="referral",
-                is_used=False,
-            )
-            db_session.add(reward)
-        db_session.commit()
-
-        response = await client.get(
-            "/api/v1/referral/rewards",
-            headers=auth_headers,
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        returned_types = {r["reward_type"] for r in data}
-        for reward_type in reward_types:
-            assert reward_type in returned_types
 
     async def test_rewards_include_used(self, client: AsyncClient, auth_headers, db_session: Session):
         """Test that used rewards are also returned."""

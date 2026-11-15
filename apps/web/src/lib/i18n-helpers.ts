@@ -49,16 +49,35 @@ export const DEFAULT_LOCALE: SupportedLocale = 'zh';
  * ```
  */
 export function getLocale(): SupportedLocale {
-  if (typeof window === 'undefined') {
-    return DEFAULT_LOCALE;
-  }
-
-  const storedLocale = localStorage.getItem('zenstory-language') as SupportedLocale;
-  if (storedLocale && SUPPORTED_LOCALES.includes(storedLocale)) {
-    return storedLocale;
+  try {
+    const storedLocale = localStorage.getItem('zenstory-language') as SupportedLocale;
+    if (storedLocale && SUPPORTED_LOCALES.includes(storedLocale)) {
+      return storedLocale;
+    }
+  } catch {
+    // Ignore storage access errors and fall back to default locale.
   }
 
   return DEFAULT_LOCALE;
+}
+
+/**
+ * Persist and activate a new UI locale when it differs from the current one.
+ */
+export async function switchLocale(
+  i18n: { changeLanguage: (lng: string) => Promise<unknown> },
+  currentLanguage: SupportedLocale,
+  nextLanguage: SupportedLocale,
+): Promise<void> {
+  if (currentLanguage === nextLanguage) return;
+
+  try {
+    localStorage.setItem('zenstory-language', nextLanguage);
+  } catch {
+    // Ignore storage access errors and still update active session language.
+  }
+
+  await i18n.changeLanguage(nextLanguage);
 }
 
 /**

@@ -62,7 +62,7 @@ def _context(marker: str) -> ContextData:
     )
     return ContextData(
         items=[item.to_dict() for item in items], context=context, blocks=blocks,
-        token_estimate=sum(item.token_estimate for item in items),
+        token_estimate=max(1, len(context) // 4),
     )
 
 

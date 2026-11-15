@@ -11,7 +11,7 @@ import time
 import uuid
 from typing import Any
 
-from fastapi import Request, Response
+from fastapi import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from core.error_handler import internal_error_response
@@ -257,23 +257,6 @@ class LoggingMiddleware:
             return raw
         return uuid.uuid4().hex
 
-    def _extract_response_info(self, response: Response) -> dict[str, Any]:
-        """
-        Extract response information for logging.
-
-        Args:
-            response: HTTP response
-
-        Returns:
-            Dictionary with response information
-        """
-        info = {
-            "status_code": response.status_code,
-            "content_type": response.headers.get("content-type", "unknown"),
-        }
-
-        return info
-
     def _extract_response_info_from_asgi(self, message: Message) -> dict[str, Any]:
         """Extract response information from an ASGI http.response.start message."""
         headers = {
@@ -307,36 +290,6 @@ class LoggingMiddleware:
         if not is_stream and duration_ms > SLOW_REQUEST_THRESHOLD:
             return logging.WARNING
         return logging.INFO
-
-    async def _get_request_body(self, request: Request) -> str:
-        """
-        Get request body with size limit and sanitization.
-
-        Args:
-            request: HTTP request
-
-        Returns:
-            Sanitized request body string
-        """
-        try:
-            body = await request.body()
-
-            # Check size limit
-            if len(body) > MAX_BODY_SIZE:
-                return f"[Body too large: {len(body)} bytes]"
-
-            # Try to parse as JSON for sanitization
-            import json as json_module
-
-            try:
-                body_dict = json_module.loads(body.decode())
-                sanitized = sanitize_for_logging(body_dict)
-                return json_module.dumps(sanitized, ensure_ascii=False)
-            except (json_module.JSONDecodeError, UnicodeDecodeError):
-                # Not JSON, just sanitize the string
-                return sanitize_for_logging(body.decode())
-        except Exception:
-            return "[Failed to read body]"
 
     def _format_captured_body(self, body: bytes, truncated: bool) -> str:
         """Format captured request body with size limit and sanitization."""

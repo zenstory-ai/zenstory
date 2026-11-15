@@ -670,13 +670,11 @@ def test_file_metadata(db_session: Session):
     assert metadata["age"] == 25
     assert metadata["gender"] == "male"
     assert metadata["role"] == "protagonist"
+    assert metadata.get("nonexistent", "default_value") == "default_value"
 
-    # Test get_metadata_field
-    assert file.get_metadata_field("age") == 25
-    assert file.get_metadata_field("nonexistent", default="default_value") == "default_value"
-
-    # Test set_metadata_field
-    file.set_metadata_field("age", 26)
+    # Test updating metadata via set_metadata
+    metadata["age"] = 26
+    file.set_metadata(metadata)
     db_session.commit()
     db_session.refresh(file)
-    assert file.get_metadata_field("age") == 26
+    assert file.get_metadata()["age"] == 26

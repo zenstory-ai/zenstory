@@ -6,6 +6,7 @@ import type { InviteCode } from '@/types/referral';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { getLocaleCode } from '../../lib/i18n-helpers';
+import { toast } from '../../lib/toast';
 
 interface InviteCodeCardProps {
   inviteCode: InviteCode;
@@ -15,7 +16,7 @@ interface InviteCodeCardProps {
  * Single invite code card with copy and share functionality
  */
 export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) => {
-  const { t } = useTranslation('referral');
+  const { t } = useTranslation(['referral', 'common']);
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -24,7 +25,7 @@ export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) =>
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Silently fail - clipboard API not available
+      toast.error(t('common:copyFailed'));
     }
   };
 
@@ -49,7 +50,7 @@ export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) =>
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       } catch {
-        // Silently fail - clipboard API not available
+        toast.error(t('common:copyFailed'));
       }
     }
   };

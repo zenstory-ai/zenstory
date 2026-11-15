@@ -133,23 +133,7 @@ def build_meta_entities_task(
     with get_db_session() as db:
         # 1. 入库金手指（支持多个）
         for golden_finger in golden_fingers:
-            if not isinstance(golden_finger, dict):
-                continue
-
-            gf_name = golden_finger.get("name")
-            if not gf_name:
-                # 生成占位名称，避免因为缺少 name 而完全跳过入库
-                gf_type = golden_finger.get("type")
-                gf_desc = golden_finger.get("description")
-                if gf_type:
-                    placeholder = f"{gf_type}-金手指"
-                elif gf_desc:
-                    placeholder = gf_desc[:12]
-                else:
-                    placeholder = "未命名金手指"
-                logger.warning(f"金手指缺少 name 字段，使用占位名入库: {placeholder}")
-                gf_name = placeholder
-
+            gf_name = golden_finger["name"]
             action = GoldenFingerService().upsert(db, novel_id, {
                 "name": gf_name,
                 "type": golden_finger.get("type"),
@@ -164,8 +148,6 @@ def build_meta_entities_task(
             action = WorldViewService().upsert(db, novel_id, world_view)
             wv_action = action
             logger.debug(("创建" if action == "created" else "更新") + "世界观")
-
-        db.commit()
 
     logger.info(f"元信息入库完成: 金手指 {len(gf_actions)}个 {gf_actions}, 世界观 {wv_action}")
 

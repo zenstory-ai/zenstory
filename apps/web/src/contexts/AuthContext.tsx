@@ -38,7 +38,6 @@ export interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   register: (email: string, password: string, inviteCode?: string) => Promise<{ email: string; email_verified: boolean; verification_sent?: boolean }>;
   logout: () => void;
-  refreshToken: () => Promise<void>;
   handleOAuthCallback: (
     accessToken: string,
     refreshToken: string,
@@ -408,42 +407,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return await authApi.resendVerification(email);
   };
 
-  const refreshToken = async () => {
-    const refreshToken = localStorage.getItem(CACHE_KEYS.REFRESH_TOKEN);
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
-    const generation = authGenerationRef.current;
-    try {
-      const data = await authApi.refreshToken(refreshToken);
-
-      if (
-        authGenerationRef.current !== generation ||
-        localStorage.getItem(CACHE_KEYS.REFRESH_TOKEN) !== refreshToken
-      ) {
-        return;
-      }
-
-      // Update tokens and cache
-      localStorage.setItem(CACHE_KEYS.ACCESS_TOKEN, data.access_token);
-      localStorage.setItem(CACHE_KEYS.REFRESH_TOKEN, data.refresh_token);
-      saveUserCache(data.user);
-
-      setUser(data.user);
-    } catch (error) {
-      const status = (error as { status?: number } | null)?.status;
-      if (
-        authGenerationRef.current === generation &&
-        localStorage.getItem(CACHE_KEYS.REFRESH_TOKEN) === refreshToken &&
-        (status === 401 || status === 403)
-      ) {
-        clearAuthState(setUser, 'refresh_failed');
-      }
-      throw error;
-    }
-  };
-
   const handleOAuthCallback = async (
     accessToken: string,
     refreshToken: string,
@@ -530,7 +493,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshToken, handleOAuthCallback, verifyEmail, resendVerification, googleLogin, appleLogin }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, handleOAuthCallback, verifyEmail, resendVerification, googleLogin, appleLogin }}>
       {children}
     </AuthContext.Provider>
   );

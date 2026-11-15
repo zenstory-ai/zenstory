@@ -253,10 +253,25 @@ def batch_import_materials(
                 folder_name=result.folder_name,
                 file_type=result.file_type,
             ))
-        except Exception as e:
+        except APIException as exc:
             session.rollback()
+            if exc.status_code >= 500:
+                raise
             failed_count += 1
-            logger.error(f"Failed to import {item.entity_type}/{item.entity_id}: {e}")
+            logger.warning(
+                "Failed to import %s/%s: %s",
+                item.entity_type,
+                item.entity_id,
+                exc.error_code,
+            )
+        except Exception:
+            session.rollback()
+            logger.exception(
+                "Unexpected error importing material %s/%s",
+                item.entity_type,
+                item.entity_id,
+            )
+            raise
 
     return BatchImportResponse(results=results, failed_count=failed_count)
 

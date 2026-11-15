@@ -6,10 +6,14 @@ import { UserAvatar, UserMenu, UserMenuMobile } from '../UserMenu'
 const mockNavigate = vi.fn()
 const mockLogout = vi.fn()
 const mockMutate = vi.fn()
+const mockRefetchStatus = vi.fn()
 const mockInvalidateQueries = vi.fn()
+const mockToastError = vi.fn()
 const mockUseAuth = vi.fn()
 let checkedIn = false
 let checkInPending = false
+let checkInStatusError = false
+let capturedMutationOptions: { onError?: (error: unknown) => void } | undefined
 const queryEnabled: Array<boolean | undefined> = []
 const pointsFlag = vi.hoisted(() => ({ enabled: true }))
 
@@ -46,10 +50,22 @@ vi.mock('../../contexts/AuthContext', () => ({
 vi.mock('@tanstack/react-query', () => ({
   useQuery: (options: { enabled?: boolean }) => {
     queryEnabled.push(options.enabled)
-    return { data: { checked_in: checkedIn } }
+    if (checkInStatusError) {
+      return { data: undefined, isError: true, refetch: mockRefetchStatus }
+    }
+    return { data: { checked_in: checkedIn }, isError: false, refetch: mockRefetchStatus }
   },
-  useMutation: () => ({ mutate: mockMutate, isPending: checkInPending }),
+  useMutation: (options: { onError?: (error: unknown) => void }) => {
+    capturedMutationOptions = options
+    return { mutate: mockMutate, isPending: checkInPending }
+  },
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
+}))
+
+vi.mock('../../lib/toast', () => ({
+  toast: {
+    error: (...args: unknown[]) => mockToastError(...args),
+  },
 }))
 
 vi.mock('../../lib/pointsApi', () => ({
@@ -66,6 +82,8 @@ describe('UserMenu', () => {
     vi.clearAllMocks()
     checkedIn = false
     checkInPending = false
+    checkInStatusError = false
+    capturedMutationOptions = undefined
     queryEnabled.length = 0
     pointsFlag.enabled = true
     mockUseAuth.mockReturnValue({
@@ -213,5 +231,25 @@ describe('UserMenu', () => {
 
     const { container } = render(<UserMenuMobile />)
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('shows error toast when check-in fails and retries status instead of mutating when status query failed', () => {
+    checkInStatusError = true
+    render(<UserMenu />)
+    fireEvent.click(screen.getByTestId('user-menu-button'))
+    fireEvent.click(screen.getByTestId('check-in-button'))
+    expect(mockRefetchStatus).toHaveBeenCalledTimes(1)
+    expect(mockMutate).not.toHaveBeenCalled()
+
+    capturedMutationOptions?.onError?.(new Error('Check-in network failure'))
+    expect(mockToastError).toHaveBeenCalledTimes(1)
+
+    render(<UserMenuMobile />)
+    fireEvent.click(screen.getByTestId('check-in-button-mobile'))
+    expect(mockRefetchStatus).toHaveBeenCalledTimes(2)
+    expect(mockMutate).not.toHaveBeenCalled()
+
+    capturedMutationOptions?.onError?.(new Error('Mobile check-in failure'))
+    expect(mockToastError).toHaveBeenCalledTimes(2)
   })
 })

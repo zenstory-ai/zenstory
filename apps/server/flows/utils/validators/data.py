@@ -127,55 +127,6 @@ def validate_plot_data(plot: dict[str, Any]) -> bool:
     return True
 
 
-def validate_character_data(character: dict[str, Any]) -> bool:
-    """
-    验证人物数据格式（与 character_extraction.py prompt 对齐）
-
-    Args:
-        character: 人物数据字典
-
-    Returns:
-        是否有效
-
-    Raises:
-        ValidationError: 数据格式无效
-    """
-    # 必需字段: name, archetype, description
-    required_fields = ["name", "archetype", "description"]
-
-    for field in required_fields:
-        if field not in character:
-            raise ValidationError(f"人物缺少必需字段: {field}")
-
-    # 验证 name
-    if not isinstance(character["name"], str) or not character["name"].strip():
-        raise ValidationError("人物名称必须是非空字符串")
-
-    valid_archetypes = ["protagonist", "supporting", "antagonist", "minor"]
-    if character["archetype"] not in valid_archetypes:
-        raise ValidationError(
-            f"人物 archetype 必须是以下之一: {', '.join(valid_archetypes)}"
-        )
-
-    # 验证 description
-    if not isinstance(character["description"], str) or not character["description"].strip():
-        raise ValidationError("人物描述必须是非空字符串")
-
-    # 放宽长度要求：仅要求非空，去除字数上下限约束
-    # 如需恢复可在此处添加范围检查
-
-    # 验证可选字段
-    if "aliases" in character:
-        if not isinstance(character["aliases"], list):
-            raise ValidationError("人物别名必须是数组")
-        # 验证每个别名都是字符串
-        for alias in character["aliases"]:
-            if not isinstance(alias, str):
-                raise ValidationError("人物别名必须是字符串")
-
-    return True
-
-
 def validate_golden_finger_data(golden_finger: dict[str, Any]) -> bool:
     """
     验证金手指数据格式（与 meta_extraction.py prompt 对齐）
@@ -264,65 +215,6 @@ def validate_world_view_data(world_view: dict[str, Any]) -> bool:
     return True
 
 
-def validate_story_data(story: dict[str, Any]) -> bool:
-    """
-    验证剧情数据格式
-
-    Args:
-        story: 剧情数据字典
-
-    Returns:
-        是否有效
-
-    Raises:
-        ValidationError: 数据格式无效
-    """
-    required_fields = ["title", "synopsis", "core_objective", "core_conflict", "story_type", "themes"]
-
-    for field in required_fields:
-        if field not in story:
-            raise ValidationError(f"剧情缺少必需字段: {field}")
-
-    # 验证 title
-    if not isinstance(story["title"], str) or not story["title"].strip():
-        raise ValidationError("剧情标题必须是非空字符串")
-
-    # 验证 synopsis
-    if not isinstance(story["synopsis"], str) or not story["synopsis"].strip():
-        raise ValidationError("剧情概述必须是非空字符串")
-
-    synopsis_length = len(story["synopsis"])
-    if synopsis_length < 50:
-        raise ValidationError(f"剧情概述过短（{synopsis_length}字），建议至少100字")
-    if synopsis_length > 500:
-        raise ValidationError(f"剧情概述过长（{synopsis_length}字），建议不超过300字")
-
-    # 验证 core_objective
-    if not isinstance(story["core_objective"], str) or not story["core_objective"].strip():
-        raise ValidationError("核心目标必须是非空字符串")
-
-    # 验证 core_conflict
-    if not isinstance(story["core_conflict"], str) or not story["core_conflict"].strip():
-        raise ValidationError("核心冲突必须是非空字符串")
-
-    # 验证 story_type
-    valid_types = ["main", "romance", "growth", "revenge", "treasure", "conflict", "mystery", "other"]
-    if story["story_type"] not in valid_types:
-        raise ValidationError(f"剧情类型必须是以下之一: {', '.join(valid_types)}")
-
-    # 验证 themes
-    if not isinstance(story["themes"], list) or len(story["themes"]) == 0:
-        raise ValidationError("剧情主题必须是非空数组")
-    if len(story["themes"]) > 3:
-        raise ValidationError("剧情主题不应超过3个")
-
-    # 验证 plot_ids（可选）
-    if "plot_ids" in story and not isinstance(story["plot_ids"], list):
-        raise ValidationError("plot_ids 必须是数组")
-
-    return True
-
-
 def validate_plots_response(data: dict[str, Any]) -> list[dict[str, Any]]:
     """
     验证情节点提取响应
@@ -356,36 +248,6 @@ def validate_plots_response(data: dict[str, Any]) -> list[dict[str, Any]]:
     return plots
 
 
-def validate_characters_response(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """
-    验证人物提取响应
-
-    Args:
-        data: LLM 响应数据
-
-    Returns:
-        验证后的人物列表
-
-    Raises:
-        ValidationError: 数据格式无效
-    """
-    if "characters" not in data:
-        raise ValidationError("响应缺少 'characters' 字段")
-
-    characters = data["characters"]
-    if not isinstance(characters, list):
-        raise ValidationError("'characters' 必须是数组")
-
-    # 验证每个人物
-    for i, character in enumerate(characters):
-        try:
-            validate_character_data(character)
-        except ValidationError as e:
-            raise ValidationError(f"人物 {i+1} 验证失败: {str(e)}") from e
-
-    return characters
-
-
 def validate_meta_response(data: dict[str, Any]) -> dict[str, Any]:
     """
     验证金手指和世界观提取响应
@@ -412,6 +274,8 @@ def validate_meta_response(data: dict[str, Any]) -> dict[str, Any]:
 
         validated_gfs = []
         for idx, gf in enumerate(golden_fingers):
+            if gf is None:
+                continue
             try:
                 validate_golden_finger_data(gf)
                 validated_gfs.append(gf)

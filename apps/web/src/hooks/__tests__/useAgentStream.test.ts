@@ -51,8 +51,7 @@ describe('useAgentStream', () => {
 
       expect(result.current.isStreaming).toBe(false)
       expect(result.current.isThinking).toBe(false)
-      expect(result.current.segments).toEqual([])
-      expect(result.current.content).toBe('')
+      expect(result.current.state.content).toBe('')
       expect(result.current.error).toBe(null)
       expect(result.current.conflicts).toEqual([])
     })
@@ -90,15 +89,14 @@ describe('useAgentStream', () => {
         callbacks.onDone?.({})
       })
 
-      expect(result.current.content).toBe('first content')
+      expect(result.current.state.content).toBe('first content')
 
       // Second stream should clear
       act(() => {
         result.current.startStream({ message: 'second' })
       })
 
-      expect(result.current.content).toBe('')
-      expect(result.current.segments).toEqual([])
+      expect(result.current.state.content).toBe('')
     })
 
     it('ends the round and releases the stream even when done handling throws', () => {
@@ -333,7 +331,7 @@ describe('useAgentStream', () => {
       act(() => {
         vi.advanceTimersByTime(100)
       })
-      expect(result.current.content).toBe('')
+      expect(result.current.state.content).toBe('')
 
       // Current stream content should still work.
       act(() => {
@@ -342,7 +340,7 @@ describe('useAgentStream', () => {
       act(() => {
         vi.advanceTimersByTime(100)
       })
-      expect(result.current.content).toBe('fresh-content')
+      expect(result.current.state.content).toBe('fresh-content')
     })
   })
 
@@ -367,7 +365,7 @@ describe('useAgentStream', () => {
       act(() => {
         vi.runOnlyPendingTimers()
       })
-      expect(result.current.content).toBe('Hello')
+      expect(result.current.state.content).toBe('Hello')
 
       act(() => {
         callbacks.onContent?.(' World')
@@ -375,7 +373,7 @@ describe('useAgentStream', () => {
       act(() => {
         vi.runOnlyPendingTimers()
       })
-      expect(result.current.content).toBe('Hello World')
+      expect(result.current.state.content).toBe('Hello World')
     })
 
     it('creates content segment on onContentStart', () => {
@@ -395,11 +393,8 @@ describe('useAgentStream', () => {
         callbacks.onContentStart?.()
       })
 
-      expect(result.current.segments).toHaveLength(1)
-      expect(result.current.segments[0].type).toBe('content')
-      expect(result.current.segments[0].isStreaming).toBe(true)
       expect(onSegmentStart).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'content' })
+        expect.objectContaining({ type: 'content', isStreaming: true })
       )
     })
 
@@ -424,7 +419,6 @@ describe('useAgentStream', () => {
         vi.runOnlyPendingTimers()
       })
 
-      expect(result.current.segments[0].content).toBe('Hello')
       expect(onSegmentUpdate).toHaveBeenCalledWith(
         expect.any(String),
         'Hello'
@@ -432,9 +426,9 @@ describe('useAgentStream', () => {
     })
 
     it('marks segment as complete on onContentEnd', () => {
-      const onSegmentEnd = vi.fn()
+      const onComplete = vi.fn()
       const { result } = renderHook(() =>
-        useAgentStream('test-project-id', { onSegmentEnd })
+        useAgentStream('test-project-id', { onComplete })
       )
       const controller = createMockStreamController()
 
@@ -447,21 +441,23 @@ describe('useAgentStream', () => {
       act(() => {
         callbacks.onContentStart?.()
         callbacks.onContent?.('Hello')
-      })
-
-      expect(result.current.segments[0].isStreaming).toBe(true)
-
-      act(() => {
         callbacks.onContentEnd?.()
+        callbacks.onDone?.({})
       })
 
-      expect(result.current.segments[0].isStreaming).toBe(false)
+      expect(onComplete).toHaveBeenCalledWith(
+        [expect.objectContaining({ type: 'content', content: 'Hello', isStreaming: false })],
+        null
+      )
     })
   })
 
   describe('tool calls', () => {
     it('handles tool calls with pending status', async () => {
-      const { result } = renderHook(() => useAgentStream('test-project-id'))
+      const onSegmentStart = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onSegmentStart })
+      )
       const controller = createMockStreamController()
 
       act(() => {
@@ -474,9 +470,12 @@ describe('useAgentStream', () => {
         callbacks.onToolCall?.('create_file', { title: 'test.txt' })
       })
 
-      expect(result.current.state.toolCalls).toHaveLength(1)
-      expect(result.current.state.toolCalls[0].tool_name).toBe('create_file')
-      expect(result.current.state.toolCalls[0].status).toBe('pending')
+      expect(onSegmentStart).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'tool_calls',
+          toolCalls: [expect.objectContaining({ tool_name: 'create_file', status: 'pending' })],
+        })
+      )
     })
 
     it('creates tool_calls segment on first tool call', async () => {
@@ -496,14 +495,19 @@ describe('useAgentStream', () => {
         callbacks.onToolCall?.('create_file', { title: 'test.txt' })
       })
 
-      expect(result.current.segments).toHaveLength(1)
-      expect(result.current.segments[0].type).toBe('tool_calls')
-      expect(result.current.segments[0].toolCalls).toHaveLength(1)
-      expect(onSegmentStart).toHaveBeenCalled()
+      expect(onSegmentStart).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'tool_calls',
+          isStreaming: true,
+        })
+      )
     })
 
     it('updates tool status on tool result', async () => {
-      const { result } = renderHook(() => useAgentStream('test-project-id'))
+      const onSegmentUpdateToolCalls = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onSegmentUpdateToolCalls })
+      )
       const controller = createMockStreamController()
 
       act(() => {
@@ -516,18 +520,21 @@ describe('useAgentStream', () => {
         callbacks.onToolCall?.('create_file', { title: 'test.txt' })
       })
 
-      expect(result.current.state.toolCalls[0].status).toBe('pending')
-
       act(() => {
         callbacks.onToolResult?.('create_file', 'success', { file_id: '123' })
       })
 
-      expect(result.current.state.toolCalls[0].status).toBe('success')
-      expect(result.current.state.toolCalls[0].result).toEqual({ file_id: '123' })
+      expect(onSegmentUpdateToolCalls).toHaveBeenCalledWith(
+        expect.any(String),
+        [expect.objectContaining({ status: 'success', result: { file_id: '123' } })]
+      )
     })
 
     it('matches tool results by tool_use_id when tool names are duplicated', async () => {
-      const { result } = renderHook(() => useAgentStream('test-project-id'))
+      const onSegmentUpdateToolCalls = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onSegmentUpdateToolCalls })
+      )
       const controller = createMockStreamController()
 
       act(() => {
@@ -541,21 +548,25 @@ describe('useAgentStream', () => {
         callbacks.onToolCall?.('update_project', { tasks: ['b'] }, 'tool-2')
       })
 
-      expect(result.current.state.toolCalls).toHaveLength(2)
-      expect(result.current.state.toolCalls[0].status).toBe('pending')
-      expect(result.current.state.toolCalls[1].status).toBe('pending')
-
       act(() => {
         callbacks.onToolResult?.('update_project', 'success', { idx: 2 }, undefined, 'tool-2')
       })
 
-      expect(result.current.state.toolCalls[0].status).toBe('pending')
-      expect(result.current.state.toolCalls[1].status).toBe('success')
-      expect(result.current.state.toolCalls[1].result).toEqual({ idx: 2 })
+      expect(onSegmentUpdateToolCalls).toHaveBeenLastCalledWith(
+        expect.any(String),
+        [
+          expect.objectContaining({ id: 'tool-1', status: 'pending' }),
+          expect.objectContaining({ id: 'tool-2', status: 'success', result: { idx: 2 } }),
+        ]
+      )
     })
 
     it('merges multiple tool calls into single segment', async () => {
-      const { result } = renderHook(() => useAgentStream('test-project-id'))
+      const onSegmentStart = vi.fn()
+      const onSegmentUpdateToolCalls = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onSegmentStart, onSegmentUpdateToolCalls })
+      )
       const controller = createMockStreamController()
 
       act(() => {
@@ -569,8 +580,14 @@ describe('useAgentStream', () => {
         callbacks.onToolCall?.('edit_file', { file_id: '1' })
       })
 
-      expect(result.current.segments).toHaveLength(1)
-      expect(result.current.segments[0].toolCalls).toHaveLength(2)
+      expect(onSegmentStart).toHaveBeenCalledTimes(1)
+      expect(onSegmentUpdateToolCalls).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.arrayContaining([
+          expect.objectContaining({ tool_name: 'create_file' }),
+          expect.objectContaining({ tool_name: 'edit_file' }),
+        ])
+      )
     })
 
     it('calls onToolCall and onToolResult callbacks', async () => {
@@ -601,7 +618,10 @@ describe('useAgentStream', () => {
     })
 
     it('marks tool_calls segment as complete when all tools done', async () => {
-      const { result } = renderHook(() => useAgentStream('test-project-id'))
+      const onSegmentEnd = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onSegmentEnd })
+      )
       const controller = createMockStreamController()
 
       act(() => {
@@ -615,21 +635,21 @@ describe('useAgentStream', () => {
         callbacks.onToolCall?.('tool2', {})
       })
 
-      expect(result.current.segments[0].isStreaming).toBe(true)
+      expect(onSegmentEnd).not.toHaveBeenCalled()
 
       act(() => {
         callbacks.onToolResult?.('tool1', 'success')
       })
 
       // Still streaming because tool2 is pending
-      expect(result.current.segments[0].isStreaming).toBe(true)
+      expect(onSegmentEnd).not.toHaveBeenCalled()
 
       act(() => {
         callbacks.onToolResult?.('tool2', 'success')
       })
 
       // Now complete
-      expect(result.current.segments[0].isStreaming).toBe(false)
+      expect(onSegmentEnd).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -651,16 +671,15 @@ describe('useAgentStream', () => {
         vi.runOnlyPendingTimers()
       })
 
-      expect(result.current.content).toBe('some content')
+      expect(result.current.state.content).toBe('some content')
       expect(result.current.isStreaming).toBe(true)
 
       act(() => {
         result.current.reset()
       })
 
-      expect(result.current.segments).toEqual([])
       expect(result.current.isStreaming).toBe(false)
-      expect(result.current.content).toBe('')
+      expect(result.current.state.content).toBe('')
       expect(result.current.error).toBe(null)
     })
 
@@ -709,8 +728,8 @@ describe('useAgentStream', () => {
     })
   })
 
-  describe('cancel', () => {
-    it('cancels stream on cancel() call', () => {
+  describe('stop before run_started', () => {
+    it('cancels stream immediately when stop() is called before runId arrives', async () => {
       const { result } = renderHook(() => useAgentStream('test-project-id'))
       const controller = createMockStreamController()
 
@@ -720,27 +739,11 @@ describe('useAgentStream', () => {
 
       expect(result.current.isStreaming).toBe(true)
 
-      act(() => {
-        result.current.cancel()
+      await act(async () => {
+        await result.current.stop()
       })
 
       expect(controller.mockAbortController.abort).toHaveBeenCalled()
-      expect(result.current.isStreaming).toBe(false)
-    })
-
-    it('sets isStreaming to false on cancel', () => {
-      const { result } = renderHook(() => useAgentStream('test-project-id'))
-
-      act(() => {
-        result.current.startStream({ message: 'test' })
-      })
-
-      expect(result.current.isStreaming).toBe(true)
-
-      act(() => {
-        result.current.cancel()
-      })
-
       expect(result.current.isStreaming).toBe(false)
       expect(result.current.isThinking).toBe(false)
     })
@@ -1409,8 +1412,6 @@ describe('useAgentStream', () => {
         callbacks.onContext?.(contextItems, 500)
       })
 
-      expect(result.current.state.contextItems).toEqual(contextItems)
-      expect(result.current.state.contextTokenCount).toBe(500)
       expect(onContext).toHaveBeenCalledWith(contextItems, 500)
     })
   })
@@ -1434,7 +1435,6 @@ describe('useAgentStream', () => {
       })
 
       expect(result.current.isThinking).toBe(true)
-      expect(result.current.state.thinkingMessage).toBe('Analyzing context...')
       expect(onThinking).toHaveBeenCalledWith('Analyzing context...')
     })
 
@@ -1678,7 +1678,11 @@ describe('useAgentStream', () => {
     })
 
     it('resolves pending handoff_to_agent tool call when handoff event arrives', async () => {
-      const { result } = renderHook(() => useAgentStream('test-project-id'))
+      const onSegmentUpdateToolCalls = vi.fn()
+      const onSegmentEnd = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onSegmentUpdateToolCalls, onSegmentEnd })
+      )
       const controller = createMockStreamController()
 
       act(() => {
@@ -1693,7 +1697,6 @@ describe('useAgentStream', () => {
           reason: 'review',
         })
       })
-      expect(result.current.state.toolCalls[0].status).toBe('pending')
 
       act(() => {
         callbacks.onHandoff?.({
@@ -1703,12 +1706,18 @@ describe('useAgentStream', () => {
         })
       })
 
-      expect(result.current.state.toolCalls[0].status).toBe('success')
-      expect(result.current.segments[0].isStreaming).toBe(false)
+      expect(onSegmentUpdateToolCalls).toHaveBeenLastCalledWith(
+        expect.any(String),
+        [expect.objectContaining({ tool_name: 'handoff_to_agent', status: 'success' })]
+      )
+      expect(onSegmentEnd).toHaveBeenCalledTimes(1)
     })
 
     it('resolves pending request_clarification tool call on workflow_stopped', async () => {
-      const { result } = renderHook(() => useAgentStream('test-project-id'))
+      const onSegmentUpdateToolCalls = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onSegmentUpdateToolCalls })
+      )
       const controller = createMockStreamController()
 
       act(() => {
@@ -1722,7 +1731,6 @@ describe('useAgentStream', () => {
           question: '请补充主角名',
         })
       })
-      expect(result.current.state.toolCalls[0].status).toBe('pending')
 
       act(() => {
         callbacks.onWorkflowStopped?.({
@@ -1732,7 +1740,10 @@ describe('useAgentStream', () => {
         })
       })
 
-      expect(result.current.state.toolCalls[0].status).toBe('success')
+      expect(onSegmentUpdateToolCalls).toHaveBeenLastCalledWith(
+        expect.any(String),
+        [expect.objectContaining({ tool_name: 'request_clarification', status: 'success' })]
+      )
       expect(result.current.isStreaming).toBe(false)
     })
 

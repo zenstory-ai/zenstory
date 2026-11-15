@@ -469,13 +469,12 @@ class TestSessionLoaderHistoryBudget:
         loader = SessionLoader(project_id=project.id, user_id=user.id)
         for foreign in foreign_sessions:
             session_data = loader.load_chat_session(db_session, chat_session_id=foreign.id)
-            assert session_data.chat_session is None
             assert session_data.session_id is None
             assert session_data.history_messages == []
             assert session_data.working_set_refs == []
 
         missing = loader.load_chat_session(db_session, chat_session_id="no-such-session")
-        assert missing.chat_session is None
+        assert missing.session_id is None
         assert missing.history_messages == []
 
     def test_load_chat_session_handles_long_history_over_100_turns(
@@ -1021,6 +1020,63 @@ class TestCrossTurnWorkingSet:
             rendered_full_contents=seen,
         )
         assert len(seen) == 1
+
+    def test_attach_author_edits_query_failure_rolls_back_and_discloses_incomplete(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+        monkeypatch,
+    ):
+        """File 查询失败时必须回滚事务（不污染后续工作集读取），且如实标注手改未算出而非伪装成零改动。"""
+        from agent.tools.author_changes import FAILED_LINE
+
+        project = session_loader_test_data["project"]
+        chat_session_id = session_loader_test_data["chat_session"].id
+        edited = self._make_file(db_session, project.id, "第3章 三十年", "老秦在收摊。")
+
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="读第3章",
+            tool_calls=[_query_call(edited.id, edited.title)],
+            at=datetime.utcnow() - timedelta(minutes=1),
+        )
+
+        loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
+        result = loader.load_chat_session(db_session)
+
+        real_exec = db_session.exec
+        real_rollback = db_session.rollback
+        state = {"failed_once": False, "aborted": False, "rollbacks": 0}
+
+        def flaky_exec(statement, *args, **kwargs):
+            if not state["failed_once"]:
+                state["failed_once"] = True
+                state["aborted"] = True
+                raise RuntimeError("transient db error")
+            if state["aborted"]:
+                raise RuntimeError("InFailedSqlTransaction: current transaction is aborted")
+            return real_exec(statement, *args, **kwargs)
+
+        def tracking_rollback():
+            state["aborted"] = False
+            state["rollbacks"] += 1
+            return real_rollback()
+
+        monkeypatch.setattr(db_session, "exec", flaky_exec)
+        monkeypatch.setattr(db_session, "rollback", tracking_rollback)
+
+        loader.attach_author_edits(db_session, result)
+        assert state["rollbacks"] == 1
+        assert "<author_edits>" in result.author_edits_context
+        assert edited.id in result.author_edits_context
+        assert "第3章 三十年" in result.author_edits_context
+        assert FAILED_LINE in result.author_edits_context
+        assert result.read_snapshots == {}
+
+        loader.attach_working_set(db_session, result)
+        assert "老秦在收摊。" in result.working_set_context
+        assert result.read_snapshots == {edited.id: "老秦在收摊。"}
 
     def test_working_set_labels_use_the_editor_word_count_not_characters(
         self,

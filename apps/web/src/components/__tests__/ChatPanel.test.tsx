@@ -11,19 +11,18 @@ describe('ChatPanel Unit Tests', () => {
   it('verifies useAgentStream hook interface', () => {
     // Test that our mock provides the expected interface
     const mockUseAgentStream = {
-      state: { conflicts: [] },
+      state: { conflicts: [], content: '' },
       startStream: vi.fn(),
-      cancel: vi.fn(),
+      stop: vi.fn(),
       reset: vi.fn(),
       isStreaming: false,
       isThinking: false,
-      thinkingContent: '',
       conflicts: [],
       error: null,
     }
 
     expect(mockUseAgentStream).toHaveProperty('startStream')
-    expect(mockUseAgentStream).toHaveProperty('cancel')
+    expect(mockUseAgentStream).toHaveProperty('stop')
     expect(mockUseAgentStream).toHaveProperty('isStreaming')
     expect(mockUseAgentStream).toHaveProperty('error')
     expect(typeof mockUseAgentStream.startStream).toBe('function')

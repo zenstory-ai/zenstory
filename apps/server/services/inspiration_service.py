@@ -26,7 +26,6 @@ logger = get_logger(__name__)
 
 
 def create_inspiration_from_project(
-    session: Session,
     project: Project,
     files: list[File],
     source: str = "community",
@@ -44,7 +43,6 @@ def create_inspiration_from_project(
     that can be copied to other users' workspaces.
 
     Args:
-        session: Database session
         project: Source project to create inspiration from
         files: List of files to include in the inspiration
         source: 'official' or 'community'
@@ -58,8 +56,6 @@ def create_inspiration_from_project(
     Returns:
         Inspiration instance (not yet saved to database)
     """
-    _ = session  # kept for signature compatibility
-
     # Serialize files into snapshot format
     snapshot_data = {
         "project_name": project.name,
@@ -158,6 +154,7 @@ def copy_inspiration_to_project(
 
     # Create file ID mapping for parent relationships
     old_to_new_id: dict[str, str] = {}
+    old_to_new_file: dict[str, File] = {}
 
     # Create all files
     files_data = snapshot.get("files", [])
@@ -175,10 +172,11 @@ def copy_inspiration_to_project(
         session.flush()  # Get new file ID
         get_file_version_service().create_initial_version(session, new_file)
 
-        # Map old ID to new ID
+        # Map old ID to new ID and file instance
         old_id = file_data.get("id")
         if old_id:
             old_to_new_id[old_id] = new_file.id
+            old_to_new_file[old_id] = new_file
 
     # Update parent references with new IDs
     for file_data in files_data:
@@ -186,18 +184,10 @@ def copy_inspiration_to_project(
         old_parent_id = file_data.get("parent_id")
 
         if old_id and old_parent_id:
-            new_id = old_to_new_id.get(old_id)
+            new_file = old_to_new_file.get(old_id)
             new_parent_id = old_to_new_id.get(old_parent_id)
-
-            if new_id and new_parent_id:
-                # Update the file's parent_id
-                stmt = (
-                    select(File)
-                    .where(File.id == new_id)
-                )
-                file = session.exec(stmt).first()
-                if file:
-                    file.parent_id = new_parent_id
+            if new_file and new_parent_id:
+                new_file.parent_id = new_parent_id
 
     # Increment copy count
     inspiration.copy_count += 1
@@ -346,157 +336,6 @@ def get_featured_inspirations(
     if metadata_only:
         stmt = stmt.options(defer(cast(InstrumentedAttribute[str], Inspiration.snapshot_data)))
     return list(session.exec(stmt).all())
-
-
-def increment_copy_count(
-    session: Session,
-    inspiration_id: str,
-) -> None:
-    """
-    Increment the copy count for an inspiration.
-
-    Args:
-        session: Database session
-        inspiration_id: Inspiration ID
-    """
-    stmt = select(Inspiration).where(Inspiration.id == inspiration_id)
-    inspiration = session.exec(stmt).first()
-
-    if inspiration:
-        inspiration.copy_count += 1
-        inspiration.updated_at = utcnow()
-        session.commit()
-        logger.debug(f"Incremented copy count for inspiration {inspiration_id}")
-
-
-def upsert_official_inspiration(
-    session: Session,
-    source_id: str,
-    name: str,
-    description: str,
-    project_type: str,
-    tags: list[str],
-    snapshot_data: str,
-    cover_image: str | None = None,
-    is_featured: bool = False,
-    sort_order: int = 0,
-) -> Inspiration:
-    """
-    Idempotently upsert an official inspiration by source_id.
-
-    Used by sync scripts to import inspirations from external sources
-    (e.g. MongoDB). If an inspiration with the same source_id exists,
-    its mutable fields are updated. Otherwise a new row is created.
-
-    Args:
-        session: Database session
-        source_id: Unique external ID for dedup (e.g. 'qimao:1979486')
-        name: Display name
-        description: Brief description (caller must truncate to <=950 chars)
-        project_type: novel/short/screenplay
-        tags: List of tags (serialized to JSON internally)
-        snapshot_data: JSON string with file tree snapshot
-        cover_image: Optional cover image URL
-        is_featured: Whether featured
-        sort_order: Display sort order
-
-    Returns:
-        Upserted Inspiration instance
-    """
-    existing = session.exec(
-        select(Inspiration).where(Inspiration.source_id == source_id)
-    ).first()
-
-    tags_str = json.dumps(tags or [], ensure_ascii=False)
-    now = utcnow()
-
-    if existing:
-        existing.name = name
-        existing.description = description
-        existing.project_type = project_type
-        existing.tags = tags_str
-        existing.snapshot_data = snapshot_data
-        existing.is_featured = is_featured
-        existing.sort_order = sort_order
-        existing.cover_image = cover_image
-        existing.updated_at = now
-        session.add(existing)
-        session.commit()
-        session.refresh(existing)
-        logger.info(f"Updated official inspiration source_id={source_id}")
-        return existing
-
-    inspiration = Inspiration(
-        source_id=source_id,
-        name=name,
-        description=description,
-        project_type=project_type,
-        tags=tags_str,
-        snapshot_data=snapshot_data,
-        source="official",
-        status="approved",
-        is_featured=is_featured,
-        sort_order=sort_order,
-        cover_image=cover_image,
-        created_at=now,
-        updated_at=now,
-    )
-    session.add(inspiration)
-    session.commit()
-    session.refresh(inspiration)
-    logger.info(f"Created official inspiration source_id={source_id}")
-    return inspiration
-
-
-def create_inspiration_with_review(
-    session: Session,
-    project: Project,
-    files: list[File],
-    author: User,
-    name: str | None = None,
-    description: str | None = None,
-    cover_image: str | None = None,
-    tags: list[str] | None = None,
-) -> Inspiration:
-    """
-    Create a community inspiration that requires admin review.
-
-    This is a convenience wrapper that sets source='community' and status='pending'.
-
-    Args:
-        session: Database session
-        project: Source project
-        files: Files to include
-        author: User creating the inspiration
-        name: Display name
-        description: Description text
-        cover_image: Cover image URL
-        tags: List of tags
-
-    Returns:
-        Created Inspiration with pending status
-    """
-    inspiration = create_inspiration_from_project(
-        session=session,
-        project=project,
-        files=files,
-        source="community",
-        author=author,
-        name=name,
-        description=description,
-        cover_image=cover_image,
-        tags=tags,
-        is_featured=False,
-    )
-
-    session.add(inspiration)
-    session.commit()
-    session.refresh(inspiration)
-
-    logger.info(
-        f"User {author.id} created community inspiration '{inspiration.name}' (pending review)"
-    )
-    return inspiration
 
 
 def review_inspiration(

@@ -21,7 +21,13 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: (...args: unknown[]) => useQueryMock(...args),
+  useQuery: (options: { queryKey?: unknown[] }, ...rest: unknown[]) => {
+    const result = useQueryMock(options, ...rest);
+    if (options?.queryKey?.[1] === "plans" && result?.data && !Array.isArray(result.data)) {
+      return { ...result, data: undefined };
+    }
+    return result;
+  },
   useMutation: (...args: unknown[]) => useMutationMock(...args),
   useQueryClient: () => ({
     invalidateQueries: invalidateQueriesMock,

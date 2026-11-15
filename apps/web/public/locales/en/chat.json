@@ -345,6 +345,8 @@
   },
   "skill": {
     "loading": "Loading skills…",
+    "loadFailed": "Couldn't load skills",
+    "retry": "Retry",
     "noResults": "No matching skills found",
     "builtin": "Built-in",
     "user": "Custom",

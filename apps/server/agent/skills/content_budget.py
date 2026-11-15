@@ -106,10 +106,6 @@ class SkillContentBudget:
         self._lock = threading.Lock()
 
     @property
-    def total(self) -> int:
-        return self._total
-
-    @property
     def remaining(self) -> int:
         with self._lock:
             return max(self._total - self._used, 0)

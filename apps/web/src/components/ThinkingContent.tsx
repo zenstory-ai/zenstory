@@ -14,7 +14,6 @@
  * - Only the author's own toggle is remembered in localStorage
  * - Internal tool/agent names, ids, control markers and raw file tags are
  *   cleaned for display (see lib/thinkingDisplay); stored reasoning is untouched
- * - Global visibility control via useThinkingVisibility hook
  * - i18n support (English/Chinese labels)
  *
  * @example
@@ -27,15 +26,12 @@
  *   content="Let me think about this..."
  *   isStreaming={true}
  * />
- *
- * @see useThinkingVisibility - Hook for global thinking visibility control
  */
 
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { LazyMarkdown } from "./LazyMarkdown";
-import { useThinkingVisibility } from "../hooks/useThinkingVisibility";
 import { sanitizeThinkingForDisplay } from "../lib/thinkingDisplay";
 
 /**
@@ -70,7 +66,6 @@ interface ThinkingContentProps {
 const STORAGE_KEY = "zenstory_thinking_expanded_v2";
 
 const readStoredExpanded = (): boolean => {
-  if (typeof window === "undefined") return false;
   try {
     return localStorage.getItem(STORAGE_KEY) === "true";
   } catch {
@@ -81,8 +76,6 @@ const readStoredExpanded = (): boolean => {
 /**
  * Renders a collapsible panel displaying AI thinking/reasoning content.
  *
- * - **Visibility**: Controlled globally via useThinkingVisibility hook
- *   (returns null if thinking is disabled in settings)
  * - **Empty state**: Returns null if the cleaned content is empty
  * - **Expand/collapse**: Collapsed by default; only a click persists the choice
  * - **Streaming indicator**: Shows animated dots when isStreaming is true
@@ -91,13 +84,10 @@ const readStoredExpanded = (): boolean => {
  * @param {ThinkingContentProps} props - Component props
  * @param {string} props.content - The thinking content to display (Markdown)
  * @param {boolean} [props.isStreaming=false] - Whether AI is actively thinking
- * @returns {React.ReactElement | null} The thinking panel, or null if hidden/empty
+ * @returns {React.ReactElement | null} The thinking panel, or null if empty
  */
 export function ThinkingContent({ content, isStreaming = false }: ThinkingContentProps) {
   const { t } = useTranslation('chat');
-  // Global visibility control reserved for future UI toggle
-  // Currently controlled by localStorage via useThinkingVisibility hook
-  const { showThinking } = useThinkingVisibility();
 
   // Collapsed unless the author previously chose to expand it.
   // Note: Hooks must be called unconditionally before any early returns
@@ -120,11 +110,6 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
     () => sanitizeThinkingForDisplay(content ?? "", (key) => t(key)),
     [content, t],
   );
-
-  // Don't render if global setting is disabled
-  if (!showThinking) {
-    return null;
-  }
 
   // Return null if nothing is left to show
   if (!displayContent || displayContent.trim().length === 0) {

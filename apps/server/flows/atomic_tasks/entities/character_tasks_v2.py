@@ -15,7 +15,6 @@ from flows.database_session import get_db_session
 from flows.utils import (
     api_task,
     call_material_llm,
-    database_task,
     get_material_llm_client,
 )
 from flows.utils.helpers import (
@@ -27,6 +26,22 @@ from prompts import (
     create_character_consolidation_prompt,
     create_character_mention_prompt,
 )
+
+
+def _parse_aliases_json(raw: Any) -> list[str]:
+    """将数据库 JSON 字符串或列表解析为字符串别名列表。"""
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, str)]
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, str)]
+    return []
 
 
 @api_task(name="extract_character_mentions_from_chapter", retries=5)
@@ -61,7 +76,7 @@ def extract_character_mentions_task(
             raise ValueError(f"章节 {chapter_id} 不存在")
 
         novel_id = ch.novel_id
-        chapter_content = getattr(ch, "content", None) or getattr(ch, "original_content", "")
+        chapter_content = ch.original_content or ""
         chapter_number = ch.chapter_number
 
         logger.info(
@@ -117,19 +132,11 @@ def extract_character_mentions_task(
         mention_svc = CharacterMentionsService()
 
         for char in characters_data:
-            char_name = char.get("name", "").strip()
+            char_name = char.get("name", "")
             if not char_name:
                 continue
 
-            # 【关键】规范化角色主名（避免"林雷"和"林 雷"被识别为不同角色）
-            char_name = normalize_alias(char_name)
-            if not char_name or len(char_name) < 2:
-                logger.debug(f"[角色提及提取] 跳过无效角色名: {char.get('name')}")
-                continue
-
-            # 规范化别名
-            raw_aliases = char.get("aliases", []) or []
-            aliases = merge_aliases([], raw_aliases)
+            aliases = char.get("aliases") or []
 
             mention_svc.upsert_mention(
                 session=db,
@@ -144,8 +151,6 @@ def extract_character_mentions_task(
                     "raw_data": json.dumps(char, ensure_ascii=False) if char else None,
                 },
             )
-
-        db.commit()
 
     logger.info(
         f"[角色提及提取] 完成: chapter_id={chapter_id}, characters_count={len(characters_data)}"
@@ -221,7 +226,7 @@ def build_character_entity_task(
 
             # 合并别名
             if mention.aliases:
-                all_aliases = merge_aliases(all_aliases, mention.aliases)
+                all_aliases = merge_aliases(all_aliases, _parse_aliases_json(mention.aliases))
 
             # 记录首次出现章节
             if first_chapter_id is None:
@@ -289,7 +294,7 @@ def build_character_entity_task(
                 existing = char
                 break
             # 别名匹配
-            for alias in (char.aliases or []):
+            for alias in _parse_aliases_json(char.aliases):
                 if normalize_alias(alias) == normalize_alias(character_name):
                     existing = char
                     break
@@ -320,8 +325,11 @@ def build_character_entity_task(
             # 更新已存在的角色
             logger.info(f"[角色实体构建] 更新已存在角色: {existing.name}")
 
-            # 合并别名
-            existing.aliases = merge_aliases(existing.aliases or [], all_aliases)
+            # 合并别名并序列化为 JSON 字符串
+            merged_aliases = merge_aliases(_parse_aliases_json(existing.aliases), all_aliases)
+            existing.aliases = (
+                json.dumps(merged_aliases, ensure_ascii=False) if merged_aliases else None
+            )
 
             # archetype 优先级更新
             priority = {
@@ -330,14 +338,15 @@ def build_character_entity_task(
                 "supporting": 3,
                 "minor": 2,
             }
-            old_priority = priority.get(existing.archetype or "minor", 0)
+            old_archetype = existing.archetype
+            old_priority = priority.get(old_archetype or "minor", 0)
             new_priority = priority.get(archetype, 0)
 
             if new_priority > old_priority:
                 existing.archetype = archetype
                 logger.info(
                     f"[角色实体构建] {existing.name}: archetype "
-                    f"{existing.archetype} -> {archetype}"
+                    f"{old_archetype} -> {archetype}"
                 )
 
             # 更新描述
@@ -349,8 +358,6 @@ def build_character_entity_task(
                 existing.first_appearance_chapter_id = first_chapter_id
 
             db.flush()
-
-            db.commit()
 
             return {
                 "character_name": character_name,
@@ -366,14 +373,12 @@ def build_character_entity_task(
                 novel_id=novel_id,
                 name=character_name,
                 archetype=archetype,
-                aliases=all_aliases,
+                aliases=json.dumps(all_aliases, ensure_ascii=False) if all_aliases else None,
                 description=description,
                 first_appearance_chapter_id=first_chapter_id,
             )
             db.add(new_char)
             db.flush()
-
-            db.commit()
 
             return {
                 "character_name": character_name,
@@ -381,80 +386,3 @@ def build_character_entity_task(
                 "status": "created",
                 "archetype": new_char.archetype,
             }
-
-
-@database_task(name="build_all_character_entities_from_mentions", retries=3)
-def build_all_character_entities_task(
-    novel_id: int,
-) -> dict[str, Any]:
-    """
-    阶段2：从所有提及记录构建角色实体（批量）
-
-    策略：
-    1. 查询该小说的所有角色提及
-    2. 按角色主名分组
-    3. 对每个角色调用 build_character_entity_task
-
-    Args:
-        novel_id: 小说ID
-
-    Returns:
-        Dict: 批量构建结果
-    """
-    logger = get_run_logger()
-
-    logger.info(f"[批量角色实体构建] 开始处理小说: novel_id={novel_id}")
-
-    # 查询所有提及记录
-    from services.material.character_mentions_service import CharacterMentionsService
-
-    with get_db_session() as db:
-        mention_svc = CharacterMentionsService()
-        all_mentions = mention_svc.get_by_novel(db, novel_id)
-
-        # 按角色主名分组
-        character_names = set()
-        for mention in all_mentions:
-            character_names.add(mention.character_name)
-
-        logger.info(
-            f"[批量角色实体构建] 发现 {len(character_names)} 个唯一角色, "
-            f"共 {len(all_mentions)} 条提及记录"
-        )
-
-    # 对每个角色构建实体
-    created_count = 0
-    updated_count = 0
-    failed_count = 0
-
-    for character_name in character_names:
-        try:
-            result = build_character_entity_task(
-                novel_id=novel_id,
-                character_name=character_name,
-            )
-
-            if result.get("status") == "created":
-                created_count += 1
-            elif result.get("status") == "updated":
-                updated_count += 1
-        except Exception as error:
-            logger.error(
-                f"[批量角色实体构建] 角色 {character_name} 构建失败: "
-                f"error_type={type(error).__name__}",
-                exc_info=True
-            )
-            failed_count += 1
-
-    logger.info(
-        f"[批量角色实体构建] 完成: novel_id={novel_id}, "
-        f"created={created_count}, updated={updated_count}, failed={failed_count}"
-    )
-
-    return {
-        "novel_id": novel_id,
-        "created_count": created_count,
-        "updated_count": updated_count,
-        "failed_count": failed_count,
-        "total_count": created_count + updated_count,
-    }

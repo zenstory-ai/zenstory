@@ -10,7 +10,6 @@ from services.core.auth_service import (
     ALGORITHM,
     SECRET_KEY,
     create_access_token,
-    get_optional_current_user,
     hash_password,
 )
 
@@ -66,34 +65,18 @@ async def test_legacy_token_without_fingerprint_still_works(client, db_session):
 
 
 @pytest.mark.integration
-async def test_change_password_ends_existing_access_tokens(client, db_session):
+async def test_password_update_ends_existing_access_tokens(client, db_session):
     user = _make_user(db_session)
     first = await _login(client, user)
     second = await _login(client, user)
 
-    changed = await client.post(
-        "/api/auth/change-password",
-        json={"old_password": PASSWORD, "new_password": "new-secret-2"},
-        headers=_bearer(first["access_token"]),
-    )
+    user.hashed_password = hash_password("new-secret-2")
+    db_session.add(user)
+    db_session.commit()
 
-    assert changed.status_code == 200
     for old in (first, second):
         response = await client.get("/api/auth/me", headers=_bearer(old["access_token"]))
         assert response.status_code == 401
         assert response.json()["error_code"] == "ERR_AUTH_TOKEN_INVALID"
-        validated = await client.get("/api/auth/validate-token", params={"token": old["access_token"]})
-        assert validated.status_code == 401
     fresh = await _login(client, user, "new-secret-2")
     assert (await client.get("/api/auth/me", headers=_bearer(fresh["access_token"]))).status_code == 200
-
-
-@pytest.mark.integration
-async def test_optional_user_ignores_a_stale_fingerprint(db_session):
-    user = _make_user(db_session)
-    stale = create_access_token({"sub": user.id, "pwf": "0" * 16})
-    legacy = create_access_token({"sub": user.id})
-
-    assert await get_optional_current_user(token=stale, session=db_session) is None
-    current = await get_optional_current_user(token=legacy, session=db_session)
-    assert current is not None and current.id == user.id

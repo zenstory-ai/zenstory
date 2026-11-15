@@ -48,34 +48,19 @@ Prompt 模块 - Jinja2 模板化方案
 
 from .prompt_loader import (
     PromptLoader,
-    create_chapter_generation_prompt,
-    # 写作生成类 Prompt
-    create_chapter_planning_prompt,
     create_chapter_summary_prompt,
     create_character_consolidation_prompt,
-    create_character_extraction_prompt,
-    # 兼容旧接口 - 核心Prompt
     create_character_mention_prompt,
-    # 兼容旧接口 - 高级Prompt
     create_cross_chunk_merge_judgment_prompt,
-    # 兼容旧接口 - 细分提取（复用 meta_extraction）
-    create_golden_finger_extraction_prompt,
     create_intelligent_chunking_prompt,
     create_meta_extraction_prompt,
-    create_novel_qa_assistant_prompt,
     create_novel_synopsis_prompt,
     create_orphan_assignment_prompt,
-    # 兼容旧接口 - 剧情聚合相关（已迁移到 Jinja2）
     create_plot_aggregation_prompt,
     create_plot_extraction_prompt,
     create_relationship_extraction_prompt,
     create_story_framework_identification_prompt,
     create_storyline_extraction_prompt,
-    # 文本编辑类 Prompt
-    create_text_edit_prompt,
-    create_timeline_extraction_prompt,
-    create_world_view_extraction_prompt,
-    # 辅助函数 - 已迁移到 Jinja2
     format_cross_chunk_merge_user_message,
     get_prompt,
 )
@@ -91,27 +76,15 @@ __all__ = [
     "create_plot_extraction_prompt",
     "create_chapter_summary_prompt",
     "create_relationship_extraction_prompt",
-    "create_character_extraction_prompt",
     "create_meta_extraction_prompt",
     "create_novel_synopsis_prompt",
-    # 细分提取兼容
-    "create_golden_finger_extraction_prompt",
-    "create_world_view_extraction_prompt",
-    "create_timeline_extraction_prompt",
     # 兼容旧接口 - 高级Prompt
     "create_cross_chunk_merge_judgment_prompt",
     "create_intelligent_chunking_prompt",
     "create_orphan_assignment_prompt",
     "create_story_framework_identification_prompt",
-    # 剧情聚合相关（暂未迁移）
     "create_plot_aggregation_prompt",
     "create_storyline_extraction_prompt",
     # 辅助函数
     "format_cross_chunk_merge_user_message",
-    # 写作生成类 Prompt
-    "create_chapter_planning_prompt",
-    "create_chapter_generation_prompt",
-    "create_novel_qa_assistant_prompt",
-    # 文本编辑类 Prompt
-    "create_text_edit_prompt",
 ]

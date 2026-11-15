@@ -3,7 +3,7 @@ Chat session API endpoints.
 
 Provides FastAPI router for chat session management:
 - GET /api/v1/chat/session/{project_id} - Get or create session for project
-- GET /api/v1/chat/session/{project_id}/messages - Get session messages
+- GET /api/v1/chat/session/{project_id}/recent - Get recent session messages
 - DELETE /api/v1/chat/session/{project_id} - Clear session
 """
 
@@ -98,6 +98,42 @@ def _list_active_sessions(
     return [active] if active is not None else []
 
 
+def _deactivate_and_create_session(
+    session: Session,
+    project_id: str,
+    user_id: str,
+    title: str,
+) -> ChatSession:
+    lock_active_chat_session(session, user_id=user_id, project_id=project_id)
+    current_sessions = _list_active_sessions(session, project_id, user_id)
+    if current_sessions:
+        for existing in current_sessions:
+            existing.is_active = False
+            session.add(existing)
+        log_with_context(
+            logger,
+            20,  # INFO
+            "Deactivated current active sessions",
+            project_id=project_id,
+            user_id=user_id,
+            deactivated_count=len(current_sessions),
+            latest_session_id=current_sessions[0].id,
+        )
+
+    session.flush()
+    new_session = ChatSession(
+        user_id=user_id,
+        project_id=project_id,
+        title=title,
+        is_active=True,
+        message_count=0,
+    )
+    session.add(new_session)
+    session.commit()
+    session.refresh(new_session)
+    return new_session
+
+
 def _create_new_session_sync(
     project_id: str,
     user_id: str,
@@ -110,34 +146,7 @@ def _create_new_session_sync(
     does not execute DB mutation work on the event loop.
     """
     with create_session() as session:
-        lock_active_chat_session(session, user_id=user_id, project_id=project_id)
-        current_sessions = _list_active_sessions(session, project_id, user_id)
-        if current_sessions:
-            for existing in current_sessions:
-                existing.is_active = False
-                session.add(existing)
-            log_with_context(
-                logger,
-                20,  # INFO
-                "Deactivated current active sessions",
-                project_id=project_id,
-                user_id=user_id,
-                deactivated_count=len(current_sessions),
-                latest_session_id=current_sessions[0].id,
-            )
-
-        session.flush()
-        new_session = ChatSession(
-            user_id=user_id,
-            project_id=project_id,
-            title=title,
-            is_active=True,
-            message_count=0,
-        )
-        session.add(new_session)
-        session.commit()
-        session.refresh(new_session)
-        return new_session
+        return _deactivate_and_create_session(session, project_id, user_id, title)
 
 
 def _should_offload_session_work(session: Session) -> bool:
@@ -210,86 +219,6 @@ def get_or_create_session(
         created_at=chat_session.created_at,
         updated_at=chat_session.updated_at,
     )
-
-
-@router.get("/session/{project_id}/messages", response_model=list[MessageResponse])
-def get_session_messages(
-    project_id: str,
-    limit: int = Query(50, ge=1, le=100),
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
-):
-    """Get messages for a project's chat session."""
-    user_id = current_user.id
-
-    log_with_context(
-        logger,
-        20,  # INFO
-        "get_session_messages called",
-        project_id=project_id,
-        user_id=user_id,
-        limit=limit,
-    )
-
-    # Check if project exists and is not deleted
-    verify_project_access_sync(project_id, session, current_user)
-
-    active_sessions = _list_active_sessions(session, project_id, user_id)
-    chat_session = active_sessions[0] if active_sessions else None
-
-    if not chat_session:
-        log_with_context(
-            logger,
-            20,  # INFO
-            "get_session_messages: No session found",
-            project_id=project_id,
-            user_id=user_id,
-        )
-        return []
-
-    stmt = (
-        select(ChatMessage)
-        .options(
-            load_only(
-                ChatMessage.id,
-                ChatMessage.session_id,
-                ChatMessage.role,
-                ChatMessage.content,
-                ChatMessage.tool_calls,
-                ChatMessage.message_metadata,
-                ChatMessage.created_at,
-            )
-        )
-        .where(ChatMessage.session_id == chat_session.id)
-        .order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id))
-        .limit(limit)
-    )
-    # 取最近 limit 条再反转为时间升序输出；asc+limit 会永远取最旧的一页，
-    # 导致超过 limit 的会话尾部消息结构性不可达。
-    messages = list(reversed(session.exec(stmt).all()))
-
-    log_with_context(
-        logger,
-        20,  # INFO
-        "get_session_messages completed",
-        project_id=project_id,
-        user_id=user_id,
-        session_id=chat_session.id,
-        message_count=len(messages),
-    )
-
-    return [
-        MessageResponse(
-            id=msg.id,
-            session_id=msg.session_id,
-            role=msg.role,
-            content=msg.content,
-            tool_calls=msg.tool_calls,
-            metadata=msg.message_metadata,
-            created_at=msg.created_at,
-        )
-        for msg in messages
-    ]
 
 
 @router.get("/session/{project_id}/recent", response_model=list[MessageResponse])
@@ -469,33 +398,7 @@ def create_new_session(
     if _should_offload_session_work(session):
         new_session = _create_new_session_sync(project_id, user_id, title)
     else:
-        lock_active_chat_session(session, user_id=user_id, project_id=project_id)
-        current_sessions = _list_active_sessions(session, project_id, user_id)
-        if current_sessions:
-            for existing in current_sessions:
-                existing.is_active = False
-                session.add(existing)
-            log_with_context(
-                logger,
-                20,  # INFO
-                "Deactivated current active sessions",
-                project_id=project_id,
-                user_id=user_id,
-                deactivated_count=len(current_sessions),
-                latest_session_id=current_sessions[0].id,
-            )
-
-        session.flush()
-        new_session = ChatSession(
-            user_id=user_id,
-            project_id=project_id,
-            title=title,
-            is_active=True,
-            message_count=0,
-        )
-        session.add(new_session)
-        session.commit()
-        session.refresh(new_session)
+        new_session = _deactivate_and_create_session(session, project_id, user_id, title)
 
     log_with_context(
         logger,

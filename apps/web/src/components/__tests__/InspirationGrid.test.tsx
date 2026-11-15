@@ -4,8 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { InspirationGrid } from '../inspirations/InspirationGrid'
 import * as useInspirationsModule from '../../hooks/useInspirations'
+import type { UseInspirationsReturn } from '../../hooks/useInspirations'
 import { ApiError } from '../../lib/apiClient'
-import type { Inspiration, InspirationDetail, UseInspirationsReturn } from '../../types'
+import type { Inspiration, InspirationDetail } from '../../types'
 
 // Mock useInspirations hook
 vi.mock('../../hooks/useInspirations', () => ({
@@ -108,10 +109,9 @@ function createMockUseInspirationsReturn(
     page: 1,
     pageSize: 12,
     isLoading: false,
+    isFetching: false,
     error: null,
     refetch: vi.fn().mockResolvedValue(undefined),
-    featured: [],
-    isFeaturedLoading: false,
     getDetail: vi.fn().mockResolvedValue(null),
     currentDetail: null,
     isDetailLoading: false,
@@ -654,6 +654,51 @@ describe('InspirationGrid', () => {
 
       await waitFor(() => {
         expect(mockGetDetail).toHaveBeenCalled()
+      })
+    })
+
+    it('shows loadError toast when viewing an inspiration fails, but ignores superseded requests', async () => {
+      let resolveFirst: ((val: InspirationDetail | null) => void) | undefined
+      const mockGetDetail = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<InspirationDetail | null>((resolve) => {
+              resolveFirst = resolve
+            })
+        )
+        .mockResolvedValueOnce(createMockInspirationDetail({ id: '2', name: 'Second' }))
+        .mockResolvedValueOnce(null)
+
+      mockUseInspirations.mockReturnValue(
+        createMockUseInspirationsReturn({
+          inspirations: [
+            createMockInspiration({ id: '1', name: 'First' }),
+            createMockInspiration({ id: '2', name: 'Second' }),
+          ],
+          total: 2,
+          getDetail: mockGetDetail,
+          currentDetail: null,
+        })
+      )
+
+      render(<InspirationGrid />, { wrapper: createWrapper() })
+      const viewButtons = screen.getAllByText('查看')
+
+      // Click first, then immediately click second (superseding first)
+      fireEvent.click(viewButtons[0]!)
+      fireEvent.click(viewButtons[1]!)
+      resolveFirst!(null)
+
+      await waitFor(() => {
+        expect(mockGetDetail).toHaveBeenCalledTimes(2)
+      })
+      expect(mockToastError).not.toHaveBeenCalled()
+
+      // Third click fails directly -> must toast loadError
+      fireEvent.click(viewButtons[0]!)
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith('加载灵感失败，请重试。')
       })
     })
   })

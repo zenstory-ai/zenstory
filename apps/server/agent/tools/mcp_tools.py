@@ -12,7 +12,7 @@ import json
 import os
 import re
 import threading
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 from uuid import uuid4
 
@@ -25,7 +25,6 @@ from agent.tools.author_edit_guard import (
     AuthorContentProtectionError,
     AuthorEditProtectedError,
     AuthorEditRefusals,
-    AuthorScope,
     protected_user_message,
 )
 from agent.tools.file_ops import FileToolExecutor
@@ -47,7 +46,7 @@ from agent.tools.file_ops.serialization import (
     QUERY_FILES_RESPONSE_MODE_FULL,
     serialize_file,
 )
-from agent.tools.permissions import ForbiddenError, NotFoundError, UnauthorizedError
+from agent.tools.permissions import ForbiddenError, NotFoundError
 from config.project_notes import merge_project_notes
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import extract_chapter_like_sequence_number, parse_chinese_number
@@ -156,9 +155,6 @@ _tool_context_var: contextvars.ContextVar[dict[str, Any] | None] = contextvars.C
 )
 _owned_session_var: contextvars.ContextVar[Session | None] = contextvars.ContextVar(
     'owned_session', default=None
-)
-_pending_empty_file_var: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
-    'pending_empty_file', default=None
 )
 
 # 并发子任务的 session 隔离标记（见 ToolContext.get_session 与
@@ -566,8 +562,6 @@ class ToolContext:
         skill_tokens_used: int = 0,
         author_message: str | None = None,
         author_steering: list[str] | None = None,
-        focus_file_id: str | None = None,
-        referenced_file_ids: Iterable[str] | None = None,
         author_edit_refusals: AuthorEditRefusals | None = None,
         read_snapshots: dict[str, str] | None = None,
     ) -> None:
@@ -578,8 +572,6 @@ class ToolContext:
                 它只标识应用内对话并提供模型上下文，不授予删除、整份覆盖或改名权限。
             author_steering: 本轮运行中作者追加的消息（service 的 consumed_steering，
                 同一个 list 对象，运行中会继续追加），只作为模型上下文。
-            focus_file_id: 作者正开着的文件。
-            referenced_file_ids: 作者本轮附加的文件、引用的选中文本所在的文件。
             author_edit_refusals: 本轮因为作者手改过而没删 / 没整份重写的文件（service 持有，
                 交接给下一个 agent 时说明它们保持原样）。
             skill_tokens_used: 显式选择的技能注入 system prompt 时已占用的技能内容 token，
@@ -599,14 +591,11 @@ class ToolContext:
             "skill_content_budget": SkillContentBudget(used=skill_tokens_used),
             "author_message": author_message,
             "author_steering": author_steering,
-            "focus_file_id": focus_file_id or None,
-            "referenced_file_ids": frozenset(str(item) for item in (referenced_file_ids or []) if item),
             "author_edit_refusals": author_edit_refusals,
             "pre_write_contents": _PreWriteContents(),
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
         })
         _owned_session_var.set(None)
-        _pending_empty_file_var.set(None)
 
     @classmethod
     def _get_context(cls) -> dict[str, Any]:
@@ -662,7 +651,12 @@ class ToolContext:
         context = cls._get_context()
         shared = context.get("session")
         if shared is not None:
-            yield shared
+            try:
+                yield shared
+            except Exception:
+                if hasattr(shared, "rollback"):
+                    shared.rollback()
+                raise
             return
 
         create_func = context.get("create_session_func")
@@ -723,18 +717,9 @@ class ToolContext:
         return cls._get_context().get("body_requested") is False
 
     @classmethod
-    def get_author_scope(cls) -> AuthorScope | None:
-        """作者本轮说了什么、指向了哪些文件；没有作者原话（非应用内对话）时为 None。"""
-        context = cls._get_context()
-        if not isinstance(context.get("author_message"), str):
-            return None
-        focus = context.get("focus_file_id")
-        referenced = context.get("referenced_file_ids")
-        return AuthorScope(
-            messages=tuple(cls.get_author_messages()),
-            referenced_file_ids=referenced if isinstance(referenced, frozenset) else frozenset(),
-            focus_file_id=focus if isinstance(focus, str) and focus else None,
-        )
+    def has_author_scope(cls) -> bool:
+        """当前是应用内对话（有作者本轮原话）：作者手改过的文件受保护。"""
+        return isinstance(cls._get_context().get("author_message"), str)
 
     @classmethod
     def record_author_edit_refusal(cls, file_id: str) -> None:
@@ -929,7 +914,6 @@ class ToolContext:
         if state is not None:
             state.clear_all()
         _tool_context_var.set(None)
-        _pending_empty_file_var.set(None)
 
     @classmethod
     def get_skill_content_budget(cls) -> SkillContentBudget:
@@ -941,13 +925,23 @@ class ToolContext:
         return SkillContentBudget()
 
     @classmethod
-    def _get_pending_empty_file_state(cls) -> _PendingEmptyFileState | None:
-        """获取请求上下文中跨任务共享的待写入文件持有者（未建上下文时为 None）。"""
+    def _get_pending_empty_file_state(
+        cls, *, create: bool = False
+    ) -> _PendingEmptyFileState | None:
+        """获取请求上下文中跨任务共享的待写入文件持有者（create=True 时为单测按需初始化）。"""
         context = _tool_context_var.get()
         if isinstance(context, dict):
             state = context.get("pending_empty_file_state")
             if isinstance(state, _PendingEmptyFileState):
                 return state
+            if create:
+                state = _PendingEmptyFileState()
+                context["pending_empty_file_state"] = state
+                return state
+        elif create:
+            state = _PendingEmptyFileState()
+            _tool_context_var.set({"pending_empty_file_state": state})
+            return state
         return None
 
     @classmethod
@@ -956,12 +950,9 @@ class ToolContext:
 
         version：文件建好时的 updated_at（create_file 结果里的值）；没有时补不成也不会回滚它。
         """
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.add(file_id, title, version)
-            return
-        # 未调用 set_context 的场景（如直接 set/get 的单测）退回本上下文的 ContextVar
-        _pending_empty_file_var.set({"file_id": file_id, "title": title})
+        state = cls._get_pending_empty_file_state(create=True)
+        assert state is not None
+        state.add(file_id, title, version)
 
     @classmethod
     def clear_pending_empty_file(cls, file_id: str | None = None) -> None:
@@ -975,12 +966,6 @@ class ToolContext:
         state = cls._get_pending_empty_file_state()
         if state is not None:
             state.discard(file_id)
-        if file_id is None:
-            _pending_empty_file_var.set(None)
-        else:
-            fallback = _pending_empty_file_var.get()
-            if fallback is not None and fallback.get("file_id") == file_id:
-                _pending_empty_file_var.set(None)
 
     @classmethod
     def has_pending_empty_file(cls) -> bool:
@@ -991,9 +976,7 @@ class ToolContext:
     def get_pending_empty_file(cls) -> dict[str, str] | None:
         """获取最近一个待写入的空文件信息（与历史单槽语义保持一致）。"""
         state = cls._get_pending_empty_file_state()
-        if state is not None:
-            return state.latest()
-        return _pending_empty_file_var.get()
+        return state.latest() if state is not None else None
 
     @classmethod
     def begin_model_reply(cls) -> None:
@@ -1068,24 +1051,16 @@ class ToolContext:
         Returns:
             (是否占坑成功, 挡住本次创建的文件标题)。
         """
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            return state.try_reserve(ticket, title)
-
-        # 未调用 set_context 的降级路径：没有共享持有者可锁，退回单槽检查。
-        pending = _pending_empty_file_var.get()
-        if pending is not None:
-            return False, pending.get("title")
-        return True, None
+        state = cls._get_pending_empty_file_state(create=True)
+        assert state is not None
+        return state.try_reserve(ticket, title)
 
     @classmethod
     def bind_pending_empty_file(cls, ticket: str, file_id: str, title: str, version: str | None = None) -> None:
         """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。"""
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.bind(ticket, file_id, title, version)
-            return
-        _pending_empty_file_var.set({"file_id": file_id, "title": title})
+        state = cls._get_pending_empty_file_state(create=True)
+        assert state is not None
+        state.bind(ticket, file_id, title, version)
 
     @classmethod
     def release_pending_empty_file(cls, ticket: str) -> None:
@@ -1102,10 +1077,7 @@ class ToolContext:
         需要逐个补写/逐个上报的调用方（如 writing_graph 的纠偏分支）用这个。
         """
         state = cls._get_pending_empty_file_state()
-        if state is not None:
-            return state.snapshot()
-        fallback = _pending_empty_file_var.get()
-        return [fallback] if fallback is not None else []
+        return state.snapshot() if state is not None else []
 
     @classmethod
     def get_executor(cls) -> FileToolExecutor:
@@ -1491,6 +1463,20 @@ def _is_folder_file_type(result: dict[str, Any], args: dict[str, Any]) -> bool:
     return isinstance(raw, str) and raw.strip().lower() == "folder"
 
 
+def _run_session_probe(session: Session, fn: Callable[[Session], Any]) -> Any:
+    """在 session 上跑只读探测查询；失败时回滚 savepoint 或事务，不把异常状态留在连接上。"""
+    in_tx = bool(hasattr(session, "in_transaction") and session.in_transaction())
+    if in_tx and hasattr(session, "begin_nested"):
+        with session.begin_nested():
+            return fn(session)
+    try:
+        return fn(session)
+    except Exception:
+        if hasattr(session, "rollback"):
+            session.rollback()
+        raise
+
+
 def _clear_settled_pending_empty_files() -> bool:
     """落库核验待写入空文件标记，清掉正文已写入或文件已不存在的条目。
 
@@ -1507,9 +1493,12 @@ def _clear_settled_pending_empty_files() -> bool:
         if not file_id:
             continue
         try:
-            row = ToolContext.get_session().exec(
-                select(File.content, File.is_deleted).where(File.id == file_id)
-            ).first()
+            row = _run_session_probe(
+                ToolContext.get_session(),
+                lambda s, fid=file_id: s.exec(
+                    select(File.content, File.is_deleted).where(File.id == fid)
+                ).first(),
+            )
         except Exception as e:
             logger.debug(f"Pending empty-file probe failed: {e}")
             return cleared
@@ -1592,9 +1581,12 @@ def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict
     if not file_id:
         return None
     try:
-        row = ToolContext.get_session().exec(
-            select(File).where(File.id == file_id).execution_options(populate_existing=True)
-        ).first()
+        row = _run_session_probe(
+            ToolContext.get_session(),
+            lambda s: s.exec(
+                select(File).where(File.id == file_id).execution_options(populate_existing=True)
+            ).first(),
+        )
     except Exception as e:
         logger.debug(f"Pending empty-file repeat probe failed: {e}")
         return None
@@ -1708,7 +1700,7 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             metadata=args.get("metadata"),
             # 应用内 agent 写正文：draft/script 的双引号按稿件体例规范化。
             normalize_quotes=True,
-            protect_author_content=ToolContext.get_author_scope() is not None,
+            protect_author_content=ToolContext.has_author_scope(),
         )
 
         # 如果创建的是空文件，把占坑换成真实 file_id
@@ -1906,7 +1898,7 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
     except NotFoundError as e:
         # 文件不在当前项目里与文件不存在对用户是同一回事（文案已统一为「文件不存在或已删除」）。
         return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_NOT_FOUND)
-    except (ForbiddenError, UnauthorizedError) as e:
+    except ForbiddenError as e:
         # 工具层自己的权限拒绝（不是内建的 PermissionError/OSError），都发生在写入之前。
         return _make_edit_error(str(e), error_type=EDIT_ERROR_PERMISSION_DENIED)
     except Exception as e:
@@ -1987,7 +1979,7 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         result = executor.delete_file(
             id=args.get("id", ""),
             recursive=recursive,
-            protect_author_content=ToolContext.get_author_scope() is not None,
+            protect_author_content=ToolContext.has_author_scope(),
         )
         return _make_result(
             {"status": "success", "mutation_applied": result is True, "data": result},
@@ -2494,6 +2486,8 @@ def _update_project_sync(
                         current_phase=suggested_phase,
                     )
             except Exception as exc:
+                if hasattr(executor.session, "rollback"):
+                    executor.session.rollback()
                 log_with_context(
                     logger,
                     40,  # ERROR

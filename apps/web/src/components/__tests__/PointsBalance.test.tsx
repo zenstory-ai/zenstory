@@ -175,4 +175,20 @@ describe('PointsBalance', () => {
     await screen.findByText('1,000')
     expect(document.querySelector('.custom-points-card')).toBeInTheDocument()
   })
+
+  it('shows error card with retry when balance query fails instead of hiding silently', async () => {
+    mockGetBalance
+      .mockRejectedValueOnce(new Error('network error'))
+      .mockResolvedValueOnce({
+        available: 250,
+        pending_expiration: 0,
+        nearest_expiration_date: null,
+      })
+
+    renderWithQuery(<PointsBalance />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('积分余额没加载出来，请重试')
+    screen.getByRole('button', { name: '重试' }).click()
+    expect(await screen.findByText('250')).toBeInTheDocument()
+  })
 })

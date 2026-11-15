@@ -1116,69 +1116,6 @@ async def test_refresh_rate_limited_returns_429(client: AsyncClient, db_session,
 
 
 @pytest.mark.integration
-async def test_change_password_revokes_active_refresh_tokens(client: AsyncClient, db_session):
-    """Password change should invalidate all active refresh tokens for the user."""
-    from models import User
-    from services.core.auth_service import hash_password
-
-    user = User(
-        username="change_password_user",
-        email="change_password@example.com",
-        hashed_password=hash_password("old-password-123"),
-        email_verified=True,
-        is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-
-    login_response = await client.post(
-        "/api/auth/login",
-        data={
-            "username": "change_password_user",
-            "password": "old-password-123",
-        },
-    )
-    assert login_response.status_code == 200
-    login_data = login_response.json()
-    access_token = login_data["access_token"]
-    refresh_token = login_data["refresh_token"]
-
-    change_response = await client.post(
-        "/api/auth/change-password",
-        headers={"Authorization": f"Bearer {access_token}"},
-        json={
-            "old_password": "old-password-123",
-            "new_password": "new-password-456",
-        },
-    )
-    assert change_response.status_code == 200
-
-    refresh_response = await client.post(
-        "/api/auth/refresh",
-        json={"refresh_token": refresh_token},
-    )
-    assert refresh_response.status_code == 401
-
-    old_login_response = await client.post(
-        "/api/auth/login",
-        data={
-            "username": "change_password_user",
-            "password": "old-password-123",
-        },
-    )
-    assert old_login_response.status_code == 401
-
-    new_login_response = await client.post(
-        "/api/auth/login",
-        data={
-            "username": "change_password_user",
-            "password": "new-password-456",
-        },
-    )
-    assert new_login_response.status_code == 200
-
-
-@pytest.mark.integration
 async def test_refresh_endpoint_rejects_access_token(client: AsyncClient, db_session):
     """Test that access token cannot be used on refresh endpoint."""
     from models import User

@@ -43,6 +43,8 @@ export interface MaterialAttachmentContextType {
   clearMaterials: () => void;
   /** Whether the maximum limit is reached */
   isAtLimit: boolean;
+  /** Maximum number of materials that can be attached at once */
+  maxMaterials?: number;
 }
 
 const MaterialAttachmentContext = createContext<MaterialAttachmentContextType | undefined>(undefined);
@@ -126,6 +128,7 @@ export const MaterialAttachmentProvider: React.FC<{ children: ReactNode }> = ({ 
     isMaterialAttached,
     clearMaterials,
     isAtLimit,
+    maxMaterials: MAX_ATTACHED_MATERIALS,
   };
 
   return (

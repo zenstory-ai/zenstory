@@ -11,12 +11,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from pydantic import field_validator, model_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
-
-_legacy_entity_flag_warned = False
 
 
 # 免费试拆的硬上限。配置和任务上记录的值都必须落在 1..上限 内。
@@ -53,10 +51,6 @@ class MaterialSettings(BaseSettings):
     TRIAL_ENABLED: bool = False
     TRIAL_MAX_CHAPTERS: int = TRIAL_CHAPTER_CEILING
     TRIAL_MAX_CHARACTERS: int = TRIAL_CHARACTER_CEILING
-    MIN_PLOTS_PER_CHAPTER: int = 10
-    MAX_PLOTS_PER_CHAPTER: int = 15
-    MIN_PLOTS_PER_STORY: int = 3
-    MAX_PLOTS_PER_STORY: int = 10
 
     # ============ 摘要配置 ============
     CHAPTER_SUMMARY_MAX_LENGTH: int = 500
@@ -73,9 +67,6 @@ class MaterialSettings(BaseSettings):
     ENABLE_PLOT_EXTRACTION: bool = False
     ENABLE_CHARACTER_EXTRACTION: bool = True  # 1c 角色提及 + 2c 角色实体整合
     ENABLE_META_EXTRACTION: bool = True  # 1d 金手指 + 世界观（前 20 章）
-    # 已废弃：显式设置时作为 ENABLE_CHARACTER_EXTRACTION / ENABLE_META_EXTRACTION 的
-    # 取值，但只作用于未显式设置（环境变量 / 构造参数）的新开关
-    ENABLE_ENTITY_EXTRACTION: bool | None = None
 
     # 阶段2A: 剧情相关
     ENABLE_NOVEL_SYNOPSIS: bool = True
@@ -86,17 +77,14 @@ class MaterialSettings(BaseSettings):
 
     # 阶段2B: 人物关系（默认关闭以降低拆解成本，可通过环境变量显式开启）
     ENABLE_RELATIONSHIP_EXTRACTION: bool = False
-    ENABLE_NEO4J_STORAGE: bool = False  # 禁用 Neo4j
 
     # ============ 上传配置 ============
     UPLOAD_FOLDER: str = "uploads"
-    MAX_CONTENT_LENGTH: int = 20 * 1024 * 1024  # 20MB，与 api/materials/constants.py 一致
 
     # ============ Redis 配置（用于进度推送）============
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str | None = None
-    REDIS_DB: int = 0
     REDIS_ENABLED: bool = False  # 无 Redis 时优雅降级
 
     model_config = SettingsConfigDict(
@@ -113,19 +101,6 @@ class MaterialSettings(BaseSettings):
             return int(str(value))
         except ValueError:
             return 0
-
-    @model_validator(mode="after")
-    def _warn_legacy_entity_flag(self) -> MaterialSettings:
-        global _legacy_entity_flag_warned
-        if self.ENABLE_ENTITY_EXTRACTION is not None and not _legacy_entity_flag_warned:
-            _legacy_entity_flag_warned = True
-            logger.warning(
-                "MATERIAL_ENABLE_ENTITY_EXTRACTION is deprecated; it applies to "
-                "MATERIAL_ENABLE_CHARACTER_EXTRACTION / MATERIAL_ENABLE_META_EXTRACTION "
-                "only where those are not set explicitly (value=%s). Set the two new flags instead.",
-                self.ENABLE_ENTITY_EXTRACTION,
-            )
-        return self
 
 
 @dataclass(frozen=True)
@@ -222,19 +197,10 @@ def resolve_enabled_stages(settings: MaterialSettings) -> EnabledStages:
     - stories（剧情聚合 + 孤儿情节点）需要 chapter_summaries 与 plots
     - storylines 需要 stories
     - relationships 需要 plots 与 characters
-    - 已废弃的 ENABLE_ENTITY_EXTRACTION 显式设置时，只作为未显式设置的
-      ENABLE_CHARACTER_EXTRACTION / ENABLE_META_EXTRACTION 的取值
     """
     explicit = set(getattr(settings, "model_fields_set", ()) or ())
-    legacy = getattr(settings, "ENABLE_ENTITY_EXTRACTION", None)
-
-    def _with_legacy(flag: str) -> bool:
-        if legacy is None or flag in explicit:
-            return bool(getattr(settings, flag))
-        return bool(legacy)
-
-    characters_req = _with_legacy("ENABLE_CHARACTER_EXTRACTION")
-    meta_req = _with_legacy("ENABLE_META_EXTRACTION")
+    characters_req = bool(settings.ENABLE_CHARACTER_EXTRACTION)
+    meta_req = bool(settings.ENABLE_META_EXTRACTION)
     aggregation_req = bool(settings.ENABLE_STORY_AGGREGATION)
     storyline_req = bool(settings.ENABLE_STORYLINE_GENERATION)
 

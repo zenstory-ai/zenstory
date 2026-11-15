@@ -6,7 +6,6 @@ import pytest
 from sqlmodel import Session
 
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
-from agent.tools.file_ops import FileCRUD
 from models import File, Project, User
 from services.features.file_version_service import FileVersionService
 from tests.test_services.test_tree_writers_postgres import pg_engine as pg_engine

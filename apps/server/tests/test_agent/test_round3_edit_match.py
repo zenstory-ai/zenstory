@@ -105,7 +105,6 @@ def test_approx_wall_clock_deadline_stops_a_long_scan(monkeypatch):
     elapsed = time.monotonic() - started
 
     assert result is None
-    assert stats["workload_skipped"] == 0
     assert stats["deadline_exceeded"] == 1
     assert elapsed < 1.0, f"超时未生效，耗时 {elapsed:.2f}s"
 
@@ -159,7 +158,7 @@ def test_replace_in_long_chapter_tolerates_a_one_character_slip(editor):
 def test_replace_deadline_requests_shorter_exact_unique_snippet(editor, monkeypatch):
     def time_out(*_args, stats=None, **_kwargs):
         assert stats is not None
-        stats.update(paragraph_rejected=0, workload_skipped=0, deadline_exceeded=1)
+        stats.update(paragraph_rejected=0, deadline_exceeded=1)
         return None
 
     monkeypatch.setattr("agent.tools.file_ops.edit.find_approximate_match", time_out)

@@ -215,7 +215,8 @@
     "viewAll": "View All",
     "emptyTitle": "No featured inspirations yet",
     "emptyHint": "Find more story openings in the inspiration library.",
-    "emptyCta": "Browse Inspiration Library"
+    "emptyCta": "Browse Inspiration Library",
+    "loadFailed": "Couldn't load featured inspirations. Please try again."
   },
   "time": {
     "justNow": "just now",

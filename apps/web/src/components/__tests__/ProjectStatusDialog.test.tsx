@@ -26,6 +26,8 @@ vi.mock('react-i18next', () => ({
         cancel: '取消',
         save: '保存',
         saving: "保存中…",
+        loadFailed: '无法载入项目信息，请重试。',
+        retry: '重试',
         infoBanner: 'info',
         projectSummary: '项目简介',
         writingStyle: '写作风格',
@@ -165,5 +167,28 @@ describe('ProjectStatusDialog', () => {
     await act(async () => projectStatusSubscriber?.({ projectId: 'project-1', updatedFields: ['summary'] }))
     await waitFor(() => expect(summary).toHaveValue('远端简介'))
     expect(summary).toHaveFocus()
+  })
+
+  it('shows retryable load error instead of blank editable fields when initial project fetch fails', async () => {
+    mockProjectGet
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({
+        id: 'project-1',
+        name: 'Test Project',
+        description: 'desc',
+        summary: '已恢复简介',
+        writing_style: '',
+        current_phase: '',
+        notes: '',
+      })
+
+    render(<ProjectStatusDialog isOpen={true} onClose={vi.fn()} projectId="project-1" />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法载入项目信息，请重试。')
+    expect(screen.queryByRole('textbox', { name: '项目简介' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    expect(await screen.findByRole('textbox', { name: '项目简介' })).toHaveValue('已恢复简介')
   })
 })

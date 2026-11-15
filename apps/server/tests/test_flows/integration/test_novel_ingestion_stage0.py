@@ -29,6 +29,8 @@ class _FakeSessionCtx:
         return self.session
 
     def __exit__(self, exc_type, exc, tb):
+        if exc_type is None:
+            self.session.commit()
         return False
 
 
@@ -146,7 +148,14 @@ class TestExecuteStage0:
                 assert chapter_dicts[0]["title"] == "c1"
                 return [11]
 
-        existing_job = SimpleNamespace(id=77, status="pending", total_chapters=0, correlation_id=None)
+        existing_job = SimpleNamespace(
+            id=77,
+            status="pending",
+            total_chapters=0,
+            correlation_id=None,
+            started_at=None,
+            update_stage_progress=lambda *_a, **_k: None,
+        )
 
         class FakeIngestionJobsService:
             def get_latest_by_novel(self, _session, _novel_id):
@@ -230,7 +239,9 @@ class TestExecuteStage0:
             status="pending",
             total_chapters=0,
             correlation_id=None,
+            started_at=None,
             stage_progress=json.dumps({"billing": {"quota_mode": "trial", "chapter_limit": 2}}),
+            update_stage_progress=lambda *_a, **_k: None,
         )
 
         class FakeIngestionJobsService:

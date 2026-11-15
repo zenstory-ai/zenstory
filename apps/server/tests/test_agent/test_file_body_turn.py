@@ -44,7 +44,7 @@ async def test_reply_that_skips_the_body_cannot_call_other_tools(tools):
 
     refused = await _call(by_name["update_project"])
     edit = await _call(by_name["edit_file"], '{"id": "f1", "edits": []}')
-    cleanup = await _call(by_name["delete_file"], '{"id": "f1"}')
+    await _call(by_name["delete_file"], '{"id": "f1"}')
 
     assert refused["error_type"] == "file_body_pending" and "第一章" in refused["error"]
     assert edit["error_type"] == "file_body_pending"

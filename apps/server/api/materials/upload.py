@@ -80,8 +80,6 @@ router = APIRouter()
 
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 DISPATCH_FAILURE_MESSAGE = "Failed to dispatch ingestion flow"
-UPLOAD_FILENAME_TOKEN_BYTES = 8
-MAX_UPLOAD_FILENAME_ATTEMPTS = 10
 
 
 def _storage():
@@ -178,60 +176,6 @@ def _sanitize_original_filename(filename: str) -> str:
         safe_stem = "material"
 
     return f"{safe_stem}{safe_ext}"
-
-
-def _build_safe_upload_path(upload_dir: str, filename: str) -> str:
-    """
-    Build a canonical path under upload_dir and reject path escape.
-    """
-    if not filename or filename != os.path.basename(filename) or "\x00" in filename:
-        raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400)
-
-    upload_dir_real = os.path.realpath(upload_dir)
-    file_path = os.path.realpath(os.path.join(upload_dir_real, filename))
-    if os.path.commonpath([upload_dir_real, file_path]) != upload_dir_real:
-        raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400)
-    return file_path
-
-
-def _build_unique_upload_filename(
-    user_id: str,
-    timestamp: str,
-    sanitized_original_filename: str,
-) -> str:
-    """Build a collision-resistant upload filename while preserving readable suffix."""
-    unique_token = secrets.token_hex(UPLOAD_FILENAME_TOKEN_BYTES)
-    return f"{user_id}_{timestamp}_{unique_token}_{sanitized_original_filename}"
-
-
-def _write_upload_file_without_overwrite(
-    upload_dir: str,
-    user_id: str,
-    timestamp: str,
-    sanitized_original_filename: str,
-    content_bytes: bytes,
-) -> tuple[str, str]:
-    """Write uploaded bytes to a newly-created path and never overwrite existing files."""
-    for _ in range(MAX_UPLOAD_FILENAME_ATTEMPTS):
-        safe_filename = _build_unique_upload_filename(
-            user_id,
-            timestamp,
-            sanitized_original_filename,
-        )
-        file_path = _build_safe_upload_path(upload_dir, safe_filename)
-
-        try:
-            with open(file_path, "xb") as f:
-                f.write(content_bytes)
-            return safe_filename, file_path
-        except FileExistsError:
-            continue
-
-    raise APIException(
-        error_code=ErrorCode.SERVICE_UNAVAILABLE,
-        status_code=503,
-        detail="Failed to allocate unique upload filename",
-    )
 
 
 @dataclass(frozen=True)
@@ -378,20 +322,6 @@ def _mark_job_dispatch_failed(
 
 
 # ==================== Internal Endpoints ====================
-
-@router.get("/internal/files/{filename}")
-async def download_upload_file(
-    filename: str,
-    current_user: User = Depends(get_current_active_user),
-):
-    """
-    Internal endpoint for Prefect worker to download uploaded files.
-
-    Verifies file ownership based on filename format:
-    {user_id}_{timestamp}_{unique_token}_{original_filename}
-    """
-    return _download_material_object(filename, current_user.id)
-
 
 @router.get("/internal/system/files/{filename}")
 async def download_upload_file_for_worker(

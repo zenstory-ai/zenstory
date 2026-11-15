@@ -42,7 +42,6 @@
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import os
 import tempfile
 import time
@@ -61,7 +60,6 @@ from flows.database_session import get_prefect_db_session
 from flows.utils.helpers import (
     calculate_checksum,
     create_checkpoint_manager,
-    normalize_filename,
     parse_novel_chapters,
     validate_input,
 )
@@ -276,10 +274,11 @@ def _run_novel_ingestion(
                     if chapter.id is not None
                 ]
 
-    normalized_path: str | None = None
+    local_file_path: str | None = None
     downloaded_source_path: str | None = None
     content_hash: str | None = None
     encoding: str | None = None
+    decoded_text: str | None = None
     try:
         # =================================================================
         # 阶段0: 初始化和文件验证
@@ -293,31 +292,22 @@ def _run_novel_ingestion(
         )
 
         if persisted_chapter_ids is None:
-            # 文件名标准化（解决中文文件名问题）
-            logger.info("[阶段0] 确保文件可用并标准化")
+            logger.info("[阶段0] 确保文件可用并验证")
             source_was_remote = file_path.startswith("s3://")
-            file_path = _ensure_file_local(file_path, user_id, logger)
+            local_file_path = _ensure_file_local(file_path, user_id, logger)
             if source_was_remote:
-                downloaded_source_path = file_path
-            temp_dir = Path(file_path).parent / "temp"
-            normalized_path = normalize_filename(file_path, str(temp_dir))
-
-            # 复制原文件到新位置
-            import shutil
-            shutil.copy2(file_path, normalized_path)
-            logger.info(f"文件已复制到: {normalized_path}")
+                downloaded_source_path = local_file_path
 
             # 文件验证
-            logger.info("[阶段0] 文件验证")
-            validated = validate_input(normalized_path)
+            validated = validate_input(local_file_path)
 
             # 计算文件哈希
-            checksums = calculate_checksum(normalized_path)
+            checksums = calculate_checksum(local_file_path)
             content_hash = checksums["md5_checksum"]
 
             # 解码：与上传接口预检使用同一个函数，API 接受的文件这里一定能解码
             try:
-                _, encoding = read_novel_text(normalized_path)
+                decoded_text, encoding = read_novel_text(local_file_path)
             except NovelDecodeError as decode_error:
                 raise MaterialPipelineError(
                     ErrorCode.MATERIAL_FILE_UNREADABLE, str(decode_error)
@@ -342,12 +332,10 @@ def _run_novel_ingestion(
             resume_result = _check_and_resume_from_checkpoint(
                 content_hash=content_hash,
                 user_id=user_id,
-                novel_id=novel_id,
                 job_id=job_id,
                 correlation_id=correlation_id,
                 flow_start=flow_start,
                 logger=logger,
-                publisher=publisher,
             )
 
             # 如果已完成或成功恢复,直接返回
@@ -384,10 +372,10 @@ def _run_novel_ingestion(
                     )
             else:
                 # novel 已存在但无章节（由 upload 端点预创建），执行 stage0 填充章节
-                if normalized_path is None or content_hash is None or encoding is None:
+                if local_file_path is None or content_hash is None or encoding is None:
                     raise ValueError("缺少已验证的原始文件信息")
                 stage0_result = _execute_stage0(
-                    file_path=normalized_path,
+                    file_path=local_file_path,
                     novel_title=novel_title,
                     author=author,
                     user_id=user_id,
@@ -399,15 +387,16 @@ def _run_novel_ingestion(
                     publisher=publisher,
                     existing_novel_id=novel_id,
                     job_id=job_id,
+                    novel_text=decoded_text,
                 )
                 chapter_ids = stage0_result["chapter_ids"]
                 checkpoint_manager = stage0_result["checkpoint_manager"]
                 job_id = stage0_result["job_id"]
         else:
-            if normalized_path is None or content_hash is None or encoding is None:
+            if local_file_path is None or content_hash is None or encoding is None:
                 raise ValueError("缺少已验证的原始文件信息")
             stage0_result = _execute_stage0(
-                file_path=normalized_path,
+                file_path=local_file_path,
                 novel_title=novel_title,
                 author=author,
                 user_id=user_id,
@@ -418,6 +407,7 @@ def _run_novel_ingestion(
                 logger=logger,
                 publisher=publisher,
                 job_id=job_id,
+                novel_text=decoded_text,
             )
             novel_id = stage0_result["novel_id"]
             chapter_ids = stage0_result["chapter_ids"]
@@ -467,18 +457,8 @@ def _run_novel_ingestion(
             final_result.get("elapsed_ms", 0),
         )
 
-        # 处理完成后清理临时文件
+        # 处理完成后清理远端下载的临时文件
         try:
-            import shutil
-            if normalized_path and Path(normalized_path).exists():
-                Path(normalized_path).unlink()
-                logger.info("已删除临时文件: %s", normalized_path)
-
-            # 如果temp目录为空，删除temp目录
-            temp_dir = Path(normalized_path).parent if normalized_path else None
-            if temp_dir and temp_dir.exists() and temp_dir.name == "temp" and not any(temp_dir.iterdir()):
-                temp_dir.rmdir()
-                logger.info("已删除空临时目录: %s", temp_dir)
             if downloaded_source_path and Path(downloaded_source_path).exists():
                 Path(downloaded_source_path).unlink()
                 Path(downloaded_source_path).parent.rmdir()
@@ -502,18 +482,8 @@ def _run_novel_ingestion(
             publisher=publisher,
         )
 
-        # 即使出错也清理临时文件
+        # 即使出错也清理远端下载的临时文件
         try:
-            import shutil
-            if normalized_path and Path(normalized_path).exists():
-                Path(normalized_path).unlink()
-                logger.info("已删除临时文件: %s", normalized_path)
-
-            # 如果temp目录为空，删除temp目录
-            temp_dir = Path(normalized_path).parent if normalized_path else None
-            if temp_dir and temp_dir.exists() and temp_dir.name == "temp" and not any(temp_dir.iterdir()):
-                temp_dir.rmdir()
-                logger.info("已删除空临时目录: %s", temp_dir)
             if downloaded_source_path and Path(downloaded_source_path).exists():
                 Path(downloaded_source_path).unlink()
                 Path(downloaded_source_path).parent.rmdir()
@@ -526,11 +496,9 @@ def _run_novel_ingestion(
 def _check_and_resume_from_checkpoint(
     content_hash: str,
     user_id: str,
-    novel_id: int | None,  # noqa: ARG001
     correlation_id: str | None,
     flow_start: float,
     logger: Any,
-    publisher: ProgressPublisher,  # noqa: ARG001
     job_id: int | None = None,
 ) -> dict[str, Any]:
     """
@@ -597,19 +565,6 @@ def _check_and_resume_from_checkpoint(
             logger.info("[断点检查] 保留失败检查点,准备按能力恢复")
             return {"completed": False, "novel_id": existing_novel.id}
 
-        elif stage == 'completed':
-            # 任务已完成
-            logger.info("[断点检查] 任务已完成,直接返回")
-            return {
-                "completed": True,
-                "result": {
-                    "novel_id": existing_novel.id,
-                    "chapters_count": len(chapter_ids),
-                    "status": "already_completed",
-                    "elapsed_ms": _elapsed_ms(flow_start),
-                }
-            }
-
         elif stage in ['stage1', 'stage2', 'stage2a', 'stage2b', 'stage2c']:
             # 从阶段1或阶段2恢复
             logger.info("[断点检查] 从%s恢复", stage)
@@ -654,6 +609,7 @@ def _execute_stage0(
     publisher: ProgressPublisher,
     existing_novel_id: int | None = None,
     job_id: int | None = None,
+    novel_text: str | None = None,
 ) -> dict[str, Any]:
     """
     执行阶段0: 文件摄取与章节建立
@@ -672,8 +628,12 @@ def _execute_stage0(
     logger.info("[阶段0] 文件摄取与章节建立")
     logger.info("=" * 60)
 
-    # 解析章节
-    parse_result = parse_novel_chapters(file_path, encoding)
+    # 解析章节（若主流程已解码全文则直接复用，避免二次读盘解码）
+    parse_result = (
+        parse_novel_chapters(file_path, encoding, text=novel_text)
+        if novel_text is not None
+        else parse_novel_chapters(file_path, encoding)
+    )
     chapters_data = parse_result["chapters"]
     inferred_title = parse_result["novel_title"]
 
@@ -759,7 +719,7 @@ def _execute_stage0(
                     chapters_data = chapters_data[:chapter_limit]
                 existing_job.status = "processing"
                 existing_job.total_chapters = len(chapters_data)
-                if getattr(existing_job, "started_at", None) is None:
+                if existing_job.started_at is None:
                     existing_job.started_at = utcnow()
                 if correlation_id:
                     existing_job.correlation_id = correlation_id
@@ -827,7 +787,6 @@ def _execute_stage0(
                     "chapter_number": ch["chapter_number"],
                     "title": ch["title"],
                     "content": ch["content"],
-                    "content_hash": hashlib.md5(ch["content"].encode()).hexdigest(),
                 }
                 for ch in chapters_data
             ],
@@ -844,17 +803,14 @@ def _execute_stage0(
         )
 
         if job_record:
-            if getattr(job_record, "started_at", None) is None:
+            if job_record.started_at is None:
                 job_record.started_at = utcnow()
-            if hasattr(job_record, "update_stage_progress"):
-                job_record.update_stage_progress(
-                    "stage0",
-                    "completed",
-                    total_chapters=len(chapters_data),
-                    chapters_created=len(chapter_ids),
-                )
-
-        session.commit()
+            job_record.update_stage_progress(
+                "stage0",
+                "completed",
+                total_chapters=len(chapters_data),
+                chapters_created=len(chapter_ids),
+            )
 
     logger.info("[阶段0] 创建 %d 个章节记录", len(chapter_ids))
 
@@ -916,7 +872,6 @@ def _mark_job_as_failed(
     logger: Any,
     publisher: ProgressPublisher,
     correlation_id: str | None = None,
-    _correlation_id: str | None = None,
     job_id: int | None = None,
     exception_type: str | None = None,
 ) -> None:
@@ -927,7 +882,6 @@ def _mark_job_as_failed(
     IngestionJobsService.fail_job 退还该任务占用的额度。
     """
     elapsed_ms = _elapsed_ms(flow_start)
-    resolved_correlation_id = correlation_id or _correlation_id
 
     # 发布失败进度
     publisher.publish(
@@ -967,7 +921,7 @@ def _mark_job_as_failed(
                         details={
                             "elapsed_ms": elapsed_ms,
                             "exception_type": exception_type,
-                            "correlation_id": resolved_correlation_id,
+                            "correlation_id": correlation_id,
                         },
                     )
         except Exception as e:
@@ -1024,5 +978,4 @@ def _validate_and_repair_job_identity(
             changed = True
         if changed:
             session.add(job)
-            session.commit()
         return True

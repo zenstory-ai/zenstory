@@ -1,4 +1,3 @@
-import hashlib
 import json
 from pathlib import Path
 
@@ -17,7 +16,7 @@ class MemoryStorage:
         reference = f"s3://test-bucket/material/{owner_id}/{object_name}"
         created = reference not in self.objects
         self.objects.setdefault(reference, content)
-        return StoredObject(reference, len(content), hashlib.sha256(content).hexdigest(), created)
+        return StoredObject(reference, len(content), created=created)
 
     def read_material_reference(self, reference, *, owner_id):
         assert f"/material/{owner_id}/" in reference

@@ -9,18 +9,15 @@ import urllib.parse
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from services.auth import (
-    TOKEN_TYPE_ACCESS,
     access_token_claims,
-    access_token_matches_password,
     create_access_token,
     create_refresh_token,
     generate_token_jti,
     get_refresh_token_expires_at,
     unique_username,
-    verify_token,
 )
 from sqlmodel import Session, select
 
@@ -31,7 +28,6 @@ from api.auth import (
 )
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
-from core.error_handler import APIException
 from database import get_session
 from middleware.rate_limit import get_client_ip
 from models import ACTIVATION_EVENT_SIGNUP_SUCCESS, RefreshTokenRecord, User
@@ -314,55 +310,6 @@ async def google_oauth_login(
         path="/",
     )
     return response
-
-
-@router.get("/validate-token")
-def validate_token(
-    token: str = Query(..., description="JWT access token to validate"),
-    session: Session = Depends(get_session)
-):
-    """
-    Validate JWT access token and return user information.
-
-    - Accepts token as query parameter
-    - Returns user info if token is valid
-    - Returns 401 if token is invalid or expired
-    """
-    payload = verify_token(token, expected_type=TOKEN_TYPE_ACCESS)
-    if payload is None:
-        raise APIException(
-            error_code=ErrorCode.AUTH_TOKEN_INVALID,
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise APIException(
-            error_code=ErrorCode.AUTH_TOKEN_INVALID,
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user = session.get(User, user_id)
-    if user is None or not access_token_matches_password(payload, user):
-        raise APIException(
-            error_code=ErrorCode.AUTH_TOKEN_INVALID,
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if not user.is_active:
-        raise APIException(
-            error_code=ErrorCode.AUTH_INACTIVE_USER,
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-
-    return {
-        "id": user.id,
-        "username": user.username,
-        "email": user.email
-    }
 
 
 @router.get("/google/callback")

@@ -35,11 +35,7 @@ export function cn(...inputs: ClassValue[]): string {
  * @returns The base URL string for the application
  */
 export function getBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    // Running in browser, use current origin
-    return window.location.origin;
-  }
-  return import.meta.env.VITE_BASE_URL || 'https://yourdomain.com';
+  return window.location.origin;
 }
 
 /**

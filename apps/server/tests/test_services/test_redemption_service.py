@@ -205,43 +205,6 @@ class TestVerifyChecksum:
 
 
 @pytest.mark.unit
-class TestGetCodeByCode:
-    """Tests for get_code_by_code method."""
-
-    def test_get_code_by_code_exists(
-        self, db_session: Session, test_admin, pro_plan
-    ):
-        """Test getting an existing code."""
-        code = RedemptionCode(
-            code="ERG-PRO7M-ABCD-12345678",
-            code_type="single_use",
-            tier="pro",
-            duration_days=30,
-            max_uses=1,
-            current_uses=0,
-            created_by=test_admin.id,
-            is_active=True,
-        )
-        db_session.add(code)
-        db_session.commit()
-
-        result = redemption_service.get_code_by_code(
-            db_session, "ERG-PRO7M-ABCD-12345678"
-        )
-
-        assert result is not None
-        assert result.code == "ERG-PRO7M-ABCD-12345678"
-
-    def test_get_code_by_code_not_exists(self, db_session: Session):
-        """Test getting a non-existent code."""
-        result = redemption_service.get_code_by_code(
-            db_session, "ERG-PRO7M-XXXX-12345678"
-        )
-
-        assert result is None
-
-
-@pytest.mark.unit
 class TestRedeemCode:
     """Tests for redeem_code method."""
 
@@ -629,6 +592,71 @@ class TestRedeemCode:
 
             assert subscription is not None
             assert subscription.status == "active"
+
+    def test_redeem_code_does_not_refresh_or_lazy_load_after_commit(
+        self, db_session: Session, test_user, test_admin, free_plan, pro_plan, mock_hmac_secret
+    ):
+        """Post-commit refresh/lazy-load failures must not turn a committed code into 500."""
+        with patch.object(
+            redemption_service, "get_hmac_secret", return_value=mock_hmac_secret
+        ):
+            tier_duration = "PRO7M"
+            random_part = "87654321"
+            message = f"{tier_duration}-{random_part}"
+            signature = hmac.new(
+                mock_hmac_secret.encode(),
+                message.encode(),
+                hashlib.sha256,
+            ).digest()
+            checksum = signature[:4].hex().upper()[:4]
+            code = f"ERG-{tier_duration}-{checksum}-{random_part}"
+
+            redemption_code = RedemptionCode(
+                code=code,
+                code_type="single_use",
+                tier="pro",
+                duration_days=30,
+                max_uses=1,
+                current_uses=0,
+                created_by=test_admin.id,
+                is_active=True,
+            )
+            db_session.add(redemption_code)
+            db_session.commit()
+
+            real_commit = db_session.commit
+            real_execute = db_session.execute
+            committed = False
+
+            def commit_then_block() -> None:
+                nonlocal committed
+                real_commit()
+                db_session.expire_all()
+                committed = True
+
+            def guarded_execute(*args, **kwargs):
+                if committed:
+                    raise RuntimeError("post-commit lazy load triggered")
+                return real_execute(*args, **kwargs)
+
+            with (
+                patch.object(db_session, "commit", side_effect=commit_then_block),
+                patch.object(
+                    db_session,
+                    "refresh",
+                    side_effect=RuntimeError("post-commit refresh must not happen"),
+                ),
+                patch.object(db_session, "execute", side_effect=guarded_execute),
+            ):
+                success, _msg, info = redemption_service.redeem_code(
+                    db_session, code, test_user.id
+                )
+
+            assert success is True
+            assert info is not None
+            assert info["tier"] == "pro"
+            assert info["duration_days"] == 30
+            assert info["subscription_id"]
 
 
 @pytest.mark.unit

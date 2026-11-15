@@ -5,11 +5,9 @@
 from .plot_tasks import (
     extract_chapter_plots_task,
     save_plots_task,
-    validate_plots_task,
 )
 
 __all__ = [
     "extract_chapter_plots_task",
-    "validate_plots_task",
     "save_plots_task",
 ]

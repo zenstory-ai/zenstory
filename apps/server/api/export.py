@@ -88,18 +88,17 @@ def export_project_drafts(
     # Check export format restriction
     requested_format = "txt"
     plan = quota_service.get_user_plan(session, current_user.id)
-    if plan:
-        raw_allowed_formats = plan.features.get("export_formats")
-        if raw_allowed_formats is None:
-            allowed_formats = list(SUPPORTED_EXPORT_FORMATS)
-        else:
-            allowed_formats = normalize_export_formats(raw_allowed_formats)
-        if requested_format not in allowed_formats:
-            raise APIException(
-                error_code=ErrorCode.QUOTA_EXPORT_FORMAT_RESTRICTED,
-                status_code=402,
-                detail=f"Export format '{requested_format}' is not available on your plan. Available: {', '.join(allowed_formats)}",
-            )
+    raw_allowed_formats = plan.features.get("export_formats")
+    if raw_allowed_formats is None:
+        allowed_formats = list(SUPPORTED_EXPORT_FORMATS)
+    else:
+        allowed_formats = normalize_export_formats(raw_allowed_formats)
+    if requested_format not in allowed_formats:
+        raise APIException(
+            error_code=ErrorCode.QUOTA_EXPORT_FORMAT_RESTRICTED,
+            status_code=402,
+            detail=f"Export format '{requested_format}' is not available on your plan. Available: {', '.join(allowed_formats)}",
+        )
 
     # 3. Generate export content
     content = export_drafts_to_txt(session, project_id, title=project.name)

@@ -19,6 +19,12 @@ from scripts.check_python_runtime import check_pyexpat
 load_dotenv()
 check_pyexpat()
 
+from config.logger_config import configure_logging
+from utils.logger import get_logger, log_with_context
+
+configure_logging()
+logger = get_logger(__name__)
+
 # Import routers and other modules
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -56,7 +62,6 @@ from api.versions import router as versions_router
 from api.voice import router as voice_router
 from sqlalchemy.exc import IntegrityError
 
-from config.logger_config import configure_logging
 from core.error_handler import (
     APIException,
     api_exception_handler,
@@ -72,7 +77,6 @@ from middleware.logging_middleware import LoggingMiddleware
 from services.infra.readiness_service import check_readiness
 from services.skill_md_service import skill_md_service
 from services.subscription.zpay_service import zpay_service
-from utils.logger import get_logger, log_with_context
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -102,7 +106,7 @@ async def lifespan(_app: FastAPI):
 
     try:
         await asyncio.wait_for(drain_pending_usage_records(), timeout=5)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("Timed out after 5s draining pending usage records on shutdown")
 
 
@@ -113,10 +117,6 @@ app = FastAPI(
     version=os.getenv("APP_VERSION", "1.0.0"),
     lifespan=lifespan,
 )
-
-# Configure logging (must be before middleware)
-configure_logging()
-logger = get_logger(__name__)
 
 # Register global exception handlers
 app.add_exception_handler(APIException, api_exception_handler)

@@ -175,7 +175,6 @@ class TestStreamAdapterInit:
         assert adapter.config.user_id == "test-user-id"
         assert adapter._pending_file_write is None
         assert adapter._content_started is False
-        assert adapter._current_tool_calls == {}
         assert adapter._last_message_stop_reason is None
         assert adapter._last_message_usage is None
         assert adapter._matched_skill_ids == set()
@@ -185,30 +184,6 @@ class TestStreamAdapterInit:
         adapter = StreamAdapter()
         assert adapter.config.project_id == ""
         assert adapter.config.user_id is None
-
-    def test_reset(self, adapter):
-        """Test reset clears all state."""
-        # Set some state
-        adapter._content_started = True
-        adapter._matched_skill_ids.add("skill-1")
-        adapter._current_tool_calls["tool-1"] = {"name": "test"}
-        adapter._last_message_stop_reason = "end_turn"
-        adapter._last_message_usage = {"input_tokens": 1}
-        adapter._pending_file_write = PendingFileWrite(
-            file_id="file-1", file_type="draft", title="Test"
-        )
-
-        # Reset
-        adapter.reset()
-
-        # Verify all state cleared
-        assert adapter._content_started is False
-        assert adapter._matched_skill_ids == set()
-        assert adapter._current_tool_calls == {}
-        assert adapter._last_message_stop_reason is None
-        assert adapter._last_message_usage is None
-        assert adapter._pending_file_write is None
-        assert adapter._stream_processor.state == StreamState.IDLE
 
     def test_get_last_message_metadata_defaults(self, adapter):
         """Should return empty metadata values before any message_end."""
@@ -349,106 +324,6 @@ class TestProcessEventToolUse:
     """Tests for processing TOOL_USE events."""
 
     @pytest.mark.asyncio
-    async def test_tool_use_start(self, adapter):
-        """Test tool use start event."""
-        event = WorkflowStreamEvent(
-            type=StreamEventType.TOOL_USE,
-            data={
-                "status": "start",
-                "id": "tool-123",
-                "name": "create_file",
-            },
-        )
-
-        events = []
-        async for sse_event in adapter._process_workflow_event(event):
-            events.append(sse_event)
-
-        # Start event doesn't emit SSE event, just tracks state
-        assert len(events) == 0
-        assert "tool-123" in adapter._current_tool_calls
-        assert adapter._current_tool_calls["tool-123"]["name"] == "create_file"
-
-    @pytest.mark.asyncio
-    async def test_tool_use_delta(self, adapter):
-        """Test tool use delta accumulates JSON."""
-        # Start first
-        adapter._current_tool_calls["tool-1"] = {
-            "name": "edit_file",
-            "input_json": "",
-        }
-
-        event = WorkflowStreamEvent(
-            type=StreamEventType.TOOL_USE,
-            data={
-                "status": "delta",
-                "partial_json": '{"file_id": "f1"',
-            },
-        )
-
-        events = []
-        async for sse_event in adapter._process_workflow_event(event):
-            events.append(sse_event)
-
-        # Delta doesn't emit SSE event
-        assert len(events) == 0
-        assert adapter._current_tool_calls["tool-1"]["input_json"] == '{"file_id": "f1"'
-
-    @pytest.mark.asyncio
-    async def test_tool_use_stop_with_input(self, adapter):
-        """Test tool use stop emits tool_call event with input."""
-        event = WorkflowStreamEvent(
-            type=StreamEventType.TOOL_USE,
-            data={
-                "status": "stop",
-                "id": "tool-1",
-                "name": "create_file",
-                "input": {"title": "Chapter 1", "file_type": "draft"},
-            },
-        )
-
-        events = []
-        async for sse_event in adapter._process_workflow_event(event):
-            events.append(sse_event)
-
-        assert len(events) == 1
-        assert events[0].type == EventType.TOOL_CALL
-        assert events[0].data["tool_use_id"] == "tool-1"
-        assert events[0].data["tool_name"] == "create_file"
-        assert events[0].data["arguments"]["title"] == "Chapter 1"
-
-    @pytest.mark.asyncio
-    async def test_tool_use_stop_with_accumulated_json(self, adapter):
-        """Test tool use stop with accumulated JSON."""
-        # Set up accumulated JSON
-        adapter._current_tool_calls["tool-1"] = {
-            "name": "edit_file",
-            "input_json": '{"file_id": "f123", "edits": []}',
-        }
-
-        event = WorkflowStreamEvent(
-            type=StreamEventType.TOOL_USE,
-            data={
-                "status": "stop",
-                "id": "tool-1",
-                "name": "edit_file",
-            },
-        )
-
-        events = []
-        async for sse_event in adapter._process_workflow_event(event):
-            events.append(sse_event)
-
-        assert len(events) == 1
-        assert events[0].type == EventType.TOOL_CALL
-        assert events[0].data["tool_use_id"] == "tool-1"
-        assert events[0].data["tool_name"] == "edit_file"
-        assert events[0].data["arguments"]["file_id"] == "f123"
-
-        # Should clean up tracked tool call
-        assert "tool-1" not in adapter._current_tool_calls
-
-    @pytest.mark.asyncio
     async def test_tool_use_complete(self, adapter):
         """Test tool use complete event."""
         event = WorkflowStreamEvent(
@@ -468,6 +343,33 @@ class TestProcessEventToolUse:
         assert events[0].type == EventType.TOOL_CALL
         assert events[0].data["tool_use_id"] is None
         assert events[0].data["tool_name"] == "query_files"
+        assert events[0].data["arguments"] == {"query": "chapter"}
+
+    @pytest.mark.asyncio
+    async def test_tool_use_complete_with_id_and_non_complete_ignored(self, adapter):
+        """Complete event carries tool_use_id; non-complete statuses emit nothing."""
+        complete_event = WorkflowStreamEvent(
+            type=StreamEventType.TOOL_USE,
+            data={
+                "status": "complete",
+                "id": "tool-1",
+                "name": "create_file",
+                "input": {"title": "Chapter 1", "file_type": "draft"},
+            },
+        )
+        events = [e async for e in adapter._process_workflow_event(complete_event)]
+        assert len(events) == 1
+        assert events[0].type == EventType.TOOL_CALL
+        assert events[0].data["tool_use_id"] == "tool-1"
+        assert events[0].data["tool_name"] == "create_file"
+        assert events[0].data["arguments"]["title"] == "Chapter 1"
+
+        non_complete = WorkflowStreamEvent(
+            type=StreamEventType.TOOL_USE,
+            data={"status": "start", "id": "tool-2", "name": "edit_file"},
+        )
+        ignored = [e async for e in adapter._process_workflow_event(non_complete)]
+        assert ignored == []
 
 
 class TestProcessEventToolResult:
@@ -1329,20 +1231,6 @@ class TestSaveFileContent:
             assert saved is False
 
 
-class TestGetFileContent:
-    """Tests for get_file_content and get_history_buffer methods."""
-
-    def test_get_file_content(self, adapter):
-        """Test getting file content."""
-        adapter._stream_processor.content_buffer = "Test content"
-        assert adapter.get_file_content() == "Test content"
-
-    def test_get_history_buffer(self, adapter):
-        """Test getting history buffer."""
-        adapter._stream_processor.history_buffer = "History content"
-        assert adapter.get_history_buffer() == "History content"
-
-
 class TestCreateStreamAdapter:
     """Tests for create_stream_adapter factory function."""
 
@@ -2115,7 +2003,7 @@ async def test_prod_empty_file_pair_after_close_is_not_emitted_as_chat():
         WorkflowStreamEvent(
             type=StreamEventType.TOOL_USE,
             data={
-                "status": "stop",
+                "status": "complete",
                 "id": "call-q",
                 "name": "query_files",
                 "input": {"id": "draft-1", "response_mode": "summary"},
@@ -2167,8 +2055,8 @@ async def test_delivery_receipt_uses_actual_save_result_and_resets_between_round
     body = "雨还在下。"
     assert await adapter._save_file_content("f", body) is saved
     assert adapter.get_saved_file_word_counts() == {"f": count_words(body) if saved else None}
-    adapter.reset()
-    assert adapter.get_saved_file_word_counts() == {}
+    fresh_adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    assert fresh_adapter.get_saved_file_word_counts() == {}
 
 
 @pytest.mark.asyncio

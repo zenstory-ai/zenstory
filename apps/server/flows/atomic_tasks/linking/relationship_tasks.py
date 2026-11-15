@@ -6,6 +6,7 @@
 - build_character_relationships_task: 构建人物关系实体
 """
 
+import json
 from typing import Any
 
 from prefect import get_run_logger
@@ -14,11 +15,28 @@ from sqlmodel import col, select
 from flows.database_session import get_prefect_db_session
 from flows.utils.clients import LLMResponse, call_material_llm, get_material_llm_client
 from flows.utils.decorators import api_task, database_task
+from flows.utils.helpers import normalize_alias
+from flows.utils.helpers.exceptions import LLMNonRetryableError, ValidationError, is_llm_fatal_stop
 from flows.utils.validators import validate_relationships_response
 from models.material_models import Chapter
 from prompts import create_relationship_extraction_prompt
 
 DEFAULT_RELATIONSHIP_BATCH_SIZE = 5
+
+
+def _parse_aliases_json(raw: Any) -> list[str]:
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, str)]
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, str)]
+    return []
 
 
 @api_task(name="extract_character_relationships", retries=5)
@@ -72,6 +90,8 @@ def extract_character_relationships_task(
     # 2. 分批提取人物关系
     all_relationships = []
     batch_count = (total_chapters + batch_size - 1) // batch_size
+    attempted_batches = 0
+    batch_output_errors: list[Exception] = []
 
     for batch_idx in range(batch_count):
         start_idx = batch_idx * batch_size
@@ -92,8 +112,7 @@ def extract_character_relationships_task(
             # 构建上下文（避免访问懒加载的 plot.chapter）
             context_parts = []
             for plot in plots:
-                # 仅使用我们在会话内缓存的章节编号映射
-                ch_num = getattr(plot, "chapter_number", None) or chapter_number_by_id.get(plot.chapter_id)
+                ch_num = chapter_number_by_id.get(plot.chapter_id)
                 context_parts.append(
                     f"[章节{ch_num}] {plot.description}"
                 )
@@ -122,6 +141,7 @@ def extract_character_relationships_task(
             }
         ]
 
+        attempted_batches += 1
         try:
             logger.info(f"[关系提取] 调用 LLM: batch={batch_idx + 1}/{batch_count}")
 
@@ -144,12 +164,20 @@ def extract_character_relationships_task(
                 f"relationships_count={len(batch_relationships)}"
             )
 
-        except Exception as e:
+        except (LLMNonRetryableError, ValidationError) as e:
+            # 关系提取是可选步骤：致命终止立即上抛；不可重试的单批失败（输出无法解析、
+            # 供应商拒绝请求）只跳过该批次，全部批次失败时才让任务失败。
+            # 暂时性 LLMAPIError 不在此捕获，交给任务级重试。
+            if is_llm_fatal_stop(e):
+                raise
             logger.error(
-                f"[关系提取] 批次失败: batch={batch_idx + 1}/{batch_count}, error={str(e)}"
+                f"[关系提取] 批次失败，跳过: batch={batch_idx + 1}/{batch_count}, error={str(e)}"
             )
-            # 继续处理下一批次
+            batch_output_errors.append(e)
             continue
+
+    if attempted_batches > 0 and len(batch_output_errors) == attempted_batches:
+        raise batch_output_errors[-1]
 
     # 5. 去重合并（相同人物对的关系，保留最新的）
     unique_relationships = {}
@@ -194,11 +222,82 @@ def build_character_relationships_task(
     created_count = 0
     updated_count = 0
 
+    from services.material.characters_service import CharactersService
     from services.material.relationships_service import RelationshipsService
+
+    def _is_valid_id(val: Any) -> bool:
+        return isinstance(val, int) and not isinstance(val, bool)
+
     with get_prefect_db_session() as session:
+        needs_name_resolution = any(
+            not (_is_valid_id(rel.get("character_a_id")) and _is_valid_id(rel.get("character_b_id")))
+            for rel in relationships
+        )
+        name_to_id: dict[str, int] = {}
+        alias_to_id: dict[str, int] = {}
+        if needs_name_resolution:
+            for char in CharactersService().list_by_novel(session, novel_id):
+                if char.id is None:
+                    continue
+                raw_name = (char.name or "").strip()
+                if raw_name:
+                    name_to_id.setdefault(raw_name, char.id)
+                norm_name = normalize_alias(char.name)
+                if norm_name:
+                    name_to_id.setdefault(norm_name, char.id)
+                for alias in _parse_aliases_json(char.aliases):
+                    raw_alias = alias.strip()
+                    if raw_alias:
+                        alias_to_id.setdefault(raw_alias, char.id)
+                    norm_alias = normalize_alias(alias)
+                    if norm_alias:
+                        alias_to_id.setdefault(norm_alias, char.id)
+
+        def _resolve_id(raw_id: Any, raw_name: Any) -> int | None:
+            if _is_valid_id(raw_id):
+                return raw_id
+            if isinstance(raw_name, str) and raw_name.strip():
+                stripped = raw_name.strip()
+                norm = normalize_alias(stripped)
+                return (
+                    name_to_id.get(norm)
+                    or name_to_id.get(stripped)
+                    or alias_to_id.get(norm)
+                    or alias_to_id.get(stripped)
+                )
+            return None
+
+        resolved_relationships: list[dict[str, Any]] = []
+        for rel in relationships:
+            char_a_id = _resolve_id(rel.get("character_a_id"), rel.get("character_a"))
+            char_b_id = _resolve_id(rel.get("character_b_id"), rel.get("character_b"))
+            if char_a_id is None or char_b_id is None:
+                logger.debug(
+                    "[关系实体构建] 跳过未能解析角色ID的关系: %s -> %s",
+                    rel.get("character_a"),
+                    rel.get("character_b"),
+                )
+                continue
+            if char_a_id == char_b_id:
+                logger.debug(
+                    "[关系实体构建] 跳过自关联关系: character_id=%s (%s <-> %s)",
+                    char_a_id,
+                    rel.get("character_a"),
+                    rel.get("character_b"),
+                )
+                continue
+            resolved_relationships.append(
+                {
+                    **rel,
+                    "character_a_id": char_a_id,
+                    "character_b_id": char_b_id,
+                }
+            )
+
         svc = RelationshipsService()
-        created_count, updated_count = svc.upsert_relationships(session, novel_id, relationships)
-        session.commit()
+        created_count, updated_count = svc.upsert_relationships(
+            session, novel_id, resolved_relationships
+        )
 
     logger.info(
         f"[关系实体构建] 完成: novel_id={novel_id}, created={created_count}, "

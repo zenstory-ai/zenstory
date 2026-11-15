@@ -304,12 +304,7 @@ export const FileTreePane: React.FC = () => {
     handleSelect(result.id, result.fileType, result.title);
     closeSearch();
     clearFileSearch();
-
-    // On mobile, switch to editor panel
-    if (isMobile) {
-      switchToEditor();
-    }
-  }, [isMobile, switchToEditor, clearFileSearch, handleSelect, closeSearch]);
+  }, [clearFileSearch, handleSelect, closeSearch]);
 
   // Keyboard navigation for search results
   useEffect(() => {

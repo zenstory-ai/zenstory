@@ -38,10 +38,6 @@ class UsageMeteringMixin:
         self._run_meter = run_meter
         self._llm_started_at: float | None = None
 
-    @property
-    def attribution(self) -> LLMUsageAttribution:
-        return self._attribution
-
     async def on_llm_start(self, context: Any, agent: Any, system_prompt: Any, input_items: Any) -> None:
         self._llm_started_at = time.monotonic()
         await super().on_llm_start(context, agent, system_prompt, input_items)  # type: ignore[misc]

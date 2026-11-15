@@ -74,6 +74,7 @@ export function SkillResourcesSection({
   const [loading, setLoading] = useState(true);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [error, setError] = useState<ResourceError | null>(null);
+  const [listLoadFailed, setListLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(null);
   const listRequestRef = useRef(0);
@@ -85,6 +86,8 @@ export function SkillResourcesSection({
     if (!owner) return;
     const requestId = ++listRequestRef.current;
     setLoading(true);
+    setListLoadFailed(false);
+    setError(null);
     try {
       const response = await skillsApi.listResources(skillId);
       if (owner !== ownerRef.current || requestId !== listRequestRef.current) return;
@@ -92,6 +95,7 @@ export function SkillResourcesSection({
     } catch (err) {
       if (owner !== ownerRef.current || requestId !== listRequestRef.current) return;
       logger.error("Failed to load skill resources:", err);
+      setListLoadFailed(true);
       setError(toResourceError(err, "resources.errors.loadFailed"));
     } finally {
       if (owner === ownerRef.current && requestId === listRequestRef.current) setLoading(false);
@@ -236,7 +240,9 @@ export function SkillResourcesSection({
       {loading ? (
         <div className="text-xs italic text-[hsl(var(--text-tertiary))]">{t("common:loading")}</div>
       ) : resources.length === 0 ? (
-        <div className="text-xs text-[hsl(var(--text-tertiary))]">{t("resources.empty")}</div>
+        listLoadFailed ? null : (
+          <div className="text-xs text-[hsl(var(--text-tertiary))]">{t("resources.empty")}</div>
+        )
       ) : (
         <ul className="divide-y divide-[hsl(var(--border-color))] rounded-lg border border-[hsl(var(--border-color))]">
           {resources.map((resource) => (
@@ -345,9 +351,20 @@ export function SkillResourcesSection({
       )}
 
       {error && (
-        <p role="alert" className="text-xs text-[hsl(var(--error-text))]">
-          {"message" in error ? error.message : t(error.key)}
-        </p>
+        <div className="flex items-center gap-2 text-xs text-[hsl(var(--error-text))]">
+          <p role="alert">
+            {"message" in error ? error.message : t(error.key)}
+          </p>
+          {listLoadFailed && (
+            <button
+              type="button"
+              onClick={() => void loadResources()}
+              className="underline hover:no-underline"
+            >
+              {t("common:retry")}
+            </button>
+          )}
+        </div>
       )}
     </section>
   );

@@ -22,7 +22,11 @@ def test_export_releases_pre_bom_text_before_encoding(monkeypatch, character, pe
     monkeypatch.setattr(
         export_api, "export_drafts_to_txt", lambda *args, **kwargs: character * 500_000
     )
-    monkeypatch.setattr(export_api.quota_service, "get_user_plan", lambda *args: None)
+    monkeypatch.setattr(
+        export_api.quota_service,
+        "get_user_plan",
+        lambda *args: SimpleNamespace(features={"export_formats": ["txt"]}),
+    )
     gc.collect()
     tracemalloc.start()
     try:

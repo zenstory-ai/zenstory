@@ -229,7 +229,6 @@ class TestStageExecutorCore:
             "_execute_relationship_stage",
             lambda _stage2b_done: {
                 "relationships_count": 5,
-                "neo4j_failed_chapters": [],
             },
         )
         monkeypatch.setattr(executor, "_update_stage2_checkpoints", lambda *_args: None)
@@ -284,7 +283,7 @@ class TestStageExecutorCore:
 
         checkpoints = {
             "stage2a": SimpleNamespace(stage_status="completed", checkpoint_data={"executed_capabilities": ["synopsis", "stories", "storylines"], "synopsis_generated": True, "stories_count": 2, "storylines_count": 1}),
-            "stage2b": SimpleNamespace(stage_status="completed", checkpoint_data={"executed_capabilities": ["relationships"], "relationships_count": 2, "neo4j_persisted": True}),
+            "stage2b": SimpleNamespace(stage_status="completed", checkpoint_data={"executed_capabilities": ["relationships"], "relationships_count": 2}),
             "stage2c": SimpleNamespace(stage_status="completed", checkpoint_data={"executed_capabilities": ["characters"], "characters_built": True}),
         }
         cp = _FakeCheckpointManager(checkpoints)
@@ -296,7 +295,6 @@ class TestStageExecutorCore:
         monkeypatch.setattr(se_mod.settings, "ENABLE_STORY_AGGREGATION", True)
         monkeypatch.setattr(se_mod.settings, "ENABLE_STORYLINE_GENERATION", True)
         monkeypatch.setattr(se_mod.settings, "ENABLE_RELATIONSHIP_EXTRACTION", True)
-        monkeypatch.setattr(se_mod.settings, "ENABLE_NEO4J_STORAGE", True)
 
         executor = se_mod.StageExecutor(1, [1, 2], cp, None)
         assert executor._check_stage2_completion() == (True, True, True)
@@ -307,7 +305,7 @@ class TestStageExecutorCore:
 
         checkpoints = {
             "stage2a": SimpleNamespace(stage_status="completed", checkpoint_data={"executed_capabilities": ["stories", "storylines"], "stories_count": 0, "storylines_count": 0}),
-            "stage2b": SimpleNamespace(stage_status="completed", checkpoint_data={"executed_capabilities": ["relationships"], "relationships_count": 0, "neo4j_persisted": False}),
+            "stage2b": SimpleNamespace(stage_status="completed", checkpoint_data={"executed_capabilities": ["relationships"], "relationships_count": 0}),
             "stage2c": SimpleNamespace(stage_status="completed", checkpoint_data={"executed_capabilities": ["characters"], "characters_built": True}),
         }
         cp = _FakeCheckpointManager(checkpoints)
@@ -316,7 +314,6 @@ class TestStageExecutorCore:
         monkeypatch.setattr(se_mod.settings, "ENABLE_STORY_AGGREGATION", True)
         monkeypatch.setattr(se_mod.settings, "ENABLE_STORYLINE_GENERATION", True)
         monkeypatch.setattr(se_mod.settings, "ENABLE_RELATIONSHIP_EXTRACTION", True)
-        monkeypatch.setattr(se_mod.settings, "ENABLE_NEO4J_STORAGE", True)
 
         executor = se_mod.StageExecutor(1, [1, 2], cp, None)
         assert executor._check_stage2_completion() == (True, True, True)
@@ -337,7 +334,6 @@ class TestStageExecutorCore:
                 stage_status="completed",
                 checkpoint_data={
                     "relationships_count": 0,
-                    "neo4j_persisted": False,
                 },
             ),
             "stage2c": SimpleNamespace(
@@ -391,7 +387,6 @@ class TestStageExecutorCore:
                 {
                     "status": "completed_with_errors",
                     "executed_capabilities": ["relationships"],
-                    "neo4j_failed_chapters": [2],
                 },
             ),
             (
@@ -452,7 +447,6 @@ class TestStageExecutorCore:
             },
             {
                 "status": "completed_with_errors",
-                "neo4j_failed_chapters": [1],
                 "executed_capabilities": ["relationships"],
                 "_executed": True,
             },
@@ -513,11 +507,11 @@ class TestStageExecutorCore:
         monkeypatch.setattr(se_mod.settings, "ENABLE_CHARACTER_EXTRACTION", True)
         monkeypatch.setattr(se_mod.settings, "ENABLE_RELATIONSHIP_EXTRACTION", True)
 
-        relation_task = FakeTask({"relationships_count": 6, "neo4j_persisted": False, "neo4j_failed_chapters": [], "status": "completed"})
+        relation_task = FakeTask({"relationships_count": 6, "status": "completed"})
         monkeypatch.setattr(se_mod, "_task_run_relationship", relation_task)
 
         checkpoints = {
-            "stage2b": SimpleNamespace(stage_status="completed", checkpoint_data={"relationships_count": 9, "neo4j_persisted": True, "neo4j_failed_chapters": [2], "status": "completed_with_errors"})
+            "stage2b": SimpleNamespace(stage_status="completed", checkpoint_data={"relationships_count": 9, "status": "completed_with_errors"})
         }
         executor = se_mod.StageExecutor(1, [1, 2], _FakeCheckpointManager(checkpoints), None)
 
@@ -543,7 +537,7 @@ class TestStageExecutorCore:
                 ),
                 "stage2b": SimpleNamespace(
                     stage_status="failed",
-                    checkpoint_data={"neo4j_failed_chapters": [1], "status": "completed_with_errors"},
+                    checkpoint_data={"status": "completed_with_errors"},
                 ),
                 "stage2c": SimpleNamespace(
                     stage_status="failed",
@@ -575,7 +569,7 @@ class TestStageExecutorCore:
         executor = se_mod.StageExecutor(1, [1, 2], cp, None)
         executor._update_stage2_checkpoints(
             {"synopsis_generated": True, "stories_count": 2, "storylines_count": 3, "failed_stories": [], "status": "completed"},
-            {"relationships_count": 4, "neo4j_persisted": False, "neo4j_failed_chapters": [2], "status": "completed_with_errors"},
+            {"relationships_count": 4, "status": "completed_with_errors"},
             {"created_count": 5, "updated_count": 1, "failed_count": 0, "failed_characters": [], "status": "completed"},
         )
 
@@ -595,7 +589,7 @@ class TestStageExecutorCore:
         executor._save_final_checkpoint(
             stage1_result={"summaries_count": 2, "plots_count": 7, "mentions_extracted": True, "failed_count": 1, "failed_chapters": [9], "failed_mention_chapters": [10]},
             story_result={"synopsis_generated": True, "stories_count": 2, "storylines_count": 1, "failed_stories": ["s1"]},
-            relationship_result={"relationships_count": 4, "neo4j_persisted": True, "neo4j_failed_chapters": [2]},
+            relationship_result={"relationships_count": 4},
             character_entity_result={"created_count": 6, "updated_count": 2, "failed_count": 1, "failed_characters": ["赵四"]},
         )
 
@@ -606,7 +600,7 @@ class TestStageExecutorCore:
         assert payload["chapters_count"] == 2
         assert payload["characters_created"] == 6
         assert payload["failed_chapters"] == [9]
-        assert payload["neo4j_failed_chapters"] == [2]
+        assert payload["relationships_count"] == 4
 
     def test_derive_final_status_marks_completed_with_errors(self, monkeypatch):
         monkeypatch.setattr(se_mod, "get_run_logger", lambda: MagicMock())
@@ -616,7 +610,7 @@ class TestStageExecutorCore:
         status = executor._derive_final_status(
             {"failed_count": 1},
             {"failed_stories": []},
-            {"neo4j_failed_chapters": []},
+            {"status": "completed"},
             {"failed_count": 0},
         )
 
@@ -663,7 +657,6 @@ class TestStageExecutorCore:
                 },
             },
             {"failed_stories": ["story-1"]},
-            {"neo4j_failed_chapters": [3]},
             {"failed_count": 1, "failed_characters": ["赵四"]},
         )
 

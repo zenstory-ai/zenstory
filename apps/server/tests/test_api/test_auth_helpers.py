@@ -70,7 +70,11 @@ def test_request_models_trim_username_and_enforce_password_contract():
     with pytest.raises(ValidationError):
         auth_module.UpdateUserRequest(username="  ")
     with pytest.raises(ValidationError):
-        auth_module.ChangePasswordRequest(old_password="old-password", new_password="short")
+        auth_module.PasswordResetConfirmRequest(
+            email="valid@example.com",
+            code="123456",
+            new_password="short",
+        )
 
 def test_safe_int_from_env_clamps_invalid_values(monkeypatch):
     monkeypatch.setenv("AUTH_REFRESH_TOKEN_RETENTION_DAYS", "0")

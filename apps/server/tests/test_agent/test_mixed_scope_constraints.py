@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from agent.graph.router import RouterFailure, router_node
+from agent.graph.router import router_node
 
 
 def _response(**updates):

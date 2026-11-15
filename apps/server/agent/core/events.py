@@ -29,10 +29,6 @@ class EventType(StrEnum):
     TOOL_CALL = "tool_call"     # AI is calling a tool
     TOOL_RESULT = "tool_result" # Tool execution result
 
-    # Result events
-    CONFLICT = "conflict"       # Consistency conflict detected
-    REFERENCE = "reference"     # Reference/citation info
-
     # File streaming events
     FILE_CREATED = "file_created"          # File created (for auto-select)
     FILE_CONTENT = "file_content"          # File content chunk (streaming)
@@ -44,13 +40,11 @@ class EventType(StrEnum):
     FILE_EDIT_END = "file_edit_end"          # All edits completed
 
     # Control events
-    FALLBACK = "fallback"       # Need user confirmation for intent
     DONE = "done"               # Stream completed successfully
     ERROR = "error"             # Error occurred
 
     # Skill events
     SKILL_MATCHED = "skill_matched"  # Skill was matched and loaded
-    SKILLS_MATCHED = "skills_matched"  # Multiple skills matched (multi-skill activation)
 
     # Agent events
     AGENT_SELECTED = "agent_selected"  # Agent was selected by router
@@ -145,28 +139,6 @@ class ContentEventData(BaseModel):
     """Data for content events."""
     text: str = Field(..., description="Content chunk")
     index: int | None = Field(default=None, description="Chunk index")
-
-
-class ConflictEventData(BaseModel):
-    """Data for conflict events."""
-    type: str = Field(..., description="Conflict type")
-    severity: str = Field(..., description="Severity: low/medium/high")
-    title: str = Field(..., description="Conflict title")
-    description: str = Field(..., description="Conflict description")
-    suggestions: list[str] = Field(default_factory=list, description="Fix suggestions")
-
-
-class FallbackEventData(BaseModel):
-    """Data for fallback events."""
-    message: str = Field(..., description="Clarification message")
-    options: list[dict[str, Any]] = Field(
-        default_factory=list,
-        description="Intent options for user to choose"
-    )
-    classification: dict[str, Any] | None = Field(
-        default=None,
-        description="Intent classification result"
-    )
 
 
 class ErrorEventData(BaseModel):
@@ -584,15 +556,6 @@ class SkillMatchedEventData(BaseModel):
     skill_id: str = Field(..., description="ID of the matched skill")
     skill_name: str = Field(..., description="Name of the matched skill")
     matched_trigger: str = Field(..., description="The trigger that matched")
-
-
-class SkillsMatchedEventData(BaseModel):
-    """Data for skills_matched events (multi-skill activation)."""
-    skills: list[dict] = Field(
-        ...,
-        description="List of matched skills with id, name, trigger, confidence"
-    )
-    total_count: int = Field(..., description="Total number of matched skills")
 
 
 def skill_matched_event(

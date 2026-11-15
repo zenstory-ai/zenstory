@@ -14,6 +14,7 @@ from flows.database_session import get_db_session
 from flows.utils import (
     api_task,
     call_material_llm,
+    database_task,
     get_material_llm_client,
 )
 from prompts import create_novel_synopsis_prompt
@@ -116,7 +117,7 @@ def generate_novel_synopsis_task(
     }
 
 
-@api_task(name="update_novel_synopsis", retries=2)
+@database_task(name="update_novel_synopsis", retries=2)
 def update_novel_synopsis_task(
     novel_id: int,
     synopsis: str,
@@ -140,7 +141,6 @@ def update_novel_synopsis_task(
     from services.material.novels_service import NovelsService
     with get_db_session() as db:
         NovelsService().update_synopsis(db, novel_id, synopsis)
-        db.commit()
 
     logger.info(f"[小说梗概更新] 完成: novel_id={novel_id}")
 

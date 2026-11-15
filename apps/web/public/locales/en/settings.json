@@ -145,12 +145,14 @@
     "upgradeNow": "Get Pro",
     "upgradeSuggestion": "Get Pro for unlimited AI messages",
     "notIncluded": "Not included",
-    "redeemDone": "Start using"
+    "redeemDone": "Start using",
+    "loadFailed": "Couldn't load plan status. Please try again."
   },
   "points": {
     "alreadyCheckedIn": "Already checked in today",
     "checkIn": "Check in for Points",
-    "redeemPro": "Redeem Pro with points"
+    "redeemPro": "Redeem Pro with points",
+    "statusLoadFailed": "Couldn't load check-in status. Tap to retry"
   },
   "common": {
     "previous": "Previous",

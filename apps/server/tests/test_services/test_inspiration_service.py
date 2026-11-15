@@ -22,7 +22,6 @@ from services.inspiration_service import (
     create_inspiration_from_project,
     get_featured_inspirations,
     get_inspiration_detail,
-    increment_copy_count,
     list_inspirations,
 )
 
@@ -88,7 +87,6 @@ def test_inspiration(db_session: Session, test_project_with_files):
     project, files = test_project_with_files
 
     inspiration = create_inspiration_from_project(
-        session=db_session,
         project=project,
         files=files,
         source="official",
@@ -132,7 +130,6 @@ def multiple_inspirations(db_session: Session, test_user: User):
         db_session.refresh(file)
 
         inspiration = create_inspiration_from_project(
-            session=db_session,
             project=project,
             files=[file],
             source="official",
@@ -160,7 +157,6 @@ class TestCreateInspirationFromProject:
         project, files = test_project_with_files
 
         inspiration = create_inspiration_from_project(
-            session=db_session,
             project=project,
             files=files,
             source="official",
@@ -194,7 +190,6 @@ class TestCreateInspirationFromProject:
         project, files = test_project_with_files
 
         inspiration = create_inspiration_from_project(
-            session=db_session,
             project=project,
             files=files,
             source="community",
@@ -208,7 +203,6 @@ class TestCreateInspirationFromProject:
         project, files = test_project_with_files
 
         inspiration = create_inspiration_from_project(
-            session=db_session,
             project=project,
             files=files,
             source="community",
@@ -224,7 +218,6 @@ class TestCreateInspirationFromProject:
         project, files = test_project_with_files
 
         inspiration = create_inspiration_from_project(
-            session=db_session,
             project=project,
             files=files,
             source="official",
@@ -246,7 +239,6 @@ class TestCreateInspirationFromProject:
         db_session.refresh(project)
 
         inspiration = create_inspiration_from_project(
-            session=db_session,
             project=project,
             files=files,
             source="official",
@@ -386,7 +378,6 @@ class TestCopyInspirationToProject:
         db_session.refresh(project)
 
         inspiration = create_inspiration_from_project(
-            session=db_session,
             project=project,
             files=files,
             source="official",
@@ -486,7 +477,6 @@ class TestListInspirations:
 
         # Create pending inspiration
         pending = create_inspiration_from_project(
-            session=db_session,
             project=project,
             files=files,
             source="community",
@@ -527,7 +517,6 @@ class TestGetFeaturedInspirations:
         # Create multiple featured inspirations
         for i in range(10):
             inspiration = create_inspiration_from_project(
-                session=db_session,
                 project=project,
                 files=files,
                 source="official",
@@ -547,7 +536,6 @@ class TestGetFeaturedInspirations:
 
         # Create featured but pending inspiration
         pending = create_inspiration_from_project(
-            session=db_session,
             project=project,
             files=files,
             source="community",
@@ -585,13 +573,11 @@ class TestGetInspirationDetail:
         )
 
         assert result is None
-
     def test_get_inspiration_detail_excludes_pending(self, db_session: Session, test_project_with_files):
         """Test that pending inspirations are not returned."""
         project, files = test_project_with_files
 
         pending = create_inspiration_from_project(
-            session=db_session,
             project=project,
             files=files,
             source="community",
@@ -607,41 +593,3 @@ class TestGetInspirationDetail:
         )
 
         assert result is None
-
-
-@pytest.mark.unit
-class TestIncrementCopyCount:
-    """Tests for increment_copy_count function."""
-
-    def test_increment_copy_count(self, db_session: Session, test_inspiration):
-        """Test that copy count is incremented."""
-        initial_count = test_inspiration.copy_count
-
-        increment_copy_count(
-            session=db_session,
-            inspiration_id=test_inspiration.id,
-        )
-
-        db_session.refresh(test_inspiration)
-        assert test_inspiration.copy_count == initial_count + 1
-
-    def test_increment_copy_count_multiple_times(self, db_session: Session, test_inspiration):
-        """Test incrementing copy count multiple times."""
-        initial_count = test_inspiration.copy_count
-
-        for _ in range(5):
-            increment_copy_count(
-                session=db_session,
-                inspiration_id=test_inspiration.id,
-            )
-            db_session.refresh(test_inspiration)
-
-        assert test_inspiration.copy_count == initial_count + 5
-
-    def test_increment_copy_count_non_existent(self, db_session: Session):
-        """Test that incrementing non-existent inspiration doesn't raise error."""
-        # Should not raise an error
-        increment_copy_count(
-            session=db_session,
-            inspiration_id="non-existent-id",
-        )

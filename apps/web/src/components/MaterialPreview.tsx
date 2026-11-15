@@ -5,7 +5,7 @@ import { BookOpen, Plus, MessageSquarePlus } from 'lucide-react';
 import type { MaterialPreviewResponse } from '../lib/materialsApi';
 
 interface MaterialPreviewProps {
-  preview: MaterialPreviewResponse;
+  preview: MaterialPreviewResponse | null;
   isLoading: boolean;
   onAddToProject: () => void;
   onAttachToChat: () => void;
@@ -21,7 +21,7 @@ export const MaterialPreview: React.FC<MaterialPreviewProps> = ({
 }) => {
   const { t } = useTranslation(['editor', 'common']);
 
-  if (isLoading) {
+  if (isLoading || !preview) {
     return (
       <div className="flex items-center justify-center h-full text-[hsl(var(--text-secondary))]">
         <p className="text-sm">{t('common:loading')}</p>

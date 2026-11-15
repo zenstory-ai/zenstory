@@ -117,7 +117,7 @@ class TestProgressPublisher:
                 "failed_chapters": [2] if failed_count else [],
             },
             story_result={"stories_count": 3, "failed_stories": []},
-            relationship_result={"relationships_count": 5, "neo4j_failed_chapters": []},
+            relationship_result={"relationships_count": 5},
             character_entity_result={"created_count": 2, "failed_count": 0},
             status=status,
             elapsed_ms=321,

@@ -81,7 +81,6 @@ class SkillMdService:
     """Service for generating SKILL.md documentation."""
 
     def __init__(self):
-        self.app_name = os.getenv("APP_NAME", "zenstory API")
         self.app_version = os.getenv("APP_VERSION", "1.0.0")
         self.api_base = os.getenv("API_BASE_URL", _DEFAULT_API_BASE)
 

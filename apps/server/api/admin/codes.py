@@ -159,7 +159,7 @@ def create_code(
     max_uses = redemption_service.resolve_max_uses(normalized_code_type, request.max_uses)
     _validate_tier_exists(session, request.tier)
     try:
-        code = generate_code(request.tier, request.duration_days, normalized_code_type)
+        code = generate_code(request.tier, request.duration_days)
     except ValueError as exc:
         _raise_code_generator_config_error(exc)
 
@@ -229,7 +229,7 @@ def create_codes_batch(
     _validate_tier_exists(session, request.tier)
     try:
         codes = generate_batch_codes(
-            request.tier, request.duration_days, request.count, normalized_code_type
+            request.tier, request.duration_days, request.count
         )
     except ValueError as exc:
         _raise_code_generator_config_error(exc)
@@ -283,38 +283,6 @@ def create_codes_batch(
         "code_type": normalized_code_type,
         "max_uses": max_uses,
     }
-
-
-@router.get("/codes/{code_id}")
-def get_code(
-    code_id: str,
-    current_user: User = Depends(get_current_superuser),
-    session: Session = Depends(get_session),
-):
-    """
-    Get code details.
-
-    Requires superuser privileges.
-    """
-    code = session.exec(
-        select(RedemptionCode).where(RedemptionCode.id == code_id)
-    ).first()
-    if not code:
-        raise APIException(
-            error_code=ErrorCode.NOT_FOUND,
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Code not found"
-        )
-
-    log_with_context(
-        logger,
-        logging.INFO,
-        "Retrieved code details",
-        user_id=current_user.id,
-        code_id=code_id,
-    )
-
-    return code.model_dump()
 
 
 @router.put("/codes/{code_id}")

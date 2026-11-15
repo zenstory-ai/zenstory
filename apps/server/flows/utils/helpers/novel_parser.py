@@ -11,17 +11,8 @@ from typing import Any
 from services.material.novel_text import (
     MIN_CHAPTER_LENGTH,
     decode_novel_bytes,
-    extract_chapter_number,
     split_novel_text,
 )
-
-
-def chinese_num_to_int(chinese_num: str) -> int:
-    """将中文数字转换为阿拉伯数字，解析失败返回 1（兼容旧调用）。"""
-    from services.material.novel_text import chinese_num_to_int as _convert
-
-    value = _convert(chinese_num)
-    return value if value is not None else 1
 
 
 def read_novel_text(file_path: str, encoding: str | None = None) -> tuple[str, str]:
@@ -44,6 +35,8 @@ def split_txt_by_chapter(
     file_path: str,
     encoding: str | None = None,
     min_chapter_length: int = MIN_CHAPTER_LENGTH,
+    *,
+    text: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     按章节分割 txt 文件
@@ -52,17 +45,21 @@ def split_txt_by_chapter(
         file_path: 文件路径
         encoding: 文件编码（None 表示与上传接口一致的自动解码）
         min_chapter_length: 最小章节长度（更短的章节并入相邻章节）
+        text: 已解码的全文文本（传入时跳过重复文件读取与解码）
 
     Returns:
         List[Dict]: 章节列表
     """
-    text, _ = read_novel_text(file_path, encoding)
+    if text is None:
+        text, _ = read_novel_text(file_path, encoding)
     return split_novel_text(text, min_chapter_length=min_chapter_length)
 
 
 def parse_novel_chapters(
     file_path: str,
     encoding: str | None = None,
+    *,
+    text: str | None = None,
 ) -> dict[str, Any]:
     """
     解析小说文件，提取章节信息
@@ -70,11 +67,12 @@ def parse_novel_chapters(
     Args:
         file_path: 文件路径
         encoding: 文件编码（None 表示自动解码）
+        text: 已解码的全文文本（传入时跳过重复文件读取与解码）
 
     Returns:
         Dict: 解析结果
     """
-    chapters = split_txt_by_chapter(file_path, encoding)
+    chapters = split_txt_by_chapter(file_path, encoding, text=text)
 
     # 推断小说标题（从文件名）
     path = Path(file_path)
@@ -89,8 +87,6 @@ def parse_novel_chapters(
 
 
 __all__ = [
-    "chinese_num_to_int",
-    "extract_chapter_number",
     "parse_novel_chapters",
     "read_novel_text",
     "split_txt_by_chapter",

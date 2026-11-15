@@ -163,9 +163,7 @@ export const Header: React.FC<HeaderProps> = () => {
       setShowMobileMenu(false);
     }
   };
-  const feedbackSourceRoute = (
-    typeof window !== "undefined" ? `${window.location.pathname}${window.location.search}` : ""
-  ).slice(0, 255);
+  const feedbackSourceRoute = `${window.location.pathname}${window.location.search}`.slice(0, 255);
 
   const secondaryActionItems = [
     ...(downloadableFile

@@ -206,10 +206,6 @@ class FailoverChatModel:
             timing=CallTiming(outcome, elapsed_ms(started), ttft_ms),
         )
 
-    async def preferred_model(self) -> str:
-        """The model the next call will try first."""
-        return (await llm_failover.aordered_providers(self._session_id))[0].model
-
     def _served(self, provider: ModelProvider) -> None:
         self.served_model = provider.model
         self.served_key_slot = provider.key_slot

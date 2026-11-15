@@ -106,7 +106,7 @@ async def test_admin_prompts_reload_returns_generic_error_when_source_unavailabl
 
     assert response.status_code == 503
     body = response.json()
-    assert body["error_code"] == "ERR_INTERNAL_SERVER_ERROR"
+    assert body["error_code"] == "ERR_SERVICE_UNAVAILABLE"
     assert "password" not in str(body)
 
 

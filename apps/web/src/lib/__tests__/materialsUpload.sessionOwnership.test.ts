@@ -106,7 +106,7 @@ it('preserves400 decoder and malformed error fallback', async () => {
   route = async () => json({ detail: 'Invalid text file' }, 400)
   expect(await start()).toEqual({ ok: false, typed: true, status: 400, rawMessage: 'Invalid text file' })
   route = async () => new Response('not JSON', { status: 400 })
-  expect(await start()).toEqual({ ok: false, typed: true, status: 400, rawMessage: 'ERR_MATERIAL_UPLOAD_FAILED' })
+  expect(await start()).toEqual({ ok: false, typed: true, status: 400, rawMessage: 'API error: 400' })
 })
 it.each([503, 401])('preserves own refresh failure %s semantics and original upload401', async status => {
   route = async call => call.path === '/api/auth/refresh' ? json({ detail: 'refresh failure' }, status) : denied()

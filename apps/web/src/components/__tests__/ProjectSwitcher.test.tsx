@@ -23,6 +23,7 @@ vi.mock('react-i18next', () => ({
       (
         {
           'editor:projectSwitcher.loading': 'Loading projects',
+          'editor:projectSwitcher.loadFailed': 'Failed to load projects',
           'editor:projectSwitcher.searchPlaceholder': 'Search projects',
           'editor:projectSwitcher.noResults': 'No results',
           'editor:projectSwitcher.noProjects': 'No projects',
@@ -232,5 +233,32 @@ describe('ProjectSwitcher', () => {
     const dropdown = screen.getByPlaceholderText('Search projects').closest('div.rounded-xl') as HTMLElement
     expect(dropdown).toHaveClass('fixed', 'left-4', 'right-4', 'top-12')
     expect(dropdown.className).not.toMatch(/translate/)
+  })
+
+  it('shows error state and retry action instead of fake loading or empty copy when project load fails', () => {
+    const refreshProjects = vi.fn().mockResolvedValue(undefined)
+    mockUseProject.mockReturnValue({
+      projects: [],
+      currentProject: null,
+      currentProjectId: null,
+      loading: false,
+      error: 'Network failure',
+      refreshProjects,
+      switchProject,
+      createProject,
+      updateProject,
+      deleteProject,
+    })
+
+    render(<ProjectSwitcher />)
+    expect(screen.queryByText('Loading projects')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.queryByText('No projects')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to load projects')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Network failure')
+
+    fireEvent.click(screen.getByRole('button', { name: /common:retry|retry/i }))
+    expect(refreshProjects).toHaveBeenCalledTimes(1)
   })
 })

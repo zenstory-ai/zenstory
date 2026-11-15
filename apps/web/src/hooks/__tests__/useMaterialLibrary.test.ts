@@ -4,6 +4,16 @@ import { useMaterialLibrary } from '../useMaterialLibrary'
 import * as materialsApi from '@/lib/materialsApi'
 import type { LibrarySummaryItem, MaterialPreviewResponse } from '@/lib/materialsApi'
 
+const { mockToastError } = vi.hoisted(() => ({ mockToastError: vi.fn() }))
+
+vi.mock('@/lib/toast', () => ({
+  toast: {
+    error: (...args: unknown[]) => mockToastError(...args),
+    success: vi.fn(),
+    info: vi.fn(),
+  },
+}))
+
 // Mock materialsApi
 vi.mock('@/lib/materialsApi', () => ({
   materialsApi: {
@@ -340,6 +350,11 @@ describe('useMaterialLibrary', () => {
       })
 
       expect(result.current.isPreviewLoading).toBe(true)
+      expect(result.current.previewEntityInfo).toEqual({
+        novelId: 1,
+        entityType: 'characters',
+        entityId: 123,
+      })
 
       await act(async () => {
         resolvePreview!(mockPreview)
@@ -362,6 +377,8 @@ describe('useMaterialLibrary', () => {
 
       expect(result.current.isPreviewLoading).toBe(false)
       expect(result.current.preview).toBe(null)
+      expect(result.current.previewEntityInfo).toBe(null)
+      expect(mockToastError).toHaveBeenCalledTimes(1)
       expect(consoleErrorSpy).toHaveBeenCalled()
 
       consoleErrorSpy.mockRestore()

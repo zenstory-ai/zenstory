@@ -22,8 +22,6 @@ class EndpointInfo:
     path: str
     summary: str
     scope: str
-    request_schema: dict | None = None
-    response_schema: dict | None = None
     tags: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -32,8 +30,6 @@ class EndpointInfo:
             "path": self.path,
             "summary": self.summary,
             "scope": self.scope,
-            "request_schema": self.request_schema,
-            "response_schema": self.response_schema,
             "tags": self.tags,
         }
 
@@ -53,22 +49,12 @@ def _extract_scope_from_dependencies(route: APIRoute) -> str:
     return "unknown"
 
 
-def _extract_schema(model_class: type | None) -> dict | None:
-    """Extract JSON schema from a Pydantic model class."""
-    if model_class is None:
-        return None
-    try:
-        return model_class.model_json_schema()
-    except (AttributeError, Exception):
-        return None
-
-
 def extract_agent_endpoints(router) -> list[EndpointInfo]:
     """
     Extract endpoint metadata from a FastAPI router.
 
     Iterates all APIRoute entries and extracts method, path, summary,
-    required scope, request/response schemas.
+    and required scope.
     """
     endpoints: list[EndpointInfo] = []
 
@@ -86,23 +72,12 @@ def extract_agent_endpoints(router) -> list[EndpointInfo]:
         scope = _extract_scope_from_dependencies(route)
         tags = list(route.tags) if route.tags else []
 
-        request_schema = None
-        if route.dependant and route.dependant.body_params:
-            body_param = route.dependant.body_params[0]
-            request_schema = _extract_schema(body_param.field_info.annotation) if body_param.field_info else None
-
-        response_schema = None
-        if route.response_model:
-            response_schema = _extract_schema(route.response_model)
-
         endpoints.append(
             EndpointInfo(
                 method=method,
                 path=path,
                 summary=summary,
                 scope=scope,
-                request_schema=request_schema,
-                response_schema=response_schema,
                 tags=tags,
             )
         )

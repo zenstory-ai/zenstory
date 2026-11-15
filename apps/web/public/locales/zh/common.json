@@ -32,6 +32,7 @@
   "confirmDelete": "确定要删除吗？",
   "operationSuccess": "操作成功",
   "operationFailed": "操作失败",
+  "copyFailed": "复制失败，请手动复制",
   "errors": {
     "network": "网络异常，请重试"
   },

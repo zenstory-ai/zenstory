@@ -35,7 +35,7 @@ def test_job(db_session: Session) -> IngestionJob:
 
 
 @pytest.mark.unit
-def test_update_status_sets_started_and_completed_timestamps(
+def test_update_processed_sets_started_and_completed_timestamps(
     db_session: Session,
     ingestion_jobs_svc: IngestionJobsService,
     test_job: IngestionJob,
@@ -43,12 +43,12 @@ def test_update_status_sets_started_and_completed_timestamps(
     assert test_job.started_at is None
     assert test_job.completed_at is None
 
-    ingestion_jobs_svc.update_status(db_session, test_job.id, "processing")
+    ingestion_jobs_svc.update_processed(db_session, test_job.id, status="processing")
     db_session.refresh(test_job)
     assert test_job.started_at is not None
     assert test_job.completed_at is None
 
-    ingestion_jobs_svc.update_status(db_session, test_job.id, "failed")
+    ingestion_jobs_svc.update_processed(db_session, test_job.id, status="failed")
     db_session.refresh(test_job)
     assert test_job.completed_at is not None
 
@@ -118,8 +118,6 @@ def test_a_late_worker_cannot_bring_back_a_failed_job(db_session, ingestion_jobs
     before = (job.status, job.processed_chapters, job.stage_progress, job.error_message)
 
     ingestion_jobs_svc.update_processed(db_session, job.id, processed_chapters=3, status=status, stage="completed", stage_status=status)
-    ingestion_jobs_svc.update_stage_progress(db_session, job.id, "stage1", "processing")
-    ingestion_jobs_svc.update_status(db_session, job.id, status)
     db_session.commit()
 
     db_session.refresh(job)

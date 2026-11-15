@@ -15,10 +15,13 @@ from prefect.task_runners import ConcurrentTaskRunner
 
 from config.material_settings import TRIAL_MAX_CHARACTER_ENTITIES
 from config.material_settings import material_settings as settings
+from core.error_codes import ErrorCode
 from flows.atomic_tasks.entities.character_tasks_v2 import (
     build_character_entity_task,
 )
 from flows.utils.helpers import create_performance_monitor
+from flows.utils.helpers.exceptions import is_llm_fatal_stop, is_llm_service_failure
+from services.material.job_errors import MaterialPipelineError
 
 # 并发任务运行器
 RUNTIME_TASK_RUNNER: Any = ConcurrentTaskRunner(max_workers=settings.MAX_CONCURRENT_CHAPTERS)
@@ -38,7 +41,6 @@ def _elapsed_ms(start: float) -> int:
 )
 def character_entity_build_flow(
     novel_id: int,
-    correlation_id: str | None = None,  # noqa: ARG001
 ) -> dict[str, Any]:
     """
     角色实体构建流程
@@ -175,6 +177,7 @@ def character_entity_build_flow(
         # 等待所有构建完成
         entity_results = []
         failed_characters = []
+        entity_errors: list[Exception] = []
         skipped_characters = []  # 无提及记录的角色
 
         for future in entity_futures:
@@ -195,7 +198,21 @@ def character_entity_build_flow(
                     f"角色 {character_name} 实体构建失败: {e}",
                     exc_info=True
                 )
+                if is_llm_fatal_stop(e) or isinstance(e, MaterialPipelineError):
+                    raise
                 failed_characters.append(character_name)
+                entity_errors.append(e)
+
+        if important_characters and len(failed_characters) == len(important_characters):
+            code = (
+                ErrorCode.MATERIAL_LLM_UNAVAILABLE
+                if entity_errors and all(is_llm_service_failure(err) for err in entity_errors)
+                else ErrorCode.MATERIAL_EXTRACTION_FAILED
+            )
+            raise MaterialPipelineError(
+                code,
+                f"characters: all {len(important_characters)} character builds failed",
+            ) from (entity_errors[-1] if entity_errors else None)
 
         # 统计结果
         created_count = sum(1 for r in entity_results if r.get("status") == "created")

@@ -59,12 +59,20 @@ describe('useDashboardInspirations', () => {
     expect(result.current.map((item) => item.id)).toEqual(['n3', 'n1'])
   })
 
-  it('clears items when the bundle cannot be loaded', async () => {
+  it('clears items when the bundle cannot be loaded and recovers on refresh', async () => {
     mockLoadBundle.mockResolvedValueOnce(null)
-    const { result } = renderHook(() => useDashboardInspirations('short', 3))
+    const { result, rerender } = renderHook(
+      ({ seed }) => useDashboardInspirations('short', 3, seed),
+      { initialProps: { seed: 0 } },
+    )
 
     await waitFor(() => {
       expect(result.current).toEqual([])
+    })
+
+    rerender({ seed: 1 })
+    await waitFor(() => {
+      expect(result.current.map((item) => item.id)).toEqual(['s1'])
     })
   })
 })

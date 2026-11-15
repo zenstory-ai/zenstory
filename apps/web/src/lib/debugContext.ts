@@ -23,25 +23,18 @@ const safeParse = (raw: string | null): DebugContextSnapshot | null => {
 
 export const debugContext = {
   get(): DebugContextSnapshot | null {
-    if (typeof window === "undefined") return null;
-    return safeParse(window.sessionStorage.getItem(STORAGE_KEY));
+    try {
+      return safeParse(window.sessionStorage.getItem(STORAGE_KEY));
+    } catch {
+      return null;
+    }
   },
 
   set(snapshot: DebugContextSnapshot): void {
-    if (typeof window === "undefined") return;
     try {
       window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
     } catch {
       // ignore quota/security errors
-    }
-  },
-
-  clear(): void {
-    if (typeof window === "undefined") return;
-    try {
-      window.sessionStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
     }
   },
 };

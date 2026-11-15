@@ -39,6 +39,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from agent.constants import coerce_bool
 from agent.openai_agents.events import parse_json_object, tool_error_text
 from agent.tools.file_ops.content_range import DEFAULT_RANGE_CHARS, wants_range
 from agent.tools.file_ops.serialization import resolve_query_files_response_mode
@@ -82,16 +83,6 @@ NO_PROGRESS_USER_MESSAGE = (
 ReadKey = tuple[str, str, str]
 
 
-def _coerce_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
-    if isinstance(value, int | float):
-        return bool(value)
-    return False
-
-
 def _range_part(value: Any) -> str:
     """范围参数的归一化写法：100 与 "100" 是同一个窗口；非法值原样保留（工具会报错）。"""
     if isinstance(value, bool):
@@ -130,7 +121,7 @@ def _read_mode(params: dict[str, Any]) -> str:
     mode = resolve_query_files_response_mode(
         params.get("response_mode"),
         file_id=str(params.get("id") or ""),
-        include_content=None if include_raw is None else _coerce_bool(include_raw),
+        include_content=None if include_raw is None else coerce_bool(include_raw),
         content_preview_chars=preview_chars,
     )
     if str(mode).strip().lower() == "full":

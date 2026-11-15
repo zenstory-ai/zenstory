@@ -27,28 +27,6 @@ const TOAST_DURATION = 3000;
 const MAX_VISIBLE_TOASTS = 3;
 
 /**
- * Props for the ToastContainer component.
- *
- * Currently an empty interface as the container manages its own state
- * via toast subscriptions. Included for consistency and future extensibility.
- *
- * @interface ToastContainerProps
- */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface ToastContainerProps {
-  // Reserved for future configuration options:
-  // - maxToasts?: number - Maximum number of visible toasts
-  // - position?: 'top' | 'bottom' - Vertical position
-  // - duration?: number - Custom auto-dismiss duration
-}
-
-/**
- * @deprecated Use ToastContainerProps instead. Kept for backward compatibility.
- * @typedef {ToastContainerProps} ToastProps
- */
-export type ToastProps = ToastContainerProps;
-
-/**
  * Container component for displaying toast notifications.
  *
  * This component subscribes to toast events dispatched by

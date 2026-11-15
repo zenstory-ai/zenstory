@@ -266,7 +266,7 @@ async def test_first_conversation_check_runs_off_the_event_loop_on_postgres(
         yield db_session
 
     monkeypatch.setattr(service_module, "create_session", fake_session)
-    monkeypatch.setattr(agent_service, "_should_offload_session_work", lambda _session: True)
+    monkeypatch.setattr(service_module, "should_offload_session_work", lambda _session: True)
 
     assert await agent_service._is_first_ai_conversation(db_session, project.id) is True
 

@@ -17,13 +17,11 @@ class PerformanceMonitor:
         self.flow_name = flow_name
         self.logger = get_run_logger()
         self.metrics: dict[str, Any] = {}
-        self.start_times: dict[str, float] = {}
 
     @contextmanager
     def measure(self, stage_name: str):
         """测量阶段耗时的上下文管理器"""
         start_time = time.perf_counter()
-        self.start_times[stage_name] = start_time
 
         self.logger.info(f"[性能监控] {stage_name} 开始")
 
@@ -42,13 +40,6 @@ class PerformanceMonitor:
             self.logger.info(
                 f"[性能监控] {stage_name} 完成: {elapsed_ms}ms ({elapsed:.2f}s)"
             )
-
-    def record_metric(self, stage_name: str, metric_name: str, value: Any):
-        """记录自定义指标"""
-        if stage_name not in self.metrics:
-            self.metrics[stage_name] = {}
-
-        self.metrics[stage_name][metric_name] = value
 
     def get_summary(self) -> dict[str, Any]:
         """获取性能摘要"""

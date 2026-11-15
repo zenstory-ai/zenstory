@@ -34,6 +34,7 @@ from database import create_session
 from services.chat_session_service import latest_active_chat_session
 from utils.logger import get_logger, log_with_context
 
+from .constants import should_offload_session_work
 from .context import ContextAssembler, get_context_assembler
 from .context.budget import compute_history_token_budget
 from .context.turn_snapshot import plan_turn_context
@@ -247,7 +248,7 @@ def _load_project_type_sync(project_id: str) -> str | None:
 
     with create_session() as read_session:
         project = read_session.get(Project, project_id)
-        return getattr(project, "project_type", None) if project else None
+        return project.project_type if project else None
 
 
 class AgentService:
@@ -303,13 +304,6 @@ class AgentService:
 
         task.add_done_callback(_log_task_result)
         return task
-
-    @staticmethod
-    def _should_offload_session_work(session: Session) -> bool:
-        """Only offload when running against PostgreSQL production-style sessions."""
-        bind = session.get_bind() if hasattr(session, "get_bind") else None
-        dialect_name = getattr(getattr(bind, "dialect", None), "name", "")
-        return dialect_name == "postgresql"
 
     def _resolve_or_create_chat_session_id(
         self,
@@ -569,14 +563,17 @@ class AgentService:
 
     async def _lookup_project_type(self, session: Session, project_id: str) -> str | None:
         """作品类型只用于第一条消息提示的类型名；查不到时提示里用通用说法。"""
+        offloaded = should_offload_session_work(session)
         try:
-            if self._should_offload_session_work(session):
+            if offloaded:
                 return await asyncio.to_thread(_load_project_type_sync, project_id)
             from models import Project
 
             project = session.get(Project, project_id)
-            return getattr(project, "project_type", None) if project else None
+            return project.project_type if project else None
         except Exception as exc:
+            if not offloaded and hasattr(session, "rollback"):
+                session.rollback()
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -589,11 +586,14 @@ class AgentService:
 
     async def _is_first_ai_conversation(self, session: Session, project_id: str) -> bool:
         """作品从没有过 AI 回复。查不到时按「不是第一条」处理：宁可不加提示，也不误导路由。"""
+        offloaded = should_offload_session_work(session)
         try:
-            if self._should_offload_session_work(session):
+            if offloaded:
                 return not await asyncio.to_thread(_project_has_ai_reply_sync, project_id)
             return not _project_has_ai_reply(session, project_id)
         except Exception as exc:
+            if not offloaded and hasattr(session, "rollback"):
+                session.rollback()
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -674,7 +674,7 @@ class AgentService:
         # require `session_id` to exist in `chat_session.id`.)
         requested_session_id = session_id
         if user_id:
-            if self._should_offload_session_work(session):
+            if should_offload_session_work(session):
                 session_id = await asyncio.to_thread(
                     self._resolve_or_create_chat_session_id_sync,
                     project_id=project_id,
@@ -1066,7 +1066,7 @@ class AgentService:
                 # 按本轮已解析（并将写回）的会话 id 读历史与工作集
                 chat_session_id=session_id if user_id else None,
             )
-            loaded_session_id = getattr(session_data, "session_id", None)
+            loaded_session_id = session_data.session_id
             if user_id and loaded_session_id and loaded_session_id != session_id:
                 log_with_context(
                     logger,
@@ -1094,14 +1094,22 @@ class AgentService:
             )
 
             # 稳定资料放在历史之前以便缓存，章节、工作集和其它本轮资料放在历史之后。
+            context_blocks = (
+                list(context_data.blocks)
+                if context_data and context_data.blocks
+                else (
+                    [{"key": "context", "text": context_data.context, "placement": "turn"}]
+                    if context_data and context_data.context
+                    else []
+                )
+            )
             context_plan = await asyncio.to_thread(
                 plan_turn_context,
                 session_id=session_id,
                 project_id=project_id,
                 language=lang,
                 # 未分块的兜底内容仍随本轮发送。
-                context_blocks=list(getattr(context_data, "blocks", None) or [])
-                or ([{"key": "context", "text": context_data.context, "placement": "turn"}] if context_data.context else []),
+                context_blocks=context_blocks,
             )
 
             prompt_kwargs: dict[str, Any] = {
@@ -1121,7 +1129,7 @@ class AgentService:
                 # 「原始上下文完整」按整份上下文判断：快照 + 本轮更新合起来就是它。
                 "full_assembled_context": context_data.context if context_data.context else None,
             }
-            if self._should_offload_session_work(session):
+            if should_offload_session_work(session):
                 selected_skills, system_prompt, turn_context = await asyncio.to_thread(
                     self._prepare_prompt_artifacts_sync,
                     **prompt_kwargs,
@@ -1175,12 +1183,10 @@ class AgentService:
 
             # 跨轮工作集（上两轮读/写过的文件的当前全文）拼在本轮用户消息之前：
             # 系统提示与历史保持不变，前缀缓存可以一直命中到上一轮。
-            working_set_context = getattr(session_data, "working_set_context", "")
-            if not isinstance(working_set_context, str):
-                working_set_context = ""
+            working_set_context = session_data.working_set_context
             # 作者在 AI 写过之后亲手改了什么（agent/tools/author_changes.py），和工作集放在一起。
-            author_edits_context = getattr(session_data, "author_edits_context", "")
-            if isinstance(author_edits_context, str) and author_edits_context:
+            author_edits_context = session_data.author_edits_context
+            if author_edits_context:
                 working_set_context = (
                     f"{working_set_context}\n\n{author_edits_context}" if working_set_context else author_edits_context
                 )
@@ -1282,13 +1288,9 @@ class AgentService:
                 # 作者原话标识应用内对话并提供上下文，不授予删除、整份覆盖或改名权限。
                 author_message=message,
                 author_steering=consumed_steering,
-                # 作者手改过的文件：应用内对话一律不能删除或整份覆盖；局部修改不拦，
-                # 作者改了什么见 <author_edits>（agent/tools/author_changes.py）。
-                focus_file_id=focus_file_id if isinstance(focus_file_id, str) else None,
-                referenced_file_ids=referenced_file_ids,
                 author_edit_refusals=author_edit_refusals,
                 # 本轮开始时模型看到的正文：edit_file 拒绝基于旧正文的修改（作者生成期间又改了）。
-                read_snapshots=getattr(session_data, "read_snapshots", None),
+                read_snapshots=session_data.read_snapshots,
             )
 
             # Build WritingState for workflow execution
@@ -1551,20 +1553,7 @@ class AgentService:
                     run_outcome.saved_file_word_counts.update(stream_adapter.get_saved_file_word_counts())
                     run_outcome.resolve_message_id(assistant_message_id)
                 if pending_done_payload is not None:
-                    refs_candidate = pending_done_payload.get("refs")
-                    refs = refs_candidate if isinstance(refs_candidate, list) else None
                     yield done_event(
-                        apply_action=(
-                            str(pending_done_payload.get("apply_action"))
-                            if pending_done_payload.get("apply_action") is not None
-                            else None
-                        ),
-                        refs=refs,
-                        intent=(
-                            str(pending_done_payload.get("intent"))
-                            if pending_done_payload.get("intent") is not None
-                            else None
-                        ),
                         assistant_message_id=assistant_message_id,
                         session_id=session_id,
                         file_mutated=pending_done_payload.get("file_mutated") is True,
