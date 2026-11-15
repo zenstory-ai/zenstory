@@ -163,16 +163,8 @@ export function useQuota(): UseQuotaResult {
 
   // Fetch quota data
   const { data: quotaData, isLoading, error, refetch } = useQuery({
-    queryKey: subscriptionQueryKeys.quotaLite(),
-    queryFn: async () => {
-      const response = await subscriptionApi.getQuota();
-      // Backward-compatible normalization for legacy tests/mocks that wrap payload in `data`.
-      const wrapped = response as { data?: unknown };
-      if (response && typeof response === 'object' && wrapped.data !== undefined) {
-        return wrapped.data as typeof response;
-      }
-      return response;
-    },
+    queryKey: subscriptionQueryKeys.quota(),
+    queryFn: () => subscriptionApi.getQuota(),
     staleTime: 30 * 1000, // 30 seconds
     refetchOnWindowFocus: true,
   });

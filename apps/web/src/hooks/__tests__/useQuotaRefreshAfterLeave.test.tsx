@@ -36,7 +36,7 @@ describe('useQuotaRefreshAfterLeave', () => {
     vi.advanceTimersByTime(Math.max(...QUOTA_REFRESH_AFTER_LEAVE_DELAYS_MS))
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['subscription-quota'], refetchType: 'all' })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['quota'], refetchType: 'all' })
+    expect(invalidate).toHaveBeenCalledTimes(QUOTA_REFRESH_AFTER_LEAVE_DELAYS_MS.length)
   })
 
   it('does nothing when the chat goes away between rounds', () => {

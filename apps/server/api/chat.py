@@ -8,7 +8,7 @@ Provides FastAPI router for chat session management:
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -298,8 +298,9 @@ def get_recent_messages(
     limit: int = Query(20, ge=1, le=100),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
+    message_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
 ):
-    """Get recent messages for loading chat history."""
+    """Get recent history, optionally one known message in the active session."""
     user_id = current_user.id
 
     # Check if project exists and is not deleted
@@ -311,7 +312,7 @@ def get_recent_messages(
     if not chat_session:
         return []
 
-    # Get last N messages
+    # Keep completion hydration scoped to the same ownership-checked active session.
     stmt = (
         select(ChatMessage)
         .options(
@@ -326,9 +327,10 @@ def get_recent_messages(
             )
         )
         .where(ChatMessage.session_id == chat_session.id)
-        .order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id))
-        .limit(limit)
     )
+    if message_id is not None:
+        stmt = stmt.where(ChatMessage.id == message_id)
+    stmt = stmt.order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id)).limit(limit)
     messages = list(reversed(session.exec(stmt).all()))
 
     return [

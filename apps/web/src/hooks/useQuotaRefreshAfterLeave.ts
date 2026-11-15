@@ -28,7 +28,6 @@ export function useQuotaRefreshAfterLeave(isStreaming: boolean, projectId: strin
       for (const delay of QUOTA_REFRESH_AFTER_LEAVE_DELAYS_MS) {
         setTimeout(() => {
           void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota(), refetchType: "all" });
-          void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quotaLite(), refetchType: "all" });
         }, delay);
       }
     };

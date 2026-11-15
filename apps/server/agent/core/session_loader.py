@@ -460,8 +460,8 @@ class SessionLoader:
         """取最近 WORKING_SET_RECENT_TURNS 条 assistant 回复里读/写过的文件（新 → 旧）。"""
         from models import ChatMessage
 
-        rows = session.exec(
-            select(ChatMessage)
+        tool_payloads = session.exec(
+            select(ChatMessage.tool_calls)
             .where(
                 and_(
                     ChatMessage.session_id == chat_session_id,
@@ -475,8 +475,8 @@ class SessionLoader:
         refs: list[dict[str, Any]] = []
         seen: set[str] = set()
         deleted: set[str] = set()
-        for row in rows:  # 新 → 旧
-            actions = self._extract_file_actions(getattr(row, "tool_calls", None))
+        for tool_calls in tool_payloads:  # 新 → 旧；无需读取正文、思考和界面 metadata。
+            actions = self._extract_file_actions(tool_calls)
             # 同一轮里先找删除：被删掉的文件不再进工作集（结果未知的删除不算）
             for action in actions:
                 if action["name"] == "delete_file" and action["file_id"] and not action.get("outcome_unknown"):

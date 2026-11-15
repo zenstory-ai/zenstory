@@ -378,6 +378,27 @@ export interface MaterialEntityItem {
   summary?: string;
 }
 
+type MaterialNavigationNamedResponse = {
+  id: number | string;
+  name: string;
+};
+
+type MaterialNavigationTitledResponse = {
+  id: number | string;
+  title: string;
+};
+
+type MaterialNavigationRelationshipResponse = {
+  id: number;
+  character_a_name: string;
+  character_b_name: string;
+};
+
+type MaterialNavigationWorldViewResponse = {
+  id: number;
+  world_structure: string | null;
+};
+
 /**
  * Response from the material preview endpoint.
  */
@@ -675,6 +696,47 @@ export const materialsApi = {
    */
   getWorldView: (novelId: string) =>
     api.get<MaterialWorldView | null>(`/api/v1/materials/${novelId}/worldview`),
+
+  /**
+   * Get only the labels needed by the editor's material navigation.
+   *
+   * Older servers ignore the query parameter and return complete entities;
+   * this mapper deliberately accepts both response shapes.
+   */
+  getEntityNavigation: async (
+    novelId: string,
+    entityType: MaterialEntityType,
+  ): Promise<MaterialEntityItem[]> => {
+    const url = `/api/v1/materials/${novelId}/${entityType}?navigation=true`;
+
+    if (entityType === 'characters' || entityType === 'goldenfingers') {
+      const items = await api.get<MaterialNavigationNamedResponse[]>(url);
+      return items.map((item) => ({ id: Number(item.id), name: item.name }));
+    }
+
+    if (entityType === 'storylines' || entityType === 'stories') {
+      const items = await api.get<MaterialNavigationTitledResponse[]>(url);
+      return items.map((item) => ({ id: Number(item.id), name: item.title }));
+    }
+
+    if (entityType === 'relationships') {
+      const items = await api.get<MaterialNavigationRelationshipResponse[]>(url);
+      return items.map((item) => ({
+        id: item.id,
+        name: `${item.character_a_name} ↔ ${item.character_b_name}`,
+      }));
+    }
+
+    const worldView = await api.get<MaterialNavigationWorldViewResponse | null>(url);
+    if (!worldView) return [];
+    const worldStructure = worldView.world_structure;
+    return [{
+      id: worldView.id,
+      name: worldStructure && worldStructure.trim()
+        ? worldStructure.substring(0, 30)
+        : '',
+    }];
+  },
 
   // ==================== Material Bridge APIs ====================
 

@@ -102,16 +102,21 @@ export interface ChatSession {
  * @param projectId - UUID of the project to get messages for
  * @param limit - Maximum number of recent messages to retrieve (default: 20)
  * @param signal - Optional AbortSignal for request cancellation
+ * @param messageId - Optional backend message ID to retrieve from the active session
  * @returns Promise resolving to array of recent chat messages
  */
 export async function getRecentMessages(
   projectId: string,
   limit: number = 20,
   signal?: AbortSignal,
+  messageId?: string,
 ): Promise<ChatMessage[]> {
   const params = new URLSearchParams({
     limit: limit.toString(),
   });
+  if (messageId) {
+    params.set("message_id", messageId);
+  }
   return api.get<ChatMessage[]>(`/api/v1/chat/session/${projectId}/recent?${params}`, signal ? { signal } : undefined);
 }
 

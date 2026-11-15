@@ -108,30 +108,12 @@ export const MaterialsPane: React.FC = () => {
       const novel = materialLib.libraries.find(l => l.id === novelId);
       if (!novel) return;
 
-      // Use existing API endpoints to get entity lists
-      if (entityType === 'characters') {
-        const data = await materialsApi.getCharacters(String(novelId));
-        items = data.map((c) => ({ id: Number(c.id), name: c.name }));
-      } else if (entityType === 'worldview') {
-        const data = await materialsApi.getWorldView(String(novelId));
-        if (data) {
-          const displayName = (data.world_structure && data.world_structure.trim())
-            ? data.world_structure.substring(0, 30)
-            : t('materials:detail.worldview');
-          items = [{ id: data.id, name: displayName }];
-        }
-      } else if (entityType === 'goldenfingers') {
-        const data = await materialsApi.getGoldenFingers(String(novelId));
-        items = data.map((g) => ({ id: g.id, name: g.name }));
-      } else if (entityType === 'storylines') {
-        const data = await materialsApi.getStoryLines(String(novelId));
-        items = data.map((s) => ({ id: s.id, name: s.title }));
-      } else if (entityType === 'stories') {
-        const data = await materialsApi.getStories(String(novelId));
-        items = data.map((s) => ({ id: Number(s.id), name: s.title }));
-      } else if (entityType === 'relationships') {
-        const data = await materialsApi.getRelationships(String(novelId));
-        items = data.map((r) => ({ id: r.id, name: `${r.character_a_name} ↔ ${r.character_b_name}` }));
+      items = await materialsApi.getEntityNavigation(String(novelId), entityType);
+      if (entityType === 'worldview') {
+        items = items.map((item) => ({
+          ...item,
+          name: item.name || t('materials:detail.worldview'),
+        }));
       }
 
       setEntityLists(prev => ({ ...prev, [key]: items }));

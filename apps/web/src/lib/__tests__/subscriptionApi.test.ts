@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { subscriptionApi } from '../subscriptionApi'
+import { subscriptionApi, subscriptionQueryKeys } from '../subscriptionApi'
 import * as apiClient from '../apiClient'
 
 // Mock the apiClient but keep ApiError from the original
@@ -23,6 +23,17 @@ describe('subscriptionApi', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  it('shares one quota key per account while isolating another signed-in account', () => {
+    localStorage.setItem('user', JSON.stringify({ id: 'account-a' }))
+    expect(subscriptionQueryKeys.quotaLite()).toEqual(subscriptionQueryKeys.quota())
+    const accountAKey = subscriptionQueryKeys.quota()
+
+    localStorage.setItem('user', JSON.stringify({ id: 'account-b' }))
+    expect(subscriptionQueryKeys.quotaLite()).toEqual(subscriptionQueryKeys.quota())
+    expect(subscriptionQueryKeys.quota()).not.toEqual(accountAKey)
   })
 
   describe('getStatus', () => {

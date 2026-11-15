@@ -114,6 +114,12 @@ class ChapterDetailResponse(BaseModel):
     plots_count: int
 
 
+class CharacterNavigationItem(BaseModel):
+    """Character fields needed by the material sidebar."""
+    id: int
+    name: str
+
+
 class CharacterListItem(BaseModel):
     """Character list item."""
     id: int

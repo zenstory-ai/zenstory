@@ -72,6 +72,18 @@ describe('chatApi', () => {
       )
     })
 
+    it('requests one assistant message by id without changing the abort-signal argument', async () => {
+      mockApiGet.mockResolvedValue([])
+      const controller = new AbortController()
+
+      await getRecentMessages('project-1', 50, controller.signal, 'assistant/1?tag=a&b')
+
+      expect(mockApiGet).toHaveBeenCalledWith(
+        '/api/v1/chat/session/project-1/recent?limit=50&message_id=assistant%2F1%3Ftag%3Da%26b',
+        { signal: controller.signal },
+      )
+    })
+
     it('propagates API errors', async () => {
       mockApiGet.mockRejectedValue(new Error('Network error'))
 

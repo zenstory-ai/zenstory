@@ -863,7 +863,7 @@ describe('SimpleEditor', () => {
     });
     expect(onEnterDiffReview).not.toHaveBeenCalled();
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscription-quota', 'test-user'] });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['quota', 'test-user'] });
+    expect(invalidateSpy).toHaveBeenCalledTimes(1);
   });
 
   it('natural polish refreshes the quota after a charged rewrite too', async () => {
@@ -879,7 +879,7 @@ describe('SimpleEditor', () => {
       expect(onEnterDiffReview).toHaveBeenCalledWith('file-1', 'Hello world', 'Howdy world');
     });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscription-quota', 'test-user'] });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['quota', 'test-user'] });
+    expect(invalidateSpy).toHaveBeenCalledTimes(1);
   });
 
   it('tells free users that natural polish uses one of today\'s AI messages', async () => {

@@ -99,7 +99,7 @@ jobs:
   e2e-test:
     needs: detect-changes
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ci == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       # Whole-suite lanes (push, default, full) split by test count into 8

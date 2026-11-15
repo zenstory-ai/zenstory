@@ -59,7 +59,6 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
       queryClient.invalidateQueries({ queryKey: ['subscription-status'] });
       queryClient.invalidateQueries({ queryKey: ['subscription-quota'] });
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
-      queryClient.invalidateQueries({ queryKey: ['quota'] });
       setRedeemedDays(data?.pro_days ?? days);
     },
   });
