@@ -77,21 +77,22 @@ export function resolveApiErrorMessage(
   return fallbackMessage;
 }
 
-/**
- * Translate an error code to a localized error message.
- *
- * Looks up the error code in the 'errors' i18n namespace. An untranslated
- * `ERR_*` code falls back to the generic error message so raw codes never
- * reach the UI; any other text is returned unchanged.
- *
- * @param errorCode - The error code from the backend (e.g., "ERR_PROJECT_NOT_FOUND")
- * @returns Translated error message
- */
 // apiErrorFromPayload's message for an error body with no code (an HTML gateway
 // page, an empty body). It is client-generated technical text, so the UI shows
 // the generic message instead.
 const CLIENT_HTTP_ERROR_RE = /^API error: \d{3}$/;
 
+/**
+ * Translate an error code to a localized error message.
+ *
+ * Looks up the error code in the 'errors' i18n namespace. An untranslated
+ * `ERR_*` code falls back to the generic error message so raw codes never
+ * reach the UI, nor does the client's `API error: <status>` fallback; any
+ * other text is returned unchanged.
+ *
+ * @param errorCode - The error code from the backend (e.g., "ERR_PROJECT_NOT_FOUND")
+ * @returns Translated error message
+ */
 export function translateError(errorCode: string): string {
   const normalizedCode = errorCode.trim();
   if (!normalizedCode) {
