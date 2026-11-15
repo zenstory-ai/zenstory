@@ -25,7 +25,7 @@ vi.mock('../../../lib/subscriptionApi', async importOriginal => {
   return { ...real, subscriptionApi: { getStatus: vi.fn(async () => ({ tier: 'pro', features: { materials_library: true } })) } }
 })
 vi.mock('../../../lib/materialsApi', () => ({ materialsApi: {
-  getLibrarySummary: vi.fn(), getCharacters: vi.fn(), getPreview: vi.fn(),
+  getLibrarySummary: vi.fn(), getEntityNavigation: vi.fn(), getPreview: vi.fn(),
   importToProject: vi.fn(), batchImport: vi.fn(),
 } }))
 vi.mock('../../../lib/toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
@@ -83,7 +83,7 @@ beforeEach(async () => {
   vi.mocked(materialsApi.getLibrarySummary).mockResolvedValue([{ id: 1, title: 'Novel One', status: 'completed', counts: {
     characters: 2, worldview: 0, golden_fingers: 0, storylines: 0, stories: 0, relationships: 0,
   } }])
-  vi.mocked(materialsApi.getCharacters).mockResolvedValue([{ id: '1', name: 'Hero', novel_id: '1', created_at: '2026-10-06T00:00:00Z' }, { id: '2', name: 'Villain', novel_id: '1', created_at: '2026-10-06T00:00:00Z' }])
+  vi.mocked(materialsApi.getEntityNavigation).mockResolvedValue([{ id: 1, name: 'Hero' }, { id: 2, name: 'Villain' }])
   vi.mocked(materialsApi.importToProject).mockResolvedValue(imported)
   vi.mocked(materialsApi.batchImport).mockResolvedValue(full)
 })

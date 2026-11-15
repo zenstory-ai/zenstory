@@ -40,10 +40,13 @@ function getSubscriptionCacheScope(): string {
   return 'anonymous';
 }
 
+const quotaQueryKey = () => ['subscription-quota', getSubscriptionCacheScope()] as const;
+
 export const subscriptionQueryKeys = {
   status: () => ['subscription-status', getSubscriptionCacheScope()] as const,
-  quota: () => ['subscription-quota', getSubscriptionCacheScope()] as const,
-  quotaLite: () => ['quota', getSubscriptionCacheScope()] as const,
+  quota: quotaQueryKey,
+  // Compatibility alias for existing imports. Both readers share one account-scoped cache.
+  quotaLite: quotaQueryKey,
 };
 
 export const subscriptionApi = {

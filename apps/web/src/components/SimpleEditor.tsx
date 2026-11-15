@@ -696,7 +696,6 @@ export const SimpleEditor = ({
     // 无论结果如何，结束后都让额度胶囊重新拉一次，显示真实用量。
     const refreshAiQuota = () => {
       void queryClient?.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
-      void queryClient?.invalidateQueries({ queryKey: subscriptionQueryKeys.quotaLite() });
     };
 
     try {

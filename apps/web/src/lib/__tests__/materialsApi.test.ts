@@ -682,6 +682,83 @@ describe('materialsApi', () => {
     })
   })
 
+  describe('getEntityNavigation', () => {
+    it.each([
+      {
+        entityType: 'characters' as const,
+        response: [{
+          id: '11', name: 'Hero', novel_id: 'novel-1', aliases: ['Old name'],
+          description: 'Legacy servers may still return the complete entity.',
+          created_at: '2024-01-01T00:00:00Z',
+        }],
+        expected: [{ id: 11, name: 'Hero' }],
+      },
+      {
+        entityType: 'goldenfingers' as const,
+        response: [{ id: 12, name: 'System', description: 'Full legacy description' }],
+        expected: [{ id: 12, name: 'System' }],
+      },
+      {
+        entityType: 'storylines' as const,
+        response: [{ id: 13, title: 'Main line', description: 'Full legacy description' }],
+        expected: [{ id: 13, name: 'Main line' }],
+      },
+      {
+        entityType: 'stories' as const,
+        response: [{ id: '14', title: 'First arc', synopsis: 'Full legacy synopsis' }],
+        expected: [{ id: 14, name: 'First arc' }],
+      },
+      {
+        entityType: 'relationships' as const,
+        response: [{
+          id: 15, character_a_name: 'Hero', character_b_name: 'Friend',
+          description: 'Full legacy relationship detail',
+        }],
+        expected: [{ id: 15, name: 'Hero ↔ Friend' }],
+      },
+    ])('requests the $entityType navigation projection and maps legacy full payloads', async ({
+      entityType,
+      response,
+      expected,
+    }) => {
+      mockApiGet.mockResolvedValue(response)
+
+      const result = await materialsApi.getEntityNavigation('novel-1', entityType)
+
+      expect(result).toEqual(expected)
+      expect(mockApiGet).toHaveBeenCalledExactlyOnceWith(
+        `/api/v1/materials/novel-1/${entityType}?navigation=true`,
+      )
+    })
+
+    it('preserves the existing trimmed 30-character worldview label', async () => {
+      const worldStructure = `  ${'天地玄黄'.repeat(8)}  `
+      mockApiGet.mockResolvedValue({
+        id: 16,
+        world_structure: worldStructure,
+        power_system: 'Full legacy field',
+      })
+
+      const result = await materialsApi.getEntityNavigation('novel-1', 'worldview')
+
+      expect(result).toEqual([{ id: 16, name: worldStructure.substring(0, 30) }])
+      expect(mockApiGet).toHaveBeenCalledExactlyOnceWith(
+        '/api/v1/materials/novel-1/worldview?navigation=true',
+      )
+    })
+
+    it.each([null, { id: 17, world_structure: null }, { id: 18, world_structure: '   ' }])(
+      'maps an absent or unnamed worldview without inventing a label',
+      async (response) => {
+        mockApiGet.mockResolvedValue(response)
+
+        const result = await materialsApi.getEntityNavigation('novel-1', 'worldview')
+
+        expect(result).toEqual(response === null ? [] : [{ id: response.id, name: '' }])
+      },
+    )
+  })
+
   it('no longer exposes the unused timeline endpoint', () => {
     expect('getTimeline' in materialsApi).toBe(false)
   })
