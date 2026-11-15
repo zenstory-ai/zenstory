@@ -143,18 +143,22 @@ class TestVerifyPassword:
 
     def test_verify_password_long_cjk_over_72_utf8_bytes(self):
         """CJK passwords exceeding 72 UTF-8 bytes (including mid-char split) must hash and verify."""
-        from services.core.auth_service import _truncate_bcrypt_password
-
-        # 1 ASCII + 24 CJK = 73 UTF-8 bytes (72 falls mid-character -> truncates cleanly to 70 bytes)
-        mid_char_pw = "x" + "语" * 24
-        truncated = _truncate_bcrypt_password(mid_char_pw)
-        assert truncated == "x" + "语" * 23
-        assert len(truncated.encode("utf-8")) == 70
+        mid_char_pw = "x" + "语" * 24  # 73 UTF-8 bytes; byte 72 falls mid-character
 
         for password in ("密" * 26, mid_char_pw):
             hashed = hash_password(password)
             assert verify_password(password, hashed) is True
             assert verify_password("错" + password[1:], hashed) is False
+
+    def test_verify_password_accepts_hash_of_raw_72_byte_prefix(self):
+        """Existing hashes were made from the raw 72-byte prefix; a mid-character split must still verify."""
+        from services.core.auth_service import pwd_context
+
+        password = "a" * 71 + "密码很长"  # byte 72 falls inside "密"
+        legacy_hash = pwd_context.hash(password.encode("utf-8")[:72])
+
+        assert verify_password(password, legacy_hash) is True
+        assert verify_password("a" * 71 + "错码很长", legacy_hash) is False
 
 
 @pytest.mark.unit

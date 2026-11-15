@@ -23,6 +23,7 @@ vi.mock('react-i18next', () => ({
       (
         {
           'editor:projectSwitcher.loading': 'Loading projects',
+          'editor:projectSwitcher.loadFailed': 'Failed to load projects',
           'editor:projectSwitcher.searchPlaceholder': 'Search projects',
           'editor:projectSwitcher.noResults': 'No results',
           'editor:projectSwitcher.noProjects': 'No projects',
@@ -254,7 +255,8 @@ describe('ProjectSwitcher', () => {
 
     fireEvent.click(screen.getByRole('button'))
     expect(screen.queryByText('No projects')).not.toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Network failure')
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to load projects')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Network failure')
 
     fireEvent.click(screen.getByRole('button', { name: /common:retry|retry/i }))
     expect(refreshProjects).toHaveBeenCalledTimes(1)

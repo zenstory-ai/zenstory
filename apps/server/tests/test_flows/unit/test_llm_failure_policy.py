@@ -571,3 +571,28 @@ def test_worker_postgres_engine_pings_and_recycles_connections():
         assert engine.pool._recycle == dbs.POSTGRES_POOL_RECYCLE_SECONDS
     finally:
         engine.dispose()
+
+
+def test_cross_chunk_merge_judgment_keeps_stories_apart_on_provider_rejection(monkeypatch):
+    agg_mod = importlib.import_module("flows.atomic_tasks.narrative.summary_based_aggregation")
+    story1 = {"title": "a", "chapter_ids": [1, 2]}
+    story2 = {"title": "b", "chapter_ids": [3, 4]}
+
+    monkeypatch.setattr(
+        agg_mod, "call_material_llm", MagicMock(side_effect=LLMNonRetryableError("400 bad request"))
+    )
+    assert agg_mod._llm_judge_merge(story1, story2, novel_id=1)["should_merge"] is False
+
+    fatal = LLMNonRetryableError("trial cap", ErrorCode.MATERIAL_TRIAL_COST_LIMIT)
+    monkeypatch.setattr(agg_mod, "call_material_llm", MagicMock(side_effect=fatal))
+    with pytest.raises(LLMNonRetryableError) as raised:
+        agg_mod._llm_judge_merge(story1, story2, novel_id=1)
+    assert raised.value is fatal
+
+
+def test_meta_response_skips_null_golden_finger_entries():
+    from flows.utils.validators import validate_meta_response
+
+    valid = {"name": "戒指", "type": "artifact", "description": "盘龙戒指中寄居着一位魔法师的灵魂。" * 15}
+    result = validate_meta_response({"golden_fingers": [None, valid]})
+    assert result["golden_fingers"] == [valid]

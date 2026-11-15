@@ -25,7 +25,7 @@ from prefect import get_run_logger
 
 from flows.database_session import get_db_session
 from flows.utils import api_task, call_material_llm, database_task, get_material_llm_client
-from flows.utils.helpers.exceptions import LLMOutputError
+from flows.utils.helpers.exceptions import LLMAPIError, is_llm_fatal_stop
 
 from .intelligent_chunking import intelligent_chunking_task
 
@@ -670,18 +670,20 @@ def _llm_judge_merge(
         story2_synopsis=story2.get('synopsis', story2.get('description', '未知')),
     )
 
-    response = call_material_llm(
-        messages=[{"role": "user", "content": user_message}],
-        system_prompt=system_prompt,
-        temperature=0.1,  # 低温度=更保守
-        usage_novel_id=novel_id,
-    )
-
     try:
+        response = call_material_llm(
+            messages=[{"role": "user", "content": user_message}],
+            system_prompt=system_prompt,
+            temperature=0.1,  # 低温度=更保守
+            usage_novel_id=novel_id,
+        )
         client = get_material_llm_client()
         result = client.extract_json_from_response(response)
-    except (LLMOutputError, ValueError, TypeError) as e:
-        return {"should_merge": False, "reason": f"LLM返回格式错误: {e}"}
+    except (LLMAPIError, ValueError, TypeError) as e:
+        # 合并判断失败时保持两段剧情独立；只有致命终止才中止整次拆解。
+        if is_llm_fatal_stop(e):
+            raise
+        return {"should_merge": False, "reason": f"LLM判断失败: {e}"}
 
     if not isinstance(result, dict) or "should_merge" not in result or "reason" not in result:
         return {"should_merge": False, "reason": "LLM返回格式错误"}

@@ -320,5 +320,10 @@ describe('errorHandler', () => {
     it('falls back to internal error for blank message', () => {
       expect(toUserErrorMessage('   ')).toBe('An internal server error occurred')
     })
+
+    it('shows the generic message for the client HTTP-status fallback', () => {
+      expect(toUserErrorMessage('API error: 502')).toBe('An internal server error occurred')
+      expect(handleApiError(new Error('API error: 413'))).toBe('An internal server error occurred')
+    })
   })
 })

@@ -80,10 +80,13 @@ def _resolve_runtime_environment() -> str:
     return "development"
 
 
-def _truncate_bcrypt_password(password: str) -> str:
-    """Truncate UTF-8 password bytes cleanly at bcrypt's 72-byte limit."""
-    encoded = password.encode("utf-8")
-    return password if len(encoded) <= 72 else encoded[:72].decode("utf-8", errors="ignore")
+def _truncate_bcrypt_password(password: str) -> bytes:
+    """Return the first 72 UTF-8 bytes, exactly what bcrypt hashed for existing accounts.
+
+    Stored hashes were produced from the raw 72-byte prefix (bcrypt dropped the
+    rest, even mid-character), so verification must use the same bytes.
+    """
+    return password.encode("utf-8")[:72]
 
 
 # 密码哈希

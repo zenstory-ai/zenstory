@@ -1302,7 +1302,7 @@ describe('adminApi', () => {
       await expect(adminApi.getFeedbackScreenshotBlob('fb-rate-limited')).rejects.toMatchObject({
         name: 'ApiError',
         status: 429,
-        message: 'API error: 429',
+        rawMessage: 'API error: 429',
         errorCode: undefined,
       })
     })

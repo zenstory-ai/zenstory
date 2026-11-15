@@ -33,7 +33,9 @@ export function toUserErrorMessage(message: string): string {
     return translateError('ERR_INTERNAL_SERVER_ERROR');
   }
 
-  return message.startsWith('ERR_') ? translateError(message) : message;
+  return message.startsWith('ERR_') || CLIENT_HTTP_ERROR_RE.test(message.trim())
+    ? translateError(message)
+    : message;
 }
 
 /**
@@ -85,6 +87,11 @@ export function resolveApiErrorMessage(
  * @param errorCode - The error code from the backend (e.g., "ERR_PROJECT_NOT_FOUND")
  * @returns Translated error message
  */
+// apiErrorFromPayload's message for an error body with no code (an HTML gateway
+// page, an empty body). It is client-generated technical text, so the UI shows
+// the generic message instead.
+const CLIENT_HTTP_ERROR_RE = /^API error: \d{3}$/;
+
 export function translateError(errorCode: string): string {
   const normalizedCode = errorCode.trim();
   if (!normalizedCode) {
@@ -106,8 +113,9 @@ export function translateError(errorCode: string): string {
     }
   }
 
-  // Unknown error codes never reach the UI as raw codes: show the generic message.
-  if (normalizedCode.startsWith('ERR_')) {
+  // Unknown error codes and the client's own HTTP-status fallback never reach
+  // the UI as technical text: show the generic message.
+  if (normalizedCode.startsWith('ERR_') || CLIENT_HTTP_ERROR_RE.test(normalizedCode)) {
     return i18n.t('errors:ERR_INTERNAL_SERVER_ERROR');
   }
 

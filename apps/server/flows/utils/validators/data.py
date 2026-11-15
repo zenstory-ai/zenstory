@@ -274,6 +274,8 @@ def validate_meta_response(data: dict[str, Any]) -> dict[str, Any]:
 
         validated_gfs = []
         for idx, gf in enumerate(golden_fingers):
+            if gf is None:
+                continue
             try:
                 validate_golden_finger_data(gf)
                 validated_gfs.append(gf)

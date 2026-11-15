@@ -275,7 +275,7 @@ describe('materialsApi', () => {
 
       await expect(materialsApi.upload(mockFile)).rejects.toMatchObject({
         status: 502,
-        message: 'API error: 502',
+        rawMessage: 'API error: 502',
       })
     })
 

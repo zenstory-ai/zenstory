@@ -145,6 +145,7 @@ def test_assign_orphans_reraises_fatal_stop_and_counts_degraded_batch_unassigned
     # Degraded batch on LLMOutputError increments unassigned_count accurately
     calls = [
         LLMOutputError("malformed batch 1"),
+        LLMNonRetryableError("400 bad request"),
         {"assigned_count": 1, "unassigned_count": 1},
     ]
 
@@ -157,12 +158,12 @@ def test_assign_orphans_reraises_fatal_stop_and_counts_degraded_batch_unassigned
     monkeypatch.setattr(orphan_mod, "_assign_single_batch_task", _batch_side_effect)
     res = orphan_mod.assign_orphans_with_llm_task.fn(
         novel_id=1,
-        orphan_plot_ids=[10, 11, 20, 21],
+        orphan_plot_ids=[10, 11, 15, 16, 20, 21],
         stories=[],
         all_plots=[],
         batch_size=2,
     )
-    assert res == {"assigned_count": 1, "unassigned_count": 3}
+    assert res == {"assigned_count": 1, "unassigned_count": 5}
 
 
 @pytest.mark.integration

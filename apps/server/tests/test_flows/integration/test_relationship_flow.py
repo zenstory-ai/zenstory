@@ -170,6 +170,36 @@ class TestRelationshipFlow:
         assert len(extracted["relationships"]) == 1
         assert extracted["relationships"][0]["character_a"] == "林雷"
 
+        # 4. A provider rejection without a fatal code (e.g. HTTP 400) skips only that batch
+        rejected = LLMNonRetryableError("400 bad request")
+        valid = LLMResponse(content="{}", usage={}, model="m", finish_reason="stop")
+        llm_calls = [rejected, valid]
+
+        def _llm(*_a, **_k):
+            item = llm_calls.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+
+        monkeypatch.setattr(rel_tasks, "call_material_llm", _llm)
+        client.extract_json_from_response.side_effect = [
+            {
+                "relationships": [
+                    {
+                        "character_a": "林雷",
+                        "character_b": "德林",
+                        "relationship_type": "master_disciple",
+                        "sentiment": "positive",
+                        "description": "德林柯沃特收林雷为徒，倾囊相授魔法与雕刻。",
+                    }
+                ]
+            },
+        ]
+        extracted = rel_tasks.extract_character_relationships_task.fn(
+            novel_id=novel.id, batch_size=1
+        )
+        assert [r["character_b"] for r in extracted["relationships"]] == ["德林"]
+
     def test_build_character_relationships_resolves_names_and_json_aliases(
         self, monkeypatch, db_session
     ):

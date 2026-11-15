@@ -357,7 +357,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
               </div>
             ) : error && projects.length === 0 ? (
               <div className="p-6 text-center text-sm space-y-2">
-                <p role="alert" className="text-[hsl(var(--error-text))]">{error}</p>
+                <p role="alert" className="text-[hsl(var(--error-text))]">{t('editor:projectSwitcher.loadFailed')}</p>
                 <button
                   type="button"
                   onClick={() => void refreshProjects()}

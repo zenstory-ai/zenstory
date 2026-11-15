@@ -181,7 +181,7 @@ export function resolveMaterialUploadErrorMessage(
         ? translated
         : fallback;
     }
-    return error.message && !error.message.startsWith("API error:") && !error.message.startsWith("ERR_")
+    return error.message && !error.rawMessage.startsWith("API error:") && !error.message.startsWith("ERR_")
       ? error.message
       : fallback;
   }
