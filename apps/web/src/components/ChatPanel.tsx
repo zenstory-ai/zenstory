@@ -1093,7 +1093,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
 
     try {
-      const recentMessages = await getRecentMessages(projectId, 50);
+      const recentMessages = options?.assistantMessageId
+        ? await getRecentMessages(projectId, 50, undefined, options.assistantMessageId)
+        : await getRecentMessages(projectId, 50);
       if (currentProjectIdRef.current !== projectId) {
         return;
       }

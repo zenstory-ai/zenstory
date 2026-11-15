@@ -356,9 +356,9 @@ class SuggestService:
         if not chat_session:
             return []
 
-        # Get recent messages
+        # Suggestions need only role/content, not reasoning or tool/UI payloads.
         stmt = (
-            select(ChatMessage)
+            select(ChatMessage.role, ChatMessage.content)
             .where(ChatMessage.session_id == chat_session.id)
             .order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id))  # type: ignore[attr-defined]
             .limit(CHAT_HISTORY_LIMIT)

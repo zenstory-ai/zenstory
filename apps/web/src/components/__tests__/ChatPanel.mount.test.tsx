@@ -626,6 +626,8 @@ describe('ChatPanel mount smoke', () => {
       const props = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ displayItems?: unknown[] }> }
       expect(props.messages?.at(-1)?.displayItems).toEqual(mockStreamSnapshot.items)
     })
+    await waitFor(() => expect(vi.mocked(getRecentMessages).mock.calls.length).toBeGreaterThanOrEqual(2))
+    expect(vi.mocked(getRecentMessages).mock.calls.at(-1)).toEqual(['project-1', 50])
   })
 
   it('a finished reply drops 正在组装上下文 / 正在思考 / 正在规划工作流 but keeps the plan and the handoff line', async () => {
@@ -692,6 +694,15 @@ describe('ChatPanel mount smoke', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
+          id: 'assistant-other',
+          session_id: 'session-1',
+          role: 'assistant',
+          content: '旧服务可能仍返回附近消息',
+          tool_calls: null,
+          created_at: '2026-03-01T12:00:04Z',
+          metadata: null,
+        },
+        {
           id: 'assistant-backend-1',
           session_id: 'session-1',
           role: 'assistant',
@@ -728,6 +739,12 @@ describe('ChatPanel mount smoke', () => {
     })
 
     await waitFor(() => {
+      expect(vi.mocked(getRecentMessages)).toHaveBeenLastCalledWith(
+        'project-1',
+        50,
+        undefined,
+        'assistant-backend-1',
+      )
       const calls = mockMessageList.mock.calls
       const lastProps = calls[calls.length - 1]?.[0] as {
         messages?: Array<{ backendMessageId?: string; statusCards?: unknown[] }>
