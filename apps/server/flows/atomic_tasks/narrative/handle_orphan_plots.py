@@ -12,7 +12,7 @@ from prefect import get_run_logger
 from flows.database_session import get_db_session
 from flows.utils import call_material_llm, get_material_llm_client
 from flows.utils.decorators import api_task, database_task
-from flows.utils.helpers.exceptions import LLMAPIError, ValidationError, is_llm_fatal_stop
+from flows.utils.helpers.exceptions import LLMNonRetryableError, ValidationError, is_llm_fatal_stop
 from prompts import create_orphan_assignment_prompt
 
 
@@ -188,7 +188,7 @@ def assign_orphans_with_llm_task(
             )
             total_assigned += result["assigned_count"]
             total_unassigned += result["unassigned_count"]
-        except (LLMAPIError, ValidationError, ValueError) as e:
+        except (LLMNonRetryableError, ValidationError, ValueError) as e:
             if is_llm_fatal_stop(e):
                 raise
             logger.error(f"❌ 批次 {batch_num} 失败，跳过该批次: {e}")

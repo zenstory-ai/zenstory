@@ -25,7 +25,7 @@ from prefect import get_run_logger
 
 from flows.database_session import get_db_session
 from flows.utils import api_task, call_material_llm, database_task, get_material_llm_client
-from flows.utils.helpers.exceptions import LLMAPIError, is_llm_fatal_stop
+from flows.utils.helpers.exceptions import LLMNonRetryableError, is_llm_fatal_stop
 
 from .intelligent_chunking import intelligent_chunking_task
 
@@ -679,7 +679,7 @@ def _llm_judge_merge(
         )
         client = get_material_llm_client()
         result = client.extract_json_from_response(response)
-    except (LLMAPIError, ValueError, TypeError) as e:
+    except (LLMNonRetryableError, ValueError, TypeError) as e:
         # 合并判断失败时保持两段剧情独立；只有致命终止才中止整次拆解。
         if is_llm_fatal_stop(e):
             raise

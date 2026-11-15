@@ -16,7 +16,7 @@ from flows.database_session import get_prefect_db_session
 from flows.utils.clients import LLMResponse, call_material_llm, get_material_llm_client
 from flows.utils.decorators import api_task, database_task
 from flows.utils.helpers import normalize_alias
-from flows.utils.helpers.exceptions import LLMAPIError, ValidationError, is_llm_fatal_stop
+from flows.utils.helpers.exceptions import LLMNonRetryableError, ValidationError, is_llm_fatal_stop
 from flows.utils.validators import validate_relationships_response
 from models.material_models import Chapter
 from prompts import create_relationship_extraction_prompt
@@ -164,9 +164,10 @@ def extract_character_relationships_task(
                 f"relationships_count={len(batch_relationships)}"
             )
 
-        except (LLMAPIError, ValidationError) as e:
-            # 关系提取是可选步骤：致命终止立即上抛，其余单批失败只跳过该批次，
-            # 全部批次失败时才让任务失败。
+        except (LLMNonRetryableError, ValidationError) as e:
+            # 关系提取是可选步骤：致命终止立即上抛；不可重试的单批失败（输出无法解析、
+            # 供应商拒绝请求）只跳过该批次，全部批次失败时才让任务失败。
+            # 暂时性 LLMAPIError 不在此捕获，交给任务级重试。
             if is_llm_fatal_stop(e):
                 raise
             logger.error(
