@@ -12,7 +12,7 @@ from typing import Any
 
 from agent.tools.mcp_tools import MCP_TOOL_HANDLERS
 from agent.tools.parallel_executor import execute_parallel
-from agent.tools.tool_schemas import TOOL_SCHEMAS
+from agent.tools.tool_schemas import LOOP_TOOL_SCHEMA_OVERRIDES, TOOL_SCHEMAS
 
 DEFAULT_TOOL_NAMES: list[str] = [
     "create_file",
@@ -54,13 +54,20 @@ EXPOSED_TOOL_NAMES: list[str] = DEFAULT_TOOL_NAMES
 
 # 单循环 agent（agent/loop）的工具集：写作工具集去掉多角色控制流。交接没有对象；
 # 澄清直接在聊天里问；并行子任务不走 <file> 流式正文和 diff 审阅。
+# 正文按章号写：多一个只有单循环 agent 有的 write_chapter（紧跟 create_file），create_file 不建正文。
 LOOP_AGENT_TYPE = "loop"
 LOOP_EXCLUDED_TOOL_NAMES: frozenset[str] = frozenset({
     "handoff_to_agent",
     "request_clarification",
     "parallel_execute",
 })
-LOOP_TOOL_NAMES: list[str] = [name for name in DEFAULT_TOOL_NAMES if name not in LOOP_EXCLUDED_TOOL_NAMES]
+LOOP_ONLY_TOOL_NAMES: tuple[str, ...] = ("write_chapter",)
+LOOP_TOOL_NAMES: list[str] = [
+    added
+    for name in DEFAULT_TOOL_NAMES
+    if name not in LOOP_EXCLUDED_TOOL_NAMES
+    for added in ((name, *LOOP_ONLY_TOOL_NAMES) if name == "create_file" else (name,))
+]
 
 AGENT_TOOL_NAME_MAP: dict[str, list[str]] = {
     LOOP_AGENT_TYPE: LOOP_TOOL_NAMES,
@@ -115,8 +122,11 @@ def get_exposed_tools(agent_type: str | None = None) -> list[dict[str, Any]]:
     Graph roles all see EXPOSED_TOOL_NAMES (one prefix-cache key across roles); the loop agent
     sees only its own toolset, so the model is never offered handoff / clarification / parallel tools.
     """
-    names = LOOP_TOOL_NAMES if agent_type == LOOP_AGENT_TYPE else EXPOSED_TOOL_NAMES
-    return [TOOL_SCHEMAS[name] for name in names if name in TOOL_SCHEMAS]
+    if agent_type == LOOP_AGENT_TYPE:
+        return [
+            LOOP_TOOL_SCHEMA_OVERRIDES.get(name, TOOL_SCHEMAS[name]) for name in LOOP_TOOL_NAMES if name in TOOL_SCHEMAS
+        ]
+    return [TOOL_SCHEMAS[name] for name in EXPOSED_TOOL_NAMES if name in TOOL_SCHEMAS]
 
 
 def validate_registry_alignment() -> dict[str, list[str]]:
@@ -130,7 +140,13 @@ def validate_registry_alignment() -> dict[str, list[str]]:
     quality_reviewer_missing = [
         name for name in QUALITY_REVIEWER_TOOL_NAMES if name not in DEFAULT_TOOL_NAMES
     ]
-    loop_invalid = [name for name in LOOP_TOOL_NAMES if name not in DEFAULT_TOOL_NAMES]
+    loop_invalid = [
+        name
+        for name in LOOP_TOOL_NAMES
+        if (name not in DEFAULT_TOOL_NAMES and name not in LOOP_ONLY_TOOL_NAMES)
+        or name not in TOOL_SCHEMAS
+        or name not in TOOL_FUNCTIONS
+    ]
     return {
         "missing_schemas": missing_schemas,
         "missing_handlers": missing_handlers,

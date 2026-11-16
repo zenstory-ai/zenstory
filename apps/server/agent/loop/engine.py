@@ -4,9 +4,10 @@
 SSE 外壳、计费 / 退还、停止 / 插话、残稿补存、文件版本并发保护都沿用。一轮里同一个 agent 可能再跑几次
 （都从上一次完整的 SDK 输入接着来，见 ``runner._continued_run_input``），只因为结构化事实：
 
-- 空文件纠偏：create_file 建了文件、正文没用 <file> 写成（落库核验），为同一个文件恢复正文写入后再跑一次；
-  补不成就回滚能确认的空文件并发 ``empty_file_correction`` 卡。
-- 文件流续写：这一次 run 建文件成功、回复停在写完的 </file> 上（SDK 把它当最终输出），接着跑一次。
+- 空文件纠偏：create_file / write_chapter 建了文件、正文没用 <file> 写成（落库核验），为同一个文件恢复正文写入后
+  再跑一次；补不成就回滚能确认的空文件并发 ``empty_file_correction`` 卡。write_chapter 定位到已有非空章节的
+  整章替换不算空文件：没写正文时原文不动。
+- 文件流续写：这一次 run 建文件或定位章节成功、回复停在写完的 </file> 上（SDK 把它当最终输出），接着跑一次。
 - 运行中插话：工具边界或 run 边界消费到作者的插话，接着跑一次让它在本轮生效。
 
 请求墙钟、模型调用预算、工具轮数上限与失控退还都由 runner / run_meter / stream_billing 原样执行；
@@ -44,8 +45,10 @@ logger = get_logger(__name__)
 _EMPTY_FILE_CORRECTION_CONTEXT = (
     "[系统提醒] 你创建的文件《{title}》(id={file_id}) 正文仍为空：上一次没有用 <file>…</file> 写完它的正文。"
     "系统已为这个文件重新打开正文写入。这一次回复第一行直接输出 <file>，接着写它的完整正文，最后用 </file> 结束；"
-    "写完之前不要调用任何工具（create_file / edit_file 都会被拒绝），也不要只在对话里复述正文。"
+    "写完之前不要调用任何工具（write_chapter / create_file / edit_file 都会被拒绝），也不要只在对话里复述正文。"
 )
+# 调用后下一次回复用 <file> 写正文的工具（新建文件 / 按章号写一章）。
+_BODY_WRITE_TOOLS = frozenset({"create_file", "write_chapter"})
 _UNEXECUTED_TOOL_TEXT_REASON = "回复里有一步工具调用只写成了文字，没有执行。"
 _UNEXECUTED_TOOL_TEXT_REASON_EN = "A tool call in the reply was written out as text and was not executed."
 
@@ -248,7 +251,7 @@ async def run_loop_agent_streaming(
                     accumulated_text += text
                 elif event.type in (StreamEventType.TOOL_USE, StreamEventType.TOOL_RESULT):
                     tail_text = ""
-                    if event.type == StreamEventType.TOOL_USE and event.data.get("name") == "create_file":
+                    if event.type == StreamEventType.TOOL_USE and event.data.get("name") in _BODY_WRITE_TOOLS:
                         create_ids.add(str(event.data.get("id") or ""))
                     elif event.type == StreamEventType.TOOL_RESULT and graph_helpers._tool_result_failed(
                         event.data.get("result")

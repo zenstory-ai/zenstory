@@ -1,4 +1,7 @@
-"""单循环 agent：工具集、系统提示、同章守卫、历史重建与压缩、运行循环。全部用替身模型，不调用付费模型。"""
+"""单循环 agent：工具集、系统提示、历史重建与压缩、运行循环。全部用替身模型，不调用付费模型。
+
+按章号写正文（write_chapter）与 edit_file 的正文守卫见 test_loop_write_chapter.py。
+"""
 
 from __future__ import annotations
 
@@ -8,7 +11,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from models import ChatMessage, ChatSession, File, Project, User
@@ -54,9 +57,13 @@ def test_loop_toolset_excludes_multi_agent_control_flow():
     for names in (exposed, permitted, built):
         assert not names & excluded
         assert {
-            "create_file", "edit_file", "query_files", "update_project", "load_skill",
+            "create_file", "write_chapter", "edit_file", "query_files", "update_project", "load_skill",
             "read_skill_resource", "delete_file", "rename_file",
         } <= names
+    # 单循环 agent 看到的 create_file 不建正文；图的各角色看不到 write_chapter。
+    [loop_create] = [schema for schema in get_exposed_tools(LOOP_AGENT_TYPE) if schema["name"] == "create_file"]
+    assert not {"draft", "script"} & set(loop_create["input_schema"]["properties"]["file_type"]["enum"])
+    assert "write_chapter" not in {schema["name"] for schema in get_exposed_tools("writer")}
     assert validate_registry_alignment()["invalid_loop_tools"] == []
     # 图的各角色仍看到完整清单（回滚路径不变）。
     assert excluded <= {schema["name"] for schema in get_exposed_tools("writer")}
@@ -83,6 +90,11 @@ def test_loop_system_prompt_merges_project_config_with_loop_rules(db_session, wr
         assert removed not in loop_prompt
     # 自查与真实字数两条规则来自原快速模式指令，文字里不提模式。
     assert "自查" in loop_prompt and "实际多少字" in loop_prompt
+    # 正文按章号经 write_chapter 写；不再有「用 edit_file 把稿子整体替换进该章」「old 写原文全文」的正文写法。
+    assert "write_chapter" in loop_prompt and "大纲是节奏的上限也是底线" in loop_prompt
+    assert "整体替换进该章" not in loop_prompt and "整章重写时用一个 replace" not in loop_prompt
+    assert "不另存成素材、副本或备份文件" in loop_prompt
+    assert "write_chapter" not in graph_prompt.replace("parallel 的 write_chapter", "").replace("`write_chapter`", "")
     assert "快速模式" not in loop_prompt and "生成模式" not in loop_prompt
     # 项目类型的写作配置（数据库行）照样在前面。
     assert graph_prompt.split("\n", 1)[0] == loop_prompt.split("\n", 1)[0]
@@ -97,49 +109,6 @@ def test_loop_system_prompt_merges_project_config_with_loop_rules(db_session, wr
 
 def _payload(result: dict) -> dict:
     return json.loads(result["content"][0]["text"])
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_loop_create_file_refuses_second_file_for_existing_chapter(db_session):
-    from agent.tools.mcp_tools import CHAPTER_FILE_EXISTS_ERROR_TYPE, ToolContext, create_file
-
-    user, project = _user_project(db_session)
-    folder = File(project_id=project.id, title="正文", file_type="folder")
-    db_session.add(folder)
-    db_session.commit()
-    existing = File(
-        project_id=project.id, title="第3章 夜航", content="合成正文。", file_type="draft", parent_id=folder.id
-    )
-    db_session.add(existing)
-    db_session.commit()
-
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="loop-guard")
-    ToolContext.set_current_agent("loop")
-    try:
-        refused = _payload(await create_file({"title": "第三章 夜航（新版）", "file_type": "draft", "parent_id": folder.id}))
-        other_chapter = _payload(
-            await create_file({"title": "第4章 靠岸", "file_type": "draft", "parent_id": folder.id, "content": "合成"})
-        )
-        other_folder = File(project_id=project.id, title="第二卷", file_type="folder")
-        db_session.add(other_folder)
-        db_session.commit()
-        other_volume = _payload(
-            await create_file({"title": "第3章 新卷", "file_type": "draft", "parent_id": other_folder.id, "content": "合成"})
-        )
-        outline = _payload(
-            await create_file({"title": "第3章 细纲", "file_type": "outline", "parent_id": folder.id, "content": "合成"})
-        )
-    finally:
-        ToolContext.clear_context()
-
-    assert refused["status"] == "error"
-    assert refused["error_type"] == CHAPTER_FILE_EXISTS_ERROR_TYPE
-    assert refused["id"] == existing.id
-    assert "edit_file" in refused["error"]
-    assert other_chapter["status"] == "success"
-    assert other_volume["status"] == "success"
-    assert outline["status"] == "success"
 
 
 @pytest.mark.asyncio
@@ -612,30 +581,6 @@ async def test_loop_continues_after_a_run_that_stopped_on_a_saved_file_body(loop
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_loop_create_file_empty_true_creates_several_empty_chapters(db_session):
-    """单循环 agent 没有路由：模型传 empty=true 就建空文件，不进等正文守卫、不触发纠偏。"""
-    from agent.tools.mcp_tools import ToolContext, create_file
-
-    user, project = _user_project(db_session)
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="loop-empty")
-    ToolContext.set_current_agent("loop")
-    try:
-        results = [
-            _payload(await create_file({"title": f"第{n}章", "file_type": "draft", "empty": True}))
-            for n in (1, 2, 3)
-        ]
-        pending = ToolContext.has_pending_empty_file()
-    finally:
-        ToolContext.clear_context()
-
-    assert [result["status"] for result in results] == ["success"] * 3
-    assert pending is False
-    titles = {row.title for row in db_session.exec(select(File).where(File.project_id == project.id)).all()}
-    assert {"第1章", "第2章", "第3章"} <= titles
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
 async def test_graph_create_file_empty_still_needs_the_router_decision(db_session):
     from agent.tools.mcp_tools import ToolContext, create_file
 
@@ -648,39 +593,6 @@ async def test_graph_create_file_empty_still_needs_the_router_decision(db_sessio
     finally:
         ToolContext.clear_context()
     assert pending is True
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_loop_chapter_guard_skips_documents_and_ambiguous_volumes(db_session):
-    from agent.tools.mcp_tools import CHAPTER_FILE_EXISTS_ERROR_TYPE, ToolContext, create_file
-
-    user, project = _user_project(db_session)
-    volume_one = File(project_id=project.id, title="卷一", file_type="folder")
-    volume_two = File(project_id=project.id, title="卷二", file_type="folder")
-    db_session.add_all([volume_one, volume_two])
-    db_session.commit()
-    db_session.add_all([
-        File(project_id=project.id, title="第3章 夜航", content="合成正文。", file_type="draft", parent_id=volume_one.id),
-        File(project_id=project.id, title="第1章 起航", content="合成正文。", file_type="draft", parent_id=volume_one.id),
-        File(project_id=project.id, title="第1章 新卷", content="合成正文。", file_type="draft", parent_id=volume_two.id),
-    ])
-    db_session.commit()
-
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="loop-guard-2")
-    ToolContext.set_current_agent("loop")
-    try:
-        notes = _payload(await create_file({"title": "第3章 修改意见", "file_type": "document", "content": "合成"}))
-        ambiguous = _payload(await create_file({"title": "第1章 另起", "file_type": "draft", "content": "合成"}))
-        unique = _payload(await create_file({"title": "第3章 重写", "file_type": "draft", "content": "合成"}))
-    finally:
-        ToolContext.clear_context()
-
-    assert notes["status"] == "success"
-    # 两卷各有第1章、没给父目录：不知道是哪一卷，不拦。
-    assert ambiguous["status"] == "success"
-    # 只有一个目录有第3章：照旧拦下并指回它。
-    assert unique["status"] == "error" and unique["error_type"] == CHAPTER_FILE_EXISTS_ERROR_TYPE
 
 
 @pytest.mark.unit

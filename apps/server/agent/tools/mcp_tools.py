@@ -1516,7 +1516,9 @@ def _clear_settled_pending_empty_files() -> bool:
     return cleared
 
 
-def _pending_empty_file_rejection(blocking_title: str | None, title: str) -> dict[str, Any]:
+def _pending_empty_file_rejection(
+    blocking_title: str | None, title: str, *, tool_name: str = "create_file"
+) -> dict[str, Any]:
     """create_file 被「上一个空文件还没写正文」挡回时的错误，点名解除方法。
 
     error_type 让工具失败熔断器把它识别为顺序性拒绝（先做前置动作即可成功），
@@ -1537,12 +1539,12 @@ def _pending_empty_file_rejection(blocking_title: str | None, title: str) -> dic
             f"文件「{title}」未创建：上一个文件「{blocking_name}」{id_part}正文还是空的，"
             "一次只能流式写入一个文件。"
             f"下一步：下一次回复直接以 <file> 开头写完「{blocking_name}」的正文、用 </file> 结束；"
-            f"写完后再调用 create_file 创建「{title}」。在此之前重复调用 create_file 只会再次被拒绝。"
+            f"写完后再调用 {tool_name} 写「{title}」。在此之前重复调用 {tool_name} 只会再次被拒绝。"
         ),
     }
     if blocking_id:
         payload["pending_file_id"] = blocking_id
-    return _make_mcp_payload(payload, tool_name="create_file")
+    return _make_mcp_payload(payload, tool_name=tool_name)
 
 
 def _awaiting_body_data(data: dict[str, Any], title: str) -> dict[str, Any]:
@@ -1637,89 +1639,299 @@ def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict
     )
 
 
-# 单循环 agent 每一章（集）只有一个正文文件：已有同一章号 / 集号的正文类文件时 create_file 拒绝，
-# 指回那个文件让模型用 edit_file 改它。只比对标题开头的「第N章 / 第N集 / Chapter N」编号（有界的标识符检查）。
-CHAPTER_FILE_EXISTS_ERROR_TYPE = "chapter_file_exists"
-_CHAPTER_UNITS = ("章", "集")
+# 单循环 agent 的正文（draft / script）只经 write_chapter 按章号 / 集号写入：create_file 不建正文，
+# edit_file 不整份替换正文（见 FileEditor 的 body_guards）。多 agent 图的 create_file 不变。
+LOOP_BODY_CREATE_ERROR_TYPE = "chapter_body_requires_write_chapter"
+WRITE_CHAPTER_TOOL_NAME = "write_chapter"
+WRITE_CHAPTER_ACTION_CREATED = "created"
+WRITE_CHAPTER_ACTION_REPLACED = "replaced"
+WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE = "chapter_target_ambiguous"
+WRITE_CHAPTER_INVALID_ERROR_TYPE = "invalid_chapter"
+# file_type → 标题里的序号单位（有界的标识符检查，只比对标题开头的「第N章 / 第N集 / Chapter N / Episode N」）。
+_CHAPTER_UNIT_BY_TYPE = {"draft": "章", "script": "集"}
+_CJK_RE = re.compile(r"[\u3400-\u9fff]")
 
 
-def _existing_chapter_file_rejection(args: dict[str, Any], project_id: str) -> dict[str, Any] | None:
-    """要建的正文文件与已有正文类文件同一章（集）时返回拒绝结果；其余情况返回 None。
-
-    同标题且仍为空的文件不拦：那是重复创建在等正文的同一个文件，由空文件守卫与剧集复用处理。
-    父目录给了就只比对同一目录（分卷各自编号）；没给父目录而同一编号出现在不止一个目录里时
-    （多卷各有第N章）无法确定是哪一卷，不拦。只拦正文类（draft / script）：document 等资料文件
-    不是正文，标题带章号也照常新建。
-    """
+def _loop_agent_type() -> str:
     from agent.tools.registry import LOOP_AGENT_TYPE
-    from models import File
-    from utils.title_sequence import extract_sequence_number
+
+    return LOOP_AGENT_TYPE
+
+
+def _loop_body_create_refusal(args: dict[str, Any]) -> dict[str, Any] | None:
+    """单循环 agent 用 create_file 建正文类文件时拒绝，指向 write_chapter；其余情况返回 None。"""
+    from agent.tools.registry import LOOP_AGENT_TYPE
 
     if ToolContext.get_current_agent() != LOOP_AGENT_TYPE:
         return None
     file_type = str(args.get("file_type") or "draft").strip().lower()
     if file_type not in CONTENT_FILE_TYPES:
         return None
-    title = str(args.get("title") or "").strip()
-    unit = number = None
-    for candidate in _CHAPTER_UNITS:
-        number = extract_sequence_number(title, unit=candidate)
-        if number:
-            unit = candidate
-            break
-    if unit is None or not number:
-        return None
+    return _make_mcp_payload(
+        {
+            "status": "error",
+            "error_type": LOOP_BODY_CREATE_ERROR_TYPE,
+            "error": (
+                f"create_file 不建正文（file_type={file_type}），没有新建文件。新写一章或整章重写都用 "
+                "write_chapter(chapter=章号, title=章名, file_type=draft 或 script)，它按章号定位：这一章不存在就新建，"
+                "已存在就替换这一章；调用后下一次回复用 <file>…</file> 写正文。大纲、人物、设定等资料文件用 create_file 并写明 file_type。"
+            ),
+            "mutation_applied": False,
+        },
+        tool_name="create_file",
+    )
+
+
+def _chapter_title(title: str, number: int, unit: str) -> str:
+    """标题不带章号时补上（展示格式）：中文标题补「第N章 」，其余补「Chapter N: 」。"""
+    text = title.strip()
+    if _CJK_RE.search(text) or not text:
+        return f"第{number}{unit} {text}".strip()
+    label = "Chapter" if unit == "章" else "Episode"
+    return f"{label} {number}: {text}"
+
+
+def _write_chapter_error(error: str, *, error_type: str, **fields: Any) -> dict[str, Any]:
+    return _make_mcp_payload(
+        {"status": "error", "error": error, "error_type": error_type, "mutation_applied": False, **fields},
+        tool_name=WRITE_CHAPTER_TOOL_NAME,
+    )
+
+
+async def write_chapter(args: dict[str, Any]) -> dict[str, Any]:
+    """按章号 / 集号写一章正文：不存在就新建，已存在就替换这一章（正文随后以 <file> 写入）。"""
+    if _should_offload_tool_execution():
+        return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _write_chapter_sync, args)
+    return _write_chapter_sync(args)
+
+
+def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
+    """write_chapter 的同步实现。
+
+    目标只按编号解析：本项目未删除的正文类文件（draft / script）里，标题开头的章号（draft）或集号
+    （script）等于 ``chapter`` 的那一个（给了 parent_id 只看那个目录）。
+
+    - 没有：按 create_file 的路径新建空文件（标题不带章号时补上），正文在下一次回复用 <file> 写入；
+      两次回复协议、待写守卫、空文件纠偏与回滚、退还时移除空白占位都照旧。
+    - 恰好一个：把这一章定为整章替换目标（不改数据库），记下当时的版本，同样等下一次回复的 <file>；
+      正文写完后 StreamAdapter 用 ``FileEditor.replace_body`` 提交（版本核对、作者正文保护、AI 版本、
+      撤销锚点、diff 审阅），结果补发到同一张卡上。作者保存过正文的章节在这里就拒绝。
+    - 多个（重复的章节文件，或没给 parent_id 而多个目录都有这一章）：不写，列出候选让模型确认。
+    """
+    from models import File
+    from utils.title_sequence import extract_sequence_number
+
+    tool_name = WRITE_CHAPTER_TOOL_NAME
+    project_id = ToolContext._get_context().get("project_id")
+    if project_id is None:
+        return _make_error("project_id not set", tool_name=tool_name)
+
+    raw_number = args.get("chapter")
+    try:
+        number = int(raw_number) if not isinstance(raw_number, bool) else 0
+    except (TypeError, ValueError):
+        number = 0
+    if number <= 0 or (isinstance(raw_number, float) and not raw_number.is_integer()):
+        return _write_chapter_error(
+            "write_chapter 需要 chapter（正整数章号；剧本是集号），没有写入。",
+            error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,
+        )
+    file_type = str(args.get("file_type") or "draft").strip().lower()
+    unit = _CHAPTER_UNIT_BY_TYPE.get(file_type)
+    if unit is None:
+        return _write_chapter_error(
+            "write_chapter 只写正文：file_type 是 draft（小说章节）或 script（剧本分集），没有写入。"
+            "大纲、人物、设定等资料文件用 create_file。",
+            error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,
+        )
+    raw_title = str(args.get("title") or "").strip()
+    titled_number = extract_sequence_number(raw_title, unit=unit)
+    if titled_number is not None and titled_number != number:
+        return _write_chapter_error(
+            f"标题「{raw_title}」写的是第{titled_number}{unit}，chapter 却是 {number}，没有写入。"
+            f"确认要写第几{unit}后让两者一致（title 可以只写章名）。",
+            error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,
+        )
+    title = raw_title if titled_number is not None else _chapter_title(raw_title, number, unit)
     parent_id = args.get("parent_id") or None
+
     try:
         rows = _run_session_probe(
             ToolContext.get_session(),
             lambda s: s.exec(
-                select(File.id, File.title, File.parent_id, File.content).where(
+                select(File.id, File.title, File.parent_id, File.file_type).where(
                     File.project_id == project_id,
                     File.is_deleted.is_(False),
                     File.file_type.in_(CONTENT_FILE_TYPES),
                 )
             ).all(),
         )
-    except Exception as e:  # noqa: BLE001 - 查不到时不拦，照常建文件
-        logger.debug(f"Chapter duplicate probe failed: {e}")
-        return None
-    matches = []
-    for row in rows:
-        if parent_id is not None and (row.parent_id or None) != parent_id:
-            continue
-        if extract_sequence_number(row.title, unit=unit) != number:
-            continue
-        if str(row.title or "").strip() == title and not str(row.content or "").strip():
-            continue
-        matches.append(row)
-    if parent_id is None and len({row.parent_id or None for row in matches}) > 1:
-        return None
-    for row in matches[:1]:
-        log_with_context(
-            logger,
-            20,  # INFO
-            "agent.create_file.chapter_exists",
-            project_id=project_id,
-            existing_file_id=row.id,
-            unit=unit,
-            number=number,
+    except Exception as e:  # noqa: BLE001
+        return _make_error(f"读取章节列表失败，没有写入：{e}", tool_name=tool_name)
+    matches = [
+        row
+        for row in rows
+        if extract_sequence_number(row.title, unit=unit) == number
+        and (parent_id is None or (row.parent_id or None) == parent_id)
+    ]
+    if len(matches) > 1:
+        listed = "；".join(f"《{row.title}》(id={row.id}, parent_id={row.parent_id})" for row in matches[:6])
+        return _write_chapter_error(
+            f"第{number}{unit}对应不止一个文件：{listed}。没有写入。"
+            f"分卷时传 parent_id 指明是哪一卷；同一目录里重复的第{number}{unit}文件请告诉作者，"
+            "由作者决定保留哪一个，不要自己删除或合并。",
+            error_type=WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE,
+            candidates=[{"id": row.id, "title": row.title, "parent_id": row.parent_id} for row in matches[:6]],
         )
-        return _make_mcp_payload(
+    empty = coerce_bool(args.get("empty"))
+    if not matches:
+        return _write_chapter_create(
+            args, title=title, number=number, unit=unit, file_type=file_type, parent_id=parent_id, empty=empty
+        )
+    if empty:
+        # 只建空章节：这一章已经有文件，什么也不做。
+        existing = matches[0]
+        return _make_result(
             {
-                "status": "error",
-                "error_type": CHAPTER_FILE_EXISTS_ERROR_TYPE,
-                "error": (
-                    f"《{row.title}》已经是这一{unit}的文件（id={row.id}），同一{unit}只能有一个文件，没有新建。"
-                    "要改写或替换这一" + unit + "，用 edit_file 修改这个文件；需要原文时先用 query_files 读取。"
-                ),
-                "id": row.id,
-                "title": row.title,
+                "status": "success",
                 "mutation_applied": False,
+                "data": {
+                    "id": existing.id,
+                    "title": existing.title,
+                    "file_type": existing.file_type,
+                    "chapter": number,
+                    "action": "exists",
+                    "result": f"第{number}{unit}《{existing.title}》已经有文件，没有改动。",
+                },
             },
-            tool_name="create_file",
+            tool_name=tool_name,
         )
-    return None
+    return _write_chapter_replace(matches[0].id, number=number, unit=unit, project_id=project_id)
+
+
+def _write_chapter_create(
+    args: dict[str, Any],
+    *,
+    title: str,
+    number: int,
+    unit: str,
+    file_type: str,
+    parent_id: str | None,
+    empty: bool,
+) -> dict[str, Any]:
+    create_args: dict[str, Any] = {"title": title, "file_type": file_type, "content": "", "empty": empty}
+    if parent_id is not None:
+        create_args["parent_id"] = parent_id
+    if args.get("metadata") is not None:
+        create_args["metadata"] = args.get("metadata")
+    raw = _create_file_sync(create_args, tool_name=WRITE_CHAPTER_TOOL_NAME)
+    payload = _payload_of(raw)
+    if not isinstance(payload, dict) or payload.get("status") != "success":
+        return raw
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    created_title = str(data.get("title") or title)
+    data = {
+        **data,
+        "chapter": number,
+        "action": WRITE_CHAPTER_ACTION_CREATED,
+        "result": f"新建了第{number}{unit}《{created_title}》。",
+    }
+    return _make_result({**payload, "data": data}, tool_name=WRITE_CHAPTER_TOOL_NAME)
+
+
+def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: str) -> dict[str, Any]:
+    from agent.tools.author_edit_guard import enforce_author_content_protection
+    from models import File
+    from utils.text_metrics import count_words
+
+    tool_name = WRITE_CHAPTER_TOOL_NAME
+    pending_ids = {str(entry.get("file_id") or "") for entry in ToolContext.get_pending_empty_files()}
+    session = ToolContext.get_session()
+    try:
+        row = _run_session_probe(
+            session,
+            lambda s: s.exec(
+                select(File).where(File.id == file_id).execution_options(populate_existing=True)
+            ).first(),
+        )
+    except Exception as e:  # noqa: BLE001
+        return _make_error(f"读取第{number}{unit}失败，没有写入：{e}", tool_name=tool_name)
+    if row is None or row.is_deleted or row.project_id != project_id:
+        return _write_chapter_error(
+            f"第{number}{unit}的文件已不存在，没有写入。", error_type=EDIT_ERROR_FILE_NOT_FOUND
+        )
+    content = row.content or ""
+    data = serialize_file(row)
+    data.pop("content", None)
+    data["chapter"] = number
+    if file_id in pending_ids:
+        # 这一章就是本请求刚建、还在等正文的那个文件：交回它，下一次回复照常写正文。
+        data = _awaiting_body_data(data, str(row.title or ""))
+        data["action"] = WRITE_CHAPTER_ACTION_CREATED
+        data["next_step"] = "不要再调用 write_chapter。" + data["next_step"]
+        return _make_result({"status": "success", "mutation_applied": False, "data": data}, tool_name=tool_name)
+
+    if content.strip():
+        try:
+            _run_session_probe(
+                session, lambda s: enforce_author_content_protection(s, [row], action="rewrite")
+            )
+        except AuthorContentProtectionError as e:
+            refusal = _author_content_protection_payload(e, tool_name=tool_name)
+            refused = _payload_of(refusal)
+            if isinstance(refused, dict):
+                refused["error"] = (
+                    f"第{number}{unit}《{row.title}》有作者手动保存的内容（或来源无法确认），应用内对话不能整章替换它，没有写入。"
+                    "要改其中几处用 edit_file 做局部修改；需要整章替换时请作者在编辑器里操作。"
+                )
+                return _make_mcp_payload(refused, tool_name=tool_name)
+            return refusal
+
+    reservation = f"reserve-{uuid4().hex}"
+    acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(reservation, str(row.title or ""))
+    if not acquired and _clear_settled_pending_empty_files():
+        acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(reservation, str(row.title or ""))
+    if not acquired:
+        return _pending_empty_file_rejection(blocking_title, str(row.title or ""), tool_name=tool_name)
+    # 不是本轮新建的文件：不记建好时的版本（补不成时不回滚、不算可以取消的空文件）。
+    ToolContext.bind_pending_empty_file(reservation, file_id, str(row.title or ""), None)
+    previous_words = count_words(content)
+    data.update(
+        {
+            "action": WRITE_CHAPTER_ACTION_REPLACED,
+            "awaiting_body": True,
+            "previous_length": len(content),
+            "previous_word_count": previous_words,
+            "original_content_length": len(content),
+            "result": (
+                f"覆盖已有的第{number}{unit}《{row.title}》（原{previous_words}字）：下一次回复写的正文会整章替换它，"
+                "标题沿用（要改标题用 rename_file）。"
+            ),
+            "next_step": (
+                "下一次回复直接以 <file> 开头写这一章完整的新正文（不是改动片段），写完用 </file> 结束；"
+                "不要先调用其他工具。保存后原稿可在 diff 审阅和历史版本里找回。"
+            ),
+        }
+    )
+    log_with_context(
+        logger,
+        20,  # INFO
+        "agent.write_chapter.replace_armed",
+        project_id=project_id,
+        file_id=file_id,
+        unit=unit,
+        number=number,
+        previous_length=len(content),
+    )
+    return _make_result({"status": "success", "mutation_applied": False, "data": data}, tool_name=tool_name)
+
+
+def _payload_of(result: Any) -> Any:
+    """MCP 结果里那段 JSON 文本解析回字典（解析不了返回 None）。"""
+    try:
+        return json.loads(result["content"][0]["text"])
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+        return None
 
 
 async def create_file(args: dict[str, Any]) -> dict[str, Any]:
@@ -1734,9 +1946,8 @@ async def create_file(args: dict[str, Any]) -> dict[str, Any]:
     return _create_file_sync(args)
 
 
-def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
-    """Synchronous create_file implementation."""
-    tool_name = "create_file"
+def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -> dict[str, Any]:
+    """Synchronous create_file implementation (write_chapter 新建一章时也走这里)."""
     executor = ToolContext.get_executor()
     project_id = ToolContext._get_context().get("project_id")
 
@@ -1745,9 +1956,10 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
 
     content = args.get("content", "")
     title = args.get("title", "")
-    chapter_rejection = _existing_chapter_file_rejection(args, project_id)
-    if chapter_rejection is not None:
-        return chapter_rejection
+    if tool_name == "create_file":
+        body_refusal = _loop_body_create_refusal(args)
+        if body_refusal is not None:
+            return body_refusal
     # 作者明确只要建文件（「只建标题，不写内容」）：这个空文件就是交付物，不等正文。
     # 只在路由判断作者本轮不要正文时生效，作者要正文时模型传了也照常等正文。
     empty_requested = coerce_bool(args.get("empty"))
@@ -1776,7 +1988,7 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             repeat = _repeat_of_pending_empty_file(args, project_id)
             if repeat is not None:
                 return repeat
-            return _pending_empty_file_rejection(blocking_title, title)
+            return _pending_empty_file_rejection(blocking_title, title, tool_name=tool_name)
 
     try:
         order_value = args.get("order") if "order" in args else None
@@ -1960,6 +2172,8 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             read_snapshot_fn=(lambda: ToolContext.read_snapshot(file_id)) if has_snapshot else None,
             exact_only=not has_seen,
             report_author_edits=True,
+            # 单循环 agent 改正文：不整份替换（走 write_chapter）、不新添逐字重复的段落。
+            body_guards=ToolContext.get_current_agent() == _loop_agent_type(),
         )
         # status 必须按实际结果降级：continue_on_error 下部分/全部 edit 失败时，
         # 恒返回 "success" 会让模型以为改动已经落地、继续往下写，
@@ -2890,6 +3104,7 @@ def _read_skill_resource_sync(args: dict[str, Any]) -> dict[str, Any]:
 # Export all tools as a list for easy registration
 MCP_TOOL_HANDLERS: dict[str, Callable[[dict[str, Any]], Any]] = {
     "create_file": create_file,
+    WRITE_CHAPTER_TOOL_NAME: write_chapter,
     "edit_file": edit_file,
     "delete_file": delete_file,
     "rename_file": rename_file,

@@ -45,6 +45,7 @@ _INTERRUPTED_ROUND_NOTES = {
 }
 # create_file 的结果里只对当时那一步有意义、回放时会误导模型的字段。
 _CREATE_FILE_TRANSIENT_KEYS = ("awaiting_body", "next_step", "content", "body_in_reply")
+_REPLACE_NOT_SAVED_NOTE = "这次整章替换的新正文没有保存，这一章保持原样。"
 # 落库的工具结果是前端卡片口径，不是模型当时拿到的原文：技能正文不落库，失败只留给作者看的说明。
 # 回放时如实说明，模型不会以为自己手里还有这些内容。
 _SKILL_CONTENT_NOT_KEPT = {
@@ -142,10 +143,17 @@ def _tool_output_text(call: dict[str, Any]) -> str:
     error = call.get("error")
     if status == "pending" and result is None and error is None:
         return json.dumps({"status": "unknown", "note": "这次调用的结果没有记录下来"}, ensure_ascii=False)
-    if name == "create_file" and status == "success" and isinstance(result, dict):
+    if name in ("create_file", "write_chapter") and status == "success" and isinstance(result, dict):
+        replaced = name == "write_chapter" and result.get("action") == "replaced"
         streamed = result.get("awaiting_body") is True or result.get("body_in_reply") is True
+        saved = result.get("body_saved") is True
         result = {key: value for key, value in result.items() if key not in _CREATE_FILE_TRANSIENT_KEYS}
-        if streamed:
+        if replaced:
+            # 整章替换只有落库后补发的结果才带 body_saved；只有定位结果说明新正文没有存下。
+            result["body_saved"] = saved
+            if not saved:
+                result["result"] = _REPLACE_NOT_SAVED_NOTE
+        elif streamed:
             result["body_saved"] = True
     payload: dict[str, Any] = {"status": status or "success"}
     if result is not None:

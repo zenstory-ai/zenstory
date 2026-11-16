@@ -9,7 +9,7 @@ import asyncio
 import contextlib
 import os
 from collections.abc import AsyncIterator, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.error_codes import ErrorCode
@@ -125,6 +125,10 @@ class PendingFileWrite:
     # Optimistic token observed in create_file's result. A full-body finalization
     # must not overwrite any author/external/AI write committed after this point.
     baseline_updated_at: str | None = None
+    # write_chapter 的整章替换：正文写完后走 FileEditor.replace_body（撤销锚点、diff 审阅），
+    # 结果补发到这张卡（tool_use_id）上；card 是定位时的卡片数据。None 表示普通的新建写入。
+    replace_tool_use_id: str | None = None
+    replace_card: dict[str, Any] = field(default_factory=dict)
 
 
 class StreamAdapter:
@@ -274,6 +278,9 @@ class StreamAdapter:
         title: str,
         original_content_length: int = 0,
         baseline_updated_at: str | None = None,
+        *,
+        replace_tool_use_id: str | None = None,
+        replace_card: dict[str, Any] | None = None,
     ) -> None:
         """
         Set a pending file write operation.
@@ -314,6 +321,8 @@ class StreamAdapter:
                 if isinstance(baseline_updated_at, str) and baseline_updated_at.strip()
                 else None
             ),
+            replace_tool_use_id=replace_tool_use_id,
+            replace_card=dict(replace_card or {}),
         )
         self._stream_processor.start_file_write(file_id)
 
@@ -715,6 +724,21 @@ class StreamAdapter:
                 async for event in self._bind_reply_prebody(result_data):
                     yield event
 
+            # write_chapter：新建一章同 create_file；替换已有的一章时等 <file> 正文，写完走替换路径。
+            if tool_name == "write_chapter" and status == "success" and isinstance(result_data, dict):
+                action = result_data.get("action")
+                if action == "created":
+                    async for event in self._handle_create_file_result(result_data):
+                        yield event
+                    file_id = result_data.get("id", "")
+                    if file_id:
+                        yield file_created_event(file_id, result_data.get("file_type", ""), result_data.get("title", ""))
+                    async for event in self._bind_reply_prebody(result_data):
+                        yield event
+                elif action == "replaced" and result_data.get("awaiting_body") is True:
+                    async for event in self._arm_chapter_replace(result_data, tool_use_id):
+                        yield event
+
             # Handle file edit。即便状态被降级为 error（全部编辑失败），
             # 也要把逐条失败事件发出去，让用户看到「哪几处没改成」。
             if tool_name == "edit_file":
@@ -900,6 +924,175 @@ class StreamAdapter:
             original_content_length=original_content_length,
             baseline_updated_at=file_data.get("updated_at"),
         )
+
+    async def _arm_chapter_replace(self, result_data: dict[str, Any], tool_use_id: str) -> AsyncIterator[SSEEvent]:
+        """write_chapter 定位到已有的一章：等下一次回复的 <file> 正文，写完整章替换它。
+
+        编辑器照常实时显示正文（file_created → file_content）；截断补全或中途停止时不覆盖原文
+        （original_content_length > 0 的覆盖保护）；落库走 _complete_chapter_replace。
+        """
+        file_id = str(result_data.get("id") or "")
+        if not file_id:
+            return
+        async for sse_event in self._flush_active_capture():
+            yield sse_event
+        if self._fatal_stream_error:
+            return
+        card = {
+            key: value
+            for key, value in result_data.items()
+            if key not in ("awaiting_body", "next_step", "content", "original_content_length")
+        }
+        self.set_pending_file_write(
+            file_id,
+            str(result_data.get("file_type") or ""),
+            str(result_data.get("title") or ""),
+            original_content_length=self._resolve_original_content_length(result_data, ""),
+            baseline_updated_at=result_data.get("updated_at"),
+            replace_tool_use_id=tool_use_id or None,
+            replace_card=card,
+        )
+        yield file_created_event(file_id, str(result_data.get("file_type") or ""), str(result_data.get("title") or ""))
+
+    async def _complete_chapter_replace(self, result: StreamResult, pending: PendingFileWrite) -> AsyncIterator[SSEEvent]:
+        """整章替换的正文写完：用 replace_body 提交，发 diff 审阅事件，并把结果补发到同一张卡上。"""
+        file_id = pending.file_id
+        outcome, replaced = await self._save_chapter_replacement(file_id, result.final_content, pending)
+        card = dict(pending.replace_card)
+        self._pending_file_write = None
+        self._clear_pending_empty_file_guard(file_id)
+        if outcome == "failed":
+            self._fatal_stream_error = True
+            yield error_event(
+                message=error_message_for(ErrorCode.AGENT_FILE_SAVE_FAILED),
+                code=ErrorCode.AGENT_FILE_SAVE_FAILED,
+                retryable=True,
+            )
+            return
+        yield file_content_end_event(file_id)
+        if outcome == "refused" or replaced is None:
+            warning_text = "\n\n" + (
+                "This chapter rewrite was not saved. The original text is unchanged."
+                if self.config.language.lower().startswith("en")
+                else "这一章的整章替换没有保存，原文保持不变。"
+            )
+            if not self._content_started:
+                yield content_start_event()
+                self._content_started = True
+            yield content_event(warning_text)
+            card.update({"mutation_applied": False, "body_saved": False})
+            if pending.replace_tool_use_id:
+                yield tool_result_event(
+                    tool_name="write_chapter", status="success", data=card, tool_use_id=pending.replace_tool_use_id
+                )
+            return
+        original = str(replaced.get("original_content") or "")
+        new_content = str(replaced.get("new_content") or "")
+        mutated = replaced.get("mutation_applied") is True
+        title = str(replaced.get("title") or pending.title)
+        file_type = str(replaced.get("file_type") or pending.file_type)
+        yield file_edit_start_event(file_id, title, 1, file_type=file_type)
+        yield file_edit_applied_event(
+            file_id=file_id,
+            edit_index=0,
+            op="replace",
+            old_preview=original[:50] or None,
+            new_preview=new_content[:50] or None,
+            success=True,
+            error=None,
+        )
+        yield file_edit_end_event(
+            file_id=file_id,
+            edits_applied=1 if mutated else 0,
+            new_length=int(replaced.get("new_length") or 0),
+            # 原稿与新稿一起给前端：进入逐段 diff 审阅（与作者在编辑器里审 AI 改稿同一套）。
+            new_content=new_content if mutated else None,
+            original_content=original if mutated else None,
+            file_type=file_type,
+            title=title,
+        )
+        chapter = card.get("chapter")
+        unit = "集" if file_type == FILE_TYPE_SCRIPT else "章"
+        card.update(
+            {
+                "mutation_applied": mutated,
+                "body_saved": True,
+                "new_length": replaced.get("new_length"),
+                "new_word_count": replaced.get("new_word_count"),
+                "previous_length": replaced.get("previous_length"),
+                "previous_word_count": replaced.get("previous_word_count"),
+                "updated_at": replaced.get("updated_at"),
+                "result": (
+                    f"覆盖了已有的第{chapter}{unit}（原{replaced.get('previous_word_count')}字），"
+                    f"现在{replaced.get('new_word_count')}字。"
+                ),
+            }
+        )
+        if isinstance(replaced.get("undo"), dict):
+            card["undo"] = replaced["undo"]
+        if pending.replace_tool_use_id:
+            # 同一个 tool_use_id 再发一次结果：落库的卡片与前端的卡片都更新成真实的替换结果（含撤销锚点）。
+            yield tool_result_event(
+                tool_name="write_chapter", status="success", data=card, tool_use_id=pending.replace_tool_use_id
+            )
+
+    async def _save_chapter_replacement(
+        self, file_id: str, content: str, pending: PendingFileWrite
+    ) -> tuple[str, dict[str, Any] | None]:
+        """("saved", 结果) / ("refused", None)：版本变了或作者正文受保护 / ("failed", None)：其他失败。"""
+        from agent.tools.author_edit_guard import AuthorContentProtectionError
+        from agent.tools.file_ops.crud import ConcurrentFileWriteError
+
+        run_meter = self.config.run_meter
+        timing = run_meter.measure_stage("file_save") if run_meter is not None else contextlib.nullcontext()
+        try:
+            with timing:
+                replaced = await asyncio.wait_for(
+                    asyncio.to_thread(self._replace_file_body_sync, file_id, content, pending.baseline_updated_at),
+                    timeout=STREAM_FILE_SAVE_TIMEOUT_S,
+                )
+        except (ConcurrentFileWriteError, AuthorContentProtectionError) as exc:
+            log_with_context(
+                logger, 30, "Chapter replacement refused", file_id=file_id, error_type=type(exc).__name__
+            )
+            self._saved_file_word_counts.setdefault(file_id, None)
+            return "refused", None
+        except Exception as exc:  # noqa: BLE001 - reported to the author as a failed save
+            log_with_context(
+                logger, 40, "Failed to save chapter replacement", file_id=file_id, error_type=type(exc).__name__
+            )
+            self._saved_file_word_counts.setdefault(file_id, None)
+            return "failed", None
+        if replaced.get("mutation_applied") is True:
+            self._file_mutated = True
+            if run_meter is not None and content.strip():
+                run_meter.mark_first_body_persisted()
+        self._saved_file_word_counts[file_id] = count_words(str(replaced.get("new_content") or content))
+        return "saved", replaced
+
+    def _replace_file_body_sync(self, file_id: str, content: str, expected_updated_at: str | None) -> dict[str, Any]:
+        from agent.tools.file_ops import FileToolExecutor
+        from database import create_session, get_session, is_postgres
+
+        def run(session: Any) -> dict[str, Any]:
+            return FileToolExecutor(session=session, user_id=self.config.user_id).replace_body(
+                file_id,
+                content,
+                expected_updated_at=expected_updated_at,
+                normalize_quotes=True,
+                protect_author_content=True,
+            )
+
+        if is_postgres:
+            with create_session() as session:
+                return run(session)
+        session_gen = get_session()
+        session = next(session_gen)
+        try:
+            return run(session)
+        finally:
+            with contextlib.suppress(StopIteration):
+                next(session_gen)
 
     async def _resume_file_body(self, request: Any) -> AsyncIterator[SSEEvent]:
         """图的空文件纠偏轮开始前：为同一个文件重新等待 <file> 正文，结果写回 request。
@@ -1304,6 +1497,12 @@ class StreamAdapter:
                 file_id=result.file_id,
                 streamed_length=len(result.final_content),
             )
+            return
+
+        pending = self._pending_file_write
+        if pending is not None and pending.file_id == result.file_id and pending.replace_card:
+            async for sse_event in self._complete_chapter_replace(result, pending):
+                yield sse_event
             return
 
         # Save accumulated file content to database before emitting end event

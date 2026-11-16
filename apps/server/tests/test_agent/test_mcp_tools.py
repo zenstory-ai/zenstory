@@ -630,6 +630,7 @@ async def test_edit_file_forwards_continue_on_error():
         read_snapshot_fn=None,
         exact_only=True,
         report_author_edits=True,
+        body_guards=False,
     )
 
 
@@ -682,6 +683,7 @@ async def test_edit_file_accepts_file_id_alias():
         read_snapshot_fn=None,
         exact_only=True,
         report_author_edits=True,
+        body_guards=False,
     )
 
 
