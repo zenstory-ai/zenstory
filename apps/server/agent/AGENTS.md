@@ -1,8 +1,10 @@
 # Agent 模块架构指南
 
-ZenStory 写作 agent 的服务端：路由 → 多角色工作流（planner / hook_designer / writer / quality_reviewer）→
-openai-agents-python 运行时（OpenAI 兼容 Chat Completions，主备两个供应商，见 `core/llm_providers.py` / `core/llm_failover.py`）→ SSE。
-工作流是 `graph/` 里的自研编排，**不使用 LangGraph**。
+ZenStory 写作 agent 的服务端：默认由**单循环 agent**（`loop/`，`AGENT_ENGINE=loop`）跑完每一轮——一个模型、写作工具集、
+一份只追加的对话 → openai-agents-python 运行时（OpenAI 兼容 Chat Completions，主备两个供应商，见 `core/llm_providers.py` /
+`core/llm_failover.py`）→ SSE。原来的多角色工作流（路由 → planner / hook_designer / writer / quality_reviewer，`graph/` 里的自研编排，
+**不使用 LangGraph**）只作运维回滚保留（`AGENT_ENGINE=graph`），之后单独一批删除；`loop` 时它不运行。
+决策见 [single-loop-agent][n-loop]。下文「多 Agent 协作」「Router」「用户范围与交接规则」等节描述的是回滚路径。
 
 MiniMax 可配置双凭证：`MINIMAX_API_KEY` 是主凭证，
 `MINIMAX_SECONDARY_API_KEY` 是次凭证，
@@ -32,7 +34,7 @@ agent/
 │   ├── assembler.py        # ContextAssembler
 │   ├── budget.py           # token 预算与请求级 prompt 台账
 │   └── prioritizer.py      # 优先级分档
-│                           # 注：没有会话压缩/总结模块，历史只按 token 预算取最近窗口
+│                           # 注：图的历史只按 token 预算取最近窗口；单循环 agent 的压缩在 loop/compaction.py
 ├── core/                   # 基础设施
 │   ├── events.py           # SSE 事件（EventType）与帧构造
 │   ├── workflow_events.py  # 图内部事件（StreamEventType / StreamEvent）
@@ -52,7 +54,13 @@ agent/
 │   ├── llm_providers.py    # 主 / 备供应商配置与 OpenAI 兼容客户端
 │   ├── llm_failover.py     # 主备切换：会话固定、熔断、还没出正文/工具参数时换供应商
 │   └── llm_client.py       # 输入建议 / 润色的单次调用
-├── graph/                  # 多 agent 工作流（自研编排，非 LangGraph）
+├── loop/                   # 单循环 agent（默认引擎）
+│   ├── engine.py           # run_loop_agent_streaming：一轮的运行循环（纠偏 / 续写 / 插话再跑）
+│   ├── history.py          # 按会话消息行重建只追加的历史（工具调用成对回放、压缩点）
+│   ├── compaction.py       # 轮与轮之间的交接摘要压缩
+│   ├── turn_context.py     # 每轮附在作者消息前的结构化上下文
+│   └── prompts.py          # 工作方式、输入布局、压缩提示
+├── graph/                  # 多 agent 工作流（回滚路径；自研编排，非 LangGraph）
 │   ├── writing_graph.py    # run_writing_workflow_streaming：路由、agent 循环、交接、自动质检
 │   ├── router.py           # 意图路由（RouterDecision、跨轮路由延续）
 │   ├── nodes.py            # run_streaming_agent：组装本次运行的系统指令并调用 runner
@@ -93,7 +101,42 @@ agent/
 └── utils/                  # token_utils、world_model_visibility
 ```
 
+## 单循环 agent（默认）
+
+- **接入点**：`AgentService.process_stream` 读 `config.agent_runtime.agent_engine()`；`loop` 时用 `_prepare_loop_turn` 准备输入，
+  把 `loop.engine.run_loop_agent_streaming` 交给同一个 `StreamAdapter.process_workflow_events`。SSE 外壳、计费 / 退还、停止 / 插话、
+  残稿补存、`round_outcome`、文件版本并发与作者正文保护全部共用。`generation_mode` 不读（请求结构照旧接受）。
+- **输入**：`[系统提示][重建的历史][<turn_context> + 作者消息]`。系统提示 = 项目类型配置（`prompts.get_prompt_for_project_type(loop=True)`：
+  `LOOP_AUTHOR_REPLY_PROTOCOL`、`LOOP_TOOL_USAGE_PROTOCOL`，没有多角色、交接和 parallel_execute）+ 回复语言 + `loop/prompts.py` 的输入布局与
+  工作方式（含写后连贯自查、按真实字数汇报）+ 技能目录，跨轮不变。`<turn_context>`（`loop/turn_context.py`）只放这一轮请求带来的东西：
+  项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、本轮回复语言（沿用 ContextAssembler 的解析器与渲染，不做
+  优先级裁剪、检索和文件清单）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件作为 edit_file 陈旧检查的起点。
+- **历史**（`loop/history.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
+  assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file 结果去掉
+  `awaiting_body` / `next_step`，带 `body_saved`。思考只在一次 run 内回放。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
+  的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
+- **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用历史估算）
+  超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（600000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，带工具清单、`tool_choice=none`），
+  空或被截断时 `reasoning_effort=low` 重试一次，仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
+  （`summary`、`covers_through_message_id`、`created_at`），之后的历史 = 压缩点之前最近的作者原话（`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`
+  预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。压缩用量以一条 MESSAGE_END 汇入本轮用量；从不在工具循环中途压缩。
+- **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
+  （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡）、
+  停在写完的 `</file>` 上的续写（附本请求正文落库字数）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。到收尾时间不再开新 run，
+  发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
+- **工具与权限**：`registry.LOOP_TOOL_NAMES` = 写作工具集去掉 `handoff_to_agent` / `request_clarification` / `parallel_execute`，请求里也只给这一份
+  （`get_exposed_tools("loop")`）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入照旧经 diff 审阅、撤销与版本保护；
+  写作约定追加许可放开（只追加、`expected_notes` 冲突保护不变）；`requested_body_write` / `no_file_changes` 回执不出现。
+  create_file 的同章守卫（`mcp_tools._existing_chapter_file_rejection`）：单循环 agent 在同一目录里为已有章号 / 集号的正文类文件再建文件时，
+  以 `error_type=chapter_file_exists` 拒绝并指回已有文件（同标题仍为空的不拦，交给空文件守卫与剧集复用）。
+- **落库**：assistant 行 `routing` 为空，`display_events` 只有 content / thinking_content / tool_call / iteration_exhausted，额外 metadata
+  `engine`、`prompt_tokens`、`compaction`（`MessageManager.save_messages(assistant_extra_metadata=…)`，取消 / 失败补存也带）。
+- **测试**：既有 AgentService 用例替换 `run_writing_workflow_streaming` 驱动外壳，`tests/conftest.py` 默认让它们走图；单循环用例请求 `loop_engine` 夹具
+  （`tests/test_agent/test_loop_agent.py`、`tests/e2e/test_loop_agent_e2e.py`）。
+
 ## 请求与流
+
+以下 2–5 步是回滚路径（`AGENT_ENGINE=graph`）；单循环 agent 见上一节。
 
 1. `apps/server/api/agent.py` 的 `POST /api/v1/agent/stream`：鉴权、项目权限（`verify_project_access`）、按用户限流、
    会话忙预检、额度预检、原子获取账号任务名额（`core/account_run_limit.py`，每账号最多 2 个，见下）、
@@ -107,8 +150,9 @@ agent/
 3. `run_writing_workflow_streaming`（`graph/writing_graph.py`）使用现有 `router_node` 的结构化决策选择角色；
    不按「继续」词表、短答字数、只读关键词或笼统改稿正则绕过路由。`turn_disposition` 区分新/变更请求、
    中断续接和澄清作答；只有匹配可信持久化状态才继承，权限只收窄。`AGENT_ROUTER_STRATEGY=off` 普通请求仍固定 writer，
-   但存在可信中断/澄清状态时也走同一个 router，避免续接丢失范围。前端 `generation_mode=fast` 照常路由、只关自动质检，
-   `quality` 强制 llm 并开自动质检。[fast-mode-default][n-fast-default]之后循环直到完成或协作轮数上限。
+   但存在可信中断/澄清状态时也走同一个 router，避免续接丢失范围。`generation_mode=fast` 照常路由、只关自动质检，
+   `quality` 强制 llm 并开自动质检；没带模式（前端已不再发送）时按 `AGENT_ENABLE_GRAPH_AUTO_REVIEW`（默认 false）不自动送审。
+   [fast-mode-default][n-fast-default]之后循环直到完成或协作轮数上限。
 4. `nodes.run_streaming_agent`：共用系统提示 + `nodes.build_agent_directive`（角色提示 + `scope_directive` 等，作为这次输入的最后一条消息）
    → `openai_agents/runner.run_openai_agents_streaming_agent`。[cache-stable-prompt-layout][n-cache-layout]
    runner 用 `Runner.run_streamed` 跑 SDK，事件映射：`response.output_text.delta` → TEXT，reasoning delta → THINKING，
@@ -121,10 +165,12 @@ agent/
 `AGENT_TOOL_CALL_MAX_ITERATIONS`（60，单次 run 的 SDK max_turns，最后 `runner.SOFT_LANDING_TURNS` 轮提示收尾）、
 `AGENT_RUN_MAX_MODEL_CALLS`（120，请求级）、`AGENT_RUN_WALL_CLOCK_TIMEOUT_S`（780，须早于 Railway 900 秒断连）、
 `AGENT_RUN_WRAP_UP_AFTER_S`（默认时限减 180 秒：之后每次模型调用都提醒收尾、图不再开新的 agent run；两种收尾和已有写入的墙钟硬超时都发 `limit=wall_clock` 暂停卡，这一轮记 `run_deadline_exceeded`，「继续」回到卡上的 `last_agent`，见 [pause-card][n-pause-card]）、
-`AGENT_SSE_HEARTBEAT_INTERVAL_S`（15）、`AGENT_AUTO_REVIEW_THRESHOLD_CHARS`（500）。见 [runtime-budget-and-heartbeat][n-budget]、
+`AGENT_SSE_HEARTBEAT_INTERVAL_S`（15）、`AGENT_AUTO_REVIEW_THRESHOLD_CHARS`（500）、`AGENT_ENGINE`（loop）、
+`AGENT_LOOP_COMPACT_AT_TOKENS`（600000）、`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`（20000）、`AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS`（24000）、
+`AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS`（900000）。见 [runtime-budget-and-heartbeat][n-budget]、
 [no-progress-guard-and-soft-cap][n-noprogress]、[platform-deadline-and-terminal-guard][n-deadline]、[wall-clock-wrap-up][n-wrap-up]。
 
-## 多 Agent 协作
+## 多 Agent 协作（回滚路径）
 
 `graph/router.py` 的 `WORKFLOW_AGENTS` 是初始 agent 之后的计划序列上限：
 
@@ -249,6 +295,8 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 
 ## 上下文与跨轮记忆
 
+单循环 agent 的上下文与历史见「单循环 agent」一节；本节描述回滚路径。ContextAssembler 仍被 `/suggest` 和外部 API 使用。
+
 - `ContextAssembler`（`context/assembler.py`）收集焦点文件、附加文件、用户引用、相关大纲 / 角色 / 设定。分档（`context/prioritizer.py`）：
   CRITICAL（焦点文件、用户引用）→ CONSTRAINT（角色设定、高重要度设定、前一章，角色卡与设定排在章节之前）→ RELEVANT（兄弟章节、
   中重要度设定、检索片段）→ INSPIRATION。非 CRITICAL 档截断后不足 500 字且不到原文一半的残片丢弃（仍在文件清单里）；检索只排除最终
@@ -276,7 +324,8 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 
 ## 工具
 
-工具清单以 `tools/registry.py` 为准：每个角色、每一轮在请求里看到的都是同一份 `EXPOSED_TOOL_NAMES`（前缀缓存不按角色分裂）；
+工具清单以 `tools/registry.py` 为准。单循环 agent 只看到并执行 `LOOP_TOOL_NAMES`（没有 handoff_to_agent / request_clarification / parallel_execute）。
+图的每个角色、每一轮在请求里看到的都是同一份 `EXPOSED_TOOL_NAMES`（前缀缓存不按角色分裂）；
 角色能执行哪些工具由 `AGENT_TOOL_NAME_MAP` 决定（`DEFAULT_TOOL_NAMES` 给 planner / hook_designer / writer，`QUALITY_REVIEWER_TOOL_NAMES`
 给审稿人，没有写工具），越权调用在 `tools_adapter` 里以 `tool_not_permitted_for_role` 拒绝，本轮不可用的工具写进运行指令的
 `## 本轮工具限制`。create_file 建好空文件后返回 `awaiting_body` 与 `next_step`；下一次回复没先以 <file> 写完正文就调用的工具
@@ -304,9 +353,11 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 ## 提示词
 
 - 真实失败稿用于回归和正确反例，不把样例人物、账目、物件或情节关键词写成提示词/Agent 的特判。先定位通用的范围、输入、执行证据或权限缺口；提示策略变更须验证跨题材效果与误改，不能只证明已知样例修好了。
-- `prompts/base.py`：`get_base_prompt` 与 `UNIFIED_EXECUTION_PROTOCOL` 等共享协议。
+- `prompts/base.py`：`get_base_prompt` 与 `UNIFIED_EXECUTION_PROTOCOL` 等共享协议；`get_base_prompt(loop=True)` 换用 `LOOP_AUTHOR_REPLY_PROTOCOL`
+  与 `LOOP_TOOL_USAGE_PROTOCOL`（由同一组分段拼成，图的 `TOOL_USAGE_PROTOCOL` 逐字不变）。
+- `loop/prompts.py`：单循环 agent 的输入布局、工作方式（`LOOP_WORKING_RULES`，写后自查与真实字数在这里，不提模式）和压缩提示。
 - `prompts/subagents.py`：`ROUTER_PROMPT`、`PLANNER_PROMPT`、`HOOK_DESIGNER_PROMPT`、`WRITER_PROMPT`、`QUALITY_REVIEWER_PROMPT`。
-  `WRITER_PROMPT` 的「行文」节（节奏、句式、对白、元说明、指代、交代、一致、起名）与 `QUALITY_REVIEWER_PROMPT` 审查方法第 5 条成对维护；快速模式的写后自查只写在 `FAST_MODE_DIRECTIVE` / `FAST_MODE_REVIEW_REFUSAL`，不进固定前缀。[prose-craft][n-prose-craft]
+  `WRITER_PROMPT` 的「行文」节（节奏、句式、对白、元说明、指代、交代、一致、起名）与 `QUALITY_REVIEWER_PROMPT` 审查方法第 5 条成对维护；图的快速模式写后自查只写在 `FAST_MODE_DIRECTIVE` / `FAST_MODE_REVIEW_REFUSAL`，不进固定前缀（单循环 agent 的同一条规则在 `LOOP_WORKING_RULES`）。[prose-craft][n-prose-craft]
 - `prompts/suggestions.py`：建议生成。
 - 项目写作配置只存数据库（`prompts/__init__.py`）；项目类型的默认模板在 `apps/server/config/project_templates.py`。
 
@@ -404,3 +455,4 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-lean]: ../../../.agents/notes/implemented/simplification/2026-10-20-quality-mode-length-tolerance-and-attached-text.md
 [n-drain]: ../../../.agents/notes/implemented/architecture/2026-10-21-deploy-drain-ends-running-generations.md
 [n-account-tasks]: ../../../.agents/notes/implemented/feature/2026-11-05-account-concurrency-availability-first.md
+[n-loop]: ../../../.agents/notes/proposed/architecture/2026-11-16-single-loop-agent.md
