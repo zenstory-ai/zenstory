@@ -277,6 +277,44 @@ async def test_a_second_write_chapter_for_an_armed_replacement_keeps_the_replace
     assert len(_drafts(workspace)) == 1
 
 
+async def test_replacement_armed_without_a_body_is_retried_within_the_turn(workspace):
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。\n第二段原文。")
+    call = ("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"})
+    model = ScriptedModel(runs=[
+        # 定位之后的回复没有 <file>（模型写出了残缺的工具调用文字）。
+        [Reply(text="", tools=(call,)), Reply(text="<<tool_call>")],
+        [Reply(text="", tools=(call,)), Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章换好了。")],
+    ])
+
+    outcome = await _run_loop(workspace, model)
+
+    first, second = (c.output for c in model.tool_calls[:2])
+    assert first["data"]["action"] == "replaced"
+    # 重新定位不是「已在等正文」的重复调用，照常定为整章替换。
+    assert second["status"] == "success" and second["data"]["action"] == "replaced"
+    assert _content(workspace, three.id).rstrip("\n") == NEW_BODY
+    [edit_end] = outcome.of("file_edit_end")
+    assert edit_end.data["original_content"] == "合成第三章原文。\n第二段原文。"
+    assert _results(outcome, "write_chapter")[-1]["data"]["body_saved"] is True
+    assert len(_drafts(workspace)) == 1
+
+
+async def test_replacement_never_given_a_body_leaves_the_chapter_unchanged(workspace):
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
+    call = ("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"})
+    model = ScriptedModel(runs=[
+        [Reply(text="", tools=(call,)), Reply(text="我来改。")],
+        [Reply(text="原文先不动了。")],
+    ])
+
+    outcome = await _run_loop(workspace, model)
+
+    assert _content(workspace, three.id) == "合成第三章原文。"
+    assert not outcome.of("file_edit_end")
+    assert len(_drafts(workspace)) == 1
+    assert ToolContext.has_pending_empty_file() is False
+
+
 async def test_unclosed_replacement_body_never_overwrites_the_chapter(workspace):
     three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
     model = ScriptedModel(runs=[[
