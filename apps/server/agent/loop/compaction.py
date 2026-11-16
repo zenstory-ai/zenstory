@@ -49,17 +49,22 @@ def should_compact(history: LoopHistory, threshold: int | None = None) -> bool:
     if not history.items or not history.last_message_id:
         return False
     limit = AGENT_LOOP_COMPACT_AT_TOKENS if threshold is None else threshold
-    return max(history.last_prompt_tokens, history.estimated_tokens) > limit
+    if history.last_prompt_tokens > 0:
+        return history.last_prompt_tokens > limit
+    return history.estimated_tokens > limit
 
 
 def _bounded_items(items: list[dict[str, Any]], max_tokens: int) -> list[dict[str, Any]]:
     """压缩输入的上限：从最旧的项开始丢，丢完后开头不留没有调用的工具输出。"""
-    bounded = list(items)
-    while len(bounded) > 1 and estimate_items_tokens(bounded) > max_tokens:
-        bounded.pop(0)
-    while bounded and bounded[0].get("type") == "function_call_output":
-        bounded.pop(0)
-    return bounded
+    sizes = [estimate_items_tokens([item]) for item in items]
+    total = sum(sizes)
+    start = 0
+    while len(items) - start > 1 and total > max_tokens:
+        total -= sizes[start]
+        start += 1
+    while start < len(items) and items[start].get("type") == "function_call_output":
+        start += 1
+    return list(items[start:])
 
 
 def _chat_tools() -> list[dict[str, Any]]:

@@ -271,6 +271,25 @@ def test_loop_history_replays_loop_rows_as_paired_tool_items_and_old_graph_rows_
 
 
 @pytest.mark.unit
+def test_loop_history_marks_rounds_that_stopped_before_finishing(db_session):
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "写第2章", offset=0)
+    _add(
+        db_session, chat, "assistant", "写到一半", offset=1,
+        message_metadata=json.dumps({"engine": "loop", "stop_reason": "user_stopped",
+                                     "display_events": [{"type": "content", "content": "写到一半"}]}),
+    )
+    history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert history.items[-2:] == [
+        {"role": "assistant", "content": "写到一半"},
+        {"role": "assistant", "content": "（这一轮没做完：作者停止了生成。）"},
+    ]
+
+
+@pytest.mark.unit
 def test_loop_history_rebuilds_from_compaction_marker(db_session):
     from agent.loop.history import load_loop_history
     from agent.loop.prompts import SUMMARY_PREFIX

@@ -33,6 +33,15 @@ logger = get_logger(__name__)
 # message_metadata 里标记单循环 agent 写下的行。
 LOOP_ENGINE_METADATA_VALUE = "loop"
 _PAGE_SIZE = 100
+# 没做完就结束的一轮（落库的 stop_reason）：回放时补一句，模型知道「继续」要接着什么做。
+_INTERRUPTED_ROUND_NOTES = {
+    "user_stopped": "（这一轮没做完：作者停止了生成。）",
+    "client_disconnected": "（这一轮没做完：连接中断了。）",
+    "cancelled": "（这一轮没做完：连接中断了。）",
+    "run_deadline_exceeded": "（这一轮没做完：时间用完了。）",
+    "max_turns_exceeded": "（这一轮没做完：工具调用轮数到了上限。）",
+    "model_call_budget_exhausted": "（这一轮没做完：模型调用次数到了上限。）",
+}
 # create_file 的结果里只对当时那一步有意义、回放时会误导模型的字段。
 _CREATE_FILE_TRANSIENT_KEYS = ("awaiting_body", "next_step", "content", "body_in_reply")
 
@@ -197,10 +206,13 @@ def _row_items(loader: Any, row: Any) -> list[dict[str, Any]]:
             summary = loader._build_status_cards_history_content(status_cards)
             if summary:
                 items.append({"role": "assistant", "content": summary})
-    if metadata.get("stop_reason") == "output_truncated":
+    stop_reason = metadata.get("stop_reason")
+    if stop_reason == "output_truncated":
         from agent.core.output_truncation import OUTPUT_TRUNCATED_HISTORY
 
         items.append({"role": "assistant", "content": OUTPUT_TRUNCATED_HISTORY})
+    elif isinstance(stop_reason, str) and stop_reason in _INTERRUPTED_ROUND_NOTES:
+        items.append({"role": "assistant", "content": _INTERRUPTED_ROUND_NOTES[stop_reason]})
     return items
 
 
