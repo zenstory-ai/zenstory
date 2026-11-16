@@ -314,6 +314,23 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(pytest.mark.integration)
 
 
+@pytest.fixture
+def loop_engine(monkeypatch):
+    """用单循环 agent（生产默认，AGENT_ENGINE=loop）跑这个用例。"""
+    monkeypatch.setenv("AGENT_ENGINE", "loop")
+    return "loop"
+
+
+@pytest.fixture(autouse=True)
+def _graph_engine_unless_loop_requested(request, monkeypatch):
+    """既有的 AgentService 用例都替换 run_writing_workflow_streaming 来驱动外壳（多 agent 图，现为回滚路径）。
+
+    生产默认是单循环 agent；这些用例默认仍走图，单循环 agent 的用例显式请求 loop_engine 夹具。
+    """
+    if "loop_engine" not in request.fixturenames:
+        monkeypatch.setenv("AGENT_ENGINE", "graph")
+
+
 @pytest.fixture(autouse=True)
 def _reset_tool_context():
     """每个用例前后都把 Agent 的全局 ToolContext 清干净。

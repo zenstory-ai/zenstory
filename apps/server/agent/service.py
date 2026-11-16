@@ -28,6 +28,8 @@ from config.agent_runtime import (
     AGENT_CHAT_HISTORY_TOKEN_BUDGET,
     AGENT_COLLABORATION_MAX_ITERATIONS,
     AGENT_CONTEXT_TOKEN_BUDGET,
+    AGENT_ENGINE_LOOP,
+    agent_engine,
 )
 from config.datetime_utils import utcnow
 from database import create_session
@@ -63,6 +65,10 @@ from .core.steering import (
 from .core.stream_errors import classify_stream_exception, log_stream_exception
 from .graph.state import WritingState
 from .graph.writing_graph import run_writing_workflow_streaming
+from .loop.compaction import compact_history, should_compact
+from .loop.engine import run_loop_agent_streaming
+from .loop.history import LOOP_ENGINE_METADATA_VALUE, LoopHistory, load_loop_history
+from .loop.turn_context import LoopTurnContext, build_loop_turn_context
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .skills.content_budget import split_selected_budget
@@ -604,6 +610,51 @@ class AgentService:
             )
             return False
 
+    def _prepare_loop_turn(
+        self,
+        session: Session,
+        *,
+        project_id: str,
+        user_id: str | None,
+        chat_session_id: str | None,
+        selected_skill_ids: list[str] | None,
+        message: str,
+        metadata: dict[str, Any] | None,
+        language: str,
+    ) -> tuple[LoopHistory, LoopTurnContext, list[dict[str, Any]], str]:
+        """单循环 agent 这一轮的输入：跨轮历史、本轮上下文、作者选的技能、系统提示。"""
+        from models import ChatSession
+
+        history = LoopHistory()
+        if user_id and chat_session_id:
+            chat_session = session.get(ChatSession, chat_session_id)
+            if chat_session is not None and chat_session.user_id == user_id and chat_session.project_id == project_id:
+                history = load_loop_history(
+                    session, project_id=project_id, user_id=user_id, chat_session_id=chat_session_id
+                )
+        selected_skills = self._resolve_selected_skills(
+            session, user_id=user_id, selected_skill_ids=selected_skill_ids
+        )
+        turn = build_loop_turn_context(
+            session,
+            project_id=project_id,
+            user_id=user_id,
+            metadata=metadata,
+            language=language,
+            author_message=message,
+            selected_skills=selected_skills or None,
+            context_assembler=self.context_assembler,
+        )
+        skill_catalog = get_skill_context_injector().build_skill_catalog(session, user_id)
+        system_prompt = MessageManager(project_id=project_id, user_id=user_id).build_system_prompt(
+            session=session, language=language, skill_catalog=skill_catalog, loop=True
+        )
+        return history, turn, selected_skills, system_prompt
+
+    def _prepare_loop_turn_sync(self, **kwargs: Any) -> tuple[LoopHistory, LoopTurnContext, list[dict[str, Any]], str]:
+        with create_session() as sync_session:
+            return self._prepare_loop_turn(sync_session, **kwargs)
+
     def _prepare_prompt_artifacts_sync(self, **kwargs: Any) -> tuple[list[dict[str, Any]], str, str]:
         """Same as _prepare_prompt_artifacts, using a fresh sync DB session."""
         with create_session() as sync_session:
@@ -746,6 +797,21 @@ class AgentService:
 
         def _routing_for_save() -> dict[str, Any] | None:
             return assistant_routing or None
+
+        # 单循环 agent（AGENT_ENGINE=loop，默认）：多 agent 图只作运维回滚保留，loop 时不运行。
+        loop_engine = agent_engine() == AGENT_ENGINE_LOOP
+        # 本轮开始前写下的压缩点，随本轮 assistant 行落库（agent/loop/compaction.py）。
+        loop_compaction_record: dict[str, Any] | None = None
+
+        def _loop_extra_metadata() -> dict[str, Any] | None:
+            """单循环 agent 的 assistant 行：引擎标记、最后一次模型调用的输入 token、压缩点。"""
+            if not loop_engine:
+                return None
+            return {
+                "engine": LOOP_ENGINE_METADATA_VALUE,
+                "prompt_tokens": run_meter.last_prompt_tokens or None,
+                "compaction": loop_compaction_record,
+            }
 
         display_text_run_type: str | None = None
         pending_done_payload: dict[str, Any] | None = None
@@ -1008,6 +1074,7 @@ class AgentService:
                     assistant_routing=_routing_for_save(),
                     persist_empty_assistant=persist_empty_assistant,
                     user_created_at=user_sent_at,
+                    assistant_extra_metadata=_loop_extra_metadata(),
                 )
 
         if account_run_slot is not None:
@@ -1025,7 +1092,8 @@ class AgentService:
             attached_file_ids = metadata.get("attached_file_ids") if metadata else None
             attached_library_materials = metadata.get("attached_library_materials") if metadata else None
             text_quotes = metadata.get("text_quotes") if metadata else None
-            generation_mode_raw = metadata.get("generation_mode") if metadata else None
+            # 生成模式只剩回滚到图时有意义；单循环 agent 不读它（旧客户端照送也不拒绝）。
+            generation_mode_raw = metadata.get("generation_mode") if metadata and not loop_engine else None
             generation_mode = (
                 str(generation_mode_raw).strip().lower()
                 if generation_mode_raw is not None
@@ -1052,194 +1120,245 @@ class AgentService:
             yield thinking_event(
                 "Assembling context..." if force_en else "正在组装上下文..."
             ).to_sse()
+            if loop_engine:
+                loop_kwargs: dict[str, Any] = {
+                    "project_id": project_id,
+                    "user_id": user_id,
+                    "chat_session_id": session_id if user_id else None,
+                    "selected_skill_ids": selected_skill_ids,
+                    "message": message,
+                    "metadata": metadata,
+                    "language": lang,
+                }
+                if should_offload_session_work(session):
+                    loop_history, loop_turn, selected_skills, system_prompt = await asyncio.to_thread(
+                        self._prepare_loop_turn_sync, **loop_kwargs
+                    )
+                else:
+                    loop_history, loop_turn, selected_skills, system_prompt = self._prepare_loop_turn(
+                        session, **loop_kwargs
+                    )
+                if loop_turn.items:
+                    yield context_event(items=loop_turn.items, token_count=0).to_sse()
+                for selected in selected_skills:
+                    yield skill_matched_event(
+                        skill_id=selected["id"],
+                        skill_name=selected["name"],
+                        matched_trigger="selected",
+                    ).to_sse()
 
-            session_loader = SessionLoader(project_id, user_id)
-            session_data = await session_loader.load_session_and_context(
-                session=session,
-                context_assembler=self.context_assembler,
-                query=message,
-                focus_file_id=focus_file_id,
-                attached_file_ids=attached_file_ids,
-                attached_library_materials=attached_library_materials,
-                text_quotes=text_quotes,
-                max_tokens=AGENT_CONTEXT_TOKEN_BUDGET,
-                # 按本轮已解析（并将写回）的会话 id 读历史与工作集
-                chat_session_id=session_id if user_id else None,
-            )
-            loaded_session_id = session_data.session_id
-            if user_id and loaded_session_id and loaded_session_id != session_id:
-                log_with_context(
-                    logger,
-                    30,  # WARNING
-                    "Loaded chat session differs from the resolved session",
+                first_message_project_type = None
+                if (
+                    isinstance(metadata, dict)
+                    and metadata.get("entry") in FIRST_MESSAGE_ENTRIES
+                    and not any(item.get("role") == "assistant" for item in loop_history.items)
+                    and await self._is_first_ai_conversation(session, project_id)
+                ):
+                    first_message_project_type = await self._lookup_project_type(session, project_id) or ""
+
+                user_content = message
+                if selected_text:
+                    user_content += f"\n\n{'Selected text' if force_en else '选中的文本'}:\n{selected_text}"
+                if first_message_project_type is not None:
+                    user_content += (
+                        f"\n\n{'Context' if force_en else '上下文'}:\n"
+                        + first_message_hint(first_message_project_type, force_en)
+                    )
+                if loop_turn.text:
+                    user_content = SessionLoader.attach_working_set_to_user_content(user_content, loop_turn.text)
+                context_snapshot = ""
+                messages = []
+                session_data = None
+                message_manager = MessageManager(project_id=project_id, user_id=user_id)
+            else:
+
+                session_loader = SessionLoader(project_id, user_id)
+                session_data = await session_loader.load_session_and_context(
+                    session=session,
+                    context_assembler=self.context_assembler,
+                    query=message,
+                    focus_file_id=focus_file_id,
+                    attached_file_ids=attached_file_ids,
+                    attached_library_materials=attached_library_materials,
+                    text_quotes=text_quotes,
+                    max_tokens=AGENT_CONTEXT_TOKEN_BUDGET,
+                    # 按本轮已解析（并将写回）的会话 id 读历史与工作集
+                    chat_session_id=session_id if user_id else None,
+                )
+                loaded_session_id = session_data.session_id
+                if user_id and loaded_session_id and loaded_session_id != session_id:
+                    log_with_context(
+                        logger,
+                        30,  # WARNING
+                        "Loaded chat session differs from the resolved session",
+                        project_id=project_id,
+                        user_id=user_id,
+                        session_id=session_id,
+                        loaded_session_id=loaded_session_id,
+                    )
+
+                context_data = session_data.context_data
+                history_messages = session_data.history_messages
+
+                # Emit context event to frontend
+                if context_data and context_data.items:
+                    yield context_event(
+                        items=context_data.items,
+                        token_count=context_data.token_estimate,
+                    ).to_sse()
+
+                message_manager = MessageManager(
                     project_id=project_id,
                     user_id=user_id,
+                )
+
+                # 稳定资料放在历史之前以便缓存，章节、工作集和其它本轮资料放在历史之后。
+                context_blocks = (
+                    list(context_data.blocks)
+                    if context_data and context_data.blocks
+                    else (
+                        [{"key": "context", "text": context_data.context, "placement": "turn"}]
+                        if context_data and context_data.context
+                        else []
+                    )
+                )
+                context_plan = await asyncio.to_thread(
+                    plan_turn_context,
                     session_id=session_id,
-                    loaded_session_id=loaded_session_id,
+                    project_id=project_id,
+                    language=lang,
+                    # 未分块的兜底内容仍随本轮发送。
+                    context_blocks=context_blocks,
                 )
 
-            context_data = session_data.context_data
-            history_messages = session_data.history_messages
-
-            # Emit context event to frontend
-            if context_data and context_data.items:
-                yield context_event(
-                    items=context_data.items,
-                    token_count=context_data.token_estimate,
-                ).to_sse()
-
-            message_manager = MessageManager(
-                project_id=project_id,
-                user_id=user_id,
-            )
-
-            # 稳定资料放在历史之前以便缓存，章节、工作集和其它本轮资料放在历史之后。
-            context_blocks = (
-                list(context_data.blocks)
-                if context_data and context_data.blocks
-                else (
-                    [{"key": "context", "text": context_data.context, "placement": "turn"}]
-                    if context_data and context_data.context
-                    else []
-                )
-            )
-            context_plan = await asyncio.to_thread(
-                plan_turn_context,
-                session_id=session_id,
-                project_id=project_id,
-                language=lang,
-                # 未分块的兜底内容仍随本轮发送。
-                context_blocks=context_blocks,
-            )
-
-            prompt_kwargs: dict[str, Any] = {
-                "project_id": project_id,
-                "user_id": user_id,
-                "selected_skill_ids": selected_skill_ids,
-                "message": message,
-                "session_id": session_id,
-                "metadata": metadata,
-                "language": lang,
-                "assembled_context": (
-                    (context_plan.changed_context or None)
-                    if context_plan is not None
-                    else (context_data.context if context_data.context else None)
-                ),
-                "context_items": context_data.items if context_data.items else None,
-                # 「原始上下文完整」按整份上下文判断：快照 + 本轮更新合起来就是它。
-                "full_assembled_context": context_data.context if context_data.context else None,
-            }
-            if should_offload_session_work(session):
-                selected_skills, system_prompt, turn_context = await asyncio.to_thread(
-                    self._prepare_prompt_artifacts_sync,
-                    **prompt_kwargs,
-                )
-            else:
-                selected_skills, system_prompt, turn_context = self._prepare_prompt_artifacts(
-                    session,
-                    **prompt_kwargs,
-                )
-
-            # 显式选择的技能已注入完整方法，流开头告知前端
-            for selected in selected_skills:
-                yield skill_matched_event(
-                    skill_id=selected["id"],
-                    skill_name=selected["name"],
-                    matched_trigger="selected",
-                ).to_sse()
-
-            # 作者在这部作品里的第一条消息（作品的任何会话里都还没有 AI 回复）：模型输入附「先写再
-            # 给方向」，路由器多看一行作品类型（first_message_hint / router.build_router_user_message）。
-            first_message_project_type: str | None = None
-            is_first_message = (
-                isinstance(metadata, dict)
-                and metadata.get("entry") in FIRST_MESSAGE_ENTRIES
-                and not any(
-                    isinstance(item, dict) and item.get("role") == "assistant" for item in history_messages
-                )
-            )
-            if is_first_message and await self._is_first_ai_conversation(session, project_id):
-                first_message_project_type = await self._lookup_project_type(session, project_id) or ""
-
-            # Build current user message
-            user_content = message
-            if selected_text:
-                user_content += f"\n\n{'Selected text' if force_en else '选中的文本'}:\n{selected_text}"
-
-            if metadata:
-                context_parts = []
-                if "current_file_id" in metadata:
-                    context_parts.append(
-                        f"{'Current file ID' if force_en else '当前文件 ID'}: {metadata['current_file_id']}"
+                prompt_kwargs: dict[str, Any] = {
+                    "project_id": project_id,
+                    "user_id": user_id,
+                    "selected_skill_ids": selected_skill_ids,
+                    "message": message,
+                    "session_id": session_id,
+                    "metadata": metadata,
+                    "language": lang,
+                    "assembled_context": (
+                        (context_plan.changed_context or None)
+                        if context_plan is not None
+                        else (context_data.context if context_data.context else None)
+                    ),
+                    "context_items": context_data.items if context_data.items else None,
+                    # 「原始上下文完整」按整份上下文判断：快照 + 本轮更新合起来就是它。
+                    "full_assembled_context": context_data.context if context_data.context else None,
+                }
+                if should_offload_session_work(session):
+                    selected_skills, system_prompt, turn_context = await asyncio.to_thread(
+                        self._prepare_prompt_artifacts_sync,
+                        **prompt_kwargs,
                     )
-                if "current_file_type" in metadata:
-                    context_parts.append(
-                        f"{'File type' if force_en else '文件类型'}: {metadata['current_file_type']}"
+                else:
+                    selected_skills, system_prompt, turn_context = self._prepare_prompt_artifacts(
+                        session,
+                        **prompt_kwargs,
                     )
-                if first_message_project_type is not None:
-                    context_parts.append(first_message_hint(first_message_project_type, force_en))
-                if context_parts:
-                    user_content += f"\n\n{'Context' if force_en else '上下文'}:\n" + "\n".join(context_parts)
 
-            # 跨轮工作集（上两轮读/写过的文件的当前全文）拼在本轮用户消息之前：
-            # 系统提示与历史保持不变，前缀缓存可以一直命中到上一轮。
-            working_set_context = session_data.working_set_context
-            # 作者在 AI 写过之后亲手改了什么（agent/tools/author_changes.py），和工作集放在一起。
-            author_edits_context = session_data.author_edits_context
-            if author_edits_context:
-                working_set_context = (
-                    f"{working_set_context}\n\n{author_edits_context}" if working_set_context else author_edits_context
+                # 显式选择的技能已注入完整方法，流开头告知前端
+                for selected in selected_skills:
+                    yield skill_matched_event(
+                        skill_id=selected["id"],
+                        skill_name=selected["name"],
+                        matched_trigger="selected",
+                    ).to_sse()
+
+                # 作者在这部作品里的第一条消息（作品的任何会话里都还没有 AI 回复）：模型输入附「先写再
+                # 给方向」，路由器多看一行作品类型（first_message_hint / router.build_router_user_message）。
+                first_message_project_type: str | None = None
+                is_first_message = (
+                    isinstance(metadata, dict)
+                    and metadata.get("entry") in FIRST_MESSAGE_ENTRIES
+                    and not any(
+                        isinstance(item, dict) and item.get("role") == "assistant" for item in history_messages
+                    )
                 )
-            # 本轮上下文（组装的项目上下文、叙事约束、当前文件、任务板、本轮语言）放在最前，
-            # 工作集与作者改动随后：[系统提示][历史] 跨轮、跨 agent 逐字不变，前缀缓存一直命中到上一轮。
-            turn_prefix = "\n\n".join(part for part in (turn_context, working_set_context) if part)
-            if turn_prefix:
-                user_content = SessionLoader.attach_working_set_to_user_content(user_content, turn_prefix)
+                if is_first_message and await self._is_first_ai_conversation(session, project_id):
+                    first_message_project_type = await self._lookup_project_type(session, project_id) or ""
 
-            # Unified prompt-token ledger.
-            #
-            # Assembled context and chat history used to be budgeted
-            # independently and both injected. Now they compete
-            # within ONE shared ceiling: subtract the already-known prompt cost
-            # from the ledger ceiling, then shrink the history window to whatever
-            # room remains. The DB-history persistence contract and the configured
-            # dual budgets are unchanged — this only trims what is *loaded*.
-            #
-            # system_prompt 内嵌 skill catalog，turn_context 内嵌 selected skills /
-            # assembled context / 任务板，台账按两者与工作集各计一次，
-            # 避免同一段文本重复扣减历史预算。
-            from agent.utils.token_utils import estimate_text_tokens
+                # Build current user message
+                user_content = message
+                if selected_text:
+                    user_content += f"\n\n{'Selected text' if force_en else '选中的文本'}:\n{selected_text}"
 
-            context_snapshot = context_plan.snapshot_message if context_plan is not None else ""
-            reserved_prompt_tokens = (
-                estimate_text_tokens(system_prompt or "")
-                + (estimate_text_tokens(context_snapshot) if context_snapshot else 0)
-                + (estimate_text_tokens(turn_context) if turn_context else 0)
-                + (estimate_text_tokens(working_set_context) if working_set_context else 0)
-            )
-            effective_history_budget = compute_history_token_budget(
-                configured_history_budget=AGENT_CHAT_HISTORY_TOKEN_BUDGET,
-                reserved_prompt_tokens=reserved_prompt_tokens,
-            )
-            history_messages = session_loader._trim_history_to_token_budget(
-                history_messages,
-                effective_history_budget,
-            )
+                if metadata:
+                    context_parts = []
+                    if "current_file_id" in metadata:
+                        context_parts.append(
+                            f"{'Current file ID' if force_en else '当前文件 ID'}: {metadata['current_file_id']}"
+                        )
+                    if "current_file_type" in metadata:
+                        context_parts.append(
+                            f"{'File type' if force_en else '文件类型'}: {metadata['current_file_type']}"
+                        )
+                    if first_message_project_type is not None:
+                        context_parts.append(first_message_hint(first_message_project_type, force_en))
+                    if context_parts:
+                        user_content += f"\n\n{'Context' if force_en else '上下文'}:\n" + "\n".join(context_parts)
 
-            log_with_context(
-                logger,
-                20,  # INFO
-                "Prompt token ledger allocation",
-                project_id=project_id,
-                user_id=user_id,
-                reserved_prompt_tokens=reserved_prompt_tokens,
-                configured_history_budget=AGENT_CHAT_HISTORY_TOKEN_BUDGET,
-                effective_history_budget=effective_history_budget,
-                history_message_count=len(history_messages),
-            )
+                # 跨轮工作集（上两轮读/写过的文件的当前全文）拼在本轮用户消息之前：
+                # 系统提示与历史保持不变，前缀缓存可以一直命中到上一轮。
+                working_set_context = session_data.working_set_context
+                # 作者在 AI 写过之后亲手改了什么（agent/tools/author_changes.py），和工作集放在一起。
+                author_edits_context = session_data.author_edits_context
+                if author_edits_context:
+                    working_set_context = (
+                        f"{working_set_context}\n\n{author_edits_context}" if working_set_context else author_edits_context
+                    )
+                # 本轮上下文（组装的项目上下文、叙事约束、当前文件、任务板、本轮语言）放在最前，
+                # 工作集与作者改动随后：[系统提示][历史] 跨轮、跨 agent 逐字不变，前缀缓存一直命中到上一轮。
+                turn_prefix = "\n\n".join(part for part in (turn_context, working_set_context) if part)
+                if turn_prefix:
+                    user_content = SessionLoader.attach_working_set_to_user_content(user_content, turn_prefix)
 
-            # Combine messages (without system message - it is passed separately to the model)
-            messages = history_messages + [{"role": "user", "content": user_content}]
+                # Unified prompt-token ledger.
+                #
+                # Assembled context and chat history used to be budgeted
+                # independently and both injected. Now they compete
+                # within ONE shared ceiling: subtract the already-known prompt cost
+                # from the ledger ceiling, then shrink the history window to whatever
+                # room remains. The DB-history persistence contract and the configured
+                # dual budgets are unchanged — this only trims what is *loaded*.
+                #
+                # system_prompt 内嵌 skill catalog，turn_context 内嵌 selected skills /
+                # assembled context / 任务板，台账按两者与工作集各计一次，
+                # 避免同一段文本重复扣减历史预算。
+                from agent.utils.token_utils import estimate_text_tokens
+
+                context_snapshot = context_plan.snapshot_message if context_plan is not None else ""
+                reserved_prompt_tokens = (
+                    estimate_text_tokens(system_prompt or "")
+                    + (estimate_text_tokens(context_snapshot) if context_snapshot else 0)
+                    + (estimate_text_tokens(turn_context) if turn_context else 0)
+                    + (estimate_text_tokens(working_set_context) if working_set_context else 0)
+                )
+                effective_history_budget = compute_history_token_budget(
+                    configured_history_budget=AGENT_CHAT_HISTORY_TOKEN_BUDGET,
+                    reserved_prompt_tokens=reserved_prompt_tokens,
+                )
+                history_messages = session_loader._trim_history_to_token_budget(
+                    history_messages,
+                    effective_history_budget,
+                )
+
+                log_with_context(
+                    logger,
+                    20,  # INFO
+                    "Prompt token ledger allocation",
+                    project_id=project_id,
+                    user_id=user_id,
+                    reserved_prompt_tokens=reserved_prompt_tokens,
+                    configured_history_budget=AGENT_CHAT_HISTORY_TOKEN_BUDGET,
+                    effective_history_budget=effective_history_budget,
+                    history_message_count=len(history_messages),
+                )
+
+                # Combine messages (without system message - it is passed separately to the model)
+                messages = history_messages + [{"role": "user", "content": user_content}]
 
             yield thinking_event(
                 "Thinking..." if force_en else "正在思考..."
@@ -1290,7 +1409,9 @@ class AgentService:
                 author_steering=consumed_steering,
                 author_edit_refusals=author_edit_refusals,
                 # 本轮开始时模型看到的正文：edit_file 拒绝基于旧正文的修改（作者生成期间又改了）。
-                read_snapshots=session_data.read_snapshots,
+                read_snapshots=(
+                    loop_turn.read_snapshots if loop_engine else session_data.read_snapshots
+                ),
             )
 
             # Build WritingState for workflow execution
@@ -1316,6 +1437,8 @@ class AgentService:
                 "messages": messages,
                 "run_meter": run_meter,
             }
+            if loop_engine:
+                writing_state["history_items"] = loop_history.items
 
             # Create stream adapter for SSE conversion
             stream_adapter = create_stream_adapter(
@@ -1335,15 +1458,35 @@ class AgentService:
                 thread_id = f"{project_id}:{session_id}" if session_id else project_id
                 run_meter.record_stage("prepare_context", (time.monotonic() - run_started_monotonic) * 1000)
                 context_timing_recorded = True
-                async for event in stream_adapter.process_workflow_events(
-                    run_writing_workflow_streaming(
+                compaction_usage: dict[str, int] | None = None
+                if loop_engine and should_compact(loop_history):
+                    # 轮与轮之间压缩历史（不在工具循环中途）：摘要不可用时照常带完整历史跑这一轮。
+                    yield thinking_event(
+                        "Condensing earlier conversation..." if force_en else "正在整理较早的对话..."
+                    ).to_sse()
+                    with run_meter.measure_stage("compaction"):
+                        outcome = await compact_history(
+                            loop_history, system_prompt=system_prompt, session_id=session_id
+                        )
+                    compaction_usage = outcome.usage
+                    if outcome.record is not None and outcome.items is not None:
+                        loop_compaction_record = outcome.record
+                        writing_state["history_items"] = outcome.items
+                if loop_engine:
+                    workflow_events = self._loop_events(
+                        writing_state,
+                        get_steering_messages=get_steering_messages,
+                        leading_usage=compaction_usage,
+                    )
+                else:
+                    workflow_events = run_writing_workflow_streaming(
                         writing_state,
                         thread_id=thread_id,
                         max_iterations=AGENT_COLLABORATION_MAX_ITERATIONS,
                         auto_review_threshold=AGENT_AUTO_REVIEW_THRESHOLD_CHARS,
                         get_steering_messages=get_steering_messages,
                     )
-                ):
+                async for event in stream_adapter.process_workflow_events(workflow_events):
                     event_type = event.type.value
                     if event_type == "done":
                         pending_done_payload = event.data if isinstance(event.data, dict) else {}
@@ -1535,6 +1678,7 @@ class AgentService:
                         assistant_display_events=assistant_display_events or None,
                         assistant_routing=_routing_for_save(),
                         user_created_at=user_sent_at,
+                        assistant_extra_metadata=_loop_extra_metadata(),
                     )
                     history_saved = True
                     return saved_id
@@ -1825,6 +1969,22 @@ class AgentService:
                 stream_error=had_stream_error,
                 stream_cancelled=stream_cancelled,
             )
+
+    @staticmethod
+    async def _loop_events(
+        writing_state: WritingState,
+        *,
+        get_steering_messages: Any,
+        leading_usage: dict[str, int] | None,
+    ) -> AsyncGenerator[Any, None]:
+        """单循环 agent 的事件流；本轮压缩调用的用量先以 MESSAGE_END 交给 StreamAdapter 汇总。"""
+        from .core.workflow_events import StreamEvent, StreamEventType
+
+        if leading_usage:
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"usage": leading_usage, "stop_reason": None})
+        async for event in run_loop_agent_streaming(writing_state, get_steering_messages=get_steering_messages):
+            yield event
+
 
 # Singleton
 _service: AgentService | None = None
