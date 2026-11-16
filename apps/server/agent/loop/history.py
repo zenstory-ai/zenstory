@@ -22,6 +22,7 @@ from typing import Any
 from sqlalchemy import desc, or_
 from sqlmodel import Session, and_, select
 
+from agent.core.output_truncation import OUTPUT_TRUNCATED_REASON
 from agent.utils.token_utils import estimate_text_tokens
 from config.agent_runtime import AGENT_LOOP_COMPACT_KEEP_USER_TOKENS
 from utils.logger import get_logger, log_with_context
@@ -44,6 +45,13 @@ _INTERRUPTED_ROUND_NOTES = {
 }
 # create_file 的结果里只对当时那一步有意义、回放时会误导模型的字段。
 _CREATE_FILE_TRANSIENT_KEYS = ("awaiting_body", "next_step", "content", "body_in_reply")
+# 落库的工具结果是前端卡片口径，不是模型当时拿到的原文：技能正文不落库，失败只留给作者看的说明。
+# 回放时如实说明，模型不会以为自己手里还有这些内容。
+_SKILL_CONTENT_NOT_KEPT = {
+    "load_skill": "技能方法正文没有保留在历史里；这一轮要按这个技能做，先重新调用 load_skill 读取。",
+    "read_skill_resource": "资源正文没有保留在历史里；这一轮要用它，先重新调用 read_skill_resource 读取。",
+}
+_FAILED_CALL_NOTE = "这是当时给作者看的失败说明；工具给你的具体原因与候选没有保留，重试前先重新读取相关文件。"
 
 
 @dataclass
@@ -59,10 +67,27 @@ class LoopHistory:
     compacted: bool = False
     # 历史里作者的原话（按时间先后，不含系统插入的摘要消息）：本轮压缩时从中保留最近的几条。
     author_messages: list[str] = field(default_factory=list)
+    # 最近一次没压缩成（摘要不可用）时的实测输入 token；之后有成功的压缩点时为 0。
+    compaction_skipped_at_tokens: int = 0
+    # 会话末尾连续几轮停在输出上限（stop_reason=output_truncated）。
+    trailing_output_truncations: int = 0
 
     @property
     def estimated_tokens(self) -> int:
         return estimate_items_tokens(self.items)
+
+
+def bounded_items(items: list[dict[str, Any]], max_tokens: int) -> list[dict[str, Any]]:
+    """输入项的上限：从最旧的项开始丢，丢完后开头不留没有调用的工具输出。"""
+    sizes = [estimate_items_tokens([item]) for item in items]
+    total = sum(sizes)
+    start = 0
+    while len(items) - start > 1 and total > max_tokens:
+        total -= sizes[start]
+        start += 1
+    while start < len(items) and items[start].get("type") == "function_call_output":
+        start += 1
+    return list(items[start:])
 
 
 def estimate_items_tokens(items: list[dict[str, Any]]) -> int:
@@ -127,6 +152,10 @@ def _tool_output_text(call: dict[str, Any]) -> str:
         payload["data"] = result
     if error:
         payload["error"] = error
+    if status == "error":
+        payload["note"] = _FAILED_CALL_NOTE
+    elif name in _SKILL_CONTENT_NOT_KEPT:
+        payload["note"] = _SKILL_CONTENT_NOT_KEPT[name]
     return json.dumps(payload, ensure_ascii=False)
 
 
@@ -262,6 +291,8 @@ def load_loop_history(
     covered_reached = False
     kept_tokens_seen = 0
     measured_seen = False
+    skip_seen = False
+    truncation_streak_open = True
     cursor: tuple[Any, Any] | None = None
 
     while True:
@@ -303,15 +334,25 @@ def load_loop_history(
                     kept_tokens_seen += estimate_text_tokens(str(row.content or ""))
                 continue
             after_rows.append(row)
-            if row.role != "assistant":
-                continue
             metadata = row_metadata(row)
-            if not measured_seen and metadata.get("engine") == LOOP_ENGINE_METADATA_VALUE:
-                measured_seen = True
-                tokens = metadata.get("prompt_tokens")
-                if isinstance(tokens, int) and tokens > 0:
-                    result.last_prompt_tokens = tokens
+            if row.role == "assistant":
+                if truncation_streak_open:
+                    if metadata.get("stop_reason") == OUTPUT_TRUNCATED_REASON:
+                        result.trailing_output_truncations += 1
+                    else:
+                        truncation_streak_open = False
+                if not measured_seen and metadata.get("engine") == LOOP_ENGINE_METADATA_VALUE:
+                    measured_seen = True
+                    tokens = metadata.get("prompt_tokens")
+                    if isinstance(tokens, int) and tokens > 0:
+                        result.last_prompt_tokens = tokens
+            # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
             if compaction is None:
+                if not skip_seen:
+                    skipped = metadata.get("compaction_skipped")
+                    if isinstance(skipped, dict) and isinstance(skipped.get("at_prompt_tokens"), int):
+                        skip_seen = True
+                        result.compaction_skipped_at_tokens = max(0, skipped["at_prompt_tokens"])
                 compaction = valid_compaction(metadata)
         if stop:
             break

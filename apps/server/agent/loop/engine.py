@@ -351,6 +351,9 @@ async def run_loop_agent_streaming(
                     else graph_helpers.STEERING_FOLLOWUP_CONTEXT
                 )
             if followup is None:
+                # 正常结束：与图相同，按本请求实际写出的文件把任务板上对应的任务收尾（什么都没写时不补）。
+                for task_event in await graph_helpers._auto_finalize_task_board_on_completion(read_guard):
+                    yield task_event
                 terminated = True
                 break
             log_with_context(

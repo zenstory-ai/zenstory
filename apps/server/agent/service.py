@@ -14,6 +14,7 @@ Built on the in-house workflow graph (agent/graph) and openai-agents-python.
 """
 
 import asyncio
+import json
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -29,6 +30,7 @@ from config.agent_runtime import (
     AGENT_COLLABORATION_MAX_ITERATIONS,
     AGENT_CONTEXT_TOKEN_BUDGET,
     AGENT_ENGINE_LOOP,
+    AGENT_LOOP_RUN_HISTORY_MAX_TOKENS,
     agent_engine,
 )
 from config.datetime_utils import utcnow
@@ -65,9 +67,15 @@ from .core.steering import (
 from .core.stream_errors import classify_stream_exception, log_stream_exception
 from .graph.state import WritingState
 from .graph.writing_graph import run_writing_workflow_streaming
-from .loop.compaction import compact_history, should_compact
+from .loop.compaction import compact_history, should_compact, skipped_record
 from .loop.engine import run_loop_agent_streaming
-from .loop.history import LOOP_ENGINE_METADATA_VALUE, LoopHistory, load_loop_history
+from .loop.history import (
+    LOOP_ENGINE_METADATA_VALUE,
+    LoopHistory,
+    bounded_items,
+    estimate_items_tokens,
+    load_loop_history,
+)
 from .loop.turn_context import LoopTurnContext, build_loop_turn_context
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
@@ -802,6 +810,8 @@ class AgentService:
         loop_engine = agent_engine() == AGENT_ENGINE_LOOP
         # 本轮开始前写下的压缩点，随本轮 assistant 行落库（agent/loop/compaction.py）。
         loop_compaction_record: dict[str, Any] | None = None
+        # 本轮没压缩成时的记录：下一轮据此退避，不每轮重付摘要调用。
+        loop_compaction_skipped: dict[str, Any] | None = None
 
         def _loop_extra_metadata() -> dict[str, Any] | None:
             """单循环 agent 的 assistant 行：引擎标记、最后一次模型调用的输入 token、压缩点。"""
@@ -811,7 +821,22 @@ class AgentService:
                 "engine": LOOP_ENGINE_METADATA_VALUE,
                 "prompt_tokens": run_meter.last_prompt_tokens or None,
                 "compaction": loop_compaction_record,
+                "compaction_skipped": loop_compaction_skipped,
             }
+
+        def _loop_user_row_metadata() -> dict[str, Any] | None:
+            """这一轮没有 assistant 行时，压缩点 / 没压缩成的记录写在作者那条消息上（history 两处都读）。"""
+            if not loop_engine:
+                return None
+            record = {
+                key: value
+                for key, value in (
+                    ("compaction", loop_compaction_record),
+                    ("compaction_skipped", loop_compaction_skipped),
+                )
+                if value is not None
+            }
+            return record or None
 
         display_text_run_type: str | None = None
         pending_done_payload: dict[str, Any] | None = None
@@ -882,7 +907,10 @@ class AgentService:
             display_text_run_type = event_type
 
         def _append_user_messages_sync(
-            texts: list[str], *, first_created_at: datetime | None = None
+            texts: list[str],
+            *,
+            first_created_at: datetime | None = None,
+            first_metadata: dict[str, Any] | None = None,
         ) -> int:
             """把若干条文本作为 user 行追加进当前会话（不重写整轮历史）。
 
@@ -893,7 +921,7 @@ class AgentService:
                的 steering。
             message_count 按实际写入的行数递增，避免计数漂移。
             first_created_at：texts[0] 是本轮作者发的那条消息时传入发出时间；晚到的
-            steering 不传。
+            steering 不传。first_metadata 同理只写在 texts[0] 上（本轮的压缩记录）。
             """
             from models import ChatMessage, ChatSession
 
@@ -931,12 +959,18 @@ class AgentService:
                     if not (isinstance(text, str) and text.strip()):
                         continue
                     sent_at = first_created_at if index == 0 else None
+                    row_metadata = first_metadata if index == 0 else None
                     append_session.add(
                         ChatMessage(
                             session_id=chat_session.id,
                             role="user",
                             content=text,
                             **({"created_at": sent_at} if sent_at else {}),
+                            **(
+                                {"message_metadata": json.dumps(row_metadata, ensure_ascii=False)}
+                                if row_metadata
+                                else {}
+                            ),
                         )
                     )
                 chat_session.message_count += len(cleaned)
@@ -1050,7 +1084,9 @@ class AgentService:
             if not _has_assistant_payload() and not persist_empty_assistant:
                 # 空 assistant 不落库，只保留用户消息与已消费的 steering。
                 _append_user_messages_sync(
-                    [message, *consumed_steering], first_created_at=user_sent_at
+                    [message, *consumed_steering],
+                    first_created_at=user_sent_at,
+                    first_metadata=_loop_user_row_metadata(),
                 )
                 return None
 
@@ -1439,6 +1475,8 @@ class AgentService:
             }
             if loop_engine:
                 writing_state["history_items"] = loop_history.items
+                # 前几轮连续停在输出上限的次数（graph 从 state["messages"] 数，loop 的历史不在那里）。
+                writing_state["previous_output_truncations"] = loop_history.trailing_output_truncations
 
             # Create stream adapter for SSE conversion
             stream_adapter = create_stream_adapter(
@@ -1472,6 +1510,22 @@ class AgentService:
                     if outcome.record is not None and outcome.items is not None:
                         loop_compaction_record = outcome.record
                         writing_state["history_items"] = outcome.items
+                    elif outcome.skipped:
+                        loop_compaction_skipped = skipped_record(loop_history, outcome.skipped)
+                if loop_engine:
+                    # 兜底上限：压缩一直不成时丢掉最旧的项，会话降级而不是每轮超出供应商上下文。
+                    run_history = list(writing_state.get("history_items") or [])
+                    bounded_history = bounded_items(run_history, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS)
+                    if len(bounded_history) < len(run_history):
+                        log_with_context(
+                            logger,
+                            30,  # WARNING
+                            "Loop history exceeded the run bound; oldest items left out",
+                            session_id=session_id,
+                            dropped_items=len(run_history) - len(bounded_history),
+                            kept_tokens=estimate_items_tokens(bounded_history),
+                        )
+                        writing_state["history_items"] = bounded_history
                 if loop_engine:
                     workflow_events = self._loop_events(
                         writing_state,
@@ -1661,6 +1715,7 @@ class AgentService:
                             _append_user_messages_sync,
                             [message, *consumed_steering],
                             first_created_at=user_sent_at,
+                            first_metadata=_loop_user_row_metadata(),
                         )
                         history_saved = True
                         return None

@@ -187,3 +187,10 @@ AGENT_LOOP_COMPACT_KEEP_USER_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_KEEP_USER
 AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS", 24_000)
 # Upper bound of the history sent to the summary call: older rows are left out beyond it.
 AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS", 900_000)
+# After a skipped compaction (unusable summary or provider error), wait until the measured
+# prompt has grown by this much before trying again.
+AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS", 100_000)
+# Hard bound on the replayed history of a loop run (estimated tokens): when compaction keeps
+# failing, the oldest items are left out so the session degrades instead of exceeding the
+# provider's context window on every turn.
+AGENT_LOOP_RUN_HISTORY_MAX_TOKENS = _get_int_env("AGENT_LOOP_RUN_HISTORY_MAX_TOKENS", 800_000)

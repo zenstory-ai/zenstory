@@ -18,11 +18,12 @@ from config.agent_runtime import (
     AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS,
     AGENT_LOOP_COMPACT_KEEP_USER_TOKENS,
     AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS,
+    AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS,
 )
 from config.datetime_utils import utcnow
 from utils.logger import get_logger, log_with_context
 
-from .history import LoopHistory, estimate_items_tokens, kept_author_messages, summary_message
+from .history import LoopHistory, bounded_items, kept_author_messages, summary_message
 from .prompts import COMPACT_PROMPT
 
 logger = get_logger(__name__)
@@ -44,27 +45,33 @@ class CompactionOutcome:
     skipped: str | None = None
 
 
-def should_compact(history: LoopHistory, threshold: int | None = None) -> bool:
-    """按实测输入 token 判断；没有实测值的旧会话（多 agent 图写下的行）用历史的估算兜底。"""
+def should_compact(
+    history: LoopHistory,
+    threshold: int | None = None,
+    retry_growth: int | None = None,
+) -> bool:
+    """按实测输入 token 判断；没有实测值的旧会话（多 agent 图写下的行）用历史的估算兜底。
+
+    上次没压缩成（摘要不可用）时退避：输入比那次至少再长 ``retry_growth`` 才再试，
+    不让每一轮都多付两次整段历史的摘要调用。
+    """
     if not history.items or not history.last_message_id:
         return False
     limit = AGENT_LOOP_COMPACT_AT_TOKENS if threshold is None else threshold
-    if history.last_prompt_tokens > 0:
-        return history.last_prompt_tokens > limit
-    return history.estimated_tokens > limit
+    measured = history.last_prompt_tokens if history.last_prompt_tokens > 0 else history.estimated_tokens
+    if measured <= limit:
+        return False
+    if history.compaction_skipped_at_tokens > 0:
+        growth = AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS if retry_growth is None else retry_growth
+        return measured >= history.compaction_skipped_at_tokens + growth
+    return True
 
 
-def _bounded_items(items: list[dict[str, Any]], max_tokens: int) -> list[dict[str, Any]]:
-    """压缩输入的上限：从最旧的项开始丢，丢完后开头不留没有调用的工具输出。"""
-    sizes = [estimate_items_tokens([item]) for item in items]
-    total = sum(sizes)
-    start = 0
-    while len(items) - start > 1 and total > max_tokens:
-        total -= sizes[start]
-        start += 1
-    while start < len(items) and items[start].get("type") == "function_call_output":
-        start += 1
-    return list(items[start:])
+def skipped_record(history: LoopHistory, reason: str) -> dict[str, Any]:
+    """没压缩成时随本轮落库的记录（``message_metadata.compaction_skipped``），下一轮据此退避。"""
+    measured = history.last_prompt_tokens if history.last_prompt_tokens > 0 else history.estimated_tokens
+    return {"reason": reason, "at_prompt_tokens": int(measured), "created_at": utcnow().isoformat()}
+
 
 
 def _chat_tools() -> list[dict[str, Any]]:
@@ -134,7 +141,7 @@ async def compact_history(
     from services.usage.cost_budget import budget_attribution
 
     attribution = agent_usage_attribution()
-    messages = _request_messages(system_prompt, _bounded_items(history.items, AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS))
+    messages = _request_messages(system_prompt, bounded_items(history.items, AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS))
     usage: dict[str, int] = {}
     summary = ""
     started = time.monotonic()
