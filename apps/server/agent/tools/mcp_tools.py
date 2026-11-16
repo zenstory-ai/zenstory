@@ -713,8 +713,16 @@ class ToolContext:
 
     @classmethod
     def author_wants_no_body(cls) -> bool:
-        """路由明确判断作者这一轮不要正文（只有这时 create_file 的 empty 才生效）。"""
-        return cls._get_context().get("body_requested") is False
+        """create_file 的 empty 是否生效。
+
+        多 agent 图：只在路由明确判断作者这一轮不要正文时生效。单循环 agent 没有路由，由模型按提示
+        判断：它传 empty=true 就是它的判断（写入照旧受 diff 审阅 / 撤销 / 版本保护），不从原话推断。
+        """
+        from agent.tools.registry import LOOP_AGENT_TYPE
+
+        if cls._get_context().get("body_requested") is False:
+            return True
+        return cls.get_current_agent() == LOOP_AGENT_TYPE
 
     @classmethod
     def has_author_scope(cls) -> bool:
@@ -1633,14 +1641,15 @@ def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict
 # 指回那个文件让模型用 edit_file 改它。只比对标题开头的「第N章 / 第N集 / Chapter N」编号（有界的标识符检查）。
 CHAPTER_FILE_EXISTS_ERROR_TYPE = "chapter_file_exists"
 _CHAPTER_UNITS = ("章", "集")
-_CHAPTER_GUARD_FILE_TYPES = frozenset({*CONTENT_FILE_TYPES, "document"})
 
 
 def _existing_chapter_file_rejection(args: dict[str, Any], project_id: str) -> dict[str, Any] | None:
     """要建的正文文件与已有正文类文件同一章（集）时返回拒绝结果；其余情况返回 None。
 
     同标题且仍为空的文件不拦：那是重复创建在等正文的同一个文件，由空文件守卫与剧集复用处理。
-    父目录给了就只比对同一目录（分卷各自编号）。
+    父目录给了就只比对同一目录（分卷各自编号）；没给父目录而同一编号出现在不止一个目录里时
+    （多卷各有第N章）无法确定是哪一卷，不拦。只拦正文类（draft / script）：document 等资料文件
+    不是正文，标题带章号也照常新建。
     """
     from agent.tools.registry import LOOP_AGENT_TYPE
     from models import File
@@ -1649,7 +1658,7 @@ def _existing_chapter_file_rejection(args: dict[str, Any], project_id: str) -> d
     if ToolContext.get_current_agent() != LOOP_AGENT_TYPE:
         return None
     file_type = str(args.get("file_type") or "draft").strip().lower()
-    if file_type not in _CHAPTER_GUARD_FILE_TYPES:
+    if file_type not in CONTENT_FILE_TYPES:
         return None
     title = str(args.get("title") or "").strip()
     unit = number = None
@@ -1675,6 +1684,7 @@ def _existing_chapter_file_rejection(args: dict[str, Any], project_id: str) -> d
     except Exception as e:  # noqa: BLE001 - 查不到时不拦，照常建文件
         logger.debug(f"Chapter duplicate probe failed: {e}")
         return None
+    matches = []
     for row in rows:
         if parent_id is not None and (row.parent_id or None) != parent_id:
             continue
@@ -1682,6 +1692,10 @@ def _existing_chapter_file_rejection(args: dict[str, Any], project_id: str) -> d
             continue
         if str(row.title or "").strip() == title and not str(row.content or "").strip():
             continue
+        matches.append(row)
+    if parent_id is None and len({row.parent_id or None for row in matches}) > 1:
+        return None
+    for row in matches[:1]:
         log_with_context(
             logger,
             20,  # INFO
