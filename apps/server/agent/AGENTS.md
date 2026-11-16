@@ -126,7 +126,7 @@ agent/
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
   （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时也经 `FILE_BODY_RESUME` 恢复捕获、
   补不成就作废定位，原文不动）、
-  停在写完的 `</file>` 上的续写（附本请求正文落库字数）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用图的 `_auto_finalize_task_board_on_completion` 收尾任务板；
+  停在写完的 `</file>` 上的续写（写正文的回复到 `</file>` 就结束；续跑说明附落库字数，并要求先自查、用 edit_file 改正再回复，同一个文件只要求一次，见 `_BODY_SAVED_CONTEXT` / `_BODY_RESAVED_CONTEXT`）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用图的 `_auto_finalize_task_board_on_completion` 收尾任务板；
   `previous_output_truncations` 由 `LoopHistory.trailing_output_truncations` 给出。到收尾时间不再开新 run，
   发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` = 写作工具集去掉 `handoff_to_agent` / `request_clarification` / `parallel_execute`，加上只有单循环 agent
