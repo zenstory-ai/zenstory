@@ -710,13 +710,13 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
               </p>
             </div>
           </div>
-          <div className={`flex items-center gap-2 ${isMobile ? "w-full" : "shrink-0"}`}>
+          <div className={isMobile ? "flex w-full flex-col items-stretch gap-2" : "flex shrink-0 items-center gap-2"}>
             {!(isMobile && showMobileContent) && (
               <DashboardSearchBar
                 value={searchQuery}
                 onChange={handleSearchChange}
                 placeholder={t("materials:detail.searchPlaceholder")}
-                className={isMobile ? "min-w-0 flex-1" : "w-56 shrink-0 lg:w-64"}
+                className={isMobile ? "w-full" : "w-56 shrink-0 lg:w-64"}
               />
             )}
             <Button
@@ -726,7 +726,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
               isLoading={isExporting}
               disabled={isActiveMaterialStatus(material.status)}
               leftIcon={<Download className="h-4 w-4" />}
-              className={isMobile && showMobileContent ? "w-full" : "shrink-0"}
+              className={isMobile ? "w-full" : "shrink-0"}
             >
               {t("materials:export.button", { defaultValue: "导出拆解（TXT）" })}
             </Button>

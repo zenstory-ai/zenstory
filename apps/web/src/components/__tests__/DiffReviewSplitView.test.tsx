@@ -181,33 +181,88 @@ describe("DiffReviewSplitView", () => {
     expect(onResetEdit).toHaveBeenCalledWith("edit-2");
   });
 
-  it("scrolls the active review card into view using DOM scrollIntoView", () => {
+  function renderTwoPending() {
+    return render(
+      <DiffReviewSplitView
+        originalContent="old"
+        modifiedContent="new"
+        pendingEdits={[
+          { ...pendingEdits[0]!, status: "pending" },
+          { ...pendingEdits[1]!, status: "pending" },
+        ]}
+        onAcceptEdit={vi.fn()}
+        onRejectEdit={vi.fn()}
+        onResetEdit={vi.fn()}
+      />
+    );
+  }
+
+  function rect(top: number, height: number): DOMRect {
+    return { top, bottom: top + height, height, left: 0, right: 100, width: 100, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+  }
+
+  it("never calls scrollIntoView, so the review pane itself is not scrolled", () => {
     const scrollIntoViewMock = vi.fn();
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
     HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
-
     try {
-      render(
-        <DiffReviewSplitView
-          originalContent="old"
-          modifiedContent="new"
-          pendingEdits={[
-            { ...pendingEdits[0]!, status: "pending" },
-            { ...pendingEdits[1]!, status: "pending" },
-          ]}
-          onAcceptEdit={vi.fn()}
-          onRejectEdit={vi.fn()}
-          onResetEdit={vi.fn()}
-        />
-      );
-
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: "nearest" });
-      scrollIntoViewMock.mockClear();
-
+      renderTwoPending();
       fireEvent.click(screen.getByRole("button", { name: "edit-2" }));
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scrollIntoViewMock).not.toHaveBeenCalled();
     } finally {
       HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
     }
+  });
+
+  it("scrolls only the queue list to the active card when the list overflows", () => {
+    const { container } = renderTwoPending();
+    const queue = screen.getByTestId("review-queue-list");
+    const root = container.querySelector('[tabindex="0"]') as HTMLElement;
+    expect(queue).toBeTruthy();
+    Object.defineProperty(queue, "scrollHeight", { configurable: true, value: 1000 });
+    Object.defineProperty(queue, "clientHeight", { configurable: true, value: 200 });
+    queue.getBoundingClientRect = () => rect(100, 200);
+    queue.scrollTop = 0;
+    // Every card reports a rect below the visible queue area.
+    for (const el of Array.from(queue.querySelectorAll("*"))) {
+      (el as HTMLElement).getBoundingClientRect = () => rect(400, 80);
+    }
+    root.scrollTop = 0;
+
+    fireEvent.click(screen.getByRole("button", { name: "edit-2" }));
+
+    // bottom overflow = 480 - 300 = 180; top offset = 400 - 100 = 300 -> min is 180
+    expect(queue.scrollTop).toBe(180);
+    expect(root.scrollTop).toBe(0);
+  });
+
+  it("scrolls the queue list up when the active card sits above the visible area", () => {
+    renderTwoPending();
+    const queue = screen.getByTestId("review-queue-list");
+    Object.defineProperty(queue, "scrollHeight", { configurable: true, value: 1000 });
+    Object.defineProperty(queue, "clientHeight", { configurable: true, value: 200 });
+    queue.getBoundingClientRect = () => rect(100, 200);
+    queue.scrollTop = 300;
+    for (const el of Array.from(queue.querySelectorAll("*"))) {
+      (el as HTMLElement).getBoundingClientRect = () => rect(40, 80);
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "edit-2" }));
+
+    // card top 40 is 60px above the list top 100
+    expect(queue.scrollTop).toBe(240);
+  });
+
+  it("leaves scrolling alone when the queue list does not overflow (phone layout)", () => {
+    renderTwoPending();
+    const queue = screen.getByTestId("review-queue-list");
+    Object.defineProperty(queue, "scrollHeight", { configurable: true, value: 200 });
+    Object.defineProperty(queue, "clientHeight", { configurable: true, value: 200 });
+    queue.getBoundingClientRect = () => rect(100, 200);
+    for (const el of Array.from(queue.querySelectorAll("*"))) {
+      (el as HTMLElement).getBoundingClientRect = () => rect(400, 80);
+    }
+    fireEvent.click(screen.getByRole("button", { name: "edit-2" }));
+    expect(queue.scrollTop).toBe(0);
   });
 });

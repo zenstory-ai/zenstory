@@ -116,7 +116,7 @@ test.describe('Admin moderation flows (mocked)', () => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ items: skills }),
+          body: JSON.stringify(skills),
         });
         return;
       }

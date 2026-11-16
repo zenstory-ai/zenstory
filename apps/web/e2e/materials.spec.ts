@@ -514,7 +514,7 @@ test.describe('Materials Library - Delete', () => {
     await materialCard.hover()
 
     // Click delete button (trash icon)
-    const deleteButton = materialCard.locator('button:has(svg)')
+    const deleteButton = materialCard.getByRole('button', { name: /删除素材|Delete Material/i })
     await deleteButton.click({ force: true })
 
     // Confirm deletion in modal

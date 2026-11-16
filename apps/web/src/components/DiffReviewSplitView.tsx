@@ -48,6 +48,7 @@ export const DiffReviewSplitView = ({
   const rootRef = useRef<HTMLDivElement>(null);
   const diffRef = useRef<InlineDiffEditorHandle>(null);
   const cardElementsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const queueScrollRef = useRef<HTMLDivElement>(null);
 
   const getOpLabel = useCallback((op: PendingEdit["op"]) => {
     switch (op) {
@@ -130,9 +131,19 @@ export const DiffReviewSplitView = ({
     return index >= 0 ? index + 1 : null;
   }, [pendingEdits]);
 
+  // Scroll only the queue list, and only when it is the scroller (desktop).
+  // scrollIntoView would also move the review root, which scrolls below md.
   useEffect(() => {
-    if (!resolvedActiveEditId) return;
-    cardElementsRef.current.get(resolvedActiveEditId)?.scrollIntoView?.({ block: "nearest" });
+    const container = queueScrollRef.current;
+    const card = resolvedActiveEditId ? cardElementsRef.current.get(resolvedActiveEditId) : undefined;
+    if (!container || !card || container.scrollHeight <= container.clientHeight) return;
+    const containerRect = container.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    if (cardRect.top < containerRect.top) {
+      container.scrollTop += cardRect.top - containerRect.top;
+    } else if (cardRect.bottom > containerRect.bottom) {
+      container.scrollTop += Math.min(cardRect.bottom - containerRect.bottom, cardRect.top - containerRect.top);
+    }
   }, [resolvedActiveEditId]);
 
   const locateEdit = useCallback((editId: string) => {
@@ -337,7 +348,7 @@ export const DiffReviewSplitView = ({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
+        <div ref={queueScrollRef} data-testid="review-queue-list" className="min-h-0 flex-1 overflow-auto px-3 pb-3">
           {filteredEdits.length === 0 ? (
             <div className="px-1 py-6 text-center text-xs text-[hsl(var(--text-secondary))]">
               {t("editor:noChangesInFilter")}

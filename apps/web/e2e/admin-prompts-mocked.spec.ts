@@ -81,14 +81,14 @@ test.describe('Admin prompts (mocked)', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          items: ['novel', 'short', 'screenplay'].map((project_type) => ({
+        body: JSON.stringify(
+          ['novel', 'short', 'screenplay'].map((project_type) => ({
             project_type,
             version: 1,
             is_active: project_type !== 'short',
             updated_at: '2026-03-08T00:00:00Z',
           })),
-        }),
+        ),
       });
     });
 
@@ -129,16 +129,14 @@ test.describe('Admin prompts (mocked)', () => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            items: [
-              {
-                project_type: 'novel',
-                version: 2,
-                is_active: true,
-                updated_at: '2026-03-08T00:00:00Z',
-              },
-            ],
-          }),
+          body: JSON.stringify([
+            {
+              project_type: 'novel',
+              version: 2,
+              is_active: true,
+              updated_at: '2026-03-08T00:00:00Z',
+            },
+          ]),
         });
         return;
       }
@@ -197,7 +195,7 @@ test.describe('Admin prompts (mocked)', () => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ items: [] }),
+          body: JSON.stringify([]),
         });
         return;
       }
