@@ -561,6 +561,63 @@ describe('useAgentStream', () => {
       )
     })
 
+    it('replaces a resolved write_chapter card when the server re-sends it under the same tool_use_id', async () => {
+      const onSegmentStart = vi.fn()
+      const onSegmentUpdateToolCalls = vi.fn()
+      const onToolResult = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onSegmentStart, onSegmentUpdateToolCalls, onToolResult })
+      )
+      const controller = createMockStreamController()
+
+      act(() => {
+        result.current.startStream({ message: 'test' })
+      })
+
+      const callbacks = controller.getCallbacks()!
+      const armed = {
+        id: 'ch-2', title: '第2章 旧城', file_type: 'draft', chapter: 2,
+        action: 'replaced', awaiting_body: true, previous_length: 2400, previous_word_count: 2400,
+      }
+      const saved = {
+        id: 'ch-2', title: '第2章 旧城', file_type: 'draft', chapter: 2, action: 'replaced',
+        previous_length: 2400, previous_word_count: 2400, mutation_applied: true, body_saved: true,
+        new_length: 1800, new_word_count: 1800, updated_at: '2026-11-16T08:00:00Z',
+        undo: { before_version_number: 4, expected_after_updated_at: '2026-11-16T08:00:00Z' },
+      }
+
+      act(() => {
+        callbacks.onToolCall?.('write_chapter', { chapter: 2 }, 'wc-1')
+        callbacks.onToolResult?.('write_chapter', 'success', armed, undefined, 'wc-1')
+      })
+      const toolSegmentId = onSegmentStart.mock.calls
+        .map(([segment]) => segment)
+        .find(segment => segment.type === 'tool_calls')!.id
+
+      // The chapter text streams as a reply, then the saved card arrives for the same call.
+      act(() => {
+        callbacks.onContentStart?.()
+        callbacks.onContent?.('第二章换好了。')
+        callbacks.onContentEnd?.()
+        callbacks.onToolResult?.('write_chapter', 'success', saved, undefined, 'wc-1')
+      })
+
+      expect(onSegmentUpdateToolCalls).toHaveBeenLastCalledWith(toolSegmentId, [
+        expect.objectContaining({ id: 'wc-1', status: 'success', result: saved }),
+      ])
+      expect(onToolResult).toHaveBeenCalledTimes(2)
+
+      // A result for an unknown tool_use_id leaves the saved card alone.
+      const callsBefore = onSegmentUpdateToolCalls.mock.calls.length
+      act(() => {
+        callbacks.onToolResult?.('write_chapter', 'success', { action: 'created' }, undefined, 'other-id')
+      })
+      expect(onSegmentUpdateToolCalls.mock.calls.slice(callsBefore)).not.toContainEqual([
+        toolSegmentId,
+        expect.anything(),
+      ])
+    })
+
     it('merges multiple tool calls into single segment', async () => {
       const onSegmentStart = vi.fn()
       const onSegmentUpdateToolCalls = vi.fn()
