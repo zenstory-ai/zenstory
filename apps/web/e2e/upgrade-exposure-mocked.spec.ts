@@ -44,7 +44,7 @@ for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await bootstrapAdminSession(page);
     await page.addInitScript(() => localStorage.setItem('zenstory-language', 'en'));
-    await page.route('**/api/admin/dashboard/upgrade-funnel?**', route => route.fulfill({ json: { window_days: 7, totals: {expose: 12, click: 6, conversion: 2}, sources: [], surfaces: [{source:'chat_quota_blocked', surface:'card', exposes:12, exposed_users:4, clicks:6, clicking_users:3, page_arrivals:2}] } }));
+    await page.route('**/api/admin/dashboard/upgrade-funnel?**', route => route.fulfill({ json: { window_days: 7, period_start: '2026-03-01T00:00:00Z', period_end: '2026-03-08T00:00:00Z', totals: {expose: 12, click: 6, conversion: 2}, sources: [], surfaces: [{source:'chat_quota_blocked', surface:'card', exposes:12, exposed_users:4, clicks:6, clicking_users:3, page_arrivals:2}] } }));
     await page.goto('/admin');
     const table = page.getByRole('table', {name: 'Upgrade entry surfaces'});
     await expect(table).toBeVisible();
