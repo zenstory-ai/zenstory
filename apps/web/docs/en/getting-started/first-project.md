@@ -19,9 +19,8 @@ When you open an empty project, the AI assistant on the right offers starter car
 
 ## 3. Draft Chapter 1
 
-1. **Choose a generation mode**: In the bottom-left corner of the chat input, pick **Fast** (default; skips automatic post-draft review for faster turnaround) or **Quality** (automatically reviews and revises the draft when needed, which takes longer).
-2. **Send your chapter prompt**: Tell the AI the opening scene, point of view, and target length (for example, *"Write Chapter 1 from the outline, opening with a power outage in the autopsy room during a rainstorm, in close third-person POV, around 2,500 words"*).
-3. **Steer or stop mid-run**: While the AI is generating, you can type a follow-up note into the input box and click **Add request** to steer the current run without stopping it first, or click **Stop generating** in the bottom right to halt immediately.
+1. **Send your chapter prompt**: Tell the AI the opening scene, point of view, and target length (for example, *"Write Chapter 1 from the outline, opening with a power outage in the autopsy room during a rainstorm, in close third-person POV, around 2,500 words"*).
+2. **Steer or stop mid-run**: While the AI is generating, you can type a follow-up note into the input box and click **Add request** to steer the current run without stopping it first, or click **Stop generating** in the bottom right to halt immediately.
 
 ## 4. Polish, review history, and export
 

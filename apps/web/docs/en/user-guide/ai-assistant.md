@@ -27,12 +27,9 @@ For brainstorming, add “Give options only; do not change files.” When asking
 
 Save recent edits in the editor before sending your message. Each turn operates within a context budget, so attach only the items relevant to the current task. If two files share a similar title, ask the AI to list matching files before picking the target.
 
-## Skills and generation modes
+## Skills
 
 - **Attach writing skills**: Type `/` in the chat input to open the skill picker, or click `+` next to a skill in the project's left **Skills** tab. You can explicitly attach up to **3** skills per turn, and then describe your task in the input box. Even when you do not pick a skill manually, the AI can load enabled skills as needed based on their name and description.
-- **Switch generation modes**: Use the selector in the bottom-left corner of the chat input:
-  - **Fast** (default): Writes without an automatic post-draft review pass for faster turnaround—ideal for brainstorming, setting setup, and quick scenes.
-  - **Quality**: Automatically reviews and revises the draft when needed, which takes longer—suited for key chapters and final passes.
 
 ## Check file operation cards and steer active runs
 

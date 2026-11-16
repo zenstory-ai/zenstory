@@ -19,7 +19,7 @@
 ### 写作与 AI 协作
 
 - [编辑器使用](user-guide/editor.md)：正文编辑、自动保存、未保存草稿恢复、选中引用、去AI味与变更审阅
-- [AI 创作助手](user-guide/ai-assistant.md)：在对话中生成与改写文件、切换快速与高质量模式、生成中途补充要求
+- [AI 创作助手](user-guide/ai-assistant.md)：在对话中生成与改写文件、挂载写作技能、生成中途补充要求
 - [技能系统](user-guide/skills.md)：从发现页添加官方与社区技能，在对话中通过 `/` 或侧栏挂载技能
 - [素材库](user-guide/materials.md)：区分项目内素材文件夹与账号级参考小说库，在对话中附加参考资料
 - [灵感库（待开放）](user-guide/inspirations.md)：预设创作模板的当前状态与替代起步方式

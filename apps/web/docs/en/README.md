@@ -19,7 +19,7 @@ From your first outline to final revision and export, write in the [workbench](h
 ### Writing and AI collaboration
 
 - [Editor](user-guide/editor.md): Write and auto-save, recover unsaved drafts, quote passages to chat, run Humanize, and review diffs
-- [AI Assistant](user-guide/ai-assistant.md): Draft and revise files in chat, switch between Fast and Quality modes, and steer active runs
+- [AI Assistant](user-guide/ai-assistant.md): Draft and revise files in chat, attach writing skills, and steer active runs
 - [Skills](user-guide/skills.md): Add official and community skills from Discover, and attach skills via `/` or the project sidebar
 - [Materials](user-guide/materials.md): Use project material files alongside your account's Reference Library and attach references to chat
 - [Inspirations (coming soon)](user-guide/inspirations.md): Current status of preset templates and how to start from templates today
