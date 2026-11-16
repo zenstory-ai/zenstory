@@ -243,6 +243,20 @@ describe('ToolResultCard', () => {
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
     })
 
+    // Payload shapes copied from the server (mcp_tools._write_chapter_* and
+    // StreamAdapter._complete_chapter_replace; see test_loop_write_chapter.py).
+    const armedReplace = {
+      id: 'ch-2', title: '第2章 旧城', file_type: 'draft', chapter: 2, action: 'replaced',
+      awaiting_body: true, previous_length: 2400, previous_word_count: 2400,
+      result: '覆盖已有的第2章《第2章 旧城》（原2400字）：下一次回复写的正文会整章替换它，标题沿用（要改标题用 rename_file）。',
+    }
+    const { awaiting_body: _awaiting, ...armedCard } = armedReplace
+    const savedReplace = {
+      ...armedCard, mutation_applied: true, body_saved: true, new_length: 1800, new_word_count: 1800,
+      updated_at: '2026-11-16T08:00:00Z', result: '覆盖了已有的第2章（原2400字），现在1800字。',
+      undo: { before_version_number: 4, expected_after_updated_at: '2026-11-16T08:00:00Z' },
+    }
+
     it('says a write_chapter result created a new chapter and opens it', async () => {
       const user = userEvent.setup()
       const onOpenFile = vi.fn()
@@ -250,27 +264,93 @@ describe('ToolResultCard', () => {
         <ToolResultCard
           type="tool_result"
           toolName="write_chapter"
-          result={{ data: { id: 'ch-3', title: '第3章 雨夜', file_type: 'draft', chapter: 3, created: true, awaiting_body: true } }}
+          result={{ data: {
+            id: 'ch-3', title: '第3章 雨夜', file_type: 'draft', content: '', chapter: 3,
+            action: 'created', awaiting_body: true, result: '新建了第3章《第3章 雨夜》。',
+          } }}
           onOpenFile={onOpenFile}
         />
       )
       expect(screen.getByText('Created chapter 3')).toBeInTheDocument()
-      expect(screen.queryByText(/Replaced/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Replac/)).not.toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: /第3章 雨夜/ }))
       expect(onOpenFile).toHaveBeenCalledWith('ch-3', 'draft', '第3章 雨夜')
     })
 
-    it('says which chapter a write_chapter result replaced and how long the old text was', () => {
+    it('says which chapter a saved replacement overwrote, the old and new length, and offers undo', async () => {
+      const user = userEvent.setup()
+      const onUndo = vi.fn()
       render(
         <ToolResultCard
           type="tool_result"
           toolName="write_chapter"
-          result={{ data: { id: 'ch-2', title: '第2章 旧城', file_type: 'draft', chapter: 2, created: false, previous_words: 2400 } }}
+          result={savedReplace}
+          onUndo={onUndo}
+          toolUseId="wc-1"
+          chatMessageId="msg-1"
         />
       )
       expect(screen.getByText('Replaced chapter 2')).toBeInTheDocument()
       expect(screen.getByText('Replaced the previous 2.4k')).toBeInTheDocument()
+      expect(screen.getByText('1.8k')).toBeInTheDocument()
       expect(screen.queryByText(/Created/)).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /undo/i }))
+      expect(onUndo).toHaveBeenCalledWith({
+        fileId: 'ch-2',
+        beforeVersionNumber: 4,
+        expectedAfterUpdatedAt: '2026-11-16T08:00:00Z',
+        chatMessageId: 'msg-1',
+        toolUseId: 'wc-1',
+      })
+    })
+
+    it('shows an undone chapter replacement as undone without another undo', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="write_chapter"
+          result={{ ...savedReplace, undo: { ...savedReplace.undo, undone: true } }}
+          onUndo={vi.fn()}
+        />
+      )
+      expect(screen.getByText('chat:tool.edit_undone')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument()
+    })
+
+    it('does not claim an armed replacement is done or new', () => {
+      render(<ToolResultCard type="tool_result" toolName="write_chapter" result={armedReplace} onUndo={vi.fn()} />)
+      expect(screen.getByText('chat:tool.chapterReplacing')).toBeInTheDocument()
+      expect(screen.queryByText(/Created|Replaced chapter/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument()
+    })
+
+    it('says a refused replacement was not saved and the original is unchanged', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="write_chapter"
+          result={{ ...armedCard, mutation_applied: false, body_saved: false }}
+          onUndo={vi.fn()}
+        />
+      )
+      expect(screen.getByText('chat:tool.chapterReplaceNotSaved')).toBeInTheDocument()
+      expect(screen.queryByText(/Created|Replaced/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument()
+    })
+
+    it('says an existing chapter was left unchanged for action "exists"', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="write_chapter"
+          result={{ data: {
+            id: 'ch-1', title: '第1章 雨夜', file_type: 'draft', chapter: 1, action: 'exists',
+            result: '第1章《第1章 雨夜》已经有文件，没有改动。',
+          } }}
+        />
+      )
+      expect(screen.getByText('chat:tool.chapterExists')).toBeInTheDocument()
+      expect(screen.queryByText(/Created|Replaced/)).not.toBeInTheDocument()
     })
 
     it('keeps a write_chapter result without a usable chapter number readable', () => {
@@ -278,7 +358,7 @@ describe('ToolResultCard', () => {
         <ToolResultCard
           type="tool_result"
           toolName="write_chapter"
-          result={{ data: { id: 'ch-x', title: '楔子', file_type: 'draft', chapter: 'one', created: false } }}
+          result={{ ...savedReplace, chapter: 'one', previous_word_count: 0, undo: undefined }}
         />
       )
       expect(screen.getByText('Replaced chapter')).toBeInTheDocument()

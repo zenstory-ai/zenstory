@@ -73,9 +73,10 @@ export function createProseCounter(): ProseCounter {
  * Whether a tool result means this round left written text in a file (or deleted one),
  * so a stop note may say "已写入的内容已保存" and the round is charged when stopped.
  *
- * Mirrors the server (`StreamBillingTracker._write_effect`): an empty `create_file` or
- * `write_chapter` (the chapter body streams in afterwards) or an edit that changed nothing
- * does not count;
+ * Mirrors the server (`StreamBillingTracker._write_effect`): an empty `create_file` (the
+ * chapter body streams in afterwards) or an edit that changed nothing does not count;
+ * `write_chapter` counts only on the re-sent replacement card that saved new text
+ * (`mutation_applied: true`), never when it only found or created the chapter;
  * `parallel_execute` counts only when one of its completed sub-tasks is a write;
  * `update_project` counts only when it renamed the work or changed its synopsis, style or
  * notes. Body text streamed into a file arrives as file_content, which callers count
@@ -89,7 +90,9 @@ export function isWriteToolResult(
   if (status !== 'success') return false;
   const payload = (result?.data ?? result) as Record<string, unknown> | undefined;
 
-  if (toolName === 'create_file' || toolName === 'update_file' || toolName === 'write_chapter') {
+  if (toolName === 'write_chapter') return payload?.mutation_applied === true;
+
+  if (toolName === 'create_file' || toolName === 'update_file') {
     const content = typeof payload?.content === 'string' ? payload.content : '';
     return content.trim().length > 0 && payload?.reused_existing !== true;
   }
