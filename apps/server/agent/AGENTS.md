@@ -112,8 +112,8 @@ agent/
   项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、本轮回复语言（沿用 ContextAssembler 的解析器与渲染，不做
   优先级裁剪、检索和文件清单）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件作为 edit_file 陈旧检查的起点。
 - **历史**（`loop/history.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
-  assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file 结果去掉
-  `awaiting_body` / `next_step`，带 `body_saved`；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、
+  assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file / write_chapter 结果去掉
+  `awaiting_body` / `next_step`，带 `body_saved`（write_chapter 的整章替换只认落库后补发的结果，只有定位结果时 `body_saved=false` 并说明没保存）；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、
   需要时重新调用。思考只在一次 run 内回放。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
   的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用历史估算）
@@ -128,17 +128,35 @@ agent/
   停在写完的 `</file>` 上的续写（附本请求正文落库字数）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用图的 `_auto_finalize_task_board_on_completion` 收尾任务板；
   `previous_output_truncations` 由 `LoopHistory.trailing_output_truncations` 给出。到收尾时间不再开新 run，
   发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
-- **工具与权限**：`registry.LOOP_TOOL_NAMES` = 写作工具集去掉 `handoff_to_agent` / `request_clarification` / `parallel_execute`，请求里也只给这一份
-  （`get_exposed_tools("loop")`）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入照旧经 diff 审阅、撤销与版本保护；
+- **工具与权限**：`registry.LOOP_TOOL_NAMES` = 写作工具集去掉 `handoff_to_agent` / `request_clarification` / `parallel_execute`，加上只有单循环 agent
+  有的 `write_chapter`（`LOOP_ONLY_TOOL_NAMES`），请求里也只给这一份（`get_exposed_tools("loop")`，其中 create_file 用
+  `tool_schemas.LOOP_TOOL_SCHEMA_OVERRIDES` 里不列 draft / script 的说明）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入照旧经 diff 审阅、撤销与版本保护；
   写作约定追加许可放开（只追加、`expected_notes` 冲突保护不变）；`requested_body_write` / `no_file_changes` 回执不出现。
   create_file 的 `empty=true` 在单循环轮次里直接生效（`ToolContext.author_wants_no_body`，由模型判断，不从原话推断）。
-  create_file 的同章守卫（`mcp_tools._existing_chapter_file_rejection`）：单循环 agent 在同一目录里为已有章号 / 集号的正文类文件再建
-  draft / script 时，以 `error_type=chapter_file_exists` 拒绝并指回已有文件（同标题仍为空的不拦，交给空文件守卫与剧集复用；没给父目录而
-  同一编号分布在多个目录时不拦；document 等资料文件不拦）。
+- **正文按章号写入**（`mcp_tools.write_chapter`）：`write_chapter(chapter, title, file_type=draft|script, parent_id?, empty?)` 在本项目未删除的
+  draft / script 里按标题开头的章号（draft）或集号（script）解析目标（`utils.title_sequence.extract_sequence_number(unit=…)`，有界的标识符解析；
+  给了 parent_id 只看那个目录；标题里的编号与 chapter 不一致时拒绝，没有编号时补上）。没有 → 走 `_create_file_sync` 的新建路径
+  （`action=created`，两次回复协议、待写守卫、空文件纠偏 / 回滚、退还时移除空白占位都照旧）；恰好一个 → `action=replaced`，不改数据库，
+  记下 `updated_at` 与原长度、绑定待写守卫（不记建好时的版本：补不成不回滚、不算可取消的空文件）；不止一个 → `chapter_target_ambiguous`
+  列出候选，不写。作者保存过正文（或来源无法确认）的章节在定位时以 `author_edit_protected` / `author_edit_protection_unavailable` 拒绝。
+  `empty=true` 只建缺的空章节（已有的 `action=exists` 不动）。StreamAdapter 在 `</file>` 后把整章替换交给 `FileEditor.replace_body`
+  （与 edit_file 共用 `_commit_ai_content`：写锁内重读、版本核对、原稿备份、AI 版本「AI 整章替换」、撤销锚点、锁内再核作者保护），
+  然后发 `file_content_end`、`file_edit_start/applied/end`（end 带 `original_content` / `new_content`，前端进入逐段 diff 审阅），
+  并以同一个 tool_use_id 补发一条 write_chapter 的 tool_result（`body_saved`、`new_word_count`、`previous_word_count`、`undo`；落库卡片随之更新，
+  `services/chat_tool_cards` 的撤销标记接受 write_chapter 卡）。版本变了或作者保护命中时不覆盖、发「这一章的整章替换没有保存，原文保持不变」、
+  补发 `body_saved=false`；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文。
+- **create_file / edit_file 的正文边界**：单循环轮次里 create_file 不建 draft / script（`chapter_body_requires_write_chapter`，指向 write_chapter）；
+  edit_file 改 draft / script 时 `FileEditor.edit_file(body_guards=True)` 在提交前做两道逐字检查（`file_ops.edit.check_body_edit_guards`，不判断语义）：
+  一处 replace 的 old 就是整份原文、或原文两段以上而改完一段都没留下 → `whole_body_replace`；改完后有一段（≥ 80 字）逐字出现两次以上而改之前没有
+  重复 → `duplicated_paragraph`。整批不落库。资料文件与图的各角色不受影响。
 - **落库**：assistant 行 `routing` 为空，`display_events` 只有 content / thinking_content / tool_call / iteration_exhausted，额外 metadata
   `engine`、`prompt_tokens`、`compaction`（`MessageManager.save_messages(assistant_extra_metadata=…)`，取消 / 失败补存也带）。
-- **测试**：既有 AgentService 用例替换 `run_writing_workflow_streaming` 驱动外壳，`tests/conftest.py` 默认让它们走图；单循环用例请求 `loop_engine` 夹具
-  （`tests/test_agent/test_loop_agent.py`、`tests/e2e/test_loop_agent_e2e.py`）。
+- **测试**：既有 AgentService 用例替换 `run_writing_workflow_streaming` 驱动外壳，`tests/conftest.py` 默认让它们走图；外壳用例
+  （test_service、test_round3_service、test_user_message_sent_at、test_steering_live_run_enqueue、test_agent_service_session_id、
+  e2e/test_agent_stream_e2e 与 test_api/test_agent、test_account_run_limit 里走 AgentService 的用例）用 `shell_engine` 夹具在两个引擎上各跑一遍
+  （loop 时走单循环接入路径，`run_loop_agent_streaming` 转调同一个替身）；只测图的上下文组装与运行参数的用例固定 `["graph"]`。
+  单循环用例请求 `loop_engine` 夹具（`tests/test_agent/test_loop_agent.py`、`test_loop_write_chapter.py`、`tests/e2e/test_loop_agent_e2e.py`、
+  `tests/e2e/test_loop_agent_shell_e2e.py`：真实工具 + 脚本模型跑整章替换与撤销、edit_file 撤销元数据、停止回执与计费、时限、失控退还、插话）。
 
 ## 请求与流
 
@@ -330,7 +348,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 
 ## 工具
 
-工具清单以 `tools/registry.py` 为准。单循环 agent 只看到并执行 `LOOP_TOOL_NAMES`（没有 handoff_to_agent / request_clarification / parallel_execute）。
+工具清单以 `tools/registry.py` 为准。单循环 agent 只看到并执行 `LOOP_TOOL_NAMES`（没有 handoff_to_agent / request_clarification / parallel_execute，多一个 write_chapter）。
 图的每个角色、每一轮在请求里看到的都是同一份 `EXPOSED_TOOL_NAMES`（前缀缓存不按角色分裂）；
 角色能执行哪些工具由 `AGENT_TOOL_NAME_MAP` 决定（`DEFAULT_TOOL_NAMES` 给 planner / hook_designer / writer，`QUALITY_REVIEWER_TOOL_NAMES`
 给审稿人，没有写工具），越权调用在 `tools_adapter` 里以 `tool_not_permitted_for_role` 拒绝，本轮不可用的工具写进运行指令的
@@ -342,7 +360,8 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 
 | 工具 | 用途 |
 |---|---|
-| `create_file` | 新建文件（只建空文件，正文随后用 `<file>` 流式写入） |
+| `create_file` | 新建文件（只建空文件，正文随后用 `<file>` 流式写入）；单循环 agent 只建资料文件，不建 draft / script |
+| `write_chapter` | 仅单循环 agent：按章号 / 集号写一章正文，不存在就新建、已存在就整章替换这一章（正文同样随后用 `<file>` 写入，替换走 diff 审阅与撤销） |
 | `edit_file` | 精确编辑（replace / insert / append / delete）；逐字、引号等价、模糊都找不到时近似匹配兜底，长章节用种子定位（[approx-seeds][n-approx-seeds]）；同一文件找不到原文只附恢复提示、不提前熔断，无效文件 id 三次即熔断（[anchor-no-early-trip][n-anchor-no-early-trip]） |
 | `delete_file` | 删除文件 |
 | `rename_file` | 只改文件标题，id 与正文不变（同文件夹重名拒绝；[rename-file][n-rename]） |
@@ -353,7 +372,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 | `parallel_execute` | 并行执行多个子任务（schema 在 `tools/parallel_executor.py`） |
 | `load_skill` / `read_skill_resource` | 技能 L2（方法与资源清单）/ L3（参考文件或 `path="SKILL.md"`，支持 `offset` 续读）；受每请求技能 token 预算限制，每请求最多读 `skills/content_budget.MAX_LOADED_SKILLS_PER_REQUEST`（3）个不同技能 |
 
-文件流式写入分两次回复：这次回复以 `create_file` 工具调用结束；下一次回复以 `<file>` 开头写正文、`</file>` 结束，StreamAdapter 捕获后落库。
+文件流式写入分两次回复：这次回复以 `create_file`（单循环 agent 写正文时是 `write_chapter`）工具调用结束；下一次回复以 `<file>` 开头写正文、`</file>` 结束，StreamAdapter 捕获后落库。
 一次只流式写一个文件。[two-replies][n-two-replies]
 
 ## 提示词
@@ -361,7 +380,10 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - 真实失败稿用于回归和正确反例，不把样例人物、账目、物件或情节关键词写成提示词/Agent 的特判。先定位通用的范围、输入、执行证据或权限缺口；提示策略变更须验证跨题材效果与误改，不能只证明已知样例修好了。
 - `prompts/base.py`：`get_base_prompt` 与 `UNIFIED_EXECUTION_PROTOCOL` 等共享协议；`get_base_prompt(loop=True)` 换用 `LOOP_AUTHOR_REPLY_PROTOCOL`
   与 `LOOP_TOOL_USAGE_PROTOCOL`（由同一组分段拼成，图的 `TOOL_USAGE_PROTOCOL` 逐字不变）。
-- `loop/prompts.py`：单循环 agent 的输入布局、工作方式（`LOOP_WORKING_RULES`，写后自查与真实字数在这里，不提模式）和压缩提示。
+- `prompts/base.py` 的 `_LOOP_TOOL_USAGE_HEAD` / `_LOOP_TOOL_USAGE_FILE_WRITES`：单循环 agent 的工具清单与写文件规则（写正文用 write_chapter，
+  改已有文件用 edit_file 且不整份替换正文，资料文件用 create_file）；与图共用的分段（文件 ID、失败重试、update_project、思考）逐字相同。
+- `loop/prompts.py`：单循环 agent 的输入布局、工作方式（`LOOP_WORKING_RULES`：正文按章写、作者的稿子直接写进对应章节不另存副本、
+  大纲是节奏的上限也是底线、写后自查、只报工具结果给出的真实字数，不提模式）和压缩提示。
 - `prompts/subagents.py`：`ROUTER_PROMPT`、`PLANNER_PROMPT`、`HOOK_DESIGNER_PROMPT`、`WRITER_PROMPT`、`QUALITY_REVIEWER_PROMPT`。
   `WRITER_PROMPT` 的「行文」节（节奏、句式、对白、元说明、指代、交代、一致、起名）与 `QUALITY_REVIEWER_PROMPT` 审查方法第 5 条成对维护；图的快速模式写后自查只写在 `FAST_MODE_DIRECTIVE` / `FAST_MODE_REVIEW_REFUSAL`，不进固定前缀（单循环 agent 的同一条规则在 `LOOP_WORKING_RULES`）。[prose-craft][n-prose-craft]
 - `prompts/suggestions.py`：建议生成。
