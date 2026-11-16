@@ -31,6 +31,26 @@ describe('persisted chat display sequence', () => {
     expect(new Set(items.map(item => item.id)).size).toBe(events.length);
   });
 
+  it('replays a single-agent loop row (no routing, no handoffs) in full without falling back', () => {
+    const events = [
+      { type: 'thinking_content', content: 'Reasoning' },
+      { type: 'content', content: 'First' },
+      { type: 'tool_call', tool_call_index: 0 },
+      { type: 'thinking_content', content: 'More reasoning' },
+      { type: 'tool_call', tool_call_index: 1 },
+      { type: 'content', content: 'Second' },
+      { type: 'iteration_exhausted', data: { layer: 'tool_call', iterations_used: 8, max_iterations: 8, reason: 'internal',
+        last_agent: null, limit: 'wall_clock' } },
+    ];
+    const metadata = JSON.stringify({ routing: null, display_events: events });
+    const items = parseChatDisplayEvents(metadata, tools, timestamp, t);
+    expect(items).toBeDefined();
+    expect(items!.map(item => item.type)).toEqual(['thinking_content', 'content', 'tool_calls', 'thinking_content', 'tool_calls', 'content', 'iteration_exhausted']);
+    expect(items![2].toolCalls).toEqual([tools[0]]);
+    expect(items![4].toolCalls).toEqual([tools[1]]);
+    expect(items![6]).toMatchObject({ layer: 'tool_call', iterationsUsed: 8, maxIterations: 8, lastAgent: null, limit: 'wall_clock' });
+  });
+
   it('shows handoffs with the role name and drops handoffs to unknown internal ids', () => {
     const events = [
       { type: 'handoff', data: { target_agent: 'quality_reviewer', reason: '' } },
