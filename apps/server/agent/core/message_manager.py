@@ -99,6 +99,7 @@ class MessageManager:
         assistant_display_events: list[dict[str, Any]] | None = None,
         assistant_routing: dict[str, Any] | None = None,
         user_created_at: datetime | None = None,
+        assistant_extra_metadata: dict[str, Any] | None = None,
     ) -> str | None:
         """
         Save messages to chat history.
@@ -139,6 +140,7 @@ class MessageManager:
                 assistant_display_events,
                 assistant_routing,
                 user_created_at=user_created_at,
+                assistant_extra_metadata=assistant_extra_metadata,
             )
         return self._save_messages_with_session(
             session,
@@ -154,6 +156,7 @@ class MessageManager:
             assistant_display_events,
             assistant_routing,
             user_created_at=user_created_at,
+            assistant_extra_metadata=assistant_extra_metadata,
         )
 
     def _save_messages_sync(
@@ -170,6 +173,7 @@ class MessageManager:
         assistant_display_events: list[dict[str, Any]] | None = None,
         assistant_routing: dict[str, Any] | None = None,
         user_created_at: datetime | None = None,
+        assistant_extra_metadata: dict[str, Any] | None = None,
     ) -> str | None:
         """Persist chat history with a fresh sync DB session."""
         with create_session() as session:
@@ -187,6 +191,7 @@ class MessageManager:
                 assistant_display_events,
                 assistant_routing,
                 user_created_at=user_created_at,
+                assistant_extra_metadata=assistant_extra_metadata,
             )
 
     def _save_messages_with_session(
@@ -205,11 +210,14 @@ class MessageManager:
         assistant_routing: dict[str, Any] | None = None,
         persist_empty_assistant: bool = False,
         user_created_at: datetime | None = None,
+        assistant_extra_metadata: dict[str, Any] | None = None,
     ) -> str | None:
         """Core chat-history persistence logic using the provided session.
 
         persist_empty_assistant: write the assistant row even when it has no
         payload (a stopped / disconnected round keeps its terminal state).
+        assistant_extra_metadata: extra message_metadata keys of the loop engine
+        (``engine``, ``prompt_tokens``, ``compaction``); never overrides the keys above.
         """
         from models import ChatMessage, ChatSession
 
@@ -304,6 +312,10 @@ class MessageManager:
                     reasoning_content=reasoning_content,
                     message_metadata=assistant_metadata_json,
                 )
+                if assistant_extra_metadata:
+                    assistant_chat_message.message_metadata = self._merge_extra_metadata(
+                        assistant_metadata_json, assistant_extra_metadata
+                    )
                 session.add(assistant_chat_message)
                 rows_added += 1
 
@@ -343,6 +355,20 @@ class MessageManager:
                 error_type=type(e).__name__,
             )
             raise
+
+    @staticmethod
+    def _merge_extra_metadata(metadata_json: str | None, extra: dict[str, Any]) -> str | None:
+        """Add the loop engine's keys to a serialized metadata payload (existing keys win)."""
+        try:
+            payload = json_module.loads(metadata_json) if metadata_json else {}
+        except (TypeError, ValueError):
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        for key, value in extra.items():
+            if key not in payload and value is not None:
+                payload[key] = value
+        return json_module.dumps(payload) if payload else None
 
     def _serialize_tool_calls(self, tool_calls: list | None) -> str | None:
         """
@@ -402,9 +428,14 @@ class MessageManager:
         session: Session,
         language: str | None = None,
         skill_catalog: str | None = None,
+        loop: bool = False,
     ) -> str:
         """
         Build the static system prompt shared by every turn and every agent role.
+
+        loop=True builds the single loop agent's prompt (agent/loop): the project-type
+        configuration without other roles, handoffs or run directives, plus the loop's
+        input layout and working rules.
 
         Only content that stays the same across turns and roles goes here: the
         project's base prompt, reply-language rules, where per-turn context and
@@ -465,15 +496,20 @@ class MessageManager:
         )
 
         # Get prompt from template
-        prompt = get_prompt_for_project_type(project_type, self.project_id, folder_ids)
+        prompt = get_prompt_for_project_type(project_type, self.project_id, folder_ids, loop=loop)
 
         parts = [prompt]
 
         # 回复语言规则（跟随作者最近一条消息；界面语言只在判断不了时兜底）
         parts.extend(self._build_language_section(force_en))
 
-        # 本轮上下文与本次运行指令放在哪里（固定说明，保证它们的效力）
-        parts.extend(self._build_input_layout_section(force_en))
+        if loop:
+            from ..loop.prompts import LOOP_INPUT_LAYOUT_SECTION, LOOP_WORKING_RULES
+
+            parts.extend([LOOP_INPUT_LAYOUT_SECTION, "", LOOP_WORKING_RULES])
+        else:
+            # 本轮上下文与本次运行指令放在哪里（固定说明，保证它们的效力）
+            parts.extend(self._build_input_layout_section(force_en))
 
         # Add skill catalog (L1: name + description only; instructions via load_skill)
         if skill_catalog:

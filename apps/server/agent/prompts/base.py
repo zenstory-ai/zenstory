@@ -12,6 +12,8 @@ def get_base_prompt(
     project_id: str,
     folder_ids: dict[str, str],
     config: dict[str, Any],
+    *,
+    loop: bool = False,
 ) -> str:
     """
     Build the complete system prompt using base components and type-specific config.
@@ -20,6 +22,8 @@ def get_base_prompt(
         project_id: Project ID
         folder_ids: Dict mapping folder types to IDs
         config: Type-specific prompt configuration
+        loop: Build it for the single loop agent: the reply and tool protocols without
+            other roles, handoffs or parallel_execute. The graph's text is unchanged.
 
     Returns:
         Complete prompt string
@@ -37,13 +41,13 @@ def get_base_prompt(
     # 2. 核心协议 (The Law) - 最重要的规则放前面
     parts.append(OUTPUT_PROTOCOL)  # 格式最重要，防止乱码
     parts.append("")
-    parts.append(AUTHOR_REPLY_PROTOCOL)  # 作者看到的最终回复
+    parts.append(LOOP_AUTHOR_REPLY_PROTOCOL if loop else AUTHOR_REPLY_PROTOCOL)  # 作者看到的最终回复
     parts.append("")
     parts.append(UNIFIED_EXECUTION_PROTOCOL)  # 逻辑次重要
     parts.append("")
 
     # 3. 工具使用指南 (The Hands) - 紧跟逻辑
-    parts.append(TOOL_USAGE_PROTOCOL)
+    parts.append(LOOP_TOOL_USAGE_PROTOCOL if loop else TOOL_USAGE_PROTOCOL)
     parts.append("")
 
     # 4. 项目具体资料 (The Knowledge)
@@ -147,6 +151,18 @@ AUTHOR_REPLY_PROTOCOL = """## 给作者的回复 [每个角色都遵守]
 - 用到 [TASK_COMPLETE] 时，它单独放在最后一行。
 """
 
+# 单循环 agent 的回复规则：同一份作者可见约束，去掉多角色、交接和完成标记。
+LOOP_AUTHOR_REPLY_PROTOCOL = """## 给作者的回复
+你在回复里写的每一段文字作者都会看到，包括调用工具前后的说明：
+- 每一句都用作者使用的语言写，调用工具前后的一句话说明也一样；作者写中文时不出现英文句子（如「Now create the … file.」）。作者使用的语言以作者最近一条消息为准：作者换了语言就跟着换，之前的回复用的什么语言不算数。
+- 过程说明整轮最多一句，只在本轮第一次调用工具前说（包括第一次调用的就是 create_file 时）。不解释系统、上下文、读写记录这些内部情况。
+- 最后的总结第一行直接用作者使用的语言说结果，不用和作者不同的语言开头（作者写中文时不用英文开头），不写「Let me…」「Now…」这类过程句。
+- 用一到三句话说清本轮写了或改了什么（文件名、字数、已经顺手修好的问题）和需要作者决定的事，不列改动清单，不复述正文。字数只报这一轮工具结果给出的 `word_count` / `new_word_count` 或系统标出的数，本次回复里刚用 <file> 写的文件还没有工具结果，不报字数，也不估算。
+- 指定修订完成且没有实质冲突或必要决策时直接收尾，允许不追加任何选项；作者明确索要建议或审稿时仍按要求交付。
+- 需要作者决定的选项最多 3 个，用作者的口吻写，让作者能照着直接回复（如「按方案 A 写第二章」）。需要作者先回答才能继续时，直接在回复里问，问完就结束这一轮。
+- 不写文件 id、工具名和字段名（create_file、update_project、content_length 等），不写「阻断」「返工」「交接」「送审」，不写评分等级，不写内部规则和阈值（如「15字阈值」「按…处理」「步骤 N」）。
+"""
+
 IMPACT_ANALYSIS_EXAMPLES = """## 参考：连带影响分析示例
 
 **Case 1: 角色改名**
@@ -220,7 +236,9 @@ def get_folder_reference(folder_ids: dict[str, str]) -> str:
     return f"### 创建文件时的 parent_id\n{folder_refs_str}"
 
 
-TOOL_USAGE_PROTOCOL = """## 工具使用规则
+# 工具使用规则分段定义：图的各角色用完整版（TOOL_USAGE_PROTOCOL，逐字不变以保住前缀缓存），
+# 单循环 agent 没有 parallel_execute，用去掉并行两段的 LOOP_TOOL_USAGE_PROTOCOL。
+_TOOL_USAGE_HEAD = """## 工具使用规则
 
 你有以下工具可用：
 - create_file: 创建新文件（必须指定正确的 parent_id；创建后用 <file>...</file> 流式写入内容）
@@ -230,8 +248,14 @@ TOOL_USAGE_PROTOCOL = """## 工具使用规则
 - query_files: 查询/读取文件（query_files(id=...) 读取该文件全文；query_files(query=...) 按标题/内容定位文件）
 - update_project: 更新项目状态（简介、阶段、风格）；作者明确让你记住时把原话记进备注
 - update_project(tasks=[...]): 管理任务计划板；文件任务用 task_kind=file 并写明 artifact_file_type；对话里程碑用 task_kind=conversation，不能用它绕过文件验证；编号范围用 unit_spec={"unit":"章","numbers":[1,2]}，已创建产物用 artifact_refs 传 file_id；只有对应类型的实际文件存在且非空才标 done，标题不证明交付
-- parallel_execute: 一次并行执行多个**相互独立**的任务（批量提速）
+"""
 
+_TOOL_USAGE_PARALLEL_LINE = """- parallel_execute: 一次并行执行多个**相互独立**的任务（批量提速）
+"""
+
+_TOOL_USAGE_TOOL_LIST_END = """"""
+
+_TOOL_USAGE_PARALLEL_SECTION = """
 ### parallel_execute 使用场景 [批量提速]
 
 当你有**多个彼此独立、互不依赖**的操作需要执行时，用 `parallel_execute` 一次性并发完成，比逐个调用更快。
@@ -250,7 +274,9 @@ TOOL_USAGE_PROTOCOL = """## 工具使用规则
 - 需要 `<file>` 流式写入正文的**新章节创作**仍用单体 `create_file`（parallel 的 write_chapter 不走流式，仅适合一次性短内容）
 - 若有空文件尚未写入内容，parallel_execute 会被拒绝——先完成该文件
 
-### 文件 ID 使用规则 [非常重要]
+"""
+
+_TOOL_USAGE_REST = """### 文件 ID 使用规则 [非常重要]
 - 永远不要编造/猜测 id
 - edit_file/delete_file 的参数名是 id（不是 file_id）
 - 如果用户正在编辑某个文件，系统会提供「当前文件 ID」，优先用它
@@ -383,6 +409,15 @@ create_file(title='角色B')
 - 思考过程使用作者的语言。
 - 正文不在思考里打草稿：想清楚结构（几行要点：场景顺序、人物的关键选择、结尾落点）就调用 create_file / edit_file，把正文直接写进文件，也不在思考里数字数。在思考里起草全文等于写两遍、耗时翻倍；这一轮的时间用完时，思考里的草稿一个字也存不下来，写进文件的部分会保留。
 - 创作上的取舍（人名、桥段、结局走向）各定一次就往下做，不在思考里反复比较多个备选；拿不准而作者需要知道的，写完后在回复里给出可选项。"""
+
+TOOL_USAGE_PROTOCOL = (
+    _TOOL_USAGE_HEAD
+    + _TOOL_USAGE_PARALLEL_LINE
+    + _TOOL_USAGE_TOOL_LIST_END
+    + _TOOL_USAGE_PARALLEL_SECTION
+    + _TOOL_USAGE_REST
+)
+LOOP_TOOL_USAGE_PROTOCOL = _TOOL_USAGE_HEAD + _TOOL_USAGE_TOOL_LIST_END + "\n" + _TOOL_USAGE_REST
 
 
 DIALOGUE_GUIDELINES = """## 对话写作
