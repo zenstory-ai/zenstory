@@ -1629,6 +1629,85 @@ def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict
     )
 
 
+# 单循环 agent 每一章（集）只有一个正文文件：已有同一章号 / 集号的正文类文件时 create_file 拒绝，
+# 指回那个文件让模型用 edit_file 改它。只比对标题开头的「第N章 / 第N集 / Chapter N」编号（有界的标识符检查）。
+CHAPTER_FILE_EXISTS_ERROR_TYPE = "chapter_file_exists"
+_CHAPTER_UNITS = ("章", "集")
+_CHAPTER_GUARD_FILE_TYPES = frozenset({*CONTENT_FILE_TYPES, "document"})
+
+
+def _existing_chapter_file_rejection(args: dict[str, Any], project_id: str) -> dict[str, Any] | None:
+    """要建的正文文件与已有正文类文件同一章（集）时返回拒绝结果；其余情况返回 None。
+
+    同标题且仍为空的文件不拦：那是重复创建在等正文的同一个文件，由空文件守卫与剧集复用处理。
+    父目录给了就只比对同一目录（分卷各自编号）。
+    """
+    from agent.tools.registry import LOOP_AGENT_TYPE
+    from models import File
+    from utils.title_sequence import extract_sequence_number
+
+    if ToolContext.get_current_agent() != LOOP_AGENT_TYPE:
+        return None
+    file_type = str(args.get("file_type") or "draft").strip().lower()
+    if file_type not in _CHAPTER_GUARD_FILE_TYPES:
+        return None
+    title = str(args.get("title") or "").strip()
+    unit = number = None
+    for candidate in _CHAPTER_UNITS:
+        number = extract_sequence_number(title, unit=candidate)
+        if number:
+            unit = candidate
+            break
+    if unit is None or not number:
+        return None
+    parent_id = args.get("parent_id") or None
+    try:
+        rows = _run_session_probe(
+            ToolContext.get_session(),
+            lambda s: s.exec(
+                select(File.id, File.title, File.parent_id, File.content).where(
+                    File.project_id == project_id,
+                    File.is_deleted.is_(False),
+                    File.file_type.in_(CONTENT_FILE_TYPES),
+                )
+            ).all(),
+        )
+    except Exception as e:  # noqa: BLE001 - 查不到时不拦，照常建文件
+        logger.debug(f"Chapter duplicate probe failed: {e}")
+        return None
+    for row in rows:
+        if parent_id is not None and (row.parent_id or None) != parent_id:
+            continue
+        if extract_sequence_number(row.title, unit=unit) != number:
+            continue
+        if str(row.title or "").strip() == title and not str(row.content or "").strip():
+            continue
+        log_with_context(
+            logger,
+            20,  # INFO
+            "agent.create_file.chapter_exists",
+            project_id=project_id,
+            existing_file_id=row.id,
+            unit=unit,
+            number=number,
+        )
+        return _make_mcp_payload(
+            {
+                "status": "error",
+                "error_type": CHAPTER_FILE_EXISTS_ERROR_TYPE,
+                "error": (
+                    f"《{row.title}》已经是这一{unit}的文件（id={row.id}），同一{unit}只能有一个文件，没有新建。"
+                    "要改写或替换这一" + unit + "，用 edit_file 修改这个文件；需要原文时先用 query_files 读取。"
+                ),
+                "id": row.id,
+                "title": row.title,
+                "mutation_applied": False,
+            },
+            tool_name="create_file",
+        )
+    return None
+
+
 async def create_file(args: dict[str, Any]) -> dict[str, Any]:
     """创建新文件。"""
     if _should_offload_tool_execution():
@@ -1652,6 +1731,9 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
 
     content = args.get("content", "")
     title = args.get("title", "")
+    chapter_rejection = _existing_chapter_file_rejection(args, project_id)
+    if chapter_rejection is not None:
+        return chapter_rejection
     # 作者明确只要建文件（「只建标题，不写内容」）：这个空文件就是交付物，不等正文。
     # 只在路由判断作者本轮不要正文时生效，作者要正文时模型传了也照常等正文。
     empty_requested = coerce_bool(args.get("empty"))
