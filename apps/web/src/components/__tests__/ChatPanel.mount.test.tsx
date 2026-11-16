@@ -81,8 +81,6 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:panel.resend': '重新发送',
   'chat:panel.unanswered': '这条消息没有收到回复。',
   'chat:nextStep.novel.message': '按大纲写第一章正文',
-  'chat:input.mode.switchedFast': '已切换到快速模式：更快出结果（可能更简略）',
-  'chat:input.mode.switchedQuality': '已切换到高质量模式：更稳更全面（可能更慢）',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
   'home:pricingTeaser.viewPricing': '查看套餐权益',
   'chat:input.placeholderQuotaExhausted': '先把想法写下来，额度恢复后再发。',
@@ -264,7 +262,6 @@ vi.mock('../../lib/api', () => ({
 type MockMessageInputProps = {
   aiSuggestions?: string[]
   suggestionDisplayState?: string
-  onGenerationModeChange?: (mode: 'fast' | 'quality') => void
   onSend: (message: string, selectedSkillIds: string[]) => void | Promise<void>
   disabled?: boolean
   sendDisabled?: boolean
@@ -272,20 +269,12 @@ type MockMessageInputProps = {
   placeholder?: string
   onCancel?: () => void
   isStopping?: boolean
-  generationMode?: 'fast' | 'quality'
 }
 
 const mockMessageList = vi.fn((_props: unknown) => <div data-testid="mock-message-list" />)
 const mockProjectStatusDialog = vi.hoisted(() => vi.fn())
 const mockMessageInput = vi.fn((props: MockMessageInputProps) => (
   <div data-testid="mock-message-input">
-    <button
-      type="button"
-      data-testid="mock-generation-mode-toggle"
-      onClick={() => props.onGenerationModeChange?.(props.generationMode === 'fast' ? 'quality' : 'fast')}
-    >
-      toggle-generation-mode
-    </button>
     {props.onCancel && (
       <button type="button" data-testid="mock-stop-button" onClick={props.onCancel}>
         stop
@@ -376,7 +365,6 @@ describe('ChatPanel mount smoke', () => {
     localStorage.removeItem('zenstory_suggestions_cache_project-1')
     localStorage.removeItem('zenstory_inspiration_project-1')
     localStorage.removeItem('zenstory_next_step_dismissed_project-1')
-    localStorage.removeItem('zenstory_generation_mode_project-1')
     mockQuota.value = { ai_conversations: { used: 2, limit: 10, reset_at: null } }
     mockProjectState.currentProjectId = 'project-1'
     mockProjectState.selectedItem = null
@@ -2063,31 +2051,6 @@ describe('ChatPanel mount smoke', () => {
         configurable: true,
       })
     }
-  })
-
-  it('starts a project without a saved choice in fast mode and toasts the switch to quality', async () => {
-    render(<ChatPanel />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('mock-generation-mode-toggle')).toBeInTheDocument()
-    })
-    expect(mockMessageInput.mock.lastCall?.[0].generationMode).toBe('fast')
-
-    screen.getByTestId('mock-generation-mode-toggle').click()
-
-    expect(vi.mocked(toast.success)).toHaveBeenCalledWith(
-      '已切换到高质量模式：更稳更全面（可能更慢）',
-    )
-    expect(localStorage.getItem('zenstory_generation_mode_project-1')).toBe('quality')
-  })
-
-  it("keeps an author's saved quality choice", async () => {
-    localStorage.setItem('zenstory_generation_mode_project-1', 'quality')
-    render(<ChatPanel />)
-
-    await waitFor(() => {
-      expect(mockMessageInput.mock.lastCall?.[0].generationMode).toBe('quality')
-    })
   })
 
   it('uses cached suggestions on open without refetching in the background', async () => {

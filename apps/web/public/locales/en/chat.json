@@ -76,15 +76,6 @@
     "steerSentAsNextMessage": "This reply is wrapping up — your note will go out as the next message",
     "steerReturnedToInput": "Your note wasn't sent — it's back in the input box",
     "steerFailed": "Couldn't send. Please try again.",
-    "mode": {
-      "label": "Mode",
-      "fast": "Fast",
-      "quality": "Quality",
-      "fastHint": "No automatic review after writing, so results usually come sooner. Click to switch",
-      "qualityHint": "Reviews the writing automatically and revises when needed; takes longer. Click to switch",
-      "switchedFast": "Switched to Fast: no automatic review after writing. Click again to switch back to Quality.",
-      "switchedQuality": "Switched to Quality: writing is reviewed automatically and revised when needed, which takes longer. Click again to switch back to Fast."
-    },
     "attachedMaterials": "Referenced materials:",
     "quotedText": "Quoted text:",
     "addToContext": "Quote in chat",

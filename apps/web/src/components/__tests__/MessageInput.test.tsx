@@ -680,22 +680,6 @@ describe('MessageInput', () => {
     expect(voiceButton).toBeInTheDocument()
   })
 
-  it('allows switching generation mode (fast/quality)', async () => {
-    const user = userEvent.setup({ delay: null })
-    const onGenerationModeChange = vi.fn()
-
-    render(
-      <MessageInput
-        {...defaultProps}
-        generationMode="quality"
-        onGenerationModeChange={onGenerationModeChange}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: /chat:input.mode.label/i }))
-    expect(onGenerationModeChange).toHaveBeenCalledWith('fast')
-  })
-
   describe('steering (追加消息)', () => {
     const steerProps = {
       sendDisabled: true,

@@ -286,11 +286,6 @@ const CHAT_INPUT_PANEL_HEIGHT_KEY = "zenstory_chat_input_panel_height_px";
 const SUGGESTION_CACHE_KEY_PREFIX = "zenstory_suggestions_cache_";
 const SUGGESTION_CACHE_TTL_MS = 10 * 60 * 1000;
 const SUGGESTION_INITIAL_TIMEOUT_MS = 1500;
-const GENERATION_MODE_STORAGE_KEY_PREFIX = "zenstory_generation_mode_";
-
-type GenerationMode = "fast" | "quality";
-/** 作者没选过时用快速模式（不自动审稿）；作者选过的按项目保存在 localStorage。 */
-const DEFAULT_GENERATION_MODE: GenerationMode = "fast";
 
 /** Minimum height of the chat input panel in pixels */
 const CHAT_INPUT_PANEL_MIN_HEIGHT_PX = 144;
@@ -626,7 +621,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     setShowAIMemory(true);
   }, []);
   const openWritingAgreements = useCallback(() => openAIMemory('writing-agreements'), [openAIMemory]);
-  const [generationMode, setGenerationMode] = useState<GenerationMode>(DEFAULT_GENERATION_MODE);
   const { draft, saveDraft, clearDraft } = useDraftPersistence(currentProjectId);
   const draftRef = useRef(draft);
   useEffect(() => {
@@ -667,30 +661,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     lastRetryRequestRef.current = null;
     blockedCandidateRef.current = null;
   }, [currentProjectId]);
-
-  // Persist generation mode per project in localStorage.
-  useEffect(() => {
-    if (!currentProjectId) return;
-    const key = `${GENERATION_MODE_STORAGE_KEY_PREFIX}${currentProjectId}`;
-    const stored = (localStorage.getItem(key) || "").trim();
-    if (stored === "fast" || stored === "quality") {
-      setGenerationMode(stored);
-    } else {
-      setGenerationMode(DEFAULT_GENERATION_MODE);
-    }
-  }, [currentProjectId]);
-
-  const handleGenerationModeChange = useCallback((mode: GenerationMode) => {
-    if (mode === generationMode) return;
-
-    setGenerationMode(mode);
-    if (!currentProjectId) return;
-    const key = `${GENERATION_MODE_STORAGE_KEY_PREFIX}${currentProjectId}`;
-    localStorage.setItem(key, mode);
-    toast.success(
-      t(mode === "fast" ? "chat:input.mode.switchedFast" : "chat:input.mode.switchedQuality"),
-    );
-  }, [currentProjectId, generationMode, t]);
 
   const currentProjectIdRef = useRef<string | null>(currentProjectId);
   const handleOpenFile = useCallback((fileId: string, fileType: string, title: string) => {
@@ -2032,7 +2002,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       outline_id: selectedItem?.id,
       selected_skill_ids: selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
       metadata: {
-        generation_mode: generationMode,
         // Current focused file info (used by backend context assembler)
         current_file_id: selectedItem?.id,
         current_file_type: selectedItem?.type,
@@ -2062,7 +2031,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       project_id: currentProjectId,
       // Where this message came from: next_step / dashboard_idea / starter_example / starter_manuscript / first_message, otherwise typed.
       entry: entry ?? "typed",
-      generation_mode: generationMode,
       selected_item_type: selectedItem?.type,
       attached_file_count: sentFileIds.length,
       attached_library_material_count: sentLibraryMaterials.length,
@@ -2070,7 +2038,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     });
 
     return startRound(request, { userBubble: true });
-  }, [isStreaming, aiSendBlocked, saveDraft, reportQuotaBlockedSend, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, clearDraft, currentProjectId, startRound]);
+  }, [isStreaming, aiSendBlocked, saveDraft, reportQuotaBlockedSend, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, clearDraft, currentProjectId, startRound]);
 
   /**
    * 「重新发送」 after a stop that wrote nothing: the same round again, with the original
@@ -2082,7 +2050,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     trackEvent("ai_chat_submitted", {
       project_id: currentProjectId,
       entry: "resend_after_stop",
-      generation_mode: last.request.metadata?.generation_mode,
     });
     startRound(
       { ...last.request, metadata: { ...last.request.metadata, resent_after_stop: true } },
@@ -2109,7 +2076,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     trackEvent("ai_chat_submitted", {
       project_id: currentProjectId,
       entry: "retry_unanswered",
-      generation_mode: generationMode,
     });
     // Still the work's first message (no reply yet): keep the first-message hint on the retry.
     const firstMessage = messagesRef.current.every((item) => item.role === "user");
@@ -2117,14 +2083,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       {
         message: message.content,
         metadata: {
-          generation_mode: generationMode,
           retry_unanswered: true,
           ...(firstMessage ? { entry: "first_message" } : {}),
         },
       },
       { userBubble: false },
     );
-  }, [currentProjectId, generationMode, startRound]);
+  }, [currentProjectId, startRound]);
 
   /**
    * Send a steering (follow-up) instruction while the agent is generating.
@@ -3112,8 +3077,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             matchedSkills={matchedSkills}
             externalDraft={draft}
             onDraftChange={saveDraft}
-            generationMode={generationMode}
-            onGenerationModeChange={handleGenerationModeChange}
           />
         </div>
       </div>
