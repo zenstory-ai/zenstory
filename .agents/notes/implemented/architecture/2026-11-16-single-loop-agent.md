@@ -1,6 +1,6 @@
 # Architecture Note: 用单循环 agent 取代多 agent 图
 
-Status: proposed（服务端实现在 `feat/loop-agent-server`；前端移除模式开关另一批）
+Status: implemented（服务端）。后续：前端移除生成模式开关另一批完成；图的代码在之后单独一批删除。
 
 推翻或取代的决策：
 
@@ -21,18 +21,18 @@ Status: proposed（服务端实现在 `feat/loop-agent-server`；前端移除模
 
 对同一组写作任务做的对照里，一个模型带写作工具、一份只追加的对话、几条工作方式规则，交付质量不低于多角色流程，成本和耗时更低。
 
-## Proposal
+## Decision
 
 所有聊天轮次改由一个循环 agent 完成（`apps/server/agent/loop/`）：
 
 1. **引擎开关**：`AGENT_ENGINE=loop|graph`，默认 `loop`，只作运维回滚；图的代码暂时保留，`loop` 时不运行，之后单独一批删除。没有灰度和过渡档位。
 2. **接入点**：`AgentService.process_stream` 里同一个生成器接口。SSE 外壳、`/stop`、`/steer`、`/suggest`、计费 / 预扣 / 退还、停止终态回执、残稿补存、文件版本并发保护、作者正文保护、草稿保护都沿用。单循环 agent 落库的 `display_events` 只用 content、thinking_content、tool_call、iteration_exhausted，`routing` 为空，现有前端能直接渲染；旧会话照常加载。
-3. **工具**：写作工具集去掉 `handoff_to_agent`、`parallel_execute`、`request_clarification`（需要作者回答时在聊天里问）。保留 create_file + `<file>` 正文协议（实时打字与 diff 审阅）、edit_file、query_files、update_project、load_skill / read_skill_resource、delete_file、rename_file。create_file 增加同章守卫：同一目录里已有标题带同一章号 / 集号的正文类文件时拒绝新建，指回那个文件让模型用 edit_file 改（只比对标题开头的编号，是有界的标识符检查）。
-4. **写权限**：不再有路由给出的 read_only / scope_constraints；是否改文件由模型按提示判断，每次写入照旧经过 diff 审阅、撤销与版本保护。依赖路由的 `requested_body_write` / `no_file_changes` 回执在单循环轮次里不出现，不从文字推断。不加任何关键词或正则意图判断。写作约定（notes）的追加许可在单循环轮次里放开，由模型按提示只在作者要求时追加，只追加、不删改和 `expected_notes` 冲突保护不变。
+3. **工具**：写作工具集去掉 `handoff_to_agent`、`parallel_execute`、`request_clarification`（需要作者回答时在聊天里问）。保留 create_file + `<file>` 正文协议（实时打字与 diff 审阅）、edit_file、query_files、update_project、load_skill / read_skill_resource、delete_file、rename_file。create_file 增加同章守卫：要建的正文类文件（draft / script）与同一目录里已有正文类文件的标题章号 / 集号相同时拒绝新建（没给父目录而同一编号分布在多个目录时不拦；document 等资料文件不受影响），指回那个文件让模型用 edit_file 改（只比对标题开头的编号，是有界的标识符检查）。
+4. **写权限**：不再有路由给出的 read_only / scope_constraints；是否改文件由模型按提示判断，每次写入照旧经过 diff 审阅、撤销与版本保护。create_file 的 `empty=true`（只建空文件）由模型判断，单循环轮次里直接生效。依赖路由的 `requested_body_write` / `no_file_changes` 回执在单循环轮次里不出现，不从文字推断。不加任何关键词或正则意图判断。写作约定（notes）的追加许可在单循环轮次里放开，由模型按提示只在作者要求时追加，只追加、不删改和 `expected_notes` 冲突保护不变。
 5. **提示词**：项目类型的 SystemPromptConfig 行 + 共享协议（去掉多角色、交接和并行一节）+ 工作方式规则（来自对照实验的规则，并把原快速模式指令里的写后连贯自查、按真实字数汇报搬进来，不提模式）。系统提示跨轮不变。
 6. **上下文**：只追加的对话历史，不按 token 开窗、不做组装器优先级裁剪。每轮只附结构化请求上下文：项目信息与写作约定、焦点文件、附加文件、引用文字、附加素材库条目、选中文字、作者选的技能、本轮回复语言（沿用现有解析器）；项目里其他文件由模型用 query_files 查。往轮的工具调用与结果按显示顺序成对回放，思考内容只在一次 run 内回放；多 agent 图写下的旧行沿用原来的文字折叠。
-7. **压缩**（轮与轮之间，从不在工具循环中途）：上一轮最后一次模型调用的实测输入 token 超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（默认 600000）时，本轮开始前用同一个模型写一份中文交接摘要（文件清单与状态、已确认的设定和被作者纠正的旧说法、原样的长期要求、进度和下一步、不编造、不超过 1500 字）。摘要必须非空且没有被输出上限截断，否则降低思考强度重试一次，仍不行就不压缩。摘要不加表结构，写进本轮 assistant 行的 `message_metadata.compaction`（`summary`、`covers_through_message_id`、`created_at`）。之后的历史是：系统提示 + 压缩点之前最近的作者原话（20k token 预算内原文）+ 一条以「【上下文已压缩】」开头的 user 消息（摘要）+ 压缩点之后的全部行。
-8. **预算**：沿用请求墙钟 `AGENT_RUN_WALL_CLOCK_TIMEOUT_S`、收尾提醒、单次 run 的工具轮数上限、请求级模型调用上限与失控退还语义。一轮里同一个 agent 只因结构化事实再跑：空文件纠偏、停在写完的 `</file>` 上的续写、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。墙钟暂停卡保留计费认定的 layer，`last_agent` 为空。
+7. **压缩**（轮与轮之间，从不在工具循环中途）：上一轮最后一次模型调用的实测输入 token 超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（默认 600000）时，本轮开始前用同一个模型写一份中文交接摘要（文件清单与状态、已确认的设定和被作者纠正的旧说法、原样的长期要求、进度和下一步、不编造、不超过 1500 字）。摘要必须非空且没有被输出上限截断，否则降低思考强度重试一次，仍不行就不压缩。摘要不加表结构，写进本轮 assistant 行的 `message_metadata.compaction`（`summary`、`covers_through_message_id`、`created_at`）。没压缩成时记 `message_metadata.compaction_skipped`（原因、当时的实测输入 token），之后输入至少再长 `AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS`（默认 100000）才再试；回放给单次 run 的历史另有估算上限 `AGENT_LOOP_RUN_HISTORY_MAX_TOKENS`（默认 800000），超出时丢最旧的项，会话降级而不是每轮超出上下文。本轮没有 assistant 行（例如还没产出就失败）时，这两种记录写在作者那条 user 行的 `message_metadata` 上。之后的历史是：系统提示 + 压缩点之前最近的作者原话（20k token 预算内原文）+ 一条以「【上下文已压缩】」开头的 user 消息（摘要）+ 压缩点之后的全部行。
+8. **预算**：沿用请求墙钟 `AGENT_RUN_WALL_CLOCK_TIMEOUT_S`、收尾提醒、单次 run 的工具轮数上限、请求级模型调用上限与失控退还语义。一轮里同一个 agent 只因结构化事实再跑：空文件纠偏、停在写完的 `</file>` 上的续写、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。墙钟暂停卡保留计费认定的 layer，`last_agent` 为空。正常结束时与图一样按本请求实际写出的文件收尾任务板；前几轮连续停在输出上限的次数从历史行的 stop_reason 数出。
 9. **生成模式**：单循环路径不读 `generation_mode`，请求结构照旧接受（旧客户端仍会发）。回滚到图时没带模式的请求默认不自动送审（`AGENT_ENABLE_GRAPH_AUTO_REVIEW` 默认改为 false）。
 
 ## Alternatives considered
@@ -47,6 +47,6 @@ Status: proposed（服务端实现在 `feat/loop-agent-server`；前端移除模
 - 收益：每轮只有一个模型在跑，没有送审 / 返修和换角色重读；历史只追加，跨轮前缀缓存稳定，作者早先的要求和工具结果都留在对话里；服务端少了路由、交接、CHAT_HOLD、计划补写这些分支（图删除之后）。
 - 收益：落库形状只用现有事件类型，前端不改也能渲染；回滚只需切环境变量。
 - 代价：不再有程序强制的只读 / 范围约束，「别改文件」这类要求靠模型遵守提示；误写由 diff 审阅、撤销和版本历史兜底。正常收尾不再有「没有改动文件」的回执。
-- 代价：长会话的输入更大，直到触发压缩；压缩多一次模型调用，摘要可能漏掉细节（作者原话保留一部分，文件始终是唯一依据）。本轮没有写出 assistant 行（例如还没产出就失败）时压缩点不落库，下一轮会重新压缩一次。
-- 代价：往轮工具结果按落库的卡片口径回放（例如技能正文已瘦身、create_file 的正文不重复放进对话），模型需要细节时要重新读取。
+- 代价：长会话的输入更大，直到触发压缩；压缩多一次模型调用，摘要可能漏掉细节（作者原话保留一部分，文件始终是唯一依据）。压缩一直不成时按估算上限丢最旧的历史，较早的工具结果会看不到。
+- 代价：往轮工具结果按落库的卡片口径回放（技能正文不落库、失败只留给作者看的说明、create_file 的正文不重复放进对话）；回放时附一句说明这些内容没有保留，模型需要时重新调用 load_skill / read_skill_resource 或重新读取文件。
 - 代价：单循环引擎暂时复用图模块里的几个空文件纠偏和续写辅助函数；删除图时要先把它们移出。

@@ -113,22 +113,28 @@ agent/
   优先级裁剪、检索和文件清单）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件作为 edit_file 陈旧检查的起点。
 - **历史**（`loop/history.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
   assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file 结果去掉
-  `awaiting_body` / `next_step`，带 `body_saved`。思考只在一次 run 内回放。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
+  `awaiting_body` / `next_step`，带 `body_saved`；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、
+  需要时重新调用。思考只在一次 run 内回放。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
   的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用历史估算）
   超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（600000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，带工具清单、`tool_choice=none`），
   空或被截断时 `reasoning_effort=low` 重试一次，仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
   （`summary`、`covers_through_message_id`、`created_at`），之后的历史 = 压缩点之前最近的作者原话（`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`
   预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。压缩用量以一条 MESSAGE_END 汇入本轮用量；从不在工具循环中途压缩。
+  没压缩成时记 `message_metadata.compaction_skipped`（`reason`、`at_prompt_tokens`），输入再长 `AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS` 才再试；
+  本轮没有 assistant 行时两种记录写在本轮作者 user 行上。交给 run 的历史另有估算上限 `AGENT_LOOP_RUN_HISTORY_MAX_TOKENS`（丢最旧的项）。
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
   （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡）、
-  停在写完的 `</file>` 上的续写（附本请求正文落库字数）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。到收尾时间不再开新 run，
+  停在写完的 `</file>` 上的续写（附本请求正文落库字数）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用图的 `_auto_finalize_task_board_on_completion` 收尾任务板；
+  `previous_output_truncations` 由 `LoopHistory.trailing_output_truncations` 给出。到收尾时间不再开新 run，
   发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` = 写作工具集去掉 `handoff_to_agent` / `request_clarification` / `parallel_execute`，请求里也只给这一份
   （`get_exposed_tools("loop")`）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入照旧经 diff 审阅、撤销与版本保护；
   写作约定追加许可放开（只追加、`expected_notes` 冲突保护不变）；`requested_body_write` / `no_file_changes` 回执不出现。
-  create_file 的同章守卫（`mcp_tools._existing_chapter_file_rejection`）：单循环 agent 在同一目录里为已有章号 / 集号的正文类文件再建文件时，
-  以 `error_type=chapter_file_exists` 拒绝并指回已有文件（同标题仍为空的不拦，交给空文件守卫与剧集复用）。
+  create_file 的 `empty=true` 在单循环轮次里直接生效（`ToolContext.author_wants_no_body`，由模型判断，不从原话推断）。
+  create_file 的同章守卫（`mcp_tools._existing_chapter_file_rejection`）：单循环 agent 在同一目录里为已有章号 / 集号的正文类文件再建
+  draft / script 时，以 `error_type=chapter_file_exists` 拒绝并指回已有文件（同标题仍为空的不拦，交给空文件守卫与剧集复用；没给父目录而
+  同一编号分布在多个目录时不拦；document 等资料文件不拦）。
 - **落库**：assistant 行 `routing` 为空，`display_events` 只有 content / thinking_content / tool_call / iteration_exhausted，额外 metadata
   `engine`、`prompt_tokens`、`compaction`（`MessageManager.save_messages(assistant_extra_metadata=…)`，取消 / 失败补存也带）。
 - **测试**：既有 AgentService 用例替换 `run_writing_workflow_streaming` 驱动外壳，`tests/conftest.py` 默认让它们走图；单循环用例请求 `loop_engine` 夹具
@@ -455,4 +461,4 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-lean]: ../../../.agents/notes/implemented/simplification/2026-10-20-quality-mode-length-tolerance-and-attached-text.md
 [n-drain]: ../../../.agents/notes/implemented/architecture/2026-10-21-deploy-drain-ends-running-generations.md
 [n-account-tasks]: ../../../.agents/notes/implemented/feature/2026-11-05-account-concurrency-availability-first.md
-[n-loop]: ../../../.agents/notes/proposed/architecture/2026-11-16-single-loop-agent.md
+[n-loop]: ../../../.agents/notes/implemented/architecture/2026-11-16-single-loop-agent.md
