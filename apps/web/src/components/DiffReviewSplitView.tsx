@@ -348,7 +348,7 @@ export const DiffReviewSplitView = ({
           </div>
         </div>
 
-        <div ref={queueScrollRef} className="min-h-0 flex-1 overflow-auto px-3 pb-3">
+        <div ref={queueScrollRef} data-testid="review-queue-list" className="min-h-0 flex-1 overflow-auto px-3 pb-3">
           {filteredEdits.length === 0 ? (
             <div className="px-1 py-6 text-center text-xs text-[hsl(var(--text-secondary))]">
               {t("editor:noChangesInFilter")}

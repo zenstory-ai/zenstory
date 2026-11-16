@@ -216,7 +216,7 @@ describe("DiffReviewSplitView", () => {
 
   it("scrolls only the queue list to the active card when the list overflows", () => {
     const { container } = renderTwoPending();
-    const queue = container.querySelector(".overflow-auto") as HTMLElement;
+    const queue = screen.getByTestId("review-queue-list");
     const root = container.querySelector('[tabindex="0"]') as HTMLElement;
     expect(queue).toBeTruthy();
     Object.defineProperty(queue, "scrollHeight", { configurable: true, value: 1000 });
@@ -236,9 +236,26 @@ describe("DiffReviewSplitView", () => {
     expect(root.scrollTop).toBe(0);
   });
 
+  it("scrolls the queue list up when the active card sits above the visible area", () => {
+    renderTwoPending();
+    const queue = screen.getByTestId("review-queue-list");
+    Object.defineProperty(queue, "scrollHeight", { configurable: true, value: 1000 });
+    Object.defineProperty(queue, "clientHeight", { configurable: true, value: 200 });
+    queue.getBoundingClientRect = () => rect(100, 200);
+    queue.scrollTop = 300;
+    for (const el of Array.from(queue.querySelectorAll("*"))) {
+      (el as HTMLElement).getBoundingClientRect = () => rect(40, 80);
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "edit-2" }));
+
+    // card top 40 is 60px above the list top 100
+    expect(queue.scrollTop).toBe(240);
+  });
+
   it("leaves scrolling alone when the queue list does not overflow (phone layout)", () => {
-    const { container } = renderTwoPending();
-    const queue = container.querySelector(".overflow-auto") as HTMLElement;
+    renderTwoPending();
+    const queue = screen.getByTestId("review-queue-list");
     Object.defineProperty(queue, "scrollHeight", { configurable: true, value: 200 });
     Object.defineProperty(queue, "clientHeight", { configurable: true, value: 200 });
     queue.getBoundingClientRect = () => rect(100, 200);
