@@ -552,7 +552,6 @@ async def test_loop_stops_starting_runs_near_the_wall_clock(loop_tool_context):
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_loop_continues_after_a_run_that_stopped_on_a_saved_file_body(loop_tool_context):
-    from agent.graph.writing_graph import FILE_STREAM_CONTINUATION_MARKER
 
     seen: list[dict] = []
     create = [
@@ -571,7 +570,10 @@ async def test_loop_continues_after_a_run_that_stopped_on_a_saved_file_body(loop
         await _collect(state)
 
     assert len(seen) == 2
-    assert seen[1]["user_message"].startswith(FILE_STREAM_CONTINUATION_MARKER)
+    # 续跑说明相当于写正文的工具结果：已保存、先自查（edit_file 改正）、再回复作者。
+    followup = seen[1]["user_message"]
+    assert followup.startswith("[系统提醒] 上一次回复写完的正文已保存")
+    assert "自查" in followup and "edit_file" in followup
 
 
 # ---------------------------------------------------------------------------
