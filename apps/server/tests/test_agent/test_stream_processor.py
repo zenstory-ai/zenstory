@@ -531,3 +531,29 @@ def test_line_break_after_the_start_marker_is_dropped_when_the_stream_is_cut_sho
     proc.process_content("<file>\n半截正文")
     result = proc.finalize_on_stream_end()
     assert result.final_content == "半截正文"
+
+
+@pytest.mark.parametrize(
+    "fragment",
+    [
+        "<<tool_call>\n\n",
+        '<tool_call>\n]<]minimax[>[<invoke name="write_chapter">]<]minimax[>[<chapter>1',
+    ],
+)
+def test_textual_tool_call_fragment_held_before_file_marker_is_not_flushed(fragment):
+    # 等正文时模型写出的是没执行的文字版工具调用：流结束后不倒进聊天。
+    proc = StreamProcessor()
+    proc.start_file_write("file-1")
+    results = [proc.process_content(fragment)]
+    final = proc.finalize_on_stream_end()
+    assert final.file_complete is False
+    assert _all_conversation([*results, final]) == ""
+    assert proc.state == StreamState.IDLE
+
+
+def test_plain_text_held_before_file_marker_is_still_flushed():
+    proc = StreamProcessor()
+    proc.start_file_write("file-1")
+    results = [proc.process_content("<这一章我先不写了。")]
+    final = proc.finalize_on_stream_end()
+    assert _all_conversation([*results, final]) == "<这一章我先不写了。"

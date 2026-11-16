@@ -246,6 +246,14 @@ class StreamResult:
     auto_completed: bool = False
 
 
+# 模型把工具调用写成文字时的开头标记（有的模型会多写一个 "<"）。只用于识别等正文时悬置的协议残片。
+_TOOL_CALL_MARKERS = ("<tool_call>", "<<tool_call>")
+
+
+def _starts_with_tool_call_marker(text: str) -> bool:
+    return text.lstrip().startswith(_TOOL_CALL_MARKERS)
+
+
 @dataclass
 class StreamProcessor:
     """
@@ -1001,6 +1009,20 @@ class StreamProcessor:
                 return result
 
             buffered = self.temp_buffer
+            if _starts_with_tool_call_marker(buffered):
+                # 等正文时模型写出的是一段没执行的文字版工具调用（机器协议残片，不是给作者的话）：
+                # 不倒进聊天。只认开头的 <tool_call> 标记，其他文字照旧交还对话。
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Stream ended before <file> marker, dropping a textual tool-call fragment",
+                    project_id=self.project_id,
+                    user_id=self.user_id,
+                    file_id=self.file_id,
+                    buffered_length=len(buffered),
+                )
+                self.reset()
+                return StreamResult()
             log_with_context(
                 logger,
                 30,  # WARNING
