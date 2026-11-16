@@ -453,3 +453,83 @@ async def test_compaction_with_empty_summary_keeps_the_full_history(
         select(ChatMessage).where(ChatMessage.role == "assistant", ChatMessage.content == "第2章写好了。")
     ).one()
     assert "compaction" not in json.loads(row.message_metadata)
+
+
+@pytest.mark.asyncio
+async def test_skipped_compaction_is_recorded_and_not_retried_every_turn(
+    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_engine, loop_db, monkeypatch
+):
+    """摘要两次都不可用、这一轮的模型调用又失败（没有 assistant 行）：没压缩成的记录写在作者那条消息上，
+    下一轮输入没长够就不再付摘要调用。"""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("agent.loop.compaction.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
+    user, token, project = await _user_project(client, db_session, "loop_compaction_backoff_synthetic")
+    chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=9000)
+
+    class _FailingRun(_FakeRun):
+        async def stream_events(self):
+            raise RuntimeError("synthetic provider failure")
+            yield  # pragma: no cover
+
+    captured: list[dict] = []
+    build_agent, run_streamed = _patched_runs([_FailingRun([]), _FakeRun([_raw_text("第2章写好了。")])], captured)
+    summarize = AsyncMock(side_effect=[_summary_completion(""), _summary_completion("半截", "length")])
+    with build_agent, run_streamed, patch("agent.core.llm_failover.acreate_chat_completion", summarize):
+        first = await client.post(
+            "/api/v1/agent/stream",
+            json={"project_id": project.id, "message": "写第2章", "session_id": chat.id},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        second = await client.post(
+            "/api/v1/agent/stream",
+            json={"project_id": project.id, "message": "再写第2章", "session_id": chat.id},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert first.status_code == second.status_code == 200
+    assert summarize.await_count == 2  # 只在第一轮试过
+    db_session.expire_all()
+    user_row = db_session.exec(
+        select(ChatMessage).where(ChatMessage.session_id == chat.id, ChatMessage.content == "写第2章")
+    ).one()
+    skipped = json.loads(user_row.message_metadata)["compaction_skipped"]
+    assert skipped["reason"] == "empty_or_truncated_summary"
+    assert skipped["at_prompt_tokens"] == 9000
+
+
+@pytest.mark.asyncio
+async def test_compaction_survives_a_turn_without_an_assistant_row(
+    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_engine, loop_db, monkeypatch
+):
+    """压缩成功、这一轮的模型调用却失败：压缩点记在作者那条消息上，下一轮直接用它，不再重付摘要。"""
+    from unittest.mock import AsyncMock
+
+    from agent.loop.prompts import SUMMARY_PREFIX
+
+    monkeypatch.setattr("agent.loop.compaction.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
+    user, token, project = await _user_project(client, db_session, "loop_compaction_user_row_synthetic")
+    chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=9000)
+
+    class _FailingRun(_FakeRun):
+        async def stream_events(self):
+            raise RuntimeError("synthetic provider failure")
+            yield  # pragma: no cover
+
+    captured: list[dict] = []
+    build_agent, run_streamed = _patched_runs([_FailingRun([]), _FakeRun([_raw_text("第2章写好了。")])], captured)
+    summarize = AsyncMock(return_value=_summary_completion("合成交接摘要"))
+    with build_agent, run_streamed, patch("agent.core.llm_failover.acreate_chat_completion", summarize):
+        for text in ("写第2章", "再写第2章"):
+            response = await client.post(
+                "/api/v1/agent/stream",
+                json={"project_id": project.id, "message": text, "session_id": chat.id},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert response.status_code == 200
+
+    assert summarize.await_count == 1
+    runs = [entry for entry in captured if "input" in entry]
+    second_input = [item.get("content") for item in runs[1]["input"]]
+    assert f"{SUMMARY_PREFIX}合成交接摘要" in second_input
+    assert "第1章写好了。" not in second_input

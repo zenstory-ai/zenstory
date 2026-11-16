@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from models import ChatMessage, ChatSession, File, Project, User
@@ -458,7 +458,7 @@ async def test_compaction_provider_error_skips_compaction():
 
 @pytest.mark.unit
 def test_compaction_input_drops_oldest_items_without_orphan_outputs():
-    from agent.loop.compaction import _bounded_items
+    from agent.loop.history import bounded_items as _bounded_items
 
     items = [
         {"type": "function_call", "call_id": "a", "name": "query_files", "arguments": "{}"},
@@ -603,3 +603,202 @@ async def test_loop_continues_after_a_run_that_stopped_on_a_saved_file_body(loop
 
     assert len(seen) == 2
     assert seen[1]["user_message"].startswith(FILE_STREAM_CONTINUATION_MARKER)
+
+
+# ---------------------------------------------------------------------------
+# 复审修正的回归
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_loop_create_file_empty_true_creates_several_empty_chapters(db_session):
+    """单循环 agent 没有路由：模型传 empty=true 就建空文件，不进等正文守卫、不触发纠偏。"""
+    from agent.tools.mcp_tools import ToolContext, create_file
+
+    user, project = _user_project(db_session)
+    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="loop-empty")
+    ToolContext.set_current_agent("loop")
+    try:
+        results = [
+            _payload(await create_file({"title": f"第{n}章", "file_type": "draft", "empty": True}))
+            for n in (1, 2, 3)
+        ]
+        pending = ToolContext.has_pending_empty_file()
+    finally:
+        ToolContext.clear_context()
+
+    assert [result["status"] for result in results] == ["success"] * 3
+    assert pending is False
+    titles = {row.title for row in db_session.exec(select(File).where(File.project_id == project.id)).all()}
+    assert {"第1章", "第2章", "第3章"} <= titles
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_graph_create_file_empty_still_needs_the_router_decision(db_session):
+    from agent.tools.mcp_tools import ToolContext, create_file
+
+    user, project = _user_project(db_session)
+    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="graph-empty")
+    ToolContext.set_current_agent("writer")
+    try:
+        await create_file({"title": "第1章", "file_type": "draft", "empty": True})
+        pending = ToolContext.has_pending_empty_file()
+    finally:
+        ToolContext.clear_context()
+    assert pending is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_loop_chapter_guard_skips_documents_and_ambiguous_volumes(db_session):
+    from agent.tools.mcp_tools import CHAPTER_FILE_EXISTS_ERROR_TYPE, ToolContext, create_file
+
+    user, project = _user_project(db_session)
+    volume_one = File(project_id=project.id, title="卷一", file_type="folder")
+    volume_two = File(project_id=project.id, title="卷二", file_type="folder")
+    db_session.add_all([volume_one, volume_two])
+    db_session.commit()
+    db_session.add_all([
+        File(project_id=project.id, title="第3章 夜航", content="合成正文。", file_type="draft", parent_id=volume_one.id),
+        File(project_id=project.id, title="第1章 起航", content="合成正文。", file_type="draft", parent_id=volume_one.id),
+        File(project_id=project.id, title="第1章 新卷", content="合成正文。", file_type="draft", parent_id=volume_two.id),
+    ])
+    db_session.commit()
+
+    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="loop-guard-2")
+    ToolContext.set_current_agent("loop")
+    try:
+        notes = _payload(await create_file({"title": "第3章 修改意见", "file_type": "document", "content": "合成"}))
+        ambiguous = _payload(await create_file({"title": "第1章 另起", "file_type": "draft", "content": "合成"}))
+        unique = _payload(await create_file({"title": "第3章 重写", "file_type": "draft", "content": "合成"}))
+    finally:
+        ToolContext.clear_context()
+
+    assert notes["status"] == "success"
+    # 两卷各有第1章、没给父目录：不知道是哪一卷，不拦。
+    assert ambiguous["status"] == "success"
+    # 只有一个目录有第3章：照旧拦下并指回它。
+    assert unique["status"] == "error" and unique["error_type"] == CHAPTER_FILE_EXISTS_ERROR_TYPE
+
+
+@pytest.mark.unit
+def test_loop_history_marks_skill_and_failed_results_as_not_kept(db_session):
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "按方法写", offset=0)
+    tool_calls = [
+        {
+            "id": "c1",
+            "name": "load_skill",
+            "arguments": {"skill_id": "s-1"},
+            "status": "success",
+            "result": {"skill_id": "s-1", "skill_name": "合成技能", "instructions_chars": 900, "resources": []},
+        },
+        {
+            "id": "c2",
+            "name": "edit_file",
+            "arguments": {"id": "f-1"},
+            "status": "error",
+            "result": None,
+            "error": "没有找到要改的那段文字。",
+        },
+    ]
+    _add(
+        db_session,
+        chat,
+        "assistant",
+        "好的",
+        offset=1,
+        tool_calls=json.dumps(tool_calls, ensure_ascii=False),
+        message_metadata=json.dumps(
+            {
+                "engine": "loop",
+                "display_events": [
+                    {"type": "tool_call", "tool_call_index": 0},
+                    {"type": "tool_call", "tool_call_index": 1},
+                    {"type": "content", "content": "好的"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+    )
+    history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    outputs = [json.loads(item["output"]) for item in history.items if item.get("type") == "function_call_output"]
+    assert "load_skill" in outputs[0]["note"]
+    assert outputs[1]["status"] == "error" and "重新读取" in outputs[1]["note"]
+
+
+@pytest.mark.unit
+def test_loop_history_reads_skip_records_truncation_streak_and_user_row_markers(db_session):
+    from agent.loop.history import load_loop_history
+    from agent.loop.prompts import SUMMARY_PREFIX
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "要求一", offset=0)
+    first = _add(
+        db_session, chat, "assistant", "半截", offset=1,
+        message_metadata=json.dumps({"engine": "loop", "stop_reason": "output_truncated", "prompt_tokens": 700_000}),
+    )
+    _add(
+        db_session, chat, "user", "继续", offset=2,
+        message_metadata=json.dumps({"compaction_skipped": {"reason": "provider_error", "at_prompt_tokens": 700_000}}),
+    )
+    _add(
+        db_session, chat, "assistant", "又半截", offset=3,
+        message_metadata=json.dumps({"engine": "loop", "stop_reason": "output_truncated", "prompt_tokens": 710_000}),
+    )
+    history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert history.trailing_output_truncations == 2
+    assert history.compaction_skipped_at_tokens == 700_000
+    assert history.last_prompt_tokens == 710_000
+
+    # 这一轮没有 assistant 行：压缩点记在作者那条消息上，下一轮照样从它重建。
+    _add(
+        db_session, chat, "user", "写第2章", offset=4,
+        message_metadata=json.dumps({
+            "compaction": {"summary": "合成摘要", "covers_through_message_id": first.id, "created_at": "x"},
+        }),
+    )
+    rebuilt = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    contents = [item.get("content") for item in rebuilt.items]
+    assert rebuilt.compacted is True
+    assert f"{SUMMARY_PREFIX}合成摘要" in contents
+    assert contents[-1] == "写第2章"
+    # 成功的压缩点比没压缩成的记录新：不再退避。
+    assert rebuilt.compaction_skipped_at_tokens == 0
+
+
+@pytest.mark.unit
+def test_compaction_backs_off_after_a_skipped_attempt():
+    from agent.loop.compaction import should_compact, skipped_record
+
+    skipped = _history(last_prompt_tokens=700_000, compaction_skipped_at_tokens=650_000)
+    assert should_compact(skipped, threshold=600_000, retry_growth=100_000) is False
+    grown = _history(last_prompt_tokens=760_000, compaction_skipped_at_tokens=650_000)
+    assert should_compact(grown, threshold=600_000, retry_growth=100_000) is True
+    record = skipped_record(_history(last_prompt_tokens=700_000), "provider_error")
+    assert record["reason"] == "provider_error" and record["at_prompt_tokens"] == 700_000
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_loop_finalizes_the_task_board_on_normal_completion(loop_tool_context):
+    seen: list[dict] = []
+    state = {"user_message": "写第1章", "messages": [], "system_prompt": "系统"}
+    board_event = StreamEvent(type=StreamEventType.TOOL_RESULT, data={"tool_use_id": "workflow_auto_completion"})
+    finalize = AsyncMock(return_value=[board_event])
+    with (
+        patch(
+            "agent.loop.engine.run_openai_agents_streaming_agent",
+            _fake_runner([[StreamEvent(type=StreamEventType.TEXT, data={"text": "好了。"})]], seen),
+        ),
+        patch("agent.graph.writing_graph._auto_finalize_task_board_on_completion", finalize),
+    ):
+        events = await _collect(state)
+    finalize.assert_awaited_once()
+    assert board_event in events
