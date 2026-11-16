@@ -4,7 +4,7 @@
  *
  * A versatile component for displaying AI agent tool execution results.
  * Renders different UI based on the tool type (create_file, update_file,
- * edit_file, delete_file, query_files, update_project) and result status
+ * write_chapter, edit_file, delete_file, query_files, update_project) and result status
  * (pending, success, error, conflict).
  *
  * Features:
@@ -237,6 +237,11 @@ const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { ico
         icon: <Edit3 className="w-4 h-4 text-[hsl(var(--success-text))]" />,
         label: t('chat:tool.edit_file')
       };
+    case 'write_chapter':
+      return {
+        icon: <FileEdit className="w-4 h-4 text-[hsl(var(--success-text))]" />,
+        label: t('chat:tool.write_chapter')
+      };
     case 'delete_file':
       return { 
         icon: <Trash2 className="w-4 h-4 text-[hsl(var(--error-text))]" />,
@@ -457,6 +462,24 @@ const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: 
  * @param t - Translation function with interpolation support
  * @returns Formatted string (e.g., "150 字" or "2.5 千字")
  */
+/** A chapter number the server can address (a positive integer), or null. */
+const readChapterNumber = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
+
+/** 「第3章「雨夜」」 for a write_chapter call or result; the title alone when the number is missing. */
+const describeChapter = (
+  chapter: unknown,
+  title: string | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string => {
+  const number = readChapterNumber(chapter);
+  const parts = [
+    number !== null ? t('chat:tool.chapterNumber', { chapter: number }) : '',
+    title ? quote(title) : '',
+  ].filter(Boolean);
+  return parts.join(' ');
+};
+
 const formatWordCount = (words: number, t: (key: string, options?: Record<string, unknown>) => string): string => {
   if (words < 1000) return t('chat:size.characters', { length: words });
   return t('chat:size.kCharacters', { length: (words / 1000).toFixed(1) });
@@ -499,6 +522,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     if (toolName === 'create_file' && title) {
       const typeInfo = fileType ? getFileTypeInfo(fileType, t) : null;
       description = typeInfo ? `${typeInfo.label}${quote(title)}` : quote(title);
+    } else if (toolName === 'write_chapter') {
+      description = describeChapter(args.chapter, title, t);
     } else if (toolName === 'query_files') {
       const queryFileType = args.file_type as string | undefined;
       if (queryFileType) {
@@ -624,6 +649,47 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       );
     }
     
+    // write_chapter success: says whether the chapter is new or which chapter it replaced.
+    if (toolName === 'write_chapter' && data) {
+      const title = data.title as string || t('common:untitled');
+      const fileType = data.file_type as string || '';
+      const chapter = readChapterNumber(data.chapter);
+      const replaced = data.created === false;
+      const previousWords = typeof data.previous_words === 'number' && Number.isFinite(data.previous_words)
+        ? data.previous_words
+        : null;
+      const wordCount = typeof data.content === 'string' ? countWords(data.content) : 0;
+      const typeInfo = getFileTypeInfo(fileType, t);
+      const headline = chapter === null
+        ? t(replaced ? 'chat:tool.chapterReplacedUnnumbered' : 'chat:tool.chapterCreatedUnnumbered')
+        : t(replaced ? 'chat:tool.chapterReplaced' : 'chat:tool.chapterCreated', { chapter });
+
+      return (
+        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+            <span className="min-w-0 flex-1 text-sm text-[hsl(var(--success-text))]">
+              {headline}
+            </span>
+            {wordCount > 0 && (
+              <span className="shrink-0 text-xs text-[hsl(var(--text-secondary))] ml-auto">
+                {formatWordCount(wordCount, t)}
+              </span>
+            )}
+            <span className="flex basis-full min-w-0 items-start gap-1 pl-6 text-sm text-[hsl(var(--text-primary))]">
+              <span className="shrink-0">{typeInfo.icon}</span>
+              {fileTitle(title, fileType)}
+            </span>
+            {replaced && previousWords !== null && previousWords > 0 && (
+              <span className="basis-full min-w-0 pl-6 text-xs text-[hsl(var(--text-secondary))]">
+                {t('chat:tool.chapterReplacedPrevious', { size: formatWordCount(previousWords, t) })}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     // update_file success
     if (toolName === 'update_file' && data) {
       const title = data.title as string || t('chat:fileDefault');

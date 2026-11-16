@@ -8,6 +8,14 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
     expect(isWriteToolResult('create_file', 'success', { id: 'ch1', content: '旧正文', reused_existing: true })).toBe(false)
   })
 
+  it('counts write_chapter like create_file: not while the chapter still waits for its streamed text', () => {
+    expect(isWriteToolResult('write_chapter', 'success', {
+      data: { id: 'ch3', title: '第3章 雨夜', chapter: 3, created: false, previous_words: 2400, awaiting_body: true },
+    })).toBe(false)
+    expect(isWriteToolResult('write_chapter', 'success', { data: { id: 'ch3', content: '雨还在下。' } })).toBe(true)
+    expect(isWriteToolResult('write_chapter', 'error', { data: { id: 'ch3', content: '雨还在下。' } })).toBe(false)
+  })
+
   it('counts an edit only when it changed the text', () => {
     expect(isWriteToolResult('edit_file', 'success', { mutation_applied: false, edits_applied: 0 })).toBe(false)
     expect(isWriteToolResult('edit_file', 'success', { mutation_applied: true, edits_applied: 1 })).toBe(true)
@@ -75,6 +83,23 @@ describe('createBodyWriteProgress (the chat waiting line while a file gets its t
     expect(progress.snapshot()).toEqual({ title: '第一章 雨夜', words: 9 })
 
     progress.end('ch-1')
+    expect(progress.snapshot()).toBeNull()
+  })
+
+  it('names the chapter write_chapter is writing, new or replaced, until its text streams in', () => {
+    const progress = createBodyWriteProgress()
+    progress.toolResult('write_chapter', 'success', {
+      data: { id: 'ch-2', title: '第2章 旧城', file_type: 'draft', chapter: 2, created: false, awaiting_body: true },
+    })
+    expect(progress.snapshot()).toEqual({ title: '第2章 旧城', words: 0 })
+
+    progress.chunk('ch-2', '城门开了。')
+    progress.end('ch-2')
+    expect(progress.snapshot()).toBeNull()
+
+    progress.toolResult('write_chapter', 'error', {
+      data: { id: 'ch-4', title: '第4章', file_type: 'draft', awaiting_body: true },
+    })
     expect(progress.snapshot()).toBeNull()
   })
 

@@ -1092,13 +1092,13 @@ describe('useChatStreaming', () => {
     })
 
     describe('onToolResult callback', () => {
-      it('triggers file tree refresh on success for file tools', () => {
+      it.each(['create_file', 'write_chapter'])('triggers file tree refresh on success for %s', (toolName) => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
         const callbacks = result.current.getStreamCallbacks(deps)
 
         act(() => {
-          callbacks.onToolResult('create_file', 'success')
+          callbacks.onToolResult(toolName, 'success')
         })
 
         act(() => {

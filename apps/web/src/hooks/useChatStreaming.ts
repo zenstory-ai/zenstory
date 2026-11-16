@@ -1120,6 +1120,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
               "delete_file",
               "edit_file",
               "rename_file",
+              "write_chapter",
               // parallel_execute may create/edit/delete files across its
               // sub-tasks, so its completion must also refresh the tree.
               "parallel_execute",

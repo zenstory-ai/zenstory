@@ -39,6 +39,18 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   if (key === 'chat:tool.renamed' && options?.to !== undefined) {
     return `Renamed ${options.from} to ${options.to}`
   }
+  if (key === 'chat:tool.chapterNumber' && options?.chapter !== undefined) {
+    return `Chapter ${options.chapter}`
+  }
+  if (key === 'chat:tool.chapterCreated' && options?.chapter !== undefined) {
+    return `Created chapter ${options.chapter}`
+  }
+  if (key === 'chat:tool.chapterReplaced' && options?.chapter !== undefined) {
+    return `Replaced chapter ${options.chapter}`
+  }
+  if (key === 'chat:tool.chapterReplacedPrevious' && options?.size !== undefined) {
+    return `Replaced the previous ${options.size}`
+  }
   if (key === 'chat:response.conflicts_detected' && options?.count !== undefined) {
     return `Conflicts detected`
   }
@@ -59,6 +71,9 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
     'chat:tool.create_file': 'Create file',
     'chat:tool.update_file': 'Update file',
     'chat:tool.edit_file': 'Edit file',
+    'chat:tool.write_chapter': 'Write chapter',
+    'chat:tool.chapterCreatedUnnumbered': 'Created chapter',
+    'chat:tool.chapterReplacedUnnumbered': 'Replaced chapter',
     'chat:tool.delete_file': 'Delete file',
     'chat:tool.query_files': 'Query files',
     'chat:tool.update_project': 'Update project',
@@ -169,6 +184,20 @@ describe('ToolResultCard', () => {
       expect(screen.getByText(/Chapter 1/)).toBeInTheDocument()
     })
 
+    it('names the chapter number and title for write_chapter', () => {
+      render(
+        <ToolResultCard
+          type="tool_call"
+          toolName="write_chapter"
+          isPending={true}
+          result={{ chapter: 3, title: '雨夜', file_type: 'draft' }}
+        />
+      )
+      expect(screen.getByText('Write chapter')).toBeInTheDocument()
+      expect(screen.getByText(/Chapter 3 「雨夜」/)).toBeInTheDocument()
+      expect(screen.queryByText(/write_chapter/)).not.toBeInTheDocument()
+    })
+
     it('displays query description for query_files', () => {
       render(
         <ToolResultCard
@@ -212,6 +241,48 @@ describe('ToolResultCard', () => {
       render(<ToolResultCard {...props} toolName="create_file"
         result={{ id: 'file-1', title: 'Unfinished' }} onOpenFile={vi.fn()} />)
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
+
+    it('says a write_chapter result created a new chapter and opens it', async () => {
+      const user = userEvent.setup()
+      const onOpenFile = vi.fn()
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="write_chapter"
+          result={{ data: { id: 'ch-3', title: '第3章 雨夜', file_type: 'draft', chapter: 3, created: true, awaiting_body: true } }}
+          onOpenFile={onOpenFile}
+        />
+      )
+      expect(screen.getByText('Created chapter 3')).toBeInTheDocument()
+      expect(screen.queryByText(/Replaced/)).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /第3章 雨夜/ }))
+      expect(onOpenFile).toHaveBeenCalledWith('ch-3', 'draft', '第3章 雨夜')
+    })
+
+    it('says which chapter a write_chapter result replaced and how long the old text was', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="write_chapter"
+          result={{ data: { id: 'ch-2', title: '第2章 旧城', file_type: 'draft', chapter: 2, created: false, previous_words: 2400 } }}
+        />
+      )
+      expect(screen.getByText('Replaced chapter 2')).toBeInTheDocument()
+      expect(screen.getByText('Replaced the previous 2.4k')).toBeInTheDocument()
+      expect(screen.queryByText(/Created/)).not.toBeInTheDocument()
+    })
+
+    it('keeps a write_chapter result without a usable chapter number readable', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="write_chapter"
+          result={{ data: { id: 'ch-x', title: '楔子', file_type: 'draft', chapter: 'one', created: false } }}
+        />
+      )
+      expect(screen.getByText('Replaced chapter')).toBeInTheDocument()
+      expect(screen.queryByText(/Replaced the previous/)).not.toBeInTheDocument()
     })
 
     it('renders create_file success', () => {

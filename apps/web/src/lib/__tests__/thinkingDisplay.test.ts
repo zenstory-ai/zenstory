@@ -4,6 +4,7 @@ import { sanitizeThinkingForDisplay } from '../thinkingDisplay'
 const labels: Record<string, string> = {
   'chat:tool.create_file': '创建文件',
   'chat:tool.edit_file': '编辑文件',
+  'chat:tool.write_chapter': '写章节',
   'chat:tool.query_files': '查找文件',
   'chat:tool.update_project': '更新项目信息',
   'chat:tool.load_skill': '启用技能',
@@ -23,6 +24,10 @@ describe('sanitizeThinkingForDisplay', () => {
     expect(sanitizeThinkingForDisplay(raw, t)).toBe(
       '先用 查找文件 看看大纲，再 编辑文件 改第二章，然后交给 质量审稿人 和 爽点设计师。',
     )
+  })
+
+  it('replaces the chapter-keyed write tool name', () => {
+    expect(sanitizeThinkingForDisplay('用 write_chapter 写入第3章。', t)).toBe('用 写章节 写入第3章。')
   })
 
   it('falls back to "AI" for internal names without an author-facing label', () => {
