@@ -536,8 +536,9 @@ def _duplicated_paragraphs(text: str) -> dict[str, int]:
 def check_body_edit_guards(old_content: str, new_content: str, edits: Any) -> None:
     """单循环 agent 用 edit_file 改正文时的两道结构检查（逐字比较，不判断语义）。
 
-    - 整章替换：一处 replace 的 old 就是整份原文，或原文有两段以上而改完一段都没留下。
-      整章替换走 write_chapter（按章号定位、diff 审阅与撤销），不经 edit_file。
+    - 整章替换：一处 replace 的 old 就是整份原文；或这次只有一处 replace，原文有两段以上而改完
+      一段都没留下（old 几乎覆盖全文）。整章替换走 write_chapter（按章号定位、diff 审阅与撤销），
+      不经 edit_file。几处各自定位的小改动（逐段润色、统一标点）即使碰到了每一段也不算。
     - 新的重复段落：改完后有一段（≥ DUPLICATE_PARAGRAPH_MIN_CHARS 字）逐字出现两次以上，
       而改之前它没有重复。原文里本来就重复的段落不受影响。
     """
@@ -551,7 +552,9 @@ def check_body_edit_guards(old_content: str, new_content: str, edits: Any) -> No
             for edit in edits or []
         )
         old_paragraphs = _body_paragraphs(old_content)
-        if not whole and len(old_paragraphs) >= 2:
+        edit_list = [edit for edit in edits or [] if isinstance(edit, dict)]
+        single_replace = len(edit_list) == 1 and str(edit_list[0].get("op") or "replace").strip().lower() == "replace"
+        if not whole and single_replace and len(old_paragraphs) >= 2:
             kept = set(_body_paragraphs(new_content))
             whole = not any(paragraph in kept for paragraph in old_paragraphs)
         if whole:

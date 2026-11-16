@@ -135,19 +135,24 @@ agent/
   create_file 的 `empty=true` 在单循环轮次里直接生效（`ToolContext.author_wants_no_body`，由模型判断，不从原话推断）。
 - **正文按章号写入**（`mcp_tools.write_chapter`）：`write_chapter(chapter, title, file_type=draft|script, parent_id?, empty?)` 在本项目未删除的
   draft / script 里按标题开头的章号（draft）或集号（script）解析目标（`utils.title_sequence.extract_sequence_number(unit=…)`，有界的标识符解析；
-  给了 parent_id 只看那个目录；标题里的编号与 chapter 不一致时拒绝，没有编号时补上）。没有 → 走 `_create_file_sync` 的新建路径
+  给了 parent_id 只看那个目录，先按 `file_ops.crud.resolve_create_target` 与 create_file 同样归一父节点；正文分在多个目录而没给 parent_id 时
+  不把唯一的同号章节当替换目标（`chapter_target_ambiguous`）；标题里的编号与 chapter 不一致时拒绝，没有编号时补上）。没有 → 走 `_create_file_sync` 的新建路径
   （`action=created`，两次回复协议、待写守卫、空文件纠偏 / 回滚、退还时移除空白占位都照旧）；恰好一个 → `action=replaced`，不改数据库，
-  记下 `updated_at` 与原长度、绑定待写守卫（不记建好时的版本：补不成不回滚、不算可取消的空文件）；不止一个 → `chapter_target_ambiguous`
+  记下 `updated_at` 与原长度、绑定待写守卫（不记建好时的版本：补不成不回滚、不算可取消的空文件；记下替换的定位结果，
+  同一回复里再调用这一章返回 `chapter_replace_pending`，不当成新建）；不止一个 → `chapter_target_ambiguous`
   列出候选，不写。作者保存过正文（或来源无法确认）的章节在定位时以 `author_edit_protected` / `author_edit_protection_unavailable` 拒绝。
   `empty=true` 只建缺的空章节（已有的 `action=exists` 不动）。StreamAdapter 在 `</file>` 后把整章替换交给 `FileEditor.replace_body`
   （与 edit_file 共用 `_commit_ai_content`：写锁内重读、版本核对、原稿备份、AI 版本「AI 整章替换」、撤销锚点、锁内再核作者保护），
   然后发 `file_content_end`、`file_edit_start/applied/end`（end 带 `original_content` / `new_content`，前端进入逐段 diff 审阅），
   并以同一个 tool_use_id 补发一条 write_chapter 的 tool_result（`body_saved`、`new_word_count`、`previous_word_count`、`undo`；落库卡片随之更新，
   `services/chat_tool_cards` 的撤销标记接受 write_chapter 卡）。版本变了或作者保护命中时不覆盖、发「这一章的整章替换没有保存，原文保持不变」、
-  补发 `body_saved=false`；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文。
-- **create_file / edit_file 的正文边界**：单循环轮次里 create_file 不建 draft / script（`chapter_body_requires_write_chapter`，指向 write_chapter）；
+  补发 `body_saved=false`，然后结束这一轮（`_stop_after_refused_replace`：之后的模型文字不放出，正常 done；`ToolContext.close_pending_body_files`
+  撤销模型跑在前面建好的空文件，之后才建好的由 `_create_file_sync` 自己撤销）。计费（`StreamBillingTracker._write_effect`）：write_chapter
+  新建同 create_file 只看 content，替换只认 `body_saved` 且 `mutation_applied` 的补发结果；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文。
+- **create_file / edit_file 的正文边界**：单循环轮次里 create_file 不建 draft / script（按 `resolve_create_target` 归一后的类型，剧本分集目录下带集号的 document 同样拒绝；
+  `chapter_body_requires_write_chapter`，指向 write_chapter）；
   edit_file 改 draft / script 时 `FileEditor.edit_file(body_guards=True)` 在提交前做两道逐字检查（`file_ops.edit.check_body_edit_guards`，不判断语义）：
-  一处 replace 的 old 就是整份原文、或原文两段以上而改完一段都没留下 → `whole_body_replace`；改完后有一段（≥ 80 字）逐字出现两次以上而改之前没有
+  一处 replace 的 old 就是整份原文、或只有一处 replace 且原文两段以上而改完一段都没留下 → `whole_body_replace`（几处各自定位的小改动不算）；改完后有一段（≥ 80 字）逐字出现两次以上而改之前没有
   重复 → `duplicated_paragraph`。整批不落库。资料文件与图的各角色不受影响。
 - **落库**：assistant 行 `routing` 为空，`display_events` 只有 content / thinking_content / tool_call / iteration_exhausted，额外 metadata
   `engine`、`prompt_tokens`、`compaction`（`MessageManager.save_messages(assistant_extra_metadata=…)`，取消 / 失败补存也带）。

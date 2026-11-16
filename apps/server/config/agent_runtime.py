@@ -120,9 +120,9 @@ AGENT_ROUTER_STRATEGY = _get_str_env(
 )
 
 # Whether writing_graph.py auto-triggers the quality reviewer on writer output length when
-# the request carries no generation_mode. Default **False**: the client no longer sends a
-# mode (the loop engine replaced the fast/quality switch), so a rollback to the graph must
-# not add a review + rework round to every turn. An explicit "quality" still enables it.
+# the request carries no generation_mode. Default **False**: the loop engine replaced the
+# fast/quality switch (the web sends a fixed "fast" only for deploy-skew compatibility), so a
+# rollback to the graph must not add a review + rework round to every turn. An explicit "quality" still enables it.
 AGENT_ENABLE_GRAPH_AUTO_REVIEW = _get_bool_env(
     "AGENT_ENABLE_GRAPH_AUTO_REVIEW",
     False,

@@ -197,7 +197,7 @@ class _PendingEmptyFileState:
 
     __slots__ = (
         "_lock", "_entries", "_reservations", "_streamed", "_reply_seq", "_created_in", "_versions",
-        "_prebody_reply", "_waiting_at_reply_start",
+        "_prebody_reply", "_waiting_at_reply_start", "_replacements", "_closed",
     )
 
     def __init__(self) -> None:
@@ -220,6 +220,11 @@ class _PendingEmptyFileState:
         # 这次回复开始时有没有还在等正文的文件。不能在回复结束时再看：StreamAdapter 边收边存，
         # 回复里写完 </file> 就会落库并清掉那个文件的条目，往往早于 on_llm_end。
         self._waiting_at_reply_start = False
+        # write_chapter 定为整章替换、在等正文的已有章节：file_id -> 定位时的结果数据
+        # （与本请求新建的空文件区分开，同一回复里再次 write_chapter 这一章时不能当成新建）。
+        self._replacements: dict[str, dict[str, Any]] = {}
+        # 这一轮已被 StreamAdapter 提前结束（整章替换被拒）：之后才建好的空文件由建它的工具自己撤销。
+        self._closed = False
 
     # ---- 只读视图 ----------------------------------------------------------
     def has_pending(self) -> bool:
@@ -266,6 +271,7 @@ class _PendingEmptyFileState:
             self._created_in[file_id] = self._reply_seq
             self._entries[file_id] = title
             self._set_version(file_id, version)
+            self._replacements.pop(file_id, None)
             # 同一文件重新进入待写：旧的"正文已写出"标记不能沿用
             self._streamed.discard(file_id)
 
@@ -319,10 +325,12 @@ class _PendingEmptyFileState:
                 self._entries.clear()
                 self._streamed.clear()
                 self._versions.clear()
+                self._replacements.clear()
             else:
                 self._entries.pop(file_id, None)
                 self._streamed.discard(file_id)
                 self._versions.pop(file_id, None)
+                self._replacements.pop(file_id, None)
 
     def clear_all(self) -> None:
         with self._lock:
@@ -330,6 +338,7 @@ class _PendingEmptyFileState:
             self._reservations.clear()
             self._streamed.clear()
             self._versions.clear()
+            self._replacements.clear()
             self._prebody_reply = None
             self._waiting_at_reply_start = False
 
@@ -337,6 +346,28 @@ class _PendingEmptyFileState:
         """这个待写文件建好时的版本；不是待写条目或没有记下时为 None。"""
         with self._lock:
             return self._versions.get(file_id) if file_id in self._entries else None
+
+    def close(self) -> list[dict[str, str]]:
+        """标记这一轮不再接收新的待写文件，并返回此刻全部待写条目（带建好时的版本）。
+
+        与 bind 同一把锁：在这之前绑定的条目都在返回值里，之后绑定的由 is_closed 交给建它的工具处理。
+        """
+        with self._lock:
+            self._closed = True
+            return [
+                {"file_id": file_id, "title": title, **({"updated_at": self._versions[file_id]} if file_id in self._versions else {})}
+                for file_id, title in self._entries.items()
+            ]
+
+    def is_closed(self) -> bool:
+        with self._lock:
+            return self._closed
+
+    def replacement(self, file_id: str) -> dict[str, Any] | None:
+        """这个待写条目是 write_chapter 定下的整章替换时返回定位时的结果数据，否则 None。"""
+        with self._lock:
+            found = self._replacements.get(file_id) if file_id in self._entries else None
+            return dict(found) if found is not None else None
 
     def _set_version(self, file_id: str, version: str | None) -> None:
         if isinstance(version, str) and version:
@@ -392,14 +423,28 @@ class _PendingEmptyFileState:
             file_id, title_ = unwritten[0]
             return {"file_id": file_id, "title": title_}
 
-    def bind(self, ticket: str, file_id: str, title: str, version: str | None = None) -> None:
-        """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。"""
+    def bind(
+        self,
+        ticket: str,
+        file_id: str,
+        title: str,
+        version: str | None = None,
+        replacement: dict[str, Any] | None = None,
+    ) -> None:
+        """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。
+
+        replacement：write_chapter 整章替换已有章节时的定位结果（这时 version 为 None）。
+        """
         with self._lock:
             self._reservations.pop(ticket, None)
             if file_id:
                 self._entries[file_id] = title
                 self._created_in[file_id] = self._reply_seq
                 self._set_version(file_id, version)
+                if replacement is not None:
+                    self._replacements[file_id] = dict(replacement)
+                else:
+                    self._replacements.pop(file_id, None)
                 # 幂等复用命中同一文件时它重新等待正文，旧标记作废
                 self._streamed.discard(file_id)
 
@@ -1064,11 +1109,36 @@ class ToolContext:
         return state.try_reserve(ticket, title)
 
     @classmethod
-    def bind_pending_empty_file(cls, ticket: str, file_id: str, title: str, version: str | None = None) -> None:
-        """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。"""
+    def bind_pending_empty_file(
+        cls,
+        ticket: str,
+        file_id: str,
+        title: str,
+        version: str | None = None,
+        replacement: dict[str, Any] | None = None,
+    ) -> None:
+        """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本（或整章替换的定位结果）。"""
         state = cls._get_pending_empty_file_state(create=True)
         assert state is not None
-        state.bind(ticket, file_id, title, version)
+        state.bind(ticket, file_id, title, version, replacement)
+
+    @classmethod
+    def close_pending_body_files(cls) -> list[dict[str, str]]:
+        """这一轮提前结束：不再接收新的待写文件，返回此刻的待写条目（见 _PendingEmptyFileState.close）。"""
+        state = cls._get_pending_empty_file_state(create=True)
+        assert state is not None
+        return state.close()
+
+    @classmethod
+    def pending_body_files_closed(cls) -> bool:
+        state = cls._get_pending_empty_file_state()
+        return state.is_closed() if state is not None else False
+
+    @classmethod
+    def pending_chapter_replacement(cls, file_id: str) -> dict[str, Any] | None:
+        """write_chapter 定为整章替换、还在等正文的已有章节的定位结果；不是时为 None。"""
+        state = cls._get_pending_empty_file_state()
+        return state.replacement(file_id) if state is not None else None
 
     @classmethod
     def release_pending_empty_file(cls, ticket: str) -> None:
@@ -1647,6 +1717,7 @@ WRITE_CHAPTER_ACTION_CREATED = "created"
 WRITE_CHAPTER_ACTION_REPLACED = "replaced"
 WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE = "chapter_target_ambiguous"
 WRITE_CHAPTER_INVALID_ERROR_TYPE = "invalid_chapter"
+WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE = "chapter_replace_pending"
 # file_type → 标题里的序号单位（有界的标识符检查，只比对标题开头的「第N章 / 第N集 / Chapter N / Episode N」）。
 _CHAPTER_UNIT_BY_TYPE = {"draft": "章", "script": "集"}
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
@@ -1664,7 +1735,18 @@ def _loop_body_create_refusal(args: dict[str, Any]) -> dict[str, Any] | None:
 
     if ToolContext.get_current_agent() != LOOP_AGENT_TYPE:
         return None
-    file_type = str(args.get("file_type") or "draft").strip().lower()
+    requested_type = str(args.get("file_type") or "draft").strip().lower()
+    file_type = requested_type
+    if file_type == "document":
+        # create_file 会把剧本分集目录下带集号的 document 归一成 script（见 resolve_create_target）：
+        # 按实际会建的类型判断，不让正文绕过 write_chapter。
+        target = _resolve_chapter_target(
+            args.get("parent_id") or None,
+            title=str(args.get("title") or ""),
+            file_type=file_type,
+            metadata=args.get("metadata"),
+        )
+        file_type = target[1] if target is not None else file_type
     if file_type not in CONTENT_FILE_TYPES:
         return None
     return _make_mcp_payload(
@@ -1672,7 +1754,14 @@ def _loop_body_create_refusal(args: dict[str, Any]) -> dict[str, Any] | None:
             "status": "error",
             "error_type": LOOP_BODY_CREATE_ERROR_TYPE,
             "error": (
-                f"create_file 不建正文（file_type={file_type}），没有新建文件。新写一章或整章重写都用 "
+                f"create_file 不建正文（file_type={file_type}），没有新建文件。"
+                + (
+                    f"（剧本分集目录下标题带集号的 {requested_type} 文件会被当作分集剧本；要另存一版请放进素材等资料目录，"
+                    "标题不带集号。）"
+                    if requested_type != file_type
+                    else ""
+                )
+                + "新写一章或整章重写都用 "
                 "write_chapter(chapter=章号, title=章名, file_type=draft 或 script)，它按章号定位：这一章不存在就新建，"
                 "已存在就替换这一章；调用后下一次回复用 <file>…</file> 写正文。大纲、人物、设定等资料文件用 create_file 并写明 file_type。"
             ),
@@ -1680,6 +1769,38 @@ def _loop_body_create_refusal(args: dict[str, Any]) -> dict[str, Any] | None:
         },
         tool_name="create_file",
     )
+
+
+def _resolve_chapter_target(
+    parent_id: str | None,
+    *,
+    title: str,
+    file_type: str,
+    metadata: Any = None,
+) -> tuple[str | None, str] | None:
+    """create_file 实际会用的 (parent_id, file_type)（同 crud 的归一）；读不到项目时为 None。"""
+    from agent.tools.file_ops.crud import resolve_create_target
+    from models import Project
+
+    project_id = ToolContext._get_context().get("project_id")
+    if project_id is None:
+        return None
+    try:
+        return _run_session_probe(
+            ToolContext.get_session(),
+            lambda s: resolve_create_target(
+                s,
+                project_id,
+                getattr(s.get(Project, project_id), "project_type", None),
+                parent_id,
+                title=title,
+                file_type=file_type,
+                metadata=metadata if isinstance(metadata, dict) else None,
+            ),
+        )
+    except Exception as e:  # noqa: BLE001 - 解析不了时按原参数处理，create_file 自己校验父节点
+        logger.debug(f"Resolving the create target failed: {type(e).__name__}")
+        return None
 
 
 def _chapter_title(title: str, number: int, unit: str) -> str:
@@ -1753,7 +1874,14 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
             error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,
         )
     title = raw_title if titled_number is not None else _chapter_title(raw_title, number, unit)
-    parent_id = args.get("parent_id") or None
+    requested_parent_id = args.get("parent_id") or None
+    parent_id = requested_parent_id
+    if requested_parent_id is not None:
+        # 与 create_file 同一套父节点归一（传成上一章的文件 id、剧本项目传了 -draft-folder）：
+        # 查找与新建落在同一个目录，不会在已有这一章的目录旁边再建一个。
+        target = _resolve_chapter_target(requested_parent_id, title=title, file_type=file_type)
+        if target is not None:
+            parent_id = target[0]
 
     try:
         rows = _run_session_probe(
@@ -1784,6 +1912,19 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
             candidates=[{"id": row.id, "title": row.title, "parent_id": row.parent_id} for row in matches[:6]],
         )
     empty = coerce_bool(args.get("empty"))
+    if matches and requested_parent_id is None and not empty:
+        body_folders = {row.parent_id or None for row in rows if extract_sequence_number(row.title, unit=unit) is not None}
+        if len(body_folders) > 1:
+            # 正文分在几个目录（分卷常各自从第1章编号）而没指明目录：唯一的同号章节不一定是要写的那一卷，
+            # 不把它当替换目标。
+            existing = matches[0]
+            return _write_chapter_error(
+                f"正文分在 {len(body_folders)} 个目录里，没给 parent_id 时不确定要写哪一个目录的第{number}{unit}"
+                f"（已有的是《{existing.title}》，parent_id={existing.parent_id}）。没有写入。"
+                "传 parent_id 指明目录：要替换它就传它所在的目录，要在别的卷新写就传那一卷的目录。",
+                error_type=WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE,
+                candidates=[{"id": existing.id, "title": existing.title, "parent_id": existing.parent_id}],
+            )
     if not matches:
         return _write_chapter_create(
             args, title=title, number=number, unit=unit, file_type=file_type, parent_id=parent_id, empty=empty
@@ -1865,9 +2006,24 @@ def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: 
     data.pop("content", None)
     data["chapter"] = number
     if file_id in pending_ids:
+        armed = ToolContext.pending_chapter_replacement(file_id)
+        if armed is not None:
+            # 已有的这一章已经定为整章替换、在等正文（同一回复里重复或并行调用）：不当成新建，
+            # 也不重新定位；第一次调用的结果与卡片照旧有效。
+            return _write_chapter_error(
+                f"第{number}{unit}《{row.title}》已经定为整章替换（原{armed.get('previous_word_count')}字），正在等正文，"
+                "这次调用没有改动。不要再调用 write_chapter；下一次回复直接以 <file> 开头写这一章完整的新正文。",
+                error_type=WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE,
+                id=file_id,
+                chapter=number,
+            )
         # 这一章就是本请求刚建、还在等正文的那个文件：交回它，下一次回复照常写正文。
         data = _awaiting_body_data(data, str(row.title or ""))
         data["action"] = WRITE_CHAPTER_ACTION_CREATED
+        if content and ToolContext.pending_empty_file_version(file_id) is None:
+            # 复用的已有文件（不是本请求建的）已经有正文：带上原长度，截断补全时不整体覆盖它。
+            data["reused_existing"] = True
+            data["original_content_length"] = len(content)
         data["next_step"] = "不要再调用 write_chapter。" + data["next_step"]
         return _make_result({"status": "success", "mutation_applied": False, "data": data}, tool_name=tool_name)
 
@@ -1893,8 +2049,6 @@ def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: 
         acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(reservation, str(row.title or ""))
     if not acquired:
         return _pending_empty_file_rejection(blocking_title, str(row.title or ""), tool_name=tool_name)
-    # 不是本轮新建的文件：不记建好时的版本（补不成时不回滚、不算可以取消的空文件）。
-    ToolContext.bind_pending_empty_file(reservation, file_id, str(row.title or ""), None)
     previous_words = count_words(content)
     data.update(
         {
@@ -1913,6 +2067,8 @@ def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: 
             ),
         }
     )
+    # 不是本轮新建的文件：不记建好时的版本（补不成时不回滚、不算可以取消的空文件），记下替换的定位结果。
+    ToolContext.bind_pending_empty_file(reservation, file_id, str(row.title or ""), None, replacement=data)
     log_with_context(
         logger,
         20,  # INFO
@@ -2026,6 +2182,10 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
                 ToolContext.bind_pending_empty_file(
                     reservation, file_id, title, created_version if isinstance(created_version, str) else None
                 )
+                reservation = None
+                if ToolContext.pending_body_files_closed():
+                    # 这一轮已经提前结束（StreamAdapter 不会再处理这个结果）：撤销刚建的空文件。
+                    return _withdraw_file_created_after_close(file_id, title, result, tool_name=tool_name)
                 awaiting_body = True
                 # 本条回复在建它之前已写出正文：正文属于这个新文件，由 StreamAdapter 落库；
                 # 守卫视同正文已写出，下一次回复不再要求先写它。复用的既有文件不认领。
@@ -2070,6 +2230,27 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
         # bind 的票据会把本请求后续所有空文件创建全部挡在门外。
         if reservation is not None:
             ToolContext.release_pending_empty_file(reservation)
+
+
+def _withdraw_file_created_after_close(
+    file_id: str, title: str, result: dict[str, Any], *, tool_name: str
+) -> dict[str, Any]:
+    """这一轮被提前结束之后才建好的空文件：只撤销本请求新建、版本未变的那个，然后报告没有建成。"""
+    from agent.graph import writing_graph as graph_helpers
+
+    version = result.get("updated_at") if result.get("reused_existing") is not True else None
+    if isinstance(version, str) and version:
+        graph_helpers._rollback_unfinished_empty_files([{"file_id": file_id, "title": title, "updated_at": version}])
+    ToolContext.clear_pending_empty_file(file_id)
+    return _make_mcp_payload(
+        {
+            "status": "error",
+            "error": "这一轮已经结束，没有新建文件。",
+            "error_type": "round_closed",
+            "mutation_applied": False,
+        },
+        tool_name=tool_name,
+    )
 
 
 def _author_content_protection_payload(

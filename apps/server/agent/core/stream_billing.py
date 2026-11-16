@@ -307,8 +307,12 @@ class StreamBillingTracker:
             # 只建了一个空文件（正文随后流式写入）不算；复用已有文件不是本轮写的。
             return bool(str(data.get("content") or "").strip()) and data.get("reused_existing") is not True
         if tool_name == "write_chapter":
-            # 定位 / 新建空章节不算；整章替换落库后补发的结果带 mutation_applied=True。
-            return data.get("mutation_applied") is True
+            if data.get("action") == "created":
+                # 新建的一章同 create_file：空文件不算（结果里沿用的 mutation_applied 只说明建了文件），
+                # 正文随 file_content 计入。
+                return bool(str(data.get("content") or "").strip()) and data.get("reused_existing") is not True
+            # 定位不算；只有整章替换落库后补发的结果（body_saved 且 mutation_applied）算写入。
+            return data.get("body_saved") is True and data.get("mutation_applied") is True
         if tool_name == "edit_file":
             mutation_applied = data.get("mutation_applied")
             if isinstance(mutation_applied, bool):

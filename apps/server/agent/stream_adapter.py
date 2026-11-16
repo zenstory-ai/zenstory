@@ -184,6 +184,9 @@ class StreamAdapter:
         self._matched_skill_ids: set[str] = set(self.config.matched_skill_ids)
         # Fatal stream error flag (e.g. file content persistence failure)
         self._fatal_stream_error = False
+        # write_chapter 的整章替换没保存（版本变了 / 作者正文受保护）：模型还在同一次回复里往下写，
+        # 接下来的话会当作已经换好。告诉作者之后就结束这一轮（正常 done，不是错误），不放出那些话。
+        self._stop_after_refused_replace = False
         self._file_mutated = False
         self._abort_capture: tuple[str, int, asyncio.Task[bool]] | None = None
         self._saved_file_word_counts: dict[str, int | None] = {}
@@ -352,13 +355,15 @@ class StreamAdapter:
         """
         try:
             async for event in events:
-                if self._fatal_stream_error:
+                if self._fatal_stream_error or self._stop_after_refused_replace:
                     break
                 async for sse_event in self._process_workflow_event(event):
+                    if self._stop_after_refused_replace:
+                        break
                     yield sse_event
                     if self._fatal_stream_error:
                         break
-                if self._fatal_stream_error:
+                if self._fatal_stream_error or self._stop_after_refused_replace:
                     break
         except (asyncio.CancelledError, GeneratorExit):
             # 用户按停止 / 断线 / 请求级时限到期：正在 <file> 捕获中的正文只在
@@ -375,6 +380,9 @@ class StreamAdapter:
             if aclose is not None:
                 with contextlib.suppress(Exception):
                     await aclose()
+
+        if self._stop_after_refused_replace:
+            await self._roll_back_files_created_ahead()
 
         # Flush pending <file> state when upstream stream ends unexpectedly.
         if (
@@ -954,6 +962,30 @@ class StreamAdapter:
         )
         yield file_created_event(file_id, str(result_data.get("file_type") or ""), str(result_data.get("title") or ""))
 
+    async def _roll_back_files_created_ahead(self) -> None:
+        """整章替换被拒、这一轮提前结束：模型跑在前面已经建好、还没写正文的空文件撤销掉。
+
+        这些文件的结果还没交给适配器（作者没看到它们），只回滚本请求新建、版本未变的空文件；
+        复用的或之后被动过的文件保留。
+        """
+        from agent.graph import writing_graph as graph_helpers
+        from agent.tools.mcp_tools import ToolContext
+
+        # 关闭与取条目是同一步：之后才建好的空文件由建它的工具自己撤销（见 _create_file_sync）。
+        targets = [entry for entry in ToolContext.close_pending_body_files() if entry.get("updated_at")]
+        if not targets:
+            return
+        rolled_back = await asyncio.to_thread(graph_helpers._rollback_unfinished_empty_files, targets)
+        for file_id in rolled_back:
+            ToolContext.clear_pending_empty_file(file_id)
+        log_with_context(
+            logger,
+            20,  # INFO
+            "Rolled back empty files created ahead of a refused chapter replacement",
+            rolled_back_count=len(rolled_back),
+            candidate_count=len(targets),
+        )
+
     async def _complete_chapter_replace(self, result: StreamResult, pending: PendingFileWrite) -> AsyncIterator[SSEEvent]:
         """整章替换的正文写完：用 replace_body 提交，发 diff 审阅事件，并把结果补发到同一张卡上。"""
         file_id = pending.file_id
@@ -972,9 +1004,10 @@ class StreamAdapter:
         yield file_content_end_event(file_id)
         if outcome == "refused" or replaced is None:
             warning_text = "\n\n" + (
-                "This chapter rewrite was not saved. The original text is unchanged."
+                "This chapter rewrite was not saved. The original text is unchanged. "
+                "Stopping here; check the chapter and continue when ready."
                 if self.config.language.lower().startswith("en")
-                else "这一章的整章替换没有保存，原文保持不变。"
+                else "这一章的整章替换没有保存，原文保持不变。这一轮先停在这里，确认这一章后再继续。"
             )
             if not self._content_started:
                 yield content_start_event()
@@ -985,6 +1018,8 @@ class StreamAdapter:
                 yield tool_result_event(
                     tool_name="write_chapter", status="success", data=card, tool_use_id=pending.replace_tool_use_id
                 )
+            log_with_context(logger, 20, "Stopping the round after a refused chapter replacement", file_id=file_id)
+            self._stop_after_refused_replace = True
             return
         original = str(replaced.get("original_content") or "")
         new_content = str(replaced.get("new_content") or "")

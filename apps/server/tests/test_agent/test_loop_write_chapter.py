@@ -7,6 +7,7 @@ StreamAdapter（捕获、整章替换落库、diff 与撤销事件）、计费�
 
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any
@@ -221,6 +222,61 @@ async def test_replacement_is_refused_when_the_author_saved_the_chapter_meanwhil
     assert "error" not in [frame.type.value for frame in outcome.frames]
 
 
+async def test_refused_replacement_ends_the_round_before_the_reply_claims_it(workspace):
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"}),)),
+        Reply(
+            text=f"<file>\n{NEW_BODY}\n</file>\n第三章已重写，现在一千字。",
+            tools=(("write_chapter", {"chapter": 4, "title": "第4章", "file_type": "draft"}),),
+            before=lambda: _author_saves(workspace.session, three, "作者刚改过的第三章。"),
+        ),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第四章写好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model)
+
+    assert _content(workspace, three.id) == "作者刚改过的第三章。"
+    assert "整章替换没有保存" in outcome.chat_text
+    # 模型在同一次回复里接着说的「已重写」不发给作者，这一轮也不再往下写第4章。
+    assert "已重写" not in outcome.chat_text
+    # 模型可能已经跑在前面建了第4章的空文件：作者没看到它，随这一轮结束撤销。
+    assert outcome.of("file_created") == [f for f in outcome.of("file_created") if f.data["file_id"] == three.id]
+    # 建它的工具线程可能在这一轮结束之后才落库：它自己撤销，这里等它跑完。
+    for _ in range(100):
+        created_ahead = [f for f in _drafts(workspace) if f.id != three.id]
+        if all(f.is_deleted for f in created_ahead):
+            break
+        await asyncio.sleep(0.02)
+    assert all(f.is_deleted for f in created_ahead)
+    assert outcome.of("done") and outcome.of("error") == []
+
+
+async def test_a_second_write_chapter_for_an_armed_replacement_keeps_the_replace_path(workspace):
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。\n第二段原文。")
+    call = ("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"})
+    model = ScriptedModel(runs=[[
+        # 同一次回复里调用两次（并行或重试）。
+        Reply(text="", tools=(call, call)),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章换好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model)
+
+    first, second = (c.output for c in model.tool_calls[:2])
+    assert first["data"]["action"] == "replaced"
+    assert second["status"] == "error" and second["error_type"] == "chapter_replace_pending"
+    assert "action" not in second
+    # 正文仍按整章替换提交：diff 审阅、撤销锚点、原长度都在，没有当成新建的空章节。
+    assert _content(workspace, three.id).rstrip("\n") == NEW_BODY
+    [edit_end] = outcome.of("file_edit_end")
+    assert edit_end.data["original_content"] == "合成第三章原文。\n第二段原文。"
+    final = _results(outcome, "write_chapter")[-1]["data"]
+    assert final["body_saved"] is True and "undo" in final
+    assert outcome.adapter._pending_file_write is None
+    assert len(_drafts(workspace)) == 1
+
+
 async def test_unclosed_replacement_body_never_overwrites_the_chapter(workspace):
     three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
     model = ScriptedModel(runs=[[
@@ -320,6 +376,150 @@ async def test_write_chapter_resolves_strictly_by_number_and_volume(loop_tools):
     assert _content(loop_tools, first_v1.id) == "合成。"
 
 
+async def test_write_chapter_resolves_parent_id_the_way_create_file_does(loop_tools):
+    from agent.tools.mcp_tools import write_chapter
+
+    session, project = loop_tools.session, loop_tools.project
+    body = File(project_id=project.id, title="正文", file_type="folder")
+    session.add(body)
+    session.commit()
+    two = _ai_chapter(session, project, "第2章 渡口", "合成第二章。", parent_id=body.id)
+    three = _ai_chapter(session, project, "第3章 灯塔", "合成第三章。", parent_id=body.id)
+
+    # 模型把上一章的文件 id 当成 parent_id：create_file 会上挂到正文目录，查找也一样。
+    armed = _payload(await write_chapter({"chapter": 3, "title": "第3章", "file_type": "draft", "parent_id": two.id}))
+
+    assert armed["status"] == "success" and armed["data"]["action"] == "replaced"
+    assert armed["data"]["id"] == three.id
+    assert len(_drafts(loop_tools)) == 2
+
+
+async def test_write_chapter_needs_a_folder_when_volumes_restart_numbering(loop_tools):
+    from agent.tools.mcp_tools import WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE, write_chapter
+
+    session, project = loop_tools.session, loop_tools.project
+    vol_one = File(project_id=project.id, title="卷一", file_type="folder")
+    vol_two = File(project_id=project.id, title="卷二", file_type="folder")
+    session.add_all([vol_one, vol_two])
+    session.commit()
+    first = _ai_chapter(session, project, "第1章 起航", "合成卷一第一章。", parent_id=vol_one.id)
+    _ai_chapter(session, project, "第2章 夜航", "合成卷一第二章。", parent_id=vol_one.id)
+    _ai_chapter(session, project, "第1章 新卷", "合成卷二第一章。", parent_id=vol_two.id)
+    _ai_chapter(session, project, "第3章 远方", "合成卷二第三章。", parent_id=vol_two.id)
+
+    # 卷一有第2章、卷二没有：没给 parent_id 时不把卷一的第2章当成要替换的那一章。
+    unsure = _payload(await write_chapter({"chapter": 2, "title": "第2章", "file_type": "draft"}))
+    in_volume_two = _payload(
+        await write_chapter({"chapter": 2, "title": "第2章 归途", "file_type": "draft", "parent_id": vol_two.id})
+    )
+
+    assert unsure["status"] == "error" and unsure["error_type"] == WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE
+    assert "parent_id" in unsure["error"]
+    assert in_volume_two["status"] == "success" and in_volume_two["data"]["action"] == "created"
+    assert in_volume_two["data"]["parent_id"] == vol_two.id
+    assert _content(loop_tools, first.id) == "合成卷一第一章。"
+
+
+@pytest.fixture
+def screenplay_tools(workspace):
+    project = workspace.project
+    project.project_type = "screenplay"
+    script_folder = File(id=f"{project.id}-script-folder", project_id=project.id, title="剧本", file_type="folder")
+    notes_folder = File(id=f"{project.id}-material-folder", project_id=project.id, title="素材", file_type="folder")
+    workspace.session.add_all([project, script_folder, notes_folder])
+    workspace.session.commit()
+    episode = File(
+        project_id=project.id, title="第3集 雨夜", content="合成第三集。", file_type="script", parent_id=script_folder.id
+    )
+    workspace.session.add(episode)
+    workspace.session.commit()
+    FileVersionService().create_version(
+        workspace.session, episode.id, "合成第三集。", change_type="create", change_source="ai", skip_quota=True
+    )
+    ToolContext.set_context(
+        session=workspace.session, user_id=workspace.user.id, project_id=project.id, session_id="loop-screenplay"
+    )
+    ToolContext.set_current_agent("loop")
+    yield SimpleNamespace(**vars(workspace), script_folder=script_folder, notes_folder=notes_folder, episode=episode)
+    ToolContext.clear_context()
+
+
+def _scripts(workspace) -> list[File]:
+    workspace.session.expire_all()
+    return list(
+        workspace.session.exec(
+            select(File).where(File.project_id == workspace.project.id, File.file_type == "script")
+        ).all()
+    )
+
+
+async def test_screenplay_draft_folder_resolves_to_the_script_folder(screenplay_tools):
+    from agent.tools.mcp_tools import write_chapter
+
+    project = screenplay_tools.project
+    armed = _payload(
+        await write_chapter(
+            {"chapter": 3, "title": "第3集", "file_type": "script", "parent_id": f"{project.id}-draft-folder"}
+        )
+    )
+
+    assert armed["status"] == "success" and armed["data"]["action"] == "replaced"
+    assert armed["data"]["id"] == screenplay_tools.episode.id
+    assert len(_scripts(screenplay_tools)) == 1
+
+
+async def test_loop_create_file_cannot_make_an_episode_out_of_a_document(screenplay_tools):
+    from agent.tools.mcp_tools import LOOP_BODY_CREATE_ERROR_TYPE, create_file
+
+    folder = screenplay_tools.script_folder
+    old_version = _payload(
+        await create_file({"title": "第3集 雨夜（旧版）", "file_type": "document", "parent_id": folder.id})
+    )
+    same_title = _payload(await create_file({"title": "第3集 雨夜", "file_type": "document", "parent_id": folder.id}))
+    kept_in_notes = _payload(
+        await create_file(
+            {
+                "title": "雨夜 旧版",
+                "file_type": "document",
+                "parent_id": screenplay_tools.notes_folder.id,
+                "content": "合成旧版。",
+            }
+        )
+    )
+
+    for refused in (old_version, same_title):
+        assert refused["status"] == "error" and refused["error_type"] == LOOP_BODY_CREATE_ERROR_TYPE
+    assert kept_in_notes["status"] == "success" and kept_in_notes["data"]["file_type"] == "document"
+    assert [f.id for f in _scripts(screenplay_tools)] == [screenplay_tools.episode.id]
+    assert _content(screenplay_tools, screenplay_tools.episode.id) == "合成第三集。"
+    assert ToolContext.has_pending_empty_file() is False
+
+
+async def test_created_chapter_without_a_body_is_refunded_and_removable(loop_tools):
+    from agent.core.events import tool_result_event
+    from agent.core.stream_billing import StreamBillingTracker
+    from agent.tools.mcp_tools import write_chapter
+
+    created = _payload(await write_chapter({"chapter": 5, "title": "雨夜", "file_type": "draft"}))
+    assert created["data"]["action"] == "created"
+
+    for stop in ("user_stopped", "error"):
+        tracker = StreamBillingTracker()
+        tracker.observe(
+            tool_result_event(tool_name="write_chapter", status="success", data=created["data"], tool_use_id="c1").to_sse()
+        )
+        assert tracker.write_succeeded is False and tracker.produced_output is False
+        if stop == "user_stopped":
+            assert tracker.decide(client_disconnected=False, unexpected_exception=False, user_stopped=True) == (
+                "user_stopped_no_output",
+                True,
+            )
+        else:
+            reason, refundable = tracker.decide(client_disconnected=False, unexpected_exception=True)
+            assert refundable is True and reason != "error_after_output"
+        assert [entry["id"] for entry in tracker.removable_placeholders()] == [created["data"]["id"]]
+
+
 async def test_write_chapter_empty_builds_missing_chapters_and_leaves_existing_ones(loop_tools):
     from agent.tools.mcp_tools import write_chapter
 
@@ -373,20 +573,32 @@ async def test_loop_edit_file_refuses_whole_body_replacement_and_new_duplicates(
     chapter = _ai_chapter(loop_tools.session, loop_tools.project, "第1章", original)
 
     whole = await _edit(chapter.id, [{"op": "replace", "old": original, "new": "全新的一章。"}])
-    every_paragraph = await _edit(chapter.id, [
-        {"op": "replace", "old": "第一段原文。", "new": "新一。"},
-        {"op": "replace", "old": _LONG, "new": "新二。"},
-        {"op": "replace", "old": "第三段原文。", "new": "新三。"},
-    ])
+    # 一处 replace 盖住了每一段（old 只差首尾几个字）：同样是整章替换。
+    nearly_whole = await _edit(chapter.id, [{"op": "replace", "old": original[1:-1], "new": "全新的一章。"}])
     duplicate = await _edit(chapter.id, [{"op": "insert_after", "anchor": "第三段原文。", "text": f"\n{_LONG}"}])
     local = await _edit(chapter.id, [{"op": "replace", "old": "第三段原文。", "new": "第三段改过了。"}])
 
     assert whole["status"] == "error" and whole["error_type"] == "whole_body_replace"
     assert "write_chapter" in whole["error"]
-    assert every_paragraph["error_type"] == "whole_body_replace"
+    assert nearly_whole["status"] == "error" and nearly_whole["error_type"] == "whole_body_replace"
     assert duplicate["status"] == "error" and duplicate["error_type"] == "duplicated_paragraph"
     assert local["status"] == "success"
     assert _content_of(chapter.id) == f"第一段原文。\n{_LONG}\n第三段改过了。"
+
+
+async def test_per_paragraph_polish_of_an_author_saved_chapter_is_an_edit_not_a_replacement(loop_tools):
+    original = "他走进雨里。\n她没有回头。\n灯灭了。"
+    chapter = _ai_chapter(loop_tools.session, loop_tools.project, "第1章 雨夜", "合成。")
+    _author_saves(loop_tools.session, chapter, original)
+
+    polished = await _edit(chapter.id, [
+        {"op": "replace", "old": "他走进雨里。", "new": "他慢慢走进雨里。"},
+        {"op": "replace", "old": "她没有回头。", "new": "她始终没有回头。"},
+        {"op": "replace", "old": "灯灭了。", "new": "灯忽然灭了。"},
+    ])
+
+    assert polished["status"] == "success"
+    assert _content_of(chapter.id) == "他慢慢走进雨里。\n她始终没有回头。\n灯忽然灭了。"
 
 
 async def test_existing_duplicates_and_notes_files_are_not_blocked(loop_tools):
