@@ -22,7 +22,7 @@ from tests.test_agent.test_round3_service import (  # noqa: F401  (fixtures)
 )
 from tests.test_agent.test_service import wait_for_stream_start
 
-pytestmark = [pytest.mark.unit, pytest.mark.usefixtures("writing_prompt_configs")]
+pytestmark = [pytest.mark.unit, pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")]
 
 ROUND_SECONDS = 0.4
 

@@ -29,7 +29,8 @@ from models import (
 )
 from services.core.auth_service import hash_password
 
-pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
+# 外壳用例在图与单循环 agent 两个引擎上各跑一遍（shell_engine，见 tests/conftest.py）。
+pytestmark = pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
 
 
 async def wait_for_stream_start(
@@ -1062,6 +1063,7 @@ class TestAgentServiceProcessStream:
         ).all()
         assert newer_session_messages == []
 
+    @pytest.mark.parametrize("shell_engine", ["graph"], indirect=True)  # 图的上下文组装与运行参数
     async def test_process_stream_passes_runtime_workflow_config(
         self, mock_agent_service, test_user_with_project, db_session: Session, mock_workflow_stream
     ):
@@ -1256,6 +1258,7 @@ class TestAgentServiceProcessStream:
             }
         ]
 
+    @pytest.mark.parametrize("shell_engine", ["graph"], indirect=True)  # 图的上下文组装与运行参数
     async def test_process_stream_pg_offload_branch_initializes_message_manager_before_save(
         self, mock_agent_service, test_user_with_project, db_session: Session
     ):
@@ -1556,6 +1559,7 @@ class TestAgentServiceProcessStream:
         # Usage already accumulated before the cancel (here: routing) is kept.
         assert json.loads(partial_assistant.message_metadata or "{}")["usage"] == routing_usage
 
+    @pytest.mark.parametrize("shell_engine", ["graph"], indirect=True)  # 图的上下文组装与运行参数
     async def test_process_stream_prompt_ledger_counts_embedded_sections_once(
         self, mock_agent_service, test_user_with_project, db_session: Session
     ):
