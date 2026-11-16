@@ -58,7 +58,7 @@ _BODY_SAVED_CONTEXT = (
     "[系统提醒] 上一次回复写完的正文已保存：{titles}。这是系统的续跑说明，不是作者的新消息。"
     "现在先按「工作方式」自查本轮新写的正文（只写了大纲、人物等资料文件时不用自查，直接继续）：对照大纲里这一章和前后章的条目、前一章结尾和角色卡，核对人名、称谓、身份与设定、"
     "时间线、数值和物品状态是否连续，大纲要求这一章发生的关键情节有没有写到，有没有提前写出后面章节才有的情节或揭示，"
-    "有没有违背作者说过的要求。发现矛盾就用 edit_file 改正；作者这一轮要求的章节还没写完就调用 write_chapter 写下一章；"
+    "有没有违背作者说过的要求。发现矛盾就用 edit_file 改正那几处（不要用 write_chapter 把这一章整章重写）；作者这一轮要求的章节还没写完就调用 write_chapter 写下一章；"
     "全部完成后用一到三句话回复作者，字数只报下面的真实字数。"
 )
 _BODY_SAVED_CONTEXT_EN = (
@@ -67,9 +67,21 @@ _BODY_SAVED_CONTEXT_EN = (
     "adjacent chapters, the end of the previous chapter and the character files: names, forms of address, identities "
     "and settings, timeline, numbers and object states; whether the key events the outline sets for this chapter "
     "happen; whether anything the outline places in later chapters was revealed early; and whether any of the "
-    "author's requirements were broken. Fix contradictions with edit_file; if chapters the author asked for this turn "
+    "author's requirements were broken. Fix contradictions with edit_file at those spots (do not rewrite the whole chapter with write_chapter); if chapters the author asked for this turn "
     "are still unwritten, call write_chapter for the next one; when everything is done, reply to the author in one to "
     "three sentences, reporting only the real word counts below. Keep the author's language."
+)
+# 自查过的文件又写了一遍之后的续跑说明：不再自查，接着做剩下的事或回复作者。
+_BODY_RESAVED_CONTEXT = (
+    "[系统提醒] 上一次回复写完的正文已保存：{titles}。这是系统的续跑说明，不是作者的新消息。"
+    "这一章已经自查过，不要再改它；作者这一轮要求的章节还没写完就调用 write_chapter 写下一章，"
+    "全部完成后用一到三句话回复作者，字数只报下面的真实字数。"
+)
+_BODY_RESAVED_CONTEXT_EN = (
+    "[System note] The body written in the previous response is saved: {titles}. This is a system continuation, "
+    "not a new author message. This chapter was already self-checked; do not change it again. If chapters the author "
+    "asked for this turn are still unwritten, call write_chapter for the next one; otherwise reply to the author in "
+    "one to three sentences, reporting only the real word counts below. Keep the author's language."
 )
 # 调用后下一次回复用 <file> 写正文的工具（新建文件 / 按章号写一章）。
 _BODY_WRITE_TOOLS = frozenset({"create_file", "write_chapter"})
@@ -235,6 +247,8 @@ async def run_loop_agent_streaming(
     correction_attempts = 0
     resumed_correction = False
     unexecuted_reported = False
+    # 已经要求过自查的文件：同一章自查后再写一遍不再要求自查（否则「自查 → 整章重写 → 再自查」会一直转下去）。
+    self_checked_ids: set[str] = set()
     accumulated_text = ""
     terminated = False
     try:
@@ -377,9 +391,13 @@ async def run_loop_agent_streaming(
                 and ended_on_file
             ):
                 titles = "、".join(f"《{t}》" for t in read_guard.files_written.values() if t) or "（见下）"
-                followup = (_BODY_SAVED_CONTEXT_EN if english else _BODY_SAVED_CONTEXT).format(
-                    titles=titles
-                ) + _word_count_note(read_guard)
+                written_ids = set(read_guard.files_written)
+                if written_ids - self_checked_ids or not written_ids:
+                    template = _BODY_SAVED_CONTEXT_EN if english else _BODY_SAVED_CONTEXT
+                else:
+                    template = _BODY_RESAVED_CONTEXT_EN if english else _BODY_RESAVED_CONTEXT
+                self_checked_ids |= written_ids
+                followup = template.format(titles=titles) + _word_count_note(read_guard)
             boundary_steering = await _drain_boundary_steering(get_steering_messages)
             if boundary_steering:
                 state["messages"] = list(state.get("messages") or []) + [

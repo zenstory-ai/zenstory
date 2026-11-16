@@ -716,3 +716,38 @@ async def test_loop_finalizes_the_task_board_on_normal_completion(loop_tool_cont
         events = await _collect(state)
     finalize.assert_awaited_once()
     assert board_event in events
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_loop_asks_for_a_self_check_once_per_chapter(loop_tool_context, monkeypatch):
+    """自查后把同一章又写了一遍：第二次续跑只说已保存，不再要求自查（防止自查—重写循环）。"""
+    from agent.loop import engine
+
+    class _Guard(engine.RepeatReadGuard):
+        def __init__(self) -> None:
+            super().__init__()
+            self.files_written["ch1"] = "第1章"
+
+    monkeypatch.setattr(engine, "RepeatReadGuard", _Guard)
+    monkeypatch.setattr(engine, "_word_count_note", lambda guard: "")
+    seen: list[dict] = []
+    write = [
+        StreamEvent(type=StreamEventType.TOOL_USE, data={"id": "c1", "name": "write_chapter", "status": "complete", "input": {}}),
+        StreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={"tool_use_id": "c1", "name": "write_chapter", "result": {"content": [{"type": "text", "text": json.dumps({"status": "success"})}]}},
+        ),
+        StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n合成正文。\n</file>"}),
+    ]
+    state = {"user_message": "写第1章", "messages": [], "system_prompt": "系统"}
+    with patch(
+        "agent.loop.engine.run_openai_agents_streaming_agent",
+        _fake_runner([write, list(write), [StreamEvent(type=StreamEventType.TEXT, data={"text": "第1章写好了。"})]], seen),
+    ):
+        await _collect(state)
+
+    assert len(seen) == 3
+    assert "自查" in seen[1]["user_message"] and "edit_file" in seen[1]["user_message"]
+    assert "已经自查过" in seen[2]["user_message"]
