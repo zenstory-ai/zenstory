@@ -283,15 +283,15 @@ async def test_replacement_armed_without_a_body_is_retried_within_the_turn(works
     model = ScriptedModel(runs=[
         # 定位之后的回复没有 <file>（模型写出了残缺的工具调用文字）。
         [Reply(text="", tools=(call,)), Reply(text="<<tool_call>")],
-        [Reply(text="", tools=(call,)), Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章换好了。")],
+        # 纠偏轮：系统已为这一章恢复正文捕获，模型直接写 <file>。
+        [Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章换好了。")],
     ])
 
     outcome = await _run_loop(workspace, model)
 
-    first, second = (c.output for c in model.tool_calls[:2])
+    [first] = (c.output for c in model.tool_calls)
     assert first["data"]["action"] == "replaced"
-    # 重新定位不是「已在等正文」的重复调用，照常定为整章替换。
-    assert second["status"] == "success" and second["data"]["action"] == "replaced"
+    assert NEW_BODY not in outcome.chat_text
     assert _content(workspace, three.id).rstrip("\n") == NEW_BODY
     [edit_end] = outcome.of("file_edit_end")
     assert edit_end.data["original_content"] == "合成第三章原文。\n第二段原文。"

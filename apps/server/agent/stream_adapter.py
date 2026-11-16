@@ -1153,7 +1153,8 @@ class StreamAdapter:
             refusal = FILE_BODY_RESUME_UNAVAILABLE
         elif pending is None or pending.file_id != request.file_id:
             refusal = FILE_BODY_RESUME_NOT_BOUND
-        elif pending.original_content_length > 0:
+        elif pending.original_content_length > 0 and not pending.replace_tool_use_id:
+            # 整章替换（write_chapter 定位到已有的一章）原本就有正文：写完走 replace_body，不受这条限制。
             refusal = FILE_BODY_RESUME_NOT_EMPTY
         elif pending.baseline_updated_at is None or pending.baseline_updated_at != request.expected_updated_at:
             refusal = FILE_BODY_RESUME_VERSION_CHANGED

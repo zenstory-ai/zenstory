@@ -6,7 +6,8 @@ SSE 外壳、计费 / 退还、停止 / 插话、残稿补存、文件版本并�
 
 - 空文件纠偏：create_file / write_chapter 建了文件、正文没用 <file> 写成（落库核验），为同一个文件恢复正文写入后
   再跑一次；补不成就回滚能确认的空文件并发 ``empty_file_correction`` 卡。write_chapter 定位到已有非空章节的
-  整章替换不算空文件：没收到正文时原文不动、作废这次定位，在纠偏次数内再跑一次让模型重新调用 write_chapter。
+  整章替换不算空文件：没收到正文时原文不动，在纠偏次数内为这一章恢复正文捕获再跑一次（核对定位时的版本），
+  补不成就作废定位。
 - 文件流续写：这一次 run 建文件或定位章节成功、回复停在写完的 </file> 上（SDK 把它当最终输出），接着跑一次。
 - 运行中插话：工具边界或 run 边界消费到作者的插话，接着跑一次让它在本轮生效。
 
@@ -49,8 +50,8 @@ _EMPTY_FILE_CORRECTION_CONTEXT = (
 )
 _CHAPTER_REPLACE_RETRY_CONTEXT = (
     "[系统提醒] 你用 write_chapter 定下了整章替换《{title}》(id={file_id})，但上一次回复没有用 <file>…</file> 写出新正文，"
-    "原文保持不变，这次定位已作废。还要替换这一章时，重新调用 write_chapter（同一章号），下一次回复第一行直接输出 <file>，"
-    "写完整的新正文，最后用 </file> 结束；不打算替换了就直接回复作者说明原文没动。"
+    "原文保持不变。系统已为这一章重新打开正文写入：这一次回复第一行直接输出 <file>，接着写这一章完整的新正文，最后用 </file> 结束；"
+    "写完之前不要调用任何工具（write_chapter 也不要再调用），也不要只在对话里复述正文。"
 )
 # 调用后下一次回复用 <file> 写正文的工具（新建文件 / 按章号写一章）。
 _BODY_WRITE_TOOLS = frozenset({"create_file", "write_chapter"})
@@ -109,22 +110,28 @@ async def _settle_pending_empty_files(
     for entry in ToolContext.get_pending_empty_files():
         file_id = str(entry.get("file_id") or entry.get("id") or "")
         title = str(entry.get("title") or ("Untitled" if english else "未命名"))
-        if ToolContext.pending_chapter_replacement(file_id) is not None:
-            # write_chapter 定下的整章替换没收到正文：原文没动、不是空文件，不回滚；作废这次定位，
-            # 能纠偏时让模型重新调用 write_chapter（重新定位、版本核对照旧），不能时原文保持不变。
-            ToolContext.clear_pending_empty_file(file_id)
-            replacements.append({"file_id": file_id, "title": title})
+        armed = ToolContext.pending_chapter_replacement(file_id)
+        if armed is not None:
+            # write_chapter 定下的整章替换没收到正文：原文没动、不是空文件，不回滚、不发空文件卡。
+            replacements.append({"file_id": file_id, "title": title, "updated_at": str(armed.get("updated_at") or "")})
             continue
         state = await asyncio.to_thread(graph_helpers._probe_pending_file_body, file_id)
         if state in (graph_helpers._PENDING_BODY_WRITTEN, graph_helpers._PENDING_BODY_GONE):
             ToolContext.clear_pending_empty_file(file_id)
             continue
         unfinished.append({"file_id": file_id, "title": title})
+    if replacements and not unfinished and can_correct and replacements[-1]["updated_at"]:
+        # 能纠偏时为这一章恢复正文捕获（StreamAdapter 核对定位时的版本），模型只需用 <file> 写正文。
+        target = replacements[-1]
+        for other in replacements[:-1]:
+            ToolContext.clear_pending_empty_file(other["file_id"])
+        resume = FileBodyResume(file_id=target["file_id"], expected_updated_at=target["updated_at"])
+        context = _CHAPTER_REPLACE_RETRY_CONTEXT.format(title=target["title"], file_id=target["file_id"])
+        return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), []
+    for other in replacements:
+        # 补不成：作废这次定位，原文保持不变。
+        ToolContext.clear_pending_empty_file(other["file_id"])
     if not unfinished:
-        if replacements and can_correct:
-            target = replacements[-1]
-            log_with_context(logger, 20, "Loop chapter replacement retried without a body", file_id=target["file_id"])
-            return _CHAPTER_REPLACE_RETRY_CONTEXT.format(title=target["title"], file_id=target["file_id"]), None, []
         return None, None, []
     if can_correct:
         target = unfinished[-1]
@@ -301,11 +308,6 @@ async def run_loop_agent_streaming(
                 context, resume_event, settle_events = await _settle_pending_empty_files(
                     can_correct=can_correct, english=english
                 )
-                if resume_event is None and context:
-                    # 整章替换没收到正文：重新跑一次让模型重新定位（不恢复捕获，原文没动）。
-                    correction_attempts += 1
-                    state["user_message"] = context
-                    continue
                 if resume_event is not None:
                     yield resume_event
                     resume = resume_event.data["request"]
@@ -314,6 +316,9 @@ async def run_loop_agent_streaming(
                         resumed_correction = True
                         state["user_message"] = context or ""
                         continue
+                    if ToolContext.pending_chapter_replacement(resume.file_id) is not None:
+                        # 整章替换的捕获没能恢复（版本变了等）：作废定位，原文不动，不发空文件卡。
+                        ToolContext.clear_pending_empty_file(resume.file_id)
                     pending = [
                         {"file_id": str(e.get("file_id") or ""), "title": str(e.get("title") or "")}
                         for e in ToolContext.get_pending_empty_files()

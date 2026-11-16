@@ -124,8 +124,8 @@ agent/
   没压缩成时记 `message_metadata.compaction_skipped`（`reason`、`at_prompt_tokens`），输入再长 `AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS` 才再试；
   本轮没有 assistant 行时两种记录写在本轮作者 user 行上。交给 run 的历史另有估算上限 `AGENT_LOOP_RUN_HISTORY_MAX_TOKENS`（丢最旧的项）。
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
-  （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时作废定位、
-  在纠偏次数内让模型重新调用 write_chapter，原文不动）、
+  （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时也经 `FILE_BODY_RESUME` 恢复捕获、
+  补不成就作废定位，原文不动）、
   停在写完的 `</file>` 上的续写（附本请求正文落库字数）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用图的 `_auto_finalize_task_board_on_completion` 收尾任务板；
   `previous_output_truncations` 由 `LoopHistory.trailing_output_truncations` 给出。到收尾时间不再开新 run，
   发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
