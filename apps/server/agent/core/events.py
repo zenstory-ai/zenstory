@@ -653,7 +653,7 @@ class ParallelStartEventData(BaseModel):
     execution_id: str = Field(..., description="Unique ID for this parallel execution")
     task_count: int = Field(..., description="Number of tasks actually executed this round")
     task_descriptions: list[str] = Field(..., description="Descriptions of each executed task")
-    # 单次并行有上限（MAX_PARALLEL_TASKS），超出的任务会被截断丢弃。
+    # 图写下的旧事件：单次并行有上限，超出的任务会被截断丢弃。
     # 只报 task_count 会让前端进度条显示 "5/5 完成" 而隐藏掉被丢弃的 2 个任务；
     # 只把 task_count 改成请求数又会让进度条永远停在 "5/7"。
     # 因此两者都发：task_count 驱动进度条，requested_task_count/dropped_count 用于

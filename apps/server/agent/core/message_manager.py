@@ -45,7 +45,7 @@ def detect_author_language(text: str | None) -> str | None:
 
 logger = get_logger(__name__)
 
-# 本轮上下文块的标签：MessageManager.build_turn_context 产出，service 拼在本轮用户消息开头。
+# 本轮上下文块的标签：loop/turn_context.build_loop_turn_context 产出，service 拼在本轮用户消息开头。
 TURN_CONTEXT_OPEN = "<turn_context>"
 TURN_CONTEXT_CLOSE = "</turn_context>"
 # 本次运行的系统指令（作为 agent 运行输入的最后一条消息，例如截断后的交付说明）的开头。

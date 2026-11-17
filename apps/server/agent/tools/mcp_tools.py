@@ -1617,7 +1617,7 @@ def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict
 
 
 # 单循环 agent 的正文（draft / script）只经 write_chapter 按章号 / 集号写入：create_file 不建正文，
-# edit_file 不整份替换正文（见 FileEditor 的 body_guards）。多 agent 图的 create_file 不变。
+# edit_file 不整份替换正文（见 FileEditor 的 body_guards）。
 LOOP_BODY_CREATE_ERROR_TYPE = "chapter_body_requires_write_chapter"
 WRITE_CHAPTER_TOOL_NAME = "write_chapter"
 WRITE_CHAPTER_ACTION_CREATED = "created"

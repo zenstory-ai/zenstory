@@ -1070,7 +1070,7 @@ async def run_openai_agents_streaming_agent(
         if repetition_stopped:
             # 与无进展停止同一个收尾：先让 usage 入账，再以 ERROR 结束整条工作流。StreamAdapter 收到
             # stop_reason=repetition_loop 时把正在写的正文截到重复开始之前再落库；stream_billing 按
-            # 失控停止结算（本轮没有写入成功就退还），回复「继续」从这里接着做（RESUMABLE_STOP_REASONS）。
+            # 失控停止结算（本轮没有写入成功就退还），回复「继续」从这里接着做。
             yield StreamEvent(
                 type=StreamEventType.MESSAGE_END,
                 data={

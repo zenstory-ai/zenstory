@@ -1146,7 +1146,7 @@ class StreamAdapter:
                 next(session_gen)
 
     async def _resume_file_body(self, request: Any) -> AsyncIterator[SSEEvent]:
-        """图的空文件纠偏轮开始前：为同一个文件重新等待 <file> 正文，结果写回 request。
+        """单循环 agent 的空文件纠偏轮开始前：为同一个文件重新等待 <file> 正文，结果写回 request。
 
         上一个 agent run 的 MESSAGE_END 已把还在等正文的捕获复位成 IDLE；不重新等待，
         纠偏轮写出的 <file> 正文只会落进聊天。只认本适配器自己记下的待写文件（这一请求里

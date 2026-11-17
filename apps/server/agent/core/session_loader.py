@@ -36,7 +36,7 @@ from utils.text_metrics import count_words
 _REWORK_REPLAY_STOP_REASONS: frozenset[str] = frozenset(
     {"run_deadline_exceeded", "cancelled", "user_stopped", "client_disconnected"}
 )
-# 回放块的固定标题；router._SYNTHESIZED_SECTION_HEADERS 按它截掉上一轮结尾里的这段。
+# 图写下的旧行里「未执行的审稿返修要求」回放块的固定标题。
 PENDING_REWORK_HEADER = "[上一轮未执行的审稿返修要求]"
 PENDING_REWORK_HEADER_EN = "[Unapplied review revisions from the previous round]"
 
@@ -1061,8 +1061,8 @@ class SessionLoader:
                     msg_data["stop_reason"] = stop_reason
                 if isinstance(usage, dict):
                     msg_data["usage"] = usage
-                # 跨轮路由延续（graph/router.py）：上一轮落库的路由、状态卡里的
-                # lastAgent、是否以澄清卡收尾。只供路由判断，不进回放文本。
+                # 图写下的旧行：落库的路由、状态卡里的 lastAgent、是否以澄清卡收尾。
+                # 原样带在消息结构上，不进回放文本。
                 routing = metadata.get("routing")
                 if isinstance(routing, dict):
                     msg_data["routing"] = routing
@@ -1073,7 +1073,6 @@ class SessionLoader:
                 if isinstance(status_cards, list):
                     msg_data.update(self._status_card_routing_hints(status_cards))
                     synthesized_content = self._build_status_cards_history_content(status_cards)
-                    # 路由器另有一份状态卡摘要（router.build_router_user_message）。
                     if synthesized_content:
                         msg_data["status_card_text"] = synthesized_content
                     if synthesized_content and not self._extract_content_text(

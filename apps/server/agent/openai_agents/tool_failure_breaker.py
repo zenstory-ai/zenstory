@@ -16,7 +16,7 @@ agent run（同一轮里的续跑不会让计数归零）。
 同一调用一旦成功，它的连续失败计数清零。
 
 本模块只负责记账与判定；「停下」由 runner 在 SDK 的 tool_use_behavior 中同步完成，
-对外的停止事件也由 runner 发出（见 runner._stop_run_on_control_flow_tool）。
+对外的停止事件也由 runner 发出（见 runner._stop_run_after_tools）。
 """
 
 from __future__ import annotations
