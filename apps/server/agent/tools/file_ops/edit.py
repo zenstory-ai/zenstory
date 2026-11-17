@@ -106,12 +106,17 @@ EDIT_ERROR_PERMISSION_DENIED = "permission_denied"
 EDIT_ERROR_GENERIC = "edit_failed"
 # 模型读过这个文件之后正文又变了（多半是作者在编辑器里改的）：不在旧正文上改。
 EDIT_ERROR_STALE_CONTENT = "stale_content"
+# 单循环 agent 改正文（draft / script）时的两道结构检查，见 check_body_edit_guards。
+EDIT_ERROR_WHOLE_BODY_REPLACE = "whole_body_replace"
+EDIT_ERROR_DUPLICATED_PARAGRAPH = "duplicated_paragraph"
 
 EDIT_ERROR_USER_MESSAGES: dict[str, str] = {
     EDIT_ERROR_ANCHOR_NOT_FOUND: "AI 没在原文里找到要改的那一段，正在重新定位。",
     EDIT_ERROR_ANCHOR_AMBIGUOUS: "要改的这句话在文中出现了好几次，AI 正在确认是哪一处。",
     EDIT_ERROR_FILE_NOT_FOUND: "AI 没找到目标文件，这一步没有改动。",
     EDIT_ERROR_STALE_CONTENT: "这个文件在 AI 读过之后又被改过（多半是你刚改的），AI 没有在旧内容上改，这一步没有改动。",
+    EDIT_ERROR_WHOLE_BODY_REPLACE: "整章替换要按章号写入，这一步没有改动，AI 会换个方式继续。",
+    EDIT_ERROR_DUPLICATED_PARAGRAPH: "这次修改会让章节里出现重复的段落，没有保存，AI 会换个方式继续。",
 }
 EDIT_ERROR_GENERIC_USER_MESSAGE = "这一步没做成，AI 会换个方式继续。"
 
@@ -509,6 +514,67 @@ def remember_pre_write_content(file_id: str, content: str | None) -> None:
         logger.debug("Failed to remember pre-write content", extra={"file_id": file_id, "error": str(exc)})
 
 
+# 正文结构检查只对承载成稿正文的类型生效。
+BODY_GUARD_FILE_TYPES = frozenset({"draft", "script"})
+# 一段至少这么长、逐字出现两次以上才算重复段落（短句、对白、分隔线重复是正常写法）。
+DUPLICATE_PARAGRAPH_MIN_CHARS = 80
+CHAPTER_REPLACE_VERSION_SUMMARY = "AI 整章替换"
+
+
+def _body_paragraphs(text: str) -> list[str]:
+    return [line.strip() for line in (text or "").split("\n") if line.strip()]
+
+
+def _duplicated_paragraphs(text: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for paragraph in _body_paragraphs(text):
+        if len(paragraph) >= DUPLICATE_PARAGRAPH_MIN_CHARS:
+            counts[paragraph] = counts.get(paragraph, 0) + 1
+    return {paragraph: count for paragraph, count in counts.items() if count > 1}
+
+
+def check_body_edit_guards(old_content: str, new_content: str, edits: Any) -> None:
+    """单循环 agent 用 edit_file 改正文时的两道结构检查（逐字比较，不判断语义）。
+
+    - 整章替换：一处 replace 的 old 就是整份原文；或这次只有一处 replace，原文有两段以上而改完
+      一段都没留下（old 几乎覆盖全文）。整章替换走 write_chapter（按章号定位、diff 审阅与撤销），
+      不经 edit_file。几处各自定位的小改动（逐段润色、统一标点）即使碰到了每一段也不算。
+    - 新的重复段落：改完后有一段（≥ DUPLICATE_PARAGRAPH_MIN_CHARS 字）逐字出现两次以上，
+      而改之前它没有重复。原文里本来就重复的段落不受影响。
+    """
+    old_stripped = (old_content or "").strip()
+    if old_stripped:
+        whole = any(
+            isinstance(edit, dict)
+            and str(edit.get("op") or "replace").strip().lower() == "replace"
+            and isinstance(edit.get("old"), str)
+            and edit["old"].strip() == old_stripped
+            for edit in edits or []
+        )
+        old_paragraphs = _body_paragraphs(old_content)
+        edit_list = [edit for edit in edits or [] if isinstance(edit, dict)]
+        single_replace = len(edit_list) == 1 and str(edit_list[0].get("op") or "replace").strip().lower() == "replace"
+        if not whole and single_replace and len(old_paragraphs) >= 2:
+            kept = set(_body_paragraphs(new_content))
+            whole = not any(paragraph in kept for paragraph in old_paragraphs)
+        if whole:
+            raise EditFileError(
+                "edit_file 不能整份替换正文，这次没有改动。整章重写或把作者的稿子换进某一章，"
+                "用 write_chapter（按章号定位这一章，下一次回复用 <file> 写完整新正文）；"
+                "只改其中几处时用 edit_file 改那几段。",
+                error_type=EDIT_ERROR_WHOLE_BODY_REPLACE,
+            )
+    before = _duplicated_paragraphs(old_content)
+    for paragraph, count in _duplicated_paragraphs(new_content).items():
+        if paragraph not in before:
+            raise EditFileError(
+                f"这次修改会让下面这段在正文里出现 {count} 次（逐字重复），没有改动：「{_preview(paragraph)}」。"
+                "先用 query_files 读一次这一章现在的正文，确认这段已经在哪里，再只改需要改的地方，"
+                "不要把已有的段落再插入或追加一遍。",
+                error_type=EDIT_ERROR_DUPLICATED_PARAGRAPH,
+            )
+
+
 class FileEditor:
     """
     Editor for file content with robust text matching.
@@ -540,6 +606,7 @@ class FileEditor:
         read_snapshot_fn: Callable[[], str | None] | None = None,
         exact_only: bool = False,
         report_author_edits: bool = False,
+        body_guards: bool = False,
     ) -> dict[str, Any]:
         """
         Apply precise edits to a file's content.
@@ -581,6 +648,9 @@ class FileEditor:
             report_author_edits: In-app agent writes only. Add
                 ``author_edits_touched`` when the edit rewrote or removed
                 paragraphs the author wrote after the AI (agent/tools/author_changes.py).
+            body_guards: Single loop agent only. On draft/script files refuse a
+                whole-body replacement and an edit that adds a new verbatim
+                duplicated paragraph (check_body_edit_guards); nothing is committed.
 
         Returns:
             Dict with edit results:
@@ -610,6 +680,7 @@ class FileEditor:
             "read_snapshot_fn": read_snapshot_fn,
             "exact_only": exact_only,
             "report_author_edits": report_author_edits,
+            "body_guards": body_guards,
         }
         if is_postgres:
             return self._edit_file_impl(id, edits, continue_on_error, normalize_quotes, **options)
@@ -631,6 +702,7 @@ class FileEditor:
         read_snapshot_fn: Callable[[], str | None] | None = None,
         exact_only: bool = False,
         report_author_edits: bool = False,
+        body_guards: bool = False,
     ) -> dict[str, Any]:
         # Get file. On PostgreSQL take a row lock so concurrent edit_file tasks
         # (parallel_execute runs each on its own session) targeting the SAME file
@@ -874,69 +946,16 @@ class FileEditor:
             # 失败项，否则模型会以为只有报错那一条失败，只重发剩下的几条。
             raise EditBatchError(failed_edits, edits_total=len(edits))
 
-        # Stage content and snapshot in the same transaction while the per-file
-        # lock is held. A savepoint keeps snapshot failures non-blocking without
-        # allowing content and history to describe different writes.
+        if body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
+            check_body_edit_guards(old_content, content, edits)
+
         undo: dict[str, Any] | None = None
         if content != old_content:
-            # 原稿可能是作者手动改过、还没进历史的正文：先备份（独立 savepoint，
-            # 失败不阻断），撤销锚点随后就能落在这份备份上。
-            stage_pre_ai_write_backup(self.session, id, old_content)
-            before_version_number: int | None = None
-            try:
-                # Provenance is optional, but its read failure must not poison
-                # the outer PostgreSQL content transaction. A loaded history
-                # head is usable only if it exactly reconstructs the live input.
-                with self.session.begin_nested():
-                    version_service = FileVersionService()
-                    latest = version_service.get_latest_version(self.session, id)
-                    if latest is None and not old_content.strip():
-                        # 备份规则不存空白正文，这里只给「真要被改、没有历史」的空白文件补一个
-                        # 基线，撤销才有落点。有了版本就不会再补；新建未改的文件不经过这里。
-                        latest = version_service.create_version(
-                            session=self.session,
-                            file_id=id,
-                            new_content=old_content,
-                            change_type=CHANGE_TYPE_EDIT,
-                            change_source=CHANGE_SOURCE_SYSTEM,
-                            change_summary=BEFORE_AI_EDIT_SUMMARY,
-                            force_base=True,
-                            skip_quota=True,
-                            commit=False,
-                        )
-                    if latest and version_service._get_contents_for_versions(self.session, {id: latest})[id] == old_content:
-                        before_version_number = latest.version_number
-            except Exception:
-                logger.warning("Unable to anchor edit undo; content edit will continue", exc_info=True, extra={"file_id": id})
-
-            file.content = content
-            file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
-            # Commit releases the PostgreSQL lock; a subsequent refresh may
-            # observe another writer. Undo must retain this edit's own token.
-            after_updated_at = normalize_datetime_to_utc(file.updated_at).isoformat()
-            try:
-                with self.session.begin_nested():
-                    self._create_edit_version(id, content, applied_edits)
-            except Exception as exc:
-                logger.warning(
-                    "Failed to create version for edit_file; content will persist",
-                    exc_info=True,
-                    extra={"file_id": id, "error": str(exc)},
-                )
-            with written_snapshot_for_commit(file.id, content):
-                self.session.commit()
-            self.session.refresh(file)
-            if before_version_number is not None:
-                undo = {
-                    "before_version_number": before_version_number,
-                    "expected_after_updated_at": after_updated_at,
-                }
-            activation_event_service.record_ai_write_accepted(
-                self.session,
-                user_id=self.user_id,
-                project_id=file.project_id,
-                file_id=file.id,
-                file_type=file.file_type,
+            undo = self._commit_ai_content(
+                file,
+                old_content,
+                content,
+                create_version=lambda: self._create_edit_version(id, content, applied_edits),
                 tool="edit_file",
             )
 
@@ -968,6 +987,190 @@ class FileEditor:
             touched = touched_author_text(author_blame, old_content, content)
             if touched:
                 result["author_edits_touched"] = touched
+        return result
+
+    def _commit_ai_content(
+        self,
+        file: File,
+        old_content: str,
+        content: str,
+        *,
+        create_version: Callable[[], None],
+        tool: str,
+        full_snapshot: bool = False,
+    ) -> dict[str, Any] | None:
+        """在持有这个文件写锁时提交一次 AI 写入，返回撤销锚点（拿不到时为 None）。
+
+        edit_file 与 write_chapter 的整章替换共用这一条路径：先备份还没进历史的原稿，
+        撤销锚点落在与原稿逐字相同的历史版本上，正文与 AI 版本在同一事务里提交。
+        """
+        file_id = file.id
+        # Stage content and snapshot in the same transaction while the per-file
+        # lock is held. A savepoint keeps snapshot failures non-blocking without
+        # allowing content and history to describe different writes.
+        # 原稿可能是作者手动改过、还没进历史的正文：先备份（独立 savepoint，
+        # 失败不阻断），撤销锚点随后就能落在这份备份上。
+        stage_pre_ai_write_backup(self.session, file_id, old_content)
+        before_version_number: int | None = None
+        try:
+            # Provenance is optional, but its read failure must not poison
+            # the outer PostgreSQL content transaction. A loaded history
+            # head is usable only if it exactly reconstructs the live input.
+            with self.session.begin_nested():
+                version_service = FileVersionService()
+                latest = version_service.get_latest_version(self.session, file_id)
+                if latest is None and not old_content.strip():
+                    # 备份规则不存空白正文，这里只给「真要被改、没有历史」的空白文件补一个
+                    # 基线，撤销才有落点。有了版本就不会再补；新建未改的文件不经过这里。
+                    latest = version_service.create_version(
+                        session=self.session,
+                        file_id=file_id,
+                        new_content=old_content,
+                        change_type=CHANGE_TYPE_EDIT,
+                        change_source=CHANGE_SOURCE_SYSTEM,
+                        change_summary=BEFORE_AI_EDIT_SUMMARY,
+                        force_base=True,
+                        skip_quota=True,
+                        commit=False,
+                    )
+                if latest and version_service._get_contents_for_versions(self.session, {file_id: latest})[file_id] == old_content:
+                    before_version_number = latest.version_number
+        except Exception:
+            logger.warning("Unable to anchor edit undo; content edit will continue", exc_info=True, extra={"file_id": file_id})
+
+        file.content = content
+        file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+        # Commit releases the PostgreSQL lock; a subsequent refresh may
+        # observe another writer. Undo must retain this edit's own token.
+        after_updated_at = normalize_datetime_to_utc(file.updated_at).isoformat()
+        try:
+            with self.session.begin_nested():
+                create_version()
+        except Exception as exc:
+            logger.warning(
+                f"Failed to create version for {tool}; content will persist",
+                exc_info=True,
+                extra={"file_id": file_id, "error": str(exc)},
+            )
+        with written_snapshot_for_commit(file_id, content, full=full_snapshot):
+            self.session.commit()
+        self.session.refresh(file)
+        activation_event_service.record_ai_write_accepted(
+            self.session,
+            user_id=self.user_id,
+            project_id=file.project_id,
+            file_id=file.id,
+            file_type=file.file_type,
+            tool=tool,
+        )
+        if before_version_number is None:
+            return None
+        return {
+            "before_version_number": before_version_number,
+            "expected_after_updated_at": after_updated_at,
+        }
+
+    def replace_body(
+        self,
+        id: str,
+        content: str,
+        *,
+        expected_updated_at: str | None,
+        normalize_quotes: bool = False,
+        protect_author_content: bool = True,
+    ) -> dict[str, Any]:
+        """write_chapter 的整章替换：用流式写完的新正文整份替换这一章，走 edit_file 的提交路径。
+
+        与 edit_file 一样在文件写锁内重读、核对权限，提交时备份原稿、建 AI 版本并给出撤销锚点
+        （``undo``）。``expected_updated_at`` 是工具定位这一章时读到的版本：之后有任何写入
+        （作者在编辑器里存过、别的写入）就拒绝（ConcurrentFileWriteError），不覆盖。
+        作者保存过正文的章节照旧不由应用内对话整份覆盖（``protect_author_content``）。
+        返回里带原稿与新稿，供 diff 审阅；不进模型的工具结果。
+        """
+        from database import is_postgres
+
+        if is_postgres:
+            return self._replace_body_impl(
+                id, content, expected_updated_at, normalize_quotes, protect_author_content
+            )
+        with acquire_file_write_lock(id):
+            return self._replace_body_impl(
+                id, content, expected_updated_at, normalize_quotes, protect_author_content
+            )
+
+    def _replace_body_impl(
+        self,
+        id: str,
+        content: str,
+        expected_updated_at: str | None,
+        normalize_quotes: bool,
+        protect_author_content: bool,
+    ) -> dict[str, Any]:
+        from agent.tools.file_ops.crud import ConcurrentFileWriteError
+        from database import is_postgres
+
+        if is_postgres:
+            file = self.session.exec(
+                select(File).where(File.id == id).with_for_update(key_share=True)
+                .execution_options(populate_existing=True)
+            ).first()
+        else:
+            file = self.session.get(File, id, populate_existing=True)
+        if not file or file.is_deleted:
+            raise EditFileError("文件不存在或已删除。", error_type=EDIT_ERROR_FILE_NOT_FOUND)
+        check_file_access_in_tool_context(self.session, file, self.user_id)
+
+        if expected_updated_at is not None:
+            current_updated_at = file.updated_at.isoformat() if file.updated_at else None
+            if current_updated_at != expected_updated_at:
+                raise ConcurrentFileWriteError("文件在流式写入期间已被修改，本次整章内容未保存")
+        if protect_author_content:
+            from agent.tools.author_edit_guard import enforce_author_content_protection
+
+            enforce_author_content_protection(self.session, [file], action="rewrite")
+
+        old_content = file.content or ""
+        if normalize_quotes and content and file.file_type in NORMALIZED_QUOTE_FILE_TYPES:
+            from utils.cjk_quotes import normalize_double_quotes
+
+            content = normalize_double_quotes(
+                content,
+                resolve_write_quote_style(
+                    self.session,
+                    project_id=file.project_id,
+                    existing_content=old_content,
+                    incoming_text=content,
+                    exclude_file_id=file.id,
+                    parent_id=file.parent_id,
+                    order=file.order,
+                ),
+            )
+
+        undo: dict[str, Any] | None = None
+        if content != old_content:
+            undo = self._commit_ai_content(
+                file,
+                old_content,
+                content,
+                create_version=lambda: self._create_ai_version(file.id, content, CHAPTER_REPLACE_VERSION_SUMMARY),
+                tool="write_chapter",
+                full_snapshot=True,
+            )
+        result: dict[str, Any] = {
+            "id": file.id,
+            "title": file.title,
+            "file_type": file.file_type,
+            "mutation_applied": content != old_content,
+            "previous_length": len(old_content),
+            "previous_word_count": count_words(old_content),
+            "new_length": len(content),
+            "new_word_count": count_words(content),
+            "original_content": old_content,
+            "new_content": content,
+            "updated_at": normalize_datetime_to_utc(file.updated_at).isoformat() if file.updated_at else None,
+        }
+        if undo is not None:
+            result["undo"] = undo
         return result
 
     def _author_blame(self, file_id: str, content: str) -> Any:
@@ -1874,13 +2077,8 @@ class FileEditor:
 
         return content
 
-    def _create_edit_version(
-        self,
-        file_id: str,
-        content: str,
-        applied_edits: list[dict[str, Any]],
-    ) -> None:
-        """Stage AI edit history in the caller's content transaction."""
+    @staticmethod
+    def _edit_version_summary(applied_edits: list[dict[str, Any]]) -> str:
         op_summaries = []
         for detail in applied_edits:
             op = detail.get("op", "unknown")
@@ -1902,7 +2100,18 @@ class FileEditor:
         )
         if len(op_summaries) > 3:
             change_summary += f" 等 {len(op_summaries)} 处修改"
+        return change_summary
 
+    def _create_edit_version(
+        self,
+        file_id: str,
+        content: str,
+        applied_edits: list[dict[str, Any]],
+    ) -> None:
+        """Stage AI edit history in the caller's content transaction."""
+        self._create_ai_version(file_id, content, self._edit_version_summary(applied_edits))
+
+    def _create_ai_version(self, file_id: str, content: str, change_summary: str) -> None:
         FileVersionService().create_version(
             session=self.session,
             file_id=file_id,

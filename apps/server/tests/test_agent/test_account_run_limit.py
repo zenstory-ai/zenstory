@@ -326,6 +326,7 @@ async def _wait_all_background_cleanup() -> None:
 
 
 @pytest.mark.usefixtures("writing_prompt_configs")
+@pytest.mark.usefixtures("shell_engine")
 async def test_process_stream_releases_after_normal_completion_not_before_cleanup(
     real_service, owner_and_project, db_session: Session
 ):
@@ -365,6 +366,7 @@ async def test_process_stream_releases_after_normal_completion_not_before_cleanu
 
 
 @pytest.mark.usefixtures("writing_prompt_configs")
+@pytest.mark.usefixtures("shell_engine")
 async def test_process_stream_releases_after_workflow_failure(
     real_service, owner_and_project, db_session: Session
 ):
@@ -393,6 +395,7 @@ async def test_process_stream_releases_after_workflow_failure(
 
 
 @pytest.mark.usefixtures("writing_prompt_configs")
+@pytest.mark.usefixtures("shell_engine")
 async def test_cancelled_run_keeps_its_slot_until_cancellation_cleanup_finishes(
     real_service, owner_and_project, db_session: Session
 ):
@@ -490,6 +493,7 @@ async def test_primed_stream_dropped_without_close_releases_when_collected(
     await _assert_slot_count_free(user_id)
 
 
+@pytest.mark.usefixtures("shell_engine")
 async def test_cleanup_failure_still_releases_the_slot(
     real_service, owner_and_project, db_session: Session, request
 ):

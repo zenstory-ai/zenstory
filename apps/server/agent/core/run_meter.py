@@ -29,6 +29,8 @@ TimingStage = Literal[
     "agent_hook_designer",
     "agent_writer",
     "agent_quality_reviewer",
+    "agent_loop",
+    "compaction",
 ]
 TimingOutcome = Literal["completed", "error", "interrupted"]
 # 工具业务失败按 error_type 计数：只收程序定义的标识符，种类有上限，其余归 other。
@@ -49,6 +51,7 @@ _ROLE_STAGES: dict[str, TimingStage] = {
     "hook_designer": "agent_hook_designer",
     "writer": "agent_writer",
     "quality_reviewer": "agent_quality_reviewer",
+    "loop": "agent_loop",
 }
 
 
@@ -70,6 +73,8 @@ class AgentRunMeter:
     timing_origin: float | None = None
     first_tool_started_ms: float | None = None
     first_body_persisted_ms: float | None = None
+    # 最近一次模型调用的输入 token（含命中缓存的部分）：单循环 agent 据此决定下一轮前是否压缩历史。
+    last_prompt_tokens: int = 0
     _stage_timings: dict[TimingStage, dict[str, float | int]] = field(default_factory=dict)
     _tool_failures: dict[str, _ToolFailureStats] = field(default_factory=dict)
 

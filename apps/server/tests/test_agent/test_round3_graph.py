@@ -16,6 +16,12 @@ from agent.tools.mcp_tools import ToolContext
 from tests.test_agent.body_write_events import edit_file_events
 from tests.test_agent.file_body_resume_helpers import accept_resumes, resumable_target
 
+
+@pytest.fixture(autouse=True)
+def _graph_auto_review_on(monkeypatch):
+    """这些用例覆盖图的自动质检门：缺省已改为关闭（请求不再带生成模式），这里按原行为打开。"""
+    monkeypatch.setenv("AGENT_ENABLE_GRAPH_AUTO_REVIEW", "true")
+
 LONG_TEXT = "第五章的正文。" * 200
 
 

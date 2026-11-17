@@ -29,7 +29,8 @@ from models import (
 )
 from services.core.auth_service import hash_password
 
-pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
+# 外壳用例在图与单循环 agent 两个引擎上各跑一遍（shell_engine，见 tests/conftest.py）。
+pytestmark = pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
 
 
 async def wait_for_stream_start(
@@ -1062,6 +1063,7 @@ class TestAgentServiceProcessStream:
         ).all()
         assert newer_session_messages == []
 
+    @pytest.mark.parametrize("shell_engine", ["graph"], indirect=True)  # 图的上下文组装与运行参数
     async def test_process_stream_passes_runtime_workflow_config(
         self, mock_agent_service, test_user_with_project, db_session: Session, mock_workflow_stream
     ):
@@ -1256,6 +1258,7 @@ class TestAgentServiceProcessStream:
             }
         ]
 
+    @pytest.mark.parametrize("shell_engine", ["graph"], indirect=True)  # 图的上下文组装与运行参数
     async def test_process_stream_pg_offload_branch_initializes_message_manager_before_save(
         self, mock_agent_service, test_user_with_project, db_session: Session
     ):
@@ -1556,6 +1559,7 @@ class TestAgentServiceProcessStream:
         # Usage already accumulated before the cancel (here: routing) is kept.
         assert json.loads(partial_assistant.message_metadata or "{}")["usage"] == routing_usage
 
+    @pytest.mark.parametrize("shell_engine", ["graph"], indirect=True)  # 图的上下文组装与运行参数
     async def test_process_stream_prompt_ledger_counts_embedded_sections_once(
         self, mock_agent_service, test_user_with_project, db_session: Session
     ):
@@ -2099,6 +2103,72 @@ class TestStoppedRoundHistory:
             select(ChatMessage).where(ChatMessage.session_id == assistant.session_id)
         ).all()
         assert sorted(row.role for row in rows) == ["assistant", "user"]
+
+    async def test_stopped_loop_round_saves_a_loop_row_that_replays_with_the_interrupted_note(
+        self, test_user_with_project, db_session: Session, loop_engine
+    ):
+        """单循环 agent（生产默认）被作者停止：补存的行带引擎标记与停止原因，下一轮回放时注明没做完。"""
+        from agent.core.round_outcome import RunOutcome
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+        from agent.loop.history import load_loop_history
+        from agent.service import AgentService
+
+        # 单循环 agent 用真实的上下文解析器渲染本轮请求上下文。
+        service = AgentService()
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+        started = asyncio.Event()
+
+        async def loop_partial_then_hang(_state, **_kwargs):
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "合成的半段回复"})
+            started.set()
+            await asyncio.sleep(3600)
+
+        run_outcome = RunOutcome()
+
+        async def consume():
+            async for _event in service.process_stream(
+                project_id=str(project.id),
+                user_id=str(user.id),
+                message="写第一章",
+                session=db_session,
+                run_outcome=run_outcome,
+            ):
+                pass
+
+        def _fresh_session():
+            return Session(db_session.get_bind())
+
+        with (
+            patch("agent.service.run_loop_agent_streaming", side_effect=loop_partial_then_hang),
+            patch("agent.service.run_writing_workflow_streaming", side_effect=AssertionError("graph must not run")),
+            patch("agent.service.create_session", side_effect=_fresh_session),
+        ):
+            task = asyncio.create_task(consume())
+            await wait_for_stream_start(started, task)
+            run_outcome.stop_kind = "user_stopped"
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            message_id = await run_outcome.wait_message_id(5.0)
+
+        assert message_id is not None
+        db_session.rollback()
+        assistant = db_session.get(ChatMessage, message_id)
+        metadata = json.loads(assistant.message_metadata)
+        assert metadata["engine"] == "loop"
+        assert metadata["stop_reason"] == "user_stopped"
+        assert metadata.get("routing") is None
+        history = load_loop_history(
+            db_session,
+            project_id=str(project.id),
+            user_id=str(user.id),
+            chat_session_id=assistant.session_id,
+        )
+        contents = [item.get("content") for item in history.items]
+        assert contents[0] == "写第一章"
+        assert "合成的半段回复" in contents
+        assert contents[-1] == "（这一轮没做完：作者停止了生成。）"
 
     async def test_retrying_an_unanswered_message_reuses_it(
         self, mock_agent_service, test_user_with_project, db_session: Session, mock_workflow_stream

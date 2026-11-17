@@ -119,13 +119,13 @@ AGENT_ROUTER_STRATEGY = _get_str_env(
     allowed={"llm", "off"},
 )
 
-# Whether writing_graph.py should auto-trigger quality reviewer purely based on
-# writer output length. Default is **True** for backward compatibility (the
-# previous graph behavior always auto-triggered), but can be disabled to reduce
-# extra agent round-trips when the prompts already handle explicit handoffs.
+# Whether writing_graph.py auto-triggers the quality reviewer on writer output length when
+# the request carries no generation_mode. Default **False**: the loop engine replaced the
+# fast/quality switch (the web sends a fixed "fast" only for deploy-skew compatibility), so a
+# rollback to the graph must not add a review + rework round to every turn. An explicit "quality" still enables it.
 AGENT_ENABLE_GRAPH_AUTO_REVIEW = _get_bool_env(
     "AGENT_ENABLE_GRAPH_AUTO_REVIEW",
-    True,
+    False,
 )
 
 # Request-level budget for one POST /agent/stream (cost / runaway safety net).
@@ -161,3 +161,36 @@ AGENT_DRAIN_SHUTDOWN_BUDGET_S = _get_int_env("AGENT_DRAIN_SHUTDOWN_BUDGET_S", 29
 
 # Interval between SSE keep-alive comment frames (": ping") while streaming.
 AGENT_SSE_HEARTBEAT_INTERVAL_S = _get_int_env("AGENT_SSE_HEARTBEAT_INTERVAL_S", 15)
+
+# Chat engine for /agent/stream. "loop" (default): one agent with the writing toolset runs the
+# whole turn over an append-only conversation (agent/loop). "graph": the earlier multi-agent
+# workflow (router → planner / writer / quality_reviewer), kept only as an operational rollback.
+# Read per request so an environment change on restart takes effect without code changes.
+AGENT_ENGINE_LOOP = "loop"
+AGENT_ENGINE_GRAPH = "graph"
+AGENT_ENGINE_CHOICES = frozenset({AGENT_ENGINE_LOOP, AGENT_ENGINE_GRAPH})
+
+
+def agent_engine() -> str:
+    """The configured chat engine (unknown values fall back to the loop)."""
+    return _get_str_env("AGENT_ENGINE", AGENT_ENGINE_LOOP, allowed=set(AGENT_ENGINE_CHOICES))
+
+
+# Loop history compaction (agent/loop/compaction.py), between turns only. When the prompt of
+# the last model call of the previous turn (measured, cached tokens included) exceeds this,
+# the next turn first writes a handoff summary with the same model; the history loader then
+# replays recent author messages + the summary instead of everything before it.
+AGENT_LOOP_COMPACT_AT_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_AT_TOKENS", 600_000)
+# Token budget for the most recent original author messages kept verbatim after compaction.
+AGENT_LOOP_COMPACT_KEEP_USER_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_KEEP_USER_TOKENS", 20_000)
+# Output cap of the summary call (reasoning tokens count against it).
+AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS", 24_000)
+# Upper bound of the history sent to the summary call: older rows are left out beyond it.
+AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS", 900_000)
+# After a skipped compaction (unusable summary or provider error), wait until the measured
+# prompt has grown by this much before trying again.
+AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS", 100_000)
+# Hard bound on the replayed history of a loop run (estimated tokens): when compaction keeps
+# failing, the oldest items are left out so the session degrades instead of exceeding the
+# provider's context window on every turn.
+AGENT_LOOP_RUN_HISTORY_MAX_TOKENS = _get_int_env("AGENT_LOOP_RUN_HISTORY_MAX_TOKENS", 800_000)

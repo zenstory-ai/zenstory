@@ -23,7 +23,7 @@ from models import ChatMessage, ChatSession, File, Project, User
 from services.core.auth_service import hash_password
 from tests.test_agent.test_service import wait_for_stream_start
 
-pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
+pytestmark = pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
 
 
 @pytest.fixture

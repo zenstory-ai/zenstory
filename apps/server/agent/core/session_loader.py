@@ -100,6 +100,7 @@ AUTHOR_EDITS_MAX_FILES = 30
 
 # 工具名 → 面包屑里的动作（读取类只认按 id 精确读取的 query_files）
 _BREADCRUMB_VERBS_ZH = {
+    "write_chapter": "已写入章节",
     "create_file": "已创建文件",
     "edit_file": "已编辑文件",
     "delete_file": "已删除文件",
@@ -107,6 +108,7 @@ _BREADCRUMB_VERBS_ZH = {
     "query_files": "已读取文件",
 }
 _BREADCRUMB_VERBS_EN = {
+    "write_chapter": "Wrote chapter",
     "create_file": "Created file",
     "edit_file": "Edited file",
     "delete_file": "Deleted file",
@@ -115,6 +117,7 @@ _BREADCRUMB_VERBS_EN = {
 }
 # 没有落下结果的工具调用（回合中途断开）：做没做成不知道。
 _BREADCRUMB_UNKNOWN_ZH = {
+    "write_chapter": "写入章节（结果未知）",
     "create_file": "创建文件（结果未知）",
     "edit_file": "编辑文件（结果未知）",
     "delete_file": "删除文件（结果未知）",
@@ -122,6 +125,7 @@ _BREADCRUMB_UNKNOWN_ZH = {
     "query_files": "读取文件（结果未知）",
 }
 _BREADCRUMB_UNKNOWN_EN = {
+    "write_chapter": "Write chapter (outcome unknown)",
     "create_file": "Create file (outcome unknown)",
     "edit_file": "Edit file (outcome unknown)",
     "delete_file": "Delete file (outcome unknown)",
@@ -1195,7 +1199,7 @@ class SessionLoader:
                 continue
 
             unknown = {"outcome_unknown": True} if status == _PENDING_TOOL_STATUS else {}
-            if name in {"create_file", "edit_file", "delete_file", "rename_file"}:
+            if name in {"create_file", "write_chapter", "edit_file", "delete_file", "rename_file"}:
                 actions.append(
                     {
                         "name": name,

@@ -18,6 +18,10 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 
+# 带撤销锚点的 AI 修改卡：edit_file，以及单循环 agent 的整章替换（write_chapter）。
+_UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter"})
+
+
 def _card_undo(call: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """一张 edit_file 卡的结果数据与撤销锚点（结果可能带一层 data）。"""
     result = call.get("result")
@@ -104,7 +108,7 @@ def _mark_locked_card(
         session.rollback()
         return False
     for call in calls:
-        if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") != "edit_file":
+        if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") not in _UNDOABLE_CARD_TOOLS:
             continue
         data, undo = _card_undo(call)
         if (

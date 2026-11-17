@@ -20,7 +20,7 @@ from config.datetime_utils import utcnow
 from models import ChatSession, Project, User
 from services.core.auth_service import hash_password
 
-pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
+pytestmark = pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
 
 
 def _create_user_and_project(db_session: Session) -> tuple[User, Project]:
@@ -576,7 +576,10 @@ class TestProcessStreamLoadsResolvedSession:
         seen_messages: dict[str, str] = {}
 
         async def fake_workflow(state, *_args, **_kwargs):
-            seen_messages[state["session_id"]] = json.dumps(state["messages"], ensure_ascii=False)
+            # 图把历史放在 messages；单循环 agent 放在 history_items（同一会话的往轮行）。
+            seen_messages[state["session_id"]] = json.dumps(
+                [*(state.get("history_items") or []), *state["messages"]], ensure_ascii=False
+            )
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "好的"})
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 

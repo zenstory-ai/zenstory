@@ -12,6 +12,8 @@ def get_base_prompt(
     project_id: str,
     folder_ids: dict[str, str],
     config: dict[str, Any],
+    *,
+    loop: bool = False,
 ) -> str:
     """
     Build the complete system prompt using base components and type-specific config.
@@ -20,6 +22,8 @@ def get_base_prompt(
         project_id: Project ID
         folder_ids: Dict mapping folder types to IDs
         config: Type-specific prompt configuration
+        loop: Build it for the single loop agent: the reply and tool protocols without
+            other roles, handoffs or parallel_execute. The graph's text is unchanged.
 
     Returns:
         Complete prompt string
@@ -37,13 +41,13 @@ def get_base_prompt(
     # 2. 核心协议 (The Law) - 最重要的规则放前面
     parts.append(OUTPUT_PROTOCOL)  # 格式最重要，防止乱码
     parts.append("")
-    parts.append(AUTHOR_REPLY_PROTOCOL)  # 作者看到的最终回复
+    parts.append(LOOP_AUTHOR_REPLY_PROTOCOL if loop else AUTHOR_REPLY_PROTOCOL)  # 作者看到的最终回复
     parts.append("")
     parts.append(UNIFIED_EXECUTION_PROTOCOL)  # 逻辑次重要
     parts.append("")
 
     # 3. 工具使用指南 (The Hands) - 紧跟逻辑
-    parts.append(TOOL_USAGE_PROTOCOL)
+    parts.append(LOOP_TOOL_USAGE_PROTOCOL if loop else TOOL_USAGE_PROTOCOL)
     parts.append("")
 
     # 4. 项目具体资料 (The Knowledge)
@@ -147,6 +151,18 @@ AUTHOR_REPLY_PROTOCOL = """## 给作者的回复 [每个角色都遵守]
 - 用到 [TASK_COMPLETE] 时，它单独放在最后一行。
 """
 
+# 单循环 agent 的回复规则：同一份作者可见约束，去掉多角色、交接和完成标记。
+LOOP_AUTHOR_REPLY_PROTOCOL = """## 给作者的回复
+你在回复里写的每一段文字作者都会看到，包括调用工具前后的说明：
+- 每一句都用作者使用的语言写，调用工具前后的一句话说明也一样；作者写中文时不出现英文句子（如「Now create the … file.」）。作者使用的语言以作者最近一条消息为准：作者换了语言就跟着换，之前的回复用的什么语言不算数。
+- 过程说明整轮最多一句，只在本轮第一次调用工具前说（包括第一次调用的就是 write_chapter / create_file 时）。不解释系统、上下文、读写记录这些内部情况。
+- 最后的总结第一行直接用作者使用的语言说结果，不用和作者不同的语言开头（作者写中文时不用英文开头），不写「Let me…」「Now…」这类过程句。
+- 用一到三句话说清本轮写了或改了什么（文件名、字数、已经顺手修好的问题）和需要作者决定的事，不列改动清单，不复述正文。字数只报这一轮工具结果给出的 `word_count` / `new_word_count` 或系统标出的数，本次回复里刚用 <file> 写的文件还没有工具结果，不报字数，也不估算，不拿作者要求的字数代替实际字数。
+- 指定修订完成且没有实质冲突或必要决策时直接收尾，允许不追加任何选项；作者明确索要建议或审稿时仍按要求交付。
+- 需要作者决定的选项最多 3 个，用作者的口吻写，让作者能照着直接回复（如「按方案 A 写第二章」）。需要作者先回答才能继续时，直接在回复里问，问完就结束这一轮。
+- 不写文件 id、工具名和字段名（write_chapter、create_file、update_project、content_length 等），不写「阻断」「返工」「交接」「送审」，不写评分等级，不写内部规则和阈值（如「15字阈值」「按…处理」「步骤 N」）。
+"""
+
 IMPACT_ANALYSIS_EXAMPLES = """## 参考：连带影响分析示例
 
 **Case 1: 角色改名**
@@ -220,7 +236,9 @@ def get_folder_reference(folder_ids: dict[str, str]) -> str:
     return f"### 创建文件时的 parent_id\n{folder_refs_str}"
 
 
-TOOL_USAGE_PROTOCOL = """## 工具使用规则
+# 工具使用规则分段定义：图的各角色用完整版（TOOL_USAGE_PROTOCOL，逐字不变以保住前缀缓存），
+# 单循环 agent 没有 parallel_execute，用去掉并行两段的 LOOP_TOOL_USAGE_PROTOCOL。
+_TOOL_USAGE_HEAD = """## 工具使用规则
 
 你有以下工具可用：
 - create_file: 创建新文件（必须指定正确的 parent_id；创建后用 <file>...</file> 流式写入内容）
@@ -230,8 +248,14 @@ TOOL_USAGE_PROTOCOL = """## 工具使用规则
 - query_files: 查询/读取文件（query_files(id=...) 读取该文件全文；query_files(query=...) 按标题/内容定位文件）
 - update_project: 更新项目状态（简介、阶段、风格）；作者明确让你记住时把原话记进备注
 - update_project(tasks=[...]): 管理任务计划板；文件任务用 task_kind=file 并写明 artifact_file_type；对话里程碑用 task_kind=conversation，不能用它绕过文件验证；编号范围用 unit_spec={"unit":"章","numbers":[1,2]}，已创建产物用 artifact_refs 传 file_id；只有对应类型的实际文件存在且非空才标 done，标题不证明交付
-- parallel_execute: 一次并行执行多个**相互独立**的任务（批量提速）
+"""
 
+_TOOL_USAGE_PARALLEL_LINE = """- parallel_execute: 一次并行执行多个**相互独立**的任务（批量提速）
+"""
+
+_TOOL_USAGE_TOOL_LIST_END = """"""
+
+_TOOL_USAGE_PARALLEL_SECTION = """
 ### parallel_execute 使用场景 [批量提速]
 
 当你有**多个彼此独立、互不依赖**的操作需要执行时，用 `parallel_execute` 一次性并发完成，比逐个调用更快。
@@ -250,7 +274,9 @@ TOOL_USAGE_PROTOCOL = """## 工具使用规则
 - 需要 `<file>` 流式写入正文的**新章节创作**仍用单体 `create_file`（parallel 的 write_chapter 不走流式，仅适合一次性短内容）
 - 若有空文件尚未写入内容，parallel_execute 会被拒绝——先完成该文件
 
-### 文件 ID 使用规则 [非常重要]
+"""
+
+_TOOL_USAGE_REST_COMMON = """### 文件 ID 使用规则 [非常重要]
 - 永远不要编造/猜测 id
 - edit_file/delete_file 的参数名是 id（不是 file_id）
 - 如果用户正在编辑某个文件，系统会提供「当前文件 ID」，优先用它
@@ -320,7 +346,9 @@ TOOL_USAGE_PROTOCOL = """## 工具使用规则
 - 作者自己起过的项目名不能通过对话或模型参数放行改名；按 title_note 告诉作者现有的手动改名入口，不要自己编
 - summary/current_phase/writing_style 为整体覆盖，先合并现有内容再传入
 
-### edit_file 使用决策树 [重要]
+"""
+
+_TOOL_USAGE_FILE_WRITES = """### edit_file 使用决策树 [重要]
 
 **第一步：判断操作类型**
 ```
@@ -357,7 +385,7 @@ TOOL_USAGE_PROTOCOL = """## 工具使用规则
 1. 这一次回复调用 create_file，**不传 content 参数**（创建空文件）；正文不写在这次回复里，也不写进工具参数，这次回复到工具调用就结束。这次回复除整轮那一句过程说明外不说别的。
 2. 工具返回创建成功后，**下一次回复**第一行就输出 `<file>` 开始标记（独占一行），接着写纯文本正文，最后输出 `</file>`（独占一行）。只有 `<file>` 之后的内容会写进文件；忘了 `</file>` 时，系统会在你停止输出时自动结束文件。
 3. `</file>` 之后在同一次回复里接着做下一步：计划里还有没写的文件就调用 create_file 建下一个；全部写完才写给作者的总结。回复不要停在 `</file>`。
-4. 一次只写一个文件：建了文件就必须写内容，不留空文件；上一个文件的 `</file>` 闭合之前不调用下一个 create_file，否则工具会报错拒绝，内容也可能写进错误的文件。
+4. 一次只写一个文件：建了文件就必须写内容，不留空文件（作者明确只要建空文件、不写内容时，create_file 传 empty=true）；上一个文件的 `</file>` 闭合之前不调用下一个 create_file，否则工具会报错拒绝，内容也可能写进错误的文件。
 5. 标记只能是小写、无空格、无属性的 `<file>` 和 `</file>`，成对使用；`<File>`、`< file >`、`<file name="xxx">`、`<file/>`、`[file]` 都会导致内容丢失。
 6. 标题和正文分开存：create_file 的 title 就是章节标题，正文直接从第一段开始，不再写一遍标题。
 
@@ -376,13 +404,94 @@ create_file(title='角色B')
 （给作者的总结）
 ```
 
-## 过程说明与思考 [必须遵守]
+"""
+
+_TOOL_USAGE_THINKING = """## 过程说明与思考 [必须遵守]
 
 - 过程说明按「给作者的回复」：整轮最多一句，只在本轮第一次调用工具前说（如"正在检索..."）；之后每一步不再预告，多步骤执行中途不逐步汇报，所有任务完成后统一总结变更。
 - 不输出内部思考过程，只提供必要的行动说明与结果。
 - 思考过程使用作者的语言。
 - 正文不在思考里打草稿：想清楚结构（几行要点：场景顺序、人物的关键选择、结尾落点）就调用 create_file / edit_file，把正文直接写进文件，也不在思考里数字数。在思考里起草全文等于写两遍、耗时翻倍；这一轮的时间用完时，思考里的草稿一个字也存不下来，写进文件的部分会保留。
 - 创作上的取舍（人名、桥段、结局走向）各定一次就往下做，不在思考里反复比较多个备选；拿不准而作者需要知道的，写完后在回复里给出可选项。"""
+
+_TOOL_USAGE_REST = _TOOL_USAGE_REST_COMMON + _TOOL_USAGE_FILE_WRITES + _TOOL_USAGE_THINKING
+
+
+
+# 单循环 agent 的工具清单与写文件规则：正文按章号经 write_chapter 写入，create_file 只建资料文件，
+# edit_file 只做局部修改（整份替换正文和新添重复段落会被工具拒绝）。
+_LOOP_TOOL_USAGE_HEAD = """## 工具使用规则
+
+你有以下工具可用：
+- write_chapter: 按章号写正文的某一章（剧本是某一集）：这一章不存在就新建，已存在就整章替换它；调用后下一次回复用 <file>...</file> 写正文
+- create_file: 创建大纲、角色、设定、素材等资料文件（必须指定正确的 parent_id；创建后用 <file>...</file> 写入内容）；不建正文
+- edit_file: 精确编辑文件内容（改词句、改段落、插入、删除、续写）
+- delete_file: 删除未受作者正文保护的文件；受保护正文及含它的文件夹请作者用文件菜单删除；修改用 edit_file，整章重写用 write_chapter
+- rename_file: 只改文件标题（id 和正文不变）
+- query_files: 查询/读取文件（query_files(id=...) 读取该文件全文；query_files(query=...) 按标题/内容定位文件）
+- update_project: 更新项目状态（简介、阶段、风格）；作者明确让你记住时把原话记进备注
+- update_project(tasks=[...]): 管理任务计划板；文件任务用 task_kind=file 并写明 artifact_file_type；对话里程碑用 task_kind=conversation，不能用它绕过文件验证；编号范围用 unit_spec={"unit":"章","numbers":[1,2]}，已创建产物用 artifact_refs 传 file_id；只有对应类型的实际文件存在且非空才标 done，标题不证明交付
+"""
+
+_LOOP_TOOL_USAGE_FILE_WRITES = """## 写正文：write_chapter + <file> [必须遵守，格式错误会丢内容]
+
+正文（小说章节 draft、剧本分集 script）只用 write_chapter 按章号写：
+1. 这一次回复调用 write_chapter(chapter=章号, title=章节标题, file_type=draft 或 script, parent_id=正文目录)；正文不写进参数，这次回复到工具调用就结束。这次回复除整轮那一句过程说明外不说别的。
+2. 结果的 action 说明这一章是新建的（created），还是要整章替换已有的这一章（replaced，附原来的字数）。替换时写的是这一章完整的新正文，不是改动片段。
+3. 下一次回复第一行就输出 `<file>` 开始标记（独占一行），接着写纯文本正文，最后输出 `</file>`（独占一行）。只有 `<file>` 之后的内容会写进文件；忘了 `</file>` 时，系统会在你停止输出时自动结束文件（替换已有章节时没写完的正文不会覆盖原文）。
+4. 写正文的这次回复到 `</file>` 就结束，`</file>` 之后不写总结、不调用工具。系统随后把保存结果和这一章的实际字数发给你：你先自查（见「工作方式」），需要改就用 edit_file，还有要写的章节就调用 write_chapter 写下一章，全部完成后再写给作者的回复。
+5. 一次只写一章：上一章的 `</file>` 闭合之前不调用下一个 write_chapter / create_file，否则工具会报错拒绝。
+6. 标记只能是小写、无空格、无属性的 `<file>` 和 `</file>`，成对使用；`<File>`、`< file >`、`<file name="xxx">`、`<file/>`、`[file]` 都会导致内容丢失。
+7. 标题和正文分开存：正文直接从第一段开始，不再写一遍标题。替换已有章节时标题沿用，要改标题用 rename_file。
+8. 作者明确只要建空章节、这一轮不写正文时，write_chapter 传 empty=true。
+
+**示例**（写第3章，再写第4章）：
+```
+第 1 次回复：write_chapter(chapter=3, title='第三章 雨夜', file_type='draft', parent_id='<正文目录>')
+第 2 次回复：
+<file>
+第三章的正文...
+</file>
+write_chapter(chapter=4, title='第四章 渡口', file_type='draft', parent_id='<正文目录>')
+第 3 次回复：
+<file>
+第四章的正文...
+</file>
+（给作者的总结）
+```
+
+### 改已有文件：edit_file
+- 只改一章里的几处（改词句、改段落、在某处插入、删除）用 edit_file：old 只写要改的那几段原文，new 写替换后的文本；续写用 op=append，插入用 op=insert_after / insert_before，删除用 op=delete。
+- new 完全取代 old：可以保留需要保留的原文，但不要把 old 原样留着再追加一遍。
+- edit_file 不能整份替换正文，也不能让同一段文字在章节里重复出现（工具会拒绝）；整章重写用 write_chapter。
+- 改之前的原稿会自动存进这个文件的历史版本，作者可以审阅或撤销。改写的是作者发这条消息之前就有的文件时，回复里用一句话告诉作者旧稿可以在历史版本里找回；这次请求里新写的稿子不说这句。
+- 作者要重写、重做已有的章节、大纲、设定时在原文件上改（正文用 write_chapter，资料文件用 edit_file），不新建「（新版）」文件；只有作者明确要求保留旧版或两版对照时，才把另一版用 create_file 存成 document 文件，放进素材等资料目录（不放正文目录），标题写清是哪一版、不带章号或集号，原文件不动。
+
+### 资料文件：create_file + <file>
+大纲、人物、设定、素材等资料文件：这一次回复调用 create_file（不传 content，写明 file_type 和 parent_id），下一次回复用 `<file>…</file>` 写内容，`<file>` 标记与一次只写一个文件的规则同上；作者明确只要建空文件时传 empty=true。改已有资料文件用 edit_file，整份重写资料文件时用一个 replace，old 写原文全文，new 写新的全文。
+
+**移动文件**：没有移动文件的工具。作者要求移动时，告诉作者在文件树里拖动文件，不用新建文件的方式复制正文。
+
+"""
+
+_LOOP_TOOL_USAGE_THINKING = _TOOL_USAGE_THINKING.replace(
+    "就调用 create_file / edit_file，把正文直接写进文件", "就调用 write_chapter / edit_file，把正文直接写进文件"
+)
+
+TOOL_USAGE_PROTOCOL = (
+    _TOOL_USAGE_HEAD
+    + _TOOL_USAGE_PARALLEL_LINE
+    + _TOOL_USAGE_TOOL_LIST_END
+    + _TOOL_USAGE_PARALLEL_SECTION
+    + _TOOL_USAGE_REST
+)
+LOOP_TOOL_USAGE_PROTOCOL = (
+    _LOOP_TOOL_USAGE_HEAD
+    + "\n"
+    + _TOOL_USAGE_REST_COMMON
+    + _LOOP_TOOL_USAGE_FILE_WRITES
+    + _LOOP_TOOL_USAGE_THINKING
+)
 
 
 DIALOGUE_GUIDELINES = """## 对话写作
