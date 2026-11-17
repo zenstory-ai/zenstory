@@ -549,15 +549,9 @@ class StreamAdapter:
             # LLM 中途出错时 runner 不发 MESSAGE_END，进行中的 <file> 捕获不会在
             # agent 边界收尾：先把已串流的正文按截断补全落库（沿用覆盖保护），
             # 再以 error 帧结束，避免只留下空文件。
-            async for sse_event in self._flush_capture_and_held_reply():
+            async for sse_event in self._flush_before_error():
                 yield sse_event
             already_failed = self._fatal_stream_error
-            pending = self._pending_file_write
-            if not already_failed and pending is not None and pending.replace_card:
-                # 出错结束这一轮，没写成（或截断补全被拒）的整章替换不会再重试；这一帧之后适配器不再
-                # 处理事件，引擎收尾的「未保存」说明到不了作者，这里先如实说一次。
-                for sse_event in self._rewrite_not_saved_events():
-                    yield sse_event
             self._fatal_stream_error = True
             if not already_failed:
                 info = stream_error_from_event_data(data)
@@ -992,6 +986,16 @@ class StreamAdapter:
             rolled_back_count=len(rolled_back),
             candidate_count=len(targets),
         )
+
+    async def _flush_before_error(self) -> AsyncIterator[SSEEvent]:
+        """出错帧之前：收尾进行中的捕获与暂扣的回复；还有待写的整章替换（没写成或截断补全被拒）时，
+        它不会再重试，出错帧之后适配器不再处理事件、引擎收尾的「未保存」说明到不了作者，这里如实说一次。"""
+        async for sse_event in self._flush_capture_and_held_reply():
+            yield sse_event
+        pending = self._pending_file_write
+        if not self._fatal_stream_error and pending is not None and pending.replace_card:
+            for sse_event in self._rewrite_not_saved_events():
+                yield sse_event
 
     def _rewrite_not_saved_events(self) -> list[SSEEvent]:
         """「改写没有保存、原文不变」的固定说明（与引擎作废整章替换时同一份文字）。"""
