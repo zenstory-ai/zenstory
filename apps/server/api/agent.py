@@ -1055,7 +1055,12 @@ async def stream_request(
             # 正常收尾：先结算，退还真正落库后才告诉前端「不计入」。
             billing_reason, _, refund_applied = await _settle_billing()
             if refund_applied:
-                yield quota_refunded_frame(billing_reason)
+                # 出错 / 失控被退还的一轮同停止路径：这一轮建好还空着的文件一并移除（残稿补存
+                # 落定、交回消息 id 之后才删；等不到就保留）。
+                candidates = run_outcome.removable(tracker.removable_placeholders())
+                if candidates and await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S):
+                    removed_files = await _offload(remove_empty_placeholders, body.project_id, candidates)
+                yield quota_refunded_frame(billing_reason, removed_files)
         except StreamStoppedByUser:
             # 作者点了「停止生成」：运行已按取消路径收尾（后台落库部分历史）。
             # 连接还开着，补发停止卡片与 done（带这一轮助手消息的 id），结算后

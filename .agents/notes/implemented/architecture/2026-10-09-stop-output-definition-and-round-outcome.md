@@ -39,6 +39,7 @@ Status: implemented
 - 一句不到 60 字的完整回答之后出错 / 超时：计费，和之前（任何非空正文都算产出）一样。
 - 只读了文件、想了、建了空章节、或旁白之后去调工具时出错 / 超时：退还。之前这类一轮因为那句旁白或空 `create_file` 计费；作者什么也没拿到，退还对作者是对的，成本由每日成本兜底封住。
 - 旁白刚说完、工具调用还没发出就出错，和「短回答之后出错」分不出来，按后者计费（与之前相同）。
+- （2026-11-17 补）本轮开始写的文件还在等正文（新建的空文件没收到正文、或整章替换还没落库）时出错 / 超时，最后那段文字是适配器扣住的 `<file>` 引子，不记 `ended_on_reply`，照样退还；正常收尾被退还的一轮也像停止路径一样移除空白占位文件。见 [文件还在等正文时出错的一轮退还](../bug-fix/2026-11-17-error-while-file-body-pending-refunds.md)。
 - 作者停止、这一轮结束前断线仍只看 `produced_output`（P1-2），不看 `ended_on_reply`。前端 `lib/agentRoundProgress.ts` 用同一套规则（`isWriteToolResult`、`createProseCounter`，阈值同为 60），用于停止说明、离开确认和是否请求建议。正文分段也和服务端 `_SEGMENT_BOUNDARY_EVENTS` 一致：工具调用 / 工具结果、交接、agent 切换、新建文件、并行批次开始都让计数从零开始（流式气泡里前后两段可能仍显示成一段，所以 ChatPanel 单独记偏移；`useAgentStream` 在转发交接、agent 切换、新建文件、并行开始之前先把缓冲的正文交出去，计数不会把边界前的字算到边界后）。
 
 ### 退还时移除这一轮的空白占位文件（`agent/core/round_outcome.remove_empty_placeholders`）

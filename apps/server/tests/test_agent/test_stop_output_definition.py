@@ -250,6 +250,47 @@ def test_error_after_narration_and_reads_is_refunded():
     assert _fail(tracker) == ("internal_error", True)
 
 
+_PREAMBLE = "好的，我来为这个设定写下完整的内容，先从世界观的"
+
+
+def _write_chapter_replaced(file_id: str) -> str:
+    data = {"id": file_id, "title": "第1章", "action": "replaced", "original_content_length": 3000}
+    return _sse("tool_result", {"tool_name": "write_chapter", "status": "success", "data": data})
+
+
+@pytest.mark.parametrize(
+    "target",
+    [_create_file("lore"), _write_chapter_replaced("ch1")],
+    ids=["new_empty_file", "whole_chapter_replacement"],
+)
+def test_error_while_a_file_body_is_pending_is_refunded_even_after_its_preamble(target):
+    """文件建好（或定位了整章替换）、正文还没写进去时出错：适配器扣着的 ``<file>`` 引子
+    在 error 帧前才放出，作者没有先读到一段回复，这一轮什么也没交付，退还。"""
+    tracker = _tracker(
+        _sse("tool_call", {"tool_name": "create_file", "arguments": {}}),
+        target,
+        _sse("content", {"text": _PREAMBLE}),
+        _error(),
+    )
+    assert tracker.produced_output is False
+    assert tracker.ended_on_reply is False
+    assert _fail(tracker) == ("internal_error", True)
+    assert _deadline(tracker) == ("run_deadline_exceeded", True)
+
+
+def test_short_answer_after_the_file_body_landed_is_still_a_reply():
+    """正文已经写进新文件之后再给作者一句短回答、然后出错：照旧按回复计费。"""
+    tracker = _tracker(
+        _create_file("ch1"),
+        _sse("file_content", {"file_id": "ch1", "chunk": "雨还在下。"}),
+        _sse("tool_result", {"tool_name": "query_files", "status": "success"}),
+        _sse("content", {"text": _SHORT_ANSWER}),
+        _error(),
+    )
+    assert tracker.ended_on_reply is True
+    assert _fail(tracker) == ("error_after_output", False)
+
+
 def test_deadline_after_only_reads_is_refunded_but_after_a_reply_is_charged():
     reads = _tracker(
         _sse("tool_call", {"tool_name": "query_files"}),
