@@ -17,7 +17,7 @@
  * - Internationalization support via react-i18next
  */
 
-import React, { useCallback, useContext } from 'react';
+import React, { useCallback, useContext, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../lib/i18n';
 import {
@@ -44,7 +44,8 @@ import {
   Layers,
 } from 'lucide-react';
 import type { Conflict, FileEditUndoTarget } from '../types';
-import { UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
+import { UndoBlockedContext, UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
+import { readFileEditUndoTarget, readWriteChapterOutcome, type WriteChapterOutcome } from '../lib/aiWriteCards';
 import { countWords } from '../lib/documentChunker';
 import { sanitizeAgentText } from '../lib/agentDisplayName';
 import { RememberedNotes } from './RememberedNotes';
@@ -52,36 +53,6 @@ import { RememberedNotes } from './RememberedNotes';
 const quote = (text: string) => {
   const isZh = i18n.language === 'zh';
   return `${isZh ? '「' : '"'}${text}${isZh ? '」' : '"'}`;
-};
-
-const isValidUndoTimestamp = (value: unknown): value is string => {
-  if (typeof value !== 'string') return false;
-  const match = value.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/,
-  );
-  if (!match) return false;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const hour = Number(match[4]);
-  const minute = Number(match[5]);
-  const second = Number(match[6]);
-  if (year < 1 || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) {
-    return false;
-  }
-
-  const isLeapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-  const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  if (day < 1 || day > daysInMonth[month - 1]) return false;
-
-  const timezone = match[8];
-  if (timezone !== 'Z') {
-    const offsetHour = Number(timezone.slice(1, 3));
-    const offsetMinute = Number(timezone.slice(4, 6));
-    if (offsetHour > 23 || offsetMinute > 59) return false;
-  }
-  return true;
 };
 
 /**
@@ -466,22 +437,28 @@ const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: 
 const readChapterNumber = (value: unknown): number | null =>
   typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
 
-/** 「第3章「雨夜」」 for a write_chapter call or result; the title alone when the number is missing. */
+/** A screenplay's write_chapter units are episodes (the server's `file_type`, not the title text). */
+const isEpisodeFile = (fileType: unknown): boolean => fileType === 'script';
+
+/**
+ * 「第3章「雨夜」」 (「第3集…」 for a script) for a write_chapter call or result; the title alone
+ * when the number is missing.
+ */
 const describeChapter = (
   chapter: unknown,
   title: string | undefined,
   t: (key: string, options?: Record<string, unknown>) => string,
+  fileType?: unknown,
 ): string => {
   const number = readChapterNumber(chapter);
   const parts = [
-    number !== null ? t('chat:tool.chapterNumber', { chapter: number }) : '',
+    number !== null
+      ? t(isEpisodeFile(fileType) ? 'chat:tool.episodeNumber' : 'chat:tool.chapterNumber', { chapter: number })
+      : '',
     title ? quote(title) : '',
   ].filter(Boolean);
   return parts.join(' ');
 };
-
-/** What a write_chapter result did to its chapter, from the server's `action` and saved-body fields. */
-type WriteChapterOutcome = 'created' | 'exists' | 'replacing' | 'replaced' | 'unchanged' | 'not_saved';
 
 const WRITE_CHAPTER_HEADLINES: Record<WriteChapterOutcome, { numbered: string; unnumbered: string }> = {
   created: { numbered: 'chat:tool.chapterCreated', unnumbered: 'chat:tool.chapterCreatedUnnumbered' },
@@ -492,50 +469,17 @@ const WRITE_CHAPTER_HEADLINES: Record<WriteChapterOutcome, { numbered: string; u
   not_saved: { numbered: 'chat:tool.chapterReplaceNotSaved', unnumbered: 'chat:tool.chapterReplaceNotSavedUnnumbered' },
 };
 
-/**
- * `action` 'created' / 'exists' / 'replaced' (StreamAdapter re-sends a replacement's card with
- * `body_saved` and `mutation_applied` once its text is saved or refused). Unknown actions return null.
- */
-const readWriteChapterOutcome = (data: Record<string, unknown>): WriteChapterOutcome | null => {
-  if (data.action === 'created') return 'created';
-  if (data.action === 'exists') return 'exists';
-  if (data.action !== 'replaced') return null;
-  if (data.body_saved === false) return 'not_saved';
-  if (data.body_saved !== true) return 'replacing';
-  return data.mutation_applied === true ? 'replaced' : 'unchanged';
+const WRITE_EPISODE_HEADLINES: Record<WriteChapterOutcome, { numbered: string; unnumbered: string }> = {
+  created: { numbered: 'chat:tool.episodeCreated', unnumbered: 'chat:tool.episodeCreatedUnnumbered' },
+  exists: { numbered: 'chat:tool.episodeExists', unnumbered: 'chat:tool.episodeExistsUnnumbered' },
+  replacing: { numbered: 'chat:tool.episodeReplacing', unnumbered: 'chat:tool.episodeReplacingUnnumbered' },
+  replaced: { numbered: 'chat:tool.episodeReplaced', unnumbered: 'chat:tool.episodeReplacedUnnumbered' },
+  unchanged: { numbered: 'chat:tool.episodeReplaceUnchanged', unnumbered: 'chat:tool.chapterReplaceUnchangedUnnumbered' },
+  not_saved: { numbered: 'chat:tool.episodeReplaceNotSaved', unnumbered: 'chat:tool.episodeReplaceNotSavedUnnumbered' },
 };
 
 const readWordCount = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-
-/** The immutable undo anchor the server attached to an edit_file / write_chapter card, or null. */
-const readFileEditUndoTarget = (
-  data: Record<string, unknown>,
-  chatMessageId: string | undefined,
-  toolUseId: string | undefined,
-): FileEditUndoTarget | null => {
-  const fileId = typeof data.id === 'string' ? data.id.trim() : '';
-  const undo = data.undo && typeof data.undo === 'object' && !Array.isArray(data.undo)
-    ? data.undo as Record<string, unknown>
-    : null;
-  const beforeVersionNumber = undo?.before_version_number;
-  const expectedAfterUpdatedAt = undo?.expected_after_updated_at;
-  if (
-    !fileId
-    || typeof beforeVersionNumber !== 'number'
-    || !Number.isSafeInteger(beforeVersionNumber)
-    || beforeVersionNumber <= 0
-    || !isValidUndoTimestamp(expectedAfterUpdatedAt)
-  ) {
-    return null;
-  }
-  return {
-    fileId,
-    beforeVersionNumber,
-    expectedAfterUpdatedAt,
-    ...(chatMessageId && toolUseId ? { chatMessageId, toolUseId } : {}),
-  };
-};
 
 /** Undone here (live) or as the server recorded on the card (after a refresh). */
 const isFileEditUndone = (
@@ -550,6 +494,49 @@ const isFileEditUndone = (
 const formatWordCount = (words: number, t: (key: string, options?: Record<string, unknown>) => string): string => {
   if (words < 1000) return t('chat:size.characters', { length: words });
   return t('chat:size.kCharacters', { length: (words / 1000).toFixed(1) });
+};
+
+/**
+ * Undo on an AI write card. While a later AI write to the same file is still in place (`blocked`),
+ * undoing this one would be refused as stale: the button is disabled and says to undo that one first.
+ */
+const CardUndoControl: React.FC<{
+  target: FileEditUndoTarget;
+  blocked: boolean;
+  onUndo: (target: FileEditUndoTarget) => void;
+  className?: string;
+}> = ({ target, blocked, onUndo, className = '' }) => {
+  const { t } = useTranslation(['chat', 'common']);
+  const hintId = useId();
+  if (blocked) {
+    return (
+      <>
+        <button
+          type="button"
+          disabled
+          aria-describedby={hintId}
+          className={`flex items-center gap-1 min-h-11 md:min-h-0 shrink-0 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] rounded cursor-not-allowed opacity-60 ${className}`}
+        >
+          <RotateCcw className="w-3 h-3" />
+          {t('common:undo')}
+        </button>
+        <span id={hintId} className="basis-full min-w-0 pl-6 text-xs text-[hsl(var(--text-secondary))]">
+          {t('chat:tool.undoLaterFirst')}
+        </span>
+      </>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onUndo(target)}
+      className={`flex items-center gap-1 min-h-11 md:min-h-0 shrink-0 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors ${className}`}
+      title={t('chat:tool.undo_edit')}
+    >
+      <RotateCcw className="w-3 h-3" />
+      {t('common:undo')}
+    </button>
+  );
 };
 
 const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
@@ -567,6 +554,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 }) => {
   const { t } = useTranslation(['chat', 'common']);
   const undoneEdits = useContext(UndoneEditsContext);
+  const undoBlocked = useContext(UndoBlockedContext);
 
   // Memoize event handlers to prevent unnecessary re-renders
   const handleUndo = useCallback((target: FileEditUndoTarget) => {
@@ -577,12 +565,12 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 
   // Render Tool Call (loading state)
   if (type === 'tool_call' && toolName) {
-    const { icon, label } = getToolDisplayInfo(toolName, t);
-
     // Extract user-friendly info from arguments
     const args = result || {};
     const title = args.title as string | undefined;
     const fileType = args.file_type as string | undefined;
+    const { icon, label: toolLabel } = getToolDisplayInfo(toolName, t);
+    const label = toolName === 'write_chapter' && isEpisodeFile(fileType) ? t('chat:tool.write_episode') : toolLabel;
     
     // Build description based on tool type
     let description = '';
@@ -590,7 +578,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const typeInfo = fileType ? getFileTypeInfo(fileType, t) : null;
       description = typeInfo ? `${typeInfo.label}${quote(title)}` : quote(title);
     } else if (toolName === 'write_chapter') {
-      description = describeChapter(args.chapter, title, t);
+      description = describeChapter(args.chapter, title, t, fileType);
     } else if (toolName === 'query_files') {
       const queryFileType = args.file_type as string | undefined;
       if (queryFileType) {
@@ -727,11 +715,12 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const newWords = readWordCount(data.new_word_count)
         ?? (typeof data.content === 'string' ? countWords(data.content) : null);
       const typeInfo = getFileTypeInfo(fileType, t);
+      const headlines = isEpisodeFile(fileType) ? WRITE_EPISODE_HEADLINES : WRITE_CHAPTER_HEADLINES;
       const headline = outcome === null
-        ? t('chat:tool.write_chapter')
+        ? t(isEpisodeFile(fileType) ? 'chat:tool.write_episode' : 'chat:tool.write_chapter')
         : chapter === null
-          ? t(WRITE_CHAPTER_HEADLINES[outcome].unnumbered)
-          : t(WRITE_CHAPTER_HEADLINES[outcome].numbered, { chapter });
+          ? t(headlines[outcome].unnumbered)
+          : t(headlines[outcome].numbered, { chapter });
       const succeeded = outcome === 'created' || outcome === 'replaced';
       const undoTarget = outcome === 'replaced'
         ? readFileEditUndoTarget(data, chatMessageId, toolUseId)
@@ -761,14 +750,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 {t('chat:tool.edit_undone')}
               </span>
             ) : onUndo && undoTarget && (
-              <button
-                onClick={() => handleUndo(undoTarget)}
-                className="flex items-center gap-1 min-h-11 md:min-h-0 shrink-0 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
-                title={t('chat:tool.undo_edit')}
-              >
-                <RotateCcw className="w-3 h-3" />
-                {t('common:undo')}
-              </button>
+              <CardUndoControl
+                target={undoTarget}
+                blocked={undoBlocked.has(undoneEditKey(undoTarget))}
+                onUndo={handleUndo}
+              />
             )}
             <span className="flex basis-full min-w-0 items-start gap-1 pl-6 text-sm text-[hsl(var(--text-primary))]">
               <span className="shrink-0">{typeInfo.icon}</span>
@@ -1021,14 +1007,12 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 {t('chat:tool.edit_undone')}
               </span>
             ) : onUndo && undoTarget && (
-              <button
-                onClick={() => handleUndo(undoTarget)}
-                className="flex items-center gap-1 min-h-11 md:min-h-0 shrink-0 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors ml-auto"
-                title={t('chat:tool.undo_edit')}
-              >
-                <RotateCcw className="w-3 h-3" />
-                {t('common:undo')}
-              </button>
+              <CardUndoControl
+                target={undoTarget}
+                blocked={undoBlocked.has(undoneEditKey(undoTarget))}
+                onUndo={handleUndo}
+                className="ml-auto"
+              />
             )}
           </div>
           

@@ -669,7 +669,14 @@ export interface DiffReviewState {
   originalContent: string;    // Content before AI edits
   modifiedContent: string;    // Content after AI edits  
   pendingEdits: PendingEdit[];
+  /**
+   * What opened the review: the agent wrote the file (`agent_write`), a save met a newer copy
+   * (`conflict`) or a natural-polish result (`polish`). Absent for other callers.
+   */
+  origin?: DiffReviewOrigin;
 }
+
+export type DiffReviewOrigin = 'agent_write' | 'conflict' | 'polish';
 
 /**
  * Response for rollback operation
@@ -691,6 +698,8 @@ export interface FileEditUndoTarget {
   fileId: string;
   beforeVersionNumber: number;
   expectedAfterUpdatedAt: string;
+  /** SHA-256 (hex) of the text this edit wrote; absent on older cards and servers. */
+  expectedAfterContentSha256?: string;
   /** The saved assistant message and tool call of the card, so the server can mark that card undone. */
   chatMessageId?: string;
   toolUseId?: string;

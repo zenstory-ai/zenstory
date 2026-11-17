@@ -531,7 +531,7 @@ export const fileVersionApi = {
     fileId: string,
     versionNumber: number,
     expectedUpdatedAt?: string,
-    card?: { chatMessageId?: string; toolUseId?: string },
+    card?: { chatMessageId?: string; toolUseId?: string; expectedAfterContentSha256?: string },
   ) => {
     const path = `/api/v1/files/${fileId}/versions/${versionNumber}/rollback`;
     if (expectedUpdatedAt === undefined) return api.post<RollbackResponse>(path);
@@ -539,7 +539,12 @@ export const fileVersionApi = {
     const cardIds = card?.chatMessageId && card.toolUseId
       ? { chat_message_id: card.chatMessageId, tool_use_id: card.toolUseId }
       : {};
-    return api.post<RollbackResponse>(path, { expected_updated_at: expectedUpdatedAt, ...cardIds });
+    // The text that edit wrote: a later change that was undone again leaves the same text on a
+    // newer token, and the server still accepts the undo when the file holds exactly these bytes.
+    const contentHash = card?.expectedAfterContentSha256
+      ? { expected_after_content_sha256: card.expectedAfterContentSha256 }
+      : {};
+    return api.post<RollbackResponse>(path, { expected_updated_at: expectedUpdatedAt, ...cardIds, ...contentHash });
   },
 };
 

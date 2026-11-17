@@ -286,12 +286,17 @@ const mockMessageInput = vi.fn((props: MockMessageInputProps) => (
 ))
 const lastMessageInputProps = () => mockMessageInput.mock.calls.at(-1)?.[0] as MockMessageInputProps
 
-vi.mock('../MessageList', () => ({
-  MessageList: React.forwardRef((props: unknown, ref) => {
-    React.useImperativeHandle(ref, () => ({ scrollToBottom: mockScrollToBottom }))
-    return mockMessageList(props)
-  }),
-}))
+vi.mock('../MessageList', async () => {
+  const { UndoBlockedContext } = await vi.importActual<typeof import('../../lib/undoneEdits')>('../../lib/undoneEdits')
+  return {
+    MessageList: React.forwardRef((props: unknown, ref) => {
+      React.useImperativeHandle(ref, () => ({ scrollToBottom: mockScrollToBottom }))
+      // The undo-blocked set ChatPanel provides to the cards (the real cards read it from context).
+      const undoBlocked = React.useContext(UndoBlockedContext)
+      return mockMessageList({ ...(props as object), undoBlocked })
+    }),
+  }
+})
 
 vi.mock('../MessageInput', () => ({
   MessageInput: (props: MockMessageInputProps) => mockMessageInput(props),
@@ -2517,6 +2522,8 @@ type CapturedStreamOptions = {
   onQuotaRefunded: (kind: 'no_progress' | 'error') => void
 }
 const streamOptions = () => capturedUseAgentStream.options as unknown as CapturedStreamOptions
+const lastUndoBlocked = () =>
+  (mockMessageList.mock.calls.at(-1)?.[0] as { undoBlocked: ReadonlySet<string> }).undoBlocked
 const lastMessageListProps = () => mockMessageList.mock.calls.at(-1)?.[0] as {
   messages?: Array<{ role: string; content: string }>
   onUndo?: (target: { fileId: string; beforeVersionNumber: number; expectedAfterUpdatedAt: string }) => void
@@ -3135,6 +3142,75 @@ describe('ChatPanel new-author flow', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(mockProjectState.triggerEditorRefresh).toHaveBeenCalledWith('file-1')
     vi.unstubAllGlobals()
+  })
+
+  it('keeps a replacement card waiting until the later edit to the same file is undone, then undoes it by content', async () => {
+    const { undoneEditKey } = await import('../../lib/undoneEdits')
+    mockRollback.mockResolvedValue({ snapshot_created: true })
+    const hash = 'c'.repeat(64)
+    const replaceUndo = { before_version_number: 2, expected_after_updated_at: '2026-11-16T10:00:00.000001+00:00', expected_after_content_sha256: hash }
+    const editUndo = { before_version_number: 3, expected_after_updated_at: '2026-11-16T10:00:00.000002+00:00' }
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'a-1', session_id: 'session-1', role: 'assistant', content: '改好了', created_at: '2026-11-16T10:00:01Z', metadata: null,
+      tool_calls: JSON.stringify([
+        { id: 'wc-1', name: 'write_chapter', arguments: {}, status: 'success', result: { data: {
+          id: 'ch-1', action: 'replaced', body_saved: true, mutation_applied: true, chapter: 1, undo: replaceUndo,
+        } } },
+        { id: 'ed-1', name: 'edit_file', arguments: {}, status: 'success', result: { data: { id: 'ch-1', undo: editUndo, details: [] } } },
+      ]),
+    }] as never)
+    render(<ChatPanel />)
+    const replaceTarget = { fileId: 'ch-1', beforeVersionNumber: 2, expectedAfterUpdatedAt: replaceUndo.expected_after_updated_at, expectedAfterContentSha256: hash }
+    const editTarget = { fileId: 'ch-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: editUndo.expected_after_updated_at }
+    await waitFor(() => expect([...lastUndoBlocked()]).toEqual([undoneEditKey(replaceTarget)]))
+
+    act(() => lastMessageListProps().onUndo?.(editTarget))
+    await screen.findByRole('dialog')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    })
+    await waitFor(() => expect(lastUndoBlocked().size).toBe(0))
+
+    act(() => lastMessageListProps().onUndo?.(replaceTarget))
+    await screen.findByRole('dialog')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    })
+    expect(mockRollback).toHaveBeenLastCalledWith('ch-1', 2, replaceUndo.expected_after_updated_at, expect.objectContaining({
+      expectedAfterContentSha256: hash,
+    }))
+  })
+
+  it('offers the earlier card again once the later card turns out to be stale', async () => {
+    const { undoneEditKey } = await import('../../lib/undoneEdits')
+    const { ApiError } = await import('../../lib/apiClient')
+    const hash = 'c'.repeat(64)
+    const replaceUndo = { before_version_number: 2, expected_after_updated_at: '2026-11-16T10:00:00.000001+00:00', expected_after_content_sha256: hash }
+    const editUndo = { before_version_number: 3, expected_after_updated_at: '2026-11-16T10:00:00.000002+00:00' }
+    // The later edit was undone where its card was not recorded, so after a reload it still looks in place.
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'a-1', session_id: 'session-1', role: 'assistant', content: '改好了', created_at: '2026-11-16T10:00:01Z', metadata: null,
+      tool_calls: JSON.stringify([
+        { id: 'wc-1', name: 'write_chapter', arguments: {}, status: 'success', result: { data: {
+          id: 'ch-1', action: 'replaced', body_saved: true, mutation_applied: true, chapter: 1, undo: replaceUndo,
+        } } },
+        { id: 'ed-1', name: 'edit_file', arguments: {}, status: 'success', result: { data: { id: 'ch-1', undo: editUndo, details: [] } } },
+      ]),
+    }] as never)
+    mockRollback.mockRejectedValueOnce(new ApiError(409, 'ERR_RESOURCE_CONFLICT', { reason: 'stale_write', file_id: 'ch-1' }))
+    render(<ChatPanel />)
+    const replaceTarget = { fileId: 'ch-1', beforeVersionNumber: 2, expectedAfterUpdatedAt: replaceUndo.expected_after_updated_at, expectedAfterContentSha256: hash }
+    const editTarget = { fileId: 'ch-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: editUndo.expected_after_updated_at }
+    await waitFor(() => expect([...lastUndoBlocked()]).toEqual([undoneEditKey(replaceTarget)]))
+
+    act(() => lastMessageListProps().onUndo?.(editTarget))
+    await screen.findByRole('dialog')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    })
+    expect(toast.error).toHaveBeenCalledWith('versions:undoStaleWrite')
+    // The server decides the earlier undo (by token or content); the chat no longer holds it back.
+    await waitFor(() => expect(lastUndoBlocked().size).toBe(0))
   })
 
   it('points to the version history when the file changed after the AI edit, instead of 请刷新后重试', async () => {

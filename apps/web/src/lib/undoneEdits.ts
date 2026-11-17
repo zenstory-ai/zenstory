@@ -11,3 +11,9 @@ export const UndoneEditsContext = createContext<ReadonlySet<string>>(new Set());
 export function undoneEditKey(target: Pick<FileEditUndoTarget, 'fileId' | 'beforeVersionNumber' | 'expectedAfterUpdatedAt'>): string {
   return `${target.fileId}\n${target.beforeVersionNumber}\n${target.expectedAfterUpdatedAt}`;
 }
+
+/**
+ * Keys (`undoneEditKey`) of AI write cards that cannot be undone yet: a later AI write to the same
+ * file in this chat is still in place, so the author undoes that one first.
+ */
+export const UndoBlockedContext = createContext<ReadonlySet<string>>(new Set());

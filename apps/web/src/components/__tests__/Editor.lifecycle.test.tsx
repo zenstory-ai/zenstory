@@ -271,7 +271,7 @@ for (const strict of [false, true]) {
           expect(mocks.exit).toHaveBeenCalledTimes(1); expect(textarea()).toHaveValue('Reviewed A');
           expect(mocks.refresh).toHaveBeenCalledTimes(1);
         } else {
-          expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Reviewed A', 'Server A conflict'); expect(mocks.exit).not.toHaveBeenCalled();
+          expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Reviewed A', 'Server A conflict', 'conflict'); expect(mocks.exit).not.toHaveBeenCalled();
           mocks.context.diffReviewState = null; view.redraw(); await settle();
         }
         fireEvent.change(textarea(), { target: { value: 'Next reviewed edit' } }); save(); await settle();
@@ -398,7 +398,7 @@ for (const strict of [false, true]) {
       expect(mocks.update).not.toHaveBeenCalled();
       expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).toBeNull();
       // The author's draft is the left side; the AI's copy is the change to review.
-      expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Local unsaved draft', 'Server AI content');
+      expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Local unsaved draft', 'Server AI content', 'conflict');
       expect(mocks.error).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
       // While the comparison is open the debounce does not race it with the old token.
       mocks.context.aiEditingFileId = null; view.redraw(); await settle();

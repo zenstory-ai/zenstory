@@ -317,6 +317,88 @@ describe('ToolResultCard', () => {
       expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument()
     })
 
+    it.each(['write_chapter', 'edit_file'])(
+      'disables undo on a %s card while a later AI write to its file is in place, and says to undo that first',
+      async (toolName) => {
+        const user = userEvent.setup()
+        const { UndoBlockedContext, undoneEditKey } = await import('../../lib/undoneEdits')
+        const onUndo = vi.fn()
+        const result = toolName === 'write_chapter' ? savedReplace : { data: { id: 'ch-2', undo: savedReplace.undo, details: [] } }
+        const key = undoneEditKey({ fileId: 'ch-2', beforeVersionNumber: 4, expectedAfterUpdatedAt: '2026-11-16T08:00:00Z' })
+        const card = (blocked: ReadonlySet<string>) => (
+          <UndoBlockedContext.Provider value={blocked}>
+            <ToolResultCard type="tool_result" toolName={toolName} result={result} onUndo={onUndo} />
+          </UndoBlockedContext.Provider>
+        )
+        const { rerender } = render(card(new Set([key])))
+        const blockedButton = screen.getByRole('button', { name: /undo/i })
+        expect(blockedButton).toBeDisabled()
+        expect(blockedButton).toHaveAccessibleDescription('chat:tool.undoLaterFirst')
+        await user.click(blockedButton)
+        expect(onUndo).not.toHaveBeenCalled()
+
+        // The later change was undone: this one can be undone now.
+        rerender(card(new Set()))
+        expect(screen.queryByText('chat:tool.undoLaterFirst')).not.toBeInTheDocument()
+        await user.click(screen.getByRole('button', { name: /undo/i }))
+        expect(onUndo).toHaveBeenCalledTimes(1)
+      },
+    )
+
+    it('passes the content hash of a replacement with its undo target', async () => {
+      const user = userEvent.setup()
+      const onUndo = vi.fn()
+      const hash = 'b'.repeat(64)
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="write_chapter"
+          result={{ ...savedReplace, undo: { ...savedReplace.undo, expected_after_content_sha256: hash } }}
+          onUndo={onUndo}
+        />
+      )
+      await user.click(screen.getByRole('button', { name: /undo/i }))
+      expect(onUndo).toHaveBeenCalledWith(expect.objectContaining({ expectedAfterContentSha256: hash }))
+    })
+
+    it('says episode instead of chapter for a screenplay write_chapter card', () => {
+      const { unmount } = render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="write_chapter"
+          result={{ data: { id: 'ep-1', title: '第1集 开场', file_type: 'script', chapter: 1, action: 'created' } }}
+        />
+      )
+      expect(mockT).toHaveBeenCalledWith('chat:tool.episodeCreated', { chapter: 1 })
+      expect(mockT).not.toHaveBeenCalledWith('chat:tool.chapterCreated', expect.anything())
+      unmount()
+
+      mockT.mockClear()
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="write_chapter"
+          result={{ ...savedReplace, file_type: 'script' }}
+        />
+      )
+      expect(mockT).toHaveBeenCalledWith('chat:tool.episodeReplaced', { chapter: 2 })
+      expect(mockT).not.toHaveBeenCalledWith('chat:tool.chapterReplaced', expect.anything())
+    })
+
+    it('names the episode in a pending screenplay write_chapter call', () => {
+      render(
+        <ToolResultCard
+          type="tool_call"
+          toolName="write_chapter"
+          isPending={true}
+          result={{ chapter: 3, title: '雨夜', file_type: 'script' }}
+        />
+      )
+      expect(mockT).toHaveBeenCalledWith('chat:tool.write_episode')
+      expect(mockT).toHaveBeenCalledWith('chat:tool.episodeNumber', { chapter: 3 })
+      expect(mockT).not.toHaveBeenCalledWith('chat:tool.chapterNumber', expect.anything())
+    })
+
     it('does not claim an armed replacement is done or new', () => {
       render(<ToolResultCard type="tool_result" toolName="write_chapter" result={armedReplace} onUndo={vi.fn()} />)
       expect(screen.getByText('chat:tool.chapterReplacing')).toBeInTheDocument()

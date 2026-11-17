@@ -1446,7 +1446,7 @@ describe('useChatStreaming', () => {
         })
 
         expect(result.current.editProgress).toBe(null)
-        expect(deps.enterDiffReview).toHaveBeenCalledWith('file-123', 'old content', 'new content')
+        expect(deps.enterDiffReview).toHaveBeenCalledWith('file-123', 'old content', 'new content', 'agent_write')
         expect(deps.triggerFileTreeRefresh).toHaveBeenCalled()
         expect(deps.setSelectedItem).toHaveBeenCalledWith({
           id: 'file-123',
@@ -1473,7 +1473,7 @@ describe('useChatStreaming', () => {
           callbacks.onFileEditEnd('file-999', 1, 88, 'new content', 'old content', 'outline', 'Edited File')
         })
 
-        expect(deps.enterDiffReview).toHaveBeenCalledWith('file-999', 'old content', 'new content')
+        expect(deps.enterDiffReview).toHaveBeenCalledWith('file-999', 'old content', 'new content', 'agent_write')
         expect(deps.setSelectedItem).toHaveBeenCalledWith({
           id: 'file-999',
           type: 'outline',

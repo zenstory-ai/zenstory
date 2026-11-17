@@ -17,6 +17,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type {
   AgentContextItem,
   ApplyAction,
+  DiffReviewOrigin,
   FileEditOutcome,
   FileType,
   IterationExhaustedFiles,
@@ -402,7 +403,7 @@ export interface UseChatStreamingDependencies {
   /** Returns the latest streaming file ID at callback execution time */
   getCurrentStreamingFileId?: () => string | null;
   /** Function to enter diff review mode */
-  enterDiffReview: (fileId: string, originalContent: string, newContent: string) => void;
+  enterDiffReview: (fileId: string, originalContent: string, newContent: string, origin?: DiffReviewOrigin) => void;
   /** Active UI project ID; scopes file checks during the stream */
   activeProjectId: string | null;
   /**
@@ -1338,7 +1339,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
 
           // If we have both original and new content, enter diff review mode
           if (newContent && originalContent && newContent !== originalContent) {
-            enterDiffReview(fileId, originalContent, newContent);
+            // A second write in this round to a file under review extends that review (ProjectContext).
+            enterDiffReview(fileId, originalContent, newContent, "agent_write");
 
             const currentSelected = getCurrentSelectedItem?.() ?? null;
             const trackedMeta = fileEditMetaByIdRef.current.get(fileId);

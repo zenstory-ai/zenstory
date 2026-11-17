@@ -678,6 +678,25 @@ describe('api', () => {
           { expected_updated_at: '2026-10-06T12:34:56.000Z' },
         )
       })
+
+      it('sends the content hash of the edit with its card when provided', async () => {
+        mockApi.post.mockResolvedValue({ success: true })
+        const hash = 'd'.repeat(64)
+
+        await fileVersionApi.rollback('f1', 7, '2026-10-06T12:34:56.000Z', {
+          chatMessageId: 'm1', toolUseId: 't1', expectedAfterContentSha256: hash,
+        })
+
+        expect(mockApi.post).toHaveBeenCalledWith(
+          '/api/v1/files/f1/versions/7/rollback',
+          {
+            expected_updated_at: '2026-10-06T12:34:56.000Z',
+            chat_message_id: 'm1',
+            tool_use_id: 't1',
+            expected_after_content_sha256: hash,
+          },
+        )
+      })
     })
   })
 
