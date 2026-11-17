@@ -1111,6 +1111,8 @@ async def stream_request(
                 tracker.observe_delivery(stop_frame)
                 yield stop_frame
                 assistant_message_id = await _wait_stop_message_id()
+                # done 帧在结算之前发出：先按等到的保存回执补记写入（停止时才落定的补存或整章替换）。
+                tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
                 delivery = written_files.stopped_delivery(final_word_counts=run_outcome.saved_file_word_counts)
                 if not assistant_message_id:
                     for item in delivery.get("written_files", []):

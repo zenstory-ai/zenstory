@@ -185,22 +185,29 @@ def first_message_hint(project_type: str | None, force_en: bool) -> str:
 
 
 def _stamp_body_receipts(tool_calls: list[dict[str, Any]], receipts: dict[str, int | None]) -> None:
-    """落库前给新建写入的卡片写上正文回执：等正文的 create_file / write_chapter 结果带
+    """落库前给等正文的写入卡片写上正文回执：等正文的 create_file / write_chapter 结果带
     ``body_saved``（StreamAdapter 的保存回执里有字数才是 True）。历史回放据此说明正文是否保存，
-    不再从「当时在等正文」推断「已保存」。只改落库的记录，不发帧，不影响计费；整章替换
-    的卡片由 StreamAdapter 补发的结果带回执，不在这里改。"""
+    不再从「当时在等正文」推断「已保存」。只改落库的记录，不发帧，不影响计费。整章替换的卡片
+    正常由 StreamAdapter 补发的结果带回执（已有 ``body_saved`` 时不改）；停止时在途提交或补存的
+    替换没有补发结果，这里同时写上 ``mutation_applied`` 与 ``new_word_count``。"""
     for call in tool_calls:
         result = call.get("result")
         if (
             call.get("name") not in ("create_file", "write_chapter")
             or call.get("status") != "success"
             or not isinstance(result, dict)
-            or result.get("action") == "replaced"
             or "body_saved" in result
             or not (result.get("awaiting_body") is True or result.get("body_in_reply") is True)
         ):
             continue
-        call["result"] = {**result, "body_saved": isinstance(receipts.get(str(result.get("id") or "")), int)}
+        receipt = receipts.get(str(result.get("id") or ""))
+        saved = isinstance(receipt, int)
+        stamped = {**result, "body_saved": saved}
+        if result.get("action") == "replaced":
+            stamped["mutation_applied"] = saved
+            if saved:
+                stamped["new_word_count"] = receipt
+        call["result"] = stamped
 
 
 def _project_has_ai_reply(session: Session, project_id: str) -> bool:

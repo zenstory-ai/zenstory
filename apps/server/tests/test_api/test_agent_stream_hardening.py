@@ -2653,6 +2653,8 @@ async def test_stop_with_a_short_body_in_the_tail_buffer_is_charged_once_it_is_s
         ToolContext.clear_context()
 
     assert _frame_data(rest, "quota_refunded") is None
+    # 停止卡的 done 帧在结算之前发出：它也按保存回执说明这一轮有产出。
+    assert _frame_data(rest, "done")["produced_output"] is True
     refund.assert_not_called()
     db_session.expire_all()
     assert db_session.get(File, placeholder.id).content.strip() == "第一段。"

@@ -151,3 +151,122 @@ async def test_new_body_save_only_takes_the_title_of_its_own_pending_write():
     assert await adapter._save_new_body(result, other) is True
     assert await adapter._save_new_body(result, PendingFileWrite("chapter-1", "draft", "第1章")) is True
     assert seen == [("chapter-1", "", None), ("chapter-1", "第1章", None)]
+
+
+def _replace_card(file_id: str, original_length: int) -> dict:
+    return {
+        "id": file_id,
+        "action": "replaced",
+        "chapter": 1,
+        "title": "第1章",
+        "awaiting_body": True,
+        "original_content_length": original_length,
+    }
+
+
+def _stamped_replace(card: dict, receipts: dict) -> tuple[dict, dict]:
+    import json
+
+    from agent.loop.history import _tool_output_text
+    from agent.service import _stamp_body_receipts
+
+    calls = [{"name": "write_chapter", "status": "success", "result": dict(card), "id": "call-1"}]
+    _stamp_body_receipts(calls, receipts)
+    return calls[0]["result"], json.loads(_tool_output_text(calls[0]))["data"]
+
+
+@pytest.mark.asyncio
+async def test_empty_chapter_replacement_stopped_mid_stream_is_recorded_as_saved():
+    """空白的已有章节按整章替换写正文，写到一半停止：残稿补存进了这一章，卡片与历史都说已保存。"""
+    adapter = StreamAdapter()
+    card = _replace_card("chapter-0", 0)
+    adapter.set_pending_file_write(
+        "chapter-0", "draft", "第1章", original_content_length=0,
+        baseline_updated_at="v0", replace_tool_use_id="call-1", replace_card=card,
+    )
+    saved = []
+
+    def fake_sync(file_id, content, expected=None):
+        saved.append((file_id, content))
+        return True, True
+
+    adapter._save_file_content_sync = fake_sync
+
+    async def workflow():
+        yield StreamEvent(StreamEventType.TEXT, {"text": "<file>" + BODY * 5})
+        await asyncio.Event().wait()
+
+    async def consume():
+        async for _ in adapter.process_workflow_events(workflow()):
+            pass
+
+    task = asyncio.create_task(consume())
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    receipts = await adapter.settle_aborted_capture()
+
+    assert saved and isinstance(receipts.get("chapter-0"), int)
+    stored, replay = _stamped_replace(card, receipts)
+    assert stored["body_saved"] is True and stored["mutation_applied"] is True
+    assert stored["new_word_count"] == receipts["chapter-0"]
+    assert replay["body_saved"] is True
+
+
+@pytest.mark.asyncio
+async def test_replacement_committing_during_a_stop_is_recorded_as_saved():
+    """整章替换在停止时已经在提交：提交成功的回执写进落库的卡片，历史回放已保存。"""
+    adapter = StreamAdapter()
+    card = _replace_card("chapter-1", 40)
+    adapter.set_pending_file_write(
+        "chapter-1", "draft", "第1章", original_content_length=40,
+        baseline_updated_at="v1", replace_tool_use_id="call-1", replace_card=card,
+    )
+    started, release = threading.Event(), threading.Event()
+
+    def slow_replace(file_id, content, expected):
+        started.set()
+        release.wait(5)
+        return {
+            "mutation_applied": True, "new_content": content, "original_content": "旧稿" * 20,
+            "new_word_count": count_words(content), "undo": {"kind": "version"},
+        }
+
+    adapter._replace_file_body_sync = slow_replace
+
+    async def workflow():
+        yield StreamEvent(StreamEventType.TEXT, {"text": f"<file>{BODY}</file>"})
+        yield StreamEvent(StreamEventType.MESSAGE_END, {"stop_reason": "end_turn"})
+
+    async def consume():
+        async for _ in adapter.process_workflow_events(workflow()):
+            pass
+
+    task = asyncio.create_task(consume())
+    await asyncio.to_thread(started.wait, 2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    release.set()
+    receipts = await adapter.settle_aborted_capture()
+
+    assert receipts == {"chapter-1": count_words(BODY)}
+    stored, replay = _stamped_replace(card, receipts)
+    assert stored["body_saved"] is True and stored["new_word_count"] == count_words(BODY)
+    assert replay["body_saved"] is True
+
+
+def test_unsaved_replacement_receipt_keeps_the_original_wording():
+    from agent.loop.history import _REPLACE_NOT_SAVED_NOTE
+
+    stored, replay = _stamped_replace(_replace_card("chapter-2", 40), {"chapter-2": None})
+    assert stored["body_saved"] is False and stored["mutation_applied"] is False
+    assert "new_word_count" not in stored
+    assert replay["body_saved"] is False and replay["result"] == _REPLACE_NOT_SAVED_NOTE
+
+
+def test_replacement_card_already_carrying_its_result_is_left_alone():
+    card = {**_replace_card("chapter-3", 40), "body_saved": True, "new_word_count": 7, "undo": {"kind": "version"}}
+    stored, _replay = _stamped_replace(card, {"chapter-3": 99})
+    assert stored == card

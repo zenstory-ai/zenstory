@@ -490,6 +490,8 @@ async def test_unclosed_replacement_body_is_retried_without_claiming_it_was_save
     assert "正文已保存" not in retry_input
     assert _content(workspace, three.id).rstrip("\n") == NEW_BODY
     assert _results(outcome, "write_chapter")[-1]["data"]["body_saved"] is True
+    # 重试成功：作者不会先看到「未保存」再看到新稿。
+    assert "未保存" not in outcome.chat_text
 
 
 async def test_unclosed_replacement_body_without_retry_budget_reports_the_original_unchanged(workspace, monkeypatch):
@@ -506,9 +508,11 @@ async def test_unclosed_replacement_body_without_retry_budget_reports_the_origin
         [Reply(text="第三章没有换成，原文没动。")],
     ])
 
-    await _run_loop(workspace, model)
+    outcome = await _run_loop(workspace, model)
 
     assert _content(workspace, three.id) == original
+    # 引擎放弃这次整章替换时给作者同一句固定说明。
+    assert outcome.chat_text.count("本次改写未保存，原文保持不变。") == 1
     followup = _run_input_text(model, 1)
     assert "正文已保存" not in followup
     assert "原文保持不变" in followup

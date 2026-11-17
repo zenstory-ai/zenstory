@@ -18,6 +18,7 @@ from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 
 from .constants import coerce_bool
+from .core.author_facing_text import rewrite_not_saved_notice
 from .core.events import (
     WALL_CLOCK_LIMIT,
     agent_selected_event,
@@ -1600,20 +1601,18 @@ class StreamAdapter:
                 original_content_length=original_length,
                 streamed_length=len(result.final_content),
             )
-            warning_text = "\n\n" + (
-                "This rewrite was not saved. The original text is unchanged."
-                if self.config.language.lower().startswith("en")
-                else "本次改写未保存，原文保持不变。"
-            )
+            if pending is not None and pending.replace_card:
+                # write_chapter 的整章替换：待写绑定与守卫都留着，loop 引擎在 run 边界按结构化事实
+                # 决定为这一章恢复捕获重试（FILE_BODY_RESUME，核对定位时的版本），补不成就作废定位，
+                # 那时由引擎发「未保存」的说明；这里不先说，重试成功时作者不会看到矛盾的两句话。
+                yield file_content_end_event(result.file_id)
+                return
+            warning_text = "\n\n" + rewrite_not_saved_notice(self.config.language.lower().startswith("en"))
             if not self._content_started:
                 yield content_start_event()
                 self._content_started = True
             yield content_event(warning_text)
             yield file_content_end_event(result.file_id)
-            if pending is not None and pending.replace_card:
-                # write_chapter 的整章替换：待写绑定与守卫都留着，loop 引擎在 run 边界按结构化事实
-                # 决定为这一章恢复捕获重试（FILE_BODY_RESUME，核对定位时的版本），补不成就作废定位。
-                return
             self._pending_file_write = None
             self._clear_pending_empty_file_guard(result.file_id)
             return
