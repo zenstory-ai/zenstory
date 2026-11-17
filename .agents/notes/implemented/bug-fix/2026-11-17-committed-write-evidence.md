@@ -29,11 +29,11 @@ Status: implemented
 
 - **整章替换的待写条目不被「已有正文」清掉**：`_clear_settled_pending_empty_files` 跳过 `pending_chapter_replacement` 有值的条目（与 engine 的 `_settle_pending_empty_files` 同一判断）。同一回复里第二次 `write_chapter` 或 `create_file` 按 `pending_empty_file_unwritten` 拒绝，下一段 `<file>` 只落进先定位的那一章。
 - **`write_chapter` 整章替换也认领本条回复里先写出的正文**：定位成功后 `take_reply_prebody()` 为真就 `mark_pending_body_streamed` 并带 `body_in_reply`；StreamAdapter 在 `_arm_chapter_replace` 之后调 `_bind_reply_prebody`，正文走同一条整章替换落库（版本核对、diff、撤销）。下一步说明与 `create_file` 共用 `_body_in_reply_next_step`。
-- **停止时落定的整章替换回执**：API 停止分支在生成 done 帧之前先 `note_saved_receipts`（结算时再记一次，幂等），done 的 `produced_output` 与之后的计费一致。`_stamp_body_receipts` 也处理还没有 `body_saved` 的整章替换卡片：回执是整数时写 `body_saved` / `mutation_applied` 为 true 和 `new_word_count`，否则都为 false；StreamAdapter 已补发结果（已有 `body_saved`）的卡片不改。卡片因此不再停在「替换中」，历史回放如实。
-- **会被重试的整章替换不先说「未保存」**：截断补全的替换被拒绝时 StreamAdapter 只发 `file_content_end`；engine 真正作废定位（不能重试、重试的捕获没恢复、为另一章重试时作废其余定位）时才发固定说明。文字放在 `author_facing_text.rewrite_not_saved_notice`，两处共用。
+- **停止时落定的整章替换回执**：API 停止分支在生成 done 帧之前先 `note_saved_receipts`（结算时再记一次，幂等），done 的 `produced_output` 与之后的计费一致。`_stamp_body_receipts` 也处理还没有 `body_saved` 的整章替换卡片：回执是整数时写 `body_saved` / `mutation_applied` 为 true 和 `new_word_count`，否则都为 false；整章替换的卡片只读按 `write_chapter` 的 tool_use_id 记的回执（StreamAdapter 的 `_replacement_receipts`：正常提交、被拒、停止时在途提交、停止时补存都记），不读文件级回执——文件级回执保留第一次保存，同一章在一轮里先替换成功、又定位替换一次没写成时，后一张卡不能借前一次的回执说成已保存；StreamAdapter 已补发结果（已有 `body_saved`）的卡片不改。卡片因此不再停在「替换中」，历史回放如实。
+- **会被重试的整章替换不先说「未保存」**：截断补全的替换被拒绝时 StreamAdapter 只发 `file_content_end`；engine 真正作废定位（不能重试、重试的捕获没恢复、为另一章重试时作废其余定位）时才发固定说明。文字放在 `author_facing_text.rewrite_not_saved_notice`，两处共用。不会再重试的两条出口也要说：模型出错时适配器发出错帧之后不再处理事件，所以由 StreamAdapter 在出错帧之前、还有待写的整章替换时发这句；工具轮数耗尽时 engine 先作废还在等正文的整章替换并发这句，再做空文件核验（核验会因为原文还在就把它静默清掉）。
 - **续跑输入总以这次的说明结尾**：`_continued_run_input` 只要 `state["user_message"]` 非空就追加，不再和上一轮的说明比较（两次纠偏说明相同的时候，第二次输入原本停在助手回复上）。engine 每个续跑分支都先写好 `user_message`。
 - **CRLF 的独占一行文件标签**：`_LONE_FILE_TAG_LINE_PATTERN` / `_LONE_FILE_START_LINE_PATTERN` 允许行尾 `\r`。
-- **没量到输入大小的停止行不挡住更早的读数**：`load_loop_history` 只在 `prompt_tokens` 为正时取用并停止往前找；遇到带压缩点的行就停（更早的读数是压缩前的大小），都没有时照旧用估算。
+- **没量到输入大小的停止行不挡住更早的读数**：`load_loop_history` 只在 `prompt_tokens` 为正时取用并停止往前找，并加上比它新的行（没量到的停止轮，例如贴了长材料就停止）的正文估算——读数里不含它们；遇到带压缩点的行就停（更早的读数是压缩前的大小），都没有时照旧用估算。
 - **H3：写工具在停止之后才提交**：`edit_file`、`create_file`、`write_chapter`、`delete_file`、`rename_file` 改用共享的 `_offload_write_tool`：线程 future 先登记进 `RunOutcome.inflight_tool_writes`（ToolContext 拿着同一个 list，所以比 `clear_context()` 活得长），用 `asyncio.shield` 等它；正常返回或出错时移除，被取消时留着。service 的取消与出错收尾在交回消息 id 之前调用 `RunOutcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S)`（取消收尾与 `settle_aborted_capture` 并发等，最长一个时限而不是两个相加），把完成的结构化结果按 tool_result 帧的格式记进 `committed_tool_results`；线程出错、超时、结果解析不了的不记。`StreamBillingTracker.note_committed_tool_results` 把它们交给与实时帧相同的规则（`_observe_effects`）：确认的修改、删除、改名算写入，新建的空文件成为占位候选，退还时照常移除。tracker 记下没有结果帧的写工具调用（`write_tool_unanswered()`），API 截停时有这类调用也先等消息 id；停止卡、结算和断线后台退还都在等到之后调用它。
 - **M8：压缩调用计入请求级模型调用预算**：`compact_history(run_meter=...)` 每次摘要调用前 `record_model_call()`，次数仍由 `_ATTEMPT_EFFORTS` 限定；`AGENT_RUN_MAX_MODEL_CALLS` 的注释改为「请求内的模型调用（SDK 轮次加压缩）」。
 
@@ -61,3 +61,5 @@ Status: implemented
 - 新章正文在一次回复里写满输出上限（约 62.7k 输出 token）被截断时，仍按未闭合 EOF 保存并说「已保存」；区分它需要 runner 在 MESSAGE_END 上带一个新的输出被截断标记，单独排期。
 - 整章替换在流式写入时，作者编辑器的自动保存可能先改了这一章：现在作者的保存胜出、AI 的替换按版本冲突拒绝，代价是白写一次。要暂停自动保存就会走 #381 的冲突审阅路径，需要编辑器层的运行时验证，单独处理。
 - `create_file` 复用已有空文件时不认领本条回复里先写出的正文，还没有复现到作者路径，暂不处理。
+- 不是停止 / 断线 / 时限的取消（例如 SDK 取消并行的兄弟工具任务）留在 `inflight_tool_writes` 里的写工具，正常结束时不等它们的结果，那次提交不进计费与写入回执；还没有复现到作者路径，需要时在正常收尾也调用 `settle_inflight_tool_writes`。
+- 作废一次从没写正文的整章替换时，作者会看到固定的「未保存」一句，接着模型按 `_REPLACE_UNSAVED_CONTEXT` 再用一两句话说同一件事。固定句是确定的事实，模型那段还要交代其他章节，暂时两者都留。
