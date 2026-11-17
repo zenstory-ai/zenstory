@@ -2756,6 +2756,34 @@ async def test_upstream_error_before_a_new_file_body_refunds_and_removes_the_bla
 
 
 @pytest.mark.integration
+async def test_refunded_error_round_keeps_the_blank_file_for_a_tab_without_the_stop_contract(
+    client: AsyncClient, db_session
+):
+    """发布前打开的旧标签页（不带停止约定头）收不到 removed_files：照常退还，但不移除空白文件。"""
+    from models import File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+
+    with (
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(_empty_file_then_upstream_error(placeholder), message_id),
+        ),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None, client_stop_contract=None)
+        text = "".join([frame async for frame in response.body_iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    assert _frame_data(text, "quota_refunded") == {"refunded": True, "kind": "error"}
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is False
+
+
+@pytest.mark.integration
 async def test_refunded_error_round_keeps_the_blank_file_when_the_message_id_never_arrives(
     client: AsyncClient, db_session, monkeypatch
 ):

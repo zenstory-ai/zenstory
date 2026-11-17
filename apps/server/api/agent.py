@@ -1061,9 +1061,13 @@ async def stream_request(
             billing_reason, _, refund_applied = await _settle_billing()
             if refund_applied:
                 # 出错 / 失控被退还的一轮同停止路径：这一轮建好还空着的文件一并移除（残稿补存
-                # 落定、交回消息 id 之后才删；等不到就保留）。
+                # 落定、交回消息 id 之后才删；等不到就保留）。旧标签页收不到 removed_files，不移除。
                 candidates = run_outcome.removable(tracker.removable_placeholders())
-                if candidates and await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S):
+                if (
+                    candidates
+                    and knows_stop_contract
+                    and await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
+                ):
                     removed_files = await _offload(remove_empty_placeholders, body.project_id, candidates)
                 yield quota_refunded_frame(billing_reason, removed_files)
         except StreamStoppedByUser:
