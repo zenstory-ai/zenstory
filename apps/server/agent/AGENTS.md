@@ -237,7 +237,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 （按精确 id 非递归删除本请求新建的这份待写文件除外，删成功后守卫随之清除）以 `file_body_pending` 拒绝（`tools_adapter`，按 on_llm_start 记的回复序号判断），
 拒绝后 runner 同步结束当前 run，由单循环 agent 核验并经 `FILE_BODY_RESUME` 安排纠偏轮；这类拒绝不参与同参数熔断，仍计入请求累计上限。
 这次回复（与守卫同一状态，含整章替换与纠偏轮的第一次调用）由 `FailoverChatModel` 以 `tool_choice="none"` 发出（工具清单不变，主备供应商都带上），
-守卫留作供应商不遵守时的兜底；正文保存后的下一次调用照常带工具。[loop-body-reply-without-tools][n-body-no-tools]。SDK tracing 每次 run 都关掉（`RunConfig(tracing_disabled=True)`），不向 OpenAI 导出内容。
+守卫留作供应商不遵守时的兜底；正文保存后的下一次调用照常带工具；文件定为待写之后又收到作者插话（按条数）时这次调用也照常带工具，以便按上面的例外删掉待写文件。[loop-body-reply-without-tools][n-body-no-tools]。SDK tracing 每次 run 都关掉（`RunConfig(tracing_disabled=True)`），不向 OpenAI 导出内容。
 [fast-mode-summary-and-file-body-turn][n-body-turn]、[pending-refusal-returns-to-correction][n-pending-refusal]
 
 | 工具 | 用途 |

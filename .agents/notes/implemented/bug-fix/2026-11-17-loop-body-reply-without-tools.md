@@ -12,8 +12,9 @@
 - 状态在调用时刻正确：SDK 先等 `on_llm_start`（usage_hooks 里 `ToolContext.begin_model_reply()` 推进回复序号）再调模型。建文件的那次回复不受限；正文写出（`on_llm_end` 标记）或保存（StreamAdapter 清掉条目）之后的自查续跑、下一次 `write_chapter` 照常带原来的 `tool_choice`。
 - 工具清单不变（前缀缓存不受影响）。改写发生在供应商循环之前，主供应商失败转到备用时同一份设置照样传过去。
 - 守卫不改，留作供应商忽略 `tool_choice` 时的兜底；其中按 id 删除待写文件的例外实际上不会再被触发，这一批不删。
+- 作者插话例外：文件定为待写之后本请求又收到作者插话（`ToolContext` 记下定为待写时已收到的插话条数，与 service 的 consumed_steering 计数比较，只看条数、不看内容），这次调用不改 `tool_choice`。run 中途在工具边界取出的插话进不了当前 run，要到下一个 run（通常就是 `FILE_BODY_RESUME` 纠偏轮）的输入里才出现；引擎先安排纠偏轮、后处理插话，若这一调用仍限为 `none`，作者「这章不要了」只能被强行写成正文，或白付两次纠偏 run 再由空文件回滚收尾。保留工具后，模型可以按守卫的例外删掉这份待写文件，其余工具仍被守卫拒绝。代价是同一 run 里插话之后的正文调用也不受限（与改动前一样，靠守卫兜底）。
 - 供应商确认：MiniMax-M3.1-Flash 的 OpenAI 兼容接口做过一次带工具、`tool_choice: "none"` 的最小真实流式请求，返回 200、没有工具调用增量、`finish_reason=stop`、正常文字且没有文字形式的工具调用标记；同样请求用 `"auto"` 时会调用工具。DeepSeek 文档写明有工具时 `"none"` 表示不调用工具。
-- 测试：`tests/test_agent/test_llm_failover.py` 覆盖 helper 在各种待写状态下的结果、发到供应商客户端的请求只有正文那次带 `none`、保存后下一次恢复原值、故障转移时备用供应商也带 `none`，以及一次真实 SDK `Runner.run` 里的调用顺序。
+- 测试：`tests/test_agent/test_llm_failover.py` 覆盖 helper 在各种待写状态下的结果、发到供应商客户端的请求只有正文那次带 `none`、保存后下一次恢复原值、故障转移时备用供应商也带 `none`，一次真实 SDK `Runner.run` 里的调用顺序，以及文件定为待写之后有作者插话时纠偏轮第一次调用保留原 `tool_choice`。
 
 ## Alternatives considered
 
@@ -24,5 +25,5 @@
 ## Consequences
 
 - 收益：正文回复在请求层面就不能跳过正文去调工具，省掉被拒调用和纠偏 run，正文更早开始流式显示和保存；不增加请求，工具清单与缓存前缀不变。
-- 代价：这次回复里不能再用 delete_file 取消待写文件；效果依赖供应商遵守 `tool_choice`（不遵守时退回守卫）。模型把工具调用写成文字（被当作协议残片丢弃）不在覆盖范围内，仍按现有纠偏处理。
+- 代价：没有新插话时，这次回复里不能再用 delete_file 取消待写文件；效果依赖供应商遵守 `tool_choice`（不遵守时退回守卫）。模型把工具调用写成文字（被当作协议残片丢弃）不在覆盖范围内，仍按现有纠偏处理。
 - 发布后按同一口径复查：`file_body_pending` 拒绝次数（预期接近 0）、每个待写正文的纠偏 run、协议残片丢弃、受限调用是否仍返回工具调用、这类调用的 `cache_hit_tokens` 与相邻调用对比、`first_output_ms`。

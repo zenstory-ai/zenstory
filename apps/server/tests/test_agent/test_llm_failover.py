@@ -1257,6 +1257,30 @@ def test_no_request_context_or_already_none_keeps_the_settings(request_tools):
     assert sdk_model._body_reply_settings(already) is already
 
 
+@pytest.mark.unit
+def test_author_steering_after_the_file_was_armed_keeps_tools_for_the_body_call(request_tools):
+    """An interjection after the file was armed reaches the correction run's input; the model must
+    still be able to cancel the file (guard's delete exception) instead of being forced to write it."""
+    steering: list[str] = ["先写第一章"]  # the service's consumed_steering list, appended in place
+    request_tools.set_context(session=None, user_id="u", project_id="p", session_id="s", author_steering=steering)
+    request_tools.begin_model_reply()
+    request_tools.set_pending_empty_file("f1", "第一章", "v1")
+    request_tools.begin_model_reply()
+    assert sdk_model._body_reply_settings(_settings("auto")).tool_choice == "none"  # earlier steering only
+
+    steering.append("这章不要了")  # consumed at a tool boundary after the file was armed
+    request_tools.rearm_pending_file_body("f1")
+    request_tools.begin_model_reply()  # first call of the FILE_BODY_RESUME run
+    original = _settings("auto")
+    assert sdk_model._body_reply_settings(original) is original
+
+    # A later file armed after that steering is restricted again.
+    request_tools.clear_pending_empty_file("f1")
+    request_tools.set_pending_empty_file("f2", "第二章", "v2")
+    request_tools.begin_model_reply()
+    assert sdk_model._body_reply_settings(_settings("auto")).tool_choice == "none"
+
+
 def _tool():
     from agents import FunctionTool
 

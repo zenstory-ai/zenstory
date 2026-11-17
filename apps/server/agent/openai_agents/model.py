@@ -153,6 +153,14 @@ def _body_reply_settings(model_settings: Any) -> Any:
     overdue = ToolContext.overdue_file_bodies()
     if not overdue:
         return model_settings
+    if ToolContext.steering_since_file_bodies_armed([entry["id"] for entry in overdue]):
+        # 文件定为待写之后作者又插话了（结构化计数）：这次调用（纠偏轮的输入里带着插话）照常带工具，
+        # 让模型能按守卫的例外删掉这份待写文件；没删就写别的工具时守卫照旧拒绝。
+        log_with_context(
+            logger, 20, "Model call for a pending file body keeps tools after author steering",
+            file_id=overdue[0]["id"],
+        )
+        return model_settings
     log_with_context(
         logger, 20, "Model call for a pending file body: tool calls disabled", file_id=overdue[0]["id"]
     )
