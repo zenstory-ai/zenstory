@@ -50,7 +50,7 @@ agent/
 │   ├── progress_channel.py # 工具调用期间的进度事件通道
 │   ├── output_truncation.py# 输出截断后的续写提示
 │   ├── author_facing_text.py # 作者可见文字整理（AgentTextShaper）
-│   ├── session_loader.py   # 旧行（图写下的）的文字折叠、面包屑、作者手改与本会话写过的文件
+│   ├── session_loader.py   # 旧行（图写下的）的文字折叠、面包屑、作者手改与本会话写过的文件（另有待删的图输入加载器 load_session_and_context）
 │   ├── message_manager.py  # 系统提示构建、本轮上下文的共用分段、历史保存、作者语言判断
 │   ├── stream_processor.py # <file>…</file> 捕获状态机
 │   ├── llm_providers.py    # 主 / 备供应商配置与 OpenAI 兼容客户端
