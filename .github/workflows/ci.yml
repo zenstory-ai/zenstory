@@ -657,7 +657,8 @@ jobs:
 
     - name: Audit the Vercel dependency graph
       working-directory: apps/web
-      run: npm audit --audit-level=high
+      # High/critical advisories fail, except unpatched dev-only ones listed with a review date in audit-allowlist.json.
+      run: node scripts/audit-gate.mjs
 
     - name: Build with the Vercel dependency graph
       working-directory: apps/web
