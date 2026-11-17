@@ -284,6 +284,27 @@ def test_loop_history_ignores_a_compaction_marker_whose_anchor_is_gone(db_sessio
     assert history.items[0] == {"role": "user", "content": "第一条"}
 
 
+@pytest.mark.unit
+def test_loop_history_reads_a_skip_record_carried_from_a_retried_message(db_session):
+    """重试删掉的作者消息上记着「没压缩成」：照样退避，不在重试时马上再付一次摘要。"""
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "第一条", offset=0)
+    _loop_assistant(db_session, chat, "回复", "", offset=1)
+    history = load_loop_history(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+        carried_metadata={"compaction_skipped": {"reason": "provider_error", "at_prompt_tokens": 4321}},
+    )
+    assert history.compaction_skipped_at_tokens == 4321
+    assert history.compacted is False
+    assert [item.get("content") for item in history.items if item.get("role")][:2] == ["第一条", "回复"]
+
+
 def _author_text(turn: int, sentences: int) -> str:
     return "".join(f"第{turn}轮第{i}句：雾港的灯塔又亮了一次，信差把第{i}封信放在窗台上。" for i in range(sentences))
 

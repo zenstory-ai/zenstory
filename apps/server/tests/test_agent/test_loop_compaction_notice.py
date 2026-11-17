@@ -13,6 +13,7 @@ from sqlmodel import Session, select
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.loop.compaction import SKIPPED_PROVIDER_ERROR, CompactionOutcome
+from agent.loop.prompts import SUMMARY_PREFIX
 from models import ChatMessage, ChatSession, Project, User
 from services.core.auth_service import hash_password
 
@@ -57,12 +58,12 @@ def _sse_events(chunks: list[str]) -> list[tuple[str, dict[str, Any]]]:
     return events
 
 
-def _reply_stream():
+def _reply_stream(_state=None):
     yield StreamEvent(type=StreamEventType.TEXT, data={"text": "第二章写好了。"})
     yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
 
-def _error_stream():
+def _error_stream(_state=None):
     yield StreamEvent(type=StreamEventType.ERROR, data={"error": "synthetic provider failure"})
 
 
@@ -81,7 +82,7 @@ async def _run_turn(
 
     def fake_loop(_state, **_kwargs):
         async def stream():
-            for event in events():
+            for event in events(_state):
                 yield event
 
         return stream()
@@ -178,7 +179,7 @@ def _rows(db_session, chat) -> list[ChatMessage]:
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_compaction_then_error_keeps_only_the_author_row_and_retry_reuses_it(db_session, chat_with_history):
-    """压缩成功、随后模型报错：不落一条只有标记的空回复；重试复用作者那条消息。"""
+    """压缩成功、随后模型报错：不落一条只有标记的空回复；重试复用作者那条消息并沿用它上面的压缩点。"""
     user, project, chat = chat_with_history
     first_rows = _rows(db_session, chat)
     record = {
@@ -202,8 +203,16 @@ async def test_compaction_then_error_keeps_only_the_author_row_and_retry_reuses_
     ]
     assert json.loads(rows[-1].message_metadata or "{}")["compaction"]["summary"] == "合成交接摘要：第一章已写完。"
 
-    # 重试（ChatPanel 的「重试」带 retry_unanswered）复用作者那条消息。
-    await _run_turn(db_session, user, project, chat, None, metadata={"retry_unanswered": True})
+    # 重试（ChatPanel 的「重试」带 retry_unanswered）复用作者那条消息，并接过它上面的压缩点。
+    loop_inputs: list[list[dict[str, Any]]] = []
+
+    def capture(state):
+        loop_inputs.append(list(state.get("history_items") or []))
+        return _reply_stream()
+
+    await _run_turn(db_session, user, project, chat, None, events=capture, metadata={"retry_unanswered": True})
+    # 模型收到的历史就是压缩后的：保留的作者原话 + 摘要，不是整段旧对话（压缩点没随删掉的行丢失）。
+    assert [item.get("content") for item in loop_inputs[0]] == ["先写第一章", f"{SUMMARY_PREFIX}合成交接摘要：第一章已写完。"]
 
     rows = _rows(db_session, chat)
     assert [(row.role, row.content) for row in rows] == [
@@ -212,3 +221,5 @@ async def test_compaction_then_error_keeps_only_the_author_row_and_retry_reuses_
         ("user", "续写第二章"),
         ("assistant", "第二章写好了。"),
     ]
+    # 压缩点跟着这一轮的回复落库，之后的轮次照样从它重建。
+    assert json.loads(rows[-1].message_metadata or "{}")["compaction"]["summary"] == "合成交接摘要：第一章已写完。"

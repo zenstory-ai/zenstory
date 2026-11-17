@@ -117,7 +117,8 @@ agent/
   预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。保留的作者原话按 `kept_author_messages`（压缩那一轮实际发出的文字，含截断后缀）原样回放，
   不按行重新截断，前缀跨轮逐字不变（再次压缩时被截断过的原话再截一次，按行重算会挪动截断点、让之后整段历史缓存 miss）；没有这个字段的旧记录照旧按行重算。压缩用量以一条 MESSAGE_END 汇入本轮用量；从不在工具循环中途压缩。
   没压缩成时记 `message_metadata.compaction_skipped`（`reason`、`at_prompt_tokens`），输入再长 `AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS` 才再试；
-  本轮没有 assistant 行时两种记录写在本轮作者 user 行上。
+  本轮没有 assistant 行时两种记录写在本轮作者 user 行上（「对话已压缩」显示事件本身不算回复，压缩后没有任何产出的一轮也只落作者行）；
+  重试（`retry_unanswered`）删掉这条没得到回复的作者行前接过它上面的记录，本轮历史照它重建，本轮没有新记录时随本轮的行落库，不重付摘要。
   作者看得到这一步：摘要调用前发 `thinking`（`step=history_compaction`，「正在压缩对话…」）；成功后发 `history_compacted`（`data.summary`），
   并在本轮 `display_events` 开头记 `{"type": "history_compacted", "data": {}}`，刷新后前端在同一位置回放「对话已压缩」标记，摘要读本行的
   `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件。交给 run 的历史另有估算上限 `AGENT_LOOP_RUN_HISTORY_MAX_TOKENS`（丢最旧的项）。

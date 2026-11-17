@@ -66,6 +66,8 @@ from .loop.history import (
     bounded_items,
     estimate_items_tokens,
     load_loop_history,
+    row_metadata,
+    valid_compaction,
 )
 from .loop.turn_context import LoopTurnContext, build_loop_turn_context
 from .skills import get_skill_context_injector, resolve_selected_skills
@@ -521,6 +523,7 @@ class AgentService:
         message: str,
         metadata: dict[str, Any] | None,
         language: str,
+        carried_compaction: dict[str, Any] | None = None,
     ) -> tuple[LoopHistory, LoopTurnContext, list[dict[str, Any]], str]:
         """单循环 agent 这一轮的输入：跨轮历史、本轮上下文、作者选的技能、系统提示。"""
         from models import ChatSession
@@ -532,7 +535,11 @@ class AgentService:
             if chat_session is not None and chat_session.user_id == user_id and chat_session.project_id == project_id:
                 owned_session_id = chat_session_id
                 history = load_loop_history(
-                    session, project_id=project_id, user_id=user_id, chat_session_id=chat_session_id
+                    session,
+                    project_id=project_id,
+                    user_id=user_id,
+                    chat_session_id=chat_session_id,
+                    carried_metadata=carried_compaction,
                 )
         selected_skills = self._resolve_selected_skills(
             session, user_id=user_id, selected_skill_ids=selected_skill_ids
@@ -695,6 +702,8 @@ class AgentService:
         loop_compaction_record: dict[str, Any] | None = None
         # 本轮没压缩成时的记录：下一轮据此退避，不每轮重付摘要调用。
         loop_compaction_skipped: dict[str, Any] | None = None
+        # 重试时删掉的那条作者消息上的压缩记录：本轮历史照它重建，没有新记录时随本轮落库。
+        retry_carried_compaction: dict[str, Any] = {}
 
         def _loop_extra_metadata() -> dict[str, Any] | None:
             """单循环 agent 的 assistant 行：引擎标记、最后一次模型调用的输入 token、压缩点。"""
@@ -902,10 +911,18 @@ class AgentService:
                 ).first()
                 if tied is not None:
                     return False
+                # 没得到回复的一轮若已压缩（或记下没压缩成），记录在这条消息上：删行前接过来，重试不重付摘要。
+                last_metadata = row_metadata(last)
+                carried = {
+                    key: last_metadata[key]
+                    for key in ("compaction", "compaction_skipped")
+                    if isinstance(last_metadata.get(key), dict)
+                }
                 retry_session.delete(last)
                 chat_session.message_count = max(0, chat_session.message_count - 1)
                 chat_session.updated_at = utcnow()
                 retry_session.commit()
+                retry_carried_compaction.update(carried)
                 return True
 
         async def _drain_late_steering(*, failure_message: str) -> list[str]:
@@ -1032,6 +1049,7 @@ class AgentService:
                 "message": message,
                 "metadata": metadata,
                 "language": lang,
+                "carried_compaction": retry_carried_compaction or None,
             }
             if should_offload_session_work(session):
                 loop_history, loop_turn, selected_skills, system_prompt = await asyncio.to_thread(
@@ -1185,6 +1203,17 @@ class AgentService:
                             else "未能压缩对话，按原样继续",
                             step=HISTORY_COMPACTION_SKIPPED_STEP,
                         ).to_sse()
+                # 重试接过来的记录：本轮历史照它重建，本轮没写新记录时随本轮的行落库，之后的轮次照样读到。
+                carried_record = valid_compaction(retry_carried_compaction)
+                if loop_compaction_record is None and carried_record is not None and loop_history.compacted:
+                    loop_compaction_record = carried_record
+                if (
+                    loop_compaction_record is None
+                    and loop_compaction_skipped is None
+                    and carried_record is None
+                    and isinstance(retry_carried_compaction.get("compaction_skipped"), dict)
+                ):
+                    loop_compaction_skipped = retry_carried_compaction["compaction_skipped"]
                 # 兜底上限：压缩一直不成时丢掉最旧的项，会话降级而不是每轮超出供应商上下文。
                 run_history = list(writing_state.get("history_items") or [])
                 bounded_history = bounded_items(run_history, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS)
