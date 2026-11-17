@@ -1115,3 +1115,59 @@ def test_body_receipts_stamp_only_created_writes_awaiting_a_body():
     assert calls[1]["result"]["body_saved"] is False
     assert "body_saved" not in calls[2]["result"]
     assert "body_saved" not in calls[3]["result"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "card",
+    [
+        {"type": "iteration_exhausted", "layer": "unexecuted_tool_text", "iterationsUsed": 1, "maxIterations": 12,
+         "reason": "回复里写出了工具调用却没有执行"},
+        {"type": "iteration_exhausted", "layer": "collaboration", "iterationsUsed": 12, "maxIterations": 12,
+         "reason": "这一轮已连续运行 12 次，先停在这里。"},
+    ],
+    ids=["unexecuted_tool_text", "collaboration"],
+)
+def test_loop_history_keeps_unfinished_status_cards_next_to_prose(db_session, card):
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "写十章", offset=0)
+    _add(
+        db_session, chat, "assistant", "还在处理。", offset=1,
+        message_metadata=json.dumps({"engine": "loop", "stop_reason": "end_turn",
+                                     "display_events": [{"type": "content", "content": "还在处理。"}],
+                                     "status_cards": [card]}, ensure_ascii=False),
+    )
+
+    history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+
+    contents = [item.get("content") for item in history.items if item.get("role") == "assistant"]
+    assert contents[0] == "还在处理。"
+    assert any("[iteration_exhausted]" in str(c) and f"layer: {card['layer']}" in str(c) for c in contents)
+
+
+@pytest.mark.unit
+def test_loop_history_does_not_double_a_tool_call_limit_that_already_has_a_note(db_session):
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "写十章", offset=0)
+    _add(
+        db_session, chat, "assistant", "写到第三章。", offset=1,
+        message_metadata=json.dumps({
+            "engine": "loop", "stop_reason": "max_turns_exceeded",
+            "display_events": [{"type": "content", "content": "写到第三章。"}],
+            "status_cards": [{"type": "iteration_exhausted", "layer": "tool_call", "iterationsUsed": 60,
+                              "maxIterations": 60}],
+        }, ensure_ascii=False),
+    )
+
+    history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+
+    assert history.items[1:] == [
+        {"role": "assistant", "content": "写到第三章。"},
+        {"role": "assistant", "content": "（这一轮没做完：工具调用轮数到了上限。）"},
+    ]
