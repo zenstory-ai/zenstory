@@ -23,7 +23,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from agent.core import empty_files, task_board_completion
-from agent.core.author_facing_text import AgentTextShaper, text_contains_cjk
+from agent.core.author_facing_text import AgentTextShaper, rewrite_not_saved_notice, text_contains_cjk
 from agent.core.events import UNEXECUTED_TOOL_TEXT_LAYER, WALL_CLOCK_LIMIT
 from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
 from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
@@ -194,12 +194,12 @@ async def _settle_pending_empty_files(
     *,
     can_correct: bool,
     english: bool,
-) -> tuple[str | None, StreamEvent | None, list[StreamEvent]]:
+) -> tuple[str | None, StreamEvent | None, list[StreamEvent], list[StreamEvent]]:
     """run 边界核验仍在等正文的空文件。
 
-    返回 (纠偏说明, FILE_BODY_RESUME 事件, 其余事件)。纠偏说明非空时调用方先把 FILE_BODY_RESUME
-    交给 StreamAdapter（它决定能否为同一个文件恢复捕获），再跑纠偏；补不成时其余事件里是回滚后的
-    ``empty_file_correction`` 卡，调用方以它结束这一轮。
+    返回 (纠偏说明, FILE_BODY_RESUME 事件, 说明事件, 收尾事件)。纠偏说明非空时调用方先把 FILE_BODY_RESUME
+    交给 StreamAdapter（它决定能否为同一个文件恢复捕获），再跑纠偏；说明事件是作废整章替换时给作者的
+    「未保存」文字，照常发出；补不成时收尾事件里是回滚后的 ``empty_file_correction`` 卡，调用方以它结束这一轮。
     """
     unfinished: list[dict[str, str]] = []
     replacements: list[dict[str, str]] = []
@@ -223,20 +223,38 @@ async def _settle_pending_empty_files(
             ToolContext.clear_pending_empty_file(other["file_id"])
         resume = FileBodyResume(file_id=target["file_id"], expected_updated_at=target["updated_at"])
         context = _CHAPTER_REPLACE_RETRY_CONTEXT.format(title=target["title"], file_id=target["file_id"])
-        return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), []
+        notices = [_rewrite_not_saved_event(english)] if replacements[:-1] else []
+        return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), notices, []
     for other in replacements:
         # 补不成：作废这次定位，原文保持不变。
         ToolContext.clear_pending_empty_file(other["file_id"])
+    notices = [_rewrite_not_saved_event(english)] if replacements else []
     if not unfinished:
-        return None, None, []
+        return None, None, notices, []
     if can_correct:
         target = unfinished[-1]
         facts = await asyncio.to_thread(empty_files.resume_target_version, target["file_id"])
         if facts is not None:
             resume = FileBodyResume(file_id=target["file_id"], expected_updated_at=facts[0])
             context = _EMPTY_FILE_CORRECTION_CONTEXT.format(title=target["title"], file_id=target["file_id"])
-            return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), []
-    return None, None, [await _empty_file_card(unfinished, None)]
+            return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), notices, []
+    return None, None, notices, [await _empty_file_card(unfinished, None)]
+
+
+def _abandon_armed_replacements(english: bool) -> list[StreamEvent]:
+    """作废所有还在等正文的整章替换定位（原文不动）；有作废时返回一条「未保存」说明。"""
+    abandoned = False
+    for entry in ToolContext.get_pending_empty_files():
+        file_id = str(entry.get("file_id") or entry.get("id") or "")
+        if ToolContext.pending_chapter_replacement(file_id) is not None:
+            ToolContext.clear_pending_empty_file(file_id)
+            abandoned = True
+    return [_rewrite_not_saved_event(english)] if abandoned else []
+
+
+def _rewrite_not_saved_event(english: bool) -> StreamEvent:
+    """放弃整章替换时给作者的固定说明（与 StreamAdapter 拒绝截断覆盖时同一份文字）。"""
+    return StreamEvent(type=StreamEventType.TEXT, data={"text": "\n\n" + rewrite_not_saved_notice(english)})
 
 
 async def _empty_file_card(unfinished: list[dict[str, str]], resume: FileBodyResume | None) -> StreamEvent:
@@ -403,6 +421,10 @@ async def run_loop_agent_streaming(
                 yield event
 
             if deferred_exhausted is not None:
+                # 耗尽后不再重试：作废还在等正文的整章替换并如实说明（原文没动，不是空文件，不交给空文件核验——
+                # 那里按「文件已有正文」把它静默清掉）。
+                for notice in _abandon_armed_replacements(english):
+                    yield notice
                 file_facts = await empty_files.settle_empty_files_after_exhaustion(LOOP_AGENT_TYPE, english)
                 yield StreamEvent(
                     type=StreamEventType.ITERATION_EXHAUSTED,
@@ -419,9 +441,11 @@ async def run_loop_agent_streaming(
                     and not run_meter.exhausted
                     and not run_meter.past_wrap_up
                 )
-                context, resume_event, settle_events = await _settle_pending_empty_files(
+                context, resume_event, notices, settle_events = await _settle_pending_empty_files(
                     can_correct=can_correct, english=english
                 )
+                for notice in notices:
+                    yield notice
                 if resume_event is not None:
                     yield resume_event
                     resume = resume_event.data["request"]
@@ -433,6 +457,7 @@ async def run_loop_agent_streaming(
                     if ToolContext.pending_chapter_replacement(resume.file_id) is not None:
                         # 整章替换的捕获没能恢复（版本变了等）：作废定位，原文不动，不发空文件卡。
                         ToolContext.clear_pending_empty_file(resume.file_id)
+                        yield _rewrite_not_saved_event(english)
                     pending = [
                         {"file_id": str(e.get("file_id") or ""), "title": str(e.get("title") or "")}
                         for e in ToolContext.get_pending_empty_files()

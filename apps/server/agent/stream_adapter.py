@@ -18,6 +18,7 @@ from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 
 from .constants import coerce_bool
+from .core.author_facing_text import rewrite_not_saved_notice
 from .core.events import (
     WALL_CLOCK_LIMIT,
     agent_selected_event,
@@ -41,7 +42,7 @@ from .core.events import (
 from .core.events import (
     StreamEvent as SSEEvent,
 )
-from .core.round_outcome import RUN_DEADLINE_STOP_REASON
+from .core.round_outcome import RUN_DEADLINE_STOP_REASON, tool_result_status
 from .core.run_meter import AgentRunMeter
 from .core.stream_errors import REPETITION_LOOP_STOP_REASON, error_message_for, stream_error_from_event_data
 from .core.stream_processor import PREBODY_FILE_ID, StreamProcessor, StreamResult, StreamState
@@ -190,8 +191,13 @@ class StreamAdapter:
         self._file_mutated = False
         self._abort_capture: tuple[str, int, asyncio.Task[bool]] | None = None
         # 停止 / 断线时还在提交的整章替换（线程里的提交不会随取消中止）：收尾时等它的真实结果。
-        self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]]] | None = None
+        self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]], str | None] | None = None
         self._saved_file_word_counts: dict[str, int | None] = {}
+        # 整章替换的保存回执，按 write_chapter 的 tool_use_id 记：同一章在一轮里可能先后替换多次，
+        # 文件级回执只说「这个文件存过」，不能拿来证明后一次替换也存了。
+        self._replacement_receipts: dict[str, int | None] = {}
+        # 停止时补存的残稿属于哪一次整章替换（tool_use_id），没有则为 None。
+        self._abort_capture_replace_id: str | None = None
         # 解析器已经收到 </file>、正文完整但还没开始保存的结果（解析器此时已 reset，完整正文只在这里）：
         # 发出它的帧之前登记，_complete_file_write 接手时清掉；停止 / 断线落在中间的 yield 上时
         # settle_aborted_capture 按它补存。
@@ -543,7 +549,7 @@ class StreamAdapter:
             # LLM 中途出错时 runner 不发 MESSAGE_END，进行中的 <file> 捕获不会在
             # agent 边界收尾：先把已串流的正文按截断补全落库（沿用覆盖保护），
             # 再以 error 帧结束，避免只留下空文件。
-            async for sse_event in self._flush_capture_and_held_reply():
+            async for sse_event in self._flush_before_error():
                 yield sse_event
             already_failed = self._fatal_stream_error
             self._fatal_stream_error = True
@@ -635,36 +641,22 @@ class StreamAdapter:
 
             parsed_result = self._parse_tool_result_payload(raw_result)
 
-            if isinstance(parsed_result, dict) and "status" in parsed_result:
-                raw_status = str(parsed_result.get("status") or "").strip().lower()
-                status = "error" if raw_status in {"error", "failed", "failure"} else "success"
-            elif isinstance(parsed_result, dict) and "error" in parsed_result:
-                # Backward compatibility: some tool failures only return {"error": "..."}
-                status = "error"
-            else:
-                status = "success"
+            # 状态口径与停止后的结果回放共用（round_outcome.tool_result_status）。
+            status, result_data = tool_result_status(tool_name, parsed_result)
 
             error: str | None = None
             if isinstance(parsed_result, dict) and parsed_result.get("error") is not None:
                 error = str(parsed_result.get("error"))
 
-            result_data = parsed_result.get("data", parsed_result) if isinstance(parsed_result, dict) else parsed_result
-
-            # edit_file 全部编辑都没生效时必须降级为 error，并补上人话错因。
-            #
-            # 注意**不能**加 `status == "success"` 前置条件：mcp_tools 的
-            # _derive_edit_status 现在已经在 all_failed 时把工具层 status 直接
-            # 置成 "error"，上面解析出的 status 就是 error，加了前置条件这段
-            # 就成了死代码——于是 data 被置 None（status != success）、error 也
-            # 还是 None（工具层没填 error 字段），前端拿到一张既没内容也没原因
-            # 的空白失败卡。判据只看 all_failed。
+            # edit_file 全部编辑都没生效时是 error（tool_result_status 已判），这里补上人话错因。
+            # 判据只看 all_failed，不看工具层 status：mcp_tools 的 _derive_edit_status 在 all_failed 时
+            # 已经把 status 置成 error，若再要求 success，data 会被置 None、error 也为空，前端拿到空白失败卡。
             edit_all_failed = (
                 tool_name == "edit_file"
                 and isinstance(result_data, dict)
                 and bool(result_data.get("all_failed"))
             )
             if edit_all_failed:
-                status = "error"
                 error = error or self._summarize_edit_failures(result_data)
 
             # 工具失败卡片只给作者看人话：工具自带 user_message 时用它替换 error，
@@ -751,6 +743,9 @@ class StreamAdapter:
                         yield event
                 elif action == "replaced" and result_data.get("awaiting_body") is True:
                     async for event in self._arm_chapter_replace(result_data, tool_use_id):
+                        yield event
+                    # 本条回复先写出的正文（body_in_reply）就是这一章的替换稿：走整章替换的落库路径。
+                    async for event in self._bind_reply_prebody(result_data):
                         yield event
 
             # Handle file edit。即便状态被降级为 error（全部编辑失败），
@@ -992,6 +987,25 @@ class StreamAdapter:
             candidate_count=len(targets),
         )
 
+    async def _flush_before_error(self) -> AsyncIterator[SSEEvent]:
+        """出错帧之前：收尾进行中的捕获与暂扣的回复；还有待写的整章替换（没写成或截断补全被拒）时，
+        它不会再重试，出错帧之后适配器不再处理事件、引擎收尾的「未保存」说明到不了作者，这里如实说一次。"""
+        async for sse_event in self._flush_capture_and_held_reply():
+            yield sse_event
+        pending = self._pending_file_write
+        if not self._fatal_stream_error and pending is not None and pending.replace_card:
+            for sse_event in self._rewrite_not_saved_events():
+                yield sse_event
+
+    def _rewrite_not_saved_events(self) -> list[SSEEvent]:
+        """「改写没有保存、原文不变」的固定说明（与引擎作废整章替换时同一份文字）。"""
+        events: list[SSEEvent] = []
+        if not self._content_started:
+            events.append(content_start_event())
+            self._content_started = True
+        events.append(content_event("\n\n" + rewrite_not_saved_notice(self.config.language.lower().startswith("en"))))
+        return events
+
     async def _complete_chapter_replace(self, result: StreamResult, pending: PendingFileWrite) -> AsyncIterator[SSEEvent]:
         """整章替换的正文写完：用 replace_body 提交，发 diff 审阅事件，并把结果补发到同一张卡上。"""
         file_id = pending.file_id
@@ -1100,7 +1114,7 @@ class StreamAdapter:
         except asyncio.CancelledError:
             # 停止 / 断线 / 时限取消了这一轮，但线程里的提交照常进行：记下它，
             # settle_aborted_capture 等它的真实结果写进保存回执（计费与停止说明都按回执）。
-            self._replacement_in_flight = (file_id, content, save)
+            self._replacement_in_flight = (file_id, content, save, pending.replace_tool_use_id)
             _ABORT_SAVE_TASKS.add(save)
             save.add_done_callback(_ABORT_SAVE_TASKS.discard)
             save.add_done_callback(lambda done: done.cancelled() or done.exception())
@@ -1110,23 +1124,27 @@ class StreamAdapter:
                 logger, 30, "Chapter replacement refused", file_id=file_id, error_type=type(exc).__name__
             )
             self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_replacement_receipt(pending.replace_tool_use_id, None)
             return "refused", None
         except Exception as exc:  # noqa: BLE001 - reported to the author as a failed save
             log_with_context(
                 logger, 40, "Failed to save chapter replacement", file_id=file_id, error_type=type(exc).__name__
             )
             self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_replacement_receipt(pending.replace_tool_use_id, None)
             return "failed", None
         if replaced.get("mutation_applied") is True:
             self._file_mutated = True
             if run_meter is not None and content.strip():
                 run_meter.mark_first_body_persisted()
+        words = count_words(str(replaced.get("new_content") or content))
         self._note_body_saved(
             file_id,
-            count_words(str(replaced.get("new_content") or content)),
+            words,
             title=str(replaced.get("title") or pending.title) if complete else None,
             file_type=pending.file_type,
         )
+        self._note_replacement_receipt(pending.replace_tool_use_id, words)
         from agent.tools.mcp_tools import ToolContext
 
         ToolContext.mark_chapter_replacement_saved(file_id)
@@ -1293,6 +1311,11 @@ class StreamAdapter:
             )
         )
         self._abort_capture = (file_id, count_words(content), task)
+        self._abort_capture_replace_id = (
+            pending.replace_tool_use_id
+            if pending is not None and pending.file_id == file_id and pending.replace_card
+            else None
+        )
         _ABORT_SAVE_TASKS.add(task)
         task.add_done_callback(_ABORT_SAVE_TASKS.discard)
         return task
@@ -1345,6 +1368,7 @@ class StreamAdapter:
             self._note_body_saved(file_id, words)
         else:
             self._saved_file_word_counts.setdefault(file_id, None)
+        self._note_replacement_receipt(self._abort_capture_replace_id, words if saved else None)
         return self.get_saved_file_word_counts()
 
     async def _settle_replacement_in_flight(self) -> None:
@@ -1353,7 +1377,7 @@ class StreamAdapter:
         if in_flight is None:
             return
         self._replacement_in_flight = None
-        file_id, content, save = in_flight
+        file_id, content, save, replace_tool_use_id = in_flight
         try:
             replaced = await asyncio.shield(save)
         except Exception as exc:  # noqa: BLE001 - 提交失败：回执记为未保存
@@ -1362,17 +1386,29 @@ class StreamAdapter:
                 file_id=file_id, error_type=type(exc).__name__,
             )
             self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_replacement_receipt(replace_tool_use_id, None)
             return
         if replaced.get("mutation_applied") is not True:
             self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_replacement_receipt(replace_tool_use_id, None)
             return
         self._file_mutated = True
-        self._note_body_saved(file_id, count_words(str(replaced.get("new_content") or content)))
+        words = count_words(str(replaced.get("new_content") or content))
+        self._note_body_saved(file_id, words)
+        self._note_replacement_receipt(replace_tool_use_id, words)
         log_with_context(logger, 20, "Chapter replacement committed after abort", file_id=file_id)
 
     def get_saved_file_word_counts(self) -> dict[str, int | None]:
         """保存回执；收到结束标记或正文 chunk 本身不代表落库成功。"""
         return dict(self._saved_file_word_counts)
+
+    def _note_replacement_receipt(self, replace_tool_use_id: str | None, words: int | None) -> None:
+        if replace_tool_use_id:
+            self._replacement_receipts[replace_tool_use_id] = words
+
+    def get_replacement_receipts(self) -> dict[str, int | None]:
+        """整章替换的保存回执（write_chapter tool_use_id → 字数，None 表示这一次没有保存）。"""
+        return dict(self._replacement_receipts)
 
     async def _flush_capture_and_held_reply(self) -> AsyncIterator[SSEEvent]:
         """出错收尾：进行中的捕获照常收尾，没被认领的正文作为对话放出（都在 error 帧之前）。"""
@@ -1525,7 +1561,7 @@ class StreamAdapter:
             yield sse_event
 
     async def _bind_reply_prebody(self, result_data: Any) -> AsyncIterator[SSEEvent]:
-        """create_file 确认本条回复里先写出的正文就是它的（body_in_reply）：落进这个文件。
+        """create_file / write_chapter 确认本条回复里先写出的正文就是它的（body_in_reply）：落进这个文件。
 
         正文走与 </file> 收尾相同的落库路径（覆盖保护、保存回执、清除待写守卫）。
         工具没确认或这边没有扣着的正文时什么也不做：文件照旧等下一次回复的 <file>，
@@ -1597,20 +1633,15 @@ class StreamAdapter:
                 original_content_length=original_length,
                 streamed_length=len(result.final_content),
             )
-            warning_text = "\n\n" + (
-                "This rewrite was not saved. The original text is unchanged."
-                if self.config.language.lower().startswith("en")
-                else "本次改写未保存，原文保持不变。"
-            )
-            if not self._content_started:
-                yield content_start_event()
-                self._content_started = True
-            yield content_event(warning_text)
-            yield file_content_end_event(result.file_id)
             if pending is not None and pending.replace_card:
                 # write_chapter 的整章替换：待写绑定与守卫都留着，loop 引擎在 run 边界按结构化事实
-                # 决定为这一章恢复捕获重试（FILE_BODY_RESUME，核对定位时的版本），补不成就作废定位。
+                # 决定为这一章恢复捕获重试（FILE_BODY_RESUME，核对定位时的版本），补不成就作废定位，
+                # 那时由引擎发「未保存」的说明；这里不先说，重试成功时作者不会看到矛盾的两句话。
+                yield file_content_end_event(result.file_id)
                 return
+            for sse_event in self._rewrite_not_saved_events():
+                yield sse_event
+            yield file_content_end_event(result.file_id)
             self._pending_file_write = None
             self._clear_pending_empty_file_guard(result.file_id)
             return

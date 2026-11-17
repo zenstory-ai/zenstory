@@ -2653,6 +2653,8 @@ async def test_stop_with_a_short_body_in_the_tail_buffer_is_charged_once_it_is_s
         ToolContext.clear_context()
 
     assert _frame_data(rest, "quota_refunded") is None
+    # 停止卡的 done 帧在结算之前发出：它也按保存回执说明这一轮有产出。
+    assert _frame_data(rest, "done")["produced_output"] is True
     refund.assert_not_called()
     db_session.expire_all()
     assert db_session.get(File, placeholder.id).content.strip() == "第一段。"
@@ -3067,3 +3069,156 @@ async def test_deadline_after_a_clean_done_records_the_completed_receipt(client,
     assert metadata["stop_outcome"]["reason"] == "completed"
     assert metadata["stop_outcome"]["charged"] is True
     assert metadata["stop_outcome"]["no_file_changes"] is True
+
+
+class _InflightWriteService:
+    """像 AgentService：写工具在线程里执行时作者停止，线程在停止之后才提交；
+    取消收尾等登记在 run_outcome 上的在途写工具，再交回助手消息 id。"""
+
+    def __init__(self, project, user, tool: str, args: dict, message_id: str):
+        self._project, self._user = project, user
+        self._tool, self._args = tool, args
+        self._message_id = message_id
+        self.settle_tasks: list[asyncio.Task] = []
+
+    async def process_stream(self, *, run_outcome=None, **_kwargs):
+        from agent.tools import mcp_tools
+        from tests.conftest import TestSessionLocal
+
+        mcp_tools.ToolContext.set_context(
+            session=None, user_id=self._user.id, project_id=self._project.id, session_id="s1",
+            create_session_func=TestSessionLocal, author_message="写第一章", read_snapshots={},
+            inflight_tool_writes=run_outcome.inflight_tool_writes,
+        )
+        try:
+            yield _sse("session_started", {"session_id": "s1"})
+            yield _sse("tool_call", {"tool_name": self._tool, "tool_use_id": "call-1", "arguments": self._args})
+            await getattr(mcp_tools, self._tool)(self._args)
+            await asyncio.sleep(30)
+        finally:
+            mcp_tools.ToolContext.clear_context()
+
+            async def settle() -> None:
+                try:
+                    await run_outcome.settle_inflight_tool_writes(5)
+                finally:
+                    run_outcome.resolve_message_id(self._message_id)
+
+            self.settle_tasks.append(asyncio.get_running_loop().create_task(settle()))
+
+
+async def _stop_while_a_write_tool_thread_runs(db_session, user, project, service, release):
+    response = await _stream(db_session, user, project, None)
+    iterator = response.body_iterator
+    for _ in range(2):
+        await iterator.__anext__()
+    await asyncio.sleep(0.05)
+    await agent_api.stop_stream(
+        body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+        current_user=user,
+        _rate_limit=0,
+    )
+    asyncio.get_running_loop().call_later(0.05, release.set)
+    rest = "".join([frame async for frame in iterator])
+    await asyncio.gather(*service.settle_tasks)
+    await asyncio.gather(*agent_api._round_outcome_tasks)
+    return rest
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("thread_fails", [False, True], ids=["committed", "thread_raised"])
+async def test_edit_committed_by_its_thread_after_a_stop_is_charged(client, db_session, monkeypatch, thread_fails):
+    """edit_file 的线程在作者停止之后才提交：没有结果帧，但收尾等到了确认的修改，这一轮计费；
+    线程出错时照旧按没有产出退还。"""
+    import threading
+
+    from agent.tools import mcp_tools
+    from models import File
+    from tests.conftest import TestSessionLocal
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    release = threading.Event()
+
+    def slow_edit(args):
+        release.wait(5)
+        if thread_fails:
+            raise RuntimeError("synthetic edit failure")
+        with TestSessionLocal() as session:
+            row = session.get(File, args["id"])
+            row.content = "线程在停止后写下的正文。"
+            session.add(row)
+            session.commit()
+        return mcp_tools._make_result(
+            {"status": "success", "mutation_applied": True,
+             "data": {"id": args["id"], "mutation_applied": True, "edits_applied": 1}},
+            tool_name="edit_file",
+        )
+
+    monkeypatch.setattr(mcp_tools, "_edit_file_sync", slow_edit)
+    service = _InflightWriteService(
+        project, user, "edit_file", {"id": placeholder.id, "edits": [{"op": "append", "text": "x"}]}, message_id
+    )
+    with (
+        patch("api.agent.get_agent_service", return_value=service),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        rest = await _stop_while_a_write_tool_thread_runs(db_session, user, project, service, release)
+
+    db_session.expire_all()
+    if thread_fails:
+        refund.assert_called_once()
+        assert _frame_data(rest, "quota_refunded") is not None
+        assert db_session.get(File, placeholder.id).content == ""
+    else:
+        refund.assert_not_called()
+        assert _frame_data(rest, "quota_refunded") is None
+        assert _frame_data(rest, "done")["produced_output"] is True
+        assert db_session.get(File, placeholder.id).content == "线程在停止后写下的正文。"
+
+
+@pytest.mark.integration
+async def test_empty_file_created_by_its_thread_after_a_stop_is_removed_with_the_refund(
+    client, db_session, monkeypatch
+):
+    """create_file 的线程在停止之后才建好空文件：这一轮没有产出照常退还，这个空文件按空白占位移除。"""
+    import threading
+
+    from agent.tools import mcp_tools
+    from models import File
+    from tests.conftest import TestSessionLocal
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, _filled, _older = _seed_round(db_session, project, user)
+    release = threading.Event()
+    created: list[str] = []
+
+    def slow_create(args):
+        release.wait(5)
+        with TestSessionLocal() as session:
+            row = File(project_id=project.id, title=args["title"], content="", file_type="draft")
+            session.add(row)
+            session.commit()
+            session.refresh(row)
+            created.append(row.id)
+            data = {"id": row.id, "title": row.title, "content": "", "file_type": "draft",
+                    "updated_at": row.updated_at.isoformat(), "awaiting_body": True}
+        return mcp_tools._make_result({"status": "success", "mutation_applied": True, "data": data}, tool_name="create_file")
+
+    monkeypatch.setattr(mcp_tools, "_create_file_sync", slow_create)
+    service = _InflightWriteService(
+        project, user, "create_file", {"title": "第3章 迟到的空白", "file_type": "draft"}, message_id
+    )
+    with (
+        patch("api.agent.get_agent_service", return_value=service),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        rest = await _stop_while_a_write_tool_thread_runs(db_session, user, project, service, release)
+
+    refund.assert_called_once()
+    [file_id] = created
+    assert _frame_data(rest, "quota_refunded")["removed_files"] == [{"id": file_id, "title": "第3章 迟到的空白"}]
+    db_session.expire_all()
+    assert db_session.get(File, file_id).is_deleted is True

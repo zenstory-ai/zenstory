@@ -7,6 +7,16 @@ from __future__ import annotations
 
 import re
 
+# 整章替换 / 截断补全的改写最终没有落库时给作者的固定说明（StreamAdapter 拒绝截断覆盖、
+# loop 引擎放弃整章替换时共用一份）。
+REWRITE_NOT_SAVED_NOTICE = "本次改写未保存，原文保持不变。"
+REWRITE_NOT_SAVED_NOTICE_EN = "This rewrite was not saved. The original text is unchanged."
+
+
+def rewrite_not_saved_notice(english: bool) -> str:
+    return REWRITE_NOT_SAVED_NOTICE_EN if english else REWRITE_NOT_SAVED_NOTICE
+
+
 _CJK = r"㐀-鿿豈-﫿"
 
 

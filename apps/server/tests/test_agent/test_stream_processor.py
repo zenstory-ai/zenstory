@@ -616,3 +616,12 @@ def test_reply_prebody_keeps_first_paragraph_indent_at_every_split():
         results = [proc.process_content(text[:cut]), proc.process_content(text[cut:])]
         [done] = [r for r in results if r.file_complete]
         assert done.final_content == f"{_INDENTED_BODY}\n", cut
+
+
+def test_lone_file_tags_on_crlf_lines_are_protocol_markers():
+    from agent.core.stream_processor import PREBODY_FILE_ID
+
+    closing = StreamProcessor(prebody_capture=True).process_content("</file>\r\n正常对话")
+    assert closing.conversation_content == "正常对话"
+    block = StreamProcessor(prebody_capture=True).process_content("<file>\r\n正文\r\n</file>\r\n后话")
+    assert block.file_id == PREBODY_FILE_ID and block.file_complete

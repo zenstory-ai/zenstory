@@ -918,13 +918,15 @@ async def stream_request(
             nonlocal settlement, refund_scheduled, refund_task
             if settlement is None:
                 cut_off = user_stopped or client_disconnected or deadline_exceeded
-                body_unconfirmed = cut_off and tracker.file_body_pending()
+                # 写工具发出了调用却没有结果帧：线程可能在截停后提交，同样先等收尾结果。
+                body_unconfirmed = cut_off and (tracker.file_body_pending() or tracker.write_tool_unanswered())
                 if body_unconfirmed and not detached:
                     # 本轮开始写的正文（整章替换，或新建文件的正文）还没有落库确认就被截停：提交或补存
                     # 可能仍在途中。service 等它的真实结果写进保存回执后才交回消息 id；先等一下（有上限），
                     # 按回执补记写入。
                     await _wait_stop_message_id()
                 tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
+                tracker.note_committed_tool_results(run_outcome.committed_tool_results)
 
                 def _decide() -> tuple[str, bool]:
                     return tracker.decide(
@@ -948,6 +950,7 @@ async def stream_request(
                     async def _refund_after_body_settles() -> bool:
                         await run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
                         tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
+                        tracker.note_committed_tool_results(run_outcome.committed_tool_results)
                         reason, still_refund = _decide()
                         if not still_refund:
                             log_with_context(
@@ -1111,6 +1114,9 @@ async def stream_request(
                 tracker.observe_delivery(stop_frame)
                 yield stop_frame
                 assistant_message_id = await _wait_stop_message_id()
+                # done 帧在结算之前发出：先按等到的保存回执补记写入（停止时才落定的补存或整章替换）。
+                tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
+                tracker.note_committed_tool_results(run_outcome.committed_tool_results)
                 delivery = written_files.stopped_delivery(final_word_counts=run_outcome.saved_file_word_counts)
                 if not assistant_message_id:
                     for item in delivery.get("written_files", []):

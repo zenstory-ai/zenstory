@@ -134,6 +134,40 @@ def _run_sync_tool_with_owned_session_cleanup(
         ToolContext._cleanup_owned_session()
 
 
+async def _offload_write_tool(
+    tool_name: str, sync_func: Callable[[dict[str, Any]], dict[str, Any]], args: dict[str, Any]
+) -> dict[str, Any]:
+    """写工具在线程里执行；停止 / 断线 / 时限取消了等待时线程照常跑完，结果留给收尾结算。
+
+    线程的 future 先登记进请求级的在途列表（``ToolContext.inflight_tool_writes``，属于
+    ``RunOutcome``，比 ``clear_context()`` 活得长），正常返回或出错时移除；被取消时留着，
+    由 service 的截停收尾等它的真实结果（``RunOutcome.settle_inflight_tool_writes``）。
+    """
+    future = asyncio.ensure_future(
+        asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, sync_func, args)
+    )
+    # 取消之后没人再取结果时，先把异常取走（不留 "exception was never retrieved"）。
+    future.add_done_callback(lambda done: done.cancelled() or done.exception())
+    registry = ToolContext.inflight_tool_writes()
+    entry = (tool_name, future)
+    if registry is not None:
+        registry.append(entry)
+    try:
+        result = await asyncio.shield(future)
+    except asyncio.CancelledError:
+        raise
+    except BaseException:
+        _discard_inflight(registry, entry)
+        raise
+    _discard_inflight(registry, entry)
+    return result
+
+
+def _discard_inflight(registry: list[tuple[str, Any]] | None, entry: tuple[str, Any]) -> None:
+    if registry is not None and entry in registry:
+        registry.remove(entry)
+
+
 def _get_tool_result_max_chars() -> int:
     """Read tool-result max chars limit from env with safe fallback."""
     raw = os.getenv("AGENT_TOOL_RESULT_MAX_CHARS")
@@ -668,6 +702,7 @@ class ToolContext:
         author_steering: list[str] | None = None,
         author_edit_refusals: AuthorEditRefusals | None = None,
         read_snapshots: dict[str, str] | None = None,
+        inflight_tool_writes: list[tuple[str, Any]] | None = None,
     ) -> None:
         """Set the execution context for tools (request-scoped).
 
@@ -682,6 +717,8 @@ class ToolContext:
                 从本次请求的技能内容预算里先扣掉。
             read_snapshots: 本轮开始时以全文给模型看的文件正文（file_id → 正文），edit_file 的
                 陈旧检查以它为起点（_ReadSnapshots）；None 表示不跟踪（外部调用路径）。
+            inflight_tool_writes: 请求级的在途写工具登记（``RunOutcome.inflight_tool_writes``，
+                同一个 list 对象）；None 表示不登记（见 _offload_write_tool）。
         """
         cls._cleanup_owned_session()
         _tool_context_var.set({
@@ -698,8 +735,15 @@ class ToolContext:
             "author_edit_refusals": author_edit_refusals,
             "pre_write_contents": _PreWriteContents(),
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
+            "inflight_tool_writes": inflight_tool_writes,
         })
         _owned_session_var.set(None)
+
+    @classmethod
+    def inflight_tool_writes(cls) -> list[tuple[str, Any]] | None:
+        """请求级的在途写工具登记（见 set_context）；没有时为 None。"""
+        registry = cls._get_context().get("inflight_tool_writes")
+        return registry if isinstance(registry, list) else None
 
     @classmethod
     def _get_context(cls) -> dict[str, Any]:
@@ -1550,13 +1594,16 @@ def _clear_settled_pending_empty_files() -> bool:
     写完正文时标记会一直留着，后续每次不带 content 的 create_file 都会被它挡回。
     用列级查询读数据库当前值（绕开 ORM 身份映射里可能陈旧的实例）；查询失败时
     保守地不清除任何条目。返回是否清掉了至少一个条目。
+
+    整章替换的条目在它的 <file> 正文落库前一直待写，即使文件已有旧正文：由 adapter
+    （保存或拒绝）和 engine（运行边界）清除，这里跳过（同 engine 的 _settle_pending_empty_files）。
     """
     from models import File
 
     cleared = False
     for entry in ToolContext.get_pending_empty_files():
         file_id = str(entry.get("file_id") or "")
-        if not file_id:
+        if not file_id or ToolContext.pending_chapter_replacement(file_id) is not None:
             continue
         try:
             row = _run_session_probe(
@@ -1603,6 +1650,11 @@ def _pending_empty_file_rejection(
     if blocking_id:
         payload["pending_file_id"] = blocking_id
     return _make_mcp_payload(payload, tool_name=tool_name)
+
+
+def _body_in_reply_next_step(title: str, tool_name: str) -> str:
+    """create_file / write_chapter 认领了本条回复里先写出的正文（body_in_reply）时给模型的下一步。"""
+    return f"「{title}」的正文就是这条回复里 {tool_name} 之前写的那段 <file> 正文，已存进这个文件，不要再写一遍。"
 
 
 def _awaiting_body_data(data: dict[str, Any], title: str) -> dict[str, Any]:
@@ -1886,7 +1938,7 @@ def _write_chapter_error(error: str, *, error_type: str, **fields: Any) -> dict[
 async def write_chapter(args: dict[str, Any]) -> dict[str, Any]:
     """按章号 / 集号写一章正文：不存在就新建，已存在就替换这一章（正文随后以 <file> 写入）。"""
     if _should_offload_tool_execution():
-        return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _write_chapter_sync, args)
+        return await _offload_write_tool(WRITE_CHAPTER_TOOL_NAME, _write_chapter_sync, args)
     return _write_chapter_sync(args)
 
 
@@ -2176,6 +2228,14 @@ def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: 
     )
     # 不是本轮新建的文件：不记建好时的版本（补不成时不回滚、不算可以取消的空文件），记下替换的定位结果。
     ToolContext.bind_pending_empty_file(reservation, file_id, str(row.title or ""), None, replacement=data)
+    if ToolContext.take_reply_prebody():
+        # 本条回复在这次调用之前已写出正文：它就是这一章的替换稿，由 StreamAdapter 走整章替换落库。
+        ToolContext.mark_pending_body_streamed(file_id)
+        data = {
+            **data,
+            "body_in_reply": True,
+            "next_step": _body_in_reply_next_step(str(row.title or ""), tool_name),
+        }
     log_with_context(
         logger,
         20,  # INFO
@@ -2203,9 +2263,7 @@ async def create_file(args: dict[str, Any]) -> dict[str, Any]:
         # asyncio.to_thread 运行在拷贝上下文中，但 pending-empty-file 标记通过
         # 请求上下文 dict 里的共享持有者原地修改，_create_file_sync 在工作线程
         # 里设置后对主上下文同样可见，无需在此回填。
-        return await asyncio.to_thread(
-            _run_sync_tool_with_owned_session_cleanup, _create_file_sync, args
-        )
+        return await _offload_write_tool("create_file", _create_file_sync, args)
     return _create_file_sync(args)
 
 
@@ -2323,14 +2381,7 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
             result = {**result, "source_copied": True, "body_saved": True}
         data = _elide_reused_file_content(result)
         if body_in_reply:
-            data = {
-                **data,
-                "body_in_reply": True,
-                "next_step": (
-                    f"「{title}」的正文就是这条回复里 create_file 之前写的那段 <file> 正文，已存进这个文件，"
-                    "不要再写一遍。"
-                ),
-            }
+            data = {**data, "body_in_reply": True, "next_step": _body_in_reply_next_step(title, tool_name)}
         elif awaiting_body:
             data = _awaiting_body_data(data, title)
             if empty_requested:
@@ -2411,7 +2462,7 @@ def _author_content_protection_payload(
 async def edit_file(args: dict[str, Any]) -> dict[str, Any]:
     """精确编辑文件内容。"""
     if _should_offload_tool_execution():
-        return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _edit_file_sync, args)
+        return await _offload_write_tool("edit_file", _edit_file_sync, args)
     return _edit_file_sync(args)
 
 
@@ -2574,7 +2625,7 @@ def _derive_edit_status(result: dict[str, Any]) -> str:
 async def delete_file(args: dict[str, Any]) -> dict[str, Any]:
     """删除文件。"""
     if _should_offload_tool_execution():
-        return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _delete_file_sync, args)
+        return await _offload_write_tool("delete_file", _delete_file_sync, args)
     return _delete_file_sync(args)
 
 
@@ -2612,7 +2663,7 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
 async def rename_file(args: dict[str, Any]) -> dict[str, Any]:
     """只改文件标题（#273）：不碰正文、不新建、不删除。"""
     if _should_offload_tool_execution():
-        return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _rename_file_sync, args)
+        return await _offload_write_tool("rename_file", _rename_file_sync, args)
     return _rename_file_sync(args)
 
 

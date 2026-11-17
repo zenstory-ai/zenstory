@@ -86,8 +86,9 @@ AGENT_WORKING_SET_MAX_CHARS = _get_int_env("AGENT_WORKING_SET_MAX_CHARS", 60000)
 # Exceeding either ends the run with an error frame
 # (ERR_AGENT_MODEL_CALL_LIMIT / ERR_AGENT_RUN_TIMEOUT).
 
-# Total model calls (SDK turns across all agent runs) per request: two full
-# per-agent runs, enough for a long multi-chapter turn with review rounds.
+# Total provider calls per request (SDK turns across all agent runs plus the
+# history-compaction summary calls before the first run): two full per-agent
+# runs, enough for a long multi-chapter turn with review rounds.
 AGENT_RUN_MAX_MODEL_CALLS = _get_int_env("AGENT_RUN_MAX_MODEL_CALLS", 120)
 
 # Wall-clock budget for the whole streaming request, in seconds. Railway closes a

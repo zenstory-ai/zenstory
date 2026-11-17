@@ -59,7 +59,29 @@ class RunOutcome:
     # 最后确认保存的整篇字数；取消补存可能包含尚未发出的控制标记尾部缓冲。
     # None 表示尚无成功保存；后续失败不能抹去之前已保存的正文回执。
     saved_file_word_counts: dict[str, int | None] = field(default_factory=dict)
+    # 写工具在线程里执行、还没把结果交回 SDK 的调用：(tool_name, future)。ToolContext 拿着同一个
+    # list（比 clear_context() 活得长），工具正常返回时自己移除；截停后留下的由 settle_inflight_tool_writes 等。
+    inflight_tool_writes: list[tuple[str, asyncio.Future[Any]]] = field(default_factory=list)
+    # 截停后才完成的写工具结果，按 tool_result 帧的格式（tool_name / status / data），交给计费 tracker。
+    committed_tool_results: list[dict[str, Any]] = field(default_factory=list)
     _message_id: asyncio.Future[str | None] | None = field(default=None, repr=False)
+
+    async def settle_inflight_tool_writes(self, timeout_s: float) -> None:
+        """截停后等还在线程里的写工具（上限 timeout_s），把完成的结构化结果记进 committed_tool_results。
+
+        线程出错、超时或结果解析不了的不记：计费照旧按没有写入处理（偏向作者）。
+        """
+        pending = list(self.inflight_tool_writes)
+        self.inflight_tool_writes.clear()
+        if not pending:
+            return
+        done, _ = await asyncio.wait({future for _name, future in pending}, timeout=timeout_s)
+        for tool_name, future in pending:
+            if future not in done or future.cancelled() or future.exception() is not None:
+                continue
+            payload = committed_tool_result(tool_name, future.result())
+            if payload is not None:
+                self.committed_tool_results.append(payload)
 
     def removable(self, candidates: list[dict[str, str]]) -> list[dict[str, str]]:
         """去掉不能当空白占位移除的文件，剩下的才交给 remove_empty_placeholders。
@@ -99,6 +121,39 @@ class RunOutcome:
             return await asyncio.wait_for(asyncio.shield(self._future()), timeout=timeout_s)
         except TimeoutError:
             return None
+
+
+def tool_result_status(tool_name: str, parsed: Any) -> tuple[str, Any]:
+    """解析后的工具结果 → (tool_result 帧的 status, data)。StreamAdapter 的实时帧与停止后的结果回放共用。
+
+    有 status 时按它（error / failed / failure 为失败）；没有 status、只有 error 键的旧格式算失败；
+    edit_file 全部编辑都没生效（``all_failed``）也算失败。
+    """
+    if not isinstance(parsed, dict):
+        return "success", parsed
+    data = parsed.get("data", parsed)
+    if "status" in parsed:
+        failed = str(parsed.get("status") or "").strip().lower() in {"error", "failed", "failure"}
+    else:
+        failed = "error" in parsed
+    if tool_name == "edit_file" and isinstance(data, dict) and bool(data.get("all_failed")):
+        failed = True
+    return ("error" if failed else "success"), data
+
+
+def committed_tool_result(tool_name: str, raw_result: Any) -> dict[str, Any] | None:
+    """MCP 工具结果 → tool_result 帧的 payload（状态口径见 tool_result_status）。
+
+    不是 JSON 对象时为 None：实时帧把它当 ``{"raw": ...}`` 发给前端，这里不把它当作提交的证据（偏向作者）。
+    """
+    try:
+        parsed = json.loads(raw_result["content"][0]["text"])
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    status, data = tool_result_status(tool_name, parsed)
+    return {"tool_name": tool_name, "status": status, "data": data}
 
 
 # RoundWrittenFiles 关心的帧；其余帧（content、thinking、心跳……）不解析 JSON。

@@ -73,7 +73,7 @@ from .loop.turn_context import LoopTurnContext, build_loop_turn_context
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .skills.content_budget import split_selected_budget
-from .stream_adapter import create_stream_adapter
+from .stream_adapter import STREAM_FILE_SAVE_TIMEOUT_S, create_stream_adapter
 from .tools.author_edit_guard import AuthorEditRefusals
 from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
 
@@ -184,23 +184,49 @@ def first_message_hint(project_type: str | None, force_en: bool) -> str:
     )
 
 
-def _stamp_body_receipts(tool_calls: list[dict[str, Any]], receipts: dict[str, int | None]) -> None:
-    """落库前给新建写入的卡片写上正文回执：等正文的 create_file / write_chapter 结果带
+def _stamp_body_receipts(
+    tool_calls: list[dict[str, Any]],
+    receipts: dict[str, int | None],
+    replacement_receipts: dict[str, int | None] | None = None,
+) -> None:
+    """落库前给等正文的写入卡片写上正文回执：等正文的 create_file / write_chapter 结果带
     ``body_saved``（StreamAdapter 的保存回执里有字数才是 True）。历史回放据此说明正文是否保存，
-    不再从「当时在等正文」推断「已保存」。只改落库的记录，不发帧，不影响计费；整章替换
-    的卡片由 StreamAdapter 补发的结果带回执，不在这里改。"""
+    不再从「当时在等正文」推断「已保存」。只改落库的记录，不发帧，不影响计费。整章替换的卡片
+    正常由 StreamAdapter 补发的结果带回执（已有 ``body_saved`` 时不改）；停止时在途提交或补存的
+    替换没有补发结果，这里按这张卡自己的 tool_use_id 回执（``replacement_receipts``）写上
+    ``mutation_applied`` 与 ``new_word_count``；同一章更早一次替换的文件级回执不算这一次的证据。"""
     for call in tool_calls:
         result = call.get("result")
         if (
             call.get("name") not in ("create_file", "write_chapter")
             or call.get("status") != "success"
             or not isinstance(result, dict)
-            or result.get("action") == "replaced"
             or "body_saved" in result
             or not (result.get("awaiting_body") is True or result.get("body_in_reply") is True)
         ):
             continue
-        call["result"] = {**result, "body_saved": isinstance(receipts.get(str(result.get("id") or "")), int)}
+        replaced = result.get("action") == "replaced"
+        if replaced:
+            receipt = (replacement_receipts or {}).get(str(call.get("id") or ""))
+        else:
+            receipt = receipts.get(str(result.get("id") or ""))
+        saved = isinstance(receipt, int)
+        stamped = {**result, "body_saved": saved}
+        if replaced:
+            stamped["mutation_applied"] = saved
+            if saved:
+                stamped["new_word_count"] = receipt
+        call["result"] = stamped
+
+
+async def _settle_stopped_writes(run_outcome: Any, adapter: Any | None) -> None:
+    """截停后同时等正文的补存 / 在途提交与线程里的写工具，结果写进 run_outcome（保存回执、工具结果）。"""
+
+    async def _capture() -> None:
+        if adapter is not None:
+            run_outcome.saved_file_word_counts.update(await adapter.settle_aborted_capture())
+
+    await asyncio.gather(_capture(), run_outcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S))
 
 
 def _project_has_ai_reply(session: Session, project_id: str) -> bool:
@@ -996,6 +1022,10 @@ class AgentService:
                 receipts.update(adapter.get_saved_file_word_counts())
             return receipts
 
+        def _current_replacement_receipts() -> dict[str, int | None]:
+            adapter = usage_source.get("adapter")
+            return adapter.get_replacement_receipts() if adapter is not None else {}
+
         def _save_partial_history_sync(
             stop_reason: str | None = None,
             persist_empty_assistant: bool = False,
@@ -1015,7 +1045,7 @@ class AgentService:
                 )
                 return None
 
-            _stamp_body_receipts(all_tool_calls, _current_receipts())
+            _stamp_body_receipts(all_tool_calls, _current_receipts(), _current_replacement_receipts())
             recovery_manager = MessageManager(
                 project_id=project_id,
                 user_id=user_id,
@@ -1165,6 +1195,8 @@ class AgentService:
                 author_edit_refusals=author_edit_refusals,
                 # 本轮开始时模型看到的正文：edit_file 拒绝基于旧正文的修改（作者生成期间又改了）。
                 read_snapshots=loop_turn.read_snapshots,
+                # 截停后还在线程里的写工具登记在 run_outcome 上，收尾时等它们的真实结果。
+                inflight_tool_writes=run_outcome.inflight_tool_writes if run_outcome is not None else None,
             )
 
             # Build WritingState for workflow execution
@@ -1213,7 +1245,7 @@ class AgentService:
                     ).to_sse()
                     with run_meter.measure_stage("compaction"):
                         outcome = await compact_history(
-                            loop_history, system_prompt=system_prompt, session_id=session_id
+                            loop_history, system_prompt=system_prompt, session_id=session_id, run_meter=run_meter
                         )
                     compaction_usage = outcome.usage
                     if outcome.record is not None and outcome.items is not None:
@@ -1425,7 +1457,11 @@ class AgentService:
                         )
                         history_saved = True
                         return None
-                    _stamp_body_receipts(all_tool_calls, stream_adapter.get_saved_file_word_counts())
+                    _stamp_body_receipts(
+                        all_tool_calls,
+                        stream_adapter.get_saved_file_word_counts(),
+                        stream_adapter.get_replacement_receipts(),
+                    )
                     saved_id = await message_manager.save_messages(
                         session,
                         session_id,
@@ -1503,11 +1539,10 @@ class AgentService:
                 async def _drain_then_save_partial_history_inner() -> None:
                     # 残稿补存会把没有作为 SSE 发出的尾部缓冲一并保存。先等本轮
                     # 正文保存回执，再交回消息 id，让 done 与历史使用同一份字数。
-                    adapter = usage_source.get("adapter")
-                    if run_outcome is not None and adapter is not None:
-                        run_outcome.saved_file_word_counts.update(
-                            await adapter.settle_aborted_capture()
-                        )
+                    # 被取消了等待、线程仍在提交的写工具也要等它们的结果，交给路由层计费。两类在途写入
+                    # 互不依赖，一起等：最长等一个 STREAM_FILE_SAVE_TIMEOUT_S，不是两个时限相加。
+                    if run_outcome is not None:
+                        await _settle_stopped_writes(run_outcome, usage_source.get("adapter"))
                     # 取消可能恰好落在 save_messages 期间：它被 shield 保护会
                     # 继续跑完，所以补偿保存前必须等它的真实结果。已落库时
                     # 不能整轮重写（user/steering/assistant 会写两遍），但仍要
@@ -1579,6 +1614,8 @@ class AgentService:
                     )
                     saved_counts = adapter.get_saved_file_word_counts()
                 run_outcome.saved_file_word_counts.update(saved_counts)
+            if run_outcome is not None:
+                await run_outcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S)
             yield error_event(
                 error_info.message,
                 code=error_info.code,
