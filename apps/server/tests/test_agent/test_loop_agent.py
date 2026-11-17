@@ -284,6 +284,117 @@ def test_loop_history_ignores_a_compaction_marker_whose_anchor_is_gone(db_sessio
     assert history.items[0] == {"role": "user", "content": "第一条"}
 
 
+@pytest.mark.unit
+def test_loop_history_reads_a_skip_record_carried_from_a_retried_message(db_session):
+    """重试删掉的作者消息上记着「没压缩成」：照样退避，不在重试时马上再付一次摘要。"""
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "第一条", offset=0)
+    _loop_assistant(db_session, chat, "回复", "", offset=1)
+    history = load_loop_history(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+        carried_metadata={"compaction_skipped": {"reason": "provider_error", "at_prompt_tokens": 4321}},
+    )
+    assert history.compaction_skipped_at_tokens == 4321
+    assert history.compacted is False
+    assert [item.get("content") for item in history.items if item.get("role")][:2] == ["第一条", "回复"]
+
+
+def _author_text(turn: int, sentences: int) -> str:
+    return "".join(f"第{turn}轮第{i}句：雾港的灯塔又亮了一次，信差把第{i}封信放在窗台上。" for i in range(sentences))
+
+
+async def _compact_for_turn(history, keep: int, summary: str):
+    from agent.loop.compaction import compact_history
+
+    create = AsyncMock(return_value=(_completion(summary), SimpleNamespace(name="p", model="m")))
+    with patch("agent.core.llm_failover.acreate_chat_completion", create):
+        return await compact_history(history, system_prompt="系统", session_id="s", keep_user_tokens=keep)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("keep", [1500, 2000, 2500])
+async def test_compacted_prefix_stays_byte_identical_into_later_turns(db_session, keep):
+    """压缩那一轮发出的 [保留的作者原话][摘要]，之后每一轮重建的历史都逐字以它开头（前缀缓存）。
+
+    前三轮的作者消息很长、之后很短：第二次压缩时最老的保留原话已经被第一次截断过、又只留得下一部分，
+    按行重新截断会把截断点挪走，前缀从第 0 条起全部 miss。
+    """
+    from agents.models.chatcmpl_converter import Converter
+
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+
+    def load():
+        return load_loop_history(
+            db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id, keep_user_tokens=keep
+        )
+
+    def messages(items):
+        return json.loads(json.dumps(Converter.items_to_messages(items), ensure_ascii=False))
+
+    sent_prefix: list | None = None
+    checked = 0
+    for turn in range(1, 11):
+        history = load()
+        if sent_prefix is not None:
+            assert messages(history.items)[: len(sent_prefix)] == sent_prefix, f"turn {turn}"
+            checked += 1
+        metadata: dict = {}
+        if turn in (4, 6, 8):
+            outcome = await _compact_for_turn(history, keep, f"合成摘要{turn}")
+            assert outcome.record is not None and outcome.items is not None
+            metadata["compaction"] = outcome.record
+            sent_prefix = messages(outcome.items)
+        _add(db_session, chat, "user", _author_text(turn, 30 if turn <= 3 else 1), offset=turn * 10)
+        _loop_assistant(db_session, chat, f"第{turn}轮回复", "", offset=turn * 10 + 1, **metadata)
+    assert checked == 6
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_stored_kept_author_messages_win_over_later_row_edits(db_session):
+    """压缩点记下的作者原话原样回放：之后改了被覆盖的行，模型看到的前缀也不变。"""
+    from agent.loop.history import load_loop_history
+    from agent.loop.prompts import SUMMARY_PREFIX
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    first = _add(db_session, chat, "user", "很早的要求", offset=0)
+    covered = _loop_assistant(db_session, chat, "早期回复", "", offset=1)
+    history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert history.last_message_id == covered.id
+    outcome = await _compact_for_turn(history, 20_000, "合成摘要")
+    assert outcome.record["kept_author_messages"] == ["很早的要求"]
+    _add(db_session, chat, "user", "压缩后的消息", offset=2)
+    _loop_assistant(db_session, chat, "压缩后的回复", "", offset=3, compaction=outcome.record)
+
+    first.content = "改过的早期要求"
+    db_session.add(first)
+    db_session.commit()
+
+    rebuilt = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    contents = [item.get("content") for item in rebuilt.items if item.get("role")]
+    assert contents[:3] == ["很早的要求", f"{SUMMARY_PREFIX}合成摘要", "压缩后的消息"]
+    assert rebuilt.author_messages == ["很早的要求", "压缩后的消息"]
+
+    # 没有这个字段的旧压缩点照旧按行重算。
+    legacy = {key: value for key, value in outcome.record.items() if key != "kept_author_messages"}
+    _add(db_session, chat, "user", "再下一条", offset=4)
+    _loop_assistant(db_session, chat, "回复", "", offset=5, compaction={**legacy, "kept_author_messages": "bad"})
+    legacy_rebuilt = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    legacy_contents = [item.get("content") for item in legacy_rebuilt.items if item.get("role")]
+    assert legacy_contents[0] == "改过的早期要求"
+
+
 # ---------------------------------------------------------------------------
 # 压缩
 # ---------------------------------------------------------------------------

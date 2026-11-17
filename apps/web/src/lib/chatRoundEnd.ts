@@ -1,8 +1,14 @@
 import type { TFunction } from "i18next";
 import type { StreamRenderItem } from "../hooks/useChatStreaming";
 
-/** Progress lines that only mean "working on it"; they say nothing once the round is over. */
-const TRANSIENT_ITEM_TYPES = new Set<StreamRenderItem["type"]>(["thinking_status", "context", "router_thinking"]);
+/**
+ * Items that are not output of their own: progress lines that only mean "working on it", and the
+ * 「对话已压缩」 marker (the server saves no reply for a round that only compacted, so a bubble
+ * holding just the marker would vanish on reload and hide the retry for the author's message).
+ */
+const TRANSIENT_ITEM_TYPES = new Set<StreamRenderItem["type"]>([
+  "thinking_status", "context", "router_thinking", "history_compaction",
+]);
 
 /**
  * Whether a round that ended early (error, dropped connection, stop) left anything worth a
@@ -10,7 +16,7 @@ const TRANSIENT_ITEM_TYPES = new Set<StreamRenderItem["type"]>(["thinking_status
  * leave an empty bubble next to the error card.
  */
 export function hasSubstantiveDisplayItems(items: StreamRenderItem[]): boolean {
-  return items.some((item) => !TRANSIENT_ITEM_TYPES.has(item.type));
+  return items.some((item) => !item.transient && !TRANSIENT_ITEM_TYPES.has(item.type));
 }
 
 /** How a stopped / interrupted round ended, as the server recorded it on the assistant message. */

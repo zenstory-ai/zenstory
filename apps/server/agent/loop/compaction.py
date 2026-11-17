@@ -198,6 +198,8 @@ async def compact_history(
     record = {
         "summary": summary,
         "covers_through_message_id": history.last_message_id,
+        # 这次实际发出的作者原话（含截断后缀）：之后的轮次原样回放，前缀逐字不变（不按行重新截断）。
+        "kept_author_messages": [str(item["content"]) for item in items[:-1]],
         "created_at": utcnow().isoformat(),
     }
     log_with_context(

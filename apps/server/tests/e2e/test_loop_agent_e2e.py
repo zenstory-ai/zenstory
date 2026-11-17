@@ -367,7 +367,11 @@ async def test_compaction_between_turns_is_persisted_and_rebuilds_the_next_turn(
     assert first.status_code == second.status_code == 200
     assert summarize.await_count == 1  # 第二轮实测输入 token 已降下来，不再压缩
     first_events = _parse_sse(first.text)
-    assert any(name == "thinking" and "整理" in str(payload) for name, payload in first_events)
+    # 作者看得到这一步：先是压缩进度，成功后是会话里的「对话已压缩」标记（带摘要），都在回复之前。
+    first_names = [name for name, _ in first_events]
+    assert any(name == "thinking" and payload.get("step") == "history_compaction" for name, payload in first_events)
+    assert [payload for name, payload in first_events if name == "history_compacted"][0]["summary"].startswith("合成交接摘要")
+    assert first_names.index("history_compacted") < first_names.index("content")
     assert [name for name, _ in first_events].count("done") == 1
 
     runs = [entry for entry in captured if "input" in entry]
@@ -383,6 +387,9 @@ async def test_compaction_between_turns_is_persisted_and_rebuilds_the_next_turn(
     metadata = json.loads(row.message_metadata)
     assert metadata["compaction"]["covers_through_message_id"] == rows[-1].id
     assert metadata["compaction"]["summary"].startswith("合成交接摘要")
+    assert metadata["compaction"]["kept_author_messages"] == ["合成要求一：主角叫阿岚", "合成要求二：写第1章"]
+    # 刷新后在同一位置回放「对话已压缩」标记（摘要读上面的 compaction 记录）。
+    assert metadata["display_events"][0] == {"type": "history_compacted", "data": {}}
     assert metadata["prompt_tokens"] == 800
     # 压缩调用的用量计入这一轮的用量展示。
     assert metadata["usage"]["output_tokens"] >= 80
@@ -423,6 +430,10 @@ async def test_compaction_with_empty_summary_keeps_the_full_history(
         select(ChatMessage).where(ChatMessage.role == "assistant", ChatMessage.content == "第2章写好了。")
     ).one()
     assert "compaction" not in json.loads(row.message_metadata)
+    # 没压缩成：只收起进度，不发、不落库压缩标记。
+    assert "event: history_compacted" not in response.text
+    assert "history_compaction_skipped" in response.text
+    assert all(event.get("type") != "history_compacted" for event in json.loads(row.message_metadata)["display_events"])
 
 
 @pytest.mark.asyncio

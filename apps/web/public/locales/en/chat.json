@@ -493,5 +493,12 @@
     "title": "Added to Writing Conventions",
     "open": "View and edit",
     "full": "Writing Conventions are near the 4,000-character limit, so this was not saved"
+  },
+  "compaction": {
+    "running": "Compacting conversation…",
+    "elapsed": "{{seconds}}s",
+    "done": "Conversation compacted",
+    "doneHint": "Earlier messages were summarized; the AI now works from that summary and your project files.",
+    "summaryLabel": "Summary the AI now works from"
   }
 }

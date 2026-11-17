@@ -23,6 +23,7 @@ import { LazyMarkdown } from './LazyMarkdown';
 import { ToolResultCard } from './ToolResultCard';
 import { Badge, type BadgeProps } from './ui/Badge';
 import { ThinkingContent } from './ThinkingContent';
+import { HistoryCompactionMarker } from './HistoryCompactionMarker';
 import type { AgentContextItem, FileEditUndoTarget, IterationExhaustedLayer, ToolCall } from '../types';
 import { getLocaleCode } from '../lib/i18n-helpers';
 import { stripThinkTags } from '../lib/utils';
@@ -525,6 +526,16 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
             {item.content}
           </div>
         </div>
+      );
+    } else if (item.type === 'history_compaction' && item.compactionState) {
+      // 历史压缩：进行中是带转圈的一步，完成后是会话里可展开摘要的「对话已压缩」分隔标记。
+      return (
+        <HistoryCompactionMarker
+          key={item.id}
+          state={item.compactionState}
+          summary={item.content}
+          startedAt={item.timestamp}
+        />
       );
     } else if (item.type === 'thinking_content' && item.content) {
       // 2. thinking_content - 思考过程，可折叠，半透明

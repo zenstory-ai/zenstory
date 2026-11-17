@@ -71,6 +71,9 @@ class EventType(StrEnum):
     # Steering events
     STEERING_RECEIVED = "steering_received"  # Steering message received
 
+    # History compaction (single loop agent, between rounds)
+    HISTORY_COMPACTED = "history_compacted"  # Earlier conversation was summarized for this round
+
 
 # 只读请求拦下「交接给有写权限的 agent」时，WORKFLOW_STOPPED 提示卡片的 reason。
 # 这张卡片在工作流收尾时（终止事件之前）才发出，只是一条说明，不代表流结束：
@@ -311,6 +314,16 @@ def thinking_event(message: str, step: str | None = None) -> StreamEvent:
         type=EventType.THINKING,
         data=ThinkingEventData(message=message, step=step).model_dump()
     )
+
+
+# thinking 事件的 step：轮与轮之间的历史压缩开始 / 没压缩成（前端据此显示「正在压缩对话…」并在结束时收起）。
+HISTORY_COMPACTION_STEP = "history_compaction"
+HISTORY_COMPACTION_SKIPPED_STEP = "history_compaction_skipped"
+
+
+def history_compacted_event(summary: str) -> StreamEvent:
+    """历史压缩成功：前端把「正在压缩对话…」变成会话里的「对话已压缩」标记，可展开看交接摘要。"""
+    return StreamEvent(type=EventType.HISTORY_COMPACTED, data={"summary": summary})
 
 
 def thinking_content_event(content: str, is_complete: bool = False) -> StreamEvent:

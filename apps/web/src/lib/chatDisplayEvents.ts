@@ -20,7 +20,8 @@ export function parseChatDisplayEvents(
 ): StreamRenderItem[] | undefined {
   if (!metadata) return undefined;
   try {
-    const events: unknown = JSON.parse(metadata).display_events;
+    const parsed = JSON.parse(metadata);
+    const events: unknown = parsed?.display_events;
     if (!Array.isArray(events) || events.length === 0) return undefined;
     const items: StreamRenderItem[] = [];
     for (const [index, event] of events.entries()) {
@@ -60,6 +61,12 @@ export function parseChatDisplayEvents(
         case 'iteration_exhausted':
           items.push({ ...base, type: 'iteration_exhausted', layer: data.layer, iterationsUsed: data.iterations_used, maxIterations: data.max_iterations, reason: data.reason, lastAgent: data.last_agent, limit: data.limit, ...parseIterationExhaustedFiles(data.unfinished_files, data.rolled_back_files) });
           break;
+        case 'history_compacted': {
+          // The summary lives once on the row's compaction record, not in the event.
+          const summary = parsed?.compaction?.summary;
+          items.push({ ...base, type: 'history_compaction', compactionState: 'done', content: typeof summary === 'string' ? summary : undefined });
+          break;
+        }
         case 'workflow_stopped':
         case 'workflow_complete':
           items.push({ ...base, type: event.type, reason: data.reason, agentType: data.agent_type, message: data.message, question: data.question, context: data.context, details: data.details, confidence: data.confidence, evaluation: data.evaluation });

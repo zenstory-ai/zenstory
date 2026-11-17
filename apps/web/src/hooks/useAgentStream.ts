@@ -90,7 +90,7 @@ export interface UseAgentStreamOptions {
   /** Called when context items are received */
   onContext?: (items: AgentContextItem[], tokenCount?: number) => void;
   /** Called when AI is thinking (with message) */
-  onThinking?: (message: string) => void;
+  onThinking?: (message: string, step?: string) => void;
   /** Called when thinking content arrives */
   onThinkingContent?: (content: string, isComplete: boolean) => void;
   /** Called when a new message segment starts (for adding to chat) */
@@ -216,6 +216,8 @@ export interface UseAgentStreamOptions {
   onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number, partial?: number) => void;
   /** Called when steering message is received */
   onSteeringReceived?: (messageId: string, preview: string) => void;
+  /** Called when earlier conversation was summarized before this round */
+  onHistoryCompacted?: (summary: string) => void;
   /** Called after the terminal frame when the backend actually refunded this round */
   onQuotaRefunded?: (kind: QuotaRefundKind, removedFiles: RemovedPlaceholderFile[]) => void;
 }
@@ -384,6 +386,7 @@ export function useAgentStream(
     onParallelTaskEnd,
     onParallelEnd,
     onSteeringReceived,
+    onHistoryCompacted,
     onQuotaRefunded,
   } = options;
 
@@ -917,7 +920,7 @@ export function useAgentStream(
             closed.settle();
           },
 
-          onThinking: (message) => {
+          onThinking: (message, step) => {
             if (isStaleEvent()) return;
             setState((prev) => ({
               ...prev,
@@ -925,7 +928,7 @@ export function useAgentStream(
             }));
 
             // 调用外部回调
-            onThinkingOption?.(message);
+            onThinkingOption?.(message, step);
           },
 
           onThinkingContent: (content, isComplete) => {
@@ -1227,6 +1230,11 @@ export function useAgentStream(
             onSteeringReceived?.(message_id, preview);
           },
 
+          onHistoryCompacted: (summary) => {
+            if (isStaleEvent()) return;
+            onHistoryCompacted?.(summary);
+          },
+
           onQuotaRefunded: (kind, removedFiles) => {
             if (isStaleEvent()) return;
             onQuotaRefunded?.(kind, removedFiles);
@@ -1424,6 +1432,7 @@ export function useAgentStream(
       onParallelTaskEnd,
       onParallelEnd,
       onSteeringReceived,
+      onHistoryCompacted,
     onQuotaRefunded,
       onThinkingOption,
       onThinkingContentOption,

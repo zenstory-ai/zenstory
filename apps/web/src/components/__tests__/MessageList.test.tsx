@@ -110,6 +110,47 @@ describe('MessageList', () => {
     vi.clearAllMocks()
   })
 
+  it('shows history compaction as a visible step while it runs', () => {
+    render(
+      <MessageList
+        messages={[]}
+        streamRenderItems={[{ id: 'c', type: 'history_compaction', compactionState: 'running', transient: true, timestamp: new Date() }]}
+      />,
+    )
+    expect(screen.getByTestId('history-compaction-running')).toHaveTextContent('compaction.running')
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.queryByTestId('history-compaction-marker')).not.toBeInTheDocument()
+  })
+
+  it('replays the compaction marker in a saved reply and opens the summary read-only', () => {
+    const displayItems: NonNullable<Message['displayItems']> = [
+      { id: 'c', type: 'history_compaction', compactionState: 'done', content: 'Handoff summary text', timestamp: new Date() },
+      { id: 'r', type: 'content', content: 'Reply', timestamp: new Date() },
+    ]
+    render(<MessageList messages={[createMessage({ role: 'assistant', content: 'Reply', displayItems })]} />)
+
+    const marker = screen.getByTestId('history-compaction-marker')
+    expect(marker).toHaveTextContent('compaction.done')
+    expect(marker).toHaveTextContent('compaction.doneHint')
+    expect(screen.queryByText('Handoff summary text')).not.toBeInTheDocument()
+
+    const toggle = screen.getByRole('button', { name: /compaction\.done/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Handoff summary text')).toBeInTheDocument()
+    expect(screen.getByText('Reply')).toBeInTheDocument()
+  })
+
+  it('renders a compaction marker without a summary as a plain divider', () => {
+    const displayItems: NonNullable<Message['displayItems']> = [
+      { id: 'c', type: 'history_compaction', compactionState: 'done', timestamp: new Date() },
+    ]
+    render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
+    expect(screen.getByTestId('history-compaction-marker')).toHaveTextContent('compaction.done')
+    expect(screen.queryByRole('button', { name: /compaction\.done/ })).not.toBeInTheDocument()
+  })
+
   it('renders without crashing', () => {
     render(<MessageList messages={[]} />)
     // MessageList returns null for empty messages, so we just check it doesn't throw

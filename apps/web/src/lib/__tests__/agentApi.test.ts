@@ -297,6 +297,26 @@ describe('agentApi', () => {
       expect(onQuotaRefunded).not.toHaveBeenCalled()
     })
 
+    it('passes the compaction step and the compacted summary through', async () => {
+      const onThinking = vi.fn()
+      const onHistoryCompacted = vi.fn()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: createMockStream([
+          'event: thinking\ndata: {"message":"正在压缩对话…","step":"history_compaction"}\n\n',
+          'event: history_compacted\ndata: {"summary":"交接摘要"}\n\n',
+          'event: done\ndata: {"assistant_message_id":"m-1"}\n\n',
+        ]),
+      }))
+
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onThinking, onHistoryCompacted })
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(onThinking).toHaveBeenCalledWith('正在压缩对话…', 'history_compaction')
+      expect(onHistoryCompacted).toHaveBeenCalledWith('交接摘要')
+    })
+
     it('reports a refund only when the backend sends quota_refunded after the terminal frame', async () => {
       const onError = vi.fn()
       const onQuotaRefunded = vi.fn()

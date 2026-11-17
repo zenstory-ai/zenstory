@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useChatStreaming, generateUniqueId } from '../useChatStreaming'
 import { PROJECT_STATUS_UPDATED_EVENT } from '../../lib/projectStatusEvents'
 import type { UseChatStreamingDependencies } from '../useChatStreaming'
+import { dropProgressOnlyItems } from '../../lib/chatDisplayEvents'
 
 // Helper to create mock dependencies
 function createMockDeps(): UseChatStreamingDependencies {
@@ -392,6 +393,47 @@ describe('useChatStreaming', () => {
         expect(result.current.streamRenderItems[0].content).toBe('Analyzing...')
         // 「正在组装上下文… / 正在思考…」只在生成中有意义，完成后不随消息保留。
         expect(result.current.streamRenderItems[0].transient).toBe(true)
+      })
+
+      it('shows a compaction step that turns into a persistent marker in place', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const callbacks = result.current.getStreamCallbacks(createMockDeps())
+
+        act(() => {
+          callbacks.onThinking('Assembling context…')
+          callbacks.onThinking('Compacting conversation…', 'history_compaction')
+          vi.advanceTimersByTime(100)
+        })
+        const running = result.current.streamRenderItems[1]
+        expect(running).toMatchObject({ type: 'history_compaction', compactionState: 'running', transient: true })
+
+        act(() => {
+          callbacks.onHistoryCompacted?.('Handoff summary')
+          callbacks.onSegmentStart?.({ id: 'reply', type: 'content', content: 'Reply' })
+          vi.advanceTimersByTime(100)
+        })
+        const items = result.current.streamRenderItems
+        expect(items[1]).toMatchObject({ id: running.id, type: 'history_compaction', compactionState: 'done', content: 'Handoff summary' })
+        expect(items[1].transient).toBeFalsy()
+        expect(items[2].type).toBe('content')
+        // The finished reply keeps the marker, not the progress line.
+        expect(dropProgressOnlyItems(items).map((item) => item.type)).toEqual(['history_compaction', 'content'])
+      })
+
+      it('drops the compaction step when the summary was not usable', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const callbacks = result.current.getStreamCallbacks(createMockDeps())
+
+        act(() => {
+          callbacks.onThinking('Compacting conversation…', 'history_compaction')
+          callbacks.onThinking('Couldn\'t compact the conversation; continuing as is', 'history_compaction_skipped')
+          vi.advanceTimersByTime(100)
+        })
+        const items = result.current.streamRenderItems
+        expect(items.some((item) => item.type === 'history_compaction')).toBe(false)
+        expect(items).toHaveLength(1)
+        expect(items[0]).toMatchObject({ type: 'thinking_status', transient: true })
+        expect(dropProgressOnlyItems(items)).toEqual([])
       })
     })
 
