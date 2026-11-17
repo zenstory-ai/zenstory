@@ -113,8 +113,9 @@ agent/
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用历史估算）
   超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（600000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，带工具清单、`tool_choice=none`），
   空或被截断时 `reasoning_effort=low` 重试一次，仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
-  （`summary`、`covers_through_message_id`、`created_at`），之后的历史 = 压缩点之前最近的作者原话（`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`
-  预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。压缩用量以一条 MESSAGE_END 汇入本轮用量；从不在工具循环中途压缩。
+  （`summary`、`covers_through_message_id`、`kept_author_messages`、`created_at`），之后的历史 = 压缩点之前最近的作者原话（`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`
+  预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。保留的作者原话按 `kept_author_messages`（压缩那一轮实际发出的文字，含截断后缀）原样回放，
+  不按行重新截断，前缀跨轮逐字不变（再次压缩时被截断过的原话再截一次，按行重算会挪动截断点、让之后整段历史缓存 miss）；没有这个字段的旧记录照旧按行重算。压缩用量以一条 MESSAGE_END 汇入本轮用量；从不在工具循环中途压缩。
   没压缩成时记 `message_metadata.compaction_skipped`（`reason`、`at_prompt_tokens`），输入再长 `AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS` 才再试；
   本轮没有 assistant 行时两种记录写在本轮作者 user 行上。交给 run 的历史另有估算上限 `AGENT_LOOP_RUN_HISTORY_MAX_TOKENS`（丢最旧的项）。
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑

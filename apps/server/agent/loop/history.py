@@ -9,6 +9,8 @@
 - 压缩点（某条 assistant 行的 ``message_metadata.compaction``）：它覆盖到
   ``covers_through_message_id`` 那一行为止。重建结果是 压缩点之前最近的作者原话（预算内原文）
   → 一条以「【上下文已压缩】」开头的 user 消息（交接摘要）→ 那一行之后的全部行。
+  压缩点记了 ``kept_author_messages``（压缩那一轮实际发出的作者原话）时原样回放它们，
+  不再按行重新截断：前缀跨轮逐字不变；没有这个字段的旧压缩点照旧从行里按预算重算。
 
 只按结构化字段（行角色、metadata 键、行 id）组装，不读自然语言判断语义。
 """
@@ -134,6 +136,14 @@ def valid_compaction(metadata: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(summary, str) or not summary.strip() or not isinstance(covers, str) or not covers:
         return None
     return compaction
+
+
+def stored_kept_messages(compaction: dict[str, Any]) -> list[str] | None:
+    """压缩点记下的作者原话（压缩那一轮实际发出的文字）；没有或格式不对时为 None，按行重算。"""
+    kept = compaction.get("kept_author_messages")
+    if not isinstance(kept, list) or not all(isinstance(content, str) for content in kept):
+        return None
+    return kept
 
 
 def summary_message(summary: str) -> dict[str, Any]:
@@ -290,8 +300,8 @@ def load_loop_history(
 ) -> LoopHistory:
     """按会话重建单循环 agent 的历史（调用方已核对会话归属）。
 
-    由新到旧分页读：遇到最近的压缩点后读到它覆盖的那一行为止，再往前只取作者原话直到用完预算；
-    没有压缩点时读完整个会话。
+    由新到旧分页读：遇到最近的压缩点后读到它覆盖的那一行为止；压缩点没记保留的作者原话（旧记录）时
+    再往前只取作者原话直到用完预算；没有压缩点时读完整个会话。
     """
     from agent.core.session_loader import SessionLoader
     from models import ChatMessage
@@ -303,6 +313,7 @@ def load_loop_history(
     after_rows: list[Any] = []  # 新 → 旧
     before_rows: list[Any] = []  # 压缩点覆盖范围内的行（新 → 旧），只取作者原话
     compaction: dict[str, Any] | None = None
+    stored_kept: list[str] | None = None
     covered_reached = False
     kept_tokens_seen = 0
     measured_seen = False
@@ -344,6 +355,10 @@ def load_loop_history(
                 continue
             if compaction is not None and row.id == compaction["covers_through_message_id"]:
                 covered_reached = True
+                if stored_kept is not None:
+                    # 保留的作者原话已记在压缩点上，不必再往前读。
+                    stop = True
+                    break
                 before_rows.append(row)
                 if row.role == "user":
                     kept_tokens_seen += estimate_text_tokens(str(row.content or ""))
@@ -369,6 +384,8 @@ def load_loop_history(
                         skip_seen = True
                         result.compaction_skipped_at_tokens = max(0, skipped["at_prompt_tokens"])
                 compaction = valid_compaction(metadata)
+                if compaction is not None:
+                    stored_kept = stored_kept_messages(compaction)
         if stop:
             break
         last = page[-1]
@@ -377,9 +394,12 @@ def load_loop_history(
     items: list[dict[str, Any]] = []
     if compaction is not None and covered_reached:
         result.compacted = True
-        kept = kept_author_messages(
-            [str(row.content or "") for row in reversed(before_rows) if row.role == "user"], keep_user_tokens
-        )
+        if stored_kept is not None:
+            kept = [{"role": "user", "content": content} for content in stored_kept]
+        else:
+            kept = kept_author_messages(
+                [str(row.content or "") for row in reversed(before_rows) if row.role == "user"], keep_user_tokens
+            )
         items.extend(kept)
         result.author_messages.extend(str(item["content"]) for item in kept)
         items.append(summary_message(compaction["summary"]))
