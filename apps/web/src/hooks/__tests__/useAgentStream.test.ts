@@ -1489,10 +1489,13 @@ describe('useAgentStream', () => {
 
       act(() => {
         callbacks.onThinking?.('Analyzing context...')
+        callbacks.onThinking?.('Compacting conversation…', 'history_compaction')
       })
 
       expect(result.current.isThinking).toBe(true)
-      expect(onThinking).toHaveBeenCalledWith('Analyzing context...')
+      expect(onThinking).toHaveBeenCalledWith('Analyzing context...', undefined)
+      // The step code reaches the chat (it decides the compaction row), not just the text.
+      expect(onThinking).toHaveBeenCalledWith('Compacting conversation…', 'history_compaction')
     })
 
     it('sets isThinking to false when content starts', async () => {

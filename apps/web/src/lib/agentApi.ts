@@ -356,6 +356,8 @@ export function streamAgentRequest(
     onParallelTaskEnd?: (executionId: string, taskId: string, status: string, resultPreview?: string, error?: string) => void;
     onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number, partial?: number) => void;
     onSteeringReceived?: (messageId: string, preview: string) => void;
+    /** Earlier conversation was summarized before this round; `summary` is what the AI now works from. */
+    onHistoryCompacted?: (summary: string) => void;
     onDone?: (data: StreamDoneData) => void;
     onError?: (message: string, code?: string, retryable?: boolean) => void;
     /** 后端确实退还了这一轮的 AI 消息（在终止帧之后到达）；附带被移除的空白文件。 */
@@ -844,6 +846,11 @@ export function streamAgentRequest(
                 preview: string;
               };
               callbacks.onSteeringReceived?.(data.message_id, data.preview);
+              break;
+            }
+            case "history_compacted": {
+              const data = event.data as { summary?: unknown };
+              callbacks.onHistoryCompacted?.(typeof data.summary === "string" ? data.summary : "");
               break;
             }
             case "done": {

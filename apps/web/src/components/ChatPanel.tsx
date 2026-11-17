@@ -1348,6 +1348,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     onThinking: streamCallbacks.onThinking,
     onThinkingContent: streamCallbacks.onThinkingContent,
+    onHistoryCompacted: streamCallbacks.onHistoryCompacted,
 
     // Segment callbacks
     onSegmentStart: streamCallbacks.onSegmentStart,

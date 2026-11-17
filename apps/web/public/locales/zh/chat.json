@@ -493,5 +493,12 @@
     "title": "已加入写作约定",
     "open": "查看并编辑",
     "full": "写作约定已接近 4000 字上限，这次未记入"
+  },
+  "compaction": {
+    "running": "正在压缩对话…",
+    "elapsed": "{{seconds}} 秒",
+    "done": "对话已压缩",
+    "doneHint": "较早的内容已整理成摘要，AI 之后以摘要和项目文件为准。",
+    "summaryLabel": "AI 现在依据的摘要"
   }
 }

@@ -37,6 +37,7 @@ import { stripThinkTags } from "../lib/utils";
 import { dispatchProjectStatusUpdated } from "../lib/projectStatusEvents";
 import { formatHandoffMessage } from "../lib/agentDisplayName";
 import type { MessageSegment, StreamCompletionMeta } from "./useAgentStream";
+import { HISTORY_COMPACTION_SKIPPED_STEP, HISTORY_COMPACTION_STEP } from "../lib/historyCompaction";
 
 /** Throttle delay for stream render updates in milliseconds */
 export const STREAM_UPDATE_THROTTLE_MS = 50;
@@ -89,7 +90,8 @@ export interface StreamRenderItem {
     | "router_thinking"
     | "router_decided"
     | "workflow_stopped"
-    | "workflow_complete";
+    | "workflow_complete"
+    | "history_compaction";
   /** Unique identifier for this item */
   id: string;
   /**
@@ -97,8 +99,10 @@ export interface StreamRenderItem {
    * dropped when the round is saved as a finished message. Handoff lines never set it.
    */
   transient?: boolean;
-  /** Text content for thinking, status, or message items */
+  /** Text content for thinking, status, or message items (history_compaction: the handoff summary) */
   content?: string;
+  /** history_compaction: still summarizing (live only, transient) or done (a persistent marker) */
+  compactionState?: "running" | "done";
   /** Context items assembled for the AI request */
   items?: AgentContextItem[];
   /** Tool calls to display as result cards */
@@ -155,6 +159,11 @@ export interface StreamRenderItem {
   timestamp: Date;
 }
 
+/** The live 「正在压缩对话…」 step (not yet the persistent marker). */
+function isRunningCompaction(item: StreamRenderItem): boolean {
+  return item.type === "history_compaction" && item.compactionState === "running";
+}
+
 /**
  * Represents the progress of an AI file edit operation.
  * Used to display real-time progress during multi-step edits.
@@ -201,7 +210,10 @@ export interface UseChatStreamingOptions {
   onContext?: (items: AgentContextItem[]) => void;
 
   /** Called when AI is thinking (with status message) */
-  onThinking?: (message: string) => void;
+  onThinking?: (message: string, step?: string) => void;
+
+  /** Called when earlier conversation was summarized before this round */
+  onHistoryCompacted?: (summary: string) => void;
 
   /** Called when thinking content arrives */
   onThinkingContent?: (content: string) => void;
@@ -810,9 +822,24 @@ export function useChatStreaming(): UseChatStreamingReturn {
         /**
          * Called when AI is thinking (with status message)
          */
-        onThinking: (message: string) => {
+        onThinking: (message: string, step?: string) => {
+          if (step === HISTORY_COMPACTION_STEP) {
+            // A visible step where the reply will appear; becomes the persistent marker on success.
+            updateStreamItems((prev) => [
+              ...prev,
+              {
+                type: "history_compaction",
+                id: generateUniqueId("history-compaction"),
+                compactionState: "running",
+                transient: true,
+                timestamp: new Date(),
+              },
+            ]);
+            return;
+          }
           updateStreamItems((prev) => [
-            ...prev,
+            // Not compacted: the running step just goes away (the quiet note below is transient too).
+            ...(step === HISTORY_COMPACTION_SKIPPED_STEP ? prev.filter((item) => !isRunningCompaction(item)) : prev),
             {
               type: "thinking_status",
               id: generateUniqueId("thinking-status"),
@@ -821,6 +848,23 @@ export function useChatStreaming(): UseChatStreamingReturn {
               timestamp: new Date(),
             },
           ]);
+        },
+
+        onHistoryCompacted: (summary: string) => {
+          updateStreamItems((prev) => {
+            const done: StreamRenderItem = {
+              type: "history_compaction",
+              id: generateUniqueId("history-compaction"),
+              compactionState: "done",
+              content: summary,
+              timestamp: new Date(),
+            };
+            const index = prev.findIndex(isRunningCompaction);
+            if (index < 0) return [...prev, done];
+            const updated = prev.slice();
+            updated[index] = { ...done, id: prev[index].id, timestamp: prev[index].timestamp };
+            return updated;
+          });
         },
 
         /**

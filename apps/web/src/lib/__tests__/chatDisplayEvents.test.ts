@@ -10,6 +10,28 @@ const tools: ToolCall[] = [
 const t = (key: string, options?: Record<string, unknown>) => (options?.agent ? `${key}:${options.agent}` : key);
 
 describe('persisted chat display sequence', () => {
+  it('replays the history compaction marker at its place with the summary from the compaction record', () => {
+    const metadata = JSON.stringify({
+      engine: 'loop',
+      compaction: { summary: 'Handoff summary', covers_through_message_id: 'row-1', created_at: 'x' },
+      display_events: [
+        { type: 'history_compacted', data: {} },
+        { type: 'content', content: 'Reply' },
+      ],
+    });
+    const items = parseChatDisplayEvents(metadata, tools, timestamp, t)!;
+    expect(items.map(item => item.type)).toEqual(['history_compaction', 'content']);
+    expect(items[0]).toMatchObject({ compactionState: 'done', content: 'Handoff summary' });
+    expect(items[0].transient).toBeUndefined();
+
+    // A marker without a readable summary still replays (just not expandable).
+    const bare = parseChatDisplayEvents(
+      JSON.stringify({ display_events: [{ type: 'history_compacted', data: {} }] }), tools, timestamp, t,
+    )!;
+    expect(bare[0]).toMatchObject({ type: 'history_compaction', compactionState: 'done', content: undefined });
+  });
+
+
   it('retains multiple tool cycles and controls, resolving the final tool state at its original position', () => {
     const events = [
       { type: 'content', content: 'First' },

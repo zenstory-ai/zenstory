@@ -291,6 +291,8 @@ export type SSEEventType =
   | "parallel_task_end"
   | "parallel_end"
   | "steering_received"
+  // Earlier conversation was summarized before this round (single loop agent).
+  | "history_compacted"
   | "done"
   | "error"
   // Sent after the terminal frame, only once the backend actually refunded the round.
