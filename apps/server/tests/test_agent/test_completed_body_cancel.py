@@ -67,7 +67,8 @@ async def test_new_chapter_body_parsed_before_a_stop_is_saved_at_settle():
 
 
 @pytest.mark.asyncio
-async def test_whole_chapter_replacement_parsed_before_a_stop_is_committed_at_settle():
+async def test_whole_chapter_replacement_parsed_before_a_stop_keeps_the_original():
+    """新稿已解析、还没开始提交就停止：不覆盖原文（截停后没有 diff 审阅和撤销卡），不留保存回执（计费按整章替换没落库处理）。"""
     adapter = StreamAdapter()
     adapter.set_pending_file_write(
         "chapter-2",
@@ -90,8 +91,8 @@ async def test_whole_chapter_replacement_parsed_before_a_stop_is_committed_at_se
     await _stop_while_last_frame_is_blocked(adapter, tracker)
     receipts = await adapter.settle_aborted_capture()
 
-    assert calls == [("chapter-2", BODY, "2026-11-17T00:00:00+00:00")]
-    assert receipts == {"chapter-2": count_words(BODY)}
+    assert calls == []
+    assert "chapter-2" not in receipts
 
 
 @pytest.mark.asyncio

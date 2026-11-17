@@ -19,7 +19,7 @@ Status: implemented
 只在 StreamAdapter 的保存点产生写入证据，下游读两份现有的记录：
 
 - **唯一产生点**：`StreamAdapter._note_body_saved(file_id, words, *, title=None)`。正常保存、整章替换保存、取消补存、取消时在途的整章替换都经过它。它写每轮的保存回执 `_saved_file_word_counts`（流向 `run_outcome.saved_file_word_counts`）；`title` 不为 None（完整正文，不是截断补全）时同时记进本请求的 `ToolContext` 已保存正文（`_chapter_bodies_saved` 改为 `id -> 标题`，所有文件类型都记）。保存失败照旧 `setdefault(file_id, None)`。
-- **H2**：`_emit_stream_result` 在第一个 yield 之前把 `file_complete` 的结果和当时的待写记录登记为 `_completed_unsaved`；`_complete_file_write` 一进入就清掉它（由正常路径接手）。`settle_aborted_capture` 先结算在途的整章替换，再处理 `_completed_unsaved`：空白正文不存；截断补全且目标原有正文时按同一覆盖保护不存；整章替换走 `_save_chapter_replacement`（保留版本核对）；新文件起一个补存任务登记为 `_abort_capture`。正常路径的新文件保存放进 `asyncio.shield` 的任务里，取消落在保存中途时登记为 `_abort_capture`；保存目标的类型与版本令牌（`_save_target`）在任务创建之前定下，`_save_file_content` 不再自己读待写记录。
+- **H2**：`_emit_stream_result` 在第一个 yield 之前把 `file_complete` 的结果和当时的待写记录登记为 `_completed_unsaved`；`_complete_file_write` 一进入就清掉它（由正常路径接手）。`settle_aborted_capture` 先结算在途的整章替换，再处理 `_completed_unsaved`：空白正文不存；截断补全且目标原有正文时按同一覆盖保护不存；整章替换还没开始提交的不存（截停之后没有 diff 审阅和撤销卡，保留作者原文、这一轮按替换没落库结算，与还在捕获中的替换相同），已经开始提交的由在途结算等结果；新文件起一个补存任务登记为 `_abort_capture`。正常路径的新文件保存放进 `asyncio.shield` 的任务里，取消落在保存中途时登记为 `_abort_capture`；保存目标的类型与版本令牌（`_save_target`）在任务创建之前定下，`_save_file_content` 不再自己读待写记录。
 - **M1**：`StreamBillingTracker.note_saved_receipts` 对本轮新建的空文件，回执是整数（确认提交）就记为已收到正文、算写入与产出；`None` 不算，仍可作为空白占位移除。`_file_body_pending` 改为公开的 `file_body_pending()`，API 截停时只要还有等正文的文件就先等回执（上限 `STOP_MESSAGE_ID_WAIT_S`；断线路径在后台等 `ROUND_OUTCOME_MESSAGE_ID_WAIT_S` 再决定是否退还）。
 - **M2**：`service._stamp_body_receipts` 在三条落库路径（正常、出错补偿、取消补存）落库前，给等正文的 `create_file` / `write_chapter` 新建卡片写上 `body_saved`（回执里有字数才为 true）。只改落库记录，不发帧，计费不变。`loop/history.py` 回放这个值，false 时附「没有确认保存，需要时先 query_files」；修复前写下、没有这个键的行照旧当作已保存（新旧行靠键是否存在区分，不读文字）。
 - **M3**：`loop/engine.py` 在本请求的已保存正文里有还没自查过的章节 / 分集正文时就续跑一次自查（`self_checked_ids` 仍保证每个文件一次）。保存点连同文件类型记下（`ToolContext.saved_content_body_ids()`，类型不明按正文算），大纲、人物等资料文件不因此续跑，与修复前 `mark_chapter_body_saved` 只记章节的范围一致。正文之后作者已经看到一段回复（这次运行没有停在 `</file>` 上，按文件块协议结构判断，不读回复的意思）时改用 `_BODY_SAVED_REPLIED_CONTEXT`：照样自查和接着写，但不重复那段总结，只说改了什么或新写了哪章；原来「停在 `</file>` 或新正文 EOF 上」的条件保留，用于整章替换没保存的说明与未闭合 EOF 的续写。续跑说明里的文件 = ReadGuard 的写入 + 还没保存的整章替换目标（ReadGuard 新增的 `files_targeted`） + 已保存正文。
@@ -37,7 +37,7 @@ Status: implemented
 - 代价：
   - 最后一章正文之后模型已经写了总结时，会多一次自查调用（每个文件仍最多一次）；这次调用的说明要求不重复总结，作者最多多看到一句「自查过了」或改动说明。
   - 截停时只要还有等正文的文件，停止路径最多多等 `STOP_MESSAGE_ID_WAIT_S`；断线路径的退还在后台等回执后才决定。停止路径等不到回执时仍按「没有产出」退还，补存稍后落库，文件保留。
-  - 停止后才补存的整章替换不发 diff 审阅事件，卡片也拿不到撤销锚点（与取消时在途的整章替换相同）。
+  - 已解析、没开始提交就被截停的整章替换新稿作废，作者需要时重新生成；只有取消时已经在提交的整章替换会落库，它不发 diff 审阅事件，卡片也拿不到撤销锚点。
   - 测试随行为更新：`test_loop_round_endings` 里「总结之后不续跑」改为「已保存正文后续跑自查」；纠偏用例写的是资料文件（outline），续跑次数与修复前相同；一条停止 / 断线补存用例的断线分支改为断言撤回退还。
 
 ## Follow-up

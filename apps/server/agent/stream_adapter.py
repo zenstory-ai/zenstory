@@ -1316,10 +1316,14 @@ class StreamAdapter:
                 file_id=file_id, streamed_length=len(content),
             )
             return
-        log_with_context(logger, 20, "Persisting a completed body cut off before its save", file_id=file_id)
         if target is not None and target.replace_card:
-            await self._save_chapter_replacement(file_id, content, target)
+            # 整章替换的新稿还没开始提交就被截停：不覆盖作者的原文（截停后没有 diff 审阅和撤销卡），
+            # 与还在捕获中的替换一样作废；已经开始提交的那次由 _settle_replacement_in_flight 等结果。
+            log_with_context(
+                logger, 30, "Dropping a whole-chapter replacement stopped before its commit", file_id=file_id
+            )
             return
+        log_with_context(logger, 20, "Persisting a completed body cut off before its save", file_id=file_id)
         self._start_abort_save(file_id, content, target)
 
     async def settle_aborted_capture(self) -> dict[str, int | None]:
