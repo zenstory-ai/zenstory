@@ -28,7 +28,7 @@ from models.file_version import (
     CHANGE_TYPE_EDIT,
 )
 from services.features.activation_event_service import activation_event_service
-from services.features.file_version_service import BEFORE_AI_EDIT_SUMMARY
+from services.features.file_version_service import BEFORE_AI_EDIT_SUMMARY, content_sha256
 from utils.cjk_quotes import (
     QUOTE_STYLE_CURLY,
     detect_quote_style,
@@ -1068,6 +1068,9 @@ class FileEditor:
         return {
             "before_version_number": before_version_number,
             "expected_after_updated_at": after_updated_at,
+            # 这次写入后的正文摘要：后面那次 AI 写入被撤销、正文又逐字回到这里时，
+            # 这张卡的撤销仍能通过（版本令牌已经变了）。
+            "expected_after_content_sha256": content_sha256(content),
         }
 
     def replace_body(
