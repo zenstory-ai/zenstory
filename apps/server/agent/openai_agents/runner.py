@@ -340,24 +340,17 @@ def build_history_messages(state: WritingState) -> MessageList:
     return api_messages
 
 
-def build_run_input(
-    api_messages: MessageList, agent_directive: str = "", context_snapshot: str = ""
-) -> MessageList:
-    """这次 SDK run 的输入：[项目资料快照][历史 + 本轮用户消息][这次运行的系统指令]。
-
-    项目资料快照（state["context_snapshot"]，单循环 agent 不用，为空）紧跟系统提示、在历史之前，
-    跨轮逐字不变时整段命中前缀缓存。它只进模型输入，不写回 state["messages"]
-    （runner 会把 api_messages 写回 state，下一次 run 再加一次快照就重复了）。
+def build_run_input(api_messages: MessageList, agent_directive: str = "") -> MessageList:
+    """这次 SDK run 的输入：[历史 + 本轮用户消息][这次运行的系统指令]。
 
     本次运行的系统指令（agent_directive）放在最后，让 [系统提示][历史][本轮用户消息]
     在同一请求的多次 run 之间逐字相同、命中前缀缓存。
     用 user 角色而不是 system：DeepSeek 的对话模板把所有 system 消息合并到最前面，
     放在末尾的 system 消息会重新打断前缀。它只进本次 SDK 输入，不写回 state["messages"]。
     """
-    prefix = [{"role": "user", "content": context_snapshot}] if context_snapshot else []
     if not agent_directive:
-        return [*prefix, *api_messages]
-    return [*prefix, *api_messages, {"role": "user", "content": agent_directive}]
+        return list(api_messages)
+    return [*api_messages, {"role": "user", "content": agent_directive}]
 
 
 def _with_history_items(state: WritingState, api_messages: MessageList) -> list[Any]:
@@ -896,11 +889,7 @@ async def run_openai_agents_streaming_agent(
                 input=(
                     _continued_run_input(continued, state, agent_directive, initial_steering)
                     if continued is not None
-                    else build_run_input(
-                        _with_history_items(state, api_messages),
-                        agent_directive,
-                        str(state.get("context_snapshot") or ""),
-                    )
+                    else build_run_input(_with_history_items(state, api_messages), agent_directive)
                 ),
                 max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
                 # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；

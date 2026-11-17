@@ -1024,7 +1024,7 @@ async def test_same_agent_next_run_continues_the_previous_run_append_only(monkey
     run_starts: list[int] = []
     _events, requests, _state = await _run_against_local_model(
         monkeypatch, script, None,
-        state_extra={"native_run_holder": {}, "context_snapshot": "<project_snapshot>资料</project_snapshot>"},
+        state_extra={"native_run_holder": {}},
         tool_impls={"query_files": fake_query},
         followups=[{"agent_type": "writer", "state": {
             "continue_native_run": True, "user_message": "[来自上一个Agent的交接信息]: 继续写总结",
@@ -1037,7 +1037,6 @@ async def test_same_agent_next_run_continues_the_previous_run_append_only(monkey
     assert second_run_first["messages"][: len(previous)] == previous
     assert any("第一章原文" in str(m.get("content")) for m in second_run_first["messages"] if m.get("role") == "tool")
     contents = [str(m.get("content")) for m in second_run_first["messages"]]
-    assert sum("<project_snapshot>" in c for c in contents) == 1
     assert contents[-1] == "[来自上一个Agent的交接信息]: 继续写总结"
 
 

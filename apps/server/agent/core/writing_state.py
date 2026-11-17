@@ -28,8 +28,6 @@ class WritingState(TypedDict, total=False):
 
     # Configuration
     system_prompt: str
-    # 放在系统提示之后、历史之前的项目资料快照（单循环 agent 为空字符串）。
-    context_snapshot: str
     # 上一个正常结束的 agent run 的完整 SDK 输入（openai_agents/runner.py 写入）与本轮是否接着它跑。
     native_run_holder: dict[str, Any]
     continue_native_run: bool

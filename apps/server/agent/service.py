@@ -1127,7 +1127,6 @@ class AgentService:
                 # 作者界面语言（zh / en…）：作者可见文案按它选英文或中文。
                 "language": lang,
                 "system_prompt": system_prompt,
-                "context_snapshot": "",
                 "messages": [],
                 "run_meter": run_meter,
             }
