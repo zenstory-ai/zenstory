@@ -1049,6 +1049,18 @@ async def stream_request(
             _round_outcome_tasks.add(task)
             task.add_done_callback(_round_outcome_tasks.discard)
 
+        async def _remove_refunded_placeholders() -> list[dict[str, str]]:
+            # 出错 / 失控 / 时限被退还、连接还开着的一轮同停止路径：这一轮建好还空着的文件一并移除
+            # （残稿补存落定、交回消息 id 之后才删；等不到就保留）。旧标签页收不到 removed_files，不移除。
+            candidates = run_outcome.removable(tracker.removable_placeholders())
+            if (
+                candidates
+                and knows_stop_contract
+                and await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
+            ):
+                return await _offload(remove_empty_placeholders, body.project_id, candidates)
+            return []
+
         _running_streams[run_key] = _RunningStream(pump=pump, outcome=run_outcome)
         if is_draining():
             pump.end_within(AGENT_DRAIN_STOP_AFTER_S)
@@ -1060,15 +1072,7 @@ async def stream_request(
             # 正常收尾：先结算，退还真正落库后才告诉前端「不计入」。
             billing_reason, _, refund_applied = await _settle_billing()
             if refund_applied:
-                # 出错 / 失控被退还的一轮同停止路径：这一轮建好还空着的文件一并移除（残稿补存
-                # 落定、交回消息 id 之后才删；等不到就保留）。旧标签页收不到 removed_files，不移除。
-                candidates = run_outcome.removable(tracker.removable_placeholders())
-                if (
-                    candidates
-                    and knows_stop_contract
-                    and await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
-                ):
-                    removed_files = await _offload(remove_empty_placeholders, body.project_id, candidates)
+                removed_files = await _remove_refunded_placeholders()
                 yield quota_refunded_frame(billing_reason, removed_files)
         except StreamStoppedByUser:
             # 作者点了「停止生成」：运行已按取消路径收尾（后台落库部分历史）。
@@ -1167,8 +1171,9 @@ async def stream_request(
             try:
                 billing_reason, _, refund_applied = await _settle_billing()
                 if refund_applied:
+                    removed_files = await _remove_refunded_placeholders()
                     with contextlib.suppress(Exception):
-                        yield quota_refunded_frame(billing_reason)
+                        yield quota_refunded_frame(billing_reason, removed_files)
             except (asyncio.CancelledError, GeneratorExit):
                 client_disconnected = True
                 raise

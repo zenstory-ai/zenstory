@@ -10,7 +10,7 @@
 
 - `stream_billing.py`：终止帧时只有「本轮开始写的文件没有还在等正文的」才记 `ended_on_reply`。等正文的状态用 tracker 已有的结构化状态判断：本轮新建、还没收到正文的空文件（`removable_placeholders()`），或定位了整章替换、还没收到落库结果的章节（`unconfirmed_replacement_ids()`）。不看文字内容和长度。墙钟时限路径用同一个 `ended_on_reply`，规则一致。正文已经写进文件之后的一句短回答再出错，仍按回复计费。
 - 原来重复的终止帧条件合并进 `_is_terminal_event` 分支。
-- `api/agent.py` 正常收尾被退还的分支和停止路径一样：等这一轮助手消息 id（最多 `STOP_MESSAGE_ID_WAIT_S`，代表残稿补存已落定）后移除这一轮的空白占位文件，`quota_refunded` 带 `removed_files`，终态行 `stop_outcome.removed_files` 同样记下。等不到 id 就保留文件，补存不会撞上已删除的文件；不带 `X-Client-Stop-Contract` 的旧标签页收不到 `removed_files`，同断线路径一样不移除。被计费的一轮照旧保留文件。前端已经处理 `removed_files`，无需改动。
+- `api/agent.py` 正常收尾（error 帧、失控停止）和连接还开着的墙钟时限被退还时，与停止路径一样（共用 `_remove_refunded_placeholders`）：等这一轮助手消息 id（最多 `STOP_MESSAGE_ID_WAIT_S`，代表残稿补存已落定）后移除这一轮的空白占位文件，`quota_refunded` 带 `removed_files`，终态行 `stop_outcome.removed_files` 同样记下。等不到 id 就保留文件，补存不会撞上已删除的文件；不带 `X-Client-Stop-Contract` 的旧标签页收不到 `removed_files`，同断线路径一样不移除。被计费的一轮照旧保留文件。`process_stream` 之外抛出的意外异常路径不移除：服务本身已失败，残稿补存是否落定不可知，且不为崩溃路径多等一次。前端已经处理 `removed_files`，无需改动。
 
 ## Alternatives considered
 
