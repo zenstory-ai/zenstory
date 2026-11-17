@@ -44,6 +44,7 @@ from .paragraph_layout import (
     NOTE_SENTENCE_SNAP,
     exact_anchor_snap_forward,
     follow_span_indentation,
+    indent_unindented_first_paragraph,
     is_sentence_boundary,
     is_sentence_shaped,
     layout_insertion,
@@ -365,6 +366,16 @@ def _numbered_previews(content: str, spans: list[tuple[int, int]]) -> list[str]:
 # 应用内 agent 写正文时才做引号规范化；大纲、角色卡、设定里的引号往往是在
 # 引用术语或英文原文，不属于对白体例，保持原样。
 NORMALIZED_QUOTE_FILE_TYPES = frozenset({"draft", "script"})
+
+
+def normalize_ai_body_first_indent(content: str, file_type: str | None) -> str:
+    """应用内 agent 整章写入小说正文（draft）时，补上漏掉的第一段「　　」缩进。
+
+    剧本（script）的场景标题、动作行、台词按剧本格式顶格，资料文件不是正文，都不动。
+    """
+    if file_type != "draft":
+        return content
+    return indent_unindented_first_paragraph(content)
 
 
 def previous_chapter_content(
@@ -1148,6 +1159,8 @@ class FileEditor:
                     order=file.order,
                 ),
             )
+        if normalize_quotes and content:
+            content = normalize_ai_body_first_indent(content, file.file_type)
 
         undo: dict[str, Any] | None = None
         if content != old_content:

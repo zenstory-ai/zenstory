@@ -1046,3 +1046,33 @@ async def test_streamed_chapter_keeps_the_first_paragraph_indent(workspace, lead
     if existing:
         [edit_end] = outcome.of("file_edit_end")
         assert edit_end.data["new_content"] == saved
+
+
+UNINDENTED_FIRST_BODY = "第一段合成正文。\n\n　　第二段合成正文。\n\n　　第三段合成正文。\n\n　　第四段合成正文。"
+
+
+@pytest.mark.parametrize("existing", [False, True], ids=["created", "replaced"])
+async def test_streamed_chapter_missing_only_the_first_indent_is_saved_indented(workspace, existing):
+    if existing:
+        _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", "　　合成原文。")
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "雨夜", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{UNINDENTED_FIRST_BODY}\n</file>\n第一章写好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "写第一章")
+
+    data = model.tool_calls[0].output["data"]
+    assert data["action"] == ("replaced" if existing else "created")
+    saved = _content(workspace, data["id"])
+    assert saved.rstrip("\n") == "　　" + UNINDENTED_FIRST_BODY
+    # 补两个全角空格不改字数：模型和作者看到的字数就是落库正文的字数。
+    from utils.text_metrics import count_words
+
+    assert outcome.adapter.get_saved_file_word_counts()[data["id"]] == count_words(saved)
+    if existing:
+        # diff 审阅里的新稿就是落库的正文。
+        [edit_end] = outcome.of("file_edit_end")
+        assert edit_end.data["new_content"] == saved
+        final = _results(outcome, "write_chapter")[-1]["data"]
+        assert final["new_word_count"] == count_words(saved)

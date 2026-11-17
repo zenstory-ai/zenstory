@@ -109,6 +109,41 @@ def follow_span_indentation(content: str, start: int, end: int, old: str, new: s
     return "\n".join(lines)
 
 
+FULL_WIDTH_INDENT = "　　"
+_FIRST_INDENT_MIN_FOLLOWING = 3
+_FIRST_INDENT_MIN_SHARE = 0.8
+
+
+def indent_unindented_first_paragraph(content: str) -> str:
+    """AI 整章写入的正文：后面的段落都以「　　」开头、只有第一段顶格时，给第一段补上「　　」。
+
+    模型写 ``<file>`` 正文时偶尔漏掉第一段的缩进（后面各段都有）。只在稿子自己的体例足够明确时补：
+    第一段之后的非空、非标题段落至少 3 段，其中至少 80% 的段首缩进恰好是「　　」。第一段已有任何
+    缩进、是标题行、或不以文字/开引号开头（分隔行等）时不动；没有缩进或缩进混用的稿子不动，
+    英文稿件不用「　　」，自然不受影响。只在第一段行首插入两个全角空格，字数不变。
+    """
+    if not isinstance(content, str) or not content:
+        return content
+    lines = content.split("\n")
+    paragraphs = [index for index, line in enumerate(lines) if line.strip()]
+    if not paragraphs:
+        return content
+    first_index = paragraphs[0]
+    first = lines[first_index]
+    if first[0] in INLINE_SPACE or _is_heading_line(first):
+        return content
+    if not (_WORD_CHAR.match(first[0]) or _is_opening(first, 0)):
+        return content
+    following = [lines[index] for index in paragraphs[1:] if not _is_heading_line(lines[index])]
+    if len(following) < _FIRST_INDENT_MIN_FOLLOWING:
+        return content
+    indented = sum(1 for line in following if _leading_indent(line) == FULL_WIDTH_INDENT)
+    if indented < _FIRST_INDENT_MIN_SHARE * len(following):
+        return content
+    lines[first_index] = FULL_WIDTH_INDENT + first
+    return "\n".join(lines)
+
+
 def _ascii_quote_closes(text: str, index: int) -> bool:
     """行内第偶数个 ASCII 双引号是闭引号（按出现顺序配对）。"""
     line_start = text.rfind("\n", 0, index) + 1
@@ -357,6 +392,7 @@ __all__ = [
     "NOTE_PARAGRAPH",
     "NOTE_SENTENCE_SNAP",
     "exact_anchor_snap_forward",
+    "indent_unindented_first_paragraph",
     "is_sentence_boundary",
     "is_sentence_shaped",
     "layout_insertion",
