@@ -452,7 +452,7 @@ def test_edit_file_schema_declares_occurrence_and_match_options():
     assert "occurrence" in item_props["replace_all"]["description"]
 
 
-def test_edit_file_schema_shows_explicit_op_and_full_batch_retry():
+def test_edit_file_schema_shows_explicit_op_and_atomic_batch_recovery():
     edits_schema = EDIT_FILE_TOOL["input_schema"]["properties"]["edits"]
     description = edits_schema["description"]
     continue_description = EDIT_FILE_TOOL["input_schema"]["properties"]["continue_on_error"]["description"]
@@ -460,7 +460,9 @@ def test_edit_file_schema_shows_explicit_op_and_full_batch_retry():
     assert '"op": "replace"' in description
     assert '"old"' in description and '"new"' in description
     assert "failed_edits" in continue_description
-    assert "完整 edits 列表" in continue_description
+    assert "整体回滚" in continue_description
+    assert "整批都仍待修改" in continue_description
+    assert "完整修改集合拆成几个小批次" in continue_description
 
 
 # ---------------------------------------------------------------------------

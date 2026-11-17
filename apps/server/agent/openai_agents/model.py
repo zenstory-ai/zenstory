@@ -331,6 +331,18 @@ class FailoverChatModel:
                 # A call that streamed only reasoning fails over now (nothing it produced
                 # would be repeated); after answer output the error propagates.
                 if answered or completed or index + 1 >= len(ordered):
+                    log_with_context(
+                        logger, 30, "LLM stream failover not attempted",
+                        provider=provider.name,
+                        provider_count=len(ordered),
+                        provider_index=index,
+                        answer_started=answered,
+                        response_completed=completed,
+                        reason=(
+                            "response_completed" if completed else "answer_started" if answered
+                            else "single_provider" if len(ordered) == 1 else "providers_exhausted"
+                        ),
+                    )
                     raise
                 # The backup would answer this input with HTTP 400: end with the original error
                 # (retryable; the session pin above sends the author's retry to the backup).

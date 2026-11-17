@@ -1655,12 +1655,87 @@ WRITE_CHAPTER_WRITTEN_THIS_TURN_ERROR_TYPE = "chapter_written_this_turn"
 # file_type → 标题里的序号单位（有界的标识符检查，只比对标题开头的「第N章 / 第N集 / Chapter N / Episode N」）。
 _CHAPTER_UNIT_BY_TYPE = {"draft": "章", "script": "集"}
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
+_SOURCE_COPY_FILE_TYPES = frozenset({"outline", "character", "lore", "snippet", "document"})
+SOURCE_TEXT_CONTEXT_MISSING_ERROR_TYPE = "source_text_context_missing"
+SOURCE_TEXT_NOT_FOUND_ERROR_TYPE = "source_text_not_in_author_message"
+SOURCE_TEXT_INVALID_ERROR_TYPE = "invalid_source_text"
+SOURCE_TEXT_CONFLICT_ERROR_TYPE = "source_text_conflict"
+SOURCE_TEXT_FILE_TYPE_ERROR_TYPE = "invalid_source_text_file_type"
+SOURCE_TEXT_EXISTING_MISMATCH_ERROR_TYPE = "source_text_existing_mismatch"
 
 
 def _loop_agent_type() -> str:
     from agent.tools.registry import LOOP_AGENT_TYPE
 
     return LOOP_AGENT_TYPE
+
+
+def _source_copy_content(args: dict[str, Any]) -> tuple[str | None, dict[str, Any] | None]:
+    """Validate a model-selected exact span from this request's raw author message.
+
+    The model chooses what the material means and which span belongs in a file.  This
+    guard only proves that the bytes being saved came from the current request; it does
+    not infer intent or expand the selected range from natural language.
+    """
+    if "source_text" not in args:
+        return None, None
+
+    source_text = args.get("source_text")
+    if not isinstance(source_text, str) or not source_text.strip():
+        return None, _make_mcp_payload(
+            {
+                "status": "error",
+                "error_type": SOURCE_TEXT_INVALID_ERROR_TYPE,
+                "error": "source_text 必须是作者本轮消息中的非空连续原文；没有新建文件。",
+                "mutation_applied": False,
+            },
+            tool_name="create_file",
+        )
+    if "content" in args or coerce_bool(args.get("empty")):
+        return None, _make_mcp_payload(
+            {
+                "status": "error",
+                "error_type": SOURCE_TEXT_CONFLICT_ERROR_TYPE,
+                "error": "source_text 不能与 content 或 empty 同用；没有新建文件。",
+                "mutation_applied": False,
+            },
+            tool_name="create_file",
+        )
+
+    file_type = str(args.get("file_type") or "").strip().lower()
+    if file_type not in _SOURCE_COPY_FILE_TYPES:
+        return None, _make_mcp_payload(
+            {
+                "status": "error",
+                "error_type": SOURCE_TEXT_FILE_TYPE_ERROR_TYPE,
+                "error": "source_text 只用于大纲、人物、设定、素材或其他资料文件；没有新建文件。",
+                "mutation_applied": False,
+            },
+            tool_name="create_file",
+        )
+
+    author_message = ToolContext._get_context().get("author_message")
+    if not isinstance(author_message, str):
+        return None, _make_mcp_payload(
+            {
+                "status": "error",
+                "error_type": SOURCE_TEXT_CONTEXT_MISSING_ERROR_TYPE,
+                "error": "当前调用没有可校验的作者原始消息，不能复制 source_text；没有新建文件。",
+                "mutation_applied": False,
+            },
+            tool_name="create_file",
+        )
+    if source_text not in author_message:
+        return None, _make_mcp_payload(
+            {
+                "status": "error",
+                "error_type": SOURCE_TEXT_NOT_FOUND_ERROR_TYPE,
+                "error": "source_text 不是作者本轮消息中的逐字连续原文；不要改写、拼接或补字段。没有新建文件。",
+                "mutation_applied": False,
+            },
+            tool_name="create_file",
+        )
+    return source_text, None
 
 
 def _loop_body_create_refusal(args: dict[str, Any]) -> dict[str, Any] | None:
@@ -2049,18 +2124,23 @@ async def create_file(args: dict[str, Any]) -> dict[str, Any]:
 
 def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -> dict[str, Any]:
     """Synchronous create_file implementation (write_chapter 新建一章时也走这里)."""
-    executor = ToolContext.get_executor()
     project_id = ToolContext._get_context().get("project_id")
 
     if project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
-    content = args.get("content", "")
     title = args.get("title", "")
     if tool_name == "create_file":
         body_refusal = _loop_body_create_refusal(args)
         if body_refusal is not None:
             return body_refusal
+        source_content, source_error = _source_copy_content(args)
+        if source_error is not None:
+            return source_error
+    else:
+        source_content = None
+    content = source_content if source_content is not None else args.get("content", "")
+    executor = ToolContext.get_executor()
     # 作者明确只要建文件（「只建标题，不写内容」）：这个空文件就是交付物，不等正文。
     # 只在路由判断作者本轮不要正文时生效，作者要正文时模型传了也照常等正文。
     empty_requested = coerce_bool(args.get("empty"))
@@ -2142,6 +2222,18 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
             reservation = None
 
 
+        if source_content is not None:
+            if result.get("reused_existing") is True and result.get("content") != source_content:
+                return _make_mcp_payload(
+                    {
+                        "status": "error",
+                        "error_type": SOURCE_TEXT_EXISTING_MISMATCH_ERROR_TYPE,
+                        "error": "同名文件已存在且内容与作者原文不同；现有文件保持原样，没有复制 source_text。",
+                        "mutation_applied": False,
+                    },
+                    tool_name=tool_name,
+                )
+            result = {**result, "source_copied": True, "body_saved": True}
         data = _elide_reused_file_content(result)
         if body_in_reply:
             data = {

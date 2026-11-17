@@ -132,6 +132,66 @@ async def _post(client: AsyncClient, token: str, project: Project, message: str)
     )
 
 
+@pytest.mark.asyncio
+async def test_loop_author_material_source_is_copied_exactly_and_charged(
+    client: AsyncClient, db_session: Session, shell_db, scripted
+):
+    """HTTP raw message -> SDK tool -> real create -> SSE/history keeps exact author bytes."""
+    from services.quota_service import quota_service
+
+    _user, token, project = await _login(client, db_session)
+    source = (
+        "《旧港残信》三章大纲\n"
+        "第一章 退信：邮局分拣员苏砚收到一封旧信。\n"
+        "第二章 暗格：苏砚找到钟表行学徒陈默。\n\n"
+        "陈默：28岁，话少手稳，对十年前的火灾讳莫如深。"
+    )
+    message = f"请把下面资料保存到项目中，保持原样：\n\n{source}\n\n保存后先别续写。"
+    model = ScriptedModel(
+        runs=[[
+            Reply(
+                text="",
+                tools=(("create_file", {"title": "旧港残信", "file_type": "outline", "source_text": source}),),
+            ),
+            Reply(text="资料已按作者原文保存。"),
+        ]]
+    )
+
+    real_release = quota_service.release_ai_conversation
+    patches = scripted(model)
+    with patches[0], patches[1], patches[2], patches[3], patch.object(
+        quota_service, "release_ai_conversation", side_effect=real_release
+    ) as release:
+        response = await _post(client, token, project, message)
+
+    events = _parse_sse(response.text)
+    names = [name for name, _ in events]
+    assert response.status_code == 200
+    assert "error" not in names and names.count("done") == 1
+    assert "quota_refunded" not in names
+    release.assert_not_called()
+    [tool_result] = [payload for name, payload in events if name == "tool_result"]
+    assert tool_result["status"] == "success"
+    assert tool_result["data"]["source_copied"] is True
+    assert tool_result["data"]["body_saved"] is True
+    assert tool_result["data"]["content"] == source
+    done = [payload for name, payload in events if name == "done"][0]
+    assert done["file_mutated"] is True
+
+    [saved] = db_session.exec(
+        select(File).where(File.project_id == project.id, File.title == "旧港残信", File.is_deleted.is_(False))
+    ).all()
+    assert saved.file_type == "outline"
+    assert saved.content == source
+
+    row = _assistant_row(db_session, project)
+    [card] = [call for call in json.loads(row.tool_calls) if call["name"] == "create_file"]
+    assert card["arguments"]["source_text"] == source
+    assert card["result"]["source_copied"] is True
+    assert card["result"]["body_saved"] is True
+    assert card["result"]["content"] == source
+
+
 # ---------------------------------------------------------------------------
 # diff / 撤销元数据
 # ---------------------------------------------------------------------------

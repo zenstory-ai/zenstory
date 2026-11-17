@@ -927,6 +927,37 @@ async def test_an_error_event_inside_the_stream_is_answered_by_the_backup(chunk_
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["single_provider", "providers_exhausted", "answer_started"])
+async def test_stream_error_explains_why_failover_cannot_run(chunk_endpoints, monkeypatch, caplog, case):
+    """An upstream error must preserve its cause and explain the missing backup attempt."""
+    scripts, calls = chunk_endpoints
+    error = openai.APIError(
+        "PRIVATE_PROVIDER_TEXT", request=httpx.Request("POST", "https://private-provider.test"),
+        body={"message": "PRIVATE_BODY"},
+    )
+    if case == "single_provider":
+        monkeypatch.delenv("LLM_BACKUP_PROVIDER")
+    first_output = _chunk(content="PRIVATE_ANSWER") if case == "answer_started" else _reasoning_chunk("PRIVATE_THOUGHT")
+    scripts["minimax"] = ([_chunk(role="assistant"), first_output], error)
+    scripts["deepseek"] = ([_reasoning_chunk("PRIVATE_THOUGHT")], error)
+
+    with caplog.at_level("WARNING"), pytest.raises(openai.APIError) as raised:
+        await _drain_real(sdk_model.build_failover_chat_model("unavailable-backup"))
+
+    assert raised.value is error
+    assert calls == {"minimax": 1, "deepseek": int(case == "providers_exhausted")}
+    record, = [r for r in caplog.records if r.getMessage() == "LLM stream failover not attempted"]
+    fields = record.custom_fields
+    assert fields["reason"] == case
+    assert fields["provider_count"] == (1 if case == "single_provider" else 2)
+    assert fields["provider_index"] == (1 if case == "providers_exhausted" else 0)
+    assert fields["answer_started"] is (case == "answer_started")
+    assert fields["response_completed"] is False
+    assert not any(value in str(fields) for value in ("PRIVATE_", "private-provider.test", "synthetic-"))
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 @pytest.mark.parametrize("status", [400, 413, 422])
 async def test_routing_tries_the_other_provider_when_one_rejects_the_request(endpoints, status):
     """Production (2026-10-25 12:55): MiniMax answered six routing calls in two minutes with 422 and the
