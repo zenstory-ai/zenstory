@@ -57,6 +57,73 @@ CREATE_FILE_TOOL: dict[str, Any] = {
     }
 }
 
+# 单循环 agent 看到的 create_file：正文（draft / script）不经它建，见 WRITE_CHAPTER_TOOL。
+LOOP_CREATE_FILE_TOOL: dict[str, Any] = {
+    "name": "create_file",
+    "description": (
+        "创建大纲、角色、设定、素材等资料文件或文件夹。正文章节（draft / script）不用这个工具，用 write_chapter。"
+        "此工具只创建空文件，文件内容在工具调用后的下一次回复里用 <file>内容</file> 写入。"
+        f"{WORD_COUNT_CONTRACT}"
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title": CREATE_FILE_TOOL["input_schema"]["properties"]["title"],
+            "file_type": {
+                "type": "string",
+                "description": "文件类型：outline(大纲)、character(角色)、lore(设定)、snippet(素材)、document(其他文档)、folder(文件夹)",
+                "enum": ["outline", "character", "lore", "snippet", "document", "folder"],
+            },
+            "parent_id": CREATE_FILE_TOOL["input_schema"]["properties"]["parent_id"],
+            "metadata": CREATE_FILE_TOOL["input_schema"]["properties"]["metadata"],
+            "empty": CREATE_FILE_TOOL["input_schema"]["properties"]["empty"],
+        },
+        "required": ["title", "file_type"],
+    },
+}
+
+# Tool: write_chapter（单循环 agent）：按章号 / 集号写一章正文，不会写到别的章。
+WRITE_CHAPTER_TOOL: dict[str, Any] = {
+    "name": "write_chapter",
+    "description": (
+        "写正文的某一章（剧本是某一集）：按 chapter 编号定位这一章，不存在就新建，已存在就整章替换这一章，"
+        "不会写到别的章。结果的 action 说明是新建（created）还是替换（replaced，附原来的字数）。"
+        "调用后的下一次回复第一行输出 <file>，接着写这一章完整的正文，最后 </file>；替换时写的是整章新正文。"
+        "只改一章里的几处用 edit_file。"
+        f"{WORD_COUNT_CONTRACT}"
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "chapter": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "章号（剧本是集号），从 1 开始",
+            },
+            "title": {
+                "type": "string",
+                "maxLength": 255,
+                "description": "章节标题，如「第三章 雨夜」或只写「雨夜」（系统补上章号）；替换已有章节时沿用原标题",
+            },
+            "file_type": {
+                "type": "string",
+                "enum": ["draft", "script"],
+                "description": "draft：小说章节；script：剧本分集",
+            },
+            "parent_id": {
+                "type": "string",
+                "description": "正文所在文件夹 ID；分卷时用它指明是哪一卷",
+            },
+            "empty": {
+                "type": "boolean",
+                "description": "作者明确只要建空章节、这一轮不写正文时设为 true：这一章不存在就建一个空文件，已存在就不动",
+            },
+        },
+        "required": ["chapter", "title", "file_type"],
+    },
+}
+
+
 # Tool: edit_file
 EDIT_FILE_TOOL: dict[str, Any] = {
     "name": "edit_file",
@@ -618,6 +685,7 @@ Task param conventions:
 # Export all tool schemas by name (schema source-of-truth).
 TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "create_file": CREATE_FILE_TOOL,
+    "write_chapter": WRITE_CHAPTER_TOOL,
     "edit_file": EDIT_FILE_TOOL,
     "delete_file": DELETE_FILE_TOOL,
     "rename_file": RENAME_FILE_TOOL,
@@ -630,4 +698,7 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "read_skill_resource": READ_SKILL_RESOURCE_TOOL,
 }
 
-
+# 单循环 agent 请求里用的同名工具说明（多 agent 图的 TOOL_SCHEMAS 不变）。
+LOOP_TOOL_SCHEMA_OVERRIDES: dict[str, dict[str, Any]] = {
+    "create_file": LOOP_CREATE_FILE_TOOL,
+}

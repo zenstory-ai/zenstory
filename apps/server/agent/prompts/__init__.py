@@ -120,6 +120,8 @@ def get_prompt_for_project_type(
     project_type: str,
     project_id: str,
     folder_ids: dict[str, str],
+    *,
+    loop: bool = False,
 ) -> str:
     """
     Get the complete system prompt for a project type.
@@ -130,6 +132,7 @@ def get_prompt_for_project_type(
         project_type: Type of project (novel, short, screenplay)
         project_id: The project ID
         folder_ids: Dict mapping folder names to their IDs
+        loop: Build the single loop agent's variant (see get_base_prompt)
 
     Returns:
         Complete system prompt string
@@ -148,7 +151,7 @@ def get_prompt_for_project_type(
         )
 
     # Get base prompt with common sections
-    base_prompt = get_base_prompt(project_id, folder_ids, config)
+    base_prompt = get_base_prompt(project_id, folder_ids, config, loop=loop)
 
     genre_norms = get_genre_norms(project_type)
     if genre_norms:

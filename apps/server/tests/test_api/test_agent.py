@@ -32,6 +32,7 @@ def create_mock_workflow_events():
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("shell_engine")
 async def test_agent_stream_request_success(client: AsyncClient, db_session: Session, writing_prompt_configs):
     """Test successful agent streaming request with mocked writing workflow."""
     # Create user
@@ -140,6 +141,7 @@ async def test_agent_stream_missing_message(client: AsyncClient, db_session: Ses
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("shell_engine")
 async def test_agent_stream_workflow_error(client: AsyncClient, db_session: Session, writing_prompt_configs):
     """Test agent stream when the writing workflow returns an error."""
     # Create user
@@ -185,6 +187,7 @@ async def test_agent_stream_workflow_error(client: AsyncClient, db_session: Sess
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("shell_engine")
 async def test_agent_stream_error_refunds_quota(client: AsyncClient, db_session: Session, writing_prompt_configs):
     """Internal stream errors should trigger quota compensation (refund)."""
     user = User(
@@ -240,6 +243,7 @@ async def test_agent_stream_error_refunds_quota(client: AsyncClient, db_session:
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("shell_engine")
 async def test_agent_stream_success_consumes_quota(client: AsyncClient, db_session: Session, writing_prompt_configs):
     """Successful stream completion should consume ai_conversation quota exactly once."""
     user = User(
@@ -368,6 +372,7 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("shell_engine")
 async def test_agent_stream_returns_402_when_reserve_quota_fails(client: AsyncClient, db_session: Session):
     """If quota reservation fails at stream start, endpoint should return 402."""
     user = User(
@@ -410,6 +415,7 @@ async def test_agent_stream_returns_402_when_reserve_quota_fails(client: AsyncCl
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("shell_engine")
 async def test_agent_stream_sse_format(client: AsyncClient, db_session: Session):
     """Test SSE response format validation."""
     # Create user
@@ -451,6 +457,7 @@ async def test_agent_stream_sse_format(client: AsyncClient, db_session: Session)
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("shell_engine")
 async def test_agent_verify_mock_used(client: AsyncClient, db_session: Session):
     """Verify that tests use mocked writing workflow (no real API calls)."""
     # Create user
@@ -492,6 +499,7 @@ async def test_agent_verify_mock_used(client: AsyncClient, db_session: Session):
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("shell_engine")
 async def test_agent_stream_with_selected_text(client: AsyncClient, db_session: Session):
     """Test agent stream with selected text context."""
     # Create user
@@ -532,6 +540,7 @@ async def test_agent_stream_with_selected_text(client: AsyncClient, db_session: 
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("shell_engine")
 async def test_agent_stream_with_metadata(client: AsyncClient, db_session: Session):
     """Test agent stream with metadata (current_file_id, etc.)."""
     # Create user

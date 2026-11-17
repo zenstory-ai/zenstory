@@ -289,7 +289,7 @@ def build_agent_function_tools(
     function_tools: list[Any] = []
     # 每个角色、每一轮都给同一份工具清单（顺序与描述都不变）：工具清单在请求里排在对话前面，
     # 按角色或只读轮换清单会让整段前缀缓存失效。权限在调用时检查。
-    for tool_schema in get_exposed_tools():
+    for tool_schema in get_exposed_tools(agent_type):
         name = str(tool_schema.get("name") or "").strip()
         if not name:
             continue

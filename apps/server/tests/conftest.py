@@ -314,6 +314,64 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(pytest.mark.integration)
 
 
+@pytest.fixture
+def loop_engine(monkeypatch):
+    """用单循环 agent（生产默认，AGENT_ENGINE=loop）跑这个用例。"""
+    monkeypatch.setenv("AGENT_ENGINE", "loop")
+    return "loop"
+
+
+@pytest.fixture(autouse=True)
+def _graph_engine_unless_loop_requested(request, monkeypatch):
+    """既有的 AgentService 用例都替换 run_writing_workflow_streaming 来驱动外壳（多 agent 图，现为回滚路径）。
+
+    生产默认是单循环 agent；这些用例默认仍走图，单循环 agent 的用例显式请求 loop_engine 夹具，
+    外壳用例用 shell_engine 夹具在两个引擎上各跑一遍。
+    """
+    if "loop_engine" not in request.fixturenames and "shell_engine" not in request.fixturenames:
+        monkeypatch.setenv("AGENT_ENGINE", "graph")
+
+
+@pytest.fixture(params=["graph", "loop"])
+def shell_engine(request, monkeypatch):
+    """AgentService 外壳用例在两个引擎上各跑一遍（SSE、停止 / 断线、插话、计费与退还、落库回执）。
+
+    用例照旧替换 ``agent.service.run_writing_workflow_streaming`` 产出工作流事件。loop 时外壳走单循环
+    agent 的接入路径（``_prepare_loop_turn`` 的输入准备、``_loop_events``、loop 形状的落库），只把
+    ``run_loop_agent_streaming`` 换成转调同一个替身：外壳行为与引擎内部的再跑逻辑分开测
+    （引擎本身见 test_loop_agent.py / test_loop_write_chapter.py / e2e/test_loop_agent_e2e.py）。
+    """
+    import agent.service as service_module
+
+    monkeypatch.setenv("AGENT_ENGINE", request.param)
+    if request.param == "loop":
+
+        def _delegate(state, *, get_steering_messages=None):
+            return service_module.run_writing_workflow_streaming(
+                state,
+                thread_id="loop-shell",
+                max_iterations=1,
+                auto_review_threshold=0,
+                get_steering_messages=get_steering_messages,
+            )
+
+        monkeypatch.setattr(service_module, "run_loop_agent_streaming", _delegate)
+
+        # 外壳用例给 AgentService 的是替身 ContextAssembler（图的上下文组装由它们自己设定）；
+        # 单循环 agent 的本轮上下文用真实组装器的格式化方法，替身不往下传。
+        from unittest.mock import Mock
+
+        real_build = service_module.build_loop_turn_context
+
+        def _build_with_real_assembler(*args, context_assembler=None, **kwargs):
+            if isinstance(context_assembler, Mock):
+                context_assembler = None
+            return real_build(*args, context_assembler=context_assembler, **kwargs)
+
+        monkeypatch.setattr(service_module, "build_loop_turn_context", _build_with_real_assembler)
+    return request.param
+
+
 @pytest.fixture(autouse=True)
 def _reset_tool_context():
     """每个用例前后都把 Agent 的全局 ToolContext 清干净。

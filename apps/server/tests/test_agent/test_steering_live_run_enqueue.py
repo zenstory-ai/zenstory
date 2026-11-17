@@ -27,7 +27,7 @@ from sqlmodel import Session, select
 from models import ChatMessage, Project, User
 from services.core.auth_service import hash_password
 
-pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
+pytestmark = pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
 
 LATE_TEXT = "最后一段别写成大团圆"
 

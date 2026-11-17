@@ -358,7 +358,14 @@ class RoundWrittenFiles:
         file_id = data.get("id")
         if not isinstance(file_id, str) or not file_id:
             return
-        if tool_name == "create_file":
+        if tool_name == "write_chapter" and data.get("action") != "created":
+            # 整章替换：定位时只记标题（正文随 file_content 记下、以保存回执为准）；
+            # 落库后补发的结果确认这次写入。
+            self._remember_title(file_id, data.get("title"))
+            if data.get("mutation_applied") is True:
+                self._tool_writes.add(file_id)
+            return
+        if tool_name in ("create_file", "write_chapter"):
             if data.get("file_type") == _FOLDER_FILE_TYPE:
                 return
             self._remember_title(file_id, data.get("title"))

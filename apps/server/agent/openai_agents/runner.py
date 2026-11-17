@@ -412,6 +412,24 @@ def build_run_input(
     return [*prefix, *api_messages, {"role": "user", "content": agent_directive}]
 
 
+def _with_history_items(state: WritingState, api_messages: MessageList) -> list[Any]:
+    """单循环 agent 的跨轮历史（agent/loop/history.py 重建的 SDK 输入项，含往轮的工具调用与结果）排在本轮消息之前。
+
+    图的各角色没有这个字段，输入照旧只有 state["messages"] 折叠后的文字历史。
+    """
+    history_items = state.get("history_items")
+    if not isinstance(history_items, list) or not history_items:
+        return list(api_messages)
+    return [*history_items, *api_messages]
+
+
+def _card_last_agent(agent_type: str) -> str | None:
+    """暂停卡上的 last_agent：单循环 agent 没有可切换的角色，前端只拿它显示，留空。"""
+    from agent.tools.registry import LOOP_AGENT_TYPE
+
+    return None if agent_type == LOOP_AGENT_TYPE else agent_type
+
+
 def _continued_run(state: WritingState, agent_type: str) -> dict[str, Any] | None:
     """The previous run to continue from, when the graph runs the same agent again right after it."""
     holder = state.get("native_run_holder")
@@ -969,7 +987,11 @@ async def run_openai_agents_streaming_agent(
                 input=(
                     _continued_run_input(continued, state, agent_directive, initial_steering)
                     if continued is not None
-                    else build_run_input(api_messages, agent_directive, str(state.get("context_snapshot") or ""))
+                    else build_run_input(
+                        _with_history_items(state, api_messages),
+                        agent_directive,
+                        str(state.get("context_snapshot") or ""),
+                    )
                 ),
                 max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
                 # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；
@@ -1412,7 +1434,7 @@ async def run_openai_agents_streaming_agent(
                         "这一轮的时间快用完了，AI 先写下了阶段总结。"
                         "任务可能还没做完，回复「继续」就能接着做。"
                     ),
-                    "last_agent": agent_type,
+                    "last_agent": _card_last_agent(agent_type),
                 }
             elif budget_landed:
                 exhausted_data = {
@@ -1423,7 +1445,7 @@ async def run_openai_agents_streaming_agent(
                         f"这一轮的模型调用次数快到上限（{run_meter.max_model_calls} 次），"
                         "AI 先写下了阶段总结。任务可能还没做完，回复「继续」就能接着做。"
                     ),
-                    "last_agent": agent_type,
+                    "last_agent": _card_last_agent(agent_type),
                 }
             else:
                 exhausted_data = {
@@ -1431,13 +1453,20 @@ async def run_openai_agents_streaming_agent(
                     "iterations_used": model_turns or AGENT_TOOL_CALL_MAX_ITERATIONS,
                     "max_iterations": AGENT_TOOL_CALL_MAX_ITERATIONS,
                     "reason": (
-                        f"单个 Agent（{agent_type}）的工具调用轮数已达上限"
-                        f"（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
-                        f"这是单个 Agent 内的工具调用限制，与 Agent 协作轮数"
-                        f"（{AGENT_COLLABORATION_MAX_ITERATIONS} 轮）独立。"
-                        "当前任务可能未完全完成，您可以回复「继续」让 AI 接着完成剩余工作。"
+                        (
+                            f"这一轮的工具调用轮数已达上限（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
+                            "当前任务可能未完全完成，您可以回复「继续」让 AI 接着完成剩余工作。"
+                        )
+                        if _card_last_agent(agent_type) is None
+                        else (
+                            f"单个 Agent（{agent_type}）的工具调用轮数已达上限"
+                            f"（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
+                            f"这是单个 Agent 内的工具调用限制，与 Agent 协作轮数"
+                            f"（{AGENT_COLLABORATION_MAX_ITERATIONS} 轮）独立。"
+                            "当前任务可能未完全完成，您可以回复「继续」让 AI 接着完成剩余工作。"
+                        )
                     ),
-                    "last_agent": agent_type,
+                    "last_agent": _card_last_agent(agent_type),
                 }
             # 前端据此选卡片文案：时限收尾时模型可能已经做完，只是收尾提醒让它写了总结。
             exhausted_data["limit"] = (

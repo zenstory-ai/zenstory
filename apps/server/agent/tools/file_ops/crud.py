@@ -202,6 +202,63 @@ def find_nearest_folder_ancestor(
     return None
 
 
+def looks_like_screenplay_episode(
+    project_type: str | None,
+    project_id: str,
+    parent_id: str | None,
+    title: str,
+    seq_num: int | None,
+) -> bool:
+    """剧本项目里挂在分集目录下、标题带集号的文件：create_file 把它当分集（file_type 归一成 script）。"""
+    return (
+        project_type == "screenplay"
+        and parent_id == f"{project_id}-script-folder"
+        and seq_num is not None
+        and ("集" in title or "episode" in title.lower())
+    )
+
+
+def resolve_create_target(
+    session: Session,
+    project_id: str,
+    project_type: str | None,
+    parent_id: str | None,
+    *,
+    title: str,
+    file_type: str,
+    metadata: dict[str, Any] | None = None,
+) -> tuple[str | None, str]:
+    """不写库地算出 create_file 实际会用的 (parent_id, file_type)。
+
+    与 FileCRUD.create_file 同一套归一：剧本项目里不存在的「-draft-folder」退到分集目录，
+    非 folder 的父节点上挂到最近的 folder 祖先，分集目录下带集号的 draft / document 当作 script。
+    根目录修复、父节点合法性校验仍由 create_file 负责（这里遇到不存在的父节点原样返回）。
+    """
+    resolved = parent_id or None
+    if resolved is not None:
+        parent = session.get(File, resolved)
+        if parent is None or parent.is_deleted or parent.project_id != project_id:
+            if (
+                project_type == "screenplay"
+                and resolved == f"{project_id}-draft-folder"
+                and file_type in ("draft", "script", "document")
+            ):
+                resolved = f"{project_id}-script-folder"
+        elif parent.file_type != FILE_TYPE_FOLDER:
+            resolved = find_nearest_folder_ancestor(session, project_id, resolved)
+    seq_num = extract_sequence_number_with_metadata(
+        (title or "").strip(),
+        metadata,
+        file_type="script" if project_type == "screenplay" else file_type,
+    )
+    effective_type = file_type
+    if file_type in {"draft", "document"} and looks_like_screenplay_episode(
+        project_type, project_id, resolved, (title or "").strip(), seq_num
+    ):
+        effective_type = "script"
+    return resolved, effective_type
+
+
 class FileCRUD:
     """
     CRUD operations for File model.
@@ -459,15 +516,8 @@ class FileCRUD:
             file_type="script" if project.project_type == "screenplay" else file_type,
         )
 
-        is_screenplay_project = project.project_type == "screenplay"
-        screenplay_script_folder_id = f"{project_id}-script-folder"
-        is_screenplay_script_folder = parent_id == screenplay_script_folder_id
-
-        looks_like_episode = (
-            is_screenplay_project
-            and is_screenplay_script_folder
-            and seq_num is not None
-            and ("集" in title or "episode" in title.lower())
+        looks_like_episode = looks_like_screenplay_episode(
+            project.project_type, project_id, parent_id, title, seq_num
         )
 
         # Guardrail: if the agent is writing an episode under the screenplay script folder,
@@ -1368,5 +1418,7 @@ __all__ = [
     "FileCRUD",
     "find_nearest_folder_ancestor",
     "is_descendant_of",
+    "looks_like_screenplay_episode",
+    "resolve_create_target",
     "validate_parent_assignment",
 ]

@@ -46,6 +46,8 @@ class WritingState(TypedDict, total=False):
     # 上一个正常结束的 agent run 的完整 SDK 输入（openai_agents/runner.py 写入）与本轮是否接着它跑。
     native_run_holder: dict[str, Any]
     continue_native_run: bool
+    # 单循环 agent（agent/loop）：按会话重建的跨轮历史（SDK 输入项），排在本轮消息之前。
+    history_items: list[dict[str, Any]]
 
     # Workflow state
     current_agent: str

@@ -54,7 +54,7 @@ from agent.core.events import NON_TERMINAL_WORKFLOW_STOPPED_REASONS
 from core.error_codes import ErrorCode
 
 # 会改动用户文件的工具；是否算「写出了东西」见 StreamBillingTracker._write_effect。
-WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "edit_file", "delete_file", "rename_file"})
+WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file", "delete_file", "rename_file"})
 # 同一段回复正文累计到这么多可见字符才算「真正的回复」：工具调用前的一句过渡旁白
 # （「我先看一遍全书大纲。」「正在查看已有的全书大纲，确认现有设定后再梳理主线。」）
 # 通常 10～30 字，到不了这里。前端 lib/agentRoundProgress.ts 用同一个值。
@@ -267,12 +267,15 @@ class StreamBillingTracker:
             return
         if (
             event_type != "tool_result"
-            or payload.get("tool_name") != "create_file"
+            or payload.get("tool_name") not in ("create_file", "write_chapter")
             or payload.get("status") != "success"
         ):
             return
         data = payload.get("data")
         if not isinstance(data, dict):
+            return
+        if payload.get("tool_name") == "write_chapter" and data.get("action") != "created":
+            # 整章替换的目标是已有的章节，不是这一轮建的空白占位。
             return
         file_id = data.get("id")
         if (
@@ -303,6 +306,13 @@ class StreamBillingTracker:
         if tool_name == "create_file":
             # 只建了一个空文件（正文随后流式写入）不算；复用已有文件不是本轮写的。
             return bool(str(data.get("content") or "").strip()) and data.get("reused_existing") is not True
+        if tool_name == "write_chapter":
+            if data.get("action") == "created":
+                # 新建的一章同 create_file：空文件不算（结果里沿用的 mutation_applied 只说明建了文件），
+                # 正文随 file_content 计入。
+                return bool(str(data.get("content") or "").strip()) and data.get("reused_existing") is not True
+            # 定位不算；只有整章替换落库后补发的结果（body_saved 且 mutation_applied）算写入。
+            return data.get("body_saved") is True and data.get("mutation_applied") is True
         if tool_name == "edit_file":
             mutation_applied = data.get("mutation_applied")
             if isinstance(mutation_applied, bool):

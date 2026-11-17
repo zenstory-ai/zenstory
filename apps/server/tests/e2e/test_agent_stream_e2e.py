@@ -18,7 +18,7 @@ from agent.core.workflow_events import StreamEvent, StreamEventType
 from models import ChatMessage, File, Project, User
 from services.core.auth_service import hash_password
 
-pytestmark = pytest.mark.e2e
+pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("shell_engine")]
 
 
 _INSPECT_AUTHORITY = {

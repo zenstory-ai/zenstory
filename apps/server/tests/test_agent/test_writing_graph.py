@@ -1751,6 +1751,29 @@ class TestWritingGraphUserScope:
 
         assert calls == ["writer", "quality_reviewer"]
 
+    @pytest.mark.asyncio
+    async def test_request_without_generation_mode_is_not_auto_reviewed(self, monkeypatch):
+        """前端不再发送生成模式：回滚到图时没带模式的请求默认不自动送审。"""
+        monkeypatch.delenv("AGENT_ENABLE_GRAPH_AUTO_REVIEW", raising=False)
+        calls: list[str] = []
+
+        async def fake_agent(_state, agent_type, **_kwargs):
+            calls.append(agent_type)
+            for event in create_file_events(title="第1章"):
+                yield event
+            yield StreamEvent(
+                type=StreamEventType.TEXT,
+                data={"text": f"<file>{'正' * 200}</file>\n\n第1章已完成。"},
+            )
+
+        await self._run(
+            self._route({"agent_type": "writer", "workflow_type": "quick", "write_content": True}),
+            fake_agent,
+            message="写第1章",
+        )
+
+        assert calls == ["writer"]
+
 
 @pytest.mark.unit
 class TestScopeDirectiveBuilder:
