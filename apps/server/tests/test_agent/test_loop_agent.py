@@ -1066,3 +1066,52 @@ def test_session_written_file_ids_reads_assistant_rows_in_pages(db_session):
         db_session, chat_session_id=chat.id, limit=45, file_types=("draft", "script")
     )
     assert many == [chapter.id for chapter in reversed(chapters[-45:])]
+
+
+def _created_call(**result_fields) -> dict:
+    return {
+        "id": "c1",
+        "name": "write_chapter",
+        "status": "success",
+        "result": {"id": "ch1", "title": "第1章", "action": "created", "awaiting_body": True, "content": "", **result_fields},
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("fields", "expected_saved", "has_note"),
+    [
+        ({"body_saved": False}, False, True),
+        ({"body_saved": True}, True, False),
+        ({}, True, False),  # 修复前写下的行没有回执：沿用原来的推断
+    ],
+    ids=["receipt_false", "receipt_true", "legacy_row"],
+)
+def test_created_write_replays_its_persisted_body_receipt(fields, expected_saved, has_note):
+    from agent.loop.history import _CREATE_NOT_SAVED_NOTE, _tool_output_text
+
+    output = json.loads(_tool_output_text(_created_call(**fields)))
+
+    assert output["data"]["body_saved"] is expected_saved
+    assert (output["data"].get("result") == _CREATE_NOT_SAVED_NOTE) is has_note
+
+
+@pytest.mark.unit
+def test_body_receipts_stamp_only_created_writes_awaiting_a_body():
+    from agent.service import _stamp_body_receipts
+
+    calls = [
+        _created_call(),
+        {**_created_call(), "id": "c2", "result": {**_created_call()["result"], "id": "ch2"}},
+        {"id": "c3", "name": "write_chapter", "status": "success",
+         "result": {"id": "ch3", "action": "replaced", "chapter": 3}},
+        {"id": "c4", "name": "create_file", "status": "success", "result": {"id": "n1", "content": "资料"}},
+        {"id": "c5", "name": "write_chapter", "status": "error", "result": None},
+    ]
+
+    _stamp_body_receipts(calls, {"ch1": 120, "ch2": None})
+
+    assert calls[0]["result"]["body_saved"] is True
+    assert calls[1]["result"]["body_saved"] is False
+    assert "body_saved" not in calls[2]["result"]
+    assert "body_saved" not in calls[3]["result"]

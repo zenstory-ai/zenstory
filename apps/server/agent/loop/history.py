@@ -53,6 +53,7 @@ _REPLACE_NOT_SAVED_NOTE = (
     "下一次回复再用 <file>…</file> 写入，不先把整章发到聊天，"
     "也不用未保存的新稿作 edit_file 锚点。若本轮改为只读或其他任务，不要自动恢复旧写入。"
 )
+_CREATE_NOT_SAVED_NOTE = "这次新建的正文没有确认保存；需要时先用 query_files 查这个 id 的现状。"
 # 落库的工具结果是前端卡片口径，不是模型当时拿到的原文：技能正文不落库，失败只留给作者看的说明。
 # 回放时如实说明，模型不会以为自己手里还有这些内容。
 _SKILL_CONTENT_NOT_KEPT = {
@@ -177,6 +178,7 @@ def _tool_output_text(call: dict[str, Any]) -> str:
         replaced = name == "write_chapter" and result.get("action") == "replaced"
         streamed = result.get("awaiting_body") is True or result.get("body_in_reply") is True
         saved = result.get("body_saved") is True
+        has_receipt = "body_saved" in result
         result = {key: value for key, value in result.items() if key not in _CREATE_FILE_TRANSIENT_KEYS}
         # 历史回执只说明过去的保存事实；捕获目标与版本绑定只在原请求里有效。
         result["write_target_active"] = False
@@ -186,7 +188,11 @@ def _tool_output_text(call: dict[str, Any]) -> str:
             if not saved:
                 result["result"] = _REPLACE_NOT_SAVED_NOTE
         elif streamed:
-            result["body_saved"] = True
+            # 新建的正文回执由 service 落库时按保存回执写进卡片（_stamp_body_receipts）；
+            # 修复前写下的行没有这个键，沿用原来的推断。
+            result["body_saved"] = saved if has_receipt else True
+            if has_receipt and not saved:
+                result["result"] = _CREATE_NOT_SAVED_NOTE
     payload: dict[str, Any] = {"status": status or "success"}
     if result is not None:
         payload["data"] = result

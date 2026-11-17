@@ -384,3 +384,62 @@ class TestRound3CancellationTermination:
         ), "历史已落库后被取消，队列里的 steering 仍必须落库"
         assistant_rows = [r for r in rows if r.role == "assistant"]
         assert len(assistant_rows) == 1, "取消路径不得把整轮历史重写一遍"
+
+
+@pytest.mark.unit
+async def test_stop_before_the_body_persists_an_unsaved_receipt_on_the_created_card(
+    round3_service, round3_user_with_project, db_session: Session
+):
+    """新建章节后正文还没写就停止：落库卡片带 body_saved=false，下一轮历史不会说正文已保存。"""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+
+    project = round3_user_with_project["project"]
+    user = round3_user_with_project["user"]
+    started = asyncio.Event()
+    result = {
+        "status": "success",
+        "mutation_applied": True,
+        "data": {"id": "new-ch", "title": "第5章", "file_type": "draft", "action": "created",
+                 "awaiting_body": True, "content": ""},
+    }
+
+    async def create_then_hang():
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "我先建好第五章。"})
+        yield StreamEvent(type=StreamEventType.TOOL_USE, data={
+            "id": "w1", "name": "write_chapter", "status": "complete", "input": {"chapter": 5, "title": "第5章"},
+        })
+        yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={
+            "tool_use_id": "w1", "name": "write_chapter",
+            "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]},
+        })
+        started.set()
+        await asyncio.sleep(3600)
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "到不了"})
+
+    bind = db_session.get_bind()
+    events: list[str] = []
+
+    async def consume():
+        async for event in round3_service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="写第五章",
+            session=db_session,
+        ):
+            events.append(event)
+
+    with (
+        patch("agent.service.run_loop_agent_streaming", return_value=create_then_hang()),
+        patch("agent.service.create_session", side_effect=lambda: Session(bind)),
+    ):
+        task = asyncio.create_task(consume())
+        await wait_for_stream_start(started, task)
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        rows = await _poll_rows(db_session, _session_id_from_events(events), expected=2)
+
+    assistant = next(r for r in rows if r.role == "assistant")
+    card = next(c for c in json.loads(assistant.tool_calls) if c["name"] == "write_chapter")
+    assert card["result"]["body_saved"] is False

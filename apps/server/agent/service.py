@@ -184,6 +184,25 @@ def first_message_hint(project_type: str | None, force_en: bool) -> str:
     )
 
 
+def _stamp_body_receipts(tool_calls: list[dict[str, Any]], receipts: dict[str, int | None]) -> None:
+    """落库前给新建写入的卡片写上正文回执：等正文的 create_file / write_chapter 结果带
+    ``body_saved``（StreamAdapter 的保存回执里有字数才是 True）。历史回放据此说明正文是否保存，
+    不再从「当时在等正文」推断「已保存」。只改落库的记录，不发帧，不影响计费；整章替换
+    的卡片由 StreamAdapter 补发的结果带回执，不在这里改。"""
+    for call in tool_calls:
+        result = call.get("result")
+        if (
+            call.get("name") not in ("create_file", "write_chapter")
+            or call.get("status") != "success"
+            or not isinstance(result, dict)
+            or result.get("action") == "replaced"
+            or "body_saved" in result
+            or not (result.get("awaiting_body") is True or result.get("body_in_reply") is True)
+        ):
+            continue
+        call["result"] = {**result, "body_saved": isinstance(receipts.get(str(result.get("id") or "")), int)}
+
+
 def _project_has_ai_reply(session: Session, project_id: str) -> bool:
     """这部作品的任何会话里有过 AI 回复：之后再带第一条消息标记的，不按第一条处理。"""
     from models import ChatMessage, ChatSession
@@ -970,6 +989,13 @@ class AgentService:
             usage = adapter.get_last_message_metadata().get("usage")
             return usage if isinstance(usage, dict) and usage else None
 
+        def _current_receipts() -> dict[str, int | None]:
+            receipts = dict(run_outcome.saved_file_word_counts) if run_outcome is not None else {}
+            adapter = usage_source.get("adapter")
+            if adapter is not None:
+                receipts.update(adapter.get_saved_file_word_counts())
+            return receipts
+
         def _save_partial_history_sync(
             stop_reason: str | None = None,
             persist_empty_assistant: bool = False,
@@ -989,6 +1015,7 @@ class AgentService:
                 )
                 return None
 
+            _stamp_body_receipts(all_tool_calls, _current_receipts())
             recovery_manager = MessageManager(
                 project_id=project_id,
                 user_id=user_id,
@@ -1398,6 +1425,7 @@ class AgentService:
                         )
                         history_saved = True
                         return None
+                    _stamp_body_receipts(all_tool_calls, stream_adapter.get_saved_file_word_counts())
                     saved_id = await message_manager.save_messages(
                         session,
                         session_id,
