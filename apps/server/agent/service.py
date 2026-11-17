@@ -33,9 +33,12 @@ from .constants import should_offload_session_work
 from .context import ContextAssembler, get_context_assembler
 from .core.account_run_limit import AccountRunSlot
 from .core.events import (
+    HISTORY_COMPACTION_SKIPPED_STEP,
+    HISTORY_COMPACTION_STEP,
     context_event,
     done_event,
     error_event,
+    history_compacted_event,
     iteration_exhausted_status_card,
     session_started_event,
     skill_matched_event,
@@ -1153,8 +1156,12 @@ class AgentService:
                 compaction_usage: dict[str, int] | None = None
                 if should_compact(loop_history):
                     # 轮与轮之间压缩历史（不在工具循环中途）：摘要不可用时照常带完整历史跑这一轮。
+                    # 作者能看到这一步：先发「正在压缩对话…」，成功后变成会话里的「对话已压缩」标记
+                    # （记进 display_events，刷新后在同一位置回放，摘要读本轮的 compaction 记录）；
+                    # 没压缩成时只发一条收起它的进度提示，不落库。
                     yield thinking_event(
-                        "Condensing earlier conversation..." if force_en else "正在整理较早的对话..."
+                        "Compacting conversation…" if force_en else "正在压缩对话…",
+                        step=HISTORY_COMPACTION_STEP,
                     ).to_sse()
                     with run_meter.measure_stage("compaction"):
                         outcome = await compact_history(
@@ -1164,8 +1171,17 @@ class AgentService:
                     if outcome.record is not None and outcome.items is not None:
                         loop_compaction_record = outcome.record
                         writing_state["history_items"] = outcome.items
-                    elif outcome.skipped:
-                        loop_compaction_skipped = skipped_record(loop_history, outcome.skipped)
+                        assistant_display_events.append({"type": "history_compacted", "data": {}})
+                        yield history_compacted_event(outcome.record["summary"]).to_sse()
+                    else:
+                        if outcome.skipped:
+                            loop_compaction_skipped = skipped_record(loop_history, outcome.skipped)
+                        yield thinking_event(
+                            "Couldn't compact the conversation; continuing as is"
+                            if force_en
+                            else "未能压缩对话，按原样继续",
+                            step=HISTORY_COMPACTION_SKIPPED_STEP,
+                        ).to_sse()
                 # 兜底上限：压缩一直不成时丢掉最旧的项，会话降级而不是每轮超出供应商上下文。
                 run_history = list(writing_state.get("history_items") or [])
                 bounded_history = bounded_items(run_history, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS)
