@@ -552,6 +552,12 @@ class StreamAdapter:
             async for sse_event in self._flush_capture_and_held_reply():
                 yield sse_event
             already_failed = self._fatal_stream_error
+            pending = self._pending_file_write
+            if not already_failed and pending is not None and pending.replace_card:
+                # 出错结束这一轮，没写成（或截断补全被拒）的整章替换不会再重试；这一帧之后适配器不再
+                # 处理事件，引擎收尾的「未保存」说明到不了作者，这里先如实说一次。
+                for sse_event in self._rewrite_not_saved_events():
+                    yield sse_event
             self._fatal_stream_error = True
             if not already_failed:
                 info = stream_error_from_event_data(data)
@@ -1000,6 +1006,15 @@ class StreamAdapter:
             rolled_back_count=len(rolled_back),
             candidate_count=len(targets),
         )
+
+    def _rewrite_not_saved_events(self) -> list[SSEEvent]:
+        """「改写没有保存、原文不变」的固定说明（与引擎作废整章替换时同一份文字）。"""
+        events: list[SSEEvent] = []
+        if not self._content_started:
+            events.append(content_start_event())
+            self._content_started = True
+        events.append(content_event("\n\n" + rewrite_not_saved_notice(self.config.language.lower().startswith("en"))))
+        return events
 
     async def _complete_chapter_replace(self, result: StreamResult, pending: PendingFileWrite) -> AsyncIterator[SSEEvent]:
         """整章替换的正文写完：用 replace_body 提交，发 diff 审阅事件，并把结果补发到同一张卡上。"""
@@ -1634,11 +1649,8 @@ class StreamAdapter:
                 # 那时由引擎发「未保存」的说明；这里不先说，重试成功时作者不会看到矛盾的两句话。
                 yield file_content_end_event(result.file_id)
                 return
-            warning_text = "\n\n" + rewrite_not_saved_notice(self.config.language.lower().startswith("en"))
-            if not self._content_started:
-                yield content_start_event()
-                self._content_started = True
-            yield content_event(warning_text)
+            for sse_event in self._rewrite_not_saved_events():
+                yield sse_event
             yield file_content_end_event(result.file_id)
             self._pending_file_write = None
             self._clear_pending_empty_file_guard(result.file_id)

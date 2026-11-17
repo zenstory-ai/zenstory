@@ -463,6 +463,51 @@ async def test_unclosed_replacement_body_never_overwrites_the_chapter(workspace)
     assert "原文保持不变" in outcome.chat_text
 
 
+async def test_replacement_left_armed_at_tool_call_exhaustion_reports_it_was_not_saved(workspace):
+    """工具轮数耗尽时整章替换还在等正文：原文不动，作者看到固定的「未保存」说明，不被当成已有正文静默清掉。"""
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
+    model = ScriptedModel(runs=[[
+        Reply(
+            text="", tools=(("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"}),),
+            exceeds_max_turns=True,
+        ),
+    ]])
+
+    outcome = await _run_loop(workspace, model)
+
+    assert _content(workspace, three.id) == "合成第三章原文。"
+    assert outcome.of("iteration_exhausted")
+    assert outcome.chat_text.count("本次改写未保存，原文保持不变。") == 1
+    assert ToolContext.has_pending_empty_file() is False
+
+
+async def test_provider_error_mid_replacement_body_reports_it_was_not_saved():
+    """整章替换的正文写到一半模型出错：截断补全被拒、原文不动；出错帧之前给作者固定的「未保存」说明。"""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+
+    adapter = StreamAdapter()
+    card = {"id": "chapter-3", "action": "replaced", "chapter": 3, "awaiting_body": True}
+    adapter.set_pending_file_write(
+        "chapter-3", "draft", "第3章", original_content_length=40,
+        baseline_updated_at="v1", replace_tool_use_id="call-1", replace_card=card,
+    )
+    replaced = []
+    adapter._replace_file_body_sync = lambda *args: replaced.append(args) or {}
+
+    async def workflow():
+        yield StreamEvent(StreamEventType.TEXT, {"text": "<file>\n只写了一个开头"})
+        yield StreamEvent(StreamEventType.ERROR, {"error": "provider failed", "error_type": "provider_error"})
+
+    frames = [frame async for frame in adapter.process_workflow_events(workflow())]
+    kinds = [frame.type.value for frame in frames]
+    chat = "".join(str(frame.data.get("text") or "") for frame in frames if frame.type.value == "content")
+
+    assert replaced == []
+    assert chat.count("本次改写未保存，原文保持不变。") == 1
+    assert kinds.index("error") > max(i for i, kind in enumerate(kinds) if kind == "content")
+    assert adapter.get_replacement_receipts() == {}
+
+
 def _run_input_text(model: ScriptedModel, index: int) -> str:
     return json.dumps(model.run_inputs[index], ensure_ascii=False, default=str)
 

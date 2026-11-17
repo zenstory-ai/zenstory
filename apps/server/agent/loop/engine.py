@@ -241,6 +241,17 @@ async def _settle_pending_empty_files(
     return None, None, notices, [await _empty_file_card(unfinished, None)]
 
 
+def _abandon_armed_replacements(english: bool) -> list[StreamEvent]:
+    """作废所有还在等正文的整章替换定位（原文不动）；有作废时返回一条「未保存」说明。"""
+    abandoned = False
+    for entry in ToolContext.get_pending_empty_files():
+        file_id = str(entry.get("file_id") or entry.get("id") or "")
+        if ToolContext.pending_chapter_replacement(file_id) is not None:
+            ToolContext.clear_pending_empty_file(file_id)
+            abandoned = True
+    return [_rewrite_not_saved_event(english)] if abandoned else []
+
+
 def _rewrite_not_saved_event(english: bool) -> StreamEvent:
     """放弃整章替换时给作者的固定说明（与 StreamAdapter 拒绝截断覆盖时同一份文字）。"""
     return StreamEvent(type=StreamEventType.TEXT, data={"text": "\n\n" + rewrite_not_saved_notice(english)})
@@ -410,6 +421,10 @@ async def run_loop_agent_streaming(
                 yield event
 
             if deferred_exhausted is not None:
+                # 耗尽后不再重试：作废还在等正文的整章替换并如实说明（原文没动，不是空文件，不交给空文件核验——
+                # 那里按「文件已有正文」把它静默清掉）。
+                for notice in _abandon_armed_replacements(english):
+                    yield notice
                 file_facts = await empty_files.settle_empty_files_after_exhaustion(LOOP_AGENT_TYPE, english)
                 yield StreamEvent(
                     type=StreamEventType.ITERATION_EXHAUSTED,
