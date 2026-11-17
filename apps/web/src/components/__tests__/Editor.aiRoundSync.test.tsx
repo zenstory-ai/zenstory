@@ -1166,6 +1166,27 @@ describe('AI replaces the open chapter, then edits it again in the same round', 
     });
   });
 
+  it('an older re-read answering after a newer one does not roll the review back', async () => {
+    await replaceChapter();
+    // A re-read of the replaced copy is still in flight when the edit lands.
+    let answerOlder: (file: ServerFile) => void = () => {};
+    server.get.mockImplementationOnce(() => new Promise<ServerFile>((resolve) => { answerOlder = resolve; }));
+    const replacedCopy = { ...server.files.get(CH1.id)! };
+    act(() => harness.project!.triggerEditorRefresh(CH1.id));
+    await advance(300); await settle();
+    await editChapter();
+    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
+
+    await act(async () => { answerOlder(replacedCopy); });
+    await advance(300); await settle();
+    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
+    finishReview();
+    await settle();
+    expect(putsFor(CH1.id)).toHaveLength(1);
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_EDITED });
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
   it('a second content-bearing write keeps the earliest original of the open review', async () => {
     await replaceChapter();
     server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: EDITED, updated_at: T_EDITED });

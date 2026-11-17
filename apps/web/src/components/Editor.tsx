@@ -236,6 +236,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
   } | null>(null);
   const hasLoadedRef = useRef(false);
   const loadGenerationRef = useRef(0);
+  // Counts re-reads of the open file (syncOpenFileFromServer), so an older one answering late is known.
+  const serverSyncSeqRef = useRef(0);
   const restoredSelectionRef = useRef<string | null>(null);
   const currentFileRef = useRef<File | null>(file);
   const translateRef = useRef(t);
@@ -773,6 +775,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     if (!opened || selectedIdRef.current !== opened.id || isFileRemoved(activeProjectIdRef.current, opened.id)) return;
     const fileId = opened.id;
     const generation = loadGenerationRef.current;
+    const syncSeq = ++serverSyncSeqRef.current;
     const isStillOpen = () =>
       generation === loadGenerationRef.current &&
       currentFileRef.current?.id === fileId &&
@@ -814,8 +817,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
       // A conflict or polish comparison is open: its save carries the token it was
       // opened with, so a newer server copy surfaces there as a conflict.
       if (review.origin !== 'agent_write') return;
-      // An agent-write review holds no author text (the body is locked while it is
-      // open): the review and the save token follow the newer server copy.
+      // A later re-read started while this one was in flight: its copy is at least as new,
+      // and this older answer must not roll the review and the save token back.
+      if (syncSeq !== serverSyncSeqRef.current) return;
+      // The review and the save token follow the newer server copy (the body is locked while
+      // it is open).
       followServerUnderAgentReview(data);
       adoptServerCopy(data, nextTitle);
       return;
