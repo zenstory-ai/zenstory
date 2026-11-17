@@ -249,25 +249,6 @@ def test_partially_applied_parallel_edit_still_resets_reads():
 
 
 @pytest.mark.unit
-def test_handoff_summary_lists_titles_and_ids_without_content():
-    guard = RepeatReadGuard()
-    _guarded_read(guard)
-    _guarded_read(guard, json.dumps({"id": "f9", "response_mode": "summary"}), _read_ok("f9", "摘要读过的"))  # 摘要不算全文
-    guard.observe(
-        "create_file",
-        guard.plan("create_file", json.dumps({"title": "第二章"}, ensure_ascii=False)),
-        json.dumps({"status": "success", "data": {"id": "f2", "title": "第二章"}}, ensure_ascii=False),
-    )
-    summary = guard.handoff_summary()
-    assert "本请求已读取全文：《第一章》(id=f1)" in summary
-    assert "本请求已修改：《第二章》(id=f2)" in summary
-    assert "f9" not in summary
-    assert "正文……" not in summary
-    assert guard.completed_items() == ["已修改《第二章》(id=f2)"]
-    assert RepeatReadGuard().handoff_summary() == ""
-
-
-@pytest.mark.unit
 def test_breaker_does_not_count_guard_blocks_as_failures():
     """拦下的重复读取不能让熔断器以「相同参数连续失败」抢先熔断。"""
     guard = RepeatReadGuard()
@@ -368,19 +349,6 @@ def test_partial_edit_that_changed_the_file_counts_as_a_write():
     )
     assert json.loads(_guarded_read(untouched))["error_type"] == REPEATED_READ_ERROR_TYPE
     assert untouched.write_succeeded is False
-
-
-@pytest.mark.unit
-def test_handoff_summary_marks_full_text_of_modified_files_as_stale():
-    guard = RepeatReadGuard()
-    guard.observe(
-        "edit_file",
-        guard.plan("edit_file", json.dumps({"id": "f3"})),
-        json.dumps({"status": "success", "data": {"id": "f3", "title": "第三章"}}, ensure_ascii=False),
-    )
-    summary = guard.handoff_summary()
-    assert "《第三章》(id=f3)的[全文]是本请求修改前的版本，已过期" in summary
-    assert "query_files(id=f3)" in summary
 
 
 @pytest.mark.unit
@@ -898,7 +866,6 @@ async def test_distinct_range_windows_all_execute_and_are_not_recorded_as_full_t
     assert all("read_hint" not in item for item in outputs)
     assert guard.duplicate_reads == 0 and guard.blocked_reads == 0
     assert guard.files_read == {}
-    assert "本请求已读取全文" not in guard.handoff_summary()
 
 
 @pytest.mark.unit

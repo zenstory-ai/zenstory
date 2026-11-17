@@ -545,50 +545,8 @@ class RepeatReadGuard:
             tool_name=tool_name,
         )
 
-    # ------------------------------------------------------------- handoff
-    def handoff_summary(self) -> str:
-        """交接给下一个 agent 的读写摘要（只有标题与 id，不带正文）。"""
-        parts: list[str] = []
-        if self.files_read:
-            reads = "、".join(_label(file_id, title) for file_id, title in self.files_read.items())
-            parts.append(f"本请求已读取全文：{reads}")
-        if self.files_written:
-            writes = "、".join(
-                _label(file_id, self._titles.get(file_id, title))
-                for file_id, title in self.files_written.items()
-            )
-            parts.append(f"本请求已修改：{writes}")
-        if not parts:
-            return ""
-        # 下一个 agent 的上下文里没有这些文件的正文（工具结果不跨 agent 回放），
-        # 所以不说「别读」，只要求按需读、在它自己这次运行里每个文件读一次。
-        summary = (
-            "；".join(parts)
-            + "。这些文件的正文不在你的上下文里：只读取完成你的任务确实需要的文件，"
-            "在你这次运行里每个文件读一次即可，不要重复读取同一文件。"
-        )
-        # 系统提示（含 [全文] 条目与工作集）每个请求只组装一次：本请求改过的文件，
-        # 那里的 [全文] 仍是修改前的版本。
-        stale = "".join(
-            f"系统上下文/工作集中{_label(file_id, self._titles.get(file_id, title))}的[全文]"
-            f"是本请求修改前的版本，已过期；需要时用 query_files(id={file_id}) 读取最新内容。"
-            for file_id, title in self.files_written.items()
-        )
-        return summary + stale
-
-    def completed_items(self) -> list[str]:
-        """写进 handoff_packet.completed 的条目。"""
-        return [
-            f"已修改{_label(file_id, self._titles.get(file_id, title))}"
-            for file_id, title in self.files_written.items()
-        ]
-
     def written_file_ids(self) -> list[str]:
         return list(self.files_written)
-
-
-def _label(file_id: str, title: str) -> str:
-    return f"《{title}》(id={file_id})" if title else f"(id={file_id})"
 
 
 def _blocked_user_message(titles: list[str]) -> str:
