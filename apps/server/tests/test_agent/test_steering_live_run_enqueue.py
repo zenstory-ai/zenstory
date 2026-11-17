@@ -181,7 +181,7 @@ async def test_steer_after_final_drain_is_never_acknowledged_then_dropped(
 
     bind = db_session.get_bind()
     with (
-        patch("agent.service.run_writing_workflow_streaming", return_value=mock_stream()),
+        patch("agent.service.run_loop_agent_streaming", return_value=mock_stream()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
         patch("agent.service.cleanup_steering_queue_async", steer_around_release),
     ):
@@ -265,7 +265,7 @@ async def test_steer_during_history_save_is_not_acknowledged_as_used(
 
     bind = db_session.get_bind()
     with (
-        patch("agent.service.run_writing_workflow_streaming", return_value=mock_stream()),
+        patch("agent.service.run_loop_agent_streaming", return_value=mock_stream()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
         patch.object(MessageManager, "save_messages", steer_during_save),
     ):

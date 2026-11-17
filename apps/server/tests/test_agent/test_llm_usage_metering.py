@@ -179,61 +179,6 @@ def _chat_response(content: str, usage):
     )
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_router_call_is_metered(db_session: Session, bound_request):
-    from agent.graph import router
-
-    usage = SimpleNamespace(
-        prompt_tokens=300,
-        completion_tokens=40,
-        total_tokens=340,
-        prompt_cache_hit_tokens=256,
-        prompt_cache_miss_tokens=44,
-        prompt_tokens_details=SimpleNamespace(cached_tokens=256),
-    )
-    create = AsyncMock(return_value=_chat_response('{"agent_type":"writer","workflow_type":"quick"}', usage))
-    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    with patch.dict("os.environ", {"DEEPSEEK_API_KEY": "synthetic-test-key"}), patch("agent.core.llm_providers.get_async_client", return_value=client):
-        response = await router._route_with_chat_model("写一章")
-    await drain_pending_usage_records()
-
-    assert response["usage"]["cache_read_tokens"] == 256
-    [event] = _events(db_session)
-    assert (event.source, event.user_id, event.correlation_id) == ("router", bound_request.id, "run-abc")
-    assert (event.cache_hit_tokens, event.cache_miss_tokens, event.output_tokens) == (256, 44, 40)
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_router_failure_keeps_usage_of_unparseable_answer():
-    from agent.graph import router
-
-    routed = {"content": [{"type": "text", "text": "???"}], "usage": {"input_tokens": 5, "output_tokens": 2}}
-    with (
-        patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=routed)),
-        patch("agent.graph.router._parse_router_response", side_effect=router.RouterFailure("schema")),
-    ):
-        with pytest.raises(router.RouterFailure) as failure:
-            await router.router_node({"user_message": "写一章"})
-
-    assert failure.value.category == "schema"
-    assert failure.value.usage == {"input_tokens": 5, "output_tokens": 2}
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_router_failure_without_response_has_no_usage():
-    from agent.graph import router
-
-    with patch("agent.graph.router._route_with_chat_model", AsyncMock(side_effect=RuntimeError("down"))):
-        with pytest.raises(router.RouterFailure) as failure:
-            await router.router_node({"user_message": "写一章"})
-
-    assert failure.value.category == "provider_failure"
-    assert failure.value.usage is None
-
-
 # ---------------------------------------------------------------------------
 # LLMClient.acomplete (suggest + natural polish)
 # ---------------------------------------------------------------------------
@@ -333,22 +278,3 @@ async def test_slow_ledger_write_does_not_delay_acomplete(monkeypatch):
         release.set()
         await drain_pending_usage_records()
     assert not llm_usage_service._pending_records
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_slow_ledger_write_does_not_delay_routing(monkeypatch, bound_request):
-    from agent.graph import router
-
-    started, release = _blocking_recorder(monkeypatch)
-    usage = SimpleNamespace(prompt_tokens=30, completion_tokens=4, total_tokens=34)
-    create = AsyncMock(return_value=_chat_response('{"agent_type":"writer"}', usage))
-    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    try:
-        with patch.dict("os.environ", {"DEEPSEEK_API_KEY": "synthetic-test-key"}), patch("agent.core.llm_providers.get_async_client", return_value=client):
-            response = await asyncio.wait_for(router._route_with_chat_model("写一章"), timeout=1.0)
-        assert response["content"][0]["text"] == '{"agent_type":"writer"}'
-        assert await asyncio.to_thread(started.wait, 5)
-    finally:
-        release.set()
-        await drain_pending_usage_records()

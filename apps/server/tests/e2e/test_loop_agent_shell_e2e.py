@@ -24,7 +24,7 @@ from services.core.auth_service import hash_password
 from services.features.file_version_service import FileVersionService
 from tests.test_agent.test_file_body_resume import Reply, ScriptedModel
 
-pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("writing_prompt_configs", "loop_engine")]
+pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("writing_prompt_configs")]
 
 _SYNTHETIC_REQUEST = Request({"type": "http", "headers": []})
 NEW_BODY = "\n".join(f"第{index}段合成新稿，只用于核对单循环外壳。" for index in range(1, 6))
@@ -379,3 +379,166 @@ async def test_loop_steering_during_a_run_is_taken_up_in_the_same_turn(
     db_session.expire_all()
     rows = db_session.exec(select(ChatMessage).where(ChatMessage.session_id == session_id)).all()
     assert any(r.role == "user" and "改写第二章提纲" in (r.content or "") for r in rows)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ending", ["user_stopped", "client_disconnected", "deadline"])
+async def test_loop_replacement_cut_off_mid_body_leaves_the_chapter_and_is_refunded(
+    client: AsyncClient, db_session: Session, shell_db, scripted, monkeypatch, ending
+):
+    """整章替换的正文流到一半就停止 / 断线 / 到时：原文不变，流过的正文不算产出，这一轮退还。"""
+    from services.quota_service import quota_service
+
+    user, _token, project = await _login(client, db_session)
+    three = _ai_chapter(db_session, project, "第3章 灯塔", "合成第三章原文。")
+    if ending == "deadline":
+        monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 1.0)
+        monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.1)
+    hang = asyncio.Event()
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第三章", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{NEW_BODY}\n{NEW_BODY}", hang=hang),
+    ]])
+
+    real_release = quota_service.release_ai_conversation
+    patches = scripted(model)
+    received: list[str] = []
+    with patches[0], patches[1], patches[2], patches[3], patch.object(
+        quota_service, "release_ai_conversation", side_effect=real_release
+    ) as release:
+        response = await _start(db_session, user, project, "把第三章换成新稿")
+        iterator = response.body_iterator
+        await _read_until(iterator, "file_content", received)
+        if ending == "user_stopped":
+            stopped = await agent_api.stop_stream(
+                body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+                current_user=user,
+                _rate_limit=0,
+            )
+            assert stopped.stop_requested is True
+            received.extend([frame async for frame in iterator])
+        elif ending == "client_disconnected":
+            await iterator.aclose()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
+        else:
+            received.extend([frame async for frame in iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert _content(db_session, three.id) == "合成第三章原文。"
+    release.assert_called_once()
+    text = "".join(received)
+    if ending == "deadline":
+        assert "ERR_AGENT_RUN_TIMEOUT" in text
+    if ending != "client_disconnected":
+        assert "event: quota_refunded" in text
+    if ending == "user_stopped":
+        metadata = json.loads(_assistant_row(db_session, project).message_metadata)
+        assert metadata["stop_outcome"]["charged"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ending", ["user_stopped", "client_disconnected"])
+async def test_loop_replacement_of_an_empty_chapter_cut_off_mid_body_is_charged(
+    client: AsyncClient, db_session: Session, shell_db, scripted, ending
+):
+    """替换一个已有的空白章节时正文流到一半就停止 / 断线：没有原文要保护，流过的正文照常落库，这一轮计费。"""
+    from services.quota_service import quota_service
+
+    user, _token, project = await _login(client, db_session)
+    three = _ai_chapter(db_session, project, "第3章 灯塔", "")
+    hang = asyncio.Event()
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第三章", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{NEW_BODY}\n{NEW_BODY}", hang=hang),
+    ]])
+
+    real_release = quota_service.release_ai_conversation
+    patches = scripted(model)
+    received: list[str] = []
+    with patches[0], patches[1], patches[2], patches[3], patch.object(
+        quota_service, "release_ai_conversation", side_effect=real_release
+    ) as release:
+        response = await _start(db_session, user, project, "写第三章")
+        iterator = response.body_iterator
+        await _read_until(iterator, "file_content", received)
+        if ending == "user_stopped":
+            stopped = await agent_api.stop_stream(
+                body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+                current_user=user,
+                _rate_limit=0,
+            )
+            assert stopped.stop_requested is True
+            received.extend([frame async for frame in iterator])
+        else:
+            await iterator.aclose()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    for _ in range(50):
+        if _content(db_session, three.id).strip():
+            break
+        await asyncio.sleep(0.05)
+    assert "第1段合成新稿" in _content(db_session, three.id)
+    release.assert_not_called()
+    assert "event: quota_refunded" not in "".join(received)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ending", ["user_stopped", "client_disconnected"])
+async def test_loop_replacement_committed_while_the_round_is_cut_off_is_charged(
+    client: AsyncClient, db_session: Session, shell_db, scripted, ending
+):
+    """正文已写到 </file>、整章替换正在落库时停止 / 断线：保存照常完成，这一轮按已写入计费。"""
+    import threading
+
+    from agent.stream_adapter import StreamAdapter
+    from services.quota_service import quota_service
+
+    user, _token, project = await _login(client, db_session)
+    three = _ai_chapter(db_session, project, "第3章 灯塔", "合成第三章原文。")
+    save_started = threading.Event()
+    allow_save = threading.Event()
+    real_replace = StreamAdapter._replace_file_body_sync
+
+    def slow_replace(self, *args, **kwargs):
+        save_started.set()
+        allow_save.wait(5)
+        return real_replace(self, *args, **kwargs)
+
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第三章", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章换好了。"),
+    ]])
+
+    real_release = quota_service.release_ai_conversation
+    patches = scripted(model)
+    received: list[str] = []
+    with patches[0], patches[1], patches[2], patches[3], patch.object(
+        quota_service, "release_ai_conversation", side_effect=real_release
+    ) as release, patch.object(StreamAdapter, "_replace_file_body_sync", slow_replace):
+        response = await _start(db_session, user, project, "把第三章换成新稿")
+        iterator = response.body_iterator
+        await _read_until(iterator, "file_content", received)
+        assert await asyncio.to_thread(save_started.wait, 5)
+        if ending == "user_stopped":
+            stop = asyncio.create_task(agent_api.stop_stream(
+                body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+                current_user=user,
+                _rate_limit=0,
+            ))
+            await asyncio.sleep(0.05)
+            allow_save.set()
+            assert (await stop).stop_requested is True
+            received.extend([frame async for frame in iterator])
+        else:
+            await iterator.aclose()
+            allow_save.set()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert _content(db_session, three.id).rstrip("\n") == NEW_BODY
+    release.assert_not_called()
+    assert "event: quota_refunded" not in "".join(received)
+    if ending == "user_stopped":
+        metadata = json.loads(_assistant_row(db_session, project).message_metadata)
+        assert metadata["stop_outcome"]["charged"] is True

@@ -212,10 +212,9 @@ zenstory/
     ├── api/                  #   routes: auth, projects, files, agent, agent_api, materials, admin …
     ├── agent/                #   the writing agent
     │   ├── loop/             #     single-loop writing agent: prompts, history, compaction, run loop
-    │   ├── graph/            #     legacy multi-role orchestration (kept for rollback)
-    │   ├── tools/            #     file, project, skill and handoff tools
+    │   ├── tools/            #     file, project and skill tools
     │   ├── context/          #     per-turn context assembly, token budgets and priority ordering
-    │   ├── prompts/          #     shared protocols, genre guidance and role prompts
+    │   ├── prompts/          #     writing protocols and genre guidance
     │   └── skills/           #     skill loading and injection
     ├── flows/                #   material decomposition pipeline (Prefect)
     ├── services/             #   business logic

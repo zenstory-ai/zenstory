@@ -19,7 +19,7 @@ from uuid import uuid4
 from sqlalchemy import func
 from sqlmodel import Session, and_, select
 
-from agent.constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES, coerce_bool
+from agent.constants import CONTENT_FILE_TYPES, coerce_bool
 from agent.skills.content_budget import SkillContentBudget
 from agent.tools.author_edit_guard import (
     AuthorContentProtectionError,
@@ -157,9 +157,9 @@ _owned_session_var: contextvars.ContextVar[Session | None] = contextvars.Context
     'owned_session', default=None
 )
 
-# 并发子任务的 session 隔离标记（见 ToolContext.get_session 与
-# parallel_executor.execute_task）。放在工具上下文 dict 里而不是 ContextVar，
-# 因为它必须随 task_ctx 的浅拷贝一起进到 asyncio.to_thread 的线程副本。
+# 工作线程的 session 隔离标记（见 ToolContext.get_session 与 _run_sync_tool_in_thread）。
+# 放在工具上下文 dict 里而不是 ContextVar，因为它必须随上下文的浅拷贝一起进到
+# asyncio.to_thread 的线程副本。
 SESSION_ISOLATION_KEY = "isolated_session"
 
 
@@ -172,7 +172,7 @@ class _PendingEmptyFileState:
     任务均不可见（同理 asyncio.to_thread / asyncio.gather 的子任务）。因此这里
     只能原地修改这个持有者对象——set_context 在请求主上下文把它放进
     _tool_context_var 持有的 dict 后，所有子任务的上下文副本（含
-    set_current_agent、parallel_executor task_ctx 的浅拷贝）引用的都是同一个
+    set_current_agent 的浅拷贝）引用的都是同一个
     实例，原地读写天然跨任务可见。
 
     结构从"单槽"改成"按 file_id 的集合"，并把检查与置位收进同一把
@@ -192,12 +192,13 @@ class _PendingEmptyFileState:
     create_file(B)"时，create_file(B) 跑在 adapter 落库之前，会被 A 的条目误拒。
     on_llm_end 钩子确认本条回复里有闭合的 <file> 块后调 mark_body_streamed，
     try_reserve 只被尚未写出正文的条目挡住；条目本身仍由 adapter 落库后清除，
-    has_pending / latest / snapshot 的语义不变（writing_graph 的边界核验照旧兜底）。
+    has_pending / latest / snapshot 的语义不变（单循环 agent 的 run 边界核验照旧兜底）。
     """
 
     __slots__ = (
         "_lock", "_entries", "_reservations", "_streamed", "_reply_seq", "_created_in", "_versions",
-        "_prebody_reply", "_waiting_at_reply_start", "_replacements", "_closed",
+        "_prebody_reply", "_waiting_at_reply_start", "_replacements", "_closed", "_replacement_saved",
+        "_chapter_bodies_saved",
     )
 
     def __init__(self) -> None:
@@ -225,6 +226,13 @@ class _PendingEmptyFileState:
         self._replacements: dict[str, dict[str, Any]] = {}
         # 这一轮已被 StreamAdapter 提前结束（整章替换被拒）：之后才建好的空文件由建它的工具自己撤销。
         self._closed = False
+        # 本请求里 write_chapter 定过的整章替换：file_id -> 最近一次定位之后新正文是否已经落库
+        # （StreamAdapter 提交 replace_body 成功后置 True）。条目在待写守卫清掉之后仍留着，
+        # loop 引擎据此判断续跑说明能不能说「已保存」。
+        self._replacement_saved: dict[str, bool] = {}
+        # 本请求里 write_chapter 已经把正文写完并落库的章节（新建或整章替换，StreamAdapter 确认保存后记下）。
+        # 待写条目清掉之后仍留着：同一请求里再对这一章 write_chapter 时拒绝整章重写（见 _write_chapter_replace）。
+        self._chapter_bodies_saved: set[str] = set()
 
     # ---- 只读视图 ----------------------------------------------------------
     def has_pending(self) -> bool:
@@ -339,6 +347,8 @@ class _PendingEmptyFileState:
             self._streamed.clear()
             self._versions.clear()
             self._replacements.clear()
+            self._replacement_saved.clear()
+            self._chapter_bodies_saved.clear()
             self._prebody_reply = None
             self._waiting_at_reply_start = False
 
@@ -368,6 +378,23 @@ class _PendingEmptyFileState:
         with self._lock:
             found = self._replacements.get(file_id) if file_id in self._entries else None
             return dict(found) if found is not None else None
+
+    def mark_replacement_saved(self, file_id: str) -> None:
+        with self._lock:
+            if file_id in self._replacement_saved:
+                self._replacement_saved[file_id] = True
+
+    def unsaved_replacement_ids(self) -> set[str]:
+        with self._lock:
+            return {file_id for file_id, saved in self._replacement_saved.items() if not saved}
+
+    def mark_chapter_body_saved(self, file_id: str) -> None:
+        with self._lock:
+            self._chapter_bodies_saved.add(file_id)
+
+    def chapter_body_saved(self, file_id: str) -> bool:
+        with self._lock:
+            return file_id in self._chapter_bodies_saved
 
     def _set_version(self, file_id: str, version: str | None) -> None:
         if isinstance(version, str) and version:
@@ -443,6 +470,7 @@ class _PendingEmptyFileState:
                 self._set_version(file_id, version)
                 if replacement is not None:
                     self._replacements[file_id] = dict(replacement)
+                    self._replacement_saved[file_id] = False
                 else:
                     self._replacements.pop(file_id, None)
                 # 幂等复用命中同一文件时它重新等待正文，旧标记作废
@@ -655,7 +683,7 @@ class ToolContext:
         if context.get("session"):
             return context["session"]
 
-        # 隔离标记（parallel_executor 为每个并发子任务置位）：本任务**必须**
+        # 隔离标记（工作线程拿到的上下文副本上置位）：本任务**必须**
         # 自建 session，绝不能复用 contextvars 快照从父上下文继承来的
         # _owned_session_var。否则多个工作线程会共用同一个 SQLAlchemy Session
         # （非线程安全），且先结束的线程会在 finally 里把它 close 掉，另一个
@@ -752,21 +780,14 @@ class ToolContext:
         return messages
 
     @classmethod
-    def set_body_requested(cls, requested: bool | None) -> None:
-        """路由对作者本轮是否要正文的判断（routing write_content；None = 不知道）。"""
-        cls._get_context()["body_requested"] = requested
-
-    @classmethod
     def author_wants_no_body(cls) -> bool:
         """create_file 的 empty 是否生效。
 
-        多 agent 图：只在路由明确判断作者这一轮不要正文时生效。单循环 agent 没有路由，由模型按提示
-        判断：它传 empty=true 就是它的判断（写入照旧受 diff 审阅 / 撤销 / 版本保护），不从原话推断。
+        单循环 agent 由模型按提示判断：它传 empty=true 就是它的判断（写入照旧受 diff 审阅 / 撤销 / 版本保护），
+        不从原话推断。
         """
         from agent.tools.registry import LOOP_AGENT_TYPE
 
-        if cls._get_context().get("body_requested") is False:
-            return True
         return cls.get_current_agent() == LOOP_AGENT_TYPE
 
     @classmethod
@@ -907,34 +928,12 @@ class ToolContext:
             _tool_context_var.set({**context, "notes_append_allowed": allowed is True})
 
     @classmethod
-    def set_review_handoff_refusal(cls, message: str | None) -> None:
-        """这一轮不送审时（快速模式 / 作品第一条消息）writer 交给审稿人会收到的拒绝说明；None 表示照常送审。"""
-        context = cls._get_context()
-        if not context:
-            return
-        next_context = dict(context)
-        if message:
-            next_context["review_handoff_refusal"] = message
-        else:
-            next_context.pop("review_handoff_refusal", None)
-        _tool_context_var.set(next_context)
-
-    @classmethod
-    def review_handoff_refusal(cls) -> str | None:
-        message = cls._get_context().get("review_handoff_refusal")
-        return message if isinstance(message, str) and message else None
-
-    @classmethod
     def set_current_agent(cls, current_agent: str | None) -> None:
         """Update current agent in request-scoped context.
 
-        IMPORTANT — current_agent MUST remain in the mutable contextvar (_tool_context_var).
-        Do NOT move it into any frozen/immutable container (e.g. a future RunContext dataclass).
-        Rationale: it is mutated mid-run on every agent transition (writing_graph.py:360),
-        reset to None at run end (:755), and read at handoff time (mcp_tools.py ~1292, ~1319).
-        Freezing it at run-start would leave a stale value, causing silent wrong-agent routing
-        at handoff time — the handoff tool would dispatch to the *previous* agent instead of
-        the intended target.
+        The runner sets it for each agent run and resets it to None at run end; tools read it
+        (e.g. the loop-only create_file / write_chapter rules), so it lives in the mutable
+        request context rather than a value frozen at run start.
         """
         context = cls._get_context()
         if not context:
@@ -1013,8 +1012,7 @@ class ToolContext:
 
         Args:
             file_id: 传入时只摘掉指向该文件的条目（流式写入收尾用）；
-                省略表示无条件清空全部（请求/流结束时的兜底清理，以及
-                writing_graph 纠偏边界的清理）。
+                省略表示无条件清空全部（请求/流结束时的兜底清理）。
         """
         state = cls._get_pending_empty_file_state()
         if state is not None:
@@ -1141,6 +1139,32 @@ class ToolContext:
         return state.replacement(file_id) if state is not None else None
 
     @classmethod
+    def mark_chapter_replacement_saved(cls, file_id: str) -> None:
+        """StreamAdapter 已把这一章的整章替换正文落库（replace_body 成功）。"""
+        state = cls._get_pending_empty_file_state()
+        if state is not None:
+            state.mark_replacement_saved(file_id)
+
+    @classmethod
+    def mark_chapter_body_saved(cls, file_id: str) -> None:
+        """StreamAdapter 已把 write_chapter 这一章的完整正文落库（新建或整章替换，不含截断补全）。"""
+        state = cls._get_pending_empty_file_state()
+        if state is not None and file_id:
+            state.mark_chapter_body_saved(file_id)
+
+    @classmethod
+    def chapter_body_saved_this_request(cls, file_id: str) -> bool:
+        """这一章的正文是不是本请求里已经由 write_chapter 写完并保存的。"""
+        state = cls._get_pending_empty_file_state()
+        return state.chapter_body_saved(file_id) if state is not None else False
+
+    @classmethod
+    def unsaved_chapter_replacement_ids(cls) -> set[str]:
+        """本请求里 write_chapter 定过、最近一次定位之后新正文还没有落库的已有章节。"""
+        state = cls._get_pending_empty_file_state()
+        return state.unsaved_replacement_ids() if state is not None else set()
+
+    @classmethod
     def release_pending_empty_file(cls, ticket: str) -> None:
         """占坑作废（创建失败 / 建出来的是文件夹）：回滚票据，不留残留守卫。"""
         state = cls._get_pending_empty_file_state()
@@ -1152,7 +1176,7 @@ class ToolContext:
         """获取**全部**待写入空文件（按置位先后）。
 
         单槽时代只能看到最后一个，先建的空文件会成为无人认领的孤儿；
-        需要逐个补写/逐个上报的调用方（如 writing_graph 的纠偏分支）用这个。
+        需要逐个补写/逐个上报的调用方（如单循环 agent 的纠偏分支）用这个。
         """
         state = cls._get_pending_empty_file_state()
         return state.snapshot() if state is not None else []
@@ -1164,97 +1188,6 @@ class ToolContext:
         context = cls._get_context()
         user_id = context.get("user_id")
         return FileToolExecutor(session, user_id)
-
-    @classmethod
-    def refresh_file_inventory(cls) -> dict[str, list[dict[str, Any]]] | None:
-        """刷新文件清单，用于 handoff 时获取最新文件列表。
-
-        Uses a column-only query (no File.content load) and the same
-        sequence-sort ordering as ContextAssembler._get_file_inventory so
-        that the handoff inventory matches the context-block inventory.
-        """
-        context = cls._get_context()
-        project_id = context.get("project_id")
-        if project_id is None:
-            return None
-
-        from sqlmodel import select
-
-        from models import File
-        from utils.title_sequence import build_sequence_sort_key
-
-        # 桶必须覆盖除 folder 外的**全部**实体类型：漏掉的类型会在下面的
-        # `if file_type not in inventory: continue` 处被整类丢弃，Agent 交接后
-        # 看不见自己刚建的 script/document 文件，于是重复创建。
-        # 用共享常量而非就地硬编码，保证与 ContextAssembler 的清单同集合。
-        inventory: dict[str, list[dict[str, Any]]] = {
-            file_type: [] for file_type in INVENTORY_FILE_TYPES
-        }
-
-        # Column-only select: avoids loading File.content (expensive on PG TOAST).
-        # 短生命周期 session：查完立即归还连接（见 short_lived_session）。
-        with cls.short_lived_session() as session:
-            file_rows = session.exec(
-                select(
-                    File.id,
-                    File.title,
-                    File.file_type,
-                    File.order,
-                    File.file_metadata,
-                    File.created_at,
-                ).where(
-                    File.project_id == project_id,
-                    File.file_type != "folder",
-                    File.is_deleted.is_(False),
-                )
-            ).all()
-
-        grouped: dict[str, list[tuple[tuple, dict[str, Any]]]] = {
-            key: [] for key in inventory
-        }
-
-        for file_id, title, file_type, file_order, file_metadata, created_at in file_rows:
-            if file_type not in inventory:
-                continue
-
-            metadata: dict[str, Any] = {}
-            if isinstance(file_metadata, str) and file_metadata:
-                try:
-                    parsed_metadata = json.loads(file_metadata)
-                    if isinstance(parsed_metadata, dict):
-                        metadata = parsed_metadata
-                except (json.JSONDecodeError, TypeError):
-                    pass
-            effective_order, seq_num = build_sequence_sort_key(
-                file_order,
-                title=title,
-                metadata=metadata,
-                file_type=file_type,
-            )
-            sort_key = (effective_order, seq_num, created_at, file_id)
-
-            grouped[file_type].append(
-                (
-                    sort_key,
-                    {
-                        "id": file_id,
-                        "title": title,
-                        # 渲染端（writing_graph._format_file_inventory）要按类型
-                        # 分桶并标注，行里必须自带 file_type，不能只靠桶名。
-                        "file_type": file_type,
-                        "word_count": None,
-                    },
-                )
-            )
-
-        for file_type, rows in grouped.items():
-            if rows:
-                inventory[file_type] = [
-                    item for _, item in sorted(rows, key=lambda x: x[0])
-                ]
-
-        return inventory
-
 
 def _make_result(data: Any, *, tool_name: str | None = None) -> dict[str, Any]:
     """Create a tool result in MCP format."""
@@ -1710,7 +1643,7 @@ def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict
 
 
 # 单循环 agent 的正文（draft / script）只经 write_chapter 按章号 / 集号写入：create_file 不建正文，
-# edit_file 不整份替换正文（见 FileEditor 的 body_guards）。多 agent 图的 create_file 不变。
+# edit_file 不整份替换正文（见 FileEditor 的 body_guards）。
 LOOP_BODY_CREATE_ERROR_TYPE = "chapter_body_requires_write_chapter"
 WRITE_CHAPTER_TOOL_NAME = "write_chapter"
 WRITE_CHAPTER_ACTION_CREATED = "created"
@@ -1718,6 +1651,7 @@ WRITE_CHAPTER_ACTION_REPLACED = "replaced"
 WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE = "chapter_target_ambiguous"
 WRITE_CHAPTER_INVALID_ERROR_TYPE = "invalid_chapter"
 WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE = "chapter_replace_pending"
+WRITE_CHAPTER_WRITTEN_THIS_TURN_ERROR_TYPE = "chapter_written_this_turn"
 # file_type → 标题里的序号单位（有界的标识符检查，只比对标题开头的「第N章 / 第N集 / Chapter N / Episode N」）。
 _CHAPTER_UNIT_BY_TYPE = {"draft": "章", "script": "集"}
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
@@ -2027,6 +1961,17 @@ def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: 
         data["next_step"] = "不要再调用 write_chapter。" + data["next_step"]
         return _make_result({"status": "success", "mutation_applied": False, "data": data}, tool_name=tool_name)
 
+    if ToolContext.chapter_body_saved_this_request(file_id):
+        # 这一章的正文这一轮已经由 write_chapter 写完并保存：不再整章重写（自查发现的问题用 edit_file 局部改）。
+        # 看的是本请求里确认落库的结构化记录，不看模型的文字。
+        return _write_chapter_error(
+            f"第{number}{unit}《{row.title}》的正文这一轮已经用 write_chapter 写好并保存了，不再整章重写，没有写入。"
+            "要改其中几处用 edit_file 局部修改；没有要改的就继续作者这一轮要求的下一步或回复作者。",
+            error_type=WRITE_CHAPTER_WRITTEN_THIS_TURN_ERROR_TYPE,
+            id=file_id,
+            chapter=number,
+        )
+
     if content.strip():
         try:
             _run_session_probe(
@@ -2170,7 +2115,7 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
         # 如果创建的是空文件，把占坑换成真实 file_id
         # folder 例外：文件夹是纯容器节点，永远不会收到 <file>…</file> 正文，
         # 给它置标记后无人清除（标记跨子任务可见），会硬阻断本轮后续所有建档，
-        # 并让 writing_graph 的纠偏分支把章节正文追加到文件夹节点上。
+        # 并让纠偏分支把章节正文追加到文件夹节点上。
         awaiting_body = False
         body_in_reply = False
         if reservation is not None:
@@ -2236,11 +2181,11 @@ def _withdraw_file_created_after_close(
     file_id: str, title: str, result: dict[str, Any], *, tool_name: str
 ) -> dict[str, Any]:
     """这一轮被提前结束之后才建好的空文件：只撤销本请求新建、版本未变的那个，然后报告没有建成。"""
-    from agent.graph import writing_graph as graph_helpers
+    from agent.core.empty_files import rollback_unfinished_empty_files
 
     version = result.get("updated_at") if result.get("reused_existing") is not True else None
     if isinstance(version, str) and version:
-        graph_helpers._rollback_unfinished_empty_files([{"file_id": file_id, "title": title, "updated_at": version}])
+        rollback_unfinished_empty_files([{"file_id": file_id, "title": title, "updated_at": version}])
     ToolContext.clear_pending_empty_file(file_id)
     return _make_mcp_payload(
         {
@@ -3013,78 +2958,6 @@ def _update_project_sync(
         return _make_error(str(e), tool_name=tool_name)
 
 
-async def handoff_to_agent(args: dict[str, Any]) -> dict[str, Any]:
-    """将任务交接给另一个Agent。这是一个特殊工具，返回值会被图处理。"""
-    tool_name = "handoff_to_agent"
-    target_agent = str(args.get("target_agent", "")).strip().lower()
-    reason = str(args.get("reason", "")).strip()
-    context = args.get("context", "")
-    completed = args.get("completed", [])
-    todo = args.get("todo", [])
-    evidence = args.get("evidence", [])
-
-    if target_agent not in ("planner", "hook_designer", "writer", "quality_reviewer"):
-        return _make_error(f"Invalid target_agent: {target_agent}", tool_name=tool_name)
-
-    current_agent = ToolContext.get_current_agent()
-    if current_agent and target_agent == current_agent:
-        return _make_error(
-            f"Self handoff is not allowed: {current_agent} -> {target_agent}",
-            tool_name=tool_name,
-        )
-
-    # 这一轮不送审：拒绝 writer 交给审稿人，同一次 run 里由 writer 自己给作者写总结。
-    review_refusal = ToolContext.review_handoff_refusal()
-    if review_refusal and current_agent == "writer" and target_agent == "quality_reviewer":
-        return _make_error(review_refusal, tool_name=tool_name)
-
-    # Normalize optional structured handoff fields
-    completed_list = completed if isinstance(completed, list) else []
-    todo_list = todo if isinstance(todo, list) else []
-    evidence_list = evidence if isinstance(evidence, list) else []
-    context_str = str(context).strip()
-    if not context_str:
-        # Some models omit `context` even though downstream workflow relies on it.
-        # Fallback to `reason` (and then a stable generic message) to avoid losing
-        # the handoff signal (e.g. quality_reviewer should not receive the original
-        # user writing request as its task).
-        context_str = reason
-    if not context_str:
-        current_agent = ToolContext.get_current_agent() or "agent"
-        context_str = f"Handoff requested: {current_agent} -> {target_agent}"
-
-    # 返回交接信息，由图节点处理
-    return _make_result({
-        "status": "handoff",
-        "target_agent": target_agent,
-        "reason": reason,
-        "context": context_str,
-        "completed": [str(item) for item in completed_list if str(item).strip()],
-        "todo": [str(item) for item in todo_list if str(item).strip()],
-        "evidence": [str(item) for item in evidence_list if str(item).strip()],
-    }, tool_name=tool_name)
-
-
-async def request_clarification(args: dict[str, Any]) -> dict[str, Any]:
-    """请求用户澄清，触发工作流暂停并等待用户回复。"""
-    tool_name = "request_clarification"
-    question = str(args.get("question", "")).strip()
-    context = str(args.get("context", "")).strip()
-    details = args.get("details", [])
-
-    if not question:
-        return _make_error("question is required", tool_name=tool_name)
-
-    details_list = details if isinstance(details, list) else []
-
-    return _make_result({
-        "status": "clarification_needed",
-        "question": question,
-        "context": context,
-        "details": [str(item).strip() for item in details_list if str(item).strip()],
-    }, tool_name=tool_name)
-
-
 async def load_skill(args: dict[str, Any]) -> dict[str, Any]:
     """按名称加载一个已启用技能的完整方法与资源清单（技能 L2）。"""
     if _should_offload_tool_execution():
@@ -3291,8 +3164,6 @@ MCP_TOOL_HANDLERS: dict[str, Callable[[dict[str, Any]], Any]] = {
     "rename_file": rename_file,
     "query_files": query_files,
     "update_project": update_project,
-    "handoff_to_agent": handoff_to_agent,
-    "request_clarification": request_clarification,
     "load_skill": load_skill,
     "read_skill_resource": read_skill_resource,
 }

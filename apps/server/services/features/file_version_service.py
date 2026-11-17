@@ -7,6 +7,7 @@ Uses incremental diff storage with periodic base versions for efficiency.
 
 import contextlib
 import difflib
+import hashlib
 import json
 import os
 import re
@@ -35,6 +36,11 @@ from utils.logger import get_logger
 from utils.text_metrics import count_words
 
 logger = get_logger(__name__)
+
+
+def content_sha256(content: str | None) -> str:
+    """正文的 UTF-8 SHA-256（十六进制），撤销锚点用它判断正文是否逐字相同。"""
+    return hashlib.sha256((content or "").encode("utf-8")).hexdigest()
 MAX_CREATE_VERSION_RETRIES = 3
 CONTENT_RECONSTRUCTION_BATCH_SIZE = 200
 DEFAULT_USER_VERSION_COALESCE_WINDOW_SECONDS = 600
@@ -615,6 +621,7 @@ class FileVersionService:
         user_id: str,
         *,
         expected_updated_at: datetime | None = None,
+        expected_after_content_sha256: str | None = None,
     ) -> tuple[File, FileVersion | None, bool]:
         """
         Rollback a file to a previous version.
@@ -631,6 +638,10 @@ class FileVersionService:
             version_number: Version number to rollback to
             user_id: User ID for quota checking
             expected_updated_at: Optional exact post-edit token for immutable undo
+            expected_after_content_sha256: Optional digest of the content that
+                edit produced. Only consulted when the token differs: a file
+                whose live content is byte-identical to that edit's result
+                (for example after a later edit was undone) is not stale.
 
         Returns:
             Tuple of (updated File, optional new FileVersion,
@@ -662,7 +673,13 @@ class FileVersionService:
             if expected_updated_at is not None:
                 current = normalize_datetime_to_utc(file.updated_at)
                 expected = normalize_datetime_to_utc(expected_updated_at)
-                if current != expected:
+                # 令牌变了但正文与这次修改的结果逐字相同（后面那次修改已被撤销）时不算过期；
+                # 正文只要有任何不同，仍按并发冲突拒绝。
+                content_unchanged = (
+                    expected_after_content_sha256 is not None
+                    and content_sha256(file.content) == expected_after_content_sha256
+                )
+                if current != expected and not content_unchanged:
                     from core.error_codes import ErrorCode
                     from core.error_handler import APIException
 

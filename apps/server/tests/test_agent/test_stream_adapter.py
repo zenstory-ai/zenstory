@@ -1843,7 +1843,7 @@ async def test_new_pending_write_completes_displaced_unterminated_file():
 async def test_displaced_completion_keeps_new_files_pending_empty_guard():
     """收尾被顶掉的文件时，不能清掉已指向新文件的「空文件待补写」标记。
 
-    该标记是 writing_graph 判断「空文件必须被补写」的唯一信号，误清会让新建
+    该标记是单循环 agent 判断「空文件必须被补写」的唯一信号，误清会让新建
     的空文件永远无人补写。
     """
     from agent.stream_adapter import create_stream_adapter

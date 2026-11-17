@@ -318,15 +318,15 @@ async def test_runner_exception_is_sanitized(monkeypatch):
 
 
 def test_tool_use_behavior_stops_run_when_budget_exhausted():
-    from agent.openai_agents.runner import _stop_run_on_control_flow_tool
+    from agent.openai_agents.runner import _stop_run_after_tools
 
     meter = AgentRunMeter(max_model_calls=2)
     meter.record_model_call()
-    not_yet = _stop_run_on_control_flow_tool(None, [], run_meter=meter)
+    not_yet = _stop_run_after_tools(None, [], run_meter=meter)
     assert not_yet.is_final_output is False
 
     meter.record_model_call()
-    stopped = _stop_run_on_control_flow_tool(None, [], run_meter=meter)
+    stopped = _stop_run_after_tools(None, [], run_meter=meter)
     assert stopped.is_final_output is True
     assert meter.budget_stopped is True
 

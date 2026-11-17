@@ -480,7 +480,7 @@ async def test_function_tools_record_results_and_short_circuit_after_trip():
 
     breaker = ToolFailureBreaker()
     with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"edit_file": failing_edit}):
-        tools = {tool.name: tool for tool in build_agent_function_tools("writer", failure_breaker=breaker)}
+        tools = {tool.name: tool for tool in build_agent_function_tools(failure_breaker=breaker)}
         edit_tool = tools["edit_file"]
         for _ in range(MAX_IDENTICAL_TOOL_FAILURES):
             await edit_tool.on_invoke_tool(None, EDIT_ARGS)
@@ -496,22 +496,22 @@ async def test_function_tools_record_results_and_short_circuit_after_trip():
 
 @pytest.mark.unit
 def test_tool_use_behavior_ends_run_once_breaker_is_open():
-    from agent.openai_agents.runner import _stop_run_on_control_flow_tool
+    from agent.openai_agents.runner import _stop_run_after_tools
 
     breaker = ToolFailureBreaker()
     failing_result = SimpleNamespace(tool=SimpleNamespace(name="edit_file"), output=_error("boom"))
 
     breaker.observe("edit_file", EDIT_ARGS, _error("boom"))
-    decision = _stop_run_on_control_flow_tool(None, [failing_result], failure_breaker=breaker)
+    decision = _stop_run_after_tools(None, [failing_result], failure_breaker=breaker)
     assert decision.is_final_output is False
 
     for _ in range(MAX_IDENTICAL_TOOL_FAILURES - 1):
         breaker.observe("edit_file", EDIT_ARGS, _error("boom"))
-    decision = _stop_run_on_control_flow_tool(None, [failing_result], failure_breaker=breaker)
+    decision = _stop_run_after_tools(None, [failing_result], failure_breaker=breaker)
     assert decision.is_final_output is True
 
     # 不传熔断器时保持原行为
-    assert _stop_run_on_control_flow_tool(None, [failing_result]).is_final_output is False
+    assert _stop_run_after_tools(None, [failing_result]).is_final_output is False
 
 
 @pytest.mark.asyncio
@@ -860,54 +860,8 @@ async def test_sdk_run_recovers_when_retry_succeeds(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_read_only_refuses_every_file_write_but_allows_project_metadata():
-    from agent.openai_agents.tools_adapter import build_agent_function_tools
-    from agent.tools.registry import FILE_WRITE_TOOL_NAMES
-
-    executed: list[str] = []
-
-    def fake_tool(name):
-        async def invoke(_args):
-            executed.append(name)
-            return {"content": [{"type": "text", "text": _ok()}]}
-
-        return invoke
-
-    breaker = ToolFailureBreaker()
-    handlers = {
-        name: fake_tool(name)
-        for name in {*FILE_WRITE_TOOL_NAMES, "query_files", "update_project"}
-    }
-    with patch.dict(
-        "agent.openai_agents.tools_adapter.TOOL_FUNCTIONS",
-        handlers,
-    ):
-        tools = {
-            tool.name: tool
-            for tool in build_agent_function_tools("writer", failure_breaker=breaker, read_only=True)
-        }
-        refused = {
-            name: json.loads(await tools[name].on_invoke_tool(None, "{}"))
-            for name in FILE_WRITE_TOOL_NAMES
-        }
-        query_result = json.loads(await tools["query_files"].on_invoke_tool(None, "{}"))
-        update_result = json.loads(
-            await tools["update_project"].on_invoke_tool(None, '{"notes":"作者明确要求保存的事实"}')
-        )
-
-    assert all(result["status"] == "error" for result in refused.values())
-    assert all(result["error_type"] == "read_only_request" for result in refused.values())
-    assert query_result["status"] == "success"
-    assert update_result["status"] == "success"
-    # 只有查询与项目资料 handler 真正执行；所有文件写回调都在适配层被拒绝。
-    assert executed == ["query_files", "update_project"]
-    assert breaker.total_failures == len(FILE_WRITE_TOOL_NAMES)
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_runner_uses_request_breaker_and_read_only_flag_from_state():
-    """runner 从 state 取请求级熔断器与只读标记交给 _build_agent。"""
+async def test_runner_uses_request_breaker_from_state():
+    """runner 从 state 取请求级熔断器交给 _build_agent。"""
     from agent.openai_agents import runner as runner_module
 
     captured: dict = {}
@@ -921,7 +875,6 @@ async def test_runner_uses_request_breaker_and_read_only_flag_from_state():
         "user_message": "只分析一下",
         "messages": [],
         "tool_failure_breaker": shared,
-        "read_only": True,
     }
     with patch.object(runner_module, "_build_agent", side_effect=fake_build_agent):
         # runner 把构建异常转成 ERROR 事件；这里只关心交给 _build_agent 的参数
@@ -933,71 +886,6 @@ async def test_runner_uses_request_breaker_and_read_only_flag_from_state():
         ]
 
     assert captured["failure_breaker"] is shared
-    assert captured["read_only"] is True
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-@pytest.mark.usefixtures("_reset_model_cache")
-async def test_sdk_read_only_request_write_attempt_recovers_with_answer(monkeypatch):
-    """只读请求下模型照着提示词/历史调用 create_file：拿到可恢复错误后改为直接回答，
-    整个 run 正常结束，没有 ERROR，写工具从未执行。"""
-    from agent.core.workflow_events import StreamEventType
-
-    executed: list[dict] = []
-
-    async def create_impl(args):
-        executed.append(args)
-        return {"content": [{"type": "text", "text": _ok()}]}
-
-    def script(index: int) -> list[dict]:
-        if index == 0:
-            return _tool_call_chunks("call-0", "create_file", '{"title": "节奏分析", "file_type": "draft"}')
-        return _text_chunks("这一章节奏前紧后松。")
-
-    events, requests, _state = await _run_against_local_model(
-        monkeypatch,
-        script,
-        create_impl,
-        state_extra={"read_only": True},
-        tool_impls={"create_file": create_impl},
-    )
-
-    assert executed == []
-    assert len(requests) == 2
-    refusal = json.loads(_tool_messages(requests[1])[-1])
-    assert refusal["error_type"] == "read_only_request"
-    types = [event.type for event in events]
-    assert StreamEventType.ERROR not in types
-    assert events[-1].type == StreamEventType.MESSAGE_END
-    assert events[-1].data["stop_reason"] == "end_turn"
-    text = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
-    assert text == "这一章节奏前紧后松。"
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-@pytest.mark.usefixtures("_reset_model_cache")
-async def test_reviewer_write_call_is_returned_to_model_not_fatal(monkeypatch):
-    """审稿人照着共享历史调 edit_file：工具清单人人相同，调用按角色拒绝，
-    错误交还模型，run 以回答正常结束（不存在的工具见下一个测试）。"""
-    from agent.core.workflow_events import StreamEventType
-
-    def script(index: int) -> list[dict]:
-        if index == 0:
-            return _tool_call_chunks("call-0", "edit_file", EDIT_ARGS)
-        return _text_chunks("审查意见如下。")
-
-    events, requests, _state = await _run_against_local_model(
-        monkeypatch, script, None, agent_type="quality_reviewer"
-    )
-
-    assert len(requests) == 2
-    refused = json.loads(_tool_messages(requests[1])[-1])
-    assert refused["error_type"] == "tool_not_permitted_for_role"
-    types = [event.type for event in events]
-    assert StreamEventType.ERROR not in types
-    assert events[-1].data["stop_reason"] == "end_turn"
 
 
 @pytest.mark.asyncio
@@ -1071,27 +959,6 @@ def test_repeated_read_only_refusal_trips_as_unavailable_call():
     assert "相同参数" not in trip.user_message()
 
 
-@pytest.mark.unit
-@pytest.mark.parametrize("refusal_kind", ["role", "clarify_first"])
-def test_repeated_role_or_clarify_refusal_trips_as_unavailable_call(refusal_kind):
-    """F-26：角色无权限、先澄清时的拒绝同样没有执行，熔断原因与文案同「本轮不可用」。"""
-    from agent.openai_agents.tools_adapter import clarify_first_refusal_text, role_refusal_text
-
-    refusal = (
-        role_refusal_text("edit_file", "quality_reviewer")
-        if refusal_kind == "role"
-        else clarify_first_refusal_text("edit_file")
-    )
-    breaker = ToolFailureBreaker()
-    for _ in range(MAX_IDENTICAL_TOOL_FAILURES):
-        breaker.observe("edit_file", '{"id": "f1"}', refusal)
-
-    trip = breaker.trip
-    assert trip is not None
-    assert trip.reason == TRIP_REASON_TOOL_NOT_FOUND
-    assert "用不了的功能" in trip.user_message()
-
-
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("_reset_model_cache")
@@ -1138,11 +1005,6 @@ async def test_agent_run_exports_no_traces_even_in_a_fresh_process(monkeypatch):
     assert recorder.events == []
 
 
-
-def _tool_call_then(index: int, call_id: str, name: str, args: str, final: str) -> list[dict]:
-    return _tool_call_chunks(call_id, name, args) if index == 0 else _text_chunks(final)
-
-
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("_reset_model_cache")
@@ -1162,7 +1024,7 @@ async def test_same_agent_next_run_continues_the_previous_run_append_only(monkey
     run_starts: list[int] = []
     _events, requests, _state = await _run_against_local_model(
         monkeypatch, script, None,
-        state_extra={"native_run_holder": {}, "context_snapshot": "<project_snapshot>资料</project_snapshot>"},
+        state_extra={"native_run_holder": {}},
         tool_impls={"query_files": fake_query},
         followups=[{"agent_type": "writer", "state": {
             "continue_native_run": True, "user_message": "[来自上一个Agent的交接信息]: 继续写总结",
@@ -1175,7 +1037,6 @@ async def test_same_agent_next_run_continues_the_previous_run_append_only(monkey
     assert second_run_first["messages"][: len(previous)] == previous
     assert any("第一章原文" in str(m.get("content")) for m in second_run_first["messages"] if m.get("role") == "tool")
     contents = [str(m.get("content")) for m in second_run_first["messages"]]
-    assert sum("<project_snapshot>" in c for c in contents) == 1
     assert contents[-1] == "[来自上一个Agent的交接信息]: 继续写总结"
 
 

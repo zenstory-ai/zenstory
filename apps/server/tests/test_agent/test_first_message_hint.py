@@ -17,15 +17,17 @@ from agent.service import (
 from models import ChatMessage, ChatSession, Project, User
 from services.core.auth_service import hash_password
 
-pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
+pytestmark = pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
 
 IDEA = "一个关于外卖员的故事"
 
 
-def _author_part(model_user_turn: str) -> str:
-    """模型收到的本轮 user 消息里作者那一段：系统附上的 <turn_context> 在标签之前。"""
-    turn_context, label, author_part = model_user_turn.rpartition(WORKING_SET_USER_MESSAGE_LABEL)
-    assert label and turn_context.startswith(TURN_CONTEXT_OPEN)
+def _author_part(state: dict) -> str:
+    """模型收到的本轮 user 消息里作者那一段：系统附上的本轮上下文（有的话）在标签之前。"""
+    turn_context, label, author_part = state["user_message"].rpartition(WORKING_SET_USER_MESSAGE_LABEL)
+    if not label:
+        return author_part
+    assert turn_context.startswith(TURN_CONTEXT_OPEN)
     return author_part.lstrip("\n")
 
 
@@ -75,7 +77,7 @@ async def _run(service, db_session, user, project, *, metadata, language=None, s
 
         return stream()
 
-    with patch("agent.service.run_writing_workflow_streaming", side_effect=fake_workflow):
+    with patch("agent.service.run_loop_agent_streaming", side_effect=fake_workflow):
         async for _event in service.process_stream(
             project_id=str(project.id),
             user_id=str(user.id),
@@ -98,13 +100,11 @@ async def test_dashboard_idea_adds_hint_for_model_only(agent_service, db_session
     )
 
     hint = first_message_hint("short", force_en=False)
-    model_user_turn = _author_part(state["messages"][-1]["content"])
+    model_user_turn = _author_part(state)
     assert model_user_turn.startswith(IDEA)
     assert hint in model_user_turn
     assert "短篇小说" in hint
-    # 路由器看作者原话，另由作品类型那一行知道这是第一条（router.build_router_user_message）
     assert state["router_message"] == IDEA
-    assert state["first_message_project_label"] == "短篇小说"
 
     saved = db_session.exec(
         select(ChatMessage).where(ChatMessage.role == "user")
@@ -119,11 +119,10 @@ async def test_without_entry_model_input_is_unchanged(agent_service, db_session,
     with_other_metadata = await _run(
         agent_service, db_session, user, project, metadata={"entry": "chat_input"}
     )
-    assert _author_part(with_other_metadata["messages"][-1]["content"]) == IDEA
+    assert _author_part(with_other_metadata) == IDEA
 
     without_metadata = await _run(agent_service, db_session, user, project, metadata=None)
-    assert _author_part(without_metadata["messages"][-1]["content"]) == IDEA
-    assert without_metadata["first_message_project_label"] == ""
+    assert _author_part(without_metadata) == IDEA
 
 
 @pytest.mark.asyncio
@@ -135,8 +134,7 @@ async def test_starter_and_typed_first_message_get_the_same_hint(
 
     state = await _run(agent_service, db_session, user, project, metadata={"entry": entry})
 
-    assert first_message_hint("short", force_en=False) in state["messages"][-1]["content"]
-    assert state["first_message_project_label"] == "短篇小说"
+    assert first_message_hint("short", force_en=False) in _author_part(state)
 
 
 @pytest.mark.asyncio
@@ -171,8 +169,7 @@ async def test_no_hint_once_the_work_has_an_ai_reply(agent_service, db_session, 
         session_id=target.id,
     )
 
-    assert _author_part(state["messages"][-1]["content"]) == IDEA
-    assert state["first_message_project_label"] == ""
+    assert _author_part(state) == IDEA
 
 
 @pytest.mark.asyncio
@@ -188,7 +185,7 @@ async def test_english_hint_follows_force_en(agent_service, db_session, short_pr
         language="en",
     )
 
-    model_user_turn = _author_part(state["messages"][-1]["content"])
+    model_user_turn = _author_part(state)
     assert first_message_hint("short", force_en=True) in model_user_turn
     assert first_message_hint("short", force_en=False) not in model_user_turn
     assert "Short Story" in model_user_turn
@@ -237,7 +234,7 @@ async def test_tools_see_the_author_words_without_the_hidden_hint(
 
         return stream()
 
-    with patch("agent.service.run_writing_workflow_streaming", side_effect=fake_workflow):
+    with patch("agent.service.run_loop_agent_streaming", side_effect=fake_workflow):
         async for _event in agent_service.process_stream(
             project_id=str(project.id),
             user_id=str(user.id),
@@ -273,7 +270,7 @@ async def test_first_conversation_check_runs_off_the_event_loop_on_postgres(
 
 @pytest.mark.asyncio
 async def test_first_conversation_check_failure_means_no_hint(agent_service, db_session, short_project, monkeypatch):
-    """查不到时按「不是第一条」处理：宁可不加提示，也不误导路由。"""
+    """查不到时按「不是第一条」处理：宁可不加提示。"""
     import agent.service as service_module
 
     _user, project = short_project
@@ -284,153 +281,6 @@ async def test_first_conversation_check_failure_means_no_hint(agent_service, db_
     monkeypatch.setattr(service_module, "_project_has_ai_reply", broken)
 
     assert await agent_service._is_first_ai_conversation(db_session, project.id) is False
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("first_message_label", "expected_agents"),
-    [("长篇小说", ["writer"]), ("", ["writer", "quality_reviewer"])],
-)
-async def test_first_message_round_ends_with_the_writers_own_summary(first_message_label, expected_agents):
-    """高质量模式下，作品第一条消息写完开头不自动送审：作者看到的总结是「写了什么」，不是返修记录。"""
-    from unittest.mock import AsyncMock
-
-    from agent.core.workflow_events import StreamEvent, StreamEventType
-    from agent.graph.writing_graph import run_writing_workflow_streaming
-    from agent.tools.mcp_tools import ToolContext
-    from tests.test_agent.body_write_events import edit_file_events
-
-    agents: list[str] = []
-
-    async def fake_agent(_state, agent_type, *_args, **_kwargs):
-        agents.append(agent_type)
-        if agent_type == "writer":
-            for event in edit_file_events("e1", "灯芯烧得只剩一指长。" * 80):
-                yield event
-            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "写好了第一章开头。"})
-        else:
-            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "审完了。[TASK_COMPLETE]"})
-
-    state = {
-        "user_message": IDEA,
-        "messages": [],
-        "system_prompt": "",
-        "generation_mode": "quality",
-        "first_message_project_label": first_message_label,
-    }
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    try:
-        with (
-            patch(
-                "agent.graph.writing_graph.router_node",
-                AsyncMock(return_value={"routing_metadata": {"write_content": True}}),
-            ),
-            patch("agent.graph.writing_graph.get_next_node", return_value="writer"),
-            patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
-        ):
-            events = [
-                event
-                async for event in run_writing_workflow_streaming(
-                    state=state, thread_id="first-message", auto_review_threshold=100
-                )
-            ]
-    finally:
-        ToolContext.clear_context()
-
-    assert agents == expected_agents
-    if not first_message_label:
-        return
-    # 没有送审，writer 的总结不会被扣下丢掉。
-    holds = [e.data.get("action") for e in events if e.type == StreamEventType.CHAT_HOLD]
-    assert "discard" not in holds
-    assert "写好了第一章开头。" in "".join(
-        str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("first_message_label", "expected_status", "expected_agents"),
-    [
-        # The writer hands its fresh opening to the reviewer: the tool refuses and the same run
-        # writes the author's summary instead, no review and no extra run.
-        ("长篇小说", "error", ["writer"]),
-        # Later rounds keep the writer's own handoff to review.
-        ("", "handoff", ["writer", "quality_reviewer"]),
-    ],
-)
-async def test_first_message_round_does_not_follow_the_writers_own_review_handoff(
-    first_message_label, expected_status, expected_agents
-):
-    """2026-10-20 production sample: with the auto-review gate off, the writer still called
-    handoff_to_agent(quality_reviewer); a rework would have left the author a fix log."""
-    import json
-    from unittest.mock import AsyncMock
-
-    from agent.core.workflow_events import StreamEvent, StreamEventType
-    from agent.graph.writing_graph import run_writing_workflow_streaming
-    from agent.tools import mcp_tools
-    from agent.tools.mcp_tools import ToolContext
-    from tests.test_agent.body_write_events import edit_file_events
-
-    calls: list[str] = []
-    tool_results: list[dict] = []
-
-    async def fake_agent(_state, agent_type, *_args, **_kwargs):
-        calls.append(agent_type)
-        if agent_type != "writer":
-            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "审完了。[TASK_COMPLETE]"})
-            return
-        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={})
-        for event in edit_file_events("e1", "灯芯烧得只剩一指长。" * 80):
-            yield event
-        raw = await mcp_tools.handoff_to_agent(
-            {"target_agent": "quality_reviewer", "context": "两份内容已写完，需通读核对"}
-        )
-        result = json.loads(raw["content"][0]["text"])
-        tool_results.append(result)
-        if result.get("status") == "handoff":
-            yield StreamEvent(
-                type=StreamEventType.HANDOFF,
-                data={"target_agent": "quality_reviewer", "reason": "送审", "context": result["context"]},
-            )
-        else:
-            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "写好了第一章《九十三天》。"})
-
-    state = {
-        "user_message": IDEA,
-        "messages": [],
-        "system_prompt": "",
-        "generation_mode": "quality",
-        "first_message_project_label": first_message_label,
-    }
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    try:
-        with (
-            patch(
-                "agent.graph.writing_graph.router_node",
-                AsyncMock(return_value={"routing_metadata": {"write_content": True}}),
-            ),
-            patch("agent.graph.writing_graph.get_next_node", return_value="writer"),
-            patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
-        ):
-            events = [
-                event
-                async for event in run_writing_workflow_streaming(
-                    state=state, thread_id="first-message-handoff", auto_review_threshold=100
-                )
-            ]
-    finally:
-        ToolContext.clear_context()
-
-    assert calls == expected_agents
-    assert tool_results[0]["status"] == expected_status
-    if not first_message_label:
-        return
-    assert "第一条消息" in tool_results[0]["error"]
-    assert not [e for e in events if e.type == StreamEventType.HANDOFF]
-    text = "".join(str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT)
-    assert "写好了第一章《九十三天》。" in text
 
 
 @pytest.mark.parametrize("force_en", [False, True])

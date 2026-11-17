@@ -39,45 +39,17 @@ def _serialized_tools(tools) -> str:
 
 
 @pytest.mark.unit
-def test_every_role_and_turn_sends_the_same_tool_list():
+def test_every_run_sends_the_same_tool_list():
     """The tool list precedes the conversation in the request: if it changes, nothing after it is a cache hit."""
-    from agent.openai_agents.tools_adapter import (
-        READ_ONLY_REASON_CLARIFY_FIRST,
-        build_agent_function_tools,
-    )
-
-    writer = build_agent_function_tools("writer")
-    variants = [
-        build_agent_function_tools("quality_reviewer"),
-        build_agent_function_tools("planner"),
-        build_agent_function_tools("writer", read_only=True),
-        build_agent_function_tools("writer", read_only=True, read_only_reason=READ_ONLY_REASON_CLARIFY_FIRST),
-    ]
-
-    assert all(_serialized_tools(tools) == _serialized_tools(writer) for tools in variants)
-    assert all(tool.strict_json_schema is False for tool in writer)
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_reviewer_write_tools_refuse_without_executing():
+    from agent.openai_agents.repeat_read_guard import RepeatReadGuard
+    from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
     from agent.openai_agents.tools_adapter import build_agent_function_tools
 
-    executed: list[str] = []
+    first = build_agent_function_tools()
+    later = build_agent_function_tools(failure_breaker=ToolFailureBreaker(), read_guard=RepeatReadGuard())
 
-    async def fake_tool(_args):
-        executed.append("called")
-        return {"content": [{"type": "text", "text": json.dumps({"status": "success"})}]}
-
-    with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"edit_file": fake_tool, "query_files": fake_tool}):
-        tools = {tool.name: tool for tool in build_agent_function_tools("quality_reviewer")}
-        refused = json.loads(await tools["edit_file"].on_invoke_tool(None, '{"id": "x", "edits": []}'))
-        allowed = json.loads(await tools["query_files"].on_invoke_tool(None, "{}"))
-
-    assert refused["status"] == "error"
-    assert refused["error_type"] == "tool_not_permitted_for_role"
-    assert allowed["status"] == "success"
-    assert executed == ["called"]
+    assert _serialized_tools(later) == _serialized_tools(first)
+    assert all(tool.strict_json_schema is False for tool in first)
 
 
 @pytest.mark.asyncio
@@ -121,20 +93,11 @@ def test_normalize_messages_for_openai_agents_omits_thinking_blocks():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_runner_maps_sdk_text_tool_handoff_and_message_end():
+async def test_runner_maps_sdk_text_tool_and_message_end():
     from agent.core.workflow_events import StreamEventType
     from agent.openai_agents.runner import run_openai_agents_streaming_agent
 
-    result_text = json.dumps(
-        {
-            "status": "handoff",
-            "target_agent": "quality_reviewer",
-            "reason": "请审查",
-            "context": "已完成初稿",
-            "completed": ["初稿"],
-        },
-        ensure_ascii=False,
-    )
+    result_text = json.dumps({"status": "success", "data": [{"id": "f1", "title": "第一章"}]}, ensure_ascii=False)
 
     class FakeResult:
         raw_responses = []
@@ -155,9 +118,9 @@ async def test_runner_maps_sdk_text_tool_handoff_and_message_end():
                 name="tool_called",
                 item=SimpleNamespace(
                     raw_item={
-                        "name": "handoff_to_agent",
+                        "name": "query_files",
                         "call_id": "call-1",
-                        "arguments": json.dumps({"target_agent": "quality_reviewer"}, ensure_ascii=False),
+                        "arguments": json.dumps({"id": "f1"}, ensure_ascii=False),
                     }
                 ),
             )
@@ -186,18 +149,16 @@ async def test_runner_maps_sdk_text_tool_handoff_and_message_end():
         ]
 
     assert mock_run.call_args.kwargs["max_turns"] > 0
-    assert fake_result.cancel_mode == "after_turn"
+    assert fake_result.cancel_mode is None
     assert [event.type for event in events] == [
         StreamEventType.MESSAGE_START,
         StreamEventType.TEXT,
         StreamEventType.TOOL_USE,
         StreamEventType.TOOL_RESULT,
-        StreamEventType.HANDOFF,
         StreamEventType.MESSAGE_END,
     ]
     assert events[1].data["text"] == "正文"
-    assert events[2].data["name"] == "handoff_to_agent"
-    assert events[4].data["handoff_packet"]["completed"] == ["初稿"]
+    assert events[2].data["name"] == "query_files"
     assert state["messages"][-2]["role"] == "assistant"
     assert state["messages"][-2]["content"][0]["type"] == "text"
     assert state["messages"][-2]["content"][0]["text"] == "正文"

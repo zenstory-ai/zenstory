@@ -42,31 +42,23 @@ def _user_project(db_session: Session, project_type: str = "novel") -> tuple[Use
 @pytest.mark.unit
 def test_loop_toolset_excludes_multi_agent_control_flow():
     from agent.openai_agents.tools_adapter import build_agent_function_tools
-    from agent.tools.registry import (
-        LOOP_AGENT_TYPE,
-        get_agent_tools,
-        get_exposed_tools,
-        validate_registry_alignment,
-    )
+    from agent.tools.registry import LOOP_TOOL_NAMES, get_exposed_tools, validate_registry_alignment
+    from agent.tools.tool_schemas import TOOL_SCHEMAS
 
     excluded = {"handoff_to_agent", "request_clarification", "parallel_execute"}
-    exposed = {schema["name"] for schema in get_exposed_tools(LOOP_AGENT_TYPE)}
-    permitted = {schema["name"] for schema in get_agent_tools(LOOP_AGENT_TYPE)}
-    built = {tool.name for tool in build_agent_function_tools(LOOP_AGENT_TYPE)}
+    exposed = [schema["name"] for schema in get_exposed_tools()]
+    built = [tool.name for tool in build_agent_function_tools()]
 
-    for names in (exposed, permitted, built):
-        assert not names & excluded
-        assert {
-            "create_file", "write_chapter", "edit_file", "query_files", "update_project", "load_skill",
-            "read_skill_resource", "delete_file", "rename_file",
-        } <= names
-    # 单循环 agent 看到的 create_file 不建正文；图的各角色看不到 write_chapter。
-    [loop_create] = [schema for schema in get_exposed_tools(LOOP_AGENT_TYPE) if schema["name"] == "create_file"]
+    # 顺序就是请求里的工具清单顺序（前缀缓存依赖它）。
+    assert exposed == built == LOOP_TOOL_NAMES == [
+        "create_file", "write_chapter", "edit_file", "delete_file", "rename_file", "query_files",
+        "update_project", "load_skill", "read_skill_resource",
+    ]
+    assert not excluded & set(TOOL_SCHEMAS)
+    # 单循环 agent 看到的 create_file 不建正文。
+    [loop_create] = [schema for schema in get_exposed_tools() if schema["name"] == "create_file"]
     assert not {"draft", "script"} & set(loop_create["input_schema"]["properties"]["file_type"]["enum"])
-    assert "write_chapter" not in {schema["name"] for schema in get_exposed_tools("writer")}
-    assert validate_registry_alignment()["invalid_loop_tools"] == []
-    # 图的各角色仍看到完整清单（回滚路径不变）。
-    assert excluded <= {schema["name"] for schema in get_exposed_tools("writer")}
+    assert validate_registry_alignment() == {"missing_schemas": [], "missing_handlers": []}
 
 
 # ---------------------------------------------------------------------------
@@ -78,12 +70,10 @@ def test_loop_toolset_excludes_multi_agent_control_flow():
 def test_loop_system_prompt_merges_project_config_with_loop_rules(db_session, writing_prompt_configs):
     from agent.core.message_manager import AGENT_DIRECTIVE_HEADER, MessageManager
     from agent.loop.prompts import LOOP_WORKING_RULES
-    from agent.prompts.base import TOOL_USAGE_PROTOCOL
 
     user, project = _user_project(db_session)
     manager = MessageManager(project_id=project.id, user_id=user.id)
-    loop_prompt = manager.build_system_prompt(db_session, language="zh", loop=True)
-    graph_prompt = manager.build_system_prompt(db_session, language="zh")
+    loop_prompt = manager.build_system_prompt(db_session, language="zh")
 
     assert LOOP_WORKING_RULES in loop_prompt
     for removed in ("handoff_to_agent", "parallel_execute", "request_clarification", AGENT_DIRECTIVE_HEADER, "[TASK_COMPLETE]"):
@@ -94,12 +84,11 @@ def test_loop_system_prompt_merges_project_config_with_loop_rules(db_session, wr
     assert "write_chapter" in loop_prompt and "大纲是节奏的上限也是底线" in loop_prompt
     assert "整体替换进该章" not in loop_prompt and "整章重写时用一个 replace" not in loop_prompt
     assert "不另存成素材、副本或备份文件" in loop_prompt
-    assert "write_chapter" not in graph_prompt.replace("parallel 的 write_chapter", "").replace("`write_chapter`", "")
+    # 录入作者资料：原文逐字存，AI 补充只放在单独标明的一节里并在回复里说明。
+    assert "逐字存成" in loop_prompt and "AI 补充建议（待作者确认）" in loop_prompt
     assert "快速模式" not in loop_prompt and "生成模式" not in loop_prompt
-    # 项目类型的写作配置（数据库行）照样在前面。
-    assert graph_prompt.split("\n", 1)[0] == loop_prompt.split("\n", 1)[0]
-    # 图的提示逐字不变（含 parallel_execute 一节）。
-    assert TOOL_USAGE_PROTOCOL in graph_prompt and "parallel_execute" in TOOL_USAGE_PROTOCOL
+    # 项目类型的写作配置（数据库行）在最前面。
+    assert loop_prompt.split("\n", 1)[0] == "Test novel editor"
 
 
 # ---------------------------------------------------------------------------
@@ -109,23 +98,6 @@ def test_loop_system_prompt_merges_project_config_with_loop_rules(db_session, wr
 
 def _payload(result: dict) -> dict:
     return json.loads(result["content"][0]["text"])
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_graph_roles_keep_existing_create_file_behaviour(db_session):
-    from agent.tools.mcp_tools import ToolContext, create_file
-
-    user, project = _user_project(db_session)
-    db_session.add(File(project_id=project.id, title="第1章", content="合成正文。", file_type="draft"))
-    db_session.commit()
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="graph-guard")
-    ToolContext.set_current_agent("writer")
-    try:
-        result = _payload(await create_file({"title": "第1章（另存）", "file_type": "draft", "content": "合成"}))
-    finally:
-        ToolContext.clear_context()
-    assert result["status"] == "success"
 
 
 # ---------------------------------------------------------------------------
@@ -500,7 +472,7 @@ async def test_loop_runs_once_and_emits_no_router_or_agent_events(loop_tool_cont
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_loop_continues_once_for_steering_that_arrived_during_the_run(loop_tool_context):
-    from agent.graph.writing_graph import STEERING_FOLLOWUP_CONTEXT
+    from agent.loop.run_support import STEERING_FOLLOWUP_CONTEXT
 
     seen: list[dict] = []
     drains = iter([[{"id": "st-1", "content": "改成第一人称"}], [], []])
@@ -538,7 +510,7 @@ async def test_loop_stops_starting_runs_near_the_wall_clock(loop_tool_context):
     state = {"user_message": "写第1章", "messages": [], "system_prompt": "系统", "run_meter": meter}
     with (
         patch("agent.loop.engine.run_openai_agents_streaming_agent", _fake_runner([[]], seen)),
-        patch("agent.graph.writing_graph._ai_messages_left_today", return_value=True),
+        patch("agent.loop.run_support._ai_messages_left_today", return_value=True),
     ):
         events = await _collect(state, get_steering_messages=steering)
 
@@ -579,22 +551,6 @@ async def test_loop_continues_after_a_run_that_stopped_on_a_saved_file_body(loop
 # ---------------------------------------------------------------------------
 # 复审修正的回归
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_graph_create_file_empty_still_needs_the_router_decision(db_session):
-    from agent.tools.mcp_tools import ToolContext, create_file
-
-    user, project = _user_project(db_session)
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="graph-empty")
-    ToolContext.set_current_agent("writer")
-    try:
-        await create_file({"title": "第1章", "file_type": "draft", "empty": True})
-        pending = ToolContext.has_pending_empty_file()
-    finally:
-        ToolContext.clear_context()
-    assert pending is True
 
 
 @pytest.mark.unit
@@ -711,12 +667,11 @@ async def test_loop_finalizes_the_task_board_on_normal_completion(loop_tool_cont
             "agent.loop.engine.run_openai_agents_streaming_agent",
             _fake_runner([[StreamEvent(type=StreamEventType.TEXT, data={"text": "好了。"})]], seen),
         ),
-        patch("agent.graph.writing_graph._auto_finalize_task_board_on_completion", finalize),
+        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
     ):
         events = await _collect(state)
     finalize.assert_awaited_once()
     assert board_event in events
-
 
 
 @pytest.mark.asyncio
@@ -751,3 +706,252 @@ async def test_loop_asks_for_a_self_check_once_per_chapter(loop_tool_context, mo
     assert len(seen) == 3
     assert "自查" in seen[1]["user_message"] and "edit_file" in seen[1]["user_message"]
     assert "已经自查过" in seen[2]["user_message"]
+
+
+# ---------------------------------------------------------------------------
+# 本轮上下文：作者在 AI 写过之后亲手改了什么（<author_edits>）
+# ---------------------------------------------------------------------------
+
+
+def _ai_then_author(db_session: Session, project: Project, title: str, ai_text: str, author_text: str) -> File:
+    from services.features.file_version_service import FileVersionService
+
+    file = File(project_id=project.id, title=title, content=ai_text, file_type="draft")
+    db_session.add(file)
+    db_session.flush()
+    service = FileVersionService()
+    service.create_version(db_session, file.id, ai_text, change_type="create", change_source="ai", commit=False, skip_quota=True)
+    db_session.commit()
+    service.create_version(db_session, file.id, author_text, change_type="edit", change_source="user", skip_quota=True)
+    file = db_session.get(File, file.id)
+    file.content = author_text
+    db_session.add(file)
+    db_session.commit()
+    return file
+
+
+@pytest.mark.unit
+def test_loop_turn_context_lists_author_edits_on_chapters_the_ai_wrote_this_session(db_session, monkeypatch):
+    from agent.loop.turn_context import build_loop_turn_context
+    from services.features.file_version_service import FileVersionService
+
+    monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *_a, **_kw: (True, 0, 10))
+    user, project = _user_project(db_session)
+    ai_text = "第一段，老周推门进来。\n第二段，雨还在下。"
+    author_text = "第一段，老陈推门进来。\n第二段，雨还在下。"
+    chapter = _ai_then_author(db_session, project, "第1章 雨夜", ai_text, author_text)
+    untouched = _ai_then_author(db_session, project, "第2章 渡口", "合成第二章。", "合成第二章。")
+    chat = _session_rows(db_session, user, project)
+    tool_calls = [
+        {
+            "id": "provider-call-1",
+            "name": "write_chapter",
+            "arguments": {"chapter": 1, "title": "第1章 雨夜", "file_type": "draft"},
+            "status": "success",
+            "result": {"id": chapter.id, "title": chapter.title, "action": "created", "body_saved": True},
+        },
+        {
+            "id": "provider-call-2",
+            "name": "write_chapter",
+            "arguments": {"chapter": 2, "title": "第2章 渡口", "file_type": "draft"},
+            "status": "success",
+            "result": {"id": untouched.id, "title": untouched.title, "action": "created", "body_saved": True},
+        },
+    ]
+    _add(db_session, chat, "user", "写前两章", offset=0)
+    _add(db_session, chat, "assistant", "写好了。", offset=1, tool_calls=json.dumps(tool_calls, ensure_ascii=False))
+
+    turn = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={},
+        language="zh",
+        author_message="继续写第3章",
+        chat_session_id=chat.id,
+    )
+
+    # 作者没打开、也没附加这一章：仍列出作者把「老周」改成了「老陈」。
+    assert "<author_edits>" in turn.text
+    block = turn.text.split("<author_edits>", 1)[1].split("</author_edits>", 1)[0]
+    assert chapter.id in block and "老陈" in block
+    assert untouched.id not in block
+
+    # 没有会话（或不是作者的会话）时不读别处的写入记录。
+    without_session = build_loop_turn_context(
+        db_session, project_id=project.id, user_id=user.id, metadata={}, language="zh", author_message="继续写第3章"
+    )
+    assert "<author_edits>" not in without_session.text
+    # 作者正在看的文件同样核对。
+    focused = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": chapter.id},
+        language="zh",
+        author_message="改一下这一章",
+    )
+    assert "<author_edits>" in focused.text and "老陈" in focused.text.split("<author_edits>", 1)[1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_loop_passes_the_truncation_resume_directive_to_the_first_run_only(loop_tool_context):
+    from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
+
+    directives: list[str] = []
+    runs = [
+        [StreamEvent(type=StreamEventType.TEXT, data={"text": "先看一下。"})],
+        [StreamEvent(type=StreamEventType.TEXT, data={"text": "好的。"})],
+    ]
+
+    async def fake(*, state, agent_type, system_prompt, get_steering_messages=None, agent_directive="", **_kwargs):
+        directives.append(agent_directive)
+        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
+        for event in runs.pop(0):
+            yield event
+        state["native_run_holder"].update(agent_type=agent_type, items=[{"role": "user", "content": "x"}])
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    steering = [[{"id": "m1", "content": "顺便改个标题"}], []]
+
+    async def get_steering():
+        return steering.pop(0) if steering else []
+
+    state = {"user_message": "继续", "messages": [], "system_prompt": "系统", "previous_output_truncations": 1}
+    with patch("agent.loop.engine.run_openai_agents_streaming_agent", fake):
+        await _collect(state, get_steering_messages=get_steering)
+
+    assert len(directives) == 2
+    assert OUTPUT_TRUNCATED_RESUME in directives[0]
+    assert directives[1] == ""
+
+
+# ---------------------------------------------------------------------------
+# 收尾提醒：文案指向 write_chapter（没有 parallel_execute）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("trigger", ["turns", "time"])
+def test_landing_reminders_name_write_chapter(trigger):
+    from agents.run_config import ModelInputData
+
+    from agent.core.run_meter import AgentRunMeter
+    from agent.openai_agents.runner import LOOP_SOFT_LANDING_PROMPT, LOOP_TIME_LANDING_PROMPT, _ModelCallCountingFilter
+
+    if trigger == "turns":
+        meter, max_turns = AgentRunMeter(max_model_calls=10, model_calls=8), 60
+    else:
+        meter, max_turns = AgentRunMeter(wrap_up_after_s=0), 60
+    turn_filter = _ModelCallCountingFilter(lambda data: data.model_data, meter, max_turns=max_turns)
+    sent = turn_filter(SimpleNamespace(model_data=ModelInputData(input=[], instructions="sys")))
+    text = sent.input[-1]["content"]
+
+    assert "write_chapter" in text and "create_file" in text
+    assert "parallel_execute" not in text
+    assert text == (LOOP_SOFT_LANDING_PROMPT.format(remaining=1) if trigger == "turns" else LOOP_TIME_LANDING_PROMPT)
+
+
+@pytest.mark.unit
+def test_loop_author_edits_keep_a_chapter_behind_many_newer_non_body_writes(db_session, monkeypatch):
+    """之后又写了很多大纲 / 设定文件：它们不占正文文件的名额，AI 写过的章节照样核对。"""
+    from agent.core.session_loader import AUTHOR_EDITS_MAX_FILES
+    from agent.loop.turn_context import build_loop_turn_context
+    from services.features.file_version_service import FileVersionService
+
+    monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *_a, **_kw: (True, 0, 10))
+    user, project = _user_project(db_session)
+    chapter = _ai_then_author(
+        db_session, project, "第1章 雨夜", "第一段，老周推门进来。", "第一段，老陈推门进来。"
+    )
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "写第一章", offset=0)
+    _add(db_session, chat, "assistant", "写好了。", offset=1, tool_calls=json.dumps([{
+        "id": "provider-call-1",
+        "name": "write_chapter",
+        "arguments": {"chapter": 1, "title": "第1章 雨夜", "file_type": "draft"},
+        "status": "success",
+        "result": {"id": chapter.id, "title": chapter.title, "action": "created", "body_saved": True},
+    }], ensure_ascii=False))
+    notes = []
+    for index in range(AUTHOR_EDITS_MAX_FILES + 2):
+        note = File(project_id=project.id, title=f"设定{index}", content="合成设定。", file_type="lore")
+        db_session.add(note)
+        notes.append(note)
+    db_session.commit()
+    _add(db_session, chat, "user", "补设定", offset=2)
+    _add(db_session, chat, "assistant", "补好了。", offset=3, tool_calls=json.dumps([
+        {
+            "id": f"provider-call-note-{index}",
+            "name": "create_file",
+            "arguments": {"title": note.title, "file_type": "lore"},
+            "status": "success",
+            "result": {"id": note.id, "title": note.title},
+        }
+        for index, note in enumerate(notes)
+    ], ensure_ascii=False))
+
+    turn = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={},
+        language="zh",
+        author_message="继续写第2章",
+        chat_session_id=chat.id,
+    )
+
+    assert "<author_edits>" in turn.text
+    block = turn.text.split("<author_edits>", 1)[1].split("</author_edits>", 1)[0]
+    assert chapter.id in block and "老陈" in block
+
+
+@pytest.mark.unit
+def test_session_written_file_ids_reads_assistant_rows_in_pages(db_session):
+    """会话很长时不一次读出所有 assistant 行的 tool_calls：按页读，凑够名额就停。"""
+    from sqlalchemy import event
+
+    from agent.core.session_loader import SessionLoader
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    chapters = []
+    for index in range(60):
+        chapter = File(project_id=project.id, title=f"第{index + 1}章", content="合成正文。", file_type="draft")
+        db_session.add(chapter)
+        chapters.append(chapter)
+    db_session.commit()
+    for index, chapter in enumerate(chapters):
+        _add(db_session, chat, "assistant", "写好了。", offset=index, tool_calls=json.dumps([{
+            "id": f"provider-call-{index}",
+            "name": "write_chapter",
+            "arguments": {"chapter": index + 1, "title": chapter.title, "file_type": "draft"},
+            "status": "success",
+            "result": {"id": chapter.id, "title": chapter.title, "action": "created", "body_saved": True},
+        }], ensure_ascii=False))
+
+    engine = db_session.get_bind()
+    statements: list[str] = []
+
+    def record(_conn, _cursor, statement, *_rest):
+        if "tool_calls" in statement and "chat_message" in statement:
+            statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        ids = SessionLoader(project_id=project.id, user_id=user.id).session_written_file_ids(
+            db_session, chat_session_id=chat.id, limit=3, file_types=("draft", "script")
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    # 新 → 旧，凑够 3 个就停在第一页。
+    assert ids == [chapter.id for chapter in reversed(chapters[-3:])]
+    assert len(statements) == 1 and "LIMIT" in statements[0].upper()
+
+    # 跨页时照样新 → 旧、不重复。
+    many = SessionLoader(project_id=project.id, user_id=user.id).session_written_file_ids(
+        db_session, chat_session_id=chat.id, limit=45, file_types=("draft", "script")
+    )
+    assert many == [chapter.id for chapter in reversed(chapters[-45:])]

@@ -39,9 +39,8 @@ def _create_manager(db_session) -> MessageManager:
 def test_turn_context_includes_selected_skills_with_resources(db_session):
     manager = _create_manager(db_session)
 
-    prompt = manager.build_turn_context(
-        language="zh",
-        selected_skills=[
+    prompt = "\n".join(manager._build_selected_skill_section(
+        [
             {
                 "id": "skill-1",
                 "name": "悬念大师",
@@ -57,7 +56,8 @@ def test_turn_context_includes_selected_skills_with_resources(db_session):
                 "resources": [],
             },
         ],
-    )
+        False,
+    ))
 
     assert prompt.count("## 用户本条消息指定技能") == 1
     assert "### 悬念大师" in prompt
@@ -81,7 +81,7 @@ def test_catalog_stays_in_system_prompt_and_selected_skills_go_to_turn_context(d
         language="zh",
         skill_catalog="## 可用写作技能\n\n- **悬念大师**: 增强钩子",
     )
-    turn_context = manager.build_turn_context(language="zh", selected_skills=selected)
+    turn_context = "\n".join(manager._build_selected_skill_section(selected, False))
 
     assert "## 可用写作技能" in prompt
     assert "## 用户本条消息指定技能" not in prompt
@@ -92,9 +92,8 @@ def test_catalog_stays_in_system_prompt_and_selected_skills_go_to_turn_context(d
 def test_turn_context_skips_selected_skill_without_instructions(db_session):
     manager = _create_manager(db_session)
 
-    turn_context = manager.build_turn_context(
-        language="en",
-        selected_skills=[{"name": "Empty", "instructions": "  ", "resources": []}],
+    turn_context = "\n".join(
+        manager._build_selected_skill_section([{"name": "Empty", "instructions": "  ", "resources": []}], True)
     )
 
     assert "User-Selected Skills" not in turn_context

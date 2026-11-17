@@ -1,15 +1,13 @@
-"""Tests for the parallel-execution + steering rework.
+"""Tests for the in-band progress channel + steering rework.
 
 Covers the pieces the original audit found unwired or unverified end-to-end:
 - the in-band progress channel (agent.core.progress_channel)
-- parallel_execute emitting live parallel_* progress events
 - the runner's SDK/progress merge pump (_pump_sdk_events) and its contextvar
   propagation through run_openai_agents_streaming_agent
 - steering messages being persisted to chat history (node-boundary durability)
 """
 
 import asyncio
-import json
 import sys
 import types
 from unittest.mock import patch
@@ -21,7 +19,6 @@ from agent.core.progress_channel import (
     reset_progress_emitter,
     set_progress_emitter,
 )
-from agent.tools.parallel_executor import execute_parallel
 
 
 # ---------------------------------------------------------------------------
@@ -59,146 +56,12 @@ class TestProgressChannel:
 
 
 # ---------------------------------------------------------------------------
-# parallel_execute progress emission
+# helpers
 # ---------------------------------------------------------------------------
 def _event_value(event) -> str:
     """Normalize a workflow/SSE event's type to its string value."""
     event_type = getattr(event, "type", "")
     return getattr(event_type, "value", str(event_type))
-
-
-@pytest.mark.unit
-class TestParallelProgressEmission:
-    async def test_emits_full_progress_sequence(self):
-        from agent.tools.mcp_tools import ToolContext
-
-        captured: list = []
-        token = set_progress_emitter(captured.append)
-        ToolContext.set_context(None, "user1", "proj-1", "sess-1")
-        try:
-            with patch("agent.tools.parallel_executor.handle_query_files") as mock_query:
-                mock_query.return_value = {
-                    "content": [{"type": "text", "text": '{"count": 1}'}]
-                }
-                await execute_parallel(
-                    [
-                        {"type": "query_files", "description": "Q1", "params": {}},
-                        {"type": "query_files", "description": "Q2", "params": {}},
-                    ]
-                )
-        finally:
-            reset_progress_emitter(token)
-            ToolContext.clear_context()
-
-        values = [_event_value(e) for e in captured]
-        # One start, one end per task, one overall end.
-        assert values[0] == "parallel_start"
-        assert values[-1] == "parallel_end"
-        assert values.count("parallel_task_start") == 2
-        assert values.count("parallel_task_end") == 2
-
-        start = captured[0]
-        assert start.data["task_count"] == 2
-        assert start.data["task_descriptions"] == ["Q1", "Q2"]
-
-        end = captured[-1]
-        assert end.data["total_tasks"] == 2
-        assert end.data["completed"] == 2
-        assert end.data["failed"] == 0
-
-    async def test_partial_failure_reported_in_progress_and_envelope(self):
-        from agent.tools.mcp_tools import ToolContext
-
-        captured: list = []
-        token = set_progress_emitter(captured.append)
-        ToolContext.set_context(None, "user1", "proj-1", "sess-1")
-        try:
-            # One success, one error payload.
-            with patch("agent.tools.parallel_executor.handle_query_files") as mock_query:
-                mock_query.side_effect = [
-                    {"content": [{"type": "text", "text": '{"ok": true}'}]},
-                    {"content": [{"type": "text", "text": '{"status":"error","error":"boom"}'}]},
-                ]
-                result = await execute_parallel(
-                    [
-                        {"type": "query_files", "description": "good", "params": {}},
-                        {"type": "query_files", "description": "bad", "params": {}},
-                    ]
-                )
-        finally:
-            reset_progress_emitter(token)
-            ToolContext.clear_context()
-
-        end = captured[-1]
-        assert _event_value(end) == "parallel_end"
-        assert end.data["completed"] == 1
-        assert end.data["failed"] == 1
-
-        # Envelope stays "success" so the per-task breakdown survives the stream
-        # adapter, but the failure is visible in the data fields.
-        parsed = json.loads(result["content"][0]["text"])
-        assert parsed["status"] == "success"
-        assert parsed["data"]["any_failed"] is True
-        assert parsed["data"]["failed"] == 1
-
-        # The raw error stays in the model-facing breakdown; the task_end frame
-        # the author sees never carries it (no user_message was provided).
-        assert parsed["data"]["tasks"][1]["error"] == "boom"
-        task_ends = [e for e in captured if _event_value(e) == "parallel_task_end"]
-        failed = [e for e in task_ends if e.data["status"] == "failed"]
-        assert len(failed) == 1
-        assert "boom" not in (failed[0].data.get("error") or "")
-
-    async def test_failed_task_end_shows_only_the_tools_user_message(self):
-        from agent.tools.mcp_tools import ToolContext
-
-        captured: list = []
-        token = set_progress_emitter(captured.append)
-        ToolContext.set_context(None, "user1", "proj-1", "sess-1")
-        payload = json.dumps(
-            {
-                "status": "error",
-                "error": "Edit 0: old text not found in file id=abc",
-                "user_message": "AI 没在原文里找到要改的那一段，正在重新定位。",
-            },
-            ensure_ascii=False,
-        )
-        try:
-            with patch("agent.tools.parallel_executor.handle_query_files") as mock_query:
-                mock_query.return_value = {"content": [{"type": "text", "text": payload}]}
-                result = await execute_parallel(
-                    [{"type": "query_files", "description": "bad", "params": {}}]
-                )
-        finally:
-            reset_progress_emitter(token)
-            ToolContext.clear_context()
-
-        parsed = json.loads(result["content"][0]["text"])
-        # 模型仍拿到原始错误，好据此纠正。
-        assert parsed["data"]["tasks"][0]["error"] == "Edit 0: old text not found in file id=abc"
-        failed = [
-            e for e in captured
-            if _event_value(e) == "parallel_task_end" and e.data["status"] == "failed"
-        ]
-        assert failed[0].data["error"] == "AI 没在原文里找到要改的那一段，正在重新定位。"
-
-    async def test_no_emitter_does_not_break_execution(self):
-        from agent.tools.mcp_tools import ToolContext
-
-        ToolContext.set_context(None, "user1", "proj-1", "sess-1")
-        try:
-            with patch("agent.tools.parallel_executor.handle_query_files") as mock_query:
-                mock_query.return_value = {
-                    "content": [{"type": "text", "text": '{"count": 0}'}]
-                }
-                result = await execute_parallel(
-                    [{"type": "query_files", "description": "Q", "params": {}}]
-                )
-            parsed = json.loads(result["content"][0]["text"])
-            assert parsed["status"] == "success"
-            assert parsed["data"]["total_tasks"] == 1
-        finally:
-            ToolContext.clear_context()
 
 
 # ---------------------------------------------------------------------------

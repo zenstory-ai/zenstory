@@ -1,6 +1,6 @@
 """Project writing configurations come exclusively from the primary database.
 
-Shared runtime/role protocols remain code; project content is administered in DB.
+Shared runtime protocols remain code; project content is administered in DB.
 """
 
 from typing import Any
@@ -12,7 +12,6 @@ from core.error_handler import APIException
 from database import sync_engine
 
 from .base import get_base_prompt
-from .subagents import PLANNER_PROMPT, QUALITY_REVIEWER_PROMPT, WRITER_PROMPT
 from .suggestions import get_suggestion_prompt
 
 # In-memory cache for database configurations
@@ -120,8 +119,6 @@ def get_prompt_for_project_type(
     project_type: str,
     project_id: str,
     folder_ids: dict[str, str],
-    *,
-    loop: bool = False,
 ) -> str:
     """
     Get the complete system prompt for a project type.
@@ -132,7 +129,6 @@ def get_prompt_for_project_type(
         project_type: Type of project (novel, short, screenplay)
         project_id: The project ID
         folder_ids: Dict mapping folder names to their IDs
-        loop: Build the single loop agent's variant (see get_base_prompt)
 
     Returns:
         Complete system prompt string
@@ -151,7 +147,7 @@ def get_prompt_for_project_type(
         )
 
     # Get base prompt with common sections
-    base_prompt = get_base_prompt(project_id, folder_ids, config, loop=loop)
+    base_prompt = get_base_prompt(project_id, folder_ids, config)
 
     genre_norms = get_genre_norms(project_type)
     if genre_norms:
@@ -182,7 +178,4 @@ __all__ = [
     "get_prompt_for_project_type",
     "get_suggestion_prompt",
     "reload_prompts",
-    "PLANNER_PROMPT",
-    "WRITER_PROMPT",
-    "QUALITY_REVIEWER_PROMPT",
 ]

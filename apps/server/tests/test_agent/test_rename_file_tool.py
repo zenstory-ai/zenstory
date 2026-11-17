@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 
 from agent.core.stream_billing import StreamBillingTracker
 from agent.tools import mcp_tools
-from agent.tools.registry import AGENT_TOOL_NAME_MAP, FILE_WRITE_TOOL_NAMES
+from agent.tools.registry import LOOP_TOOL_NAMES
 from models import File, FileVersion, Project, User
 from services.features.activation_event_service import activation_event_service
 
@@ -109,10 +109,8 @@ async def test_same_title_is_a_no_op_that_writes_nothing(db_session, owner_proje
     assert db_session.get(File, chapter.id).updated_at == before
 
 
-def test_rename_is_a_write_tool_writers_have_and_reviewers_do_not():
-    assert "rename_file" in FILE_WRITE_TOOL_NAMES  # rejected in read-only rounds
-    assert "rename_file" in AGENT_TOOL_NAME_MAP["writer"]
-    assert "rename_file" not in AGENT_TOOL_NAME_MAP["quality_reviewer"]
+def test_rename_is_a_tool_the_loop_agent_has():
+    assert "rename_file" in LOOP_TOOL_NAMES
 
 
 @pytest.mark.parametrize("applied", [True, False])

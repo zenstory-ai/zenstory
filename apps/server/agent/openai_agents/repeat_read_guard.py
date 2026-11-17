@@ -5,7 +5,7 @@
 的 max_turns 上限。线上 10-03 以来约三分之一的 agent 轮次里同一文件被读了 4 次
 以上，这部分轮次花掉了 69% 的 agent 费用。
 
-writing_graph 为整条工作流建一个守卫（跨 agent run 共享），但**读取计数按 agent
+单循环 agent 为一轮建一个守卫（跨 agent run 共享），但**读取计数按 agent
 run 隔离**：runner 每开始一个 agent run 就调用 begin_agent_run() 清零计数。工具
 结果不会回放给下一个 agent（runner 只回放纯文本），planner 读过的文件不在
 writer / 审稿人的上下文里，它们各读一次是正常的，不算重复。读写台账
@@ -26,8 +26,8 @@ start_char + max_chars）时，模式里带上归一化后的范围，不同窗�
 - 一次请求内被拦下的读取累计达到 MAX_BLOCKED_READS_PER_REQUEST 次 → 判定为
   「无进展」，与熔断器走同一个出口（runner 的 tool_use_behavior）结束本轮。
 
-同时记下本请求里完整读过 / 写过的文件（id + 标题），供 writing_graph 写进下一个
-agent 的交接信息，避免交接后从头再读一遍（只记标题与 id，不带正文）。范围读取结果
+同时记下本请求里完整读过 / 写过的文件（id + 标题），供任务板收尾等按本请求的写入核对
+（只记标题与 id，不带正文）。范围读取结果
 content_partial=True 时只读到一段，不算读过全文。
 
 本模块只负责记账与判定；「停下」由 runner 完成，对外事件也由 runner 发出。
@@ -217,7 +217,7 @@ class NoProgressTrip:
 
 @dataclass
 class RepeatReadGuard:
-    """一次请求的重复读取守卫 + 读写台账（writing_graph 建一个，跨 agent run 共享）。
+    """一次请求的重复读取守卫 + 读写台账（单循环 agent 建一个，跨 agent run 共享）。
 
     plan() 在工具执行前同步调用（决定是否拦下、改写 parallel_execute 的子任务），
     observe() 在执行后同步调用（记账、附提示）；二者都在 tools_adapter 的
@@ -545,50 +545,8 @@ class RepeatReadGuard:
             tool_name=tool_name,
         )
 
-    # ------------------------------------------------------------- handoff
-    def handoff_summary(self) -> str:
-        """交接给下一个 agent 的读写摘要（只有标题与 id，不带正文）。"""
-        parts: list[str] = []
-        if self.files_read:
-            reads = "、".join(_label(file_id, title) for file_id, title in self.files_read.items())
-            parts.append(f"本请求已读取全文：{reads}")
-        if self.files_written:
-            writes = "、".join(
-                _label(file_id, self._titles.get(file_id, title))
-                for file_id, title in self.files_written.items()
-            )
-            parts.append(f"本请求已修改：{writes}")
-        if not parts:
-            return ""
-        # 下一个 agent 的上下文里没有这些文件的正文（工具结果不跨 agent 回放），
-        # 所以不说「别读」，只要求按需读、在它自己这次运行里每个文件读一次。
-        summary = (
-            "；".join(parts)
-            + "。这些文件的正文不在你的上下文里：只读取完成你的任务确实需要的文件，"
-            "在你这次运行里每个文件读一次即可，不要重复读取同一文件。"
-        )
-        # 系统提示（含 [全文] 条目与工作集）每个请求只组装一次：本请求改过的文件，
-        # 那里的 [全文] 仍是修改前的版本。
-        stale = "".join(
-            f"系统上下文/工作集中{_label(file_id, self._titles.get(file_id, title))}的[全文]"
-            f"是本请求修改前的版本，已过期；需要时用 query_files(id={file_id}) 读取最新内容。"
-            for file_id, title in self.files_written.items()
-        )
-        return summary + stale
-
-    def completed_items(self) -> list[str]:
-        """写进 handoff_packet.completed 的条目。"""
-        return [
-            f"已修改{_label(file_id, self._titles.get(file_id, title))}"
-            for file_id, title in self.files_written.items()
-        ]
-
     def written_file_ids(self) -> list[str]:
         return list(self.files_written)
-
-
-def _label(file_id: str, title: str) -> str:
-    return f"《{title}》(id={file_id})" if title else f"(id={file_id})"
 
 
 def _blocked_user_message(titles: list[str]) -> str:

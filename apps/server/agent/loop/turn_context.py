@@ -1,12 +1,14 @@
 """单循环 agent 每轮附在作者消息前的结构化上下文。
 
 只放这一轮请求本身带来的东西：项目信息与写作约定、作者正在看的文件、附加的文件、附加的素材库条目、
-引用的文字、作者选的技能、本轮回复语言。解析沿用 ContextAssembler 的既有解析器（归属校验、素材库
+引用的文字、作者选的技能、本轮回复语言；另附 <author_edits>：焦点、附加文件和本会话 AI 写过的正文文件里，
+作者在 AI 写过之后亲手改了哪几处（与图同一套 SessionLoader.author_edits_for_files，有文件数上限）。解析沿用 ContextAssembler 的既有解析器（归属校验、素材库
 格式化、渲染标注都一样），但不做优先级裁剪、检索片段和文件清单：项目里其他文件由模型用 query_files 查。
 """
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -47,6 +49,7 @@ def build_loop_turn_context(
     author_message: str,
     selected_skills: list[dict[str, Any]] | None = None,
     context_assembler: Any = None,
+    chat_session_id: str | None = None,
 ) -> LoopTurnContext:
     from agent.context import get_context_assembler
     from agent.tools.permissions import ForbiddenError, NotFoundError, check_project_ownership
@@ -87,6 +90,15 @@ def build_loop_turn_context(
 
     manager = MessageManager(project_id=project_id, user_id=user_id)
     parts: list[str] = [TURN_CONTEXT_OPEN, _PREAMBLE_EN if force_en else _PREAMBLE, "", rendered.strip()]
+    author_edits = _author_edits_block(
+        session,
+        project_id=project_id,
+        user_id=user_id,
+        chat_session_id=chat_session_id,
+        primary_ids=[fid for fid in (assembler._item_file_id(item) for item in items) if fid],
+    )
+    if author_edits:
+        parts.extend(["", author_edits])
     parts.extend(manager._build_metadata_section(metadata, force_en))
     if selected_skills:
         parts.extend(manager._build_selected_skill_section(selected_skills, force_en))
@@ -100,3 +112,45 @@ def build_loop_turn_context(
             result.read_snapshots[file_id] = item.content
     result.items = [item.to_dict() for item in items]
     return result
+
+
+# 本会话 AI 写过、会一起核对作者手改的正文类文件。
+_BODY_FILE_TYPES = ("draft", "script")
+
+
+def _author_edits_block(
+    session: Session,
+    *,
+    project_id: str,
+    user_id: str | None,
+    chat_session_id: str | None,
+    primary_ids: list[str],
+) -> str:
+    """焦点 / 附加文件在前，再是本会话 AI 写过的正文文件：作者在 AI 写过之后亲手改了哪几处。
+
+    增益信息：算不出来时不影响本轮（块里明说，或整块不附）。
+    """
+    from agent.core.session_loader import AUTHOR_EDITS_MAX_FILES, SessionLoader
+
+    if not user_id:
+        return ""
+    loader = SessionLoader(project_id=project_id, user_id=user_id)
+    try:
+        written: list[str] = []
+        if chat_session_id:
+            # 先按本项目、未删除的正文文件筛，再计名额：大纲、设定等文件不挤掉 AI 写过的章节。
+            written = loader.session_written_file_ids(
+                session, chat_session_id=chat_session_id, limit=AUTHOR_EDITS_MAX_FILES, file_types=_BODY_FILE_TYPES
+            )
+        ordered = list(dict.fromkeys([*primary_ids, *written]))
+        if not ordered:
+            return ""
+        block, _edited, _files = loader.author_edits_for_files(session, ordered, {})
+        return block
+    except Exception as exc:  # noqa: BLE001 - 增益信息，失败不影响本轮
+        with contextlib.suppress(Exception):
+            session.rollback()
+        log_with_context(
+            logger, 30, "Loop author edits build failed", project_id=project_id, error_type=type(exc).__name__
+        )
+        return ""

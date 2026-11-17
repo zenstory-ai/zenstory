@@ -2,8 +2,6 @@
 
 每条都对应一份"由 A 组修一半、B 组文件不在白名单里"的缺口，收敛阶段补齐另一半：
 
-- rank32 后半：parallel_start/parallel_end 必须带 requested_task_count /
-  dropped_count，否则前端只知道"跑了 5 个"，模型请求的另外 2 个被静默丢弃。
 - bug-02 同族站点：_suggest_auto_current_phase_from_drafts 只查 draft，
   短剧项目（script）的 current_phase 永远推不出来。
 - assembler 同族站点：找"前一章"只在 draft ∪ outline 里找，短剧续写丢上一集。
@@ -13,12 +11,10 @@
 - stream #3：FileEditEndEventData 缺 failed_count/partial_success/all_failed/warnings。
 - tools-core #4：stream_adapter 的 pending-empty-file 精确清除
   （多个待写空文件时不得一次清光）。
-- #33 第二半：router 那次非流式 LLM 调用的 usage 必须汇入整轮统计。
 - service #2：message_manager 不得写空 assistant 行，
   message_count 必须按实际写入行数递增。
 """
 
-from types import SimpleNamespace
 
 import pytest
 from sqlmodel import Session, select
@@ -109,39 +105,6 @@ def test_parallel_events_default_to_no_truncation():
     assert start.data["dropped_count"] == 0
     assert end.data["requested_task_count"] == 3
     assert end.data["dropped_count"] == 0
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_parallel_execute_emits_dropped_count_on_truncation(monkeypatch):
-    """超过并发上限时，parallel_start/parallel_end 必须报出被丢弃的任务数。"""
-    from agent.core import progress_channel
-    from agent.tools import parallel_executor as pe
-
-    emitted: list = []
-    monkeypatch.setattr(
-        progress_channel, "emit_progress", lambda event: emitted.append(event)
-    )
-
-    async def fake_handler(params):
-        return {"content": [{"type": "text", "text": '{"status": "success"}'}]}
-
-    monkeypatch.setattr(pe, "handle_query_files", fake_handler)
-
-    tasks = [
-        {"type": "query_files", "description": f"task-{i}", "params": {}}
-        for i in range(pe.MAX_PARALLEL_TASKS + 2)
-    ]
-    await pe.execute_parallel(tasks)
-
-    starts = [e for e in emitted if e.type.value == "parallel_start"]
-    ends = [e for e in emitted if e.type.value == "parallel_end"]
-    assert starts and ends
-
-    assert starts[0].data["task_count"] == pe.MAX_PARALLEL_TASKS
-    assert starts[0].data["requested_task_count"] == pe.MAX_PARALLEL_TASKS + 2
-    assert starts[0].data["dropped_count"] == 2
-    assert ends[0].data["dropped_count"] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -462,23 +425,6 @@ def test_stream_adapter_clears_only_the_targeted_pending_file(db_session: Sessio
 # ---------------------------------------------------------------------------
 # #33 第二半：router 的 usage 必须汇入整轮统计
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-def test_router_extracts_usage_from_response():
-    from agent.graph.router import _extract_usage
-
-    # 键名必须是规范键（与 runner._usage_dict_from_result 一致），
-    # 否则 _merge_usage 按字面键相加时两族键并存，下游只认其中一族。
-    response = SimpleNamespace(
-        usage=SimpleNamespace(prompt_tokens=11, completion_tokens=22, total_tokens=33)
-    )
-    assert _extract_usage(response) == {
-        "input_tokens": 11,
-        "output_tokens": 22,
-        "total_tokens": 33,
-    }
-    assert _extract_usage(SimpleNamespace()) is None
 
 
 @pytest.mark.asyncio

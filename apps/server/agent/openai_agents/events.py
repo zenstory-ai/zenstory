@@ -6,25 +6,6 @@ import json
 from typing import Any
 
 
-def normalize_str_list(value: Any) -> list[str]:
-    """Normalize optional list-like input to a clean list[str]."""
-    if not isinstance(value, list):
-        return []
-    return [str(item).strip() for item in value if str(item).strip()]
-
-
-def build_handoff_packet(result_data: dict[str, Any]) -> dict[str, Any]:
-    """Build a structured handoff packet from a tool result payload."""
-    return {
-        "target_agent": str(result_data.get("target_agent", "")).strip(),
-        "reason": str(result_data.get("reason", "")).strip(),
-        "context": str(result_data.get("context", "")).strip(),
-        "completed": normalize_str_list(result_data.get("completed")),
-        "todo": normalize_str_list(result_data.get("todo")),
-        "evidence": normalize_str_list(result_data.get("evidence")),
-    }
-
-
 def extract_tool_result_text(raw_result: Any) -> str:
     """Extract text from the project's MCP-style tool result payload."""
     if isinstance(raw_result, str):

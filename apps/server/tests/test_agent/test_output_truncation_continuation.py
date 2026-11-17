@@ -2,15 +2,12 @@
 
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from agent.core.session_loader import SessionLoader
-from agent.core.workflow_events import StreamEvent, StreamEventType
-from agent.graph.nodes import run_streaming_agent
+from agent.core.workflow_events import StreamEventType
 from agent.openai_agents.runner import normalize_messages_for_openai_agents
-from tests.test_agent.test_agent_routing_continuity import _run_graph, _state
 from tests.test_agent.test_output_truncated_stop import _max_tokens, _reasoning_chunks, _unused_edit
 from tests.test_agent.test_tool_failure_breaker import _run_against_local_model
 
@@ -32,37 +29,6 @@ def test_persisted_stop_metadata_survives_thinking_free_model_replay():
     assert replay[0]["role"] == "assistant"
     assert "[output_truncated]" in replay[0]["content"]
     assert "private reasoning" not in str(replay)
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-@pytest.mark.parametrize("reason, expected", [("output_truncated", True),
-    ("run_deadline_exceeded", False), ("model_call_budget_exhausted", False),
-    ("max_turns_exceeded", False), ("no_progress", False)])
-async def test_only_output_truncation_continue_injects_system_guidance(reason, expected):
-    captured = []
-
-    async def fake_runner(state, agent_type, system_prompt, **kwargs):
-        captured.append(kwargs.get("agent_directive", ""))
-        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "已完成本轮指定修改。"})
-        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
-
-    from agent.graph.router import router_node
-
-    state = _state("接着把尚未完成的部分做完", _previous(reason))
-    response = {"content": [{"type": "text", "text": json.dumps({
-        "agent_type": "writer", "workflow_type": "quick",
-        "turn_disposition": "resume_interrupted_task",
-    })}]}
-    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=response)):
-        route = await router_node(state)
-    with patch("agent.graph.nodes.run_openai_agents_streaming_agent", new=fake_runner):
-        await _run_graph(run_streaming_agent, state, router=AsyncMock(return_value=route))
-    assert captured
-    assert ("上一步在思考阶段达到输出上限" in captured[0]) is expected
-    if expected:
-        assert "第一部分" in captured[0]
-        assert "剩余" in captured[0]
 
 
 @pytest.mark.asyncio
@@ -90,13 +56,6 @@ async def test_repeat_classification_uses_prior_assistant_metadata(monkeypatch, 
     assert error["refundable"] is True
     if repeated:
         assert "一章" in error["error"]
-
-
-@pytest.mark.unit
-def test_text_that_mentions_truncation_is_not_stop_metadata():
-    from agent.graph.router import has_pending_followup_state
-    previous = {"role": "assistant", "content": "[output_truncated] reached cap", "stop_reason": "end_turn"}
-    assert has_pending_followup_state(_state("继续", previous)) is False
 
 
 @pytest.mark.unit

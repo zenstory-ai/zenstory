@@ -1960,7 +1960,7 @@ class ContextAssembler:
 
         def add_block(section: str, item: ContextItem, start: int, *, turn_only: bool = False) -> None:
             body = "\n".join(parts[start:]).strip()
-            # label 在条目离开后续轮次的上下文时用来点名（turn_snapshot 的「本轮未核对」列表）。
+            # label：条目的可读名字（分区 + 标题 + id）。
             file_id = self._item_file_id(item)
             label = f"{section}{item.title}" + (f" (id={file_id})" if file_id else "")
             block = {"key": f"{section}:{item.id or item.title}", "text": f"{section}\n{body}", "label": label}

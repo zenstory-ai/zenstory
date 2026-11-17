@@ -4,7 +4,7 @@
 类型匹配的文件证明。编号优先读取兼容的 metadata，其次只认标题开头的有界语法；
 单个正文范围标题不能制造多章交付。旧任务文本的编号解析仅作明确类型下的兼容输入。
 
-writing_graph 收尾与 ProjectOperations 共用这些证据规则。任务进度由后端从已核验
+单循环 agent 的收尾（agent/core/task_board_completion.py）与 ProjectOperations 共用这些证据规则。任务进度由后端从已核验
 文件引用重算；新的完成声明缺少证据时不写任务板，不只是向模型发出警告。
 """
 
