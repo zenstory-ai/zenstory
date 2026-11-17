@@ -45,7 +45,12 @@ _INTERRUPTED_ROUND_NOTES = {
 }
 # create_file 的结果里只对当时那一步有意义、回放时会误导模型的字段。
 _CREATE_FILE_TRANSIENT_KEYS = ("awaiting_body", "next_step", "content", "body_in_reply")
-_REPLACE_NOT_SAVED_NOTE = "这次整章替换的新正文没有保存，这一章保持原样。"
+_REPLACE_NOT_SAVED_NOTE = (
+    "这次整章替换的新正文没有保存，这一章保持原样；当时的写入定位已失效。"
+    "若本轮作者仍要求完成整章写作，先重新调用 write_chapter 建立本轮目标，"
+    "下一次回复再用 <file>…</file> 写入，不先把整章发到聊天，"
+    "也不用未保存的新稿作 edit_file 锚点。若本轮改为只读或其他任务，不要自动恢复旧写入。"
+)
 # 落库的工具结果是前端卡片口径，不是模型当时拿到的原文：技能正文不落库，失败只留给作者看的说明。
 # 回放时如实说明，模型不会以为自己手里还有这些内容。
 _SKILL_CONTENT_NOT_KEPT = {
@@ -148,6 +153,8 @@ def _tool_output_text(call: dict[str, Any]) -> str:
         streamed = result.get("awaiting_body") is True or result.get("body_in_reply") is True
         saved = result.get("body_saved") is True
         result = {key: value for key, value in result.items() if key not in _CREATE_FILE_TRANSIENT_KEYS}
+        # 历史回执只说明过去的保存事实；捕获目标与版本绑定只在原请求里有效。
+        result["write_target_active"] = False
         if replaced:
             # 整章替换只有落库后补发的结果才带 body_saved；只有定位结果说明新正文没有存下。
             result["body_saved"] = saved

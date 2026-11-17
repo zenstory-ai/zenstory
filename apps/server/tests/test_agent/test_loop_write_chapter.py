@@ -823,18 +823,134 @@ async def test_existing_duplicates_and_notes_files_are_not_blocked(loop_tools):
 # ---------------------------------------------------------------------------
 
 
+def _replacement_history_items(*, file_id: str, body_saved: bool) -> list[dict[str, Any]]:
+    from agent.loop.history import _row_items
+
+    calls = [
+        {
+            "name": "write_chapter",
+            "arguments": {"chapter": 3, "title": "第3章", "file_type": "draft"},
+            "status": "success",
+            "result": {
+                "id": file_id,
+                "title": "第3章 灯塔",
+                "chapter": 3,
+                "action": "replaced",
+                "awaiting_body": not body_saved,
+                "next_step": "下一次回复写正文",
+                "body_saved": body_saved,
+            },
+        },
+        {
+            "name": "update_project",
+            "arguments": {"notes": "不应执行"},
+            "status": "error",
+            "error": "file_body_pending",
+        },
+    ]
+    row = SimpleNamespace(
+        id="stopped-row",
+        role="assistant",
+        content="\n\n",
+        tool_calls=json.dumps(calls, ensure_ascii=False),
+        message_metadata=json.dumps(
+            {
+                "engine": "loop",
+                "stop_reason": "user_stopped",
+                "display_events": [
+                    {"type": "thinking_content", "content": "合成思考"},
+                    {"type": "tool_call", "tool_call_index": 0},
+                    {"type": "tool_call", "tool_call_index": 1},
+                    {"type": "content", "content": "\n\n"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+    )
+    loader = SimpleNamespace(_build_status_cards_history_content=lambda _cards: "")
+    return _row_items(loader, row)
+
+
 def test_history_replays_an_unsaved_replacement_as_not_saved():
     from agent.loop.history import _tool_output_text
 
-    armed = {"id": "f", "action": "replaced", "awaiting_body": True, "next_step": "写正文", "chapter": 3}
-    saved = {**armed, "awaiting_body": None, "body_saved": True, "undo": {"before_version_number": 1}}
+    not_saved_items = _replacement_history_items(file_id="chapter-3", body_saved=False)
+    saved_items = _replacement_history_items(file_id="chapter-3", body_saved=True)
+    not_saved = json.loads(not_saved_items[1]["output"])
+    done = json.loads(saved_items[1]["output"])
+    created = {"id": "outline-1", "action": "created", "awaiting_body": True, "next_step": "写正文"}
+    created_before = dict(created)
+    historical_create = json.loads(
+        _tool_output_text({"name": "create_file", "status": "success", "result": created})
+    )
 
-    not_saved = json.loads(_tool_output_text({"name": "write_chapter", "status": "success", "result": armed}))
-    done = json.loads(_tool_output_text({"name": "write_chapter", "status": "success", "result": saved}))
+    for items in (not_saved_items, saved_items):
+        calls = [item for item in items if item.get("type") == "function_call"]
+        outputs = [item for item in items if item.get("type") == "function_call_output"]
+        assert len(calls) == len(outputs) == 2
+        assert [item["call_id"] for item in calls] == [item["call_id"] for item in outputs]
+        assert "合成思考" not in json.dumps(items, ensure_ascii=False)
 
-    assert not_saved["data"]["body_saved"] is False and "没有保存" in not_saved["data"]["result"]
-    assert "next_step" not in not_saved["data"]
+    assert not_saved["data"]["body_saved"] is False
+    assert not_saved["data"]["write_target_active"] is False
+    assert "awaiting_body" not in not_saved["data"] and "next_step" not in not_saved["data"]
+    assert "没有保存" in not_saved["data"]["result"]
     assert done["data"]["body_saved"] is True
+    assert done["data"]["write_target_active"] is False
+    assert historical_create["data"]["body_saved"] is True
+    assert historical_create["data"]["write_target_active"] is False
+    assert "awaiting_body" not in historical_create["data"] and "next_step" not in historical_create["data"]
+    assert created == created_before
+
+
+async def test_stopped_replacement_history_does_not_arm_a_read_only_next_turn(workspace):
+    original = "合成第三章原文。\n第二段原文。"
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+    history_items = _replacement_history_items(file_id=three.id, body_saved=False)
+    model = ScriptedModel(runs=[[Reply(text="第三章仍是旧稿，这一轮没有修改。")]])
+
+    outcome = await _run_loop(
+        workspace,
+        model,
+        "先别写，只告诉我上一轮保存了没有",
+        history_items=history_items,
+    )
+
+    # 脚本模型不证明语义选择；这里只锁定历史事实不会自动恢复写入目标。
+    assert model.run_inputs[0][:-1] == history_items
+    assert model.tool_calls == []
+    assert outcome.of("file_content") == [] and outcome.of("file_edit_end") == []
+    assert _content(workspace, three.id) == original
+    assert _ai_versions(workspace, three.id) == 1
+
+
+async def test_next_turn_reacquires_target_after_an_unsaved_replacement(workspace):
+    original = "合成第三章原文。\n第二段原文。"
+    two = _ai_chapter(workspace.session, workspace.project, "第2章 渡口", "合成第二章原文。")
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+    history_items = _replacement_history_items(file_id=three.id, body_saved=False)
+    call = ("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"})
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(call,)),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章已重新写完。"),
+    ]])
+
+    outcome = await _run_loop(
+        workspace,
+        model,
+        "继续，把第三章整章写完",
+        history_items=history_items,
+    )
+
+    fresh = model.tool_calls[0].output
+    assert fresh["status"] == "success"
+    assert fresh["data"]["action"] == "replaced" and fresh["data"]["id"] == three.id
+    assert _content(workspace, three.id).rstrip("\n") == NEW_BODY
+    assert _content(workspace, two.id) == "合成第二章原文。"
+    assert NEW_BODY not in outcome.chat_text
+    versions = workspace.session.exec(select(FileVersion).where(FileVersion.file_id == three.id)).all()
+    before = next(version for version in versions if version.version_number == 1)
+    assert FileVersionService()._get_contents_for_versions(workspace.session, {three.id: before})[three.id] == original
 
 
 async def test_undo_marks_a_write_chapter_card(workspace):
