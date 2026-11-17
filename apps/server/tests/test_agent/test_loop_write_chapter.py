@@ -1092,3 +1092,55 @@ async def test_rewriting_a_chapter_keeps_its_own_unindented_first_paragraph(work
     assert _content(workspace, chapter.id) == UNINDENTED_FIRST_BODY + "\n"
     final = _results(outcome, "write_chapter")[-1]["data"]
     assert final["mutation_applied"] is False
+
+
+async def test_new_chapter_without_parent_id_goes_to_the_draft_folder(loop_tools):
+    from agent.tools.mcp_tools import write_chapter
+
+    session, project = loop_tools.session, loop_tools.project
+    session.add(File(id=f"{project.id}-draft-folder", project_id=project.id, title="正文", file_type="folder"))
+    session.commit()
+
+    created = _payload(await write_chapter({"chapter": 1, "title": "第1章 起航", "file_type": "draft"}))
+
+    assert created["status"] == "success" and created["data"]["action"] == "created"
+    assert created["data"]["parent_id"] == f"{project.id}-draft-folder"
+
+
+async def test_new_chapter_without_parent_id_follows_the_one_folder_chapters_already_use(loop_tools):
+    from agent.tools.mcp_tools import write_chapter
+
+    session, project = loop_tools.session, loop_tools.project
+    session.add(File(id=f"{project.id}-draft-folder", project_id=project.id, title="正文", file_type="folder"))
+    volume = File(project_id=project.id, title="卷一", file_type="folder")
+    session.add(volume)
+    session.commit()
+    _ai_chapter(session, project, "第1章 起航", "合成。", parent_id=volume.id)
+
+    created = _payload(await write_chapter({"chapter": 2, "title": "第2章 夜航", "file_type": "draft"}))
+
+    assert created["status"] == "success" and created["data"]["action"] == "created"
+    assert created["data"]["parent_id"] == volume.id
+
+
+async def test_new_episode_without_parent_id_goes_to_the_script_folder(workspace):
+    from agent.tools.mcp_tools import write_chapter
+
+    project = workspace.project
+    project.project_type = "screenplay"
+    workspace.session.add(project)
+    workspace.session.add(
+        File(id=f"{project.id}-script-folder", project_id=project.id, title="剧本", file_type="folder")
+    )
+    workspace.session.commit()
+    ToolContext.set_context(
+        session=workspace.session, user_id=workspace.user.id, project_id=project.id, session_id="loop-tools"
+    )
+    ToolContext.set_current_agent("loop")
+    try:
+        created = _payload(await write_chapter({"chapter": 1, "title": "第1集 雨夜", "file_type": "script"}))
+    finally:
+        ToolContext.clear_context()
+
+    assert created["status"] == "success" and created["data"]["action"] == "created"
+    assert created["data"]["parent_id"] == f"{project.id}-script-folder"

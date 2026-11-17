@@ -1990,6 +1990,8 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
                 candidates=[{"id": existing.id, "title": existing.title, "parent_id": existing.parent_id}],
             )
     if not matches:
+        if parent_id is None:
+            parent_id = _default_chapter_folder(project_id, file_type, rows)
         return _write_chapter_create(
             args, title=title, number=number, unit=unit, file_type=file_type, parent_id=parent_id, empty=empty
         )
@@ -2012,6 +2014,36 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
             tool_name=tool_name,
         )
     return _write_chapter_replace(matches[0].id, number=number, unit=unit, project_id=project_id)
+
+
+def _default_chapter_folder(project_id: str, file_type: str, rows: list[Any]) -> str | None:
+    """没给 parent_id 的新章节放哪：同类型章节都在同一个目录就用它，否则用项目的默认正文目录；都没有返回 None。"""
+    from models import File
+
+    parents = {row.parent_id or None for row in rows if row.file_type == file_type}
+    if len(parents) == 1:
+        (only,) = parents
+        if only is not None:
+            return only
+    default_ids = [f"{project_id}-draft-folder", f"{project_id}-script-folder"]
+    if file_type == "script":
+        default_ids = default_ids[1:]
+    try:
+        found = _run_session_probe(
+            ToolContext.get_session(),
+            lambda s: s.exec(
+                select(File.id).where(
+                    File.id.in_(default_ids),
+                    File.project_id == project_id,
+                    File.is_deleted.is_(False),
+                    File.file_type == "folder",
+                )
+            ).all(),
+        )
+    except Exception as e:  # noqa: BLE001 - 查不到默认目录时保持原行为
+        logger.debug(f"Looking up the default chapter folder failed: {type(e).__name__}")
+        return None
+    return next((fid for fid in default_ids if fid in set(found)), None)
 
 
 def _write_chapter_create(
