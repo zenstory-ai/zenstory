@@ -1,5 +1,6 @@
 """Completion hydration can fetch its exact message without downloading a window."""
 
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -105,3 +106,35 @@ def test_target_id_has_bounded_protocol_length(history_client, message_id):
         "/api/v1/chat/session/project/recent", params={"message_id": message_id},
     )
     assert response.status_code == 422
+
+
+def test_history_omits_the_author_text_a_compaction_keeps_for_the_model(history_client):
+    """压缩点里给模型回放的作者原话不随历史发给浏览器；前端要的摘要照常返回。"""
+    with next(history_client.app.dependency_overrides[get_session]()) as session:
+        session.add(ChatMessage(
+            id="compacted", session_id="active", role="assistant", content="第二章写好了。",
+            message_metadata=json.dumps({
+                "engine": "loop",
+                "display_events": [{"type": "history_compacted", "data": {}}],
+                "compaction": {
+                    "summary": "合成交接摘要",
+                    "covers_through_message_id": "message-54",
+                    "kept_author_messages": ["很长的作者原话" * 50],
+                    "created_at": "2026-01-02T00:00:00",
+                },
+            }, ensure_ascii=False),
+            created_at=datetime(2026, 1, 2),
+        ))
+        session.commit()
+
+    response = history_client.get(
+        "/api/v1/chat/session/project/recent", params={"limit": 50, "message_id": "compacted"},
+    )
+    assert response.status_code == 200
+    metadata = json.loads(response.json()[0]["metadata"])
+    assert metadata["compaction"] == {
+        "summary": "合成交接摘要",
+        "covers_through_message_id": "message-54",
+        "created_at": "2026-01-02T00:00:00",
+    }
+    assert metadata["display_events"] == [{"type": "history_compacted", "data": {}}]

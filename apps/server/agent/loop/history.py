@@ -146,6 +146,21 @@ def stored_kept_messages(compaction: dict[str, Any]) -> list[str] | None:
     return kept
 
 
+def client_message_metadata(raw: str | None) -> str | None:
+    """发给浏览器的 message_metadata：去掉压缩点里只给模型回放的作者原话（可达上万 token，前端不用）。
+
+    其余行原样返回同一个字符串。
+    """
+    if not raw or '"kept_author_messages"' not in raw:
+        return raw
+    payload = _parse_json(raw)
+    compaction = payload.get("compaction") if isinstance(payload, dict) else None
+    if not isinstance(compaction, dict) or "kept_author_messages" not in compaction:
+        return raw
+    payload["compaction"] = {key: value for key, value in compaction.items() if key != "kept_author_messages"}
+    return json.dumps(payload, ensure_ascii=False)
+
+
 def summary_message(summary: str) -> dict[str, Any]:
     return {"role": "user", "content": f"{SUMMARY_PREFIX}{summary.strip()}"}
 
