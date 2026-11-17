@@ -1125,6 +1125,7 @@ class StreamAdapter:
             file_id,
             count_words(str(replaced.get("new_content") or content)),
             title=str(replaced.get("title") or pending.title) if complete else None,
+            file_type=pending.file_type,
         )
         from agent.tools.mcp_tools import ToolContext
 
@@ -1679,14 +1680,17 @@ class StreamAdapter:
             return "", None
         return pending.file_type, pending.baseline_updated_at
 
-    def _note_body_saved(self, file_id: str, words: int, *, title: str | None = None) -> None:
+    def _note_body_saved(
+        self, file_id: str, words: int, *, title: str | None = None, file_type: str = ""
+    ) -> None:
         """正文落库的唯一记账点：写保存回执（计费、交付、历史都读它）；title 不为 None 表示
-        这是一份完整（非截断补全）的正文，同时记进本请求的已保存正文（续跑、任务板、write_chapter 守卫读它）。"""
+        这是一份完整（非截断补全）的正文，同时记进本请求的已保存正文（续跑、任务板、write_chapter 守卫读它）。
+        file_type 是保存目标的类型（知道时传），续跑只对正文类文件要求自查。"""
         self._saved_file_word_counts[file_id] = words
         if title is not None:
             from agent.tools.mcp_tools import ToolContext
 
-            ToolContext.mark_chapter_body_saved(file_id, title)
+            ToolContext.mark_chapter_body_saved(file_id, title, file_type)
 
     def _should_refuse_truncated_overwrite(self, result: StreamResult) -> bool:
         """判断这次"截断自动补全"是否会覆盖掉目标文件原有的正文。
@@ -1774,7 +1778,9 @@ class StreamAdapter:
             ):
                 run_meter.mark_first_body_persisted()
             if saved:
-                self._note_body_saved(file_id, count_words(content), title=complete_title)
+                self._note_body_saved(
+                    file_id, count_words(content), title=complete_title, file_type=resolved_file_type
+                )
             else:
                 self._saved_file_word_counts.setdefault(file_id, None)
             return saved

@@ -201,13 +201,15 @@ _BODY = StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n第二集�
 _DONE = StreamEvent(type=StreamEventType.TEXT, data={"text": "第2集写好了。"})
 
 
-def _saving_runner(runs: list[list[StreamEvent]], saves: list[list[tuple[str, str]]], calls: list[str]):
-    """每次 run 开始时按 saves 记下这次 run 确认落库的正文（StreamAdapter 保存点记的同一份结构化事实）。"""
+def _saving_runner(runs: list[list[StreamEvent]], saves: list[list[tuple[str, ...]]], calls: list[str]):
+    """每次 run 开始时按 saves 记下这次 run 确认落库的正文（StreamAdapter 保存点记的同一份结构化事实）。
+
+    每项是 (file_id, title) 或 (file_id, title, file_type)。"""
     pending_saves = list(saves)
 
     def before():
-        for file_id, title in pending_saves.pop(0) if pending_saves else []:
-            ToolContext.mark_chapter_body_saved(file_id, title)
+        for file_id, title, *file_type in pending_saves.pop(0) if pending_saves else []:
+            ToolContext.mark_chapter_body_saved(file_id, title, *file_type)
 
     inner = _runner(runs, before=before)
 
@@ -230,6 +232,33 @@ async def test_reply_with_summary_after_a_saved_body_is_self_checked():
     assert len(calls) == 2
     assert calls[1].startswith("[系统提醒] 上一次回复写完的正文已保存")
     assert "《第2集》" in calls[1]
+    # 作者已经看到「第2集写好了。」：续跑只自查，不再要求重复一段总结。
+    assert "你也已经回复过作者" in calls[1] and "不要重复刚才给作者的总结" in calls[1]
+    assert "全部完成后用一到三句话回复作者" not in calls[1]
+
+
+async def test_saved_body_ending_on_its_file_block_asks_for_the_one_summary():
+    """停在 </file> 上（作者还没看到任何话）：续跑说明照旧要求自查后回复作者。"""
+    calls: list[str] = []
+    await _collect(
+        _state(user_message="写第2集"),
+        _saving_runner([[*_create_events(), _BODY], [_DONE]], [[("ep2", "第2集", "script")]], calls),
+    )
+
+    assert len(calls) == 2
+    assert "全部完成后用一到三句话回复作者" in calls[1]
+    assert "你也已经回复过作者" not in calls[1]
+
+
+async def test_saved_notes_body_followed_by_a_summary_is_not_continued():
+    """只保存了大纲 / 人物等资料文件、之后已经回复作者：不为它续跑自查（照旧只在停在 </file> 上时续跑）。"""
+    calls: list[str] = []
+    await _collect(
+        _state(user_message="写大纲"),
+        _saving_runner([[*_create_events(), _BODY, _DONE], [_DONE]], [[("o1", "大纲", "outline")]], calls),
+    )
+
+    assert len(calls) == 1
 
 
 async def test_resaving_an_already_self_checked_body_with_a_summary_is_not_continued():
