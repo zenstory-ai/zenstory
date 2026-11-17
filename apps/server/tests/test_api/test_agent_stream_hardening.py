@@ -2753,6 +2753,62 @@ async def test_stop_keeps_placeholders_when_the_message_id_arrives_after_the_liv
     assert "removed_files" not in outcome
 
 
+@pytest.mark.integration
+async def test_stop_waits_for_the_message_id_only_once_when_it_is_late(client, db_session, monkeypatch):
+    """停止卡已经等满一次没等到消息 id：结算与移除占位不再各等一次，停止不会拖成两三倍。"""
+    from agent.core.round_outcome import RunOutcome
+
+    monkeypatch.setattr(agent_api, "STOP_MESSAGE_ID_WAIT_S", 0.05)
+    waits: list[float] = []
+    original_wait = RunOutcome.wait_message_id
+
+    async def recording_wait(self, timeout_s):
+        waits.append(timeout_s)
+        return await original_wait(self, timeout_s)
+
+    monkeypatch.setattr(RunOutcome, "wait_message_id", recording_wait)
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    late: set[asyncio.Task] = set()
+
+    class _LateIdService:
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            try:
+                yield _sse("session_started", {"session_id": "s1"})
+                yield _create_file_result(placeholder)
+                await asyncio.sleep(30)
+            finally:
+                async def _resolve_late():
+                    await asyncio.sleep(0.3)
+                    run_outcome.resolve_message_id(message_id)
+
+                late.add(asyncio.get_running_loop().create_task(_resolve_late()))
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_LateIdService()),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(2):
+            await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+        rest = "".join([frame async for frame in iterator])
+        live_waits = list(waits)
+        await asyncio.gather(*late)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    assert "event: done" in rest
+    assert live_waits.count(0.05) == 1, live_waits
+    assert all(timeout in (0.05, 0) for timeout in live_waits), live_waits
+
+
 def _empty_file_then_upstream_error(placeholder):
     async def frames():
         yield _sse("session_started", {"session_id": "s1"})

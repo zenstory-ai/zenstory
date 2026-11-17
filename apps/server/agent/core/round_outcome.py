@@ -86,6 +86,10 @@ class RunOutcome:
         if not future.done():
             future.set_result(message_id if isinstance(message_id, str) and message_id else None)
 
+    def message_id_settled(self) -> bool:
+        """助手消息 id 已经交回（包括确定不会落库的 None）。"""
+        return self._message_id is not None and self._message_id.done()
+
     async def wait_message_id(self, timeout_s: float) -> str | None:
         """等这一轮的助手消息 id；超时或不会落库时返回 None。
 
