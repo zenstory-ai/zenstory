@@ -97,6 +97,8 @@ WORKING_SET_USER_MESSAGE_LABEL = "【本轮用户消息】"
 WORKING_SET_AUTHOR_EDITED_NOTE = "（作者在 AI 写过之后亲手改过，改了哪几处见 <author_edits>）"
 # 本轮开始时给哪些文件算作者手改差异：跨轮工作集、焦点 / 附加、上下文里其余文件，按这个顺序最多这么多个。
 AUTHOR_EDITS_MAX_FILES = 30
+# session_written_file_ids 每次读多少条 assistant 行（只读 tool_calls 列）：凑够名额就不再往前读。
+SESSION_WRITTEN_FILES_PAGE_ROWS = 20
 
 # 工具名 → 面包屑里的动作（读取类只认按 id 精确读取的 query_files）
 _BREADCRUMB_VERBS_ZH = {
@@ -643,7 +645,7 @@ class SessionLoader:
         """
         from models import ChatMessage, File
 
-        tool_payloads = session.exec(
+        query = (
             select(ChatMessage.tool_calls)
             .where(
                 and_(
@@ -652,7 +654,18 @@ class SessionLoader:
                 )
             )
             .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
-        ).all()
+        )
+
+        def tool_payloads() -> Any:
+            # 新 → 旧按页读：会话很长时不一次把所有行的 tool_calls 读进来。
+            offset = 0
+            while True:
+                page = session.exec(query.offset(offset).limit(SESSION_WRITTEN_FILES_PAGE_ROWS)).all()
+                yield from page
+                if len(page) < SESSION_WRITTEN_FILES_PAGE_ROWS:
+                    return
+                offset += SESSION_WRITTEN_FILES_PAGE_ROWS
+
         written: list[str] = []
         seen: set[str] = set()
         deleted: set[str] = set()
@@ -675,7 +688,7 @@ class SessionLoader:
             written.extend(fid for fid in pending if fid in accepted and fid not in deleted)
             pending.clear()
 
-        for tool_calls in tool_payloads:
+        for tool_calls in tool_payloads():
             actions = self._extract_file_actions(tool_calls)
             for action in actions:
                 if action["name"] == "delete_file" and action["file_id"] and not action.get("outcome_unknown"):

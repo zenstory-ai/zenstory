@@ -954,3 +954,53 @@ def test_loop_author_edits_keep_a_chapter_behind_many_newer_non_body_writes(db_s
     assert "<author_edits>" in turn.text
     block = turn.text.split("<author_edits>", 1)[1].split("</author_edits>", 1)[0]
     assert chapter.id in block and "老陈" in block
+
+
+@pytest.mark.unit
+def test_session_written_file_ids_reads_assistant_rows_in_pages(db_session):
+    """会话很长时不一次读出所有 assistant 行的 tool_calls：按页读，凑够名额就停。"""
+    from sqlalchemy import event
+
+    from agent.core.session_loader import SessionLoader
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    chapters = []
+    for index in range(60):
+        chapter = File(project_id=project.id, title=f"第{index + 1}章", content="合成正文。", file_type="draft")
+        db_session.add(chapter)
+        chapters.append(chapter)
+    db_session.commit()
+    for index, chapter in enumerate(chapters):
+        _add(db_session, chat, "assistant", "写好了。", offset=index, tool_calls=json.dumps([{
+            "id": f"provider-call-{index}",
+            "name": "write_chapter",
+            "arguments": {"chapter": index + 1, "title": chapter.title, "file_type": "draft"},
+            "status": "success",
+            "result": {"id": chapter.id, "title": chapter.title, "action": "created", "body_saved": True},
+        }], ensure_ascii=False))
+
+    engine = db_session.get_bind()
+    statements: list[str] = []
+
+    def record(_conn, _cursor, statement, *_rest):
+        if "tool_calls" in statement and "chat_message" in statement:
+            statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        ids = SessionLoader(project_id=project.id, user_id=user.id).session_written_file_ids(
+            db_session, chat_session_id=chat.id, limit=3, file_types=("draft", "script")
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    # 新 → 旧，凑够 3 个就停在第一页。
+    assert ids == [chapter.id for chapter in reversed(chapters[-3:])]
+    assert len(statements) == 1 and "LIMIT" in statements[0].upper()
+
+    # 跨页时照样新 → 旧、不重复。
+    many = SessionLoader(project_id=project.id, user_id=user.id).session_written_file_ids(
+        db_session, chat_session_id=chat.id, limit=45, file_types=("draft", "script")
+    )
+    assert many == [chapter.id for chapter in reversed(chapters[-45:])]
