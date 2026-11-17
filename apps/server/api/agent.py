@@ -1003,10 +1003,15 @@ async def stream_request(
             if not message_id:
                 return
             receipts = run_outcome.saved_file_word_counts
+            removed_ids = {item.get("id", "") for item in removed}
             if delivery is None:
-                delivery = written_files.stopped_delivery(
-                    final_word_counts=receipts, removed_ids={item.get("id", "") for item in removed}
-                )
+                delivery = written_files.stopped_delivery(final_word_counts=receipts, removed_ids=removed_ids)
+            elif removed_ids and delivery.get("unwritten_files"):
+                # 当场帧（error 等）的回执是移除之前取的：已移除的文件不再列为「未确认保存」。
+                unwritten = [item for item in delivery["unwritten_files"] if item.get("id") not in removed_ids]
+                delivery = {key: value for key, value in delivery.items() if key != "unwritten_files"}
+                if unwritten:
+                    delivery["unwritten_files"] = unwritten
             await _offload(
                 record_round_outcome,
                 message_id,

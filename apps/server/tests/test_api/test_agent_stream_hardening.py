@@ -2751,6 +2751,8 @@ async def test_upstream_error_before_a_new_file_body_refunds_and_removes_the_bla
     outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
     assert outcome["charged"] is False
     assert outcome["removed_files"] == ["第1章 最后一页"]
+    # 已移除的文件不再列为「未确认保存」。
+    assert "unwritten_files" not in outcome
 
 
 @pytest.mark.integration
