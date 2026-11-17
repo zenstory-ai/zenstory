@@ -111,7 +111,7 @@ agent/
   工作方式（含写后连贯自查、按真实字数汇报）+ 技能目录，跨轮不变。`<turn_context>`（`loop/turn_context.py`）只放这一轮请求带来的东西：
   项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、本轮回复语言（沿用 ContextAssembler 的解析器与渲染，不做
   优先级裁剪、检索和文件清单），以及 `<author_edits>`：焦点、附加文件和本会话 AI 写过的正文文件（`SessionLoader.session_written_file_ids`，
-  draft / script，与焦点合计至多 `AUTHOR_EDITS_MAX_FILES` 个）里作者在 AI 写过之后的手改，与图共用 `SessionLoader.author_edits_for_files`；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件作为 edit_file 陈旧检查的起点。
+  先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，大纲等文件不占名额）里作者在 AI 写过之后的手改，与图共用 `SessionLoader.author_edits_for_files`；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件作为 edit_file 陈旧检查的起点。
 - **历史**（`loop/history.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
   assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file / write_chapter 结果去掉
   `awaiting_body` / `next_step`，带 `body_saved`（write_chapter 的整章替换只认落库后补发的结果，只有定位结果时 `body_saved=false` 并说明没保存）；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、

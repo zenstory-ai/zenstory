@@ -900,3 +900,57 @@ def test_landing_reminders_name_write_chapter_for_the_loop_and_keep_the_graph_te
     assert "parallel_execute" not in loop_text
     expected_graph = SOFT_LANDING_PROMPT.format(remaining=1) if trigger == "turns" else TIME_LANDING_PROMPT
     assert graph_text == reminder(None) == expected_graph
+
+
+@pytest.mark.unit
+def test_loop_author_edits_keep_a_chapter_behind_many_newer_non_body_writes(db_session, monkeypatch):
+    """之后又写了很多大纲 / 设定文件：它们不占正文文件的名额，AI 写过的章节照样核对。"""
+    from agent.core.session_loader import AUTHOR_EDITS_MAX_FILES
+    from agent.loop.turn_context import build_loop_turn_context
+    from services.features.file_version_service import FileVersionService
+
+    monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *_a, **_kw: (True, 0, 10))
+    user, project = _user_project(db_session)
+    chapter = _ai_then_author(
+        db_session, project, "第1章 雨夜", "第一段，老周推门进来。", "第一段，老陈推门进来。"
+    )
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "写第一章", offset=0)
+    _add(db_session, chat, "assistant", "写好了。", offset=1, tool_calls=json.dumps([{
+        "id": "provider-call-1",
+        "name": "write_chapter",
+        "arguments": {"chapter": 1, "title": "第1章 雨夜", "file_type": "draft"},
+        "status": "success",
+        "result": {"id": chapter.id, "title": chapter.title, "action": "created", "body_saved": True},
+    }], ensure_ascii=False))
+    notes = []
+    for index in range(AUTHOR_EDITS_MAX_FILES + 2):
+        note = File(project_id=project.id, title=f"设定{index}", content="合成设定。", file_type="lore")
+        db_session.add(note)
+        notes.append(note)
+    db_session.commit()
+    _add(db_session, chat, "user", "补设定", offset=2)
+    _add(db_session, chat, "assistant", "补好了。", offset=3, tool_calls=json.dumps([
+        {
+            "id": f"provider-call-note-{index}",
+            "name": "create_file",
+            "arguments": {"title": note.title, "file_type": "lore"},
+            "status": "success",
+            "result": {"id": note.id, "title": note.title},
+        }
+        for index, note in enumerate(notes)
+    ], ensure_ascii=False))
+
+    turn = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={},
+        language="zh",
+        author_message="继续写第2章",
+        chat_session_id=chat.id,
+    )
+
+    assert "<author_edits>" in turn.text
+    block = turn.text.split("<author_edits>", 1)[1].split("</author_edits>", 1)[0]
+    assert chapter.id in block and "老陈" in block

@@ -12,7 +12,7 @@ import contextlib
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from agent.core.message_manager import TURN_CONTEXT_CLOSE, TURN_CONTEXT_OPEN, MessageManager
 from utils.logger import get_logger, log_with_context
@@ -131,7 +131,6 @@ def _author_edits_block(
     增益信息：算不出来时不影响本轮（块里明说，或整块不附）。
     """
     from agent.core.session_loader import AUTHOR_EDITS_MAX_FILES, SessionLoader
-    from models import File
 
     if not user_id:
         return ""
@@ -139,21 +138,10 @@ def _author_edits_block(
     try:
         written: list[str] = []
         if chat_session_id:
-            candidates = loader.session_written_file_ids(
-                session, chat_session_id=chat_session_id, limit=AUTHOR_EDITS_MAX_FILES
+            # 先按本项目、未删除的正文文件筛，再计名额：大纲、设定等文件不挤掉 AI 写过的章节。
+            written = loader.session_written_file_ids(
+                session, chat_session_id=chat_session_id, limit=AUTHOR_EDITS_MAX_FILES, file_types=_BODY_FILE_TYPES
             )
-            if candidates:
-                body_ids = set(
-                    session.exec(
-                        select(File.id).where(
-                            File.id.in_(candidates),
-                            File.project_id == project_id,
-                            File.is_deleted.is_(False),
-                            File.file_type.in_(_BODY_FILE_TYPES),
-                        )
-                    ).all()
-                )
-                written = [fid for fid in candidates if fid in body_ids]
         ordered = list(dict.fromkeys([*primary_ids, *written]))
         if not ordered:
             return ""

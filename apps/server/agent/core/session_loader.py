@@ -628,12 +628,20 @@ class SessionLoader:
         )
         return block, edited_ids, by_id
 
-    def session_written_file_ids(self, session: Session, *, chat_session_id: str, limit: int) -> list[str]:
+    def session_written_file_ids(
+        self,
+        session: Session,
+        *,
+        chat_session_id: str,
+        limit: int,
+        file_types: tuple[str, ...] | None = None,
+    ) -> list[str]:
         """这个会话里 AI 成功写过（create_file / write_chapter / edit_file / rename_file）的文件 id，新 → 旧，至多 limit 个。
 
         之后被删掉的（结果未知的删除不算）不列。只读 assistant 行持久化的 tool_calls，不读正文。
+        给了 file_types 时先按本项目、未删除、这些类型筛，再计 limit：别的类型的文件不占名额。
         """
-        from models import ChatMessage
+        from models import ChatMessage, File
 
         tool_payloads = session.exec(
             select(ChatMessage.tool_calls)
@@ -646,7 +654,27 @@ class SessionLoader:
             .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
         ).all()
         written: list[str] = []
+        seen: set[str] = set()
         deleted: set[str] = set()
+        pending: list[str] = []
+
+        def accept_pending() -> None:
+            if file_types is None:
+                accepted = set(pending)
+            else:
+                accepted = set(
+                    session.exec(
+                        select(File.id).where(
+                            File.id.in_(pending),
+                            File.project_id == self.project_id,
+                            File.is_deleted.is_(False),
+                            File.file_type.in_(file_types),
+                        )
+                    ).all()
+                )
+            written.extend(fid for fid in pending if fid in accepted and fid not in deleted)
+            pending.clear()
+
         for tool_calls in tool_payloads:
             actions = self._extract_file_actions(tool_calls)
             for action in actions:
@@ -659,12 +687,15 @@ class SessionLoader:
                     or action["name"] in ("delete_file", "query_files")
                     or action.get("outcome_unknown")
                     or file_id in deleted
-                    or file_id in written
+                    or file_id in seen
                 ):
                     continue
-                written.append(file_id)
-                if len(written) >= limit:
-                    return written
+                seen.add(file_id)
+                pending.append(file_id)
+            if pending:
+                accept_pending()
+            if len(written) >= limit:
+                return written[:limit]
         return written
 
     def attach_working_set(self, session: Session, result: SessionData) -> None:
