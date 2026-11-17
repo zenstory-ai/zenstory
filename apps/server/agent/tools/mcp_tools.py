@@ -197,7 +197,7 @@ class _PendingEmptyFileState:
 
     __slots__ = (
         "_lock", "_entries", "_reservations", "_streamed", "_reply_seq", "_created_in", "_versions",
-        "_prebody_reply", "_waiting_at_reply_start", "_replacements", "_closed",
+        "_prebody_reply", "_waiting_at_reply_start", "_replacements", "_closed", "_replacement_saved",
     )
 
     def __init__(self) -> None:
@@ -225,6 +225,10 @@ class _PendingEmptyFileState:
         self._replacements: dict[str, dict[str, Any]] = {}
         # 这一轮已被 StreamAdapter 提前结束（整章替换被拒）：之后才建好的空文件由建它的工具自己撤销。
         self._closed = False
+        # 本请求里 write_chapter 定过的整章替换：file_id -> 最近一次定位之后新正文是否已经落库
+        # （StreamAdapter 提交 replace_body 成功后置 True）。条目在待写守卫清掉之后仍留着，
+        # loop 引擎据此判断续跑说明能不能说「已保存」。
+        self._replacement_saved: dict[str, bool] = {}
 
     # ---- 只读视图 ----------------------------------------------------------
     def has_pending(self) -> bool:
@@ -339,6 +343,7 @@ class _PendingEmptyFileState:
             self._streamed.clear()
             self._versions.clear()
             self._replacements.clear()
+            self._replacement_saved.clear()
             self._prebody_reply = None
             self._waiting_at_reply_start = False
 
@@ -368,6 +373,15 @@ class _PendingEmptyFileState:
         with self._lock:
             found = self._replacements.get(file_id) if file_id in self._entries else None
             return dict(found) if found is not None else None
+
+    def mark_replacement_saved(self, file_id: str) -> None:
+        with self._lock:
+            if file_id in self._replacement_saved:
+                self._replacement_saved[file_id] = True
+
+    def unsaved_replacement_ids(self) -> set[str]:
+        with self._lock:
+            return {file_id for file_id, saved in self._replacement_saved.items() if not saved}
 
     def _set_version(self, file_id: str, version: str | None) -> None:
         if isinstance(version, str) and version:
@@ -443,6 +457,7 @@ class _PendingEmptyFileState:
                 self._set_version(file_id, version)
                 if replacement is not None:
                     self._replacements[file_id] = dict(replacement)
+                    self._replacement_saved[file_id] = False
                 else:
                     self._replacements.pop(file_id, None)
                 # 幂等复用命中同一文件时它重新等待正文，旧标记作废
@@ -1139,6 +1154,19 @@ class ToolContext:
         """write_chapter 定为整章替换、还在等正文的已有章节的定位结果；不是时为 None。"""
         state = cls._get_pending_empty_file_state()
         return state.replacement(file_id) if state is not None else None
+
+    @classmethod
+    def mark_chapter_replacement_saved(cls, file_id: str) -> None:
+        """StreamAdapter 已把这一章的整章替换正文落库（replace_body 成功）。"""
+        state = cls._get_pending_empty_file_state()
+        if state is not None:
+            state.mark_replacement_saved(file_id)
+
+    @classmethod
+    def unsaved_chapter_replacement_ids(cls) -> set[str]:
+        """本请求里 write_chapter 定过、最近一次定位之后新正文还没有落库的已有章节。"""
+        state = cls._get_pending_empty_file_state()
+        return state.unsaved_replacement_ids() if state is not None else set()
 
     @classmethod
     def release_pending_empty_file(cls, ticket: str) -> None:

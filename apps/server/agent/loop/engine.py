@@ -83,6 +83,19 @@ _BODY_RESAVED_CONTEXT_EN = (
     "asked for this turn are still unwritten, call write_chapter for the next one; otherwise reply to the author in "
     "one to three sentences, reporting only the real word counts below. Keep the author's language."
 )
+# 整章替换的新正文没写完（没有 </file>）、也没能在本轮重试时的续跑说明：如实说明原文没动，不说已保存。
+_REPLACE_UNSAVED_CONTEXT = (
+    "[系统提醒] {titles}的整章替换没有保存：上一次回复的新正文没有写完（没有写到 </file>），原文保持不变。"
+    "这是系统的续跑说明，不是作者的新消息。不要对作者说这一章已经替换，也不要报它的字数；"
+    "作者这一轮要求的其他章节还没写完就接着写，最后用一到三句话如实告诉作者这一章没有换成、原文没动，需要时可以再写一次。"
+)
+_REPLACE_UNSAVED_CONTEXT_EN = (
+    "[System note] The whole-chapter replacement of {titles} was not saved: the new text in the previous response "
+    "was not finished (it never reached </file>), so the original text is unchanged. This is a system continuation, "
+    "not a new author message. Do not tell the author the chapter was replaced and do not report a word count for it; "
+    "if other chapters the author asked for this turn are still unwritten, continue with them, then tell the author in "
+    "one to three sentences that this chapter was not replaced and its original text is unchanged. Keep the author's language."
+)
 # 调用后下一次回复用 <file> 写正文的工具（新建文件 / 按章号写一章）。
 _BODY_WRITE_TOOLS = frozenset({"create_file", "write_chapter"})
 _UNEXECUTED_TOOL_TEXT_REASON = "回复里有一步工具调用只写成了文字，没有执行。"
@@ -93,10 +106,10 @@ def _english(state: WritingState) -> bool:
     return str(state.get("language") or "").strip().lower().startswith("en")
 
 
-def _word_count_note(guard: RepeatReadGuard) -> str:
+def _word_count_note(file_ids: list[str]) -> str:
     """续跑说明里附上本请求写过的正文落库后的字数，模型给作者报真实字数。"""
     try:
-        counts = graph_helpers._collect_body_word_counts(guard.written_file_ids())
+        counts = graph_helpers._collect_body_word_counts(file_ids)
     except Exception as exc:  # noqa: BLE001 - 读不到字数不影响续跑
         logger.debug(f"Word counts for the continuation note failed: {type(exc).__name__}")
         return ""
@@ -249,6 +262,8 @@ async def run_loop_agent_streaming(
     unexecuted_reported = False
     # 已经要求过自查的文件：同一章自查后再写一遍不再要求自查（否则「自查 → 整章重写 → 再自查」会一直转下去）。
     self_checked_ids: set[str] = set()
+    # 已经在续跑说明里如实说过「没有保存」的整章替换（同一章不重复说）。
+    reported_unsaved_ids: set[str] = set()
     accumulated_text = ""
     terminated = False
     try:
@@ -390,14 +405,29 @@ async def run_loop_agent_streaming(
                 and not ToolContext.has_pending_empty_file()
                 and ended_on_file
             ):
-                titles = "、".join(f"《{t}》" for t in read_guard.files_written.values() if t) or "（见下）"
-                written_ids = set(read_guard.files_written)
-                if written_ids - self_checked_ids or not written_ids:
-                    template = _BODY_SAVED_CONTEXT_EN if english else _BODY_SAVED_CONTEXT
+                # 定位过整章替换、新正文却没落库的章节（ToolContext 的结构化保存事实）：不算已保存，不列它的原稿字数。
+                unsaved_ids = ToolContext.unsaved_chapter_replacement_ids()
+                saved = {fid: t for fid, t in read_guard.files_written.items() if fid not in unsaved_ids}
+                newly_unsaved = [
+                    (fid, t) for fid, t in read_guard.files_written.items()
+                    if fid in unsaved_ids and fid not in reported_unsaved_ids
+                ]
+                if newly_unsaved:
+                    reported_unsaved_ids |= {fid for fid, _ in newly_unsaved}
+                    unsaved_titles = "、".join(f"《{t}》" for _, t in newly_unsaved if t) or (
+                        "this chapter" if english else "这一章"
+                    )
+                    template = _REPLACE_UNSAVED_CONTEXT_EN if english else _REPLACE_UNSAVED_CONTEXT
+                    followup = template.format(titles=unsaved_titles) + _word_count_note(list(saved))
                 else:
-                    template = _BODY_RESAVED_CONTEXT_EN if english else _BODY_RESAVED_CONTEXT
-                self_checked_ids |= written_ids
-                followup = template.format(titles=titles) + _word_count_note(read_guard)
+                    titles = "、".join(f"《{t}》" for t in saved.values() if t) or "（见下）"
+                    written_ids = set(saved)
+                    if written_ids - self_checked_ids or not written_ids:
+                        template = _BODY_SAVED_CONTEXT_EN if english else _BODY_SAVED_CONTEXT
+                    else:
+                        template = _BODY_RESAVED_CONTEXT_EN if english else _BODY_RESAVED_CONTEXT
+                    self_checked_ids |= written_ids
+                    followup = template.format(titles=titles) + _word_count_note(list(saved))
             boundary_steering = await _drain_boundary_steering(get_steering_messages)
             if boundary_steering:
                 state["messages"] = list(state.get("messages") or []) + [

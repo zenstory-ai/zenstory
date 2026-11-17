@@ -328,6 +328,56 @@ async def test_unclosed_replacement_body_never_overwrites_the_chapter(workspace)
     assert "原文保持不变" in outcome.chat_text
 
 
+def _run_input_text(model: ScriptedModel, index: int) -> str:
+    return json.dumps(model.run_inputs[index], ensure_ascii=False, default=str)
+
+
+async def test_unclosed_replacement_body_is_retried_without_claiming_it_was_saved(workspace):
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文，一共二十个字左右的样子。")
+    model = ScriptedModel(runs=[
+        [
+            Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"}),)),
+            Reply(text="<file>\n只写了一个开头"),
+        ],
+        [Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章换好了。")],
+    ])
+
+    outcome = await _run_loop(workspace, model)
+
+    # 没写完的那一次不保存，续跑走整章替换的重试（为这一章恢复正文捕获），不说「已保存」。
+    retry_input = _run_input_text(model, 1)
+    assert "重新打开正文写入" in retry_input
+    assert "正文已保存" not in retry_input
+    assert _content(workspace, three.id).rstrip("\n") == NEW_BODY
+    assert _results(outcome, "write_chapter")[-1]["data"]["body_saved"] is True
+
+
+async def test_unclosed_replacement_body_without_retry_budget_reports_the_original_unchanged(workspace, monkeypatch):
+    from agent.graph import writing_graph as graph_helpers
+
+    monkeypatch.setattr(graph_helpers, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
+    original = "合成第三章原文，一共二十个字左右的样子。"
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+    model = ScriptedModel(runs=[
+        [
+            Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"}),)),
+            Reply(text="<file>\n只写了一个开头"),
+        ],
+        [Reply(text="第三章没有换成，原文没动。")],
+    ])
+
+    await _run_loop(workspace, model)
+
+    assert _content(workspace, three.id) == original
+    followup = _run_input_text(model, 1)
+    assert "正文已保存" not in followup
+    assert "原文保持不变" in followup
+    # 不列这一章的原稿字数（那不是这次写出的正文）。
+    from utils.text_metrics import count_words
+
+    assert f"{count_words(original)} 字" not in followup
+
+
 async def test_author_saved_chapter_is_not_replaced_through_chat(workspace):
     three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
     _author_saves(workspace.session, three, "作者自己写的第三章。")

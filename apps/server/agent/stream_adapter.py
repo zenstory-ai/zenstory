@@ -1103,6 +1103,9 @@ class StreamAdapter:
             if run_meter is not None and content.strip():
                 run_meter.mark_first_body_persisted()
         self._saved_file_word_counts[file_id] = count_words(str(replaced.get("new_content") or content))
+        from agent.tools.mcp_tools import ToolContext
+
+        ToolContext.mark_chapter_replacement_saved(file_id)
         return "saved", replaced
 
     def _replace_file_body_sync(self, file_id: str, content: str, expected_updated_at: str | None) -> dict[str, Any]:
@@ -1519,6 +1522,10 @@ class StreamAdapter:
                 self._content_started = True
             yield content_event(warning_text)
             yield file_content_end_event(result.file_id)
+            if pending is not None and pending.replace_card:
+                # write_chapter 的整章替换：待写绑定与守卫都留着，loop 引擎在 run 边界按结构化事实
+                # 决定为这一章恢复捕获重试（FILE_BODY_RESUME，核对定位时的版本），补不成就作废定位。
+                return
             self._pending_file_write = None
             self._clear_pending_empty_file_guard(result.file_id)
             return

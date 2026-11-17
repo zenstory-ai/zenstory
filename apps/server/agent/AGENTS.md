@@ -126,7 +126,8 @@ agent/
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
   （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时也经 `FILE_BODY_RESUME` 恢复捕获、
   补不成就作废定位，原文不动）、
-  停在写完的 `</file>` 上的续写（写正文的回复到 `</file>` 就结束；续跑说明附落库字数，并要求先自查、用 edit_file 改正再回复，同一个文件只要求一次，见 `_BODY_SAVED_CONTEXT` / `_BODY_RESAVED_CONTEXT`）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用图的 `_auto_finalize_task_board_on_completion` 收尾任务板；
+  停在写完的 `</file>` 上的续写（写正文的回复到 `</file>` 就结束；续跑说明附落库字数，并要求先自查、用 edit_file 改正再回复，同一个文件只要求一次，见 `_BODY_SAVED_CONTEXT` / `_BODY_RESAVED_CONTEXT`；整章替换的新正文没落库时——`ToolContext.unsaved_chapter_replacement_ids()`，
+  StreamAdapter 提交 `replace_body` 成功才 `mark_chapter_replacement_saved`——不说已保存、不列它的原稿字数，改发 `_REPLACE_UNSAVED_CONTEXT` 如实说明原文没动）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用图的 `_auto_finalize_task_board_on_completion` 收尾任务板；
   `previous_output_truncations` 由 `LoopHistory.trailing_output_truncations` 给出。到收尾时间不再开新 run，
   发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` = 写作工具集去掉 `handoff_to_agent` / `request_clarification` / `parallel_execute`，加上只有单循环 agent
@@ -150,7 +151,8 @@ agent/
   补发 `body_saved=false`，然后结束这一轮（`_stop_after_refused_replace`：之后的模型文字不放出，正常 done；`ToolContext.close_pending_body_files`
   撤销模型跑在前面建好的空文件，之后才建好的由 `_create_file_sync` 自己撤销）。计费（`StreamBillingTracker._write_effect`）：write_chapter
   新建同 create_file 只看 content，替换只认 `body_saved` 且 `mutation_applied` 的补发结果（替换目标即结果 `action=replaced` 的 id 记进
-  `replace_target_ids`，它的流式 file_content 不算写入：正文流到一半停止 / 断线 / 到时，原文不变，照常退还）；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文。
+  `replace_target_ids`，它的流式 file_content 不算写入：正文流到一半停止 / 断线 / 到时，原文不变，照常退还）；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文；run 边界的截断补全被拒时
+  待写绑定与守卫留着，engine 在纠偏次数内经 `FILE_BODY_RESUME` 为这一章恢复捕获重试，补不成就作废定位。
 - **create_file / edit_file 的正文边界**：单循环轮次里 create_file 不建 draft / script（按 `resolve_create_target` 归一后的类型，剧本分集目录下带集号的 document 同样拒绝；
   `chapter_body_requires_write_chapter`，指向 write_chapter）；
   edit_file 改 draft / script 时 `FileEditor.edit_file(body_guards=True)` 在提交前做两道逐字检查（`file_ops.edit.check_body_edit_guards`，不判断语义）：
