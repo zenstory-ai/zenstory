@@ -343,6 +343,38 @@ async def test_second_correction_resumes_the_same_file_once(workspace):
     assert model.errors("file_body_pending") == []
 
 
+class _ContinuedInputResult(_ScriptedResult):
+    """to_input_list 像真实 SDK 一样返回这次的输入加上模型的回复（续跑走 _continued_run_input）。"""
+
+    def __init__(self, model, agent, hooks, replies, run_input):
+        super().__init__(model, agent, hooks, replies)
+        self._input = run_input
+
+    def to_input_list(self) -> list[Any]:
+        items = list(self._input) if isinstance(self._input, list) else [{"role": "user", "content": str(self._input)}]
+        return items + [{"role": "assistant", "content": reply.text} for reply in self._replies]
+
+
+class _ContinuedInputModel(ScriptedModel):
+    def run_streamed(self, agent, *_args, input=None, hooks=None, **_kwargs):  # noqa: A002 - SDK kwarg
+        self.run_inputs.append(input)
+        replies = self.runs.pop(0) if self.runs else [Reply(text="（脚本外的多余一轮）")]
+        return _ContinuedInputResult(self, agent, hooks, replies, input)
+
+
+async def test_every_correction_run_ends_on_a_fresh_instruction(workspace):
+    """两次纠偏的说明文字相同：第二次续跑的输入仍以这条说明结尾，不停在上一条助手回复上。"""
+    model = _ContinuedInputModel(runs=[[CREATE, NARRATE_ONLY], [Reply(text="还在构思。")], [WRITE_BODY]])
+
+    await _run(workspace, model)
+
+    assert len(model.run_inputs) == 3
+    file_id = _created_id(model)
+    for index in (1, 2):
+        last = model.run_inputs[index][-1]
+        assert last.get("role") == "user" and file_id in str(last.get("content"))
+
+
 @pytest.mark.parametrize("blank", ["", "   \n  \n"])
 async def test_empty_or_blank_body_keeps_the_file_pending_until_the_round_stops_unfinished(workspace, blank):
     """<file></file> 或只有空白：不算写成。文件仍待写，按有界纠偏补写；补写用完后回滚空文件、如实收尾，

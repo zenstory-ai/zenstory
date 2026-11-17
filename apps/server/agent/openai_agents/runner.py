@@ -386,8 +386,10 @@ def _continued_run_input(
     items: list[Any] = list(previous["items"])
     later = list(state.get("messages") or [])[int(previous.get("messages_len") or 0):]
     items.extend(m for m in normalize_messages_for_openai_agents(later) if m.get("role") == "user")
+    # 引擎每次续跑前都写好这一次的说明（纠偏 / 续跑 / 插话），即使与上一次的文字相同也要附上：
+    # 否则这次输入停在上一条助手回复上。
     user_message = str(state.get("user_message") or "")
-    if user_message and user_message != previous.get("user_message"):
+    if user_message:
         items.append({"role": "user", "content": user_message})
     items.extend(initial_steering)
     if agent_directive and agent_directive != previous.get("directive"):
@@ -1391,7 +1393,6 @@ async def run_openai_agents_streaming_agent(
                     agent_type=agent_type,
                     items=completed_items,
                     directive=agent_directive,
-                    user_message=str(state.get("user_message") or ""),
                     # 之后追加到 state["messages"] 的（运行中插话）下一轮要补进输入
                     messages_len=len(state.get("messages") or []),
                 )

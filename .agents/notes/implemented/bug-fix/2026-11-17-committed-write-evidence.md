@@ -25,6 +25,17 @@ Status: implemented
 - **M3**：`loop/engine.py` 在本请求的已保存正文里有还没自查过的章节 / 分集正文时就续跑一次自查（`self_checked_ids` 仍保证每个文件一次）。保存点连同文件类型记下（`ToolContext.saved_content_body_ids()`，类型不明按正文算），大纲、人物等资料文件不因此续跑，与修复前 `mark_chapter_body_saved` 只记章节的范围一致。正文之后作者已经看到一段回复（这次运行没有停在 `</file>` 上，按文件块协议结构判断，不读回复的意思）时改用 `_BODY_SAVED_REPLIED_CONTEXT`：照样自查和接着写，但不重复那段总结，只说改了什么或新写了哪章；原来「停在 `</file>` 或新正文 EOF 上」的条件保留，用于整章替换没保存的说明与未闭合 EOF 的续写。续跑说明里的文件 = ReadGuard 的写入 + 还没保存的整章替换目标（ReadGuard 新增的 `files_targeted`） + 已保存正文。
 - **M4**：ReadGuard 对 `mutation_applied` 明确为 false 的成功结果不记写入，只把目标记进 `files_targeted`；没有这个键的旧结果不变。任务板的写入 id = ReadGuard 的写入 + 本请求已保存正文，去重保序。
 
+### 复核补充（同一套写入证据）
+
+- **整章替换的待写条目不被「已有正文」清掉**：`_clear_settled_pending_empty_files` 跳过 `pending_chapter_replacement` 有值的条目（与 engine 的 `_settle_pending_empty_files` 同一判断）。同一回复里第二次 `write_chapter` 或 `create_file` 按 `pending_empty_file_unwritten` 拒绝，下一段 `<file>` 只落进先定位的那一章。
+- **`write_chapter` 整章替换也认领本条回复里先写出的正文**：定位成功后 `take_reply_prebody()` 为真就 `mark_pending_body_streamed` 并带 `body_in_reply`；StreamAdapter 在 `_arm_chapter_replace` 之后调 `_bind_reply_prebody`，正文走同一条整章替换落库（版本核对、diff、撤销）。下一步说明与 `create_file` 共用 `_body_in_reply_next_step`。
+- **停止时落定的整章替换回执**：API 停止分支在生成 done 帧之前先 `note_saved_receipts`（结算时再记一次，幂等），done 的 `produced_output` 与之后的计费一致。`_stamp_body_receipts` 也处理还没有 `body_saved` 的整章替换卡片：回执是整数时写 `body_saved` / `mutation_applied` 为 true 和 `new_word_count`，否则都为 false；StreamAdapter 已补发结果（已有 `body_saved`）的卡片不改。卡片因此不再停在「替换中」，历史回放如实。
+- **会被重试的整章替换不先说「未保存」**：截断补全的替换被拒绝时 StreamAdapter 只发 `file_content_end`；engine 真正作废定位（不能重试、重试的捕获没恢复、为另一章重试时作废其余定位）时才发固定说明。文字放在 `author_facing_text.rewrite_not_saved_notice`，两处共用。
+- **续跑输入总以这次的说明结尾**：`_continued_run_input` 只要 `state["user_message"]` 非空就追加，不再和上一轮的说明比较（两次纠偏说明相同的时候，第二次输入原本停在助手回复上）。engine 每个续跑分支都先写好 `user_message`。
+- **CRLF 的独占一行文件标签**：`_LONE_FILE_TAG_LINE_PATTERN` / `_LONE_FILE_START_LINE_PATTERN` 允许行尾 `\r`。
+- **没量到输入大小的停止行不挡住更早的读数**：`load_loop_history` 只在 `prompt_tokens` 为正时取用并停止往前找；遇到带压缩点的行就停（更早的读数是压缩前的大小），都没有时照旧用估算。
+- **M8：压缩调用计入请求级模型调用预算**：`compact_history(run_meter=...)` 每次摘要调用前 `record_model_call()`，次数仍由 `_ATTEMPT_EFFORTS` 限定；`AGENT_RUN_MAX_MODEL_CALLS` 的注释改为「请求内的模型调用（SDK 轮次加压缩）」。
+
 ## Alternatives considered
 
 - **一个贯穿整个请求的写入证据对象**。最强的理由：所有下游读同一个对象，概念上最干净。没选的原因：取消收尾在 `ToolContext.clear_context()` 之后才跑，这个对象必须比 ToolContext 活得长，要另外穿过 service、API 和 runner；现有的两份记录（每轮回执、请求内的已保存正文）已经覆盖所有读者，只要产生点唯一就不会分叉。
@@ -44,4 +55,3 @@ Status: implemented
 ## Follow-up
 
 - **H3：普通写工具被取消后线程照常提交**。`edit_file` 等在 `asyncio.to_thread` 里执行，停止 / 断线 / 时限取消了等待，线程仍可能提交，SSE 拿不到结果，计费按没有写入退还。修复需要一个在 `ToolContext.clear_context()` 之前建立的请求级在途登记：共享的 `to_thread` 包装在取消时 shield 并登记 `(tool_name, future)`，`settle_aborted_capture` 在 `STREAM_FILE_SAVE_TIMEOUT_S` 内等它们，把结构化结果（`mutation_applied`、删除成功、新建的空文件）翻译成回执与占位候选，API 的等待条件扩到「有写工具调用没有结果」。作者正文不会因此丢失，计费偏差对作者有利，所以单独排期。
-- **M8**：压缩调用计入请求级模型调用预算，由负责 `compaction.py` 的分支处理。

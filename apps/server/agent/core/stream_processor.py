@@ -114,9 +114,9 @@ _EMPTY_FILE_PAIR_PATTERN = re.compile(r"<\s*file\s*>\s*<\s*/\s*file\s*>", re.IGN
 # 生产 10-10 U082：rework 前的总结末尾单独一行「</file>」进了作者看到的回复。
 # 只认整行就是一个标签（允许首尾空白和标签内空白）；行内提到的标签、反引号
 # 包着的、``` 围栏里的都原样保留。
-_LONE_FILE_TAG_LINE_PATTERN = re.compile(r"[ \t]*<\s*/?\s*file\s*>[ \t]*", re.IGNORECASE)
+_LONE_FILE_TAG_LINE_PATTERN = re.compile(r"[ \t]*<\s*/?\s*file\s*>[ \t]*\r?", re.IGNORECASE)
 _LONE_FILE_TAG_PREFIXES: tuple[str, ...] = ("<file>", "</file>")
-_LONE_FILE_START_LINE_PATTERN = re.compile(r"[ \t]*<\s*file\s*>[ \t]*", re.IGNORECASE)
+_LONE_FILE_START_LINE_PATTERN = re.compile(r"[ \t]*<\s*file\s*>[ \t]*\r?", re.IGNORECASE)
 
 # 没有待写文件时，模型有时在同一条回复里先写正文、再调用 create_file 建这个文件
 # （生产 10-26：备用模型连写十五章，正文全部晚一章落库）。开启 prebody_capture 的

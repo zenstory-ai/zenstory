@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from config.agent_runtime import (
     AGENT_LOOP_COMPACT_AT_TOKENS,
@@ -25,6 +25,9 @@ from utils.logger import get_logger, log_with_context
 
 from .history import LoopHistory, bounded_items, kept_author_messages, summary_message
 from .prompts import COMPACT_PROMPT
+
+if TYPE_CHECKING:
+    from agent.core.run_meter import AgentRunMeter
 
 logger = get_logger(__name__)
 
@@ -134,8 +137,13 @@ async def compact_history(
     system_prompt: str,
     session_id: str | None,
     keep_user_tokens: int | None = None,
+    run_meter: AgentRunMeter | None = None,
 ) -> CompactionOutcome:
-    """写交接摘要并给出压缩后的历史；摘要不可用时返回 skipped，历史保持原样。"""
+    """写交接摘要并给出压缩后的历史；摘要不可用时返回 skipped，历史保持原样。
+
+    每次摘要调用都记进 ``run_meter``（请求级模型调用预算）。次数由 ``_ATTEMPT_EFFORTS`` 限定、
+    发生在这一轮开始前，所以这里不看预算是否用完。
+    """
     from agent.core import llm_failover
     from agent.openai_agents.usage_hooks import agent_usage_attribution
     from services.usage.cost_budget import budget_attribution
@@ -147,6 +155,8 @@ async def compact_history(
     started = time.monotonic()
     for effort in _ATTEMPT_EFFORTS:
         sink: dict[str, Any] = {}
+        if run_meter is not None:
+            run_meter.record_model_call()
         try:
             with budget_attribution(attribution):
                 response, _provider = await llm_failover.acreate_chat_completion(

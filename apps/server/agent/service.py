@@ -1220,7 +1220,7 @@ class AgentService:
                     ).to_sse()
                     with run_meter.measure_stage("compaction"):
                         outcome = await compact_history(
-                            loop_history, system_prompt=system_prompt, session_id=session_id
+                            loop_history, system_prompt=system_prompt, session_id=session_id, run_meter=run_meter
                         )
                     compaction_usage = outcome.usage
                     if outcome.record is not None and outcome.items is not None:

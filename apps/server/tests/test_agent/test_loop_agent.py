@@ -475,12 +475,18 @@ async def test_compaction_skips_when_summary_is_empty_or_truncated(responses, ex
     from agent.loop.compaction import SKIPPED_EMPTY_OR_TRUNCATED, compact_history
 
     provider = SimpleNamespace(name="p", model="m")
+    from agent.core.run_meter import AgentRunMeter
+
+    provider = SimpleNamespace(name="p", model="m")
     create = AsyncMock(side_effect=[(response, provider) for response in responses])
+    meter = AgentRunMeter()
     with patch("agent.core.llm_failover.acreate_chat_completion", create):
-        outcome = await compact_history(_history(), system_prompt="系统", session_id="s")
+        outcome = await compact_history(_history(), system_prompt="系统", session_id="s", run_meter=meter)
     assert outcome.record is None and outcome.items is None
     assert outcome.skipped == SKIPPED_EMPTY_OR_TRUNCATED
     assert create.await_count == expected_calls
+    # 每次摘要调用都计入这个请求的模型调用预算。
+    assert meter.model_calls == expected_calls
     # 第二次降低思考强度。
     assert create.await_args_list[0].kwargs["reasoning_effort"] is None
     assert create.await_args_list[1].kwargs["reasoning_effort"] == "low"
@@ -752,6 +758,35 @@ def test_loop_history_reads_skip_records_truncation_streak_and_user_row_markers(
     assert contents[-1] == "写第2章"
     # 成功的压缩点比没压缩成的记录新：不再退避。
     assert rebuilt.compaction_skipped_at_tokens == 0
+
+
+@pytest.mark.unit
+def test_stopped_round_without_a_measurement_keeps_the_last_measured_prompt_size(db_session):
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "写第1章", offset=0)
+    first = _loop_assistant(db_session, chat, "开始。", "写好了。", offset=1, prompt_tokens=650_000)
+    _add(db_session, chat, "user", "写第2章", offset=2)
+    _add(
+        db_session, chat, "assistant", "", offset=3,
+        message_metadata=json.dumps({"engine": "loop", "prompt_tokens": None, "stop_reason": "user_stopped"}),
+    )
+    history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert history.last_prompt_tokens == 650_000
+
+    # 停止的那一轮带着压缩点：更早的读数是压缩前的大小，不再采用。
+    _add(db_session, chat, "user", "写第3章", offset=4)
+    _add(
+        db_session, chat, "assistant", "", offset=5,
+        message_metadata=json.dumps({
+            "engine": "loop", "prompt_tokens": None, "stop_reason": "user_stopped",
+            "compaction": {"summary": "合成摘要", "covers_through_message_id": first.id, "created_at": "x"},
+        }),
+    )
+    compacted = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert compacted.last_prompt_tokens == 0
 
 
 @pytest.mark.unit

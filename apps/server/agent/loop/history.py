@@ -434,10 +434,14 @@ def load_loop_history(
                     else:
                         truncation_streak_open = False
                 if not measured_seen and metadata.get("engine") == LOOP_ENGINE_METADATA_VALUE:
-                    measured_seen = True
+                    # 停在第一次模型调用之前的一轮没有量到 prompt_tokens：不挡住更早一轮的真实读数。
                     tokens = metadata.get("prompt_tokens")
                     if isinstance(tokens, int) and tokens > 0:
+                        measured_seen = True
                         result.last_prompt_tokens = tokens
+            if not measured_seen and valid_compaction(metadata) is not None:
+                # 压缩点之前的读数是压缩前的上下文大小，不再往前取。
+                measured_seen = True
             # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
             note_compaction(metadata)
         if stop:
