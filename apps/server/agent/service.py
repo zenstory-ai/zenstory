@@ -763,8 +763,11 @@ class AgentService:
                 or assistant_status_cards
                 # A rejected route has no assistant reply to preserve; do not
                 # turn its transient progress indicator into an empty message.
+                # 「对话已压缩」标记本身不是回复：压缩成功后什么都没产出的一轮只落作者那条消息
+                # （压缩点记在它上面），否则末行不是作者消息，重试复用不了它、作者原话重复一条。
                 or any(
-                    not had_stream_error or event.get("type") != "router_thinking"
+                    event.get("type") != "history_compacted"
+                    and (not had_stream_error or event.get("type") != "router_thinking")
                     for event in assistant_display_events
                 )
                 or (reasoning_content or "").strip()

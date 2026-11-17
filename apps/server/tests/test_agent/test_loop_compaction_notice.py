@@ -4,6 +4,7 @@
 """
 
 import json
+from contextlib import ExitStack
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -56,29 +57,52 @@ def _sse_events(chunks: list[str]) -> list[tuple[str, dict[str, Any]]]:
     return events
 
 
-async def _run_turn(db_session, user, project, chat, outcome: CompactionOutcome) -> list[tuple[str, dict[str, Any]]]:
+def _reply_stream():
+    yield StreamEvent(type=StreamEventType.TEXT, data={"text": "第二章写好了。"})
+    yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+
+def _error_stream():
+    yield StreamEvent(type=StreamEventType.ERROR, data={"error": "synthetic provider failure"})
+
+
+async def _run_turn(
+    db_session,
+    user,
+    project,
+    chat,
+    outcome: CompactionOutcome | None,
+    *,
+    events=_reply_stream,
+    metadata: dict[str, Any] | None = None,
+) -> list[tuple[str, dict[str, Any]]]:
+    """跑一轮；outcome 为 None 时这一轮不触发压缩（真实的 should_compact 判断）。"""
     from agent.service import AgentService
 
     def fake_loop(_state, **_kwargs):
         async def stream():
-            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "第二章写好了。"})
-            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+            for event in events():
+                yield event
 
         return stream()
 
     chunks: list[str] = []
-    with (
-        patch("agent.service.should_compact", return_value=True),
-        patch("agent.service.compact_history", AsyncMock(return_value=outcome)),
-        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
-    ):
+    with ExitStack() as stack:
+        if outcome is not None:
+            stack.enter_context(patch("agent.service.should_compact", return_value=True))
+            stack.enter_context(patch("agent.service.compact_history", AsyncMock(return_value=outcome)))
+        stack.enter_context(patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop))
+        # 失败 / 重试路径用独立 session 落库：指向同一个测试库。
+        stack.enter_context(
+            patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind()))
+        )
         async for chunk in AgentService().process_stream(
             project_id=str(project.id),
             user_id=str(user.id),
             message="续写第二章",
             session=db_session,
             session_id=chat.id,
-            metadata={},
+            metadata=metadata or {},
         ):
             chunks.append(chunk)
     return _sse_events(chunks)
@@ -142,3 +166,49 @@ async def test_skipped_compaction_only_ends_the_progress_line(db_session, chat_w
     assert "compaction" not in metadata or metadata["compaction"] is None
     assert metadata["compaction_skipped"]["reason"] == SKIPPED_PROVIDER_ERROR
     assert all(event.get("type") != "history_compacted" for event in metadata.get("display_events") or [])
+
+
+def _rows(db_session, chat) -> list[ChatMessage]:
+    db_session.expire_all()
+    return db_session.exec(
+        select(ChatMessage).where(ChatMessage.session_id == chat.id).order_by(ChatMessage.created_at, ChatMessage.id)
+    ).all()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_compaction_then_error_keeps_only_the_author_row_and_retry_reuses_it(db_session, chat_with_history):
+    """压缩成功、随后模型报错：不落一条只有标记的空回复；重试复用作者那条消息。"""
+    user, project, chat = chat_with_history
+    first_rows = _rows(db_session, chat)
+    record = {
+        "summary": "合成交接摘要：第一章已写完。",
+        "covers_through_message_id": first_rows[-1].id,
+        "kept_author_messages": ["先写第一章"],
+        "created_at": "2026-11-17T08:00:00",
+    }
+    outcome = CompactionOutcome(
+        record=record, items=[{"role": "user", "content": "先写第一章"}, {"role": "user", "content": "摘要"}]
+    )
+
+    events = await _run_turn(db_session, user, project, chat, outcome, events=_error_stream)
+    assert "history_compacted" in [event_type for event_type, _ in events]
+
+    rows = _rows(db_session, chat)
+    assert [(row.role, row.content) for row in rows] == [
+        ("user", "先写第一章"),
+        ("assistant", "第一章已经写进正文。"),
+        ("user", "续写第二章"),
+    ]
+    assert json.loads(rows[-1].message_metadata or "{}")["compaction"]["summary"] == "合成交接摘要：第一章已写完。"
+
+    # 重试（ChatPanel 的「重试」带 retry_unanswered）复用作者那条消息。
+    await _run_turn(db_session, user, project, chat, None, metadata={"retry_unanswered": True})
+
+    rows = _rows(db_session, chat)
+    assert [(row.role, row.content) for row in rows] == [
+        ("user", "先写第一章"),
+        ("assistant", "第一章已经写进正文。"),
+        ("user", "续写第二章"),
+        ("assistant", "第二章写好了。"),
+    ]
