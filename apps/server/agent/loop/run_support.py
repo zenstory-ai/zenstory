@@ -94,6 +94,22 @@ def collect_body_word_counts(file_ids: list[str]) -> list[tuple[str, int]] | Non
     return [by_id[file_id] for file_id in file_ids if file_id in by_id] or None
 
 
+def read_body_tail(file_id: str, chars: int) -> tuple[str, str] | None:
+    """这个文件落库后的（标题，正文最后 chars 个字符）；文件不在当前作品里时返回 None。"""
+    project_id = ToolContext.get_project_id()
+    if not project_id or not file_id:
+        return None
+
+    from models import File
+
+    with ToolContext.short_lived_session() as session:
+        file = session.get(File, file_id)
+        if file is None or file.project_id != project_id or file.is_deleted:
+            return None
+        content = (file.content or "").rstrip()
+        return file.title or "", content[-chars:]
+
+
 def format_body_word_counts(counts: list[tuple[str, int]] | None) -> str:
     if not counts:
         return ""

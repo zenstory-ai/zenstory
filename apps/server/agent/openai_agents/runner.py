@@ -74,6 +74,8 @@ OUTPUT_TRUNCATED_STOP_REASON = "output_truncated"
 # openai-agents 0.17.x 的 Chat Completions 流式 handler 不处理 finish_reason
 # （ResponseCompletedEvent 的 status 恒为 completed），只能看 usage 判断。
 OUTPUT_CAP_RATIO = 0.98
+# 正常结束的 run 最后一次响应也撞上了输出上限时，MESSAGE_END data 里带的结构化标记（值为 True）。
+OUTPUT_CAPPED_KEY = "output_capped"
 
 # 距离上限还剩多少次模型调用时开始收尾：在这几次调用的输入末尾追加提醒，
 # 要求模型停止调用工具、写阶段总结（已完成 / 剩余 / 用到的文件 id）。上限取
@@ -1319,10 +1321,25 @@ async def run_openai_agents_streaming_agent(
 
         usage = _usage_dict_from_result(result)
         run_stop_reason = exhausted_stop_reason if turns_exhausted else "end_turn"
-        yield StreamEvent(
-            type=StreamEventType.MESSAGE_END,
-            data={"stop_reason": run_stop_reason, "usage": usage},
-        )
+        message_end: dict[str, Any] = {"stop_reason": run_stop_reason, "usage": usage}
+        if (
+            not turns_exhausted
+            and AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS > 0
+            and last_output_tokens >= AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS * OUTPUT_CAP_RATIO
+        ):
+            # 最后一次响应写了正文或工具调用，同时撞上输出上限：run 照常结束（stop_reason 不变），
+            # 但它的文字可能停在半句话上。loop 引擎据此区分「<file> 正文被输出上限截断」与「正文写完」。
+            message_end[OUTPUT_CAPPED_KEY] = True
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Agent run hit the output cap after writing output",
+                agent_type=agent_type,
+                output_tokens=last_output_tokens,
+                max_output_tokens=AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS,
+                stop_basis="usage_output_tokens_at_cap",
+            )
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data=message_end)
 
         log_with_context(
             logger,

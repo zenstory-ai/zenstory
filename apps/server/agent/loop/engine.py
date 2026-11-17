@@ -23,7 +23,12 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from agent.core import empty_files, task_board_completion
-from agent.core.author_facing_text import AgentTextShaper, rewrite_not_saved_notice, text_contains_cjk
+from agent.core.author_facing_text import (
+    AgentTextShaper,
+    body_cut_at_output_cap_notice,
+    rewrite_not_saved_notice,
+    text_contains_cjk,
+)
 from agent.core.events import UNEXECUTED_TOOL_TEXT_LAYER, WALL_CLOCK_LIMIT
 from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
 from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
@@ -32,7 +37,7 @@ from agent.core.stream_errors import classify_stream_exception, log_stream_excep
 from agent.core.workflow_events import FileBodyResume, StreamEvent, StreamEventType
 from agent.core.writing_state import WritingState
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
-from agent.openai_agents.runner import run_openai_agents_streaming_agent
+from agent.openai_agents.runner import OUTPUT_CAPPED_KEY, run_openai_agents_streaming_agent
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 from agent.tools.mcp_tools import ToolContext
 from agent.tools.registry import LOOP_AGENT_TYPE, LOOP_TOOL_NAMES
@@ -57,6 +62,35 @@ _CHAPTER_REPLACE_RETRY_CONTEXT = (
     "[系统提醒] 你用 write_chapter 定下了整章替换《{title}》(id={file_id})，但上一次回复没有用 <file>…</file> 写出新正文，"
     "原文保持不变。系统已为这一章重新打开正文写入：这一次回复第一行直接输出 <file>，接着写这一章完整的新正文，最后用 </file> 结束；"
     "写完之前不要调用任何工具（write_chapter 也不要再调用），也不要只在对话里复述正文。"
+)
+# 整章替换的新正文写到单次回复的输出上限被截断（runner 的 output_capped）时的重试说明。
+_CHAPTER_REPLACE_CUT_RETRY_CONTEXT = (
+    "[系统提醒] 你用 write_chapter 定下了整章替换《{title}》(id={file_id})，但上一次回复的新正文写到单次回复的输出上限，"
+    "在中途被截断（没有写到 </file>），没有保存，原文保持不变。系统已为这一章重新打开正文写入：这一次思考尽量简短，"
+    "回复第一行直接输出 <file>，接着写这一章完整的新正文，最后用 </file> 结束；"
+    "写完之前不要调用任何工具（write_chapter 也不要再调用），也不要只在对话里复述正文。"
+)
+# 新正文写到单次回复的输出上限被截断、截断处之前已保存时的续跑说明：从断点 append 续写，不整章重写。
+_BODY_CUT_TAIL_CHARS = 200
+_BODY_CUT_CONTEXT = (
+    "[系统提醒] 上一次回复写《{title}》(id={file_id}) 的正文时达到了单次回复的输出上限，正文在中途被截断"
+    "（没有写到 </file>，结束是系统补上的）。截断处之前的正文已保存，这一章还没有写完。"
+    "这是系统的续跑说明，不是作者的新消息。已保存正文的末尾：\n「{tail}」\n"
+    "现在用 edit_file 的 op=append（id={file_id}）从截断处接着写完这一章：text 直接接在上面最后一个字之后"
+    "（截断在句子中间就先把这句话写完），不要重复已保存的内容；不要用 write_chapter 或 <file> 把这一章整章重写。"
+    "剩下的篇幅较长时分几次 append，每次思考简短。写完后按「工作方式」自查这一章；作者这一轮要求的其他章节还没写完就接着写，"
+    "全部完成后用一到三句话回复作者，字数只报下面的真实字数。"
+)
+_BODY_CUT_CONTEXT_EN = (
+    "[System note] While writing the body of \"{title}\" (id={file_id}), the previous response reached the single-reply "
+    "output limit and was cut off mid-text (it never reached </file>; the system closed it). The text up to the cut is "
+    "saved, but the chapter is not finished. This is a system continuation, not a new author message. The end of the "
+    "saved text:\n\"{tail}\"\nNow continue the chapter from the cut with edit_file op=append (id={file_id}): the text "
+    "follows straight on from the last character above (finish the sentence first if it was cut mid-sentence) and does "
+    "not repeat saved text; do not rewrite the chapter with write_chapter or <file>. If much is left, use several "
+    "appends and keep thinking short. When it is finished, self-check the chapter; if chapters the author asked for "
+    "this turn are still unwritten, continue with them; when everything is done, reply to the author in one to three "
+    "sentences, reporting only the real word counts below. Keep the author's language."
 )
 # 正文写完、回复停在 </file> 上时的续跑说明（相当于工具结果）：保存的文件与真实字数由调用方附在后面。
 _BODY_SAVED_CONTEXT = (
@@ -194,6 +228,7 @@ async def _settle_pending_empty_files(
     *,
     can_correct: bool,
     english: bool,
+    body_cut: bool = False,
 ) -> tuple[str | None, StreamEvent | None, list[StreamEvent], list[StreamEvent]]:
     """run 边界核验仍在等正文的空文件。
 
@@ -222,7 +257,9 @@ async def _settle_pending_empty_files(
         for other in replacements[:-1]:
             ToolContext.clear_pending_empty_file(other["file_id"])
         resume = FileBodyResume(file_id=target["file_id"], expected_updated_at=target["updated_at"])
-        context = _CHAPTER_REPLACE_RETRY_CONTEXT.format(title=target["title"], file_id=target["file_id"])
+        # 这次 run 停在没闭合的 <file> 上、又撞上了输出上限（runner 的结构化标记）：如实说新正文被截断，而不是没写。
+        template = _CHAPTER_REPLACE_CUT_RETRY_CONTEXT if body_cut else _CHAPTER_REPLACE_RETRY_CONTEXT
+        context = template.format(title=target["title"], file_id=target["file_id"])
         notices = [_rewrite_not_saved_event(english)] if replacements[:-1] else []
         return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), notices, []
     for other in replacements:
@@ -239,6 +276,43 @@ async def _settle_pending_empty_files(
             context = _EMPTY_FILE_CORRECTION_CONTEXT.format(title=target["title"], file_id=target["file_id"])
             return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), notices, []
     return None, None, notices, [await _empty_file_card(unfinished, None)]
+
+
+async def _body_cut_followup(
+    cut_bodies: dict[str, str], read_guard: RepeatReadGuard, english: bool
+) -> tuple[str, StreamEvent]:
+    """新正文被输出上限截断、已保存到截断处：返回 (续跑说明, 给作者的固定说明)。
+
+    续跑说明给出截断处附近已保存的原文，要求从断点 append 续写；给作者的说明不说这一章已经写完。
+    """
+    file_id = list(cut_bodies)[-1]
+    tail = await asyncio.to_thread(run_support.read_body_tail, file_id, _BODY_CUT_TAIL_CHARS)
+    titles = {
+        fid: title or read_guard.files_written.get(fid) or read_guard.files_targeted.get(fid) or ""
+        for fid, title in cut_bodies.items()
+    }
+    if tail is not None and tail[0]:
+        titles[file_id] = tail[0]
+    title = titles[file_id] or ("this chapter" if english else "这一章")
+    template = _BODY_CUT_CONTEXT_EN if english else _BODY_CUT_CONTEXT
+    followup = template.format(title=title, file_id=file_id, tail=tail[1] if tail else "") + _word_count_note(
+        list(cut_bodies)
+    )
+    joiner = ", " if english else "、"
+    named = joiner.join((f'"{t}"' if english else f"《{t}》") for t in titles.values() if t) or (
+        "This chapter" if english else "这一章"
+    )
+    log_with_context(
+        logger,
+        30,  # WARNING
+        "Loop body cut at the output cap; continuing from the break",
+        file_count=len(cut_bodies),
+        tail_chars=len(tail[1]) if tail else 0,
+    )
+    notice = StreamEvent(
+        type=StreamEventType.TEXT, data={"text": "\n\n" + body_cut_at_output_cap_notice(english, named)}
+    )
+    return followup, notice
 
 
 def _abandon_armed_replacements(english: bool) -> list[StreamEvent]:
@@ -376,6 +450,8 @@ async def run_loop_agent_streaming(
             deferred_exhausted: StreamEvent | None = None
             create_ids: set[str] = set()
             failed_ids: set[str] = set()
+            # 这次 run 最后一次模型响应撞上了输出上限（runner 在 MESSAGE_END 上的结构化标记）。
+            output_capped = False
             shaper = AgentTextShaper(previous_text=accumulated_text, drop_english_narration=drop_english_narration)
 
             async for event in run_support.shape_agent_text(
@@ -390,6 +466,8 @@ async def run_loop_agent_streaming(
             ):
                 if event.type == StreamEventType.MESSAGE_START:
                     run_started = True
+                elif event.type == StreamEventType.MESSAGE_END:
+                    output_capped = output_capped or event.data.get(OUTPUT_CAPPED_KEY) is True
                 elif event.type == StreamEventType.ERROR:
                     errored = True
                 elif getattr(event.type, "value", "") == "steering_received" and run_started:
@@ -442,7 +520,9 @@ async def run_loop_agent_streaming(
                     and not run_meter.past_wrap_up
                 )
                 context, resume_event, notices, settle_events = await _settle_pending_empty_files(
-                    can_correct=can_correct, english=english
+                    can_correct=can_correct,
+                    english=english,
+                    body_cut=output_capped and ends_on_unclosed_file_block(tail_text),
                 )
                 for notice in notices:
                     yield notice
@@ -489,6 +569,9 @@ async def run_loop_agent_streaming(
                 )
 
             followup: str | None = None
+            # 这次 run 里没等到 </file>、按流结束补全保存的新正文（StreamAdapter 保存点的结构化事实）。
+            # 每个 run 边界都取走，只有这次 run 撞上输出上限时才按截断续写处理。
+            cut_bodies = ToolContext.take_cut_bodies()
             ended_on_file = ends_on_file_block(tail_text) or (
                 (bool(create_ids - failed_ids) or run_resumed) and ends_on_unclosed_file_block(tail_text)
             )
@@ -497,7 +580,17 @@ async def run_loop_agent_streaming(
             # 它们照旧只在停在 </file> 上时续跑。
             saved_bodies = ToolContext.saved_bodies_this_request()
             new_saved = set(ToolContext.saved_content_body_ids()) - self_checked_ids
-            if not ToolContext.has_pending_empty_file() and (
+            if (
+                output_capped
+                and cut_bodies
+                and ends_on_unclosed_file_block(tail_text)
+                and not ToolContext.has_pending_empty_file()
+            ):
+                # 这次 run 停在没闭合的 <file> 正文上、最后一次响应撞上输出上限、正文按截断补全保存了：
+                # 是被截断，不是写完，不说「已保存，请自查」。
+                followup, cut_notice = await _body_cut_followup(cut_bodies, read_guard, english)
+                yield cut_notice
+            elif not ToolContext.has_pending_empty_file() and (
                 new_saved or ((bool(create_ids - failed_ids) or run_resumed) and ended_on_file)
             ):
                 # 定位过整章替换、新正文却没落库的章节（ToolContext 的结构化保存事实）：不算已保存，不列它的原稿字数。
@@ -561,6 +654,7 @@ async def run_loop_agent_streaming(
                 run=runs,
                 ended_on_file=bool(ended_on_file),
                 new_saved=len(new_saved),
+                body_cut_at_output_cap=bool(output_capped and cut_bodies and ends_on_unclosed_file_block(tail_text)),
                 steering=bool(mid_run_steering or boundary_steering),
             )
             state["user_message"] = followup

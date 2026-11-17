@@ -129,10 +129,16 @@ agent/
   保存后自查的续写（本请求有确认落库、还没自查过的完整章节 / 分集正文就续跑一次——`ToolContext.saved_content_body_ids()`，由 StreamAdapter 的保存点
   `_note_body_saved` 连同文件类型记下，不看 `</file>` 之后有没有一句总结；大纲、人物等资料文件不在内；另外停在写完的 `</file>` 或新正文 EOF 上的 run 照旧续跑。写正文的回复到 `</file>` 就结束；续跑说明附落库字数，并要求先自查、用 edit_file 改正再回复，同一个文件只要求一次，见 `_BODY_SAVED_CONTEXT` / `_BODY_RESAVED_CONTEXT`；正文之后已经回复过作者（这次 run 没停在 `</file>` 上）时改用 `_BODY_SAVED_REPLIED_CONTEXT`，只自查、不重复总结；整章替换的新正文没落库时——`ToolContext.unsaved_chapter_replacement_ids()`，
   StreamAdapter 提交 `replace_body` 成功才 `mark_chapter_replacement_saved`——不说已保存、不列它的原稿字数，改发 `_REPLACE_UNSAVED_CONTEXT` 如实说明原文没动；同一章每次重新定位（结构化结果 `action=replaced`）算一次新的替换，
-  没保存就再说一次，没有任何正文保存过时也不退回已保存的说明）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用 `core/task_board_completion.auto_finalize_task_board_on_completion` 收尾任务板
+  没保存就再说一次，没有任何正文保存过时也不退回已保存的说明；新正文被输出上限截断时见下）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用 `core/task_board_completion.auto_finalize_task_board_on_completion` 收尾任务板
   （写入证据 = ReadGuard 记下的写入 + 本请求确认落库的正文；ReadGuard 不把 `mutation_applied=false` 的成功结果——已有章节、同名 rename、整章替换的定位——记为写入）；
   `previous_output_truncations` 由 `LoopHistory.trailing_output_truncations` 给出；它大于 0 时本轮第一次 run 的 `agent_directive` 带
-  「## 截断后的本轮交付」+ `OUTPUT_TRUNCATED_RESUME`（只进这次 SDK 输入，不写回历史，续跑不再追加）。到收尾时间不再开新 run，
+  「## 截断后的本轮交付」+ `OUTPUT_TRUNCATED_RESUME`（只进这次 SDK 输入，不写回历史，续跑不再追加）。
+  正常结束的 run 最后一次响应的 output_tokens 也到了上限（`OUTPUT_CAP_RATIO`；SDK 不给 finish_reason）时，runner 照常 `end_turn`，MESSAGE_END 多带
+  `output_capped=True`（`runner.OUTPUT_CAPPED_KEY`）。这次 run 里又有没等到 `</file>`、按流结束补全保存的新正文（StreamAdapter `_save_new_body` 记进
+  `ToolContext.mark_cut_body_saved`，engine 每个 run 边界 `take_cut_bodies()` 取走）时，正文照样保存，但不发 `_BODY_SAVED_CONTEXT`：作者看到固定的
+  「《…》写到了单次回复的输出上限，正文已保存到中断处。」（`author_facing_text.body_cut_at_output_cap_notice`），续跑说明 `_BODY_CUT_CONTEXT` 附落库正文末尾 200 字，
+  要求用 edit_file `op=append` 从断点续写、不整章重写，写完再自查；没撞上限的未闭合正文（漏写 `</file>`）照旧按已保存续跑。整章替换的新正文被截断时
+  仍是原文不动、在纠偏次数内重试，重试说明换成 `_CHAPTER_REPLACE_CUT_RETRY_CONTEXT`（说明被截断、思考尽量简短）。到收尾时间不再开新 run，
   发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
   收尾提醒（`runner._ModelCallCountingFilter`）用 `LOOP_SOFT_LANDING_PROMPT` / `LOOP_TIME_LANDING_PROMPT`
   （刚调用 write_chapter 或 create_file 还没写 `<file>` 的先写完）。空文件的核验与回滚在 `core/empty_files.py`，收尾说明、插话追加轮提示与续跑说明里的字数在 `loop/run_support.py`。

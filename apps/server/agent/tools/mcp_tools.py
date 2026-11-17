@@ -232,7 +232,7 @@ class _PendingEmptyFileState:
     __slots__ = (
         "_lock", "_entries", "_reservations", "_streamed", "_reply_seq", "_created_in", "_versions",
         "_prebody_reply", "_waiting_at_reply_start", "_replacements", "_closed", "_replacement_saved",
-        "_chapter_bodies_saved", "_saved_body_types", "_steering_at_arm",
+        "_chapter_bodies_saved", "_saved_body_types", "_steering_at_arm", "_cut_bodies_saved",
     )
 
     def __init__(self) -> None:
@@ -273,6 +273,9 @@ class _PendingEmptyFileState:
         # 文件定为待写时本请求已收到几条作者插话（ToolContext.author_steering_count）：
         # 之后又有插话，正文那次调用的输入里可能带着它，tool_choice 不再限为 none（见 steering_since_armed）。
         self._steering_at_arm: dict[str, int] = {}
+        # 没等到 </file>、按流结束补全保存下来的新正文：id -> 标题（StreamAdapter 保存成功后记下）。
+        # loop 引擎在 run 边界取走（take_cut_bodies），结合 runner 的 output_capped 判断正文是否被输出上限截断。
+        self._cut_bodies_saved: dict[str, str] = {}
 
     # ---- 只读视图 ----------------------------------------------------------
     def has_pending(self) -> bool:
@@ -395,6 +398,7 @@ class _PendingEmptyFileState:
             self._replacements.clear()
             self._replacement_saved.clear()
             self._chapter_bodies_saved.clear()
+            self._cut_bodies_saved.clear()
             self._prebody_reply = None
             self._waiting_at_reply_start = False
 
@@ -439,6 +443,16 @@ class _PendingEmptyFileState:
             self._chapter_bodies_saved[file_id] = title or self._chapter_bodies_saved.get(file_id, "")
             if file_type:
                 self._saved_body_types[file_id] = file_type.strip().lower()
+
+    def mark_cut_body_saved(self, file_id: str, title: str = "") -> None:
+        with self._lock:
+            self._cut_bodies_saved[file_id] = title
+
+    def take_cut_bodies(self) -> dict[str, str]:
+        with self._lock:
+            taken = dict(self._cut_bodies_saved)
+            self._cut_bodies_saved.clear()
+            return taken
 
     def chapter_body_saved(self, file_id: str) -> bool:
         with self._lock:
@@ -1238,6 +1252,19 @@ class ToolContext:
         state = cls._get_pending_empty_file_state()
         if state is not None and file_id:
             state.mark_chapter_body_saved(file_id, title, file_type)
+
+    @classmethod
+    def mark_cut_body_saved(cls, file_id: str, title: str = "") -> None:
+        """StreamAdapter 把一份没等到 </file>、按流结束补全的新正文落了库（截断补全，不是完整正文）。"""
+        state = cls._get_pending_empty_file_state()
+        if state is not None and file_id:
+            state.mark_cut_body_saved(file_id, title)
+
+    @classmethod
+    def take_cut_bodies(cls) -> dict[str, str]:
+        """取走上次取走之后按截断补全保存的新正文：id -> 标题（loop 引擎每个 run 边界取一次）。"""
+        state = cls._get_pending_empty_file_state()
+        return state.take_cut_bodies() if state is not None else {}
 
     @classmethod
     def saved_bodies_this_request(cls) -> dict[str, str]:

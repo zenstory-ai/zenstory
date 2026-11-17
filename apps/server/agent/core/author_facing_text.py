@@ -17,6 +17,16 @@ def rewrite_not_saved_notice(english: bool) -> str:
     return REWRITE_NOT_SAVED_NOTICE_EN if english else REWRITE_NOT_SAVED_NOTICE
 
 
+# 新正文写到单次回复的输出上限、在中途被截断（runner 的 output_capped）时给作者的固定说明：
+# 截断处之前的正文已保存，不说这一章写完了。
+BODY_CUT_AT_OUTPUT_CAP_NOTICE = "{titles}写到了单次回复的输出上限，正文已保存到中断处。"
+BODY_CUT_AT_OUTPUT_CAP_NOTICE_EN = "{titles} reached the single-reply output limit; the text up to that point is saved."
+
+
+def body_cut_at_output_cap_notice(english: bool, titles: str) -> str:
+    return (BODY_CUT_AT_OUTPUT_CAP_NOTICE_EN if english else BODY_CUT_AT_OUTPUT_CAP_NOTICE).format(titles=titles)
+
+
 _CJK = r"㐀-鿿豈-﫿"
 
 

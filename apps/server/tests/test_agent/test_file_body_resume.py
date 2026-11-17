@@ -48,6 +48,8 @@ class Reply:
     hang: asyncio.Event | None = None
     # 这次调用的工具执行完后 SDK 撞上 max_turns（runner 据此发 tool_call 层的轮数耗尽）。
     exceeds_max_turns: bool = False
+    # 这次调用的 output_tokens（usage）；写到 runner 的输出上限时模拟被 max_tokens 截断。
+    output_tokens: int = 5
 
 
 @dataclass
@@ -109,7 +111,7 @@ class _ScriptedResult:
             output += [SimpleNamespace(type="function_call") for _ in reply.tools]
             response = SimpleNamespace(
                 usage=SimpleNamespace(
-                    input_tokens=10, output_tokens=5, total_tokens=15,
+                    input_tokens=10, output_tokens=reply.output_tokens, total_tokens=10 + reply.output_tokens,
                     input_tokens_details=SimpleNamespace(cached_tokens=0),
                 ),
                 output=output,

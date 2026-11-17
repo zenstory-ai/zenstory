@@ -1701,12 +1701,17 @@ class StreamAdapter:
             )
         )
         try:
-            return await asyncio.shield(save)
+            saved = await asyncio.shield(save)
         except asyncio.CancelledError:
             self._abort_capture = (file_id, count_words(content), save)
             _ABORT_SAVE_TASKS.add(save)
             save.add_done_callback(_ABORT_SAVE_TASKS.discard)
             raise
+        if saved and result.auto_completed:
+            from agent.tools.mcp_tools import ToolContext
+
+            ToolContext.mark_cut_body_saved(file_id, self._save_title(file_id, pending))
+        return saved
 
     @staticmethod
     def _save_target(file_id: str, pending: PendingFileWrite | None) -> tuple[str, str | None]:
