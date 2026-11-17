@@ -79,7 +79,8 @@ import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
 import { duplicatesNextStep, latestRoundAwaitsReply } from "../lib/nextStep";
 import { fetchSuggestions, type QuotaRefundKind, type RemovedPlaceholderFile } from "../lib/agentApi";
 import { optionsOfferedInReply } from "../lib/replyOptions";
-import { UndoneEditsContext, undoneEditKey } from "../lib/undoneEdits";
+import { UndoBlockedContext, UndoneEditsContext, undoneEditKey } from "../lib/undoneEdits";
+import { collectUndoCardRefs, undoBlockedByLaterWrite } from "../lib/aiWriteCards";
 import { parseUTCDate } from "../lib/dateUtils";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
@@ -1530,6 +1531,14 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     });
   };
   const conflictCount = state.conflicts?.length ?? 0;
+  // AI write cards that must wait for a later AI write to the same file to be undone first.
+  const undoBlocked = useMemo(
+    () => undoBlockedByLaterWrite(collectUndoCardRefs(
+      [...messages, { displayItems: streamRenderItems ?? [] }],
+      undoneEdits,
+    )),
+    [messages, streamRenderItems, undoneEdits],
+  );
   const streamRenderItemCount = streamRenderItems?.length ?? 0;
 
   // 成本兜底与每日条数共用同一套标题和说明：不向作者透露第二个额度。
@@ -2530,7 +2539,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         target.fileId,
         target.beforeVersionNumber,
         target.expectedAfterUpdatedAt,
-        { chatMessageId: target.chatMessageId, toolUseId: target.toolUseId },
+        {
+          chatMessageId: target.chatMessageId,
+          toolUseId: target.toolUseId,
+          expectedAfterContentSha256: target.expectedAfterContentSha256,
+        },
       );
       // The text is back to before this edit: the card stops offering it (a repeat would only conflict).
       setUndoneEdits((previous) => new Set(previous).add(undoneEditKey(target)));
@@ -2793,6 +2806,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             <div>
               {/* Chat messages */}
               <UndoneEditsContext.Provider value={undoneEdits}>
+              <UndoBlockedContext.Provider value={undoBlocked}>
               <MessageList
                 ref={messageListRef}
                 messages={messages}
@@ -2807,6 +2821,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 showDailyCount={showDailyCount}
                 scrollContainerRef={messagesScrollContainerRef}
               />
+              </UndoBlockedContext.Provider>
               </UndoneEditsContext.Provider>
 
               {/* Edit progress indicator */}

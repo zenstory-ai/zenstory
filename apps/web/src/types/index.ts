@@ -691,6 +691,8 @@ export interface FileEditUndoTarget {
   fileId: string;
   beforeVersionNumber: number;
   expectedAfterUpdatedAt: string;
+  /** SHA-256 (hex) of the text this edit wrote; absent on older cards and servers. */
+  expectedAfterContentSha256?: string;
   /** The saved assistant message and tool call of the card, so the server can mark that card undone. */
   chatMessageId?: string;
   toolUseId?: string;
