@@ -287,12 +287,6 @@ const CHAT_INPUT_PANEL_HEIGHT_KEY = "zenstory_chat_input_panel_height_px";
 const SUGGESTION_CACHE_KEY_PREFIX = "zenstory_suggestions_cache_";
 const SUGGESTION_CACHE_TTL_MS = 10 * 60 * 1000;
 const SUGGESTION_INITIAL_TIMEOUT_MS = 1500;
-/**
- * Sent with every chat round while a server that predates the loop-agent default may still answer:
- * there a missing mode turns on graph auto-review (slower, more model spend). "fast" keeps the old
- * default there; the loop engine ignores it. Drop it once every environment runs the loop default.
- */
-const LEGACY_GENERATION_MODE = "fast";
 
 /** Minimum height of the chat input panel in pixels */
 const CHAT_INPUT_PANEL_MIN_HEIGHT_PX = 144;
@@ -2020,7 +2014,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       outline_id: selectedItem?.id,
       selected_skill_ids: selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
       metadata: {
-        generation_mode: LEGACY_GENERATION_MODE,
         // Current focused file info (used by backend context assembler)
         current_file_id: selectedItem?.id,
         current_file_type: selectedItem?.type,
@@ -2102,7 +2095,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       {
         message: message.content,
         metadata: {
-          generation_mode: LEGACY_GENERATION_MODE,
           retry_unanswered: true,
           ...(firstMessage ? { entry: "first_message" } : {}),
         },

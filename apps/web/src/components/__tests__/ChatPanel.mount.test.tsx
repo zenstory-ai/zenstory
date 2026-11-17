@@ -1147,8 +1147,7 @@ describe('ChatPanel mount smoke', () => {
     const request = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
     expect(request.message).toBe('写一个短篇')
     expect(request.metadata.retry_unanswered).toBe(true)
-    // Servers that predate the loop-agent default auto-review a round with no mode.
-    expect(request.metadata.generation_mode).toBe('fast')
+    expect(request.metadata).not.toHaveProperty('generation_mode')
     // Still the work's first message: the retry keeps the server's first-message hint.
     expect(request.metadata.entry).toBe('first_message')
     expect(userBubbles()).toHaveLength(1)
@@ -1196,7 +1195,7 @@ describe('ChatPanel mount smoke', () => {
     const request = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
     expect(request.message).toBe('按大纲写第一章正文')
     expect(request.metadata.entry).toBe('next_step')
-    expect(request.metadata.generation_mode).toBe('fast')
+    expect(request.metadata).not.toHaveProperty('generation_mode')
     expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
     mockGetProgress.mockResolvedValue([])
   })
