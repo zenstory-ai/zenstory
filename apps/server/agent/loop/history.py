@@ -363,6 +363,8 @@ def load_loop_history(
     covered_reached = False
     kept_tokens_seen = 0
     measured_seen = False
+    # 比最近一次实测读数更新的行（停在第一次模型调用之前的轮次）的估算：读数里不含它们，要加上。
+    unmeasured_tokens = 0
     skip_seen = False
     truncation_streak_open = True
     cursor: tuple[Any, Any] | None = None
@@ -438,10 +440,12 @@ def load_loop_history(
                     tokens = metadata.get("prompt_tokens")
                     if isinstance(tokens, int) and tokens > 0:
                         measured_seen = True
-                        result.last_prompt_tokens = tokens
+                        result.last_prompt_tokens = tokens + unmeasured_tokens
             if not measured_seen and valid_compaction(metadata) is not None:
                 # 压缩点之前的读数是压缩前的上下文大小，不再往前取。
                 measured_seen = True
+            if not measured_seen:
+                unmeasured_tokens += estimate_text_tokens(str(row.content or ""))
             # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
             note_compaction(metadata)
         if stop:

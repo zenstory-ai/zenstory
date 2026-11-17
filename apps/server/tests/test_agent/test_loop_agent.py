@@ -14,6 +14,7 @@ import pytest
 from sqlmodel import Session
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
+from agent.utils.token_utils import estimate_text_tokens
 from models import ChatMessage, ChatSession, File, Project, User
 
 
@@ -774,7 +775,8 @@ def test_stopped_round_without_a_measurement_keeps_the_last_measured_prompt_size
         message_metadata=json.dumps({"engine": "loop", "prompt_tokens": None, "stop_reason": "user_stopped"}),
     )
     history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
-    assert history.last_prompt_tokens == 650_000
+    # 读数之后的行没有被量到：按估算加上（这里只有一句短的作者消息）。
+    assert history.last_prompt_tokens == 650_000 + estimate_text_tokens("写第2章")
 
     # 停止的那一轮带着压缩点：更早的读数是压缩前的大小，不再采用。
     _add(db_session, chat, "user", "写第3章", offset=4)
@@ -787,6 +789,29 @@ def test_stopped_round_without_a_measurement_keeps_the_last_measured_prompt_size
     )
     compacted = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
     assert compacted.last_prompt_tokens == 0
+
+
+@pytest.mark.unit
+def test_large_paste_stopped_before_its_first_model_call_counts_toward_the_prompt_size(db_session):
+    """作者贴了很长的材料、在第一次模型调用之前停止：更早一轮的读数不含这段材料，压缩判断要算上它。"""
+    from agent.loop.compaction import should_compact
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "写第1章", offset=0)
+    _loop_assistant(db_session, chat, "开始。", "写好了。", offset=1, prompt_tokens=20_000)
+    pasted = "合成材料段落。" * 20_000
+    _add(db_session, chat, "user", pasted, offset=2)
+    _add(
+        db_session, chat, "assistant", "", offset=3,
+        message_metadata=json.dumps({"engine": "loop", "prompt_tokens": None, "stop_reason": "user_stopped"}),
+    )
+
+    history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+
+    assert history.last_prompt_tokens == 20_000 + estimate_text_tokens(pasted)
+    assert should_compact(history, threshold=60_000) is True
 
 
 @pytest.mark.unit
