@@ -1067,6 +1067,10 @@ class StreamAdapter:
         )
         if isinstance(replaced.get("undo"), dict):
             card["undo"] = replaced["undo"]
+        if not result.auto_completed:
+            from agent.tools.mcp_tools import ToolContext
+
+            ToolContext.mark_chapter_body_saved(file_id)
         if pending.replace_tool_use_id:
             # 同一个 tool_use_id 再发一次结果：落库的卡片与前端的卡片都更新成真实的替换结果（含撤销锚点）。
             yield tool_result_event(
@@ -1600,6 +1604,17 @@ class StreamAdapter:
             return
 
         yield file_content_end_event(result.file_id)
+
+        if (
+            not result.auto_completed
+            and pending is not None
+            and pending.file_id == result.file_id
+            and pending.file_type in (FILE_TYPE_DRAFT, FILE_TYPE_SCRIPT)
+        ):
+            # 单循环里正文（draft / script）只经 write_chapter 新建：记下这一章本请求已写完并保存。
+            from agent.tools.mcp_tools import ToolContext
+
+            ToolContext.mark_chapter_body_saved(result.file_id)
 
         # Clear pending file write
         self._pending_file_write = None

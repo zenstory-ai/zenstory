@@ -205,6 +205,67 @@ async def test_write_chapter_creates_a_missing_chapter_through_the_file_body_pro
     assert sorted(f.title for f in _drafts(workspace)) == ["第1章 雨夜", "第2章 渡口"]
 
 
+REWRITE_BODY = "\n".join(f"第{index}段合成重写稿，不应落库。" for index in range(1, 6))
+
+
+def _ai_versions(workspace, file_id: str) -> int:
+    workspace.session.expire_all()
+    rows = workspace.session.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()
+    return sum(1 for row in rows if row.change_source == "ai")
+
+
+@pytest.mark.parametrize("existing", [False, True], ids=["created", "replaced"])
+async def test_chapter_written_this_request_is_not_rewritten_by_write_chapter(workspace, existing):
+    # 这一章的正文本请求里已经由 write_chapter 写完并保存：续跑（自查）里再 write_chapter 这一章时拒绝，
+    # 正文与版本都不变，模型被指向 edit_file。新建与整章替换两条保存路径都记下这个事实。
+    if existing:
+        _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。\n第二段原文。")
+    call = ("write_chapter", {"chapter": 3, "title": "第3章 灯塔", "file_type": "draft"})
+    model = ScriptedModel(runs=[
+        [Reply(text="", tools=(call,)), Reply(text=f"<file>\n{NEW_BODY}\n</file>")],
+        [Reply(text="", tools=(call,)), Reply(text=f"<file>\n{REWRITE_BODY}\n</file>\n第三章写好了。")],
+    ])
+
+    outcome = await _run_loop(workspace, model, "写第三章")
+
+    first, second = (c.output for c in model.tool_calls[:2])
+    file_id = first["data"]["id"]
+    assert first["data"]["action"] == ("replaced" if existing else "created")
+    assert second["status"] == "error" and second["error_type"] == "chapter_written_this_turn"
+    assert second["id"] == file_id and "edit_file" in second["error"]
+    assert _content(workspace, file_id).rstrip("\n") == NEW_BODY
+    assert _ai_versions(workspace, file_id) == (1 + (1 if existing else 0))
+    assert len(_drafts(workspace)) == 1
+    assert outcome.of("error") == []
+
+
+async def test_first_replacement_in_a_new_request_is_still_allowed(workspace):
+    # 记录只在一个请求里有效：上一轮写好的章节，下一轮照常可以整章替换。
+    call = ("write_chapter", {"chapter": 3, "title": "第3章 灯塔", "file_type": "draft"})
+    first_turn = ScriptedModel(runs=[[Reply(text="", tools=(call,)), Reply(text=f"<file>\n{NEW_BODY}\n</file>\n写好了。")]])
+    await _run_loop(workspace, first_turn, "写第三章")
+    file_id = first_turn.tool_calls[0].output["data"]["id"]
+
+    second_turn = ScriptedModel(runs=[[Reply(text="", tools=(call,)), Reply(text=f"<file>\n{REWRITE_BODY}\n</file>\n换好了。")]])
+    await _run_loop(workspace, second_turn, "把第三章整章重写")
+
+    assert second_turn.tool_calls[0].output["data"]["action"] == "replaced"
+    assert _content(workspace, file_id).rstrip("\n") == REWRITE_BODY
+
+
+def test_chapter_body_record_outlives_the_pending_entry_and_resets_per_request():
+    from agent.tools.mcp_tools import _PendingEmptyFileState
+
+    state = _PendingEmptyFileState()
+    state.mark_chapter_body_saved("file-a")
+    state.discard("file-a")
+    state.discard()
+    assert state.chapter_body_saved("file-a") is True
+    assert state.chapter_body_saved("file-b") is False
+    state.clear_all()
+    assert state.chapter_body_saved("file-a") is False
+
+
 async def test_replacement_is_refused_when_the_author_saved_the_chapter_meanwhile(workspace):
     three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
     model = ScriptedModel(runs=[[

@@ -198,6 +198,7 @@ class _PendingEmptyFileState:
     __slots__ = (
         "_lock", "_entries", "_reservations", "_streamed", "_reply_seq", "_created_in", "_versions",
         "_prebody_reply", "_waiting_at_reply_start", "_replacements", "_closed", "_replacement_saved",
+        "_chapter_bodies_saved",
     )
 
     def __init__(self) -> None:
@@ -229,6 +230,9 @@ class _PendingEmptyFileState:
         # （StreamAdapter 提交 replace_body 成功后置 True）。条目在待写守卫清掉之后仍留着，
         # loop 引擎据此判断续跑说明能不能说「已保存」。
         self._replacement_saved: dict[str, bool] = {}
+        # 本请求里 write_chapter 已经把正文写完并落库的章节（新建或整章替换，StreamAdapter 确认保存后记下）。
+        # 待写条目清掉之后仍留着：同一请求里再对这一章 write_chapter 时拒绝整章重写（见 _write_chapter_replace）。
+        self._chapter_bodies_saved: set[str] = set()
 
     # ---- 只读视图 ----------------------------------------------------------
     def has_pending(self) -> bool:
@@ -344,6 +348,7 @@ class _PendingEmptyFileState:
             self._versions.clear()
             self._replacements.clear()
             self._replacement_saved.clear()
+            self._chapter_bodies_saved.clear()
             self._prebody_reply = None
             self._waiting_at_reply_start = False
 
@@ -382,6 +387,14 @@ class _PendingEmptyFileState:
     def unsaved_replacement_ids(self) -> set[str]:
         with self._lock:
             return {file_id for file_id, saved in self._replacement_saved.items() if not saved}
+
+    def mark_chapter_body_saved(self, file_id: str) -> None:
+        with self._lock:
+            self._chapter_bodies_saved.add(file_id)
+
+    def chapter_body_saved(self, file_id: str) -> bool:
+        with self._lock:
+            return file_id in self._chapter_bodies_saved
 
     def _set_version(self, file_id: str, version: str | None) -> None:
         if isinstance(version, str) and version:
@@ -1133,6 +1146,19 @@ class ToolContext:
             state.mark_replacement_saved(file_id)
 
     @classmethod
+    def mark_chapter_body_saved(cls, file_id: str) -> None:
+        """StreamAdapter 已把 write_chapter 这一章的完整正文落库（新建或整章替换，不含截断补全）。"""
+        state = cls._get_pending_empty_file_state()
+        if state is not None and file_id:
+            state.mark_chapter_body_saved(file_id)
+
+    @classmethod
+    def chapter_body_saved_this_request(cls, file_id: str) -> bool:
+        """这一章的正文是不是本请求里已经由 write_chapter 写完并保存的。"""
+        state = cls._get_pending_empty_file_state()
+        return state.chapter_body_saved(file_id) if state is not None else False
+
+    @classmethod
     def unsaved_chapter_replacement_ids(cls) -> set[str]:
         """本请求里 write_chapter 定过、最近一次定位之后新正文还没有落库的已有章节。"""
         state = cls._get_pending_empty_file_state()
@@ -1625,6 +1651,7 @@ WRITE_CHAPTER_ACTION_REPLACED = "replaced"
 WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE = "chapter_target_ambiguous"
 WRITE_CHAPTER_INVALID_ERROR_TYPE = "invalid_chapter"
 WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE = "chapter_replace_pending"
+WRITE_CHAPTER_WRITTEN_THIS_TURN_ERROR_TYPE = "chapter_written_this_turn"
 # file_type → 标题里的序号单位（有界的标识符检查，只比对标题开头的「第N章 / 第N集 / Chapter N / Episode N」）。
 _CHAPTER_UNIT_BY_TYPE = {"draft": "章", "script": "集"}
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
@@ -1933,6 +1960,17 @@ def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: 
             data["original_content_length"] = len(content)
         data["next_step"] = "不要再调用 write_chapter。" + data["next_step"]
         return _make_result({"status": "success", "mutation_applied": False, "data": data}, tool_name=tool_name)
+
+    if ToolContext.chapter_body_saved_this_request(file_id):
+        # 这一章的正文这一轮已经由 write_chapter 写完并保存：不再整章重写（自查发现的问题用 edit_file 局部改）。
+        # 看的是本请求里确认落库的结构化记录，不看模型的文字。
+        return _write_chapter_error(
+            f"第{number}{unit}《{row.title}》的正文这一轮已经用 write_chapter 写好并保存了，不再整章重写，没有写入。"
+            "要改其中几处用 edit_file 局部修改；没有要改的就继续作者这一轮要求的下一步或回复作者。",
+            error_type=WRITE_CHAPTER_WRITTEN_THIS_TURN_ERROR_TYPE,
+            id=file_id,
+            chapter=number,
+        )
 
     if content.strip():
         try:
