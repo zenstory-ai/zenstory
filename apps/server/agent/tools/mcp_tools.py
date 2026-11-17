@@ -198,7 +198,7 @@ class _PendingEmptyFileState:
     __slots__ = (
         "_lock", "_entries", "_reservations", "_streamed", "_reply_seq", "_created_in", "_versions",
         "_prebody_reply", "_waiting_at_reply_start", "_replacements", "_closed", "_replacement_saved",
-        "_chapter_bodies_saved", "_steering_at_arm",
+        "_chapter_bodies_saved", "_saved_body_types", "_steering_at_arm",
     )
 
     def __init__(self) -> None:
@@ -232,7 +232,10 @@ class _PendingEmptyFileState:
         self._replacement_saved: dict[str, bool] = {}
         # 本请求里 write_chapter 已经把正文写完并落库的章节（新建或整章替换，StreamAdapter 确认保存后记下）。
         # 待写条目清掉之后仍留着：同一请求里再对这一章 write_chapter 时拒绝整章重写（见 _write_chapter_replace）。
-        self._chapter_bodies_saved: set[str] = set()
+        # 本请求完整保存过正文的文件：id -> 标题（StreamAdapter._note_body_saved 记）。
+        self._chapter_bodies_saved: dict[str, str] = {}
+        # 同一批文件的类型（保存点知道时记下；空串表示不知道）：保存后自查只针对正文类文件。
+        self._saved_body_types: dict[str, str] = {}
         # 文件定为待写时本请求已收到几条作者插话（ToolContext.author_steering_count）：
         # 之后又有插话，正文那次调用的输入里可能带着它，tool_choice 不再限为 none（见 steering_since_armed）。
         self._steering_at_arm: dict[str, int] = {}
@@ -397,13 +400,30 @@ class _PendingEmptyFileState:
         with self._lock:
             return {file_id for file_id, saved in self._replacement_saved.items() if not saved}
 
-    def mark_chapter_body_saved(self, file_id: str) -> None:
+    def mark_chapter_body_saved(self, file_id: str, title: str = "", file_type: str = "") -> None:
         with self._lock:
-            self._chapter_bodies_saved.add(file_id)
+            self._chapter_bodies_saved[file_id] = title or self._chapter_bodies_saved.get(file_id, "")
+            if file_type:
+                self._saved_body_types[file_id] = file_type.strip().lower()
 
     def chapter_body_saved(self, file_id: str) -> bool:
         with self._lock:
             return file_id in self._chapter_bodies_saved
+
+    def saved_body_titles(self) -> dict[str, str]:
+        with self._lock:
+            return dict(self._chapter_bodies_saved)
+
+    def saved_content_body_ids(self) -> list[str]:
+        """已保存正文里的正文类文件（draft / script）；类型不明的也算，宁可多自查一次。"""
+        from agent.constants import CONTENT_FILE_TYPES
+
+        with self._lock:
+            return [
+                file_id
+                for file_id in self._chapter_bodies_saved
+                if self._saved_body_types.get(file_id, "") in {"", *CONTENT_FILE_TYPES}
+            ]
 
     def _set_version(self, file_id: str, version: str | None) -> None:
         if isinstance(version, str) and version:
@@ -1169,11 +1189,23 @@ class ToolContext:
             state.mark_replacement_saved(file_id)
 
     @classmethod
-    def mark_chapter_body_saved(cls, file_id: str) -> None:
-        """StreamAdapter 已把 write_chapter 这一章的完整正文落库（新建或整章替换，不含截断补全）。"""
+    def mark_chapter_body_saved(cls, file_id: str, title: str = "", file_type: str = "") -> None:
+        """StreamAdapter 已把这个文件的完整正文落库（新建或整章替换，不含截断补全）。"""
         state = cls._get_pending_empty_file_state()
         if state is not None and file_id:
-            state.mark_chapter_body_saved(file_id)
+            state.mark_chapter_body_saved(file_id, title, file_type)
+
+    @classmethod
+    def saved_bodies_this_request(cls) -> dict[str, str]:
+        """本请求确认落库的完整正文：id -> 标题（保存点记下的结构化事实，不看模型文字）。"""
+        state = cls._get_pending_empty_file_state()
+        return state.saved_body_titles() if state is not None else {}
+
+    @classmethod
+    def saved_content_body_ids(cls) -> list[str]:
+        """本请求确认落库的完整正文里的章节 / 分集正文（大纲、人物等资料文件不在内）。"""
+        state = cls._get_pending_empty_file_state()
+        return state.saved_content_body_ids() if state is not None else []
 
     @classmethod
     def chapter_body_saved_this_request(cls, file_id: str) -> bool:
@@ -2446,6 +2478,9 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         return _make_edit_error(str(e), **e.payload_fields())
     except FileWriteBusyError as e:
         return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_BUSY)
+    except AuthorContentProtectionError as e:
+        # 原稿没能先进历史：提交前已回滚，一处都没改。
+        return _make_edit_error(str(e), error_type=e.error_type, user_message=str(e))
     except NotFoundError as e:
         # 文件不在当前项目里与文件不存在对用户是同一回事（文案已统一为「文件不存在或已删除」）。
         return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_NOT_FOUND)

@@ -1054,6 +1054,14 @@ class StreamProcessor:
             trailing = self.temp_buffer
             if trailing:
                 self.content_buffer += trailing
+            # fence_open 只算到已移进 content_buffer 的部分；补上尾缓冲里的围栏。
+            fence_open_at_end = self.fence_open != (trailing.count(FENCE) % 2 == 1)
+            if not fence_open_at_end:
+                cut = _trailing_end_tag_fragment_length(self.content_buffer)
+                if cut:
+                    # 断在 </file> 中间：这几个字符是协议残片，不是正文。
+                    self.content_buffer = self.content_buffer[:-cut]
+                    trailing = trailing[: max(len(trailing) - cut, 0)]
 
             final_content = self.content_buffer
             file_id = self.file_id
@@ -1119,6 +1127,22 @@ class StreamProcessor:
             )
 
         return StreamResult()
+
+
+def _trailing_end_tag_fragment_length(text: str) -> int:
+    """正文末尾、未写完的 </file> 前缀的长度（例如 ``</fi``），没有为 0。
+
+    只看最后一个 ``<`` 起到末尾的这段：去掉空白、转小写后是 ``</file>`` 的严格前缀才算。
+    ``<file>`` 的前缀（如 ``<f``）、比较式、其他标签都不算。
+    """
+    start = text.rfind("<")
+    if start < 0 or len(text) - start > MAX_MARKER_LEN:
+        return 0
+    compact = re.sub(r"\s+", "", text[start:]).lower()
+    end_tag = _LONE_FILE_TAG_PREFIXES[1]
+    if compact == end_tag or not end_tag.startswith(compact):
+        return 0
+    return len(text) - start
 
 
 def extract_reply_prebody(text: str) -> str | None:

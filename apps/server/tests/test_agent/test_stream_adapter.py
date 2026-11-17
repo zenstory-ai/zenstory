@@ -886,7 +886,8 @@ class TestProcessWorkflowEvents:
         assert EventType.FILE_CONTENT_END in event_types
         assert EventType.CONTENT_END in event_types
         assert EventType.DONE in event_types
-        adapter._save_file_content.assert_awaited_once_with("file-1", "Hello world")
+        adapter._save_file_content.assert_awaited_once()
+        assert adapter._save_file_content.await_args.args == ("file-1", "Hello world")
 
     @pytest.mark.asyncio
     async def test_stream_save_failure_emits_error_without_done(self, adapter):
@@ -985,7 +986,8 @@ class TestHandleTextContent:
         assert events[1].type == EventType.FILE_CONTENT_END
         assert events[2].type == EventType.CONTENT
         assert events[2].data["text"] == "after"
-        adapter._save_file_content.assert_awaited_once_with("file-1", "Hello")
+        adapter._save_file_content.assert_awaited_once()
+        assert adapter._save_file_content.await_args.args == ("file-1", "Hello")
 
 
 class TestHandleCreateFileResult:
@@ -1968,7 +1970,8 @@ async def test_genuine_rejection_keeps_failure_card_and_still_captures_body():
         [card] = [sse for sse in rounds[0] if sse.type == EventType.TOOL_RESULT]
         assert card.data["tool_name"] == "create_file"
         assert card.data["status"] == "error"
-        adapter._save_file_content.assert_awaited_once_with("ep-A", "第1集正文")
+        adapter._save_file_content.assert_awaited_once()
+        assert adapter._save_file_content.await_args.args == ("ep-A", "第1集正文")
         assert "<file>" not in _chat_text(rounds)
         assert ToolContext.get_pending_empty_files() == []
     finally:
@@ -2013,9 +2016,8 @@ async def test_prod_empty_file_pair_after_close_is_not_emitted_as_chat():
     ])
     emitted = [e for batch in rounds for e in batch]
 
-    adapter._save_file_content.assert_awaited_once_with(
-        "draft-1", "　　我叫温知夏。\n松开我的手。\n\n　　只是上一世，雨太大，我没看清。\n"
-    )
+    adapter._save_file_content.assert_awaited_once()
+    assert adapter._save_file_content.await_args.args == ("draft-1", "　　我叫温知夏。\n松开我的手。\n\n　　只是上一世，雨太大，我没看清。\n")
     assert _chat_text(rounds) == "\n\n"
     # 空标签对在 tool_call 之前就已被识别丢弃，tool_call 照常发出
     assert [e.type for e in emitted if e.type == EventType.TOOL_CALL] == [EventType.TOOL_CALL]

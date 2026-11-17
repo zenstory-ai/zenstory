@@ -693,3 +693,33 @@ async def test_chat_delete_refuses_the_authors_reviewed_reject_save(db_session, 
     assert payload["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
     db_session.expire_all()
     assert db_session.get(File, chapter.id).is_deleted is False
+
+
+async def test_edit_reports_unbacked_original_as_unapplied_typed_error(db_session, owner_project, monkeypatch):
+    """原稿没能进历史时 edit_file 拒绝：结果明确一处没改，模型可以同轮重试。"""
+    from sqlalchemy import text
+
+    user, project = owner_project
+    chapter = _ai_chapter(db_session, project)
+    chapter.content = AI_CH3 + "作者新加、没进历史的一段。\n"
+    db_session.add(chapter)
+    db_session.commit()
+
+    def fail_backup(_self, session, *_args, **_kwargs):
+        session.exec(text("SELECT * FROM table_that_does_not_exist_for_backup_test"))
+
+    monkeypatch.setattr(FileVersionService, "backup_unversioned_content", fail_backup)
+
+    payload = await _run(
+        mcp_tools.edit_file,
+        db_session,
+        user,
+        project,
+        {"id": chapter.id, "edits": [{"op": "append", "text": "AI 续写。\n"}]},
+        message="接着写",
+    )
+
+    assert payload["status"] == "error"
+    assert payload["error_type"] == "pre_write_history_unavailable"
+    assert payload["mutation_applied"] is False
+    assert payload["edits_applied"] == 0

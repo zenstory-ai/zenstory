@@ -85,6 +85,13 @@ export const readFileEditUndoTarget = (
   };
 };
 
+/**
+ * Undo is offered only once the card belongs to a saved message: without the message and tool call
+ * ids the server cannot record the undo on the card, so it would come back as not undone after a reload.
+ */
+export const isPersistedUndoTarget = (target: FileEditUndoTarget | null): target is FileEditUndoTarget =>
+  Boolean(target?.chatMessageId && target.toolUseId);
+
 /** What a write_chapter result did to its chapter, from the server's `action` and saved-body fields. */
 export type WriteChapterOutcome = 'created' | 'exists' | 'replacing' | 'replaced' | 'unchanged' | 'not_saved';
 

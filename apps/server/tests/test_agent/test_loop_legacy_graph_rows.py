@@ -413,3 +413,75 @@ def test_pending_top_level_call_is_recorded_as_outcome_unknown():
     assert "已删除文件" not in breadcrumb
     assert "结果未知" in breadcrumb
 
+
+
+# ------------------------------------------------ 最新一条旧图行的未执行返修要求
+
+
+def _rework_session(db_session: Session) -> tuple[str, str, str]:
+    suffix = uuid4().hex[:8]
+    user = User(email=f"rework-{suffix}@example.com", username=f"rework_{suffix}", hashed_password="h",
+                email_verified=True, is_active=True)
+    db_session.add(user)
+    db_session.commit()
+    project = Project(name=f"Rework {suffix}", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="rework", is_active=True)
+    db_session.add(chat)
+    db_session.commit()
+    return project.id, user.id, chat.id
+
+
+def _add_row(db_session: Session, chat_id: str, role: str, content: str, minutes: int, **fields) -> None:
+    db_session.add(ChatMessage(
+        id=f"{chat_id}-{minutes:02d}", session_id=chat_id, role=role, content=content,
+        created_at=datetime(2026, 11, 1, 8) + timedelta(minutes=minutes), **fields,
+    ))
+
+
+def _add_reviewer_handoff(db_session: Session, chat_id: str, minutes: int) -> None:
+    _add_row(
+        db_session, chat_id, "assistant", "", minutes,
+        tool_calls=json.dumps([{
+            "name": "handoff_to_agent", "arguments": {}, "status": "success",
+            "result": {"status": "handoff", "target_agent": "writer", "reason": "需返修",
+                       "context": "把主角名字改回林舟", "todo": ["修正第1章的名字"]},
+        }], ensure_ascii=False),
+        message_metadata=json.dumps({"stop_reason": "run_deadline_exceeded", "display_events": [
+            {"type": "agent_selected", "data": {"agent_type": "quality_reviewer"}},
+            {"type": "tool_call", "tool_call_index": 0},
+        ]}),
+    )
+
+
+@pytest.mark.integration
+def test_latest_graph_reviewer_handoff_replays_its_unapplied_rework(db_session: Session):
+    from agent.core.session_loader import PENDING_REWORK_HEADER
+
+    project_id, user_id, chat_id = _rework_session(db_session)
+    _add_row(db_session, chat_id, "user", "写第一章", 0)
+    _add_reviewer_handoff(db_session, chat_id, 1)
+    db_session.commit()
+
+    history = load_loop_history(db_session, project_id=project_id, user_id=user_id, chat_session_id=chat_id)
+
+    text = json.dumps(history.items, ensure_ascii=False)
+    assert PENDING_REWORK_HEADER in text
+    assert "把主角名字改回林舟" in text
+
+
+@pytest.mark.integration
+def test_older_graph_reviewer_handoff_does_not_replay_rework(db_session: Session):
+    from agent.core.session_loader import PENDING_REWORK_HEADER
+
+    project_id, user_id, chat_id = _rework_session(db_session)
+    _add_row(db_session, chat_id, "user", "写第一章", 0)
+    _add_reviewer_handoff(db_session, chat_id, 1)
+    _add_row(db_session, chat_id, "user", "继续", 2)
+    _add_row(db_session, chat_id, "assistant", "改好了。", 3)
+    db_session.commit()
+
+    history = load_loop_history(db_session, project_id=project_id, user_id=user_id, chat_session_id=chat_id)
+
+    assert PENDING_REWORK_HEADER not in json.dumps(history.items, ensure_ascii=False)

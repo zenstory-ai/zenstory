@@ -81,6 +81,30 @@ _BODY_SAVED_CONTEXT_EN = (
     "write_chapter); when everything is done, reply to the author in one to "
     "three sentences, reporting only the real word counts below. Keep the author's language."
 )
+# 正文之后已经给作者写过总结时的续跑说明（这次运行没有停在 </file> 上）：照样自查，但不重复那段总结。
+_BODY_SAVED_REPLIED_CONTEXT = (
+    "[系统提醒] 上一次回复写完的正文已保存：{titles}，你也已经回复过作者。这是系统的续跑说明，不是作者的新消息。"
+    "现在先按「工作方式」自查本轮新写的正文：对照大纲里这一章和前后章的条目、前一章结尾和角色卡，核对人名、称谓、身份与设定、"
+    "时间线、数值和物品状态是否连续，大纲要求这一章发生的关键情节有没有写到，有没有提前写出后面章节才有的情节或揭示，"
+    "有没有违背作者说过的要求。发现矛盾就用 edit_file 改正那几处（不要用 write_chapter 把这一章整章重写），修改多时拆成几个小批次。"
+    "作者这一轮要求的章节还没写完就接着写下一章（按「工作方式」需要先给它补大纲条目时先补，再调用 write_chapter）。"
+    "不要重复刚才给作者的总结：改了正文或又写了新章节时，最后用一两句话只说改了哪里、新写了哪一章，字数只报下面的真实字数；"
+    "什么都没改、也没有要接着写的，只回复一句「自查过了，没有需要改的地方。」"
+)
+_BODY_SAVED_REPLIED_CONTEXT_EN = (
+    "[System note] The body written in the previous response is saved: {titles}, and you have already replied to the "
+    "author. This is a system continuation, not a new author message. Self-check the newly written chapter text against "
+    "the outline entries for this and the adjacent chapters, the end of the previous chapter and the character files: "
+    "names, forms of address, identities and settings, timeline, numbers and object states; whether the key events the "
+    "outline sets for this chapter happen; whether anything the outline places in later chapters was revealed early; and "
+    "whether any of the author's requirements were broken. Fix contradictions with edit_file at those spots (do not "
+    "rewrite the whole chapter with write_chapter), in a few small batches when there are many. If chapters the author "
+    "asked for this turn are still unwritten, continue with the next one (if the working rules call for its outline "
+    "entry first, add it, then call write_chapter). Do not repeat your earlier summary: if you changed text or wrote "
+    "another chapter, end with one or two sentences saying only what changed or which chapter is new, reporting only the "
+    "real word counts below; if nothing changed and nothing is left to write, reply with one sentence saying the "
+    "self-check found nothing to fix. Keep the author's language."
+)
 # 自查过的文件又写了一遍之后的续跑说明：不再自查，接着做剩下的事或回复作者。
 _BODY_RESAVED_CONTEXT = (
     "[系统提醒] 上一次回复写完的正文已保存：{titles}。这是系统的续跑说明，不是作者的新消息。"
@@ -443,15 +467,24 @@ async def run_loop_agent_streaming(
             ended_on_file = ends_on_file_block(tail_text) or (
                 (bool(create_ids - failed_ids) or run_resumed) and ends_on_unclosed_file_block(tail_text)
             )
-            if (
-                (bool(create_ids - failed_ids) or run_resumed)
-                and not ToolContext.has_pending_empty_file()
-                and ended_on_file
+            # 本请求确认落库的完整章节 / 分集正文（StreamAdapter 保存点记下的结构化事实）里还没自查过的：
+            # 不管 </file> 之后模型有没有再写一句总结，都按保存事实续跑一次自查。大纲、人物等资料文件不在内，
+            # 它们照旧只在停在 </file> 上时续跑。
+            saved_bodies = ToolContext.saved_bodies_this_request()
+            new_saved = set(ToolContext.saved_content_body_ids()) - self_checked_ids
+            if not ToolContext.has_pending_empty_file() and (
+                new_saved or ((bool(create_ids - failed_ids) or run_resumed) and ended_on_file)
             ):
                 # 定位过整章替换、新正文却没落库的章节（ToolContext 的结构化保存事实）：不算已保存，不列它的原稿字数。
                 unsaved_ids = ToolContext.unsaved_chapter_replacement_ids()
-                saved = {fid: t for fid, t in read_guard.files_written.items() if fid not in unsaved_ids}
-                unsaved_written = [(fid, t) for fid, t in read_guard.files_written.items() if fid in unsaved_ids]
+                # 写入事实：工具确认的改动 + 还没保存的整章替换目标（定位结果） + 落库确认的正文。
+                written = {
+                    **read_guard.files_written,
+                    **{fid: t for fid, t in read_guard.files_targeted.items() if fid in unsaved_ids},
+                    **{fid: read_guard.files_written.get(fid) or t for fid, t in saved_bodies.items()},
+                }
+                saved = {fid: t for fid, t in written.items() if fid not in unsaved_ids}
+                unsaved_written = [(fid, t) for fid, t in written.items() if fid in unsaved_ids]
                 newly_unsaved = [(fid, t) for fid, t in unsaved_written if fid not in reported_unsaved_ids]
                 if not newly_unsaved and not saved:
                     # 没有任何保存过的正文：不能退回「已保存」的说明，照旧如实说替换没保存。
@@ -466,7 +499,10 @@ async def run_loop_agent_streaming(
                 else:
                     titles = "、".join(f"《{t}》" for t in saved.values() if t) or "（见下）"
                     written_ids = set(saved)
-                    if written_ids - self_checked_ids or not written_ids:
+                    if (written_ids - self_checked_ids or not written_ids) and new_saved and not ended_on_file:
+                        # 正文之后作者已经看到一段回复（这次运行没停在 </file> 上）：自查，但不再重复总结。
+                        template = _BODY_SAVED_REPLIED_CONTEXT_EN if english else _BODY_SAVED_REPLIED_CONTEXT
+                    elif written_ids - self_checked_ids or not written_ids:
                         template = _BODY_SAVED_CONTEXT_EN if english else _BODY_SAVED_CONTEXT
                     else:
                         template = _BODY_RESAVED_CONTEXT_EN if english else _BODY_RESAVED_CONTEXT
@@ -499,6 +535,7 @@ async def run_loop_agent_streaming(
                 "Loop agent continues within the turn",
                 run=runs,
                 ended_on_file=bool(ended_on_file),
+                new_saved=len(new_saved),
                 steering=bool(mid_run_steering or boundary_steering),
             )
             state["user_message"] = followup

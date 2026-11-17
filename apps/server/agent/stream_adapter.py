@@ -192,6 +192,10 @@ class StreamAdapter:
         # 停止 / 断线时还在提交的整章替换（线程里的提交不会随取消中止）：收尾时等它的真实结果。
         self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]]] | None = None
         self._saved_file_word_counts: dict[str, int | None] = {}
+        # 解析器已经收到 </file>、正文完整但还没开始保存的结果（解析器此时已 reset，完整正文只在这里）：
+        # 发出它的帧之前登记，_complete_file_write 接手时清掉；停止 / 断线落在中间的 yield 上时
+        # settle_aborted_capture 按它补存。
+        self._completed_unsaved: tuple[StreamResult, PendingFileWrite | None] | None = None
         # 图发来 CHAT_HOLD begin 之后的对话文字（StreamProcessor 判定为对话的部分，
         # 正文不扣）：等图决定丢掉（discard）还是在下一个边界事件前放出。
         self._chat_hold_active = False
@@ -991,7 +995,9 @@ class StreamAdapter:
     async def _complete_chapter_replace(self, result: StreamResult, pending: PendingFileWrite) -> AsyncIterator[SSEEvent]:
         """整章替换的正文写完：用 replace_body 提交，发 diff 审阅事件，并把结果补发到同一张卡上。"""
         file_id = pending.file_id
-        outcome, replaced = await self._save_chapter_replacement(file_id, result.final_content, pending)
+        outcome, replaced = await self._save_chapter_replacement(
+            file_id, result.final_content, pending, complete=not result.auto_completed
+        )
         card = dict(pending.replace_card)
         self._pending_file_write = None
         self._clear_pending_empty_file_guard(file_id)
@@ -1067,10 +1073,6 @@ class StreamAdapter:
         )
         if isinstance(replaced.get("undo"), dict):
             card["undo"] = replaced["undo"]
-        if not result.auto_completed:
-            from agent.tools.mcp_tools import ToolContext
-
-            ToolContext.mark_chapter_body_saved(file_id)
         if pending.replace_tool_use_id:
             # 同一个 tool_use_id 再发一次结果：落库的卡片与前端的卡片都更新成真实的替换结果（含撤销锚点）。
             yield tool_result_event(
@@ -1078,7 +1080,7 @@ class StreamAdapter:
             )
 
     async def _save_chapter_replacement(
-        self, file_id: str, content: str, pending: PendingFileWrite
+        self, file_id: str, content: str, pending: PendingFileWrite, *, complete: bool = False
     ) -> tuple[str, dict[str, Any] | None]:
         """("saved", 结果) / ("refused", None)：版本变了或作者正文受保护 / ("failed", None)：其他失败。"""
         from agent.tools.author_edit_guard import AuthorContentProtectionError
@@ -1119,7 +1121,12 @@ class StreamAdapter:
             self._file_mutated = True
             if run_meter is not None and content.strip():
                 run_meter.mark_first_body_persisted()
-        self._saved_file_word_counts[file_id] = count_words(str(replaced.get("new_content") or content))
+        self._note_body_saved(
+            file_id,
+            count_words(str(replaced.get("new_content") or content)),
+            title=str(replaced.get("title") or pending.title) if complete else None,
+            file_type=pending.file_type,
+        )
         from agent.tools.mcp_tools import ToolContext
 
         ToolContext.mark_chapter_replacement_saved(file_id)
@@ -1271,20 +1278,53 @@ class StreamAdapter:
             file_id=file_id,
             content_length=len(content),
         )
-        pending = self._pending_file_write
-        file_type = pending.file_type if pending is not None and pending.file_id == file_id else ""
+        return self._start_abort_save(file_id, content, self._pending_file_write)
+
+    def _start_abort_save(self, file_id: str, content: str, pending: PendingFileWrite | None) -> asyncio.Task:
+        """取消收尾的补存任务：登记为 _abort_capture，settle_aborted_capture 等它的结果。"""
+        file_type, baseline_updated_at = self._save_target(file_id, pending)
         task = asyncio.create_task(
             self._save_file_content(
                 file_id,
                 content,
                 record_mutation=False,
                 file_type=file_type,
+                baseline_updated_at=baseline_updated_at,
             )
         )
         self._abort_capture = (file_id, count_words(content), task)
         _ABORT_SAVE_TASKS.add(task)
         task.add_done_callback(_ABORT_SAVE_TASKS.discard)
         return task
+
+    async def _settle_completed_unsaved(self) -> None:
+        """</file> 已解析、还没开始保存就被截停的正文：按正常完成的规则补存。"""
+        snapshot = self._completed_unsaved
+        if snapshot is None:
+            return
+        self._completed_unsaved = None
+        result, pending = snapshot
+        file_id = result.file_id
+        content = result.final_content
+        if not content.strip() or file_id == PREBODY_FILE_ID:
+            return
+        target = pending if pending is not None and pending.file_id == file_id else None
+        if result.auto_completed and target is not None and target.original_content_length > 0:
+            # 与 _complete_file_write 相同的截断覆盖保护：已有正文不被截断补全的残稿整体覆盖。
+            log_with_context(
+                logger, 30, "Skipping abort-time save that would overwrite an existing file body",
+                file_id=file_id, streamed_length=len(content),
+            )
+            return
+        if target is not None and target.replace_card:
+            # 整章替换的新稿还没开始提交就被截停：不覆盖作者的原文（截停后没有 diff 审阅和撤销卡），
+            # 与还在捕获中的替换一样作废；已经开始提交的那次由 _settle_replacement_in_flight 等结果。
+            log_with_context(
+                logger, 30, "Dropping a whole-chapter replacement stopped before its commit", file_id=file_id
+            )
+            return
+        log_with_context(logger, 20, "Persisting a completed body cut off before its save", file_id=file_id)
+        self._start_abort_save(file_id, content, target)
 
     async def settle_aborted_capture(self) -> dict[str, int | None]:
         """等待本轮残稿补存，返回包含未发出尾部缓冲的实际保存字数。
@@ -1293,6 +1333,7 @@ class StreamAdapter:
         保存任务仍沿用原有超时与独立 session，不把历史落库当成正文已落库。
         """
         await self._settle_replacement_in_flight()
+        await self._settle_completed_unsaved()
         if self._stream_processor.is_active:
             self._persist_active_capture_in_background()
         capture = self._abort_capture
@@ -1301,7 +1342,7 @@ class StreamAdapter:
         file_id, words, task = capture
         saved = await asyncio.shield(task)
         if saved:
-            self._saved_file_word_counts[file_id] = words
+            self._note_body_saved(file_id, words)
         else:
             self._saved_file_word_counts.setdefault(file_id, None)
         return self.get_saved_file_word_counts()
@@ -1326,7 +1367,7 @@ class StreamAdapter:
             self._saved_file_word_counts.setdefault(file_id, None)
             return
         self._file_mutated = True
-        self._saved_file_word_counts[file_id] = count_words(str(replaced.get("new_content") or content))
+        self._note_body_saved(file_id, count_words(str(replaced.get("new_content") or content)))
         log_with_context(logger, 20, "Chapter replacement committed after abort", file_id=file_id)
 
     def get_saved_file_word_counts(self) -> dict[str, int | None]:
@@ -1422,6 +1463,8 @@ class StreamAdapter:
             for sse_event in self._hold_prebody_result(result):
                 yield sse_event
             return
+        if result.file_complete and result.file_id:
+            self._completed_unsaved = (result, self._pending_file_write)
         # Emit conversation content
         for sse_event in self._conversation_events(result.conversation_content):
             yield sse_event
@@ -1535,6 +1578,7 @@ class StreamAdapter:
 
     async def _complete_file_write(self, result: StreamResult) -> AsyncIterator[SSEEvent]:
         """Persist finalized file content and emit file completion event."""
+        self._completed_unsaved = None
         # 覆盖保护：这次完成来自"没等到 </file> 的自动补全"，而目标文件本来
         # 就有正文（create_file 幂等复用命中的已完成分集）。补全出来的正文很
         # 可能只写了个开头，_save_file_content 又是整体替换，写下去等于用残稿
@@ -1590,7 +1634,7 @@ class StreamAdapter:
             return
 
         # Save accumulated file content to database before emitting end event
-        saved = await self._save_file_content(result.file_id, result.final_content)
+        saved = await self._save_new_body(result, pending)
         if not saved:
             self._fatal_stream_error = True
             # Clear pending state to avoid blocking future create_file calls.
@@ -1605,22 +1649,57 @@ class StreamAdapter:
 
         yield file_content_end_event(result.file_id)
 
-        if (
-            not result.auto_completed
-            and pending is not None
-            and pending.file_id == result.file_id
-            and pending.file_type in (FILE_TYPE_DRAFT, FILE_TYPE_SCRIPT)
-        ):
-            # 单循环里正文（draft / script）只经 write_chapter 新建：记下这一章本请求已写完并保存。
-            from agent.tools.mcp_tools import ToolContext
-
-            ToolContext.mark_chapter_body_saved(result.file_id)
-
         # Clear pending file write
         self._pending_file_write = None
 
         # Also clear ToolContext pending state, allowing next create_file.
         self._clear_pending_empty_file_guard(result.file_id)
+
+    async def _save_new_body(self, result: StreamResult, pending: PendingFileWrite | None) -> bool:
+        """正常路径的新正文保存：在独立任务里跑并 shield，取消落在保存中途时交给 settle_aborted_capture 等结果。"""
+        file_id = result.file_id
+        content = result.final_content
+        file_type, baseline_updated_at = self._save_target(file_id, pending)
+        save = asyncio.ensure_future(
+            self._save_file_content(
+                file_id,
+                content,
+                file_type=file_type,
+                baseline_updated_at=baseline_updated_at,
+                complete_title=None if result.auto_completed else self._save_title(file_id, pending),
+            )
+        )
+        try:
+            return await asyncio.shield(save)
+        except asyncio.CancelledError:
+            self._abort_capture = (file_id, count_words(content), save)
+            _ABORT_SAVE_TASKS.add(save)
+            save.add_done_callback(_ABORT_SAVE_TASKS.discard)
+            raise
+
+    @staticmethod
+    def _save_target(file_id: str, pending: PendingFileWrite | None) -> tuple[str, str | None]:
+        """(file_type, baseline_updated_at)：保存任务创建之前定下，晚开始的任务也带着版本核对。"""
+        if pending is None or pending.file_id != file_id:
+            return "", None
+        return pending.file_type, pending.baseline_updated_at
+
+    @staticmethod
+    def _save_title(file_id: str, pending: PendingFileWrite | None) -> str:
+        """完整正文记进已保存正文时用的标题：只取同一个文件的待写记录（与 _save_target 同一口径）。"""
+        return pending.title if pending is not None and pending.file_id == file_id else ""
+
+    def _note_body_saved(
+        self, file_id: str, words: int, *, title: str | None = None, file_type: str = ""
+    ) -> None:
+        """正文落库的唯一记账点：写保存回执（计费、交付、历史都读它）；title 不为 None 表示
+        这是一份完整（非截断补全）的正文，同时记进本请求的已保存正文（续跑、任务板、write_chapter 守卫读它）。
+        file_type 是保存目标的类型（知道时传），续跑只对正文类文件要求自查。"""
+        self._saved_file_word_counts[file_id] = words
+        if title is not None:
+            from agent.tools.mcp_tools import ToolContext
+
+            ToolContext.mark_chapter_body_saved(file_id, title, file_type)
 
     def _should_refuse_truncated_overwrite(self, result: StreamResult) -> bool:
         """判断这次"截断自动补全"是否会覆盖掉目标文件原有的正文。
@@ -1659,7 +1738,9 @@ class StreamAdapter:
         content: str,
         *,
         record_mutation: bool = True,
-        file_type: str | None = None,
+        file_type: str = "",
+        baseline_updated_at: str | None = None,
+        complete_title: str | None = None,
     ) -> bool:
         """
         Save accumulated file content to database.
@@ -1667,8 +1748,9 @@ class StreamAdapter:
         Args:
             file_id: ID of the file to update
             content: Content to save
-            file_type: Target type snapshot for a background abort save. Normal
-                in-flow saves derive it from the current pending write.
+            file_type / baseline_updated_at: 保存目标的类型与版本令牌，调用方在创建保存任务之前
+                从待写记录定下（见 _save_target），任务晚开始也不会丢掉版本核对。
+            complete_title: 完整正文（非截断补全）时传标题，见 _note_body_saved。
         """
         log_with_context(
             logger,
@@ -1679,18 +1761,8 @@ class StreamAdapter:
             user_id=self.config.user_id,
         )
 
-        pending = self._pending_file_write
-        resolved_file_type = file_type or (
-            pending.file_type
-            if pending is not None and pending.file_id == file_id
-            else ""
-        )
+        resolved_file_type = file_type
         try:
-            baseline_updated_at = (
-                pending.baseline_updated_at
-                if pending is not None and pending.file_id == file_id
-                else None
-            )
             save_args: tuple[Any, ...] = (file_id, content)
             if baseline_updated_at is not None:
                 save_args = (*save_args, baseline_updated_at)
@@ -1715,7 +1787,9 @@ class StreamAdapter:
             ):
                 run_meter.mark_first_body_persisted()
             if saved:
-                self._saved_file_word_counts[file_id] = count_words(content)
+                self._note_body_saved(
+                    file_id, count_words(content), title=complete_title, file_type=resolved_file_type
+                )
             else:
                 self._saved_file_word_counts.setdefault(file_id, None)
             return saved

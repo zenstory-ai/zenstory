@@ -28,7 +28,8 @@
 
 - 写入留下了正文（``write_succeeded``）：流式文件正文非空（``write_chapter`` 整章替换的
   目标除外：它的流式正文在 ``</file>`` 之前没有落库，中途停止 / 断线 / 到时都不覆盖原文，
-  只认落库后补发的 ``body_saved`` 且 ``mutation_applied`` 结果）；``create_file`` 带着非空
+  只认落库后补发的 ``body_saved`` 且 ``mutation_applied`` 结果）；截停时才补存的正文
+  （整章替换或本轮新建的文件）按 StreamAdapter 的保存回执补记（``note_saved_receipts``）；``create_file`` 带着非空
   正文新建（复用已有文件不算）；``edit_file`` 真的改动了文字（``mutation_applied``）；
   ``delete_file`` 成功；``parallel_execute`` 里有写入类子任务完成（整批的 tool_result，
   或批次中途被打断前已完成子任务的 ``parallel_task_end``）；``update_project`` 改了
@@ -221,7 +222,7 @@ class StreamBillingTracker:
         payload = data if isinstance(data, dict) else {}
         if _is_terminal_event(event_type, payload):
             self.saw_terminal_event = True
-            if (self._segment_reached or self._segment_text.strip()) and not self._file_body_pending():
+            if (self._segment_reached or self._segment_text.strip()) and not self.file_body_pending():
                 self.ended_on_reply = True
 
         if event_type == "session_started" and isinstance(payload.get("session_id"), str):
@@ -311,7 +312,7 @@ class StreamBillingTracker:
             if isinstance(version, str) and version:
                 self.created_empty_versions[file_id] = version
 
-    def _file_body_pending(self) -> bool:
+    def file_body_pending(self) -> bool:
         """本轮开始写的文件还在等正文：新建的空文件没收到正文，或整章替换还没落库。
 
         这时最后那段文字是 ``<file>`` 之前的引子：适配器把它扣在捕获缓冲里，出错 / 收尾时
@@ -324,9 +325,16 @@ class StreamBillingTracker:
         return self.replace_target_ids - self.confirmed_replacement_ids
 
     def note_saved_receipts(self, receipts: Mapping[str, int | None]) -> None:
-        """按 StreamAdapter 的保存回执补记整章替换：落库结果帧没来得及发出（停止 / 断线时保存
-        仍在途中、之后才提交）时，回执里有字数就说明新正文已经写进了这一章，算写入。"""
-        if any(isinstance(receipts.get(file_id), int) for file_id in self.unconfirmed_replacement_ids()):
+        """按 StreamAdapter 的保存回执补记写入：落库结果没来得及作为帧发出（停止 / 断线时保存仍在
+        途中、之后才提交，或短正文只在解析器尾缓冲里、截停时才补存）时，回执里有字数就说明正文
+        已经写进了文件，算写入。覆盖整章替换的目标和本轮新建的空文件；None（没保存成）不算。"""
+        committed_created = {
+            file_id for file_id in self.created_empty_files if isinstance(receipts.get(file_id), int)
+        }
+        self.filled_file_ids |= committed_created
+        if committed_created or any(
+            isinstance(receipts.get(file_id), int) for file_id in self.unconfirmed_replacement_ids()
+        ):
             self.write_succeeded = True
             self.file_written = True
             if not self.produced_output:

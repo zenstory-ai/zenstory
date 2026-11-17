@@ -220,13 +220,16 @@ def test_blank_baseline_survives_a_failed_ai_version_and_still_anchors_undo(db_s
     assert _version_rows(db_session, blank_file.id) == [(1, "edit", "system")]
 
 
-def test_unanchored_edits_commit_without_an_undo_descriptor(db_session, undo_file, monkeypatch):
+def test_unanchored_edit_of_a_non_blank_original_is_refused(db_session, undo_file, monkeypatch):
+    from agent.tools.author_edit_guard import PreWriteHistoryUnavailableError
+
     user, _, file, *_ = undo_file
     original = FileVersionService._get_contents_for_versions
     calls = []
 
     def fail_history_reads(self, session, targets):
-        # 前两次读取是「AI 写入前备份」的比对和撤销锚点的比对；都读不出历史头时不给撤销。
+        # 前两次读取是「AI 写入前备份」的比对和撤销锚点的比对；都读不出历史头时，
+        # 无法确认原稿在历史里：不提交这次修改。
         calls.append(targets)
         if len(calls) <= 2:
             raise ValueError("Corrupt prior replay")
@@ -234,11 +237,12 @@ def test_unanchored_edits_commit_without_an_undo_descriptor(db_session, undo_fil
 
     monkeypatch.setattr(FileVersionService, "_get_contents_for_versions", fail_history_reads)
     original_content = file.content
-    result = _edit(db_session, user, file)
-    assert result.get("undo") is None
+    with pytest.raises(PreWriteHistoryUnavailableError):
+        _edit(db_session, user, file)
     db_session.refresh(file)
-    assert file.content == original_content + "AI\n"
-    assert normalize_datetime_to_utc(file.updated_at) > STAMP
+    assert file.content == original_content
+    assert normalize_datetime_to_utc(file.updated_at) == STAMP
+    assert _count_versions(db_session, file.id) == 1
 
 
 @pytest.mark.parametrize("edits", [[{"op": "append", "text": ""}], [{"op": "delete", "old": "absent", "match_mode": "exact"}]])

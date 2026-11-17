@@ -53,6 +53,7 @@ _REPLACE_NOT_SAVED_NOTE = (
     "下一次回复再用 <file>…</file> 写入，不先把整章发到聊天，"
     "也不用未保存的新稿作 edit_file 锚点。若本轮改为只读或其他任务，不要自动恢复旧写入。"
 )
+_CREATE_NOT_SAVED_NOTE = "这次新建的正文没有确认保存；需要时先用 query_files 查这个 id 的现状。"
 # 落库的工具结果是前端卡片口径，不是模型当时拿到的原文：技能正文不落库，失败只留给作者看的说明。
 # 回放时如实说明，模型不会以为自己手里还有这些内容。
 _SKILL_CONTENT_NOT_KEPT = {
@@ -177,6 +178,7 @@ def _tool_output_text(call: dict[str, Any]) -> str:
         replaced = name == "write_chapter" and result.get("action") == "replaced"
         streamed = result.get("awaiting_body") is True or result.get("body_in_reply") is True
         saved = result.get("body_saved") is True
+        has_receipt = "body_saved" in result
         result = {key: value for key, value in result.items() if key not in _CREATE_FILE_TRANSIENT_KEYS}
         # 历史回执只说明过去的保存事实；捕获目标与版本绑定只在原请求里有效。
         result["write_target_active"] = False
@@ -186,7 +188,11 @@ def _tool_output_text(call: dict[str, Any]) -> str:
             if not saved:
                 result["result"] = _REPLACE_NOT_SAVED_NOTE
         elif streamed:
-            result["body_saved"] = True
+            # 新建的正文回执由 service 落库时按保存回执写进卡片（_stamp_body_receipts）；
+            # 修复前写下的行没有这个键，沿用原来的推断。
+            result["body_saved"] = saved if has_receipt else True
+            if has_receipt and not saved:
+                result["result"] = _CREATE_NOT_SAVED_NOTE
     payload: dict[str, Any] = {"status": status or "success"}
     if result is not None:
         payload["data"] = result
@@ -253,29 +259,50 @@ def _loop_row_items(row: Any, metadata: dict[str, Any]) -> list[dict[str, Any]]:
     return items
 
 
-def _legacy_row_items(loader: Any, row: Any) -> list[dict[str, Any]]:
-    """多 agent 图写下的行：沿用原有的文字折叠（正文 + 状态卡摘要 + 工具面包屑）。"""
+def _legacy_row_items(loader: Any, row: Any, *, latest_assistant: bool = False) -> list[dict[str, Any]]:
+    """多 agent 图写下的行：沿用原有的文字折叠（正文 + 状态卡摘要 + 工具面包屑）。
+
+    latest_assistant：这是会话里最新的 assistant 行，旧加载器据此附上未执行的审稿返修要求。
+    """
     from agent.openai_agents.runner import normalize_messages_for_openai_agents
 
-    return normalize_messages_for_openai_agents([loader._format_chat_message_for_history(row)])
+    return normalize_messages_for_openai_agents(
+        [loader._format_chat_message_for_history(row, latest_assistant=latest_assistant)]
+    )
 
 
-def _row_items(loader: Any, row: Any) -> list[dict[str, Any]]:
+# 这些 stop_reason 已有「这一轮没做完」的说明，同一原因的工具轮数卡（layer=tool_call）不再重复。
+_NOTED_TOOL_CALL_STOPS = frozenset({"max_turns_exceeded", "run_deadline_exceeded", "model_call_budget_exhausted"})
+
+
+def _status_cards_to_replay(status_cards: list[Any], stop_reason: Any, *, has_text: bool) -> list[Any]:
+    if not has_text or stop_reason not in _NOTED_TOOL_CALL_STOPS:
+        return status_cards
+    return [
+        card for card in status_cards
+        if not (isinstance(card, dict) and card.get("type") == "iteration_exhausted" and card.get("layer") == "tool_call")
+    ]
+
+
+def _row_items(loader: Any, row: Any, *, latest_assistant: bool = False) -> list[dict[str, Any]]:
     content = str(getattr(row, "content", "") or "")
     if row.role == "user":
         return [{"role": "user", "content": content}] if content.strip() else []
     metadata = row_metadata(row)
     if metadata.get("engine") != LOOP_ENGINE_METADATA_VALUE:
-        return _legacy_row_items(loader, row)
+        return _legacy_row_items(loader, row, latest_assistant=latest_assistant)
     items = _loop_row_items(row, metadata)
-    if not any(item.get("role") == "assistant" for item in items):
-        # 只有状态卡、没有文字的一轮（例如轮数耗尽）：补一段状态摘要，模型知道这一轮停在哪。
-        status_cards = metadata.get("status_cards")
-        if isinstance(status_cards, list):
-            summary = loader._build_status_cards_history_content(status_cards)
-            if summary:
-                items.append({"role": "assistant", "content": summary})
     stop_reason = metadata.get("stop_reason")
+    status_cards = metadata.get("status_cards")
+    if isinstance(status_cards, list):
+        # 程序确认的未完成状态（轮数耗尽、写成文字没执行的工具调用……）不管这一轮有没有文字都进历史，
+        # 模型「继续」时才分得清做完和没做完的；已有停止说明的同一原因不重复。
+        has_text = any(item.get("role") == "assistant" for item in items)
+        summary = loader._build_status_cards_history_content(
+            _status_cards_to_replay(status_cards, stop_reason, has_text=has_text)
+        )
+        if summary:
+            items.append({"role": "assistant", "content": summary})
     if stop_reason == "output_truncated":
         from agent.core.output_truncation import OUTPUT_TRUNCATED_HISTORY
 
@@ -438,8 +465,9 @@ def load_loop_history(
             "Loop history compaction anchor not found; replaying the full session",
             chat_session_id=chat_session_id,
         )
+    latest_assistant_id = next((row.id for row in after_rows if row.role == "assistant"), None)
     for row in reversed(after_rows):
-        items.extend(_row_items(loader, row))
+        items.extend(_row_items(loader, row, latest_assistant=row.id == latest_assistant_id))
         if row.role == "user" and str(row.content or "").strip():
             result.author_messages.append(str(row.content))
     result.items = items

@@ -107,7 +107,8 @@ agent/
   按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改（`SessionLoader.author_edits_for_files`）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件作为 edit_file 陈旧检查的起点。
 - **历史**（`loop/history.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
   assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file / write_chapter 结果去掉
-  `awaiting_body` / `next_step`，带 `body_saved`（write_chapter 的整章替换只认落库后补发的结果，只有定位结果时 `body_saved=false` 并说明没保存）。成功的历史文件写入回执另带 `write_target_active=false`：不恢复上一轮捕获目标，本轮仍需按作者要求重新定位，改为只读时不恢复写入；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、
+  `awaiting_body` / `next_step`，带 `body_saved`（write_chapter 的整章替换只认落库后补发的结果，只有定位结果时 `body_saved=false` 并说明没保存；
+  新建写入看 service 落库前按保存回执写进卡片的 `body_saved`（`service._stamp_body_receipts`），为 false 时附说明，修复前没有这个键的行照旧当作已保存）。成功的历史文件写入回执另带 `write_target_active=false`：不恢复上一轮捕获目标，本轮仍需按作者要求重新定位，改为只读时不恢复写入；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、
   需要时重新调用。思考只在一次 run 内回放。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
   的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用历史估算）
@@ -125,9 +126,11 @@ agent/
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
   （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时也经 `FILE_BODY_RESUME` 恢复捕获、
   补不成就作废定位，原文不动）、
-  停在写完的 `</file>` 上的续写（写正文的回复到 `</file>` 就结束；续跑说明附落库字数，并要求先自查、用 edit_file 改正再回复，同一个文件只要求一次，见 `_BODY_SAVED_CONTEXT` / `_BODY_RESAVED_CONTEXT`；整章替换的新正文没落库时——`ToolContext.unsaved_chapter_replacement_ids()`，
+  保存后自查的续写（本请求有确认落库、还没自查过的完整章节 / 分集正文就续跑一次——`ToolContext.saved_content_body_ids()`，由 StreamAdapter 的保存点
+  `_note_body_saved` 连同文件类型记下，不看 `</file>` 之后有没有一句总结；大纲、人物等资料文件不在内；另外停在写完的 `</file>` 或新正文 EOF 上的 run 照旧续跑。写正文的回复到 `</file>` 就结束；续跑说明附落库字数，并要求先自查、用 edit_file 改正再回复，同一个文件只要求一次，见 `_BODY_SAVED_CONTEXT` / `_BODY_RESAVED_CONTEXT`；正文之后已经回复过作者（这次 run 没停在 `</file>` 上）时改用 `_BODY_SAVED_REPLIED_CONTEXT`，只自查、不重复总结；整章替换的新正文没落库时——`ToolContext.unsaved_chapter_replacement_ids()`，
   StreamAdapter 提交 `replace_body` 成功才 `mark_chapter_replacement_saved`——不说已保存、不列它的原稿字数，改发 `_REPLACE_UNSAVED_CONTEXT` 如实说明原文没动；同一章每次重新定位（结构化结果 `action=replaced`）算一次新的替换，
-  没保存就再说一次，没有任何正文保存过时也不退回已保存的说明）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用 `core/task_board_completion.auto_finalize_task_board_on_completion` 收尾任务板；
+  没保存就再说一次，没有任何正文保存过时也不退回已保存的说明）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用 `core/task_board_completion.auto_finalize_task_board_on_completion` 收尾任务板
+  （写入证据 = ReadGuard 记下的写入 + 本请求确认落库的正文；ReadGuard 不把 `mutation_applied=false` 的成功结果——已有章节、同名 rename、整章替换的定位——记为写入）；
   `previous_output_truncations` 由 `LoopHistory.trailing_output_truncations` 给出；它大于 0 时本轮第一次 run 的 `agent_directive` 带
   「## 截断后的本轮交付」+ `OUTPUT_TRUNCATED_RESUME`（只进这次 SDK 输入，不写回历史，续跑不再追加）。到收尾时间不再开新 run，
   发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
@@ -156,7 +159,10 @@ agent/
   `replace_target_ids`，它的流式 file_content 不算写入：正文流到一半停止 / 断线 / 到时，原文不变，照常退还；
   原文为空的章节没有覆盖保护，中途停下的正文照常落库并计费；写到 `</file>` 后提交还在途中时被截停，
   StreamAdapter 不随取消丢掉提交，`settle_aborted_capture` 等它的结果写进保存回执，结算前按回执 `note_saved_receipts` 补记写入，
-  断线路径在后台等回执后再决定是否退还）；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文；run 边界的截断补全被拒时
+  断线路径在后台等回执后再决定是否退还）；本轮新建文件的回执同样补记（短正文只在解析器尾缓冲里、截停时才补存，没有 file_content 帧），
+  API 在本轮还有等正文的文件（`tracker.file_body_pending()`）时都先等回执（有上限）。`</file>` 已解析、还没开始保存就被截停的正文
+  （例如 SSE 队列满时停在 yield 上）在发帧前登记为 `_completed_unsaved`，`settle_aborted_capture` 按正常完成的规则补存；正常路径的新正文保存
+  在 shield 的任务里跑、版本令牌在任务创建前定下，取消落在保存中途时由 settle 等它的结果；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文；run 边界的截断补全被拒时
   待写绑定与守卫留着，engine 在纠偏次数内经 `FILE_BODY_RESUME` 为这一章恢复捕获重试，补不成就作废定位。
 - **create_file / edit_file 的正文边界**：单循环轮次里 create_file 不建 draft / script（按 `resolve_create_target` 归一后的类型，剧本分集目录下带集号的 document 同样拒绝；
   `chapter_body_requires_write_chapter`，指向 write_chapter）；

@@ -1066,3 +1066,108 @@ def test_session_written_file_ids_reads_assistant_rows_in_pages(db_session):
         db_session, chat_session_id=chat.id, limit=45, file_types=("draft", "script")
     )
     assert many == [chapter.id for chapter in reversed(chapters[-45:])]
+
+
+def _created_call(**result_fields) -> dict:
+    return {
+        "id": "c1",
+        "name": "write_chapter",
+        "status": "success",
+        "result": {"id": "ch1", "title": "第1章", "action": "created", "awaiting_body": True, "content": "", **result_fields},
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("fields", "expected_saved", "has_note"),
+    [
+        ({"body_saved": False}, False, True),
+        ({"body_saved": True}, True, False),
+        ({}, True, False),  # 修复前写下的行没有回执：沿用原来的推断
+    ],
+    ids=["receipt_false", "receipt_true", "legacy_row"],
+)
+def test_created_write_replays_its_persisted_body_receipt(fields, expected_saved, has_note):
+    from agent.loop.history import _CREATE_NOT_SAVED_NOTE, _tool_output_text
+
+    output = json.loads(_tool_output_text(_created_call(**fields)))
+
+    assert output["data"]["body_saved"] is expected_saved
+    assert (output["data"].get("result") == _CREATE_NOT_SAVED_NOTE) is has_note
+
+
+@pytest.mark.unit
+def test_body_receipts_stamp_only_created_writes_awaiting_a_body():
+    from agent.service import _stamp_body_receipts
+
+    calls = [
+        _created_call(),
+        {**_created_call(), "id": "c2", "result": {**_created_call()["result"], "id": "ch2"}},
+        {"id": "c3", "name": "write_chapter", "status": "success",
+         "result": {"id": "ch3", "action": "replaced", "chapter": 3}},
+        {"id": "c4", "name": "create_file", "status": "success", "result": {"id": "n1", "content": "资料"}},
+        {"id": "c5", "name": "write_chapter", "status": "error", "result": None},
+    ]
+
+    _stamp_body_receipts(calls, {"ch1": 120, "ch2": None})
+
+    assert calls[0]["result"]["body_saved"] is True
+    assert calls[1]["result"]["body_saved"] is False
+    assert "body_saved" not in calls[2]["result"]
+    assert "body_saved" not in calls[3]["result"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "card",
+    [
+        {"type": "iteration_exhausted", "layer": "unexecuted_tool_text", "iterationsUsed": 1, "maxIterations": 12,
+         "reason": "回复里写出了工具调用却没有执行"},
+        {"type": "iteration_exhausted", "layer": "collaboration", "iterationsUsed": 12, "maxIterations": 12,
+         "reason": "这一轮已连续运行 12 次，先停在这里。"},
+    ],
+    ids=["unexecuted_tool_text", "collaboration"],
+)
+def test_loop_history_keeps_unfinished_status_cards_next_to_prose(db_session, card):
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "写十章", offset=0)
+    _add(
+        db_session, chat, "assistant", "还在处理。", offset=1,
+        message_metadata=json.dumps({"engine": "loop", "stop_reason": "end_turn",
+                                     "display_events": [{"type": "content", "content": "还在处理。"}],
+                                     "status_cards": [card]}, ensure_ascii=False),
+    )
+
+    history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+
+    contents = [item.get("content") for item in history.items if item.get("role") == "assistant"]
+    assert contents[0] == "还在处理。"
+    assert any("[iteration_exhausted]" in str(c) and f"layer: {card['layer']}" in str(c) for c in contents)
+
+
+@pytest.mark.unit
+def test_loop_history_does_not_double_a_tool_call_limit_that_already_has_a_note(db_session):
+    from agent.loop.history import load_loop_history
+
+    user, project = _user_project(db_session)
+    chat = _session_rows(db_session, user, project)
+    _add(db_session, chat, "user", "写十章", offset=0)
+    _add(
+        db_session, chat, "assistant", "写到第三章。", offset=1,
+        message_metadata=json.dumps({
+            "engine": "loop", "stop_reason": "max_turns_exceeded",
+            "display_events": [{"type": "content", "content": "写到第三章。"}],
+            "status_cards": [{"type": "iteration_exhausted", "layer": "tool_call", "iterationsUsed": 60,
+                              "maxIterations": 60}],
+        }, ensure_ascii=False),
+    )
+
+    history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+
+    assert history.items[1:] == [
+        {"role": "assistant", "content": "写到第三章。"},
+        {"role": "assistant", "content": "（这一轮没做完：工具调用轮数到了上限。）"},
+    ]

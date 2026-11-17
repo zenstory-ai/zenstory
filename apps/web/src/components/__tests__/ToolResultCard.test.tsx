@@ -327,7 +327,14 @@ describe('ToolResultCard', () => {
         const key = undoneEditKey({ fileId: 'ch-2', beforeVersionNumber: 4, expectedAfterUpdatedAt: '2026-11-16T08:00:00Z' })
         const card = (blocked: ReadonlySet<string>) => (
           <UndoBlockedContext.Provider value={blocked}>
-            <ToolResultCard type="tool_result" toolName={toolName} result={result} onUndo={onUndo} />
+            <ToolResultCard
+              type="tool_result"
+              toolName={toolName}
+              result={result}
+              onUndo={onUndo}
+              toolUseId="tool-1"
+              chatMessageId="assistant-1"
+            />
           </UndoBlockedContext.Provider>
         )
         const { rerender } = render(card(new Set([key])))
@@ -355,6 +362,8 @@ describe('ToolResultCard', () => {
           toolName="write_chapter"
           result={{ ...savedReplace, undo: { ...savedReplace.undo, expected_after_content_sha256: hash } }}
           onUndo={onUndo}
+          toolUseId="wc-1"
+          chatMessageId="msg-1"
         />
       )
       await user.click(screen.getByRole('button', { name: /undo/i }))
@@ -669,6 +678,30 @@ describe('ToolResultCard', () => {
       expect(container.querySelector('details')?.open).toBe(false)
     })
 
+    it.each([
+      ['edit_file', { id: 'file-1', details: [] }],
+      ['write_chapter', { id: 'file-1', action: 'replaced', body_saved: true, mutation_applied: true, chapter: 2 }],
+    ])('offers no undo on a %s card that has no saved message yet', (toolName, data) => {
+      const undo = { before_version_number: 7, expected_after_updated_at: '2026-10-06T12:34:56.000Z' }
+      const { rerender } = render(
+        <ToolResultCard type="tool_result" toolName={toolName} result={{ data: { ...data, undo } }} onUndo={vi.fn()} toolUseId="tool-1" />
+      )
+      // 还在流式中：没有落库的消息 id，撤销记录存不下来，刷新后会丢。
+      expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_result"
+          toolName={toolName}
+          result={{ data: { ...data, undo } }}
+          onUndo={vi.fn()}
+          toolUseId="tool-1"
+          chatMessageId="assistant-1"
+        />
+      )
+      expect(screen.getByRole('button', { name: /undo/i })).toBeInTheDocument()
+    })
+
     it('shows undo only for an edit_file result with immutable provenance', async () => {
       const user = userEvent.setup()
       const onUndo = vi.fn()
@@ -687,6 +720,8 @@ describe('ToolResultCard', () => {
             },
           }}
           onUndo={onUndo}
+          toolUseId="tool-edit-1"
+          chatMessageId="assistant-1"
         />
       )
 
@@ -697,6 +732,8 @@ describe('ToolResultCard', () => {
         fileId: 'file-1',
         beforeVersionNumber: 7,
         expectedAfterUpdatedAt: '2026-10-06T12:34:56.000Z',
+        chatMessageId: 'assistant-1',
+        toolUseId: 'tool-edit-1',
       })
     })
 
@@ -801,6 +838,8 @@ describe('ToolResultCard', () => {
             },
           }}
           onUndo={onUndo}
+          toolUseId="tool-edit-1"
+          chatMessageId="assistant-1"
         />
       )
 
@@ -809,6 +848,8 @@ describe('ToolResultCard', () => {
         fileId: 'file-1',
         beforeVersionNumber: 9,
         expectedAfterUpdatedAt: token,
+        chatMessageId: 'assistant-1',
+        toolUseId: 'tool-edit-1',
       })
     })
 

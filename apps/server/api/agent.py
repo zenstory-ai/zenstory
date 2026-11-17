@@ -899,17 +899,31 @@ async def stream_request(
         )
         run_key = (user_id, agent_run_id)
 
+        stop_wait_timed_out = False
+
+        async def _wait_stop_message_id() -> str | None:
+            # 截停后等这一轮的助手消息 id（service 写好保存回执、落库之后交回），上限 STOP_MESSAGE_ID_WAIT_S。
+            # 一个请求里等过一次没等到就不再等：停止卡、结算、移除占位不叠加等待（断线路径的后台等待不走这里）。
+            nonlocal stop_wait_timed_out
+            if stop_wait_timed_out:
+                return await run_outcome.wait_message_id(0)
+            message_id = await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
+            if message_id is None and not run_outcome.message_id_settled():
+                stop_wait_timed_out = True
+            return message_id
+
         async def _settle_billing(*, detached: bool = False) -> tuple[str, bool, bool]:
             # 结算规则见 stream_billing；这里只负责「只结算一次」。断线路径
             # （detached）不能挂起：要退还时交给后台任务，refund_applied 记为 False。
             nonlocal settlement, refund_scheduled, refund_task
             if settlement is None:
                 cut_off = user_stopped or client_disconnected or deadline_exceeded
-                replacement_unconfirmed = cut_off and bool(tracker.unconfirmed_replacement_ids())
-                if replacement_unconfirmed and not detached:
-                    # 整章替换的落库结果没来得及发出就被截停：提交可能仍在途中。service 等它的真实结果
-                    # 写进保存回执后才交回消息 id；先等一下（有上限），按回执补记写入。
-                    await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
+                body_unconfirmed = cut_off and tracker.file_body_pending()
+                if body_unconfirmed and not detached:
+                    # 本轮开始写的正文（整章替换，或新建文件的正文）还没有落库确认就被截停：提交或补存
+                    # 可能仍在途中。service 等它的真实结果写进保存回执后才交回消息 id；先等一下（有上限），
+                    # 按回执补记写入。
+                    await _wait_stop_message_id()
                 tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
 
                 def _decide() -> tuple[str, bool]:
@@ -929,15 +943,15 @@ async def stream_request(
                     "agent_run_id": agent_run_id,
                     "billing_reason": billing_reason,
                 }
-                if should_refund and replacement_unconfirmed and detached:
+                if should_refund and body_unconfirmed and detached:
                     # 断线路径不能挂起：在后台等保存回执落定，再按回执重新结算；提交了就不退还。
-                    async def _refund_after_replacement_settles() -> bool:
+                    async def _refund_after_body_settles() -> bool:
                         await run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
                         tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
                         reason, still_refund = _decide()
                         if not still_refund:
                             log_with_context(
-                                logger, 20, "Refund withdrawn: chapter replacement committed after disconnect",
+                                logger, 20, "Refund withdrawn: a pending body committed after disconnect",
                                 agent_run_id=agent_run_id, billing_reason=reason,
                             )
                             return False
@@ -945,7 +959,7 @@ async def stream_request(
                             session, user_id, charged_period_start, agent_run_id, **refund_fields
                         )
 
-                    refund_task = asyncio.get_running_loop().create_task(_refund_after_replacement_settles())
+                    refund_task = asyncio.get_running_loop().create_task(_refund_after_body_settles())
                     _detached_refund_tasks.add(refund_task)
                     refund_task.add_done_callback(_detached_refund_tasks.discard)
                     refund_scheduled = True
@@ -1056,7 +1070,7 @@ async def stream_request(
             if (
                 candidates
                 and knows_stop_contract
-                and await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
+                and await _wait_stop_message_id()
             ):
                 return await _offload(remove_empty_placeholders, body.project_id, candidates)
             return []
@@ -1096,7 +1110,7 @@ async def stream_request(
                 tracker.observe(stop_frame)
                 tracker.observe_delivery(stop_frame)
                 yield stop_frame
-                assistant_message_id = await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
+                assistant_message_id = await _wait_stop_message_id()
                 delivery = written_files.stopped_delivery(final_word_counts=run_outcome.saved_file_word_counts)
                 if not assistant_message_id:
                     for item in delivery.get("written_files", []):

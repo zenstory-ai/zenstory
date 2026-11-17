@@ -148,7 +148,12 @@ async def auto_finalize_task_board_on_completion(
     project_id = ToolContext.get_project_id()
 
     try:
-        written_ids = guard.written_file_ids() if guard is not None else []
+        # 本请求的写入证据：工具确认改动的文件 + StreamAdapter 确认落库的正文（整章替换的定位结果不算）。
+        written_ids = list(
+            dict.fromkeys(
+                [*(guard.written_file_ids() if guard is not None else []), *ToolContext.saved_bodies_this_request()]
+            )
+        )
         if not written_ids:
             return []
 

@@ -899,6 +899,7 @@ describe('MessageList', () => {
       createMessage({
         role: 'assistant',
         content: '',
+        backendMessageId: 'assistant-1',
         toolResults: [{
           id: 'tool-edit',
           tool_name: 'edit_file',
@@ -925,6 +926,8 @@ describe('MessageList', () => {
       fileId: 'file-1',
       beforeVersionNumber: 4,
       expectedAfterUpdatedAt: '2026-10-06T12:34:56.000Z',
+      chatMessageId: 'assistant-1',
+      toolUseId: 'tool-edit',
     })
   })
 
