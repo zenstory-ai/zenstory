@@ -23,6 +23,8 @@ from typing import Any
 
 from agent.core.author_facing_text import AgentTextShaper, text_contains_cjk
 from agent.core.events import UNEXECUTED_TOOL_TEXT_LAYER, WALL_CLOCK_LIMIT
+from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
+from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_errors import classify_stream_exception, log_stream_exception
 from agent.core.workflow_events import FileBodyResume, StreamEvent, StreamEventType
@@ -251,6 +253,14 @@ async def run_loop_agent_streaming(
     system_prompt = str(state.get("system_prompt") or "")
     drop_english_narration = text_contains_cjk(state.get("router_message") or state.get("user_message"))
 
+    # 上一轮停在思考阶段的输出上限（历史行的 stop_reason 数出的结构化事实）：本轮第一次 run 的输入末尾
+    # 加一条运行指令，要求简短思考、先交付第一部分。只进这次 SDK 输入，不写回对话历史。
+    truncation_directive = (
+        f"{AGENT_DIRECTIVE_HEADER}\n\n## 截断后的本轮交付\n\n{OUTPUT_TRUNCATED_RESUME}"
+        if int(state.get("previous_output_truncations") or 0) > 0
+        else ""
+    )
+
     ToolContext.set_current_agent(LOOP_AGENT_TYPE)
     # 写作约定由模型按提示判断是否追加（只追加、不删改、expected_notes 冲突保护照旧）。
     ToolContext.set_notes_append_allowed(True)
@@ -305,6 +315,7 @@ async def run_loop_agent_streaming(
                     agent_type=LOOP_AGENT_TYPE,
                     system_prompt=system_prompt,
                     get_steering_messages=get_steering_messages,
+                    agent_directive=truncation_directive if runs == 1 else "",
                 ),
                 shaper,
             ):

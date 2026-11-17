@@ -837,3 +837,36 @@ def test_loop_turn_context_lists_author_edits_on_chapters_the_ai_wrote_this_sess
         author_message="改一下这一章",
     )
     assert "<author_edits>" in focused.text and "老陈" in focused.text.split("<author_edits>", 1)[1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_loop_passes_the_truncation_resume_directive_to_the_first_run_only(loop_tool_context):
+    from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
+
+    directives: list[str] = []
+    runs = [
+        [StreamEvent(type=StreamEventType.TEXT, data={"text": "先看一下。"})],
+        [StreamEvent(type=StreamEventType.TEXT, data={"text": "好的。"})],
+    ]
+
+    async def fake(*, state, agent_type, system_prompt, get_steering_messages=None, agent_directive="", **_kwargs):
+        directives.append(agent_directive)
+        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
+        for event in runs.pop(0):
+            yield event
+        state["native_run_holder"].update(agent_type=agent_type, items=[{"role": "user", "content": "x"}])
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    steering = [[{"id": "m1", "content": "顺便改个标题"}], []]
+
+    async def get_steering():
+        return steering.pop(0) if steering else []
+
+    state = {"user_message": "继续", "messages": [], "system_prompt": "系统", "previous_output_truncations": 1}
+    with patch("agent.loop.engine.run_openai_agents_streaming_agent", fake):
+        await _collect(state, get_steering_messages=get_steering)
+
+    assert len(directives) == 2
+    assert OUTPUT_TRUNCATED_RESUME in directives[0]
+    assert directives[1] == ""

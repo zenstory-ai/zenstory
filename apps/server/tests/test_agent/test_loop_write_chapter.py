@@ -90,11 +90,14 @@ def _drafts(workspace) -> list[File]:
     )
 
 
-async def _run_loop(workspace, model: ScriptedModel, message: str = "把第三章换成新稿") -> Outcome:
+async def _run_loop(
+    workspace, model: ScriptedModel, message: str = "把第三章换成新稿", **extra_state: Any
+) -> Outcome:
     from agent.loop.engine import run_loop_agent_streaming
 
     meter = AgentRunMeter()
     state: dict[str, Any] = {
+        **extra_state,
         "user_message": message,
         "router_message": message,
         "messages": [{"role": "user", "content": message}],
@@ -764,3 +767,33 @@ async def test_undo_marks_a_write_chapter_card(workspace):
         expected_after_updated_at=datetime.fromisoformat(after),
     )
     assert marked is True
+
+
+# ---------------------------------------------------------------------------
+# 上一轮在思考阶段撞上输出上限：本轮第一次 run 带上「简短思考、先交付第一部分」
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("previous_truncations", [0, 1])
+async def test_turn_after_an_output_truncation_asks_for_short_thinking_once(workspace, previous_truncations):
+    from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
+
+    model = ScriptedModel(runs=[
+        [
+            Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "雨夜", "file_type": "draft"}),)),
+            Reply(text=f"<file>\n{NEW_BODY}\n</file>"),
+        ],
+        [Reply(text="第一章写好了。")],
+    ])
+
+    outcome = await _run_loop(workspace, model, "继续", previous_output_truncations=previous_truncations)
+
+    first, followup = _run_input_text(model, 0), _run_input_text(model, 1)
+    if previous_truncations:
+        assert first.count(OUTPUT_TRUNCATED_RESUME) == 1
+        # 只对本轮第一次 run 加：续跑（从上一次完整输入接着来时那一条已在里面）不再追加。
+        assert followup.count(OUTPUT_TRUNCATED_RESUME) <= 1
+    else:
+        assert OUTPUT_TRUNCATED_RESUME not in first
+    # 不写回对话（不进历史）。
+    assert OUTPUT_TRUNCATED_RESUME not in json.dumps(outcome.state.get("messages"), ensure_ascii=False)
