@@ -42,6 +42,7 @@ Status: implemented
 - **新正文写到输出上限**：openai-agents 的 Chat Completions 流式 handler 不给 finish_reason，判断仍用 usage：正常结束的 run 最后一次响应 output_tokens 达到 `AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS * OUTPUT_CAP_RATIO` 时，runner 在 MESSAGE_END 上带 `output_capped=True`（stop_reason 仍是 `end_turn`，落库与历史回放不变；只有思考就撞上限的原有 `output_truncated` 不变）。StreamAdapter 把按流结束补全保存成功的新正文记进 `ToolContext.mark_cut_body_saved`（不进已保存的完整正文）。engine 在 run 边界取走这些记录（`take_cut_bodies`），这次 run 又带 `output_capped` 时：正文照样保存，作者看到固定说明「《…》写到了单次回复的输出上限，正文已保存到中断处。」；模型收到 `_BODY_CUT_CONTEXT`（截断处之前已保存、这一章没写完、附落库正文末尾 200 字，用 edit_file `op=append` 从断点续写，不整章重写，写完再自查），不再收到「写完的正文已保存，请自查」。没有撞上限的未闭合正文（模型漏写 `</file>`）照旧按已保存续跑。判断只用 usage 与保存点的结构化记录，不看正文文字。
 - **整章替换的新正文写到输出上限**：行为不变（原文不动，在纠偏次数内经 `FILE_BODY_RESUME` 重试，补不成才说「未保存」），只把重试说明换成 `_CHAPTER_REPLACE_CUT_RETRY_CONTEXT`：如实说新正文被截断没保存，要求思考尽量简短。
 - **流式写入时暂停自动保存**：`SimpleEditor` 的 3 秒防抖自动保存在打开的文件正被 AI 流式写入（`isStreaming`）时不排期，与 `isAiEditing`、对比审阅同一处理。流式结束后 effect 重新排期：服务端没变（替换被拒或截断没保存）就照常用作者写字时的版本令牌保存；AI 的新稿已落库时，Editor 流式结束的回读（`loadData` → `syncOpenFileFromServer`，100 ms，早于 3 秒的自动保存）按 #381 打开对比审阅，自动保存随审阅暂停，两边的字都不丢。离开 / 切换文件时的最后一次保存（`onFlushReady`）和页面关闭时的本地草稿快照不受影响。
+- **重试时重新上锁**：整章替换被截断补全拒绝落库时适配器已发 `file_content_end`，编辑器的流式锁随之解除；`FILE_BODY_RESUME` 重试的 run 在 `<file>` 之前还有思考，期间作者的自动保存会推进版本，让重试的 `replace_body` 按版本冲突作废。`StreamAdapter._resume_file_body` 恢复捕获成功时立刻补发同一文件的 `file_created`，`startFileStreaming` 马上重新上锁（同一文件已在流式时不重置）；没恢复成功不发。空文件纠偏同样适用。
 
 ## Alternatives considered
 

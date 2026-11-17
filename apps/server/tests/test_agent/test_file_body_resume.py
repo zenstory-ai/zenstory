@@ -1155,3 +1155,27 @@ async def test_after_an_exact_cancel_the_same_run_goes_on_to_create_and_write_th
     assert workspace.session.get(File, second_id).content.strip() == BODY
     assert outcome.adapter.get_saved_file_word_counts() == {second_id: count_words(BODY)}
     assert outcome.of("error") == [] and len(outcome.of("done")) == 1
+
+
+async def test_armed_resume_tells_the_editor_again_that_the_file_is_streaming(guard):
+    """恢复捕获时立刻补发 file_created：上一程的 file_content_end 已解除编辑器的流式锁，
+    纠偏轮写 <file> 之前的思考期间不能让作者未保存的文字自动保存推进版本、作废重试。"""
+    from agent.core.workflow_events import FileBodyResume, StreamEventType
+
+    adapter = _bound_adapter()
+    await _end_agent_run(adapter)
+
+    request = FileBodyResume(file_id="f1", expected_updated_at="v1")
+    frames = await _feed(adapter, StreamEventType.FILE_BODY_RESUME, {"request": request})
+
+    assert request.armed is True
+    created = [frame for frame in frames if frame.type.value == "file_created"]
+    assert len(created) == 1
+    assert created[0].data.get("file_id") == "f1" and created[0].data.get("title") == CHAPTER
+
+    refused = FileBodyResume(file_id="f1", expected_updated_at="v2")
+    adapter_refusing = _bound_adapter()
+    await _end_agent_run(adapter_refusing)
+    refused_frames = await _feed(adapter_refusing, StreamEventType.FILE_BODY_RESUME, {"request": refused})
+    assert refused.armed is False
+    assert not [frame for frame in refused_frames if frame.type.value == "file_created"]

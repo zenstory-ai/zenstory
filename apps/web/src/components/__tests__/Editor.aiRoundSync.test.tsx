@@ -402,6 +402,33 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 
+  it('holds the autosave again when a refused cut replacement is retried, so the retry is not voided', async () => {
+    await runRoundUntilV1();
+    const authorText = `${V1}作者补的一句。`;
+    fireEvent.change(textarea(), { target: { value: authorText } });
+    act(() => {
+      callbacks().onToolResult('write_chapter', 'success', { id: CH2_ID, action: 'replaced' });
+      callbacks().onFileCreated(CH2_ID, 'draft', '第2章');
+    });
+    await settle();
+    act(() => callbacks().onFileContent(CH2_ID, '只写了一个开头'));
+    // The cut replacement is refused: its stream ends, then the server re-arms the retry for the same chapter.
+    act(() => callbacks().onFileContentEnd(CH2_ID));
+    await advance(50); await settle();
+    act(() => callbacks().onFileCreated(CH2_ID, 'draft', '第2章'));
+    await settle();
+    // The retry thinks before its <file> text: longer than the 3 s autosave, still no save on the old copy.
+    await advance(5000); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(0);
+
+    act(() => callbacks().onFileContent(CH2_ID, V2));
+    server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, content: V2, updated_at: T_V2 });
+    act(() => callbacks().onFileContentEnd(CH2_ID));
+    await advance(300); await settle();
+    expect(harness.project!.diffReviewState).toMatchObject({ originalContent: authorText, modifiedContent: `${V2}作者补的一句。` });
+    expect(putsFor(CH2_ID)).toHaveLength(0);
+  });
+
   it('keeps the unsaved text when the AI only renamed the chapter, and saves it on the new token', async () => {
     await runRoundUntilV1();
     fireEvent.change(textarea(), { target: { value: `${V1}作者补的一句。` } });
