@@ -117,6 +117,10 @@ def quota_refunded_frame(
     return f"event: {QUOTA_REFUNDED_EVENT}\ndata: {data}\n\n"
 
 
+def _positive_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
 def _parse_sse(frame: str) -> tuple[str, Any]:
     event_type = ""
     data_raw: str | None = None
@@ -279,8 +283,15 @@ class StreamBillingTracker:
         if not isinstance(data, dict):
             return
         if payload.get("tool_name") == "write_chapter" and data.get("action") != "created":
-            # 整章替换的目标是已有的章节，不是这一轮建的空白占位；它的流式正文要等落库结果才算写入。
-            if data.get("action") == "replaced" and isinstance(data.get("id"), str) and data["id"]:
+            # 整章替换的目标是已有的章节，不是这一轮建的空白占位；有原文时它的流式正文要等落库结果才算写入。
+            # 原文为空的章节没有要保护的正文（适配器的截断覆盖保护同样只看原长度 > 0）：中途停下时
+            # 流过的正文照常落库，所以照常按 file_content 计入。
+            if (
+                data.get("action") == "replaced"
+                and isinstance(data.get("id"), str)
+                and data["id"]
+                and _positive_int(data.get("original_content_length", data.get("previous_length")))
+            ):
                 self.replace_target_ids.add(data["id"])
             return
         file_id = data.get("id")
@@ -302,7 +313,7 @@ class StreamBillingTracker:
         """这一帧是否意味着某个文件被写进了正文（或被删除）、项目信息被改了。"""
         if event_type == "file_content":
             if payload.get("file_id") in self.replace_target_ids:
-                # 整章替换的正文在 </file> 之前只在缓冲里，没写完的不覆盖原文：只认落库后补发的结果。
+                # 有原文的整章替换，正文在 </file> 之前只在缓冲里，没写完的不覆盖原文：只认落库后补发的结果。
                 return False
             return bool(str(payload.get("chunk") or "").strip())
         if event_type in ("parallel_task_start", "parallel_task_end"):

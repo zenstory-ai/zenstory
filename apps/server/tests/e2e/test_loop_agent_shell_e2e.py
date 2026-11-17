@@ -434,3 +434,50 @@ async def test_loop_replacement_cut_off_mid_body_leaves_the_chapter_and_is_refun
     if ending == "user_stopped":
         metadata = json.loads(_assistant_row(db_session, project).message_metadata)
         assert metadata["stop_outcome"]["charged"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ending", ["user_stopped", "client_disconnected"])
+async def test_loop_replacement_of_an_empty_chapter_cut_off_mid_body_is_charged(
+    client: AsyncClient, db_session: Session, shell_db, scripted, ending
+):
+    """替换一个已有的空白章节时正文流到一半就停止 / 断线：没有原文要保护，流过的正文照常落库，这一轮计费。"""
+    from services.quota_service import quota_service
+
+    user, _token, project = await _login(client, db_session)
+    three = _ai_chapter(db_session, project, "第3章 灯塔", "")
+    hang = asyncio.Event()
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第三章", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{NEW_BODY}\n{NEW_BODY}", hang=hang),
+    ]])
+
+    real_release = quota_service.release_ai_conversation
+    patches = scripted(model)
+    received: list[str] = []
+    with patches[0], patches[1], patches[2], patches[3], patch.object(
+        quota_service, "release_ai_conversation", side_effect=real_release
+    ) as release:
+        response = await _start(db_session, user, project, "写第三章")
+        iterator = response.body_iterator
+        await _read_until(iterator, "file_content", received)
+        if ending == "user_stopped":
+            stopped = await agent_api.stop_stream(
+                body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+                current_user=user,
+                _rate_limit=0,
+            )
+            assert stopped.stop_requested is True
+            received.extend([frame async for frame in iterator])
+        else:
+            await iterator.aclose()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    for _ in range(50):
+        if _content(db_session, three.id).strip():
+            break
+        await asyncio.sleep(0.05)
+    assert "第1段合成新稿" in _content(db_session, three.id)
+    release.assert_not_called()
+    assert "event: quota_refunded" not in "".join(received)
