@@ -585,6 +585,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const currentAgentSessionIdRef = useRef<string | null>(null);
   const [pendingUndoTarget, setPendingUndoTarget] = useState<FileEditUndoTarget | null>(null);
   const [undoneEdits, setUndoneEdits] = useState<ReadonlySet<string>>(() => new Set());
+  // Cards whose undo the server refused as stale in this session (the file no longer holds that
+  // edit's text). They can never be undone, so they stop holding back an earlier card's undo.
+  const [staleUndoEdits, setStaleUndoEdits] = useState<ReadonlySet<string>>(() => new Set());
   const [isUndoing, setIsUndoing] = useState(false);
   const lastRetryRequestRef = useRef<{
     projectId: string;
@@ -1535,9 +1538,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const undoBlocked = useMemo(
     () => undoBlockedByLaterWrite(collectUndoCardRefs(
       [...messages, { displayItems: streamRenderItems ?? [] }],
-      undoneEdits,
+      staleUndoEdits.size > 0 ? new Set([...undoneEdits, ...staleUndoEdits]) : undoneEdits,
     )),
-    [messages, streamRenderItems, undoneEdits],
+    [messages, streamRenderItems, undoneEdits, staleUndoEdits],
   );
   const streamRenderItemCount = streamRenderItems?.length ?? 0;
 
@@ -2568,6 +2571,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         err.details?.reason === "stale_write"
       ) {
         toast.error(t('versions:undoStaleWrite'));
+        // For example the later change was undone where its card was not recorded (mid-stream,
+        // from the history panel): an earlier card the server can still undo is offered again.
+        setStaleUndoEdits((previous) => new Set(previous).add(undoneEditKey(target)));
         return;
       }
       if (
