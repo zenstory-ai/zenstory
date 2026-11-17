@@ -117,6 +117,21 @@ def format_body_word_counts(counts: list[tuple[str, int]] | None) -> str:
     return f"\n\n{BODY_WORD_COUNT_HEADER}\n{lines}\n{_BODY_WORD_COUNT_NOTE}"
 
 
+CUT_BODY_WORD_COUNT_HEADER = "[截断处已保存的字数]"
+_CUT_BODY_WORD_COUNT_NOTE = (
+    "这是截断处落库正文的字数，续写之后会变；回复作者时这一章的字数报最后一次 edit_file 结果里的 new_word_count，"
+    "不要报这里的数。"
+)
+
+
+def format_cut_body_word_counts(counts: list[tuple[str, int]] | None) -> str:
+    """被输出上限截断、待续写的正文在截断处的字数：标明是截断时的数，最终字数以续写的 edit_file 结果为准。"""
+    if not counts:
+        return ""
+    lines = "\n".join(f"- 《{title}》{words} 字" if title else f"- {words} 字" for title, words in counts)
+    return f"\n\n{CUT_BODY_WORD_COUNT_HEADER}\n{lines}\n{_CUT_BODY_WORD_COUNT_NOTE}"
+
+
 def tool_result_failed(result: Any) -> bool:
     """TOOL_RESULT 事件的 result（MCP 文本载荷）是否是 status=error 的失败结果。"""
     if not isinstance(result, dict):

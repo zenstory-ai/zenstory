@@ -79,7 +79,7 @@ _BODY_CUT_CONTEXT = (
     "现在用 edit_file 的 op=append（id={file_id}）从截断处接着写完这一章：text 直接接在上面最后一个字之后"
     "（截断在句子中间就先把这句话写完），不要重复已保存的内容；不要用 write_chapter 或 <file> 把这一章整章重写。"
     "剩下的篇幅较长时分几次 append，每次思考简短。写完后按「工作方式」自查这一章；作者这一轮要求的其他章节还没写完就接着写，"
-    "全部完成后用一到三句话回复作者，字数只报下面的真实字数。"
+    "全部完成后用一到三句话回复作者，这一章的字数报续写后最后一次 edit_file 结果里的 new_word_count。"
 )
 _BODY_CUT_CONTEXT_EN = (
     "[System note] While writing the body of \"{title}\" (id={file_id}), the previous response reached the single-reply "
@@ -90,7 +90,8 @@ _BODY_CUT_CONTEXT_EN = (
     "not repeat saved text; do not rewrite the chapter with write_chapter or <file>. If much is left, use several "
     "appends and keep thinking short. When it is finished, self-check the chapter; if chapters the author asked for "
     "this turn are still unwritten, continue with them; when everything is done, reply to the author in one to three "
-    "sentences, reporting only the real word counts below. Keep the author's language."
+    "sentences; report this chapter's word count from new_word_count in the last edit_file result after continuing. "
+    "Keep the author's language."
 )
 # 正文写完、回复停在 </file> 上时的续跑说明（相当于工具结果）：保存的文件与真实字数由调用方附在后面。
 _BODY_SAVED_CONTEXT = (
@@ -203,6 +204,16 @@ def _word_count_note(file_ids: list[str]) -> str:
     return run_support.format_body_word_counts(counts)
 
 
+def _cut_word_count_note(file_ids: list[str]) -> str:
+    """截断续写说明里附上截断处的落库字数，明确标为截断时的数（续写后会变）。"""
+    try:
+        counts = run_support.collect_body_word_counts(file_ids)
+    except Exception as exc:  # noqa: BLE001 - 读不到字数不影响续跑
+        logger.debug(f"Word counts for the cut continuation note failed: {type(exc).__name__}")
+        return ""
+    return run_support.format_cut_body_word_counts(counts)
+
+
 async def _drain_boundary_steering(get_steering_messages: Any) -> list[dict[str, str]]:
     if get_steering_messages is None:
         return []
@@ -295,7 +306,7 @@ async def _body_cut_followup(
         titles[file_id] = tail[0]
     title = titles[file_id] or ("this chapter" if english else "这一章")
     template = _BODY_CUT_CONTEXT_EN if english else _BODY_CUT_CONTEXT
-    followup = template.format(title=title, file_id=file_id, tail=tail[1] if tail else "") + _word_count_note(
+    followup = template.format(title=title, file_id=file_id, tail=tail[1] if tail else "") + _cut_word_count_note(
         list(cut_bodies)
     )
     joiner = ", " if english else "、"

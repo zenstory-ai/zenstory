@@ -1288,6 +1288,10 @@ async def test_new_chapter_cut_at_the_output_cap_is_kept_and_continued_from_the_
     assert CUT_BODY[-60:].replace("\n", "\\n") in followup
     assert "append" in followup
     assert "写完的正文已保存" not in followup
+    # 附的字数是截断处的数，标明续写后会变、最终以 edit_file 结果为准，不当作这一章的真实字数。
+    assert "[截断处已保存的字数]" in followup
+    assert "new_word_count" in followup
+    assert "[本轮正文字数]" not in followup
     # 作者看到的是「写到上限、已保存到中断处」，不是一章写完。
     assert "输出上限" in outcome.chat_text
     assert CUT_BODY not in outcome.chat_text
