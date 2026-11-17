@@ -42,7 +42,7 @@ from .core.events import (
 from .core.events import (
     StreamEvent as SSEEvent,
 )
-from .core.round_outcome import RUN_DEADLINE_STOP_REASON
+from .core.round_outcome import RUN_DEADLINE_STOP_REASON, tool_result_status
 from .core.run_meter import AgentRunMeter
 from .core.stream_errors import REPETITION_LOOP_STOP_REASON, error_message_for, stream_error_from_event_data
 from .core.stream_processor import PREBODY_FILE_ID, StreamProcessor, StreamResult, StreamState
@@ -647,36 +647,22 @@ class StreamAdapter:
 
             parsed_result = self._parse_tool_result_payload(raw_result)
 
-            if isinstance(parsed_result, dict) and "status" in parsed_result:
-                raw_status = str(parsed_result.get("status") or "").strip().lower()
-                status = "error" if raw_status in {"error", "failed", "failure"} else "success"
-            elif isinstance(parsed_result, dict) and "error" in parsed_result:
-                # Backward compatibility: some tool failures only return {"error": "..."}
-                status = "error"
-            else:
-                status = "success"
+            # 状态口径与停止后的结果回放共用（round_outcome.tool_result_status）。
+            status, result_data = tool_result_status(tool_name, parsed_result)
 
             error: str | None = None
             if isinstance(parsed_result, dict) and parsed_result.get("error") is not None:
                 error = str(parsed_result.get("error"))
 
-            result_data = parsed_result.get("data", parsed_result) if isinstance(parsed_result, dict) else parsed_result
-
-            # edit_file 全部编辑都没生效时必须降级为 error，并补上人话错因。
-            #
-            # 注意**不能**加 `status == "success"` 前置条件：mcp_tools 的
-            # _derive_edit_status 现在已经在 all_failed 时把工具层 status 直接
-            # 置成 "error"，上面解析出的 status 就是 error，加了前置条件这段
-            # 就成了死代码——于是 data 被置 None（status != success）、error 也
-            # 还是 None（工具层没填 error 字段），前端拿到一张既没内容也没原因
-            # 的空白失败卡。判据只看 all_failed。
+            # edit_file 全部编辑都没生效时是 error（tool_result_status 已判），这里补上人话错因。
+            # 判据只看 all_failed，不看工具层 status：mcp_tools 的 _derive_edit_status 在 all_failed 时
+            # 已经把 status 置成 error，若再要求 success，data 会被置 None、error 也为空，前端拿到空白失败卡。
             edit_all_failed = (
                 tool_name == "edit_file"
                 and isinstance(result_data, dict)
                 and bool(result_data.get("all_failed"))
             )
             if edit_all_failed:
-                status = "error"
                 error = error or self._summarize_edit_failures(result_data)
 
             # 工具失败卡片只给作者看人话：工具自带 user_message 时用它替换 error，

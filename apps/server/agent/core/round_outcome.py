@@ -123,22 +123,37 @@ class RunOutcome:
             return None
 
 
+def tool_result_status(tool_name: str, parsed: Any) -> tuple[str, Any]:
+    """解析后的工具结果 → (tool_result 帧的 status, data)。StreamAdapter 的实时帧与停止后的结果回放共用。
+
+    有 status 时按它（error / failed / failure 为失败）；没有 status、只有 error 键的旧格式算失败；
+    edit_file 全部编辑都没生效（``all_failed``）也算失败。
+    """
+    if not isinstance(parsed, dict):
+        return "success", parsed
+    data = parsed.get("data", parsed)
+    if "status" in parsed:
+        failed = str(parsed.get("status") or "").strip().lower() in {"error", "failed", "failure"}
+    else:
+        failed = "error" in parsed
+    if tool_name == "edit_file" and isinstance(data, dict) and bool(data.get("all_failed")):
+        failed = True
+    return ("error" if failed else "success"), data
+
+
 def committed_tool_result(tool_name: str, raw_result: Any) -> dict[str, Any] | None:
-    """MCP 工具结果 → tool_result 帧的 payload（与 StreamAdapter 的状态口径相同）；解析不了时为 None。"""
+    """MCP 工具结果 → tool_result 帧的 payload（状态口径见 tool_result_status）。
+
+    不是 JSON 对象时为 None：实时帧把它当 ``{"raw": ...}`` 发给前端，这里不把它当作提交的证据（偏向作者）。
+    """
     try:
         parsed = json.loads(raw_result["content"][0]["text"])
     except (KeyError, IndexError, TypeError, json.JSONDecodeError):
         return None
     if not isinstance(parsed, dict):
         return None
-    data = parsed.get("data", parsed)
-    raw_status = str(parsed.get("status") or "").strip().lower()
-    failed = (
-        raw_status in {"error", "failed", "failure"}
-        or ("status" not in parsed and "error" in parsed)
-        or (tool_name == "edit_file" and isinstance(data, dict) and bool(data.get("all_failed")))
-    )
-    return {"tool_name": tool_name, "status": "error" if failed else "success", "data": data}
+    status, data = tool_result_status(tool_name, parsed)
+    return {"tool_name": tool_name, "status": status, "data": data}
 
 
 # RoundWrittenFiles 关心的帧；其余帧（content、thinking、心跳……）不解析 JSON。

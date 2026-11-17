@@ -342,3 +342,35 @@ async def test_stop_settles_body_saves_and_write_tool_threads_together():
     assert outcome.saved_file_word_counts == {"chapter-1": 120}
     assert tool_future.done() and outcome.inflight_tool_writes == []
     assert elapsed < 0.55
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool_name", "payload"),
+    [
+        ("edit_file", {"status": "success", "data": {"id": "f1", "mutation_applied": True}}),
+        ("edit_file", {"status": "error", "error": "conflict"}),
+        ("edit_file", {"status": "success", "data": {"id": "f1", "all_failed": True, "failed_edits": []}}),
+        ("delete_file", {"error": "legacy failure"}),
+        ("rename_file", {"status": "FAILED"}),
+        ("create_file", {"id": "f2", "title": "第1章"}),
+    ],
+)
+async def test_replayed_tool_result_has_the_live_frame_status(tool_name, payload):
+    """停止后回放的工具结果与实时 tool_result 帧用同一套状态口径。"""
+    import json
+
+    from agent.core.round_outcome import committed_tool_result
+
+    raw = {"content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}]}
+    frames = [
+        frame
+        async for frame in StreamAdapter()._handle_workflow_tool_result(
+            {"name": tool_name, "tool_use_id": "call-1", "result": raw}
+        )
+        if frame.type.value == "tool_result"
+    ]
+
+    replayed = committed_tool_result(tool_name, raw)
+    assert replayed is not None and frames
+    assert replayed["status"] == frames[0].data["status"]
