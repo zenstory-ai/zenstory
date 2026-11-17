@@ -205,6 +205,8 @@ class StreamBillingTracker:
     _segment_reached: bool = field(default=False, repr=False)
     # parallel_task_start 帧里的子任务类型：(execution_id, task_id) -> task_type。
     _parallel_task_types: dict[tuple[str, str], str] = field(default_factory=dict, repr=False)
+    # 发出了 tool_call、还没有 tool_result 的写工具调用（tool_use_id）：截停时它们的线程可能仍在提交。
+    _unanswered_write_calls: set[str] = field(default_factory=set, repr=False)
 
     def observe_delivery(self, frame: Any) -> None:
         if isinstance(frame, str):
@@ -240,18 +242,53 @@ class StreamBillingTracker:
         elif event_type == "iteration_exhausted" and payload.get("layer") in RUNAWAY_ITERATION_LAYERS:
             self.runaway_stop = True
 
-        self._track_files(event_type, payload)
-        wrote = self._write_effect(event_type, payload)
-        if wrote:
-            self.write_succeeded = True
-            if not (event_type == "tool_result" and payload.get("tool_name") == "update_project"):
-                self.file_written = True
+        self._track_write_calls(event_type, payload)
+        wrote = self._observe_effects(event_type, payload)
         prose = self._prose_reached(event_type, payload)
         if prose:
             self.prose_output = True
         if not self.produced_output and (wrote or prose):
             self.produced_output = True
             self.first_output_ms = int((time.monotonic() - self.started_at) * 1000)
+
+    def _observe_effects(self, event_type: str, payload: dict[str, Any]) -> bool:
+        """一帧（或一份按帧格式还原的工具结果）对文件的影响：占位候选、写入标记。返回是否算写入。"""
+        self._track_files(event_type, payload)
+        wrote = self._write_effect(event_type, payload)
+        if wrote:
+            self.write_succeeded = True
+            if not (event_type == "tool_result" and payload.get("tool_name") == "update_project"):
+                self.file_written = True
+        return wrote
+
+    def _track_write_calls(self, event_type: str, payload: dict[str, Any]) -> None:
+        if event_type not in ("tool_call", "tool_result") or payload.get("tool_name") not in WRITE_TOOL_NAMES:
+            return
+        tool_use_id = payload.get("tool_use_id")
+        if not isinstance(tool_use_id, str) or not tool_use_id:
+            return
+        if event_type == "tool_call":
+            self._unanswered_write_calls.add(tool_use_id)
+        else:
+            self._unanswered_write_calls.discard(tool_use_id)
+
+    def write_tool_unanswered(self) -> bool:
+        """有写工具调用发出了却没有结果帧：截停时它的线程可能还在提交（见 note_committed_tool_results）。"""
+        return bool(self._unanswered_write_calls)
+
+    def note_committed_tool_results(self, results: list[dict[str, Any]]) -> None:
+        """截停后才在线程里完成的写工具结果（service 等到的结构化结果，帧格式：tool_name / status / data）。
+
+        与实时的 tool_result 帧走同一套规则：确认的修改、删除、改名算写入；新建的空文件成为
+        占位候选（退还时照常移除）。没有对应的帧送到前端，所以不改卡片。
+        """
+        for payload in results:
+            if not isinstance(payload, dict):
+                continue
+            wrote = self._observe_effects("tool_result", payload)
+            if wrote and not self.produced_output:
+                self.produced_output = True
+                self.first_output_ms = int((time.monotonic() - self.started_at) * 1000)
 
     def removable_placeholders(self) -> list[dict[str, str]]:
         """本轮新建、之后也没收到任何正文的文件（候选；落库前还要再查一次是否为空、版本是否未变）。"""

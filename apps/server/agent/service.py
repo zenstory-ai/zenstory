@@ -73,7 +73,7 @@ from .loop.turn_context import LoopTurnContext, build_loop_turn_context
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .skills.content_budget import split_selected_budget
-from .stream_adapter import create_stream_adapter
+from .stream_adapter import STREAM_FILE_SAVE_TIMEOUT_S, create_stream_adapter
 from .tools.author_edit_guard import AuthorEditRefusals
 from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
 
@@ -1172,6 +1172,8 @@ class AgentService:
                 author_edit_refusals=author_edit_refusals,
                 # 本轮开始时模型看到的正文：edit_file 拒绝基于旧正文的修改（作者生成期间又改了）。
                 read_snapshots=loop_turn.read_snapshots,
+                # 截停后还在线程里的写工具登记在 run_outcome 上，收尾时等它们的真实结果。
+                inflight_tool_writes=run_outcome.inflight_tool_writes if run_outcome is not None else None,
             )
 
             # Build WritingState for workflow execution
@@ -1515,6 +1517,9 @@ class AgentService:
                         run_outcome.saved_file_word_counts.update(
                             await adapter.settle_aborted_capture()
                         )
+                    if run_outcome is not None:
+                        # 被取消了等待、线程仍在提交的写工具：等它们的结果，交给路由层计费。
+                        await run_outcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S)
                     # 取消可能恰好落在 save_messages 期间：它被 shield 保护会
                     # 继续跑完，所以补偿保存前必须等它的真实结果。已落库时
                     # 不能整轮重写（user/steering/assistant 会写两遍），但仍要
@@ -1586,6 +1591,8 @@ class AgentService:
                     )
                     saved_counts = adapter.get_saved_file_word_counts()
                 run_outcome.saved_file_word_counts.update(saved_counts)
+            if run_outcome is not None:
+                await run_outcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S)
             yield error_event(
                 error_info.message,
                 code=error_info.code,

@@ -34,6 +34,7 @@ Status: implemented
 - **续跑输入总以这次的说明结尾**：`_continued_run_input` 只要 `state["user_message"]` 非空就追加，不再和上一轮的说明比较（两次纠偏说明相同的时候，第二次输入原本停在助手回复上）。engine 每个续跑分支都先写好 `user_message`。
 - **CRLF 的独占一行文件标签**：`_LONE_FILE_TAG_LINE_PATTERN` / `_LONE_FILE_START_LINE_PATTERN` 允许行尾 `\r`。
 - **没量到输入大小的停止行不挡住更早的读数**：`load_loop_history` 只在 `prompt_tokens` 为正时取用并停止往前找；遇到带压缩点的行就停（更早的读数是压缩前的大小），都没有时照旧用估算。
+- **H3：写工具在停止之后才提交**：`edit_file`、`create_file`、`write_chapter`、`delete_file`、`rename_file` 改用共享的 `_offload_write_tool`：线程 future 先登记进 `RunOutcome.inflight_tool_writes`（ToolContext 拿着同一个 list，所以比 `clear_context()` 活得长），用 `asyncio.shield` 等它；正常返回或出错时移除，被取消时留着。service 的取消与出错收尾在交回消息 id 之前调用 `RunOutcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S)`，把完成的结构化结果按 tool_result 帧的格式记进 `committed_tool_results`；线程出错、超时、结果解析不了的不记。`StreamBillingTracker.note_committed_tool_results` 把它们交给与实时帧相同的规则（`_observe_effects`）：确认的修改、删除、改名算写入，新建的空文件成为占位候选，退还时照常移除。tracker 记下没有结果帧的写工具调用（`write_tool_unanswered()`），API 截停时有这类调用也先等消息 id；停止卡、结算和断线后台退还都在等到之后调用它。
 - **M8：压缩调用计入请求级模型调用预算**：`compact_history(run_meter=...)` 每次摘要调用前 `record_model_call()`，次数仍由 `_ATTEMPT_EFFORTS` 限定；`AGENT_RUN_MAX_MODEL_CALLS` 的注释改为「请求内的模型调用（SDK 轮次加压缩）」。
 
 ## Alternatives considered
@@ -48,10 +49,14 @@ Status: implemented
 - 代价：
   - 最后一章正文之后模型已经写了总结时，会多一次自查调用（每个文件仍最多一次）；这次调用的说明要求不重复总结，作者最多多看到一句「自查过了」或改动说明。
   - 截停时只要还有等正文的文件，停止路径最多多等 `STOP_MESSAGE_ID_WAIT_S`（一个请求只等一次：停止卡已经等满没等到时，结算和移除占位不再各等一次）；断线路径的退还在后台等回执后才决定。停止路径等不到回执时仍按「没有产出」退还，补存稍后落库，文件保留。
+  - 截停时有写工具调用还没有结果帧，停止路径同样最多多等 `STOP_MESSAGE_ID_WAIT_S`；service 收尾最多等在途写工具 `STREAM_FILE_SAVE_TIMEOUT_S`，等不到就按没有写入结算（偏向作者）。
   - 已解析、没开始提交就被截停的整章替换新稿作废，作者需要时重新生成；只有取消时已经在提交的整章替换会落库，它不发 diff 审阅事件，卡片也拿不到撤销锚点。
   - 网页上的撤销按钮只在卡片同时有已保存消息 id 和工具调用 id 时出现（`isPersistedUndoTarget`）：流式进行中的卡片要等这一轮结束、拿到消息 id 后才显示；没有工具调用 id 的旧记录、拿不到消息 id 的停止 / 失败轮不再显示，仍可从历史版本恢复。这样撤销总能记到卡片上，刷新后不会又显示成没撤销。
   - 测试随行为更新：`test_loop_round_endings` 里「总结之后不续跑」改为「已保存正文后续跑自查」；纠偏用例写的是资料文件（outline），续跑次数与修复前相同；一条停止 / 断线补存用例的断线分支改为断言撤回退还。
 
 ## Follow-up
 
-- **H3：普通写工具被取消后线程照常提交**。`edit_file` 等在 `asyncio.to_thread` 里执行，停止 / 断线 / 时限取消了等待，线程仍可能提交，SSE 拿不到结果，计费按没有写入退还。修复需要一个在 `ToolContext.clear_context()` 之前建立的请求级在途登记：共享的 `to_thread` 包装在取消时 shield 并登记 `(tool_name, future)`，`settle_aborted_capture` 在 `STREAM_FILE_SAVE_TIMEOUT_S` 内等它们，把结构化结果（`mutation_applied`、删除成功、新建的空文件）翻译成回执与占位候选，API 的等待条件扩到「有写工具调用没有结果」。作者正文不会因此丢失，计费偏差对作者有利，所以单独排期。
+- 停止时才提交的写工具（H3）和停止时才提交的整章替换都没有结果帧：卡片不更新，也没有撤销锚点；改动可从历史版本恢复。需要时再把在途结果补成卡片。
+- 新章正文在一次回复里写满输出上限（约 62.7k 输出 token）被截断时，仍按未闭合 EOF 保存并说「已保存」；区分它需要 runner 在 MESSAGE_END 上带一个新的输出被截断标记，单独排期。
+- 整章替换在流式写入时，作者编辑器的自动保存可能先改了这一章：现在作者的保存胜出、AI 的替换按版本冲突拒绝，代价是白写一次。要暂停自动保存就会走 #381 的冲突审阅路径，需要编辑器层的运行时验证，单独处理。
+- `create_file` 复用已有空文件时不认领本条回复里先写出的正文，还没有复现到作者路径，暂不处理。
