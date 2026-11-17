@@ -335,12 +335,14 @@ _LOOP_TOOL_USAGE_FILE_WRITES = """## 写正文：write_chapter + <file> [必须�
 <file>
 第三章的正文...
 </file>
-write_chapter(chapter=4, title='第四章 渡口', file_type='draft', parent_id='<正文目录>')
-第 3 次回复：
+（系统发回保存结果和字数）
+第 3 次回复：自查后 write_chapter(chapter=4, title='第四章 渡口', file_type='draft', parent_id='<正文目录>')
+第 4 次回复：
 <file>
 第四章的正文...
 </file>
-（给作者的总结）
+（系统发回保存结果和字数）
+第 5 次回复：自查后写给作者的总结
 ```
 
 ### 改已有文件：edit_file
