@@ -1076,3 +1076,19 @@ async def test_streamed_chapter_missing_only_the_first_indent_is_saved_indented(
         assert edit_end.data["new_content"] == saved
         final = _results(outcome, "write_chapter")[-1]["data"]
         assert final["new_word_count"] == count_words(saved)
+
+
+async def test_rewriting_a_chapter_keeps_its_own_unindented_first_paragraph(workspace):
+    # 原文第一段本来就顶格（作者的写法）：AI 整章写回同一段时不补缩进，也不算一次改动。
+    chapter = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", UNINDENTED_FIRST_BODY + "\n")
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "雨夜", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{UNINDENTED_FIRST_BODY}\n</file>\n第一章照原样写回了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "把第一章原样写回")
+
+    assert model.tool_calls[0].output["data"]["action"] == "replaced"
+    assert _content(workspace, chapter.id) == UNINDENTED_FIRST_BODY + "\n"
+    final = _results(outcome, "write_chapter")[-1]["data"]
+    assert final["mutation_applied"] is False

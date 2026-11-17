@@ -121,3 +121,14 @@ def test_paragraph_under_a_leading_heading_is_indented():
     fixed = indent_unindented_first_paragraph(body)
     assert fixed == "第三章 雨夜\n　　第一段合成正文。" + INDENTED_REST
     assert indent_unindented_first_paragraph(fixed) == fixed
+
+
+def test_previous_unindented_first_paragraph_is_kept():
+    body = "第一段合成正文。" + INDENTED_REST
+    assert indent_unindented_first_paragraph(body, previous=body) == body
+    assert indent_unindented_first_paragraph(body, previous="第一段合成正文。\r\n旧的第二段。") == body
+    assert normalize_ai_body_first_indent(body, "draft", previous=body) == body
+    # 原文第一段不同、或原文第一段本来有缩进时照常补。
+    assert indent_unindented_first_paragraph(body, previous="另一段原文。" + INDENTED_REST) == "　　" + body
+    assert indent_unindented_first_paragraph(body, previous="　　" + body) == "　　" + body
+    assert indent_unindented_first_paragraph(body, previous="") == "　　" + body

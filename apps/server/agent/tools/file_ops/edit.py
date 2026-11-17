@@ -368,14 +368,17 @@ def _numbered_previews(content: str, spans: list[tuple[int, int]]) -> list[str]:
 NORMALIZED_QUOTE_FILE_TYPES = frozenset({"draft", "script"})
 
 
-def normalize_ai_body_first_indent(content: str, file_type: str | None) -> str:
+def normalize_ai_body_first_indent(
+    content: str, file_type: str | None, *, previous: str | None = None
+) -> str:
     """应用内 agent 整章写入小说正文（draft）时，补上漏掉的第一段「　　」缩进。
 
     剧本（script）的场景标题、动作行、台词按剧本格式顶格，资料文件不是正文，都不动。
+    ``previous`` 是被替换的原文：原文第一段本来就这样顶格时不补。
     """
     if file_type != "draft":
         return content
-    return indent_unindented_first_paragraph(content)
+    return indent_unindented_first_paragraph(content, previous=previous or "")
 
 
 def previous_chapter_content(
@@ -1160,7 +1163,7 @@ class FileEditor:
                 ),
             )
         if normalize_quotes and content:
-            content = normalize_ai_body_first_indent(content, file.file_type)
+            content = normalize_ai_body_first_indent(content, file.file_type, previous=old_content)
 
         undo: dict[str, Any] | None = None
         if content != old_content:

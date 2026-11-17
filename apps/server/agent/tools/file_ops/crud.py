@@ -898,7 +898,7 @@ class FileCRUD:
                 ),
             )
         if normalize_quotes and content:
-            content = normalize_ai_body_first_indent(content, file.file_type)
+            content = normalize_ai_body_first_indent(content, file.file_type, previous=old_content)
 
         prospective_title = title if title is not None else file.title
         prospective_content = content if content is not None else file.content

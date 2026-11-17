@@ -138,7 +138,7 @@ def _starts_like_paragraph(line: str) -> bool:
     return line[0] in _PARAGRAPH_LEAD_MARKS and bool(_WORD_CHAR.search(line))
 
 
-def indent_unindented_first_paragraph(content: str) -> str:
+def indent_unindented_first_paragraph(content: str, *, previous: str = "") -> str:
     """AI 整章写入的正文：后面的段落都以「　　」开头、只有第一段顶格时，给第一段补上「　　」。
 
     模型写 ``<file>`` 正文时偶尔漏掉第一段的缩进（后面各段都有）。只在稿子自己的体例足够明确时补：
@@ -147,6 +147,9 @@ def indent_unindented_first_paragraph(content: str) -> str:
     或不像一段话（不以句末标点、破折号或闭引号收尾，如「序章」「一」「Chapter One」「1-1 日 内」）
     时不动；没有缩进或缩进混用的稿子不动，英文稿件不用「　　」，自然不受影响。
     只在第一段行首插入两个全角空格，字数不变。
+
+    ``previous`` 是这次写入要替换的原文。原文的第一段就是这一行、同样顶格时，这是原文自己的写法
+    （作者的稿子，AI 整章写回时照抄），不改它，免得只差一个缩进的写回也算一次改动。
     """
     if not isinstance(content, str) or not content:
         return content
@@ -167,8 +170,18 @@ def indent_unindented_first_paragraph(content: str) -> str:
     indented = sum(1 for line in following if _leading_indent(line) == FULL_WIDTH_INDENT)
     if indented < _FIRST_INDENT_MIN_SHARE * len(following):
         return content
+    if previous and _first_paragraph_line(previous.split("\n")) == first.rstrip("\r"):
+        return content
     lines[first_index] = FULL_WIDTH_INDENT + first
     return "\n".join(lines)
+
+
+def _first_paragraph_line(lines: list[str]) -> str | None:
+    """开头标题行之后的第一个非空行（去掉行尾的 \\r）。"""
+    for line in lines:
+        if line.strip() and not _is_heading_line(line):
+            return line.rstrip("\r")
+    return None
 
 
 def _ascii_quote_closes(text: str, index: int) -> bool:
