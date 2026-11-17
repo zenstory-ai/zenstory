@@ -437,15 +437,24 @@ const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: 
 const readChapterNumber = (value: unknown): number | null =>
   typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
 
-/** 「第3章「雨夜」」 for a write_chapter call or result; the title alone when the number is missing. */
+/** A screenplay's write_chapter units are episodes (the server's `file_type`, not the title text). */
+const isEpisodeFile = (fileType: unknown): boolean => fileType === 'script';
+
+/**
+ * 「第3章「雨夜」」 (「第3集…」 for a script) for a write_chapter call or result; the title alone
+ * when the number is missing.
+ */
 const describeChapter = (
   chapter: unknown,
   title: string | undefined,
   t: (key: string, options?: Record<string, unknown>) => string,
+  fileType?: unknown,
 ): string => {
   const number = readChapterNumber(chapter);
   const parts = [
-    number !== null ? t('chat:tool.chapterNumber', { chapter: number }) : '',
+    number !== null
+      ? t(isEpisodeFile(fileType) ? 'chat:tool.episodeNumber' : 'chat:tool.chapterNumber', { chapter: number })
+      : '',
     title ? quote(title) : '',
   ].filter(Boolean);
   return parts.join(' ');
@@ -458,6 +467,15 @@ const WRITE_CHAPTER_HEADLINES: Record<WriteChapterOutcome, { numbered: string; u
   replaced: { numbered: 'chat:tool.chapterReplaced', unnumbered: 'chat:tool.chapterReplacedUnnumbered' },
   unchanged: { numbered: 'chat:tool.chapterReplaceUnchanged', unnumbered: 'chat:tool.chapterReplaceUnchangedUnnumbered' },
   not_saved: { numbered: 'chat:tool.chapterReplaceNotSaved', unnumbered: 'chat:tool.chapterReplaceNotSavedUnnumbered' },
+};
+
+const WRITE_EPISODE_HEADLINES: Record<WriteChapterOutcome, { numbered: string; unnumbered: string }> = {
+  created: { numbered: 'chat:tool.episodeCreated', unnumbered: 'chat:tool.episodeCreatedUnnumbered' },
+  exists: { numbered: 'chat:tool.episodeExists', unnumbered: 'chat:tool.episodeExistsUnnumbered' },
+  replacing: { numbered: 'chat:tool.episodeReplacing', unnumbered: 'chat:tool.episodeReplacingUnnumbered' },
+  replaced: { numbered: 'chat:tool.episodeReplaced', unnumbered: 'chat:tool.episodeReplacedUnnumbered' },
+  unchanged: { numbered: 'chat:tool.episodeReplaceUnchanged', unnumbered: 'chat:tool.chapterReplaceUnchangedUnnumbered' },
+  not_saved: { numbered: 'chat:tool.episodeReplaceNotSaved', unnumbered: 'chat:tool.episodeReplaceNotSavedUnnumbered' },
 };
 
 const readWordCount = (value: unknown): number | null =>
@@ -547,12 +565,12 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 
   // Render Tool Call (loading state)
   if (type === 'tool_call' && toolName) {
-    const { icon, label } = getToolDisplayInfo(toolName, t);
-
     // Extract user-friendly info from arguments
     const args = result || {};
     const title = args.title as string | undefined;
     const fileType = args.file_type as string | undefined;
+    const { icon, label: toolLabel } = getToolDisplayInfo(toolName, t);
+    const label = toolName === 'write_chapter' && isEpisodeFile(fileType) ? t('chat:tool.write_episode') : toolLabel;
     
     // Build description based on tool type
     let description = '';
@@ -560,7 +578,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const typeInfo = fileType ? getFileTypeInfo(fileType, t) : null;
       description = typeInfo ? `${typeInfo.label}${quote(title)}` : quote(title);
     } else if (toolName === 'write_chapter') {
-      description = describeChapter(args.chapter, title, t);
+      description = describeChapter(args.chapter, title, t, fileType);
     } else if (toolName === 'query_files') {
       const queryFileType = args.file_type as string | undefined;
       if (queryFileType) {
@@ -697,11 +715,12 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const newWords = readWordCount(data.new_word_count)
         ?? (typeof data.content === 'string' ? countWords(data.content) : null);
       const typeInfo = getFileTypeInfo(fileType, t);
+      const headlines = isEpisodeFile(fileType) ? WRITE_EPISODE_HEADLINES : WRITE_CHAPTER_HEADLINES;
       const headline = outcome === null
-        ? t('chat:tool.write_chapter')
+        ? t(isEpisodeFile(fileType) ? 'chat:tool.write_episode' : 'chat:tool.write_chapter')
         : chapter === null
-          ? t(WRITE_CHAPTER_HEADLINES[outcome].unnumbered)
-          : t(WRITE_CHAPTER_HEADLINES[outcome].numbered, { chapter });
+          ? t(headlines[outcome].unnumbered)
+          : t(headlines[outcome].numbered, { chapter });
       const succeeded = outcome === 'created' || outcome === 'replaced';
       const undoTarget = outcome === 'replaced'
         ? readFileEditUndoTarget(data, chatMessageId, toolUseId)
