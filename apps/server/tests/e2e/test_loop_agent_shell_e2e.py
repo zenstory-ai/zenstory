@@ -481,3 +481,64 @@ async def test_loop_replacement_of_an_empty_chapter_cut_off_mid_body_is_charged(
     assert "第1段合成新稿" in _content(db_session, three.id)
     release.assert_not_called()
     assert "event: quota_refunded" not in "".join(received)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ending", ["user_stopped", "client_disconnected"])
+async def test_loop_replacement_committed_while_the_round_is_cut_off_is_charged(
+    client: AsyncClient, db_session: Session, shell_db, scripted, ending
+):
+    """正文已写到 </file>、整章替换正在落库时停止 / 断线：保存照常完成，这一轮按已写入计费。"""
+    import threading
+
+    from agent.stream_adapter import StreamAdapter
+    from services.quota_service import quota_service
+
+    user, _token, project = await _login(client, db_session)
+    three = _ai_chapter(db_session, project, "第3章 灯塔", "合成第三章原文。")
+    save_started = threading.Event()
+    allow_save = threading.Event()
+    real_replace = StreamAdapter._replace_file_body_sync
+
+    def slow_replace(self, *args, **kwargs):
+        save_started.set()
+        allow_save.wait(5)
+        return real_replace(self, *args, **kwargs)
+
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第三章", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章换好了。"),
+    ]])
+
+    real_release = quota_service.release_ai_conversation
+    patches = scripted(model)
+    received: list[str] = []
+    with patches[0], patches[1], patches[2], patches[3], patch.object(
+        quota_service, "release_ai_conversation", side_effect=real_release
+    ) as release, patch.object(StreamAdapter, "_replace_file_body_sync", slow_replace):
+        response = await _start(db_session, user, project, "把第三章换成新稿")
+        iterator = response.body_iterator
+        await _read_until(iterator, "file_content", received)
+        assert await asyncio.to_thread(save_started.wait, 5)
+        if ending == "user_stopped":
+            stop = asyncio.create_task(agent_api.stop_stream(
+                body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+                current_user=user,
+                _rate_limit=0,
+            ))
+            await asyncio.sleep(0.05)
+            allow_save.set()
+            assert (await stop).stop_requested is True
+            received.extend([frame async for frame in iterator])
+        else:
+            await iterator.aclose()
+            allow_save.set()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert _content(db_session, three.id).rstrip("\n") == NEW_BODY
+    release.assert_not_called()
+    assert "event: quota_refunded" not in "".join(received)
+    if ending == "user_stopped":
+        metadata = json.loads(_assistant_row(db_session, project).message_metadata)
+        assert metadata["stop_outcome"]["charged"] is True

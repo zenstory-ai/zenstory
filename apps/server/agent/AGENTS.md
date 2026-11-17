@@ -157,7 +157,9 @@ agent/
   撤销模型跑在前面建好的空文件，之后才建好的由 `_create_file_sync` 自己撤销）。计费（`StreamBillingTracker._write_effect`）：write_chapter
   新建同 create_file 只看 content，替换只认 `body_saved` 且 `mutation_applied` 的补发结果（替换目标即结果 `action=replaced` 且原文非空的 id 记进
   `replace_target_ids`，它的流式 file_content 不算写入：正文流到一半停止 / 断线 / 到时，原文不变，照常退还；
-  原文为空的章节没有覆盖保护，中途停下的正文照常落库并计费）；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文；run 边界的截断补全被拒时
+  原文为空的章节没有覆盖保护，中途停下的正文照常落库并计费；写到 `</file>` 后提交还在途中时被截停，
+  StreamAdapter 不随取消丢掉提交，`settle_aborted_capture` 等它的结果写进保存回执，结算前按回执 `note_saved_receipts` 补记写入，
+  断线路径在后台等回执后再决定是否退还）；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文；run 边界的截断补全被拒时
   待写绑定与守卫留着，engine 在纠偏次数内经 `FILE_BODY_RESUME` 为这一章恢复捕获重试，补不成就作废定位。
 - **create_file / edit_file 的正文边界**：单循环轮次里 create_file 不建 draft / script（按 `resolve_create_target` 归一后的类型，剧本分集目录下带集号的 document 同样拒绝；
   `chapter_body_requires_write_chapter`，指向 write_chapter）；

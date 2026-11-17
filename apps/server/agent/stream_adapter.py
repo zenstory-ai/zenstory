@@ -189,6 +189,8 @@ class StreamAdapter:
         self._stop_after_refused_replace = False
         self._file_mutated = False
         self._abort_capture: tuple[str, int, asyncio.Task[bool]] | None = None
+        # 停止 / 断线时还在提交的整章替换（线程里的提交不会随取消中止）：收尾时等它的真实结果。
+        self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]]] | None = None
         self._saved_file_word_counts: dict[str, int | None] = {}
         # 图发来 CHAT_HOLD begin 之后的对话文字（StreamProcessor 判定为对话的部分，
         # 正文不扣）：等图决定丢掉（discard）还是在下一个边界事件前放出。
@@ -1080,12 +1082,23 @@ class StreamAdapter:
 
         run_meter = self.config.run_meter
         timing = run_meter.measure_stage("file_save") if run_meter is not None else contextlib.nullcontext()
+        save = asyncio.ensure_future(
+            asyncio.wait_for(
+                asyncio.to_thread(self._replace_file_body_sync, file_id, content, pending.baseline_updated_at),
+                timeout=STREAM_FILE_SAVE_TIMEOUT_S,
+            )
+        )
         try:
             with timing:
-                replaced = await asyncio.wait_for(
-                    asyncio.to_thread(self._replace_file_body_sync, file_id, content, pending.baseline_updated_at),
-                    timeout=STREAM_FILE_SAVE_TIMEOUT_S,
-                )
+                replaced = await asyncio.shield(save)
+        except asyncio.CancelledError:
+            # 停止 / 断线 / 时限取消了这一轮，但线程里的提交照常进行：记下它，
+            # settle_aborted_capture 等它的真实结果写进保存回执（计费与停止说明都按回执）。
+            self._replacement_in_flight = (file_id, content, save)
+            _ABORT_SAVE_TASKS.add(save)
+            save.add_done_callback(_ABORT_SAVE_TASKS.discard)
+            save.add_done_callback(lambda done: done.cancelled() or done.exception())
+            raise
         except (ConcurrentFileWriteError, AuthorContentProtectionError) as exc:
             log_with_context(
                 logger, 30, "Chapter replacement refused", file_id=file_id, error_type=type(exc).__name__
@@ -1275,6 +1288,7 @@ class StreamAdapter:
         service 可能在 adapter 生成器关闭之前进入取消收尾；此时在这里补全捕获。
         保存任务仍沿用原有超时与独立 session，不把历史落库当成正文已落库。
         """
+        await self._settle_replacement_in_flight()
         if self._stream_processor.is_active:
             self._persist_active_capture_in_background()
         capture = self._abort_capture
@@ -1287,6 +1301,29 @@ class StreamAdapter:
         else:
             self._saved_file_word_counts.setdefault(file_id, None)
         return self.get_saved_file_word_counts()
+
+    async def _settle_replacement_in_flight(self) -> None:
+        """取消时还在提交的整章替换：等提交结果（受 STREAM_FILE_SAVE_TIMEOUT_S 限时），写进保存回执。"""
+        in_flight = self._replacement_in_flight
+        if in_flight is None:
+            return
+        self._replacement_in_flight = None
+        file_id, content, save = in_flight
+        try:
+            replaced = await asyncio.shield(save)
+        except Exception as exc:  # noqa: BLE001 - 提交失败：回执记为未保存
+            log_with_context(
+                logger, 30, "Chapter replacement in flight at abort did not commit",
+                file_id=file_id, error_type=type(exc).__name__,
+            )
+            self._saved_file_word_counts.setdefault(file_id, None)
+            return
+        if replaced.get("mutation_applied") is not True:
+            self._saved_file_word_counts.setdefault(file_id, None)
+            return
+        self._file_mutated = True
+        self._saved_file_word_counts[file_id] = count_words(str(replaced.get("new_content") or content))
+        log_with_context(logger, 20, "Chapter replacement committed after abort", file_id=file_id)
 
     def get_saved_file_word_counts(self) -> dict[str, int | None]:
         """保存回执；收到结束标记或正文 chunk 本身不代表落库成功。"""

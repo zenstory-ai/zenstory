@@ -49,6 +49,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -187,6 +188,8 @@ class StreamBillingTracker:
     filled_file_ids: set[str] = field(default_factory=set)
     # write_chapter 定位为整章替换的已有章节（结果 action=replaced 的 id）：它们的流式正文不算写入。
     replace_target_ids: set[str] = field(default_factory=set)
+    # 收到了落库结果（body_saved）的替换目标：保存的事实已经由帧确认。
+    confirmed_replacement_ids: set[str] = field(default_factory=set)
     # session_started 帧里的聊天会话 id（停止路径的 done 帧带上它）。
     session_id: str | None = None
     # 这一轮结束（终止帧 / error 帧）时，模型最后在做的是给作者写回复：最后一段正文
@@ -282,6 +285,10 @@ class StreamBillingTracker:
         data = payload.get("data")
         if not isinstance(data, dict):
             return
+        if payload.get("tool_name") == "write_chapter" and data.get("body_saved") is True:
+            if isinstance(data.get("id"), str) and data["id"]:
+                self.confirmed_replacement_ids.add(data["id"])
+            return
         if payload.get("tool_name") == "write_chapter" and data.get("action") != "created":
             # 整章替换的目标是已有的章节，不是这一轮建的空白占位；有原文时它的流式正文要等落库结果才算写入。
             # 原文为空的章节没有要保护的正文（适配器的截断覆盖保护同样只看原长度 > 0）：中途停下时
@@ -308,6 +315,20 @@ class StreamBillingTracker:
             version = data.get("updated_at")
             if isinstance(version, str) and version:
                 self.created_empty_versions[file_id] = version
+
+    def unconfirmed_replacement_ids(self) -> set[str]:
+        """定位了整章替换、还没收到落库结果的章节（停止 / 断线时保存可能还在途中）。"""
+        return self.replace_target_ids - self.confirmed_replacement_ids
+
+    def note_saved_receipts(self, receipts: Mapping[str, int | None]) -> None:
+        """按 StreamAdapter 的保存回执补记整章替换：落库结果帧没来得及发出（停止 / 断线时保存
+        仍在途中、之后才提交）时，回执里有字数就说明新正文已经写进了这一章，算写入。"""
+        if any(isinstance(receipts.get(file_id), int) for file_id in self.unconfirmed_replacement_ids()):
+            self.write_succeeded = True
+            self.file_written = True
+            if not self.produced_output:
+                self.produced_output = True
+                self.first_output_ms = int((time.monotonic() - self.started_at) * 1000)
 
     def _write_effect(self, event_type: str, payload: dict[str, Any]) -> bool:
         """这一帧是否意味着某个文件被写进了正文（或被删除）、项目信息被改了。"""
