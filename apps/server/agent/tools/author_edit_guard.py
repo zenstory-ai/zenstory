@@ -23,6 +23,10 @@ PRE_WRITE_HISTORY_UNAVAILABLE_ERROR = "pre_write_history_unavailable"
 
 _AI_CHANGE_SOURCE = "ai"
 _AI_EDIT_CHANGE_TYPE = "ai_edit"
+_RESTORE_CHANGE_TYPE = "restore"
+_USER_CHANGE_SOURCE = "user"
+# 撤销 / 审阅回到 AI 正文时往前比对的版本数（写锁内执行，保持有界）。
+_AI_TEXT_LOOKBACK = 5
 
 
 class AuthorContentProtectionError(RuntimeError):
@@ -77,7 +81,10 @@ def _latest_text_owner_is_author(session: Any, file: Any) -> bool | None:
     recorded AI state.
     ``ai_edit`` versions count as AI-written, except the editor's review save
     (``user/ai_edit/"AI edit (reviewed)"``) right after an AI-written version: the author
-    reviewed that AI change and saved their own result.  Only the version tuples are read.
+    reviewed that AI change and saved their own result.
+    A user restore or such a review save whose text byte-equals the newest matching earlier
+    version, when that version is AI-written (undo of an AI rewrite, reject-all in review), is
+    AI text again; see ``_returns_to_ai_text``.
     """
     content = getattr(file, "content", None) or ""
     if not content.strip():
@@ -94,9 +101,12 @@ def _latest_text_owner_is_author(session: Any, file: Any) -> bool | None:
         return True
     if latest.change_source == _AI_CHANGE_SOURCE:
         return False
-    if latest.change_type != _AI_EDIT_CHANGE_TYPE:
+    if latest.change_type == _AI_EDIT_CHANGE_TYPE:
+        if not _is_review_save_after_ai_write(session, service, latest):
+            return False
+    elif not (latest.change_type == _RESTORE_CHANGE_TYPE and latest.change_source == _USER_CHANGE_SOURCE):
         return True
-    return _is_review_save_after_ai_write(session, service, latest)
+    return not _returns_to_ai_text(session, service, latest, content)
 
 
 def _is_review_save_after_ai_write(session: Any, service: Any, latest: Any) -> bool:
@@ -106,6 +116,27 @@ def _is_review_save_after_ai_write(session: Any, service: Any, latest: Any) -> b
         return False
     previous = service.get_version_by_number(session, latest.file_id, latest.version_number - 1)
     return previous is not None and version_actor(previous) == AI
+
+
+def _returns_to_ai_text(session: Any, service: Any, latest: Any, content: str) -> bool:
+    """The newest of the last ``_AI_TEXT_LOOKBACK`` earlier versions with exactly this text is AI-written.
+
+    A deterministic comparison of stored version bodies, not a reading of intent: restoring an
+    author version, a mixed review result, or text no recent version holds stays the author's.
+    """
+    from agent.tools.author_changes import AI, version_actor
+
+    earlier = [
+        version
+        for version in service.get_versions(
+            session, latest.file_id, limit=_AI_TEXT_LOOKBACK + 1, include_auto_save=True
+        )
+        if version.version_number < latest.version_number
+    ][:_AI_TEXT_LOOKBACK]
+    for version in earlier:
+        if service._get_contents_for_versions(session, {latest.file_id: version})[latest.file_id] == content:
+            return version_actor(version) == AI
+    return False
 
 
 def enforce_author_content_protection(

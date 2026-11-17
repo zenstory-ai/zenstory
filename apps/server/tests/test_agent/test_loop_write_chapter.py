@@ -1028,6 +1028,81 @@ async def test_next_turn_reacquires_target_after_an_unsaved_replacement(workspac
     assert FileVersionService()._get_contents_for_versions(workspace.session, {three.id: before})[three.id] == original
 
 
+AI_FIRST = "第一段 AI 初稿，合成文字。\n\n第二段 AI 初稿，合成文字。"
+AI_SECOND = "第一段 AI 第二稿，合成文字。\n\n第二段 AI 第二稿，合成文字。"
+AUTHOR_TEXT = "第一段作者自己的写法，合成文字。\n\n第二段作者自己的写法，合成文字。"
+
+
+def _save(session, file: File, content: str, *, change_type: str, change_source: str, summary: str | None = None):
+    FileVersionService().create_version(
+        session, file.id, content, change_type=change_type, change_source=change_source,
+        change_summary=summary, skip_quota=True,
+    )
+    current = session.get(File, file.id)
+    current.content = content
+    session.add(current)
+    session.commit()
+
+
+def _number_of(workspace, file_id: str, content: str) -> int:
+    workspace.session.expire_all()
+    versions = workspace.session.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()
+    service = FileVersionService()
+    return max(
+        v.version_number for v in versions
+        if service._get_contents_for_versions(workspace.session, {file_id: v})[file_id] == content
+    )
+
+
+async def _write_chapter_one(workspace) -> dict[str, Any]:
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "第1章", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第一章换好了。"),
+    ]])
+    await _run_loop(workspace, model, "把第一章整章重写")
+    return model.tool_calls[0].output
+
+
+@pytest.mark.parametrize("back_to_ai", ["undo", "review_reject_all"])
+async def test_going_back_to_byte_identical_ai_text_stays_replaceable(workspace, back_to_ai):
+    # AI 写的初稿 → AI 整章替换 → 作者撤销 / 审阅里全部拒绝：正文与 AI 初稿一字不差，仍是 AI 的正文。
+    one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", AI_FIRST)
+    _save(workspace.session, one, AI_SECOND, change_type="ai_edit", change_source="ai", summary="AI 整章替换")
+    if back_to_ai == "undo":
+        FileVersionService().rollback_to_version(
+            workspace.session, one.id, _number_of(workspace, one.id, AI_FIRST), workspace.user.id
+        )
+    else:
+        _save(workspace.session, one, AI_FIRST, change_type="ai_edit", change_source="user", summary="AI edit (reviewed)")
+    assert _content(workspace, one.id) == AI_FIRST
+
+    armed = await _write_chapter_one(workspace)
+
+    assert armed["status"] == "success" and armed["data"]["action"] == "replaced"
+    assert _content(workspace, one.id).rstrip("\n") == NEW_BODY
+
+
+@pytest.mark.parametrize("back_to_author", ["restore_author_version", "mixed_review_save"])
+async def test_author_text_reached_by_restore_or_review_stays_protected(workspace, back_to_author):
+    one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", AI_FIRST)
+    if back_to_author == "restore_author_version":
+        _save(workspace.session, one, AUTHOR_TEXT, change_type="edit", change_source="user")
+        _save(workspace.session, one, AI_SECOND, change_type="ai_edit", change_source="ai", summary="AI 整章替换")
+        FileVersionService().rollback_to_version(
+            workspace.session, one.id, _number_of(workspace, one.id, AUTHOR_TEXT), workspace.user.id
+        )
+        expected = AUTHOR_TEXT
+    else:
+        _save(workspace.session, one, AI_SECOND, change_type="ai_edit", change_source="ai", summary="AI 整章替换")
+        expected = "第一段 AI 初稿，合成文字。\n\n第二段 AI 第二稿，合成文字。"
+        _save(workspace.session, one, expected, change_type="ai_edit", change_source="user", summary="AI edit (reviewed)")
+
+    armed = await _write_chapter_one(workspace)
+
+    assert armed["status"] == "error" and armed["error_type"] == "author_edit_protected"
+    assert _content(workspace, one.id) == expected
+
+
 async def test_undo_marks_a_write_chapter_card(workspace):
     from datetime import datetime
 
