@@ -1666,7 +1666,7 @@ class StreamAdapter:
                 content,
                 file_type=file_type,
                 baseline_updated_at=baseline_updated_at,
-                complete_title=None if result.auto_completed else (pending.title if pending else ""),
+                complete_title=None if result.auto_completed else self._save_title(file_id, pending),
             )
         )
         try:
@@ -1683,6 +1683,11 @@ class StreamAdapter:
         if pending is None or pending.file_id != file_id:
             return "", None
         return pending.file_type, pending.baseline_updated_at
+
+    @staticmethod
+    def _save_title(file_id: str, pending: PendingFileWrite | None) -> str:
+        """完整正文记进已保存正文时用的标题：只取同一个文件的待写记录（与 _save_target 同一口径）。"""
+        return pending.title if pending is not None and pending.file_id == file_id else ""
 
     def _note_body_saved(
         self, file_id: str, words: int, *, title: str | None = None, file_type: str = ""

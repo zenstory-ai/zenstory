@@ -129,3 +129,25 @@ async def test_new_chapter_save_cancelled_mid_commit_still_records_its_receipt()
 
     assert seen == ["2026-11-17T01:00:00+00:00"]
     assert receipts == {"chapter-3": count_words(BODY)}
+
+
+@pytest.mark.asyncio
+async def test_new_body_save_only_takes_the_title_of_its_own_pending_write():
+    """待写记录指向别的文件时，不把那个文件的标题记到这份正文上（与版本令牌同一口径）。"""
+    from agent.core.stream_processor import StreamResult
+    from agent.stream_adapter import PendingFileWrite
+
+    adapter = StreamAdapter()
+    seen = []
+
+    async def fake_save(file_id, content, **kwargs):
+        seen.append((file_id, kwargs.get("complete_title"), kwargs.get("baseline_updated_at")))
+        return True
+
+    adapter._save_file_content = fake_save
+    other = PendingFileWrite(file_id="chapter-9", file_type="draft", title="第9章", baseline_updated_at="v9")
+    result = StreamResult(file_id="chapter-1", file_complete=True, final_content=BODY)
+
+    assert await adapter._save_new_body(result, other) is True
+    assert await adapter._save_new_body(result, PendingFileWrite("chapter-1", "draft", "第1章")) is True
+    assert seen == [("chapter-1", "", None), ("chapter-1", "第1章", None)]
