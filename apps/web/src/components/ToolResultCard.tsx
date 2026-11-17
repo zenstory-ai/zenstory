@@ -45,7 +45,7 @@ import {
 } from 'lucide-react';
 import type { Conflict, FileEditUndoTarget } from '../types';
 import { UndoBlockedContext, UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
-import { readFileEditUndoTarget, readWriteChapterOutcome, type WriteChapterOutcome } from '../lib/aiWriteCards';
+import { isPersistedUndoTarget, readFileEditUndoTarget, readWriteChapterOutcome, type WriteChapterOutcome } from '../lib/aiWriteCards';
 import { countWords } from '../lib/documentChunker';
 import { sanitizeAgentText } from '../lib/agentDisplayName';
 import { RememberedNotes } from './RememberedNotes';
@@ -749,7 +749,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               <span className="shrink-0 text-xs text-[hsl(var(--text-secondary))]">
                 {t('chat:tool.edit_undone')}
               </span>
-            ) : onUndo && undoTarget && (
+            ) : onUndo && isPersistedUndoTarget(undoTarget) && (
               <CardUndoControl
                 target={undoTarget}
                 blocked={undoBlocked.has(undoneEditKey(undoTarget))}
@@ -1006,7 +1006,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               <span className="ml-auto shrink-0 text-xs text-[hsl(var(--text-secondary))]">
                 {t('chat:tool.edit_undone')}
               </span>
-            ) : onUndo && undoTarget && (
+            ) : onUndo && isPersistedUndoTarget(undoTarget) && (
               <CardUndoControl
                 target={undoTarget}
                 blocked={undoBlocked.has(undoneEditKey(undoTarget))}
