@@ -109,6 +109,81 @@ def follow_span_indentation(content: str, start: int, end: int, old: str, new: s
     return "\n".join(lines)
 
 
+FULL_WIDTH_INDENT = "　　"
+_FIRST_INDENT_MIN_FOLLOWING = 3
+_FIRST_INDENT_MIN_SHARE = 0.8
+_CLOSING_QUOTES = frozenset("”’」』")
+_PARAGRAPH_LEAD_MARKS = frozenset("—…")
+# 只有编号的行（「1.」「一、」「二。」）是小节序号，不是一段话。
+_SECTION_NUMBER = re.compile(r"[0-9０-９零〇一二两三四五六七八九十百千]+[.．、。]?")
+
+
+def _ends_like_sentence(line: str) -> bool:
+    """这一行以句末标点（可带闭引号/闭括号）、破折号收尾，或以闭引号收尾：像一段话，不像标题或编号。"""
+    text = line.rstrip(INLINE_SPACE + _NEWLINES)
+    if _SECTION_NUMBER.fullmatch(text.lstrip(INLINE_SPACE)):
+        return False
+    end = len(text)
+    while end > 0 and _is_closing(text, end - 1):
+        end -= 1
+    if end < len(text) and (text[end] in _CLOSING_QUOTES or text[end] == '"'):
+        return True
+    return end > 0 and (text[end - 1] in _SENTENCE_END_CHARS or text[end - 1] in _DASH_CHARS)
+
+
+def _starts_like_paragraph(line: str) -> bool:
+    """段首是文字、开引号，或「——」「……」开头的对白/省略（整行至少有一个字，分隔行不算）。"""
+    if _WORD_CHAR.match(line[0]) or _is_opening(line, 0):
+        return True
+    return line[0] in _PARAGRAPH_LEAD_MARKS and bool(_WORD_CHAR.search(line))
+
+
+def indent_unindented_first_paragraph(content: str, *, previous: str = "") -> str:
+    """AI 整章写入的正文：后面的段落都以「　　」开头、只有第一段顶格时，给第一段补上「　　」。
+
+    模型写 ``<file>`` 正文时偶尔漏掉第一段的缩进（后面各段都有）。只在稿子自己的体例足够明确时补：
+    第一段之后的非空、非标题段落至少 3 段，其中至少 80% 的段首缩进恰好是「　　」。开头的标题行跳过，
+    看标题下面的第一段。第一段已有任何缩进、不以文字/开引号/「——」「……」开头（分隔行等）、
+    或不像一段话（不以句末标点、破折号或闭引号收尾，如「序章」「一」「Chapter One」「1-1 日 内」）
+    时不动；没有缩进或缩进混用的稿子不动，英文稿件不用「　　」，自然不受影响。
+    只在第一段行首插入两个全角空格，字数不变。
+
+    ``previous`` 是这次写入要替换的原文。原文的第一段就是这一行、同样顶格时，这是原文自己的写法
+    （作者的稿子，AI 整章写回时照抄），不改它，免得只差一个缩进的写回也算一次改动。
+    """
+    if not isinstance(content, str) or not content:
+        return content
+    lines = content.split("\n")
+    paragraphs = [index for index, line in enumerate(lines) if line.strip()]
+    position = 0
+    while position < len(paragraphs) and _is_heading_line(lines[paragraphs[position]]):
+        position += 1
+    if position >= len(paragraphs):
+        return content
+    first_index = paragraphs[position]
+    first = lines[first_index]
+    if first[0] in INLINE_SPACE or not _starts_like_paragraph(first) or not _ends_like_sentence(first):
+        return content
+    following = [lines[index] for index in paragraphs[position + 1:] if not _is_heading_line(lines[index])]
+    if len(following) < _FIRST_INDENT_MIN_FOLLOWING:
+        return content
+    indented = sum(1 for line in following if _leading_indent(line) == FULL_WIDTH_INDENT)
+    if indented < _FIRST_INDENT_MIN_SHARE * len(following):
+        return content
+    if previous and _first_paragraph_line(previous.split("\n")) == first.rstrip("\r"):
+        return content
+    lines[first_index] = FULL_WIDTH_INDENT + first
+    return "\n".join(lines)
+
+
+def _first_paragraph_line(lines: list[str]) -> str | None:
+    """开头标题行之后的第一个非空行（去掉行尾的 \\r）。"""
+    for line in lines:
+        if line.strip() and not _is_heading_line(line):
+            return line.rstrip("\r")
+    return None
+
+
 def _ascii_quote_closes(text: str, index: int) -> bool:
     """行内第偶数个 ASCII 双引号是闭引号（按出现顺序配对）。"""
     line_start = text.rfind("\n", 0, index) + 1
@@ -357,6 +432,7 @@ __all__ = [
     "NOTE_PARAGRAPH",
     "NOTE_SENTENCE_SNAP",
     "exact_anchor_snap_forward",
+    "indent_unindented_first_paragraph",
     "is_sentence_boundary",
     "is_sentence_shaped",
     "layout_insertion",

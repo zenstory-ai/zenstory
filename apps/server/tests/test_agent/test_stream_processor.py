@@ -584,3 +584,35 @@ def test_literal_less_than_without_pending_file_is_still_flushed():
     final = proc.finalize_on_stream_end()
 
     assert _all_conversation([result, final]) == "<"
+
+
+# 正文第一段的段首缩进（「　　」）和后面的段落一样属于正文：<file> 后面那一个换行不算正文，
+# 缩进本身不能被当成空白吃掉。每个切分点都试一遍（缩进、换行可能落在任意 chunk 边界上）。
+_INDENTED_BODY = "　　第一段合成正文。\n\n　　第二段合成正文。"
+
+
+@pytest.mark.parametrize("lead", ["", "\n", "\r\n"])
+def test_first_paragraph_indent_survives_every_chunk_split(lead):
+    text = f"<file>{lead}{_INDENTED_BODY}\n</file>\n写好了。"
+    for cut in range(1, len(text)):
+        results, _proc = _drive([text[:cut], text[cut:]])
+        [done] = [r for r in results if r.file_complete]
+        assert done.final_content == f"{_INDENTED_BODY}\n", (lead, cut)
+        streamed = "".join(r.file_content for r in results)
+        assert streamed == f"{_INDENTED_BODY}\n", (lead, cut)
+
+
+def test_first_paragraph_indent_survives_one_char_chunks():
+    results, _proc = _drive(list(f"<file>\n{_INDENTED_BODY}\n</file>"))
+    [done] = [r for r in results if r.file_complete]
+    assert done.final_content == f"{_INDENTED_BODY}\n"
+
+
+def test_reply_prebody_keeps_first_paragraph_indent_at_every_split():
+    """没有待写文件时先写出的正文（独占一行的 <file>）同样保留第一段缩进。"""
+    text = f"<file>\n{_INDENTED_BODY}\n</file>\n"
+    for cut in range(1, len(text)):
+        proc = StreamProcessor(prebody_capture=True)
+        results = [proc.process_content(text[:cut]), proc.process_content(text[cut:])]
+        [done] = [r for r in results if r.file_complete]
+        assert done.final_content == f"{_INDENTED_BODY}\n", cut

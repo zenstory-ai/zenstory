@@ -60,6 +60,7 @@ from .edit import (
     acquire_file_write_lock,
     attach_author_edits_for_agent,
     file_write_lock,
+    normalize_ai_body_first_indent,
     remember_pre_write_content,
     resolve_write_quote_style,
     stage_pre_ai_write_backup,
@@ -303,7 +304,8 @@ class FileCRUD:
             metadata: Type-specific metadata (JSON)
             normalize_quotes: In-app agent writes only. For draft/script files,
                 normalize double quotes in ``content`` to the previous chapter's
-                style (default “”).
+                style (default “”); for draft files also restore a first
+                paragraph indent the rest of the body uses.
 
         Returns:
             Created file data
@@ -675,6 +677,8 @@ class FileCRUD:
                     order=resolved_order,
                 ),
             )
+        if normalize_quotes and content:
+            content = normalize_ai_body_first_indent(content, file_type)
 
         # Create file
         file = File(
@@ -772,7 +776,9 @@ class FileCRUD:
             metadata: New metadata (overwrites existing)
             normalize_quotes: In-app agent writes only. For draft/script files,
                 normalize double quotes in the whole new ``content`` to the
-                style of the body it replaces (or the previous chapter's).
+                style of the body it replaces (or the previous chapter's);
+                for draft files also restore a first paragraph indent the
+                rest of the body uses (``normalize_ai_body_first_indent``).
 
         Returns:
             Updated file data
@@ -894,6 +900,8 @@ class FileCRUD:
                     order=file.order,
                 ),
             )
+        if normalize_quotes and content:
+            content = normalize_ai_body_first_indent(content, file.file_type, previous=old_content)
 
         prospective_title = title if title is not None else file.title
         prospective_content = content if content is not None else file.content

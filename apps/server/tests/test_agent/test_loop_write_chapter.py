@@ -1014,3 +1014,81 @@ async def test_turn_after_an_output_truncation_asks_for_short_thinking_once(work
         assert OUTPUT_TRUNCATED_RESUME not in first
     # 不写回对话（不进历史）。
     assert OUTPUT_TRUNCATED_RESUME not in json.dumps(outcome.state.get("messages"), ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# 段首缩进：第一段和后面的段落一样原样落库（新建与整章替换同一口径）
+# ---------------------------------------------------------------------------
+
+INDENTED_BODY = "　　第一段合成正文，他说\"走吧\"。\n\n　　第二段合成正文。\n\n　　第三段合成正文。"
+
+
+@pytest.mark.parametrize("lead", ["", "\n"])
+@pytest.mark.parametrize("existing", [False, True], ids=["created", "replaced"])
+async def test_streamed_chapter_keeps_the_first_paragraph_indent(workspace, lead, existing):
+    if existing:
+        _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", "　　合成原文。")
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "雨夜", "file_type": "draft"}),)),
+        Reply(text=f"<file>{lead}{INDENTED_BODY}\n</file>\n第一章写好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "写第一章")
+
+    data = model.tool_calls[0].output["data"]
+    assert data["action"] == ("replaced" if existing else "created")
+    saved = _content(workspace, data["id"])
+    paragraphs = [line for line in saved.split("\n") if line.strip()]
+    assert len(paragraphs) == 3
+    assert all(line.startswith("　　") and not line.startswith("　　　") for line in paragraphs), saved
+    # 编辑器实时打字看到的也是带缩进的第一段。
+    assert outcome.file_text(data["id"]).startswith("　　第一段")
+    if existing:
+        [edit_end] = outcome.of("file_edit_end")
+        assert edit_end.data["new_content"] == saved
+
+
+UNINDENTED_FIRST_BODY = "第一段合成正文。\n\n　　第二段合成正文。\n\n　　第三段合成正文。\n\n　　第四段合成正文。"
+
+
+@pytest.mark.parametrize("existing", [False, True], ids=["created", "replaced"])
+async def test_streamed_chapter_missing_only_the_first_indent_is_saved_indented(workspace, existing):
+    if existing:
+        _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", "　　合成原文。")
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "雨夜", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{UNINDENTED_FIRST_BODY}\n</file>\n第一章写好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "写第一章")
+
+    data = model.tool_calls[0].output["data"]
+    assert data["action"] == ("replaced" if existing else "created")
+    saved = _content(workspace, data["id"])
+    assert saved.rstrip("\n") == "　　" + UNINDENTED_FIRST_BODY
+    # 补两个全角空格不改字数：模型和作者看到的字数就是落库正文的字数。
+    from utils.text_metrics import count_words
+
+    assert outcome.adapter.get_saved_file_word_counts()[data["id"]] == count_words(saved)
+    if existing:
+        # diff 审阅里的新稿就是落库的正文。
+        [edit_end] = outcome.of("file_edit_end")
+        assert edit_end.data["new_content"] == saved
+        final = _results(outcome, "write_chapter")[-1]["data"]
+        assert final["new_word_count"] == count_words(saved)
+
+
+async def test_rewriting_a_chapter_keeps_its_own_unindented_first_paragraph(workspace):
+    # 原文第一段本来就顶格（作者的写法）：AI 整章写回同一段时不补缩进，也不算一次改动。
+    chapter = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", UNINDENTED_FIRST_BODY + "\n")
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "雨夜", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{UNINDENTED_FIRST_BODY}\n</file>\n第一章照原样写回了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "把第一章原样写回")
+
+    assert model.tool_calls[0].output["data"]["action"] == "replaced"
+    assert _content(workspace, chapter.id) == UNINDENTED_FIRST_BODY + "\n"
+    final = _results(outcome, "write_chapter")[-1]["data"]
+    assert final["mutation_applied"] is False

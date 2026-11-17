@@ -274,3 +274,20 @@ async def test_outline_and_character_files_are_not_normalized(db_session, owner_
     assert payload["status"] == "success"
     db_session.expire_all()
     assert db_session.get(File, target.id).content == '口头禅："就这？"\n外号："老猫"'
+
+
+def test_agent_create_file_with_inline_draft_body_restores_the_first_indent(db_session, owner_project):
+    from agent.tools.file_ops.crud import FileCRUD
+
+    user, project = owner_project
+    body = "第一段合成正文。\n　　第二段合成正文。\n　　第三段合成正文。\n　　第四段合成正文。"
+    crud = FileCRUD(db_session, user_id=user.id)
+
+    created = crud.create_file(project_id=project.id, title="第1章", file_type="draft", content=body, normalize_quotes=True)
+    script = crud.create_file(project_id=project.id, title="第1集", file_type="script", content=body, normalize_quotes=True)
+    plain = crud.create_file(project_id=project.id, title="第2章", file_type="draft", content=body)
+
+    db_session.expire_all()
+    assert db_session.get(File, created["id"]).content == "　　" + body
+    assert db_session.get(File, script["id"]).content == body
+    assert db_session.get(File, plain["id"]).content == body

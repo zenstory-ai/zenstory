@@ -65,7 +65,7 @@ _BODY_SAVED_CONTEXT = (
     "时间线、数值和物品状态是否连续，大纲要求这一章发生的关键情节有没有写到，有没有提前写出后面章节才有的情节或揭示，"
     "有没有违背作者说过的要求。发现矛盾就用 edit_file 改正那几处（不要用 write_chapter 把这一章整章重写）。"
     "篇幅等修正涉及多处时，拆成几个小批次，每批从当前原文复制较短且唯一的锚点；不要在一次调用里堆几十处修改，失败后也不要反复重建大批参数。"
-    "作者这一轮要求的章节还没写完就调用 write_chapter 写下一章；"
+    "作者这一轮要求的章节还没写完就接着写下一章（按「工作方式」需要先给它补大纲条目时先补，再调用 write_chapter）；"
     "全部完成后用一到三句话回复作者，字数只报下面的真实字数。"
 )
 _BODY_SAVED_CONTEXT_EN = (
@@ -77,19 +77,21 @@ _BODY_SAVED_CONTEXT_EN = (
     "author's requirements were broken. Fix contradictions with edit_file at those spots (do not rewrite the whole chapter with write_chapter). "
     "For many changes, such as length corrections, use a few small batches with short, unique anchors copied from the current text; "
     "do not pack dozens of edits into one call or keep rebuilding a large failed batch. If chapters the author asked for this turn "
-    "are still unwritten, call write_chapter for the next one; when everything is done, reply to the author in one to "
+    "are still unwritten, continue with the next one (if the working rules call for its outline entry first, add it, then call "
+    "write_chapter); when everything is done, reply to the author in one to "
     "three sentences, reporting only the real word counts below. Keep the author's language."
 )
 # 自查过的文件又写了一遍之后的续跑说明：不再自查，接着做剩下的事或回复作者。
 _BODY_RESAVED_CONTEXT = (
     "[系统提醒] 上一次回复写完的正文已保存：{titles}。这是系统的续跑说明，不是作者的新消息。"
-    "这一章已经自查过，不要再改它；作者这一轮要求的章节还没写完就调用 write_chapter 写下一章，"
+    "这一章已经自查过，不要再改它；作者这一轮要求的章节还没写完就接着写下一章（按「工作方式」需要先给它补大纲条目时先补，再调用 write_chapter），"
     "全部完成后用一到三句话回复作者，字数只报下面的真实字数。"
 )
 _BODY_RESAVED_CONTEXT_EN = (
     "[System note] The body written in the previous response is saved: {titles}. This is a system continuation, "
     "not a new author message. This chapter was already self-checked; do not change it again. If chapters the author "
-    "asked for this turn are still unwritten, call write_chapter for the next one; otherwise reply to the author in "
+    "asked for this turn are still unwritten, continue with the next one (if the working rules call for its outline entry "
+    "first, add it, then call write_chapter); otherwise reply to the author in "
     "one to three sentences, reporting only the real word counts below. Keep the author's language."
 )
 # 整章替换的新正文没写完（没有 </file>）、也没能在本轮重试时的续跑说明：如实说明原文没动，不说已保存。
