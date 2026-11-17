@@ -315,3 +315,30 @@ async def test_refused_replacement_receipt_is_keyed_by_its_own_tool_use_id():
     assert outcome == "refused"
     assert adapter.get_replacement_receipts() == {"call-1": 3000, "call-2": None}
     assert adapter.get_saved_file_word_counts() == {"chapter-3": 3000}
+
+
+@pytest.mark.asyncio
+async def test_stop_settles_body_saves_and_write_tool_threads_together():
+    """截停收尾同时等正文补存与线程里的写工具：两者都记进 run_outcome，总等待不是两段相加。"""
+    import time
+
+    from agent.core.round_outcome import RunOutcome
+    from agent.service import _settle_stopped_writes
+
+    class SlowAdapter:
+        async def settle_aborted_capture(self):
+            await asyncio.sleep(0.3)
+            return {"chapter-1": 120}
+
+    outcome = RunOutcome()
+    loop = asyncio.get_running_loop()
+    tool_future = loop.run_in_executor(None, time.sleep, 0.3)
+    outcome.inflight_tool_writes.append(("edit_file", tool_future))
+
+    started = time.monotonic()
+    await _settle_stopped_writes(outcome, SlowAdapter())
+    elapsed = time.monotonic() - started
+
+    assert outcome.saved_file_word_counts == {"chapter-1": 120}
+    assert tool_future.done() and outcome.inflight_tool_writes == []
+    assert elapsed < 0.55

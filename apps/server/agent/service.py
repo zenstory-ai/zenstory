@@ -219,6 +219,16 @@ def _stamp_body_receipts(
         call["result"] = stamped
 
 
+async def _settle_stopped_writes(run_outcome: Any, adapter: Any | None) -> None:
+    """截停后同时等正文的补存 / 在途提交与线程里的写工具，结果写进 run_outcome（保存回执、工具结果）。"""
+
+    async def _capture() -> None:
+        if adapter is not None:
+            run_outcome.saved_file_word_counts.update(await adapter.settle_aborted_capture())
+
+    await asyncio.gather(_capture(), run_outcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S))
+
+
 def _project_has_ai_reply(session: Session, project_id: str) -> bool:
     """这部作品的任何会话里有过 AI 回复：之后再带第一条消息标记的，不按第一条处理。"""
     from models import ChatMessage, ChatSession
@@ -1529,14 +1539,10 @@ class AgentService:
                 async def _drain_then_save_partial_history_inner() -> None:
                     # 残稿补存会把没有作为 SSE 发出的尾部缓冲一并保存。先等本轮
                     # 正文保存回执，再交回消息 id，让 done 与历史使用同一份字数。
-                    adapter = usage_source.get("adapter")
-                    if run_outcome is not None and adapter is not None:
-                        run_outcome.saved_file_word_counts.update(
-                            await adapter.settle_aborted_capture()
-                        )
+                    # 被取消了等待、线程仍在提交的写工具也要等它们的结果，交给路由层计费。两类在途写入
+                    # 互不依赖，一起等：最长等一个 STREAM_FILE_SAVE_TIMEOUT_S，不是两个时限相加。
                     if run_outcome is not None:
-                        # 被取消了等待、线程仍在提交的写工具：等它们的结果，交给路由层计费。
-                        await run_outcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S)
+                        await _settle_stopped_writes(run_outcome, usage_source.get("adapter"))
                     # 取消可能恰好落在 save_messages 期间：它被 shield 保护会
                     # 继续跑完，所以补偿保存前必须等它的真实结果。已落库时
                     # 不能整轮重写（user/steering/assistant 会写两遍），但仍要
