@@ -304,7 +304,8 @@ class FileCRUD:
             metadata: Type-specific metadata (JSON)
             normalize_quotes: In-app agent writes only. For draft/script files,
                 normalize double quotes in ``content`` to the previous chapter's
-                style (default “”).
+                style (default “”); for draft files also restore a first
+                paragraph indent the rest of the body uses.
 
         Returns:
             Created file data
@@ -676,6 +677,8 @@ class FileCRUD:
                     order=resolved_order,
                 ),
             )
+        if normalize_quotes and content:
+            content = normalize_ai_body_first_indent(content, file_type)
 
         # Create file
         file = File(

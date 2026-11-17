@@ -12,7 +12,7 @@ AI 用 `<file>` 写的小说章节里，后面各段都以「　　」开头、�
 
 - 提示：write_chapter 规则 7 写明第一段的段首格式和后面各段、和这部作品已有章节一致；中文小说章节段首用「　　」时第一段也用；剧本、英文作品按各自的格式。示例恢复成不带格式的「第三章的正文...」。系统提示仍是各项目类型共用的固定文本，前缀缓存不变。
 - 确定性补齐：`paragraph_layout.indent_unindented_first_paragraph` 是纯函数，只看稿子自己的体例。开头的标题行（`_is_heading_line`）跳过，看标题下面的第一段。第一段之后的非空、非标题段落至少 3 段，且其中至少 80% 的段首缩进恰好是「　　」；第一段没有任何行首空白、以文字、开引号或「——」「……」开头（只有破折号、省略号的分隔行不算），并且像一段话（以句末标点、破折号或闭引号收尾，不是只有编号的「1.」「一、」）时，在第一段行首补「　　」。「序章」「楔子」「一」「Chapter One」、不带分隔符的「第一章雨夜」、单独的标题词和剧本式的「1-1 日 内 公司大堂」都不像一段话，原样不动。其他情况原样返回。英文稿件不用「　　」，自然不满足条件。
-- 只用于应用内 agent 的整章写入，只对 draft：`edit.normalize_ai_body_first_indent` 由 `FileCRUD.update_file`（流式新章节落库，`StreamAdapter._save_file_content_sync`）和 `FileEditor.replace_body`（write_chapter 整章替换）在 `normalize_quotes=True` 时调用，紧接在引号规范化之后。script 和资料文件不动；Agent API、作者保存、edit_file 的局部修改都不经过这里。
+- 只用于应用内 agent 的整章写入，只对 draft：`edit.normalize_ai_body_first_indent` 由 `FileCRUD.update_file`（流式新章节落库，`StreamAdapter._save_file_content_sync`）、`FileEditor.replace_body`（write_chapter 整章替换）和 `FileCRUD.create_file`（create_file 直接带 content 建 draft，单循环提示不这样写正文，但工具接受）在 `normalize_quotes=True` 时调用，紧接在引号规范化之后。script 和资料文件不动；Agent API、作者保存、edit_file 的局部修改都不经过这里。
 - 补的只是两个全角空格，`count_words` 不变；整章替换返回的 `new_content`（diff 审阅）、`new_word_count` 和撤销锚点都基于补齐后的正文。编辑器实时打字看到的仍是模型原样输出，流结束后编辑器按服务端正文重新加载（和引号规范化相同）。
 
 ## Alternatives considered
