@@ -143,8 +143,10 @@ def _body_reply_settings(model_settings: Any) -> Any:
     (``ToolContext.overdue_file_bodies``: a file created or a whole-chapter replacement
     armed in an earlier reply, or re-armed for a FILE_BODY_RESUME correction run, whose
     body has not streamed yet), read after ``on_llm_start`` advanced the reply counter.
-    Only ``tool_choice`` changes; the tool list stays the same so the cached prompt
-    prefix is kept. The guard stays as the backstop for a provider that ignores it.
+    Only ``tool_choice`` changes; the tool list stays the same (whether a provider's
+    cached prefix survives "none" is still to be measured). Author steering received
+    after the file was armed keeps the original setting, so the guard's delete exception
+    can cancel the file. The guard stays as the backstop for a provider that ignores it.
     """
     if getattr(model_settings, "tool_choice", None) == "none" or not dataclasses.is_dataclass(model_settings):
         return model_settings
