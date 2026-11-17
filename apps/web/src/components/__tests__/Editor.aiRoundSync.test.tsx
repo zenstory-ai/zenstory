@@ -1145,6 +1145,27 @@ describe('AI replaces the open chapter, then edits it again in the same round', 
     expect(toastError).not.toHaveBeenCalled();
   });
 
+  it('keeps the author choice on a block the later write left as it was', async () => {
+    await replaceChapter();
+    // The author rejects the replaced ending while the round is still running.
+    const ending = review()!.pendingEdits.find(edit => edit.oldText === '旧的结尾。');
+    expect(ending).toBeDefined();
+    act(() => harness.project!.rejectEdit(ending!.id));
+    // The self-check edit changes only the opening.
+    const edited = REPLACED.replace('老周出场', '老王出场');
+    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: edited, updated_at: T_EDITED });
+    act(() => callbacks().onFileEditEnd(CH1.id, 1, edited.length, edited, REPLACED, 'draft', CH1.title, OUTCOME));
+    await advance(300); await settle();
+
+    expect(review()!.pendingEdits.find(edit => edit.oldText === '旧的结尾。')?.status).toBe('rejected');
+    finishReview();
+    await settle();
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({
+      content: '新的开头，老王出场。\n\n新的中段，老周在摊上。\n\n旧的结尾。',
+      base_updated_at: T_EDITED,
+    });
+  });
+
   it('a second content-bearing write keeps the earliest original of the open review', async () => {
     await replaceChapter();
     server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: EDITED, updated_at: T_EDITED });

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { Project, SelectedItem, ProjectType, DiffReviewState, DiffReviewOrigin } from '../types';
 import { projectApi } from '../lib/api';
 import { useAuth } from './AuthContext';
-import { applyPendingEditsToDiffs, buildParagraphReviewData } from '../lib/diffReview';
+import { applyPendingEditsToDiffs, buildParagraphReviewData, carryOverDecisions } from '../lib/diffReview';
 import { logger } from '../lib/logger';
 import { trackEvent } from '../lib/analytics';
 
@@ -247,12 +247,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   ) => {
     setDiffReviewState(prev => {
       // Another agent write to a file under review: rebuild the one review from its original to
-      // the newest text (block decisions belong to the old text, so every block starts pending).
+      // the newest text. A block the later write left exactly as it was keeps the author's choice.
       const continues = origin === 'agent_write' && prev?.origin === 'agent_write' && prev.fileId === fileId;
       const base = continues ? prev.originalContent : originalContent;
       // The later writes brought the text back to the original: nothing is left to review.
       if (continues && base === newContent) return null;
-      const { pendingEdits } = buildParagraphReviewData(base, newContent);
+      const built = buildParagraphReviewData(base, newContent).pendingEdits;
+      const pendingEdits = continues ? carryOverDecisions(prev.pendingEdits, built) : built;
       logger.log(`[DiffReview] Entering review mode for file ${fileId} with ${pendingEdits.length} edits`);
       return {
         isReviewing: true,

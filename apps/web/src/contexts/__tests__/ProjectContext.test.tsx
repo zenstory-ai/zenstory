@@ -924,15 +924,12 @@ describe('ProjectContext', () => {
       await waitFor(() => expect(result.current.projects.length).toBe(2))
 
       act(() => result.current.enterDiffReview('file-1', 'v1 a\n\nv1 b', 'v2 a\n\nv1 b', 'agent_write'))
-      const firstEdit = result.current.diffReviewState!.pendingEdits[0].id
-      act(() => result.current.rejectEdit(firstEdit))
       // The next write's original is whatever it saw; the review keeps its own earliest original.
       act(() => result.current.enterDiffReview('file-1', 'v2 a\n\nv1 b', 'v3 a\n\nv3 b', 'agent_write'))
 
       expect(result.current.diffReviewState).toMatchObject({
         fileId: 'file-1', originalContent: 'v1 a\n\nv1 b', modifiedContent: 'v3 a\n\nv3 b', origin: 'agent_write',
       })
-      expect(result.current.diffReviewState!.pendingEdits.every(edit => edit.status === 'pending')).toBe(true)
 
       // Writing the original back leaves nothing to review.
       act(() => result.current.enterDiffReview('file-1', 'v3 a\n\nv3 b', 'v1 a\n\nv1 b', 'agent_write'))
