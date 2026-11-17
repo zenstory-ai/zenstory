@@ -184,12 +184,17 @@ def first_message_hint(project_type: str | None, force_en: bool) -> str:
     )
 
 
-def _stamp_body_receipts(tool_calls: list[dict[str, Any]], receipts: dict[str, int | None]) -> None:
+def _stamp_body_receipts(
+    tool_calls: list[dict[str, Any]],
+    receipts: dict[str, int | None],
+    replacement_receipts: dict[str, int | None] | None = None,
+) -> None:
     """落库前给等正文的写入卡片写上正文回执：等正文的 create_file / write_chapter 结果带
     ``body_saved``（StreamAdapter 的保存回执里有字数才是 True）。历史回放据此说明正文是否保存，
     不再从「当时在等正文」推断「已保存」。只改落库的记录，不发帧，不影响计费。整章替换的卡片
     正常由 StreamAdapter 补发的结果带回执（已有 ``body_saved`` 时不改）；停止时在途提交或补存的
-    替换没有补发结果，这里同时写上 ``mutation_applied`` 与 ``new_word_count``。"""
+    替换没有补发结果，这里按这张卡自己的 tool_use_id 回执（``replacement_receipts``）写上
+    ``mutation_applied`` 与 ``new_word_count``；同一章更早一次替换的文件级回执不算这一次的证据。"""
     for call in tool_calls:
         result = call.get("result")
         if (
@@ -200,10 +205,14 @@ def _stamp_body_receipts(tool_calls: list[dict[str, Any]], receipts: dict[str, i
             or not (result.get("awaiting_body") is True or result.get("body_in_reply") is True)
         ):
             continue
-        receipt = receipts.get(str(result.get("id") or ""))
+        replaced = result.get("action") == "replaced"
+        if replaced:
+            receipt = (replacement_receipts or {}).get(str(call.get("id") or ""))
+        else:
+            receipt = receipts.get(str(result.get("id") or ""))
         saved = isinstance(receipt, int)
         stamped = {**result, "body_saved": saved}
-        if result.get("action") == "replaced":
+        if replaced:
             stamped["mutation_applied"] = saved
             if saved:
                 stamped["new_word_count"] = receipt
@@ -1003,6 +1012,10 @@ class AgentService:
                 receipts.update(adapter.get_saved_file_word_counts())
             return receipts
 
+        def _current_replacement_receipts() -> dict[str, int | None]:
+            adapter = usage_source.get("adapter")
+            return adapter.get_replacement_receipts() if adapter is not None else {}
+
         def _save_partial_history_sync(
             stop_reason: str | None = None,
             persist_empty_assistant: bool = False,
@@ -1022,7 +1035,7 @@ class AgentService:
                 )
                 return None
 
-            _stamp_body_receipts(all_tool_calls, _current_receipts())
+            _stamp_body_receipts(all_tool_calls, _current_receipts(), _current_replacement_receipts())
             recovery_manager = MessageManager(
                 project_id=project_id,
                 user_id=user_id,
@@ -1434,7 +1447,11 @@ class AgentService:
                         )
                         history_saved = True
                         return None
-                    _stamp_body_receipts(all_tool_calls, stream_adapter.get_saved_file_word_counts())
+                    _stamp_body_receipts(
+                        all_tool_calls,
+                        stream_adapter.get_saved_file_word_counts(),
+                        stream_adapter.get_replacement_receipts(),
+                    )
                     saved_id = await message_manager.save_messages(
                         session,
                         session_id,

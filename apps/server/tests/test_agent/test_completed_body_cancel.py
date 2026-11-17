@@ -164,14 +164,14 @@ def _replace_card(file_id: str, original_length: int) -> dict:
     }
 
 
-def _stamped_replace(card: dict, receipts: dict) -> tuple[dict, dict]:
+def _stamped_replace(card: dict, receipts: dict, replacement_receipts: dict) -> tuple[dict, dict]:
     import json
 
     from agent.loop.history import _tool_output_text
     from agent.service import _stamp_body_receipts
 
     calls = [{"name": "write_chapter", "status": "success", "result": dict(card), "id": "call-1"}]
-    _stamp_body_receipts(calls, receipts)
+    _stamp_body_receipts(calls, receipts, replacement_receipts)
     return calls[0]["result"], json.loads(_tool_output_text(calls[0]))["data"]
 
 
@@ -208,7 +208,8 @@ async def test_empty_chapter_replacement_stopped_mid_stream_is_recorded_as_saved
     receipts = await adapter.settle_aborted_capture()
 
     assert saved and isinstance(receipts.get("chapter-0"), int)
-    stored, replay = _stamped_replace(card, receipts)
+    assert adapter.get_replacement_receipts() == {"call-1": receipts["chapter-0"]}
+    stored, replay = _stamped_replace(card, receipts, adapter.get_replacement_receipts())
     assert stored["body_saved"] is True and stored["mutation_applied"] is True
     assert stored["new_word_count"] == receipts["chapter-0"]
     assert replay["body_saved"] is True
@@ -252,7 +253,8 @@ async def test_replacement_committing_during_a_stop_is_recorded_as_saved():
     receipts = await adapter.settle_aborted_capture()
 
     assert receipts == {"chapter-1": count_words(BODY)}
-    stored, replay = _stamped_replace(card, receipts)
+    assert adapter.get_replacement_receipts() == {"call-1": count_words(BODY)}
+    stored, replay = _stamped_replace(card, receipts, adapter.get_replacement_receipts())
     assert stored["body_saved"] is True and stored["new_word_count"] == count_words(BODY)
     assert replay["body_saved"] is True
 
@@ -260,7 +262,7 @@ async def test_replacement_committing_during_a_stop_is_recorded_as_saved():
 def test_unsaved_replacement_receipt_keeps_the_original_wording():
     from agent.loop.history import _REPLACE_NOT_SAVED_NOTE
 
-    stored, replay = _stamped_replace(_replace_card("chapter-2", 40), {"chapter-2": None})
+    stored, replay = _stamped_replace(_replace_card("chapter-2", 40), {"chapter-2": None}, {"call-1": None})
     assert stored["body_saved"] is False and stored["mutation_applied"] is False
     assert "new_word_count" not in stored
     assert replay["body_saved"] is False and replay["result"] == _REPLACE_NOT_SAVED_NOTE
@@ -268,5 +270,48 @@ def test_unsaved_replacement_receipt_keeps_the_original_wording():
 
 def test_replacement_card_already_carrying_its_result_is_left_alone():
     card = {**_replace_card("chapter-3", 40), "body_saved": True, "new_word_count": 7, "undo": {"kind": "version"}}
-    stored, _replay = _stamped_replace(card, {"chapter-3": 99})
+    stored, _replay = _stamped_replace(card, {"chapter-3": 99}, {"call-1": 99})
     assert stored == card
+
+
+def test_second_replacement_of_a_saved_chapter_is_not_stamped_from_the_first_receipt():
+    """同一章先替换成功、同一轮又定位替换一次但没写成：后一张卡不拿文件级的旧回执当成已保存。"""
+    from agent.service import _stamp_body_receipts
+
+    first_card = {**_replace_card("chapter-3", 40), "body_saved": True, "new_word_count": 3000}
+    second_card = _replace_card("chapter-3", 3000)
+    calls = [
+        {"name": "write_chapter", "status": "success", "result": dict(first_card), "id": "call-1"},
+        {"name": "write_chapter", "status": "success", "result": dict(second_card), "id": "call-2"},
+    ]
+    _stamp_body_receipts(calls, {"chapter-3": 3000}, {"call-1": 3000})
+
+    assert calls[0]["result"] == first_card
+    second = calls[1]["result"]
+    assert second["body_saved"] is False and second["mutation_applied"] is False
+    assert "new_word_count" not in second
+
+
+@pytest.mark.asyncio
+async def test_refused_replacement_receipt_is_keyed_by_its_own_tool_use_id():
+    """被拒的整章替换只给自己的 tool_use_id 记未保存，不覆盖同一章更早一次的成功回执。"""
+    from agent.tools.file_ops.crud import ConcurrentFileWriteError
+
+    adapter = StreamAdapter()
+    adapter._replacement_receipts["call-1"] = 3000
+    adapter._saved_file_word_counts["chapter-3"] = 3000
+    card = _replace_card("chapter-3", 3000)
+    adapter.set_pending_file_write(
+        "chapter-3", "draft", "第3章", original_content_length=3000,
+        baseline_updated_at="v2", replace_tool_use_id="call-2", replace_card=card,
+    )
+
+    def refuse(file_id, content, expected):
+        raise ConcurrentFileWriteError("changed")
+
+    adapter._replace_file_body_sync = refuse
+    outcome, _ = await adapter._save_chapter_replacement("chapter-3", BODY, adapter._pending_file_write)
+
+    assert outcome == "refused"
+    assert adapter.get_replacement_receipts() == {"call-1": 3000, "call-2": None}
+    assert adapter.get_saved_file_word_counts() == {"chapter-3": 3000}

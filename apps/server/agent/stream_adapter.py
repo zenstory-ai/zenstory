@@ -191,8 +191,13 @@ class StreamAdapter:
         self._file_mutated = False
         self._abort_capture: tuple[str, int, asyncio.Task[bool]] | None = None
         # 停止 / 断线时还在提交的整章替换（线程里的提交不会随取消中止）：收尾时等它的真实结果。
-        self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]]] | None = None
+        self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]], str | None] | None = None
         self._saved_file_word_counts: dict[str, int | None] = {}
+        # 整章替换的保存回执，按 write_chapter 的 tool_use_id 记：同一章在一轮里可能先后替换多次，
+        # 文件级回执只说「这个文件存过」，不能拿来证明后一次替换也存了。
+        self._replacement_receipts: dict[str, int | None] = {}
+        # 停止时补存的残稿属于哪一次整章替换（tool_use_id），没有则为 None。
+        self._abort_capture_replace_id: str | None = None
         # 解析器已经收到 </file>、正文完整但还没开始保存的结果（解析器此时已 reset，完整正文只在这里）：
         # 发出它的帧之前登记，_complete_file_write 接手时清掉；停止 / 断线落在中间的 yield 上时
         # settle_aborted_capture 按它补存。
@@ -1104,7 +1109,7 @@ class StreamAdapter:
         except asyncio.CancelledError:
             # 停止 / 断线 / 时限取消了这一轮，但线程里的提交照常进行：记下它，
             # settle_aborted_capture 等它的真实结果写进保存回执（计费与停止说明都按回执）。
-            self._replacement_in_flight = (file_id, content, save)
+            self._replacement_in_flight = (file_id, content, save, pending.replace_tool_use_id)
             _ABORT_SAVE_TASKS.add(save)
             save.add_done_callback(_ABORT_SAVE_TASKS.discard)
             save.add_done_callback(lambda done: done.cancelled() or done.exception())
@@ -1114,23 +1119,27 @@ class StreamAdapter:
                 logger, 30, "Chapter replacement refused", file_id=file_id, error_type=type(exc).__name__
             )
             self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_replacement_receipt(pending.replace_tool_use_id, None)
             return "refused", None
         except Exception as exc:  # noqa: BLE001 - reported to the author as a failed save
             log_with_context(
                 logger, 40, "Failed to save chapter replacement", file_id=file_id, error_type=type(exc).__name__
             )
             self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_replacement_receipt(pending.replace_tool_use_id, None)
             return "failed", None
         if replaced.get("mutation_applied") is True:
             self._file_mutated = True
             if run_meter is not None and content.strip():
                 run_meter.mark_first_body_persisted()
+        words = count_words(str(replaced.get("new_content") or content))
         self._note_body_saved(
             file_id,
-            count_words(str(replaced.get("new_content") or content)),
+            words,
             title=str(replaced.get("title") or pending.title) if complete else None,
             file_type=pending.file_type,
         )
+        self._note_replacement_receipt(pending.replace_tool_use_id, words)
         from agent.tools.mcp_tools import ToolContext
 
         ToolContext.mark_chapter_replacement_saved(file_id)
@@ -1297,6 +1306,11 @@ class StreamAdapter:
             )
         )
         self._abort_capture = (file_id, count_words(content), task)
+        self._abort_capture_replace_id = (
+            pending.replace_tool_use_id
+            if pending is not None and pending.file_id == file_id and pending.replace_card
+            else None
+        )
         _ABORT_SAVE_TASKS.add(task)
         task.add_done_callback(_ABORT_SAVE_TASKS.discard)
         return task
@@ -1349,6 +1363,7 @@ class StreamAdapter:
             self._note_body_saved(file_id, words)
         else:
             self._saved_file_word_counts.setdefault(file_id, None)
+        self._note_replacement_receipt(self._abort_capture_replace_id, words if saved else None)
         return self.get_saved_file_word_counts()
 
     async def _settle_replacement_in_flight(self) -> None:
@@ -1357,7 +1372,7 @@ class StreamAdapter:
         if in_flight is None:
             return
         self._replacement_in_flight = None
-        file_id, content, save = in_flight
+        file_id, content, save, replace_tool_use_id = in_flight
         try:
             replaced = await asyncio.shield(save)
         except Exception as exc:  # noqa: BLE001 - 提交失败：回执记为未保存
@@ -1366,17 +1381,29 @@ class StreamAdapter:
                 file_id=file_id, error_type=type(exc).__name__,
             )
             self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_replacement_receipt(replace_tool_use_id, None)
             return
         if replaced.get("mutation_applied") is not True:
             self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_replacement_receipt(replace_tool_use_id, None)
             return
         self._file_mutated = True
-        self._note_body_saved(file_id, count_words(str(replaced.get("new_content") or content)))
+        words = count_words(str(replaced.get("new_content") or content))
+        self._note_body_saved(file_id, words)
+        self._note_replacement_receipt(replace_tool_use_id, words)
         log_with_context(logger, 20, "Chapter replacement committed after abort", file_id=file_id)
 
     def get_saved_file_word_counts(self) -> dict[str, int | None]:
         """保存回执；收到结束标记或正文 chunk 本身不代表落库成功。"""
         return dict(self._saved_file_word_counts)
+
+    def _note_replacement_receipt(self, replace_tool_use_id: str | None, words: int | None) -> None:
+        if replace_tool_use_id:
+            self._replacement_receipts[replace_tool_use_id] = words
+
+    def get_replacement_receipts(self) -> dict[str, int | None]:
+        """整章替换的保存回执（write_chapter tool_use_id → 字数，None 表示这一次没有保存）。"""
+        return dict(self._replacement_receipts)
 
     async def _flush_capture_and_held_reply(self) -> AsyncIterator[SSEEvent]:
         """出错收尾：进行中的捕获照常收尾，没被认领的正文作为对话放出（都在 error 帧之前）。"""
