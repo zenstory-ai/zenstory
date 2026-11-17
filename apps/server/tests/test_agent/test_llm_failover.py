@@ -1176,3 +1176,242 @@ def test_an_input_the_sdk_cannot_convert_keeps_the_existing_failover(monkeypatch
         base_url="https://llm.test", reasoning_effort=None,
     )
     assert sdk_model._rejects_missing_tool_turn_reasoning(deepseek, [{"type": "unknown"}]) is False
+
+
+# ------------------------------------------- the reply that must be a pending file's body
+
+
+@pytest.fixture
+def request_tools():
+    """A request context with the pending-file state the file_body_pending guard reads."""
+    from agent.tools.mcp_tools import ToolContext
+
+    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    try:
+        yield ToolContext
+    finally:
+        ToolContext.clear_context()
+
+
+def _settings(tool_choice=None):
+    from agents import ModelSettings
+
+    return ModelSettings(tool_choice=tool_choice)
+
+
+@pytest.mark.unit
+def test_the_reply_after_the_file_was_created_offers_no_tool_calls(request_tools):
+    request_tools.begin_model_reply()
+    request_tools.set_pending_empty_file("f1", "第一章", "v1")  # reply 1 ends with write_chapter
+    original = _settings("auto")
+    assert sdk_model._body_reply_settings(original) is original  # still the creating reply
+
+    request_tools.begin_model_reply()  # on_llm_start of reply 2
+    assert sdk_model._body_reply_settings(original).tool_choice == "none"
+    assert original.tool_choice == "auto"
+
+
+@pytest.mark.unit
+def test_an_armed_whole_chapter_replacement_and_a_resumed_body_offer_no_tool_calls(request_tools):
+    request_tools.begin_model_reply()
+    assert request_tools.try_reserve_pending_empty_file("t1", "第一章")[0]
+    request_tools.bind_pending_empty_file("t1", "f1", "第一章", None, replacement={"chapter": 1})
+    request_tools.begin_model_reply()
+    assert sdk_model._body_reply_settings(_settings()).tool_choice == "none"
+
+    # The reply streamed something taken for the body, but the run ended; the correction run re-arms it.
+    request_tools.mark_latest_pending_body_streamed()
+    assert sdk_model._body_reply_settings(_settings()).tool_choice is None
+    assert request_tools.rearm_pending_file_body("f1") is True
+    request_tools.begin_model_reply()  # first call of the FILE_BODY_RESUME run
+    assert sdk_model._body_reply_settings(_settings()).tool_choice == "none"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("finish", ["streamed", "saved"])
+def test_once_the_body_is_written_the_next_call_keeps_its_tool_choice(request_tools, finish):
+    request_tools.begin_model_reply()
+    request_tools.set_pending_empty_file("f1", "第一章", "v1")
+    request_tools.begin_model_reply()
+    if finish == "streamed":
+        request_tools.mark_latest_pending_body_streamed()  # on_llm_end saw the closed <file> block
+    else:
+        request_tools.clear_pending_empty_file("f1")  # StreamAdapter saved the body
+    request_tools.begin_model_reply()  # self-check continuation / next write_chapter
+
+    original = _settings("auto")
+    assert sdk_model._body_reply_settings(original) is original
+
+
+@pytest.mark.unit
+def test_no_request_context_or_already_none_keeps_the_settings(request_tools):
+    request_tools.clear_context()
+    original = _settings()
+    assert sdk_model._body_reply_settings(original) is original
+
+    request_tools.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    request_tools.begin_model_reply()
+    request_tools.set_pending_empty_file("f1", "第一章", "v1")
+    request_tools.begin_model_reply()
+    already = _settings("none")
+    assert sdk_model._body_reply_settings(already) is already
+
+
+@pytest.mark.unit
+def test_author_steering_after_the_file_was_armed_keeps_tools_for_the_body_call(request_tools):
+    """An interjection after the file was armed reaches the correction run's input; the model must
+    still be able to cancel the file (guard's delete exception) instead of being forced to write it."""
+    steering: list[str] = ["先写第一章"]  # the service's consumed_steering list, appended in place
+    request_tools.set_context(session=None, user_id="u", project_id="p", session_id="s", author_steering=steering)
+    request_tools.begin_model_reply()
+    request_tools.set_pending_empty_file("f1", "第一章", "v1")
+    request_tools.begin_model_reply()
+    assert sdk_model._body_reply_settings(_settings("auto")).tool_choice == "none"  # earlier steering only
+
+    steering.append("这章不要了")  # consumed at a tool boundary after the file was armed
+    request_tools.rearm_pending_file_body("f1")
+    request_tools.begin_model_reply()  # first call of the FILE_BODY_RESUME run
+    original = _settings("auto")
+    assert sdk_model._body_reply_settings(original) is original
+
+    # A later file armed after that steering is restricted again.
+    request_tools.clear_pending_empty_file("f1")
+    request_tools.set_pending_empty_file("f2", "第二章", "v2")
+    request_tools.begin_model_reply()
+    assert sdk_model._body_reply_settings(_settings("auto")).tool_choice == "none"
+
+
+def _tool():
+    from agents import FunctionTool
+
+    async def _invoke(_ctx, _args):
+        return "{}"
+
+    return FunctionTool(
+        name="update_project", description="d",
+        params_json_schema={"type": "object", "properties": {}, "additionalProperties": False},
+        on_invoke_tool=_invoke,
+    )
+
+
+@pytest.fixture
+def recorded_requests(endpoints, monkeypatch):
+    """Real SDK models on clients that record each request's arguments and stream a short answer."""
+    requests: list[tuple[str, dict]] = []
+    failures: dict[str, BaseException] = {}
+    # Non-streaming answers, in order (default: a <file> body).
+    replies: list[dict] = []
+
+    def client_for(provider):
+        client = openai.AsyncOpenAI(api_key="synthetic", base_url="https://llm.test/v1", max_retries=0)
+
+        async def create(**kwargs):
+            requests.append((provider.name, kwargs))
+            if provider.name in failures:
+                raise failures.pop(provider.name)
+            if not kwargs.get("stream"):
+                from openai.types.chat import ChatCompletion
+
+                return ChatCompletion.model_validate({
+                    "id": "c", "object": "chat.completion", "created": 0, "model": "synthetic",
+                    "choices": [{"index": 0, "finish_reason": "stop", "message": (
+                        replies.pop(0) if replies else {"role": "assistant", "content": "<file>正文</file>"}
+                    )}],
+                })
+
+            async def stream():
+                yield _chunk(role="assistant", content="<file>正文</file>")
+                yield _chunk(finish_reason="stop")
+
+            return stream()
+
+        client.chat.completions.create = create
+        return client
+
+    monkeypatch.setattr(llm_providers, "get_async_client", client_for)
+    sdk_model._models.clear()
+    yield requests, failures, replies
+    sdk_model._models.clear()
+
+
+async def _model_call(model, *, stream: bool):
+    from agents.models.interface import ModelTracing
+
+    args = ("sys", "写第一章", _settings("auto"), [_tool()], None, [], ModelTracing.DISABLED)
+    if stream:
+        return [event async for event in model.stream_response(*args)]
+    return await model.get_response(*args, previous_response_id=None, conversation_id=None, prompt=None)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [True, False])
+async def test_only_the_body_reply_reaches_the_provider_with_tool_choice_none(
+    request_tools, recorded_requests, stream
+):
+    requests, _, _ = recorded_requests
+    model = sdk_model.build_failover_chat_model("body-reply")
+
+    request_tools.begin_model_reply()  # reply 1 creates the file
+    request_tools.set_pending_empty_file("f1", "第一章", "v1")
+    request_tools.begin_model_reply()  # reply 2: the body
+    await _model_call(model, stream=stream)
+    request_tools.clear_pending_empty_file("f1")  # body saved
+    request_tools.begin_model_reply()  # reply 3: self-check / next write_chapter
+    await _model_call(model, stream=stream)
+
+    assert [kwargs["tool_choice"] for _, kwargs in requests] == ["none", "auto"]
+    # The tool list is the same on both calls (cached prompt prefix).
+    assert requests[0][1]["tools"] == requests[1][1]["tools"] and requests[0][1]["tools"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [True, False])
+async def test_the_backup_provider_also_gets_tool_choice_none_for_the_body_reply(
+    request_tools, recorded_requests, stream
+):
+    requests, failures, _ = recorded_requests
+    failures["minimax"] = _status_error(openai.InternalServerError, 503)
+
+    request_tools.begin_model_reply()
+    request_tools.set_pending_empty_file("f1", "第一章", "v1")
+    request_tools.begin_model_reply()
+    await _model_call(sdk_model.build_failover_chat_model("body-reply-failover"), stream=stream)
+
+    assert [(name, kwargs["tool_choice"]) for name, kwargs in requests] == [("minimax", "none"), ("deepseek", "none")]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_in_a_real_run_only_the_call_after_write_chapter_is_restricted(request_tools, recorded_requests):
+    """on_llm_start advances the reply counter before the SDK calls the model."""
+    from agents import Agent, FunctionTool, ModelSettings, Runner
+
+    from agent.openai_agents.usage_hooks import build_agent_run_hooks
+
+    requests, _, replies = recorded_requests
+
+    async def write_chapter(_ctx, _args):
+        request_tools.set_pending_empty_file("f1", "第一章", "v1")
+        return '{"status": "success"}'
+
+    agent = Agent(
+        name="writer",
+        instructions="sys",
+        model=sdk_model.build_failover_chat_model("real-run"),
+        model_settings=ModelSettings(tool_choice="auto"),
+        tools=[FunctionTool(
+            name="write_chapter", description="d",
+            params_json_schema={"type": "object", "properties": {}, "additionalProperties": False},
+            on_invoke_tool=write_chapter,
+        )],
+    )
+    replies.append({"role": "assistant", "content": None, "tool_calls": [
+        {"id": "c1", "type": "function", "function": {"name": "write_chapter", "arguments": "{}"}},
+    ]})
+    hooks = build_agent_run_hooks("MiniMax-M3.1-Flash")
+    await Runner.run(agent, "写第一章", hooks=hooks)  # write_chapter, then the <file> body
+    await Runner.run(agent, "继续", hooks=hooks)  # the continuation after the body
+
+    assert [kwargs["tool_choice"] for _, kwargs in requests] == ["auto", "none", "auto"]

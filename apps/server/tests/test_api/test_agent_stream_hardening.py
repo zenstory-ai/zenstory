@@ -2701,6 +2701,163 @@ async def test_stop_keeps_placeholders_when_the_message_id_arrives_after_the_liv
     assert "removed_files" not in outcome
 
 
+def _empty_file_then_upstream_error(placeholder):
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _sse("tool_call", {"tool_name": "create_file", "arguments": {}})
+        yield _create_file_result(placeholder)
+        # 等 <file> 时扣住的引子，出错时才放出。
+        yield _sse("content", {"text": "好的，我来为这个设定写下完整的内容，先从世界观的"})
+        yield _sse(
+            "error",
+            {"message": "x", "code": "ERR_AGENT_UPSTREAM_UNAVAILABLE", "retryable": True, "refundable": True},
+        )
+
+    return frames
+
+
+@pytest.mark.integration
+async def test_upstream_error_before_a_new_file_body_refunds_and_removes_the_blank_file(
+    client: AsyncClient, db_session
+):
+    """建好文件、正文还没写进去模型就出错：这一轮退还，空白文件和停止路径一样移除并告诉作者。"""
+    from models import ChatMessage, File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, older_empty = _seed_round(db_session, project, user)
+
+    with (
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(_empty_file_then_upstream_error(placeholder), message_id),
+        ),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+
+    refund.assert_called_once()
+    assert _frame_data(text, "quota_refunded") == {
+        "refunded": True,
+        "kind": "error",
+        "removed_files": [{"id": placeholder.id, "title": "第1章 最后一页"}],
+    }
+    await asyncio.gather(*agent_api._round_outcome_tasks)
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is True
+    assert db_session.get(File, older_empty.id).is_deleted is False
+    # 刷新后的终态与当场一致：不计入，记下移除了哪个文件。
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome["charged"] is False
+    assert outcome["removed_files"] == ["第1章 最后一页"]
+    # 已移除的文件不再列为「未确认保存」。
+    assert "unwritten_files" not in outcome
+
+
+@pytest.mark.integration
+async def test_deadline_before_a_new_file_body_refunds_and_removes_the_blank_file(
+    client: AsyncClient, db_session, monkeypatch
+):
+    """建好文件、正文还没写进去就撞上时限：退还，空白文件同样移除，终态不再列它为未确认保存。"""
+    from models import ChatMessage, File
+
+    monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, older_empty = _seed_round(db_session, project, user)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _sse("tool_call", {"tool_name": "create_file", "arguments": {}})
+        yield _create_file_result(placeholder)
+        yield _sse("content", {"text": "好的，我来为这个设定写下完整的内容"})
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    assert _frame_data(text, "quota_refunded") == {
+        "refunded": True,
+        "kind": "error",
+        "removed_files": [{"id": placeholder.id, "title": "第1章 最后一页"}],
+    }
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is True
+    assert db_session.get(File, older_empty.id).is_deleted is False
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome["charged"] is False
+    assert outcome["removed_files"] == ["第1章 最后一页"]
+    assert "unwritten_files" not in outcome
+
+
+@pytest.mark.integration
+async def test_refunded_error_round_keeps_the_blank_file_for_a_tab_without_the_stop_contract(
+    client: AsyncClient, db_session
+):
+    """发布前打开的旧标签页（不带停止约定头）收不到 removed_files：照常退还，但不移除空白文件。"""
+    from models import File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+
+    with (
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(_empty_file_then_upstream_error(placeholder), message_id),
+        ),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None, client_stop_contract=None)
+        text = "".join([frame async for frame in response.body_iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    assert _frame_data(text, "quota_refunded") == {"refunded": True, "kind": "error"}
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is False
+
+
+@pytest.mark.integration
+async def test_refunded_error_round_keeps_the_blank_file_when_the_message_id_never_arrives(
+    client: AsyncClient, db_session, monkeypatch
+):
+    """残稿补存的结果当场等不到（消息 id 没交回）：照常退还，但保留空白文件，不让补存撞上已删除的文件。"""
+    from models import File
+
+    monkeypatch.setattr(agent_api, "STOP_MESSAGE_ID_WAIT_S", 0.05)
+    monkeypatch.setattr(agent_api, "ROUND_OUTCOME_MESSAGE_ID_WAIT_S", 0.05)
+    _token, project, user = await _login_with_project(client, db_session)
+    _message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+
+    class _NoIdService:
+        async def process_stream(self, **_kwargs):
+            async for frame in _empty_file_then_upstream_error(placeholder)():
+                yield frame
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_NoIdService()),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    assert _frame_data(text, "quota_refunded") == {"refunded": True, "kind": "error"}
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is False
+
+
 # ------------------------------------- 停止 / 断线回执：保存没确认就不说「已保存」（F-03）
 
 

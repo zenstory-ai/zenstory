@@ -1003,10 +1003,15 @@ async def stream_request(
             if not message_id:
                 return
             receipts = run_outcome.saved_file_word_counts
+            removed_ids = {item.get("id", "") for item in removed}
             if delivery is None:
-                delivery = written_files.stopped_delivery(
-                    final_word_counts=receipts, removed_ids={item.get("id", "") for item in removed}
-                )
+                delivery = written_files.stopped_delivery(final_word_counts=receipts, removed_ids=removed_ids)
+            elif removed_ids and delivery.get("unwritten_files"):
+                # 当场帧（error 等）的回执是移除之前取的：已移除的文件不再列为「未确认保存」。
+                unwritten = [item for item in delivery["unwritten_files"] if item.get("id") not in removed_ids]
+                delivery = {key: value for key, value in delivery.items() if key != "unwritten_files"}
+                if unwritten:
+                    delivery["unwritten_files"] = unwritten
             await _offload(
                 record_round_outcome,
                 message_id,
@@ -1044,6 +1049,18 @@ async def stream_request(
             _round_outcome_tasks.add(task)
             task.add_done_callback(_round_outcome_tasks.discard)
 
+        async def _remove_refunded_placeholders() -> list[dict[str, str]]:
+            # 出错 / 失控 / 时限被退还、连接还开着的一轮同停止路径：这一轮建好还空着的文件一并移除
+            # （残稿补存落定、交回消息 id 之后才删；等不到就保留）。旧标签页收不到 removed_files，不移除。
+            candidates = run_outcome.removable(tracker.removable_placeholders())
+            if (
+                candidates
+                and knows_stop_contract
+                and await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
+            ):
+                return await _offload(remove_empty_placeholders, body.project_id, candidates)
+            return []
+
         _running_streams[run_key] = _RunningStream(pump=pump, outcome=run_outcome)
         if is_draining():
             pump.end_within(AGENT_DRAIN_STOP_AFTER_S)
@@ -1055,7 +1072,8 @@ async def stream_request(
             # 正常收尾：先结算，退还真正落库后才告诉前端「不计入」。
             billing_reason, _, refund_applied = await _settle_billing()
             if refund_applied:
-                yield quota_refunded_frame(billing_reason)
+                removed_files = await _remove_refunded_placeholders()
+                yield quota_refunded_frame(billing_reason, removed_files)
         except StreamStoppedByUser:
             # 作者点了「停止生成」：运行已按取消路径收尾（后台落库部分历史）。
             # 连接还开着，补发停止卡片与 done（带这一轮助手消息的 id），结算后
@@ -1153,8 +1171,9 @@ async def stream_request(
             try:
                 billing_reason, _, refund_applied = await _settle_billing()
                 if refund_applied:
+                    removed_files = await _remove_refunded_placeholders()
                     with contextlib.suppress(Exception):
-                        yield quota_refunded_frame(billing_reason)
+                        yield quota_refunded_frame(billing_reason, removed_files)
             except (asyncio.CancelledError, GeneratorExit):
                 client_disconnected = True
                 raise

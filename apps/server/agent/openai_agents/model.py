@@ -136,6 +136,39 @@ def _settings_for(provider: ModelProvider, model_settings: Any) -> Any:
     return dataclasses.replace(model_settings, reasoning=Reasoning(effort=effort) if effort else None)  # type: ignore[arg-type]
 
 
+def _body_reply_settings(model_settings: Any) -> Any:
+    """The reply that must be a pending file's ``<file>`` body is sent without tool calls.
+
+    Same structured state as the ``file_body_pending`` tool guard
+    (``ToolContext.overdue_file_bodies``: a file created or a whole-chapter replacement
+    armed in an earlier reply, or re-armed for a FILE_BODY_RESUME correction run, whose
+    body has not streamed yet), read after ``on_llm_start`` advanced the reply counter.
+    Only ``tool_choice`` changes; the tool list stays the same (whether a provider's
+    cached prefix survives "none" is still to be measured). Author steering received
+    after the file was armed keeps the original setting, so the guard's delete exception
+    can cancel the file. The guard stays as the backstop for a provider that ignores it.
+    """
+    if getattr(model_settings, "tool_choice", None) == "none" or not dataclasses.is_dataclass(model_settings):
+        return model_settings
+    from agent.tools.mcp_tools import ToolContext
+
+    overdue = ToolContext.overdue_file_bodies()
+    if not overdue:
+        return model_settings
+    if ToolContext.steering_since_file_bodies_armed([entry["id"] for entry in overdue]):
+        # 文件定为待写之后作者又插话了（结构化计数）：这次调用（纠偏轮的输入里带着插话）照常带工具，
+        # 让模型能按守卫的例外删掉这份待写文件；没删就写别的工具时守卫照旧拒绝。
+        log_with_context(
+            logger, 20, "Model call for a pending file body keeps tools after author steering",
+            file_id=overdue[0]["id"],
+        )
+        return model_settings
+    log_with_context(
+        logger, 20, "Model call for a pending file body: tool calls disabled", file_id=overdue[0]["id"]
+    )
+    return dataclasses.replace(model_settings, tool_choice="none")
+
+
 def _base_model_class() -> type:
     from agents.models.interface import Model
 
@@ -213,6 +246,7 @@ class FailoverChatModel:
             self._on_served(provider.model)
 
     async def get_response(self, system_instructions: Any, input: Any, model_settings: Any, *args: Any, **kwargs: Any) -> Any:
+        model_settings = _body_reply_settings(model_settings)
         ordered = await llm_failover.aordered_providers(self._session_id)
         key_cooled = False
         self._call_timing = None
@@ -248,6 +282,7 @@ class FailoverChatModel:
     async def stream_response(
         self, system_instructions: Any, input: Any, model_settings: Any, *args: Any, **kwargs: Any
     ) -> AsyncIterator[Any]:
+        model_settings = _body_reply_settings(model_settings)
         ordered = await llm_failover.aordered_providers(self._session_id)
         key_cooled = False
         self._call_timing = None

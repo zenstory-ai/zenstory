@@ -21,6 +21,8 @@
 5. 失败：error 帧明确 ``refundable: false``（例如工具失败熔断）→ 计费；
    本轮已有实质产出、或出错时模型正在给作者写回复（``ended_on_reply``，例如一句
    不到 60 字的完整回答之后出错）→ 计费；其余才是真正没有产出的平台侧故障 → 退还。
+   本轮开始写的文件还在等正文时出错，最后那段文字是 ``<file>`` 之前的引子（适配器扣在
+   捕获缓冲里、出错时才放出），不算回复：照样退还。
 
 「实质产出」（``produced_output``）只有两种：
 
@@ -102,7 +104,7 @@ def quota_refunded_frame(
 ) -> str:
     """额度已经退还后发给前端的说明帧；只在退还真正生效后调用。
 
-    ``removed_files``：作者停止的这一轮新建、却还是空白的文件已被移除（见
+    ``removed_files``：被退还的这一轮新建、却还是空白的文件已被移除（见
     agent.core.round_outcome.remove_empty_placeholders），前端据此刷新文件树并告诉作者。
     """
     if billing_reason == RUNAWAY_BILLING_REASON:
@@ -193,7 +195,8 @@ class StreamBillingTracker:
     # session_started 帧里的聊天会话 id（停止路径的 done 帧带上它）。
     session_id: str | None = None
     # 这一轮结束（终止帧 / error 帧）时，模型最后在做的是给作者写回复：最后一段正文
-    # 之后没有再调工具。出错 / 时限路径据此把「短回答之后出错」照旧计费。
+    # 之后没有再调工具，本轮开始写的文件也没有还在等正文的。出错 / 时限路径据此把
+    # 「短回答之后出错」照旧计费。
     ended_on_reply: bool = False
     # 当前这段回复正文（两次工具调用之间）：到达 PROSE_MIN_CHARS 之前的原文（流式分片会把
     # 一个单词拆开，所以按累计原文重算 prose_units），以及是否已经到达。
@@ -218,16 +221,8 @@ class StreamBillingTracker:
         payload = data if isinstance(data, dict) else {}
         if _is_terminal_event(event_type, payload):
             self.saw_terminal_event = True
-
-        if (self._segment_reached or self._segment_text.strip()) and (
-            event_type in _TERMINAL_EVENT_TYPES
-            or event_type == "error"
-            or (
-                event_type == "workflow_stopped"
-                and payload.get("reason") not in NON_TERMINAL_WORKFLOW_STOPPED_REASONS
-            )
-        ):
-            self.ended_on_reply = True
+            if (self._segment_reached or self._segment_text.strip()) and not self._file_body_pending():
+                self.ended_on_reply = True
 
         if event_type == "session_started" and isinstance(payload.get("session_id"), str):
             self.session_id = payload["session_id"]
@@ -315,6 +310,14 @@ class StreamBillingTracker:
             version = data.get("updated_at")
             if isinstance(version, str) and version:
                 self.created_empty_versions[file_id] = version
+
+    def _file_body_pending(self) -> bool:
+        """本轮开始写的文件还在等正文：新建的空文件没收到正文，或整章替换还没落库。
+
+        这时最后那段文字是 ``<file>`` 之前的引子：适配器把它扣在捕获缓冲里，出错 / 收尾时
+        才放出，作者并没有先读到一段回复，所以不算 ``ended_on_reply``（见模块说明第 5 条）。
+        """
+        return bool(self.removable_placeholders() or self.unconfirmed_replacement_ids())
 
     def unconfirmed_replacement_ids(self) -> set[str]:
         """定位了整章替换、还没收到落库结果的章节（停止 / 断线时保存可能还在途中）。"""

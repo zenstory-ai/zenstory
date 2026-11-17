@@ -125,6 +125,17 @@ async def test_check_failure_is_swallowed_and_usage_still_metered(pending_ep1):
     assert _next_create_allowed() is False
 
 
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_read_promotion_failure_still_advances_the_reply_counter(pending_ep1):
+    """读快照提升失败不能连带跳过回复计数：否则下一次回复认不出待写正文，守卫和 tool_choice 都失效。"""
+    assert ToolContext.overdue_file_bodies() == []  # ep1 建在第 0 次回复，这还是建它的那一次
+    with patch.object(ToolContext, "promote_pending_reads", side_effect=RuntimeError("boom")):
+        await _hooks().on_llm_start(None, None, None, [])
+
+    assert [entry["id"] for entry in ToolContext.overdue_file_bodies()] == ["ep1"]
+
+
 # ---------------------------------------------------------------------------
 # 真实 openai-agents run loop：钩子拿到的是 chat-completions 转换后的 ModelResponse
 # ---------------------------------------------------------------------------
