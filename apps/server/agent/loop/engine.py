@@ -18,6 +18,7 @@ SSE 外壳、计费 / 退还、停止 / 插话、残稿补存、文件版本并�
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -106,6 +107,24 @@ _UNEXECUTED_TOOL_TEXT_REASON_EN = "A tool call in the reply was written out as t
 
 def _english(state: WritingState) -> bool:
     return str(state.get("language") or "").strip().lower().startswith("en")
+
+
+def _armed_replacement_id(result: Any) -> str:
+    """write_chapter 成功定位整章替换（结构化结果 action=replaced）时返回章节 id，否则返回空串。"""
+    if not isinstance(result, dict):
+        return ""
+    for block in result.get("content") or []:
+        if not isinstance(block, dict):
+            continue
+        try:
+            payload = json.loads(str(block.get("text") or ""))
+        except (json.JSONDecodeError, TypeError):
+            continue
+        data = payload.get("data") if isinstance(payload, dict) and payload.get("status") == "success" else None
+        if isinstance(data, dict) and data.get("action") == "replaced" and data.get("awaiting_body") is True:
+            file_id = data.get("id")
+            return file_id if isinstance(file_id, str) else ""
+    return ""
 
 
 def _word_count_note(file_ids: list[str]) -> str:
@@ -338,6 +357,11 @@ async def run_loop_agent_streaming(
                         event.data.get("result")
                     ):
                         failed_ids.add(str(event.data.get("tool_use_id") or ""))
+                    elif event.type == StreamEventType.TOOL_RESULT and (
+                        rearmed_id := _armed_replacement_id(event.data.get("result"))
+                    ):
+                        # 同一章重新定位了整章替换：这是新的一次替换，没保存时要重新如实说明。
+                        reported_unsaved_ids.discard(rearmed_id)
                 if event.type == StreamEventType.ITERATION_EXHAUSTED and event.data.get("layer") == "tool_call":
                     tool_call_exhausted = True
                     if ToolContext.has_pending_empty_file():
@@ -419,10 +443,11 @@ async def run_loop_agent_streaming(
                 # 定位过整章替换、新正文却没落库的章节（ToolContext 的结构化保存事实）：不算已保存，不列它的原稿字数。
                 unsaved_ids = ToolContext.unsaved_chapter_replacement_ids()
                 saved = {fid: t for fid, t in read_guard.files_written.items() if fid not in unsaved_ids}
-                newly_unsaved = [
-                    (fid, t) for fid, t in read_guard.files_written.items()
-                    if fid in unsaved_ids and fid not in reported_unsaved_ids
-                ]
+                unsaved_written = [(fid, t) for fid, t in read_guard.files_written.items() if fid in unsaved_ids]
+                newly_unsaved = [(fid, t) for fid, t in unsaved_written if fid not in reported_unsaved_ids]
+                if not newly_unsaved and not saved:
+                    # 没有任何保存过的正文：不能退回「已保存」的说明，照旧如实说替换没保存。
+                    newly_unsaved = unsaved_written
                 if newly_unsaved:
                     reported_unsaved_ids |= {fid for fid, _ in newly_unsaved}
                     unsaved_titles = "、".join(f"《{t}》" for _, t in newly_unsaved if t) or (

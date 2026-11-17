@@ -335,6 +335,11 @@ def _run_input_text(model: ScriptedModel, index: int) -> str:
     return json.dumps(model.run_inputs[index], ensure_ascii=False, default=str)
 
 
+def _latest_note(model: ScriptedModel, index: int) -> str:
+    """第 index 次 run 输入里最新的一条（引擎这次追加的续跑说明）。"""
+    return json.dumps(model.run_inputs[index][-1], ensure_ascii=False, default=str)
+
+
 async def test_unclosed_replacement_body_is_retried_without_claiming_it_was_saved(workspace):
     three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文，一共二十个字左右的样子。")
     model = ScriptedModel(runs=[
@@ -379,6 +384,54 @@ async def test_unclosed_replacement_body_without_retry_budget_reports_the_origin
     from utils.text_metrics import count_words
 
     assert f"{count_words(original)} 字" not in followup
+
+
+async def test_second_unclosed_replacement_of_the_same_chapter_is_never_called_saved(workspace, monkeypatch):
+    from agent.graph import writing_graph as graph_helpers
+
+    monkeypatch.setattr(graph_helpers, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
+    original = "合成第三章原文，一共二十个字左右的样子。"
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+    write_three = ("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"})
+    model = ScriptedModel(runs=[
+        [Reply(text="", tools=(write_three,)), Reply(text="<file>\n只写了一个开头")],
+        [Reply(text="", tools=(write_three,)), Reply(text="<file>\n又只写了一个开头")],
+        [Reply(text="第三章没有换成，原文没动。")],
+    ])
+
+    await _run_loop(workspace, model)
+
+    assert _content(workspace, three.id) == original
+    # 同一章第二次没写完：仍如实说没保存，不退回「正文已保存：（见下）」。
+    for index in (1, 2):
+        followup = _latest_note(model, index)
+        assert "正文已保存" not in followup
+        assert "原文保持不变" in followup
+
+
+async def test_rearmed_replacement_that_fails_again_is_reported_next_to_a_saved_chapter(workspace, monkeypatch):
+    from agent.graph import writing_graph as graph_helpers
+
+    monkeypatch.setattr(graph_helpers, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
+    original = "合成第三章原文，一共二十个字左右的样子。"
+    _ai_chapter(workspace.session, workspace.project, "第2章 渡口", "合成第二章原文。")
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+    write_two = ("write_chapter", {"chapter": 2, "title": "第2章", "file_type": "draft"})
+    write_three = ("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"})
+    model = ScriptedModel(runs=[
+        [Reply(text="", tools=(write_three,)), Reply(text="<file>\n只写了一个开头")],
+        [Reply(text="", tools=(write_two,)), Reply(text=f"<file>\n{NEW_BODY}\n</file>", tools=(write_three,)),
+         Reply(text="<file>\n又只写了一个开头")],
+        [Reply(text="第二章换好了，第三章没有换成。")],
+    ])
+
+    await _run_loop(workspace, model)
+
+    assert _content(workspace, three.id) == original
+    # 第二章保存了，但第三章重新定位后又没写完：最新的续跑说明仍要如实说第三章没保存。
+    followup = _latest_note(model, 2)
+    assert "原文保持不变" in followup
+    assert "《第3章 灯塔》的整章替换没有保存" in followup
 
 
 async def test_author_saved_chapter_is_not_replaced_through_chat(workspace):
