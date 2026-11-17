@@ -445,7 +445,8 @@ def stage_pre_ai_write_backup(session: Session, file_id: str, current_content: s
     ``FileVersionService.backup_unversioned_content`` 一处定义，恢复历史版本前的
     备份用的也是它。这里只负责 AI 写入路径的失败策略：在调用方的同一个锁和事务
     里开 savepoint，任何失败只回滚 savepoint、记 WARNING、返回 False，不阻断 AI
-    写入（沿用「版本失败正文照存」的语义）。
+    写入（沿用「版本失败正文照存」的语义）。edit_file 与整章替换另有更严的规则：
+    原稿非空却拿不到撤销锚点（备份或锚点读取失败）时不提交（见 ``FileEditor._commit_ai_content``）。
 
     这里也是 AI 覆盖正文前唯一的必经点，顺带记下本请求第一次写入前的正文，
     送审时据此只附本请求改动的那一段（见 ToolContext.remember_pre_write_content）。
@@ -1017,13 +1018,17 @@ class FileEditor:
 
         edit_file 与 write_chapter 的整章替换共用这一条路径：先备份还没进历史的原稿，
         撤销锚点落在与原稿逐字相同的历史版本上，正文与 AI 版本在同一事务里提交。
+
+        原稿非空却没有撤销锚点，说明备份或锚点读取失败、原稿不在任何历史版本里：
+        回滚、不写入，抛 PreWriteHistoryUnavailableError（局部修改可能删掉不在最近保存附近的
+        作者文字，没有历史就无处恢复）。空白原稿没有可丢的字，照常写入。
         """
         file_id = file.id
         # Stage content and snapshot in the same transaction while the per-file
         # lock is held. A savepoint keeps snapshot failures non-blocking without
         # allowing content and history to describe different writes.
-        # 原稿可能是作者手动改过、还没进历史的正文：先备份（独立 savepoint，
-        # 失败不阻断），撤销锚点随后就能落在这份备份上。
+        # 原稿可能是作者手动改过、还没进历史的正文：先备份（独立 savepoint），
+        # 撤销锚点随后就能落在这份备份上；拿不到锚点时下面拒绝写入。
         stage_pre_ai_write_backup(self.session, file_id, old_content)
         before_version_number: int | None = None
         try:
@@ -1050,7 +1055,17 @@ class FileEditor:
                 if latest and version_service._get_contents_for_versions(self.session, {file_id: latest})[file_id] == old_content:
                     before_version_number = latest.version_number
         except Exception:
-            logger.warning("Unable to anchor edit undo; content edit will continue", exc_info=True, extra={"file_id": file_id})
+            logger.warning("Unable to anchor edit undo", exc_info=True, extra={"file_id": file_id})
+        if old_content.strip() and before_version_number is None:
+            # 非空原稿备份后必然等于历史头；拿不到锚点 = 备份或读取失败，原稿无处恢复。
+            self.session.rollback()
+            logger.warning(
+                "Refused AI write: original body is not in history",
+                extra={"file_id": file_id, "tool": tool},
+            )
+            from agent.tools.author_edit_guard import PreWriteHistoryUnavailableError
+
+            raise PreWriteHistoryUnavailableError(file_id, action=tool)
 
         file.content = content
         file.updated_at = advance_timestamp(file.updated_at, now=utcnow())

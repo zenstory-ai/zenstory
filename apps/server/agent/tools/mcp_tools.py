@@ -2446,6 +2446,9 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         return _make_edit_error(str(e), **e.payload_fields())
     except FileWriteBusyError as e:
         return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_BUSY)
+    except AuthorContentProtectionError as e:
+        # 原稿没能先进历史：提交前已回滚，一处都没改。
+        return _make_edit_error(str(e), error_type=e.error_type, user_message=str(e))
     except NotFoundError as e:
         # 文件不在当前项目里与文件不存在对用户是同一回事（文案已统一为「文件不存在或已删除」）。
         return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_NOT_FOUND)

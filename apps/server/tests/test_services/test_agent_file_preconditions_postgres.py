@@ -521,10 +521,11 @@ async def test_conditional_undo_waits_for_writer_then_rejects_its_old_token(pg_e
 
 
 def test_undo_provenance_query_failure_does_not_poison_postgres_edit_transaction(pg_engine, monkeypatch):
-    """Failed optional history SELECTs must roll back only their savepoints.
+    """A failed optional history SELECT must roll back only its savepoint.
 
-    The first read is the pre-AI-write backup comparison, the second the undo
-    provenance check; both fail here and the content edit still commits.
+    The first read is the pre-AI-write backup comparison; it fails here, the undo
+    provenance read succeeds (the original is already the history head), and the
+    content edit commits with an undo anchor.
     """
     from sqlalchemy import text
 
@@ -538,21 +539,56 @@ def test_undo_provenance_query_failure_does_not_poison_postgres_edit_transaction
     original = FileVersionService.get_latest_version
     calls = []
 
-    def fail_history_reads(self, session, target_id):
+    def fail_first_history_read(self, session, target_id):
         calls.append(target_id)
-        if len(calls) <= 2:
+        if len(calls) == 1:
             session.exec(text("select 1 / 0"))
         return original(self, session, target_id)
 
-    monkeypatch.setattr(FileVersionService, "get_latest_version", fail_history_reads)
+    monkeypatch.setattr(FileVersionService, "get_latest_version", fail_first_history_read)
     monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
     with Session(pg_engine) as session:
         result = FileEditor(session, user_id).edit_file(file_id, [{"op": "append", "text": " + edit"}])
-    assert result.get("undo") is None
+    assert result["undo"]["before_version_number"] == 1
     with Session(pg_engine) as verify:
         file = verify.get(File, file_id)
         assert file.content == "Original + edit"
         assert len(verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()) == 2
+
+
+def test_unbacked_original_refuses_the_locked_postgres_edit_and_releases_the_row(pg_engine, monkeypatch):
+    """Unversioned author text whose backup fails is not overwritten; the row lock is released."""
+    from agent.tools.author_edit_guard import PreWriteHistoryUnavailableError
+    from services.features.file_version_service import FileVersionService
+
+    service = get_file_version_service()
+    with Session(pg_engine) as setup:
+        user_id, file_id, _ = _seed_file(setup, "unbacked-original")
+        service.create_initial_version(setup, setup.get(File, file_id))
+        setup.commit()
+        live = setup.get(File, file_id)
+        live.content = "Original\nUnversioned author line\n"
+        setup.add(live)
+        setup.commit()
+        before_token = setup.get(File, file_id).updated_at
+
+    def fail_backup(_self, session, *_args, **_kwargs):
+        session.exec(text("select 1 / 0"))
+
+    monkeypatch.setattr(FileVersionService, "backup_unversioned_content", fail_backup)
+    monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
+    with Session(pg_engine) as session, pytest.raises(PreWriteHistoryUnavailableError):
+        FileEditor(session, user_id).edit_file(
+            file_id, [{"op": "delete", "old": "Unversioned author line\n", "match_mode": "exact"}]
+        )
+
+    with Session(pg_engine) as verify:
+        # NOWAIT: the refused edit must not keep holding the row lock.
+        verify.exec(text("SELECT id FROM file WHERE id = :id FOR UPDATE NOWAIT").bindparams(id=file_id))
+        file = verify.get(File, file_id)
+        assert file.content == "Original\nUnversioned author line\n"
+        assert file.updated_at == before_token
+        assert len(verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()) == 1
 
 
 def _seed_blank_file(session: Session, suffix: str) -> tuple[str, str]:

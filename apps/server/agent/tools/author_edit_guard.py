@@ -19,6 +19,7 @@ from typing import Any
 
 AUTHOR_EDIT_PROTECTED_ERROR = "author_edit_protected"
 AUTHOR_EDIT_PROTECTION_UNAVAILABLE_ERROR = "author_edit_protection_unavailable"
+PRE_WRITE_HISTORY_UNAVAILABLE_ERROR = "pre_write_history_unavailable"
 
 _AI_CHANGE_SOURCE = "ai"
 _AI_EDIT_CHANGE_TYPE = "ai_edit"
@@ -53,6 +54,21 @@ class AuthorEditProtectionUnavailableError(AuthorContentProtectionError):
             "局部调整可用 edit_file；需要删除或整份替换时，请作者在文件菜单或编辑器中操作。",
         )
 
+
+
+class PreWriteHistoryUnavailableError(AuthorContentProtectionError):
+    """AI 写入前没能确认原稿已在历史里（备份或撤销锚点读取失败）：不提交这次写入。"""
+
+    error_type = PRE_WRITE_HISTORY_UNAVAILABLE_ERROR
+
+    def __init__(self, file_id: str, *, action: str) -> None:
+        self.file_id = file_id
+        self.title = ""
+        self.action = action
+        RuntimeError.__init__(
+            self,
+            "原文没能先存进历史版本，这次改动没有写入，原文保持不变；可以稍后重试。",
+        )
 
 def _latest_text_owner_is_author(session: Any, file: Any) -> bool | None:
     """True: author. False: blank body or confirmed AI text. None: non-empty with no history.
