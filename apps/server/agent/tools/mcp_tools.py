@@ -2264,11 +2264,11 @@ def _withdraw_file_created_after_close(
     file_id: str, title: str, result: dict[str, Any], *, tool_name: str
 ) -> dict[str, Any]:
     """这一轮被提前结束之后才建好的空文件：只撤销本请求新建、版本未变的那个，然后报告没有建成。"""
-    from agent.graph import writing_graph as graph_helpers
+    from agent.core.empty_files import rollback_unfinished_empty_files
 
     version = result.get("updated_at") if result.get("reused_existing") is not True else None
     if isinstance(version, str) and version:
-        graph_helpers._rollback_unfinished_empty_files([{"file_id": file_id, "title": title, "updated_at": version}])
+        rollback_unfinished_empty_files([{"file_id": file_id, "title": title, "updated_at": version}])
     ToolContext.clear_pending_empty_file(file_id)
     return _make_mcp_payload(
         {

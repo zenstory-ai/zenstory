@@ -780,13 +780,13 @@ async def test_author_rename_during_the_last_failed_correction_keeps_the_file(wo
 
 
 def _rollback_with(workspace, entries):
-    from agent.graph.writing_graph import _rollback_unfinished_empty_files
+    from agent.core.empty_files import rollback_unfinished_empty_files
 
     ToolContext.set_context(
         session=workspace.session, user_id=workspace.user.id, project_id=workspace.project.id, session_id="s"
     )
     try:
-        return _rollback_unfinished_empty_files(entries)
+        return rollback_unfinished_empty_files(entries)
     finally:
         ToolContext.clear_context()
 
@@ -895,7 +895,7 @@ def test_reused_blank_episode_is_writable_but_never_a_rollback_target(workspace)
 
     （独立审查的合成复现：复用结果的版本被当成本轮建档版本，从未动过的旧空白剧集被软删。）
     """
-    from agent.graph.writing_graph import _rollback_unfinished_empty_files, _with_creation_versions
+    from agent.core.empty_files import rollback_unfinished_empty_files, with_creation_versions
     from agent.tools.mcp_tools import _create_file_sync
 
     folder, episode = _blank_episode(workspace)
@@ -906,7 +906,7 @@ def test_reused_blank_episode_is_writable_but_never_a_rollback_target(workspace)
         _create_file_sync({"title": "第1集", "file_type": "script", "parent_id": folder.id, "order": 1})
         # 复用的就是这一集（没有另建），它仍在等正文。
         assert ToolContext.get_pending_empty_files() == [{"file_id": episode.id, "title": "第1集"}]
-        rolled_back = _rollback_unfinished_empty_files(_with_creation_versions(ToolContext.get_pending_empty_files()))
+        rolled_back = rollback_unfinished_empty_files(with_creation_versions(ToolContext.get_pending_empty_files()))
     finally:
         ToolContext.clear_context()
 

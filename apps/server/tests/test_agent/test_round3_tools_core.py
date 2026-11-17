@@ -364,7 +364,7 @@ async def test_pending_guard_does_not_forget_unfinished_empty_file(db_session):
 
 def test_correction_exhaustion_rolls_back_verified_empty_artifact(db_session):
     """A verified empty artifact is soft-deleted before its guard is cleared."""
-    from agent.graph.writing_graph import _rollback_unfinished_empty_files
+    from agent.core.empty_files import rollback_unfinished_empty_files
 
     user, project = _make_user_project(db_session, "empty-rollback")
     file = File(
@@ -384,7 +384,7 @@ def test_correction_exhaustion_rolls_back_verified_empty_artifact(db_session):
         session_id="sess-empty-rollback",
     )
     try:
-        rolled_back = _rollback_unfinished_empty_files(
+        rolled_back = rollback_unfinished_empty_files(
             [{"file_id": file.id, "title": file.title, "updated_at": file.updated_at.isoformat()}]
         )
         assert rolled_back == {file.id}

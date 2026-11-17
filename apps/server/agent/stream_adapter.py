@@ -970,14 +970,14 @@ class StreamAdapter:
         这些文件的结果还没交给适配器（作者没看到它们），只回滚本请求新建、版本未变的空文件；
         复用的或之后被动过的文件保留。
         """
-        from agent.graph import writing_graph as graph_helpers
+        from agent.core.empty_files import rollback_unfinished_empty_files
         from agent.tools.mcp_tools import ToolContext
 
         # 关闭与取条目是同一步：之后才建好的空文件由建它的工具自己撤销（见 _create_file_sync）。
         targets = [entry for entry in ToolContext.close_pending_body_files() if entry.get("updated_at")]
         if not targets:
             return
-        rolled_back = await asyncio.to_thread(graph_helpers._rollback_unfinished_empty_files, targets)
+        rolled_back = await asyncio.to_thread(rollback_unfinished_empty_files, targets)
         for file_id in rolled_back:
             ToolContext.clear_pending_empty_file(file_id)
         log_with_context(

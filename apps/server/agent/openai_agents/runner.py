@@ -31,7 +31,7 @@ from agent.core.stream_errors import (
 )
 from agent.core.stream_processor import find_repetition_start
 from agent.core.workflow_events import StreamEvent, StreamEventType
-from agent.graph.state import WritingState
+from agent.core.writing_state import WritingState
 from agent.openai_agents.events import (
     build_handoff_packet,
     mcp_text_result,

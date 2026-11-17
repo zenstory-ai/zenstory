@@ -22,6 +22,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
+from agent.core import empty_files, task_board_completion
 from agent.core.author_facing_text import AgentTextShaper, text_contains_cjk
 from agent.core.events import UNEXECUTED_TOOL_TEXT_LAYER, WALL_CLOCK_LIMIT
 from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
@@ -29,13 +30,7 @@ from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_errors import classify_stream_exception, log_stream_exception
 from agent.core.workflow_events import FileBodyResume, StreamEvent, StreamEventType
-from agent.graph import writing_graph as graph_helpers
-from agent.graph.completion_evidence import (
-    ends_on_file_block,
-    ends_on_unclosed_file_block,
-    unexecuted_tool_protocol,
-)
-from agent.graph.state import WritingState
+from agent.core.writing_state import WritingState
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.runner import run_openai_agents_streaming_agent
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
@@ -43,6 +38,13 @@ from agent.tools.mcp_tools import ToolContext
 from agent.tools.registry import LOOP_AGENT_TYPE, LOOP_TOOL_NAMES
 from config.agent_runtime import AGENT_COLLABORATION_MAX_ITERATIONS
 from utils.logger import get_logger, log_with_context
+
+from . import run_support
+from .completion_evidence import (
+    ends_on_file_block,
+    ends_on_unclosed_file_block,
+    unexecuted_tool_protocol,
+)
 
 logger = get_logger(__name__)
 
@@ -130,11 +132,11 @@ def _armed_replacement_id(result: Any) -> str:
 def _word_count_note(file_ids: list[str]) -> str:
     """续跑说明里附上本请求写过的正文落库后的字数，模型给作者报真实字数。"""
     try:
-        counts = graph_helpers._collect_body_word_counts(file_ids)
+        counts = run_support.collect_body_word_counts(file_ids)
     except Exception as exc:  # noqa: BLE001 - 读不到字数不影响续跑
         logger.debug(f"Word counts for the continuation note failed: {type(exc).__name__}")
         return ""
-    return graph_helpers._format_body_word_counts(counts)
+    return run_support.format_body_word_counts(counts)
 
 
 async def _drain_boundary_steering(get_steering_messages: Any) -> list[dict[str, str]]:
@@ -179,8 +181,8 @@ async def _settle_pending_empty_files(
             # write_chapter 定下的整章替换没收到正文：原文没动、不是空文件，不回滚、不发空文件卡。
             replacements.append({"file_id": file_id, "title": title, "updated_at": str(armed.get("updated_at") or "")})
             continue
-        state = await asyncio.to_thread(graph_helpers._probe_pending_file_body, file_id)
-        if state in (graph_helpers._PENDING_BODY_WRITTEN, graph_helpers._PENDING_BODY_GONE):
+        state = await asyncio.to_thread(empty_files.probe_pending_file_body, file_id)
+        if state in (empty_files.PENDING_BODY_WRITTEN, empty_files.PENDING_BODY_GONE):
             ToolContext.clear_pending_empty_file(file_id)
             continue
         unfinished.append({"file_id": file_id, "title": title})
@@ -199,7 +201,7 @@ async def _settle_pending_empty_files(
         return None, None, []
     if can_correct:
         target = unfinished[-1]
-        facts = await asyncio.to_thread(graph_helpers._resume_target_version, target["file_id"])
+        facts = await asyncio.to_thread(empty_files.resume_target_version, target["file_id"])
         if facts is not None:
             resume = FileBodyResume(file_id=target["file_id"], expected_updated_at=facts[0])
             context = _EMPTY_FILE_CORRECTION_CONTEXT.format(title=target["title"], file_id=target["file_id"])
@@ -216,11 +218,11 @@ async def _empty_file_card(unfinished: list[dict[str, str]], resume: FileBodyRes
         if resume is not None and resume.refusal == FILE_BODY_RESUME_VERSION_CHANGED
         else set()
     )
-    rollback_entries = graph_helpers._with_creation_versions(
+    rollback_entries = empty_files.with_creation_versions(
         [entry for entry in unfinished if entry["file_id"] not in kept_ids]
     )
     rolled_back = (
-        await asyncio.to_thread(graph_helpers._rollback_unfinished_empty_files, rollback_entries)
+        await asyncio.to_thread(empty_files.rollback_unfinished_empty_files, rollback_entries)
         if rollback_entries
         else set()
     )
@@ -240,8 +242,8 @@ async def _empty_file_card(unfinished: list[dict[str, str]], resume: FileBodyRes
         type=StreamEventType.ITERATION_EXHAUSTED,
         data={
             "layer": "empty_file_correction",
-            "iterations_used": graph_helpers.MAX_FILE_CORRECTION_ATTEMPTS,
-            "max_iterations": graph_helpers.MAX_FILE_CORRECTION_ATTEMPTS,
+            "iterations_used": empty_files.MAX_FILE_CORRECTION_ATTEMPTS,
+            "max_iterations": empty_files.MAX_FILE_CORRECTION_ATTEMPTS,
             "reason": (
                 "文件正文补写未完成，且无法安全回滚空文件。请继续对话完成这些文件。"
                 if unresolved
@@ -299,14 +301,14 @@ async def run_loop_agent_streaming(
         while runs < max_runs:
             if runs > 0 and run_meter.past_wrap_up:
                 # 请求时间快用完：不再开新的 run，停在已经完成的部分（同图层收尾的暂停卡）。
-                yield StreamEvent(type=StreamEventType.TEXT, data={"text": await graph_helpers._wrap_up_text(english)})
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": await run_support.wrap_up_text(english)})
                 yield StreamEvent(
                     type=StreamEventType.ITERATION_EXHAUSTED,
                     data={
                         "layer": "collaboration",
                         "iterations_used": runs,
                         "max_iterations": max_runs,
-                        "reason": graph_helpers.WRAP_UP_CARD_REASON_EN if english else graph_helpers.WRAP_UP_CARD_REASON,
+                        "reason": run_support.WRAP_UP_CARD_REASON_EN if english else run_support.WRAP_UP_CARD_REASON,
                         "last_agent": None,
                         "limit": WALL_CLOCK_LIMIT,
                     },
@@ -328,7 +330,7 @@ async def run_loop_agent_streaming(
             failed_ids: set[str] = set()
             shaper = AgentTextShaper(previous_text=accumulated_text, drop_english_narration=drop_english_narration)
 
-            async for event in graph_helpers._shape_agent_text(
+            async for event in run_support.shape_agent_text(
                 run_openai_agents_streaming_agent(
                     state=state,
                     agent_type=LOOP_AGENT_TYPE,
@@ -353,7 +355,7 @@ async def run_loop_agent_streaming(
                     tail_text = ""
                     if event.type == StreamEventType.TOOL_USE and event.data.get("name") in _BODY_WRITE_TOOLS:
                         create_ids.add(str(event.data.get("id") or ""))
-                    elif event.type == StreamEventType.TOOL_RESULT and graph_helpers._tool_result_failed(
+                    elif event.type == StreamEventType.TOOL_RESULT and run_support.tool_result_failed(
                         event.data.get("result")
                     ):
                         failed_ids.add(str(event.data.get("tool_use_id") or ""))
@@ -371,7 +373,7 @@ async def run_loop_agent_streaming(
                 yield event
 
             if deferred_exhausted is not None:
-                file_facts = await graph_helpers._settle_empty_files_after_exhaustion(LOOP_AGENT_TYPE, english)
+                file_facts = await empty_files.settle_empty_files_after_exhaustion(LOOP_AGENT_TYPE, english)
                 yield StreamEvent(
                     type=StreamEventType.ITERATION_EXHAUSTED,
                     data={**deferred_exhausted.data, **file_facts},
@@ -383,7 +385,7 @@ async def run_loop_agent_streaming(
             if ToolContext.has_pending_empty_file():
                 can_correct = (
                     runs < max_runs
-                    and correction_attempts < graph_helpers.MAX_FILE_CORRECTION_ATTEMPTS
+                    and correction_attempts < empty_files.MAX_FILE_CORRECTION_ATTEMPTS
                     and not run_meter.exhausted
                     and not run_meter.past_wrap_up
                 )
@@ -475,13 +477,13 @@ async def run_loop_agent_streaming(
                     yield steering_received_event(message_id=msg["id"], preview=msg["content"][:50])
             if mid_run_steering or boundary_steering:
                 followup = (
-                    f"{followup}\n{graph_helpers.STEERING_FOLLOWUP_CONTEXT}"
+                    f"{followup}\n{run_support.STEERING_FOLLOWUP_CONTEXT}"
                     if followup
-                    else graph_helpers.STEERING_FOLLOWUP_CONTEXT
+                    else run_support.STEERING_FOLLOWUP_CONTEXT
                 )
             if followup is None:
                 # 正常结束：与图相同，按本请求实际写出的文件把任务板上对应的任务收尾（什么都没写时不补）。
-                for task_event in await graph_helpers._auto_finalize_task_board_on_completion(read_guard):
+                for task_event in await task_board_completion.auto_finalize_task_board_on_completion(read_guard):
                     yield task_event
                 terminated = True
                 break

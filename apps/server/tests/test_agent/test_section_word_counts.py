@@ -2,7 +2,6 @@
 
 import pytest
 
-from agent.graph.writing_graph import _format_body_word_counts
 from agent.tools.file_ops.content_range import apply_content_range, section_word_counts
 from utils.text_metrics import count_words
 
@@ -47,11 +46,3 @@ def test_range_read_reports_the_word_count_of_its_part():
     row = apply_content_range({"id": "f", "content": body, "word_count": count_words(body)}, {"section": "第2章"})
 
     assert row["range_word_count"] == count_words(row["content"]) < row["word_count"]
-
-
-def test_handoff_lists_chapter_counts_without_a_verdict():
-    text = _format_body_word_counts([("旧城合集", 52000)], [("旧城合集", "第41章 门", 1203), ("旧城合集", "第42章 灯", 980)])
-
-    assert "《旧城合集》第41章 门 1203 字" in text and "《旧城合集》第42章 灯 980 字" in text
-    assert "不达标" not in text and "通过" not in text
-    assert _format_body_word_counts([("旧城合集", 52000)], None).count("各章") == 0

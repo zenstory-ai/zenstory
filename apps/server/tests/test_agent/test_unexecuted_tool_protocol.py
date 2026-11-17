@@ -6,7 +6,7 @@
 
 import pytest
 
-from agent.graph.completion_evidence import unexecuted_tool_protocol
+from agent.loop.completion_evidence import unexecuted_tool_protocol
 
 pytestmark = pytest.mark.unit
 

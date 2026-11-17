@@ -3,7 +3,7 @@
 import pytest
 
 from agent.graph.router import RouterDecision, _normalize_router_payload, _resolve_turn_decision
-from agent.graph.writing_graph import _build_completion_task_payload
+from agent.core.task_board_completion import _build_completion_task_payload
 from agent.tools.task_progress import ArtifactEvidence
 
 

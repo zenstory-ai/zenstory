@@ -500,7 +500,7 @@ async def test_loop_runs_once_and_emits_no_router_or_agent_events(loop_tool_cont
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_loop_continues_once_for_steering_that_arrived_during_the_run(loop_tool_context):
-    from agent.graph.writing_graph import STEERING_FOLLOWUP_CONTEXT
+    from agent.loop.run_support import STEERING_FOLLOWUP_CONTEXT
 
     seen: list[dict] = []
     drains = iter([[{"id": "st-1", "content": "改成第一人称"}], [], []])
@@ -538,7 +538,7 @@ async def test_loop_stops_starting_runs_near_the_wall_clock(loop_tool_context):
     state = {"user_message": "写第1章", "messages": [], "system_prompt": "系统", "run_meter": meter}
     with (
         patch("agent.loop.engine.run_openai_agents_streaming_agent", _fake_runner([[]], seen)),
-        patch("agent.graph.writing_graph._ai_messages_left_today", return_value=True),
+        patch("agent.loop.run_support._ai_messages_left_today", return_value=True),
     ):
         events = await _collect(state, get_steering_messages=steering)
 
@@ -711,7 +711,7 @@ async def test_loop_finalizes_the_task_board_on_normal_completion(loop_tool_cont
             "agent.loop.engine.run_openai_agents_streaming_agent",
             _fake_runner([[StreamEvent(type=StreamEventType.TEXT, data={"text": "好了。"})]], seen),
         ),
-        patch("agent.graph.writing_graph._auto_finalize_task_board_on_completion", finalize),
+        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
     ):
         events = await _collect(state)
     finalize.assert_awaited_once()

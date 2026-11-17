@@ -65,7 +65,7 @@ from .core.steering import (
     heartbeat_steering_run_async,
 )
 from .core.stream_errors import classify_stream_exception, log_stream_exception
-from .graph.state import WritingState
+from .core.writing_state import WritingState
 from .graph.writing_graph import run_writing_workflow_streaming
 from .loop.compaction import compact_history, should_compact, skipped_record
 from .loop.engine import run_loop_agent_streaming

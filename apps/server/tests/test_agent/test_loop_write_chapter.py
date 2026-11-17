@@ -125,7 +125,7 @@ async def _run_loop(
             patch("agent.openai_agents.runner.build_failover_chat_model", return_value="synthetic-model"),
             patch("agent.openai_agents.runner._preferred_model_name", AsyncMock(return_value="synthetic-model")),
             patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record"),
-            patch("agent.graph.writing_graph._auto_finalize_task_board_on_completion", AsyncMock(return_value=[])),
+            patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", AsyncMock(return_value=[])),
         ):
             frames = [frame async for frame in adapter.process_workflow_events(run_loop_agent_streaming(state))]
     finally:
@@ -361,9 +361,9 @@ async def test_unclosed_replacement_body_is_retried_without_claiming_it_was_save
 
 
 async def test_unclosed_replacement_body_without_retry_budget_reports_the_original_unchanged(workspace, monkeypatch):
-    from agent.graph import writing_graph as graph_helpers
+    from agent.core import empty_files
 
-    monkeypatch.setattr(graph_helpers, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
+    monkeypatch.setattr(empty_files, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
     original = "合成第三章原文，一共二十个字左右的样子。"
     three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
     model = ScriptedModel(runs=[
@@ -387,9 +387,9 @@ async def test_unclosed_replacement_body_without_retry_budget_reports_the_origin
 
 
 async def test_second_unclosed_replacement_of_the_same_chapter_is_never_called_saved(workspace, monkeypatch):
-    from agent.graph import writing_graph as graph_helpers
+    from agent.core import empty_files
 
-    monkeypatch.setattr(graph_helpers, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
+    monkeypatch.setattr(empty_files, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
     original = "合成第三章原文，一共二十个字左右的样子。"
     three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
     write_three = ("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"})
@@ -410,9 +410,9 @@ async def test_second_unclosed_replacement_of_the_same_chapter_is_never_called_s
 
 
 async def test_rearmed_replacement_that_fails_again_is_reported_next_to_a_saved_chapter(workspace, monkeypatch):
-    from agent.graph import writing_graph as graph_helpers
+    from agent.core import empty_files
 
-    monkeypatch.setattr(graph_helpers, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
+    monkeypatch.setattr(empty_files, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
     original = "合成第三章原文，一共二十个字左右的样子。"
     _ai_chapter(workspace.session, workspace.project, "第2章 渡口", "合成第二章原文。")
     three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)

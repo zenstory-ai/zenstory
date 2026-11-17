@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
-from agent.graph.completion_evidence import ends_on_file_block, ends_on_unclosed_file_block
+from agent.loop.completion_evidence import ends_on_file_block, ends_on_unclosed_file_block
 from agent.openai_agents.repeat_read_guard import ReadPlan
 from agent.tools.mcp_tools import ToolContext
 
