@@ -1187,6 +1187,30 @@ describe('AI replaces the open chapter, then edits it again in the same round', 
     expect(toastError).not.toHaveBeenCalled();
   });
 
+  it('unsaved author text from before the review keeps its body and older save token', async () => {
+    server.files.set(CH1.id, { ...CH1, content: ORIGINAL, updated_at: T_ORIGINAL });
+    render(<ProjectProvider><Harness /></ProjectProvider>);
+    await settle(); await advance(50); await settle();
+    // Typed inside the autosave delay, before the AI write opens the review.
+    fireEvent.change(textarea(), { target: { value: `${ORIGINAL}作者补的一句。` } });
+    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: REPLACED, updated_at: T_REPLACED });
+    act(() => {
+      callbacks().onStart();
+      callbacks().onFileEditEnd(CH1.id, 1, REPLACED.length, REPLACED, ORIGINAL, 'draft', CH1.title, OUTCOME);
+    });
+    await advance(300); await settle();
+    await editChapter();
+
+    // The review still follows the latest copy, but the editor does not adopt it over the
+    // author's text: the save token stays on the copy that text was typed on.
+    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
+    finishReview();
+    await settle();
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_ORIGINAL });
+    // The stale token meets the newer copy as a conflict instead of saving over it.
+    expect(server.files.get(CH1.id)!.content).toBe(EDITED);
+  });
+
   it('a second content-bearing write keeps the earliest original of the open review', async () => {
     await replaceChapter();
     server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: EDITED, updated_at: T_EDITED });
