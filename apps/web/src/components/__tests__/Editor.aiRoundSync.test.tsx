@@ -350,6 +350,58 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(server.files.get(CH2_ID)!.content).toBe(`${V2}作者补的一句。`);
   });
 
+  it('does not autosave the unsaved text while the AI streams into the open chapter, then offers the comparison', async () => {
+    await runRoundUntilV1();
+    const authorText = `${V1}作者补的一句。`;
+    fireEvent.change(textarea(), { target: { value: authorText } });
+    act(() => {
+      callbacks().onToolResult('write_chapter', 'success', { id: CH2_ID, action: 'replaced' });
+      callbacks().onFileCreated(CH2_ID, 'draft', '第2章');
+    });
+    await settle();
+    act(() => callbacks().onFileContent(CH2_ID, V2.slice(0, 6)));
+    // Longer than the 3 s autosave while the chapter is streaming: no save on the copy the AI is replacing.
+    await advance(5000); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(0);
+    act(() => callbacks().onFileContent(CH2_ID, V2.slice(6)));
+    server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, content: V2, updated_at: T_V2 });
+    act(() => callbacks().onFileContentEnd(CH2_ID));
+    await advance(300); await settle();
+
+    // The AI's copy landed: the author's unsaved text is kept and compared, never overwritten.
+    expect(harness.project!.diffReviewState).toMatchObject({ originalContent: authorText, modifiedContent: `${V2}作者补的一句。` });
+    await advance(5000); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(0);
+    finishReview();
+    await advance(100); await settle();
+    expect(server.files.get(CH2_ID)!.content).toBe(`${V2}作者补的一句。`);
+  });
+
+  it('saves the unsaved text once the stream ends without changing the chapter', async () => {
+    await runRoundUntilV1();
+    const authorText = `${V1}作者补的一句。`;
+    fireEvent.change(textarea(), { target: { value: authorText } });
+    act(() => {
+      callbacks().onToolResult('write_chapter', 'success', { id: CH2_ID, action: 'replaced' });
+      callbacks().onFileCreated(CH2_ID, 'draft', '第2章');
+    });
+    await settle();
+    act(() => callbacks().onFileContent(CH2_ID, '只写了一个开头'));
+    await advance(5000); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(0);
+    // The replacement was not saved (cut off or refused): the server copy is unchanged.
+    act(() => callbacks().onFileContentEnd(CH2_ID));
+    await advance(300); await settle();
+    expect(textarea().value).toBe(authorText);
+    expect(harness.project!.diffReviewState).toBeNull();
+
+    // The suspended autosave resumes and saves the author's text on the token it was written on.
+    await advance(3000); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(1);
+    expect(server.files.get(CH2_ID)!.content).toBe(authorText);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
   it('keeps the unsaved text when the AI only renamed the chapter, and saves it on the new token', async () => {
     await runRoundUntilV1();
     fireEvent.change(textarea(), { target: { value: `${V1}作者补的一句。` } });

@@ -1413,6 +1413,33 @@ describe('SimpleEditor', () => {
     }
   });
 
+  it('holds the autosave while the open file is streaming and resumes it when the stream ends', async () => {
+    vi.useFakeTimers();
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: 'saved-token' });
+    const Harness = ({ isStreaming }: { isStreaming: boolean }) => {
+      const [content, setContent] = useState('Original body');
+      return (
+        <SimpleEditor fileId="file-1" title="File" content={content} baseUpdatedAt="old-token"
+          onTitleChange={vi.fn()} onContentChange={setContent} onSave={onSave}
+          isStreaming={isStreaming} streamingContent={isStreaming ? 'AI preview' : undefined} />
+      );
+    };
+    const view = render(<Harness isStreaming={false} />);
+    fireEvent.change(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder'), { target: { value: 'Author edit' } });
+    await act(async () => vi.advanceTimersByTimeAsync(1000));
+    view.rerender(<Harness isStreaming />);
+    await act(async () => vi.advanceTimersByTimeAsync(10_000));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText('editor:unsaved')).toBeInTheDocument();
+
+    view.rerender(<Harness isStreaming={false} />);
+    expect(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder')).toHaveValue('Author edit');
+    await act(async () => vi.advanceTimersByTimeAsync(3000));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave.mock.calls[0][0]).toMatchObject({ content: 'Author edit', baseUpdatedAt: 'old-token' });
+    vi.useRealTimers();
+  });
+
   it('keeps streaming display text out of the save baseline and author draft', async () => {
     vi.useFakeTimers();
     const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: 'saved-token' });
