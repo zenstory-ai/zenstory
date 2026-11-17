@@ -132,6 +132,8 @@ agent/
   `previous_output_truncations` 由 `LoopHistory.trailing_output_truncations` 给出；它大于 0 时本轮第一次 run 的 `agent_directive` 带
   「## 截断后的本轮交付」+ `OUTPUT_TRUNCATED_RESUME`（只进这次 SDK 输入，不写回历史，续跑不再追加）。到收尾时间不再开新 run，
   发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
+  收尾提醒按 `agent_type` 选文案（`_ModelCallCountingFilter(agent_type=…)`）：单循环用 `LOOP_SOFT_LANDING_PROMPT` / `LOOP_TIME_LANDING_PROMPT`
+  （刚调用 write_chapter 或 create_file 还没写 `<file>` 的先写完，不提 parallel_execute），图的 `SOFT_LANDING_PROMPT` / `TIME_LANDING_PROMPT` 逐字不变。
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` = 写作工具集去掉 `handoff_to_agent` / `request_clarification` / `parallel_execute`，加上只有单循环 agent
   有的 `write_chapter`（`LOOP_ONLY_TOOL_NAMES`），请求里也只给这一份（`get_exposed_tools("loop")`，其中 create_file 用
   `tool_schemas.LOOP_TOOL_SCHEMA_OVERRIDES` 里不列 draft / script 的说明）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入照旧经 diff 审阅、撤销与版本保护；

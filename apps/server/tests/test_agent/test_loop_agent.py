@@ -870,3 +870,33 @@ async def test_loop_passes_the_truncation_resume_directive_to_the_first_run_only
     assert len(directives) == 2
     assert OUTPUT_TRUNCATED_RESUME in directives[0]
     assert directives[1] == ""
+
+
+# ---------------------------------------------------------------------------
+# 收尾提醒：单循环 agent 用自己的文案（write_chapter，没有 parallel_execute），图的原文不变
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("trigger", ["turns", "time"])
+def test_landing_reminders_name_write_chapter_for_the_loop_and_keep_the_graph_text(trigger):
+    from agents.run_config import ModelInputData
+
+    from agent.core.run_meter import AgentRunMeter
+    from agent.openai_agents.runner import SOFT_LANDING_PROMPT, TIME_LANDING_PROMPT, _ModelCallCountingFilter
+
+    def reminder(agent_type: str | None) -> str:
+        if trigger == "turns":
+            meter, max_turns = AgentRunMeter(max_model_calls=10, model_calls=8), 60
+        else:
+            meter, max_turns = AgentRunMeter(wrap_up_after_s=0), 60
+        kwargs = {"agent_type": agent_type} if agent_type else {}
+        turn_filter = _ModelCallCountingFilter(lambda data: data.model_data, meter, max_turns=max_turns, **kwargs)
+        sent = turn_filter(SimpleNamespace(model_data=ModelInputData(input=[], instructions="sys")))
+        return sent.input[-1]["content"]
+
+    loop_text, graph_text = reminder("loop"), reminder("writer")
+    assert "write_chapter" in loop_text and "create_file" in loop_text
+    assert "parallel_execute" not in loop_text
+    expected_graph = SOFT_LANDING_PROMPT.format(remaining=1) if trigger == "turns" else TIME_LANDING_PROMPT
+    assert graph_text == reminder(None) == expected_graph

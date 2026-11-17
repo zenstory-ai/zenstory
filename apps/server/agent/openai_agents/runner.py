@@ -138,6 +138,27 @@ TIME_LANDING_PROMPT = (
     "2. 尚未完成、需要下一轮继续的工作。\n"
     "用户回复「继续」后会从这里接着完成剩余部分。"
 )
+# 单循环 agent 的收尾提醒：正文用 write_chapter（资料文件用 create_file）建好后等 <file>，没有 parallel_execute。
+# 图的各角色照旧用上面两条原文。
+LOOP_SOFT_LANDING_PROMPT = (
+    "[系统提醒] 本轮工具调用即将达到上限（本次之后最多还能调用模型 {remaining} 次）。"
+    "请立即停止调用任何工具（包括 query_files / edit_file）。"
+    "如果刚调用 write_chapter（或 create_file）还没写 <file> 正文，先在本次回复里写完它的"
+    " <file> 正文，再做总结。"
+    "然后直接用文字给出阶段总结：\n"
+    "1. 已完成的工作；\n"
+    "2. 尚未完成、需要下一轮继续的工作；\n"
+    "3. 本轮用到或改动过的文件（标题 + id）。\n"
+    "用户回复「继续」后会从这里接着完成剩余部分。"
+)
+LOOP_TIME_LANDING_PROMPT = (
+    "[系统提醒] 这次请求的时间快用完了。不要再开始新的章节或大段改写，也不要再读文件："
+    "正在写的 <file> 正文先写完并用 </file> 结束；刚调用 write_chapter（或 create_file）还没写正文的，"
+    "在本次回复里写完它的 <file> 正文。然后直接用文字给作者写阶段总结：\n"
+    "1. 已完成的工作；\n"
+    "2. 尚未完成、需要下一轮继续的工作。\n"
+    "用户回复「继续」后会从这里接着完成剩余部分。"
+)
 
 
 def _stop_run_on_control_flow_tool(
@@ -232,8 +253,14 @@ class _ModelCallCountingFilter:
         *,
         max_turns: int | None = None,
         landing_turns: int = SOFT_LANDING_TURNS,
+        agent_type: str | None = None,
     ) -> None:
+        from agent.tools.registry import LOOP_AGENT_TYPE
+
         self._inner = inner
+        loop = agent_type == LOOP_AGENT_TYPE
+        self._soft_landing_prompt = LOOP_SOFT_LANDING_PROMPT if loop else SOFT_LANDING_PROMPT
+        self._time_landing_prompt = LOOP_TIME_LANDING_PROMPT if loop else TIME_LANDING_PROMPT
         self._run_meter = run_meter
         self._max_turns = max_turns
         self._landing_turns = landing_turns
@@ -274,10 +301,10 @@ class _ModelCallCountingFilter:
         self.landing_injected = True
         if remaining is not None:
             self.landing_limit = self._remaining_calls()[1]
-            reminder = {"role": "user", "content": SOFT_LANDING_PROMPT.format(remaining=remaining)}
+            reminder = {"role": "user", "content": self._soft_landing_prompt.format(remaining=remaining)}
         else:
             self.landing_limit = LANDING_LIMIT_WALL_CLOCK
-            reminder = {"role": "user", "content": TIME_LANDING_PROMPT}
+            reminder = {"role": "user", "content": self._time_landing_prompt}
         return ModelInputData(
             input=[*list(model_data.input or []), reminder],
             instructions=model_data.instructions,
@@ -971,6 +998,7 @@ async def run_openai_agents_streaming_agent(
             IntraRunToolOutputTrimmer(),
             run_meter,
             max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
+            agent_type=agent_type,
         )
         # Install the progress emitter only across run_streamed. The SDK creates
         # its background task synchronously inside run_streamed, copying the
