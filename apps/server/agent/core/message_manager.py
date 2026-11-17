@@ -428,22 +428,16 @@ class MessageManager:
         session: Session,
         language: str | None = None,
         skill_catalog: str | None = None,
-        loop: bool = False,
     ) -> str:
         """
-        Build the static system prompt shared by every turn and every agent role.
+        Build the single loop agent's static system prompt, shared by every turn.
 
-        loop=True builds the single loop agent's prompt (agent/loop): the project-type
-        configuration without other roles, handoffs or run directives, plus the loop's
-        input layout and working rules.
-
-        Only content that stays the same across turns and roles goes here: the
-        project's base prompt, reply-language rules, where per-turn context and
-        per-run instructions live, and the L1 skill catalog. DeepSeek caches by
-        exact prefix, so anything that varies here would make the whole replayed
-        history miss. Per-turn content comes from build_turn_context (placed in
-        this turn's user message); per-agent content (role, scope directive)
-        comes from nodes.build_agent_directive (the last input message of a run).
+        The project-type configuration, plus the loop's input layout and working rules
+        (agent/loop/prompts.py). Only content that stays the same across turns goes
+        here: the project's base prompt, reply-language rules, where per-turn context
+        lives, and the L1 skill catalog. DeepSeek caches by exact prefix, so anything
+        that varies here would make the whole replayed history miss. Per-turn content
+        is placed in this turn's user message (agent/loop/turn_context.py).
 
         Args:
             session: Database session for querying project info
@@ -496,20 +490,16 @@ class MessageManager:
         )
 
         # Get prompt from template
-        prompt = get_prompt_for_project_type(project_type, self.project_id, folder_ids, loop=loop)
+        prompt = get_prompt_for_project_type(project_type, self.project_id, folder_ids)
 
         parts = [prompt]
 
         # 回复语言规则（跟随作者最近一条消息；界面语言只在判断不了时兜底）
         parts.extend(self._build_language_section(force_en))
 
-        if loop:
-            from ..loop.prompts import LOOP_INPUT_LAYOUT_SECTION, LOOP_WORKING_RULES
+        from ..loop.prompts import LOOP_INPUT_LAYOUT_SECTION, LOOP_WORKING_RULES
 
-            parts.extend([LOOP_INPUT_LAYOUT_SECTION, "", LOOP_WORKING_RULES])
-        else:
-            # 本轮上下文与本次运行指令放在哪里（固定说明，保证它们的效力）
-            parts.extend(self._build_input_layout_section(force_en))
+        parts.extend([LOOP_INPUT_LAYOUT_SECTION, "", LOOP_WORKING_RULES])
 
         # Add skill catalog (L1: name + description only; instructions via load_skill)
         if skill_catalog:

@@ -1,10 +1,12 @@
-"""单循环 agent 一轮的收尾：工具调用轮数耗尽时的空文件回滚、请求时间快用完时的收尾说明。
+"""单循环 agent 一轮的收尾与续跑：工具调用轮数耗尽时的空文件回滚、请求时间快用完时的收尾说明、
+写成文字没执行的工具调用、文件流续写的边界。
 
 这些行为原先由多 agent 图的用例覆盖；图删除后在单循环 agent 上逐项保留。
 """
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -173,3 +175,61 @@ async def test_textual_call_followed_by_a_real_tool_event_is_not_flagged():
     events = await _collect(_state(user_message="建第七章"), _runner([real_after]))
 
     assert not [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+
+
+# 文件流续写：只有这次 run 建过文件、回复停在写完的 </file>（或新正文的 EOF）上才接着跑一次。
+def _create_events() -> list[StreamEvent]:
+    payload = {"content": [{"type": "text", "text": json.dumps({"status": "success"})}]}
+    return [
+        StreamEvent(type=StreamEventType.TOOL_USE, data={"id": "c1", "name": "create_file", "status": "complete", "input": {}}),
+        StreamEvent(type=StreamEventType.TOOL_RESULT, data={"tool_use_id": "c1", "name": "create_file", "result": payload}),
+    ]
+
+
+def _counting_runner(runs: list[list[StreamEvent]], calls: list[str]):
+    inner = _runner(runs)
+
+    async def fake(*, state, **kwargs):
+        calls.append(str(state.get("user_message") or ""))
+        async for event in inner(state=state, **kwargs):
+            yield event
+
+    return fake
+
+
+_BODY = StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n第二集正文。\n</file>\n"})
+_DONE = StreamEvent(type=StreamEventType.TEXT, data={"text": "第2集写好了。"})
+
+
+async def test_reply_with_summary_after_file_close_is_not_continued():
+    calls: list[str] = []
+    await _collect(_state(user_message="写第2集"), _counting_runner([[*_create_events(), _BODY, _DONE]], calls))
+
+    assert len(calls) == 1
+
+
+async def test_file_block_without_a_create_in_the_run_is_not_continued():
+    calls: list[str] = []
+    await _collect(_state(user_message="写方案"), _counting_runner([[_BODY]], calls))
+
+    assert len(calls) == 1
+
+
+async def test_new_body_at_an_unclosed_eof_continues_once():
+    calls: list[str] = []
+    unclosed = StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n第二集正文。\n"})
+    await _collect(_state(user_message="写第2集"), _counting_runner([[*_create_events(), unclosed], [_DONE]], calls))
+
+    assert len(calls) == 2
+    assert calls[1].startswith("[系统提醒] 上一次回复写完的正文已保存")
+
+
+async def test_last_allowed_run_does_not_schedule_a_continuation():
+    from agent.loop.engine import run_loop_agent_streaming
+
+    calls: list[str] = []
+    runner = _counting_runner([[*_create_events(), _BODY], [_DONE]], calls)
+    with patch("agent.loop.engine.run_openai_agents_streaming_agent", runner):
+        _ = [event async for event in run_loop_agent_streaming(_state(user_message="写第2集"), max_runs=1)]
+
+    assert len(calls) == 1

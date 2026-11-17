@@ -685,8 +685,8 @@ class FileEditor:
         if is_postgres:
             return self._edit_file_impl(id, edits, continue_on_error, normalize_quotes, **options)
         # SQLite has no row locks: serialize same-file read-modify-write with
-        # the in-process per-file lock so a concurrent edit (parallel_execute
-        # runs each task on its own session/thread) cannot interleave between
+        # the in-process per-file lock so a concurrent edit (tool calls of one
+        # turn run as separate tasks on their own session/thread) cannot interleave between
         # our read and commit. 获取方式见 acquire_file_write_lock：事件循环线程
         # 上只做有界等待，避免整个进程陪着一个工作线程的长事务停摆。
         with acquire_file_write_lock(id):
@@ -705,7 +705,7 @@ class FileEditor:
         body_guards: bool = False,
     ) -> dict[str, Any]:
         # Get file. On PostgreSQL take a row lock so concurrent edit_file tasks
-        # (parallel_execute runs each on its own session) targeting the SAME file
+        # (concurrent tool calls each run on their own session) targeting the SAME file
         # serialize: the second locked SELECT blocks until the first commits and
         # then re-reads the updated content, preventing a lost update where the
         # later commit overwrites the earlier edit. FOR NO KEY UPDATE (not FOR

@@ -42,31 +42,23 @@ def _user_project(db_session: Session, project_type: str = "novel") -> tuple[Use
 @pytest.mark.unit
 def test_loop_toolset_excludes_multi_agent_control_flow():
     from agent.openai_agents.tools_adapter import build_agent_function_tools
-    from agent.tools.registry import (
-        LOOP_AGENT_TYPE,
-        get_agent_tools,
-        get_exposed_tools,
-        validate_registry_alignment,
-    )
+    from agent.tools.registry import LOOP_TOOL_NAMES, get_exposed_tools, validate_registry_alignment
+    from agent.tools.tool_schemas import TOOL_SCHEMAS
 
     excluded = {"handoff_to_agent", "request_clarification", "parallel_execute"}
-    exposed = {schema["name"] for schema in get_exposed_tools(LOOP_AGENT_TYPE)}
-    permitted = {schema["name"] for schema in get_agent_tools(LOOP_AGENT_TYPE)}
-    built = {tool.name for tool in build_agent_function_tools(LOOP_AGENT_TYPE)}
+    exposed = [schema["name"] for schema in get_exposed_tools()]
+    built = [tool.name for tool in build_agent_function_tools()]
 
-    for names in (exposed, permitted, built):
-        assert not names & excluded
-        assert {
-            "create_file", "write_chapter", "edit_file", "query_files", "update_project", "load_skill",
-            "read_skill_resource", "delete_file", "rename_file",
-        } <= names
-    # 单循环 agent 看到的 create_file 不建正文；图的各角色看不到 write_chapter。
-    [loop_create] = [schema for schema in get_exposed_tools(LOOP_AGENT_TYPE) if schema["name"] == "create_file"]
+    # 顺序就是请求里的工具清单顺序（前缀缓存依赖它）。
+    assert exposed == built == LOOP_TOOL_NAMES == [
+        "create_file", "write_chapter", "edit_file", "delete_file", "rename_file", "query_files",
+        "update_project", "load_skill", "read_skill_resource",
+    ]
+    assert not excluded & set(TOOL_SCHEMAS)
+    # 单循环 agent 看到的 create_file 不建正文。
+    [loop_create] = [schema for schema in get_exposed_tools() if schema["name"] == "create_file"]
     assert not {"draft", "script"} & set(loop_create["input_schema"]["properties"]["file_type"]["enum"])
-    assert "write_chapter" not in {schema["name"] for schema in get_exposed_tools("writer")}
-    assert validate_registry_alignment()["invalid_loop_tools"] == []
-    # 图的各角色仍看到完整清单（回滚路径不变）。
-    assert excluded <= {schema["name"] for schema in get_exposed_tools("writer")}
+    assert validate_registry_alignment() == {"missing_schemas": [], "missing_handlers": []}
 
 
 # ---------------------------------------------------------------------------
@@ -78,12 +70,10 @@ def test_loop_toolset_excludes_multi_agent_control_flow():
 def test_loop_system_prompt_merges_project_config_with_loop_rules(db_session, writing_prompt_configs):
     from agent.core.message_manager import AGENT_DIRECTIVE_HEADER, MessageManager
     from agent.loop.prompts import LOOP_WORKING_RULES
-    from agent.prompts.base import TOOL_USAGE_PROTOCOL
 
     user, project = _user_project(db_session)
     manager = MessageManager(project_id=project.id, user_id=user.id)
-    loop_prompt = manager.build_system_prompt(db_session, language="zh", loop=True)
-    graph_prompt = manager.build_system_prompt(db_session, language="zh")
+    loop_prompt = manager.build_system_prompt(db_session, language="zh")
 
     assert LOOP_WORKING_RULES in loop_prompt
     for removed in ("handoff_to_agent", "parallel_execute", "request_clarification", AGENT_DIRECTIVE_HEADER, "[TASK_COMPLETE]"):
@@ -94,12 +84,9 @@ def test_loop_system_prompt_merges_project_config_with_loop_rules(db_session, wr
     assert "write_chapter" in loop_prompt and "大纲是节奏的上限也是底线" in loop_prompt
     assert "整体替换进该章" not in loop_prompt and "整章重写时用一个 replace" not in loop_prompt
     assert "不另存成素材、副本或备份文件" in loop_prompt
-    assert "write_chapter" not in graph_prompt.replace("parallel 的 write_chapter", "").replace("`write_chapter`", "")
     assert "快速模式" not in loop_prompt and "生成模式" not in loop_prompt
-    # 项目类型的写作配置（数据库行）照样在前面。
-    assert graph_prompt.split("\n", 1)[0] == loop_prompt.split("\n", 1)[0]
-    # 图的提示逐字不变（含 parallel_execute 一节）。
-    assert TOOL_USAGE_PROTOCOL in graph_prompt and "parallel_execute" in TOOL_USAGE_PROTOCOL
+    # 项目类型的写作配置（数据库行）在最前面。
+    assert loop_prompt.split("\n", 1)[0] == "Test novel editor"
 
 
 # ---------------------------------------------------------------------------
@@ -109,23 +96,6 @@ def test_loop_system_prompt_merges_project_config_with_loop_rules(db_session, wr
 
 def _payload(result: dict) -> dict:
     return json.loads(result["content"][0]["text"])
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_graph_roles_keep_existing_create_file_behaviour(db_session):
-    from agent.tools.mcp_tools import ToolContext, create_file
-
-    user, project = _user_project(db_session)
-    db_session.add(File(project_id=project.id, title="第1章", content="合成正文。", file_type="draft"))
-    db_session.commit()
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="graph-guard")
-    ToolContext.set_current_agent("writer")
-    try:
-        result = _payload(await create_file({"title": "第1章（另存）", "file_type": "draft", "content": "合成"}))
-    finally:
-        ToolContext.clear_context()
-    assert result["status"] == "success"
 
 
 # ---------------------------------------------------------------------------
@@ -581,22 +551,6 @@ async def test_loop_continues_after_a_run_that_stopped_on_a_saved_file_body(loop
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_graph_create_file_empty_still_needs_the_router_decision(db_session):
-    from agent.tools.mcp_tools import ToolContext, create_file
-
-    user, project = _user_project(db_session)
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="graph-empty")
-    ToolContext.set_current_agent("writer")
-    try:
-        await create_file({"title": "第1章", "file_type": "draft", "empty": True})
-        pending = ToolContext.has_pending_empty_file()
-    finally:
-        ToolContext.clear_context()
-    assert pending is True
-
-
 @pytest.mark.unit
 def test_loop_history_marks_skill_and_failed_results_as_not_kept(db_session):
     from agent.loop.history import load_loop_history
@@ -716,7 +670,6 @@ async def test_loop_finalizes_the_task_board_on_normal_completion(loop_tool_cont
         events = await _collect(state)
     finalize.assert_awaited_once()
     assert board_event in events
-
 
 
 @pytest.mark.asyncio
@@ -873,33 +826,29 @@ async def test_loop_passes_the_truncation_resume_directive_to_the_first_run_only
 
 
 # ---------------------------------------------------------------------------
-# 收尾提醒：单循环 agent 用自己的文案（write_chapter，没有 parallel_execute），图的原文不变
+# 收尾提醒：文案指向 write_chapter（没有 parallel_execute）
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize("trigger", ["turns", "time"])
-def test_landing_reminders_name_write_chapter_for_the_loop_and_keep_the_graph_text(trigger):
+def test_landing_reminders_name_write_chapter(trigger):
     from agents.run_config import ModelInputData
 
     from agent.core.run_meter import AgentRunMeter
-    from agent.openai_agents.runner import SOFT_LANDING_PROMPT, TIME_LANDING_PROMPT, _ModelCallCountingFilter
+    from agent.openai_agents.runner import LOOP_SOFT_LANDING_PROMPT, LOOP_TIME_LANDING_PROMPT, _ModelCallCountingFilter
 
-    def reminder(agent_type: str | None) -> str:
-        if trigger == "turns":
-            meter, max_turns = AgentRunMeter(max_model_calls=10, model_calls=8), 60
-        else:
-            meter, max_turns = AgentRunMeter(wrap_up_after_s=0), 60
-        kwargs = {"agent_type": agent_type} if agent_type else {}
-        turn_filter = _ModelCallCountingFilter(lambda data: data.model_data, meter, max_turns=max_turns, **kwargs)
-        sent = turn_filter(SimpleNamespace(model_data=ModelInputData(input=[], instructions="sys")))
-        return sent.input[-1]["content"]
+    if trigger == "turns":
+        meter, max_turns = AgentRunMeter(max_model_calls=10, model_calls=8), 60
+    else:
+        meter, max_turns = AgentRunMeter(wrap_up_after_s=0), 60
+    turn_filter = _ModelCallCountingFilter(lambda data: data.model_data, meter, max_turns=max_turns)
+    sent = turn_filter(SimpleNamespace(model_data=ModelInputData(input=[], instructions="sys")))
+    text = sent.input[-1]["content"]
 
-    loop_text, graph_text = reminder("loop"), reminder("writer")
-    assert "write_chapter" in loop_text and "create_file" in loop_text
-    assert "parallel_execute" not in loop_text
-    expected_graph = SOFT_LANDING_PROMPT.format(remaining=1) if trigger == "turns" else TIME_LANDING_PROMPT
-    assert graph_text == reminder(None) == expected_graph
+    assert "write_chapter" in text and "create_file" in text
+    assert "parallel_execute" not in text
+    assert text == (LOOP_SOFT_LANDING_PROMPT.format(remaining=1) if trigger == "turns" else LOOP_TIME_LANDING_PROMPT)
 
 
 @pytest.mark.unit

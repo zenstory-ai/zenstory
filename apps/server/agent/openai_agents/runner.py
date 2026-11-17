@@ -6,13 +6,11 @@ import asyncio
 import contextlib
 import functools
 import inspect
-import json
 import time
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from agent.core.events import WALL_CLOCK_LIMIT
-from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
 from agent.core.output_truncation import (
     OUTPUT_TRUNCATED_HISTORY,
     trailing_output_truncations,
@@ -33,9 +31,7 @@ from agent.core.stream_processor import find_repetition_start
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.core.writing_state import WritingState
 from agent.openai_agents.events import (
-    build_handoff_packet,
     mcp_text_result,
-    normalize_str_list,
     parse_json_object,
     tool_error_text,
 )
@@ -45,15 +41,9 @@ from agent.openai_agents.repeat_read_guard import (
     RepeatReadGuard,
 )
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker, _parse_error_payload
-from agent.openai_agents.tools_adapter import (
-    READ_ONLY_REASON_CLARIFY_FIRST,
-    READ_ONLY_REASON_USER_REQUEST,
-    build_agent_function_tools,
-    tool_availability_note,
-)
+from agent.openai_agents.tools_adapter import build_agent_function_tools
 from config import agent_runtime
 from config.agent_runtime import (
-    AGENT_COLLABORATION_MAX_ITERATIONS,
     AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS,
     AGENT_TOOL_CALL_MAX_ITERATIONS,
 )
@@ -63,41 +53,15 @@ logger = get_logger(__name__)
 
 MessageList = list[dict[str, Any]]
 
-# 控制流工具：调用成功即表示「本次 SDK run 到此为止」——
-# handoff_to_agent 把控制权交给下一个 agent，request_clarification 把控制权交回用户。
-# 工具名与 agent/tools/registry.py 的注册名一致（tools_adapter 原样透传给 SDK）。
-CONTROL_FLOW_TOOL_NAMES: tuple[str, ...] = ("handoff_to_agent", "request_clarification")
-
-# 控制流工具「调用成功」的判定：只有返回这些 status 才算真的要停下。
-# 参数非法时（invalid target_agent / self handoff / question is required）工具返回 error，
-# 此时必须让模型看到错误并在同一个 run 内自行纠正，绝不能把 run 截断掉。
-_CONTROL_FLOW_STOP_STATUS: dict[str, str] = {
-    "handoff_to_agent": "handoff",
-    "request_clarification": "clarification_needed",
-}
-
-
-def _control_flow_status_of(tool_name: str, output_text: str) -> bool:
-    """判断某次工具输出是否是「生效的控制流结果」。"""
-    expected = _CONTROL_FLOW_STOP_STATUS.get(tool_name)
-    if expected is None:
-        return False
-    try:
-        payload = json.loads(output_text) if output_text else {}
-    except (json.JSONDecodeError, TypeError):
-        return False
-    return isinstance(payload, dict) and payload.get("status") == expected
-
-
 # 工具失败熔断后 MESSAGE_END 的 stop_reason（随 assistant 消息元数据落库）。
 TOOL_FAILURE_STOP_REASON = "tool_failure_circuit_open"
 # 请求级模型调用预算用尽、截停 SDK run 后 MESSAGE_END 的 stop_reason；预算快用完时
 # 由收尾提醒软着陆（模型写了阶段总结后结束）也用它，随 assistant 消息落库。
 MODEL_CALL_BUDGET_STOP_REASON = "model_call_budget_exhausted"
 # 单个 agent run 的工具调用轮数（SDK max_turns）用尽，或已进入收尾提醒后结束时的
-# stop_reason。随 assistant 消息落库；router 据此把下一条「继续」直接交给上一个 agent。
+# stop_reason。随 assistant 消息落库，下一轮历史回放里注明这一轮没做完。
 MAX_TURNS_STOP_REASON = "max_turns_exceeded"
-# 接近请求墙钟时限、按提醒收尾（与 service 在时限取消时落库的 stop_reason 相同，路由按「没做完」续做）。
+# 接近请求墙钟时限、按提醒收尾（与 service 在时限取消时落库的 stop_reason 相同）。
 RUN_DEADLINE_STOP_REASON = "run_deadline_exceeded"
 # 重复读取守卫判定无进展、结束本轮时的 stop_reason（与 ERROR 事件 data.reason 相同）。
 NO_PROGRESS_STOP = NO_PROGRESS_STOP_REASON
@@ -119,27 +83,7 @@ SOFT_LANDING_TURNS = 3
 LANDING_LIMIT_MAX_TURNS = "max_turns"
 LANDING_LIMIT_MODEL_CALL_BUDGET = "model_call_budget"
 LANDING_LIMIT_WALL_CLOCK = WALL_CLOCK_LIMIT
-SOFT_LANDING_PROMPT = (
-    "[系统提醒] 本轮工具调用即将达到上限（本次之后最多还能调用模型 {remaining} 次）。"
-    "请立即停止调用任何工具（包括 query_files / parallel_execute）。"
-    "如果刚用 create_file 建了文件但还没写 <file> 正文，先在本次回复里写完该文件的"
-    " <file> 正文，再做总结。"
-    "然后直接用文字给出阶段总结：\n"
-    "1. 已完成的工作；\n"
-    "2. 尚未完成、需要下一轮继续的工作；\n"
-    "3. 本轮用到或改动过的文件（标题 + id）。\n"
-    "用户回复「继续」后会从这里接着完成剩余部分。"
-)
-TIME_LANDING_PROMPT = (
-    "[系统提醒] 这次请求的时间快用完了。不要再开始新的文件或大段改写，也不要再读文件："
-    "正在写的 <file> 正文先写完并用 </file> 结束；刚用 create_file 建了文件还没写正文的，"
-    "在本次回复里写完它的 <file> 正文。然后直接用文字给作者写阶段总结：\n"
-    "1. 已完成的工作；\n"
-    "2. 尚未完成、需要下一轮继续的工作。\n"
-    "用户回复「继续」后会从这里接着完成剩余部分。"
-)
-# 单循环 agent 的收尾提醒：正文用 write_chapter（资料文件用 create_file）建好后等 <file>，没有 parallel_execute。
-# 图的各角色照旧用上面两条原文。
+# 收尾提醒：正文用 write_chapter（资料文件用 create_file）建好后等 <file>。
 LOOP_SOFT_LANDING_PROMPT = (
     "[系统提醒] 本轮工具调用即将达到上限（本次之后最多还能调用模型 {remaining} 次）。"
     "请立即停止调用任何工具（包括 query_files / edit_file）。"
@@ -161,7 +105,7 @@ LOOP_TIME_LANDING_PROMPT = (
 )
 
 
-def _stop_run_on_control_flow_tool(
+def _stop_run_after_tools(
     _ctx: Any,
     tool_results: list[Any],
     *,
@@ -169,24 +113,18 @@ def _stop_run_on_control_flow_tool(
     run_meter: AgentRunMeter | None = None,
     read_guard: RepeatReadGuard | None = None,
 ) -> Any:
-    """SDK 的 tool_use_behavior 回调：控制流工具生效后立即结束当前 run。
+    """SDK 的 tool_use_behavior 回调：本轮工具跑完后，需要停下时立即结束当前 run。
 
     为什么不能只靠 result.cancel(mode="after_turn")：cancel 是异步落地的——
     SDK run-loop 把 tool_output 放进自己的 _event_queue，经 _pump_sdk_events 转发到
     run_queue，本模块的消费循环才读到并 cancel；等标志位落地时 run-loop 早已发起了
-    下一次模型调用，那一轮的正文会被推给前端、工具（create_file/edit_file/delete_file）
-    会被真实执行——「工作流已暂停」却仍在改用户的文件。
-    这里改用 SDK 在 turn 内同步检查的 tool_use_behavior（turn_resolution.py
-    check_for_final_output_from_tools），控制流工具一返回就把本轮当作 final output，
-    run-loop 不会再发起下一次模型调用。
+    下一次模型调用，那一轮的正文会被推给前端、工具会被真实执行。
+    这里用 SDK 在 turn 内同步检查的 tool_use_behavior（turn_resolution.py
+    check_for_final_output_from_tools），run-loop 不会再发起下一次模型调用。
 
-    用可调用对象而非 StopAtTools(dict) 的原因：StopAtTools 只看工具名，
-    控制流工具报错（例如 target_agent 非法）时也会把 run 掐断，模型将失去在同一个
-    run 内纠错的机会；这里按返回 status 精确判定。
-
-    工具失败熔断（failure_breaker）走同一个出口：熔断器在工具回调里同步记账，
-    本轮工具一跑完这里就能看到，run-loop 不会再为「原样重试」发起下一次模型调用。
-    重复读取守卫（read_guard）判定无进展时同样走这个出口。
+    工具失败熔断（failure_breaker）：熔断器在工具回调里同步记账，本轮工具一跑完这里
+    就能看到，run-loop 不会再为「原样重试」发起下一次模型调用。重复读取守卫（read_guard）
+    判定无进展、请求级模型调用预算用尽、待写正文被前置守卫挡回时同样走这个出口。
     """
     from agents.agent import ToolsToFinalOutputResult
 
@@ -201,24 +139,14 @@ def _stop_run_on_control_flow_tool(
             final_output=read_guard.trip.user_message(),
         )
 
-    for tool_result in tool_results or []:
-        tool_name = str(getattr(getattr(tool_result, "tool", None), "name", "") or "")
-        if tool_name not in CONTROL_FLOW_TOOL_NAMES:
-            continue
-        output = getattr(tool_result, "output", "")
-        output_text = output if isinstance(output, str) else str(output)
-        if _control_flow_status_of(tool_name, output_text):
-            return ToolsToFinalOutputResult(is_final_output=True, final_output=output_text)
-
-    # 请求级模型调用预算：本轮工具已经执行完，预算用尽就不再发起下一次模型调用
-    # （与熔断同一个同步出口；控制流工具优先，让交接/澄清照常落地）。
+    # 请求级模型调用预算：本轮工具已经执行完，预算用尽就不再发起下一次模型调用（与熔断同一个同步出口）。
     if run_meter is not None and run_meter.exhausted:
         run_meter.budget_stopped = True
         return ToolsToFinalOutputResult(is_final_output=True, final_output="")
 
     # 建文件后的下一次回复没写正文就调了工具、被前置守卫挡回（结构化 file_body_pending），且这份
     # 文件此刻仍在等正文：不让模型在本 run 里接着盲试，正常结束这次 run（MESSAGE_END 照常带用量），
-    # 交给图落库核验，再经 FILE_BODY_RESUME 为同一个文件安排纠偏轮。以上终态都优先于它。
+    # 交给单循环 agent 落库核验，再经 FILE_BODY_RESUME 为同一个文件安排纠偏轮。以上终态都优先于它。
     if any(_is_file_body_pending(tool_result) for tool_result in tool_results or []):
         from agent.tools.mcp_tools import ToolContext
 
@@ -240,7 +168,7 @@ class _ModelCallCountingFilter:
     同时负责「到上限前软着陆」：本次之后还能发起的模型调用数——取本次 run 的
     max_turns 余量与请求级预算（run_meter）余量中较小的那个——少于
     SOFT_LANDING_TURNS 时，在内层过滤器的结果末尾追加一条收尾提醒
-    （SOFT_LANDING_PROMPT），让模型停止调用工具、写阶段总结，而不是读到上限被
+    （LOOP_SOFT_LANDING_PROMPT），让模型停止调用工具、写阶段总结，而不是读到上限被
     SDK 截断 / 被预算硬停、什么也没留下。
     提醒追加在 input 末尾而不是改 instructions：系统提示是 DeepSeek 前缀缓存的开头，
     改它会让最后几次调用整段缓存失效。提醒只进本次调用，不写回 run 的历史。
@@ -253,14 +181,8 @@ class _ModelCallCountingFilter:
         *,
         max_turns: int | None = None,
         landing_turns: int = SOFT_LANDING_TURNS,
-        agent_type: str | None = None,
     ) -> None:
-        from agent.tools.registry import LOOP_AGENT_TYPE
-
         self._inner = inner
-        loop = agent_type == LOOP_AGENT_TYPE
-        self._soft_landing_prompt = LOOP_SOFT_LANDING_PROMPT if loop else SOFT_LANDING_PROMPT
-        self._time_landing_prompt = LOOP_TIME_LANDING_PROMPT if loop else TIME_LANDING_PROMPT
         self._run_meter = run_meter
         self._max_turns = max_turns
         self._landing_turns = landing_turns
@@ -301,10 +223,10 @@ class _ModelCallCountingFilter:
         self.landing_injected = True
         if remaining is not None:
             self.landing_limit = self._remaining_calls()[1]
-            reminder = {"role": "user", "content": self._soft_landing_prompt.format(remaining=remaining)}
+            reminder = {"role": "user", "content": LOOP_SOFT_LANDING_PROMPT.format(remaining=remaining)}
         else:
             self.landing_limit = LANDING_LIMIT_WALL_CLOCK
-            reminder = {"role": "user", "content": self._time_landing_prompt}
+            reminder = {"role": "user", "content": LOOP_TIME_LANDING_PROMPT}
         return ModelInputData(
             input=[*list(model_data.input or []), reminder],
             instructions=model_data.instructions,
@@ -327,7 +249,7 @@ def _is_new_model_turn_event(sdk_event: Any) -> bool:
     """事件是否意味着「模型又开了新的一轮」。
 
     单个 turn 内，模型响应流（raw_response_event）先跑完，SDK 才执行工具并发出
-    tool_output；因此控制流工具的 tool_output 之后再出现任何 raw_response_event，
+    tool_output；因此终态（熔断等）那次 tool_output 之后再出现任何 raw_response_event，
     或再出现 tool_called，都只能来自新的一轮模型调用。
     """
     event_type = str(getattr(sdk_event, "type", "") or "")
@@ -370,10 +292,9 @@ def extract_text_from_message_content(content: Any) -> str:
         # tool_use / tool_result blocks are intentionally omitted from replay. The SDK owns
         # the live tool-call loop within a single agent run; re-serializing a prior turn's
         # tool calls/results as plain prose would inject raw tool JSON (file ids, arguments)
-        # into the next agent as if the *user* had said it, degrading instruction-following.
-        # Cross-agent continuity is instead carried by the structured handoff packet
-        # (context / completed / todo / evidence) and the refreshed file inventory, which also
-        # avoids any orphaned-tool_call_id risk from replaying partial structured tool turns.
+        # into the next run as if the *user* had said it, degrading instruction-following.
+        # The loop agent replays prior tool calls as paired SDK items (agent/loop/history.py),
+        # which also avoids any orphaned-tool_call_id risk from replaying partial tool turns.
         # thinking/reasoning blocks are likewise omitted (persisted for UI/history only).
 
     return "\n".join(part for part in parts if part.strip())
@@ -426,10 +347,10 @@ def build_run_input(
 
     项目资料快照（agent/context/turn_snapshot.py）紧跟系统提示、在历史之前，跨轮、跨 agent
     逐字不变，没重建时整段命中前缀缓存。它只进模型输入，不写回 state["messages"]
-    （runner 会把 api_messages 写回 state，下一个 agent 再加一次快照就重复了）。
+    （runner 会把 api_messages 写回 state，下一次 run 再加一次快照就重复了）。
 
-    系统指令（角色、范围约束等，见 nodes.build_agent_directive）因角色而异，放在最后，
-    让 [系统提示][历史][本轮用户消息] 在同一请求的各个 agent 之间逐字相同、命中前缀缓存。
+    本次运行的系统指令（agent_directive）放在最后，让 [系统提示][历史][本轮用户消息]
+    在同一请求的多次 run 之间逐字相同、命中前缀缓存。
     用 user 角色而不是 system：DeepSeek 的对话模板把所有 system 消息合并到最前面，
     放在末尾的 system 消息会重新打断前缀。它只进本次 SDK 输入，不写回 state["messages"]。
     """
@@ -441,8 +362,6 @@ def build_run_input(
 
 def _with_history_items(state: WritingState, api_messages: MessageList) -> list[Any]:
     """单循环 agent 的跨轮历史（agent/loop/history.py 重建的 SDK 输入项，含往轮的工具调用与结果）排在本轮消息之前。
-
-    图的各角色没有这个字段，输入照旧只有 state["messages"] 折叠后的文字历史。
     """
     history_items = state.get("history_items")
     if not isinstance(history_items, list) or not history_items:
@@ -450,15 +369,8 @@ def _with_history_items(state: WritingState, api_messages: MessageList) -> list[
     return [*history_items, *api_messages]
 
 
-def _card_last_agent(agent_type: str) -> str | None:
-    """暂停卡上的 last_agent：单循环 agent 没有可切换的角色，前端只拿它显示，留空。"""
-    from agent.tools.registry import LOOP_AGENT_TYPE
-
-    return None if agent_type == LOOP_AGENT_TYPE else agent_type
-
-
 def _continued_run(state: WritingState, agent_type: str) -> dict[str, Any] | None:
-    """The previous run to continue from, when the graph runs the same agent again right after it."""
+    """The previous run to continue from, when the loop runs the same agent again right after it."""
     holder = state.get("native_run_holder")
     if not state.get("continue_native_run") or not isinstance(holder, dict):
         return None
@@ -498,7 +410,7 @@ def _append_assistant_turn_to_state_messages(
     thinking_text: str,
     tool_uses: list[dict[str, Any]],
 ) -> None:
-    """Persist the SDK run progression for downstream graph agents."""
+    """Persist the SDK run progression for the next run in the same request."""
     updated: MessageList = list(api_messages)
 
     assistant_content: list[dict[str, Any]] = []
@@ -591,7 +503,7 @@ def _last_response_output_tokens(result: Any) -> int:
 def _last_response_is_thinking_only(result: Any) -> bool:
     """最后一次模型响应里只有思考：没有正文，也没有工具调用。
 
-    只看最后一次响应，而不是整个 run：交接后的 writer 常先调工具（例如重读稿件），
+    只看最后一次响应，而不是整个 run：续跑的 run 常先调工具（例如重读稿件），
     之后那次响应才只剩思考并撞上输出上限；按整个 run 判断会漏掉这种情况。
     """
     raw_responses = getattr(result, "raw_responses", None)
@@ -686,19 +598,15 @@ def _build_agent(
     system_prompt: str,
     *,
     failure_breaker: ToolFailureBreaker | None = None,
-    read_only: bool = False,
     run_meter: AgentRunMeter | None = None,
     read_guard: RepeatReadGuard | None = None,
-    read_only_reason: str = READ_ONLY_REASON_USER_REQUEST,
 ) -> Any:
     # NOTE — Agent.as_tool was evaluated and rejected.
     # Agent.as_tool wraps an agent as a callable tool for a parent agent, which
     # would collapse each sub-agent's SSE events into a single opaque tool result
-    # and eliminate the per-agent streaming visibility the UI depends on.  It would
-    # also merge the two independent iteration budgets (AGENT_TOOL_CALL_MAX_ITERATIONS
-    # per agent, AGENT_COLLABORATION_MAX_ITERATIONS across the graph) into one, making
-    # it impossible to surface per-agent exhaustion cleanly.  The current explicit
-    # graph loop + handoff packet approach is intentional; do not replace with as_tool.
+    # and eliminate the streaming visibility the UI depends on.  It would also merge
+    # the two independent iteration budgets (AGENT_TOOL_CALL_MAX_ITERATIONS per run,
+    # AGENT_COLLABORATION_MAX_ITERATIONS runs per turn) into one.
     #
     # NOTE — reasoning lever (verified, intentionally not set for DeepSeek).
     # MiniMax gets MINIMAX_REASONING_EFFORT (model._settings_for) because its own default is max.
@@ -746,17 +654,14 @@ def _build_agent(
             **({"reasoning": Reasoning(effort=effort)} if effort else {}),  # type: ignore[arg-type]
         ),
         tools=build_agent_function_tools(
-            agent_type,
             failure_breaker=failure_breaker,
-            read_only=read_only,
             read_guard=read_guard,
-            read_only_reason=read_only_reason,
             run_meter=run_meter,
         ),
-        # 控制流工具生效、或工具失败熔断时即结束 run，避免 SDK 在「工作流已暂停」
-        # 之后再跑一整轮模型调用并真实执行其工具（详见 _stop_run_on_control_flow_tool）。
+        # 工具失败熔断等终态时即结束 run，避免 SDK 再跑一整轮模型调用并真实执行其工具
+        # （详见 _stop_run_after_tools）。
         tool_use_behavior=functools.partial(
-            _stop_run_on_control_flow_tool,
+            _stop_run_after_tools,
             failure_breaker=failure_breaker,
             run_meter=run_meter,
             read_guard=read_guard,
@@ -801,8 +706,8 @@ async def _consume_boundary_steering(
     """Consume steering that arrived while the SDK run is executing.
 
     openai-agents 不支持向进行中的 run 注入消息，工具输出边界只做消费与
-    前端确认；内容暂存 collected，run 结束后写回 state.messages，由 graph
-    决定是否追加一轮 writer 让引导在本次请求内生效。
+    前端确认；内容暂存 collected，run 结束后写回 state.messages，由单循环 agent
+    决定是否追加一次 run 让引导在本次请求内生效。
     """
     if get_steering_messages is None:
         return
@@ -864,15 +769,15 @@ async def run_openai_agents_streaming_agent(
 ) -> AsyncIterator[StreamEvent]:
     """Run one writing agent via openai-agents-python and yield workflow events.
 
-    agent_directive：这次运行的系统指令（nodes.build_agent_directive），作为输入最后一条消息，
+    agent_directive：这次运行的系统指令（例如单循环 agent 的截断后交付说明），作为输入最后一条消息，
     不写回 state["messages"]（见 build_run_input）。
 
     failure_breaker：工具失败熔断器。不传时取 state["tool_failure_breaker"]
-    （writing_graph 每个请求建一个、跨 agent run 共享）；都没有时本次 run 自建一个。
+    （单循环 agent 每个请求建一个、跨 run 共享）；都没有时本次 run 自建一个。
     重复读取守卫同理取 state["repeat_read_guard"]。
     """
     # Snapshot the persisted conversation before per-agent replay strips metadata.
-    # Keep it across same-request handoffs, which are not separate author turns.
+    # Keep it across same-request re-runs, which are not separate author turns.
     state.setdefault(
         "previous_output_truncations", trailing_output_truncations(list(state.get("messages") or []))
     )
@@ -882,13 +787,8 @@ async def run_openai_agents_streaming_agent(
     tool_uses: list[dict[str, Any]] = []
     tool_names_by_call_id: dict[str, str] = {}
     mid_run_steering: list[str] = []
-    handoff_event_data: dict[str, Any] | None = None
-    clarification_event_data: dict[str, Any] | None = None
-    # 控制流工具已生效：本 run 不应再有新的模型轮次（见 _is_new_model_turn_event）。
-    control_flow_stopped = False
-    # 工具失败熔断器按请求共享：writer → 审稿人 → writer 的往返不能让「同一调用
-    # 连续失败」的计数归零。消费循环在 tool_output 处看到它已熔断后，与控制流
-    # 工具一样不再接受新的模型轮次。
+    # 工具失败熔断器按请求共享：同一请求的多次 run 不能让「同一调用连续失败」的计数归零。
+    # 消费循环在 tool_output 处看到它已熔断后不再接受新的模型轮次。
     if failure_breaker is None:
         shared_breaker = state.get("tool_failure_breaker")
         failure_breaker = (
@@ -915,7 +815,7 @@ async def run_openai_agents_streaming_agent(
     repetition_checked_at = 0
     max_turns_exhausted = False
     turn_filter: _ModelCallCountingFilter | None = None
-    # 请求级模型调用预算（writing_graph 建一个跨 agent run 共享；单独调用 runner
+    # 请求级模型调用预算（单循环 agent 建一个跨 run 共享；单独调用 runner
     # 时自建一个默认预算）。
     shared_meter = state.get("run_meter")
     run_meter = shared_meter if isinstance(shared_meter, AgentRunMeter) else AgentRunMeter()
@@ -967,38 +867,19 @@ async def run_openai_agents_streaming_agent(
         from .intra_run_trimmer import IntraRunToolOutputTrimmer
         from .usage_hooks import build_agent_run_hooks
 
-        # 用户明确要求不改文件：写工具调用一律拒绝执行（由 writing_graph 按路由结果置位）。
-        # 作者的要求太笼统、本轮先问清楚（clarify_first）时写工具同样拒绝执行，拒绝说明不同。
-        read_only = state.get("read_only") is True or state.get("clarify_first") is True
-        read_only_reason = (
-            READ_ONLY_REASON_USER_REQUEST if state.get("read_only") is True else READ_ONLY_REASON_CLARIFY_FIRST
-        )
         sdk_agent = _build_agent(
             agent_type,
             system_prompt,
             failure_breaker=failure_breaker,
-            read_only=read_only,
-            read_only_reason=read_only_reason,
             run_meter=run_meter,
             read_guard=read_guard,
         )
-        # 工具清单对所有角色、所有轮次相同；本轮哪些调用会被拒绝写进这次运行的系统指令。
-        availability_note = tool_availability_note(
-            agent_type, read_only=read_only, read_only_reason=read_only_reason
-        )
-        if availability_note:
-            agent_directive = (
-                f"{agent_directive}\n\n## 本轮工具限制\n\n{availability_note}"
-                if agent_directive
-                else f"{AGENT_DIRECTIVE_HEADER}\n\n## 本轮工具限制\n\n{availability_note}"
-            )
         # 外层计数器给请求级模型调用预算记账（每次模型调用前调用一次），并在
         # 接近 max_turns 时追加收尾提醒（软着陆）。
         turn_filter = _ModelCallCountingFilter(
             IntraRunToolOutputTrimmer(),
             run_meter,
             max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
-            agent_type=agent_type,
         )
         # Install the progress emitter only across run_streamed. The SDK creates
         # its background task synchronously inside run_streamed, copying the
@@ -1038,11 +919,11 @@ async def run_openai_agents_streaming_agent(
                     tool_execution=ToolExecutionConfig(max_function_tool_concurrency=1),
                     # IntraRunToolOutputTrimmer 只是上下文安全阀：输入未超 max_input_chars 时原样
                     # 返回、不改写任何历史（保住前缀缓存，也不让模型「忘掉」读过的文件而重读）；
-                    # 超限才从最旧的读/写载荷开始折叠。控制流工具结果永不改动。见 intra_run_trimmer。
+                    # 超限才从最旧的读/写载荷开始折叠。见 intra_run_trimmer。
                     # 计数 + 软着陆见上方 turn_filter。
                     call_model_input_filter=turn_filter,
-                    # 模型调用了本 agent 工具集里没有的工具（例如审稿人照着共享历史调
-                    # edit_file、或幻觉出的工具名）：SDK 默认抛 ModelBehaviorError，整轮
+                    # 模型调用了工具集里没有的工具（例如照着旧会话历史调已删除的工具、
+                    # 或幻觉出的工具名）：SDK 默认抛 ModelBehaviorError，整轮
                     # 以致命 ERROR 结束、原始异常文本直接展示给用户。改为把结构化错误
                     # 交还模型让它自行纠正；这类错误同样经熔断器记账（见
                     # _format_tool_error），乱试有上限。
@@ -1062,7 +943,7 @@ async def run_openai_agents_streaming_agent(
                 kind, payload = await run_queue.get()
                 if kind == "progress":
                     # Pre-built workflow/SSE event emitted from inside a tool call
-                    # (e.g. parallel_execute sub-task progress). Forward as-is.
+                    # (agent.core.progress_channel). Forward as-is.
                     yield payload
                     continue
                 if kind == "done":
@@ -1071,11 +952,11 @@ async def run_openai_agents_streaming_agent(
                     raise payload
                 sdk_event = payload
                 if (
-                    control_flow_stopped or failure_stopped or budget_stopped or no_progress_stopped
+                    failure_stopped or budget_stopped or no_progress_stopped
                     or repetition_stopped
                 ) and _is_new_model_turn_event(sdk_event):
-                    # 兜底护栏：正常情况下 tool_use_behavior 已经让 run-loop 在控制流
-                    # 工具返回的那一刻结束，走不到这里。一旦走到（工具改名、SDK 行为
+                    # 兜底护栏：正常情况下 tool_use_behavior 已经让 run-loop 在终态
+                    # 出现的那一刻结束，走不到这里。一旦走到（工具改名、SDK 行为
                     # 变化等），说明 SDK 又开了新的一轮——立即硬取消并截断消费循环，
                     # 绝不把暂停之后的正文/工具调用透给前端或写回 state.messages。
                     log_with_context(
@@ -1169,49 +1050,6 @@ async def run_openai_agents_streaming_agent(
                         },
                     )
 
-                    try:
-                        result_data = json.loads(result_text) if result_text else {}
-                    except json.JSONDecodeError:
-                        result_data = {}
-
-                    if tool_name == "handoff_to_agent" and result_data.get("status") == _CONTROL_FLOW_STOP_STATUS["handoff_to_agent"]:
-                        # DESIGN NOTE — do not migrate to the SDK's native Agent(handoffs=[...]).
-                        #
-                        # The SDK's built-in handoff mechanism passes a plain text string from
-                        # one agent to the next.  ZenStory's handoff carries a structured packet
-                        # (completed/todo/evidence) assembled here from the live
-                        # tool result, plus pre-handoff narration that has already been streamed
-                        # as TEXT events.  The SDK's text-passing handoff cannot express this
-                        # structured context, and rebuilding it inside the SDK's callback would
-                        # require duplicating the packet-assembly and event-streaming logic that
-                        # lives in build_handoff_packet.
-                        #
-                        # 「停下」由 Agent(tool_use_behavior=_stop_run_on_control_flow_tool)
-                        # 在 SDK turn 内同步完成，run-loop 不会再发起下一次模型调用。
-                        # 这里的 cancel(mode="after_turn") 只是第二道保险（万一 SDK 侧的
-                        # 截断未生效，至少不让它跨过下一个 turn 边界）；历史上仅靠它是
-                        # 不够的——cancel 标志异步落地，模型早已跑完并执行了额外的工具。
-                        packet = build_handoff_packet(result_data)
-                        handoff_event_data = {
-                            "target_agent": packet["target_agent"],
-                            "reason": packet["reason"],
-                            "context": packet["context"],
-                            "handoff_packet": packet,
-                        }
-                        control_flow_stopped = True
-                        _safe_cancel(result, "after_turn")
-                    elif tool_name == "request_clarification" and result_data.get("status") == _CONTROL_FLOW_STOP_STATUS["request_clarification"]:
-                        clarification_event_data = {
-                            "reason": "clarification_needed",
-                            "agent_type": agent_type,
-                            "message": result_data.get("question", "等待您的回复"),
-                            "question": result_data.get("question", ""),
-                            "context": result_data.get("context", ""),
-                            "details": normalize_str_list(result_data.get("details")),
-                        }
-                        control_flow_stopped = True
-                        _safe_cancel(result, "after_turn")
-
                     if failure_breaker.is_open and not failure_stopped:
                         # 熔断由 tool_use_behavior 在 SDK turn 内同步生效；这里同样只是
                         # 第二道保险，并让上面的护栏截断任何越界的新一轮。
@@ -1263,9 +1101,8 @@ async def run_openai_agents_streaming_agent(
         if failure_trip is not None:
             # 工具重复失败熔断：先发 MESSAGE_END 让本 run 已消耗的 usage 照常入账，
             # 再以 ERROR 结束——StreamAdapter 把 ERROR 当作致命错误：中断并关闭整个
-            # 工作流生成器（不会再跑计划内交接/自动质检），并以 error 帧作为 SSE
+            # 工作流生成器（不会再续跑），并以 error 帧作为 SSE
             # 终止帧；api/agent.py 据此按 internal_error 退还本次对话额度。
-            # 同一 run 里若还有生效的 handoff/clarification，一律让位给熔断。
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -1322,7 +1159,7 @@ async def run_openai_agents_streaming_agent(
             )
             return
 
-        if run_meter.budget_stopped and clarification_event_data is None and handoff_event_data is None:
+        if run_meter.budget_stopped:
             # 请求级模型调用预算用尽：与熔断一样先让本 run 的 usage 入账，再以
             # ERROR 结束整条工作流（StreamAdapter 会关闭工作流生成器）。
             log_with_context(
@@ -1351,8 +1188,6 @@ async def run_openai_agents_streaming_agent(
         last_output_tokens = _last_response_output_tokens(result)
         if (
             not max_turns_exhausted
-            and handoff_event_data is None
-            and clarification_event_data is None
             and AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS > 0
             and last_output_tokens >= AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS * OUTPUT_CAP_RATIO
             and _last_response_is_thinking_only(result)
@@ -1390,28 +1225,23 @@ async def run_openai_agents_streaming_agent(
             return
 
         model_turns = turn_filter.calls if turn_filter is not None else 0
-        landed_without_control_flow = (
-            turn_filter is not None
-            and turn_filter.landing_injected
-            and clarification_event_data is None
-            and handoff_event_data is None
-        )
-        # 真正撞上 max_turns，或已进入收尾提醒且没有交接/澄清就结束（模型照提醒写了
-        # 阶段总结）：都按「工具调用轮数用尽」收尾——发状态卡（前端给「继续」按钮并
-        # 落库），工作流不再计划交接/自动送审；stop_reason 落库供 router 识别「继续」。
-        turns_exhausted = max_turns_exhausted or landed_without_control_flow
+        landed = turn_filter is not None and turn_filter.landing_injected
+        # 真正撞上 max_turns，或已进入收尾提醒后结束（模型照提醒写了阶段总结）：都按
+        # 「工具调用轮数用尽」收尾——发状态卡（前端给「继续」按钮并落库），不再续跑；
+        # stop_reason 随 assistant 消息落库。
+        turns_exhausted = max_turns_exhausted or landed
         # 收尾提醒是请求级模型调用预算触发的（预算比本次 run 的 max_turns 先到）：
         # 同样按耗尽收尾（状态卡 + 「继续」入口），但 stop_reason 记为预算用尽，
         # 卡片里的次数也换成请求级的计数，而不是硬停成 ERROR。
         budget_landed = (
             not max_turns_exhausted
-            and landed_without_control_flow
+            and landed
             and turn_filter is not None
             and turn_filter.landing_limit == LANDING_LIMIT_MODEL_CALL_BUDGET
         )
         time_landed = (
             not max_turns_exhausted
-            and landed_without_control_flow
+            and landed
             and turn_filter is not None
             and turn_filter.landing_limit == LANDING_LIMIT_WALL_CLOCK
         )
@@ -1462,7 +1292,7 @@ async def run_openai_agents_streaming_agent(
                         "这一轮的时间快用完了，AI 先写下了阶段总结。"
                         "任务可能还没做完，回复「继续」就能接着做。"
                     ),
-                    "last_agent": _card_last_agent(agent_type),
+                    "last_agent": None,
                 }
             elif budget_landed:
                 exhausted_data = {
@@ -1473,7 +1303,7 @@ async def run_openai_agents_streaming_agent(
                         f"这一轮的模型调用次数快到上限（{run_meter.max_model_calls} 次），"
                         "AI 先写下了阶段总结。任务可能还没做完，回复「继续」就能接着做。"
                     ),
-                    "last_agent": _card_last_agent(agent_type),
+                    "last_agent": None,
                 }
             else:
                 exhausted_data = {
@@ -1481,20 +1311,10 @@ async def run_openai_agents_streaming_agent(
                     "iterations_used": model_turns or AGENT_TOOL_CALL_MAX_ITERATIONS,
                     "max_iterations": AGENT_TOOL_CALL_MAX_ITERATIONS,
                     "reason": (
-                        (
-                            f"这一轮的工具调用轮数已达上限（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
-                            "当前任务可能未完全完成，您可以回复「继续」让 AI 接着完成剩余工作。"
-                        )
-                        if _card_last_agent(agent_type) is None
-                        else (
-                            f"单个 Agent（{agent_type}）的工具调用轮数已达上限"
-                            f"（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
-                            f"这是单个 Agent 内的工具调用限制，与 Agent 协作轮数"
-                            f"（{AGENT_COLLABORATION_MAX_ITERATIONS} 轮）独立。"
-                            "当前任务可能未完全完成，您可以回复「继续」让 AI 接着完成剩余工作。"
-                        )
+                        f"这一轮的工具调用轮数已达上限（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
+                        "当前任务可能未完全完成，您可以回复「继续」让 AI 接着完成剩余工作。"
                     ),
-                    "last_agent": _card_last_agent(agent_type),
+                    "last_agent": None,
                 }
             # 前端据此选卡片文案：时限收尾时模型可能已经做完，只是收尾提醒让它写了总结。
             exhausted_data["limit"] = (
@@ -1505,10 +1325,6 @@ async def run_openai_agents_streaming_agent(
                 else "max_turns"
             )
             yield StreamEvent(type=StreamEventType.ITERATION_EXHAUSTED, data=exhausted_data)
-        elif clarification_event_data is not None:
-            yield StreamEvent(type=StreamEventType.WORKFLOW_STOPPED, data=clarification_event_data)
-        elif handoff_event_data is not None:
-            yield StreamEvent(type=StreamEventType.HANDOFF, data=handoff_event_data)
 
         usage = _usage_dict_from_result(result)
         run_stop_reason = exhausted_stop_reason if turns_exhausted else "end_turn"

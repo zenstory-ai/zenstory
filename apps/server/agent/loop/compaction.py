@@ -76,10 +76,10 @@ def skipped_record(history: LoopHistory, reason: str) -> dict[str, Any]:
 
 def _chat_tools() -> list[dict[str, Any]]:
     """压缩请求带上同一份工具清单（tool_choice=none）：历史里的工具调用对供应商才合法。"""
-    from agent.tools.registry import LOOP_AGENT_TYPE, get_exposed_tools
+    from agent.tools.registry import get_exposed_tools
 
     tools = []
-    for schema in get_exposed_tools(LOOP_AGENT_TYPE):
+    for schema in get_exposed_tools():
         parameters = schema.get("input_schema")
         tools.append({
             "type": "function",

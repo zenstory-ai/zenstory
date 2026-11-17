@@ -11,9 +11,7 @@ from agent.tools.mcp_tools import (
     create_file,
     delete_file,
     edit_file,
-    handoff_to_agent,
     query_files,
-    request_clarification,
     update_project,
 )
 
@@ -481,129 +479,6 @@ async def test_create_file_explicit_order_wins_title_sequence_for_chapter_files(
     assert payload["data"]["order"] == 1
 
 
-@pytest.mark.unit
-def test_refreshed_inventory_uses_typed_metadata_for_sequence_sorting(db_session):
-    """Handoff inventory must sort with the same metadata precedence as file tree/export."""
-    from sqlmodel import Session
-
-    from agent.tools.mcp_tools import ToolContext
-    from models import File, Project, User
-
-    suffix = uuid4().hex[:8]
-    user = User(
-        email=f"inventory-metadata-{suffix}@example.com",
-        username=f"inventory_metadata_{suffix}",
-        hashed_password="hashed",
-        email_verified=True,
-    )
-    project = Project(name="Metadata inventory", owner_id=user.id, project_type="screenplay")
-    db_session.add_all([user, project])
-    db_session.commit()
-    db_session.add_all([
-        File(
-            project_id=project.id,
-            title="第99集",
-            file_type="script",
-            order=0,
-            file_metadata=json.dumps({"episode_number": 1}),
-        ),
-        File(project_id=project.id, title="第2集", file_type="script", order=0),
-    ])
-    db_session.commit()
-
-    engine = db_session.get_bind()
-    ToolContext.set_context(
-        session=None,
-        user_id=user.id,
-        project_id=project.id,
-        session_id="inventory-metadata",
-        create_session_func=lambda: Session(engine),
-    )
-    try:
-        inventory = ToolContext.refresh_file_inventory()
-    finally:
-        ToolContext.clear_context()
-
-    assert inventory is not None
-    assert [item["title"] for item in inventory["script"]] == ["第99集", "第2集"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoff_to_agent_rejects_legacy_reviewer_alias():
-    """Legacy reviewer alias should no longer be accepted."""
-    result = await handoff_to_agent({
-        "target_agent": "reviewer",
-        "reason": "legacy alias",
-    })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "error"
-    assert "Invalid target_agent" in payload["error"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoff_to_agent_rejects_case_insensitive_reviewer_alias():
-    """Reviewer alias should be rejected even with mixed case input."""
-    result = await handoff_to_agent({
-        "target_agent": "Reviewer",
-        "reason": "legacy alias with mixed case",
-    })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "error"
-    assert "Invalid target_agent" in payload["error"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoff_to_agent_defaults_context_to_reason_when_missing():
-    """Context is required downstream; tool should fall back to reason when omitted."""
-    result = await handoff_to_agent({
-        "target_agent": "quality_reviewer",
-        "reason": "内容已完成，请进行质量检查",
-        "context": "   ",
-    })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "handoff"
-    assert payload["context"] == "内容已完成，请进行质量检查"
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoff_to_agent_generates_context_when_both_reason_and_context_missing():
-    """Even empty handoff packets should carry a stable handoff context string."""
-    result = await handoff_to_agent({
-        "target_agent": "quality_reviewer",
-        "reason": " ",
-        "context": "",
-    })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "handoff"
-    assert payload["context"]
-    assert "quality_reviewer" in payload["context"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoff_to_agent_rejects_self_handoff():
-    with patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"current_agent": "writer"},
-    ):
-        result = await handoff_to_agent({
-            "target_agent": "writer",
-            "reason": "self",
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "error"
-    assert "Self handoff is not allowed" in payload["error"]
-
-
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_edit_file_forwards_continue_on_error():
@@ -862,35 +737,6 @@ async def test_offloaded_wrappers_cleanup_owned_session(tool_func, sync_helper, 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_request_clarification_returns_structured_payload():
-    result = await request_clarification({
-        "question": "请确认主角姓名",
-        "context": "已完成大纲第一章",
-        "details": ["主角姓名", "时代背景"],
-    })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "clarification_needed"
-    assert payload["question"] == "请确认主角姓名"
-    assert payload["context"] == "已完成大纲第一章"
-    assert payload["details"] == ["主角姓名", "时代背景"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_request_clarification_requires_question():
-    result = await request_clarification({
-        "question": "   ",
-        "context": "任意上下文",
-    })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "error"
-    assert "question is required" in payload["error"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
 async def test_create_empty_file_sets_pending_marker_on_offload_path(db_session):
     """Regression: the pending-empty-file marker must survive the Postgres-style
     offload path.
@@ -898,8 +744,8 @@ async def test_create_empty_file_sets_pending_marker_on_offload_path(db_session)
     When create_file offloads _create_file_sync with asyncio.to_thread
     (production/Postgres), the sync impl runs in a COPIED context. The marker it
     sets there must still be visible in the caller's (event-loop) context —
-    otherwise the consecutive-empty-file guard and the writing_graph correction
-    loop are both disabled in production.
+    otherwise the consecutive-empty-file guard and the loop agent's empty-file
+    correction are both disabled in production.
     """
     from agent.tools.mcp_tools import ToolContext
     from models import Project, User
@@ -1607,33 +1453,6 @@ async def test_update_project_appends_remembered_notes_and_reports_them(db_sessi
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_read_only_tool_adapter_executes_explicit_notes_update(db_session):
-    """文件只读仍允许作者明确要求的项目资料 handler 真正落库。"""
-    from agent.openai_agents.tools_adapter import build_agent_function_tools
-    from agent.tools.mcp_tools import ToolContext
-
-    user, project = _make_user_and_project(db_session, f"notes-readonly-{uuid4().hex[:5]}")
-    unchanged = {field: getattr(project, field) for field in ("name", "summary", "writing_style", "current_phase")}
-    _set_author_round(db_session, user, project, "记住：主角左手有旧伤，阴天会疼", notes_append_allowed=True)
-    try:
-        tools = {tool.name: tool for tool in build_agent_function_tools("writer", read_only=True)}
-        payload = json.loads(
-            await tools["update_project"].on_invoke_tool(
-                None,
-                json.dumps({"notes": "主角左手有旧伤，阴天会疼"}, ensure_ascii=False),
-            )
-        )
-        assert payload["status"] == "success"
-        assert payload["data"]["notes_added"] == ["主角左手有旧伤，阴天会疼"]
-        assert payload["data"]["updated_fields"] == ["notes"]
-        assert _stored_notes(db_session, project) == "主角左手有旧伤，阴天会疼"
-        assert {field: getattr(project, field) for field in unchanged} == unchanged
-    finally:
-        ToolContext.clear_context()
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
 async def test_update_project_notes_over_limit_save_nothing_and_say_so(db_session):
     from agent.tools.mcp_tools import NOTES_FULL_NOTE, ToolContext
 
@@ -1830,25 +1649,27 @@ async def test_keyword_query_returns_verbatim_match_snippets(db_session):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.parametrize("body_requested", [False, True])
-async def test_empty_create_file_only_skips_the_body_turn_when_the_author_wants_no_body(db_session, body_requested):
+@pytest.mark.parametrize("loop_agent", [True, False])
+async def test_empty_create_file_only_skips_the_body_turn_for_the_loop_agent(db_session, loop_agent):
     """Production (2026-10-21): 「建立第10章、第11章，不用写内容，建立标题就行」 was refused four times and tripped
-    the breaker, because every empty create_file waited for a <file> body."""
+    the breaker, because every empty create_file waited for a <file> body. The loop agent's empty=true is its own
+    judgement; without the loop agent `empty` does not switch off the body turn."""
     from agent.tools.mcp_tools import ToolContext
+    from agent.tools.registry import LOOP_AGENT_TYPE
 
-    user, project = _make_user_and_project(db_session, f"empty{int(body_requested)}")
+    user, project = _make_user_and_project(db_session, f"empty{int(loop_agent)}")
     ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="sess-empty")
-    ToolContext.set_body_requested(body_requested)
+    if loop_agent:
+        ToolContext.set_current_agent(LOOP_AGENT_TYPE)
     try:
-        first = _parse_payload(await create_file({"title": "第10章", "file_type": "draft", "empty": True}))
-        second = _parse_payload(await create_file({"title": "第11章", "file_type": "draft", "empty": True}))
+        first = _parse_payload(await create_file({"title": "第一卷大纲", "file_type": "outline", "empty": True}))
+        second = _parse_payload(await create_file({"title": "第二卷大纲", "file_type": "outline", "empty": True}))
     finally:
         ToolContext.clear_pending_empty_file()
         ToolContext.clear_context()
 
     assert first["status"] == "success"
-    if body_requested:
-        # The author asked for prose: `empty` does not switch off the body turn.
+    if not loop_agent:
         assert first["data"]["awaiting_body"] is True
         assert second["error_type"] == "pending_empty_file_unwritten"
     else:
@@ -1860,7 +1681,7 @@ async def test_empty_create_file_only_skips_the_body_turn_when_the_author_wants_
 
 # ---------------------------------------------------------------------------
 # 工具动作不再写 artifact ledger，超限结果不再持久化 / 回填（D-02）：
-# 写工具、超限截断和交接都不应为此另开数据库 session。
+# 写工具和超限截断都不应为此另开数据库 session。
 # ---------------------------------------------------------------------------
 
 
@@ -1903,24 +1724,6 @@ def test_oversized_tool_result_is_bounded_without_opening_a_session(session_fact
     assert compact["truncated"] is True
     assert compact["data"][0]["id"] == "f-1"
     assert compact["data"][0]["content_truncated"] is True
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoff_to_agent_passes_the_models_context_without_ledger_backfill(session_factory_spy):
-    result = await handoff_to_agent({
-        "target_agent": "writer",
-        "reason": "继续",
-        "context": "已完成检索",
-        "artifact_refs": ["file-1"],
-    })
-
-    payload = _parse_payload(result)
-    assert session_factory_spy.calls == 0
-    assert payload["status"] == "handoff"
-    assert payload["context"] == "已完成检索"
-    assert "overflow_backfill" not in payload
-    assert "artifact_refs" not in payload
 
 
 @pytest.mark.asyncio
@@ -1979,59 +1782,6 @@ async def test_deleted_or_edited_notes_are_not_replayed_on_ordinary_writing(db_s
         remembered_again = _parse_payload(await update_project({"notes": old}))
         assert remembered_again["data"]["notes_added"] == [old]
         assert old in _stored_notes(db_session, project)
-    finally:
-        ToolContext.clear_context()
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-@pytest.mark.parametrize('router_allowed,router_off', [(True, False), (False, False), (False, True)])
-async def test_workflow_propagates_current_notes_permission_without_blocking_writing(
-    db_session, router_allowed, router_off, monkeypatch
-):
-    import asyncio
-    from unittest.mock import AsyncMock, patch
-
-    from sqlmodel import Session
-
-    from agent.core.workflow_events import StreamEvent, StreamEventType
-    from agent.graph.writing_graph import run_writing_workflow_streaming
-    from agent.tools.mcp_tools import ToolContext
-    from agent.tools.parallel_executor import execute_parallel
-
-    user, project = _make_user_and_project(db_session, f'notes-graph-{uuid4().hex[:5]}')
-    engine = db_session.get_bind()
-    ToolContext.set_context(None, user.id, project.id, 'same-chat',
-                            create_session_func=lambda: Session(engine), author_message='本轮要求')
-    router = AsyncMock(return_value={
-        'current_agent': 'writer', 'workflow_plan': 'quick', 'workflow_agents': [],
-        'routing_metadata': {'notes_append_allowed': router_allowed, 'write_content': True},
-    })
-    results = []
-
-    async def run_agent(*_args, **_kwargs):
-        # The SDK executes tool calls in their own asyncio tasks, then offloads DB work.
-        results.extend(await asyncio.gather(update_project({'notes': '主角怕水', 'summary': '正常简介'})))
-        written = await execute_parallel([{'id': 'body', 'type': 'write_chapter',
-            'description': '保存本轮正文', 'params': {'title': '第一章', 'content': '河水漫过石阶。他停住脚步，终于还是伸手接住了那封信。'}}])
-        results.append(written)
-        yield StreamEvent(type=StreamEventType.TEXT, data={'text': '本轮写作完成。'})
-
-    monkeypatch.setenv('AGENT_ROUTER_STRATEGY', 'off' if router_off else 'llm')
-    monkeypatch.setenv('AGENT_ENABLE_GRAPH_AUTO_REVIEW', 'false')
-    try:
-        with patch('agent.graph.writing_graph.router_node', router), patch(
-            'agent.graph.writing_graph.run_streaming_agent', new=run_agent
-        ):
-            async for _ in run_writing_workflow_streaming({'user_message': '本轮要求', 'messages': [],
-                                                          'system_prompt': ''}, max_iterations=1):
-                pass
-        payload = _parse_payload(results[0])['data']
-        assert ('notes_added' in payload) is router_allowed
-        assert _stored_notes(db_session, project) == ('主角怕水' if router_allowed else '')
-        assert db_session.get(type(project), project.id).summary == '正常简介'
-        assert _parse_payload(results[1])['data']['completed'] == 1
-        router.assert_not_awaited() if router_off else router.assert_awaited_once()
     finally:
         ToolContext.clear_context()
 

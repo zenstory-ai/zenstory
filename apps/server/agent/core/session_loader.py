@@ -45,14 +45,13 @@ def _breadcrumb_lang_is_english() -> bool:
     return (os.getenv("AGENT_HISTORY_BREADCRUMB_LANG") or "").strip().lower().startswith("en")
 
 
-def _agent_has_write_tools(agent_type: Any) -> bool:
-    """与 writing_graph._agent_can_write_files 同一口径：按 registry 的实际工具集判断。"""
-    if not isinstance(agent_type, str) or not agent_type:
-        return False
-    from agent.tools.registry import AGENT_TOOL_NAME_MAP, FILE_WRITE_TOOL_NAMES
+# 多 agent 图（已删除）里工具集含写文件工具的角色。只用于回放图写下的旧行，冻结为删除前 registry 的结果。
+_LEGACY_GRAPH_WRITE_ROLES = frozenset({"planner", "hook_designer", "writer", "loop"})
 
-    tool_names = AGENT_TOOL_NAME_MAP.get(agent_type)
-    return tool_names is not None and bool(FILE_WRITE_TOOL_NAMES.intersection(tool_names))
+
+def _agent_has_write_tools(agent_type: Any) -> bool:
+    """图写下的旧行里，这个角色有没有写文件工具（审稿人 quality_reviewer 没有）。"""
+    return isinstance(agent_type, str) and agent_type in _LEGACY_GRAPH_WRITE_ROLES
 
 
 def _format_pending_rework(packet: dict[str, Any], *, english: bool) -> str:

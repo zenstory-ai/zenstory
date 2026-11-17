@@ -2,18 +2,13 @@
 
 - serialize_file 给出 word_count = utils.text_metrics.count_words（与前端 countWords 同一定义）：
   full 模式总给；summary 模式只在预览就是全文时给；file_metadata 里的旧 word_count 被覆盖或删除。
-- 自动送审的交接文案和交接包不再带字符数（content_length），审稿人不会把它当字数转述。
 """
 
 import json
-import re
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from agent.core.workflow_events import StreamEvent, StreamEventType
 from models import File
-from tests.test_agent.body_write_events import edit_file_events
 from utils.text_metrics import count_words
 
 # 2234 字（编辑器口径），字符数明显更多：标点、全角空格、换行都不算字。
@@ -111,69 +106,3 @@ def test_stale_metadata_word_count_is_overwritten_or_dropped_in_the_copy_only():
 
 
 # ------------------------------------------------------------- 自动送审的交接
-
-
-def _text(text: str) -> StreamEvent:
-    return StreamEvent(type=StreamEventType.TEXT, data={"text": text})
-
-
-def _write_done(call_id: str) -> list[StreamEvent]:
-    # 一次写进正文（draft）的成功 edit_file：自动质检门只看正文类文件的写入字数。
-    return edit_file_events(call_id, "林晚推开门，雨还在下。" * 30)
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_auto_review_handoff_carries_no_character_count(monkeypatch):
-    from agent.graph.writing_graph import run_writing_workflow_streaming
-    from agent.tools.mcp_tools import ToolContext
-
-    monkeypatch.setenv("AGENT_ENABLE_GRAPH_AUTO_REVIEW", "true")
-    reviewer_messages: list[str] = []
-
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
-        if agent_type == "writer":
-            for event in _write_done("w1"):
-                yield event
-            yield _text("第三章写好了。")
-            yield _text("林晚推开门。" * 60)
-            return
-        reviewer_messages.append(state["user_message"])
-        yield _text("审查通过。[TASK_COMPLETE]")
-
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    with (
-        patch(
-            "agent.graph.writing_graph.router_node",
-            AsyncMock(return_value={"current_agent": "writer", "workflow_plan": "quick", "workflow_agents": []}),
-        ),
-        patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
-        patch("agent.tools.mcp_tools.ToolContext.refresh_file_inventory", return_value={}),
-        patch(
-            "agent.graph.writing_graph._auto_finalize_task_board_on_completion",
-            AsyncMock(return_value=[]),
-        ),
-    ):
-        events = [
-            event
-            async for event in run_writing_workflow_streaming(
-                state={"user_message": "写第三章", "messages": [], "system_prompt": ""},
-                thread_id="t",
-                auto_review_threshold=100,
-            )
-        ]
-
-    handoff = next(
-        e for e in events if e.type == StreamEventType.HANDOFF and e.data["target_agent"] == "quality_reviewer"
-    )
-    assert handoff.data["reason"] == "正文写好了，检查一遍质量"
-    assert handoff.data["handoff_packet"]["reason"] == "自动质量门控"
-    assert handoff.data["context"] == "正文已写完，自动进入质量检查"
-    assert not re.search(r"\d", handoff.data["context"])
-    packet = handoff.data["handoff_packet"]
-    assert not re.search(r"\d", packet["context"])
-    assert all("content_length" not in item for item in packet["evidence"])
-
-    assert reviewer_messages, "审稿人照常运行"
-    assert "内容长度" not in reviewer_messages[0]
-    assert "content_length" not in reviewer_messages[0]

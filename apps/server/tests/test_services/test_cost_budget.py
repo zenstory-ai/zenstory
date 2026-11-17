@@ -237,20 +237,6 @@ def test_sync_stream_usage_settles_before_next_model_call(db_session):
 
 
 @pytest.mark.asyncio
-async def test_router_propagates_budget_error_instead_of_falling_back(monkeypatch):
-    from agent.graph import router
-
-    monkeypatch.setattr(
-        router,
-        "_route_with_chat_model",
-        AsyncMock(side_effect=APIException(error_code=budget.COST_LIMIT_CODE, status_code=402)),
-    )
-    with pytest.raises(APIException) as error:
-        await router.router_node({"user_message": "继续写作"})
-    assert error.value.error_code == budget.COST_LIMIT_CODE
-
-
-@pytest.mark.asyncio
 async def test_real_transport_guard_stops_next_call_without_waiting_for_ledger(db_session):
     from services.usage.model_call_guard import install_async_cost_guard
 

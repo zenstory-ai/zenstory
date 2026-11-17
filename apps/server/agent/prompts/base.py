@@ -12,8 +12,6 @@ def get_base_prompt(
     project_id: str,
     folder_ids: dict[str, str],
     config: dict[str, Any],
-    *,
-    loop: bool = False,
 ) -> str:
     """
     Build the complete system prompt using base components and type-specific config.
@@ -22,8 +20,6 @@ def get_base_prompt(
         project_id: Project ID
         folder_ids: Dict mapping folder types to IDs
         config: Type-specific prompt configuration
-        loop: Build it for the single loop agent: the reply and tool protocols without
-            other roles, handoffs or parallel_execute. The graph's text is unchanged.
 
     Returns:
         Complete prompt string
@@ -41,13 +37,13 @@ def get_base_prompt(
     # 2. 核心协议 (The Law) - 最重要的规则放前面
     parts.append(OUTPUT_PROTOCOL)  # 格式最重要，防止乱码
     parts.append("")
-    parts.append(LOOP_AUTHOR_REPLY_PROTOCOL if loop else AUTHOR_REPLY_PROTOCOL)  # 作者看到的最终回复
+    parts.append(LOOP_AUTHOR_REPLY_PROTOCOL)  # 作者看到的最终回复
     parts.append("")
     parts.append(UNIFIED_EXECUTION_PROTOCOL)  # 逻辑次重要
     parts.append("")
 
     # 3. 工具使用指南 (The Hands) - 紧跟逻辑
-    parts.append(LOOP_TOOL_USAGE_PROTOCOL if loop else TOOL_USAGE_PROTOCOL)
+    parts.append(LOOP_TOOL_USAGE_PROTOCOL)
     parts.append("")
 
     # 4. 项目具体资料 (The Knowledge)
@@ -139,19 +135,7 @@ UNIFIED_EXECUTION_PROTOCOL = """## 统一执行协议
 - 读取 3~5 份关键资料后开始产出；资料不足时说明假设，而不是继续检索。
 """
 
-AUTHOR_REPLY_PROTOCOL = """## 给作者的回复 [每个角色都遵守]
-你在回复里写的每一段文字作者都会看到，包括调用工具前后的说明，几个角色的文字会连在一起显示：
-- 每一句都用作者使用的语言写，调用工具前后的一句话说明也一样；作者写中文时不出现英文句子（如「Now create the … file.」）。作者使用的语言以作者最近一条消息为准：作者换了语言就跟着换，之前的回复用的什么语言不算数。
-- 过程说明整轮最多一句，只在本轮第一次调用工具前说（包括第一次调用的就是 create_file 时）；交给其他角色前不写说明，直接调用 handoff_to_agent。不解释系统、上下文、读写记录这些内部情况。
-- 最后的总结第一行直接用作者使用的语言说结果，不用和作者不同的语言开头（作者写中文时不用英文开头），不写「Let me…」「Now…」这类过程句。
-- 先用 1–3 行说清本轮写了或改了什么：文件名、字数、已经顺手修好的问题。字数只报这一轮工具结果给出的 `word_count` / `new_word_count` 或交接里系统标出的数，本次回复里刚用 <file> 写的文件还没有工具结果，不报字数，也不估算。
-- 指定修订完成且没有实质冲突或必要决策时直接收尾，允许不追加任何选项；作者明确索要建议或独立审稿时仍按要求交付。
-- 需要作者决定的选项最多 3 个，用作者的口吻写，让作者能照着直接回复（如「按方案 A 写第二章」）。
-- 不写文件 id、工具名和字段名（create_file、update_project、content_length 等），不写角色名（writer、planner、hook_designer、quality_reviewer 等），不写「阻断」「返工」「交接」「送审」，不写评分等级，不写内部规则和阈值（如「15字阈值」「按…处理」「步骤 N」）。
-- 用到 [TASK_COMPLETE] 时，它单独放在最后一行。
-"""
-
-# 单循环 agent 的回复规则：同一份作者可见约束，去掉多角色、交接和完成标记。
+# 单循环 agent 的回复规则。
 LOOP_AUTHOR_REPLY_PROTOCOL = """## 给作者的回复
 你在回复里写的每一段文字作者都会看到，包括调用工具前后的说明：
 - 每一句都用作者使用的语言写，调用工具前后的一句话说明也一样；作者写中文时不出现英文句子（如「Now create the … file.」）。作者使用的语言以作者最近一条消息为准：作者换了语言就跟着换，之前的回复用的什么语言不算数。
@@ -236,46 +220,7 @@ def get_folder_reference(folder_ids: dict[str, str]) -> str:
     return f"### 创建文件时的 parent_id\n{folder_refs_str}"
 
 
-# 工具使用规则分段定义：图的各角色用完整版（TOOL_USAGE_PROTOCOL，逐字不变以保住前缀缓存），
-# 单循环 agent 没有 parallel_execute，用去掉并行两段的 LOOP_TOOL_USAGE_PROTOCOL。
-_TOOL_USAGE_HEAD = """## 工具使用规则
-
-你有以下工具可用：
-- create_file: 创建新文件（必须指定正确的 parent_id；创建后用 <file>...</file> 流式写入内容）
-- edit_file: 精确编辑文件内容（用于续写、修改段落、插入内容）[推荐]
-- delete_file: 删除未受作者正文保护的文件；受保护正文及含它的文件夹请作者用文件菜单删除；修改或重写用 edit_file
-- rename_file: 只改文件标题（id 和正文不变）
-- query_files: 查询/读取文件（query_files(id=...) 读取该文件全文；query_files(query=...) 按标题/内容定位文件）
-- update_project: 更新项目状态（简介、阶段、风格）；作者明确让你记住时把原话记进备注
-- update_project(tasks=[...]): 管理任务计划板；文件任务用 task_kind=file 并写明 artifact_file_type；对话里程碑用 task_kind=conversation，不能用它绕过文件验证；编号范围用 unit_spec={"unit":"章","numbers":[1,2]}，已创建产物用 artifact_refs 传 file_id；只有对应类型的实际文件存在且非空才标 done，标题不证明交付
-"""
-
-_TOOL_USAGE_PARALLEL_LINE = """- parallel_execute: 一次并行执行多个**相互独立**的任务（批量提速）
-"""
-
-_TOOL_USAGE_TOOL_LIST_END = """"""
-
-_TOOL_USAGE_PARALLEL_SECTION = """
-### parallel_execute 使用场景 [批量提速]
-
-当你有**多个彼此独立、互不依赖**的操作需要执行时，用 `parallel_execute` 一次性并发完成，比逐个调用更快。
-
-**适用场景**：
-- 批量删除多个文件、同时对多个**不同**文件做互不影响的编辑
-- 读取也可以批量，但最简单的做法是在同一条回复里并列发出多个 query_files(id=…) 调用
-
-**调用格式**：`parallel_execute(tasks=[{"type": ..., "description": ..., "params": {...}}, ...])`
-- 支持的 type：`edit_file`、`delete_file`、`query_files`、`write_chapter`
-- 每个 task 的 params 与对应单体工具完全一致（如 edit_file 用 `id`+`edits`，query_files 用 `id` 读全文）
-- 最多 5 个任务
-
-**严格约束**：
-- 任务之间**必须独立**——一个任务的结果不能作为另一个任务的输入；有先后依赖时**不要**用它，改为逐步调用
-- 需要 `<file>` 流式写入正文的**新章节创作**仍用单体 `create_file`（parallel 的 write_chapter 不走流式，仅适合一次性短内容）
-- 若有空文件尚未写入内容，parallel_execute 会被拒绝——先完成该文件
-
-"""
-
+# 工具使用规则：文件 ID 规则与过程说明是通用段，单循环 agent 的工具清单与写文件规则在下面。
 _TOOL_USAGE_REST_COMMON = """### 文件 ID 使用规则 [非常重要]
 - 永远不要编造/猜测 id
 - edit_file/delete_file 的参数名是 id（不是 file_id）
@@ -348,64 +293,6 @@ _TOOL_USAGE_REST_COMMON = """### 文件 ID 使用规则 [非常重要]
 
 """
 
-_TOOL_USAGE_FILE_WRITES = """### edit_file 使用决策树 [重要]
-
-**第一步：判断操作类型**
-```
-修改现有文件内容？
-├── 是 → 用 edit_file
-└── 否（创建新文件）→ 用 create_file + <file>...</file> 流式写入
-```
-
-**edit_file 常见用法**
-- 续写内容：op=append
-- 改词/句/段落：op=replace
-- 在某处插入：op=insert_after / insert_before
-- 删除部分内容：op=delete
-
-**edit_file replace 操作重要说明 [必须遵守]：**
-- old: 要被删除的原文
-- new: 替换后的新文本（完全取代 old）
-- **new 是完整替换片段**；可以保留需要保留的原文，但不要把整段 old 无意追加两次。
-
-### 重写/大改已有文件 [重要]
-
-作者要重写、重做或大改已有的章节、大纲、设定时，**在原文件上改，不新建「（新版）」文件**：
-
-1. 确保持有原文全文（上下文标注[全文]或本轮已读即可；否则用 query_files(id=...) 读取一次）。
-2. 用 edit_file 改原文件：逐段改就用多个 replace；整章重写时用一个 replace，old 写原文全文，new 写新的全文。
-3. 改之前的原稿会自动存进这个文件的历史版本。改写的是作者发这条消息之前就有的文件时，回复里用一句话告诉作者旧稿可以在历史版本里找回；这次请求里新建的稿子（之后再扩写、返修也一样）没有旧稿，不说这句。不问要不要删旧文件。
-4. 只有作者明确要求保留旧版、另存一版或两版对照时，才用 create_file 新建文件（标题写清是哪一版），旧文件不动。
-
-**移动文件**：当前工具集中没有 “update_file / read_file” 这类工具。作者要求移动时，用 create_file 在目标位置建一个同标题的文件、`<file>...</file>` 写入内容，然后告诉作者旧文件还在；旧稿受保护时，作者可以通过文件菜单自己删除，不让作者在对话里复述删除口令。
-
-## 新建文件：create_file + <file> 流式写入 [必须遵守，格式错误会丢内容]
-
-新文件一律这样写，无论内容长短：
-1. 这一次回复调用 create_file，**不传 content 参数**（创建空文件）；正文不写在这次回复里，也不写进工具参数，这次回复到工具调用就结束。这次回复除整轮那一句过程说明外不说别的。
-2. 工具返回创建成功后，**下一次回复**第一行就输出 `<file>` 开始标记（独占一行），接着写纯文本正文，最后输出 `</file>`（独占一行）。只有 `<file>` 之后的内容会写进文件；忘了 `</file>` 时，系统会在你停止输出时自动结束文件。
-3. `</file>` 之后在同一次回复里接着做下一步：计划里还有没写的文件就调用 create_file 建下一个；全部写完才写给作者的总结。回复不要停在 `</file>`。
-4. 一次只写一个文件：建了文件就必须写内容，不留空文件（作者明确只要建空文件、不写内容时，create_file 传 empty=true）；上一个文件的 `</file>` 闭合之前不调用下一个 create_file，否则工具会报错拒绝，内容也可能写进错误的文件。
-5. 标记只能是小写、无空格、无属性的 `<file>` 和 `</file>`，成对使用；`<File>`、`< file >`、`<file name="xxx">`、`<file/>`、`[file]` 都会导致内容丢失。
-6. 标题和正文分开存：create_file 的 title 就是章节标题，正文直接从第一段开始，不再写一遍标题。
-
-**示例**（先后写角色A、角色B）：
-```
-第 1 次回复：create_file(title='角色A')
-第 2 次回复：
-<file>
-角色A的详细内容...
-</file>
-create_file(title='角色B')
-第 3 次回复：
-<file>
-角色B的详细内容...
-</file>
-（给作者的总结）
-```
-
-"""
-
 _TOOL_USAGE_THINKING = """## 过程说明与思考 [必须遵守]
 
 - 过程说明按「给作者的回复」：整轮最多一句，只在本轮第一次调用工具前说（如"正在检索..."）；之后每一步不再预告，多步骤执行中途不逐步汇报，所有任务完成后统一总结变更。
@@ -413,10 +300,6 @@ _TOOL_USAGE_THINKING = """## 过程说明与思考 [必须遵守]
 - 思考过程使用作者的语言。
 - 正文不在思考里打草稿：想清楚结构（几行要点：场景顺序、人物的关键选择、结尾落点）就调用 create_file / edit_file，把正文直接写进文件，也不在思考里数字数。在思考里起草全文等于写两遍、耗时翻倍；这一轮的时间用完时，思考里的草稿一个字也存不下来，写进文件的部分会保留。
 - 创作上的取舍（人名、桥段、结局走向）各定一次就往下做，不在思考里反复比较多个备选；拿不准而作者需要知道的，写完后在回复里给出可选项。"""
-
-_TOOL_USAGE_REST = _TOOL_USAGE_REST_COMMON + _TOOL_USAGE_FILE_WRITES + _TOOL_USAGE_THINKING
-
-
 
 # 单循环 agent 的工具清单与写文件规则：正文按章号经 write_chapter 写入，create_file 只建资料文件，
 # edit_file 只做局部修改（整份替换正文和新添重复段落会被工具拒绝）。
@@ -478,13 +361,6 @@ _LOOP_TOOL_USAGE_THINKING = _TOOL_USAGE_THINKING.replace(
     "就调用 create_file / edit_file，把正文直接写进文件", "就调用 write_chapter / edit_file，把正文直接写进文件"
 )
 
-TOOL_USAGE_PROTOCOL = (
-    _TOOL_USAGE_HEAD
-    + _TOOL_USAGE_PARALLEL_LINE
-    + _TOOL_USAGE_TOOL_LIST_END
-    + _TOOL_USAGE_PARALLEL_SECTION
-    + _TOOL_USAGE_REST
-)
 LOOP_TOOL_USAGE_PROTOCOL = (
     _LOOP_TOOL_USAGE_HEAD
     + "\n"

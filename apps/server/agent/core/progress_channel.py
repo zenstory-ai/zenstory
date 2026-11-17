@@ -2,7 +2,7 @@
 
 The openai-agents SDK owns the model+tool loop: while a tool's ``on_invoke_tool``
 callback runs, the consumer of ``Runner.run_streamed().stream_events()`` is parked
-awaiting the next SDK event, so a long-running tool (e.g. ``parallel_execute``)
+awaiting the next SDK event, so a long-running tool
 cannot surface intermediate progress through the normal SDK event flow.
 
 This module provides a tiny context-local emitter the runner installs before

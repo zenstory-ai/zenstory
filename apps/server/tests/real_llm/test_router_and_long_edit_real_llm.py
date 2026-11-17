@@ -1,42 +1,15 @@
-"""Real-model checks for the 2026-11-04 fixes: routing never fails on scope_constraints, and
-precise edits on a long chapter land without the anchor breaker cutting the turn."""
+"""Real-model checks for the 2026-11-04 fixes: precise edits on a long chapter land without the
+anchor breaker cutting the turn."""
 
-import json
 import random
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel import Session
 
-from agent.graph.router import RouterFailure, router_node
 from agent.tools.file_ops.text_matching import normalize_for_fuzzy_match
 from models import File
 from tests.real_llm.sse_utils import collect_sse_events, event_names
-
-# Synthetic requests shaped like the production failures (no author text reused).
-_ROUTER_MESSAGES = [
-    "第一项先推演别动文件，其余几项直接改：1. 推演主角和师父决裂的时间线；2. 把第3章里的城名统一成青岚城；"
-    "3. 第5章删掉重复的打斗描写；4. 人物卡里补上配角年龄。",
-    "先自检并修订第1到12章：按番茄爽文节奏标准审校，检查每章字数、节奏和剧情是否跑题；字数超标又压不下来的章节"
-    "可以删掉重写；完成修订前不要开始后续正文；优先完成第12章压缩和第13章拆分；然后续写第13章。",
-    "按三项决定更新《第一卷大纲》：陆家家主统一为陆含章；第11章改用《引气决·基础篇》；《万物生息诀》明确为"
-    "《万物回春经》所含功法；只改大纲，不写正文。",
-]
-
-
-@pytest.mark.integration
-@pytest.mark.real_llm
-@pytest.mark.parametrize("message", _ROUTER_MESSAGES)
-async def test_router_routes_production_shaped_requests_with_short_constraints(message, require_deepseek_key):
-    try:
-        result = await router_node({"user_message": message, "messages": []})
-    except RouterFailure as failure:  # pragma: no cover - the regression this guards against
-        pytest.fail(f"routing failed: {failure.category} {failure.failed_fields}")
-    metadata = result["routing_metadata"]
-    print(json.dumps({k: metadata.get(k) for k in ("agent_type", "read_only", "write_content", "scope",
-                                                   "scope_constraints", "clarify_first")}, ensure_ascii=False))
-    # Only read/write boundaries the turn fields cannot express, plus the short scope.
-    assert len(metadata["scope_constraints"]) <= 4
 
 
 def _long_chapter() -> tuple[str, list[str]]:

@@ -427,29 +427,6 @@ async def test_a_truncated_read_is_not_counted_as_seen(db_session, owner_project
     assert mcp_tools.ToolContext.has_seen_file(chapter.id) is False
 
 
-async def test_a_truncated_parallel_read_is_not_counted_as_seen(db_session, owner_project, request_ctx):
-    from agent.tools import parallel_executor
-
-    _, project = owner_project
-    long_text = "\n\n".join(f"　　第{i}段，" + "很长的一段字。" * 60 for i in range(30))
-    chapter = _chapter(db_session, project, content=long_text)
-    small = _chapter(db_session, project, content=CHAPTER, title="第二章")
-    req = request_ctx(seen={})
-    tasks = [
-        {"type": "query_files", "description": f"读 {i}", "params": {"id": file_id, "response_mode": "full"}}
-        for i, file_id in enumerate([chapter.id, small.id])
-    ]
-    original = parallel_executor._task_result_budget
-    parallel_executor._task_result_budget = lambda count: 4000
-    try:
-        await parallel_executor.execute_parallel(tasks)
-    finally:
-        parallel_executor._task_result_budget = original
-    req.next_model_call()
-    assert mcp_tools.ToolContext.read_snapshot(chapter.id) is None
-    assert mcp_tools.ToolContext.read_snapshot(small.id) == CHAPTER
-
-
 # ---------------------------------------------------------- 5. 改到作者的字：撤销回到作者的写法
 
 

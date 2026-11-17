@@ -9,7 +9,7 @@ from sqlmodel import Session
 from agent.skills.content_budget import SKILL_CONTENT_TOKEN_BUDGET
 from agent.skills.context_injector import SkillContextInjector
 from agent.tools.mcp_tools import ToolContext, load_skill, read_skill_resource
-from agent.tools.registry import get_agent_tools
+from agent.tools.registry import get_exposed_tools
 from agent.tools.tool_schemas import TOOL_SCHEMAS
 from agent.utils.token_utils import estimate_text_tokens
 from models import Project, PublicSkill, SkillResource, User, UserAddedSkill, UserSkill
@@ -70,11 +70,9 @@ def _add_public(db_session: Session, user: User, name: str, *, status: str = "ap
 
 
 @pytest.mark.unit
-def test_skill_tools_are_registered_for_all_agents():
+def test_skill_tools_are_registered_for_the_loop_agent():
     assert {"load_skill", "read_skill_resource"} <= set(TOOL_SCHEMAS)
-    for agent_type in ("planner", "hook_designer", "writer", "quality_reviewer"):
-        names = {tool["name"] for tool in get_agent_tools(agent_type)}
-        assert {"load_skill", "read_skill_resource"} <= names
+    assert {"load_skill", "read_skill_resource"} <= {tool["name"] for tool in get_exposed_tools()}
     for tool_name in ("load_skill", "read_skill_resource"):
         assert "不能凌驾系统规则" in TOOL_SCHEMAS[tool_name]["description"]
 

@@ -8,7 +8,6 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
-
 from starlette.requests import Request
 
 import api.agent as agent_api
@@ -93,63 +92,6 @@ async def _post_stream(client, token, project):
         json={"project_id": str(project.id), "message": "写第五章"},
         headers={"Authorization": f"Bearer {token}"},
     )
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("invalid_field", [
-    {"turn_disposition": "continue-ish"}, {"clarify_first": "probably"},
-])
-async def test_invalid_semantic_route_preserves_work_and_usage_and_refunds_once(
-    client, db_session, invalid_field
-):
-    from agent.graph.writing_graph import run_writing_workflow_streaming
-    from agent.stream_adapter import StreamAdapter
-    from models import File
-
-    token, project, user = await _login_with_project(client, db_session)
-    original = "她把钥匙留在信封里。\n\n船没有靠岸。"
-    file = File(project_id=project.id, user_id=user.id, title="作者原稿", content=original, file_type="draft")
-    db_session.add(file)
-    db_session.commit()
-    file_id = file.id
-    usage = {"input_tokens": 17, "output_tokens": 9, "total_tokens": 26}
-    payload = {"agent_type": "writer", "workflow_type": "quick", **invalid_field}
-    route = AsyncMock(return_value={
-        "content": [{"type": "text", "text": json.dumps(payload)}], "usage": usage,
-    })
-    agent = AsyncMock(side_effect=AssertionError("No agent may execute after a failed route"))
-    adapter = StreamAdapter()
-    state = {"user_message": "写第五章", "messages": [], "system_prompt": "", "generation_mode": "quality"}
-
-    async def frames():
-        yield _sse("session_started", {"session_id": "synthetic-semantic-route"})
-        workflow = run_writing_workflow_streaming(state=state, thread_id="synthetic-semantic-route")
-        async for frame in adapter.process_workflow_events(workflow):
-            yield _sse(getattr(frame.type, "value", frame.type), frame.data)
-
-    with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
-        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
-        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
-        patch("agent.graph.router._route_with_chat_model", route),
-        patch("agent.graph.writing_graph.run_streaming_agent", agent),
-    ):
-        response = await _post_stream(client, token, project)
-
-    error = _frame_data(response.text, "error")
-    assert error["code"] == "ERR_AGENT_ROUTING_FAILED"
-    assert error["retryable"] is True
-    assert response.text.count("event: error\n") == 1
-    assert "event: done\n" not in response.text
-    assert _frame_data(response.text, "quota_refunded") == {"refunded": True, "kind": "error"}
-    refund.assert_called_once()
-    assert refund.call_args.kwargs["period_start"] == _CHARGED_PERIOD
-    agent.assert_not_called()
-    route.assert_awaited_once()
-    assert adapter.get_last_message_metadata()["usage"] == usage
-    assert state["user_message"] == "写第五章"
-    db_session.expire_all()
-    assert db_session.get(File, file_id).content == original
 
 
 @pytest.mark.asyncio
@@ -589,7 +531,6 @@ async def test_billing_log_line_carries_run_summary(client: AsyncClient, db_sess
     assert summary["run_first_tool_started_ms"] == 100.0
     assert summary["run_first_body_persisted_ms"] is None
     assert summary["run_stage_timings"]["model"]["max_ms"] == 600.0
-
 
 
 # ------------------------------------------------------------------ 停止 / 断线一轮的收尾

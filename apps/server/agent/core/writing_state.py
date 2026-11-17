@@ -37,11 +37,7 @@ class WritingState(TypedDict, total=False):
     history_items: list[dict[str, Any]]
 
     # Run state
-    # 用户明确要求本轮不改文件：tools_adapter 对写文件工具的调用一律拒绝执行。
-    read_only: bool
     previous_output_truncations: int
-    # 本轮先问清楚再写：写文件工具一律拒绝执行（tools_adapter 用另一套拒绝说明）。
-    clarify_first: bool
     # 本次请求共享的 ToolFailureBreaker（工具重复失败熔断），每次 agent run 复用同一个。
     tool_failure_breaker: Any
     # 本次请求共享的 RepeatReadGuard（同一文件重复读取的拦截 + 本请求读写台账），跨 agent run 复用。

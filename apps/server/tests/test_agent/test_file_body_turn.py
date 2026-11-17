@@ -27,7 +27,7 @@ def tools(monkeypatch):
     )
     ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
     try:
-        yield {tool.name: tool for tool in build_agent_function_tools("writer")}, executed
+        yield {tool.name: tool for tool in build_agent_function_tools()}, executed
     finally:
         ToolContext.clear_context()
 
@@ -183,7 +183,7 @@ async def test_overdue_refusal_is_counted_once_in_the_run_summary_without_a_tool
             patcher.setattr("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"update_project": fake})
             by_name = {
                 tool.name: tool
-                for tool in build_agent_function_tools("writer", failure_breaker=breaker, run_meter=meter)
+                for tool in build_agent_function_tools(failure_breaker=breaker, run_meter=meter)
             }
             _overdue()
             refused = await _call(by_name["update_project"])
@@ -216,10 +216,10 @@ PENDING_REFUSAL = {"status": "error", "error_type": "file_body_pending", "error"
 
 
 async def test_run_ends_after_a_structured_pending_refusal_while_the_body_is_still_overdue(tools):
-    from agent.openai_agents.runner import _stop_run_on_control_flow_tool
+    from agent.openai_agents.runner import _stop_run_after_tools
 
     _overdue()
-    decision = _stop_run_on_control_flow_tool(None, [_result("create_file", PENDING_REFUSAL)])
+    decision = _stop_run_after_tools(None, [_result("create_file", PENDING_REFUSAL)])
 
     assert decision.is_final_output is True
     assert decision.final_output == ""
@@ -227,27 +227,27 @@ async def test_run_ends_after_a_structured_pending_refusal_while_the_body_is_sti
 
 async def test_run_keeps_going_without_a_trusted_overdue_body(tools):
     """只认结构化错误码 + 当前仍可信的待补状态：没有待补条目时同样的结果不结束 run。"""
-    from agent.openai_agents.runner import _stop_run_on_control_flow_tool
+    from agent.openai_agents.runner import _stop_run_after_tools
 
     ToolContext.begin_model_reply()
-    assert _stop_run_on_control_flow_tool(None, [_result("create_file", PENDING_REFUSAL)]).is_final_output is False
+    assert _stop_run_after_tools(None, [_result("create_file", PENDING_REFUSAL)]).is_final_output is False
     other_error = {"status": "error", "error_type": "anchor_not_found", "error": "file_body_pending"}
     _overdue()
-    assert _stop_run_on_control_flow_tool(None, [_result("edit_file", other_error)]).is_final_output is False
+    assert _stop_run_after_tools(None, [_result("edit_file", other_error)]).is_final_output is False
 
 
 async def test_breaker_and_budget_stops_keep_priority_over_the_pending_stop(tools):
     from agent.core.run_meter import AgentRunMeter
-    from agent.openai_agents.runner import _stop_run_on_control_flow_tool
+    from agent.openai_agents.runner import _stop_run_after_tools
     from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 
     _overdue()
     breaker = ToolFailureBreaker(max_failures_per_request=1)
     breaker.observe("create_file", "{}", json.dumps(PENDING_REFUSAL))
-    tripped = _stop_run_on_control_flow_tool(None, [_result("create_file", PENDING_REFUSAL)], failure_breaker=breaker)
+    tripped = _stop_run_after_tools(None, [_result("create_file", PENDING_REFUSAL)], failure_breaker=breaker)
     assert tripped.is_final_output is True and tripped.final_output == breaker.trip.user_message()
 
     meter = AgentRunMeter(max_model_calls=1)
     meter.record_model_call()
-    budget = _stop_run_on_control_flow_tool(None, [_result("create_file", PENDING_REFUSAL)], run_meter=meter)
+    budget = _stop_run_after_tools(None, [_result("create_file", PENDING_REFUSAL)], run_meter=meter)
     assert budget.is_final_output is True and meter.budget_stopped is True

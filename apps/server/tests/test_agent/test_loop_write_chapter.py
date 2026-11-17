@@ -757,19 +757,6 @@ async def test_existing_duplicates_and_notes_files_are_not_blocked(loop_tools):
     assert rewritten_outline["status"] == "success"
 
 
-async def test_graph_roles_keep_whole_body_edits(workspace):
-    chapter = _ai_chapter(workspace.session, workspace.project, "第1章", "第一段。\n第二段。")
-    ToolContext.set_context(
-        session=workspace.session, user_id=workspace.user.id, project_id=workspace.project.id, session_id="graph"
-    )
-    ToolContext.set_current_agent("writer")
-    try:
-        result = await _edit(chapter.id, [{"op": "replace", "old": "第一段。\n第二段。", "new": "整章重写。"}])
-    finally:
-        ToolContext.clear_context()
-    assert result["status"] == "success"
-
-
 # ---------------------------------------------------------------------------
 # 历史回放与撤销卡
 # ---------------------------------------------------------------------------
@@ -850,21 +837,3 @@ async def test_turn_after_an_output_truncation_asks_for_short_thinking_once(work
         assert OUTPUT_TRUNCATED_RESUME not in first
     # 不写回对话（不进历史）。
     assert OUTPUT_TRUNCATED_RESUME not in json.dumps(outcome.state.get("messages"), ensure_ascii=False)
-
-
-async def test_loop_runs_install_the_loop_landing_reminders(workspace):
-    from agent.openai_agents import runner as runner_module
-
-    built: list[Any] = []
-    real_filter = runner_module._ModelCallCountingFilter
-
-    def recording_filter(*args: Any, **kwargs: Any):
-        built.append(real_filter(*args, **kwargs))
-        return built[-1]
-
-    model = ScriptedModel(runs=[[Reply(text="好的。")]])
-    with patch.object(runner_module, "_ModelCallCountingFilter", side_effect=recording_filter):
-        await _run_loop(workspace, model, "看看大纲")
-
-    assert built and all(f._soft_landing_prompt == runner_module.LOOP_SOFT_LANDING_PROMPT for f in built)
-    assert all(f._time_landing_prompt == runner_module.LOOP_TIME_LANDING_PROMPT for f in built)

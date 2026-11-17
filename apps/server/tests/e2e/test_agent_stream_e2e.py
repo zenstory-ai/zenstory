@@ -108,13 +108,13 @@ async def test_agent_stream_emits_session_started_content_and_done(client: Async
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode,expected", [("prose", False), ("no_op", False), ("create", True), ("stream", True), ("parallel", True)])
+@pytest.mark.parametrize("mode,expected", [("prose", False), ("no_op", False), ("create", True), ("stream", True)])
 async def test_agent_http_done_confirms_real_committed_file_mutation(
     client: AsyncClient, db_session: Session, writing_prompt_configs, monkeypatch, mode, expected,
 ):
     """Actual tool -> adapter -> persisted service -> authenticated SSE; no provider."""
     import database
-    from agent.tools import mcp_tools, parallel_executor
+    from agent.tools import mcp_tools
 
     user, token, project = await _create_user_login_project(client, db_session, username=f"mutation_e2e_{mode}")
     file = File(project_id=project.id, title="Existing", content="Body", file_type="draft")
@@ -138,12 +138,6 @@ async def test_agent_http_done_confirms_real_committed_file_mutation(
         if mode == "no_op":
             result = await mcp_tools.edit_file({"id": file_id, "edits": [{"op": "replace", "old": "Body", "new": "Body"}]})
             name = "edit_file"
-        elif mode == "parallel":
-            result = await parallel_executor.execute_parallel([
-                {"type": "write_chapter", "description": "Write", "params": {"title": "New draft", "content": "Committed"}},
-                {"type": "query_files", "description": "Read", "params": {}},
-            ])
-            name = "parallel_execute"
         elif mode in {"create", "stream"}:
             result = await mcp_tools.create_file({"title": "New draft", "file_type": "draft", "content": "" if mode == "stream" else "Committed"})
             created_ids.append(json.loads(result["content"][0]["text"])["data"]["id"])

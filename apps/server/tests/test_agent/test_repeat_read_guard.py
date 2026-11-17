@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -22,7 +22,6 @@ from agent.openai_agents.repeat_read_guard import (
     RepeatReadGuard,
 )
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
-from tests.test_agent.body_write_events import edit_file_events
 from tests.test_agent.test_tool_failure_breaker import (
     _run_against_local_model,
     _text_chunks,
@@ -417,7 +416,7 @@ async def test_function_tool_does_not_execute_blocked_reads():
 
     guard = RepeatReadGuard()
     with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"query_files": fake_query}):
-        tools = {tool.name: tool for tool in build_agent_function_tools("writer", read_guard=guard)}
+        tools = {tool.name: tool for tool in build_agent_function_tools(read_guard=guard)}
         outputs = [
             await tools["query_files"].on_invoke_tool(None, FULL_READ)
             for _ in range(READ_BLOCK_AT - 1 + MAX_BLOCKED_READS_PER_REQUEST)
@@ -432,12 +431,12 @@ async def test_function_tool_does_not_execute_blocked_reads():
 
 @pytest.mark.unit
 def test_tool_use_behavior_stops_run_when_guard_trips():
-    from agent.openai_agents.runner import _stop_run_on_control_flow_tool
+    from agent.openai_agents.runner import _stop_run_after_tools
 
     guard = RepeatReadGuard()
     for _ in range(READ_BLOCK_AT - 1 + MAX_BLOCKED_READS_PER_REQUEST):
         _guarded_read(guard)
-    result = _stop_run_on_control_flow_tool(None, [], read_guard=guard)
+    result = _stop_run_after_tools(None, [], read_guard=guard)
     assert result.is_final_output is True
     assert result.final_output == NO_PROGRESS_USER_MESSAGE
 
@@ -825,229 +824,7 @@ def test_stream_adapter_passes_error_reason_to_sse_frame():
     assert frame["refundable"] is True
 
 
-# --------------------------------------------------------- 结构化续接
-
-
-def _state_after(stop_reason: str | None, user_message: str = "继续", content: str = "阶段总结……"):
-    previous = {"role": "assistant", "content": content,
-                "routing": {"initial_agent": "writer", "last_agent": "writer",
-                            "workflow_type": "quick", "write_content": True, "scope": "第一到三章"}}
-    if stop_reason:
-        previous["stop_reason"] = stop_reason
-    return {"user_message": user_message, "router_message": user_message,
-            "messages": [{"role": "user", "content": "把第一到三章都改一遍"}, previous]}
-
-
-async def _followup_route(state, disposition="resume_interrupted_task"):
-    from agent.graph.router import router_node
-
-    payload = {"agent_type": "writer", "workflow_type": "quick",
-               "turn_disposition": disposition, "scope": ""}
-    response = {"content": [{"type": "text", "text": json.dumps(payload)}]}
-    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=response)):
-        return await router_node(state)
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize("message", ["继续", "接着把没做完的部分做完", "请基于上一步结果继续完成剩余任务，优先最关键目标。"])
-async def test_semantic_continue_after_exhaustion_resumes_previous_agent(message):
-    state = _state_after("max_turns_exceeded", message)
-    result = await _followup_route(state)
-    assert result["current_agent"] == "writer"
-    assert result["workflow_plan"] == "quick"
-    assert result["workflow_agents"] == []
-    assert result["routing_metadata"]["scope"] == "第一到三章"
-
-
-@pytest.mark.unit
-async def test_continue_does_not_infer_agent_from_status_card_prose():
-    card_text = "[iteration_exhausted]\nlayer: tool_call\nlast_agent: planner"
-    result = await _followup_route(_state_after(None, content=card_text))
-    assert result["current_agent"] == "writer"
-    assert "previous_stop_reason" not in result["routing_metadata"]
-
-
-@pytest.mark.unit
-async def test_followup_without_trusted_stop_or_with_changed_request_routes_normally():
-    result = await _followup_route(_state_after("end_turn"))
-    assert result["routing_metadata"]["scope"] == ""
-    result = await _followup_route(_state_after("max_turns_exceeded", "继续写第四章，加一段打斗"),
-                                   "new_or_changed_request")
-    assert result["routing_metadata"]["scope"] == ""
-    result = await _followup_route({"user_message": "继续", "messages": []})
-    assert result["routing_metadata"]["scope"] == ""
-
-
-# ------------------------------------------------ writing_graph：审查上限与交接台账
-
-LONG_TEXT = "第五章的正文。" * 200
-
-
-def _text(text: str) -> StreamEvent:
-    return StreamEvent(type=StreamEventType.TEXT, data={"text": text})
-
-
-def _write_done(call_id: str) -> list[StreamEvent]:
-    # 一次写进正文（draft）的成功 edit_file：自动质检门只看正文类文件的写入字数。
-    return edit_file_events(call_id, "林晚推开门，雨还在下。" * 30)
-
-
-def _handoff(target: str, context: str) -> StreamEvent:
-    return StreamEvent(
-        type=StreamEventType.HANDOFF,
-        data={
-            "target_agent": target,
-            "reason": "返修",
-            "context": context,
-            "handoff_packet": {
-                "target_agent": target,
-                "reason": "返修",
-                "context": context,
-                "completed": [],
-                "todo": ["收紧第三段节奏"],
-                "evidence": [],
-            },
-        },
-    )
-
-
-async def _run_graph(fake_agent, *, initial_agent="writer", router_result=None, auto_review_threshold=100):
-    from agent.graph.writing_graph import run_writing_workflow_streaming
-    from agent.tools.mcp_tools import ToolContext
-
-    state = {"user_message": "写第五章", "messages": [], "system_prompt": ""}
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    try:
-        with (
-            patch("agent.graph.writing_graph.router_node", AsyncMock(return_value=router_result or {})),
-            patch("agent.graph.writing_graph.get_next_node", return_value=initial_agent),
-            patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
-            patch("agent.tools.mcp_tools.ToolContext.refresh_file_inventory", return_value={}),
-            patch(
-                "agent.graph.writing_graph._auto_finalize_task_board_on_completion",
-                AsyncMock(return_value=[]),
-            ),
-        ):
-            return [
-                event
-                async for event in run_writing_workflow_streaming(
-                    state=state, thread_id="t", auto_review_threshold=auto_review_threshold
-                )
-            ]
-    finally:
-        ToolContext.clear_context()
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_review_rounds_are_capped_and_reviewer_notes_are_surfaced(monkeypatch):
-    from agent.graph.writing_graph import MAX_REVIEW_ROUNDS
-
-    monkeypatch.setenv("AGENT_ENABLE_GRAPH_AUTO_REVIEW", "true")
-    calls: list[str] = []
-    reviewer_prompts: list[str] = []
-
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
-        calls.append(agent_type)
-        if agent_type == "writer":
-            for event in _write_done(f"w{len(calls)}"):
-                yield event
-            yield _text(LONG_TEXT)
-            if len(calls) > 1:
-                # 返工稿不再被自动质检门送审；模型无视提示词显式送审时才会有第 2 轮。
-                yield _handoff("quality_reviewer", "返工完成，请复审")
-            return
-        reviewer_prompts.append(state["user_message"])
-        yield _text("问题：第三段节奏拖沓。")
-        yield _handoff("writer", "第三段节奏拖沓，需要压缩")
-
-    events = await _run_graph(fake_agent)
-
-    assert calls == ["writer", "quality_reviewer"] * MAX_REVIEW_ROUNDS, "第 2 轮审查后不再交回 writer"
-    complete = [e for e in events if e.type == StreamEventType.WORKFLOW_COMPLETE]
-    assert complete and complete[-1].data["reason"] == "review_round_limit"
-    assert "第三段节奏拖沓" in complete[-1].data["review_notes"]
-    surfaced = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
-    assert "收紧第三段节奏" in surfaced
-    assert all("追更指数" not in prompt for prompt in reviewer_prompts)
-    assert "最后一轮" in reviewer_prompts[-1]
-    assert not any(e.type == StreamEventType.ITERATION_EXHAUSTED for e in events)
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoffs_carry_request_read_and_write_log(monkeypatch):
-    monkeypatch.setenv("AGENT_ENABLE_GRAPH_AUTO_REVIEW", "true")
-    seen_messages: dict[str, str] = {}
-
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
-        seen_messages[agent_type] = state["user_message"]
-        guard = state["repeat_read_guard"]
-        if agent_type == "planner":
-            _guarded_read(guard, FULL_READ, _read_ok("f1", "大纲"))
-            yield _text("规划完成。")
-            return
-        if agent_type == "writer":
-            guard.observe(
-                "edit_file",
-                guard.plan("edit_file", json.dumps({"id": "f5"})),
-                json.dumps({"status": "success", "data": {"id": "f5", "title": "第五章"}}, ensure_ascii=False),
-            )
-            for event in _write_done("w1"):
-                yield event
-            yield _text(LONG_TEXT)
-            return
-        yield _text("审查通过。[TASK_COMPLETE]")
-
-    events = await _run_graph(
-        fake_agent,
-        initial_agent="planner",
-        router_result={"workflow_plan": "standard", "workflow_agents": ["writer"]},
-    )
-
-    assert "本请求已读取全文：《大纲》(id=f1)" in seen_messages["writer"]
-    assert "本请求已修改：《第五章》(id=f5)" in seen_messages["quality_reviewer"]
-    assert "正文……" not in seen_messages["writer"], "交接只带标题与 id，不带正文"
-
-    handoffs = [e for e in events if e.type == StreamEventType.HANDOFF]
-    review_packet = next(
-        e.data["handoff_packet"] for e in handoffs if e.data["target_agent"] == "quality_reviewer"
-    )
-    assert review_packet["completed"] == ["已修改《第五章》(id=f5)"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-@pytest.mark.parametrize("recorded_agent", ["writer", None])
-async def test_continue_uses_router_decision_even_with_a_recorded_agent(recorded_agent):
-    from agent.graph.writing_graph import run_writing_workflow_streaming
-    from agent.tools.mcp_tools import ToolContext
-
-    calls: list[str] = []
-
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
-        calls.append(agent_type)
-        yield _text("接着完成。")
-
-    state = _state_after("max_turns_exceeded")
-    if recorded_agent is not None:
-        state["messages"][1]["last_agent"] = recorded_agent
-    state["system_prompt"] = ""
-    router = AsyncMock(return_value={"current_agent": "planner", "workflow_agents": ["writer"]})
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    try:
-        with (
-            patch("agent.graph.writing_graph.router_node", router),
-            patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
-        ):
-            events = [e async for e in run_writing_workflow_streaming(state=state, thread_id="t")]
-    finally:
-        ToolContext.clear_context()
-
-    decided = next(e for e in events if e.type == StreamEventType.ROUTER_DECIDED)
-    router.assert_awaited_once()
-    assert calls == ["planner", "writer"]
-    assert decided.data["initial_agent"] == "planner"
+# --------------------------------------------------------- 陈旧内容与按范围读取
 
 
 def test_stale_content_lets_the_file_be_read_again_without_the_unchanged_hint():
@@ -1111,7 +888,7 @@ async def test_distinct_range_windows_all_execute_and_are_not_recorded_as_full_t
     windows = [{"id": "f1", "start_char": start, "max_chars": 100} for start in (0, 100, 200, 300)]
     guard = RepeatReadGuard()
     with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"query_files": fake_query}):
-        tools = {tool.name: tool for tool in build_agent_function_tools("writer", read_guard=guard)}
+        tools = {tool.name: tool for tool in build_agent_function_tools(read_guard=guard)}
         outputs = [
             json.loads(await tools["query_files"].on_invoke_tool(None, json.dumps(args))) for args in windows
         ]

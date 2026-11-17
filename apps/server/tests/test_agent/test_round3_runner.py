@@ -1,8 +1,8 @@
 """Round-3 回归测试：openai-agents 适配层（runner）。
 
-覆盖两条确认缺陷：
-- #9  控制流工具（request_clarification / handoff_to_agent）之后 SDK 仍多跑一整轮
-      模型调用并真实执行其工具，「工作流停下」的语义被破坏。
+覆盖：
+- 调用工具集里已经没有的工具（例如照着旧会话历史调已删除的 request_clarification）时，
+  错误交还模型、run 继续，不以致命 ERROR 结束。
 - #30 DeepSeek 流式请求缺 stream_options.include_usage，MESSAGE_END 的 usage 恒为空。
 
 大部分用例跑真实的 openai-agents run-loop + 真实 AsyncOpenAI 客户端，只是把
@@ -15,7 +15,6 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
 
@@ -184,20 +183,6 @@ def _point_sdk_at_stub(monkeypatch, port: int) -> None:
     reset_sdk_model_cache()
 
 
-def _install_tool_spy(monkeypatch, tool_name: str, calls: list) -> None:
-    from agent.tools import registry
-
-    async def spy(args):
-        calls.append(args)
-        return {
-            "content": [
-                {"type": "text", "text": json.dumps({"status": "success", "id": "f-spy"})}
-            ]
-        }
-
-    monkeypatch.setitem(registry.TOOL_FUNCTIONS, tool_name, spy)
-
-
 async def _run_agent(agent_type: str = "writer"):
     from agent.openai_agents.runner import run_openai_agents_streaming_agent
 
@@ -224,80 +209,14 @@ def _joined_text(events):
 
 
 # ---------------------------------------------------------------------------
-# #9 控制流工具必须立刻停下整个 SDK run
+# 已删除的工具：错误交还模型
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.parametrize(
-    ("tool_name", "arguments", "stopped_event"),
-    [
-        (
-            "request_clarification",
-            {"question": "你想写第几章？"},
-            "workflow_stopped",
-        ),
-        (
-            "handoff_to_agent",
-            {"target_agent": "quality_reviewer", "reason": "初稿完成", "context": "请审稿"},
-            "handoff",
-        ),
-    ],
-)
-async def test_control_flow_tool_stops_run_before_next_model_turn(
-    monkeypatch, tool_name, arguments, stopped_event
-):
-    """控制流工具返回后，SDK 不得再发起下一次模型调用、更不得执行那一轮的工具。
-
-    修复前：cancel(mode="after_turn") 异步落地，模型会多跑一整轮，
-    EXTRA_TURN_TEXT 被推给前端，create_file 被真实执行。
-    """
-    create_calls: list = []
-    stub = _ChatCompletionsStub(
-        turns=[
-            _tool_turn("call-control", tool_name, arguments),
-            _tool_turn(
-                "call-extra",
-                "create_file",
-                {"file_type": "draft", "title": "暂停后偷偷创建的文件"},
-                prefix_text="EXTRA_TURN_TEXT",
-            ),
-        ],
-        fallback=_text_turn("THIRD_TURN_TEXT"),
-    )
-    with stub:
-        _point_sdk_at_stub(monkeypatch, stub.port)
-        _install_tool_spy(monkeypatch, "create_file", create_calls)
-        state, events = await _run_agent()
-
-    assert stub.errors == []
-    assert len(stub.requests) == 1, "控制流工具之后不允许再发起模型调用"
-    assert create_calls == [], "暂停/交接之后不允许再真实执行任何工具"
-
-    names = _event_names(events)
-    assert names == [
-        "message_start",
-        "tool_use",
-        "tool_result",
-        stopped_event,
-        "message_end",
-    ]
-    assert "EXTRA_TURN_TEXT" not in _joined_text(events)
-
-    serialized_state = json.dumps(state["messages"], ensure_ascii=False)
-    assert "EXTRA_TURN_TEXT" not in serialized_state
-    assert "暂停后偷偷创建的文件" not in serialized_state
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_control_flow_tool_error_keeps_run_alive(monkeypatch):
-    """控制流工具报错时不能截断 run——模型必须能看到错误并在同一个 run 内纠正。
-
-    这是对「按工具名一刀切（StopAtTools）」的防回归锁：request_clarification
-    缺少 question 会返回 error，此时不算「工作流要停下」。
-    """
+async def test_call_to_a_removed_tool_returns_an_error_and_keeps_the_run_alive(monkeypatch):
+    """模型照着旧会话历史调用已删除的工具：错误交还模型，同一个 run 内接着做。"""
     stub = _ChatCompletionsStub(
         turns=[
             _tool_turn("call-bad", "request_clarification", {"question": ""}),
@@ -316,44 +235,9 @@ async def test_control_flow_tool_error_keeps_run_alive(monkeypatch):
 
 
 @pytest.mark.unit
-def test_stop_callback_only_fires_on_effective_control_flow_result():
-    """tool_use_behavior 回调的判定矩阵（成功控制流 / 报错控制流 / 普通工具）。"""
-    from agent.openai_agents.runner import _stop_run_on_control_flow_tool
-
-    def _result(name, payload):
-        return SimpleNamespace(
-            tool=SimpleNamespace(name=name),
-            output=json.dumps(payload, ensure_ascii=False),
-        )
-
-    handoff_ok = _stop_run_on_control_flow_tool(
-        None, [_result("handoff_to_agent", {"status": "handoff", "target_agent": "writer"})]
-    )
-    clarify_ok = _stop_run_on_control_flow_tool(
-        None, [_result("request_clarification", {"status": "clarification_needed", "question": "?"})]
-    )
-    handoff_error = _stop_run_on_control_flow_tool(
-        None, [_result("handoff_to_agent", {"status": "error", "error": "Invalid target_agent"})]
-    )
-    normal_tool = _stop_run_on_control_flow_tool(
-        None, [_result("create_file", {"status": "success"})]
-    )
-    non_json = _stop_run_on_control_flow_tool(
-        None, [SimpleNamespace(tool=SimpleNamespace(name="handoff_to_agent"), output="not json")]
-    )
-
-    assert handoff_ok.is_final_output is True
-    assert clarify_ok.is_final_output is True
-    assert handoff_error.is_final_output is False
-    assert normal_tool.is_final_output is False
-    assert non_json.is_final_output is False
-    assert _stop_run_on_control_flow_tool(None, []).is_final_output is False
-
-
-@pytest.mark.unit
-def test_build_agent_wires_control_flow_stop_and_include_usage(monkeypatch):
-    """Agent 构造必须同时带上「控制流截断」和「回传 usage」两项设置。"""
-    from agent.openai_agents.runner import _build_agent, _stop_run_on_control_flow_tool
+def test_build_agent_wires_the_stop_callback_and_include_usage(monkeypatch):
+    """Agent 构造必须同时带上「终态截断」和「回传 usage」两项设置。"""
+    from agent.openai_agents.runner import _build_agent, _stop_run_after_tools
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "dummy-local-test-key")
 
@@ -363,98 +247,13 @@ def test_build_agent_wires_control_flow_stop_and_include_usage(monkeypatch):
     agent = _build_agent("writer", "system", failure_breaker=breaker)
 
     # tool_use_behavior 绑定了本次 run 的工具失败熔断器（同一个出口截断 run）
-    assert agent.tool_use_behavior.func is _stop_run_on_control_flow_tool
+    assert agent.tool_use_behavior.func is _stop_run_after_tools
     assert agent.tool_use_behavior.keywords == {
         "failure_breaker": breaker,
         "run_meter": None,
         "read_guard": None,
     }
     assert agent.model_settings.include_usage is True
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_runner_truncates_extra_turn_if_sdk_keeps_running():
-    """兜底护栏：SDK 侧截断失效时，runner 自己截断消费循环。
-
-    这里用一个「不理会 cancel、继续吐下一轮事件」的假 result 模拟 SDK 截断失效，
-    断言暂停之后的正文与工具调用既不进 SSE 流，也不写回 state.messages。
-    """
-    from agent.openai_agents.runner import run_openai_agents_streaming_agent
-
-    clarification = json.dumps(
-        {"status": "clarification_needed", "question": "你想写第几章？"}, ensure_ascii=False
-    )
-
-    class StubbornResult:
-        raw_responses = []
-
-        def __init__(self):
-            self.cancel_modes: list[str] = []
-
-        def cancel(self, mode="immediate"):
-            self.cancel_modes.append(mode)
-
-        async def stream_events(self):
-            yield SimpleNamespace(
-                type="run_item_stream_event",
-                name="tool_called",
-                item=SimpleNamespace(
-                    raw_item={
-                        "name": "request_clarification",
-                        "call_id": "call-1",
-                        "arguments": json.dumps({"question": "你想写第几章？"}, ensure_ascii=False),
-                    }
-                ),
-            )
-            yield SimpleNamespace(
-                type="run_item_stream_event",
-                name="tool_output",
-                item=SimpleNamespace(raw_item={"call_id": "call-1"}, output=clarification),
-            )
-            # 以下都属于「暂停之后不该存在」的下一轮
-            yield SimpleNamespace(
-                type="raw_response_event",
-                data=SimpleNamespace(type="response.output_text.delta", delta="EXTRA_TURN_TEXT"),
-            )
-            yield SimpleNamespace(
-                type="run_item_stream_event",
-                name="tool_called",
-                item=SimpleNamespace(
-                    raw_item={
-                        "name": "create_file",
-                        "call_id": "call-2",
-                        "arguments": json.dumps({"title": "偷偷创建"}, ensure_ascii=False),
-                    }
-                ),
-            )
-
-    fake_result = StubbornResult()
-    state = {"user_message": "写一章", "messages": [], "system_prompt": "base"}
-
-    with (
-        patch("agent.openai_agents.runner._build_agent", return_value=object()),
-        patch("agents.Runner.run_streamed", return_value=fake_result),
-    ):
-        events = [
-            event
-            async for event in run_openai_agents_streaming_agent(
-                state=state, agent_type="writer", system_prompt="system"
-            )
-        ]
-
-    assert _event_names(events) == [
-        "message_start",
-        "tool_use",
-        "tool_result",
-        "workflow_stopped",
-        "message_end",
-    ]
-    assert "EXTRA_TURN_TEXT" not in _joined_text(events)
-    assert "immediate" in fake_result.cancel_modes, "截断失效时必须硬取消 SDK run"
-    serialized_state = json.dumps(state["messages"], ensure_ascii=False)
-    assert "EXTRA_TURN_TEXT" not in serialized_state
-    assert "create_file" not in serialized_state
 
 
 # ---------------------------------------------------------------------------

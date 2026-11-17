@@ -19,7 +19,7 @@ from uuid import uuid4
 from sqlalchemy import func
 from sqlmodel import Session, and_, select
 
-from agent.constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES, coerce_bool
+from agent.constants import CONTENT_FILE_TYPES, coerce_bool
 from agent.skills.content_budget import SkillContentBudget
 from agent.tools.author_edit_guard import (
     AuthorContentProtectionError,
@@ -157,9 +157,9 @@ _owned_session_var: contextvars.ContextVar[Session | None] = contextvars.Context
     'owned_session', default=None
 )
 
-# 并发子任务的 session 隔离标记（见 ToolContext.get_session 与
-# parallel_executor.execute_task）。放在工具上下文 dict 里而不是 ContextVar，
-# 因为它必须随 task_ctx 的浅拷贝一起进到 asyncio.to_thread 的线程副本。
+# 工作线程的 session 隔离标记（见 ToolContext.get_session 与 _run_sync_tool_in_thread）。
+# 放在工具上下文 dict 里而不是 ContextVar，因为它必须随上下文的浅拷贝一起进到
+# asyncio.to_thread 的线程副本。
 SESSION_ISOLATION_KEY = "isolated_session"
 
 
@@ -172,7 +172,7 @@ class _PendingEmptyFileState:
     任务均不可见（同理 asyncio.to_thread / asyncio.gather 的子任务）。因此这里
     只能原地修改这个持有者对象——set_context 在请求主上下文把它放进
     _tool_context_var 持有的 dict 后，所有子任务的上下文副本（含
-    set_current_agent、parallel_executor task_ctx 的浅拷贝）引用的都是同一个
+    set_current_agent 的浅拷贝）引用的都是同一个
     实例，原地读写天然跨任务可见。
 
     结构从"单槽"改成"按 file_id 的集合"，并把检查与置位收进同一把
@@ -192,7 +192,7 @@ class _PendingEmptyFileState:
     create_file(B)"时，create_file(B) 跑在 adapter 落库之前，会被 A 的条目误拒。
     on_llm_end 钩子确认本条回复里有闭合的 <file> 块后调 mark_body_streamed，
     try_reserve 只被尚未写出正文的条目挡住；条目本身仍由 adapter 落库后清除，
-    has_pending / latest / snapshot 的语义不变（writing_graph 的边界核验照旧兜底）。
+    has_pending / latest / snapshot 的语义不变（单循环 agent 的 run 边界核验照旧兜底）。
     """
 
     __slots__ = (
@@ -670,7 +670,7 @@ class ToolContext:
         if context.get("session"):
             return context["session"]
 
-        # 隔离标记（parallel_executor 为每个并发子任务置位）：本任务**必须**
+        # 隔离标记（工作线程拿到的上下文副本上置位）：本任务**必须**
         # 自建 session，绝不能复用 contextvars 快照从父上下文继承来的
         # _owned_session_var。否则多个工作线程会共用同一个 SQLAlchemy Session
         # （非线程安全），且先结束的线程会在 finally 里把它 close 掉，另一个
@@ -767,21 +767,14 @@ class ToolContext:
         return messages
 
     @classmethod
-    def set_body_requested(cls, requested: bool | None) -> None:
-        """路由对作者本轮是否要正文的判断（routing write_content；None = 不知道）。"""
-        cls._get_context()["body_requested"] = requested
-
-    @classmethod
     def author_wants_no_body(cls) -> bool:
         """create_file 的 empty 是否生效。
 
-        多 agent 图：只在路由明确判断作者这一轮不要正文时生效。单循环 agent 没有路由，由模型按提示
-        判断：它传 empty=true 就是它的判断（写入照旧受 diff 审阅 / 撤销 / 版本保护），不从原话推断。
+        单循环 agent 由模型按提示判断：它传 empty=true 就是它的判断（写入照旧受 diff 审阅 / 撤销 / 版本保护），
+        不从原话推断。
         """
         from agent.tools.registry import LOOP_AGENT_TYPE
 
-        if cls._get_context().get("body_requested") is False:
-            return True
         return cls.get_current_agent() == LOOP_AGENT_TYPE
 
     @classmethod
@@ -922,34 +915,12 @@ class ToolContext:
             _tool_context_var.set({**context, "notes_append_allowed": allowed is True})
 
     @classmethod
-    def set_review_handoff_refusal(cls, message: str | None) -> None:
-        """这一轮不送审时（快速模式 / 作品第一条消息）writer 交给审稿人会收到的拒绝说明；None 表示照常送审。"""
-        context = cls._get_context()
-        if not context:
-            return
-        next_context = dict(context)
-        if message:
-            next_context["review_handoff_refusal"] = message
-        else:
-            next_context.pop("review_handoff_refusal", None)
-        _tool_context_var.set(next_context)
-
-    @classmethod
-    def review_handoff_refusal(cls) -> str | None:
-        message = cls._get_context().get("review_handoff_refusal")
-        return message if isinstance(message, str) and message else None
-
-    @classmethod
     def set_current_agent(cls, current_agent: str | None) -> None:
         """Update current agent in request-scoped context.
 
-        IMPORTANT — current_agent MUST remain in the mutable contextvar (_tool_context_var).
-        Do NOT move it into any frozen/immutable container (e.g. a future RunContext dataclass).
-        Rationale: it is mutated mid-run on every agent transition (writing_graph.py:360),
-        reset to None at run end (:755), and read at handoff time (mcp_tools.py ~1292, ~1319).
-        Freezing it at run-start would leave a stale value, causing silent wrong-agent routing
-        at handoff time — the handoff tool would dispatch to the *previous* agent instead of
-        the intended target.
+        The runner sets it for each agent run and resets it to None at run end; tools read it
+        (e.g. the loop-only create_file / write_chapter rules), so it lives in the mutable
+        request context rather than a value frozen at run start.
         """
         context = cls._get_context()
         if not context:
@@ -1028,8 +999,7 @@ class ToolContext:
 
         Args:
             file_id: 传入时只摘掉指向该文件的条目（流式写入收尾用）；
-                省略表示无条件清空全部（请求/流结束时的兜底清理，以及
-                writing_graph 纠偏边界的清理）。
+                省略表示无条件清空全部（请求/流结束时的兜底清理）。
         """
         state = cls._get_pending_empty_file_state()
         if state is not None:
@@ -1180,7 +1150,7 @@ class ToolContext:
         """获取**全部**待写入空文件（按置位先后）。
 
         单槽时代只能看到最后一个，先建的空文件会成为无人认领的孤儿；
-        需要逐个补写/逐个上报的调用方（如 writing_graph 的纠偏分支）用这个。
+        需要逐个补写/逐个上报的调用方（如单循环 agent 的纠偏分支）用这个。
         """
         state = cls._get_pending_empty_file_state()
         return state.snapshot() if state is not None else []
@@ -1192,97 +1162,6 @@ class ToolContext:
         context = cls._get_context()
         user_id = context.get("user_id")
         return FileToolExecutor(session, user_id)
-
-    @classmethod
-    def refresh_file_inventory(cls) -> dict[str, list[dict[str, Any]]] | None:
-        """刷新文件清单，用于 handoff 时获取最新文件列表。
-
-        Uses a column-only query (no File.content load) and the same
-        sequence-sort ordering as ContextAssembler._get_file_inventory so
-        that the handoff inventory matches the context-block inventory.
-        """
-        context = cls._get_context()
-        project_id = context.get("project_id")
-        if project_id is None:
-            return None
-
-        from sqlmodel import select
-
-        from models import File
-        from utils.title_sequence import build_sequence_sort_key
-
-        # 桶必须覆盖除 folder 外的**全部**实体类型：漏掉的类型会在下面的
-        # `if file_type not in inventory: continue` 处被整类丢弃，Agent 交接后
-        # 看不见自己刚建的 script/document 文件，于是重复创建。
-        # 用共享常量而非就地硬编码，保证与 ContextAssembler 的清单同集合。
-        inventory: dict[str, list[dict[str, Any]]] = {
-            file_type: [] for file_type in INVENTORY_FILE_TYPES
-        }
-
-        # Column-only select: avoids loading File.content (expensive on PG TOAST).
-        # 短生命周期 session：查完立即归还连接（见 short_lived_session）。
-        with cls.short_lived_session() as session:
-            file_rows = session.exec(
-                select(
-                    File.id,
-                    File.title,
-                    File.file_type,
-                    File.order,
-                    File.file_metadata,
-                    File.created_at,
-                ).where(
-                    File.project_id == project_id,
-                    File.file_type != "folder",
-                    File.is_deleted.is_(False),
-                )
-            ).all()
-
-        grouped: dict[str, list[tuple[tuple, dict[str, Any]]]] = {
-            key: [] for key in inventory
-        }
-
-        for file_id, title, file_type, file_order, file_metadata, created_at in file_rows:
-            if file_type not in inventory:
-                continue
-
-            metadata: dict[str, Any] = {}
-            if isinstance(file_metadata, str) and file_metadata:
-                try:
-                    parsed_metadata = json.loads(file_metadata)
-                    if isinstance(parsed_metadata, dict):
-                        metadata = parsed_metadata
-                except (json.JSONDecodeError, TypeError):
-                    pass
-            effective_order, seq_num = build_sequence_sort_key(
-                file_order,
-                title=title,
-                metadata=metadata,
-                file_type=file_type,
-            )
-            sort_key = (effective_order, seq_num, created_at, file_id)
-
-            grouped[file_type].append(
-                (
-                    sort_key,
-                    {
-                        "id": file_id,
-                        "title": title,
-                        # 渲染端（writing_graph._format_file_inventory）要按类型
-                        # 分桶并标注，行里必须自带 file_type，不能只靠桶名。
-                        "file_type": file_type,
-                        "word_count": None,
-                    },
-                )
-            )
-
-        for file_type, rows in grouped.items():
-            if rows:
-                inventory[file_type] = [
-                    item for _, item in sorted(rows, key=lambda x: x[0])
-                ]
-
-        return inventory
-
 
 def _make_result(data: Any, *, tool_name: str | None = None) -> dict[str, Any]:
     """Create a tool result in MCP format."""
@@ -2198,7 +2077,7 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
         # 如果创建的是空文件，把占坑换成真实 file_id
         # folder 例外：文件夹是纯容器节点，永远不会收到 <file>…</file> 正文，
         # 给它置标记后无人清除（标记跨子任务可见），会硬阻断本轮后续所有建档，
-        # 并让 writing_graph 的纠偏分支把章节正文追加到文件夹节点上。
+        # 并让纠偏分支把章节正文追加到文件夹节点上。
         awaiting_body = False
         body_in_reply = False
         if reservation is not None:
@@ -3041,78 +2920,6 @@ def _update_project_sync(
         return _make_error(str(e), tool_name=tool_name)
 
 
-async def handoff_to_agent(args: dict[str, Any]) -> dict[str, Any]:
-    """将任务交接给另一个Agent。这是一个特殊工具，返回值会被图处理。"""
-    tool_name = "handoff_to_agent"
-    target_agent = str(args.get("target_agent", "")).strip().lower()
-    reason = str(args.get("reason", "")).strip()
-    context = args.get("context", "")
-    completed = args.get("completed", [])
-    todo = args.get("todo", [])
-    evidence = args.get("evidence", [])
-
-    if target_agent not in ("planner", "hook_designer", "writer", "quality_reviewer"):
-        return _make_error(f"Invalid target_agent: {target_agent}", tool_name=tool_name)
-
-    current_agent = ToolContext.get_current_agent()
-    if current_agent and target_agent == current_agent:
-        return _make_error(
-            f"Self handoff is not allowed: {current_agent} -> {target_agent}",
-            tool_name=tool_name,
-        )
-
-    # 这一轮不送审：拒绝 writer 交给审稿人，同一次 run 里由 writer 自己给作者写总结。
-    review_refusal = ToolContext.review_handoff_refusal()
-    if review_refusal and current_agent == "writer" and target_agent == "quality_reviewer":
-        return _make_error(review_refusal, tool_name=tool_name)
-
-    # Normalize optional structured handoff fields
-    completed_list = completed if isinstance(completed, list) else []
-    todo_list = todo if isinstance(todo, list) else []
-    evidence_list = evidence if isinstance(evidence, list) else []
-    context_str = str(context).strip()
-    if not context_str:
-        # Some models omit `context` even though downstream workflow relies on it.
-        # Fallback to `reason` (and then a stable generic message) to avoid losing
-        # the handoff signal (e.g. quality_reviewer should not receive the original
-        # user writing request as its task).
-        context_str = reason
-    if not context_str:
-        current_agent = ToolContext.get_current_agent() or "agent"
-        context_str = f"Handoff requested: {current_agent} -> {target_agent}"
-
-    # 返回交接信息，由图节点处理
-    return _make_result({
-        "status": "handoff",
-        "target_agent": target_agent,
-        "reason": reason,
-        "context": context_str,
-        "completed": [str(item) for item in completed_list if str(item).strip()],
-        "todo": [str(item) for item in todo_list if str(item).strip()],
-        "evidence": [str(item) for item in evidence_list if str(item).strip()],
-    }, tool_name=tool_name)
-
-
-async def request_clarification(args: dict[str, Any]) -> dict[str, Any]:
-    """请求用户澄清，触发工作流暂停并等待用户回复。"""
-    tool_name = "request_clarification"
-    question = str(args.get("question", "")).strip()
-    context = str(args.get("context", "")).strip()
-    details = args.get("details", [])
-
-    if not question:
-        return _make_error("question is required", tool_name=tool_name)
-
-    details_list = details if isinstance(details, list) else []
-
-    return _make_result({
-        "status": "clarification_needed",
-        "question": question,
-        "context": context,
-        "details": [str(item).strip() for item in details_list if str(item).strip()],
-    }, tool_name=tool_name)
-
-
 async def load_skill(args: dict[str, Any]) -> dict[str, Any]:
     """按名称加载一个已启用技能的完整方法与资源清单（技能 L2）。"""
     if _should_offload_tool_execution():
@@ -3319,8 +3126,6 @@ MCP_TOOL_HANDLERS: dict[str, Callable[[dict[str, Any]], Any]] = {
     "rename_file": rename_file,
     "query_files": query_files,
     "update_project": update_project,
-    "handoff_to_agent": handoff_to_agent,
-    "request_clarification": request_clarification,
     "load_skill": load_skill,
     "read_skill_resource": read_skill_resource,
 }

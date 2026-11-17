@@ -516,7 +516,7 @@ class StreamAdapter:
             #
             # We deliberately leave the ToolContext pending-empty-file guard set:
             # it is the signal the workflow loop uses to detect an unwritten file
-            # and re-run the writer to complete it (see writing_graph). It is
+            # and re-run the agent to complete it (see agent/loop/engine.py). It is
             # cleared on a successful <file> completion or at full stream end.
             if data.get("stop_reason") == REPETITION_LOOP_STOP_REASON:
                 # 模型在循环里被截停：正在写的正文只保留重复开始之前的部分
@@ -1535,7 +1535,7 @@ class StreamAdapter:
         # 就有正文（create_file 幂等复用命中的已完成分集）。补全出来的正文很
         # 可能只写了个开头，_save_file_content 又是整体替换，写下去等于用残稿
         # 抹掉整集。此处拒绝落库、保留原文。诊断留在日志，作者只看保存事实；
-        # 模型侧既有 create_file 结果与 writing_graph 纠偏协议不变。
+        # 模型侧既有 create_file 结果与空文件纠偏协议不变。
         if self._should_refuse_truncated_overwrite(result):
             pending = self._pending_file_write
             original_length = pending.original_content_length if pending else 0
@@ -1627,7 +1627,7 @@ class StreamAdapter:
 
         传入 file_id 时只清除指向该文件的标记：一份仍在缓冲的文件被新的
         create_file 顶掉时，标记可能已经指向新建的空文件，若被上一份文件的
-        收尾误清，「空文件必须被补写」的信号就丢了（writing_graph 再也不会
+        收尾误清，「空文件必须被补写」的信号就丢了（单循环 agent 再也不会
         安排补写）。file_id 为空表示流结束时的无条件清理，避免标记泄漏到
         下一个请求。
 

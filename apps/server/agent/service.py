@@ -584,7 +584,7 @@ class AgentService:
         )
         skill_catalog = get_skill_context_injector().build_skill_catalog(session, user_id)
         system_prompt = MessageManager(project_id=project_id, user_id=user_id).build_system_prompt(
-            session=session, language=language, skill_catalog=skill_catalog, loop=True
+            session=session, language=language, skill_catalog=skill_catalog
         )
         return history, turn, selected_skills, system_prompt
 

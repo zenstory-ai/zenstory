@@ -1,12 +1,12 @@
 """空文件纠偏轮把正文写回同一个文件：跨层合成回归（不调用模型、不计费）。
 
-生产（prod-v2026.10.24.1）里 create_file 建好空文件后，下一次回复没写正文 run 就结束了：
-MESSAGE_END 把捕获从 WAITING_START 复位成 IDLE；图的纠偏轮又要求 edit_file，而「建文件后的
-下一次回复先写正文」守卫拒绝它，按守卫直接写 <file> 也只会落进聊天。
+create_file 建好空文件后，下一次回复没写正文 run 就结束了：MESSAGE_END 把捕获从 WAITING_START
+复位成 IDLE；纠偏轮要为同一个文件恢复正文捕获，「建文件后的下一次回复先写正文」守卫仍然有效。
 
-这里用真实的 writing_graph、runner（SDK 事件映射与钩子）、tools_adapter（守卫与熔断器）、
+这里用真实的单循环 agent（loop/engine.py）、runner（SDK 事件映射与钩子）、tools_adapter（守卫与熔断器）、
 create_file、StreamAdapter（捕获与落库）、计费与回合回执，以及测试临时数据库；只把模型换成
-按脚本输出的 SDK 事件流，路由换成固定的结构化决定。正文是合成文字。
+按脚本输出的 SDK 事件流。单循环 agent 的 create_file 只建资料文件（正文类走 write_chapter），这里用大纲文件。
+正文是合成文字。
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ from agent.core.stream_billing import StreamBillingTracker
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 from agent.tools.mcp_tools import ToolContext
 from models import File, Project, User
-from services.features.file_version_service import FileVersionService
 from tests.conftest import TestSessionLocal
 from utils.text_metrics import count_words
 
@@ -210,47 +209,21 @@ def workspace(db_session: Session, monkeypatch):
     return SimpleNamespace(user=user, project=project, session=db_session)
 
 
-def _routing(**overrides: Any) -> dict[str, Any]:
-    routing = {
-        "agent_type": "writer",
-        "workflow_type": "quick",
-        "reason": "synthetic",
-        "confidence": 1.0,
-        "read_only": False,
-        "write_content": True,
-        "scope": "写第一章正文",
-        "requested_file_types": ["draft"],
-    }
-    routing.update(overrides)
-    return routing
-
-
-async def _run(
-    workspace, model: ScriptedModel, *, routing: dict[str, Any] | None = None, meter: AgentRunMeter | None = None
-) -> Outcome:
-    from agent.graph.writing_graph import run_writing_workflow_streaming
+async def _run(workspace, model: ScriptedModel, *, meter: AgentRunMeter | None = None) -> Outcome:
+    from agent.loop.engine import run_loop_agent_streaming
 
     message = "写第一章"
     meter = meter or AgentRunMeter()
     state: dict[str, Any] = {
         "user_message": message,
         "router_message": message,
-        "messages": [{"role": "user", "content": message}],
+        "messages": [],
         "system_prompt": "synthetic system",
         "run_meter": meter,
         "project_id": workspace.project.id,
         "user_id": workspace.user.id,
         "session_id": "file-body-resume",
-        "generation_mode": "fast",
     }
-    router = AsyncMock(
-        return_value={
-            "current_agent": "writer",
-            "workflow_plan": "quick",
-            "workflow_agents": [],
-            "routing_metadata": routing or _routing(),
-        }
-    )
     ToolContext.set_context(
         session=None,
         user_id=workspace.user.id,
@@ -265,22 +238,17 @@ async def _run(
     )
     try:
         with (
-            patch.dict("os.environ", {"AGENT_ROUTER_STRATEGY": "llm"}),
-            patch("agent.graph.writing_graph.router_node", router),
             patch("agents.Runner.run_streamed", side_effect=model.run_streamed),
             patch("agent.openai_agents.runner.build_failover_chat_model", return_value="synthetic-model"),
             patch("agent.openai_agents.runner._preferred_model_name", AsyncMock(return_value="synthetic-model")),
             patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record"),
             patch(
-                "agent.graph.writing_graph._auto_finalize_task_board_on_completion",
+                "agent.core.task_board_completion.auto_finalize_task_board_on_completion",
                 AsyncMock(return_value=[]),
             ),
         ):
             frames = [
-                frame
-                async for frame in adapter.process_workflow_events(
-                    run_writing_workflow_streaming(state=state, thread_id="file-body-resume")
-                )
+                frame async for frame in adapter.process_workflow_events(run_loop_agent_streaming(state))
             ]
     finally:
         ToolContext.clear_context()
@@ -291,7 +259,7 @@ def _drafts(workspace) -> list[File]:
     workspace.session.expire_all()
     return list(
         workspace.session.exec(
-            select(File).where(File.project_id == workspace.project.id, File.file_type == "draft")
+            select(File).where(File.project_id == workspace.project.id, File.file_type == "outline")
         ).all()
     )
 
@@ -302,7 +270,7 @@ def _created_id(model: ScriptedModel) -> str:
     return created[0].output["data"]["id"]
 
 
-CREATE = Reply(tools=(("create_file", {"title": CHAPTER, "file_type": "draft"}),))
+CREATE = Reply(tools=(("create_file", {"title": CHAPTER, "file_type": "outline"}),))
 # create_file 之后的那次回复没写正文就结束了 run（生产里的首个失败形态）。
 NARRATE_ONLY = Reply(text="我先理一下这一章的节奏。")
 WRITE_BODY = Reply(text=f"<file>\n{BODY}\n</file>\n\n第一章写好了。")
@@ -508,28 +476,6 @@ async def test_pending_marker_for_another_projects_file_is_never_written(workspa
     assert "合成正文" not in outcome.chat_text
 
 
-@pytest.mark.parametrize("routing", [_routing(read_only=True), _routing(clarify_first=True)])
-async def test_read_only_or_clarify_first_never_schedules_a_resume(workspace, routing):
-    """只读 / 先问清楚：create_file 本身被拒；即使有待写标记也不安排纠偏、不写文件。"""
-    target = File(project_id=workspace.project.id, title=CHAPTER, file_type="draft", content="")
-    workspace.session.add(target)
-    workspace.session.commit()
-    target_id = target.id
-
-    def inject() -> None:
-        ToolContext.set_pending_empty_file(target_id, CHAPTER)
-
-    model = ScriptedModel(runs=[[CREATE, Reply(text="只回答，不改文件。", before=inject)], [WRITE_BODY]])
-
-    outcome = await _run(workspace, model, routing=routing)
-
-    assert len(model.run_inputs) == 1
-    assert [call.output["status"] for call in model.tool_calls] == ["error"]
-    workspace.session.expire_all()
-    assert workspace.session.get(File, target_id).content == ""
-    assert "合成正文" not in outcome.chat_text
-
-
 async def test_cancel_during_resumed_body_saves_only_the_streamed_part(workspace):
     """纠偏轮正文写到一半被取消：已串流的部分按保存回执落库，计数按实际保存。"""
     hang = asyncio.Event()
@@ -538,26 +484,17 @@ async def test_cancel_during_resumed_body_saves_only_the_streamed_part(workspace
     seen: list[Any] = []
     holder: dict[str, StreamAdapter] = {}
 
-    from agent.graph.writing_graph import run_writing_workflow_streaming
+    from agent.loop.engine import run_loop_agent_streaming
 
     message = "写第一章"
     meter = AgentRunMeter()
     state: dict[str, Any] = {
         "user_message": message,
         "router_message": message,
-        "messages": [{"role": "user", "content": message}],
+        "messages": [],
         "system_prompt": "synthetic system",
         "run_meter": meter,
-        "generation_mode": "fast",
     }
-    router = AsyncMock(
-        return_value={
-            "current_agent": "writer",
-            "workflow_plan": "quick",
-            "workflow_agents": [],
-            "routing_metadata": _routing(),
-        }
-    )
     ToolContext.set_context(
         session=None,
         user_id=workspace.user.id,
@@ -574,17 +511,13 @@ async def test_cancel_during_resumed_body_saves_only_the_streamed_part(workspace
     body_started = asyncio.Event()
 
     async def consume() -> None:
-        async for frame in adapter.process_workflow_events(
-            run_writing_workflow_streaming(state=state, thread_id="file-body-resume")
-        ):
+        async for frame in adapter.process_workflow_events(run_loop_agent_streaming(state)):
             seen.append(frame)
             if frame.type.value == "file_content" and "合成正文" in str(frame.data.get("chunk") or ""):
                 body_started.set()
 
     try:
         with (
-            patch.dict("os.environ", {"AGENT_ROUTER_STRATEGY": "llm"}),
-            patch("agent.graph.writing_graph.router_node", router),
             patch("agents.Runner.run_streamed", side_effect=model.run_streamed),
             patch("agent.openai_agents.runner.build_failover_chat_model", return_value="synthetic-model"),
             patch("agent.openai_agents.runner._preferred_model_name", AsyncMock(return_value="synthetic-model")),
@@ -976,27 +909,11 @@ async def test_tool_turn_cap_keeps_a_new_empty_file_the_author_renamed_and_names
     assert outcome.billing() == ("runaway_no_progress", True)
 
 
-async def test_tool_turn_cap_keeps_a_reused_blank_episode_and_names_it_unfinished(workspace):
-    folder, episode = _blank_episode(workspace)
-    reuse = Reply(tools=(("create_file", {"title": "第1集", "file_type": "script", "parent_id": folder.id, "order": 1}),))
-    model = ScriptedModel(runs=[[reuse, _rejected_lookup()]])
-
-    outcome = await _run(workspace, model, routing=_routing(scope="写第1集", requested_file_types=["script"]))
-
-    assert model.tool_calls[0].output["data"]["reused_existing"] is True
-    workspace.session.expire_all()
-    assert workspace.session.get(File, episode.id).is_deleted is False
-    card = _exhaustion_card(outcome)
-    assert card["unfinished_files"] == [{"id": episode.id, "title": "第1集"}]
-    assert card.get("rolled_back_files") in (None, [])
-    _assert_round_stops_without_completion(outcome)
-
-
 # ---------------------------------------------------------------------------
 # 2026-10-25 事故：待补正文被拒后应回到纠偏，而不是盲试到熔断；待补期间只能取消那份文件
 # ---------------------------------------------------------------------------
 
-NEXT_CREATE = ("create_file", {"title": "第二章", "file_type": "draft"})
+NEXT_CREATE = ("create_file", {"title": "第二章", "file_type": "outline"})
 
 
 def _pending_draft_id(model: ScriptedModel) -> str:
@@ -1071,7 +988,7 @@ async def test_recursive_delete_of_the_pending_files_folder_is_refused(workspace
     workspace.session.commit()
     sibling = _seed_written_draft(workspace, parent_id=folder.id)
     folder_id, sibling_id = folder.id, sibling.id
-    create_in_folder = Reply(tools=(("create_file", {"title": CHAPTER, "file_type": "draft", "parent_id": folder_id}),))
+    create_in_folder = Reply(tools=(("create_file", {"title": CHAPTER, "file_type": "outline", "parent_id": folder_id}),))
     model = ScriptedModel(runs=[[create_in_folder, Reply(tools=(("delete_file", {"id": folder_id, "recursive": True}),))],
                                 [WRITE_BODY]])
 
@@ -1109,20 +1026,12 @@ async def test_cancelling_the_exact_pending_file_settles_the_adapter_and_the_gua
     assert outcome.of("error") == [] and len(outcome.of("done")) == 1
 
 
-@pytest.mark.parametrize("limit", ["wrap_up", "model_calls"])
-async def test_no_resume_is_armed_when_time_or_model_budget_is_used_up(workspace, monkeypatch, limit):
-    """图在边界核验空文件时，时间或模型调用预算已不够再跑一轮：不先恢复捕获，按既有路径回滚并报告未完成。"""
-    from agent.graph import writing_graph
+async def test_no_resume_is_armed_when_the_round_is_out_of_time(workspace):
+    """run 边界核验空文件时请求时间已不够再跑一轮：不先恢复捕获，按既有路径回滚并报告未完成。
 
-    meter = AgentRunMeter(wrap_up_after_s=0) if limit == "wrap_up" else AgentRunMeter()
-    probe = writing_graph._probe_pending_file_body
-
-    def probe_after_budget_is_used(file_id: str) -> str:
-        if limit == "model_calls":
-            meter.model_calls = meter.max_model_calls
-        return probe(file_id)
-
-    monkeypatch.setattr(writing_graph, "_probe_pending_file_body", probe_after_budget_is_used)
+    模型调用预算在 run 内用完时由 runner 的上限终态结束（见下一个用例）。
+    """
+    meter = AgentRunMeter(wrap_up_after_s=0)
     model = ScriptedModel(runs=[[CREATE, NARRATE_ONLY], [WRITE_BODY]])
 
     outcome = await _run(workspace, model, meter=meter)
@@ -1212,24 +1121,3 @@ async def test_after_an_exact_cancel_the_same_run_goes_on_to_create_and_write_th
     assert workspace.session.get(File, second_id).content.strip() == BODY
     assert outcome.adapter.get_saved_file_word_counts() == {second_id: count_words(BODY)}
     assert outcome.of("error") == [] and len(outcome.of("done")) == 1
-
-
-async def test_a_reused_episode_with_a_body_is_not_deletable_as_a_cancel(workspace):
-    """create_file 复用了已有剧集（可能已有正文）：待补期间按它的精确 id 删除也不执行。"""
-    folder, episode = _blank_episode(workspace)
-    episode.content = "这一集此前已经写好的合成正文。"
-    workspace.session.add(episode)
-    workspace.session.commit()
-    episode_id = episode.id
-    FileVersionService().create_version(workspace.session, episode_id, "这一集此前已经写好的合成正文。", change_type="create", change_source="ai")
-    reuse = Reply(tools=(("create_file", {"title": "第1集", "file_type": "script", "parent_id": folder.id, "order": 1}),))
-    model = ScriptedModel(runs=[[reuse, Reply(tools=(("delete_file", {"id": episode_id}),))]])
-
-    outcome = await _run(workspace, model, routing=_routing(scope="写第1集", requested_file_types=["script"]))
-
-    assert model.tool_calls[0].output["data"]["reused_existing"] is True
-    assert [call.name for call in model.errors("file_body_pending")] == ["delete_file"]
-    workspace.session.expire_all()
-    kept = workspace.session.get(File, episode_id)
-    assert kept.is_deleted is False and kept.content == "这一集此前已经写好的合成正文。"
-    assert len(outcome.of("done")) == 1

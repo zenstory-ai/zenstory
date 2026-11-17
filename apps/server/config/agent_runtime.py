@@ -1,8 +1,8 @@
 """
 Centralized runtime configuration for agent orchestration.
 
-Keeps key workflow limits in one place so prompts, graph logic, and service
-entrypoints use the same thresholds and iteration budgets.
+Keeps key workflow limits in one place so prompts, the single loop agent and
+service entrypoints use the same thresholds and iteration budgets.
 """
 
 import os
@@ -20,30 +20,6 @@ def _get_int_env(name: str, default: int, minimum: int = 1) -> int:
     return value if value >= minimum else default
 
 
-def _get_bool_env(name: str, default: bool = False) -> bool:
-    """Read a boolean environment variable with safe fallback."""
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def _get_str_env(
-    name: str,
-    default: str,
-    *,
-    allowed: set[str] | None = None,
-) -> str:
-    """Read a string environment variable with normalization + allowlist."""
-    raw = os.getenv(name)
-    value = default if raw is None else raw.strip()
-
-    normalized = value.lower()
-    if allowed is not None and normalized not in allowed:
-        return default
-    return normalized
-
-
 # Iteration budgets. These caps ARE cost controls: one request is charged one quota unit
 # no matter how many model calls it makes, and every extra turn re-sends the whole growing
 # context (2026-10 incident: agents re-read the same files until the 100-turn cap, twice in
@@ -51,9 +27,9 @@ def _get_str_env(
 # (agent/openai_agents/repeat_read_guard.py, runner.SOFT_LANDING_TURNS) stop most loops
 # early; these caps bound whatever slips through. All remain env-overridable.
 
-# Multi-agent collaboration loop budget (writer/planner/reviewer handoffs).
-# The longest planned workflow (full: planner → hook_designer → writer) plus two
-# review rounds, rework and an empty-file correction fits in 12.
+# How many times the single loop agent may run within one turn (re-runs for an
+# empty-file correction, a file-stream continuation or mid-turn steering). The
+# variable name predates the loop agent and stays unchanged for deployed overrides.
 AGENT_COLLABORATION_MAX_ITERATIONS = _get_int_env(
     "AGENT_COLLABORATION_MAX_ITERATIONS",
     12,
@@ -104,30 +80,6 @@ AGENT_CONTEXT_TOKEN_BUDGET = _get_int_env(
 AGENT_WORKING_SET_MAX_FILES = _get_int_env("AGENT_WORKING_SET_MAX_FILES", 8)
 AGENT_WORKING_SET_MAX_CHARS = _get_int_env("AGENT_WORKING_SET_MAX_CHARS", 60000)
 
-# Content length threshold for auto-handoff to quality reviewer
-AGENT_AUTO_REVIEW_THRESHOLD_CHARS = _get_int_env(
-    "AGENT_AUTO_REVIEW_THRESHOLD_CHARS",
-    500,
-)
-
-# Router strategy used by writing graph:
-# - llm: call router_node (extra LLM round-trip)
-# - off: always start from writer (no routing)
-AGENT_ROUTER_STRATEGY = _get_str_env(
-    "AGENT_ROUTER_STRATEGY",
-    "llm",
-    allowed={"llm", "off"},
-)
-
-# Whether writing_graph.py auto-triggers the quality reviewer on writer output length when
-# the request carries no generation_mode. Default **False**: the loop engine replaced the
-# fast/quality switch (the web sends a fixed "fast" only for deploy-skew compatibility), so a
-# rollback to the graph must not add a review + rework round to every turn. An explicit "quality" still enables it.
-AGENT_ENABLE_GRAPH_AUTO_REVIEW = _get_bool_env(
-    "AGENT_ENABLE_GRAPH_AUTO_REVIEW",
-    False,
-)
-
 # Request-level budget for one POST /agent/stream (cost / runaway safety net).
 # The per-agent and collaboration caps above multiply (60 × 12), so a single
 # request could otherwise make hundreds of model calls for one quota unit.
@@ -161,20 +113,6 @@ AGENT_DRAIN_SHUTDOWN_BUDGET_S = _get_int_env("AGENT_DRAIN_SHUTDOWN_BUDGET_S", 29
 
 # Interval between SSE keep-alive comment frames (": ping") while streaming.
 AGENT_SSE_HEARTBEAT_INTERVAL_S = _get_int_env("AGENT_SSE_HEARTBEAT_INTERVAL_S", 15)
-
-# Chat engine for /agent/stream. "loop" (default): one agent with the writing toolset runs the
-# whole turn over an append-only conversation (agent/loop). "graph": the earlier multi-agent
-# workflow (router → planner / writer / quality_reviewer), kept only as an operational rollback.
-# Read per request so an environment change on restart takes effect without code changes.
-AGENT_ENGINE_LOOP = "loop"
-AGENT_ENGINE_GRAPH = "graph"
-AGENT_ENGINE_CHOICES = frozenset({AGENT_ENGINE_LOOP, AGENT_ENGINE_GRAPH})
-
-
-def agent_engine() -> str:
-    """The configured chat engine (unknown values fall back to the loop)."""
-    return _get_str_env("AGENT_ENGINE", AGENT_ENGINE_LOOP, allowed=set(AGENT_ENGINE_CHOICES))
-
 
 # Loop history compaction (agent/loop/compaction.py), between turns only. When the prompt of
 # the last model call of the previous turn (measured, cached tokens included) exceeds this,

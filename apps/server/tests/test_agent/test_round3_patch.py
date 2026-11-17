@@ -2,10 +2,8 @@
 
 覆盖独立复核提出的、上一轮修复没有闭合到位的缺口：
 
-- bug-02 消费端：writing_graph._format_file_inventory 硬编码类型名，
-  script / document / snippet 被整类丢弃（数据源改了、渲染端没改）。
-- C3 两侧键名不一致：router._extract_usage 产出 prompt/completion，
-  runner 产出 input/output，_merge_usage 按字面键相加导致只有 total 被合并。
+- C3 键名不一致：上游产出 prompt/completion 别名、runner 产出 input/output 时，
+  _merge_usage 按字面键相加导致只有 total 被合并。
 - offload 契约两侧不一致：工具恒进线程池，但 ToolContext 里仍放着请求级
   Session，多个并发工具线程会共用同一个 SQLAlchemy Session。
 - stream_adapter 的 edit_file 全失败降级块变成死代码，前端拿到空白失败卡。
@@ -16,14 +14,12 @@
 import asyncio
 import json
 import time
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 from sqlmodel import Session, select
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
-from agent.graph.writing_graph import _format_file_inventory
 from agent.stream_adapter import StreamAdapter
 from agent.tools import mcp_tools
 from agent.tools.mcp_tools import ToolContext
@@ -66,176 +62,7 @@ def _mcp_result(payload: dict) -> dict:
 # --------------------------------------------------------- bug-02 消费端：handoff 清单渲染
 
 
-def test_format_file_inventory_includes_script_files():
-    """短剧项目的正文是 script。渲染端漏掉它，交接后的 writer 看不到已写好的
-    分集，会继续重复创建——这正是 bug-02 原文列出的症状。"""
-    text = _format_file_inventory(
-        {
-            "outline": [{"id": "o1", "title": "总纲", "file_type": "outline"}],
-            "draft": [],
-            "script": [
-                {"id": "s1", "title": "第1集", "file_type": "script"},
-                {"id": "s2", "title": "第2集", "file_type": "script"},
-            ],
-            "character": [],
-            "lore": [],
-        }
-    )
-
-    assert "第1集(id=s1)" in text
-    assert "第2集(id=s2)" in text
-    assert "总纲(id=o1)" in text
-
-
-def test_format_file_inventory_keeps_document_and_snippet_in_fallback_bucket():
-    """document 是 create_file 的默认类型，snippet 是片段：任何一类被静默丢弃，
-    Agent 都会对自己刚建的文件失明。"""
-    text = _format_file_inventory(
-        {
-            "document": [{"id": "d1", "title": "设定备忘", "file_type": "document"}],
-            "snippet": [{"id": "p1", "title": "灵感片段", "file_type": "snippet"}],
-        }
-    )
-
-    assert "设定备忘(id=d1)" in text
-    assert "灵感片段(id=p1)" in text
-
-
-def test_format_file_inventory_keeps_unknown_new_types():
-    """将来新增的 file_type 也必须进兜底桶，而不是从清单里凭空消失。"""
-    text = _format_file_inventory({"storyboard": [{"id": "b1", "title": "分镜一"}]})
-    assert "分镜一(id=b1)" in text
-
-
-def test_format_file_inventory_labels_mixed_content_types():
-    """draft 与 script 合并进「正文」时必须带类型标注，否则读不出是哪一类。"""
-    text = _format_file_inventory(
-        {
-            "draft": [{"id": "d1", "title": "第一章", "file_type": "draft"}],
-            "script": [{"id": "s1", "title": "第1集", "file_type": "script"}],
-        }
-    )
-
-    content_line = next(line for line in text.splitlines() if line.startswith("正文:"))
-    assert "第一章(id=d1)[正文]" in content_line
-    assert "第1集(id=s1)[剧本]" in content_line
-
-
-def test_format_file_inventory_empty_inventory_returns_empty_string():
-    assert _format_file_inventory({"outline": [], "draft": []}) == ""
-
-
-@pytest.mark.integration
-def test_refresh_file_inventory_rows_carry_file_type(db_session: Session):
-    """渲染端要按类型分桶标注，数据源的行字典必须自带 file_type。"""
-    _, project = _make_user_project(db_session, "inv")
-    db_session.add(
-        File(project_id=project.id, title="第1集", file_type="script", content="正文")
-    )
-    db_session.commit()
-
-    ToolContext.set_context(db_session, "u", project.id, "s")
-    try:
-        inventory = ToolContext.refresh_file_inventory()
-    finally:
-        ToolContext.clear_context()
-
-    assert inventory is not None
-    assert inventory["script"][0]["file_type"] == "script"
-
-    # 端到端：数据源 → 渲染端，script 必须出现在 handoff 文本里
-    assert "第1集" in _format_file_inventory(inventory)
-
-
 # ------------------------------------------------------------------- C3：usage 键名统一
-
-
-def test_router_extract_usage_uses_canonical_keys():
-    from agent.graph.router import _extract_usage
-
-    usage = _extract_usage(
-        SimpleNamespace(
-            usage=SimpleNamespace(
-                prompt_tokens=120,
-                completion_tokens=30,
-                total_tokens=150,
-                prompt_tokens_details=SimpleNamespace(cached_tokens=100),
-            )
-        )
-    )
-
-    # 缓存命中部分必须从 input_tokens 里扣出来，否则同一批 token 会被
-    # 按输入价 + 缓存价重复计价（下游用量公式是相加）。
-    assert usage == {
-        "input_tokens": 20,
-        "output_tokens": 30,
-        "cache_read_tokens": 100,
-        "total_tokens": 150,
-    }
-    assert "prompt_tokens" not in usage
-    assert "completion_tokens" not in usage
-
-
-def test_router_extract_usage_without_usage_returns_none():
-    from agent.graph.router import _extract_usage
-
-    assert _extract_usage(SimpleNamespace()) is None
-    assert _extract_usage(SimpleNamespace(usage=SimpleNamespace())) is None
-
-
-@pytest.mark.asyncio
-async def test_router_usage_and_agent_usage_merge_into_one_key_family():
-    """router 的用量与 runner 的用量必须落在同一族键上再相加。
-
-    键名不统一时两族并存：只有 total_tokens 被相加，而下游
-    下游用量汇总取 input_tokens 时读到的是 runner 那一份，
-    router 的 prompt_tokens 被静默丢弃 —— total ≠ input+output+cache。
-    """
-    adapter = StreamAdapter()
-
-    await _drain(
-        adapter,
-        StreamEvent(
-            type=StreamEventType.ROUTER_DECIDED,
-            data={
-                "initial_agent": "writer",
-                # router 侧（Chat Completions 原生键名，经 _extract_usage 归一后的形态）
-                "routing_usage": {
-                    "input_tokens": 100,
-                    "output_tokens": 20,
-                    "cache_read_tokens": 5,
-                    "total_tokens": 125,
-                },
-            },
-        ),
-    )
-    await _drain(
-        adapter,
-        StreamEvent(
-            type=StreamEventType.MESSAGE_END,
-            data={
-                "stop_reason": "end_turn",
-                "usage": {
-                    "input_tokens": 900,
-                    "output_tokens": 80,
-                    "cache_read_tokens": 15,
-                    "total_tokens": 995,
-                },
-            },
-        ),
-    )
-
-    usage = adapter.get_last_message_metadata()["usage"]
-    assert usage == {
-        "input_tokens": 1000,
-        "output_tokens": 100,
-        "cache_read_tokens": 20,
-        "total_tokens": 1120,
-    }
-    assert (
-        usage["total_tokens"]
-        == usage["input_tokens"] + usage["output_tokens"] + usage["cache_read_tokens"]
-    )
 
 
 @pytest.mark.asyncio
