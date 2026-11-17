@@ -1251,6 +1251,27 @@ describe('AI replaces the open chapter, then edits it again in the same round', 
     });
   }
 
+  it('rejecting every AI change keeps the unsaved author text unsaved, then saves it on the latest token', async () => {
+    const typed = `${ORIGINAL}作者补的一句。`;
+    await typeThenAiWrites(typed, 2);
+    act(() => harness.project!.rejectAllEdits());
+    finishReview();
+    await settle();
+
+    // The reviewed text adds nothing to the author's: the review closes without a save,
+    // so the editor must not claim the author's text was saved.
+    expect(review()).toBeNull();
+    expect(textarea().value).toBe(typed);
+    expect(putsFor(CH1.id)).toHaveLength(0);
+    act(() => { window.dispatchEvent(new Event('pagehide')); });
+    expect(readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH1.id })?.content).toBe(typed);
+
+    await advance(3500); await settle();
+    expect(putsFor(CH1.id)).toHaveLength(1);
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: typed, base_updated_at: T_EDITED });
+    expect(server.files.get(CH1.id)!.content).toBe(typed);
+  });
+
   it('a second content-bearing write keeps the earliest original of the open review', async () => {
     await replaceChapter();
     server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: EDITED, updated_at: T_EDITED });

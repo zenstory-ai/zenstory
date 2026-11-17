@@ -1256,7 +1256,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
         if (currentFileRef.current) currentFileRef.current = onLatest(currentFileRef.current);
         setFile((prev) => (prev ? onLatest(prev) : null));
         if (outcome === "local") {
-          // The reviewed text adds nothing to the author's: keep it, saved on the latest token.
+          // The reviewed text adds nothing to the author's: keep it, still unsaved, on the
+          // latest token (SimpleEditor's autosave then saves it there).
           exitDiffReview();
           if (currentFileRef.current) keepLocalOnServerCopy(currentFileRef.current, reviewedTitle);
         } else {
@@ -1747,6 +1748,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       fileType: file.file_type,
       fileTitle: editTitle,
       baseUpdatedAt: file.updated_at,
+      savedContent: file.content ?? "",
       title: editTitle,
       content: editContent,
       streamingContent: isStreaming ? streamingContent : undefined,
