@@ -937,3 +937,59 @@ def test_parallel_range_subtasks_use_their_own_keys_and_partial_is_not_full_text
     }
     fresh.observe("parallel_execute", plan, _parallel_output([result]))
     assert fresh.files_read == {}
+
+
+def _write_chapter_target(guard: RepeatReadGuard, file_id: str = "f1", title: str = "第一章") -> None:
+    """write_chapter 把已有章节定为整章替换：成功但 mutation_applied=false，新正文之后由 StreamAdapter 落库。"""
+    args = json.dumps({"chapter": 1})
+    output = json.dumps(
+        {"status": "success", "mutation_applied": False, "data": {"id": file_id, "title": title, "action": "replace"}},
+        ensure_ascii=False,
+    )
+    guard.observe("write_chapter", guard.plan("write_chapter", args), output)
+
+
+@pytest.mark.unit
+def test_whole_chapter_replacement_target_resets_reads_of_that_chapter():
+    """定为整章替换之后，这一章会被新正文换掉：再读不能提示「之后未被修改」，也不能被拦下。"""
+    guard = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(guard)
+    _write_chapter_target(guard)
+
+    reread = json.loads(_guarded_read(guard))
+    assert reread["status"] == "success" and "read_hint" not in reread
+    assert guard.files_targeted == {"f1": "第一章"}
+    assert guard.files_written == {}, "定位不是写入"
+
+    # 其他「成功但没改」的写工具结果（同名 rename 等）不清零
+    renamed = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(renamed)
+    renamed.observe(
+        "rename_file",
+        renamed.plan("rename_file", json.dumps({"id": "f1", "title": "第一章"})),
+        json.dumps({"status": "success", "mutation_applied": False, "data": {"id": "f1", "title": "第一章"}}),
+    )
+    assert json.loads(_guarded_read(renamed))["error_type"] == REPEATED_READ_ERROR_TYPE
+
+
+@pytest.mark.unit
+def test_body_saved_by_the_stream_resets_reads_made_before_the_save():
+    """同一批里定位后又读过一次、正文随后落库：落库之后再读是在看新正文，不算重复。"""
+    from agent.tools.mcp_tools import ToolContext
+
+    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    try:
+        ToolContext._get_pending_empty_file_state(create=True)
+        guard = RepeatReadGuard()
+        _write_chapter_target(guard)
+        _guarded_read(guard)
+        assert "read_hint" in json.loads(_guarded_read(guard)), "落库之前的重复读取照常提示"
+
+        ToolContext.mark_chapter_body_saved("f1", "第一章")
+        reread = json.loads(_guarded_read(guard))
+        assert reread["status"] == "success" and "read_hint" not in reread
+        assert "read_hint" in json.loads(_guarded_read(guard)), "落库之后的重复读取重新计数"
+    finally:
+        ToolContext.clear_context()

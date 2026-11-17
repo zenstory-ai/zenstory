@@ -238,6 +238,8 @@ class RepeatReadGuard:
     # 任意一次写工具成功（有些写入拿不到 id，例如结果被截断）。
     write_succeeded: bool = False
     _titles: dict[str, str] = field(default_factory=dict)
+    # 已经按「正文落库」清过读取计数的文件（ToolContext.saved_bodies_this_request 的 id）。
+    _saved_bodies_seen: set[str] = field(default_factory=set)
 
     @property
     def is_open(self) -> bool:
@@ -253,6 +255,7 @@ class RepeatReadGuard:
 
     # ------------------------------------------------------------------ plan
     def plan(self, tool_name: str, raw_arguments: str) -> ReadPlan:
+        self._forget_newly_saved_bodies()
         if tool_name == READ_TOOL_NAME:
             return self._plan_direct_read(raw_arguments)
         if tool_name == PARALLEL_TOOL_NAME:
@@ -369,7 +372,7 @@ class RepeatReadGuard:
     def observe(self, tool_name: str, plan: ReadPlan, output_text: str) -> str:
         """记录一次工具结果；返回交给模型的输出（重复读取时附提示）。"""
         if tool_name in WRITE_TOOL_NAMES:
-            self._observe_direct_write(plan.arguments, output_text)
+            self._observe_direct_write(tool_name, plan.arguments, output_text)
             return output_text
         if tool_name == READ_TOOL_NAME and plan.read_keys:
             return self._observe_direct_read(plan, output_text)
@@ -463,7 +466,16 @@ class RepeatReadGuard:
         for key in [key for key in self._read_counts if key[1] == file_id]:
             del self._read_counts[key]
 
-    def _observe_direct_write(self, raw_arguments: str, output_text: str) -> None:
+    def _forget_newly_saved_bodies(self) -> None:
+        """StreamAdapter 落库的正文（整章替换、新建正文）不经过写工具的结果：按保存点的结构化记录清零读取计数。"""
+        from agent.tools.mcp_tools import ToolContext
+
+        for file_id in ToolContext.saved_bodies_this_request():
+            if file_id not in self._saved_bodies_seen:
+                self._saved_bodies_seen.add(file_id)
+                self._forget_reads(file_id)
+
+    def _observe_direct_write(self, tool_name: str, raw_arguments: str, output_text: str) -> None:
         payload = _load_json(output_text)
         if payload is None:
             return
@@ -494,6 +506,9 @@ class RepeatReadGuard:
                 if title:
                     self._titles[file_id] = title
                 self.files_targeted[file_id] = self._titles.get(file_id, title)
+                if tool_name == "write_chapter":
+                    # 定为待写 / 整章替换：接下来这一章会被新正文换掉，之前的读取不再代表文件内容。
+                    self._forget_reads(file_id)
             return
         self._record_write(file_id, title)
 
