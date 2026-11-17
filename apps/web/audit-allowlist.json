@@ -1,0 +1,8 @@
+[
+  {
+    "id": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "reason": "ReDoS on attacker-supplied glob patterns; every picomatch release through 4.0.7 is affected and no patched version exists. It is only reached through build and test tooling (vite, vitest, rollup, typescript-eslint, rollup-plugin-visualizer), which only evaluates glob patterns written in this repository.",
+    "review_by": "2026-12-17"
+  }
+]
