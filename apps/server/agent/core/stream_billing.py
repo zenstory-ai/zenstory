@@ -24,7 +24,9 @@
 
 「实质产出」（``produced_output``）只有两种：
 
-- 写入留下了正文（``write_succeeded``）：流式文件正文非空；``create_file`` 带着非空
+- 写入留下了正文（``write_succeeded``）：流式文件正文非空（``write_chapter`` 整章替换的
+  目标除外：它的流式正文在 ``</file>`` 之前没有落库，中途停止 / 断线 / 到时都不覆盖原文，
+  只认落库后补发的 ``body_saved`` 且 ``mutation_applied`` 结果）；``create_file`` 带着非空
   正文新建（复用已有文件不算）；``edit_file`` 真的改动了文字（``mutation_applied``）；
   ``delete_file`` 成功；``parallel_execute`` 里有写入类子任务完成（整批的 tool_result，
   或批次中途被打断前已完成子任务的 ``parallel_task_end``）；``update_project`` 改了
@@ -179,6 +181,8 @@ class StreamBillingTracker:
     created_empty_versions: dict[str, str] = field(default_factory=dict)
     # 收到过非空流式正文的文件 id。
     filled_file_ids: set[str] = field(default_factory=set)
+    # write_chapter 定位为整章替换的已有章节（结果 action=replaced 的 id）：它们的流式正文不算写入。
+    replace_target_ids: set[str] = field(default_factory=set)
     # session_started 帧里的聊天会话 id（停止路径的 done 帧带上它）。
     session_id: str | None = None
     # 这一轮结束（终止帧 / error 帧）时，模型最后在做的是给作者写回复：最后一段正文
@@ -275,7 +279,9 @@ class StreamBillingTracker:
         if not isinstance(data, dict):
             return
         if payload.get("tool_name") == "write_chapter" and data.get("action") != "created":
-            # 整章替换的目标是已有的章节，不是这一轮建的空白占位。
+            # 整章替换的目标是已有的章节，不是这一轮建的空白占位；它的流式正文要等落库结果才算写入。
+            if data.get("action") == "replaced" and isinstance(data.get("id"), str) and data["id"]:
+                self.replace_target_ids.add(data["id"])
             return
         file_id = data.get("id")
         if (
@@ -295,6 +301,9 @@ class StreamBillingTracker:
     def _write_effect(self, event_type: str, payload: dict[str, Any]) -> bool:
         """这一帧是否意味着某个文件被写进了正文（或被删除）、项目信息被改了。"""
         if event_type == "file_content":
+            if payload.get("file_id") in self.replace_target_ids:
+                # 整章替换的正文在 </file> 之前只在缓冲里，没写完的不覆盖原文：只认落库后补发的结果。
+                return False
             return bool(str(payload.get("chunk") or "").strip())
         if event_type in ("parallel_task_start", "parallel_task_end"):
             return self._parallel_task_wrote(event_type, payload)

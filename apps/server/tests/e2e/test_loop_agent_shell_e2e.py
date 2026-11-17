@@ -379,3 +379,58 @@ async def test_loop_steering_during_a_run_is_taken_up_in_the_same_turn(
     db_session.expire_all()
     rows = db_session.exec(select(ChatMessage).where(ChatMessage.session_id == session_id)).all()
     assert any(r.role == "user" and "改写第二章提纲" in (r.content or "") for r in rows)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ending", ["user_stopped", "client_disconnected", "deadline"])
+async def test_loop_replacement_cut_off_mid_body_leaves_the_chapter_and_is_refunded(
+    client: AsyncClient, db_session: Session, shell_db, scripted, monkeypatch, ending
+):
+    """整章替换的正文流到一半就停止 / 断线 / 到时：原文不变，流过的正文不算产出，这一轮退还。"""
+    from services.quota_service import quota_service
+
+    user, _token, project = await _login(client, db_session)
+    three = _ai_chapter(db_session, project, "第3章 灯塔", "合成第三章原文。")
+    if ending == "deadline":
+        monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 1.0)
+        monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.1)
+    hang = asyncio.Event()
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第三章", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{NEW_BODY}\n{NEW_BODY}", hang=hang),
+    ]])
+
+    real_release = quota_service.release_ai_conversation
+    patches = scripted(model)
+    received: list[str] = []
+    with patches[0], patches[1], patches[2], patches[3], patch.object(
+        quota_service, "release_ai_conversation", side_effect=real_release
+    ) as release:
+        response = await _start(db_session, user, project, "把第三章换成新稿")
+        iterator = response.body_iterator
+        await _read_until(iterator, "file_content", received)
+        if ending == "user_stopped":
+            stopped = await agent_api.stop_stream(
+                body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+                current_user=user,
+                _rate_limit=0,
+            )
+            assert stopped.stop_requested is True
+            received.extend([frame async for frame in iterator])
+        elif ending == "client_disconnected":
+            await iterator.aclose()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
+        else:
+            received.extend([frame async for frame in iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert _content(db_session, three.id) == "合成第三章原文。"
+    release.assert_called_once()
+    text = "".join(received)
+    if ending == "deadline":
+        assert "ERR_AGENT_RUN_TIMEOUT" in text
+    if ending != "client_disconnected":
+        assert "event: quota_refunded" in text
+    if ending == "user_stopped":
+        metadata = json.loads(_assistant_row(db_session, project).message_metadata)
+        assert metadata["stop_outcome"]["charged"] is False

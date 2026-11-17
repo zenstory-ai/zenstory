@@ -149,7 +149,8 @@ agent/
   `services/chat_tool_cards` 的撤销标记接受 write_chapter 卡）。版本变了或作者保护命中时不覆盖、发「这一章的整章替换没有保存，原文保持不变」、
   补发 `body_saved=false`，然后结束这一轮（`_stop_after_refused_replace`：之后的模型文字不放出，正常 done；`ToolContext.close_pending_body_files`
   撤销模型跑在前面建好的空文件，之后才建好的由 `_create_file_sync` 自己撤销）。计费（`StreamBillingTracker._write_effect`）：write_chapter
-  新建同 create_file 只看 content，替换只认 `body_saved` 且 `mutation_applied` 的补发结果；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文。
+  新建同 create_file 只看 content，替换只认 `body_saved` 且 `mutation_applied` 的补发结果（替换目标即结果 `action=replaced` 的 id 记进
+  `replace_target_ids`，它的流式 file_content 不算写入：正文流到一半停止 / 断线 / 到时，原文不变，照常退还）；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文。
 - **create_file / edit_file 的正文边界**：单循环轮次里 create_file 不建 draft / script（按 `resolve_create_target` 归一后的类型，剧本分集目录下带集号的 document 同样拒绝；
   `chapter_body_requires_write_chapter`，指向 write_chapter）；
   edit_file 改 draft / script 时 `FileEditor.edit_file(body_guards=True)` 在提交前做两道逐字检查（`file_ops.edit.check_body_edit_guards`，不判断语义）：
