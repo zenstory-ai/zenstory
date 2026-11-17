@@ -69,3 +69,55 @@ def test_only_draft_bodies_are_normalized():
     assert normalize_ai_body_first_indent("第一段。" + INDENTED_REST, "draft").startswith("　　第一段。")
     assert normalize_ai_body_first_indent(body, "script") == body
     assert normalize_ai_body_first_indent("第一段。" + INDENTED_REST, "outline") == "第一段。" + INDENTED_REST
+
+
+@pytest.mark.parametrize(
+    "first",
+    [
+        "序章",
+        "楔子",
+        "一",
+        "一、",
+        "1",
+        "1.",
+        "二。",
+        "第一章雨夜",  # 章字后面没有分隔符，不算标题行，但也不像一段话
+        "Chapter One",
+        "雨夜",
+        "1-1 日 内 公司大堂",
+        "（未完）",
+    ],
+)
+def test_short_marker_or_title_lines_are_not_treated_as_the_first_paragraph(first):
+    body = first + INDENTED_REST
+    assert indent_unindented_first_paragraph(body) == body
+
+
+@pytest.mark.parametrize(
+    "first",
+    [
+        "——你终于来了。",
+        "……雨还在下。",
+        "“走吧”",
+        "他刚要开口——",
+        '"Go," she said.',
+    ],
+)
+def test_dash_ellipsis_and_quote_paragraphs_are_indented(first):
+    body = first + INDENTED_REST
+    fixed = indent_unindented_first_paragraph(body)
+    assert fixed == "　　" + body
+    assert count_words(fixed) == count_words(body)
+
+
+@pytest.mark.parametrize("separator_line", ["——", "……", "———"])
+def test_dash_or_ellipsis_only_lines_are_separators(separator_line):
+    body = separator_line + INDENTED_REST
+    assert indent_unindented_first_paragraph(body) == body
+
+
+def test_paragraph_under_a_leading_heading_is_indented():
+    body = "第三章 雨夜\n第一段合成正文。" + INDENTED_REST
+    fixed = indent_unindented_first_paragraph(body)
+    assert fixed == "第三章 雨夜\n　　第一段合成正文。" + INDENTED_REST
+    assert indent_unindented_first_paragraph(fixed) == fixed
