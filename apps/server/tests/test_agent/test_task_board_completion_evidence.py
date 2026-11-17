@@ -868,3 +868,81 @@ def test_task_evidence_spec_requires_type_for_legacy_text_but_accepts_structured
 
 def test_format_units():
     assert format_units({2, 3, 4, 6, 8, 9}, "集") == "第2–4、6、8–9集"
+
+
+# ------------------------------------------------------------ committed-write evidence
+
+
+def _guard_observing(tool: str, payload: dict, args: dict | None = None) -> RepeatReadGuard:
+    guard = RepeatReadGuard()
+    guard.observe(tool, ReadPlan(arguments=json.dumps(args or {})), json.dumps(payload))
+    return guard
+
+
+@pytest.mark.parametrize(
+    ("tool", "payload"),
+    [
+        ("write_chapter", {"status": "success", "mutation_applied": False, "data": {"id": "ch1", "title": "第1章", "action": "exists"}}),
+        ("rename_file", {"status": "success", "mutation_applied": False, "data": {"id": "ch1", "title": "第1章"}}),
+        ("write_chapter", {"status": "success", "mutation_applied": False, "data": {"id": "ch1", "title": "第1章", "action": "replaced"}}),
+    ],
+    ids=["exists", "same_title_rename", "replace_target"],
+)
+def test_successful_calls_that_change_nothing_are_not_writes(tool, payload):
+    guard = _guard_observing(tool, payload)
+
+    assert guard.written_file_ids() == []
+    assert guard.write_succeeded is False
+
+
+@pytest.mark.asyncio
+async def test_noop_write_leaves_the_task_open():
+    update = AsyncMock()
+    guard = _guard_observing(
+        "write_chapter",
+        {"status": "success", "mutation_applied": False, "data": {"id": "ch1", "title": "第1章", "action": "exists"}},
+    )
+    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    try:
+        with (
+            patch(
+                "services.infra.task_board_service.task_board_service.get_tasks",
+                return_value=[_draft_range_task()],
+            ),
+            patch("agent.core.task_board_completion.update_project", update),
+        ):
+            assert await auto_finalize_task_board_on_completion(guard) == []
+    finally:
+        ToolContext.clear_context()
+
+    update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_replaced_chapter_with_a_confirmed_body_save_counts_as_written():
+    """整章替换的定位结果不算写入；StreamAdapter 确认落库后记下的正文才算。"""
+    update = AsyncMock(return_value={"content": []})
+    guard = _guard_observing(
+        "write_chapter",
+        {"status": "success", "mutation_applied": False, "data": {"id": "c2", "title": "第2章", "action": "replaced"}},
+    )
+    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    try:
+        ToolContext.mark_chapter_body_saved("c2", "第2章")
+        with (
+            patch(
+                "services.infra.task_board_service.task_board_service.get_tasks",
+                return_value=[_draft_range_task()],
+            ),
+            patch(
+                "agent.core.task_board_completion._existing_written_artifacts",
+                return_value=[_artifact("c2", "第2章", "draft", {"chapter_number": 2})],
+            ) as existing,
+            patch("agent.core.task_board_completion.update_project", update),
+        ):
+            await auto_finalize_task_board_on_completion(guard)
+    finally:
+        ToolContext.clear_context()
+
+    existing.assert_called_once_with(["c2"])
+    update.assert_awaited_once()

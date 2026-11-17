@@ -201,7 +201,52 @@ _BODY = StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n第二集�
 _DONE = StreamEvent(type=StreamEventType.TEXT, data={"text": "第2集写好了。"})
 
 
-async def test_reply_with_summary_after_file_close_is_not_continued():
+def _saving_runner(runs: list[list[StreamEvent]], saves: list[list[tuple[str, str]]], calls: list[str]):
+    """每次 run 开始时按 saves 记下这次 run 确认落库的正文（StreamAdapter 保存点记的同一份结构化事实）。"""
+    pending_saves = list(saves)
+
+    def before():
+        for file_id, title in pending_saves.pop(0) if pending_saves else []:
+            ToolContext.mark_chapter_body_saved(file_id, title)
+
+    inner = _runner(runs, before=before)
+
+    async def fake(*, state, **kwargs):
+        calls.append(str(state.get("user_message") or ""))
+        async for event in inner(state=state, **kwargs):
+            yield event
+
+    return fake
+
+
+async def test_reply_with_summary_after_a_saved_body_is_self_checked():
+    """正文保存后模型多写了一句总结：是否续跑看保存事实，不看 </file> 之后有没有文字。"""
+    calls: list[str] = []
+    await _collect(
+        _state(user_message="写第1到3集"),
+        _saving_runner([[*_create_events(), _BODY, _DONE], [_DONE]], [[("ep2", "第2集")]], calls),
+    )
+
+    assert len(calls) == 2
+    assert calls[1].startswith("[系统提醒] 上一次回复写完的正文已保存")
+    assert "《第2集》" in calls[1]
+
+
+async def test_resaving_an_already_self_checked_body_with_a_summary_is_not_continued():
+    calls: list[str] = []
+    await _collect(
+        _state(user_message="写第2集"),
+        _saving_runner(
+            [[*_create_events(), _BODY], [_DONE], [_DONE]],
+            [[("ep2", "第2集")], [("ep2", "第2集")]],
+            calls,
+        ),
+    )
+
+    assert len(calls) == 2
+
+
+async def test_summary_after_a_file_block_that_was_not_saved_is_not_continued():
     calls: list[str] = []
     await _collect(_state(user_message="写第2集"), _counting_runner([[*_create_events(), _BODY, _DONE]], calls))
 

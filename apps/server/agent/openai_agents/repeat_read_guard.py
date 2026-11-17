@@ -233,6 +233,8 @@ class RepeatReadGuard:
     # 本请求完整读过 / 写过的文件：id → 标题（保持首次出现的顺序）。
     files_read: dict[str, str] = field(default_factory=dict)
     files_written: dict[str, str] = field(default_factory=dict)
+    # 写工具成功但没改任何东西的目标（mutation_applied=false：已有章节、同名 rename、整章替换的定位）。
+    files_targeted: dict[str, str] = field(default_factory=dict)
     # 任意一次写工具成功（有些写入拿不到 id，例如结果被截断）。
     write_succeeded: bool = False
     _titles: dict[str, str] = field(default_factory=dict)
@@ -485,6 +487,14 @@ class RepeatReadGuard:
             args = {}
         file_id = str((data.get("id") if isinstance(data, dict) else None) or args.get("id") or "")
         title = str((data.get("title") if isinstance(data, dict) else None) or args.get("title") or "")
+        if payload.get("mutation_applied") is False:
+            # 成功但什么都没改（已有章节 action=exists、同名 rename、整章替换的定位）：不是写入，只记目标。
+            # 整章替换真正落库由 StreamAdapter 的保存点记进 ToolContext.saved_bodies_this_request。
+            if file_id:
+                if title:
+                    self._titles[file_id] = title
+                self.files_targeted[file_id] = self._titles.get(file_id, title)
+            return
         self._record_write(file_id, title)
 
     # ------------------------------------------------------------- bookkeeping

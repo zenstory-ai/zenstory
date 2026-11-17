@@ -443,15 +443,23 @@ async def run_loop_agent_streaming(
             ended_on_file = ends_on_file_block(tail_text) or (
                 (bool(create_ids - failed_ids) or run_resumed) and ends_on_unclosed_file_block(tail_text)
             )
-            if (
-                (bool(create_ids - failed_ids) or run_resumed)
-                and not ToolContext.has_pending_empty_file()
-                and ended_on_file
+            # 本请求确认落库的完整正文（StreamAdapter 保存点记下的结构化事实）里还没自查过的：
+            # 不管 </file> 之后模型有没有再写一句总结，都按保存事实续跑一次自查。
+            saved_bodies = ToolContext.saved_bodies_this_request()
+            new_saved = set(saved_bodies) - self_checked_ids
+            if not ToolContext.has_pending_empty_file() and (
+                new_saved or ((bool(create_ids - failed_ids) or run_resumed) and ended_on_file)
             ):
                 # 定位过整章替换、新正文却没落库的章节（ToolContext 的结构化保存事实）：不算已保存，不列它的原稿字数。
                 unsaved_ids = ToolContext.unsaved_chapter_replacement_ids()
-                saved = {fid: t for fid, t in read_guard.files_written.items() if fid not in unsaved_ids}
-                unsaved_written = [(fid, t) for fid, t in read_guard.files_written.items() if fid in unsaved_ids]
+                # 写入事实：工具确认的改动 + 还没保存的整章替换目标（定位结果） + 落库确认的正文。
+                written = {
+                    **read_guard.files_written,
+                    **{fid: t for fid, t in read_guard.files_targeted.items() if fid in unsaved_ids},
+                    **{fid: read_guard.files_written.get(fid) or t for fid, t in saved_bodies.items()},
+                }
+                saved = {fid: t for fid, t in written.items() if fid not in unsaved_ids}
+                unsaved_written = [(fid, t) for fid, t in written.items() if fid in unsaved_ids]
                 newly_unsaved = [(fid, t) for fid, t in unsaved_written if fid not in reported_unsaved_ids]
                 if not newly_unsaved and not saved:
                     # 没有任何保存过的正文：不能退回「已保存」的说明，照旧如实说替换没保存。
@@ -499,6 +507,7 @@ async def run_loop_agent_streaming(
                 "Loop agent continues within the turn",
                 run=runs,
                 ended_on_file=bool(ended_on_file),
+                new_saved=len(new_saved),
                 steering=bool(mid_run_steering or boundary_steering),
             )
             state["user_message"] = followup

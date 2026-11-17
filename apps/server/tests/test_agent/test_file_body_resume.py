@@ -324,7 +324,8 @@ async def test_resumed_reply_still_refuses_edit_file_before_the_body(workspace):
     outcome = await _run(workspace, model)
 
     _assert_body_saved_once(workspace, outcome, model)
-    assert len(model.run_inputs) == 3, "被拒的纠偏轮结束后，第二次纠偏写正文"
+    # 第二次纠偏写正文；正文保存后另有一次保存后自查（按保存事实，不看 </file> 后的总结）。
+    assert len(model.run_inputs) == 4, "被拒的纠偏轮结束后，第二次纠偏写正文"
     refused = model.errors("file_body_pending")
     assert [call.name for call in refused] == ["edit_file"]
     assert "不应写入" not in _drafts(workspace)[0].content
@@ -339,7 +340,7 @@ async def test_second_correction_resumes_the_same_file_once(workspace):
     outcome = await _run(workspace, model)
 
     _assert_body_saved_once(workspace, outcome, model)
-    assert len(model.run_inputs) == 3
+    assert len(model.run_inputs) == 4  # 第三次 run 写正文，第四次是保存后自查
     assert model.errors("file_body_pending") == []
 
 
@@ -951,7 +952,7 @@ async def test_first_pending_refusal_ends_the_run_and_the_correction_writes_the_
 
     file_id = _assert_pending_body_saved_once(workspace, outcome, model)
     assert len(model.errors("file_body_pending")) == 1, "被拒一次就结束当前 run"
-    assert len(model.run_inputs) == 2
+    assert len(model.run_inputs) == 3  # 纠偏写正文之后是一次保存后自查
     assert file_id in json.dumps(model.run_inputs[1], ensure_ascii=False), "纠偏轮点名同一个文件"
     assert [d.title for d in _drafts(workspace)] == [CHAPTER], "第二章没有被建出来"
     breaker = outcome.state["tool_failure_breaker"]
@@ -959,8 +960,8 @@ async def test_first_pending_refusal_ends_the_run_and_the_correction_writes_the_
     assert outcome.of("error") == []
     assert len(outcome.of("done")) == 1
     assert outcome.billing() == ("completed", False)
-    # 三次模型调用的真实用量都入账（被提前结束的 run 也发了正常 MESSAGE_END）
-    assert outcome.adapter.get_last_message_metadata()["usage"]["input_tokens"] == 30
+    # 四次模型调用（含保存后自查）的真实用量都入账（被提前结束的 run 也发了正常 MESSAGE_END）
+    assert outcome.adapter.get_last_message_metadata()["usage"]["input_tokens"] == 40
     failures = outcome.state["run_meter"].timing_report()["tool_failures"]
     assert failures == {"create_file": {"count": 1, "rolled_back_batches": 0, "error_types": {"file_body_pending": 1}}}
 
@@ -1113,7 +1114,7 @@ async def test_after_an_exact_cancel_the_same_run_goes_on_to_create_and_write_th
     outcome = await _run(workspace, model)
 
     assert model.errors("file_body_pending") == []
-    assert len(model.run_inputs) == 1
+    assert len(model.run_inputs) == 2  # 同一个 run 建下一份并写完；第二次 run 是保存后自查
     created = [call.output["data"]["id"] for call in model.tool_calls if call.name == "create_file"]
     first_id, second_id = created
     workspace.session.expire_all()
