@@ -43,7 +43,7 @@ The workspace puts the file tree on the left, the editor in the middle and AI ch
 ZenStory Workbench is a browser workspace for writing **long-form novels, short stories and short-drama screenplays**. Outlines, chapters, character sheets, worldbuilding lore and reference materials are all files in your project. You talk to the AI on the right, and it creates or edits those files directly without copy-pasting between a chat window and a word processor. Use it online at [app.zenstory.ai](https://app.zenstory.ai), or self-host it under the AGPL-3.0 license.
 
 - **Direct file edits that respect your own revisions**: ask for a new character sheet, outline or chapter in chat and the Agent streams it straight into the file, with one-click undo on the chat card. Anything you edit by hand in the editor is synced back to the AI so continuations build on your changes, and your saved manuscripts cannot be deleted or overwritten in full from chat.
-- **Four specialist agents working in relay**: the Planner, Hook Designer, Writer and Quality Reviewer divide the work according to your request — ask for an outline and it stops at the outline; ask for prose and it writes the chapter. In Quality mode, finished prose is automatically checked by the reviewer and wrapped up in a single clean summary.
+- **One agent, start to finish**: a single writing agent reads your project, plans, writes and checks continuity, doing only what this turn asks for — ask for an outline and it stops at the outline; ask for prose and it writes the chapter. Chapters are written by number, so writing chapter 3 changes only chapter 3, and word counts in replies come from what was actually saved.
 - **Paced for web fiction and short dramas**: openings start inside the conflict, payoffs land on screen, dialogue drives the stakes, and chapters end on a hook. Select any passage in the editor and click **Humanize** to review paragraph-by-paragraph rewrites and accept only the lines you want.
 - **Long-form continuity without digging through chat history**: each turn automatically brings in AI Memory, the full text of chapters you just read or edited, the previous chapter, and relevant character and lore sheets.
 - **14 built-in skills, plus external agent support**: ships with 14 skills for continuation, hooks, short stories, short-drama episodes and prose polishing, and imports or exports standard `SKILL.md` packages. With the `npx zenstory` CLI, external agents like Claude Code, Codex and OpenClaw can also read and write your project files.
@@ -144,29 +144,20 @@ See [apps/cli/README.md](apps/cli/README.md) and <https://api.zenstory.ai/skill.
   </tr>
 </table>
 
-### Multi-agent roles
+### Single-loop writing agent
 
 ```mermaid
 flowchart LR
-    R["Router<br/>current request & previous-turn context"] -->|quick| W["Writer"]
-    R -->|standard| P["Planner"] -->|when prose requested| W
-    R -->|full| P2["Planner"] --> H["Hook Designer"] -->|when prose requested| W
-    R -->|hook_focus| H2["Hook Designer"] -->|when prose requested| W
-    R -->|review_only| Q["Quality Reviewer"]
-    W -. Quality mode: auto-review once prose reaches 500 chars .-> Q
-    Q -. problems found .-> W
+    U["Your request<br/>+ this turn's context"] --> A["Writing agent"]
+    A -->|file tools| F["Project files<br/>outline · chapters · characters · lore"]
+    F -->|tool results: chapter created / replaced, real word counts| A
+    A --> S["Reply and change cards"]
 ```
 
-| Path | Who works | When it runs |
-| --- | --- | --- |
-| `quick` | Writer directly | Everyday continuation and expansion; also the fallback when routing is uncertain |
-| `standard` | Planner first; Writer only if prose is requested | Outlines, plans, synopses or chapter structures |
-| `full` | Planner → Hook Designer → Writer | Full workflow requests, key chapters or climaxes |
-| `hook_focus` | Hook Designer first; Writer when revision is requested | Strengthening payoffs, twists or pacing |
-| `review_only` | Quality Reviewer only (read-only) | Continuity checks, evaluations or read-on assessments |
-
-- **Fast vs. Quality mode**: both use the same model. **Fast** writes directly without length-triggered auto-review. **Quality** sends finished prose (500+ characters) to the reviewer to check your requirements, continuity and cause-and-effect, then presents a single final summary.
-- **Follow-up instructions & resumable runs**: send additional instructions while the AI is still writing — the current agent finishes its step uninterrupted and applies your follow-up next. Long tasks that reach the single-turn time limit wrap up cleanly with a **Continue** card so you can pick up right where it stopped, and revision options at the end of a reply become one-click buttons above the input box.
+- **One model, one conversation**: every turn runs through the same agent, with no router or hand-offs; the conversation history stays in order and is compacted into a hand-off summary when it grows very long.
+- **Chapters addressed by number**: prose is written to "chapter N" — the chapter is created if it does not exist, otherwise exactly that chapter is replaced. The card says whether it was new or how long the replaced text was, and a replacement can be undone in one click. Generic edit tools cannot replace a whole chapter, overwrite it wholesale or insert duplicated paragraphs.
+- **The outline is both ceiling and floor**: characters, events and reveals from later chapters are not written early; this chapter's key outline events always happen; when you change the outline, the agent follows you and updates the outline file.
+- **Follow-up instructions & resumable runs**: send additional instructions while the AI is still writing — the AI finishes its current step uninterrupted and applies your follow-up next. Long tasks that reach the single-turn time limit wrap up cleanly with a **Continue** card so you can pick up right where it stopped, and revision options at the end of a reply become one-click buttons above the input box.
 
 ### AI Memory and project context
 
@@ -205,7 +196,7 @@ Upload a reference novel as TXT (up to 300,000 characters) and the backend extra
 ## Contributing
 
 - **GitHub Issues**: [report a bug](https://github.com/zenstory-ai/zenstory/issues/new?template=bug_report.md) · [request a feature](https://github.com/zenstory-ai/zenstory/issues/new?template=feature_request.md). In the hosted app you can also use the **…** menu at the top right of the project page → **Feedback** to attach a screenshot.
-- Read [CONTRIBUTING.md](CONTRIBUTING.md) and the repository documentation index [docs/en/README.md](docs/en/README.md) before changing code. The multi-agent workflow, tools and SSE events are documented in [`apps/server/agent/AGENTS.md`](apps/server/agent/AGENTS.md).
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) and the repository documentation index [docs/en/README.md](docs/en/README.md) before changing code. The writing agent's workflow, tools and SSE events are documented in [`apps/server/agent/AGENTS.md`](apps/server/agent/AGENTS.md).
 
 <details>
 <summary>Project layout and tech stack</summary>
@@ -219,8 +210,9 @@ zenstory/
 ├── apps/cli/                 # zenstory CLI and external Agent Skill package
 └── apps/server/              # FastAPI backend
     ├── api/                  #   routes: auth, projects, files, agent, agent_api, materials, admin …
-    ├── agent/                #   the writing agents
-    │   ├── graph/            #     orchestration loop: routing, handoffs, auto-review
+    ├── agent/                #   the writing agent
+    │   ├── loop/             #     single-loop writing agent: prompts, history, compaction, run loop
+    │   ├── graph/            #     legacy multi-role orchestration (kept for rollback)
     │   ├── tools/            #     file, project, skill and handoff tools
     │   ├── context/          #     per-turn context assembly, token budgets and priority ordering
     │   ├── prompts/          #     shared protocols, genre guidance and role prompts

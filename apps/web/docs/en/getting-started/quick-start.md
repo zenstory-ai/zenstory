@@ -15,7 +15,7 @@ Inside a project, the desktop workspace is divided into three panes (on phones, 
 
 - **Left sidebar**: Manage outlines, characters, worldbuilding, drafts or scripts, and materials under **Files**, attach writing skills under **Skills**, or browse analyzed reference novels under **Materials**.
 - **Center editor**: Write and review documents, with word and paragraph counts, **History**, **Humanize**, and save status along the bottom bar.
-- **Right AI assistant**: Brainstorm settings, generate outlines, or draft and revise chapters. Use **AI Memory** or **New chat** in the header, and switch between **Fast** and **Quality** modes at the bottom of the input box.
+- **Right AI assistant**: Brainstorm settings, generate outlines, or draft and revise chapters. Use **AI Memory** or **New chat** in the header.
 
 For the full top toolbar and settings reference, see [Interface Overview](../user-guide/interface-overview.md).
 

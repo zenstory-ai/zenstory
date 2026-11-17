@@ -75,6 +75,8 @@ export function createProseCounter(): ProseCounter {
  *
  * Mirrors the server (`StreamBillingTracker._write_effect`): an empty `create_file` (the
  * chapter body streams in afterwards) or an edit that changed nothing does not count;
+ * `write_chapter` counts only on the re-sent replacement card that saved new text
+ * (`mutation_applied: true`), never when it only found or created the chapter;
  * `parallel_execute` counts only when one of its completed sub-tasks is a write;
  * `update_project` counts only when it renamed the work or changed its synopsis, style or
  * notes. Body text streamed into a file arrives as file_content, which callers count
@@ -87,6 +89,8 @@ export function isWriteToolResult(
 ): boolean {
   if (status !== 'success') return false;
   const payload = (result?.data ?? result) as Record<string, unknown> | undefined;
+
+  if (toolName === 'write_chapter') return payload?.mutation_applied === true;
 
   if (toolName === 'create_file' || toolName === 'update_file') {
     const content = typeof payload?.content === 'string' ? payload.content : '';
@@ -139,8 +143,8 @@ export interface BodyWriteSnapshot {
 }
 
 /**
- * Follows the round's existing events to say which file is getting its text: a `create_file` that
- * left an empty file (`awaiting_body`) waits for its `<file>` text; `file_content` chunks are counted
+ * Follows the round's existing events to say which file is getting its text: a `create_file` or
+ * `write_chapter` that left a file waiting (`awaiting_body`) waits for its `<file>` text; `file_content` chunks are counted
  * the way the editor counts words. An end without any text (the run stopped first, an empty-file
  * correction follows) keeps the wait, so the rerun shows the same stage.
  */
@@ -170,7 +174,7 @@ export function createBodyWriteProgress(): BodyWriteProgress {
         if (status === 'success' || pendingDeletes.size <= 1) pendingDeletes.clear();
         return;
       }
-      if (toolName !== 'create_file' || status !== 'success') return;
+      if ((toolName !== 'create_file' && toolName !== 'write_chapter') || status !== 'success') return;
       const payload = (result?.data ?? result) as Record<string, unknown> | undefined;
       const id = typeof payload?.id === 'string' ? payload.id : '';
       const title = typeof payload?.title === 'string' ? payload.title : '';

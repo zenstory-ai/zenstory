@@ -15,7 +15,7 @@
  */
 import React, { useState, useRef, useEffect, useMemo, useCallback, useId } from "react";
 import type { KeyboardEvent } from "react";
-import { Send, X, Square, RefreshCw, FileText, Quote, Zap, Sparkles } from "lucide-react";
+import { Send, X, Square, RefreshCw, FileText, Quote, Zap } from "lucide-react";
 import { VoiceInputButton } from "./VoiceInputButton";
 import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
 import { useTextQuote } from "../contexts/TextQuoteContext";
@@ -233,17 +233,6 @@ interface MessageInputProps {
   externalDraft?: string;
   /** Callback when draft content changes (for persistence) */
   onDraftChange?: (draft: string) => void;
-
-  /**
-   * Agent generation mode.
-   *
-   * - fast: prioritize speed
-   * - quality: prioritize output quality (may take longer)
-   */
-  generationMode?: "fast" | "quality";
-
-  /** Callback invoked when the user changes generation mode. */
-  onGenerationModeChange?: (mode: "fast" | "quality") => void;
 }
 
 /**
@@ -318,8 +307,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   matchedSkills = [],
   externalDraft,
   onDraftChange,
-  generationMode = "fast",
-  onGenerationModeChange,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
   const inputLengthErrorId = useId();
@@ -740,11 +727,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const displayPlaceholder = steerActive
     ? t("chat:input.steerPlaceholder")
     : (placeholder ?? t("chat:input.placeholder"));
-  const generationModeLabel =
-    generationMode === "fast" ? t("chat:input.mode.fast") : t("chat:input.mode.quality");
-  const generationModeHint =
-    generationMode === "fast" ? t("chat:input.mode.fastHint") : t("chat:input.mode.qualityHint");
-  const generationModeTitle = `${t("chat:input.mode.label")}: ${generationModeLabel} · ${generationModeHint}`;
   const isFillLayout = layout === "fill";
   const compactAccessoryRowClass = isFillLayout
     ? "shrink-0 flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none"
@@ -1038,25 +1020,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           onResult={handleVoiceResult}
           disabled={inputDisabled}
         />
-
-        {/* Generation mode toggle (placed next to voice button to avoid vertical overlap) */}
-        {onGenerationModeChange ? (
-          <button
-            type="button"
-            disabled={inputDisabled}
-            aria-pressed={generationMode === "fast"}
-            onClick={() =>
-              onGenerationModeChange(generationMode === "fast" ? "quality" : "fast")
-            }
-            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--bg-tertiary))] hover:bg-[hsl(var(--bg-tertiary)/0.8)] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed ${
-              isMobile ? "w-11 h-11 active:scale-95" : "w-9 h-9"
-            }`}
-            title={generationModeTitle}
-            aria-label={generationModeTitle}
-          >
-            {generationMode === "fast" ? <Zap size={16} /> : <Sparkles size={16} />}
-          </button>
-        ) : null}
 
         {/* data-testid: chat-input - Chat input textarea for chat interaction tests */}
         <textarea

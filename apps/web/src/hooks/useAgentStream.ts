@@ -609,6 +609,45 @@ export function useAgentStream(
   }, [onSegmentStart, onSegmentEnd, onSegmentUpdateToolCalls, updateSegmentsSync]);
 
   /**
+   * Replaces the result of a tool call that already resolved, matched strictly by tool_use_id: in the
+   * calls still being collected, otherwise in the tool-calls segment that holds it.
+   *
+   * @returns Whether a resolved call with this tool_use_id was found
+   */
+  const replaceResolvedToolResult = useCallback((
+    toolUseId: string,
+    status: string,
+    result?: Record<string, unknown>,
+    error?: string,
+  ): boolean => {
+    const apply = (tc: ToolCall): ToolCall => ({
+      ...tc,
+      status: status as "success" | "error",
+      result,
+      error,
+    });
+    const inCurrent = pendingToolCallsRef.current.some(tc => tc.id === toolUseId && tc.status !== "pending");
+    if (inCurrent) {
+      const nextCalls = pendingToolCallsRef.current.map(tc => (tc.id === toolUseId ? apply(tc) : tc));
+      pendingToolCallsRef.current = nextCalls;
+      upsertToolCallsSegment(nextCalls, nextCalls.every(tc => tc.status !== "pending"));
+      return true;
+    }
+    const segment = segmentsRef.current.find(
+      s => s.type === "tool_calls" && s.toolCalls?.some(tc => tc.id === toolUseId && tc.status !== "pending"),
+    );
+    if (!segment?.toolCalls) return false;
+    const segmentId = segment.id;
+    const nextCalls = segment.toolCalls.map(tc => (tc.id === toolUseId ? apply(tc) : tc));
+    updateSegmentsSync(draft => {
+      const seg = draft.find(s => s.id === segmentId);
+      if (seg) seg.toolCalls = nextCalls;
+    });
+    onSegmentUpdateToolCalls?.(segmentId, nextCalls);
+    return true;
+  }, [onSegmentUpdateToolCalls, updateSegmentsSync, upsertToolCallsSegment]);
+
+  /**
    * Best-effort: resolve pending control tool calls when workflow control events
    * (handoff/workflow_stopped) arrive before a tool_result callback.
    *
@@ -988,8 +1027,20 @@ export function useAgentStream(
               }
               return tc;
             });
+            if (!updated && normalizedToolUseId) {
+              // A later result for a call that already resolved (write_chapter re-sends its card once the
+              // replacement text is saved or refused): replace that call's result, keyed only by tool_use_id.
+              if (replaceResolvedToolResult(normalizedToolUseId, status, result, error)) {
+                if (toolUseId) {
+                  onToolResult?.(toolName, status, result, error, toolUseId);
+                } else {
+                  onToolResult?.(toolName, status, result, error);
+                }
+                return;
+              }
+            }
             pendingToolCallsRef.current = updatedToolCalls;
-            
+
             // Check if all pending tool calls are done
             const allDone = updatedToolCalls.every(tc => tc.status !== "pending");
             
@@ -1378,6 +1429,7 @@ export function useAgentStream(
       onThinkingContentOption,
       startContentSegment,
       upsertToolCallsSegment,
+      replaceResolvedToolResult,
       resolvePendingControlTool,
       onContextOption,
       clearError,

@@ -48,7 +48,7 @@ The right pane houses your AI writing partner:
 
 - **Header**: Offers **AI Memory** (view project setting summaries and edit cross-chat **Writing Conventions**) and **New chat**.
 - **Message list**: Displays AI replies, clickable file cards with word-count deltas and an **Undo** button, and round completion notes.
-- **Input area**: Drag the top border to resize the input panel; above the text box you will see suggestion chips along with any attached quotes, materials, or skill chips. Type `/` to open the skill picker, use the microphone button for voice input, switch between **Fast** and **Quality** modes in the bottom left, and send or **Stop generating** on the right.
+- **Input area**: Drag the top border to resize the input panel; above the text box you will see suggestion chips along with any attached quotes, materials, or skill chips. Type `/` to open the skill picker, use the microphone button for voice input, and send or **Stop generating** on the right.
 
 ### 5. Mobile and portrait tablet layout
 

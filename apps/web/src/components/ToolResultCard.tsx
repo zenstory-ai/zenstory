@@ -4,7 +4,7 @@
  *
  * A versatile component for displaying AI agent tool execution results.
  * Renders different UI based on the tool type (create_file, update_file,
- * edit_file, delete_file, query_files, update_project) and result status
+ * write_chapter, edit_file, delete_file, query_files, update_project) and result status
  * (pending, success, error, conflict).
  *
  * Features:
@@ -237,6 +237,11 @@ const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { ico
         icon: <Edit3 className="w-4 h-4 text-[hsl(var(--success-text))]" />,
         label: t('chat:tool.edit_file')
       };
+    case 'write_chapter':
+      return {
+        icon: <FileEdit className="w-4 h-4 text-[hsl(var(--success-text))]" />,
+        label: t('chat:tool.write_chapter')
+      };
     case 'delete_file':
       return { 
         icon: <Trash2 className="w-4 h-4 text-[hsl(var(--error-text))]" />,
@@ -457,6 +462,91 @@ const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: 
  * @param t - Translation function with interpolation support
  * @returns Formatted string (e.g., "150 字" or "2.5 千字")
  */
+/** A chapter number the server can address (a positive integer), or null. */
+const readChapterNumber = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
+
+/** 「第3章「雨夜」」 for a write_chapter call or result; the title alone when the number is missing. */
+const describeChapter = (
+  chapter: unknown,
+  title: string | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string => {
+  const number = readChapterNumber(chapter);
+  const parts = [
+    number !== null ? t('chat:tool.chapterNumber', { chapter: number }) : '',
+    title ? quote(title) : '',
+  ].filter(Boolean);
+  return parts.join(' ');
+};
+
+/** What a write_chapter result did to its chapter, from the server's `action` and saved-body fields. */
+type WriteChapterOutcome = 'created' | 'exists' | 'replacing' | 'replaced' | 'unchanged' | 'not_saved';
+
+const WRITE_CHAPTER_HEADLINES: Record<WriteChapterOutcome, { numbered: string; unnumbered: string }> = {
+  created: { numbered: 'chat:tool.chapterCreated', unnumbered: 'chat:tool.chapterCreatedUnnumbered' },
+  exists: { numbered: 'chat:tool.chapterExists', unnumbered: 'chat:tool.chapterExistsUnnumbered' },
+  replacing: { numbered: 'chat:tool.chapterReplacing', unnumbered: 'chat:tool.chapterReplacingUnnumbered' },
+  replaced: { numbered: 'chat:tool.chapterReplaced', unnumbered: 'chat:tool.chapterReplacedUnnumbered' },
+  unchanged: { numbered: 'chat:tool.chapterReplaceUnchanged', unnumbered: 'chat:tool.chapterReplaceUnchangedUnnumbered' },
+  not_saved: { numbered: 'chat:tool.chapterReplaceNotSaved', unnumbered: 'chat:tool.chapterReplaceNotSavedUnnumbered' },
+};
+
+/**
+ * `action` 'created' / 'exists' / 'replaced' (StreamAdapter re-sends a replacement's card with
+ * `body_saved` and `mutation_applied` once its text is saved or refused). Unknown actions return null.
+ */
+const readWriteChapterOutcome = (data: Record<string, unknown>): WriteChapterOutcome | null => {
+  if (data.action === 'created') return 'created';
+  if (data.action === 'exists') return 'exists';
+  if (data.action !== 'replaced') return null;
+  if (data.body_saved === false) return 'not_saved';
+  if (data.body_saved !== true) return 'replacing';
+  return data.mutation_applied === true ? 'replaced' : 'unchanged';
+};
+
+const readWordCount = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+
+/** The immutable undo anchor the server attached to an edit_file / write_chapter card, or null. */
+const readFileEditUndoTarget = (
+  data: Record<string, unknown>,
+  chatMessageId: string | undefined,
+  toolUseId: string | undefined,
+): FileEditUndoTarget | null => {
+  const fileId = typeof data.id === 'string' ? data.id.trim() : '';
+  const undo = data.undo && typeof data.undo === 'object' && !Array.isArray(data.undo)
+    ? data.undo as Record<string, unknown>
+    : null;
+  const beforeVersionNumber = undo?.before_version_number;
+  const expectedAfterUpdatedAt = undo?.expected_after_updated_at;
+  if (
+    !fileId
+    || typeof beforeVersionNumber !== 'number'
+    || !Number.isSafeInteger(beforeVersionNumber)
+    || beforeVersionNumber <= 0
+    || !isValidUndoTimestamp(expectedAfterUpdatedAt)
+  ) {
+    return null;
+  }
+  return {
+    fileId,
+    beforeVersionNumber,
+    expectedAfterUpdatedAt,
+    ...(chatMessageId && toolUseId ? { chatMessageId, toolUseId } : {}),
+  };
+};
+
+/** Undone here (live) or as the server recorded on the card (after a refresh). */
+const isFileEditUndone = (
+  data: Record<string, unknown>,
+  target: FileEditUndoTarget,
+  undoneEdits: ReadonlySet<string>,
+): boolean => {
+  const undo = data.undo as Record<string, unknown> | undefined;
+  return undo?.undone === true || undoneEdits.has(undoneEditKey(target));
+};
+
 const formatWordCount = (words: number, t: (key: string, options?: Record<string, unknown>) => string): string => {
   if (words < 1000) return t('chat:size.characters', { length: words });
   return t('chat:size.kCharacters', { length: (words / 1000).toFixed(1) });
@@ -499,6 +589,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     if (toolName === 'create_file' && title) {
       const typeInfo = fileType ? getFileTypeInfo(fileType, t) : null;
       description = typeInfo ? `${typeInfo.label}${quote(title)}` : quote(title);
+    } else if (toolName === 'write_chapter') {
+      description = describeChapter(args.chapter, title, t);
     } else if (toolName === 'query_files') {
       const queryFileType = args.file_type as string | undefined;
       if (queryFileType) {
@@ -624,6 +716,76 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       );
     }
     
+    // write_chapter: the server's `action` says what happened to exactly that chapter. A replacement
+    // arrives twice under one tool_use_id: armed (awaiting its text), then saved or refused.
+    if (toolName === 'write_chapter' && data) {
+      const title = data.title as string || t('common:untitled');
+      const fileType = data.file_type as string || '';
+      const chapter = readChapterNumber(data.chapter);
+      const outcome = readWriteChapterOutcome(data);
+      const previousWords = readWordCount(data.previous_word_count);
+      const newWords = readWordCount(data.new_word_count)
+        ?? (typeof data.content === 'string' ? countWords(data.content) : null);
+      const typeInfo = getFileTypeInfo(fileType, t);
+      const headline = outcome === null
+        ? t('chat:tool.write_chapter')
+        : chapter === null
+          ? t(WRITE_CHAPTER_HEADLINES[outcome].unnumbered)
+          : t(WRITE_CHAPTER_HEADLINES[outcome].numbered, { chapter });
+      const succeeded = outcome === 'created' || outcome === 'replaced';
+      const undoTarget = outcome === 'replaced'
+        ? readFileEditUndoTarget(data, chatMessageId, toolUseId)
+        : null;
+      const undone = undoTarget !== null && isFileEditUndone(data, undoTarget, undoneEdits);
+
+      return (
+        <div className={succeeded
+          ? 'bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2'
+          : 'bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2'}>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {succeeded ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+            ) : (
+              <Info className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
+            )}
+            <span className={`min-w-0 flex-1 text-sm ${succeeded ? 'text-[hsl(var(--success-text))]' : 'text-[hsl(var(--text-secondary))]'}`}>
+              {headline}
+            </span>
+            {succeeded && newWords !== null && newWords > 0 && (
+              <span className="shrink-0 text-xs text-[hsl(var(--text-secondary))] ml-auto">
+                {formatWordCount(newWords, t)}
+              </span>
+            )}
+            {undone ? (
+              <span className="shrink-0 text-xs text-[hsl(var(--text-secondary))]">
+                {t('chat:tool.edit_undone')}
+              </span>
+            ) : onUndo && undoTarget && (
+              <button
+                onClick={() => handleUndo(undoTarget)}
+                className="flex items-center gap-1 min-h-11 md:min-h-0 shrink-0 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
+                title={t('chat:tool.undo_edit')}
+              >
+                <RotateCcw className="w-3 h-3" />
+                {t('common:undo')}
+              </button>
+            )}
+            <span className="flex basis-full min-w-0 items-start gap-1 pl-6 text-sm text-[hsl(var(--text-primary))]">
+              <span className="shrink-0">{typeInfo.icon}</span>
+              {fileTitle(title, fileType)}
+            </span>
+            {(outcome === 'replaced' || outcome === 'replacing') && previousWords !== null && previousWords > 0 && (
+              <span className="basis-full min-w-0 pl-6 text-xs text-[hsl(var(--text-secondary))]">
+                {t(outcome === 'replaced' ? 'chat:tool.chapterReplacedPrevious' : 'chat:tool.chapterReplacingPrevious', {
+                  size: formatWordCount(previousWords, t),
+                })}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     // update_file success
     if (toolName === 'update_file' && data) {
       const title = data.title as string || t('chat:fileDefault');
@@ -788,27 +950,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     
     // edit_file success - special detailed rendering
     if (toolName === 'edit_file' && data) {
-      const fileId = typeof data.id === 'string' ? data.id.trim() : '';
-      const undo = data.undo && typeof data.undo === 'object' && !Array.isArray(data.undo)
-        ? data.undo as Record<string, unknown>
-        : null;
-      const beforeVersionNumber = undo?.before_version_number;
-      const expectedAfterUpdatedAt = undo?.expected_after_updated_at;
-      const undoTarget: FileEditUndoTarget | null =
-        fileId
-        && typeof beforeVersionNumber === 'number'
-        && Number.isSafeInteger(beforeVersionNumber)
-        && beforeVersionNumber > 0
-        && isValidUndoTimestamp(expectedAfterUpdatedAt)
-          ? {
-              fileId,
-              beforeVersionNumber,
-              expectedAfterUpdatedAt,
-              ...(chatMessageId && toolUseId ? { chatMessageId, toolUseId } : {}),
-            }
-          : null;
+      const undoTarget = readFileEditUndoTarget(data, chatMessageId, toolUseId);
       // The author undid this edit: here (live) or as recorded on the card by the server (after a refresh).
-      const undone = undoTarget !== null && (undo?.undone === true || undoneEdits.has(undoneEditKey(undoTarget)));
+      const undone = undoTarget !== null && isFileEditUndone(data, undoTarget, undoneEdits);
       const details = data.details as Array<{
         op: string;
         old_preview?: string;
