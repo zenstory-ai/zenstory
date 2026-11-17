@@ -1272,6 +1272,24 @@ describe('AI replaces the open chapter, then edits it again in the same round', 
     expect(server.files.get(CH1.id)!.content).toBe(typed);
   });
 
+  it('undoing back to the original during the review keeps the unsaved author text and saves it on the restored token', async () => {
+    const typed = `${ORIGINAL}作者补的一句。`;
+    await typeThenAiWrites(typed, 2);
+    await undoTo(ORIGINAL);
+
+    expect(review()).toBeNull();
+    expect(textarea().value).toBe(typed);
+    expect(putsFor(CH1.id)).toHaveLength(0);
+    act(() => { window.dispatchEvent(new Event('pagehide')); });
+    expect(readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH1.id })?.content).toBe(typed);
+
+    await advance(3500); await settle();
+    expect(putsFor(CH1.id)).toHaveLength(1);
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: typed, base_updated_at: T_RESTORED });
+    expect(server.files.get(CH1.id)!.content).toBe(typed);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
   it('a second content-bearing write keeps the earliest original of the open review', async () => {
     await replaceChapter();
     server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: EDITED, updated_at: T_EDITED });

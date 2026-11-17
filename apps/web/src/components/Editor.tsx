@@ -827,11 +827,15 @@ const EditorComponent: React.FC<EditorProps> = () => {
       // The review and the save token follow the newer server copy (the body is locked while
       // it is open).
       followServerUnderAgentReview(data);
-      // Unsaved text typed before the review opened keeps its body and older token, as before
-      // this review followed the server: finishing then meets the newer copy as a conflict.
-      if (localContent !== savedContent && localContent !== serverContent) return;
-      adoptServerCopy(data, nextTitle);
-      return;
+      if (localContent === savedContent || localContent === serverContent) {
+        adoptServerCopy(data, nextTitle);
+        return;
+      }
+      // Unsaved text typed before the review opened keeps its body and older token while the
+      // review stays open: finishing it compares that text with the reviewed copy.
+      if (serverContent !== review.originalContent) return;
+      // The copy went back to the review's original (an undo) and closed the review: the
+      // unsaved text meets that copy like any other newer copy, below.
     }
 
     if (
