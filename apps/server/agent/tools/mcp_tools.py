@@ -1608,6 +1608,11 @@ def _pending_empty_file_rejection(
     return _make_mcp_payload(payload, tool_name=tool_name)
 
 
+def _body_in_reply_next_step(title: str, tool_name: str) -> str:
+    """create_file / write_chapter 认领了本条回复里先写出的正文（body_in_reply）时给模型的下一步。"""
+    return f"「{title}」的正文就是这条回复里 {tool_name} 之前写的那段 <file> 正文，已存进这个文件，不要再写一遍。"
+
+
 def _awaiting_body_data(data: dict[str, Any], title: str) -> dict[str, Any]:
     """create_file 建好了空文件：告诉模型下一次回复就写正文。
 
@@ -2179,6 +2184,14 @@ def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: 
     )
     # 不是本轮新建的文件：不记建好时的版本（补不成时不回滚、不算可以取消的空文件），记下替换的定位结果。
     ToolContext.bind_pending_empty_file(reservation, file_id, str(row.title or ""), None, replacement=data)
+    if ToolContext.take_reply_prebody():
+        # 本条回复在这次调用之前已写出正文：它就是这一章的替换稿，由 StreamAdapter 走整章替换落库。
+        ToolContext.mark_pending_body_streamed(file_id)
+        data = {
+            **data,
+            "body_in_reply": True,
+            "next_step": _body_in_reply_next_step(str(row.title or ""), tool_name),
+        }
     log_with_context(
         logger,
         20,  # INFO
@@ -2326,14 +2339,7 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
             result = {**result, "source_copied": True, "body_saved": True}
         data = _elide_reused_file_content(result)
         if body_in_reply:
-            data = {
-                **data,
-                "body_in_reply": True,
-                "next_step": (
-                    f"「{title}」的正文就是这条回复里 create_file 之前写的那段 <file> 正文，已存进这个文件，"
-                    "不要再写一遍。"
-                ),
-            }
+            data = {**data, "body_in_reply": True, "next_step": _body_in_reply_next_step(title, tool_name)}
         elif awaiting_body:
             data = _awaiting_body_data(data, title)
             if empty_requested:

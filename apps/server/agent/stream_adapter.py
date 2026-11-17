@@ -752,6 +752,9 @@ class StreamAdapter:
                 elif action == "replaced" and result_data.get("awaiting_body") is True:
                     async for event in self._arm_chapter_replace(result_data, tool_use_id):
                         yield event
+                    # 本条回复先写出的正文（body_in_reply）就是这一章的替换稿：走整章替换的落库路径。
+                    async for event in self._bind_reply_prebody(result_data):
+                        yield event
 
             # Handle file edit。即便状态被降级为 error（全部编辑失败），
             # 也要把逐条失败事件发出去，让用户看到「哪几处没改成」。
@@ -1525,7 +1528,7 @@ class StreamAdapter:
             yield sse_event
 
     async def _bind_reply_prebody(self, result_data: Any) -> AsyncIterator[SSEEvent]:
-        """create_file 确认本条回复里先写出的正文就是它的（body_in_reply）：落进这个文件。
+        """create_file / write_chapter 确认本条回复里先写出的正文就是它的（body_in_reply）：落进这个文件。
 
         正文走与 </file> 收尾相同的落库路径（覆盖保护、保存回执、清除待写守卫）。
         工具没确认或这边没有扣着的正文时什么也不做：文件照旧等下一次回复的 <file>，

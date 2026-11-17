@@ -235,6 +235,30 @@ async def test_create_file_in_the_same_reply_waits_for_the_armed_replacement(wor
     assert _content(workspace, one.id).rstrip("\n") == BODY_ONE
 
 
+@pytest.mark.parametrize("original", ["", "合成第一章原文。"], ids=["empty", "written"])
+async def test_body_written_before_write_chapter_replaces_that_chapter(workspace, original):
+    # 同一回复里先写 <file> 正文、再 write_chapter 已有的一章：正文就是这一章的替换稿，
+    # 走整章替换的落库路径（版本核对、diff、撤销），不作为对话放出，也不再要一次正文。
+    one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", original)
+    model = ScriptedModel(runs=[[
+        Reply(text=f"<file>\n{BODY_ONE}\n</file>\n", tools=(
+            ("write_chapter", {"chapter": 1, "title": "第1章", "file_type": "draft"}),
+        )),
+        Reply(text="第一章写好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "写第一章")
+
+    armed = model.tool_calls[0].output["data"]
+    assert armed["action"] == "replaced" and armed["body_in_reply"] is True
+    assert BODY_ONE not in outcome.chat_text
+    assert _content(workspace, one.id).rstrip("\n") == BODY_ONE
+    final = _results(outcome, "write_chapter")[-1]["data"]
+    assert final["body_saved"] is True and final["mutation_applied"] is True
+    assert [frame.data["file_id"] for frame in outcome.of("file_edit_end")] == [one.id]
+    assert model.errors("file_body_pending") == []
+
+
 async def test_write_chapter_creates_a_missing_chapter_through_the_file_body_protocol(workspace):
     _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", "合成第一章原文。")
     model = ScriptedModel(runs=[[
