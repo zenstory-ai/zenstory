@@ -71,7 +71,7 @@ _REPETITION_CHECK_EVERY_CHARS = 256
 # MESSAGE_END 的 stop_reason。
 OUTPUT_TRUNCATED_STOP_REASON = "output_truncated"
 # 最后一次模型响应的 output_tokens 达到 max_tokens 的这个比例即视为被输出上限截断。
-# openai-agents 0.17.x 的 Chat Completions 流式 handler 不处理 finish_reason
+# openai-agents 0.21.x 的 Chat Completions 流式 handler 不处理 finish_reason
 # （ResponseCompletedEvent 的 status 恒为 completed），只能看 usage 判断。
 OUTPUT_CAP_RATIO = 0.98
 # 正常结束的 run 最后一次响应也撞上了输出上限时，MESSAGE_END data 里带的结构化标记（值为 True）。
