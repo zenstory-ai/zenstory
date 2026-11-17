@@ -669,7 +669,14 @@ export interface DiffReviewState {
   originalContent: string;    // Content before AI edits
   modifiedContent: string;    // Content after AI edits  
   pendingEdits: PendingEdit[];
+  /**
+   * What opened the review: the agent wrote the file (`agent_write`), a save met a newer copy
+   * (`conflict`) or a natural-polish result (`polish`). Absent for other callers.
+   */
+  origin?: DiffReviewOrigin;
 }
+
+export type DiffReviewOrigin = 'agent_write' | 'conflict' | 'polish';
 
 /**
  * Response for rollback operation

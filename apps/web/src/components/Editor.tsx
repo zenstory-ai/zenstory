@@ -349,6 +349,22 @@ const EditorComponent: React.FC<EditorProps> = () => {
    * `discardUnsaved`: a version restore the author confirmed (it discards the
    * unsaved text by design).
    */
+  /**
+   * An agent-write review follows the server copy of its file: another AI write (or an undo)
+   * rebuilds it from its original to that copy, and a copy equal to the original closes it.
+   * Finishing then saves exactly the latest text on the latest token, never the older review.
+   * Conflict and polish comparisons are left alone (their save keeps the author's text).
+   */
+  const followServerUnderAgentReview = useCallback((data: File): void => {
+    const review = currentReviewRef.current;
+    if (review?.fileId !== data.id || review.origin !== 'agent_write') return;
+    const serverContent = data.content || "";
+    if (serverContent === review.originalContent) exitDiffReview();
+    else if (serverContent !== review.modifiedContent) {
+      enterDiffReview(data.id, review.originalContent, serverContent, 'agent_write');
+    }
+  }, [enterDiffReview, exitDiffReview]);
+
   const loadData = useCallback(async (options?: { followServer?: boolean; discardUnsaved?: boolean }) => {
     if (activeProjectIdRef.current !== currentProjectId || selectedIdRef.current !== selectedItem?.id) return;
     const generation = ++loadGenerationRef.current;
@@ -557,7 +573,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const { merged, proposal, conflictEditIds } = rebaseLocalEdits(base, localContent, serverContent);
     if (proposal === serverContent) return "server";
     if (merged === localContent) return "local";
-    enterDiffReview(fileId, localContent, merged);
+    enterDiffReview(fileId, localContent, merged, 'conflict');
     conflictReviewRef.current = {
       fileId,
       originalContent: localContent,
@@ -783,22 +799,31 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const current = currentFileRef.current;
     if (!current || !isStillOpen() || activeProjectIdRef.current !== data.project_id) return;
     setServerSyncIssue((prev) => (prev?.fileId === fileId ? null : prev));
-    // A comparison is already open for this file. Its save carries the token
-    // it was opened with, so a newer server copy surfaces there as a conflict.
-    if (currentReviewRef.current?.fileId === fileId) return;
-
     const serverContent = data.content || "";
     const savedContent = current.content || "";
+    const localContent = editContentRef.current;
+    const localTitle = editTitleRef.current;
+    // A title the author has not renamed follows the server (the AI may have renamed it).
+    const nextTitle = localTitle === current.title ? data.title : localTitle;
+
+    const review = currentReviewRef.current;
+    if (review?.fileId === fileId) {
+      // A conflict or polish comparison is open: its save carries the token it was
+      // opened with, so a newer server copy surfaces there as a conflict.
+      if (review.origin !== 'agent_write') return;
+      // An agent-write review holds no author text (the body is locked while it is
+      // open): the review and the save token follow the newer server copy.
+      followServerUnderAgentReview(data);
+      adoptServerCopy(data, nextTitle);
+      return;
+    }
+
     if (
       data.updated_at === current.updated_at &&
       serverContent === savedContent &&
       data.title === current.title
     ) return;
 
-    const localContent = editContentRef.current;
-    const localTitle = editTitleRef.current;
-    // A title the author has not renamed follows the server (the AI may have renamed it).
-    const nextTitle = localTitle === current.title ? data.title : localTitle;
     if (localContent === savedContent || localContent === serverContent) {
       adoptServerCopy(data, nextTitle);
       return;
@@ -818,7 +843,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setFile((prev) => (prev?.id === fileId ? merged : prev));
     setEditTitle(nextTitle);
     toast.error(translateRef.current('editor:aiEditedWhileDirty'));
-  }, [adoptServerCopy, keepLocalOnServerCopy, openConflictReview]);
+  }, [adoptServerCopy, keepLocalOnServerCopy, openConflictReview, followServerUnderAgentReview]);
   syncOpenFileFromServerRef.current = syncOpenFileFromServer;
 
   const retryServerSync = useCallback(() => {
@@ -1116,7 +1141,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
   const enterNaturalPolishReview = useCallback(
     (fileId: string, originalContent: string, newContent: string) => {
       naturalPolishReviewRef.current = { fileId, originalContent, modifiedContent: newContent };
-      enterDiffReview(fileId, originalContent, newContent);
+      enterDiffReview(fileId, originalContent, newContent, 'polish');
     },
     [enterDiffReview],
   );

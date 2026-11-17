@@ -1101,7 +1101,7 @@ describe('Editor', () => {
     await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
 
     fireEvent.click(screen.getByTestId('natural-polish-review-button'))
-    expect(enterDiffReview).toHaveBeenCalledWith('file-1', 'Test content', 'Polished content')
+    expect(enterDiffReview).toHaveBeenCalledWith('file-1', 'Test content', 'Polished content', 'polish')
 
     mockProjectContext = {
       ...mockProjectContext,
@@ -1241,7 +1241,7 @@ describe('Editor', () => {
     fireEvent.change(screen.getByTestId('content-input'), { target: { value: 'Local content' } })
     fireEvent.click(screen.getByTestId('save-button'))
     await waitFor(() => {
-      expect(enterDiffReview).toHaveBeenCalledWith('file-1', 'Local content', 'Server content')
+      expect(enterDiffReview).toHaveBeenCalledWith('file-1', 'Local content', 'Server content', 'conflict')
     })
 
     vi.mocked(api.fileApi.update).mockResolvedValue({ ...mockFile, content: 'Server content', updated_at: 'server-v3' })

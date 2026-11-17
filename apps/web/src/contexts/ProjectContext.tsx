@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { Project, SelectedItem, ProjectType, DiffReviewState } from '../types';
+import type { Project, SelectedItem, ProjectType, DiffReviewState, DiffReviewOrigin } from '../types';
 import { projectApi } from '../lib/api';
 import { useAuth } from './AuthContext';
 import { applyPendingEditsToDiffs, buildParagraphReviewData } from '../lib/diffReview';
@@ -73,7 +73,12 @@ export interface ProjectContextType {
   startFileStreaming: (fileId: string) => void;
   // Diff review state (for Cursor-style inline diff)
   diffReviewState: DiffReviewState | null;
-  enterDiffReview: (fileId: string, originalContent: string, newContent: string) => void;
+  /**
+   * Open the paragraph review of `originalContent` → `newContent`. A later agent write to a file
+   * whose agent-write review is still open keeps that review's original, so one review always
+   * spans every AI write since the author last decided, ending at the latest text.
+   */
+  enterDiffReview: (fileId: string, originalContent: string, newContent: string, origin?: DiffReviewOrigin) => void;
   acceptEdit: (editId: string) => void;
   rejectEdit: (editId: string) => void;
   resetEdit: (editId: string) => void;
@@ -234,17 +239,29 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, [resetStreamingContent]);
 
   // Enter diff review mode - compute diffs and create pending edits
-  const enterDiffReview = useCallback((fileId: string, originalContent: string, newContent: string) => {
-    const { pendingEdits } = buildParagraphReviewData(originalContent, newContent);
-    
-    logger.log(`[DiffReview] Entering review mode for file ${fileId} with ${pendingEdits.length} edits`);
-    
-    setDiffReviewState({
-      isReviewing: true,
-      fileId,
-      originalContent,
-      modifiedContent: newContent,
-      pendingEdits,
+  const enterDiffReview = useCallback((
+    fileId: string,
+    originalContent: string,
+    newContent: string,
+    origin?: DiffReviewOrigin,
+  ) => {
+    setDiffReviewState(prev => {
+      // Another agent write to a file under review: rebuild the one review from its original to
+      // the newest text (block decisions belong to the old text, so every block starts pending).
+      const continues = origin === 'agent_write' && prev?.origin === 'agent_write' && prev.fileId === fileId;
+      const base = continues ? prev.originalContent : originalContent;
+      // The later writes brought the text back to the original: nothing is left to review.
+      if (continues && base === newContent) return null;
+      const { pendingEdits } = buildParagraphReviewData(base, newContent);
+      logger.log(`[DiffReview] Entering review mode for file ${fileId} with ${pendingEdits.length} edits`);
+      return {
+        isReviewing: true,
+        fileId,
+        originalContent: base,
+        modifiedContent: newContent,
+        pendingEdits,
+        ...(origin ? { origin } : {}),
+      };
     });
   }, []);
 

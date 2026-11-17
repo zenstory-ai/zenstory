@@ -1073,3 +1073,79 @@ it('keeps the committed body when a direct edit is followed by a stream error', 
   expect(putsFor(CH2_ID)).toHaveLength(0);
   expect(server.files.get(CH2_ID)!.content).toBe(V2);
 });
+
+describe('AI replaces the open chapter, then edits it again in the same round', () => {
+  const ORIGINAL = '旧的开头。\n\n旧的中段。\n\n旧的结尾。';
+  const REPLACED = '新的开头，老周出场。\n\n新的中段，老周在摊上。\n\n新的结尾，老周收摊。';
+  const EDITED = '新的开头，老王出场。\n\n新的中段，老王在摊上。\n\n新的结尾，老王收摊。';
+  const T_ORIGINAL = '2026-11-16T10:00:00.000001';
+  const T_REPLACED = '2026-11-16T10:01:00.000001';
+  const T_EDITED = '2026-11-16T10:02:00.000001';
+  const OUTCOME = { failedCount: 0, partialSuccess: false, allFailed: false, warnings: [] };
+  const review = () => harness.project!.diffReviewState;
+
+  /** write_chapter replacement: the new text streams in, is saved, and opens the review. */
+  async function replaceChapter() {
+    server.files.set(CH1.id, { ...CH1, content: ORIGINAL, updated_at: T_ORIGINAL });
+    render(<ProjectProvider><Harness /></ProjectProvider>);
+    await settle(); await advance(50); await settle();
+    expect(textarea().value).toBe(ORIGINAL);
+
+    act(() => {
+      callbacks().onStart();
+      callbacks().onToolResult('write_chapter', 'success', { id: CH1.id, action: 'replaced', awaiting_body: true });
+      callbacks().onFileCreated(CH1.id, 'draft', CH1.title);
+    });
+    await settle();
+    act(() => callbacks().onFileContent(CH1.id, REPLACED));
+    await advance(50);
+    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: REPLACED, updated_at: T_REPLACED });
+    act(() => {
+      callbacks().onFileEditStart(CH1.id, CH1.title, 1, 'draft');
+      callbacks().onFileEditApplied(CH1.id, 0, 'replace');
+      callbacks().onFileEditEnd(CH1.id, 1, REPLACED.length, REPLACED, ORIGINAL, 'draft', CH1.title, OUTCOME);
+    });
+    await advance(300); await settle();
+    expect(review()).toMatchObject({ fileId: CH1.id, originalContent: ORIGINAL, modifiedContent: REPLACED, origin: 'agent_write' });
+  }
+
+  /** edit_file on the same chapter: no content on the event, only a refresh. */
+  async function editChapter() {
+    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: EDITED, updated_at: T_EDITED });
+    act(() => {
+      callbacks().onToolResult('edit_file', 'success', { id: CH1.id });
+      callbacks().onFileEditStart(CH1.id, CH1.title, 1, 'draft');
+      callbacks().onFileEditApplied(CH1.id, 0, 'replace');
+      callbacks().onFileEditEnd(CH1.id, 1, EDITED.length, undefined, undefined, 'draft', CH1.title, OUTCOME);
+    });
+    await advance(300); await settle();
+  }
+
+  it('rebuilds the one review from the original to the latest text, and finishing saves exactly that text', async () => {
+    await replaceChapter();
+    await editChapter();
+
+    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
+    expect(review()!.pendingEdits.every(edit => edit.status === 'pending')).toBe(true);
+
+    finishReview();
+    await settle();
+    expect(putsFor(CH1.id)).toHaveLength(1);
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_EDITED });
+    expect(server.files.get(CH1.id)!.content).toBe(EDITED);
+    expect(review()).toBeNull();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('a second content-bearing write keeps the earliest original of the open review', async () => {
+    await replaceChapter();
+    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: EDITED, updated_at: T_EDITED });
+    act(() => callbacks().onFileEditEnd(CH1.id, 1, EDITED.length, EDITED, REPLACED, 'draft', CH1.title, OUTCOME));
+    await advance(300); await settle();
+    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
+
+    finishReview();
+    await settle();
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_EDITED });
+  });
+});

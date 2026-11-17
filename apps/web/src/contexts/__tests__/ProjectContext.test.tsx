@@ -917,6 +917,42 @@ describe('ProjectContext', () => {
       expect(result.current.diffReviewState?.modifiedContent).toBe('modified content')
     })
 
+    it('extends an open agent-write review on a later agent write to the same file', async () => {
+      vi.mocked(projectApi.getAll).mockResolvedValue(mockProjects)
+      const wrapper = createWrapper(mockUser)
+      const { result } = renderHook(() => useProject(), { wrapper })
+      await waitFor(() => expect(result.current.projects.length).toBe(2))
+
+      act(() => result.current.enterDiffReview('file-1', 'v1 a\n\nv1 b', 'v2 a\n\nv1 b', 'agent_write'))
+      const firstEdit = result.current.diffReviewState!.pendingEdits[0].id
+      act(() => result.current.rejectEdit(firstEdit))
+      // The next write's original is whatever it saw; the review keeps its own earliest original.
+      act(() => result.current.enterDiffReview('file-1', 'v2 a\n\nv1 b', 'v3 a\n\nv3 b', 'agent_write'))
+
+      expect(result.current.diffReviewState).toMatchObject({
+        fileId: 'file-1', originalContent: 'v1 a\n\nv1 b', modifiedContent: 'v3 a\n\nv3 b', origin: 'agent_write',
+      })
+      expect(result.current.diffReviewState!.pendingEdits.every(edit => edit.status === 'pending')).toBe(true)
+
+      // Writing the original back leaves nothing to review.
+      act(() => result.current.enterDiffReview('file-1', 'v3 a\n\nv3 b', 'v1 a\n\nv1 b', 'agent_write'))
+      expect(result.current.diffReviewState).toBeNull()
+    })
+
+    it('replaces a review of another origin or another file instead of extending it', async () => {
+      vi.mocked(projectApi.getAll).mockResolvedValue(mockProjects)
+      const wrapper = createWrapper(mockUser)
+      const { result } = renderHook(() => useProject(), { wrapper })
+      await waitFor(() => expect(result.current.projects.length).toBe(2))
+
+      act(() => result.current.enterDiffReview('file-1', 'mine', 'merged', 'conflict'))
+      act(() => result.current.enterDiffReview('file-1', 'server', 'ai', 'agent_write'))
+      expect(result.current.diffReviewState).toMatchObject({ originalContent: 'server', modifiedContent: 'ai' })
+
+      act(() => result.current.enterDiffReview('file-2', 'other', 'other ai', 'agent_write'))
+      expect(result.current.diffReviewState).toMatchObject({ fileId: 'file-2', originalContent: 'other', modifiedContent: 'other ai' })
+    })
+
     it('should accept a single edit', async () => {
       vi.mocked(projectApi.getAll).mockResolvedValue(mockProjects)
       const wrapper = createWrapper(mockUser)
