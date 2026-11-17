@@ -57,7 +57,7 @@ async def test_agent_stream_request_success(client: AsyncClient, db_session: Ses
     db_session.commit()
 
     # Mock the writing workflow streaming
-    with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+    with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
         mock_workflow.return_value = create_mock_workflow_events()
 
         # Make request
@@ -171,7 +171,7 @@ async def test_agent_stream_workflow_error(client: AsyncClient, db_session: Sess
     async def mock_error_stream():
         yield StreamEvent(type=StreamEventType.ERROR, data={"error": "API error"})
 
-    with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+    with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
         mock_workflow.return_value = mock_error_stream()
 
         response = await client.post(
@@ -217,7 +217,7 @@ async def test_agent_stream_error_refunds_quota(client: AsyncClient, db_session:
         yield StreamEvent(type=StreamEventType.ERROR, data={"error": "API error"})
 
     with (
-        patch("agent.service.run_writing_workflow_streaming") as mock_workflow,
+        patch("agent.service.run_loop_agent_streaming") as mock_workflow,
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as mock_consume,
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
     ):
@@ -268,7 +268,7 @@ async def test_agent_stream_success_consumes_quota(client: AsyncClient, db_sessi
     db_session.commit()
 
     with (
-        patch("agent.service.run_writing_workflow_streaming") as mock_workflow,
+        patch("agent.service.run_loop_agent_streaming") as mock_workflow,
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as mock_consume,
         patch("api.agent.quota_service.release_ai_conversation") as mock_refund,
     ):
@@ -398,7 +398,7 @@ async def test_agent_stream_returns_402_when_reserve_quota_fails(client: AsyncCl
 
     with (
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=None) as mock_consume,
-        patch("agent.service.run_writing_workflow_streaming") as mock_workflow,
+        patch("agent.service.run_loop_agent_streaming") as mock_workflow,
     ):
         response = await client.post(
             "/api/v1/agent/stream",
@@ -439,7 +439,7 @@ async def test_agent_stream_sse_format(client: AsyncClient, db_session: Session)
     db_session.add(project)
     db_session.commit()
 
-    with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+    with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
         mock_workflow.return_value = create_mock_workflow_events()
 
         response = await client.post(
@@ -481,7 +481,7 @@ async def test_agent_verify_mock_used(client: AsyncClient, db_session: Session):
     db_session.add(project)
     db_session.commit()
 
-    with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+    with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
         mock_workflow.return_value = create_mock_workflow_events()
 
         response = await client.post(
@@ -523,7 +523,7 @@ async def test_agent_stream_with_selected_text(client: AsyncClient, db_session: 
     db_session.add(project)
     db_session.commit()
 
-    with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+    with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
         mock_workflow.return_value = create_mock_workflow_events()
 
         response = await client.post(
@@ -564,7 +564,7 @@ async def test_agent_stream_with_metadata(client: AsyncClient, db_session: Sessi
     db_session.add(project)
     db_session.commit()
 
-    with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+    with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
         mock_workflow.return_value = create_mock_workflow_events()
 
         response = await client.post(

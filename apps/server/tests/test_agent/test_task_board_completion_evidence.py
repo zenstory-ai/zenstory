@@ -8,10 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from agent.graph.writing_graph import (
-    _auto_finalize_task_board_on_completion,
+from agent.core.task_board_completion import (
     _build_completion_task_payload,
     _existing_written_artifacts,
+    auto_finalize_task_board_on_completion,
 )
 from agent.openai_agents.repeat_read_guard import ReadPlan, RepeatReadGuard
 from agent.tools.file_ops.project import ProjectOperations
@@ -454,10 +454,10 @@ async def test_finalize_without_any_write_does_not_read_or_update_the_board():
                 "services.infra.task_board_service.task_board_service.get_tasks",
                 get_tasks,
             ),
-            patch("agent.graph.writing_graph.update_project", update),
+            patch("agent.core.task_board_completion.update_project", update),
         ):
-            assert await _auto_finalize_task_board_on_completion(RepeatReadGuard()) == []
-            assert await _auto_finalize_task_board_on_completion(None) == []
+            assert await auto_finalize_task_board_on_completion(RepeatReadGuard()) == []
+            assert await auto_finalize_task_board_on_completion(None) == []
     finally:
         ToolContext.clear_context()
 
@@ -477,12 +477,12 @@ async def test_finalize_records_partial_progress_from_typed_written_artifacts():
                 return_value=[_range_task()],
             ),
             patch(
-                "agent.graph.writing_graph._existing_written_artifacts",
+                "agent.core.task_board_completion._existing_written_artifacts",
                 return_value=written,
             ) as existing,
-            patch("agent.graph.writing_graph.update_project", update),
+            patch("agent.core.task_board_completion.update_project", update),
         ):
-            events = await _auto_finalize_task_board_on_completion(_guard_with_write())
+            events = await auto_finalize_task_board_on_completion(_guard_with_write())
     finally:
         ToolContext.clear_context()
 
@@ -519,16 +519,16 @@ async def test_finalize_revalidates_recorded_progress_against_live_typed_artifac
                 return_value=[task],
             ),
             patch(
-                "agent.graph.writing_graph._existing_written_artifacts",
+                "agent.core.task_board_completion._existing_written_artifacts",
                 return_value=written,
             ),
             patch(
-                "agent.graph.writing_graph._live_project_artifacts",
+                "agent.core.task_board_completion._live_project_artifacts",
                 return_value=live,
             ) as live_lookup,
-            patch("agent.graph.writing_graph.update_project", update),
+            patch("agent.core.task_board_completion.update_project", update),
         ):
-            await _auto_finalize_task_board_on_completion(_guard_with_write("s4", "第4集"))
+            await auto_finalize_task_board_on_completion(_guard_with_write("s4", "第4集"))
     finally:
         ToolContext.clear_context()
 
@@ -868,23 +868,3 @@ def test_task_evidence_spec_requires_type_for_legacy_text_but_accepts_structured
 
 def test_format_units():
     assert format_units({2, 3, 4, 6, 8, 9}, "集") == "第2–4、6、8–9集"
-
-
-def test_board_prompt_shows_recorded_progress(monkeypatch):
-    from agent.core.message_manager import MessageManager
-
-    _mock_task_board(
-        monkeypatch,
-        [
-            _range_task(progress="已写：第2集；待写：第3–5集"),
-            {"task": "收尾", "status": "pending"},
-        ],
-    )
-    manager = MessageManager.__new__(MessageManager)
-    manager.user_id = "u"
-    manager.project_id = "p"
-
-    text = "\n".join(manager._build_task_board_section("s", force_en=False))
-
-    assert "🔄 撰寫第2-5集劇本（已写：第2集；待写：第3–5集）" in text
-    assert "⏳ 收尾" in text

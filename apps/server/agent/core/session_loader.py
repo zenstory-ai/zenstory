@@ -36,7 +36,7 @@ from utils.text_metrics import count_words
 _REWORK_REPLAY_STOP_REASONS: frozenset[str] = frozenset(
     {"run_deadline_exceeded", "cancelled", "user_stopped", "client_disconnected"}
 )
-# 回放块的固定标题；router._SYNTHESIZED_SECTION_HEADERS 按它截掉上一轮结尾里的这段。
+# 图写下的旧行里「未执行的审稿返修要求」回放块的固定标题。
 PENDING_REWORK_HEADER = "[上一轮未执行的审稿返修要求]"
 PENDING_REWORK_HEADER_EN = "[Unapplied review revisions from the previous round]"
 
@@ -45,14 +45,13 @@ def _breadcrumb_lang_is_english() -> bool:
     return (os.getenv("AGENT_HISTORY_BREADCRUMB_LANG") or "").strip().lower().startswith("en")
 
 
-def _agent_has_write_tools(agent_type: Any) -> bool:
-    """与 writing_graph._agent_can_write_files 同一口径：按 registry 的实际工具集判断。"""
-    if not isinstance(agent_type, str) or not agent_type:
-        return False
-    from agent.tools.registry import AGENT_TOOL_NAME_MAP, FILE_WRITE_TOOL_NAMES
+# 多 agent 图（已删除）里工具集含写文件工具的角色。只用于回放图写下的旧行，冻结为删除前 registry 的结果。
+_LEGACY_GRAPH_WRITE_ROLES = frozenset({"planner", "hook_designer", "writer", "loop"})
 
-    tool_names = AGENT_TOOL_NAME_MAP.get(agent_type)
-    return tool_names is not None and bool(FILE_WRITE_TOOL_NAMES.intersection(tool_names))
+
+def _agent_has_write_tools(agent_type: Any) -> bool:
+    """图写下的旧行里，这个角色有没有写文件工具（审稿人 quality_reviewer 没有）。"""
+    return isinstance(agent_type, str) and agent_type in _LEGACY_GRAPH_WRITE_ROLES
 
 
 def _format_pending_rework(packet: dict[str, Any], *, english: bool) -> str:
@@ -97,6 +96,8 @@ WORKING_SET_USER_MESSAGE_LABEL = "【本轮用户消息】"
 WORKING_SET_AUTHOR_EDITED_NOTE = "（作者在 AI 写过之后亲手改过，改了哪几处见 <author_edits>）"
 # 本轮开始时给哪些文件算作者手改差异：跨轮工作集、焦点 / 附加、上下文里其余文件，按这个顺序最多这么多个。
 AUTHOR_EDITS_MAX_FILES = 30
+# session_written_file_ids 每次读多少条 assistant 行（只读 tool_calls 列）：凑够名额就不再往前读。
+SESSION_WRITTEN_FILES_PAGE_ROWS = 20
 
 # 工具名 → 面包屑里的动作（读取类只认按 id 精确读取的 query_files）
 _BREADCRUMB_VERBS_ZH = {
@@ -507,9 +508,6 @@ class SessionLoader:
 
         增益信息，出错时不影响本轮：单个文件算不出来时明说「没算出来」；没有快照的文件 edit_file 只按逐字匹配改。
         """
-        from agent.tools.author_changes import AuthorChanges, author_changes, render_author_edits_block
-        from models import File
-
         if not self.user_id:
             return
         fallback_titles: dict[str, str] = {}
@@ -542,6 +540,27 @@ class SessionLoader:
         ordered = list(dict.fromkeys(f for f in [*working_set_ids, *primary_ids, *other_ids] if f))
         if not ordered:
             return
+        block, edited_ids, by_id = self.author_edits_for_files(session, ordered, fallback_titles)
+        result.author_edits_context = block
+        result.author_edited_file_ids |= edited_ids
+        if by_id is None:
+            return
+        # 快照只记模型这一轮真正看到全文的文件：截断的、只列了标题的不记（它们的 edit_file 只按逐字匹配）。
+        for file_id in self._full_text_context_ids(result.context_data):
+            file = by_id.get(file_id)
+            if file is not None:
+                result.read_snapshots[file_id] = file.content or ""
+
+    def author_edits_for_files(
+        self, session: Session, ordered: list[str], fallback_titles: dict[str, str]
+    ) -> tuple[str, set[str], dict[str, Any] | None]:
+        """按 ordered 的先后（至多 AUTHOR_EDITS_MAX_FILES 个）算作者手改，返回 (<author_edits> 块, 作者改过的 id, id → File)。
+
+        查询文件失败时块里明说「没算出来」，第三项为 None。图（attach_author_edits）与单循环 agent 的本轮上下文共用。
+        """
+        from agent.tools.author_changes import AuthorChanges, author_changes, render_author_edits_block
+        from models import File
+
         try:
             files = session.exec(
                 select(File).where(
@@ -571,14 +590,17 @@ class SessionLoader:
                 )
                 for file_id in checked_ids
             ]
-            result.author_edits_context = render_author_edits_block(
-                failed_entries,
-                unchecked_titles=[
-                    f"《{fallback_titles.get(file_id) or '（未命名）'}》"
-                    for file_id in unchecked_ids
-                ],
+            return (
+                render_author_edits_block(
+                    failed_entries,
+                    unchecked_titles=[
+                        f"《{fallback_titles.get(file_id) or '（未命名）'}》"
+                        for file_id in unchecked_ids
+                    ],
+                ),
+                set(),
+                None,
             )
-            return
         by_id = {str(f.id): f for f in files if f.file_type != "folder"}
         present = [file_id for file_id in ordered if file_id in by_id]
         checked, unchecked = present[:AUTHOR_EDITS_MAX_FILES], present[AUTHOR_EDITS_MAX_FILES:]
@@ -587,6 +609,7 @@ class SessionLoader:
             return str(file.title or "").strip() or "（未命名）"
 
         entries = []
+        edited_ids: set[str] = set()
         for file_id in checked:
             file = by_id[file_id]
             try:
@@ -600,15 +623,92 @@ class SessionLoader:
                 entries.append((file_id, title_of(file), changes))
                 if changes.hunks:
                     # 只核对不完整（窗口外 / 回放失败）的文件不标「作者改过」：不知道，就不下结论。
-                    result.author_edited_file_ids.add(file_id)
-        result.author_edits_context = render_author_edits_block(
+                    edited_ids.add(file_id)
+        block = render_author_edits_block(
             entries, unchecked_titles=[f"《{title_of(by_id[file_id])}》" for file_id in unchecked]
         )
-        # 快照只记模型这一轮真正看到全文的文件：截断的、只列了标题的不记（它们的 edit_file 只按逐字匹配）。
-        for file_id in self._full_text_context_ids(result.context_data):
-            file = by_id.get(file_id)
-            if file is not None:
-                result.read_snapshots[file_id] = file.content or ""
+        return block, edited_ids, by_id
+
+    def session_written_file_ids(
+        self,
+        session: Session,
+        *,
+        chat_session_id: str,
+        limit: int,
+        file_types: tuple[str, ...] | None = None,
+    ) -> list[str]:
+        """这个会话里 AI 成功写过（create_file / write_chapter / edit_file / rename_file）的文件 id，新 → 旧，至多 limit 个。
+
+        之后被删掉的（结果未知的删除不算）不列。只读 assistant 行持久化的 tool_calls，不读正文。
+        给了 file_types 时先按本项目、未删除、这些类型筛，再计 limit：别的类型的文件不占名额。
+        """
+        from models import ChatMessage, File
+
+        query = (
+            select(ChatMessage.tool_calls)
+            .where(
+                and_(
+                    ChatMessage.session_id == chat_session_id,
+                    ChatMessage.role == "assistant",
+                )
+            )
+            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+        )
+
+        def tool_payloads() -> Any:
+            # 新 → 旧按页读：会话很长时不一次把所有行的 tool_calls 读进来。
+            offset = 0
+            while True:
+                page = session.exec(query.offset(offset).limit(SESSION_WRITTEN_FILES_PAGE_ROWS)).all()
+                yield from page
+                if len(page) < SESSION_WRITTEN_FILES_PAGE_ROWS:
+                    return
+                offset += SESSION_WRITTEN_FILES_PAGE_ROWS
+
+        written: list[str] = []
+        seen: set[str] = set()
+        deleted: set[str] = set()
+        pending: list[str] = []
+
+        def accept_pending() -> None:
+            if file_types is None:
+                accepted = set(pending)
+            else:
+                accepted = set(
+                    session.exec(
+                        select(File.id).where(
+                            File.id.in_(pending),
+                            File.project_id == self.project_id,
+                            File.is_deleted.is_(False),
+                            File.file_type.in_(file_types),
+                        )
+                    ).all()
+                )
+            written.extend(fid for fid in pending if fid in accepted and fid not in deleted)
+            pending.clear()
+
+        for tool_calls in tool_payloads():
+            actions = self._extract_file_actions(tool_calls)
+            for action in actions:
+                if action["name"] == "delete_file" and action["file_id"] and not action.get("outcome_unknown"):
+                    deleted.add(action["file_id"])
+            for action in actions:
+                file_id = action["file_id"]
+                if (
+                    not file_id
+                    or action["name"] in ("delete_file", "query_files")
+                    or action.get("outcome_unknown")
+                    or file_id in deleted
+                    or file_id in seen
+                ):
+                    continue
+                seen.add(file_id)
+                pending.append(file_id)
+            if pending:
+                accept_pending()
+            if len(written) >= limit:
+                return written[:limit]
+        return written
 
     def attach_working_set(self, session: Session, result: SessionData) -> None:
         """按当前库内容渲染跨轮工作集，写入 result.working_set_context。
@@ -961,8 +1061,8 @@ class SessionLoader:
                     msg_data["stop_reason"] = stop_reason
                 if isinstance(usage, dict):
                     msg_data["usage"] = usage
-                # 跨轮路由延续（graph/router.py）：上一轮落库的路由、状态卡里的
-                # lastAgent、是否以澄清卡收尾。只供路由判断，不进回放文本。
+                # 图写下的旧行：落库的路由、状态卡里的 lastAgent、是否以澄清卡收尾。
+                # 原样带在消息结构上，不进回放文本。
                 routing = metadata.get("routing")
                 if isinstance(routing, dict):
                     msg_data["routing"] = routing
@@ -973,7 +1073,6 @@ class SessionLoader:
                 if isinstance(status_cards, list):
                     msg_data.update(self._status_card_routing_hints(status_cards))
                     synthesized_content = self._build_status_cards_history_content(status_cards)
-                    # 路由器另有一份状态卡摘要（router.build_router_user_message）。
                     if synthesized_content:
                         msg_data["status_card_text"] = synthesized_content
                     if synthesized_content and not self._extract_content_text(

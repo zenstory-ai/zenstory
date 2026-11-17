@@ -29,10 +29,10 @@ class StreamEventType(Enum):
     WORKFLOW_STOPPED = "workflow_stopped"
     WORKFLOW_COMPLETE = "workflow_complete"
     STEERING_RECEIVED = "steering_received"
-    # 图 → StreamAdapter 的内部控制事件，不发给前端：data["action"] 为
+    # 已删除的多 agent 图 → StreamAdapter 的内部控制事件，不发给前端：data["action"] 为
     # CHAT_HOLD_BEGIN / CHAT_HOLD_DISCARD。begin 之后的对话文字先扣在适配器里，
     # discard 丢掉扣着的文字；其余情况在下一个 agent / 交接 / 收尾事件前原样放出。
-    # 见 StreamAdapter._handle_chat_hold 与 writing_graph 的「被审稿取代的总结」。
+    # 见 StreamAdapter._handle_chat_hold；单循环 agent 不产生它。
     CHAT_HOLD = "chat_hold"
     # 图 → StreamAdapter 的内部控制事件，不发给前端：空文件纠偏轮开始前，请适配器为同一个
     # 文件重新等待 <file> 正文。data["request"] 是 FileBodyResume，适配器把结果写回它，

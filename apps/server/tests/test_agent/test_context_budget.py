@@ -7,11 +7,8 @@ Tests TokenBudget for token estimation, budget allocation, and truncation.
 import pytest
 
 from agent.context.budget import (
-    DEFAULT_PROMPT_TOKEN_LEDGER_CEILING,
-    MIN_HISTORY_TOKEN_FLOOR,
     TRUNCATION_SUFFIX,
     TokenBudget,
-    compute_history_token_budget,
 )
 from agent.schemas.context import ContextItem, ContextPriority
 from agent.utils.token_utils import CHARS_PER_TOKEN
@@ -488,67 +485,3 @@ class TestTokenBudget:
 
         # Should handle zero/near-zero items gracefully
         assert len(selected) >= 0
-
-
-@pytest.mark.unit
-class TestPromptTokenLedger:
-    """Tests for the unified prompt-token ledger (shared ceiling for context + history)."""
-
-    def test_returns_full_history_budget_when_reserved_is_small(self):
-        """Small prompt costs leave the full configured history budget intact."""
-        result = compute_history_token_budget(
-            configured_history_budget=6000,
-            reserved_prompt_tokens=1000,
-        )
-        assert result == 6000
-
-    def test_reserved_context_shrinks_history_window(self):
-        """When other prompt costs are large, the history window shrinks accordingly."""
-        # Reserve enough that only 4000 tokens remain under the ceiling.
-        reserved = DEFAULT_PROMPT_TOKEN_LEDGER_CEILING - 4000
-        result = compute_history_token_budget(
-            configured_history_budget=6000,
-            reserved_prompt_tokens=reserved,
-        )
-        assert result == 4000
-        # Total prompt budget stays within the shared ceiling (no ~12k double-budget).
-        assert reserved + result <= DEFAULT_PROMPT_TOKEN_LEDGER_CEILING
-
-    def test_history_never_exceeds_configured_budget(self):
-        """The ledger only shrinks history — it never inflates beyond the configured budget."""
-        result = compute_history_token_budget(
-            configured_history_budget=6000,
-            reserved_prompt_tokens=0,
-            ceiling=1_000_000,
-        )
-        assert result == 6000
-
-    def test_history_floor_prevents_starvation(self):
-        """A huge context block cannot starve history below the floor."""
-        result = compute_history_token_budget(
-            configured_history_budget=6000,
-            reserved_prompt_tokens=DEFAULT_PROMPT_TOKEN_LEDGER_CEILING * 10,
-        )
-        assert result == MIN_HISTORY_TOKEN_FLOOR
-
-    def test_handles_none_inputs_without_crashing(self):
-        """Missing inputs are coerced to 0 and never crash."""
-        result = compute_history_token_budget(
-            configured_history_budget=None,  # type: ignore[arg-type]
-            reserved_prompt_tokens=None,  # type: ignore[arg-type]
-        )
-        # configured budget of 0 wins over the remaining ceiling room.
-        assert result == 0
-
-    def test_shared_ceiling_bounds_total_prompt_tokens(self):
-        """Context + history allocation together stay under the shared ceiling."""
-        ceiling = 10000
-        reserved = 7000
-        history = compute_history_token_budget(
-            configured_history_budget=6000,
-            reserved_prompt_tokens=reserved,
-            ceiling=ceiling,
-        )
-        # 6000 configured, but only 3000 remains under the ceiling.
-        assert history == 3000
-        assert reserved + history <= ceiling

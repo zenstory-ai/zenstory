@@ -351,7 +351,7 @@ async def test_process_stream_releases_after_normal_completion_not_before_cleanu
 
     bind = db_session.get_bind()
     with (
-        patch("agent.service.run_writing_workflow_streaming", return_value=workflow()),
+        patch("agent.service.run_loop_agent_streaming", return_value=workflow()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
         patch("agent.service.cleanup_steering_queue_async", checking_cleanup),
     ):
@@ -381,7 +381,7 @@ async def test_process_stream_releases_after_workflow_failure(
     bind = db_session.get_bind()
     frames: list[str] = []
     with (
-        patch("agent.service.run_writing_workflow_streaming", return_value=workflow()),
+        patch("agent.service.run_loop_agent_streaming", return_value=workflow()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
     ):
         async for frame in real_service.process_stream(
@@ -425,7 +425,7 @@ async def test_cancelled_run_keeps_its_slot_until_cancellation_cleanup_finishes(
 
     bind = db_session.get_bind()
     with (
-        patch("agent.service.run_writing_workflow_streaming", return_value=workflow()),
+        patch("agent.service.run_loop_agent_streaming", return_value=workflow()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
         patch("agent.service.cleanup_steering_queue_async", blocked_cleanup),
     ):
@@ -508,7 +508,7 @@ async def test_cleanup_failure_still_releases_the_slot(
 
     bind = db_session.get_bind()
     with (
-        patch("agent.service.run_writing_workflow_streaming", return_value=workflow()),
+        patch("agent.service.run_loop_agent_streaming", return_value=workflow()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
         patch("agent.service.cleanup_steering_queue_async", AsyncMock(side_effect=ConnectionError("redis down"))),
         pytest.raises(ConnectionError),

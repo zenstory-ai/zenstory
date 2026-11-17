@@ -4,8 +4,8 @@ SDK 的 max_turns（AGENT_TOOL_CALL_MAX_ITERATIONS）只限制模型轮数，挡
 「同一个调用一直失败、模型一直原样重试」：SQLite 写锁不释放时，writer 曾每隔
 约 37 秒重发一次完全相同的 edit_file，持续十多分钟，每一轮都在烧 token。
 
-熔断器按**一次用户请求**记账：writing_graph 为整条工作流建一个，传给每一次
-agent run（writer → quality_reviewer → writer 的往返不会让计数归零）。
+熔断器按**一次用户请求**记账：单循环 agent 为一轮建一个，传给每一次
+agent run（同一轮里的续跑不会让计数归零）。
 熔断判定只看工具结果本身（工具名 + 归一化参数 + 归一化错误），不依赖错误来源：
 - 同一调用（同名 + 同参数）以等价错误连续失败 MAX_IDENTICAL_TOOL_FAILURES 次 → 熔断
   （调用的是不存在的工具，或在执行前被只读请求 / 角色权限 / 先澄清拒绝时原因记为 TRIP_REASON_TOOL_NOT_FOUND，文案不说「相同参数」）；
@@ -16,7 +16,7 @@ agent run（writer → quality_reviewer → writer 的往返不会让计数归�
 同一调用一旦成功，它的连续失败计数清零。
 
 本模块只负责记账与判定；「停下」由 runner 在 SDK 的 tool_use_behavior 中同步完成，
-对外的停止事件也由 runner 发出（见 runner._stop_run_on_control_flow_tool）。
+对外的停止事件也由 runner 发出（见 runner._stop_run_after_tools）。
 """
 
 from __future__ import annotations
@@ -279,7 +279,7 @@ class _CallStreak:
 
 @dataclass
 class ToolFailureBreaker:
-    """一次请求的工具失败熔断器（writing_graph 为整条工作流建一个，跨 agent run 共享）。
+    """一次请求的工具失败熔断器（单循环 agent 为一轮建一个，跨 agent run 共享）。
 
     observe() 在每次工具执行后同步调用（tools_adapter 的 FunctionTool 回调），
     此时 SDK 还没检查本轮的 tool_use_behavior，因此熔断能在同一轮内生效。

@@ -90,11 +90,14 @@ def _drafts(workspace) -> list[File]:
     )
 
 
-async def _run_loop(workspace, model: ScriptedModel, message: str = "把第三章换成新稿") -> Outcome:
+async def _run_loop(
+    workspace, model: ScriptedModel, message: str = "把第三章换成新稿", **extra_state: Any
+) -> Outcome:
     from agent.loop.engine import run_loop_agent_streaming
 
     meter = AgentRunMeter()
     state: dict[str, Any] = {
+        **extra_state,
         "user_message": message,
         "router_message": message,
         "messages": [{"role": "user", "content": message}],
@@ -122,7 +125,7 @@ async def _run_loop(workspace, model: ScriptedModel, message: str = "把第三�
             patch("agent.openai_agents.runner.build_failover_chat_model", return_value="synthetic-model"),
             patch("agent.openai_agents.runner._preferred_model_name", AsyncMock(return_value="synthetic-model")),
             patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record"),
-            patch("agent.graph.writing_graph._auto_finalize_task_board_on_completion", AsyncMock(return_value=[])),
+            patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", AsyncMock(return_value=[])),
         ):
             frames = [frame async for frame in adapter.process_workflow_events(run_loop_agent_streaming(state))]
     finally:
@@ -200,6 +203,67 @@ async def test_write_chapter_creates_a_missing_chapter_through_the_file_body_pro
     assert [frame.data["file_id"] for frame in outcome.of("file_created")] == [created["id"]]
     assert outcome.of("file_edit_end") == []
     assert sorted(f.title for f in _drafts(workspace)) == ["第1章 雨夜", "第2章 渡口"]
+
+
+REWRITE_BODY = "\n".join(f"第{index}段合成重写稿，不应落库。" for index in range(1, 6))
+
+
+def _ai_versions(workspace, file_id: str) -> int:
+    workspace.session.expire_all()
+    rows = workspace.session.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()
+    return sum(1 for row in rows if row.change_source == "ai")
+
+
+@pytest.mark.parametrize("existing", [False, True], ids=["created", "replaced"])
+async def test_chapter_written_this_request_is_not_rewritten_by_write_chapter(workspace, existing):
+    # 这一章的正文本请求里已经由 write_chapter 写完并保存：续跑（自查）里再 write_chapter 这一章时拒绝，
+    # 正文与版本都不变，模型被指向 edit_file。新建与整章替换两条保存路径都记下这个事实。
+    if existing:
+        _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。\n第二段原文。")
+    call = ("write_chapter", {"chapter": 3, "title": "第3章 灯塔", "file_type": "draft"})
+    model = ScriptedModel(runs=[
+        [Reply(text="", tools=(call,)), Reply(text=f"<file>\n{NEW_BODY}\n</file>")],
+        [Reply(text="", tools=(call,)), Reply(text=f"<file>\n{REWRITE_BODY}\n</file>\n第三章写好了。")],
+    ])
+
+    outcome = await _run_loop(workspace, model, "写第三章")
+
+    first, second = (c.output for c in model.tool_calls[:2])
+    file_id = first["data"]["id"]
+    assert first["data"]["action"] == ("replaced" if existing else "created")
+    assert second["status"] == "error" and second["error_type"] == "chapter_written_this_turn"
+    assert second["id"] == file_id and "edit_file" in second["error"]
+    assert _content(workspace, file_id).rstrip("\n") == NEW_BODY
+    assert _ai_versions(workspace, file_id) == (1 + (1 if existing else 0))
+    assert len(_drafts(workspace)) == 1
+    assert outcome.of("error") == []
+
+
+async def test_first_replacement_in_a_new_request_is_still_allowed(workspace):
+    # 记录只在一个请求里有效：上一轮写好的章节，下一轮照常可以整章替换。
+    call = ("write_chapter", {"chapter": 3, "title": "第3章 灯塔", "file_type": "draft"})
+    first_turn = ScriptedModel(runs=[[Reply(text="", tools=(call,)), Reply(text=f"<file>\n{NEW_BODY}\n</file>\n写好了。")]])
+    await _run_loop(workspace, first_turn, "写第三章")
+    file_id = first_turn.tool_calls[0].output["data"]["id"]
+
+    second_turn = ScriptedModel(runs=[[Reply(text="", tools=(call,)), Reply(text=f"<file>\n{REWRITE_BODY}\n</file>\n换好了。")]])
+    await _run_loop(workspace, second_turn, "把第三章整章重写")
+
+    assert second_turn.tool_calls[0].output["data"]["action"] == "replaced"
+    assert _content(workspace, file_id).rstrip("\n") == REWRITE_BODY
+
+
+def test_chapter_body_record_outlives_the_pending_entry_and_resets_per_request():
+    from agent.tools.mcp_tools import _PendingEmptyFileState
+
+    state = _PendingEmptyFileState()
+    state.mark_chapter_body_saved("file-a")
+    state.discard("file-a")
+    state.discard()
+    assert state.chapter_body_saved("file-a") is True
+    assert state.chapter_body_saved("file-b") is False
+    state.clear_all()
+    assert state.chapter_body_saved("file-a") is False
 
 
 async def test_replacement_is_refused_when_the_author_saved_the_chapter_meanwhile(workspace):
@@ -326,6 +390,109 @@ async def test_unclosed_replacement_body_never_overwrites_the_chapter(workspace)
 
     assert _content(workspace, three.id) == "合成第三章原文。"
     assert "原文保持不变" in outcome.chat_text
+
+
+def _run_input_text(model: ScriptedModel, index: int) -> str:
+    return json.dumps(model.run_inputs[index], ensure_ascii=False, default=str)
+
+
+def _latest_note(model: ScriptedModel, index: int) -> str:
+    """第 index 次 run 输入里最新的一条（引擎这次追加的续跑说明）。"""
+    return json.dumps(model.run_inputs[index][-1], ensure_ascii=False, default=str)
+
+
+async def test_unclosed_replacement_body_is_retried_without_claiming_it_was_saved(workspace):
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文，一共二十个字左右的样子。")
+    model = ScriptedModel(runs=[
+        [
+            Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"}),)),
+            Reply(text="<file>\n只写了一个开头"),
+        ],
+        [Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章换好了。")],
+    ])
+
+    outcome = await _run_loop(workspace, model)
+
+    # 没写完的那一次不保存，续跑走整章替换的重试（为这一章恢复正文捕获），不说「已保存」。
+    retry_input = _run_input_text(model, 1)
+    assert "重新打开正文写入" in retry_input
+    assert "正文已保存" not in retry_input
+    assert _content(workspace, three.id).rstrip("\n") == NEW_BODY
+    assert _results(outcome, "write_chapter")[-1]["data"]["body_saved"] is True
+
+
+async def test_unclosed_replacement_body_without_retry_budget_reports_the_original_unchanged(workspace, monkeypatch):
+    from agent.core import empty_files
+
+    monkeypatch.setattr(empty_files, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
+    original = "合成第三章原文，一共二十个字左右的样子。"
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+    model = ScriptedModel(runs=[
+        [
+            Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"}),)),
+            Reply(text="<file>\n只写了一个开头"),
+        ],
+        [Reply(text="第三章没有换成，原文没动。")],
+    ])
+
+    await _run_loop(workspace, model)
+
+    assert _content(workspace, three.id) == original
+    followup = _run_input_text(model, 1)
+    assert "正文已保存" not in followup
+    assert "原文保持不变" in followup
+    # 不列这一章的原稿字数（那不是这次写出的正文）。
+    from utils.text_metrics import count_words
+
+    assert f"{count_words(original)} 字" not in followup
+
+
+async def test_second_unclosed_replacement_of_the_same_chapter_is_never_called_saved(workspace, monkeypatch):
+    from agent.core import empty_files
+
+    monkeypatch.setattr(empty_files, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
+    original = "合成第三章原文，一共二十个字左右的样子。"
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+    write_three = ("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"})
+    model = ScriptedModel(runs=[
+        [Reply(text="", tools=(write_three,)), Reply(text="<file>\n只写了一个开头")],
+        [Reply(text="", tools=(write_three,)), Reply(text="<file>\n又只写了一个开头")],
+        [Reply(text="第三章没有换成，原文没动。")],
+    ])
+
+    await _run_loop(workspace, model)
+
+    assert _content(workspace, three.id) == original
+    # 同一章第二次没写完：仍如实说没保存，不退回「正文已保存：（见下）」。
+    for index in (1, 2):
+        followup = _latest_note(model, index)
+        assert "正文已保存" not in followup
+        assert "原文保持不变" in followup
+
+
+async def test_rearmed_replacement_that_fails_again_is_reported_next_to_a_saved_chapter(workspace, monkeypatch):
+    from agent.core import empty_files
+
+    monkeypatch.setattr(empty_files, "MAX_FILE_CORRECTION_ATTEMPTS", 0)
+    original = "合成第三章原文，一共二十个字左右的样子。"
+    _ai_chapter(workspace.session, workspace.project, "第2章 渡口", "合成第二章原文。")
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+    write_two = ("write_chapter", {"chapter": 2, "title": "第2章", "file_type": "draft"})
+    write_three = ("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"})
+    model = ScriptedModel(runs=[
+        [Reply(text="", tools=(write_three,)), Reply(text="<file>\n只写了一个开头")],
+        [Reply(text="", tools=(write_two,)), Reply(text=f"<file>\n{NEW_BODY}\n</file>", tools=(write_three,)),
+         Reply(text="<file>\n又只写了一个开头")],
+        [Reply(text="第二章换好了，第三章没有换成。")],
+    ])
+
+    await _run_loop(workspace, model)
+
+    assert _content(workspace, three.id) == original
+    # 第二章保存了，但第三章重新定位后又没写完：最新的续跑说明仍要如实说第三章没保存。
+    followup = _latest_note(model, 2)
+    assert "原文保持不变" in followup
+    assert "《第3章 灯塔》的整章替换没有保存" in followup
 
 
 async def test_author_saved_chapter_is_not_replaced_through_chat(workspace):
@@ -651,19 +818,6 @@ async def test_existing_duplicates_and_notes_files_are_not_blocked(loop_tools):
     assert rewritten_outline["status"] == "success"
 
 
-async def test_graph_roles_keep_whole_body_edits(workspace):
-    chapter = _ai_chapter(workspace.session, workspace.project, "第1章", "第一段。\n第二段。")
-    ToolContext.set_context(
-        session=workspace.session, user_id=workspace.user.id, project_id=workspace.project.id, session_id="graph"
-    )
-    ToolContext.set_current_agent("writer")
-    try:
-        result = await _edit(chapter.id, [{"op": "replace", "old": "第一段。\n第二段。", "new": "整章重写。"}])
-    finally:
-        ToolContext.clear_context()
-    assert result["status"] == "success"
-
-
 # ---------------------------------------------------------------------------
 # 历史回放与撤销卡
 # ---------------------------------------------------------------------------
@@ -714,3 +868,33 @@ async def test_undo_marks_a_write_chapter_card(workspace):
         expected_after_updated_at=datetime.fromisoformat(after),
     )
     assert marked is True
+
+
+# ---------------------------------------------------------------------------
+# 上一轮在思考阶段撞上输出上限：本轮第一次 run 带上「简短思考、先交付第一部分」
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("previous_truncations", [0, 1])
+async def test_turn_after_an_output_truncation_asks_for_short_thinking_once(workspace, previous_truncations):
+    from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
+
+    model = ScriptedModel(runs=[
+        [
+            Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "雨夜", "file_type": "draft"}),)),
+            Reply(text=f"<file>\n{NEW_BODY}\n</file>"),
+        ],
+        [Reply(text="第一章写好了。")],
+    ])
+
+    outcome = await _run_loop(workspace, model, "继续", previous_output_truncations=previous_truncations)
+
+    first, followup = _run_input_text(model, 0), _run_input_text(model, 1)
+    if previous_truncations:
+        assert first.count(OUTPUT_TRUNCATED_RESUME) == 1
+        # 只对本轮第一次 run 加：续跑（从上一次完整输入接着来时那一条已在里面）不再追加。
+        assert followup.count(OUTPUT_TRUNCATED_RESUME) <= 1
+    else:
+        assert OUTPUT_TRUNCATED_RESUME not in first
+    # 不写回对话（不进历史）。
+    assert OUTPUT_TRUNCATED_RESUME not in json.dumps(outcome.state.get("messages"), ensure_ascii=False)

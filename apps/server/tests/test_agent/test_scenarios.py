@@ -8,13 +8,11 @@ Tests complex workflows including:
 """
 
 import asyncio
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlmodel import Session, select
 
 from agent.context.assembler import ContextAssembler
-from agent.graph.router import WORKFLOW_AGENTS, router_node
 from agent.tools.mcp_tools import ToolContext
 from models import ChatMessage, ChatSession, File, Project, User
 from services.core.auth_service import hash_password
@@ -293,68 +291,6 @@ class TestMultiTurnConversations:
         # Verify skill catalog can be built (even if empty for test user)
         # The important thing is the mechanism works
         assert skill_catalog is None or isinstance(skill_catalog, str)
-
-    @pytest.mark.asyncio
-    async def test_router_agent_selection(
-        self,
-        db_session: Session,
-        test_project: Project,
-    ):
-        """
-        Verify that the Router Agent correctly selects sub-agents.
-
-        The router should analyze user intent and route to the appropriate
-        agent (planner/writer/quality_reviewer) with correct workflow planning.
-        """
-        test_cases = [
-            {
-                "message": "Help me plan the overall structure of my novel",
-                "expected_workflow": "standard",
-                "expected_initial_agent": "planner",
-            },
-            {
-                "message": "Continue writing the current chapter",
-                "expected_workflow": "quick",
-                "expected_initial_agent": "writer",
-            },
-            {
-                "message": "Review the quality of my draft",
-                "expected_workflow": "review_only",
-                "expected_initial_agent": "quality_reviewer",
-            },
-        ]
-
-        for case in test_cases:
-            # Create mock state
-            state = {
-                "user_message": case["message"],
-                "project_id": str(test_project.id),
-                "user_id": None,
-            }
-
-            expected_initial_agent = case["expected_initial_agent"]
-            expected_workflow = case["expected_workflow"]
-            route_response = {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"{expected_initial_agent}\n{expected_workflow}",
-                    }
-                ]
-            }
-
-            # Mock the router LLM call
-            with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=route_response)):
-                # Run router
-                result = await router_node(state)
-
-                # Verify routing
-                assert result["workflow_plan"] == case["expected_workflow"]
-                assert result["current_agent"] == case["expected_initial_agent"]
-
-                # Verify workflow agents match workflow type
-                expected_agents = WORKFLOW_AGENTS.get(case["expected_workflow"], [])
-                assert result["workflow_agents"] == expected_agents
 
 
 @pytest.mark.integration

@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from agent.core.events import done_event
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
-from agent.tools import mcp_tools, parallel_executor
+from agent.tools import mcp_tools
 from agent.tools.file_ops import FileCRUD, FileEditor
 from models import File, Project, User
 from services.features.file_version_service import FileVersionService
@@ -126,43 +126,6 @@ def test_large_result_retains_compact_mutation_signal(monkeypatch, changed):
     payload = _payload(mcp_tools._make_result({"status": "success", "mutation_applied": changed, "data": {"content": "x" * 5000}}))
     assert payload["truncated"] is True
     assert payload["mutation_applied"] is changed
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("results,expected", [
-    ([{"status": "success", "data": {"content": "read"}}], False),
-    ([{"status": "error", "error": "failed", "mutation_applied": True}], False),
-    ([{"status": "success", "mutation_applied": True, "data": {"content": "x" * 5000}}, {"status": "error", "error": "failed"}], True),
-    ([{"status": "success", "mutation_applied": False}, {"status": "success", "mutation_applied": True}], True),
-])
-async def test_parallel_aggregates_before_task_and_outer_truncation(monkeypatch, results, expected):
-    async def handler(params):
-        return mcp_tools._make_result(results[params["index"]])
-
-    monkeypatch.setattr(parallel_executor, "handle_query_files", handler)
-    monkeypatch.setattr(mcp_tools, "TOOL_RESULT_MAX_CHARS", 512)
-    payload = _payload(await parallel_executor.execute_parallel([
-        {"type": "query_files", "description": "large" * 200, "params": {"index": i}} for i in range(len(results))
-    ]))
-    assert payload["mutation_applied"] is expected
-    assert payload["truncated"] is True
-
-
-@pytest.mark.asyncio
-async def test_dropped_parallel_write_does_not_count(monkeypatch):
-    calls = []
-
-    async def handler(params):
-        calls.append(params["write"])
-        return mcp_tools._make_result({"status": "success", "mutation_applied": params["write"]})
-
-    monkeypatch.setattr(parallel_executor, "handle_query_files", handler)
-    tasks = [{"type": "query_files", "description": "Read", "params": {"write": False}} for _ in range(parallel_executor.MAX_PARALLEL_TASKS)]
-    tasks.append({"type": "query_files", "description": "Dropped write", "params": {"write": True}})
-    payload = _payload(await parallel_executor.execute_parallel(tasks))
-    assert calls == [False] * parallel_executor.MAX_PARALLEL_TASKS
-    assert payload["data"]["dropped"] == 1
-    assert payload["mutation_applied"] is False
 
 
 @pytest.mark.asyncio

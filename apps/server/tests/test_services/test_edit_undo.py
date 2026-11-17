@@ -18,7 +18,7 @@ from config.datetime_utils import normalize_datetime_to_utc
 from main import app
 from models import ChatMessage, ChatSession, File, FileVersion, Project, User
 from models.agent_api_key import AgentApiKey
-from services.features.file_version_service import FileVersionService, get_file_version_service
+from services.features.file_version_service import FileVersionService, content_sha256, get_file_version_service
 
 STAMP = datetime(2035, 1, 1, 12, 0, 0, 123456, tzinfo=UTC)
 
@@ -55,6 +55,7 @@ def test_edit_emits_exact_before_version_and_committed_after_token(db_session, u
     assert result["undo"] == {
         "before_version_number": 1,
         "expected_after_updated_at": normalize_datetime_to_utc(file.updated_at).isoformat(),
+        "expected_after_content_sha256": content_sha256("Before\nAI\n"),
     }
     assert file.content == "Before\nAI\n"
     assert normalize_datetime_to_utc(file.updated_at) > STAMP
@@ -117,7 +118,11 @@ async def test_first_ai_edit_of_blank_file_undoes_to_blank_through_real_rollback
     result = _edit(db_session, user, blank_file)
     db_session.refresh(blank_file)
     token = normalize_datetime_to_utc(blank_file.updated_at).isoformat()
-    assert result["undo"] == {"before_version_number": 1, "expected_after_updated_at": token}
+    assert result["undo"] == {
+        "before_version_number": 1,
+        "expected_after_updated_at": token,
+        "expected_after_content_sha256": content_sha256("AI\n"),
+    }
     assert _version_rows(db_session, blank_file.id) == [(1, "edit", "system"), (2, "ai_edit", "ai")]
     service = get_file_version_service()
     assert service.get_version_by_number(db_session, blank_file.id, 1).change_summary == "Before AI edit"
@@ -427,3 +432,94 @@ def test_undo_provenance_reuses_loaded_head_without_a_redundant_target_select(db
     print(f"Undo provenance delta={delta}: {len(provenance_reads)} SELECTs plus read-savepoint pair")
     assert len(provenance_reads) == (3 if delta else 1)
     assert result["undo"]["before_version_number"] == (2 if delta else 1)
+
+
+def _replace_then_edit(session, user, file):
+    """同一轮先整章替换、再对同一文件 edit_file，返回两次写入的撤销锚点。"""
+    editor = FileEditor(session, user.id)
+    replaced = editor.replace_body(file.id, "Replaced\n", expected_updated_at=None, protect_author_content=False)
+    edited = editor.edit_file(file.id, [{"op": "append", "text": "Edited\n"}])
+    return replaced["undo"], edited["undo"]
+
+
+def _rollback_body(anchor, *, with_hash=True, **extra):
+    body = {"expected_updated_at": anchor["expected_after_updated_at"], **extra}
+    if with_hash:
+        body["expected_after_content_sha256"] = anchor["expected_after_content_sha256"]
+    return body
+
+
+async def test_earlier_replace_undoes_after_the_later_edit_was_undone(client, db_session, undo_file):
+    # 后面那次修改撤销后正文逐字回到整章替换的结果，但版本令牌已经变了：
+    # 带上替换结果的摘要，替换那张卡的撤销照样能恢复原稿，并把卡标成已撤销。
+    user, project, file, _ = undo_file
+    replace_anchor, edit_anchor = _replace_then_edit(db_session, user, file)
+    assert replace_anchor["expected_after_content_sha256"] == content_sha256("Replaced\n")
+
+    undo_edit = await client.post(
+        f"/api/v1/files/{file.id}/versions/{edit_anchor['before_version_number']}/rollback",
+        json=_rollback_body(edit_anchor),
+    )
+    assert undo_edit.status_code == 200
+    db_session.refresh(file)
+    assert file.content == "Replaced\n"
+    assert normalize_datetime_to_utc(file.updated_at).isoformat() != replace_anchor["expected_after_updated_at"]
+
+    chat = ChatSession(project_id=project.id, user_id=user.id)
+    db_session.add(chat)
+    db_session.commit()
+    message_id = MessageManager(project.id, user.id)._save_messages_with_session(
+        db_session, session_id=chat.id, user_message="Rewrite", assistant_message="Done",
+        tool_calls=[{
+            "id": "replace-card", "name": "write_chapter", "arguments": {"chapter": 1}, "status": "success",
+            "result": {"id": file.id, "action": "replaced", "undo": replace_anchor},
+        }],
+    )
+    undo_replace = await client.post(
+        f"/api/v1/files/{file.id}/versions/{replace_anchor['before_version_number']}/rollback",
+        json=_rollback_body(replace_anchor, chat_message_id=message_id, tool_use_id="replace-card"),
+    )
+    assert undo_replace.status_code == 200
+    assert undo_replace.json()["undo_recorded"] is True
+    db_session.expire_all()
+    assert db_session.get(File, file.id).content == "Before\n"
+
+
+@pytest.mark.parametrize("case", ["later_edit_live", "author_edit_after_undo", "no_hash"])
+async def test_content_digest_never_hides_a_real_divergence(client, db_session, undo_file, case):
+    # 摘要只在正文与那次修改的结果逐字相同时放行；后面那次修改还在、作者又改过、
+    # 或请求不带摘要（旧客户端）时，仍是 409，正文不动。
+    user, _, file, _ = undo_file
+    replace_anchor, edit_anchor = _replace_then_edit(db_session, user, file)
+    if case != "later_edit_live":
+        undone = await client.post(
+            f"/api/v1/files/{file.id}/versions/{edit_anchor['before_version_number']}/rollback",
+            json=_rollback_body(edit_anchor),
+        )
+        assert undone.status_code == 200
+    if case == "author_edit_after_undo":
+        files.update_file(file.id, files.FileUpdate(content="Replaced\nAuthor\n"), current_user=user, session=db_session)
+    db_session.refresh(file)
+    before = (file.content, normalize_datetime_to_utc(file.updated_at), _count_versions(db_session, file.id))
+
+    response = await client.post(
+        f"/api/v1/files/{file.id}/versions/{replace_anchor['before_version_number']}/rollback",
+        json=_rollback_body(replace_anchor, with_hash=case != "no_hash"),
+    )
+    assert response.status_code == 409
+    assert response.json()["error_code"] == "ERR_RESOURCE_CONFLICT"
+    db_session.refresh(file)
+    assert (file.content, normalize_datetime_to_utc(file.updated_at), _count_versions(db_session, file.id)) == before
+
+
+@pytest.mark.parametrize("digest", ["abc", "G" * 64, "A" * 64])
+async def test_malformed_content_digest_is_rejected_before_restore(client, db_session, undo_file, digest):
+    user, _, file, *_ = undo_file
+    anchor = _edit(db_session, user, file)["undo"]
+    response = await client.post(
+        f"/api/v1/files/{file.id}/versions/1/rollback",
+        json={"expected_updated_at": anchor["expected_after_updated_at"], "expected_after_content_sha256": digest},
+    )
+    assert response.status_code == 422
+    db_session.refresh(file)
+    assert file.content == "Before\nAI\n"

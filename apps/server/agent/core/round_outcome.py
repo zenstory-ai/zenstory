@@ -35,7 +35,7 @@ logger = get_logger(__name__)
 STOP_KIND_USER_STOPPED = "user_stopped"
 STOP_KIND_CLIENT_DISCONNECTED = "client_disconnected"
 STOP_KINDS: frozenset[str] = frozenset({STOP_KIND_USER_STOPPED, STOP_KIND_CLIENT_DISCONNECTED})
-# 时限截停落库的 stop_reason（与 runner 的同名原因一致，在 router.RESUMABLE_STOP_REASONS 里）。
+# 时限截停落库的 stop_reason（与 runner 的同名原因一致；作者回复「继续」可以接着做）。
 RUN_DEADLINE_STOP_REASON = "run_deadline_exceeded"
 # 正常收尾的写入回执（不是停止）：只由真实提交结果生成，见 RoundWrittenFiles.completion_receipt。
 ROUND_KIND_COMPLETED = "completed"
@@ -159,14 +159,13 @@ class RoundWrittenFiles:
     # 路由判定作者本轮要求写正文（write_content=true 且不是只读）：没有任何写入时，
     # 正常收尾也要明说「没有改动文件」，模型自由回复里的「已修改」不能代替这条事实。
     requested_body_write: bool = False
-    # 空文件纠正失败是请求级粘性事实：临时空文件随后被安全撤回、或图又选择其他角色，
-    # 都不能把这一轮记成 completed。
+    # 空文件纠正失败是请求级粘性事实：临时空文件随后被安全撤回，也不能把这一轮记成 completed。
     _empty_file_incomplete: bool = False
     # 回复里有完整的工具调用只写成了文字、没有执行（layer=unexecuted_tool_text）：同样是请求级
-    # 粘性事实，图随后交给别的角色也不能把这一轮记成 completed。
+    # 粘性事实，之后的 run 也不能把这一轮记成 completed。
     _unexecuted_tool_text: bool = False
-    # 单次 agent run / 整个协作图的结构化耗尽事实。图若随后合法选择下一个 agent，说明
-    # 该耗尽已被编排层接住；否则直到终态都应如实记为 incomplete。
+    # 单次 agent run / 一轮里多次 run 的结构化耗尽事实，直到终态都如实记为 incomplete。
+    # 只有 agent_selected（单循环 agent 不发）会清掉它。
     _pending_run_exhaustion: bool = False
 
     @property

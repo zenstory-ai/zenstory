@@ -1,6 +1,6 @@
 """一次 /agent/stream 请求的模型调用计数与耗时（请求级预算 + 运行摘要日志）。
 
-writing_graph 为整条工作流建一个（或沿用 service 传入的），放进
+service 为一轮请求建一个（单循环 agent 没拿到时自建），放进
 ``state["run_meter"]``；runner 在每次模型调用前（SDK 的 call_model_input_filter）
 计数，在 tool_use_behavior 里检查是否已用尽，用尽即结束当前 SDK run，不再发起
 下一次模型调用。service 在请求结束时把计数写进运行摘要。

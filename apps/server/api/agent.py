@@ -904,21 +904,52 @@ async def stream_request(
             # （detached）不能挂起：要退还时交给后台任务，refund_applied 记为 False。
             nonlocal settlement, refund_scheduled, refund_task
             if settlement is None:
-                billing_reason, should_refund = tracker.decide(
-                    # 暂停卡和 done 已经送到之后的断开（例如点「继续完成」中止旧连接）不是中断：按时限结算。
-                    client_disconnected=client_disconnected and not deadline_paused,
-                    unexpected_exception=unexpected_exception,
-                    deadline_exceeded=deadline_exceeded,
-                    user_stopped=user_stopped,
-                    server_restarting=pump.deadline_moved_up,
-                )
+                cut_off = user_stopped or client_disconnected or deadline_exceeded
+                replacement_unconfirmed = cut_off and bool(tracker.unconfirmed_replacement_ids())
+                if replacement_unconfirmed and not detached:
+                    # 整章替换的落库结果没来得及发出就被截停：提交可能仍在途中。service 等它的真实结果
+                    # 写进保存回执后才交回消息 id；先等一下（有上限），按回执补记写入。
+                    await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
+                tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
+
+                def _decide() -> tuple[str, bool]:
+                    return tracker.decide(
+                        # 暂停卡和 done 已经送到之后的断开（例如点「继续完成」中止旧连接）不是中断：按时限结算。
+                        client_disconnected=client_disconnected and not deadline_paused,
+                        unexpected_exception=unexpected_exception,
+                        deadline_exceeded=deadline_exceeded,
+                        user_stopped=user_stopped,
+                        server_restarting=pump.deadline_moved_up,
+                    )
+
+                billing_reason, should_refund = _decide()
                 refund_applied = False
                 refund_fields = {
                     "project_id": body.project_id,
                     "agent_run_id": agent_run_id,
                     "billing_reason": billing_reason,
                 }
-                if should_refund:
+                if should_refund and replacement_unconfirmed and detached:
+                    # 断线路径不能挂起：在后台等保存回执落定，再按回执重新结算；提交了就不退还。
+                    async def _refund_after_replacement_settles() -> bool:
+                        await run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
+                        tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
+                        reason, still_refund = _decide()
+                        if not still_refund:
+                            log_with_context(
+                                logger, 20, "Refund withdrawn: chapter replacement committed after disconnect",
+                                agent_run_id=agent_run_id, billing_reason=reason,
+                            )
+                            return False
+                        return await _refund_quota(
+                            session, user_id, charged_period_start, agent_run_id, **refund_fields
+                        )
+
+                    refund_task = asyncio.get_running_loop().create_task(_refund_after_replacement_settles())
+                    _detached_refund_tasks.add(refund_task)
+                    refund_task.add_done_callback(_detached_refund_tasks.discard)
+                    refund_scheduled = True
+                elif should_refund:
                     # 退还一律放进后台任务：断线路径不能挂起；连接还开着时用 shield 等它，
                     # 等待途中请求被取消也不会把排队中的退还一起取消。
                     refund_task = _schedule_detached_refund(

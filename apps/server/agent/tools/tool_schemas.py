@@ -6,7 +6,6 @@ The OpenAI Agents adapter converts these internal schemas into SDK tools.
 from typing import Any
 
 from agent.skills.content_budget import MAX_LOADED_SKILLS_PER_REQUEST
-from agent.tools.parallel_executor import PARALLEL_TASK_TYPES
 from config.project_status import PROJECT_STATUS_MAX_LENGTHS
 
 # 字数口径说明（create_file / edit_file / query_files 共用）。
@@ -466,79 +465,6 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
     }
 }
 
-# Tool: handoff_to_agent
-HANDOFF_TO_AGENT_TOOL: dict[str, Any] = {
-    "name": "handoff_to_agent",
-    "description": "将任务交接给另一个专业Agent继续处理。当你完成当前工作后，如果需要其他Agent协助，使用此工具。",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "target_agent": {
-                "type": "string",
-                "description": "目标Agent类型",
-                "enum": ["planner", "hook_designer", "writer", "quality_reviewer"]
-            },
-            "reason": {
-                "type": "string",
-                "description": "交接原因，说明为什么需要该Agent继续处理"
-            },
-            "context": {
-                "type": "string",
-                "description": (
-                    "传递给下一个Agent的上下文信息。必须写明：已读文件的 id 与关键结论/摘录、"
-                    "本轮修改的文件 id，供下一个 Agent 直接使用而不重读。"
-                )
-            },
-            "completed": {
-                "type": "array",
-                "description": "已完成项摘要（可选，便于结构化交接）",
-                "items": {"type": "string"}
-            },
-            "todo": {
-                "type": "array",
-                "description": "待完成项摘要（可选）",
-                "items": {"type": "string"}
-            },
-            "evidence": {
-                "type": "array",
-                "description": "关键证据（文件路径、测试结果、结论等，可选）",
-                "items": {"type": "string"}
-            },
-            "artifact_refs": {
-                "type": "array",
-                "description": "关联产出物引用（如 file_id、文档路径、工件标识），用于交接追溯",
-                "items": {"type": "string"}
-            }
-        },
-        "required": ["target_agent", "reason"]
-    }
-}
-
-# Tool: request_clarification
-REQUEST_CLARIFICATION_TOOL: dict[str, Any] = {
-    "name": "request_clarification",
-    "description": "当信息不足以继续执行任务时，请求用户补充关键信息，并暂停当前工作流。",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "question": {
-                "type": "string",
-                "description": "需要用户回答的澄清问题",
-            },
-            "context": {
-                "type": "string",
-                "description": "当前进展与背景说明（可选）",
-            },
-            "details": {
-                "type": "array",
-                "description": "需要用户补充的具体信息点（可选）",
-                "items": {"type": "string"},
-            },
-        },
-        "required": ["question"],
-    },
-}
-
 # Tool: load_skill（技能 L2：按需加载完整方法）
 LOAD_SKILL_TOOL: dict[str, Any] = {
     "name": "load_skill",
@@ -594,94 +520,6 @@ READ_SKILL_RESOURCE_TOOL: dict[str, Any] = {
 }
 
 
-# parallel_execute 各任务类型的参数并集，取自对应的单独工具。
-_PARALLEL_TASK_PARAM_PROPERTIES: dict[str, Any] = {
-    **QUERY_FILES_TOOL["input_schema"]["properties"],
-    **EDIT_FILE_TOOL["input_schema"]["properties"],
-    "recursive": DELETE_FILE_TOOL["input_schema"]["properties"]["recursive"],
-    "id": {"type": "string", "description": "目标文件 ID（edit_file / delete_file / query_files）"},
-    "parent_id": {"type": "string", "description": "write_chapter：新文件所在文件夹 ID；query_files：按父文件夹筛选"},
-    "title": {"type": "string", "description": "write_chapter：新文件标题"},
-    "content": {"type": "string", "description": "write_chapter：完整正文（必填）"},
-}
-
-# Tool: parallel_execute
-PARALLEL_EXECUTE_TOOL: dict[str, Any] = {
-    "name": "parallel_execute",
-    "description": """Execute multiple independent tasks in parallel.
-
-Use this when you need several independent operations at once, such as:
-- Reading several files in one call (query_files with {"id": ...} returns full content)
-- Editing or deleting multiple files concurrently
-  Protected author text (including a folder containing it) cannot be deleted
-  through chat; the author uses the file menu. A chat reply does not unlock it.
-
-New chapters / new prose files should normally be written with a single
-create_file call followed by streamed <file>...</file> content, NOT via
-parallel write_chapter. write_chapter is only for bodies you already have in
-full and can inline in params.content.
-
-All tasks must be independent (not depend on each other's results).
-Maximum 5 parallel tasks per call — extra tasks are NOT executed. Split into
-multiple calls instead of sending more than 5. Files you already read in this
-run are still in context: do not read them again.
-
-Every task requires an explicit type from the enum; a missing or invalid type
-rejects the entire batch before any task runs.
-
-Task param conventions:
-- query_files: params are exactly the standalone tool's params
-  (e.g. {"id": "<file_id>"} for full content, {"query": "...", "response_mode": "summary"}).
-  Very long per-task content is cut with content_truncated=true / content_length;
-  then read that one file with a standalone query_files(id=..., response_mode="full").
-- write_chapter: params = {"title": "第三章", "content": "<full chapter text>", "parent_id": "<folder_id>"}
-  - content is REQUIRED and must be inlined here. Parallel tasks cannot use the
-    <file>...</file> streaming protocol; a task without content would create an
-    empty file that never gets its body.
-- edit_file (recommended): params = {"id": "<file_id>", "edits": [...], "continue_on_error": false}
-  - Legacy aliases: {"file_id": "..."} for id, {"operations": [...]} for edits
-- delete_file: params = {"id": "<file_id>", "recursive": false}
-""",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "tasks": {
-                "type": "array",
-                "maxItems": 5,
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "type": {
-                            "type": "string",
-                            "description": "Task type: write_chapter, edit_file, delete_file, query_files",
-                            "enum": list(PARALLEL_TASK_TYPES),
-                        },
-                        "description": {
-                            "type": "string",
-                            "description": "Human-readable task description",
-                        },
-                        "params": {
-                            "type": "object",
-                            "description": (
-                                "Task-specific parameters. "
-                                "write_chapter: {title, content (required, inline full text), parent_id}; "
-                                "edit_file: {id, edits, continue_on_error}; "
-                                "delete_file: {id, recursive}; "
-                                "query_files: same params as the standalone tool."
-                            ),
-                            # 字段与单独调用的工具一致。没有声明时，有的模型会自造字段名
-                            # （old_text/new_text），或把数组写成 {"item": [...]}。
-                            "properties": _PARALLEL_TASK_PARAM_PROPERTIES,
-                        },
-                    },
-                    "required": ["type", "description", "params"],
-                },
-            },
-        },
-        "required": ["tasks"],
-    },
-}
-
 # Export all tool schemas by name (schema source-of-truth).
 TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "create_file": CREATE_FILE_TOOL,
@@ -691,14 +529,11 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "rename_file": RENAME_FILE_TOOL,
     "query_files": QUERY_FILES_TOOL,
     "update_project": UPDATE_PROJECT_TOOL,
-    "handoff_to_agent": HANDOFF_TO_AGENT_TOOL,
-    "request_clarification": REQUEST_CLARIFICATION_TOOL,
-    "parallel_execute": PARALLEL_EXECUTE_TOOL,
     "load_skill": LOAD_SKILL_TOOL,
     "read_skill_resource": READ_SKILL_RESOURCE_TOOL,
 }
 
-# 单循环 agent 请求里用的同名工具说明（多 agent 图的 TOOL_SCHEMAS 不变）。
+# 单循环 agent 请求里用的同名工具说明（覆盖 TOOL_SCHEMAS 里的同名项）。
 LOOP_TOOL_SCHEMA_OVERRIDES: dict[str, dict[str, Any]] = {
     "create_file": LOOP_CREATE_FILE_TOOL,
 }

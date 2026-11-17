@@ -1,4 +1,4 @@
-"""agent run 收尾时的文字信号，供 writing_graph 对照本请求的实际写入记录使用。
+"""agent run 收尾时的文字信号，供单循环 agent（loop/engine.py）对照本请求的实际写入记录使用。
 
 这次 run 是不是停在一段写完的 ``<file>…</file>`` 上（``</file>`` 之后没有给作者的话）。
 流式写文件协议把正文放在回复文字里，而 openai-agents 把「不带工具调用的回复」当作
@@ -18,25 +18,6 @@ _FILE_BLOCK_RE = re.compile(r"<file>.*?(?:</file>|\Z)", re.DOTALL)
 _TASK_COMPLETE_RE = re.compile(
     r"(?:\[\s*task_complete\s*\]|[\[【]\s*任务完成\s*[\]】])", re.IGNORECASE
 )
-
-
-def author_reply_tail(tail_text: str, *, max_chars: int = 600) -> str:
-    """Bound the post-file prose without interpreting questions, intent or consent."""
-    text = normalize_file_markers(tail_text or "")
-    close = text.rfind("</file>")
-    if close != -1:
-        text = text[close + len("</file>"):]
-    if "<file>" in text:
-        return ""
-    text = _TASK_COMPLETE_RE.sub("", text).strip()
-    if len(text) <= max_chars:
-        return text
-    marker = "\n…（中间内容已截断）…\n"
-    if max_chars <= len(marker):
-        return marker[:max(0, max_chars)]
-    available = max_chars - len(marker)
-    tail_chars = available // 2
-    return text[:available - tail_chars] + marker + (text[-tail_chars:] if tail_chars else "")
 
 
 def ends_on_file_block(tail_text: str) -> bool:
@@ -82,9 +63,9 @@ def ends_on_unclosed_file_block(tail_text: str) -> bool:
 
 
 __all__ = [
-    "author_reply_tail",
     "ends_on_file_block",
     "ends_on_unclosed_file_block",
+    "unexecuted_tool_protocol",
 ]
 
 

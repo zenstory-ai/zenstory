@@ -189,6 +189,8 @@ class StreamAdapter:
         self._stop_after_refused_replace = False
         self._file_mutated = False
         self._abort_capture: tuple[str, int, asyncio.Task[bool]] | None = None
+        # 停止 / 断线时还在提交的整章替换（线程里的提交不会随取消中止）：收尾时等它的真实结果。
+        self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]]] | None = None
         self._saved_file_word_counts: dict[str, int | None] = {}
         # 图发来 CHAT_HOLD begin 之后的对话文字（StreamProcessor 判定为对话的部分，
         # 正文不扣）：等图决定丢掉（discard）还是在下一个边界事件前放出。
@@ -514,7 +516,7 @@ class StreamAdapter:
             #
             # We deliberately leave the ToolContext pending-empty-file guard set:
             # it is the signal the workflow loop uses to detect an unwritten file
-            # and re-run the writer to complete it (see writing_graph). It is
+            # and re-run the agent to complete it (see agent/loop/engine.py). It is
             # cleared on a successful <file> completion or at full stream end.
             if data.get("stop_reason") == REPETITION_LOOP_STOP_REASON:
                 # 模型在循环里被截停：正在写的正文只保留重复开始之前的部分
@@ -968,14 +970,14 @@ class StreamAdapter:
         这些文件的结果还没交给适配器（作者没看到它们），只回滚本请求新建、版本未变的空文件；
         复用的或之后被动过的文件保留。
         """
-        from agent.graph import writing_graph as graph_helpers
+        from agent.core.empty_files import rollback_unfinished_empty_files
         from agent.tools.mcp_tools import ToolContext
 
         # 关闭与取条目是同一步：之后才建好的空文件由建它的工具自己撤销（见 _create_file_sync）。
         targets = [entry for entry in ToolContext.close_pending_body_files() if entry.get("updated_at")]
         if not targets:
             return
-        rolled_back = await asyncio.to_thread(graph_helpers._rollback_unfinished_empty_files, targets)
+        rolled_back = await asyncio.to_thread(rollback_unfinished_empty_files, targets)
         for file_id in rolled_back:
             ToolContext.clear_pending_empty_file(file_id)
         log_with_context(
@@ -1065,6 +1067,10 @@ class StreamAdapter:
         )
         if isinstance(replaced.get("undo"), dict):
             card["undo"] = replaced["undo"]
+        if not result.auto_completed:
+            from agent.tools.mcp_tools import ToolContext
+
+            ToolContext.mark_chapter_body_saved(file_id)
         if pending.replace_tool_use_id:
             # 同一个 tool_use_id 再发一次结果：落库的卡片与前端的卡片都更新成真实的替换结果（含撤销锚点）。
             yield tool_result_event(
@@ -1080,12 +1086,23 @@ class StreamAdapter:
 
         run_meter = self.config.run_meter
         timing = run_meter.measure_stage("file_save") if run_meter is not None else contextlib.nullcontext()
+        save = asyncio.ensure_future(
+            asyncio.wait_for(
+                asyncio.to_thread(self._replace_file_body_sync, file_id, content, pending.baseline_updated_at),
+                timeout=STREAM_FILE_SAVE_TIMEOUT_S,
+            )
+        )
         try:
             with timing:
-                replaced = await asyncio.wait_for(
-                    asyncio.to_thread(self._replace_file_body_sync, file_id, content, pending.baseline_updated_at),
-                    timeout=STREAM_FILE_SAVE_TIMEOUT_S,
-                )
+                replaced = await asyncio.shield(save)
+        except asyncio.CancelledError:
+            # 停止 / 断线 / 时限取消了这一轮，但线程里的提交照常进行：记下它，
+            # settle_aborted_capture 等它的真实结果写进保存回执（计费与停止说明都按回执）。
+            self._replacement_in_flight = (file_id, content, save)
+            _ABORT_SAVE_TASKS.add(save)
+            save.add_done_callback(_ABORT_SAVE_TASKS.discard)
+            save.add_done_callback(lambda done: done.cancelled() or done.exception())
+            raise
         except (ConcurrentFileWriteError, AuthorContentProtectionError) as exc:
             log_with_context(
                 logger, 30, "Chapter replacement refused", file_id=file_id, error_type=type(exc).__name__
@@ -1103,6 +1120,9 @@ class StreamAdapter:
             if run_meter is not None and content.strip():
                 run_meter.mark_first_body_persisted()
         self._saved_file_word_counts[file_id] = count_words(str(replaced.get("new_content") or content))
+        from agent.tools.mcp_tools import ToolContext
+
+        ToolContext.mark_chapter_replacement_saved(file_id)
         return "saved", replaced
 
     def _replace_file_body_sync(self, file_id: str, content: str, expected_updated_at: str | None) -> dict[str, Any]:
@@ -1130,7 +1150,7 @@ class StreamAdapter:
                 next(session_gen)
 
     async def _resume_file_body(self, request: Any) -> AsyncIterator[SSEEvent]:
-        """图的空文件纠偏轮开始前：为同一个文件重新等待 <file> 正文，结果写回 request。
+        """单循环 agent 的空文件纠偏轮开始前：为同一个文件重新等待 <file> 正文，结果写回 request。
 
         上一个 agent run 的 MESSAGE_END 已把还在等正文的捕获复位成 IDLE；不重新等待，
         纠偏轮写出的 <file> 正文只会落进聊天。只认本适配器自己记下的待写文件（这一请求里
@@ -1272,6 +1292,7 @@ class StreamAdapter:
         service 可能在 adapter 生成器关闭之前进入取消收尾；此时在这里补全捕获。
         保存任务仍沿用原有超时与独立 session，不把历史落库当成正文已落库。
         """
+        await self._settle_replacement_in_flight()
         if self._stream_processor.is_active:
             self._persist_active_capture_in_background()
         capture = self._abort_capture
@@ -1284,6 +1305,29 @@ class StreamAdapter:
         else:
             self._saved_file_word_counts.setdefault(file_id, None)
         return self.get_saved_file_word_counts()
+
+    async def _settle_replacement_in_flight(self) -> None:
+        """取消时还在提交的整章替换：等提交结果（受 STREAM_FILE_SAVE_TIMEOUT_S 限时），写进保存回执。"""
+        in_flight = self._replacement_in_flight
+        if in_flight is None:
+            return
+        self._replacement_in_flight = None
+        file_id, content, save = in_flight
+        try:
+            replaced = await asyncio.shield(save)
+        except Exception as exc:  # noqa: BLE001 - 提交失败：回执记为未保存
+            log_with_context(
+                logger, 30, "Chapter replacement in flight at abort did not commit",
+                file_id=file_id, error_type=type(exc).__name__,
+            )
+            self._saved_file_word_counts.setdefault(file_id, None)
+            return
+        if replaced.get("mutation_applied") is not True:
+            self._saved_file_word_counts.setdefault(file_id, None)
+            return
+        self._file_mutated = True
+        self._saved_file_word_counts[file_id] = count_words(str(replaced.get("new_content") or content))
+        log_with_context(logger, 20, "Chapter replacement committed after abort", file_id=file_id)
 
     def get_saved_file_word_counts(self) -> dict[str, int | None]:
         """保存回执；收到结束标记或正文 chunk 本身不代表落库成功。"""
@@ -1495,7 +1539,7 @@ class StreamAdapter:
         # 就有正文（create_file 幂等复用命中的已完成分集）。补全出来的正文很
         # 可能只写了个开头，_save_file_content 又是整体替换，写下去等于用残稿
         # 抹掉整集。此处拒绝落库、保留原文。诊断留在日志，作者只看保存事实；
-        # 模型侧既有 create_file 结果与 writing_graph 纠偏协议不变。
+        # 模型侧既有 create_file 结果与空文件纠偏协议不变。
         if self._should_refuse_truncated_overwrite(result):
             pending = self._pending_file_write
             original_length = pending.original_content_length if pending else 0
@@ -1519,6 +1563,10 @@ class StreamAdapter:
                 self._content_started = True
             yield content_event(warning_text)
             yield file_content_end_event(result.file_id)
+            if pending is not None and pending.replace_card:
+                # write_chapter 的整章替换：待写绑定与守卫都留着，loop 引擎在 run 边界按结构化事实
+                # 决定为这一章恢复捕获重试（FILE_BODY_RESUME，核对定位时的版本），补不成就作废定位。
+                return
             self._pending_file_write = None
             self._clear_pending_empty_file_guard(result.file_id)
             return
@@ -1557,6 +1605,17 @@ class StreamAdapter:
 
         yield file_content_end_event(result.file_id)
 
+        if (
+            not result.auto_completed
+            and pending is not None
+            and pending.file_id == result.file_id
+            and pending.file_type in (FILE_TYPE_DRAFT, FILE_TYPE_SCRIPT)
+        ):
+            # 单循环里正文（draft / script）只经 write_chapter 新建：记下这一章本请求已写完并保存。
+            from agent.tools.mcp_tools import ToolContext
+
+            ToolContext.mark_chapter_body_saved(result.file_id)
+
         # Clear pending file write
         self._pending_file_write = None
 
@@ -1583,7 +1642,7 @@ class StreamAdapter:
 
         传入 file_id 时只清除指向该文件的标记：一份仍在缓冲的文件被新的
         create_file 顶掉时，标记可能已经指向新建的空文件，若被上一份文件的
-        收尾误清，「空文件必须被补写」的信号就丢了（writing_graph 再也不会
+        收尾误清，「空文件必须被补写」的信号就丢了（单循环 agent 再也不会
         安排补写）。file_id 为空表示流结束时的无条件清理，避免标记泄漏到
         下一个请求。
 

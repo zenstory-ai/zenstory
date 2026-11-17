@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from services.auth import get_current_active_user
 from services.file_version import (
     FileLookupNotFoundError,
@@ -147,9 +147,11 @@ class RollbackRequest(BaseModel):
     """Optional exact token; absent body keeps intentional history restoration.
 
     chat_message_id / tool_use_id：从聊天修改卡发起的撤销，成功后把那张卡标成已撤销。
+    expected_after_content_sha256：那次修改写入后正文的摘要；令牌不一致但正文逐字相同时仍可撤销。
     """
 
     expected_updated_at: datetime | None = None
+    expected_after_content_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     chat_message_id: str | None = None
     tool_use_id: str | None = None
 
@@ -461,6 +463,9 @@ def rollback_to_version(
             version_number,
             user_id=current_user.id,
             expected_updated_at=(rollback_request.expected_updated_at if rollback_request else None),
+            expected_after_content_sha256=(
+                rollback_request.expected_after_content_sha256 if rollback_request else None
+            ),
         )
 
         undo_recorded = False

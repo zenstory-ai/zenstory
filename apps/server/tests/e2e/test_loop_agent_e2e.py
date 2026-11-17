@@ -145,7 +145,7 @@ def _input_text(captured_input: list) -> str:
 
 @pytest.mark.asyncio
 async def test_loop_round_persists_loop_shaped_row_injects_attachments_and_charges(
-    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_engine, loop_db
+    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_db
 ):
     from models.material_models import Character, Novel
 
@@ -167,7 +167,7 @@ async def test_loop_round_persists_loop_shaped_row_injects_attachments_and_charg
         _raw_text("第1章已经对照设定检查过，没有需要改的地方。"),
     ], prompt_tokens=4321)
     build_agent, run_streamed = _patched_runs([run], captured)
-    with build_agent, run_streamed, patch("agent.service.run_writing_workflow_streaming") as graph:
+    with build_agent, run_streamed:
         response = await client.post(
             "/api/v1/agent/stream",
             json={
@@ -188,7 +188,6 @@ async def test_loop_round_persists_loop_shaped_row_injects_attachments_and_charg
             headers={"Authorization": f"Bearer {token}"},
         )
 
-    graph.assert_not_called()
     assert response.status_code == 200
     events = _parse_sse(response.text)
     names = [name for name, _ in events]
@@ -226,7 +225,7 @@ async def test_loop_round_persists_loop_shaped_row_injects_attachments_and_charg
 
 @pytest.mark.asyncio
 async def test_loop_round_without_output_is_refunded(
-    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_engine, loop_db
+    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_db
 ):
     """模型调用直接失败、什么都没产出：error 帧可退还，额度退回（计费规则与图相同）。"""
     from services.quota_service import quota_service
@@ -260,7 +259,7 @@ async def test_loop_round_without_output_is_refunded(
 
 @pytest.mark.asyncio
 async def test_loop_tool_turn_exhaustion_card_has_no_agent_and_bills_as_runaway(
-    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_engine, loop_db
+    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_db
 ):
     """工具轮数耗尽：沿用 tool_call 层的暂停卡（失控停止，没有写入就退还），last_agent 为空。"""
     from agents.exceptions import MaxTurnsExceeded
@@ -291,35 +290,6 @@ async def test_loop_tool_turn_exhaustion_card_has_no_agent_and_bills_as_runaway(
     metadata = json.loads(row.message_metadata)
     assert metadata["stop_reason"] == "max_turns_exceeded"
     assert {event["type"] for event in metadata["display_events"]} <= _ALLOWED_DISPLAY_TYPES
-
-
-@pytest.mark.asyncio
-async def test_graph_engine_switch_still_runs_the_graph(
-    client: AsyncClient, db_session: Session, writing_prompt_configs, monkeypatch, loop_db
-):
-    from agent.core.workflow_events import StreamEvent, StreamEventType
-
-    monkeypatch.setenv("AGENT_ENGINE", "graph")
-    _user, token, project = await _user_project(client, db_session, "graph_switch_synthetic")
-
-    async def graph_stream(*_args, **_kwargs):
-        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "图在运行"})
-        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
-
-    with (
-        patch("agent.service.run_writing_workflow_streaming", side_effect=graph_stream) as graph,
-        patch("agent.service.run_loop_agent_streaming") as loop,
-    ):
-        response = await client.post(
-            "/api/v1/agent/stream",
-            json={"project_id": project.id, "message": "继续"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-    assert response.status_code == 200
-    graph.assert_called_once()
-    loop.assert_not_called()
-    row = db_session.exec(select(ChatMessage).where(ChatMessage.content == "图在运行")).one()
-    assert "engine" not in json.loads(row.message_metadata or "{}")
 
 
 def _seed_loop_session(db_session: Session, user: User, project: Project, *, prompt_tokens: int):
@@ -366,7 +336,7 @@ def _summary_completion(content: str, finish_reason: str = "stop"):
 
 @pytest.mark.asyncio
 async def test_compaction_between_turns_is_persisted_and_rebuilds_the_next_turn(
-    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_engine, loop_db, monkeypatch
+    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_db, monkeypatch
 ):
     from unittest.mock import AsyncMock
 
@@ -426,7 +396,7 @@ async def test_compaction_between_turns_is_persisted_and_rebuilds_the_next_turn(
 
 @pytest.mark.asyncio
 async def test_compaction_with_empty_summary_keeps_the_full_history(
-    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_engine, loop_db, monkeypatch
+    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_db, monkeypatch
 ):
     from unittest.mock import AsyncMock
 
@@ -457,7 +427,7 @@ async def test_compaction_with_empty_summary_keeps_the_full_history(
 
 @pytest.mark.asyncio
 async def test_skipped_compaction_is_recorded_and_not_retried_every_turn(
-    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_engine, loop_db, monkeypatch
+    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_db, monkeypatch
 ):
     """摘要两次都不可用、这一轮的模型调用又失败（没有 assistant 行）：没压缩成的记录写在作者那条消息上，
     下一轮输入没长够就不再付摘要调用。"""
@@ -500,7 +470,7 @@ async def test_skipped_compaction_is_recorded_and_not_retried_every_turn(
 
 @pytest.mark.asyncio
 async def test_compaction_survives_a_turn_without_an_assistant_row(
-    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_engine, loop_db, monkeypatch
+    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_db, monkeypatch
 ):
     """压缩成功、这一轮的模型调用却失败：压缩点记在作者那条消息上，下一轮直接用它，不再重付摘要。"""
     from unittest.mock import AsyncMock

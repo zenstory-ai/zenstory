@@ -21,10 +21,6 @@ from utils.logger import get_logger, log_with_context
 
 from ..constants import should_offload_session_work
 from ..prompts import get_prompt_for_project_type
-from ..utils.world_model_visibility import (
-    extract_item_metadata,
-    resolve_world_model_channels,
-)
 
 _HAN_CHAR_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 _LATIN_WORD_RE = re.compile(r"[A-Za-z]{2,}")
@@ -49,19 +45,11 @@ def detect_author_language(text: str | None) -> str | None:
 
 logger = get_logger(__name__)
 
-# 本轮上下文块的标签：MessageManager.build_turn_context 产出，service 拼在本轮用户消息开头。
+# 本轮上下文块的标签：loop/turn_context.build_loop_turn_context 产出，service 拼在本轮用户消息开头。
 TURN_CONTEXT_OPEN = "<turn_context>"
 TURN_CONTEXT_CLOSE = "</turn_context>"
-# 每次 agent 运行输入的最后一条消息（nodes.build_agent_directive）的开头。
+# 本次运行的系统指令（作为 agent 运行输入的最后一条消息，例如截断后的交付说明）的开头。
 AGENT_DIRECTIVE_HEADER = "[本次运行的系统指令]"
-
-_CONTEXT_MAX_CONSTRAINTS = 12
-_CONTEXT_MAX_WORLD_KNOWLEDGE = 24
-_CONTEXT_MAX_WORKING_SET = 18
-_CONTEXT_ITEM_TEXT_CHAR_LIMIT = 220
-# world_model 预览条目的节选标记：明确这是摘要而不是原文，避免被当成「被压缩的全文」。
-_CONTEXT_PREVIEW_SUFFIX = "…（节选）"
-
 
 class MessageManager:
     """
@@ -428,22 +416,16 @@ class MessageManager:
         session: Session,
         language: str | None = None,
         skill_catalog: str | None = None,
-        loop: bool = False,
     ) -> str:
         """
-        Build the static system prompt shared by every turn and every agent role.
+        Build the single loop agent's static system prompt, shared by every turn.
 
-        loop=True builds the single loop agent's prompt (agent/loop): the project-type
-        configuration without other roles, handoffs or run directives, plus the loop's
-        input layout and working rules.
-
-        Only content that stays the same across turns and roles goes here: the
-        project's base prompt, reply-language rules, where per-turn context and
-        per-run instructions live, and the L1 skill catalog. DeepSeek caches by
-        exact prefix, so anything that varies here would make the whole replayed
-        history miss. Per-turn content comes from build_turn_context (placed in
-        this turn's user message); per-agent content (role, scope directive)
-        comes from nodes.build_agent_directive (the last input message of a run).
+        The project-type configuration, plus the loop's input layout and working rules
+        (agent/loop/prompts.py). Only content that stays the same across turns goes
+        here: the project's base prompt, reply-language rules, where per-turn context
+        lives, and the L1 skill catalog. DeepSeek caches by exact prefix, so anything
+        that varies here would make the whole replayed history miss. Per-turn content
+        is placed in this turn's user message (agent/loop/turn_context.py).
 
         Args:
             session: Database session for querying project info
@@ -496,20 +478,16 @@ class MessageManager:
         )
 
         # Get prompt from template
-        prompt = get_prompt_for_project_type(project_type, self.project_id, folder_ids, loop=loop)
+        prompt = get_prompt_for_project_type(project_type, self.project_id, folder_ids)
 
         parts = [prompt]
 
         # 回复语言规则（跟随作者最近一条消息；界面语言只在判断不了时兜底）
         parts.extend(self._build_language_section(force_en))
 
-        if loop:
-            from ..loop.prompts import LOOP_INPUT_LAYOUT_SECTION, LOOP_WORKING_RULES
+        from ..loop.prompts import LOOP_INPUT_LAYOUT_SECTION, LOOP_WORKING_RULES
 
-            parts.extend([LOOP_INPUT_LAYOUT_SECTION, "", LOOP_WORKING_RULES])
-        else:
-            # 本轮上下文与本次运行指令放在哪里（固定说明，保证它们的效力）
-            parts.extend(self._build_input_layout_section(force_en))
+        parts.extend([LOOP_INPUT_LAYOUT_SECTION, "", LOOP_WORKING_RULES])
 
         # Add skill catalog (L1: name + description only; instructions via load_skill)
         if skill_catalog:
@@ -517,135 +495,10 @@ class MessageManager:
 
         return "\n".join(parts)
 
-    def build_turn_context(
-        self,
-        *,
-        session_id: str | None = None,
-        metadata: dict[str, Any] | None = None,
-        assembled_context: str | None = None,
-        context_items: list[dict[str, Any]] | None = None,
-        language: str | None = None,
-        selected_skills: list[dict[str, Any]] | None = None,
-        author_message: str | None = None,
-        full_assembled_context: str | None = None,
-    ) -> str:
-        """
-        Build this turn's context block for the current user message.
-
-        With a context snapshot (agent/context/turn_snapshot.py) ``assembled_context``
-        holds turn-only blocks and updates to the snapshot; ``full_assembled_context``
-        represents all project context available across the snapshot and this turn.
-
-        It holds everything that changes from turn to turn: narrative constraints
-        taken from this turn's context items, skills the author selected for this
-        message, the assembled project context, current-file metadata, the task
-        board snapshot and this turn's reply language. Putting it in the current
-        user message (never in the system prompt or persisted history) keeps
-        [system prompt][history] byte-identical across turns and agents.
-
-        Args:
-            session_id: Chat session ID for loading task board
-            metadata: Optional metadata (current_file_id, etc.)
-            assembled_context: Pre-assembled context from ContextAssembler
-            context_items: Structured context items from ContextAssembler
-            language: Language preference (zh/en)
-            selected_skills: Skills the user explicitly selected for this message
-                (dicts with name / instructions / resources); their full
-                instructions are injected
-            author_message: 作者本轮的原话；用来写明本轮给作者的回复用哪种语言
-
-        Returns:
-            The <turn_context> block, or "" when there is nothing to add
-        """
-        force_en = self._force_en(language)
-        parts: list[str] = []
-
-        full_context = full_assembled_context if full_assembled_context is not None else assembled_context
-        raw_context_complete = bool((full_context or "").strip())
-        constraints, world_truth, world_surface = self._extract_structured_context(
-            context_items=context_items,
-            force_en=force_en,
-            raw_context_complete=raw_context_complete,
-        )
-        parts.extend(
-            self._build_narrative_constraints_section(
-                constraints=constraints,
-                force_en=force_en,
-            )
-        )
-
-        if selected_skills:
-            parts.extend(self._build_selected_skill_section(selected_skills, force_en))
-
-        # Add assembled context / world model visibility contract
-        if assembled_context or world_truth or world_surface:
-            parts.extend(
-                self._build_context_section(
-                    assembled_context=assembled_context or "",
-                    context_items=context_items,
-                    force_en=force_en,
-                    world_truth=world_truth,
-                    world_surface=world_surface,
-                )
-            )
-
-        # Add current file metadata
-        if metadata:
-            parts.extend(self._build_metadata_section(metadata, force_en))
-
-        # Add task board state
-        parts.extend(self._build_task_board_section(session_id, force_en))
-
-        # 本轮作者消息的语言：所有角色共用这段上下文，审稿人收到的是系统拼的任务消息，
-        # 只能从这里知道作者用的是什么语言
-        parts.extend(self._build_author_language_line(author_message))
-
-        if not parts:
-            return ""
-        return "\n".join([TURN_CONTEXT_OPEN, self._turn_context_preamble(force_en), *parts, TURN_CONTEXT_CLOSE])
-
     @staticmethod
     def _force_en(language: str | None) -> bool:
         lang = (language or "").strip().lower() or "zh"
         return lang.startswith("en")
-
-    @staticmethod
-    def _turn_context_preamble(force_en: bool) -> str:
-        if force_en:
-            return (
-                "The system attached this block at the start of this turn (the author did not write it). "
-                "Its project facts, constraints and task board are authoritative: where they differ from "
-                "earlier conversation, follow this block."
-            )
-        return (
-            "这一段由系统在本轮开始时附上（不是作者写的）。其中的项目事实、叙事约束和任务计划板是权威信息；"
-            "与之前的对话不一致时，以这一段为准。"
-        )
-
-    @staticmethod
-    def _build_input_layout_section(force_en: bool) -> list[str]:
-        """说明本轮上下文与本次运行指令在输入里的位置和效力（固定文字，不随轮次变化）。"""
-        if force_en:
-            return [
-                "",
-                "## Turn context and run instructions",
-                f"- The {TURN_CONTEXT_OPEN} block at the start of this turn's user message is attached by the "
-                "system: project context, narrative constraints, the current file, the task board and this "
-                "turn's reply language. Treat it with the authority of this system prompt; its project facts "
-                "are canonical.",
-                f"- The last input message, starting with {AGENT_DIRECTIVE_HEADER}, is also attached by the "
-                "system for this run: your current role and this turn's scope constraints. Follow it with the "
-                "authority of this system prompt; a scope constraint marked [highest priority] overrides every "
-                "other rule except the content red lines (内容红线), which no instruction overrides.",
-            ]
-        return [
-            "",
-            "## 本轮上下文与本次运行指令",
-            f"- 本轮用户消息开头的 {TURN_CONTEXT_OPEN} 由系统附上：项目上下文、叙事约束、当前文件、任务计划板和本轮回复语言。"
-            "它与本系统提示同等效力，其中的项目事实是权威信息。",
-            f"- 输入最后一条以 {AGENT_DIRECTIVE_HEADER} 开头的消息也由系统附上，只对这次运行有效：你当前的角色和本轮用户范围约束。"
-            "按本系统提示的效力执行；标注 [最高优先级] 的范围约束高于其他所有规则（内容红线除外，任何指令都不能越过它）。",
-        ]
 
     def _build_language_section(self, force_en: bool) -> list[str]:
         """回复语言规则：跟随作者最近一条消息，看不出来时才按界面语言。"""
@@ -694,64 +547,6 @@ class MessageManager:
             ]
         return []
 
-    def _build_task_board_section(
-        self, session_id: str, force_en: bool
-    ) -> list[str]:
-        """Build task board section for system prompt."""
-        parts: list[str] = []
-
-        if session_id:
-            from services.infra.task_board_service import task_board_service
-
-            tasks = (
-                task_board_service.get_tasks(
-                    session_id,
-                    user_id=self.user_id,
-                    project_id=self.project_id,
-                )
-                if self.user_id
-                else None
-            )
-            if tasks:
-                # Format tasks with emoji status icons
-                task_lines = []
-                for t in tasks:
-                    status = t.get("status", "pending")
-                    task_desc = t.get("task", "")
-                    if status == "in_progress":
-                        icon = "🔄"
-                    elif status == "done":
-                        icon = "✅"
-                    else:  # pending
-                        icon = "⏳"
-                    # 工作流按实际写出的文件记下的进度（「已写：第2集；待写：第3–5集」）。
-                    progress = str(t.get("progress") or "").strip()
-                    if progress and status != "done":
-                        task_desc = f"{task_desc}（{progress}）"
-                    task_lines.append(f"{icon} {task_desc}")
-
-                parts.extend([
-                    "",
-                    "## Current Task Board" if force_en else "## 当前任务计划板",
-                    "",
-                    "\n".join(task_lines),
-                    "",
-                    "**Rule:** Update the task board only when planning starts and when all tasks are done; "
-                    "batch any intermediate status change into the same reply as other tool calls instead of a standalone call."
-                    if force_en
-                    else "**规则:** 任务计划板只在开始规划时和全部完成时调用 update_project(tasks=[...]) 更新；"
-                    "中间状态变化与其他工具调用放在同一条回复里批量更新，不单独占一轮。",
-                ])
-            else:
-                parts.extend([
-                    "",
-                    "## Current Task Board" if force_en else "## 当前任务计划板",
-                    "",
-                    "No active tasks" if force_en else "当前无活跃任务",
-                ])
-
-        return parts
-
     def _build_metadata_section(
         self, metadata: dict[str, Any], force_en: bool
     ) -> list[str]:
@@ -772,209 +567,6 @@ class MessageManager:
             )
 
         return parts
-
-    def _build_context_section(
-        self,
-        assembled_context: str,
-        context_items: list[dict[str, Any]] | None,
-        force_en: bool,
-        world_truth: list[str] | None = None,
-        world_surface: list[str] | None = None,
-    ) -> list[str]:
-        """Build world-model truth/surface context section (no legacy aliases)."""
-        if world_truth is None or world_surface is None:
-            _, world_truth, world_surface = self._extract_structured_context(
-                context_items=context_items,
-                force_en=force_en,
-                raw_context_complete=bool(assembled_context.strip()),
-            )
-
-        truth_items = world_truth or []
-        surface_items = world_surface or []
-        # ContextAssembler has already applied its token budget and labelled partial items.
-        raw_context = assembled_context.strip()
-
-        parts: list[str] = [
-            "",
-            "## World Model Visibility Contract"
-            if force_en
-            else "## 世界模型可见性合同",
-            "",
-            "Use world_model_truth as canonical facts; treat world_model_surface as scene-level cues."
-            if force_en
-            else "将 world_model_truth 视为权威事实；world_model_surface 仅作为场景线索。",
-            "",
-        ]
-
-        if truth_items:
-            parts.append("<world_model_truth>")
-            parts.extend([f"- {entry}" for entry in truth_items])
-            parts.append("</world_model_truth>")
-            parts.append("")
-
-        if surface_items:
-            parts.append("<world_model_surface>")
-            parts.extend([f"- {entry}" for entry in surface_items])
-            parts.append("</world_model_surface>")
-            parts.append("")
-
-        if raw_context:
-            parts.append("<project_context_raw>")
-            parts.append(raw_context)
-            parts.append("</project_context_raw>")
-        return parts
-
-    def _build_narrative_constraints_section(
-        self,
-        *,
-        constraints: list[str],
-        force_en: bool,
-    ) -> list[str]:
-        """Inject narrative constraints as an independent prompt block."""
-        if not constraints:
-            return []
-
-        return [
-            "",
-            "## Narrative Constraints" if force_en else "## 叙事约束",
-            "",
-            "<narrative_constraints>",
-            *[f"{idx}. {rule}" for idx, rule in enumerate(constraints, start=1)],
-            "</narrative_constraints>",
-        ]
-
-    def _extract_structured_context(
-        self,
-        *,
-        context_items: list[dict[str, Any]] | None,
-        force_en: bool,
-        raw_context_complete: bool = False,
-    ) -> tuple[list[str], list[str], list[str]]:
-        """拆出叙事约束与 world_model truth/surface 条目。
-
-        raw_context_complete=True 表示模型收到了组装好的项目上下文（含快照）：
-        此时未被预算截断的条目已在项目上下文里以 [全文] 出现，truth/surface 里只
-        保留「标题 (id=…)」用于可见性分类，不再重复一份 220 字预览——
-        重复的短预览会让模型以为文件被压缩过，转而 query_files 重读。
-        """
-        constraints: list[str] = []
-        world_truth: list[str] = []
-        world_surface: list[str] = []
-        seen_constraints: set[str] = set()
-        seen_truth: set[str] = set()
-        seen_surface: set[str] = set()
-
-        for raw_item in context_items or []:
-            if not isinstance(raw_item, dict):
-                continue
-            item_type = str(raw_item.get("type") or "").strip().lower()
-            priority = str(raw_item.get("priority") or "").strip().lower()
-            metadata = extract_item_metadata(raw_item)
-            inject_truth, inject_surface = resolve_world_model_channels(
-                item_type=item_type,
-                metadata=metadata,
-            )
-            if not inject_truth and not inject_surface:
-                continue
-
-            title = self._normalize_text(str(raw_item.get("title") or ""))
-            full_in_raw = (
-                raw_context_complete
-                and bool(title)
-                and not metadata.get("truncated")
-                and not metadata.get("retrieved")
-            )
-            if full_in_raw:
-                item_id = str(raw_item.get("id") or "").strip()
-                has_file_id = bool(metadata.get("file_type")) and not metadata.get(
-                    "library_material"
-                )
-                ref_suffix = (
-                    " (full text in project context)" if force_en else "（全文见项目上下文）"
-                )
-                id_part = f" (id={item_id})" if has_file_id and item_id else ""
-                item_entry = f"{title}{id_part}{ref_suffix}"
-            else:
-                content = self._normalize_text(str(raw_item.get("content") or ""))
-                snippet = self._truncate_text(content, _CONTEXT_ITEM_TEXT_CHAR_LIMIT)
-                item_entry = self._build_item_entry(
-                    title=title,
-                    snippet=snippet,
-                    force_en=force_en,
-                )
-
-            if item_entry and inject_truth and item_entry not in seen_truth:
-                seen_truth.add(item_entry)
-                world_truth.append(item_entry)
-            if item_entry and inject_surface and item_entry not in seen_surface:
-                seen_surface.add(item_entry)
-                world_surface.append(item_entry)
-
-            if item_type in {"character", "lore"} and inject_truth:
-                if priority in {"critical", "constraint"}:
-                    rule = self._build_consistency_rule(
-                        item_type=item_type,
-                        title=title,
-                        force_en=force_en,
-                    )
-                    if rule and rule not in seen_constraints:
-                        seen_constraints.add(rule)
-                        constraints.append(rule)
-                continue
-
-            if item_type == "quote" and inject_truth:
-                quote_rule = (
-                    "Do not contradict the user-quoted text."
-                    if force_en
-                    else "不得与用户引用文本冲突。"
-                )
-                if quote_rule not in seen_constraints:
-                    seen_constraints.add(quote_rule)
-                    constraints.append(quote_rule)
-                continue
-
-        return (
-            constraints[:_CONTEXT_MAX_CONSTRAINTS],
-            world_truth[:_CONTEXT_MAX_WORLD_KNOWLEDGE],
-            world_surface[:_CONTEXT_MAX_WORKING_SET],
-        )
-
-    def _build_consistency_rule(self, *, item_type: str, title: str, force_en: bool) -> str:
-        safe_title = title or ("this profile" if force_en else "该档案")
-        if item_type == "character":
-            return (
-                f"Character consistency: keep behavior and voice aligned with {safe_title}."
-                if force_en
-                else f"角色一致性：{safe_title} 的行为、语气、动机需前后一致。"
-            )
-        return (
-            f"World consistency: keep rules in {safe_title} unchanged unless user requests."
-            if force_en
-            else f"设定一致性：遵守 {safe_title} 中的世界规则，除非用户明确要求修改。"
-        )
-
-    def _build_item_entry(self, *, title: str, snippet: str, force_en: bool) -> str:
-        if title and snippet:
-            return f"{title}: {snippet}" if force_en else f"{title}：{snippet}"
-        return title or snippet
-
-    def _normalize_text(self, text: str) -> str:
-        """压成单行：只用于 world_model 列表里的标题/节选，不能用于原始上下文。"""
-        return " ".join((text or "").split()).strip()
-
-    def _truncate_text(self, text: str, max_chars: int) -> str:
-        """把节选压成单行并裁到 max_chars，裁过时以「…（节选）」显式收尾。"""
-        normalized = self._normalize_text(text)
-        if max_chars <= 0 or len(normalized) <= max_chars:
-            return normalized
-
-        clipped = normalized[:max_chars]
-        for sep in ("。", ".", "！", "!", "？", "?", "\n", "；", ";", "，", ",", " "):
-            idx = clipped.rfind(sep)
-            if idx > max_chars * 0.6:
-                clipped = clipped[: idx + 1]
-                break
-        return clipped.rstrip() + _CONTEXT_PREVIEW_SUFFIX
 
     def _build_skill_catalog_section(self, skill_catalog: str) -> list[str]:
         """Build skill catalog section for AI-driven selection."""

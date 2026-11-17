@@ -37,6 +37,11 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def _model_messages(state):
+    """单循环 agent 这一轮看到的对话：回放的历史加本轮用户消息。"""
+    return [*state.get("history_items", []), {"role": "user", "content": state["user_message"]}]
+
+
 @pytest.fixture(scope="module")
 def local_generation_settings():
     # This is the real in-memory configuration, not a mocked steering gate.
@@ -214,7 +219,7 @@ def test_compensating_history_retains_exclusive_run(pg_engine, actors, monkeypat
             trace.record("compensation_dml_released")
 
     async def workflow(state, **kwargs):
-        trace.record("workflow_entry", run=state["router_message"], messages=state["messages"])
+        trace.record("workflow_entry", run=state["router_message"], messages=_model_messages(state))
         if state["router_message"] == "A failed request":
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "A issued partial output"})
             if ending == "cancellation":
@@ -225,7 +230,7 @@ def test_compensating_history_retains_exclusive_run(pg_engine, actors, monkeypat
         await b_release.wait()
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "B successful output"})
 
-    monkeypatch.setattr(service_module, "run_writing_workflow_streaming", workflow)
+    monkeypatch.setattr(service_module, "run_loop_agent_streaming", workflow)
     event.listen(pg_engine, "before_cursor_execute", before_sql)
 
     async def scenario():
@@ -267,7 +272,7 @@ def test_compensating_history_retains_exclusive_run(pg_engine, actors, monkeypat
                 hold_sequence = next(row["sequence"] for row in trace.rows
                                      if row["kind"] == "compensation_dml_held")
                 assert any(row["kind"] == "sql" and hold_sequence < row["sequence"] < entry["sequence"]
-                           and any(frame["function"] == "_load_history_window_under_token_budget"
+                           and any(frame["function"] == "load_loop_history"
                                    for frame in row["frames"]) for row in trace.rows)
         finally:
             release_sql.set()
@@ -315,12 +320,12 @@ def test_sequential_history_and_run_release(pg_engine, actors, monkeypatch, endi
     trace = Trace(f"sequential-{ending}")
 
     async def workflow(state, **kwargs):
-        trace.record("workflow_entry", run=state["router_message"], messages=state["messages"])
+        trace.record("workflow_entry", run=state["router_message"], messages=_model_messages(state))
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Sequential output"})
         if ending == "failure" and state["router_message"] == "Sequential request":
             raise RuntimeError("synthetic sequential provider failure")
 
-    monkeypatch.setattr(service_module, "run_writing_workflow_streaming", workflow)
+    monkeypatch.setattr(service_module, "run_loop_agent_streaming", workflow)
 
     async def scenario():
         await consume(AgentService(), pg_engine, actors, "Sequential request", trace)
@@ -342,7 +347,7 @@ def test_sequential_history_and_run_release(pg_engine, actors, monkeypatch, endi
             "Previously committed user", "Previously committed assistant",
             "Sequential request", "Sequential output",
         ]
-        # 本轮用户消息前面拼着 <turn_context>（缓存布局），作者原话在标签之后。
+        # 本轮用户消息前面可能拼着本轮上下文，作者原话在标签之后。
         assert contents[4].rpartition(f"{WORKING_SET_USER_MESSAGE_LABEL}\n")[2] == "Sequential followup"
         count, rows = history(pg_engine, actors[2])
         assert count == len(rows) == 6
@@ -408,7 +413,7 @@ def test_finalization_write_keeps_owner_until_worker_finishes(pg_engine, actors,
             trace.record("finalization_dml_released")
 
     async def workflow(state, **kwargs):
-        trace.record("workflow_entry", run=state["router_message"], messages=state["messages"])
+        trace.record("workflow_entry", run=state["router_message"], messages=_model_messages(state))
         if state["router_message"] == "A boundary request":
             if not append:
                 queue = await get_steering_queue_for_user_async(actors[2], actors[0])
@@ -426,7 +431,7 @@ def test_finalization_write_keeps_owner_until_worker_finishes(pg_engine, actors,
                 await b_release.wait()
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Later successful output"})
 
-    monkeypatch.setattr(service_module, "run_writing_workflow_streaming", workflow)
+    monkeypatch.setattr(service_module, "run_loop_agent_streaming", workflow)
     event.listen(pg_engine, "before_cursor_execute", before_sql)
     event.listen(Session, "after_commit", after_commit)
 
@@ -575,7 +580,7 @@ def test_finalization_failure_is_best_effort_and_releases(pg_engine, actors, mon
         if failure != "late_append":
             raise RuntimeError("synthetic provider failure for cleanup control")
 
-    monkeypatch.setattr(service_module, "run_writing_workflow_streaming", workflow)
+    monkeypatch.setattr(service_module, "run_loop_agent_streaming", workflow)
     event.listen(pg_engine, "before_cursor_execute", before_sql)
 
     async def scenario():
@@ -633,7 +638,7 @@ def test_late_steering_stays_with_exclusive_holder(pg_engine, actors, monkeypatc
     async def workflow(state, **kwargs):
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Exclusive holder output"})
 
-    monkeypatch.setattr(service_module, "run_writing_workflow_streaming", workflow)
+    monkeypatch.setattr(service_module, "run_loop_agent_streaming", workflow)
     event.listen(pg_engine, "before_cursor_execute", before_sql)
 
     async def scenario():
@@ -691,7 +696,7 @@ def test_real_primary_history_failure_emits_error_without_done(pg_engine, actors
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Issued before history failure"})
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-    monkeypatch.setattr(service_module, "run_writing_workflow_streaming", workflow)
+    monkeypatch.setattr(service_module, "run_loop_agent_streaming", workflow)
     event.listen(pg_engine, "before_cursor_execute", before_sql)
 
     async def scenario():

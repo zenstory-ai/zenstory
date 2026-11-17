@@ -208,10 +208,9 @@ zenstory/
     ├── api/                  #   路由：auth、projects、files、agent、agent_api、materials、admin …
     ├── agent/                #   写作 Agent
     │   ├── loop/             #     单循环写作 Agent：提示、历史、压缩与运行循环
-    │   ├── graph/            #     旧的多角色调度（只作回滚保留）
-    │   ├── tools/            #     文件、项目、技能和交接工具
+    │   ├── tools/            #     文件、项目和技能工具
     │   ├── context/          #     每轮上下文组装、预算和重要度排序
-    │   ├── prompts/          #     共享协议、题材规范与角色提示
+    │   ├── prompts/          #     写作协议与题材规范
     │   └── skills/           #     技能加载与注入
     ├── flows/                #   素材拆解流水线（Prefect）
     ├── services/             #   业务逻辑

@@ -36,7 +36,7 @@ class RecordingMeter:
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_tool_timing_starts_only_after_guards_allow_execution():
+async def test_tool_timing_records_the_executed_tool_once():
     from agent.openai_agents.tools_adapter import build_agent_function_tools
 
     meter = RecordingMeter()
@@ -57,23 +57,12 @@ async def test_tool_timing_starts_only_after_guards_allow_execution():
         "agent.openai_agents.tools_adapter.TOOL_FUNCTIONS",
         {"edit_file": fake_tool, "query_files": fake_tool},
     ):
-        reviewer_tools = {
-            tool.name: tool
-            for tool in build_agent_function_tools(
-                "quality_reviewer",
-                run_meter=meter,
-            )
-        }
-        refused = await reviewer_tools["edit_file"].on_invoke_tool(
-            None,
-            '{"id":"draft-1","edits":[]}',
-        )
-        allowed = await reviewer_tools["query_files"].on_invoke_tool(
+        tools = {tool.name: tool for tool in build_agent_function_tools(run_meter=meter)}
+        allowed = await tools["query_files"].on_invoke_tool(
             None,
             '{"ids":["draft-1"]}',
         )
 
-    assert json.loads(refused)["status"] == "error"
     assert json.loads(allowed)["status"] == "success"
     assert executed == [{"ids": ["draft-1"]}]
     assert meter.first_tool_marks == 1
@@ -197,7 +186,6 @@ async def test_tool_timing_ignores_circuit_and_read_guard_short_circuits():
     breaker_tools = {
         tool.name: tool
         for tool in build_agent_function_tools(
-            "writer",
             failure_breaker=OpenBreaker(),
             run_meter=meter,
         )
@@ -205,7 +193,6 @@ async def test_tool_timing_ignores_circuit_and_read_guard_short_circuits():
     guard_tools = {
         tool.name: tool
         for tool in build_agent_function_tools(
-            "writer",
             read_guard=BlockingReadGuard(),
             run_meter=meter,
         )
