@@ -868,23 +868,3 @@ def test_task_evidence_spec_requires_type_for_legacy_text_but_accepts_structured
 
 def test_format_units():
     assert format_units({2, 3, 4, 6, 8, 9}, "集") == "第2–4、6、8–9集"
-
-
-def test_board_prompt_shows_recorded_progress(monkeypatch):
-    from agent.core.message_manager import MessageManager
-
-    _mock_task_board(
-        monkeypatch,
-        [
-            _range_task(progress="已写：第2集；待写：第3–5集"),
-            {"task": "收尾", "status": "pending"},
-        ],
-    )
-    manager = MessageManager.__new__(MessageManager)
-    manager.user_id = "u"
-    manager.project_id = "p"
-
-    text = "\n".join(manager._build_task_board_section("s", force_en=False))
-
-    assert "🔄 撰寫第2-5集劇本（已写：第2集；待写：第3–5集）" in text
-    assert "⏳ 收尾" in text

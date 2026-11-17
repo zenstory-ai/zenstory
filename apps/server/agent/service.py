@@ -83,43 +83,6 @@ PARTIAL_SAVE_CANCELLED_STOP_REASON = "cancelled"
 RETRY_UNANSWERED_METADATA_KEY = "retry_unanswered"
 
 
-def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
-    """把 ROUTER_DECIDED 事件转成落库的 message_metadata.routing。
-
-    下一轮的语义 follow-up 路由（graph/router.py）从这里读回可信 agent、用户范围
-    与累计限制；只留执行合同字段，不存 reason / confidence。
-    """
-    routing_metadata = data.get("routing_metadata")
-    if not isinstance(routing_metadata, dict):
-        routing_metadata = {}
-    initial_agent = str(data.get("initial_agent") or routing_metadata.get("agent_type") or "")
-    write_content = routing_metadata.get("write_content")
-    scope = routing_metadata.get("scope")
-    scope_constraints = routing_metadata.get("scope_constraints")
-    routing = {
-        "initial_agent": initial_agent,
-        "workflow_type": str(
-            data.get("workflow_plan") or routing_metadata.get("workflow_type") or ""
-        ),
-        "read_only": routing_metadata.get("read_only") is True,
-        "write_content": write_content if isinstance(write_content, bool) else None,
-        "scope": scope.strip() if isinstance(scope, str) else "",
-        "scope_constraints": (
-            list(scope_constraints) if isinstance(scope_constraints, list) else []
-        ),
-        "requested_file_types": routing_metadata.get("requested_file_types", []),
-        # last_agent：这一轮最后说话的 agent；owner_agent：负责这一轮任务的 agent。
-        # writer 写完经自动质量门控 / 送审交给审稿人时，last_agent 变成 quality_reviewer，
-        # owner_agent 仍是 writer：作者回答审稿人的提问时要回到 writer（审稿人没有写工具）。
-        "last_agent": initial_agent,
-        "owner_agent": initial_agent,
-    }
-    if routing_metadata.get("clarify_first") is True:
-        # 记录本轮先澄清的路由事实；跨轮等待仍只认结构化 clarification_pending。
-        routing["clarify_first"] = True
-    return routing
-
-
 # 作者在一部作品里发出的第一条消息带 metadata.entry：工作台想法（dashboard_idea）、聊天空态
 # 起手卡的示例（starter_example）、已有作者正文时起手卡的读稿请求（starter_manuscript）、空会话里
 # 手打的第一条（first_message）。前端发的是作者原话；
@@ -722,13 +685,8 @@ class AgentService:
         assistant_usage: dict[str, Any] | None = None
         assistant_status_cards: list[dict[str, Any]] = []
         assistant_display_events: list[dict[str, Any]] = []
-        # 本轮路由（ROUTER_DECIDED + 最后一个 AGENT_SELECTED），随 assistant 消息落库
-        assistant_routing: dict[str, Any] = {}
         # 本轮因为作者手改过而没删 / 没整份重写的文件（工具按它给出拒绝说明）。
         author_edit_refusals = AuthorEditRefusals()
-
-        def _routing_for_save() -> dict[str, Any] | None:
-            return assistant_routing or None
 
         # 本轮开始前写下的压缩点，随本轮 assistant 行落库（agent/loop/compaction.py）。
         loop_compaction_record: dict[str, Any] | None = None
@@ -1025,7 +983,6 @@ class AgentService:
                     assistant_display_events=assistant_display_events or None,
                     assistant_usage=_accumulated_usage(),
                     assistant_stop_reason=stop_reason,
-                    assistant_routing=_routing_for_save(),
                     persist_empty_assistant=persist_empty_assistant,
                     user_created_at=user_sent_at,
                     assistant_extra_metadata=_loop_extra_metadata(),
@@ -1259,19 +1216,6 @@ class AgentService:
                                 "data": dict(event.data),
                             }
                         )
-                        if event_type == "router_decided":
-                            assistant_routing = routing_from_router_decided(event.data)
-                        elif event_type == "agent_selected" and assistant_routing:
-                            selected_agent = str(event.data.get("agent_type") or "").strip()
-                            if selected_agent:
-                                assistant_routing["last_agent"] = selected_agent
-                                # 交接来的审稿人只是在审别人的稿：任务仍归交给它的 agent。
-                                # 本轮从审稿开始（review_only）时审稿人就是负责人。
-                                if (
-                                    selected_agent != "quality_reviewer"
-                                    or assistant_routing.get("initial_agent") == "quality_reviewer"
-                                ):
-                                    assistant_routing["owner_agent"] = selected_agent
 
                     # Track content for history
                     if event_type == "content":
@@ -1419,7 +1363,6 @@ class AgentService:
                         assistant_status_cards=assistant_status_cards or None,
                         steering_messages=consumed_steering or None,
                         assistant_display_events=assistant_display_events or None,
-                        assistant_routing=_routing_for_save(),
                         user_created_at=user_sent_at,
                         assistant_extra_metadata=_loop_extra_metadata(),
                     )

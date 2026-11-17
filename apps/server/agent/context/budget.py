@@ -11,24 +11,6 @@ from agent.utils.token_utils import _chars_per_token_for, estimate_text_tokens
 
 from ..schemas.context import ContextItem, ContextPriority
 
-# Shared prompt-token ledger ceiling for a single request's input side.
-#
-# 组装上下文（AGENT_CONTEXT_TOKEN_BUDGET，默认 32k）与聊天历史
-# （AGENT_CHAT_HISTORY_TOKEN_BUDGET，默认 32k）共用这一个台账：已知的 prompt 成本
-# （系统提示 + 技能目录/正文 + 组装上下文 + 跨轮工作集）先从上限里扣掉，历史窗口
-# 只能用剩下的额度。
-#
-# deepseek-flash 的上下文窗口是 1M token，且有自动前缀缓存（命中价约为未命中的
-# 1/50；MiniMax M3.1-Flash 是 1/10，见 services/usage/pricing.py）。上限定在 160k：远低于模型窗口、给本轮工具结果留足空间，同时明显高于
-# 「系统提示 + 32k 上下文 + 32k 历史」的常规总量，所以台账只在其他 prompt 成本
-# 真的很大时才收缩历史，绝不放大历史预算。旧值 24k（按 6k 预算定的）会把上下文
-# 与历史压到模型只能靠反复 query_files 重读来补，重读的成本远高于多带的前缀。
-DEFAULT_PROMPT_TOKEN_LEDGER_CEILING = 160000
-
-# Always leave at least this many tokens for chat history so a large context
-# block can never starve history to zero (which would erase cross-turn memory).
-MIN_HISTORY_TOKEN_FLOOR = 512
-
 # 裁剪长文本时追加的提示后缀，让模型知道这里被截断过而不是原文如此。
 TRUNCATION_SUFFIX = "…（内容过长已截断）"
 
@@ -93,52 +75,6 @@ def truncate_text_to_tokens(
         guard += 1
 
     return body.rstrip() + suffix
-
-
-def compute_history_token_budget(
-    *,
-    configured_history_budget: int,
-    reserved_prompt_tokens: int,
-    ceiling: int = DEFAULT_PROMPT_TOKEN_LEDGER_CEILING,
-    min_history_floor: int = MIN_HISTORY_TOKEN_FLOOR,
-) -> int:
-    """
-    Compute the chat-history token budget under a single shared prompt ledger.
-
-    The history window must share one ceiling with the other already-known
-    prompt costs (system prompt + skill catalog/reference + assembled context),
-    instead of being budgeted independently. This returns the smaller of the
-    configured history budget and whatever room remains under the ceiling after
-    subtracting ``reserved_prompt_tokens``.
-
-    Behavior is intentionally safe:
-    - Missing/None inputs are coerced to 0 and never crash.
-    - History never exceeds ``configured_history_budget`` (the ledger only
-      shrinks history; it never grows it).
-    - History never drops below ``min_history_floor`` so a huge context block
-      cannot erase cross-turn memory entirely.
-
-    Args:
-        configured_history_budget: The independently configured history budget
-            (e.g. AGENT_CHAT_HISTORY_TOKEN_BUDGET).
-        reserved_prompt_tokens: Tokens already committed to the rest of the
-            prompt (system prompt + skill catalog/reference + assembled context).
-        ceiling: The shared prompt-token ledger ceiling.
-        min_history_floor: Minimum tokens to always reserve for history.
-
-    Returns:
-        The effective history token budget under the shared ceiling.
-    """
-    history_budget = max(0, int(configured_history_budget or 0))
-    reserved = max(0, int(reserved_prompt_tokens or 0))
-    ceiling = max(0, int(ceiling or 0))
-    floor = max(0, int(min_history_floor or 0))
-
-    remaining = ceiling - reserved
-    if remaining < floor:
-        remaining = floor
-
-    return min(history_budget, remaining)
 
 
 class TokenBudget:

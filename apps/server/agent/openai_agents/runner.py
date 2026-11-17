@@ -345,8 +345,8 @@ def build_run_input(
 ) -> MessageList:
     """这次 SDK run 的输入：[项目资料快照][历史 + 本轮用户消息][这次运行的系统指令]。
 
-    项目资料快照（agent/context/turn_snapshot.py）紧跟系统提示、在历史之前，跨轮、跨 agent
-    逐字不变，没重建时整段命中前缀缓存。它只进模型输入，不写回 state["messages"]
+    项目资料快照（state["context_snapshot"]，单循环 agent 不用，为空）紧跟系统提示、在历史之前，
+    跨轮逐字不变时整段命中前缀缓存。它只进模型输入，不写回 state["messages"]
     （runner 会把 api_messages 写回 state，下一次 run 再加一次快照就重复了）。
 
     本次运行的系统指令（agent_directive）放在最后，让 [系统提示][历史][本轮用户消息]
