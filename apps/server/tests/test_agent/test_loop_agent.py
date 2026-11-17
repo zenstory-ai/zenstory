@@ -84,6 +84,8 @@ def test_loop_system_prompt_merges_project_config_with_loop_rules(db_session, wr
     assert "write_chapter" in loop_prompt and "大纲是节奏的上限也是底线" in loop_prompt
     assert "整体替换进该章" not in loop_prompt and "整章重写时用一个 replace" not in loop_prompt
     assert "不另存成素材、副本或备份文件" in loop_prompt
+    # 录入作者资料：原文逐字存，AI 补充只放在单独标明的一节里并在回复里说明。
+    assert "逐字存成" in loop_prompt and "AI 补充建议（待作者确认）" in loop_prompt
     assert "快速模式" not in loop_prompt and "生成模式" not in loop_prompt
     # 项目类型的写作配置（数据库行）在最前面。
     assert loop_prompt.split("\n", 1)[0] == "Test novel editor"
