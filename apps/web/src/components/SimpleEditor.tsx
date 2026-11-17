@@ -72,6 +72,8 @@ interface SimpleEditorProps {
   fileType?: string;
   fileTitle?: string;
   baseUpdatedAt?: string;
+  /** The body of the server copy `baseUpdatedAt` belongs to (what is saved). */
+  savedContent?: string;
   title: string;
   /** The author's editable body; streaming previews must never become a saved draft. */
   content: string;
@@ -134,6 +136,7 @@ export const SimpleEditor = ({
   fileType,
   fileTitle,
   baseUpdatedAt,
+  savedContent,
   title,
   content,
   streamingContent,
@@ -519,9 +522,15 @@ export const SimpleEditor = ({
     
     // If we just exited review mode, schedule a height adjustment
     if (wasInReviewMode && !isReviewMode) {
-      // If diffReviewState is cleared, we assume reviewed changes were saved.
-      // Sync local save baseline so "unsaved" status doesn't get stuck.
-      if (!diffReviewState) {
+      // The review closed. When it saved the editor's text (it now matches the saved copy),
+      // sync the local save baseline so "unsaved" status doesn't get stuck. A review that
+      // closed without saving it (the author's unsaved text was kept) leaves it unsaved:
+      // autosave, the leave flush and the page-exit draft still cover it.
+      if (!diffReviewState && savedContent !== undefined && content !== savedContent) {
+        dirtyRef.current = true;
+        setIsDirty(true);
+        setAutosaveNudge((n) => n + 1);
+      } else if (!diffReviewState) {
         lastSavedContentRef.current = content;
         lastSavedTitleRef.current = title;
         dirtyRef.current = false;
@@ -536,7 +545,7 @@ export const SimpleEditor = ({
         adjustTextareaHeight(true);
       }, 50);
     }
-  }, [isReviewMode, diffReviewState, fileId, title, content, baseUpdatedAt, adjustTextareaHeight]);
+  }, [isReviewMode, diffReviewState, fileId, title, content, baseUpdatedAt, savedContent, adjustTextareaHeight]);
 
   const handleContentScroll = useCallback(() => {
     const el = contentAreaRef.current;

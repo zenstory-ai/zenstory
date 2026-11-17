@@ -1187,28 +1187,107 @@ describe('AI replaces the open chapter, then edits it again in the same round', 
     expect(toastError).not.toHaveBeenCalled();
   });
 
-  it('unsaved author text from before the review keeps its body and older save token', async () => {
+  /** The author types inside the autosave delay, then the AI replaces the chapter (and edits it again). */
+  async function typeThenAiWrites(typed: string, writes: 1 | 2) {
     server.files.set(CH1.id, { ...CH1, content: ORIGINAL, updated_at: T_ORIGINAL });
     render(<ProjectProvider><Harness /></ProjectProvider>);
     await settle(); await advance(50); await settle();
-    // Typed inside the autosave delay, before the AI write opens the review.
-    fireEvent.change(textarea(), { target: { value: `${ORIGINAL}作者补的一句。` } });
+    fireEvent.change(textarea(), { target: { value: typed } });
     server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: REPLACED, updated_at: T_REPLACED });
     act(() => {
       callbacks().onStart();
       callbacks().onFileEditEnd(CH1.id, 1, REPLACED.length, REPLACED, ORIGINAL, 'draft', CH1.title, OUTCOME);
     });
     await advance(300); await settle();
-    await editChapter();
+    if (writes === 2) await editChapter();
+  }
+
+  it('unsaved author text from before the review keeps its body and older save token, and survives finishing', async () => {
+    const typed = `${ORIGINAL}作者补的一句。`;
+    await typeThenAiWrites(typed, 2);
 
     // The review still follows the latest copy, but the editor does not adopt it over the
     // author's text: the save token stays on the copy that text was typed on.
-    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
+    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED, origin: 'agent_write' });
     finishReview();
     await settle();
-    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_ORIGINAL });
-    // The stale token meets the newer copy as a conflict instead of saving over it.
-    expect(server.files.get(CH1.id)!.content).toBe(EDITED);
+    // Finishing does not save the AI text over the author's: it opens the comparison of the
+    // author's text against the reviewed AI text with the author's sentence replayed onto it.
+    expect(putsFor(CH1.id)).toHaveLength(0);
+    expect(review()).toMatchObject({ origin: 'conflict', originalContent: typed });
+    expect(toastError).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
+
+    finishReview();
+    await settle();
+    const ending = `${EDITED}作者补的一句。`;
+    expect(putsFor(CH1.id)).toHaveLength(1);
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: ending, base_updated_at: T_EDITED, change_source: 'user' });
+    expect(server.files.get(CH1.id)!.content).toBe(ending);
+    expect(review()).toBeNull();
+    expect(textarea().value).toBe(ending);
+  });
+
+  for (const writes of [1, 2] as const) {
+    it(`an unsaved author paragraph is replayed onto the reviewed AI text (${writes} write${writes > 1 ? 's' : ''})`, async () => {
+      const added = '作者补的一段。';
+      await typeThenAiWrites(`${ORIGINAL}\n\n${added}`, writes);
+      const aiText = writes === 1 ? REPLACED : EDITED;
+      expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: aiText, origin: 'agent_write' });
+
+      finishReview();
+      await settle();
+      expect(putsFor(CH1.id)).toHaveLength(0);
+      expect(review()).toMatchObject({ origin: 'conflict', modifiedContent: `${aiText}\n\n${added}` });
+
+      finishReview();
+      await settle();
+      expect(putsFor(CH1.id)).toHaveLength(1);
+      expect(putsFor(CH1.id)[0][1]).toMatchObject({
+        content: `${aiText}\n\n${added}`,
+        base_updated_at: writes === 1 ? T_REPLACED : T_EDITED,
+      });
+      expect(server.files.get(CH1.id)!.content).toBe(`${aiText}\n\n${added}`);
+      expect(textarea().value).toBe(`${aiText}\n\n${added}`);
+    });
+  }
+
+  it('rejecting every AI change keeps the unsaved author text unsaved, then saves it on the latest token', async () => {
+    const typed = `${ORIGINAL}作者补的一句。`;
+    await typeThenAiWrites(typed, 2);
+    act(() => harness.project!.rejectAllEdits());
+    finishReview();
+    await settle();
+
+    // The reviewed text adds nothing to the author's: the review closes without a save,
+    // so the editor must not claim the author's text was saved.
+    expect(review()).toBeNull();
+    expect(textarea().value).toBe(typed);
+    expect(putsFor(CH1.id)).toHaveLength(0);
+    act(() => { window.dispatchEvent(new Event('pagehide')); });
+    expect(readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH1.id })?.content).toBe(typed);
+
+    await advance(3500); await settle();
+    expect(putsFor(CH1.id)).toHaveLength(1);
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: typed, base_updated_at: T_EDITED });
+    expect(server.files.get(CH1.id)!.content).toBe(typed);
+  });
+
+  it('undoing back to the original during the review keeps the unsaved author text and saves it on the restored token', async () => {
+    const typed = `${ORIGINAL}作者补的一句。`;
+    await typeThenAiWrites(typed, 2);
+    await undoTo(ORIGINAL);
+
+    expect(review()).toBeNull();
+    expect(textarea().value).toBe(typed);
+    expect(putsFor(CH1.id)).toHaveLength(0);
+    act(() => { window.dispatchEvent(new Event('pagehide')); });
+    expect(readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH1.id })?.content).toBe(typed);
+
+    await advance(3500); await settle();
+    expect(putsFor(CH1.id)).toHaveLength(1);
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: typed, base_updated_at: T_RESTORED });
+    expect(server.files.get(CH1.id)!.content).toBe(typed);
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it('a second content-bearing write keeps the earliest original of the open review', async () => {
