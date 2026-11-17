@@ -123,6 +123,8 @@ def _returns_to_ai_text(session: Any, service: Any, latest: Any, content: str) -
 
     A deterministic comparison of stored version bodies, not a reading of intent: restoring an
     author version, a mixed review result, or text no recent version holds stays the author's.
+    A matching version that is itself a user restore or review save carries no authorship of its
+    own (it went back to earlier text), so the scan keeps looking past it within the same window.
     """
     from agent.tools.author_changes import AI, version_actor
 
@@ -134,8 +136,14 @@ def _returns_to_ai_text(session: Any, service: Any, latest: Any, content: str) -
         if version.version_number < latest.version_number
     ][:_AI_TEXT_LOOKBACK]
     for version in earlier:
-        if service._get_contents_for_versions(session, {latest.file_id: version})[latest.file_id] == content:
-            return version_actor(version) == AI
+        if service._get_contents_for_versions(session, {latest.file_id: version})[latest.file_id] != content:
+            continue
+        if version.change_source == _USER_CHANGE_SOURCE and version.change_type in (
+            _RESTORE_CHANGE_TYPE,
+            _AI_EDIT_CHANGE_TYPE,
+        ):
+            continue
+        return version_actor(version) == AI
     return False
 
 

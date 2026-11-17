@@ -1127,6 +1127,42 @@ async def test_going_back_to_byte_identical_ai_text_stays_replaceable(workspace,
     assert _content(workspace, one.id).rstrip("\n") == NEW_BODY
 
 
+async def test_second_undo_back_to_ai_text_after_an_earlier_restore_stays_replaceable(workspace):
+    # AI 初稿 → 作者改写 → 作者恢复到 AI 初稿 → AI 整章替换 → 作者撤销：又回到 AI 初稿，仍是 AI 的正文。
+    one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", AI_FIRST)
+    first_ai = _number_of(workspace, one.id, AI_FIRST)
+    _save(workspace.session, one, AUTHOR_TEXT, change_type="edit", change_source="user")
+    FileVersionService().rollback_to_version(workspace.session, one.id, first_ai, workspace.user.id)
+    _save(workspace.session, one, AI_SECOND, change_type="ai_edit", change_source="ai", summary="AI 整章替换")
+    FileVersionService().rollback_to_version(
+        workspace.session, one.id, _number_of(workspace, one.id, AI_FIRST), workspace.user.id
+    )
+    assert _content(workspace, one.id) == AI_FIRST
+
+    armed = await _write_chapter_one(workspace)
+
+    assert armed["status"] == "success" and armed["data"]["action"] == "replaced"
+    assert _content(workspace, one.id).rstrip("\n") == NEW_BODY
+
+
+async def test_restore_chain_back_to_author_text_stays_protected(workspace):
+    # 作者正文 → AI 整章替换 → 作者恢复作者正文 → AI 再替换 → 作者撤销：比对越过那次恢复，仍找到作者版本。
+    one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", AI_FIRST)
+    _save(workspace.session, one, AUTHOR_TEXT, change_type="edit", change_source="user")
+    author_version = _number_of(workspace, one.id, AUTHOR_TEXT)
+    _save(workspace.session, one, AI_SECOND, change_type="ai_edit", change_source="ai", summary="AI 整章替换")
+    FileVersionService().rollback_to_version(workspace.session, one.id, author_version, workspace.user.id)
+    _save(workspace.session, one, AI_SECOND, change_type="ai_edit", change_source="ai", summary="AI 整章替换")
+    FileVersionService().rollback_to_version(
+        workspace.session, one.id, _number_of(workspace, one.id, AUTHOR_TEXT), workspace.user.id
+    )
+
+    armed = await _write_chapter_one(workspace)
+
+    assert armed["status"] == "error" and armed["error_type"] == "author_edit_protected"
+    assert _content(workspace, one.id) == AUTHOR_TEXT
+
+
 @pytest.mark.parametrize("back_to_author", ["restore_author_version", "mixed_review_save"])
 async def test_author_text_reached_by_restore_or_review_stays_protected(workspace, back_to_author):
     one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", AI_FIRST)
