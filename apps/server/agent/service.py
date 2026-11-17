@@ -634,9 +634,11 @@ class AgentService:
         from models import ChatSession
 
         history = LoopHistory()
+        owned_session_id: str | None = None
         if user_id and chat_session_id:
             chat_session = session.get(ChatSession, chat_session_id)
             if chat_session is not None and chat_session.user_id == user_id and chat_session.project_id == project_id:
+                owned_session_id = chat_session_id
                 history = load_loop_history(
                     session, project_id=project_id, user_id=user_id, chat_session_id=chat_session_id
                 )
@@ -652,6 +654,7 @@ class AgentService:
             author_message=message,
             selected_skills=selected_skills or None,
             context_assembler=self.context_assembler,
+            chat_session_id=owned_session_id,
         )
         skill_catalog = get_skill_context_injector().build_skill_catalog(session, user_id)
         system_prompt = MessageManager(project_id=project_id, user_id=user_id).build_system_prompt(

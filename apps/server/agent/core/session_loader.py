@@ -507,9 +507,6 @@ class SessionLoader:
 
         增益信息，出错时不影响本轮：单个文件算不出来时明说「没算出来」；没有快照的文件 edit_file 只按逐字匹配改。
         """
-        from agent.tools.author_changes import AuthorChanges, author_changes, render_author_edits_block
-        from models import File
-
         if not self.user_id:
             return
         fallback_titles: dict[str, str] = {}
@@ -542,6 +539,27 @@ class SessionLoader:
         ordered = list(dict.fromkeys(f for f in [*working_set_ids, *primary_ids, *other_ids] if f))
         if not ordered:
             return
+        block, edited_ids, by_id = self.author_edits_for_files(session, ordered, fallback_titles)
+        result.author_edits_context = block
+        result.author_edited_file_ids |= edited_ids
+        if by_id is None:
+            return
+        # 快照只记模型这一轮真正看到全文的文件：截断的、只列了标题的不记（它们的 edit_file 只按逐字匹配）。
+        for file_id in self._full_text_context_ids(result.context_data):
+            file = by_id.get(file_id)
+            if file is not None:
+                result.read_snapshots[file_id] = file.content or ""
+
+    def author_edits_for_files(
+        self, session: Session, ordered: list[str], fallback_titles: dict[str, str]
+    ) -> tuple[str, set[str], dict[str, Any] | None]:
+        """按 ordered 的先后（至多 AUTHOR_EDITS_MAX_FILES 个）算作者手改，返回 (<author_edits> 块, 作者改过的 id, id → File)。
+
+        查询文件失败时块里明说「没算出来」，第三项为 None。图（attach_author_edits）与单循环 agent 的本轮上下文共用。
+        """
+        from agent.tools.author_changes import AuthorChanges, author_changes, render_author_edits_block
+        from models import File
+
         try:
             files = session.exec(
                 select(File).where(
@@ -571,14 +589,17 @@ class SessionLoader:
                 )
                 for file_id in checked_ids
             ]
-            result.author_edits_context = render_author_edits_block(
-                failed_entries,
-                unchecked_titles=[
-                    f"《{fallback_titles.get(file_id) or '（未命名）'}》"
-                    for file_id in unchecked_ids
-                ],
+            return (
+                render_author_edits_block(
+                    failed_entries,
+                    unchecked_titles=[
+                        f"《{fallback_titles.get(file_id) or '（未命名）'}》"
+                        for file_id in unchecked_ids
+                    ],
+                ),
+                set(),
+                None,
             )
-            return
         by_id = {str(f.id): f for f in files if f.file_type != "folder"}
         present = [file_id for file_id in ordered if file_id in by_id]
         checked, unchecked = present[:AUTHOR_EDITS_MAX_FILES], present[AUTHOR_EDITS_MAX_FILES:]
@@ -587,6 +608,7 @@ class SessionLoader:
             return str(file.title or "").strip() or "（未命名）"
 
         entries = []
+        edited_ids: set[str] = set()
         for file_id in checked:
             file = by_id[file_id]
             try:
@@ -600,15 +622,50 @@ class SessionLoader:
                 entries.append((file_id, title_of(file), changes))
                 if changes.hunks:
                     # 只核对不完整（窗口外 / 回放失败）的文件不标「作者改过」：不知道，就不下结论。
-                    result.author_edited_file_ids.add(file_id)
-        result.author_edits_context = render_author_edits_block(
+                    edited_ids.add(file_id)
+        block = render_author_edits_block(
             entries, unchecked_titles=[f"《{title_of(by_id[file_id])}》" for file_id in unchecked]
         )
-        # 快照只记模型这一轮真正看到全文的文件：截断的、只列了标题的不记（它们的 edit_file 只按逐字匹配）。
-        for file_id in self._full_text_context_ids(result.context_data):
-            file = by_id.get(file_id)
-            if file is not None:
-                result.read_snapshots[file_id] = file.content or ""
+        return block, edited_ids, by_id
+
+    def session_written_file_ids(self, session: Session, *, chat_session_id: str, limit: int) -> list[str]:
+        """这个会话里 AI 成功写过（create_file / write_chapter / edit_file / rename_file）的文件 id，新 → 旧，至多 limit 个。
+
+        之后被删掉的（结果未知的删除不算）不列。只读 assistant 行持久化的 tool_calls，不读正文。
+        """
+        from models import ChatMessage
+
+        tool_payloads = session.exec(
+            select(ChatMessage.tool_calls)
+            .where(
+                and_(
+                    ChatMessage.session_id == chat_session_id,
+                    ChatMessage.role == "assistant",
+                )
+            )
+            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+        ).all()
+        written: list[str] = []
+        deleted: set[str] = set()
+        for tool_calls in tool_payloads:
+            actions = self._extract_file_actions(tool_calls)
+            for action in actions:
+                if action["name"] == "delete_file" and action["file_id"] and not action.get("outcome_unknown"):
+                    deleted.add(action["file_id"])
+            for action in actions:
+                file_id = action["file_id"]
+                if (
+                    not file_id
+                    or action["name"] in ("delete_file", "query_files")
+                    or action.get("outcome_unknown")
+                    or file_id in deleted
+                    or file_id in written
+                ):
+                    continue
+                written.append(file_id)
+                if len(written) >= limit:
+                    return written
+        return written
 
     def attach_working_set(self, session: Session, result: SessionData) -> None:
         """按当前库内容渲染跨轮工作集，写入 result.working_set_context。

@@ -751,3 +751,89 @@ async def test_loop_asks_for_a_self_check_once_per_chapter(loop_tool_context, mo
     assert len(seen) == 3
     assert "自查" in seen[1]["user_message"] and "edit_file" in seen[1]["user_message"]
     assert "已经自查过" in seen[2]["user_message"]
+
+
+# ---------------------------------------------------------------------------
+# 本轮上下文：作者在 AI 写过之后亲手改了什么（<author_edits>）
+# ---------------------------------------------------------------------------
+
+
+def _ai_then_author(db_session: Session, project: Project, title: str, ai_text: str, author_text: str) -> File:
+    from services.features.file_version_service import FileVersionService
+
+    file = File(project_id=project.id, title=title, content=ai_text, file_type="draft")
+    db_session.add(file)
+    db_session.flush()
+    service = FileVersionService()
+    service.create_version(db_session, file.id, ai_text, change_type="create", change_source="ai", commit=False, skip_quota=True)
+    db_session.commit()
+    service.create_version(db_session, file.id, author_text, change_type="edit", change_source="user", skip_quota=True)
+    file = db_session.get(File, file.id)
+    file.content = author_text
+    db_session.add(file)
+    db_session.commit()
+    return file
+
+
+@pytest.mark.unit
+def test_loop_turn_context_lists_author_edits_on_chapters_the_ai_wrote_this_session(db_session, monkeypatch):
+    from agent.loop.turn_context import build_loop_turn_context
+    from services.features.file_version_service import FileVersionService
+
+    monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *_a, **_kw: (True, 0, 10))
+    user, project = _user_project(db_session)
+    ai_text = "第一段，老周推门进来。\n第二段，雨还在下。"
+    author_text = "第一段，老陈推门进来。\n第二段，雨还在下。"
+    chapter = _ai_then_author(db_session, project, "第1章 雨夜", ai_text, author_text)
+    untouched = _ai_then_author(db_session, project, "第2章 渡口", "合成第二章。", "合成第二章。")
+    chat = _session_rows(db_session, user, project)
+    tool_calls = [
+        {
+            "id": "provider-call-1",
+            "name": "write_chapter",
+            "arguments": {"chapter": 1, "title": "第1章 雨夜", "file_type": "draft"},
+            "status": "success",
+            "result": {"id": chapter.id, "title": chapter.title, "action": "created", "body_saved": True},
+        },
+        {
+            "id": "provider-call-2",
+            "name": "write_chapter",
+            "arguments": {"chapter": 2, "title": "第2章 渡口", "file_type": "draft"},
+            "status": "success",
+            "result": {"id": untouched.id, "title": untouched.title, "action": "created", "body_saved": True},
+        },
+    ]
+    _add(db_session, chat, "user", "写前两章", offset=0)
+    _add(db_session, chat, "assistant", "写好了。", offset=1, tool_calls=json.dumps(tool_calls, ensure_ascii=False))
+
+    turn = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={},
+        language="zh",
+        author_message="继续写第3章",
+        chat_session_id=chat.id,
+    )
+
+    # 作者没打开、也没附加这一章：仍列出作者把「老周」改成了「老陈」。
+    assert "<author_edits>" in turn.text
+    block = turn.text.split("<author_edits>", 1)[1].split("</author_edits>", 1)[0]
+    assert chapter.id in block and "老陈" in block
+    assert untouched.id not in block
+
+    # 没有会话（或不是作者的会话）时不读别处的写入记录。
+    without_session = build_loop_turn_context(
+        db_session, project_id=project.id, user_id=user.id, metadata={}, language="zh", author_message="继续写第3章"
+    )
+    assert "<author_edits>" not in without_session.text
+    # 作者正在看的文件同样核对。
+    focused = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": chapter.id},
+        language="zh",
+        author_message="改一下这一章",
+    )
+    assert "<author_edits>" in focused.text and "老陈" in focused.text.split("<author_edits>", 1)[1]
