@@ -1081,6 +1081,7 @@ describe('AI replaces the open chapter, then edits it again in the same round', 
   const T_ORIGINAL = '2026-11-16T10:00:00.000001';
   const T_REPLACED = '2026-11-16T10:01:00.000001';
   const T_EDITED = '2026-11-16T10:02:00.000001';
+  const T_RESTORED = '2026-11-16T10:03:00.000001';
   const OUTCOME = { failedCount: 0, partialSuccess: false, allFailed: false, warnings: [] };
   const review = () => harness.project!.diffReviewState;
 
@@ -1121,6 +1122,13 @@ describe('AI replaces the open chapter, then edits it again in the same round', 
     await advance(300); await settle();
   }
 
+  /** An undo of a chat card restored `content` on the server and asked the editor to re-read. */
+  async function undoTo(content: string) {
+    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content, updated_at: T_RESTORED });
+    act(() => harness.project!.triggerEditorRefresh(CH1.id));
+    await advance(300); await settle();
+  }
+
   it('rebuilds the one review from the original to the latest text, and finishing saves exactly that text', async () => {
     await replaceChapter();
     await editChapter();
@@ -1146,6 +1154,47 @@ describe('AI replaces the open chapter, then edits it again in the same round', 
 
     finishReview();
     await settle();
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_EDITED });
+  });
+
+  it('undoing the later edit rebuilds the review against the restored text', async () => {
+    await replaceChapter();
+    await editChapter();
+    await undoTo(REPLACED);
+
+    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: REPLACED });
+    finishReview();
+    await settle();
+    expect(putsFor(CH1.id)).toHaveLength(1);
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: REPLACED, base_updated_at: T_RESTORED });
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('undoing back to the original closes the review and shows the original', async () => {
+    await replaceChapter();
+    await undoTo(ORIGINAL);
+
+    expect(review()).toBeNull();
+    expect(textarea().value).toBe(ORIGINAL);
+    await advance(3500); await settle();
+    expect(putsFor(CH1.id)).toHaveLength(0);
+  });
+
+  it('a review left open on another file follows the latest copy when that file is opened again', async () => {
+    await replaceChapter();
+    server.files.set(CH2_ID, { ...CH1, id: CH2_ID, title: '第2章', content: '另一章。', updated_at: T_CREATED });
+    act(() => harness.project!.setSelectedItem({ id: CH2_ID, type: 'draft', title: '第2章' }));
+    await settle(); await advance(50); await settle();
+    expect(textarea().value).toBe('另一章。');
+
+    await editChapter();
+    act(() => harness.project!.setSelectedItem({ id: CH1.id, type: 'draft', title: CH1.title }));
+    await settle(); await advance(50); await settle();
+
+    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
+    finishReview();
+    await settle();
+    expect(putsFor(CH1.id)).toHaveLength(1);
     expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_EDITED });
   });
 });

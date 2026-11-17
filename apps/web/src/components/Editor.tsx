@@ -439,6 +439,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
       }
       hasLoadedRef.current = true;
       setServerSyncIssue((prev) => (prev?.fileId === data.id ? null : prev));
+      // Reopening a file whose agent-write review is still open: the review follows this copy.
+      followServerUnderAgentReview(data);
       const serverContent = data.content || "";
       const scope = currentUserId ? {
         userId: currentUserId,
@@ -512,6 +514,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setSelectedItem,
     currentUserId,
     markServerBaseline,
+    followServerUnderAgentReview,
   ]);
 
   useEffect(() => {
