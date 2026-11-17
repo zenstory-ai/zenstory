@@ -1550,13 +1550,16 @@ def _clear_settled_pending_empty_files() -> bool:
     写完正文时标记会一直留着，后续每次不带 content 的 create_file 都会被它挡回。
     用列级查询读数据库当前值（绕开 ORM 身份映射里可能陈旧的实例）；查询失败时
     保守地不清除任何条目。返回是否清掉了至少一个条目。
+
+    整章替换的条目在它的 <file> 正文落库前一直待写，即使文件已有旧正文：由 adapter
+    （保存或拒绝）和 engine（运行边界）清除，这里跳过（同 engine 的 _settle_pending_empty_files）。
     """
     from models import File
 
     cleared = False
     for entry in ToolContext.get_pending_empty_files():
         file_id = str(entry.get("file_id") or "")
-        if not file_id:
+        if not file_id or ToolContext.pending_chapter_replacement(file_id) is not None:
             continue
         try:
             row = _run_session_probe(

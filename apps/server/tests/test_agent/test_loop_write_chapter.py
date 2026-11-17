@@ -188,6 +188,53 @@ async def test_write_chapter_replaces_exactly_that_chapter_with_diff_and_undo(wo
     assert [item["id"] for item in delivery["written_files"]] == [three.id]
 
 
+BODY_ONE = "\n".join(f"第{index}段第一章合成新稿。" for index in range(1, 5))
+
+
+async def test_second_write_chapter_in_the_same_reply_waits_for_the_armed_replacement(workspace):
+    # 同一回复里先 write_chapter(1) 定为整章替换、再 write_chapter(2)：第 1 章还有旧正文，
+    # 但它的替换正文还没写，第二次调用必须按「上一个文件正文未写」拒绝，不能把等待目标改到第 2 章。
+    one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", "合成第一章原文。")
+    two = _ai_chapter(workspace.session, workspace.project, "第2章 渡口", "合成第二章原文。")
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(
+            ("write_chapter", {"chapter": 1, "title": "第1章", "file_type": "draft"}),
+            ("write_chapter", {"chapter": 2, "title": "第2章", "file_type": "draft"}),
+        )),
+        Reply(text=f"<file>\n{BODY_ONE}\n</file>\n第一章换好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "把第一章和第二章都重写")
+
+    first, second = (c.output for c in model.tool_calls[:2])
+    assert first["data"]["action"] == "replaced" and first["data"]["id"] == one.id
+    assert second["status"] == "error" and second["error_type"] == "pending_empty_file_unwritten"
+    assert _content(workspace, one.id).rstrip("\n") == BODY_ONE
+    assert _content(workspace, two.id) == "合成第二章原文。"
+    final = [r for r in _results(outcome, "write_chapter") if (r.get("data") or {}).get("id") == one.id][-1]["data"]
+    assert final["body_saved"] is True
+
+
+async def test_create_file_in_the_same_reply_waits_for_the_armed_replacement(workspace):
+    one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", "合成第一章原文。")
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(
+            ("write_chapter", {"chapter": 1, "title": "第1章", "file_type": "draft"}),
+            ("create_file", {"title": "人物卡", "file_type": "character"}),
+        )),
+        Reply(text=f"<file>\n{BODY_ONE}\n</file>\n第一章换好了。"),
+    ]])
+
+    await _run_loop(workspace, model, "重写第一章并新建人物卡")
+
+    created = model.tool_calls[1].output
+    assert created["status"] == "error" and created["error_type"] == "pending_empty_file_unwritten"
+    workspace.session.expire_all()
+    titles = [f.title for f in workspace.session.exec(select(File).where(File.project_id == workspace.project.id)).all()]
+    assert "人物卡" not in titles
+    assert _content(workspace, one.id).rstrip("\n") == BODY_ONE
+
+
 async def test_write_chapter_creates_a_missing_chapter_through_the_file_body_protocol(workspace):
     _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", "合成第一章原文。")
     model = ScriptedModel(runs=[[
