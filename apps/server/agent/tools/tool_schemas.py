@@ -61,7 +61,8 @@ LOOP_CREATE_FILE_TOOL: dict[str, Any] = {
     "name": "create_file",
     "description": (
         "创建大纲、角色、设定、素材等资料文件或文件夹。正文章节（draft / script）不用这个工具，用 write_chapter。"
-        "此工具只创建空文件，文件内容在工具调用后的下一次回复里用 <file>内容</file> 写入。"
+        "通常只创建空文件，文件内容在工具调用后的下一次回复里用 <file>内容</file> 写入；"
+        "仅 source_text 通过作者原文校验时会在这次调用里直接保存该原文。"
         f"{WORD_COUNT_CONTRACT}"
     ),
     "input_schema": {
@@ -76,6 +77,14 @@ LOOP_CREATE_FILE_TOOL: dict[str, Any] = {
             "parent_id": CREATE_FILE_TOOL["input_schema"]["properties"]["parent_id"],
             "metadata": CREATE_FILE_TOOL["input_schema"]["properties"]["metadata"],
             "empty": CREATE_FILE_TOOL["input_schema"]["properties"]["empty"],
+            "source_text": {
+                "type": "string",
+                "description": (
+                    "仅在录入作者本轮消息里已经写出的资料原文时使用：逐字复制作者消息中的一段完整连续原文，"
+                    "服务端会核对来源后直接保存，不要改标点、换行、排版或补字段。不能与 empty 或 content 同用；"
+                    "AI 自己生成的大纲、人物、设定不要传此参数，仍在下一次回复用 <file> 写入。"
+                ),
+            },
         },
         "required": ["title", "file_type"],
     },
@@ -197,7 +206,9 @@ EDIT_FILE_TOOL: dict[str, Any] = {
                 "type": "boolean",
                 "description": (
                     "默认 false：edits 是一个整体，任一处失败则本次调用的全部编辑都不生效（整体回滚），"
-                    "错误会一次列出所有失败项，修正后需重新提交完整 edits 列表（不要只重发失败的几条）。"
+                    "错误会一次列出所有失败项，整批都仍待修改，不能只补失败项并假定其他项已生效。"
+                    "待改项多时将完整修改集合拆成几个小批次，每批使用较短且唯一的原文锚点，逐批提交；"
+                    "不要反复重建一次含几十处修改的大列表。"
                     "true：跳过失败项，其余照常生效，结果里的 failed_edits 列出没改成的几处"
                 ),
                 "default": False,

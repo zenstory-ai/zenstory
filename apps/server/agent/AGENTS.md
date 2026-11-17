@@ -232,7 +232,8 @@ agent/
 
 工具清单以 `tools/registry.LOOP_TOOL_NAMES` 为准，每一轮在请求里看到的都是同一份（前缀缓存不分裂）。旧会话历史里调用已删除的工具
 （handoff_to_agent / request_clarification / parallel_execute）时，SDK 按 `tool_not_found_behavior="return_error_to_model"` 把错误交还模型。
-create_file 建好空文件后返回 `awaiting_body` 与 `next_step`；下一次回复没先以 <file> 写完正文就调用的工具
+create_file 录入本轮作者资料时可传 `source_text`：只接受原始作者消息中的非空连续原文，直接沿用创建路径保存；不与 content/empty 混用、不建正文或文件夹，不覆盖同名旧文件。原文复制不进入待写正文状态；模型仍负责选择资料范围，程序不从自然语言判断意图。
+普通 create_file 建好空文件后返回 `awaiting_body` 与 `next_step`；下一次回复没先以 <file> 写完正文就调用的工具
 （按精确 id 非递归删除本请求新建的这份待写文件除外，删成功后守卫随之清除）以 `file_body_pending` 拒绝（`tools_adapter`，按 on_llm_start 记的回复序号判断），
 拒绝后 runner 同步结束当前 run，由单循环 agent 核验并经 `FILE_BODY_RESUME` 安排纠偏轮；这类拒绝不参与同参数熔断，仍计入请求累计上限。
 先写完正文再 create_file 下一个文件的连写照常。SDK tracing 每次 run 都关掉（`RunConfig(tracing_disabled=True)`），不向 OpenAI 导出内容。
@@ -240,7 +241,7 @@ create_file 建好空文件后返回 `awaiting_body` 与 `next_step`；下一次
 
 | 工具 | 用途 |
 |---|---|
-| `create_file` | 新建资料文件（只建空文件，正文随后用 `<file>` 流式写入）；不建 draft / script |
+| `create_file` | 新建资料文件；source_text 校验并直接保存本轮作者原文，生成资料则先建空文件、随后用 `<file>` 写入；不建 draft / script |
 | `write_chapter` | 按章号 / 集号写一章正文，不存在就新建、已存在就整章替换这一章（正文同样随后用 `<file>` 写入，替换走 diff 审阅与撤销） |
 | `edit_file` | 精确编辑（replace / insert / append / delete）；逐字、引号等价、模糊都找不到时近似匹配兜底，长章节用种子定位（[approx-seeds][n-approx-seeds]）；同一文件找不到原文只附恢复提示、不提前熔断，无效文件 id 三次即熔断（[anchor-no-early-trip][n-anchor-no-early-trip]） |
 | `delete_file` | 删除文件 |
@@ -249,7 +250,7 @@ create_file 建好空文件后返回 `awaiting_body` 与 `next_step`；下一次
 | `update_project` | 项目信息、备注、任务板 |
 | `load_skill` / `read_skill_resource` | 技能 L2（方法与资源清单）/ L3（参考文件或 `path="SKILL.md"`，支持 `offset` 续读）；受每请求技能 token 预算限制，每请求最多读 `skills/content_budget.MAX_LOADED_SKILLS_PER_REQUEST`（3）个不同技能 |
 
-文件流式写入分两次回复：这次回复以 `create_file`（写正文时是 `write_chapter`）工具调用结束；下一次回复以 `<file>` 开头写正文、`</file>` 结束，StreamAdapter 捕获后落库。
+生成内容的文件流式写入分两次回复：这次回复以 `create_file`（写正文时是 `write_chapter`）工具调用结束；下一次回复以 `<file>` 开头写正文、`</file>` 结束，StreamAdapter 捕获后落库。create_file 的 source_text 原文复制已经直接保存，不再输出文件流。
 一次只流式写一个文件。[two-replies][n-two-replies]
 
 ## 提示词

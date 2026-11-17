@@ -551,9 +551,36 @@ def test_textual_tool_call_fragment_held_before_file_marker_is_not_flushed(fragm
     assert proc.state == StreamState.IDLE
 
 
-def test_plain_text_held_before_file_marker_is_still_flushed():
+@pytest.mark.parametrize("fragment", ["<", " << \n"])
+def test_protocol_prefix_only_fragment_held_before_file_marker_is_not_flushed(fragment):
+    """等正文时只输出协议起始尖括号，不应成为作者可见聊天内容。"""
     proc = StreamProcessor()
     proc.start_file_write("file-1")
-    results = [proc.process_content("<这一章我先不写了。")]
+    results = [proc.process_content(fragment)]
+
     final = proc.finalize_on_stream_end()
-    assert _all_conversation([*results, final]) == "<这一章我先不写了。"
+
+    assert final.file_complete is False
+    assert _all_conversation([*results, final]) == ""
+    assert proc.state == StreamState.IDLE
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["<这一章我先不写了。", "<br>换行", "<-- 注意", "1 < 2"],
+)
+def test_plain_text_held_before_file_marker_is_still_flushed(text):
+    proc = StreamProcessor()
+    proc.start_file_write("file-1")
+    results = [proc.process_content(text)]
+    final = proc.finalize_on_stream_end()
+    assert _all_conversation([*results, final]) == text
+
+
+def test_literal_less_than_without_pending_file_is_still_flushed():
+    proc = StreamProcessor()
+
+    result = proc.process_content("<")
+    final = proc.finalize_on_stream_end()
+
+    assert _all_conversation([result, final]) == "<"

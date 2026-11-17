@@ -63,7 +63,9 @@ _BODY_SAVED_CONTEXT = (
     "[系统提醒] 上一次回复写完的正文已保存：{titles}。这是系统的续跑说明，不是作者的新消息。"
     "现在先按「工作方式」自查本轮新写的正文（只写了大纲、人物等资料文件时不用自查，直接继续）：对照大纲里这一章和前后章的条目、前一章结尾和角色卡，核对人名、称谓、身份与设定、"
     "时间线、数值和物品状态是否连续，大纲要求这一章发生的关键情节有没有写到，有没有提前写出后面章节才有的情节或揭示，"
-    "有没有违背作者说过的要求。发现矛盾就用 edit_file 改正那几处（不要用 write_chapter 把这一章整章重写）；作者这一轮要求的章节还没写完就调用 write_chapter 写下一章；"
+    "有没有违背作者说过的要求。发现矛盾就用 edit_file 改正那几处（不要用 write_chapter 把这一章整章重写）。"
+    "篇幅等修正涉及多处时，拆成几个小批次，每批从当前原文复制较短且唯一的锚点；不要在一次调用里堆几十处修改，失败后也不要反复重建大批参数。"
+    "作者这一轮要求的章节还没写完就调用 write_chapter 写下一章；"
     "全部完成后用一到三句话回复作者，字数只报下面的真实字数。"
 )
 _BODY_SAVED_CONTEXT_EN = (
@@ -72,7 +74,9 @@ _BODY_SAVED_CONTEXT_EN = (
     "adjacent chapters, the end of the previous chapter and the character files: names, forms of address, identities "
     "and settings, timeline, numbers and object states; whether the key events the outline sets for this chapter "
     "happen; whether anything the outline places in later chapters was revealed early; and whether any of the "
-    "author's requirements were broken. Fix contradictions with edit_file at those spots (do not rewrite the whole chapter with write_chapter); if chapters the author asked for this turn "
+    "author's requirements were broken. Fix contradictions with edit_file at those spots (do not rewrite the whole chapter with write_chapter). "
+    "For many changes, such as length corrections, use a few small batches with short, unique anchors copied from the current text; "
+    "do not pack dozens of edits into one call or keep rebuilding a large failed batch. If chapters the author asked for this turn "
     "are still unwritten, call write_chapter for the next one; when everything is done, reply to the author in one to "
     "three sentences, reporting only the real word counts below. Keep the author's language."
 )

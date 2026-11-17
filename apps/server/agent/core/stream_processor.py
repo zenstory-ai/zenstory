@@ -248,10 +248,16 @@ class StreamResult:
 
 # 模型把工具调用写成文字时的开头标记（有的模型会多写一个 "<"）。只用于识别等正文时悬置的协议残片。
 _TOOL_CALL_MARKERS = ("<tool_call>", "<<tool_call>")
+_BARE_PROTOCOL_PREFIXES = frozenset({"<", "<<"})
 
 
 def _starts_with_tool_call_marker(text: str) -> bool:
     return text.lstrip().startswith(_TOOL_CALL_MARKERS)
+
+
+def _is_bare_protocol_prefix(text: str) -> bool:
+    """Whether a pending file reply ended with only an unfinished protocol prefix."""
+    return text.strip() in _BARE_PROTOCOL_PREFIXES
 
 
 @dataclass
@@ -1009,13 +1015,15 @@ class StreamProcessor:
                 return result
 
             buffered = self.temp_buffer
-            if _starts_with_tool_call_marker(buffered):
-                # 等正文时模型写出的是一段没执行的文字版工具调用（机器协议残片，不是给作者的话）：
-                # 不倒进聊天。只认开头的 <tool_call> 标记，其他文字照旧交还对话。
+            if _starts_with_tool_call_marker(buffered) or _is_bare_protocol_prefix(buffered):
+                # 等正文时模型写出的是没执行的文字版工具调用，或只来得及输出协议
+                # 起始尖括号（机器协议残片，不是给作者的话）：不倒进聊天。这个分支
+                # 只在结构化的待写文件状态中生效，普通聊天里的 “<”、比较式和 HTML
+                # 片段仍由 IDLE 分支原样输出。
                 log_with_context(
                     logger,
                     30,  # WARNING
-                    "Stream ended before <file> marker, dropping a textual tool-call fragment",
+                    "Stream ended before <file> marker, dropping a protocol fragment",
                     project_id=self.project_id,
                     user_id=self.user_id,
                     file_id=self.file_id,
