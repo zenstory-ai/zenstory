@@ -21,121 +21,6 @@ from services.core.auth_service import hash_password
 pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("shell_engine")]
 
 
-_INSPECT_AUTHORITY = {
-    "read_only": True, "write_content": False,
-    "scope": "Only inspect; do not write prose.", "requested_file_types": [],
-}
-
-
-@pytest.mark.parametrize("agent,workflow,authority,refund_succeeds,finish_reason", [
-    ("invalid-agent", "invalid-workflow", _INSPECT_AUTHORITY, True, "stop"),
-    ("invalid-agent", "review_only", _INSPECT_AUTHORITY, False, "stop"),
-    ("planner", "invalid-workflow", _INSPECT_AUTHORITY, True, "stop"),
-    ("writer", "quick", _INSPECT_AUTHORITY, True, "length"),
-    ("writer", "quick", {**_INSPECT_AUTHORITY, "read_only": "unknown"}, True, "stop"),
-])
-async def test_invalid_router_stops_whole_http_chain_without_writes_and_preserves_cost(
-    client, db_session, writing_prompt_configs, monkeypatch,
-    agent, workflow, authority, refund_succeeds, finish_reason,
-):
-    """Real HTTP/service/graph/adapter/quota/ledger; only model transport is fake."""
-    import os
-    from types import SimpleNamespace
-    from unittest.mock import AsyncMock, MagicMock, patch
-
-    from sqlmodel import select
-
-    from models import LLMUsageEvent
-    from services.quota_service import quota_service
-    from services.usage.llm_usage_service import drain_pending_usage_records
-
-    user, token, project = await _create_user_login_project(
-        client, db_session, username="router_failure_synthetic",
-    )
-    original = File(
-        project_id=project.id, title="Synthetic protected draft", file_type="draft",
-        content="Synthetic original paragraph; the router must never change this.",
-    )
-    db_session.add(original)
-    db_session.commit()
-    before = (original.id, original.title, original.file_type, original.content)
-    initial_file_ids = set(db_session.exec(select(File.id).where(File.project_id == project.id)).all())
-    monkeypatch.setattr("agent.service.create_session", lambda: Session(db_session.get_bind()))
-    usage = SimpleNamespace(
-        prompt_tokens=20, completion_tokens=4, total_tokens=24,
-        prompt_tokens_details=SimpleNamespace(cached_tokens=5),
-    )
-    payload = {
-        "agent_type": agent, "workflow_type": workflow, **authority,
-    }
-    create = AsyncMock(return_value=SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)), finish_reason=finish_reason)],
-        usage=usage,
-    ))
-    provider = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    run_agent = MagicMock(side_effect=AssertionError("A rejected router must not start an agent"))
-    tool = AsyncMock(side_effect=AssertionError("A rejected router must not execute a tool"))
-    real_reserve = quota_service.reserve_ai_conversation
-    real_release = quota_service.release_ai_conversation
-    charged_periods = []
-
-    def reserve(*args, **kwargs):
-        period = real_reserve(*args, **kwargs)
-        charged_periods.append(period)
-        return period
-
-    with (
-        patch.dict(os.environ, {"AGENT_ROUTER_STRATEGY": "llm"}),
-        patch.dict("os.environ", {"DEEPSEEK_API_KEY": "synthetic-test-key"}), patch("agent.core.llm_providers.get_async_client", return_value=provider),
-        patch("agent.graph.writing_graph.run_streaming_agent", run_agent),
-        patch("agent.openai_agents.tools_adapter.invoke_project_tool", tool),
-        patch.object(quota_service, "reserve_ai_conversation", side_effect=reserve) as reservation,
-        patch.object(quota_service, "release_ai_conversation",
-                     side_effect=real_release if refund_succeeds else lambda *a, **k: False) as release,
-    ):
-        response = await client.post(
-            "/api/v1/agent/stream",
-            json={"project_id": project.id, "message": "Inspect this synthetic draft without changing any files.",
-                  "generation_mode": "quality"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-
-    assert response.status_code == 200
-    events = _parse_sse_payload(response.text)
-    names = [name for name, _ in events]
-    assert [name for name in names if name in {"error", "done", "workflow_complete", "workflow_stopped"}] == ["error"]
-    assert not set(names).intersection({"content", "tool_call", "tool_result", "file_content", "agent_selected", "router_decided"})
-    [error] = [data for name, data in events if name == "error"]
-    assert error["refundable"] is True
-    assert error["retryable"] is True
-    assert error["code"] == "ERR_AGENT_ROUTING_FAILED"
-    assert error["message"] == "这次没能处理你的要求，作品没有改动。可以稍后重试。"
-    create.assert_awaited_once()
-    run_agent.assert_not_called()
-    tool.assert_not_awaited()
-    reservation.assert_called_once()
-    release.assert_called_once()
-    assert release.call_args.kwargs["period_start"] == charged_periods[0]
-    assert names.count("quota_refunded") == int(refund_succeeds)
-    if refund_succeeds:
-        assert names.index("error") < names.index("quota_refunded")
-
-    await drain_pending_usage_records()
-    db_session.expire_all()
-    assert (original.id, original.title, original.file_type, original.content) == before
-    assert set(db_session.exec(select(File.id).where(File.project_id == project.id)).all()) == initial_file_ids
-    [cost] = list(db_session.exec(select(LLMUsageEvent).where(LLMUsageEvent.user_id == user.id)).all())
-    assert (cost.source, cost.project_id) == ("router", project.id)
-    assert cost.correlation_id == response.headers["x-agent-run-id"]
-    assert (cost.cache_miss_tokens, cost.output_tokens, cost.cache_hit_tokens) == (15, 4, 5)
-    _, used, limit = quota_service.check_ai_conversation_quota(db_session, user.id)
-    assert used == (0 if refund_succeeds else 1)
-    assert limit == 3
-    session_id = next(data["session_id"] for name, data in events if name == "session_started")
-    messages = list(db_session.exec(select(ChatMessage).where(ChatMessage.session_id == session_id)).all())
-    assert [message.role for message in messages] == ["user"]
-
-
 async def _create_user_login_project(
     client: AsyncClient,
     db_session: Session,
@@ -200,7 +85,7 @@ async def test_agent_stream_emits_session_started_content_and_done(client: Async
         username="agent_e2e_stream",
     )
 
-    with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+    with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
         mock_workflow.return_value = _mock_workflow_events()
 
         response = await client.post(
@@ -272,7 +157,7 @@ async def test_agent_http_done_confirms_real_committed_file_mutation(
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>Committed</file>" if mode == "stream" else "Result"})
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-    monkeypatch.setattr("agent.service.run_writing_workflow_streaming", stream)
+    monkeypatch.setattr("agent.service.run_loop_agent_streaming", stream)
     response = await client.post(
         "/api/v1/agent/stream", json={"project_id": project.id, "message": "Continue"},
         headers={"Authorization": f"Bearer {token}"},
@@ -332,7 +217,7 @@ async def test_missing_writing_config_emits_error_without_starting_workflow(clie
     from unittest.mock import patch
 
     _, token, project = await _create_user_login_project(client, db_session, username="missing_config_e2e")
-    with patch("agent.service.run_writing_workflow_streaming") as workflow:
+    with patch("agent.service.run_loop_agent_streaming") as workflow:
         response = await client.post(
             "/api/v1/agent/stream",
             json={"project_id": str(project.id), "message": "Write the next paragraph"},

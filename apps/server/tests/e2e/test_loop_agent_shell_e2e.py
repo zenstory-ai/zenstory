@@ -24,7 +24,7 @@ from services.core.auth_service import hash_password
 from services.features.file_version_service import FileVersionService
 from tests.test_agent.test_file_body_resume import Reply, ScriptedModel
 
-pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("writing_prompt_configs", "loop_engine")]
+pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("writing_prompt_configs")]
 
 _SYNTHETIC_REQUEST = Request({"type": "http", "headers": []})
 NEW_BODY = "\n".join(f"第{index}段合成新稿，只用于核对单循环外壳。" for index in range(1, 6))

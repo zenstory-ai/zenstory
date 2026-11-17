@@ -139,7 +139,7 @@ class TestRound3ExceptionPathCompensation:
         events: list[str] = []
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", return_value=mock_stream()),
+            patch("agent.service.run_loop_agent_streaming", return_value=mock_stream()),
             patch("agent.service.create_session", side_effect=lambda: Session(bind)),
             patch.object(MessageManager, "save_messages", boom),
         ):
@@ -174,7 +174,7 @@ class TestRound3ExceptionPathCompensation:
 
         with (
             patch(
-                "agent.service.run_writing_workflow_streaming",
+                "agent.service.run_loop_agent_streaming",
                 side_effect=RuntimeError("workflow boot failure"),
             ),
             patch("agent.service.create_session", side_effect=lambda: Session(bind)),
@@ -231,7 +231,7 @@ class TestRound3LateSteering:
         events: list[str] = []
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", return_value=mock_stream()),
+            patch("agent.service.run_loop_agent_streaming", return_value=mock_stream()),
             patch("agent.service.create_session", side_effect=lambda: Session(bind)),
             patch.object(MessageManager, "save_messages", save_then_steer),
         ):
@@ -289,7 +289,7 @@ class TestRound3CancellationTermination:
                 events.append(event)
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", return_value=never_yields()),
+            patch("agent.service.run_loop_agent_streaming", return_value=never_yields()),
             patch("agent.service.create_session", side_effect=lambda: Session(bind)),
         ):
             task = asyncio.create_task(consume())
@@ -362,7 +362,7 @@ class TestRound3CancellationTermination:
                 events.append(event)
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", return_value=mock_stream()),
+            patch("agent.service.run_loop_agent_streaming", return_value=mock_stream()),
             patch("agent.service.create_session", side_effect=lambda: Session(bind)),
             patch.object(MessageManager, "save_messages", save_then_steer),
             patch("agent.service.done_event", side_effect=_cancel_instead_of_done),

@@ -426,7 +426,7 @@ class TestProcessStreamReleasesSqliteWriteLock:
         events: list[str] = []
         with (
             Session(engine) as request_session,
-            patch("agent.service.run_writing_workflow_streaming", side_effect=fake_workflow),
+            patch("agent.service.run_loop_agent_streaming", side_effect=fake_workflow),
             patch("agent.service.create_session", side_effect=lambda: Session(engine)),
         ):
             async for event in service.process_stream(
@@ -462,7 +462,7 @@ class TestProcessStreamReleasesSqliteWriteLock:
 
         engine, db_path = sqlite_file_db
         service = self._service()
-        original_prepare = service._prepare_prompt_artifacts
+        original_prepare = service._prepare_loop_turn
 
         def prepare_and_leave_flushed_write(session, **kwargs):
             result = original_prepare(session, **kwargs)
@@ -473,7 +473,7 @@ class TestProcessStreamReleasesSqliteWriteLock:
             return result
 
         with patch.object(
-            service, "_prepare_prompt_artifacts", side_effect=prepare_and_leave_flushed_write
+            service, "_prepare_loop_turn", side_effect=prepare_and_leave_flushed_write
         ):
             events, tool_write_errors = await self._run_second_turn(engine, db_path, service)
 
@@ -609,7 +609,7 @@ class TestProcessStreamLoadsResolvedSession:
             return events
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", side_effect=fake_workflow),
+            patch("agent.service.run_loop_agent_streaming", side_effect=fake_workflow),
             patch("agent.service.create_steering_queue_async", side_effect=claim_with_pause),
             patch("agent.service.create_session", side_effect=lambda: Session(engine)),
         ):

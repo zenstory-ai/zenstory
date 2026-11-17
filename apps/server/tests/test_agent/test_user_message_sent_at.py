@@ -61,7 +61,7 @@ async def test_full_round_user_row_keeps_the_send_time(
     bind = db_session.get_bind()
     events: list[str] = []
     with (
-        patch("agent.service.run_writing_workflow_streaming", return_value=slow_stream()),
+        patch("agent.service.run_loop_agent_streaming", return_value=slow_stream()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
     ):
         async for event in round3_service.process_stream(
@@ -104,7 +104,7 @@ async def test_stopped_round_partial_save_keeps_the_send_time(
             events.append(event)
 
     with (
-        patch("agent.service.run_writing_workflow_streaming", return_value=writes_then_hangs()),
+        patch("agent.service.run_loop_agent_streaming", return_value=writes_then_hangs()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
     ):
         task = asyncio.create_task(consume())
@@ -147,7 +147,7 @@ async def test_round_without_output_keeps_the_send_time(
             events.append(event)
 
     with (
-        patch("agent.service.run_writing_workflow_streaming", return_value=never_yields()),
+        patch("agent.service.run_loop_agent_streaming", return_value=never_yields()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
     ):
         task = asyncio.create_task(consume())
@@ -190,7 +190,7 @@ async def test_steering_after_the_save_stays_after_the_reply(
     bind = db_session.get_bind()
     events: list[str] = []
     with (
-        patch("agent.service.run_writing_workflow_streaming", return_value=slow_stream()),
+        patch("agent.service.run_loop_agent_streaming", return_value=slow_stream()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
         patch.object(MessageManager, "save_messages", save_then_steer),
     ):

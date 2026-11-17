@@ -29,7 +29,7 @@ from models import (
 )
 from services.core.auth_service import hash_password
 
-# 外壳用例在图与单循环 agent 两个引擎上各跑一遍（shell_engine，见 tests/conftest.py）。
+# 外壳用例走单循环 agent 的接入路径（shell_engine，见 tests/conftest.py）。
 pytestmark = pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
 
 
@@ -116,7 +116,7 @@ def mock_workflow_stream():
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": " World"})
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-    with patch("agent.service.run_writing_workflow_streaming") as mock:
+    with patch("agent.service.run_loop_agent_streaming") as mock:
         mock.return_value = mock_stream()
         yield mock
 
@@ -198,7 +198,7 @@ class TestAgentServiceProcessStream:
         project = test_user_with_project["project"]
         user = test_user_with_project["user"]
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_workflow_stream()
 
             # Collect events
@@ -260,7 +260,7 @@ class TestAgentServiceProcessStream:
         ))
         db_session.commit()
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_workflow_stream()
 
             # Process stream
@@ -285,7 +285,7 @@ class TestAgentServiceProcessStream:
         project = test_user_with_project["project"]
         user = test_user_with_project["user"]
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_workflow_stream()
 
             selected_text = "This is the selected text"
@@ -340,7 +340,7 @@ class TestAgentServiceProcessStream:
 
         raw_message = "帮我把第一段写得更有钩子"
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_workflow_stream()
 
             events = [
@@ -404,7 +404,7 @@ class TestAgentServiceProcessStream:
             )
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = workflow_stream()
             events = [
                 event
@@ -527,7 +527,7 @@ class TestAgentServiceProcessStream:
         db_session.add(inactive)
         db_session.commit()
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_workflow_stream()
 
             events = [
@@ -580,7 +580,7 @@ class TestAgentServiceProcessStream:
         db_session.add(added)
         db_session.commit()
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_workflow_stream()
 
             events = [
@@ -610,7 +610,7 @@ class TestAgentServiceProcessStream:
 
         project = test_user_with_project["project"]
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_workflow_stream()
 
             events = []
@@ -674,7 +674,7 @@ class TestAgentServiceProcessStream:
             )
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_stream_with_tools()
 
             events = []
@@ -795,7 +795,7 @@ class TestAgentServiceProcessStream:
             )
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-        with patch("agent.service.run_writing_workflow_streaming", return_value=ordered_stream()):
+        with patch("agent.service.run_loop_agent_streaming", return_value=ordered_stream()):
             async for _ in service.process_stream(
                 project_id=str(project.id),
                 user_id=str(user.id),
@@ -887,7 +887,7 @@ class TestAgentServiceProcessStream:
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
         with patch(
-            "agent.service.run_writing_workflow_streaming", return_value=control_only_stream()
+            "agent.service.run_loop_agent_streaming", return_value=control_only_stream()
         ):
             async for _ in service.process_stream(
                 project_id=str(project.id),
@@ -944,7 +944,7 @@ class TestAgentServiceProcessStream:
             )
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-        with patch("agent.service.run_writing_workflow_streaming", return_value=unfinished_stream()):
+        with patch("agent.service.run_loop_agent_streaming", return_value=unfinished_stream()):
             events = [
                 event async for event in service.process_stream(
                     project_id=str(project.id), user_id=str(user.id), message="写两章", session=db_session,
@@ -978,7 +978,7 @@ class TestAgentServiceProcessStream:
         user = test_user_with_project["user"]
         custom_session_id = "test-session-id-123"
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_workflow_stream()
 
             events = []
@@ -1037,7 +1037,7 @@ class TestAgentServiceProcessStream:
             db_session.commit()
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_stream_switching_active_session()
 
             async for _ in service.process_stream(
@@ -1063,35 +1063,45 @@ class TestAgentServiceProcessStream:
         ).all()
         assert newer_session_messages == []
 
-    @pytest.mark.parametrize("shell_engine", ["graph"], indirect=True)  # 图的上下文组装与运行参数
-    async def test_process_stream_passes_runtime_workflow_config(
-        self, mock_agent_service, test_user_with_project, db_session: Session, mock_workflow_stream
+    async def test_process_stream_pg_offload_branch_initializes_message_manager_before_save(
+        self, mock_agent_service, test_user_with_project, db_session: Session
     ):
-        """Test process_stream passes centralized workflow config to writing graph."""
-        from config.agent_runtime import (
-            AGENT_AUTO_REVIEW_THRESHOLD_CHARS,
-            AGENT_COLLABORATION_MAX_ITERATIONS,
-        )
+        """PostgreSQL offload branch should still save history successfully."""
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+        from agent.loop.history import LoopHistory
+        from agent.loop.turn_context import LoopTurnContext
 
         service, _ = mock_agent_service
         project = test_user_with_project["project"]
         user = test_user_with_project["user"]
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
-            mock_workflow.return_value = mock_workflow_stream()
+        async def mock_stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "hello"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-            async for _ in service.process_stream(
+        with (
+            patch("agent.service.should_offload_session_work", return_value=True),
+            patch.object(service, "_resolve_or_create_chat_session_id_sync", return_value="sess-offload"),
+            patch.object(
+                service,
+                "_prepare_loop_turn_sync",
+                return_value=(LoopHistory(), LoopTurnContext(), [], "system prompt"),
+            ) as prepare,
+            patch("agent.service.run_loop_agent_streaming", return_value=mock_stream()),
+            patch("agent.service.MessageManager.save_messages", new=AsyncMock(return_value="assistant-msg-offload")),
+        ):
+            events: list[str] = []
+            async for event in service.process_stream(
                 project_id=str(project.id),
                 user_id=str(user.id),
-                message="Hello",
+                message="hello",
                 session=db_session,
             ):
-                pass
+                events.append(event)
 
-        assert mock_workflow.call_args is not None
-        _, kwargs = mock_workflow.call_args
-        assert kwargs["max_iterations"] == AGENT_COLLABORATION_MAX_ITERATIONS
-        assert kwargs["auto_review_threshold"] == AGENT_AUTO_REVIEW_THRESHOLD_CHARS
+        prepare.assert_called_once()
+        assert any("event: done" in event for event in events)
+        assert not any("event: error" in event for event in events)
 
     async def test_process_stream_persists_stop_reason_and_usage_metadata(
         self, mock_agent_service, test_user_with_project, db_session: Session
@@ -1116,7 +1126,7 @@ class TestAgentServiceProcessStream:
                 },
             )
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_stream_with_usage()
 
             async for _ in service.process_stream(
@@ -1161,7 +1171,7 @@ class TestAgentServiceProcessStream:
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Completed"})
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-        with patch("agent.service.run_writing_workflow_streaming", return_value=stream()):
+        with patch("agent.service.run_loop_agent_streaming", return_value=stream()):
             events = [event async for event in service.process_stream(
                 project_id=project.id, user_id=user.id, message="Continue", session=db_session,
             )]
@@ -1198,7 +1208,7 @@ class TestAgentServiceProcessStream:
             AsyncMock(side_effect=RuntimeError("db unavailable"))
             if has_assistant_payload else MagicMock(side_effect=RuntimeError("db unavailable"))
         )
-        with patch("agent.service.run_writing_workflow_streaming", return_value=stream()), patch(
+        with patch("agent.service.run_loop_agent_streaming", return_value=stream()), patch(
             failure_target, new=failure,
         ):
             events = [event async for event in service.process_stream(
@@ -1229,7 +1239,7 @@ class TestAgentServiceProcessStream:
             )
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
             mock_workflow.return_value = mock_stream_with_clarification_stop()
 
             events: list[str] = []
@@ -1258,53 +1268,6 @@ class TestAgentServiceProcessStream:
             }
         ]
 
-    @pytest.mark.parametrize("shell_engine", ["graph"], indirect=True)  # 图的上下文组装与运行参数
-    async def test_process_stream_pg_offload_branch_initializes_message_manager_before_save(
-        self, mock_agent_service, test_user_with_project, db_session: Session
-    ):
-        """PostgreSQL offload branch should still save history successfully."""
-        from agent.core.session_loader import SessionData
-        from agent.core.workflow_events import StreamEvent, StreamEventType
-        from agent.schemas.context import ContextData
-
-        service, _ = mock_agent_service
-        project = test_user_with_project["project"]
-        user = test_user_with_project["user"]
-
-        async def mock_stream():
-            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "hello"})
-            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
-
-        session_data = SessionData(
-            session_id="sess-offload",
-            history_messages=[],
-            context_data=ContextData(items=[], context="", token_estimate=0),
-        )
-
-        with (
-            patch("agent.service.should_offload_session_work", return_value=True),
-            patch.object(service, "_resolve_or_create_chat_session_id_sync", return_value="sess-offload"),
-            patch("agent.service.SessionLoader.load_session_and_context", new=AsyncMock(return_value=session_data)),
-            patch.object(
-                service,
-                "_prepare_prompt_artifacts_sync",
-                return_value=([], "system prompt", ""),
-            ),
-            patch("agent.service.run_writing_workflow_streaming", return_value=mock_stream()),
-            patch("agent.service.MessageManager.save_messages", new=AsyncMock(return_value="assistant-msg-offload")),
-        ):
-            events: list[str] = []
-            async for event in service.process_stream(
-                project_id=str(project.id),
-                user_id=str(user.id),
-                message="hello",
-                session=db_session,
-            ):
-                events.append(event)
-
-        assert any("event: done" in event for event in events)
-        assert not any("event: error" in event for event in events)
-
     async def test_process_stream_emits_error_without_done_when_history_save_fails(
         self, mock_agent_service, test_user_with_project, db_session: Session, mock_workflow_stream
     ):
@@ -1313,7 +1276,7 @@ class TestAgentServiceProcessStream:
         project = test_user_with_project["project"]
         user = test_user_with_project["user"]
 
-        with patch("agent.service.run_writing_workflow_streaming") as mock_workflow, patch(
+        with patch("agent.service.run_loop_agent_streaming") as mock_workflow, patch(
             "agent.service.MessageManager.save_messages",
             new=AsyncMock(side_effect=RuntimeError("db unavailable")),
         ):
@@ -1348,7 +1311,7 @@ class TestAgentServiceProcessStream:
 
         outcome = RunOutcome()
         with (
-            patch("agent.service.run_writing_workflow_streaming") as mock_workflow,
+            patch("agent.service.run_loop_agent_streaming") as mock_workflow,
             patch("agent.stream_adapter.StreamAdapter.get_saved_file_word_counts", return_value={"saved-file": 12, "failed-file": None}),
         ):
             mock_workflow.return_value = mock_error_stream()
@@ -1402,7 +1365,7 @@ class TestAgentServiceProcessStream:
         outcome = RunOutcome()
         settle = AsyncMock(return_value={"in-flight": 7})
         with (
-            patch("agent.service.run_writing_workflow_streaming") as mock_workflow,
+            patch("agent.service.run_loop_agent_streaming") as mock_workflow,
             patch("agent.stream_adapter.StreamAdapter.settle_aborted_capture", new=settle),
             patch("agent.stream_adapter.StreamAdapter.get_saved_file_word_counts", return_value={}),
         ):
@@ -1450,7 +1413,7 @@ class TestAgentServiceProcessStream:
                 pass
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", return_value=mock_slow_stream()),
+            patch("agent.service.run_loop_agent_streaming", return_value=mock_slow_stream()),
             patch("agent.service.cleanup_steering_queue_async", new=AsyncMock()) as mock_cleanup,
             patch.object(service, "_schedule_background_cleanup") as mock_schedule_cleanup,
         ):
@@ -1518,7 +1481,7 @@ class TestAgentServiceProcessStream:
             return Session(db_session.get_bind())
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", return_value=mock_slow_stream()),
+            patch("agent.service.run_loop_agent_streaming", return_value=mock_slow_stream()),
             patch("agent.service.create_session", side_effect=_fresh_session),
         ):
             task = asyncio.create_task(consume())
@@ -1559,85 +1522,6 @@ class TestAgentServiceProcessStream:
         # Usage already accumulated before the cancel (here: routing) is kept.
         assert json.loads(partial_assistant.message_metadata or "{}")["usage"] == routing_usage
 
-    @pytest.mark.parametrize("shell_engine", ["graph"], indirect=True)  # 图的上下文组装与运行参数
-    async def test_process_stream_prompt_ledger_counts_embedded_sections_once(
-        self, mock_agent_service, test_user_with_project, db_session: Session
-    ):
-        """reserved_prompt_tokens must charge the final system prompt exactly once."""
-        from agent.context.budget import compute_history_token_budget as real_compute
-        from agent.core.workflow_events import StreamEvent, StreamEventType
-        from agent.schemas.context import ContextData
-        from agent.utils.token_utils import estimate_text_tokens
-        from config.agent_runtime import AGENT_CHAT_HISTORY_TOKEN_BUDGET
-
-        service, mock_context_assembler = mock_agent_service
-        project = test_user_with_project["project"]
-        user = test_user_with_project["user"]
-
-        assembled_context = "主角在北境雪原遇到了会说话的狐狸。" * 200
-        mock_context_assembler.assemble.return_value = ContextData(
-            items=[],
-            context=assembled_context,
-            token_estimate=estimate_text_tokens(assembled_context),
-        )
-
-        captured: dict[str, int] = {}
-
-        def fake_compute(*, configured_history_budget, reserved_prompt_tokens):
-            captured["reserved"] = reserved_prompt_tokens
-            result = real_compute(
-                configured_history_budget=configured_history_budget,
-                reserved_prompt_tokens=reserved_prompt_tokens,
-            )
-            captured["effective"] = result
-            return result
-
-        async def mock_stream():
-            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "ok"})
-            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
-
-        with (
-            patch("agent.service.run_writing_workflow_streaming") as mock_workflow,
-            patch("agent.service.compute_history_token_budget", side_effect=fake_compute),
-        ):
-            mock_workflow.return_value = mock_stream()
-
-            async for _ in service.process_stream(
-                project_id=str(project.id),
-                user_id=str(user.id),
-                message="预算测试",
-                session=db_session,
-            ):
-                pass
-
-        from agent.core.session_loader import WORKING_SET_USER_MESSAGE_LABEL
-
-        writing_state = mock_workflow.call_args[0][0]
-        system_prompt = writing_state["system_prompt"]
-        assert assembled_context[:200] not in system_prompt
-        turn_context = writing_state["user_message"].rpartition(WORKING_SET_USER_MESSAGE_LABEL)[0].rstrip("\n")
-        snapshot = writing_state["context_snapshot"]
-        # Unclassified fallback context still reaches the model in the current turn.
-        assert assembled_context[:200] not in snapshot
-        assert turn_context.count(assembled_context) == 1
-
-        # Ledger charges the system prompt, the snapshot and the turn context once each — no
-        # re-adding of skill catalog/reference/context they already embed.
-        assert captured["reserved"] == (
-            estimate_text_tokens(system_prompt) + estimate_text_tokens(snapshot) + estimate_text_tokens(turn_context)
-        )
-
-        legacy_reserved = captured["reserved"] + estimate_text_tokens(assembled_context)
-        assert captured["reserved"] < legacy_reserved
-        assert captured["effective"] == real_compute(
-            configured_history_budget=AGENT_CHAT_HISTORY_TOKEN_BUDGET,
-            reserved_prompt_tokens=captured["reserved"],
-        )
-        assert captured["effective"] >= real_compute(
-            configured_history_budget=AGENT_CHAT_HISTORY_TOKEN_BUDGET,
-            reserved_prompt_tokens=legacy_reserved,
-        )
-
     async def test_process_stream_persists_unconsumed_steering_before_cleanup(
         self, mock_agent_service, test_user_with_project, db_session: Session
     ):
@@ -1667,7 +1551,7 @@ class TestAgentServiceProcessStream:
             return _stream()
 
         with patch(
-            "agent.service.run_writing_workflow_streaming", side_effect=fake_workflow
+            "agent.service.run_loop_agent_streaming", side_effect=fake_workflow
         ):
             events: list[str] = []
             async for event in service.process_stream(
@@ -1735,7 +1619,7 @@ class TestAgentServiceProcessStream:
             return Session(db_session.get_bind())
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", side_effect=fake_workflow),
+            patch("agent.service.run_loop_agent_streaming", side_effect=fake_workflow),
             patch("agent.service.create_session", side_effect=_fresh_session),
         ):
             task = asyncio.create_task(consume())
@@ -1821,7 +1705,7 @@ class TestAgentServiceProcessStream:
             return task
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", return_value=mock_stream()),
+            patch("agent.service.run_loop_agent_streaming", return_value=mock_stream()),
             patch("agent.service.create_session", side_effect=lambda: Session(bind)),
             patch.object(MessageManager, "save_messages", new=fake_save_messages),
             patch.object(
@@ -1920,7 +1804,7 @@ class TestAgentServiceProcessStream:
             return task
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", return_value=mock_stream()),
+            patch("agent.service.run_loop_agent_streaming", return_value=mock_stream()),
             patch("agent.service.create_session", side_effect=lambda: Session(bind)),
             patch.object(MessageManager, "save_messages", new=failing_save_messages),
             patch.object(
@@ -2010,7 +1894,7 @@ class TestProcessStreamRunHeartbeatAndReport:
 
         run_report: dict = {}
         with (
-            patch("agent.service.run_writing_workflow_streaming", return_value=slow_workflow()),
+            patch("agent.service.run_loop_agent_streaming", return_value=slow_workflow()),
             patch("agent.service._RUN_HEARTBEAT_INTERVAL_S", 0.03),
             patch("agent.service.heartbeat_steering_run_async", side_effect=fake_heartbeat),
         ):
@@ -2081,7 +1965,7 @@ class TestStoppedRoundHistory:
             return Session(db_session.get_bind())
 
         with (
-            patch("agent.service.run_writing_workflow_streaming", return_value=thinking_forever()),
+            patch("agent.service.run_loop_agent_streaming", return_value=thinking_forever()),
             patch("agent.service.create_session", side_effect=_fresh_session),
         ):
             task = asyncio.create_task(consume())
@@ -2105,7 +1989,7 @@ class TestStoppedRoundHistory:
         assert sorted(row.role for row in rows) == ["assistant", "user"]
 
     async def test_stopped_loop_round_saves_a_loop_row_that_replays_with_the_interrupted_note(
-        self, test_user_with_project, db_session: Session, loop_engine
+        self, test_user_with_project, db_session: Session
     ):
         """单循环 agent（生产默认）被作者停止：补存的行带引擎标记与停止原因，下一轮回放时注明没做完。"""
         from agent.core.round_outcome import RunOutcome
@@ -2141,7 +2025,6 @@ class TestStoppedRoundHistory:
 
         with (
             patch("agent.service.run_loop_agent_streaming", side_effect=loop_partial_then_hang),
-            patch("agent.service.run_writing_workflow_streaming", side_effect=AssertionError("graph must not run")),
             patch("agent.service.create_session", side_effect=_fresh_session),
         ):
             task = asyncio.create_task(consume())
