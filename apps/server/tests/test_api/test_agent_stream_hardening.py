@@ -2550,8 +2550,9 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
     client, db_session, monkeypatch, ending, text
 ):
     """正文还在解析器尾缓冲里（≤32 字，或未闭合围栏到 EOF 才认出的整章）时作者停止 / 断线：
-    没有 file_content 帧，这一轮照规则退还；但残稿补存还在进行，空白占位不能先被移除，
-    否则补存被已删除的文件拒绝，正文丢失。"""
+    没有 file_content 帧，残稿补存还在进行，空白占位不能先被移除，否则补存被已删除的文件拒绝，
+    正文丢失。停止路径当场只等很短的时间，等不到保存回执就按「没有产出」退还；断线路径在后台
+    等回执，补存提交了就撤回退还（按保存回执计费）。"""
     from agent.tools.mcp_tools import ToolContext
     from models import ChatMessage, File
     from tests.conftest import TestSessionLocal
@@ -2586,17 +2587,20 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
                 assert "removed_files" not in _frame_data(rest, "quota_refunded")
             else:
                 await iterator.aclose()
-                await asyncio.gather(*agent_api._detached_refund_tasks)
-            # 退还已落定；给收尾任务足够的机会（旧实现此时已经移除了占位）。
+            # 给收尾任务足够的机会（旧实现此时已经移除了占位）。
             for _ in range(20):
                 await asyncio.sleep(0.01)
             gate.set()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
             await asyncio.gather(*service.settle_tasks)
             await asyncio.gather(*agent_api._round_outcome_tasks)
     finally:
         ToolContext.clear_context()
 
-    refund.assert_called_once()
+    if ending == "stop":
+        refund.assert_called_once()
+    else:
+        refund.assert_not_called()
     db_session.expire_all()
     kept = db_session.get(File, placeholder.id)
     assert kept.is_deleted is False
@@ -2604,7 +2608,55 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
     outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
     assert "removed_files" not in outcome
     assert [item["id"] for item in outcome["written_files"]] == [placeholder.id]
-    # 保存回执确认了补存：作者看到「已保存」，即使计费口径（没有正文帧）退还了这一轮。
+    # 保存回执确认了补存：作者看到「已保存」。
+    assert outcome["saved_output"] is True
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_adapter_saves_on_test_db")
+async def test_stop_with_a_short_body_in_the_tail_buffer_is_charged_once_it_is_saved(client, db_session):
+    """新章只写了一句（还在解析器尾缓冲里，没有 file_content 帧）就停止：补存提交了，回执确认写入，不退还。"""
+    from agent.tools.mcp_tools import ToolContext
+    from models import ChatMessage, File
+    from tests.conftest import TestSessionLocal
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    ToolContext.set_context(
+        session=None, user_id=user.id, project_id=project.id, session_id="s1",
+        create_session_func=TestSessionLocal, author_message="写第一章", read_snapshots={},
+    )
+    gate = asyncio.Event()
+    gate.set()
+    service = _CaptureSettlingService(
+        _gated_capture_adapter(project, user, placeholder, gate), placeholder, "<file>　　第一段。", message_id
+    )
+    try:
+        with (
+            patch("api.agent.get_agent_service", return_value=service),
+            patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+            patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+        ):
+            response = await _stream(db_session, user, project, None)
+            iterator = response.body_iterator
+            for _ in range(2):
+                await iterator.__anext__()
+            await agent_api.stop_stream(
+                body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+                current_user=user,
+                _rate_limit=0,
+            )
+            rest = "".join([frame async for frame in iterator])
+            await asyncio.gather(*service.settle_tasks)
+            await asyncio.gather(*agent_api._round_outcome_tasks)
+    finally:
+        ToolContext.clear_context()
+
+    assert _frame_data(rest, "quota_refunded") is None
+    refund.assert_not_called()
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).content.strip() == "第一段。"
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
     assert outcome["saved_output"] is True
 
 

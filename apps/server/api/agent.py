@@ -905,10 +905,11 @@ async def stream_request(
             nonlocal settlement, refund_scheduled, refund_task
             if settlement is None:
                 cut_off = user_stopped or client_disconnected or deadline_exceeded
-                replacement_unconfirmed = cut_off and bool(tracker.unconfirmed_replacement_ids())
-                if replacement_unconfirmed and not detached:
-                    # 整章替换的落库结果没来得及发出就被截停：提交可能仍在途中。service 等它的真实结果
-                    # 写进保存回执后才交回消息 id；先等一下（有上限），按回执补记写入。
+                body_unconfirmed = cut_off and tracker.file_body_pending()
+                if body_unconfirmed and not detached:
+                    # 本轮开始写的正文（整章替换，或新建文件的正文）还没有落库确认就被截停：提交或补存
+                    # 可能仍在途中。service 等它的真实结果写进保存回执后才交回消息 id；先等一下（有上限），
+                    # 按回执补记写入。
                     await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
                 tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
 
@@ -929,15 +930,15 @@ async def stream_request(
                     "agent_run_id": agent_run_id,
                     "billing_reason": billing_reason,
                 }
-                if should_refund and replacement_unconfirmed and detached:
+                if should_refund and body_unconfirmed and detached:
                     # 断线路径不能挂起：在后台等保存回执落定，再按回执重新结算；提交了就不退还。
-                    async def _refund_after_replacement_settles() -> bool:
+                    async def _refund_after_body_settles() -> bool:
                         await run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
                         tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
                         reason, still_refund = _decide()
                         if not still_refund:
                             log_with_context(
-                                logger, 20, "Refund withdrawn: chapter replacement committed after disconnect",
+                                logger, 20, "Refund withdrawn: a pending body committed after disconnect",
                                 agent_run_id=agent_run_id, billing_reason=reason,
                             )
                             return False
@@ -945,7 +946,7 @@ async def stream_request(
                             session, user_id, charged_period_start, agent_run_id, **refund_fields
                         )
 
-                    refund_task = asyncio.get_running_loop().create_task(_refund_after_replacement_settles())
+                    refund_task = asyncio.get_running_loop().create_task(_refund_after_body_settles())
                     _detached_refund_tasks.add(refund_task)
                     refund_task.add_done_callback(_detached_refund_tasks.discard)
                     refund_scheduled = True

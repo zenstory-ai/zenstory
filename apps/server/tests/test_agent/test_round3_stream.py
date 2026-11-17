@@ -192,9 +192,8 @@ async def test_reused_episode_with_real_end_marker_is_saved():
         ],
     )
 
-    adapter._save_file_content.assert_awaited_once_with(
-        "f-ep3", "第3集 迷雾（完整新版）"
-    )
+    adapter._save_file_content.assert_awaited_once()
+    assert adapter._save_file_content.await_args.args == ("f-ep3", "第3集 迷雾（完整新版）")
 
 
 @pytest.mark.asyncio
@@ -212,7 +211,8 @@ async def test_brand_new_empty_file_truncation_still_saves():
         ],
     )
 
-    adapter._save_file_content.assert_awaited_once_with("f-new", "第9集 新集\n（开场）")
+    adapter._save_file_content.assert_awaited_once()
+    assert adapter._save_file_content.await_args.args == ("f-new", "第9集 新集\n（开场）")
 
 
 @pytest.mark.asyncio

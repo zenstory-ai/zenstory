@@ -232,7 +232,8 @@ class _PendingEmptyFileState:
         self._replacement_saved: dict[str, bool] = {}
         # 本请求里 write_chapter 已经把正文写完并落库的章节（新建或整章替换，StreamAdapter 确认保存后记下）。
         # 待写条目清掉之后仍留着：同一请求里再对这一章 write_chapter 时拒绝整章重写（见 _write_chapter_replace）。
-        self._chapter_bodies_saved: set[str] = set()
+        # 本请求完整保存过正文的文件：id -> 标题（StreamAdapter._note_body_saved 记）。
+        self._chapter_bodies_saved: dict[str, str] = {}
         # 文件定为待写时本请求已收到几条作者插话（ToolContext.author_steering_count）：
         # 之后又有插话，正文那次调用的输入里可能带着它，tool_choice 不再限为 none（见 steering_since_armed）。
         self._steering_at_arm: dict[str, int] = {}
@@ -397,13 +398,17 @@ class _PendingEmptyFileState:
         with self._lock:
             return {file_id for file_id, saved in self._replacement_saved.items() if not saved}
 
-    def mark_chapter_body_saved(self, file_id: str) -> None:
+    def mark_chapter_body_saved(self, file_id: str, title: str = "") -> None:
         with self._lock:
-            self._chapter_bodies_saved.add(file_id)
+            self._chapter_bodies_saved[file_id] = title or self._chapter_bodies_saved.get(file_id, "")
 
     def chapter_body_saved(self, file_id: str) -> bool:
         with self._lock:
             return file_id in self._chapter_bodies_saved
+
+    def saved_body_titles(self) -> dict[str, str]:
+        with self._lock:
+            return dict(self._chapter_bodies_saved)
 
     def _set_version(self, file_id: str, version: str | None) -> None:
         if isinstance(version, str) and version:
@@ -1169,11 +1174,17 @@ class ToolContext:
             state.mark_replacement_saved(file_id)
 
     @classmethod
-    def mark_chapter_body_saved(cls, file_id: str) -> None:
-        """StreamAdapter 已把 write_chapter 这一章的完整正文落库（新建或整章替换，不含截断补全）。"""
+    def mark_chapter_body_saved(cls, file_id: str, title: str = "") -> None:
+        """StreamAdapter 已把这个文件的完整正文落库（新建或整章替换，不含截断补全）。"""
         state = cls._get_pending_empty_file_state()
         if state is not None and file_id:
-            state.mark_chapter_body_saved(file_id)
+            state.mark_chapter_body_saved(file_id, title)
+
+    @classmethod
+    def saved_bodies_this_request(cls) -> dict[str, str]:
+        """本请求确认落库的完整正文：id -> 标题（保存点记下的结构化事实，不看模型文字）。"""
+        state = cls._get_pending_empty_file_state()
+        return state.saved_body_titles() if state is not None else {}
 
     @classmethod
     def chapter_body_saved_this_request(cls, file_id: str) -> bool:

@@ -459,3 +459,29 @@ def test_failed_update_project_is_not_output():
 def test_a_file_the_author_asked_to_keep_empty_is_not_a_placeholder():
     tracker = _tracker(_create_file("ch10", empty_by_request=True), _create_file("ch11"))
     assert tracker.removable_placeholders() == [{"id": "ch11", "title": "《ch11》"}]
+
+
+def _write_chapter_created(file_id: str) -> str:
+    data = {"id": file_id, "title": "第1章", "content": "", "file_type": "draft", "action": "created", "awaiting_body": True}
+    return _sse("tool_result", {"tool_name": "write_chapter", "status": "success", "data": data})
+
+
+def test_saved_receipt_for_a_created_file_counts_as_output():
+    """短正文只在解析器尾缓冲里、停止时才补存：没有 file_content 帧，靠保存回执确认写入。"""
+    tracker = _tracker(_write_chapter_created("ch1"))
+    assert tracker.file_body_pending() is True
+
+    tracker.note_saved_receipts({"ch1": 3})
+
+    assert _stop(tracker) == ("user_stopped", False)
+    assert tracker.file_body_pending() is False
+    assert tracker.removable_placeholders() == []
+
+
+def test_failed_receipt_for_a_created_file_is_still_refunded():
+    tracker = _tracker(_write_chapter_created("ch1"))
+
+    tracker.note_saved_receipts({"ch1": None})
+
+    assert _stop(tracker) == ("user_stopped_no_output", True)
+    assert [item["id"] for item in tracker.removable_placeholders()] == ["ch1"]
