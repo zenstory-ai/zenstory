@@ -29,6 +29,27 @@ WRAP_UP_TEXT_EN = "\n\nThis round is almost out of time, so I'm stopping here. R
 # 今天的 AI 消息已经用完（本轮已计入）：回复「继续」发不出去，只说停在哪里；恢复时间由前端额度卡给出。
 WRAP_UP_TEXT_NO_MESSAGES_LEFT = "\n\n这一轮的时间快用完了，先停在这里，已经写好的内容都保留了。"
 WRAP_UP_TEXT_NO_MESSAGES_LEFT_EN = "\n\nThis round is almost out of time, so I'm stopping here; everything written so far is kept."
+# 正文已落库、回复停在 </file> 上且待办仅剩常规自查时撞上收尾：如实告知已保存，不发暂停卡也不叫作者回复「继续」。
+WRAP_UP_SELF_CHECK_SKIPPED_TEXT = "\n\n{named}已保存；这一轮时间快到了，没有再做一轮自查。"
+WRAP_UP_SELF_CHECK_SKIPPED_FALLBACK = "\n\n正文已保存；这一轮时间快到了，没有再做一轮自查。"
+WRAP_UP_SELF_CHECK_SKIPPED_TEXT_EN = (
+    "\n\n{named} saved; this round ran short of time before an extra self-check pass."
+)
+WRAP_UP_SELF_CHECK_SKIPPED_FALLBACK_EN = (
+    "\n\nThe text is saved; this round ran short of time before an extra self-check pass."
+)
+
+
+def wrap_up_self_check_skipped_text(english: bool, titles: list[str]) -> str:
+    """正文已落库、停在 </file> 上且待办仅剩常规自查时撞上收尾说明。"""
+    cleaned = [t.strip() for t in titles if isinstance(t, str) and t.strip()]
+    if not cleaned:
+        return WRAP_UP_SELF_CHECK_SKIPPED_FALLBACK_EN if english else WRAP_UP_SELF_CHECK_SKIPPED_FALLBACK
+    if english:
+        named = ", ".join(f'"{t}"' for t in cleaned)
+        return WRAP_UP_SELF_CHECK_SKIPPED_TEXT_EN.format(named=named)
+    named = "、".join(f"《{t}》" for t in cleaned)
+    return WRAP_UP_SELF_CHECK_SKIPPED_TEXT.format(named=named)
 
 
 # 轮与轮之间收尾的暂停卡（与 runner 时限收尾同一张卡：limit=wall_clock，前端给「继续完成」按钮）。

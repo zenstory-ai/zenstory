@@ -112,7 +112,7 @@ agent/
   需要时重新调用。思考只在一次 run 内回放。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
   的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用供应商同量纲估算 `estimate_provider_items_tokens`）
-  超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，带工具清单、`tool_choice=none`），
+  超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，工具清单经 `Converter.tool_to_openai(build_agent_function_tools())` 生成以保持 `strict=false` 前缀缓存一致、`tool_choice=none`、`max_retries=0`），
   空或被截断时 `reasoning_effort=low` 重试一次，仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
   （`summary`、`covers_through_message_id`、`kept_author_messages`、`created_at`），之后的历史 = 压缩点之前最近的作者原话（`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`
   预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。保留的作者原话按 `kept_author_messages`（压缩那一轮实际发出的文字，含截断后缀）原样回放，
@@ -138,25 +138,25 @@ agent/
   `ToolContext.mark_cut_body_saved`，engine 每个 run 边界 `take_cut_bodies()` 取走）时，正文照样保存，但不发 `_BODY_SAVED_CONTEXT`：作者看到固定的
   「《…》写到了单次回复的输出上限，正文已保存到中断处。」（`author_facing_text.body_cut_at_output_cap_notice`），续跑说明 `_BODY_CUT_CONTEXT` 附落库正文末尾 200 字，
   要求用 edit_file `op=append` 从断点续写、不整章重写，写完再自查；没撞上限的未闭合正文（漏写 `</file>`）照旧按已保存续跑。整章替换的新正文被截断时
-  仍是原文不动、在纠偏次数内重试，重试说明换成 `_CHAPTER_REPLACE_CUT_RETRY_CONTEXT`（说明被截断、思考尽量简短）。到收尾时间不再开新 run，
-  发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
+  仍是原文不动、在纠偏次数内重试，重试说明换成 `_CHAPTER_REPLACE_CUT_RETRY_CONTEXT`（说明被截断、思考尽量简短）。到收尾时间不再开新 run：
+  若结构化 `followup_kind == "self_check"`（已有确认落库正文，且无待写空文件、截断残稿、未保存替换、未执行工具与插话），直接正常收尾并跑 `auto_finalize_task_board_on_completion`（上一轮停在 `</file>` 尚未写总结时补一句确定性的已保存说明），不发暂停卡；其余未完成续跑照旧发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。[prod-review-followups][n-prod-review]
   收尾提醒（`runner._ModelCallCountingFilter`）用 `LOOP_SOFT_LANDING_PROMPT` / `LOOP_TIME_LANDING_PROMPT`
   （刚调用 write_chapter 或 create_file 还没写 `<file>` 的先写完）。空文件的核验与回滚在 `core/empty_files.py`，收尾说明、插话追加轮提示与续跑说明里的字数在 `loop/run_support.py`。
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` 是唯一的工具集（顺序即请求里工具清单的顺序，前缀缓存依赖它），请求里也只给这一份
-  （`get_exposed_tools()`，其中 create_file 用 `tool_schemas.LOOP_TOOL_SCHEMA_OVERRIDES` 里不列 draft / script 的说明）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入照旧经 diff 审阅、撤销与版本保护；
+  （`get_exposed_tools()`，其中 create_file 用 `tool_schemas.LOOP_TOOL_SCHEMA_OVERRIDES` 里不列 draft / script 的说明）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入直接落库并保留修改卡撤销、历史版本及草稿冲突与版本并发保护（[direct-ai-edits][n-direct-edits]）；
   写作约定追加许可放开（只追加、`expected_notes` 冲突保护不变）；`requested_body_write` / `no_file_changes` 回执不出现。
   create_file 的 `empty=true` 在单循环轮次里直接生效（`ToolContext.author_wants_no_body`，由模型判断，不从原话推断）。
 - **正文按章号写入**（`mcp_tools.write_chapter`）：`write_chapter(chapter, title, file_type=draft|script, parent_id?, empty?)` 在本项目未删除的
-  draft / script 里按标题开头的章号（draft）或集号（script）解析目标（`utils.title_sequence.extract_sequence_number(unit=…)`，有界的标识符解析；
+  draft / script 里按标题开头的章号（draft）或集号（script）解析目标（`utils.title_sequence.extract_sequence_number(unit=…)`，无前缀章号时按 `file_type` 回退读取 `file_metadata` 的 `chapter_number` / `episode_number` 以识别导入拆章，有界的标识符解析；
   给了 parent_id 只看那个目录，先按 `file_ops.crud.resolve_create_target` 与 create_file 同样归一父节点；正文分在多个目录而没给 parent_id 时
   不把唯一的同号章节当替换目标（`chapter_target_ambiguous`）；标题里的编号与 chapter 不一致时拒绝，没有编号时补上）。没有 → 走 `_create_file_sync` 的新建路径（没给 parent_id 时放进同类型章节所在的唯一目录，没有则放项目默认正文目录 `-draft-folder` / `-script-folder`，不落在项目根）
-  （`action=created`，两次回复协议、待写守卫、空文件纠偏 / 回滚、退还时移除空白占位都照旧）；恰好一个 → `action=replaced`，不改数据库，
-  记下 `updated_at` 与原长度、绑定待写守卫（不记建好时的版本：补不成不回滚、不算可取消的空文件；记下替换的定位结果，
-  同一回复里再调用这一章返回 `chapter_replace_pending`，不当成新建）；不止一个 → `chapter_target_ambiguous`
+  （`action=created`，两次回复协议、待写守卫、空文件纠偏 / 回滚、退还时移除空白占位都照旧）；恰好一个 → `action=replaced`，定位时不改数据库，
+  记下 `updated_at` 与原长度、绑定待写守卫（传入了非裸章号的新章名时记为 `new_title`，在 `</file>` 落库同一事务内一并更新标题；不记建好时的版本：补不成不回滚、不算可取消的空文件；记下替换的定位结果，
+  `<file>` 落库前对同一文件再调 `write_chapter`、`rename_file` 或 `edit_file` 一律返回 `chapter_replace_pending` 且 `mutation_applied=false`，不推进 `updated_at`）；不止一个 → `chapter_target_ambiguous`
   列出候选，不写。作者保存过正文（或来源无法确认）的章节在定位时以 `author_edit_protected` / `author_edit_protection_unavailable` 拒绝。
   `empty=true` 只建缺的空章节（已有的 `action=exists` 不动）。StreamAdapter 在 `</file>` 后把整章替换交给 `FileEditor.replace_body`
-  （与 edit_file 共用 `_commit_ai_content`：写锁内重读、版本核对、原稿备份、AI 版本「AI 整章替换」、撤销锚点、锁内再核作者保护），
-  然后发 `file_content_end`、`file_edit_start/applied/end`（end 带 `original_content` / `new_content`，前端进入逐段 diff 审阅），
+  （与 edit_file 共用 `_commit_ai_content`：写锁内重读、版本核对、原稿备份、AI 版本「AI 整章替换」、同事务更新新标题、撤销锚点、锁内再核作者保护），
+  然后发 `file_content_end`、`file_edit_start/applied/end`（end 带 `original_content` / `new_content`，前端直接刷新展示最新正文），
   并以同一个 tool_use_id 补发一条 write_chapter 的 tool_result（`body_saved`、`new_word_count`、`previous_word_count`、`undo`；落库卡片随之更新，
   `services/chat_tool_cards` 的撤销标记接受 write_chapter 卡）。版本变了或作者保护命中时不覆盖、发「这一章的整章替换没有保存，原文保持不变」、
   补发 `body_saved=false`，然后结束这一轮（`_stop_after_refused_replace`：之后的模型文字不放出，正常 done；`ToolContext.close_pending_body_files`
@@ -260,7 +260,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 | 工具 | 用途 |
 |---|---|
 | `create_file` | 新建资料文件；source_text 校验并直接保存本轮作者原文，生成资料则先建空文件、随后用 `<file>` 写入；不建 draft / script |
-| `write_chapter` | 按章号 / 集号写一章正文，不存在就新建、已存在就整章替换这一章（正文同样随后用 `<file>` 写入，替换走 diff 审阅与撤销） |
+| `write_chapter` | 按章号 / 集号写一章正文，不存在就新建、已存在就整章替换这一章（正文同样随后用 `<file>` 写入，传入新章名时落库一并更新标题，支持撤销与历史版本恢复） |
 | `edit_file` | 精确编辑（replace / insert / append / delete）；逐字、引号等价、模糊都找不到时近似匹配兜底，长章节用种子定位（[approx-seeds][n-approx-seeds]）；同一文件找不到原文只附恢复提示、不提前熔断，无效文件 id 三次即熔断（[anchor-no-early-trip][n-anchor-no-early-trip]） |
 | `delete_file` | 删除文件 |
 | `rename_file` | 只改文件标题，id 与正文不变（同文件夹重名拒绝；[rename-file][n-rename]） |
@@ -332,3 +332,5 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-remove-graph]: ../../../.agents/notes/implemented/simplification/2026-11-17-remove-graph-agent.md
 [n-loop-fixes]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-post-launch-fixes.md
 [n-xreview]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-agent-cross-review-fixes.md
+[n-direct-edits]: ../../../.agents/notes/implemented/feature/2026-11-18-direct-ai-edits.md
+[n-prod-review]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-prod-review-followups.md

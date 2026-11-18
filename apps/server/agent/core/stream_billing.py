@@ -271,7 +271,7 @@ class StreamBillingTracker:
         self._track_write_calls(event_type, payload)
         self._observe_effects(event_type, payload)
         prose = self._prose_reached(event_type, payload)
-        if prose:
+        if prose and not self.file_body_pending():
             self.prose_output = True
         self._recompute_output_flags()
 
@@ -361,6 +361,8 @@ class StreamBillingTracker:
                 if data["body_saved"]:
                     self.confirmed_replacement_ids.add(file_id)
                 else:
+                    self.replace_target_ids.discard(file_id)
+                    self.empty_replace_target_ids.discard(file_id)
                     self._mark_file_save_failed(file_id)
             return
         if payload.get("tool_name") == "write_chapter" and data.get("action") != "created":
@@ -486,12 +488,15 @@ class StreamBillingTracker:
         )
 
     def _prose_reached(self, event_type: str, payload: dict[str, Any]) -> bool:
-        """真正的回复正文：同一段正文累计到 PROSE_MIN_CHARS 个单位（见 prose_units）。"""
+        """真正的回复正文：同一段正文累计到 PROSE_MIN_CHARS 个单位（见 prose_units）。
+
+        文件还在等正文（file_body_pending）时出现的文字是 <file> 前被扣留的引子，不算回复正文。
+        """
         if event_type in _SEGMENT_BOUNDARY_EVENTS:
             self._segment_text = ""
             self._segment_reached = False
             return False
-        if event_type != "content":
+        if event_type != "content" or self.file_body_pending():
             return False
         if not self._segment_reached:
             self._segment_text += str(payload.get("text") or "")

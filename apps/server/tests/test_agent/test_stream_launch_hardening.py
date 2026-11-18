@@ -217,7 +217,15 @@ def _api_status_error(cls, status: int, message: str):
                 openai.BadRequestError, 400, "This model's maximum context length is 131072 tokens"
             ),
             "ERR_AGENT_CONTEXT_TOO_LONG",
-            False,
+            True,
+            True,
+        ),
+        (
+            _api_status_error(
+                openai.BadRequestError, 400, "invalid params, context window exceeds limit (2013)"
+            ),
+            "ERR_AGENT_CONTEXT_TOO_LONG",
+            True,
             True,
         ),
         (RuntimeError("(psycopg.errors.UniqueViolation) [SQL: INSERT INTO file ...]"), "ERR_AGENT_RUN_FAILED", True, True),

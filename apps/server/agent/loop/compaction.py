@@ -99,21 +99,12 @@ def skipped_record(history: LoopHistory, reason: str) -> dict[str, Any]:
 
 
 def _chat_tools() -> list[dict[str, Any]]:
-    """压缩请求带上同一份工具清单（tool_choice=none）：历史里的工具调用对供应商才合法。"""
-    from agent.tools.registry import get_exposed_tools
+    """压缩请求带上与 SDK 完全一致的工具清单（tool_choice=none）：历史里的工具调用合法，且不打断前缀缓存。"""
+    from agents.models.chatcmpl_converter import Converter
 
-    tools = []
-    for schema in get_exposed_tools():
-        parameters = schema.get("input_schema")
-        tools.append({
-            "type": "function",
-            "function": {
-                "name": schema.get("name"),
-                "description": schema.get("description") or "",
-                "parameters": parameters if isinstance(parameters, dict) else {"type": "object", "properties": {}},
-            },
-        })
-    return tools
+    from agent.openai_agents.tools_adapter import build_agent_function_tools
+
+    return [dict(Converter.tool_to_openai(tool)) for tool in build_agent_function_tools()]
 
 
 def _request_messages(system_prompt: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -215,6 +206,7 @@ async def compact_history(
                     reasoning_effort=effort,
                     usage_attribution=attribution,
                     attempt_sink=sink,
+                    max_retries=0,
                     messages=messages,
                     tools=_chat_tools(),
                     tool_choice="none",

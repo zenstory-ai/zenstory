@@ -49,7 +49,10 @@ CREATE_FILE_TOOL: dict[str, Any] = {
             },
             "empty": {
                 "type": "boolean",
-                "description": "作者明确只要建文件、这一轮不写内容时（如「只建标题」「先建空章节」）设为 true：文件保持空白，不用写正文。作者要正文时设了也不生效"
+                "description": (
+                    "仅在作者明确要求只建空文件、这一轮不写内容时（如「只建空档」「先建标题不写内容」）设为 true："
+                    "文件保持空白，不再用 <file> 写入；需要写入内容时不要设 true"
+                ),
             }
         },
         "required": ["title", "file_type"]
@@ -112,7 +115,10 @@ WRITE_CHAPTER_TOOL: dict[str, Any] = {
             "title": {
                 "type": "string",
                 "maxLength": 255,
-                "description": "章节标题，如「第三章 雨夜」或只写「雨夜」（系统补上章号）；替换已有章节时沿用原标题",
+                "description": (
+                    "章节标题，如「第三章 雨夜」或只写「雨夜」（系统补上章号）；"
+                    "替换已有章节时传入新章名会在保存时一并更新标题，只传章号（如「第三章」）则沿用原标题"
+                ),
             },
             "file_type": {
                 "type": "string",

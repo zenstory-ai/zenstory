@@ -1497,3 +1497,110 @@ async def test_new_episode_without_parent_id_goes_to_the_script_folder(workspace
 
     assert created["status"] == "success" and created["data"]["action"] == "created"
     assert created["data"]["parent_id"] == f"{project.id}-script-folder"
+
+
+async def test_write_chapter_replacement_updates_title_atomically_on_save(workspace):
+    """P2-3(a)：write_chapter 替换已有章节时传入新章名，落库同一事务更新标题；只传裸章号（如「第1章」）则保留原标题。"""
+    one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", "第一章旧正文。")
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "第三章旧正文。\n第二段。")
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "破晓", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n", tools=(
+            ("write_chapter", {"chapter": 1, "title": "第1章", "file_type": "draft"}),
+        )),
+        Reply(text=f"<file>\n{BODY_ONE}\n</file>\n两章都换好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "重写第三章改名破晓，并重写第一章")
+
+    armed_three = model.tool_calls[0].output
+    assert armed_three["status"] == "success"
+    assert armed_three["data"]["new_title"] == "第3章 破晓"
+    assert "diff 审阅" not in armed_three["data"]["next_step"]
+    workspace.session.expire_all()
+    refreshed_three = workspace.session.get(File, three.id)
+    refreshed_one = workspace.session.get(File, one.id)
+    assert refreshed_three.title == "第3章 破晓"
+    assert refreshed_three.content.rstrip("\n") == NEW_BODY
+    # 第一章只传了裸章号「第1章」，保留原有副标题「第1章 雨夜」。
+    assert refreshed_one.title == "第1章 雨夜"
+    assert refreshed_one.content.rstrip("\n") == BODY_ONE
+    final_three = [r["data"] for r in _results(outcome, "write_chapter") if r["data"].get("id") == three.id][-1]
+    assert final_three["body_saved"] is True and final_three["title"] == "第3章 破晓"
+
+
+@pytest.mark.parametrize("second_tool", ["rename_file", "edit_file"])
+async def test_same_reply_rename_or_edit_on_armed_write_chapter_is_refused_and_preserves_streamed_save(
+    workspace, second_tool: str
+):
+    """P2-3(b)：同一回复里对刚 write_chapter 锁定待写的章节调 rename_file 或 edit_file 时拒绝执行、不推进 updated_at，确保随后的 <file> 整章替换正常保存。"""
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。\n第二段原文。")
+    baseline_updated_at = three.updated_at
+    second_call = (
+        ("rename_file", {"id": three.id, "title": "第3章 破晓"})
+        if second_tool == "rename_file"
+        else ("edit_file", {"id": three.id, "edits": [{"op": "replace", "old": "合成第三章原文。", "new": "局部改动。"}]})
+    )
+    model = ScriptedModel(runs=[[
+        Reply(
+            text="",
+            tools=(
+                ("write_chapter", {"chapter": 3, "title": "第3章 破晓", "file_type": "draft"}),
+                second_call,
+            ),
+        ),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章已经重写好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "重写第三章并改名")
+
+    refused = model.tool_calls[1].output
+    assert refused["status"] == "error"
+    assert refused["error_type"] == "chapter_replace_pending"
+    assert refused["mutation_applied"] is False
+    assert baseline_updated_at is not None
+    # 随后的 <file> 整章替换未被乐观锁拒绝，新正文与新标题正常落库。
+    assert _content(workspace, three.id).rstrip("\n") == NEW_BODY
+    workspace.session.expire_all()
+    assert workspace.session.get(File, three.id).title == "第3章 破晓"
+    final = _results(outcome, "write_chapter")[-1]["data"]
+    assert final["body_saved"] is True and final["mutation_applied"] is True
+
+
+async def test_write_chapter_recognizes_uploaded_chapter_via_file_metadata(workspace):
+    """P3-H：导入多章小说拆出的章节标题形如「书名 - 第1章 …」、章号存于 file_metadata.chapter_number，write_chapter 应识别已有章节而非重复新建。"""
+    from agent.tools.mcp_tools import write_chapter
+
+    uploaded = File(
+        project_id=workspace.project.id,
+        title="剑来 - 第1章 惊蛰",
+        content="导入的第一章正文。",
+        file_type="draft",
+        file_metadata=json.dumps({"source": "upload", "chapter_number": 1}, ensure_ascii=False),
+    )
+    workspace.session.add(uploaded)
+    workspace.session.flush()
+    FileVersionService().create_version(
+        workspace.session, uploaded.id, uploaded.content, change_type="create", change_source="ai", commit=False, skip_quota=True
+    )
+    workspace.session.commit()
+    workspace.session.refresh(uploaded)
+
+    ToolContext.set_context(
+        session=workspace.session,
+        user_id=workspace.user.id,
+        project_id=workspace.project.id,
+        session_id="loop-upload-seq",
+        author_message="重写第一章",
+    )
+    ToolContext.set_current_agent("loop")
+    try:
+        armed = _payload(await write_chapter({"chapter": 1, "title": "第1章", "file_type": "draft"}))
+    finally:
+        ToolContext.clear_context()
+
+    assert armed["status"] == "success"
+    assert armed["data"]["action"] == "replaced"
+    assert armed["data"]["id"] == uploaded.id
+    assert len(_drafts(workspace)) == 1
+

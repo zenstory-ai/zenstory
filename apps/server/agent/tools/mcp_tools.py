@@ -298,6 +298,13 @@ class _PendingEmptyFileState:
                 for file_id, title in self._entries.items()
             ]
 
+    def entry_for(self, file_id: str) -> dict[str, str] | None:
+        """file_id 当前在待写入集合里时返回 {file_id, title}，否则为 None。"""
+        with self._lock:
+            if file_id not in self._entries:
+                return None
+            return {"file_id": file_id, "title": self._entries[file_id]}
+
     # ---- 写入 --------------------------------------------------------------
     def begin_reply(self) -> None:
         """一次新的模型调用开始。"""
@@ -1117,6 +1124,12 @@ class ToolContext:
         """获取最近一个待写入的空文件信息（与历史单槽语义保持一致）。"""
         state = cls._get_pending_empty_file_state()
         return state.latest() if state is not None else None
+
+    @classmethod
+    def pending_empty_file_for(cls, file_id: str) -> dict[str, str] | None:
+        """file_id 当前是待写入正文或待整章替换的文件时返回 {file_id, title}，否则为 None。"""
+        state = cls._get_pending_empty_file_state()
+        return state.entry_for(str(file_id or "")) if state is not None else None
 
     @classmethod
     def begin_model_reply(cls) -> None:
@@ -1955,6 +1968,50 @@ def _chapter_title(title: str, number: int, unit: str) -> str:
     return f"{label} {number}: {text}"
 
 
+def _chapter_title_has_subtitle(raw_title: str, unit: str) -> bool:
+    """判断传入的章节标题是否带有章名（而非仅传入空串或「第N章 / Chapter N」这类裸编号）。"""
+    from utils.title_sequence import _RE_ARABIC_SEQ, _RE_CN_SEQ, _RE_EN_CHAPTER, extract_sequence_number
+
+    text = raw_title.replace("\x00", "").strip()
+    if not text:
+        return False
+    if extract_sequence_number(text, unit=unit) is None:
+        return True
+    for pattern in (_RE_CN_SEQ, _RE_ARABIC_SEQ, _RE_EN_CHAPTER):
+        match = pattern.match(text)
+        if match:
+            remainder = text[match.end() :].lstrip(" \t\u3000:：·—-–")
+            return bool(remainder)
+    return True
+
+
+def _row_chapter_number(row: Any, *, unit: str, expected_file_type: str) -> int | None:
+    """按标题开头的章/集号解析；无前缀章号时（如导入拆章「书名 - 第N章 …」）回退读取 file_metadata。"""
+    from collections.abc import Mapping
+
+    from utils.title_sequence import extract_sequence_number, extract_sequence_number_from_metadata
+
+    seq = extract_sequence_number(row.title, unit=unit)
+    if seq is not None:
+        return seq
+    if getattr(row, "file_type", None) != expected_file_type:
+        return None
+    raw_meta = getattr(row, "file_metadata", None)
+    if not raw_meta:
+        return None
+    if isinstance(raw_meta, Mapping):
+        meta: Mapping[str, Any] | None = raw_meta
+    elif isinstance(raw_meta, str):
+        try:
+            parsed = json.loads(raw_meta)
+        except (json.JSONDecodeError, TypeError):
+            return None
+        meta = parsed if isinstance(parsed, Mapping) else None
+    else:
+        return None
+    return extract_sequence_number_from_metadata(meta, file_type=expected_file_type)
+
+
 def _write_chapter_error(error: str, *, error_type: str, **fields: Any) -> dict[str, Any]:
     return _make_mcp_payload(
         {"status": "error", "error": error, "error_type": error_type, "mutation_applied": False, **fields},
@@ -2030,7 +2087,7 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
         rows = _run_session_probe(
             ToolContext.get_session(),
             lambda s: s.exec(
-                select(File.id, File.title, File.parent_id, File.file_type).where(
+                select(File.id, File.title, File.parent_id, File.file_type, File.file_metadata).where(
                     File.project_id == project_id,
                     File.is_deleted.is_(False),
                     File.file_type.in_(CONTENT_FILE_TYPES),
@@ -2042,7 +2099,7 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
     matches = [
         row
         for row in rows
-        if extract_sequence_number(row.title, unit=unit) == number
+        if _row_chapter_number(row, unit=unit, expected_file_type=file_type) == number
         and (parent_id is None or (row.parent_id or None) == parent_id)
     ]
     if len(matches) > 1:
@@ -2056,7 +2113,11 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
         )
     empty = coerce_bool(args.get("empty"))
     if matches and requested_parent_id is None and not empty:
-        body_folders = {row.parent_id or None for row in rows if extract_sequence_number(row.title, unit=unit) is not None}
+        body_folders = {
+            row.parent_id or None
+            for row in rows
+            if _row_chapter_number(row, unit=unit, expected_file_type=file_type) is not None
+        }
         if len(body_folders) > 1:
             # 正文分在几个目录（分卷常各自从第1章编号）而没指明目录：唯一的同号章节不一定是要写的那一卷，
             # 不把它当替换目标。
@@ -2092,7 +2153,14 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
             },
             tool_name=tool_name,
         )
-    return _write_chapter_replace(matches[0].id, number=number, unit=unit, project_id=project_id)
+    requested_replace_title = title if _chapter_title_has_subtitle(raw_title, unit) else None
+    return _write_chapter_replace(
+        matches[0].id,
+        number=number,
+        unit=unit,
+        project_id=project_id,
+        requested_title=requested_replace_title,
+    )
 
 
 def _default_chapter_folder(project_id: str, file_type: str, rows: list[Any]) -> str | None:
@@ -2155,9 +2223,17 @@ def _write_chapter_create(
     return _make_result({**payload, "data": data}, tool_name=WRITE_CHAPTER_TOOL_NAME)
 
 
-def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: str) -> dict[str, Any]:
+def _write_chapter_replace(
+    file_id: str,
+    *,
+    number: int,
+    unit: str,
+    project_id: str,
+    requested_title: str | None = None,
+) -> dict[str, Any]:
     from agent.tools.author_edit_guard import enforce_author_content_protection
     from models import File
+    from models.file_model import validate_file_title
     from utils.text_metrics import count_words
 
     tool_name = WRITE_CHAPTER_TOOL_NAME
@@ -2229,13 +2305,46 @@ def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: 
                 return _make_mcp_payload(refused, tool_name=tool_name)
             return refusal
 
+    new_title: str | None = None
+    if isinstance(requested_title, str):
+        cleaned_title = requested_title.replace("\x00", "").strip()
+        if cleaned_title and cleaned_title != (row.title or ""):
+            try:
+                validate_file_title(cleaned_title)
+            except ValueError as e:
+                return _write_chapter_error(str(e), error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE, id=file_id)
+            clash = _run_session_probe(
+                session,
+                lambda s: s.exec(
+                    select(File.id).where(
+                        File.project_id == project_id,
+                        File.parent_id == row.parent_id,
+                        File.title == cleaned_title,
+                        File.is_deleted.is_(False),
+                        File.id != file_id,
+                    )
+                ).first(),
+            )
+            if clash is not None:
+                return _write_chapter_error(
+                    f"同一文件夹里已有名为《{cleaned_title}》的文件，没有写入；请换一个标题或先向作者确认。",
+                    error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,
+                    id=file_id,
+                )
+            new_title = cleaned_title
+
     reservation = f"reserve-{uuid4().hex}"
-    acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(reservation, str(row.title or ""))
+    acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(reservation, str(new_title or row.title or ""))
     if not acquired and _clear_settled_pending_empty_files():
-        acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(reservation, str(row.title or ""))
+        acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(reservation, str(new_title or row.title or ""))
     if not acquired:
-        return _pending_empty_file_rejection(blocking_title, str(row.title or ""), tool_name=tool_name)
+        return _pending_empty_file_rejection(blocking_title, str(new_title or row.title or ""), tool_name=tool_name)
     previous_words = count_words(content)
+    title_clause = (
+        f"保存时标题一并更新为《{new_title}》。"
+        if new_title
+        else "标题沿用（写完正文前不要对这一章调用 rename_file）。"
+    )
     data.update(
         {
             "action": WRITE_CHAPTER_ACTION_REPLACED,
@@ -2243,18 +2352,21 @@ def _write_chapter_replace(file_id: str, *, number: int, unit: str, project_id: 
             "previous_length": len(content),
             "previous_word_count": previous_words,
             "original_content_length": len(content),
+            **({"new_title": new_title} if new_title else {}),
             "result": (
                 f"覆盖已有的第{number}{unit}《{row.title}》（原{previous_words}字）：下一次回复写的正文会整章替换它，"
-                "标题沿用（要改标题用 rename_file）。"
+                f"{title_clause}"
             ),
             "next_step": (
                 "下一次回复直接以 <file> 开头写这一章完整的新正文（不是改动片段），写完用 </file> 结束；"
-                "不要先调用其他工具。保存后原稿可在 diff 审阅和历史版本里找回。"
+                "不要先调用其他工具。保存后原稿可在历史版本里找回（也可在聊天修改卡撤销）。"
             ),
         }
     )
     # 不是本轮新建的文件：不记建好时的版本（补不成时不回滚、不算可以取消的空文件），记下替换的定位结果。
-    ToolContext.bind_pending_empty_file(reservation, file_id, str(row.title or ""), None, replacement=data)
+    ToolContext.bind_pending_empty_file(
+        reservation, file_id, str(new_title or row.title or ""), None, replacement=data
+    )
     if ToolContext.take_reply_prebody():
         # 本条回复在这次调用之前已写出正文：它就是这一章的替换稿，由 StreamAdapter 走整章替换落库。
         ToolContext.mark_pending_body_streamed(file_id)
@@ -2534,6 +2646,18 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
                 error_type=EDIT_ERROR_INVALID_EDIT,
             )
 
+        if ToolContext.pending_chapter_replacement(file_id) is not None or (
+            ToolContext.get_current_agent() == _loop_agent_type()
+            and ToolContext.pending_empty_file_for(file_id) is not None
+        ):
+            pending_entry = ToolContext.pending_empty_file_for(file_id) or {"title": file_id}
+            return _make_edit_error(
+                f"《{pending_entry['title']}》已定为待写入正文（等待 <file>…</file>），edit_file 未执行（没有改动）。"
+                "请先在下一次回复用 <file>…</file> 写完它的正文，保存之后确需局部修改再调用 edit_file。",
+                error_type=WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE,
+                id=file_id,
+            )
+
         # 作者手改过的文件不再整份拒绝：作者改了什么见 <author_edits>，由模型保留或按作者的新要求改；
         # 这里只核对事实。模型本请求里没看过这个文件的全文时，old / anchor 只按逐字匹配，
         # 不拿可能过时的记忆去模糊匹配作者刚改过的字。有快照（看过或自己写过）就做陈旧检查。
@@ -2709,6 +2833,21 @@ def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(title, str) or not title.strip():
         return _make_error("rename_file 需要非空的新标题", tool_name=tool_name)
     file_id, title = file_id.strip(), title.strip()
+    if (pending := ToolContext.pending_empty_file_for(file_id)) is not None:
+        return _make_mcp_payload(
+            {
+                "status": "error",
+                "error": (
+                    f"《{pending['title']}》正在等待 <file>…</file> 写入正文，rename_file 未执行（没有改动）。"
+                    "请先在下一次回复用 <file>…</file> 写完正文（write_chapter 替换时若已传入新章名，保存正文时会自动更新标题）；"
+                    "保存之后若仍需单独改文件标题，再调用 rename_file。"
+                ),
+                "error_type": WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE,
+                "id": file_id,
+                "mutation_applied": False,
+            },
+            tool_name=tool_name,
+        )
 
     try:
         from models import File

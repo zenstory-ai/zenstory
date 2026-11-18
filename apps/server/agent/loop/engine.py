@@ -435,9 +435,36 @@ async def run_loop_agent_streaming(
     reported_unsaved_ids: set[str] = set()
     accumulated_text = ""
     terminated = False
+    followup_kind: str | None = None
+    followup_ended_on_file = False
+    followup_saved_titles: list[str] = []
     try:
         while runs < max_runs:
             if runs > 0 and run_meter.past_wrap_up:
+                if followup_kind == "self_check":
+                    # 正文已确认落库、无待写空文件、无截断残稿、无未保存替换、无未执行工具与插话：
+                    # 待办仅剩常规写后自查，直接按正常完成收尾，不发「可能未完成 / 继续」暂停卡。
+                    log_with_context(
+                        logger,
+                        20,  # INFO
+                        "Loop agent finishing cleanly instead of starting post-save self-check near wrap-up",
+                        runs=runs,
+                        ended_on_file=followup_ended_on_file,
+                        saved_count=len(followup_saved_titles),
+                    )
+                    if followup_ended_on_file:
+                        yield StreamEvent(
+                            type=StreamEventType.TEXT,
+                            data={
+                                "text": run_support.wrap_up_self_check_skipped_text(
+                                    english, followup_saved_titles
+                                )
+                            },
+                        )
+                    for task_event in await task_board_completion.auto_finalize_task_board_on_completion(read_guard):
+                        yield task_event
+                    terminated = True
+                    break
                 # 请求时间快用完：不再开新的 run，停在已经完成的部分（同图层收尾的暂停卡）。
                 yield StreamEvent(type=StreamEventType.TEXT, data={"text": await run_support.wrap_up_text(english)})
                 yield StreamEvent(
@@ -454,6 +481,10 @@ async def run_loop_agent_streaming(
                 terminated = True
                 break
             runs += 1
+            followup_kind = None
+            followup_ended_on_file = False
+            followup_saved_titles = []
+            unexecuted_this_run = False
             state["continue_native_run"] = runs > 1 and native_runs.get("agent_type") == LOOP_AGENT_TYPE
             run_resumed = resumed_correction
             resumed_correction = False
@@ -548,6 +579,7 @@ async def run_loop_agent_streaming(
                     if resume.armed:
                         correction_attempts += 1
                         resumed_correction = True
+                        followup_kind = "correction"
                         state["user_message"] = context or ""
                         continue
                     if ToolContext.pending_chapter_replacement(resume.file_id) is not None:
@@ -570,6 +602,7 @@ async def run_loop_agent_streaming(
             ):
                 # 回复里写出了完整的工具调用协议却没有执行：只按协议结构识别，如实记为未完成，不重试。
                 unexecuted_reported = True
+                unexecuted_this_run = True
                 log_with_context(
                     logger, 30, "textual_tool_call", agent_type=LOOP_AGENT_TYPE, call_count=len(textual_calls)
                 )
@@ -604,6 +637,7 @@ async def run_loop_agent_streaming(
             ):
                 # 这次 run 停在没闭合的 <file> 正文上、最后一次响应撞上输出上限、正文按截断补全保存了：
                 # 是被截断，不是写完，不说「已保存，请自查」。
+                followup_kind = "cut_body"
                 followup, cut_notice = await _body_cut_followup(cut_bodies, read_guard, english)
                 yield cut_notice
             elif not ToolContext.has_pending_empty_file() and (
@@ -624,6 +658,7 @@ async def run_loop_agent_streaming(
                     # 没有任何保存过的正文：不能退回「已保存」的说明，照旧如实说替换没保存。
                     newly_unsaved = unsaved_written
                 if newly_unsaved:
+                    followup_kind = "unsaved_replace"
                     reported_unsaved_ids |= {fid for fid, _ in newly_unsaved}
                     unsaved_titles = "、".join(f"《{t}》" for _, t in newly_unsaved if t) or (
                         "this chapter" if english else "这一章"
@@ -642,6 +677,17 @@ async def run_loop_agent_streaming(
                         template = _BODY_RESAVED_CONTEXT_EN if english else _BODY_RESAVED_CONTEXT
                     self_checked_ids |= written_ids
                     followup = template.format(titles=titles) + _word_count_note(list(saved))
+                    if (
+                        saved_bodies
+                        and not unsaved_ids
+                        and not (output_capped and cut_bodies)
+                        and not unexecuted_this_run
+                    ):
+                        followup_kind = "self_check"
+                        followup_ended_on_file = bool(ended_on_file)
+                        followup_saved_titles = [t for t in saved.values() if t]
+                    else:
+                        followup_kind = "unexecuted_tool" if unexecuted_this_run else "file_continuation"
             boundary_steering = await _drain_boundary_steering(get_steering_messages)
             if boundary_steering:
                 state["messages"] = list(state.get("messages") or []) + [
@@ -652,6 +698,7 @@ async def run_loop_agent_streaming(
                 for msg in boundary_steering:
                     yield steering_received_event(message_id=msg["id"], preview=msg["content"][:50])
             if mid_run_steering or boundary_steering:
+                followup_kind = "steering"
                 followup = (
                     f"{followup}\n{run_support.STEERING_FOLLOWUP_CONTEXT}"
                     if followup
@@ -668,6 +715,7 @@ async def run_loop_agent_streaming(
                 20,  # INFO
                 "Loop agent continues within the turn",
                 run=runs,
+                followup_kind=followup_kind,
                 ended_on_file=bool(ended_on_file),
                 new_saved=len(new_saved),
                 body_cut_at_output_cap=bool(output_capped and cut_bodies and ends_on_unclosed_file_block(tail_text)),

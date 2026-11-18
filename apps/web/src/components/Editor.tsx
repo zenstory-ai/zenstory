@@ -410,6 +410,14 @@ const EditorComponent: React.FC<EditorProps> = () => {
     try {
       const data = await fileApi.get(selectedItem.id);
       if (generation !== loadGenerationRef.current || serverReadSeq !== serverSyncSeqRef.current) return;
+      if (
+        !options?.discardUnsaved &&
+        currentFileRef.current?.id === data.id &&
+        editContentRef.current !== (currentFileRef.current.content || "")
+      ) {
+        void syncOpenFileFromServerRef.current();
+        return;
+      }
       clearFileRemoved(currentProjectId, data.id);
       setFile(data);
       // New-user funnel: the author opened a file, or the AI finished writing the file the author
