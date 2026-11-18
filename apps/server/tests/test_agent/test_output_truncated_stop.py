@@ -168,6 +168,25 @@ async def test_run_with_reply_text_at_cap_is_not_an_error(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+@pytest.mark.parametrize("at_cap", [True, False])
+async def test_reply_text_at_cap_marks_message_end_as_output_capped(monkeypatch, at_cap):
+    """写了正文、最后一次响应的 output_tokens 达到上限：照常 end_turn，MESSAGE_END 带结构化的
+    output_capped，loop 引擎据此区分「正文被输出上限截断」与「正文写完」（不看文字内容）。"""
+    tokens = _max_tokens() if at_cap else 1000
+    events, _requests, _state = await _run_against_local_model(
+        monkeypatch,
+        lambda _index: _reasoning_chunks(tokens, text="<file>\n合成正文写到一半", finish_reason="length"),
+        _unused_edit,
+    )
+
+    end = events[-1]
+    assert end.type == StreamEventType.MESSAGE_END
+    assert end.data["stop_reason"] == "end_turn"
+    assert end.data.get("output_capped", False) is at_cap
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_tool_call_then_thinking_only_truncated_turn_ends_as_truncated(monkeypatch):
     """交接后的 writer 常先调工具重读稿件，最后那次响应只剩思考并撞上输出上限：
     只看最后一次响应，这种情况同样不能当作正常结束。"""

@@ -37,6 +37,13 @@ Status: implemented
 - **H3：写工具在停止之后才提交**：`edit_file`、`create_file`、`write_chapter`、`delete_file`、`rename_file` 改用共享的 `_offload_write_tool`：线程 future 先登记进 `RunOutcome.inflight_tool_writes`（ToolContext 拿着同一个 list，所以比 `clear_context()` 活得长），用 `asyncio.shield` 等它；正常返回或出错时移除，被取消时留着。service 的取消与出错收尾在交回消息 id 之前调用 `RunOutcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S)`（取消收尾与 `settle_aborted_capture` 并发等，最长一个时限而不是两个相加），把完成的结构化结果按 tool_result 帧的格式记进 `committed_tool_results`；线程出错、超时、结果解析不了的不记。`StreamBillingTracker.note_committed_tool_results` 把它们交给与实时帧相同的规则（`_observe_effects`）：确认的修改、删除、改名算写入，新建的空文件成为占位候选，退还时照常移除。tracker 记下没有结果帧的写工具调用（`write_tool_unanswered()`），API 截停时有这类调用也先等消息 id；停止卡、结算和断线后台退还都在等到之后调用它。
 - **M8：压缩调用计入请求级模型调用预算**：`compact_history(run_meter=...)` 每次摘要调用前 `record_model_call()`，次数仍由 `_ATTEMPT_EFFORTS` 限定；`AGENT_RUN_MAX_MODEL_CALLS` 的注释改为「请求内的模型调用（SDK 轮次加压缩）」。
 
+### 后续修复：输出上限截断的新正文、流式写入时的自动保存
+
+- **新正文写到输出上限**：openai-agents 的 Chat Completions 流式 handler 不给 finish_reason，判断仍用 usage：正常结束的 run 最后一次响应 output_tokens 达到 `AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS * OUTPUT_CAP_RATIO` 时，runner 在 MESSAGE_END 上带 `output_capped=True`（stop_reason 仍是 `end_turn`，落库与历史回放不变；只有思考就撞上限的原有 `output_truncated` 不变）。StreamAdapter 把按流结束补全保存成功的新正文记进 `ToolContext.mark_cut_body_saved`（不进已保存的完整正文）。engine 在 run 边界取走这些记录（`take_cut_bodies`），这次 run 又带 `output_capped` 时：正文照样保存，作者看到固定说明「《…》写到了单次回复的输出上限，正文已保存到中断处。」；模型收到 `_BODY_CUT_CONTEXT`（截断处之前已保存、这一章没写完、附落库正文末尾 200 字，用 edit_file `op=append` 从断点续写，不整章重写，写完再自查；附的字数标为「截断处已保存的字数」，回复作者时这一章报续写后最后一次 edit_file 结果里的 `new_word_count`），不再收到「写完的正文已保存，请自查」。没有撞上限的未闭合正文（模型漏写 `</file>`）照旧按已保存续跑。判断只用 usage 与保存点的结构化记录，不看正文文字。
+- **整章替换的新正文写到输出上限**：行为不变（原文不动，在纠偏次数内经 `FILE_BODY_RESUME` 重试，补不成才说「未保存」），只把重试说明换成 `_CHAPTER_REPLACE_CUT_RETRY_CONTEXT`：如实说新正文被截断没保存，要求思考尽量简短。
+- **流式写入时暂停自动保存**：`SimpleEditor` 的 3 秒防抖自动保存在打开的文件正被 AI 流式写入（`isStreaming`）时不排期，与 `isAiEditing`、对比审阅同一处理。流式结束后 effect 重新排期：服务端没变（替换被拒或截断没保存）就照常用作者写字时的版本令牌保存；AI 的新稿已落库时，Editor 流式结束的回读（`loadData` → `syncOpenFileFromServer`，100 ms，早于 3 秒的自动保存）按 #381 打开对比审阅，自动保存随审阅暂停，两边的字都不丢。离开 / 切换文件时的最后一次保存（`onFlushReady`）和页面关闭时的本地草稿快照不受影响。
+- **重试时重新上锁**：整章替换被截断补全拒绝落库时适配器已发 `file_content_end`，编辑器的流式锁随之解除；`FILE_BODY_RESUME` 重试的 run 在 `<file>` 之前还有思考，期间作者的自动保存会推进版本，让重试的 `replace_body` 按版本冲突作废。`StreamAdapter._resume_file_body` 恢复捕获成功时立刻补发同一文件的 `file_created`，`startFileStreaming` 马上重新上锁（同一文件已在流式时不重置）；没恢复成功不发。空文件纠偏同样适用。
+
 ## Alternatives considered
 
 - **一个贯穿整个请求的写入证据对象**。最强的理由：所有下游读同一个对象，概念上最干净。没选的原因：取消收尾在 `ToolContext.clear_context()` 之后才跑，这个对象必须比 ToolContext 活得长，要另外穿过 service、API 和 runner；现有的两份记录（每轮回执、请求内的已保存正文）已经覆盖所有读者，只要产生点唯一就不会分叉。
@@ -53,13 +60,14 @@ Status: implemented
   - 作者停止时路由层只等 `STOP_MESSAGE_ID_WAIT_S`（3 秒），比 service 收尾的上限（`STREAM_FILE_SAVE_TIMEOUT_S` 加历史落库）短：3 秒之后才提交的写工具或补存，这一轮照样按没有产出退还，那时新建的空文件也不会被移除（留给作者自己删）。这是有意的取舍：不让停止按钮在少见的慢提交上多卡十几秒；方向偏向作者，不会重复扣费。断线路径在后台等 `ROUND_OUTCOME_MESSAGE_ID_WAIT_S`（30 秒），service 超过它时同样按退还处理。
   - 已解析、没开始提交就被截停的整章替换新稿作废，作者需要时重新生成；只有取消时已经在提交的整章替换会落库，它不发 diff 审阅事件，卡片也拿不到撤销锚点。
   - 网页上的撤销按钮只在卡片同时有已保存消息 id 和工具调用 id 时出现（`isPersistedUndoTarget`）：流式进行中的卡片要等这一轮结束、拿到消息 id 后才显示；没有工具调用 id 的旧记录、拿不到消息 id 的停止 / 失败轮不再显示，仍可从历史版本恢复。这样撤销总能记到卡片上，刷新后不会又显示成没撤销。
+  - 新正文被输出上限截断时，续写占用本轮的 run 次数（`AGENT_COLLABORATION_MAX_ITERATIONS`）与模型调用；续写成功后作者仍会看到那句「写到了单次回复的输出上限」，它说的是当时的保存事实。没续写成（run 次数用完、模型没有 append）时回合回执仍按落库字数列出这一章，加上那句说明，作者不会被告知这一章已写完。
+  - 流式写入期间作者在这之前打的字要等流式结束后才自动保存；这段时间关页面仍由本地草稿快照保护。
   - 测试随行为更新：`test_loop_round_endings` 里「总结之后不续跑」改为「已保存正文后续跑自查」；纠偏用例写的是资料文件（outline），续跑次数与修复前相同；一条停止 / 断线补存用例的断线分支改为断言撤回退还。
 
 ## Follow-up
 
 - 停止时才提交的写工具（H3）和停止时才提交的整章替换都没有结果帧：卡片不更新，也没有撤销锚点；改动可从历史版本恢复。需要时再把在途结果补成卡片。
-- 新章正文在一次回复里写满输出上限（约 62.7k 输出 token）被截断时，仍按未闭合 EOF 保存并说「已保存」；区分它需要 runner 在 MESSAGE_END 上带一个新的输出被截断标记，单独排期。
-- 整章替换在流式写入时，作者编辑器的自动保存可能先改了这一章：现在作者的保存胜出、AI 的替换按版本冲突拒绝，代价是白写一次。要暂停自动保存就会走 #381 的冲突审阅路径，需要编辑器层的运行时验证，单独处理。
+- 输出上限截断的判断假设供应商真的按 `AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS` 给满输出：供应商若静默用更低的上限，output_tokens 达不到比例，截断不被识别，退回修复前的「已保存、请自查」。离线无法核实各供应商的实际上限；确认后可改用每个供应商的有效上限，或在 `FailoverChatModel.stream_response` 从原始流块读出 finish_reason 作为结构化字段传下去。
 - `create_file` 复用已有空文件时不认领本条回复里先写出的正文，还没有复现到作者路径，暂不处理。
 - 不是停止 / 断线 / 时限的取消（例如 SDK 取消并行的兄弟工具任务）留在 `inflight_tool_writes` 里的写工具，正常结束时不等它们的结果，那次提交不进计费与写入回执；还没有复现到作者路径，需要时在正常收尾也调用 `settle_inflight_tool_writes`。
 - 作废一次从没写正文的整章替换时，作者会看到固定的「未保存」一句，接着模型按 `_REPLACE_UNSAVED_CONTEXT` 再用一两句话说同一件事。固定句是确定的事实，模型那段还要交代其他章节，暂时两者都留。

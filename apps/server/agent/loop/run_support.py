@@ -94,11 +94,42 @@ def collect_body_word_counts(file_ids: list[str]) -> list[tuple[str, int]] | Non
     return [by_id[file_id] for file_id in file_ids if file_id in by_id] or None
 
 
+def read_body_tail(file_id: str, chars: int) -> tuple[str, str] | None:
+    """这个文件落库后的（标题，正文最后 chars 个字符）；文件不在当前作品里时返回 None。"""
+    project_id = ToolContext.get_project_id()
+    if not project_id or not file_id:
+        return None
+
+    from models import File
+
+    with ToolContext.short_lived_session() as session:
+        file = session.get(File, file_id)
+        if file is None or file.project_id != project_id or file.is_deleted:
+            return None
+        content = (file.content or "").rstrip()
+        return file.title or "", content[-chars:]
+
+
 def format_body_word_counts(counts: list[tuple[str, int]] | None) -> str:
     if not counts:
         return ""
     lines = "\n".join(f"- 《{title}》{words} 字" if title else f"- {words} 字" for title, words in counts)
     return f"\n\n{BODY_WORD_COUNT_HEADER}\n{lines}\n{_BODY_WORD_COUNT_NOTE}"
+
+
+CUT_BODY_WORD_COUNT_HEADER = "[截断处已保存的字数]"
+_CUT_BODY_WORD_COUNT_NOTE = (
+    "这是截断处落库正文的字数，续写之后会变；回复作者时这一章的字数报最后一次 edit_file 结果里的 new_word_count，"
+    "不要报这里的数。"
+)
+
+
+def format_cut_body_word_counts(counts: list[tuple[str, int]] | None) -> str:
+    """被输出上限截断、待续写的正文在截断处的字数：标明是截断时的数，最终字数以续写的 edit_file 结果为准。"""
+    if not counts:
+        return ""
+    lines = "\n".join(f"- 《{title}》{words} 字" if title else f"- {words} 字" for title, words in counts)
+    return f"\n\n{CUT_BODY_WORD_COUNT_HEADER}\n{lines}\n{_CUT_BODY_WORD_COUNT_NOTE}"
 
 
 def tool_result_failed(result: Any) -> bool:

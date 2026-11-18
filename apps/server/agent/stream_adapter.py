@@ -1216,6 +1216,11 @@ class StreamAdapter:
 
         if refusal is None:
             request.armed = True
+            # 上一程可能已发过 file_content_end（整章替换被截断补全拒绝落库），编辑器的流式锁随之解除；
+            # 纠偏轮在 <file> 之前还有思考，期间作者未保存的文字若被自动保存会推进版本，重试的整章
+            # 替换就会因版本冲突作废。这里立刻重新告诉编辑器这个文件在等 AI 正文，让锁马上恢复。
+            if pending is not None:
+                yield file_created_event(pending.file_id, pending.file_type, pending.title)
         else:
             request.refusal = refusal
         log_with_context(
@@ -1701,12 +1706,17 @@ class StreamAdapter:
             )
         )
         try:
-            return await asyncio.shield(save)
+            saved = await asyncio.shield(save)
         except asyncio.CancelledError:
             self._abort_capture = (file_id, count_words(content), save)
             _ABORT_SAVE_TASKS.add(save)
             save.add_done_callback(_ABORT_SAVE_TASKS.discard)
             raise
+        if saved and result.auto_completed:
+            from agent.tools.mcp_tools import ToolContext
+
+            ToolContext.mark_cut_body_saved(file_id, self._save_title(file_id, pending))
+        return saved
 
     @staticmethod
     def _save_target(file_id: str, pending: PendingFileWrite | None) -> tuple[str, str | None]:

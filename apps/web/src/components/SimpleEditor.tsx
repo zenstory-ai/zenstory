@@ -861,6 +861,12 @@ export const SimpleEditor = ({
     // AI 正在改这份文件：先不排自动保存。标记清除后本 effect 会重新跑，
     // 届时再按新的基线保存，用户的本地改动不会丢。
     if (isAiEditing) return;
+    // AI 正在把正文流式写进这份文件（<file> 整章替换 / 新正文）：同样先不排自动保存。
+    // 这时保存的是流式开始前的旧稿，会推进版本、让 AI 写完的整章按版本冲突作废。
+    // 流式结束后本 effect 重新跑：服务端没变就照常保存作者的字；AI 的新稿落库了，
+    // Editor 的回读（syncOpenFileFromServer）先打开对比审阅，两边的字都不丢。
+    // 离开 / 切换文件时的最后一次保存（onFlushReady）不受影响。
+    if (isStreaming) return;
     // 对比审阅进行中：由作者在审阅里决定保留哪一份，审阅完成时整体写回。
     // 此时再按旧令牌自动保存只会撞 409 并把审阅重置成初始状态。
     if (isReviewMode) return;
@@ -875,7 +881,7 @@ export const SimpleEditor = ({
         saveTimeoutRef.current = null;
       }
     };
-  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing, showVersionHistory, isReviewMode, autosaveNudge]);
+  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing, isStreaming, showVersionHistory, isReviewMode, autosaveNudge]);
 
   // Handle save
   const handleSave = async (providedSubmission?: SaveSubmission): Promise<SaveOutcome> => {
