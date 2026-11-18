@@ -13,11 +13,26 @@ describe('HistoryCompactionMarker', () => {
     const summary = [
       '# 交接摘要',
       '',
+      '较早的对话已经整理为以下工作上下文。',
+      '',
+      '## 项目文件',
+      '',
+      '### 当前状态',
+      '',
+      '#### 后续顺序',
+      '',
+      '1. 先核对作者原文',
+      '2. 再续写第三章',
+      '',
       '- 保留作者原文',
       '',
       '| 文件 | id |',
       '| --- | --- |',
       '| 第一章 | `de904a54-c7b1-4fa0-be3c-ee0d4033048d` |',
+      '',
+      '```',
+      '第三章从旧挂钟继续。',
+      '```',
     ].join('\n')
 
     render(<HistoryCompactionMarker state="done" summary={summary} />)
@@ -28,6 +43,12 @@ describe('HistoryCompactionMarker', () => {
     fireEvent.click(toggle)
 
     expect(await screen.findByRole('heading', { level: 3, name: '交接摘要' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 4, name: '项目文件' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 5, name: '当前状态' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 6, name: '后续顺序' })).toBeInTheDocument()
+    expect(screen.getByText('较早的对话已经整理为以下工作上下文。').tagName).toBe('P')
+    expect(screen.getByText('先核对作者原文').closest('ol')).not.toBeNull()
+    expect(screen.getByText('再续写第三章').closest('ol')).not.toBeNull()
     expect(screen.getByText('保留作者原文').closest('li')).not.toBeNull()
 
     const table = await screen.findByRole('table')
@@ -35,6 +56,9 @@ describe('HistoryCompactionMarker', () => {
     expect(scrollContainer).toHaveClass('max-w-full', 'overflow-x-auto')
     expect(table).toHaveClass('w-max', 'min-w-full')
     expect(screen.getByText('de904a54-c7b1-4fa0-be3c-ee0d4033048d').tagName).toBe('CODE')
+    const fencedCode = screen.getByText('第三章从旧挂钟继续。')
+    expect(fencedCode.tagName).toBe('CODE')
+    expect(fencedCode.closest('pre')).toHaveClass('max-w-full', 'overflow-x-auto')
     expect(screen.queryByText(/^# 交接摘要$/)).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
 
