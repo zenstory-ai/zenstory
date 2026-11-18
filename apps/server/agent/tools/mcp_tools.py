@@ -1968,6 +1968,25 @@ def _chapter_title(title: str, number: int, unit: str) -> str:
     return f"{label} {number}: {text}"
 
 
+def _prefixed_chapter_heading(raw_title: str, unit: str) -> tuple[int, str] | None:
+    """识别导入拆章形如「{书名} - 第N章 …」的标题：返回 (标题里的章/集号, 章号所在半段 heading)，不匹配返回 None。"""
+    from utils.title_sequence import extract_sequence_number
+
+    text = raw_title.replace("\x00", "").strip()
+    if " - " not in text:
+        return None
+    parts = text.split(" - ")
+    for idx in range(1, len(parts)):
+        prefix = " - ".join(parts[:idx]).strip()
+        heading = " - ".join(parts[idx:]).strip()
+        if not prefix or not heading:
+            continue
+        seq = extract_sequence_number(heading, unit=unit)
+        if seq is not None:
+            return seq, heading
+    return None
+
+
 def _chapter_title_has_subtitle(raw_title: str, unit: str) -> bool:
     """判断传入的章节标题是否带有章名（而非仅传入空串或「第N章 / Chapter N」这类裸编号）。"""
     from utils.title_sequence import _RE_ARABIC_SEQ, _RE_CN_SEQ, _RE_EN_CHAPTER, extract_sequence_number
@@ -1975,6 +1994,9 @@ def _chapter_title_has_subtitle(raw_title: str, unit: str) -> bool:
     text = raw_title.replace("\x00", "").strip()
     if not text:
         return False
+    prefixed = _prefixed_chapter_heading(text, unit)
+    if prefixed is not None:
+        text = prefixed[1]
     if extract_sequence_number(text, unit=unit) is None:
         return True
     for pattern in (_RE_CN_SEQ, _RE_ARABIC_SEQ, _RE_EN_CHAPTER):
@@ -2067,6 +2089,9 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
         )
     raw_title = str(args.get("title") or "").strip()
     titled_number = extract_sequence_number(raw_title, unit=unit)
+    prefixed_heading = _prefixed_chapter_heading(raw_title, unit) if titled_number is None else None
+    if prefixed_heading is not None:
+        titled_number = prefixed_heading[0]
     if titled_number is not None and titled_number != number:
         return _write_chapter_error(
             f"标题「{raw_title}」写的是第{titled_number}{unit}，chapter 却是 {number}，没有写入。"
@@ -2153,7 +2178,11 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
             },
             tool_name=tool_name,
         )
-    requested_replace_title = title if _chapter_title_has_subtitle(raw_title, unit) else None
+    existing_title = (matches[0].title or "").strip()
+    if raw_title and raw_title == existing_title:
+        requested_replace_title = None
+    else:
+        requested_replace_title = title if _chapter_title_has_subtitle(raw_title, unit) else None
     return _write_chapter_replace(
         matches[0].id,
         number=number,

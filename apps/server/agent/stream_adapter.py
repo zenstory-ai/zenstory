@@ -1048,6 +1048,7 @@ class StreamAdapter:
                 yield content_start_event()
                 self._content_started = True
             yield content_event(warning_text)
+            card.pop("new_title", None)
             card.update({"mutation_applied": False, "body_saved": False})
             if pending.replace_tool_use_id:
                 yield tool_result_event(

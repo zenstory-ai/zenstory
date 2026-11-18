@@ -1604,3 +1604,104 @@ async def test_write_chapter_recognizes_uploaded_chapter_via_file_metadata(works
     assert armed["data"]["id"] == uploaded.id
     assert len(_drafts(workspace)) == 1
 
+
+async def test_write_chapter_uploaded_prefixed_title_preserves_or_updates_without_double_chapter_prefix(workspace):
+    """P2-3 × P3-H：导入章节形如「剑来 - 第1章 惊蛰」时，传同名标题保持不变，传「剑来 - 第1章 风起」在落库时更新为该标题而非拼出「第1章 剑来 - 第1章 …」，章号冲突仍报错。"""
+    from agent.tools.mcp_tools import WRITE_CHAPTER_INVALID_ERROR_TYPE, write_chapter
+
+    ch1 = File(
+        project_id=workspace.project.id,
+        title="剑来 - 第1章 惊蛰",
+        content="导入第一章旧稿。\n第二段。",
+        file_type="draft",
+        file_metadata=json.dumps({"source": "upload", "chapter_number": 1}, ensure_ascii=False),
+    )
+    ch2 = File(
+        project_id=workspace.project.id,
+        title="剑来 - 第2章 渡口",
+        content="导入第二章旧稿。\n第二段。",
+        file_type="draft",
+        file_metadata=json.dumps({"source": "upload", "chapter_number": 2}, ensure_ascii=False),
+    )
+    workspace.session.add_all([ch1, ch2])
+    workspace.session.flush()
+    for ch in (ch1, ch2):
+        FileVersionService().create_version(
+            workspace.session, ch.id, ch.content, change_type="create", change_source="ai", commit=False, skip_quota=True
+        )
+    workspace.session.commit()
+
+    ToolContext.set_context(
+        session=workspace.session,
+        user_id=workspace.user.id,
+        project_id=workspace.project.id,
+        session_id="loop-upload-mismatch",
+        author_message="检查章号冲突",
+    )
+    ToolContext.set_current_agent("loop")
+    try:
+        mismatch = _payload(await write_chapter({"chapter": 1, "title": "剑来 - 第2章 风起", "file_type": "draft"}))
+    finally:
+        ToolContext.clear_context()
+    assert mismatch["status"] == "error" and mismatch["error_type"] == WRITE_CHAPTER_INVALID_ERROR_TYPE
+
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "剑来 - 第1章 惊蛰", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{BODY_ONE}\n</file>\n", tools=(
+            ("write_chapter", {"chapter": 2, "title": "剑来 - 第2章 风起", "file_type": "draft"}),
+        )),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n两章重写完成。"),
+    ]])
+
+    await _run_loop(workspace, model, "重写前两章，第二章改名风起")
+
+    armed_one = model.tool_calls[0].output
+    assert "new_title" not in armed_one["data"]
+    armed_two = model.tool_calls[1].output
+    assert armed_two["data"]["new_title"] == "剑来 - 第2章 风起"
+
+    workspace.session.expire_all()
+    assert workspace.session.get(File, ch1.id).title == "剑来 - 第1章 惊蛰"
+    assert workspace.session.get(File, ch2.id).title == "剑来 - 第2章 风起"
+    assert _content(workspace, ch1.id).rstrip("\n") == BODY_ONE
+    assert _content(workspace, ch2.id).rstrip("\n") == NEW_BODY
+
+
+async def test_refused_replacement_clears_pending_new_title_from_card():
+    """整章替换被拒存（如并发冲突）时，补发的卡片不保留未生效的 new_title。"""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.tools.file_ops.crud import ConcurrentFileWriteError
+
+    adapter = StreamAdapter()
+    card = {
+        "id": "chapter-3",
+        "title": "第3章 灯塔",
+        "new_title": "第3章 破晓",
+        "action": "replaced",
+        "chapter": 3,
+    }
+    adapter.set_pending_file_write(
+        "chapter-3",
+        "draft",
+        "第3章 灯塔",
+        original_content_length=40,
+        baseline_updated_at="v1",
+        replace_tool_use_id="call-refused-title",
+        replace_card=card,
+        target_title="第3章 破晓",
+    )
+
+    def _refuse(*_args, **_kwargs):
+        raise ConcurrentFileWriteError("stale")
+
+    async def _workflow():
+        yield StreamEvent(StreamEventType.TEXT, {"text": f"<file>\n{NEW_BODY}\n</file>\n"})
+        yield StreamEvent(StreamEventType.MESSAGE_END, {"stop_reason": "end_turn"})
+
+    adapter._replace_file_body_sync = _refuse
+    frames = [frame async for frame in adapter.process_workflow_events(_workflow())]
+    [tool_frame] = [f for f in frames if f.type.value == "tool_result"]
+    assert tool_frame.data["data"]["body_saved"] is False
+    assert tool_frame.data["data"]["title"] == "第3章 灯塔"
+    assert "new_title" not in tool_frame.data["data"]
+

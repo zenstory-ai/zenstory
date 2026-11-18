@@ -22,11 +22,11 @@ Status: implemented
 
 1. **结构化区分续跑类型，仅剩写后自查的收尾正常落地（P2-1）**：
    - `loop/engine.py` 按结构化事实跟踪 `followup_kind`（`"self_check"` / `"correction"` / `"cut_body"` / `"unsaved_replace"` / `"unexecuted_tool"` / `"file_continuation"` / `"steering"`），绝不从自然语言猜测作者要写几章。
-   - 当 `runs > 0 and run_meter.past_wrap_up` 且 `followup_kind == "self_check"`（本轮已有确认落库的正文、无待写空文件、无输出上限截断残稿、无未保存整章替换、无未执行工具协议、无运行中插话）时：不发 `ITERATION_EXHAUSTED` 暂停卡；若上一轮恰好停在 `</file>` 尚未向作者写总结（`ended_on_file` 为真），补发一句确定性的中/英文已保存说明（`run_support.wrap_up_self_check_skipped_text`，列出已存标题并说明时间快到未再多做一轮自查，不引导回复「继续」）；随后照常执行 `auto_finalize_task_board_on_completion`，以 `end_turn`（`completed`）正常收尾。其余未完成续跑类型（`cut_body`、`correction`、`unsaved_replace`、`steering` 等）保持既有 `collaboration/wall_clock` 暂停卡不变。
+   - 当 `runs > 0 and run_meter.past_wrap_up` 且 `followup_kind == "self_check"`（本轮有尚未自查的已确认落库正文章节 `new_saved`、无待写空文件、无任何截断补全残稿 `cut_bodies`、无未保存整章替换、无未执行工具协议、无运行中插话）时：不发 `ITERATION_EXHAUSTED` 暂停卡；若上一轮恰好停在 `</file>` 尚未向作者写总结（`ended_on_file` 为真），补发一句确定性的中/英文已保存说明（`run_support.wrap_up_self_check_skipped_text`，只列已存正文类章节标题并说明时间快到未再多做一轮自查，不引导回复「继续」）；随后照常执行 `auto_finalize_task_board_on_completion`，以 `end_turn`（`completed`）正常收尾。资料文件（`outline` 等）刚落库停在 `</file>`、存在非空 `cut_bodies`（含 `output_capped=False` 的截断补全）或其余未完成续跑类型（`cut_body`、`correction`、`unsaved_replace`、`steering` 等）均保持既有 `collaboration/wall_clock` 暂停卡不变。
 2. **编辑器流式重载返回后二次校验脏缓冲区（P2-2）**：
    - `apps/web/src/components/Editor.tsx` 的 `loadData` 在 `await fileApi.get` 返回并通过 `generation` / `serverReadSeq` 校验后、`setFile(data)` 之前，再次检查 `!options?.discardUnsaved && currentFileRef.current?.id === data.id && editContentRef.current !== (currentFileRef.current.content || "")`；若作者在请求在途期间输入了文字，保留旧基线并直接转交 `syncOpenFileFromServerRef.current()` 走三方合并或冲突比较，绝不覆盖未保存输入。
 3. **`write_chapter` 整章替换支持同事务改标题，并拦截对锁定待写文件的 `rename_file` / `edit_file`（P2-3）**：
-   - `write_chapter` 命中已有章节（`action=replaced`）且传入了带章名的新标题（非空且非「第N章 / Chapter N」裸编号）时，校验标题长度与同目录重名后将 `new_title` 随 `PendingFileWrite.target_title` 传给 `FileEditor.replace_body`，在 `</file>` 落库的同一数据库写事务内一并更新 `file.title` 与 `file.order`；只传裸章号时照旧保留原标题。同步更新工具结果说明、`tool_schemas.py` 与 `prompts/base.py`。
+   - `write_chapter` 命中已有章节（`action=replaced`）且传入了带章名的新标题（非空、不等于现有标题，且非「第N章 / Chapter N」或「书名 - 第N章」裸编号；对导入拆章形如 `{前缀} - 第N章 …` 的标题同步校验编号一致且不重复拼接 `第N章 ` 前缀）时，校验标题长度与同目录重名后将 `new_title` 随 `PendingFileWrite.target_title` 传给 `FileEditor.replace_body`，在 `</file>` 落库的同一数据库写事务内一并更新 `file.title` 与 `file.order`；只传裸章号或原样传入现有标题时保留原标题，替换被拒时卡片清除待定 `new_title`。同步更新工具结果说明、`tool_schemas.py` 与 `prompts/base.py`。
    - `ToolContext.pending_empty_file_for(file_id)` 暴露按文件 ID 的待写查询；`_rename_file_sync`（对任意待写文件）与 `_edit_file_sync`（对整章替换锁定文件及单循环待写文件）拒绝在 `<file>` 落库前修改目标文件，返回 `error_type="chapter_replace_pending"`、`mutation_applied=False`，不推进数据库 `updated_at`。
 4. **压缩工具清单对齐 SDK `Converter.tool_to_openai` 并传 `max_retries=0`（P2-5c）**：
    - `compaction._chat_tools()` 直接复用 `build_agent_function_tools()` 与 `Converter.tool_to_openai` 生成工具定义（含 `"strict": False`），与正式运行请求逐字节一致，消除 `tools` 处的前缀缓存断裂。
@@ -47,3 +47,4 @@ Status: implemented
 
 - **收益**：已保存章节撞上 600s 收尾点不再诱导 Pro 用户陷入「继续 → 多写计划外新章」循环；流式刚结束时作者立刻打字不再被在途 GET 静默覆盖；重写章节并改标题在单次提交内原子完成，同轮误调 `rename_file` / `edit_file` 不再作废已付费生成的整章正文；压缩请求命中同一工具前缀且不自动重发超时大包；长导语未交付轮次如实退费，导入小说不再被 `write_chapter` 重复建章。
 - **代价**：多章连写请求恰好在某一章刚保存、准备自查兼续写下一章的边界撞上 600s 收尾时间时，本轮会按已完成当前章节正常收尾，不再弹出「继续完成」按钮，作者需再发一条消息让 AI 接着写后续章节。
+- **代价**：`FileVersion` 历史快照按既有设计仅保存正文内容而不保存文件标题，对同时更新了标题的 `write_chapter` 卡片执行撤销或版本回退时只恢复原正文，标题保持更新后的值（作者可在编辑器或对话中单独改回）。

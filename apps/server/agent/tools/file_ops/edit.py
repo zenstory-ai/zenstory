@@ -1251,7 +1251,6 @@ class FileEditor:
         result: dict[str, Any] = {
             "id": file.id,
             "title": file.title,
-            "previous_title": previous_title,
             "file_type": file.file_type,
             "mutation_applied": content_changed or title_changed,
             "previous_length": len(old_content),

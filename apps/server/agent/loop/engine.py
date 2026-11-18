@@ -678,14 +678,17 @@ async def run_loop_agent_streaming(
                     self_checked_ids |= written_ids
                     followup = template.format(titles=titles) + _word_count_note(list(saved))
                     if (
-                        saved_bodies
+                        new_saved
                         and not unsaved_ids
-                        and not (output_capped and cut_bodies)
+                        and not cut_bodies
                         and not unexecuted_this_run
                     ):
                         followup_kind = "self_check"
                         followup_ended_on_file = bool(ended_on_file)
-                        followup_saved_titles = [t for t in saved.values() if t]
+                        content_ids = set(ToolContext.saved_content_body_ids()) - unsaved_ids
+                        followup_saved_titles = [
+                            t for fid, t in saved.items() if fid in content_ids and t
+                        ] or [t for fid, t in saved.items() if fid in new_saved and t]
                     else:
                         followup_kind = "unexecuted_tool" if unexecuted_this_run else "file_continuation"
             boundary_steering = await _drain_boundary_steering(get_steering_messages)
