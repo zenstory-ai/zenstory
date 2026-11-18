@@ -122,7 +122,7 @@ agent/
   重试（`retry_unanswered`）删掉这条没得到回复的作者行前接过它上面的记录，本轮历史照它重建，本轮没有新记录时随本轮的行落库，不重付摘要。
   作者看得到这一步：摘要调用前发 `thinking`（`step=history_compaction`，「正在压缩对话…」）；成功后发 `history_compacted`（`data.summary`），
   并在本轮 `display_events` 开头记 `{"type": "history_compacted", "data": {}}`，刷新后前端在同一位置回放「对话已压缩」标记，摘要读本行的
-  `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件（退避目标封顶 950k，避免逼近 1M 窗口的存量老会话死锁）。摘要调用前先经 `IntraRunToolOutputTrimmer.trim_items` 折叠超预算旧工具载荷，再与 run 兜底一起按 `effective_history_provider_tokens`（对原始历史取 `max(last_prompt_tokens, 同量纲估算)`，防止数据库未折叠体积超过内存折叠后的实测读数而漏过 >1M 请求；若摘要首次请求仍遇 400/413 超窗则自动减半输入预算重试一次）做硬上限裁剪（`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS` 750000 / `AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS` 700000，`bound_history_for_provider`），常态绝不因 `cl100k_base` 虚高而提前砍掉旧消息。[loop-post-launch-fixes][n-loop-fixes]
+  `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件（退避目标封顶 950k，避免逼近 1M 窗口的存量老会话死锁）。模型调用成功时随 `prompt_tokens` 一并记录输入项字符数 `prompt_chars`，`effective_history_provider_tokens` 与 `compact_history` 优先按 `(prompt_tokens, prompt_chars)` 标定本会话真实字词比做锚点增量与折叠上限计算（无 `prompt_chars` 的旧行退回同量纲估算）；`kept_author_messages` 与旧压缩点分页统一用 `estimate_provider_text_tokens` 计 20k 预算，`COMPACT_PROMPT` 不设硬字数上限（由 `AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS` 兜底）；若摘要首次请求仍遇 400/413 超窗则自动减半输入预算重试一次（`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS` 750000 / `AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS` 700000，`bound_history_for_provider`），常态绝不因 `cl100k_base` 虚高而提前砍掉旧消息。[loop-post-launch-fixes][n-loop-fixes]
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
   （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时也经 `FILE_BODY_RESUME` 恢复捕获、
   补不成就作废定位，原文不动）、
@@ -176,7 +176,7 @@ agent/
   一处 replace 的 old 就是整份原文、或只有一处 replace 且原文两段以上而改完一段都没留下 → `whole_body_replace`（几处各自定位的小改动不算）；改完后有一段（≥ 80 字）逐字出现两次以上而改之前没有
   重复 → `duplicated_paragraph`。整批不落库。资料文件不受影响。
 - **落库**：assistant 行 `routing` 为空，`display_events` 只有 content / thinking_content / tool_call / iteration_exhausted / history_compacted，额外 metadata
-  `engine`、`prompt_tokens`、`compaction`（`MessageManager.save_messages(assistant_extra_metadata=…)`，取消 / 失败补存也带）。
+  `engine`、`prompt_tokens`、`prompt_chars`、`compaction`（`MessageManager.save_messages(assistant_extra_metadata=…)`，取消 / 失败补存也带）。
 - **测试**：AgentService 外壳用例（test_service、test_round3_service、test_user_message_sent_at、test_steering_live_run_enqueue、
   test_agent_service_session_id、test_first_message_hint、test_prompt_cache_prefix、e2e/test_agent_stream_e2e 与 test_api/test_agent、
   test_account_run_limit 里走 AgentService 的用例）替换 `agent.service.run_loop_agent_streaming` 产出工作流事件，外壳照常跑单循环的输入准备

@@ -24,8 +24,10 @@ from config.datetime_utils import utcnow
 from utils.logger import get_logger, log_with_context
 
 from .history import (
+    _WIRE_OVERHEAD_CHARS,
     LoopHistory,
     bound_history_for_provider,
+    calibrated_tokens_per_char,
     effective_history_provider_tokens,
     kept_author_messages,
     summary_message,
@@ -164,15 +166,22 @@ async def compact_history(
     发生在这一轮开始前，所以这里不看预算是否用完。
     """
     from agent.core import llm_failover
-    from agent.openai_agents.intra_run_trimmer import IntraRunToolOutputTrimmer
+    from agent.openai_agents.intra_run_trimmer import DEFAULT_MAX_INPUT_CHARS, IntraRunToolOutputTrimmer
     from agent.openai_agents.usage_hooks import agent_usage_attribution
     from services.usage.cost_budget import budget_attribution
 
     attribution = agent_usage_attribution()
     input_budget = AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS
-    # 先用与摘要 token 预算同量纲的字符上限（700k -> 1.05M 字符，约 ≤650k 中文 token）折叠超预算旧工具载荷，
-    # 尽量保住全部轮次的起止脉络与文件 id 摘要，不让硬上限兜底白白丢掉早期作者指令。
-    trimmer_max_chars = max(200_000, int(input_budget * 1.5))
+    # 优先用本会话实测 (prompt_tokens, prompt_chars) 反推精确字符上限；无实测锚点时退回 1.5 倍同量纲估算，
+    # 折叠超预算旧工具载荷而尽量保住全部轮次的起止脉络与文件 id 摘要。
+    ratio = calibrated_tokens_per_char(history)
+    if ratio is not None:
+        trimmer_max_chars = max(
+            200_000,
+            min(DEFAULT_MAX_INPUT_CHARS, int(input_budget / ratio) - _WIRE_OVERHEAD_CHARS),
+        )
+    else:
+        trimmer_max_chars = max(200_000, int(input_budget * 1.5))
     trimmed_items = IntraRunToolOutputTrimmer(max_input_chars=trimmer_max_chars).trim_items(
         history.items, instructions_chars=len(system_prompt)
     )
