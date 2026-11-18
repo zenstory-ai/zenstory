@@ -102,8 +102,9 @@ def bounded_items(items: list[dict[str, Any]], max_tokens: int) -> list[dict[str
             (idx for idx in range(start, len(items)) if items[idx].get("role") == "user"),
             None,
         )
-        if first_user is not None:
-            start = first_user
+        if first_user is None:
+            return []
+        start = first_user
     return list(items[start:])
 
 
@@ -206,7 +207,7 @@ def effective_history_provider_tokens(
         calibrated = history.last_prompt_tokens + round((curr_chars - history.last_prompt_chars) * ratio)
         return max(1, calibrated)
     estimated = estimate_provider_items_tokens(target_items)
-    if items is not None and items is not history.items:
+    if items is not None and target_items != history.items:
         return estimated
     return max(history.last_prompt_tokens, estimated)
 

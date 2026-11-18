@@ -64,7 +64,7 @@ def _is_request_rejected_error(exc: BaseException) -> bool:
     status = getattr(exc, "status_code", None)
     if not isinstance(status, int):
         status = getattr(getattr(exc, "response", None), "status_code", None)
-    return status in {400, 413}
+    return status in {400, 413, 422}
 
 
 def should_compact(
@@ -168,28 +168,41 @@ async def compact_history(
     from agent.core import llm_failover
     from agent.openai_agents.intra_run_trimmer import DEFAULT_MAX_INPUT_CHARS, IntraRunToolOutputTrimmer
     from agent.openai_agents.usage_hooks import agent_usage_attribution
+    from core.error_handler import APIException
     from services.usage.cost_budget import budget_attribution
 
     attribution = agent_usage_attribution()
     input_budget = AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS
-    # 优先用本会话实测 (prompt_tokens, prompt_chars) 反推精确字符上限；无实测锚点时退回 1.5 倍同量纲估算，
-    # 折叠超预算旧工具载荷而尽量保住全部轮次的起止脉络与文件 id 摘要。
     ratio = calibrated_tokens_per_char(history)
-    if ratio is not None:
-        trimmer_max_chars = max(
-            200_000,
-            min(DEFAULT_MAX_INPUT_CHARS, int(input_budget / ratio) - _WIRE_OVERHEAD_CHARS),
+
+    def _trim_for_budget(budget_tokens: int) -> list[dict[str, Any]]:
+        # 优先用本会话实测 (prompt_tokens, prompt_chars) 反推精确字符上限；无实测锚点时退回 1.5 倍同量纲估算，
+        # 折叠超预算旧工具载荷而尽量保住全部轮次的起止脉络与文件 id 摘要。
+        if ratio is not None:
+            trimmer_max_chars = max(
+                200_000,
+                min(DEFAULT_MAX_INPUT_CHARS, int(budget_tokens / ratio) - _WIRE_OVERHEAD_CHARS),
+            )
+        else:
+            trimmer_max_chars = max(200_000, int(budget_tokens * 1.5))
+        return IntraRunToolOutputTrimmer(max_input_chars=trimmer_max_chars).trim_items(
+            history.items, instructions_chars=len(system_prompt)
         )
-    else:
-        trimmer_max_chars = max(200_000, int(input_budget * 1.5))
-    trimmed_items = IntraRunToolOutputTrimmer(max_input_chars=trimmer_max_chars).trim_items(
-        history.items, instructions_chars=len(system_prompt)
-    )
+
+    trimmed_items = _trim_for_budget(input_budget)
     usage: dict[str, int] = {}
     summary = ""
     started = time.monotonic()
     for attempt_index, effort in enumerate(_ATTEMPT_EFFORTS):
         bounded = bound_history_for_provider(history, trimmed_items, input_budget)
+        if not bounded:
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Loop history compaction slice empty after bounding; skipping compaction",
+                input_budget=input_budget,
+            )
+            break
         messages = _request_messages(system_prompt, bounded)
         sink: dict[str, Any] = {}
         if run_meter is not None:
@@ -209,15 +222,19 @@ async def compact_history(
                     temperature=1.0,
                     top_p=0.95,
                 )
+        except APIException:
+            # 平台自身的配额/成本限制（如免费用户 ¥15 成本兜底 402）必须原样上抛，不降级成退避也不重撞主循环。
+            raise
         except Exception as exc:  # noqa: BLE001 - 压缩失败不影响这一轮照常运行
             has_next_attempt = attempt_index + 1 < len(_ATTEMPT_EFFORTS)
             if has_next_attempt and len(bounded) > 1 and _is_request_rejected_error(exc):
                 current_tokens = effective_history_provider_tokens(history, bounded)
                 input_budget = max(100_000, min(input_budget, current_tokens) // 2)
+                trimmed_items = _trim_for_budget(input_budget)
                 log_with_context(
                     logger,
                     30,  # WARNING
-                    "Loop history compaction rejected (400/413); retrying with halved input budget",
+                    "Loop history compaction rejected (400/413/422); retrying with halved input budget",
                     error_type=type(exc).__name__,
                     next_input_budget=input_budget,
                 )

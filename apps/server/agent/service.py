@@ -64,7 +64,9 @@ from .loop.history import (
     LOOP_ENGINE_METADATA_VALUE,
     LoopHistory,
     bound_history_for_provider,
+    effective_history_provider_tokens,
     estimate_provider_items_tokens,
+    estimate_provider_text_tokens,
     load_loop_history,
     row_metadata,
     valid_compaction,
@@ -219,12 +221,21 @@ def _stamp_body_receipts(
         call["result"] = stamped
 
 
+def _sync_uncertain_saves(run_outcome: Any, adapter: Any | None) -> None:
+    if run_outcome is None or adapter is None:
+        return
+    get_timed_out = getattr(adapter, "get_timed_out_save_file_ids", None)
+    if callable(get_timed_out):
+        run_outcome.uncertain_save_file_ids.update(get_timed_out())
+
+
 async def _settle_stopped_writes(run_outcome: Any, adapter: Any | None) -> None:
     """截停后同时等正文的补存 / 在途提交与线程里的写工具，结果写进 run_outcome（保存回执、工具结果）。"""
 
     async def _capture() -> None:
         if adapter is not None:
             run_outcome.saved_file_word_counts.update(await adapter.settle_aborted_capture())
+            _sync_uncertain_saves(run_outcome, adapter)
 
     await asyncio.gather(_capture(), run_outcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S))
 
@@ -1284,8 +1295,20 @@ class AgentService:
                 # 本轮刚完成压缩时 items 已是摘要结果，不再按压缩前读数裁剪。
                 if loop_compaction_record is None:
                     run_history = list(writing_state.get("history_items") or [])
+                    turn_user_text = str(writing_state.get("user_message") or "")
+                    turn_extra_tokens = max(0, estimate_provider_text_tokens(turn_user_text) - 50_000)
+                    history_max_tokens = max(100_000, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS - turn_extra_tokens)
+                    if effective_history_provider_tokens(loop_history, run_history) > history_max_tokens:
+                        from agent.openai_agents.intra_run_trimmer import IntraRunToolOutputTrimmer
+
+                        folded_history = IntraRunToolOutputTrimmer().trim_items(
+                            run_history, instructions_chars=len(system_prompt)
+                        )
+                        if folded_history != run_history:
+                            writing_state["history_items"] = folded_history
+                            run_history = folded_history
                     bounded_history = bound_history_for_provider(
-                        loop_history, run_history, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS
+                        loop_history, run_history, history_max_tokens
                     )
                     if len(bounded_history) < len(run_history):
                         log_with_context(
@@ -1311,6 +1334,7 @@ class AgentService:
                     # Yield SSE event
                     if event_type == "error" and run_outcome is not None:
                         run_outcome.saved_file_word_counts.update(stream_adapter.get_saved_file_word_counts())
+                        _sync_uncertain_saves(run_outcome, stream_adapter)
                     yield event.to_sse()
 
                     if event_type not in {"content", "thinking_content"}:
@@ -1503,6 +1527,7 @@ class AgentService:
                 assistant_message_id = await asyncio.shield(history_save_task)
                 if run_outcome is not None:
                     run_outcome.saved_file_word_counts.update(stream_adapter.get_saved_file_word_counts())
+                    _sync_uncertain_saves(run_outcome, stream_adapter)
                     run_outcome.resolve_message_id(assistant_message_id)
                 if pending_done_payload is not None:
                     yield done_event(
@@ -1625,6 +1650,7 @@ class AgentService:
                     )
                     saved_counts = adapter.get_saved_file_word_counts()
                 run_outcome.saved_file_word_counts.update(saved_counts)
+                _sync_uncertain_saves(run_outcome, adapter)
             if run_outcome is not None:
                 await run_outcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S)
             yield error_event(

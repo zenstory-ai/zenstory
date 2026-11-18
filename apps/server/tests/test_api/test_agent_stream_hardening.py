@@ -3222,3 +3222,151 @@ async def test_empty_file_created_by_its_thread_after_a_stop_is_removed_with_the
     assert _frame_data(rest, "quota_refunded")["removed_files"] == [{"id": file_id, "title": "第3章 迟到的空白"}]
     db_session.expire_all()
     assert db_session.get(File, file_id).is_deleted is True
+
+
+@pytest.mark.integration
+async def test_sync_file_save_failure_removes_empty_placeholder_on_refund(
+    client, db_session, monkeypatch
+):
+    """新建空章后流式保存同步抛错回滚（ERR_AGENT_FILE_SAVE_FAILED）：退费时软删空白占位章并返回 removed_files。"""
+    from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+    from models import File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+
+    adapter = StreamAdapter(StreamAdapterConfig(project_id=project.id, user_id=user.id, process_file_markers=True))
+    adapter.set_pending_file_write(
+        placeholder.id, "draft", placeholder.title, baseline_updated_at=placeholder.updated_at.isoformat()
+    )
+
+    def boom_save(_file_id, _content):
+        raise RuntimeError("simulated sync db error")
+
+    monkeypatch.setattr(adapter, "_save_file_content_sync", boom_save)
+
+    class _SyncSaveFailService:
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            try:
+                yield _sse("session_started", {"session_id": "s1"})
+                yield _create_file_result(placeholder)
+                async for frame in adapter._handle_text_content("<file>第一章正文内容</file>"):
+                    yield _sse(getattr(frame.type, "value", frame.type), frame.data)
+            finally:
+                run_outcome.saved_file_word_counts.update(adapter.get_saved_file_word_counts())
+                run_outcome.uncertain_save_file_ids.update(adapter.get_timed_out_save_file_ids())
+                run_outcome.resolve_message_id(message_id)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_SyncSaveFailService()),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        body = "".join([frame async for frame in response.body_iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    refunded = _frame_data(body, "quota_refunded")
+    assert refunded is not None
+    assert refunded["removed_files"] == [{"id": placeholder.id, "title": placeholder.title}]
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is True
+
+
+@pytest.mark.integration
+async def test_stop_after_terminal_non_refundable_error_does_not_preempt_or_refund(client, db_session):
+    """不可退终态错误帧已发出、服务端仍在 finally 清理时收到 /agent/stop：不接受停止、不补发退费。"""
+    from core.error_codes import ErrorCode
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, _filled, _older = _seed_round(db_session, project, user)
+    cleanup_gate = asyncio.Event()
+
+    class _SlowFinallyAfterErrorService:
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            try:
+                yield _sse("session_started", {"session_id": "s1"})
+                yield _sse(
+                    "error",
+                    {
+                        "code": ErrorCode.AGENT_TOOL_FAILURE_LIMIT,
+                        "message": "工具连续失败",
+                        "refundable": False,
+                    },
+                )
+            finally:
+                await cleanup_gate.wait()
+                run_outcome.resolve_message_id(message_id)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_SlowFinallyAfterErrorService()),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        first = await iterator.__anext__()
+        second = await iterator.__anext__()
+        assert "session_started" in first
+        assert ErrorCode.AGENT_TOOL_FAILURE_LIMIT in second
+
+        stop_res = await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+        assert stop_res.stop_requested is False
+        cleanup_gate.set()
+        rest = "".join([frame async for frame in iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_not_called()
+    assert _frame_data(rest, "quota_refunded") is None
+    assert _frame_data(rest, "done") is None
+
+
+@pytest.mark.integration
+async def test_update_project_committed_by_its_thread_after_a_stop_is_charged(client, db_session, monkeypatch):
+    """update_project 的线程在作者点停止后才提交可见项目信息（notes）：收尾等到结果并正常计费。"""
+    import threading
+
+    from agent.tools import mcp_tools
+    from models import Project
+    from tests.conftest import TestSessionLocal
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, _filled, _older = _seed_round(db_session, project, user)
+    release = threading.Event()
+
+    def slow_update_project(args, written_artifact_ids=None):
+        release.wait(5)
+        with TestSessionLocal() as session:
+            row = session.get(Project, project.id)
+            row.name = "新书名"
+            session.add(row)
+            session.commit()
+        return mcp_tools._make_result(
+            {
+                "status": "success",
+                "mutation_applied": True,
+                "data": {"updated_fields": ["notes"], "project_name_updated": True},
+            },
+            tool_name="update_project",
+        )
+
+    monkeypatch.setattr(mcp_tools, "_update_project_sync", slow_update_project)
+    service = _InflightWriteService(
+        project, user, "update_project", {"notes": "主角从不说敬语"}, message_id
+    )
+    with (
+        patch("api.agent.get_agent_service", return_value=service),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        rest = await _stop_while_a_write_tool_thread_runs(db_session, user, project, service, release)
+
+    refund.assert_not_called()
+    assert _frame_data(rest, "quota_refunded") is None
+    assert _frame_data(rest, "done")["produced_output"] is True
+

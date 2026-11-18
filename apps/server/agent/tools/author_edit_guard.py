@@ -25,6 +25,8 @@ _AI_CHANGE_SOURCE = "ai"
 _AI_EDIT_CHANGE_TYPE = "ai_edit"
 _RESTORE_CHANGE_TYPE = "restore"
 _USER_CHANGE_SOURCE = "user"
+_POLISH_REVIEWED_SUMMARY = "AI polish (reviewed)"
+_EDIT_REVIEWED_SUMMARY = "AI edit (reviewed)"
 # 撤销 / 审阅回到 AI 正文时往前比对的版本数（写锁内执行，保持有界）。
 _AI_TEXT_LOOKBACK = 5
 
@@ -103,10 +105,36 @@ def _latest_text_owner_is_author(session: Any, file: Any) -> bool | None:
         return False
     if latest.change_type == _AI_EDIT_CHANGE_TYPE:
         if not _is_review_save_after_ai_write(session, service, latest):
+            if _is_editor_polish_save(latest):
+                return _polish_retains_author_content(session, file.id, content)
             return False
     elif not (latest.change_type == _RESTORE_CHANGE_TYPE and latest.change_source == _USER_CHANGE_SOURCE):
         return True
     return not _returns_to_ai_text(session, service, latest, content)
+
+
+def _is_editor_polish_save(latest: Any) -> bool:
+    if getattr(latest, "change_source", None) != _USER_CHANGE_SOURCE:
+        return False
+    summary = str(getattr(latest, "change_summary", "") or "")
+    return summary.startswith((_POLISH_REVIEWED_SUMMARY, _EDIT_REVIEWED_SUMMARY))
+
+
+def _polish_retains_author_content(session: Any, file_id: str, content: str) -> bool | None:
+    """编辑器局部「去 AI 味」只把改过的段落标为 AI；其余段落仍属作者原稿或手改时继续保护整章。"""
+    from agent.tools.author_changes import AUTHOR, ORIGINAL, author_hunks, line_blame
+
+    blame = line_blame(session, file_id, content)
+    if blame is None:
+        return None
+    if not blame.complete:
+        return True
+    if any(
+        line.strip() and label in (AUTHOR, ORIGINAL)
+        for line, label in zip(blame.lines, blame.labels, strict=True)
+    ):
+        return True
+    return bool(author_hunks(blame))
 
 
 def _is_review_save_after_ai_write(session: Any, service: Any, latest: Any) -> bool:

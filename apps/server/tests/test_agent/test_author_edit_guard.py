@@ -723,3 +723,68 @@ async def test_edit_reports_unbacked_original_as_unapplied_typed_error(db_sessio
     assert payload["error_type"] == "pre_write_history_unavailable"
     assert payload["mutation_applied"] is False
     assert payload["edits_applied"] == 0
+
+
+async def test_partial_ai_polish_on_author_or_mixed_chapter_keeps_protection(db_session, owner_project):
+    """作者手写原稿或含手改的 AI 章局部点「去 AI 味 → 采用修改」后，其余作者段落仍在，聊天不能整章覆盖或删除。"""
+    user, project = owner_project
+    handwritten = (
+        "沈砚把账本合上，蜡烛已经烧到了铜盘底。\n\n"
+        "窗外的更夫敲过三更，巷子里连狗叫声都停了。\n\n"
+        "他把那页撕下来的欠条折成四折，塞进靴筒。"
+    )
+    chapter = File(project_id=project.id, title="第1章 账本", content=handwritten, file_type="draft")
+    db_session.add(chapter)
+    db_session.flush()
+    FileVersionService().create_version(
+        db_session, chapter.id, handwritten, change_type="create", change_source="user", user_id=user.id, commit=False
+    )
+    db_session.commit()
+    db_session.refresh(chapter)
+    polished = handwritten.replace(
+        "窗外的更夫敲过三更，巷子里连狗叫声都停了。",
+        "三更梆子响过，巷内万籁俱寂。",
+    )
+    files_api.update_file(
+        chapter.id,
+        files_api.FileUpdate(content=polished, change_type="ai_edit", change_summary="AI polish (reviewed)"),
+        current_user=user,
+        session=db_session,
+    )
+
+    delete_payload = await _run(
+        mcp_tools.delete_file, db_session, user, project, {"id": chapter.id}, message="删掉第一章"
+    )
+    assert delete_payload["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+
+    rewrite_payload = await _run(
+        mcp_tools.write_chapter,
+        db_session,
+        user,
+        project,
+        {"chapter": 1, "title": "第1章 账本"},
+        message="重写第一章",
+        current_agent="loop",
+    )
+    assert rewrite_payload["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).is_deleted is False
+    assert db_session.get(File, chapter.id).content == polished
+
+    # AI 初稿 → 作者手改第 1 段 → 对第 3 段执行去 AI 味：第 1 段作者手改仍在，同样受保护。
+    mixed_ai = "第一段 AI 原文。\n\n第二段 AI 原文。\n\n第三段 AI 原文。"
+    mixed = _ai_chapter(db_session, project, title="第2章 夜渡", content=mixed_ai)
+    author_edited = mixed_ai.replace("第一段 AI 原文。", "第一段作者亲手重写。")
+    _author_saves(db_session, user, mixed, author_edited)
+    mixed_polished = author_edited.replace("第三段 AI 原文。", "第三段经去 AI 味润色。")
+    files_api.update_file(
+        mixed.id,
+        files_api.FileUpdate(content=mixed_polished, change_type="ai_edit", change_summary="AI polish (reviewed)"),
+        current_user=user,
+        session=db_session,
+    )
+    mixed_delete = await _run(
+        mcp_tools.delete_file, db_session, user, project, {"id": mixed.id}, message="删掉第二章"
+    )
+    assert mixed_delete["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+

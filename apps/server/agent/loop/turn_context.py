@@ -84,6 +84,7 @@ def build_loop_turn_context(
         if focus is not None and not focus.is_deleted and focus.project_id == project_id and focus.file_type != "folder":
             items.append(assembler._file_to_context_item(focus, is_focus=True))
     items = assembler._deduplicate_items(items)
+    items = _bound_turn_context_items(items, assembler)
 
     project_status = assembler._get_project_status(session, project_id)
     rendered = assembler._format_context(items, None, project_status)
@@ -116,6 +117,55 @@ def build_loop_turn_context(
 
 # 本会话 AI 写过、会一起核对作者手改的正文类文件。
 _BODY_FILE_TYPES = ("draft", "script")
+
+
+def _bound_turn_context_items(
+    items: list[Any],
+    assembler: Any,
+    max_provider_tokens: int | None = None,
+) -> list[Any]:
+    """限制单轮焦点/附加文件与素材的总预算，常态多章附加原样给全文，数十万字长卷自动截断并引导 query_files。"""
+    if not items:
+        return items
+    from agent.context.budget import TokenBudget
+    from agent.loop.history import estimate_provider_text_tokens
+    from config.agent_runtime import AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS
+
+    limit = AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS if max_provider_tokens is None else max_provider_tokens
+    provider_total = sum(
+        estimate_provider_text_tokens(f"{item.title}\n{item.content}") + 32 for item in items
+    )
+    if provider_total <= limit:
+        return items
+
+    budget_calc = TokenBudget(max_tokens=1, item_overhead=assembler._item_render_overhead_tokens)
+    local_total = sum(budget_calc.estimate_item_tokens(item) for item in items)
+    scaled_max = max(1_000, int(local_total * limit / max(provider_total, 1)))
+
+    # 优先保住引用与当前打开的焦点文件全文（使 edit_file 快照可用），超大附加参考稿在剩余额度内截断。
+    indexed = sorted(
+        enumerate(items),
+        key=lambda pair: (0 if pair[1].type == "quote" else 1 if pair[1].is_focus else 2, pair[0]),
+    )
+    selected, _ = TokenBudget(
+        max_tokens=scaled_max,
+        item_overhead=assembler._item_render_overhead_tokens,
+    ).select_items([item for _, item in indexed])
+
+    # TokenBudget 对 CRITICAL 条目只截断不静默丢弃；按原进入顺序排回以便渲染稳定。
+    order_by_key = {
+        (orig_idx, id(item)): orig_idx for orig_idx, item in indexed
+    }
+    by_id_pos: dict[tuple[str, str], list[int]] = {}
+    for orig_idx, item in indexed:
+        by_id_pos.setdefault((str(item.type), str(item.id)), []).append(orig_idx)
+    restored: list[tuple[int, Any]] = []
+    for pos, sel in enumerate(selected):
+        candidates = by_id_pos.get((str(sel.type), str(sel.id)))
+        orig_idx = candidates.pop(0) if candidates else order_by_key.get((pos, id(sel)), pos)
+        restored.append((orig_idx, sel))
+    restored.sort(key=lambda pair: pair[0])
+    return [item for _, item in restored]
 
 
 def _author_edits_block(
