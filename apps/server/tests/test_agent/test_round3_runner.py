@@ -356,3 +356,52 @@ def test_usage_dict_is_empty_without_usage_payload():
         "total_tokens": 11,
         "cache_read_tokens": 10,
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_stream_exception_cancels_incomplete_sdk_result_and_closes_stream(monkeypatch):
+    """流式消费过程中抛出非取消异常时，立即 cancel 未完成的 SDK run 并关闭事件生成器。"""
+    from agents import Runner
+
+    from agent.core.workflow_events import StreamEventType
+    from agent.openai_agents.runner import run_openai_agents_streaming_agent
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "dummy-local-test-key")
+
+    cancel_modes: list[str] = []
+    stream_closed = False
+
+    class FakeResult:
+        is_complete = False
+        raw_responses: list = []
+
+        def cancel(self, mode: str = "immediate") -> None:
+            cancel_modes.append(mode)
+            self.is_complete = True
+
+        async def stream_events(self):
+            nonlocal stream_closed
+            try:
+                yield SimpleNamespace(
+                    type="raw_response_event",
+                    data=SimpleNamespace(type="response.output_text.delta", delta="半截"),
+                )
+                raise RuntimeError("upstream socket broken")
+            finally:
+                stream_closed = True
+
+    monkeypatch.setattr(Runner, "run_streamed", lambda *args, **kwargs: FakeResult())
+
+    state = {"user_message": "测试异常取消", "messages": [], "system_prompt": "base"}
+    events = [
+        event
+        async for event in run_openai_agents_streaming_agent(
+            state=state, agent_type="loop", system_prompt="你是测试助手"
+        )
+    ]
+
+    assert stream_closed is True
+    assert cancel_modes == ["immediate"]
+    assert events[-1].type == StreamEventType.ERROR
+

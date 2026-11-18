@@ -47,10 +47,9 @@ agent/
 │   ├── round_outcome.py    # 停止 / 断线的一轮怎样收尾（终态落库、空白占位文件）
 │   ├── run_meter.py        # 请求级模型调用计数与耗时
 │   ├── steering.py         # 运行中插话（steering）队列
-│   ├── progress_channel.py # 工具调用期间的进度事件通道
 │   ├── output_truncation.py# 输出截断后的续写提示
 │   ├── author_facing_text.py # 作者可见文字整理（AgentTextShaper）
-│   ├── session_loader.py   # 旧行（图写下的）的文字折叠、面包屑、作者手改与本会话写过的文件（另有待删的图输入加载器 load_session_and_context）
+│   ├── session_loader.py   # 旧行（图写下的）的文字折叠、面包屑、作者手改与本会话写过的文件
 │   ├── message_manager.py  # 系统提示构建、本轮上下文的共用分段、历史保存、作者语言判断
 │   ├── stream_processor.py # <file>…</file> 捕获状态机
 │   ├── llm_providers.py    # 主 / 备供应商配置与 OpenAI 兼容客户端
@@ -91,7 +90,7 @@ agent/
 │   ├── author_edit_guard.py# 作者手改文件的删除 / 整份覆盖保护
 │   ├── task_progress.py    # 任务板编号范围与实际文件对照
 │   └── permissions.py
-└── utils/                  # token_utils、world_model_visibility
+└── utils/                  # token_utils
 ```
 
 ## 单循环 agent
@@ -139,12 +138,11 @@ agent/
   「《…》写到了单次回复的输出上限，正文已保存到中断处。」（`author_facing_text.body_cut_at_output_cap_notice`），续跑说明 `_BODY_CUT_CONTEXT` 附落库正文末尾 200 字，
   要求用 edit_file `op=append` 从断点续写、不整章重写，写完再自查；没撞上限的未闭合正文（漏写 `</file>`）照旧按已保存续跑。整章替换的新正文被截断时
   仍是原文不动、在纠偏次数内重试，重试说明换成 `_CHAPTER_REPLACE_CUT_RETRY_CONTEXT`（说明被截断、思考尽量简短）。到收尾时间不再开新 run，
-  发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空。
+  发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空（API 墙钟硬超时补发暂停卡时 `iterations_used` 取 `RunOutcome.runs_started`）。
   收尾提醒（`runner._ModelCallCountingFilter`）用 `LOOP_SOFT_LANDING_PROMPT` / `LOOP_TIME_LANDING_PROMPT`
   （刚调用 write_chapter 或 create_file 还没写 `<file>` 的先写完）。空文件的核验与回滚在 `core/empty_files.py`，收尾说明、插话追加轮提示与续跑说明里的字数在 `loop/run_support.py`。
-- **工具与权限**：`registry.LOOP_TOOL_NAMES` 是唯一的工具集（顺序即请求里工具清单的顺序，前缀缓存依赖它），请求里也只给这一份
-  （`get_exposed_tools()`，其中 create_file 用 `tool_schemas.LOOP_TOOL_SCHEMA_OVERRIDES` 里不列 draft / script 的说明）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入照旧经 diff 审阅、撤销与版本保护；
-  写作约定追加许可放开（只追加、`expected_notes` 冲突保护不变）；`requested_body_write` / `no_file_changes` 回执不出现。
+- **工具与权限**：`registry.LOOP_TOOL_NAMES` 是唯一的工具集（顺序即请求里工具清单的顺序，前缀缓存依赖它），请求里直接从 `tool_schemas.TOOL_SCHEMAS` 按序取出（`get_exposed_tools()`；`CREATE_FILE_TOOL` 只列资料文件与文件夹，不列 draft / script）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入照旧经 diff 审阅、撤销与版本保护；
+  写作约定追加许可放开（只追加、`expected_notes` 冲突保护不变）。
   create_file 的 `empty=true` 在单循环轮次里直接生效（`ToolContext.author_wants_no_body`，由模型判断，不从原话推断）。
 - **正文按章号写入**（`mcp_tools.write_chapter`）：`write_chapter(chapter, title, file_type=draft|script, parent_id?, empty?)` 在本项目未删除的
   draft / script 里按标题开头的章号（draft）或集号（script）解析目标（`utils.title_sequence.extract_sequence_number(unit=…)`，有界的标识符解析；
@@ -175,7 +173,7 @@ agent/
   edit_file 改 draft / script 时 `FileEditor.edit_file(body_guards=True)` 在提交前做两道逐字检查（`file_ops.edit.check_body_edit_guards`，不判断语义）：
   一处 replace 的 old 就是整份原文、或只有一处 replace 且原文两段以上而改完一段都没留下 → `whole_body_replace`（几处各自定位的小改动不算）；改完后有一段（≥ 80 字）逐字出现两次以上而改之前没有
   重复 → `duplicated_paragraph`。整批不落库。资料文件不受影响。
-- **落库**：assistant 行 `routing` 为空，`display_events` 只有 content / thinking_content / tool_call / iteration_exhausted / history_compacted，额外 metadata
+- **落库**：assistant 行 `routing` 为空，`display_events` 只有 content / thinking_content / tool_call / iteration_exhausted / workflow_stopped / history_compacted，额外 metadata
   `engine`、`prompt_tokens`、`prompt_chars`、`compaction`（`MessageManager.save_messages(assistant_extra_metadata=…)`，取消 / 失败补存也带）。
 - **测试**：AgentService 外壳用例（test_service、test_round3_service、test_user_message_sent_at、test_steering_live_run_enqueue、
   test_agent_service_session_id、test_first_message_hint、test_prompt_cache_prefix、e2e/test_agent_stream_e2e 与 test_api/test_agent、
@@ -213,7 +211,7 @@ agent/
 
 ## 流的终止、停止与计费
 
-- 每个 `/agent/stream` 恰好以一个终止帧结束（`done` / `workflow_complete` / 终止性 `workflow_stopped` / `error`）；逃逸异常先补发 error 帧。
+- 每个 `/agent/stream` 恰好以一个终止帧结束（`done` / `workflow_stopped` / `error`）；逃逸异常先补发 error 帧。
   错误码与固定文案在 `core/stream_errors.py`。[terminal-frame][n-terminal]、[error-and-refund][n-refund]
 - 计费规则以 `core/stream_billing.py` 模块 docstring 为准：作者停止 / 断线时本轮没有实质产出则退还；墙钟超时（含发布重启）只认写进
   文件的正文、真正的回复或结束时正在写回复，只改了项目信息（AI 记忆）照样退还；失控停止（no_progress / 模型调用上限 / 工具轮数耗尽）且没有任何写入成功则退还；正常结束计费；出错时 error 帧

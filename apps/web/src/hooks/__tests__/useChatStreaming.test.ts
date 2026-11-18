@@ -15,7 +15,6 @@ function createMockDeps(): UseChatStreamingDependencies {
     appendFileContent: vi.fn(),
     finishFileStreaming: vi.fn(),
     startFileStreaming: vi.fn(),
-    streamingFileId: null,
     activeProjectId: 'test-project-id',
     t: vi.fn((key: string) => key),
   }
@@ -288,12 +287,8 @@ describe('useChatStreaming', () => {
       expect(typeof callbacks.onSegmentUpdate).toBe('function')
       expect(typeof callbacks.onSegmentUpdateToolCalls).toBe('function')
       expect(typeof callbacks.onSegmentEnd).toBe('function')
-      expect(typeof callbacks.onAgentSelected).toBe('function')
       expect(typeof callbacks.onIterationExhausted).toBe('function')
-      expect(typeof callbacks.onRouterThinking).toBe('function')
-      expect(typeof callbacks.onRouterDecided).toBe('function')
       expect(typeof callbacks.onWorkflowStopped).toBe('function')
-      expect(typeof callbacks.onWorkflowComplete).toBe('function')
       expect(typeof callbacks.onToolResult).toBe('function')
       expect(typeof callbacks.onFileCreated).toBe('function')
       expect(typeof callbacks.onFileContent).toBe('function')
@@ -302,7 +297,6 @@ describe('useChatStreaming', () => {
       expect(typeof callbacks.onFileEditApplied).toBe('function')
       expect(typeof callbacks.onFileEditEnd).toBe('function')
       expect(typeof callbacks.onSkillMatched).toBe('function')
-      expect(typeof callbacks.onSkillsMatched).toBe('function')
       expect(typeof callbacks.onComplete).toBe('function')
       expect(typeof callbacks.onError).toBe('function')
     })
@@ -784,138 +778,6 @@ describe('useChatStreaming', () => {
       })
     })
 
-    describe('onWorkflowComplete callback', () => {
-      it('adds workflow complete item', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onWorkflowComplete({
-            reason: 'task_complete',
-            agent_type: 'writer',
-            message: 'All tasks completed successfully',
-          })
-        })
-
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems).toHaveLength(1)
-        const item = result.current.streamRenderItems[0]
-        expect(item.type).toBe('workflow_complete')
-        expect(item.reason).toBe('task_complete')
-        expect(item.agentType).toBe('writer')
-        expect(item.message).toBe('All tasks completed successfully')
-      })
-
-      it('handles different completion reasons', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onWorkflowComplete({
-            reason: 'user_cancelled',
-            agent_type: 'router',
-            message: 'User cancelled operation',
-          })
-        })
-
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems[0].reason).toBe('user_cancelled')
-      })
-    })
-
-    describe('onAgentSelected callback', () => {
-      it('adds agent selected item', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onAgentSelected('writer', 'Content Writer', 1, 5, 4)
-        })
-
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems).toHaveLength(1)
-        const item = result.current.streamRenderItems[0]
-        expect(item.type).toBe('agent_selected')
-        expect(item.agentType).toBe('writer')
-        expect(item.agentName).toBe('Content Writer')
-        expect(item.iteration).toBe(1)
-        expect(item.maxIterations).toBe(5)
-        expect(item.remaining).toBe(4)
-      })
-    })
-
-    describe('onRouterThinking callback', () => {
-      it('adds router thinking item', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onRouterThinking('Analyzing request...')
-        })
-
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems).toHaveLength(1)
-        expect(result.current.streamRenderItems[0].type).toBe('router_thinking')
-      })
-    })
-
-    describe('onRouterDecided callback', () => {
-      it('adds router decided item', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onRouterDecided('writer', 'Write content', ['writer', 'editor'])
-        })
-
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems).toHaveLength(1)
-        const item = result.current.streamRenderItems[0]
-        expect(item.type).toBe('router_decided')
-        expect(item.initialAgent).toBe('writer')
-        expect(item.workflowPlan).toBe('Write content')
-        expect(item.workflowAgents).toEqual(['writer', 'editor'])
-      })
-
-      it('removes the pulsing 正在理解你的要求 chip once the plan is decided', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onThinking('正在组装上下文...')
-          callbacks.onRouterThinking('快速模式：正在理解你的要求...')
-          callbacks.onRouterDecided('writer', 'quick', [])
-        })
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems.map((item) => item.type)).not.toContain('router_thinking')
-        expect(result.current.streamRenderItems.at(-1)?.type).toBe('router_decided')
-      })
-    })
-
     describe('onWorkflowStopped callback', () => {
       it('adds workflow stopped item', () => {
         const { result } = renderHook(() => useChatStreaming())
@@ -943,46 +805,7 @@ describe('useChatStreaming', () => {
       })
     })
 
-    describe('new orchestration status callbacks', () => {
-      it('adds thinking_status item for handoff', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onHandoff?.({
-            target_agent: 'quality_reviewer',
-            reason: '自动质量门控',
-            context: '内容较长',
-          })
-        })
-
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems).toHaveLength(1)
-        const item = result.current.streamRenderItems[0]
-        expect(item.type).toBe('thinking_status')
-        expect(item.content).toContain('chat:workflow.handoffMessage')
-        // 交接说明是这一轮做过的事，完成后仍保留。
-        expect(item.transient).toBeUndefined()
-      })
-
-      it('skips the handoff bubble when the target role is unknown', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const callbacks = result.current.getStreamCallbacks(createMockDeps())
-
-        act(() => {
-          callbacks.onHandoff?.({ target_agent: 'internal_debugger', reason: 'debug', context: '' })
-        })
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems).toHaveLength(0)
-      })
-
+    describe('session and steering status callbacks', () => {
       it('does not add stream node for session_started (noise reduction)', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
@@ -997,120 +820,6 @@ describe('useChatStreaming', () => {
         })
 
         expect(result.current.streamRenderItems).toHaveLength(0)
-      })
-
-      it('adds thinking_status item for parallel_start', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onParallelStart?.('exec-1', 3, ['task1', 'task2', 'task3'])
-        })
-
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems).toHaveLength(1)
-        expect(result.current.streamRenderItems[0].type).toBe('thinking_status')
-        expect(result.current.streamRenderItems[0].content).toContain('chat:workflow.parallelStart')
-      })
-
-      it('renders no node on parallel task start, one line on task end (live progress)', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        // Task start only records the description; it renders no stream node.
-        act(() => {
-          callbacks.onParallelTaskStart?.('exec-1', 'task-1', 'tool_call', '章节检查')
-        })
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-        expect(result.current.streamRenderItems).toHaveLength(0)
-
-        // Task end renders a single per-task completion line.
-        act(() => {
-          callbacks.onParallelTaskEnd?.('exec-1', 'task-1', 'completed')
-        })
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-        expect(result.current.streamRenderItems).toHaveLength(1)
-        expect(result.current.streamRenderItems[0].type).toBe('thinking_status')
-        expect(result.current.streamRenderItems[0].content).toContain(
-          'chat:workflow.parallelTaskCompleted'
-        )
-      })
-
-      it('uses the failed label and includes the error on a failed parallel task', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onParallelTaskStart?.('exec-1', 'task-1', 'tool_call', '删除草稿')
-          callbacks.onParallelTaskEnd?.('exec-1', 'task-1', 'failed', undefined, 'File not found')
-        })
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems).toHaveLength(1)
-        expect(result.current.streamRenderItems[0].content).toContain(
-          'chat:workflow.parallelTaskFailed'
-        )
-      })
-
-      it('uses the partial label for a partially applied parallel task', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onParallelTaskStart?.('exec-1', 'task-1', 'edit_file', '改两处')
-          callbacks.onParallelTaskEnd?.('exec-1', 'task-1', 'partial')
-        })
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems).toHaveLength(1)
-        expect(result.current.streamRenderItems[0].content).toContain('chat:workflow.parallelTaskPartial')
-      })
-
-      it('does not claim completion for an unknown parallel task status', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onParallelTaskStart?.('exec-1', 'task-1', 'edit_file', '改两处')
-          callbacks.onParallelTaskEnd?.('exec-1', 'task-1', 'cancelled')
-        })
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems).toHaveLength(1)
-        expect(result.current.streamRenderItems[0].content).toContain('chat:workflow.parallelTaskEnded')
-      })
-
-      it('mentions partially applied tasks in the parallel end line', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onParallelEnd?.('exec-1', 2, 1, 0, 10, 1)
-        })
-        act(() => {
-          vi.advanceTimersByTime(100)
-        })
-
-        expect(result.current.streamRenderItems[0].content).toContain('chat:workflow.parallelEndWithPartial')
       })
 
       it('adds thinking_status item for steering_received', () => {
@@ -1405,7 +1114,6 @@ describe('useChatStreaming', () => {
       it('finishes file streaming and refreshes tree', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
-        deps.streamingFileId = 'file-123'
         const callbacks = result.current.getStreamCallbacks(deps)
 
         act(() => {
@@ -1452,7 +1160,7 @@ describe('useChatStreaming', () => {
         })
 
         act(() => {
-          callbacks.onFileEditApplied('file-123', 0, 'replace', 'old', 'new', true)
+          callbacks.onFileEditApplied(0, 'replace')
         })
 
         expect(result.current.editProgress?.completedEdits).toBe(1)
@@ -1479,7 +1187,7 @@ describe('useChatStreaming', () => {
         expect(result.current.editProgress).not.toBe(null)
 
         act(() => {
-          callbacks.onFileEditEnd('file-123', 5, 100, 'new content', 'old content')
+          callbacks.onFileEditEnd('file-123', 5, 'new content', 'old content')
         })
 
         act(() => {
@@ -1511,7 +1219,7 @@ describe('useChatStreaming', () => {
         })
 
         act(() => {
-          callbacks.onFileEditEnd('file-999', 1, 88, 'new content', 'old content', 'outline', 'Edited File')
+          callbacks.onFileEditEnd('file-999', 1, 'new content', 'old content', 'outline', 'Edited File')
         })
 
         expect(deps.triggerEditorRefresh).toHaveBeenCalledWith('file-999')
@@ -1532,7 +1240,7 @@ describe('useChatStreaming', () => {
         })
 
         act(() => {
-          callbacks.onFileEditEnd('file-123', 5, 100, 'new content')
+          callbacks.onFileEditEnd('file-123', 5, 'new content')
         })
 
         expect(deps.triggerEditorRefresh).toHaveBeenCalledWith('file-123')
@@ -1588,25 +1296,6 @@ describe('useChatStreaming', () => {
       })
     })
 
-    describe('onSkillsMatched callback', () => {
-      it('sets multiple matched skills', () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        act(() => {
-          callbacks.onSkillsMatched([
-            { id: '1', name: 'Fix', trigger: '/fix', confidence: 0.9 },
-            { id: '2', name: 'Summarize', trigger: '/summary', confidence: 0.8 },
-          ])
-        })
-
-        expect(result.current.matchedSkills).toHaveLength(2)
-        expect(result.current.matchedSkills[0].name).toBe('Fix')
-        expect(result.current.matchedSkills[1].name).toBe('Summarize')
-      })
-    })
-
     describe('onComplete callback', () => {
       it('clears edit progress and stream items', async () => {
         const { result } = renderHook(() => useChatStreaming())
@@ -1624,7 +1313,7 @@ describe('useChatStreaming', () => {
         })
 
         await act(async () => {
-          await callbacks.onComplete([], null)
+          await callbacks.onComplete([])
         })
 
         expect(result.current.editProgress).toBe(null)
@@ -1642,7 +1331,7 @@ describe('useChatStreaming', () => {
 
         let completion: void | Promise<void> = undefined
         act(() => {
-          completion = callbacks.onComplete([], null)
+          completion = callbacks.onComplete([])
           callerContinued()
         })
 
@@ -1665,7 +1354,7 @@ describe('useChatStreaming', () => {
           const callbacks = result.current.getStreamCallbacks(deps)
 
           await act(async () => {
-            await callbacks.onComplete([], null, { confirmedFileMutation: true })
+            await callbacks.onComplete([], { confirmedFileMutation: true })
           })
           act(() => {
             vi.advanceTimersByTime(250)
@@ -1684,7 +1373,7 @@ describe('useChatStreaming', () => {
           const callbacks = result.current.getStreamCallbacks(deps)
 
           await act(async () => {
-            await callbacks.onComplete([], null, completionMeta)
+            await callbacks.onComplete([], completionMeta)
           })
           act(() => {
             vi.advanceTimersByTime(250)
@@ -1701,7 +1390,7 @@ describe('useChatStreaming', () => {
           const callbacks = result.current.getStreamCallbacks(deps)
 
           await act(async () => {
-            await callbacks.onComplete([], null, { confirmedFileMutation: true, partial: true })
+            await callbacks.onComplete([], { confirmedFileMutation: true, partial: true })
           })
 
           expect(deps.triggerEditorRefresh).toHaveBeenCalledTimes(1)
@@ -1719,7 +1408,7 @@ describe('useChatStreaming', () => {
           expect(deps.triggerFileTreeRefresh).not.toHaveBeenCalled()
 
           await act(async () => {
-            await callbacks.onComplete([], null)
+            await callbacks.onComplete([])
           })
           expect(deps.triggerFileTreeRefresh).toHaveBeenCalledTimes(1)
 
@@ -1737,7 +1426,7 @@ describe('useChatStreaming', () => {
           const callbacks = result.current.getStreamCallbacks(deps)
 
           await act(async () => {
-            await callbacks.onComplete([], null)
+            await callbacks.onComplete([])
           })
 
           expect(deps.finishFileStreaming).toHaveBeenCalledTimes(1)
@@ -1769,7 +1458,6 @@ describe('useChatStreaming', () => {
         await act(async () => {
           await callbacks.onComplete(
             [{ id: '1', type: 'content', content: 'Final content' }],
-            null
           )
         })
 
@@ -1803,7 +1491,7 @@ describe('useChatStreaming', () => {
       it('finishes streaming file on error', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
-        deps.streamingFileId = 'file-123'
+        deps.getCurrentStreamingFileId = () => 'file-123'
         const callbacks = result.current.getStreamCallbacks(deps)
 
         act(() => {

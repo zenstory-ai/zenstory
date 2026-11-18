@@ -24,11 +24,7 @@ import type {
   IterationExhaustedLayer,
   SSEEvent,
   SSEEventType,
-  SSEHandoffData,
   SSEIterationExhaustedData,
-  SSERouterDecidedData,
-  SSERoutingMetadata,
-  SSEWorkflowCompleteData,
   SSEWorkflowStoppedData,
 } from "../types";
 import { ApiError, api, tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
@@ -98,25 +94,8 @@ function parseSSEEvent(eventString: string): SSEEvent | null {
  *   - project_id: Current project context
  *   - message: User's input message
  *   - selected_text: Optional text selected in editor
- *   - context_before/after: Optional surrounding context
- *   - outline_id: Optional outline reference
  *   - metadata: Additional request metadata
- * @param callbacks - Event callback handlers for each SSE event type:
- *   - onThinking: Agent internal reasoning updates
- *   - onThinkingContent: Streaming thinking content chunks
- *   - onContext: Context items being used for response
- *   - onContentStart/Content/ContentEnd: Main response text streaming
- *   - onToolCall/ToolResult: Tool execution lifecycle
- *   - onConflict: Conflict detection notifications
- *   - onFileCreated/Content/ContentEnd: File creation streaming
- *   - onFileEditStart/EditApplied/EditEnd: File edit operations
- *   - onSkillMatched/SkillsMatched: Skill detection events
- *   - onAgentSelected: Agent selection in multi-agent workflow
- *   - onIterationExhausted: Iteration limit reached warning
- *   - onRouterThinking/Decided: Router agent decision process
- *   - onWorkflowStopped/Complete: Workflow termination events
- *   - onDone: Stream completion with optional action refs
- *   - onError: Error handling with retry capability
+ * @param callbacks - Event callback handlers for each SSE event type
  * @returns AbortController for cancelling the stream request
  */
 type AgentStreamCallbacks = Parameters<typeof streamAgentRequest>[1];
@@ -154,8 +133,6 @@ export interface RemovedPlaceholderFile {
  * 写进了正文的文件不为空时还带 written_files（与刷新后 stop_outcome.written_files 同一份）。
  */
 export interface StreamDoneData {
-  apply_action?: string;
-  refs?: number[];
   assistant_message_id?: string;
   session_id?: string;
   file_mutated?: boolean;
@@ -280,13 +257,6 @@ export function streamAgentRequest(
       error?: string,
       toolUseId?: string,
     ) => void;
-    onConflict?: (conflict: {
-      type: string;
-      severity: string;
-      title: string;
-      description: string;
-      suggestions: string[];
-    }) => void;
     onFileCreated?: (fileId: string, fileType: string, title: string) => void;
     onFileContent?: (fileId: string, chunk: string) => void;
     onFileContentEnd?: (fileId: string) => void;
@@ -297,18 +267,12 @@ export function streamAgentRequest(
       fileType?: string,
     ) => void;
     onFileEditApplied?: (
-      fileId: string,
       editIndex: number,
       op: string,
-      oldPreview?: string,
-      newPreview?: string,
-      success?: boolean,
-      error?: string,
     ) => void;
     onFileEditEnd?: (
       fileId: string,
       editsApplied: number,
-      newLength: number,
       newContent?: string,
       originalContent?: string,
       fileType?: string,
@@ -316,14 +280,6 @@ export function streamAgentRequest(
       outcome?: FileEditOutcome,
     ) => void;
     onSkillMatched?: (skillId: string, skillName: string, matchedTrigger: string) => void;
-    onSkillsMatched?: (skills: Array<{ id: string; name: string; trigger: string; confidence: number }>) => void;
-    onAgentSelected?: (
-      agentType: string,
-      agentName: string,
-      iteration?: number,
-      maxIterations?: number,
-      remaining?: number
-    ) => void;
     onIterationExhausted?: (
       layer: IterationExhaustedLayer,
       iterationsUsed: number,
@@ -333,28 +289,10 @@ export function streamAgentRequest(
       limit?: string,
       files?: IterationExhaustedFiles
     ) => void;
-    onRouterThinking?: (message: string) => void;
-    onRouterDecided?: (
-      initialAgent: string,
-      workflowPlan: string,
-      workflowAgents: string[],
-      routingMetadata?: SSERoutingMetadata
-    ) => void;
-    onHandoff?: (data: SSEHandoffData) => void;
     onWorkflowStopped?: (data: SSEWorkflowStoppedData) => void;
-    onWorkflowComplete?: (data: SSEWorkflowCompleteData) => void;
     onSessionStarted?: (sessionId: string) => void;
     /** 响应头到达：本次运行的 X-Agent-Run-ID，停止生成时要用。 */
     onRunStarted?: (agentRunId: string) => void;
-    onParallelStart?: (
-      executionId: string,
-      taskCount: number,
-      descriptions: string[],
-      droppedCount?: number,
-    ) => void;
-    onParallelTaskStart?: (executionId: string, taskId: string, taskType: string, description: string) => void;
-    onParallelTaskEnd?: (executionId: string, taskId: string, status: string, resultPreview?: string, error?: string) => void;
-    onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number, partial?: number) => void;
     onSteeringReceived?: (messageId: string, preview: string) => void;
     /** Earlier conversation was summarized before this round; `summary` is what the AI now works from. */
     onHistoryCompacted?: (summary: string) => void;
@@ -405,9 +343,6 @@ export function streamAgentRequest(
           message: request.message,
           session_id: request.session_id,
           selected_text: request.selected_text,
-          context_before: request.context_before,
-          context_after: request.context_after,
-          outline_id: request.outline_id,
           metadata: request.metadata || {},
           selected_skill_ids: request.selected_skill_ids?.length
             ? request.selected_skill_ids
@@ -494,422 +429,257 @@ export function streamAgentRequest(
       const decoder = new TextDecoder();
       let buffer = "";
 
-      while (true) {
+      const dispatchSSEEvent = (event: SSEEvent) => {
+        switch (event.type) {
+          case "thinking": {
+            const data = event.data as { message: string; step?: string };
+            callbacks.onThinking?.(data.message, data.step);
+            break;
+          }
+          case "thinking_content": {
+            const data = event.data as { content: string; is_complete?: boolean };
+            callbacks.onThinkingContent?.(data.content, data.is_complete);
+            break;
+          }
+          case "context": {
+            const data = event.data as {
+              items: AgentContextItem[];
+              token_count?: number;
+            };
+            callbacks.onContext?.(data.items || [], data.token_count);
+            break;
+          }
+          case "content_start": {
+            callbacks.onContentStart?.();
+            break;
+          }
+          case "content": {
+            const data = event.data as { text: string; index?: number };
+            callbacks.onContent?.(data.text, data.index);
+            break;
+          }
+          case "content_end": {
+            callbacks.onContentEnd?.();
+            break;
+          }
+          case "tool_call": {
+            const data = event.data as {
+              tool_use_id?: string;
+              tool_name: string;
+              arguments: Record<string, unknown>;
+            };
+            if (data.tool_use_id) {
+              callbacks.onToolCall?.(data.tool_name, data.arguments, data.tool_use_id);
+            } else {
+              callbacks.onToolCall?.(data.tool_name, data.arguments);
+            }
+            break;
+          }
+          case "tool_result": {
+            const data = event.data as {
+              tool_use_id?: string;
+              tool_name: string;
+              status: string;
+              data?: Record<string, unknown>;
+              error?: string;
+            };
+            if (data.tool_use_id) {
+              callbacks.onToolResult?.(
+                data.tool_name,
+                data.status,
+                data.data,
+                data.error,
+                data.tool_use_id,
+              );
+            } else {
+              callbacks.onToolResult?.(
+                data.tool_name,
+                data.status,
+                data.data,
+                data.error,
+              );
+            }
+            break;
+          }
+          case "file_created": {
+            const data = event.data as {
+              file_id: string;
+              file_type: string;
+              title: string;
+            };
+            callbacks.onFileCreated?.(data.file_id, data.file_type, data.title);
+            break;
+          }
+          case "file_content": {
+            const data = event.data as {
+              file_id: string;
+              chunk: string;
+            };
+            callbacks.onFileContent?.(data.file_id, data.chunk);
+            break;
+          }
+          case "file_content_end": {
+            const data = event.data as {
+              file_id: string;
+            };
+            callbacks.onFileContentEnd?.(data.file_id);
+            break;
+          }
+          case "file_edit_start": {
+            const data = event.data as {
+              file_id: string;
+              title: string;
+              total_edits: number;
+              file_type?: string;
+            };
+            callbacks.onFileEditStart?.(data.file_id, data.title, data.total_edits, data.file_type);
+            break;
+          }
+          case "file_edit_applied": {
+            const data = event.data as {
+              edit_index: number;
+              op: string;
+            };
+            callbacks.onFileEditApplied?.(data.edit_index, data.op);
+            break;
+          }
+          case "file_edit_end": {
+            const data = event.data as {
+              file_id: string;
+              edits_applied: number;
+              new_content?: string;
+              original_content?: string;
+              file_type?: string;
+              title?: string;
+              failed_count?: number;
+              partial_success?: boolean;
+              all_failed?: boolean;
+              warnings?: string[];
+            };
+            callbacks.onFileEditEnd?.(
+              data.file_id,
+              data.edits_applied,
+              data.new_content,
+              data.original_content,
+              data.file_type,
+              data.title,
+              {
+                failedCount: data.failed_count ?? 0,
+                partialSuccess: Boolean(data.partial_success),
+                allFailed: Boolean(data.all_failed),
+                warnings: Array.isArray(data.warnings) ? data.warnings : [],
+              },
+            );
+            break;
+          }
+          case "skill_matched": {
+            const data = event.data as {
+              skill_id: string;
+              skill_name: string;
+              matched_trigger: string;
+            };
+            callbacks.onSkillMatched?.(data.skill_id, data.skill_name, data.matched_trigger);
+            break;
+          }
+          case "iteration_exhausted": {
+            const data = event.data as SSEIterationExhaustedData;
+            const parsed = parseIterationExhaustedFiles(data.unfinished_files, data.rolled_back_files);
+            const files = data.layer === "empty_file_correction" || Object.keys(parsed).length > 0
+              ? parsed
+              : undefined;
+            callbacks.onIterationExhausted?.(
+              data.layer,
+              data.iterations_used,
+              data.max_iterations,
+              data.reason,
+              data.last_agent,
+              data.limit,
+              ...(files ? [files] : []),
+            );
+            break;
+          }
+          case "workflow_stopped": {
+            const data = event.data as SSEWorkflowStoppedData;
+            callbacks.onWorkflowStopped?.(data);
+            break;
+          }
+          case "session_started": {
+            const data = event.data as { session_id: string };
+            const existing = debugContext.get() ?? {};
+            debugContext.set({
+              ...existing,
+              trace_id: existing.trace_id ?? responseTraceId,
+              request_id: existing.request_id ?? responseRequestId,
+              agent_run_id: existing.agent_run_id ?? responseAgentRunId,
+              project_id: existing.project_id ?? request.project_id,
+              agent_session_id: data.session_id,
+              route: existing.route ?? window.location.href,
+              created_at: existing.created_at ?? new Date().toISOString(),
+            });
+            callbacks.onSessionStarted?.(data.session_id);
+            break;
+          }
+          case "steering_received": {
+            const data = event.data as {
+              message_id: string;
+              preview: string;
+            };
+            callbacks.onSteeringReceived?.(data.message_id, data.preview);
+            break;
+          }
+          case "history_compacted": {
+            const data = event.data as { summary?: unknown };
+            callbacks.onHistoryCompacted?.(typeof data.summary === "string" ? data.summary : "");
+            break;
+          }
+          case "done": {
+            const data = event.data as StreamDoneData;
+            receivedTerminalEvent = true;
+            callbacks.onDone?.(data);
+            break;
+          }
+          case "error": {
+            const data = event.data as StreamErrorEventData;
+            receivedTerminalEvent = true;
+            callbacks.onError?.(
+              streamErrorForAuthor(data),
+              data.code,
+              data.retryable,
+            );
+            break;
+          }
+          case "quota_refunded": {
+            notifyQuotaRefunded(event.data, callbacks);
+            break;
+          }
+        }
+      };
+
+      let streamDone = false;
+      while (!streamDone) {
         failurePhase = "read";
         const { done, value } = await reader.read();
 
         if (done) {
-          // Flush decoder buffer to avoid losing split UTF-8 characters at stream end.
+          // Flush decoder buffer and parse any trailing event when upstream closes without final "\n\n".
           buffer += decoder.decode();
-          break;
+          streamDone = true;
+        } else {
+          buffer += decoder.decode(value, { stream: true });
         }
-
-        buffer += decoder.decode(value, { stream: true });
 
         // SSE events are separated by double newlines
         const events = buffer.split("\n\n");
-        // Keep the last incomplete event in buffer
-        buffer = events.pop() || "";
+        buffer = streamDone ? "" : (events.pop() || "");
 
         for (const eventString of events) {
           if (!eventString.trim()) continue;
-
           failurePhase = "parse";
           const event = parseSSEEvent(eventString);
           if (!event) continue;
           telemetry.noteEvent();
-
           failurePhase = "callback";
-          switch (event.type) {
-            case "thinking": {
-              const data = event.data as { message: string; step?: string };
-              callbacks.onThinking?.(data.message, data.step);
-              break;
-            }
-            case "thinking_content": {
-              const data = event.data as { content: string; is_complete?: boolean };
-              callbacks.onThinkingContent?.(data.content, data.is_complete);
-              break;
-            }
-            case "context": {
-              const data = event.data as {
-                items: AgentContextItem[];
-                token_count?: number;
-              };
-              callbacks.onContext?.(data.items || [], data.token_count);
-              break;
-            }
-            case "content_start": {
-              callbacks.onContentStart?.();
-              break;
-            }
-            case "content": {
-              const data = event.data as { text: string; index?: number };
-              callbacks.onContent?.(data.text, data.index);
-              break;
-            }
-            case "content_end": {
-              callbacks.onContentEnd?.();
-              break;
-            }
-            case "tool_call": {
-              const data = event.data as {
-                tool_use_id?: string;
-                tool_name: string;
-                arguments: Record<string, unknown>;
-              };
-              if (data.tool_use_id) {
-                callbacks.onToolCall?.(data.tool_name, data.arguments, data.tool_use_id);
-              } else {
-                callbacks.onToolCall?.(data.tool_name, data.arguments);
-              }
-              break;
-            }
-            case "tool_result": {
-              const data = event.data as {
-                tool_use_id?: string;
-                tool_name: string;
-                status: string;
-                data?: Record<string, unknown>;
-                error?: string;
-              };
-              if (data.tool_use_id) {
-                callbacks.onToolResult?.(
-                  data.tool_name,
-                  data.status,
-                  data.data,
-                  data.error,
-                  data.tool_use_id,
-                );
-              } else {
-                callbacks.onToolResult?.(
-                  data.tool_name,
-                  data.status,
-                  data.data,
-                  data.error,
-                );
-              }
-              break;
-            }
-            case "conflict": {
-              const data = event.data as {
-                type: string;
-                severity: string;
-                title: string;
-                description: string;
-                suggestions: string[];
-              };
-              callbacks.onConflict?.(data);
-              break;
-            }
-            case "file_created": {
-              const data = event.data as {
-                file_id: string;
-                file_type: string;
-                title: string;
-              };
-              callbacks.onFileCreated?.(data.file_id, data.file_type, data.title);
-              break;
-            }
-            case "file_content": {
-              const data = event.data as {
-                file_id: string;
-                chunk: string;
-              };
-              callbacks.onFileContent?.(data.file_id, data.chunk);
-              break;
-            }
-            case "file_content_end": {
-              const data = event.data as {
-                file_id: string;
-              };
-              callbacks.onFileContentEnd?.(data.file_id);
-              break;
-            }
-            case "file_edit_start": {
-              const data = event.data as {
-                file_id: string;
-                title: string;
-                total_edits: number;
-                file_type?: string;
-              };
-              callbacks.onFileEditStart?.(data.file_id, data.title, data.total_edits, data.file_type);
-              break;
-            }
-            case "file_edit_applied": {
-              const data = event.data as {
-                file_id: string;
-                edit_index: number;
-                op: string;
-                old_preview?: string;
-                new_preview?: string;
-                success: boolean;
-                error?: string;
-              };
-              callbacks.onFileEditApplied?.(
-                data.file_id,
-                data.edit_index,
-                data.op,
-                data.old_preview,
-                data.new_preview,
-                data.success,
-                data.error,
-              );
-              break;
-            }
-            case "file_edit_end": {
-              const data = event.data as {
-                file_id: string;
-                edits_applied: number;
-                new_length: number;
-                new_content?: string;
-                original_content?: string;
-                file_type?: string;
-                title?: string;
-                failed_count?: number;
-                partial_success?: boolean;
-                all_failed?: boolean;
-                warnings?: string[];
-              };
-              callbacks.onFileEditEnd?.(
-                data.file_id,
-                data.edits_applied,
-                data.new_length,
-                data.new_content,
-                data.original_content,
-                data.file_type,
-                data.title,
-                {
-                  failedCount: data.failed_count ?? 0,
-                  partialSuccess: Boolean(data.partial_success),
-                  allFailed: Boolean(data.all_failed),
-                  warnings: Array.isArray(data.warnings) ? data.warnings : [],
-                },
-              );
-              break;
-            }
-            case "skill_matched": {
-              const data = event.data as {
-                skill_id: string;
-                skill_name: string;
-                matched_trigger: string;
-              };
-              callbacks.onSkillMatched?.(data.skill_id, data.skill_name, data.matched_trigger);
-              break;
-            }
-            case "skills_matched": {
-              const data = event.data as {
-                skills: Array<{ id: string; name: string; trigger: string; confidence: number }>;
-                total_count: number;
-              };
-              callbacks.onSkillsMatched?.(data.skills);
-              break;
-            }
-            case "agent_selected": {
-              const data = event.data as {
-                agent_type: string;
-                agent_name: string;
-                iteration?: number;
-                max_iterations?: number;
-                remaining?: number;
-              };
-              callbacks.onAgentSelected?.(
-                data.agent_type,
-                data.agent_name,
-                data.iteration,
-                data.max_iterations,
-                data.remaining
-              );
-              break;
-            }
-            case "iteration_exhausted": {
-              const data = event.data as SSEIterationExhaustedData;
-              const parsed = parseIterationExhaustedFiles(data.unfinished_files, data.rolled_back_files);
-              const files = data.layer === "empty_file_correction" || Object.keys(parsed).length > 0
-                ? parsed
-                : undefined;
-              callbacks.onIterationExhausted?.(
-                data.layer,
-                data.iterations_used,
-                data.max_iterations,
-                data.reason,
-                data.last_agent,
-                data.limit,
-                ...(files ? [files] : []),
-              );
-              break;
-            }
-            case "router_thinking": {
-              const data = event.data as { message: string };
-              callbacks.onRouterThinking?.(data.message);
-              break;
-            }
-            case "router_decided": {
-              const data = event.data as SSERouterDecidedData;
-              callbacks.onRouterDecided?.(
-                data.initial_agent,
-                data.workflow_plan,
-                data.workflow_agents,
-                data.routing_metadata
-              );
-              break;
-            }
-            case "handoff": {
-              const data = event.data as SSEHandoffData;
-              callbacks.onHandoff?.(data);
-              break;
-            }
-            case "workflow_stopped": {
-              const data = event.data as SSEWorkflowStoppedData;
-              callbacks.onWorkflowStopped?.(data);
-              break;
-            }
-            case "workflow_complete": {
-              const data = event.data as SSEWorkflowCompleteData;
-              callbacks.onWorkflowComplete?.(data);
-              break;
-            }
-            case "session_started": {
-              const data = event.data as { session_id: string };
-              const existing = debugContext.get() ?? {};
-              debugContext.set({
-                ...existing,
-                trace_id: existing.trace_id ?? responseTraceId,
-                request_id: existing.request_id ?? responseRequestId,
-                agent_run_id: existing.agent_run_id ?? responseAgentRunId,
-                project_id: existing.project_id ?? request.project_id,
-                agent_session_id: data.session_id,
-                route: existing.route ?? window.location.href,
-                created_at: existing.created_at ?? new Date().toISOString(),
-              });
-              callbacks.onSessionStarted?.(data.session_id);
-              break;
-            }
-            case "parallel_start": {
-              const data = event.data as {
-                execution_id: string;
-                task_count: number;
-                task_descriptions: string[];
-                dropped_count?: number;
-              };
-              callbacks.onParallelStart?.(
-                data.execution_id,
-                data.task_count,
-                data.task_descriptions,
-                data.dropped_count ?? 0,
-              );
-              break;
-            }
-            case "parallel_task_start": {
-              const data = event.data as {
-                execution_id: string;
-                task_id: string;
-                task_type: string;
-                description: string;
-              };
-              callbacks.onParallelTaskStart?.(data.execution_id, data.task_id, data.task_type, data.description);
-              break;
-            }
-            case "parallel_task_end": {
-              const data = event.data as {
-                execution_id: string;
-                task_id: string;
-                status: string;
-                result_preview?: string;
-                error?: string;
-              };
-              callbacks.onParallelTaskEnd?.(data.execution_id, data.task_id, data.status, data.result_preview, data.error);
-              break;
-            }
-            case "parallel_end": {
-              const data = event.data as {
-                execution_id: string;
-                total_tasks: number;
-                completed: number;
-                failed: number;
-                duration_ms: number;
-                partial?: number;
-              };
-              callbacks.onParallelEnd?.(
-                data.execution_id,
-                data.total_tasks,
-                data.completed,
-                data.failed,
-                data.duration_ms,
-                typeof data.partial === "number" ? data.partial : 0,
-              );
-              break;
-            }
-            case "steering_received": {
-              const data = event.data as {
-                message_id: string;
-                preview: string;
-              };
-              callbacks.onSteeringReceived?.(data.message_id, data.preview);
-              break;
-            }
-            case "history_compacted": {
-              const data = event.data as { summary?: unknown };
-              callbacks.onHistoryCompacted?.(typeof data.summary === "string" ? data.summary : "");
-              break;
-            }
-            case "done": {
-              const data = event.data as StreamDoneData;
-              receivedTerminalEvent = true;
-              callbacks.onDone?.(data);
-              break;
-            }
-            case "error": {
-              const data = event.data as StreamErrorEventData;
-              receivedTerminalEvent = true;
-              callbacks.onError?.(
-                streamErrorForAuthor(data),
-                data.code,
-                data.retryable,
-              );
-              break;
-            }
-            case "quota_refunded": {
-              notifyQuotaRefunded(event.data, callbacks);
-              break;
-            }
-          }
-        }
-      }
-
-      // Parse any trailing buffered event when upstream closes without final "\n\n".
-      if (buffer.trim()) {
-        const trailingEvents = buffer.split("\n\n").filter((item) => item.trim());
-        for (const eventString of trailingEvents) {
-          failurePhase = "parse";
-          const event = parseSSEEvent(eventString);
-          if (!event) continue;
-
-          failurePhase = "callback";
-          switch (event.type) {
-            case "done": {
-              const data = event.data as StreamDoneData;
-              receivedTerminalEvent = true;
-              callbacks.onDone?.(data);
-              break;
-            }
-            case "error": {
-              const data = event.data as StreamErrorEventData;
-              receivedTerminalEvent = true;
-              callbacks.onError?.(
-                streamErrorForAuthor(data),
-                data.code,
-                data.retryable,
-              );
-              break;
-            }
-            case "quota_refunded": {
-              notifyQuotaRefunded(event.data, callbacks);
-              break;
-            }
-            default:
-              break;
-          }
+          dispatchSSEEvent(event);
         }
       }
 

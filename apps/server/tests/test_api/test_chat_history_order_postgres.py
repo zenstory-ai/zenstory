@@ -25,7 +25,7 @@ from sqlmodel import Session, SQLModel, select
 import database
 from agent import suggest_service
 from agent.core.llm_client import LLMClient
-from agent.core.session_loader import SessionLoader
+from agent.loop.history import load_loop_history
 from main import app
 from models import ChatMessage, ChatSession, Project, User
 from services.core.auth_service import create_access_token
@@ -295,15 +295,23 @@ def test_real_session_loader_tie_policy_control(pg_engine, actors, observation):
     snapshot = seed_history(pg_engine, actors, tied=True)
     with Session(pg_engine) as session:
         assert session.expire_on_commit and not session.identity_map
-        result = SessionLoader(actors["project"], actors["owner"]).load_chat_session(session)
-        expected = [row["id"] for row in latest_window(snapshot, len(snapshot["stored"]))]
-        observed = [row["id"] for row in result.history_messages]
-        record("session_loader", expected_ids=expected, observed_ids=observed,
-               session_id=result.session_id)
-        assert result.session_id == actors["chat"]
+        result = load_loop_history(
+            session,
+            project_id=actors["project"],
+            user_id=actors["owner"],
+            chat_session_id=actors["chat"],
+        )
+        expected = [row["content"] for row in latest_window(snapshot, len(snapshot["stored"]))]
+        observed = [item["content"] for item in result.items]
+        record("loop_history", expected_contents=expected, observed_contents=observed,
+               session_id=actors["chat"])
         assert observed == expected
-        denied = SessionLoader(actors["foreign_project"], actors["owner"]).load_chat_session(session)
-        assert denied.history_messages == [] and denied.session_id is None
+        foreign_session = session.get(ChatSession, actors["foreign_chat"])
+        assert foreign_session is not None
+        assert not (
+            foreign_session.user_id == actors["owner"]
+            and foreign_session.project_id == actors["foreign_project"]
+        )
 
 
 @pytest.mark.parametrize("endpoint", ["recent"])

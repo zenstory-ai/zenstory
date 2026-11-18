@@ -37,7 +37,6 @@ def test_save_returns_committed_id_without_reloading_message(
     tool_calls = [{"id": "tool-1", "name": "query_files", "input": {"title": "雪😀"}}] if full else None
     status_cards = [{"type": "workflow_stopped", "question": "继续？"}] if full else None
     display_events = [{"type": "content", "text": assistant_text}] if full else None
-    routing = {"scope": "完整保留", "write_content": False} if full else None
     sent_at = datetime(2026, 10, 17, 1, 2, 3)
     message_selects: list[str] = []
 
@@ -64,7 +63,6 @@ def test_save_returns_committed_id_without_reloading_message(
                 assistant_status_cards=status_cards,
                 steering_messages=["作者插话", " ", ""],
                 assistant_display_events=display_events,
-                assistant_routing=routing,
                 persist_empty_assistant=payload == "forced_empty",
                 user_created_at=sent_at,
             )
@@ -86,7 +84,7 @@ def test_save_returns_committed_id_without_reloading_message(
         assert assistant.tool_calls == manager._serialize_tool_calls(tool_calls)
         expected_metadata = {"stop_reason": "end_turn", "usage": {"total_tokens": 3}}
         if full:
-            expected_metadata.update(status_cards=status_cards, display_events=display_events, routing=routing)
+            expected_metadata.update(status_cards=status_cards, display_events=display_events)
         # These JSON strings are exposed unchanged by the history API.
         assert assistant.message_metadata == json.dumps(expected_metadata)
     else:

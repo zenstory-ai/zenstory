@@ -232,39 +232,6 @@ def test_stale_successful_write_arguments_and_receipt_compacted_only_over_budget
     assert out[3]["output"] == items[3]["output"]
 
 
-def test_parallel_execute_read_result_is_compacted_and_traceable_over_budget():
-    parallel_args = json.dumps(
-        {
-            "tasks": [
-                {"type": "query_files", "description": "读取第一章", "params": {"id": "chapter-1", "response_mode": "full"}},
-                {"type": "query_files", "description": "搜索伏笔", "params": {"query": "旧钥匙"}},
-            ]
-        },
-        ensure_ascii=False,
-    )
-    parallel_output = json.dumps(
-        {
-            "status": "success",
-            "data": {
-                "tasks": [
-                    {"id": "task-1", "type": "query_files", "status": "completed", "result": {"id": "chapter-1", "content": "甲" * 50_000}},
-                    {"id": "task-2", "type": "query_files", "status": "completed", "result": "乙" * 50_000},
-                ]
-            },
-        },
-        ensure_ascii=False,
-    )
-    items = [_fc("parallel-1", "parallel_execute", parallel_args), _fco("parallel-1", parallel_output)]
-
-    out = _run(IntraRunToolOutputTrimmer(max_input_chars=20_000), items)
-
-    assert out[0]["arguments"] == parallel_args
-    assert out[1]["call_id"] == "parallel-1"
-    assert len(out[1]["output"]) < 15_000
-    assert "chapter-1" in out[1]["output"]
-    assert "completed" in out[1]["output"]
-
-
 def test_unknown_tool_control_flow_and_user_messages_never_compacted():
     huge = "Z" * 40_000
     items = [
@@ -276,25 +243,6 @@ def test_unknown_tool_control_flow_and_user_messages_never_compacted():
         _fco("clarify-1", huge),
         {"role": "user", "content": huge},
     ]
-    assert _run(IntraRunToolOutputTrimmer(max_input_chars=1_000), items) == items
-
-
-def test_mixed_unknown_parallel_call_is_left_opaque():
-    arguments = json.dumps(
-        {
-            "tasks": [
-                {"type": "query_files", "description": "known", "params": {"id": "file-1"}},
-                {"type": "future_control_tool", "description": "unknown", "params": {"opaque": "A" * 20_000}},
-            ]
-        }
-    )
-    output = json.dumps(
-        {
-            "status": "success",
-            "data": {"tasks": [{"type": "query_files", "result": BIG}, {"type": "future_control_tool", "result": "B" * 20_000}]},
-        }
-    )
-    items = [_fc("parallel-mixed", "parallel_execute", arguments), _fco("parallel-mixed", output)]
     assert _run(IntraRunToolOutputTrimmer(max_input_chars=1_000), items) == items
 
 
@@ -317,38 +265,6 @@ def test_failed_write_keeps_arguments_and_error_details():
     assert out[1]["output"] == failed_output
 
 
-def test_mixed_parallel_read_and_failed_write_keeps_full_recovery_context():
-    arguments = json.dumps(
-        {
-            "tasks": [
-                {"type": "query_files", "description": "read", "params": {"id": "file-read"}},
-                {"type": "edit_file", "description": "write", "params": {"id": "file-write", "edits": [{"new_text": "X" * 10_000}]}},
-            ]
-        }
-    )
-    output = json.dumps(
-        {
-            "status": "success",
-            "data": {
-                "status": "partial",
-                "tasks": [
-                    {"type": "query_files", "status": "completed", "result": BIG},
-                    {"type": "edit_file", "status": "failed", "error": "conflict " * 1_000},
-                ],
-            },
-        }
-    )
-    items = [
-        _fc("mixed-failed", "parallel_execute", arguments),
-        _fco("mixed-failed", output),
-        _fc("later-read", "query_files"),
-        _fco("later-read", BIG),
-    ]
-    out = _run(IntraRunToolOutputTrimmer(max_input_chars=1_000), items)
-    assert out[0]["arguments"] == arguments
-    assert out[1]["output"] == output
-
-
 def test_write_without_output_keeps_execution_arguments():
     pending_arguments = json.dumps({"id": "file-pending", "content": "X" * 10_000})
     items = [
@@ -358,27 +274,6 @@ def test_write_without_output_keeps_execution_arguments():
     ]
     out = _run(IntraRunToolOutputTrimmer(max_input_chars=1_000), items)
     assert out[0]["arguments"] == pending_arguments
-
-
-def test_parallel_summary_keeps_head_and_tail_file_references():
-    ids = [f"file-{index:02d}" for index in range(20)]
-    arguments = json.dumps(
-        {"tasks": [{"type": "query_files", "description": file_id, "params": {"id": file_id}} for file_id in ids]}
-    )
-    output = json.dumps(
-        {
-            "status": "success",
-            "data": {
-                "tasks": [
-                    {"type": "query_files", "status": "completed", "result": {"id": file_id, "content": BIG}}
-                    for file_id in ids
-                ]
-            },
-        }
-    )
-    items = [_fc("parallel-20", "parallel_execute", arguments), _fco("parallel-20", output)]
-    out = _run(IntraRunToolOutputTrimmer(max_input_chars=5_000), items)
-    assert all(file_id in out[1]["output"] for file_id in ids)
 
 
 def test_empty_input_returns_unchanged():

@@ -167,14 +167,6 @@
       "writer": "内容创作者",
       "quality_reviewer": "质量审稿人"
     },
-    "parallelStart": "同时处理 {{count}} 项任务",
-    "parallelStartTruncated": "同时处理 {{count}} 项任务（另有 {{dropped}} 项超出单次上限，这次没有执行）",
-    "parallelTaskCompleted": "✓ {{description}}",
-    "parallelTaskFailed": "✗ {{description}}：没有完成",
-    "parallelTaskPartial": "◐ {{description}}：部分修改没有生效",
-    "parallelTaskEnded": "{{description}}：已结束",
-    "parallelEnd": "处理结束：完成 {{completed}}/{{total}} 项，失败 {{failed}} 项",
-    "parallelEndWithPartial": "处理结束：完成 {{completed}}/{{total}} 项，部分完成 {{partial}} 项，失败 {{failed}} 项",
     "steeringReceived": "已收到补充要求：{{preview}}",
     "userStopped": "已停止生成"
   },
@@ -315,11 +307,6 @@
     "insert_before_label": "在此之前插入",
     "insert_content": "插入内容",
     "delete_content": "删除内容"
-  },
-  "conflict": {
-    "suggestions_label": "建议:",
-    "location": "位置: {{location}}",
-    "fix_suggestions": "建议修复:"
   },
   "response": {
     "generated_result": "生成结果",

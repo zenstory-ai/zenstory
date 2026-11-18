@@ -184,13 +184,12 @@ def test_only_clarification_cards_are_appended_when_turn_has_real_text():
 
 
 @pytest.mark.unit
-def test_load_chat_session_replays_status_only_turn_with_reasoning(
+def test_load_loop_history_replays_status_only_turn_with_reasoning(
     db_session: Session,
     round3_user: User,
-    monkeypatch,
 ):
-    """端到端：落库 → load_chat_session → normalize，澄清问题必须仍在历史里。"""
-    monkeypatch.setattr("agent.core.session_loader.AGENT_CHAT_HISTORY_TOKEN_BUDGET", 4000)
+    """端到端：落库 → load_loop_history，澄清问题必须仍在历史里。"""
+    from agent.loop.history import load_loop_history
 
     project = _make_project(db_session, round3_user.id, "novel")
     chat_session = ChatSession(
@@ -219,12 +218,11 @@ def test_load_chat_session_replays_status_only_turn_with_reasoning(
     )
     db_session.commit()
 
-    loader = SessionLoader(project_id=project.id, user_id=round3_user.id)
-    session_data = loader.load_chat_session(db_session)
-
-    normalized = normalize_messages_for_openai_agents(session_data.history_messages)
-    assert [m["role"] for m in normalized] == ["user", "assistant"]
-    assert "主角视角用第一人称还是第三人称？" in normalized[-1]["content"]
+    loaded = load_loop_history(
+        db_session, project_id=project.id, user_id=round3_user.id, chat_session_id=chat_session.id
+    )
+    assert [m["role"] for m in loaded.items] == ["user", "assistant"]
+    assert "主角视角用第一人称还是第三人称？" in loaded.items[-1]["content"]
 
 
 @pytest.mark.unit

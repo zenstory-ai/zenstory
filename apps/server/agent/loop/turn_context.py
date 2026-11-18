@@ -153,16 +153,13 @@ def _bound_turn_context_items(
     ).select_items([item for _, item in indexed])
 
     # TokenBudget 对 CRITICAL 条目只截断不静默丢弃；按原进入顺序排回以便渲染稳定。
-    order_by_key = {
-        (orig_idx, id(item)): orig_idx for orig_idx, item in indexed
-    }
     by_id_pos: dict[tuple[str, str], list[int]] = {}
     for orig_idx, item in indexed:
         by_id_pos.setdefault((str(item.type), str(item.id)), []).append(orig_idx)
     restored: list[tuple[int, Any]] = []
     for pos, sel in enumerate(selected):
         candidates = by_id_pos.get((str(sel.type), str(sel.id)))
-        orig_idx = candidates.pop(0) if candidates else order_by_key.get((pos, id(sel)), pos)
+        orig_idx = candidates.pop(0) if candidates else pos
         restored.append((orig_idx, sel))
     restored.sort(key=lambda pair: pair[0])
     return [item for _, item in restored]

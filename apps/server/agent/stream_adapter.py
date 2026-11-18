@@ -8,7 +8,7 @@ Reuses StreamProcessor for handling <file> markers in text content.
 import asyncio
 import contextlib
 import os
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -21,7 +21,6 @@ from .constants import coerce_bool
 from .core.author_facing_text import rewrite_not_saved_notice
 from .core.events import (
     WALL_CLOCK_LIMIT,
-    agent_selected_event,
     content_end_event,
     content_event,
     content_start_event,
@@ -42,13 +41,11 @@ from .core.events import (
 from .core.events import (
     StreamEvent as SSEEvent,
 )
-from .core.round_outcome import RUN_DEADLINE_STOP_REASON, tool_result_status
+from .core.round_outcome import RUN_DEADLINE_STOP_REASON, RunOutcome, tool_result_status
 from .core.run_meter import AgentRunMeter
 from .core.stream_errors import REPETITION_LOOP_STOP_REASON, error_message_for, stream_error_from_event_data
 from .core.stream_processor import PREBODY_FILE_ID, StreamProcessor, StreamResult, StreamState
 from .core.workflow_events import (
-    CHAT_HOLD_BEGIN,
-    CHAT_HOLD_DISCARD,
     FILE_BODY_RESUME_CAPTURE_ACTIVE,
     FILE_BODY_RESUME_GUARD_MISSING,
     FILE_BODY_RESUME_NOT_BOUND,
@@ -59,8 +56,27 @@ from .core.workflow_events import (
     StreamEventType,
 )
 from .core.workflow_events import StreamEvent as WorkflowStreamEvent
+from .openai_agents.events import extract_tool_result_text, parse_mcp_tool_payload
 
 logger = get_logger(__name__)
+
+_UNPARSED = object()
+
+
+def _with_sync_session[T](fn: Callable[[Any], T]) -> T:
+    """Run ``fn(session)`` with an isolated PostgreSQL session or the SQLite test session."""
+    from database import create_session, get_session, is_postgres
+
+    if is_postgres:
+        with create_session() as session:
+            return fn(session)
+    session_gen = get_session()
+    session = next(session_gen)
+    try:
+        return fn(session)
+    finally:
+        with contextlib.suppress(StopIteration):
+            next(session_gen)
 
 # 工具结果无法解析时发给前端的 error_type（前端据此显示通用的「这一步没做成」）。
 MALFORMED_TOOL_RESULT_ERROR_TYPE = "malformed_tool_result"
@@ -108,6 +124,8 @@ class StreamAdapterConfig:
     matched_skill_ids: tuple[str, ...] = ()
     # Request-level fixed-stage timing; optional for tests and non-request callers.
     run_meter: AgentRunMeter | None = None
+    # Request-level round outcome updated directly as saves settle or time out.
+    run_outcome: RunOutcome | None = None
     # UI language supplied by the request, not inferred from generated prose.
     language: str = "zh"
 
@@ -203,10 +221,6 @@ class StreamAdapter:
         # 发出它的帧之前登记，_complete_file_write 接手时清掉；停止 / 断线落在中间的 yield 上时
         # settle_aborted_capture 按它补存。
         self._completed_unsaved: tuple[StreamResult, PendingFileWrite | None] | None = None
-        # 图发来 CHAT_HOLD begin 之后的对话文字（StreamProcessor 判定为对话的部分，
-        # 正文不扣）：等图决定丢掉（discard）还是在下一个边界事件前放出。
-        self._chat_hold_active = False
-        self._held_chat: list[str] = []
 
         log_with_context(
             logger,
@@ -250,7 +264,7 @@ class StreamAdapter:
         accumulated: dict[str, Any] | None,
         incoming: Any,
     ) -> dict[str, Any] | None:
-        """累加一次 MESSAGE_END / ROUTER_DECIDED 带来的 usage 统计。
+        """累加一次 MESSAGE_END 带来的 usage 统计。
 
         一轮请求里 router 与 planner/writer/quality_reviewer 各上报一次用量，
         每次只携带自己那部分 token 消耗。整轮的真实消耗是它们之和，
@@ -419,10 +433,6 @@ class StreamAdapter:
             self._pending_file_write = None
             self._clear_pending_empty_file_guard()
 
-        # 扣着的对话文字在收尾时照常放出（只有图明确 discard 的才丢）。
-        for sse_event in self._release_held_chat():
-            yield sse_event
-
         # Ensure content_end is sent if content was started
         if self._content_started:
             yield content_end_event()
@@ -452,22 +462,12 @@ class StreamAdapter:
         data = event.data
         event_type_value = event_type.value if hasattr(event_type, "value") else str(event_type)
 
-        if event_type == StreamEventType.CHAT_HOLD:
-            for sse_event in self._handle_chat_hold(data):
-                yield sse_event
-            return
-
         if event_type == StreamEventType.FILE_BODY_RESUME:
             async for sse_event in self._resume_file_body(data.get("request")):
                 yield sse_event
             return
 
-        if event_type_value in _CHAT_HOLD_RELEASE_EVENT_TYPES:
-            # 下一个 agent、交接、收尾 / 出错：被扣着的对话文字没被图丢掉，就按原顺序放出。
-            for sse_event in self._release_held_chat():
-                yield sse_event
-
-        if event_type in (StreamEventType.AGENT_SELECTED, StreamEventType.MESSAGE_START):
+        if event_type == StreamEventType.MESSAGE_START:
             # A later run can fail without MESSAGE_END. Its stop reason must not
             # inherit the previous run's success; request usage remains cumulative.
             self._last_message_stop_reason = None
@@ -569,22 +569,10 @@ class StreamAdapter:
                     reason=reason if isinstance(reason, str) and reason else None,
                 )
 
-        elif event_type == StreamEventType.AGENT_SELECTED:
-            # Agent selected by router
-            agent_type = data.get("agent_type", "")
-            agent_name = data.get("agent_name", "")
-            iteration = data.get("iteration")
-            max_iterations = data.get("max_iterations")
-            remaining = data.get("remaining")
-            yield agent_selected_event(
-                agent_type, agent_name, iteration, max_iterations, remaining
-            )
-
         elif event_type == StreamEventType.ITERATION_EXHAUSTED:
             # Iteration limit reached
             if data.get("limit") == WALL_CLOCK_LIMIT:
-                # 时限暂停卡（runner 的时限收尾或图层收尾）：这一轮落可「继续」的时限原因。
-                # 图层收尾时每个 run 都已 end_turn，不靠这张卡就记成正常结束、「继续」接不上。
+                # 时限暂停卡（runner 的时限收尾或循环收尾）：这一轮落可「继续」的时限原因。
                 self._last_message_stop_reason = RUN_DEADLINE_STOP_REASON
             yield iteration_exhausted_event(
                 layer=data.get("layer", ""),
@@ -598,25 +586,10 @@ class StreamAdapter:
             )
 
         elif event_type_value in (
-            StreamEventType.HANDOFF.value,
-            StreamEventType.ROUTER_THINKING.value,
-            StreamEventType.ROUTER_DECIDED.value,
             StreamEventType.WORKFLOW_STOPPED.value,
-            StreamEventType.WORKFLOW_COMPLETE.value,
             StreamEventType.STEERING_RECEIVED.value,
             "session_started",
-            "parallel_start",
-            "parallel_task_start",
-            "parallel_task_end",
-            "parallel_end",
         ):
-            if event_type_value == StreamEventType.ROUTER_DECIDED.value:
-                # 路由那次独立的（非流式）LLM 调用同样烧 token，但它不发
-                # MESSAGE_END，用量只能随 ROUTER_DECIDED 捎带回来。这里汇入同一个
-                # 累加器，整轮统计才是完整的。
-                self._last_message_usage = self._merge_usage(
-                    self._last_message_usage, data.get("routing_usage")
-                )
             # Pass through these events directly
             yield SSEEvent(type=event_type_value, data=data)
 
@@ -830,18 +803,14 @@ class StreamAdapter:
 
     def _parse_tool_result_payload(self, raw_result: Any) -> Any:
         """Parse MCP tool_result payload with defensive fallbacks."""
-        import json
+        parsed = parse_mcp_tool_payload(raw_result, default=_UNPARSED)
+        if parsed is not _UNPARSED:
+            return parsed
 
-        # MCP canonical format: {"content":[{"type":"text","text":"...json..."}]}
-        result_text = self._extract_tool_result_text(raw_result)
-        if result_text:
-            try:
-                return json.loads(result_text)
-            except json.JSONDecodeError:
-                return {"raw": result_text}
-
-        # Tolerate non-canonical payloads from workflow adapters/mocks.
         if isinstance(raw_result, dict):
+            result_text = extract_tool_result_text(raw_result)
+            if result_text:
+                return {"raw": result_text}
             if "status" in raw_result or "error" in raw_result or "data" in raw_result:
                 return raw_result
             return {}
@@ -849,25 +818,6 @@ class StreamAdapter:
             return {}
 
         return {"raw": str(raw_result)}
-
-    def _extract_tool_result_text(self, raw_result: Any) -> str:
-        """Extract text payload from MCP result format safely."""
-        if not isinstance(raw_result, dict):
-            return ""
-
-        content_list = raw_result.get("content")
-        if not isinstance(content_list, list):
-            return ""
-
-        for item in content_list:
-            if isinstance(item, dict):
-                text = item.get("text")
-                if isinstance(text, str):
-                    return text
-                if text is not None:
-                    return str(text)
-
-        return ""
 
     async def _handle_create_file_result(
         self,
@@ -1125,14 +1075,14 @@ class StreamAdapter:
             log_with_context(
                 logger, 30, "Chapter replacement refused", file_id=file_id, error_type=type(exc).__name__
             )
-            self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_save_unconfirmed(file_id)
             self._note_replacement_receipt(pending.replace_tool_use_id, None)
             return "refused", None
         except Exception as exc:  # noqa: BLE001 - reported to the author as a failed save
             log_with_context(
                 logger, 40, "Failed to save chapter replacement", file_id=file_id, error_type=type(exc).__name__
             )
-            self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_save_unconfirmed(file_id)
             self._note_replacement_receipt(pending.replace_tool_use_id, None)
             return "failed", None
         if replaced.get("mutation_applied") is True:
@@ -1154,27 +1104,16 @@ class StreamAdapter:
 
     def _replace_file_body_sync(self, file_id: str, content: str, expected_updated_at: str | None) -> dict[str, Any]:
         from agent.tools.file_ops import FileToolExecutor
-        from database import create_session, get_session, is_postgres
 
-        def run(session: Any) -> dict[str, Any]:
-            return FileToolExecutor(session=session, user_id=self.config.user_id).replace_body(
+        return _with_sync_session(
+            lambda session: FileToolExecutor(session=session, user_id=self.config.user_id).replace_body(
                 file_id,
                 content,
                 expected_updated_at=expected_updated_at,
                 normalize_quotes=True,
                 protect_author_content=True,
             )
-
-        if is_postgres:
-            with create_session() as session:
-                return run(session)
-        session_gen = get_session()
-        session = next(session_gen)
-        try:
-            return run(session)
-        finally:
-            with contextlib.suppress(StopIteration):
-                next(session_gen)
+        )
 
     async def _resume_file_body(self, request: Any) -> AsyncIterator[SSEEvent]:
         """单循环 agent 的空文件纠偏轮开始前：为同一个文件重新等待 <file> 正文，结果写回 request。
@@ -1374,7 +1313,7 @@ class StreamAdapter:
         if saved:
             self._note_body_saved(file_id, words)
         else:
-            self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_save_unconfirmed(file_id)
         self._note_replacement_receipt(self._abort_capture_replace_id, words if saved else None)
         return self.get_saved_file_word_counts()
 
@@ -1388,17 +1327,15 @@ class StreamAdapter:
         try:
             replaced = await asyncio.shield(save)
         except Exception as exc:  # noqa: BLE001 - 提交失败：回执记为未保存
-            if isinstance(exc, TimeoutError):
-                self._timed_out_save_file_ids.add(file_id)
             log_with_context(
                 logger, 30, "Chapter replacement in flight at abort did not commit",
                 file_id=file_id, error_type=type(exc).__name__,
             )
-            self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_save_unconfirmed(file_id, timed_out=isinstance(exc, TimeoutError))
             self._note_replacement_receipt(replace_tool_use_id, None)
             return
         if replaced.get("mutation_applied") is not True:
-            self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_save_unconfirmed(file_id)
             self._note_replacement_receipt(replace_tool_use_id, None)
             return
         self._file_mutated = True
@@ -1466,43 +1403,12 @@ class StreamAdapter:
         async for sse_event in self._emit_stream_result(result):
             yield sse_event
 
-    def _handle_chat_hold(self, data: Any) -> Iterable[SSEEvent]:
-        """图的 CHAT_HOLD 控制事件：begin 开始扣对话文字，discard 丢掉扣着的文字。"""
-        action = data.get("action") if isinstance(data, dict) else None
-        if action == CHAT_HOLD_BEGIN:
-            self._chat_hold_active = True
-            return []
-        if action == CHAT_HOLD_DISCARD:
-            dropped = "".join(self._held_chat)
-            if dropped:
-                log_with_context(
-                    logger,
-                    20,  # INFO
-                    "Discarding chat text superseded by the next agent's reply",
-                    dropped_length=len(dropped),
-                    reason=(data.get("reason") if isinstance(data, dict) else None),
-                )
-            self._held_chat = []
-            self._chat_hold_active = False
-            return []
-        return self._release_held_chat()
-
-    def _release_held_chat(self) -> list[SSEEvent]:
-        """放出扣着的对话文字并结束扣留。"""
-        held = "".join(self._held_chat)
-        self._held_chat = []
-        self._chat_hold_active = False
-        return [content_event(held)] if held else []
-
     def _conversation_events(self, text: str) -> list[SSEEvent]:
         if not text:
             return []
         if self._held_reply:
             # 扣着待认领正文时，之后的对话文字跟在它后面，放出时保持原顺序
             self._held_reply.append(("chat", text))
-            return []
-        if self._chat_hold_active:
-            self._held_chat.append(text)
             return []
         return [content_event(text)]
 
@@ -1747,10 +1653,23 @@ class StreamAdapter:
         file_type 是保存目标的类型（知道时传），续跑只对正文类文件要求自查。"""
         self._saved_file_word_counts[file_id] = words
         self._timed_out_save_file_ids.discard(file_id)
+        if self.config.run_outcome is not None:
+            self.config.run_outcome.saved_file_word_counts[file_id] = words
+            self.config.run_outcome.uncertain_save_file_ids.discard(file_id)
         if title is not None:
             from agent.tools.mcp_tools import ToolContext
 
             ToolContext.mark_chapter_body_saved(file_id, title, file_type)
+
+    def _note_save_unconfirmed(self, file_id: str, *, timed_out: bool = False) -> None:
+        """保存未确认或超时：写回执（不覆盖之前成功的字数），超时一并记入不确定集合。"""
+        self._saved_file_word_counts.setdefault(file_id, None)
+        if timed_out:
+            self._timed_out_save_file_ids.add(file_id)
+        if self.config.run_outcome is not None:
+            self.config.run_outcome.saved_file_word_counts.setdefault(file_id, None)
+            if timed_out:
+                self.config.run_outcome.uncertain_save_file_ids.add(file_id)
 
     def _should_refuse_truncated_overwrite(self, result: StreamResult) -> bool:
         """判断这次"截断自动补全"是否会覆盖掉目标文件原有的正文。
@@ -1842,11 +1761,10 @@ class StreamAdapter:
                     file_id, count_words(content), title=complete_title, file_type=resolved_file_type
                 )
             else:
-                self._saved_file_word_counts.setdefault(file_id, None)
+                self._note_save_unconfirmed(file_id)
             return saved
         except TimeoutError:
-            self._timed_out_save_file_ids.add(file_id)
-            self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_save_unconfirmed(file_id, timed_out=True)
             log_with_context(
                 logger,
                 40,  # ERROR
@@ -1856,7 +1774,7 @@ class StreamAdapter:
             )
             return False
         except Exception as e:
-            self._saved_file_word_counts.setdefault(file_id, None)
+            self._note_save_unconfirmed(file_id)
             log_with_context(
                 logger,
                 40,  # ERROR
@@ -1879,39 +1797,19 @@ class StreamAdapter:
         quotes normalized to the manuscript's style (normalize_quotes=True).
         """
         from agent.tools.file_ops import FileToolExecutor
-        from database import create_session, get_session, is_postgres
 
-        if not is_postgres:
-            session_gen = get_session()
-            session = next(session_gen)
-            try:
-                executor = FileToolExecutor(
-                    session=session,
-                    user_id=self.config.user_id,
-                )
-                result = executor.update_file(
-                    id=file_id,
-                    content=content,
-                    normalize_quotes=True,
-                    protect_author_content=True,
-                    expected_updated_at=expected_updated_at,
-                )
-            finally:
-                with contextlib.suppress(StopIteration):
-                    next(session_gen)
-        else:
-            with create_session() as session:
-                executor = FileToolExecutor(
-                    session=session,
-                    user_id=self.config.user_id,
-                )
-                result = executor.update_file(
-                    id=file_id,
-                    content=content,
-                    normalize_quotes=True,
-                    protect_author_content=True,
-                    expected_updated_at=expected_updated_at,
-                )
+        result = _with_sync_session(
+            lambda session: FileToolExecutor(
+                session=session,
+                user_id=self.config.user_id,
+            ).update_file(
+                id=file_id,
+                content=content,
+                normalize_quotes=True,
+                protect_author_content=True,
+                expected_updated_at=expected_updated_at,
+            )
+        )
 
         log_with_context(
             logger,
@@ -2039,21 +1937,6 @@ class StreamAdapter:
         return f"全部 {len(failures)} 处编辑均未生效：{detail}"
 
 
-# 这些事件之前，图没有丢掉的扣留文字照常放出（保持在本 agent 的段落里）。
-# 只放 agent run 的边界事件：STEERING_RECEIVED 会在 writer run 中途（工具边界）出现，
-# 那时放出并结束扣留，之后的总结就会直接流给作者，送审时又多一份审稿人的总结。
-_CHAT_HOLD_RELEASE_EVENT_TYPES: frozenset[str] = frozenset(
-    {
-        StreamEventType.AGENT_SELECTED.value,
-        StreamEventType.HANDOFF.value,
-        StreamEventType.WORKFLOW_STOPPED.value,
-        StreamEventType.WORKFLOW_COMPLETE.value,
-        StreamEventType.ITERATION_EXHAUSTED.value,
-        StreamEventType.ERROR.value,
-    }
-)
-
-
 def _card_files(raw: Any) -> list[dict[str, str]] | None:
     """状态卡上点名的文件：只留 id 与标题（图里的条目用 file_id）；没给就是 None。"""
     if not isinstance(raw, list):
@@ -2075,6 +1958,7 @@ def create_stream_adapter(
     process_file_markers: bool = True,
     matched_skill_ids: Iterable[str] | None = None,
     run_meter: AgentRunMeter | None = None,
+    run_outcome: RunOutcome | None = None,
     language: str = "zh",
 ) -> StreamAdapter:
     """
@@ -2086,6 +1970,7 @@ def create_stream_adapter(
         process_file_markers: Whether to process <file> markers
         matched_skill_ids: Skills already announced via skill_matched (explicitly selected)
         run_meter: Optional request-level timing recorder
+        run_outcome: Optional request-level round outcome updated as saves complete
         language: Request UI language for author-facing save notices
 
     Returns:
@@ -2097,6 +1982,7 @@ def create_stream_adapter(
         process_file_markers=process_file_markers,
         matched_skill_ids=tuple(str(item) for item in (matched_skill_ids or []) if item),
         run_meter=run_meter,
+        run_outcome=run_outcome,
         language=language,
     )
     return StreamAdapter(config)

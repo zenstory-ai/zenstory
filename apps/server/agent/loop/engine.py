@@ -18,7 +18,6 @@ SSE 外壳、计费 / 退还、停止 / 插话、残稿补存、文件版本并�
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -36,6 +35,7 @@ from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_errors import classify_stream_exception, log_stream_exception
 from agent.core.workflow_events import FileBodyResume, StreamEvent, StreamEventType
 from agent.core.writing_state import WritingState
+from agent.openai_agents.events import parse_mcp_tool_payload
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.runner import OUTPUT_CAPPED_KEY, run_openai_agents_streaming_agent
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
@@ -183,19 +183,11 @@ def _english(state: WritingState) -> bool:
 
 def _armed_replacement_id(result: Any) -> str:
     """write_chapter 成功定位整章替换（结构化结果 action=replaced）时返回章节 id，否则返回空串。"""
-    if not isinstance(result, dict):
-        return ""
-    for block in result.get("content") or []:
-        if not isinstance(block, dict):
-            continue
-        try:
-            payload = json.loads(str(block.get("text") or ""))
-        except (json.JSONDecodeError, TypeError):
-            continue
-        data = payload.get("data") if isinstance(payload, dict) and payload.get("status") == "success" else None
-        if isinstance(data, dict) and data.get("action") == "replaced" and data.get("awaiting_body") is True:
-            file_id = data.get("id")
-            return file_id if isinstance(file_id, str) else ""
+    payload = parse_mcp_tool_payload(result)
+    data = payload.get("data") if isinstance(payload, dict) and payload.get("status") == "success" else None
+    if isinstance(data, dict) and data.get("action") == "replaced" and data.get("awaiting_body") is True:
+        file_id = data.get("id")
+        return file_id if isinstance(file_id, str) else ""
     return ""
 
 
@@ -454,6 +446,9 @@ async def run_loop_agent_streaming(
                 terminated = True
                 break
             runs += 1
+            run_outcome = state.get("run_outcome")
+            if run_outcome is not None and hasattr(run_outcome, "runs_started"):
+                run_outcome.runs_started = runs
             state["continue_native_run"] = runs > 1 and native_runs.get("agent_type") == LOOP_AGENT_TYPE
             run_resumed = resumed_correction
             resumed_correction = False

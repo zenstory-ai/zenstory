@@ -201,15 +201,13 @@ describe('agentApi', () => {
       })
     })
 
-    it('parses done event with apply_action', () => {
+    it('parses done event metadata', () => {
       const eventString =
-        'event: done\ndata: {"apply_action":"replace","refs":[1,2,3],"assistant_message_id":"msg-1","session_id":"session-1"}\n\n'
+        'event: done\ndata: {"assistant_message_id":"msg-1","session_id":"session-1"}\n\n'
       const result = parseSSEEvent(eventString)
       expect(result).toEqual({
         type: 'done',
         data: {
-          apply_action: 'replace',
-          refs: [1, 2, 3],
           assistant_message_id: 'msg-1',
           session_id: 'session-1',
         },
@@ -628,12 +626,9 @@ describe('agentApi', () => {
       await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onFileEditStart).toHaveBeenCalledWith('file-1', 'Chapter 1', 2, 'outline')
-      // 第 8 个参数是新增的批量编辑结果（failed_count / warnings 等）。
-      // 事件里没带这些字段时给出安全默认值，等价于"全部成功"。
       expect(onFileEditEnd).toHaveBeenCalledWith(
         'file-1',
         2,
-        123,
         undefined,
         undefined,
         'outline',
@@ -960,7 +955,7 @@ describe('agentApi', () => {
     it('calls onDone when stream completes', async () => {
       const onDone = vi.fn()
       const mockStream = createMockStream([
-        'event: done\ndata: {"apply_action":"insert","refs":[1,2],"assistant_message_id":"assistant-1","session_id":"session-9","file_mutated":true}\n\n',
+        'event: done\ndata: {"assistant_message_id":"assistant-1","session_id":"session-9","file_mutated":true}\n\n',
       ])
 
       const mockFetch = vi.fn().mockResolvedValue({
@@ -978,117 +973,16 @@ describe('agentApi', () => {
       await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onDone).toHaveBeenCalledWith({
-        apply_action: 'insert',
-        refs: [1, 2],
         assistant_message_id: 'assistant-1',
         session_id: 'session-9',
         file_mutated: true,
       })
     })
 
-    it('calls onConflict for conflict events', async () => {
-      const onConflict = vi.fn()
-      const mockStream = createMockStream([
-        'event: conflict\ndata: {"type":"timeline_conflict","severity":"high","title":"Timeline Error","description":"Date mismatch","suggestions":["Fix date"]}\n\n',
-      ])
-
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: mockStream,
-      })
-      vi.stubGlobal('fetch', mockFetch)
-
-      streamAgentRequest(
-        { project_id: 'test-project', message: 'test' },
-        { onConflict }
-      )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      expect(onConflict).toHaveBeenCalledWith({
-        type: 'timeline_conflict',
-        severity: 'high',
-        title: 'Timeline Error',
-        description: 'Date mismatch',
-        suggestions: ['Fix date'],
-      })
-    })
-
-    it('calls onHandoff for handoff events', async () => {
-      const onHandoff = vi.fn()
-      const mockStream = createMockStream([
-        'event: handoff\ndata: {"target_agent":"writer","reason":"continue writing","context":"from planner","handoff_packet":{"target_agent":"writer","reason":"continue writing","context":"from planner","completed":["outline done"],"todo":["write section"],"evidence":["plan.md"]}}\n\n',
-      ])
-
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: mockStream,
-      })
-      vi.stubGlobal('fetch', mockFetch)
-
-      streamAgentRequest(
-        { project_id: 'test-project', message: 'test' },
-        { onHandoff }
-      )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      expect(onHandoff).toHaveBeenCalledWith({
-        target_agent: 'writer',
-        reason: 'continue writing',
-        context: 'from planner',
-        handoff_packet: {
-          target_agent: 'writer',
-          reason: 'continue writing',
-          context: 'from planner',
-          completed: ['outline done'],
-          todo: ['write section'],
-          evidence: ['plan.md'],
-        },
-      })
-    })
-
-    it('calls onRouterDecided with routing metadata', async () => {
-      const onRouterDecided = vi.fn()
-      const mockStream = createMockStream([
-        'event: router_decided\ndata: {"initial_agent":"planner","workflow_plan":"standard","workflow_agents":["writer","quality_reviewer"],"routing_metadata":{"agent_type":"planner","workflow_type":"standard","reason":"需要先规划","confidence":0.93}}\n\n',
-      ])
-
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: mockStream,
-      })
-      vi.stubGlobal('fetch', mockFetch)
-
-      streamAgentRequest(
-        { project_id: 'test-project', message: 'test' },
-        { onRouterDecided }
-      )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      expect(onRouterDecided).toHaveBeenCalledWith(
-        'planner',
-        'standard',
-        ['writer', 'quality_reviewer'],
-        {
-          agent_type: 'planner',
-          workflow_type: 'standard',
-          reason: '需要先规划',
-          confidence: 0.93,
-        }
-      )
-    })
-
-    it('calls workflow callbacks with evaluation payload', async () => {
+    it('calls onWorkflowStopped callback', async () => {
       const onWorkflowStopped = vi.fn()
-      const onWorkflowComplete = vi.fn()
       const mockStream = createMockStream([
-        'event: workflow_stopped\ndata: {"reason":"clarification_needed","agent_type":"writer","message":"等待您的回复","confidence":0.82,"evaluation":{"complete_score":0.2,"clarification_score":0.82,"consistency_score":0.38,"decision_reason":"heuristic_clarification"}}\n\n',
-        'event: workflow_complete\ndata: {"reason":"task_complete","agent_type":"writer","message":"任务已完成","confidence":1.0,"evaluation":{"complete_score":1.0,"clarification_score":0.0,"consistency_score":0.0,"decision_reason":"explicit_complete_marker"}}\n\n',
+        'event: workflow_stopped\ndata: {"reason":"clarification_needed","agent_type":"writer","message":"等待您的回复"}\n\n',
       ])
 
       const mockFetch = vi.fn().mockResolvedValue({
@@ -1100,7 +994,7 @@ describe('agentApi', () => {
 
       streamAgentRequest(
         { project_id: 'test-project', message: 'test' },
-        { onWorkflowStopped, onWorkflowComplete }
+        { onWorkflowStopped }
       )
 
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -1109,26 +1003,6 @@ describe('agentApi', () => {
         reason: 'clarification_needed',
         agent_type: 'writer',
         message: '等待您的回复',
-        confidence: 0.82,
-        evaluation: {
-          complete_score: 0.2,
-          clarification_score: 0.82,
-          consistency_score: 0.38,
-          decision_reason: 'heuristic_clarification',
-        },
-      })
-
-      expect(onWorkflowComplete).toHaveBeenCalledWith({
-        reason: 'task_complete',
-        agent_type: 'writer',
-        message: '任务已完成',
-        confidence: 1.0,
-        evaluation: {
-          complete_score: 1.0,
-          clarification_score: 0.0,
-          consistency_score: 0.0,
-          decision_reason: 'explicit_complete_marker',
-        },
       })
     })
 
@@ -1292,7 +1166,7 @@ describe('agentApi', () => {
       const onDone = vi.fn()
       const onError = vi.fn()
       const mockStream = createMockStream([
-        'event: done\ndata: {"apply_action":"insert"}\n',
+        'event: done\ndata: {"session_id":"s-1"}\n',
       ])
 
       const mockFetch = vi.fn().mockResolvedValue({
@@ -1309,7 +1183,7 @@ describe('agentApi', () => {
 
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      expect(onDone).toHaveBeenCalledWith({ apply_action: 'insert' })
+      expect(onDone).toHaveBeenCalledWith({ session_id: 's-1' })
       expect(onError).not.toHaveBeenCalledWith(
         expect.stringContaining('Connection interrupted'),
         'STREAM_CLOSED',

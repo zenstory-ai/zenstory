@@ -176,15 +176,15 @@ async def test_sync_tool_thread_falls_back_to_context_session_without_factory():
     assert got is request_session
 
 
-def test_offload_switches_are_same_source():
-    """service.py 决定「ToolContext 里放不放 session」时必须用与
-    mcp_tools 同一个判据，否则两个开关会在 SQLite 上错配。"""
+def test_service_never_passes_request_session_into_tool_context():
+    """service.py 始终传 session=None + create_session_func，工具工作线程各自建独立 Session。"""
     import inspect
 
     from agent.service import AgentService
 
     source = inspect.getsource(AgentService.process_stream)
-    assert "session=None if _should_offload_tool_execution() else session" in source
+    assert "session=None," in source
+    assert "create_session_func=create_session" in source
 
 
 @pytest.mark.asyncio

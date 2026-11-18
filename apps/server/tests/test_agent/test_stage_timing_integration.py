@@ -82,7 +82,7 @@ async def test_runner_hooks_record_completed_model_and_preserve_usage_terminal()
                     "system_prompt": "synthetic system",
                     "run_meter": meter,
                 },
-                agent_type="writer",
+                agent_type="loop",
                 system_prompt="synthetic system",
             )
         ]
@@ -101,7 +101,7 @@ async def test_runner_hooks_record_completed_model_and_preserve_usage_terminal()
     assert report["model"]["count"] == 1
     assert report["model"]["error_count"] == 0
     assert report["model"]["interrupted_count"] == 0
-    assert report["agent_writer"]["count"] == 1
+    assert report["agent_loop"]["count"] == 1
 
 
 @pytest.mark.asyncio
@@ -138,7 +138,7 @@ async def test_runner_closes_pending_model_timing_as_error_without_fabricating_u
                     "system_prompt": "synthetic system",
                     "run_meter": meter,
                 },
-                agent_type="writer",
+                agent_type="loop",
                 system_prompt="synthetic system",
             )
         ]
@@ -150,7 +150,7 @@ async def test_runner_closes_pending_model_timing_as_error_without_fabricating_u
     schedule_usage.assert_not_called()
     report = meter.timing_report()["stage_timings"]
     assert report["model"]["error_count"] == 1
-    assert report["agent_writer"]["error_count"] == 1
+    assert report["agent_loop"]["error_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -188,7 +188,7 @@ async def test_runner_closes_pending_model_timing_as_interrupted_on_cancellation
                 "system_prompt": "synthetic system",
                 "run_meter": meter,
             },
-            agent_type="writer",
+            agent_type="loop",
             system_prompt="synthetic system",
         )
         first = await event_stream.__anext__()
@@ -203,7 +203,7 @@ async def test_runner_closes_pending_model_timing_as_interrupted_on_cancellation
     schedule_usage.assert_not_called()
     report = meter.timing_report()["stage_timings"]
     assert report["model"]["interrupted_count"] == 1
-    assert report["agent_writer"]["interrupted_count"] == 1
+    assert report["agent_loop"]["interrupted_count"] == 1
 
 
 def _tool_result(call_id: str, name: str, payload: dict) -> StreamEvent:

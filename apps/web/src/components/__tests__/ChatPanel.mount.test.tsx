@@ -173,19 +173,9 @@ const streamCallbacks = {
   onFileEditApplied: vi.fn(),
   onFileEditEnd: vi.fn(),
   onSkillMatched: vi.fn(),
-  onSkillsMatched: vi.fn(),
-  onAgentSelected: vi.fn(),
   onIterationExhausted: vi.fn(),
-  onRouterThinking: vi.fn(),
-  onRouterDecided: vi.fn(),
-  onHandoff: vi.fn(),
   onWorkflowStopped: vi.fn(),
-  onWorkflowComplete: vi.fn(),
   onSessionStarted: vi.fn(),
-  onParallelStart: vi.fn(),
-  onParallelTaskStart: vi.fn(),
-  onParallelTaskEnd: vi.fn(),
-  onParallelEnd: vi.fn(),
   onSteeringReceived: vi.fn(),
 }
 
@@ -225,7 +215,6 @@ vi.mock('../../hooks/useAgentStream', () => ({
     isStreaming: mockAgentStreamState.isStreaming,
     isThinking: mockAgentStreamState.isThinking,
     thinkingContent: mockAgentStreamState.thinkingContent,
-    conflicts: [],
     error: mockAgentStreamState.error,
     errorCode: mockAgentStreamState.errorCode,
     retryable: mockAgentStreamState.retryable,
@@ -611,8 +600,8 @@ describe('ChatPanel mount smoke', () => {
     render(<ChatPanel />)
     await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
     await act(async () => {
-      const options = capturedUseAgentStream.options as { onComplete: (segments: unknown[], action: unknown) => Promise<void> }
-      await options.onComplete([{ type: 'content', id: 'before', content: 'Before' }, { type: 'content', id: 'after', content: 'After' }], null)
+      const options = capturedUseAgentStream.options as { onComplete: (segments: unknown[]) => Promise<void> }
+      await options.onComplete([{ type: 'content', id: 'before', content: 'Before' }, { type: 'content', id: 'after', content: 'After' }])
     })
     await waitFor(() => {
       const props = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ displayItems?: unknown[] }> }
@@ -622,24 +611,22 @@ describe('ChatPanel mount smoke', () => {
     expect(vi.mocked(getRecentMessages).mock.calls.at(-1)).toEqual(['project-1', 50])
   })
 
-  it('a finished reply drops 正在组装上下文 / 正在思考 / 正在规划工作流 but keeps the plan and the handoff line', async () => {
+  it('a finished reply drops 正在组装上下文 / 正在思考 but keeps the handoff line and text', async () => {
     const timestamp = new Date()
     mockStreamSnapshot.items = [
       { type: 'thinking_status', id: 'ctx', content: '正在组装上下文...', transient: true, timestamp },
       { type: 'thinking_status', id: 'think', content: "正在思考…", transient: true, timestamp },
-      { type: 'router_thinking', id: 'router', content: '高质量模式：正在规划工作流...', timestamp },
-      { type: 'router_decided', id: 'plan', initialAgent: 'planner', workflowAgents: ['writer'], timestamp },
       { type: 'thinking_status', id: 'handoff', content: '接下来由内容创作者继续', timestamp },
       { type: 'content', id: 'reply', content: '大纲写好了', timestamp },
     ]
     render(<ChatPanel />)
     await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
     await act(async () => {
-      await roundOptions().onComplete([{ type: 'content', id: 'reply', content: '大纲写好了' }], null)
+      await roundOptions().onComplete([{ type: 'content', id: 'reply', content: '大纲写好了' }])
     })
     await waitFor(() => {
       const props = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ displayItems?: Array<{ id: string }> }> }
-      expect(props.messages?.at(-1)?.displayItems?.map((item) => item.id)).toEqual(['plan', 'handoff', 'reply'])
+      expect(props.messages?.at(-1)?.displayItems?.map((item) => item.id)).toEqual(['handoff', 'reply'])
     })
   })
 
@@ -713,7 +700,7 @@ describe('ChatPanel mount smoke', () => {
 
     const options = capturedUseAgentStream.options as {
       onWorkflowStopped?: (data: Record<string, unknown>) => void;
-      onComplete?: (segments: unknown[], applyAction: unknown, meta?: Record<string, unknown>) => void;
+      onComplete?: (segments: unknown[], meta?: Record<string, unknown>) => void;
     }
 
     act(() => {
@@ -724,7 +711,7 @@ describe('ChatPanel mount smoke', () => {
     })
 
     await act(async () => {
-      options.onComplete?.([], null, {
+      options.onComplete?.([], {
         assistantMessageId: 'assistant-backend-1',
         sessionId: 'session-1',
       })
@@ -777,7 +764,7 @@ describe('ChatPanel mount smoke', () => {
 
     const options = capturedUseAgentStream.options as {
       onIterationExhausted?: (...args: unknown[]) => void;
-      onComplete?: (segments: unknown[], applyAction: unknown, meta?: Record<string, unknown>) => void;
+      onComplete?: (segments: unknown[], meta?: Record<string, unknown>) => void;
     }
     act(() => {
       options.onIterationExhausted?.('tool_call', 30, 120, 'internal reason', 'writer', 'wall_clock')
@@ -785,7 +772,7 @@ describe('ChatPanel mount smoke', () => {
     expect(streamCallbacks.onIterationExhausted).toHaveBeenCalledWith('tool_call', 30, 120, 'internal reason', 'writer', 'wall_clock')
 
     await act(async () => {
-      options.onComplete?.([], null, { assistantMessageId: 'assistant-time', sessionId: 'session-1' })
+      options.onComplete?.([], { assistantMessageId: 'assistant-time', sessionId: 'session-1' })
     })
     await waitFor(() => {
       const calls = mockMessageList.mock.calls
@@ -799,16 +786,16 @@ describe('ChatPanel mount smoke', () => {
     await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
 
     const options = capturedUseAgentStream.options as {
-      onComplete?: (segments: unknown[], applyAction: unknown, meta?: Record<string, unknown>) => void;
+      onComplete?: (segments: unknown[], meta?: Record<string, unknown>) => void;
     }
     await act(async () => {
-      options.onComplete?.([], null, {
+      options.onComplete?.([], {
         confirmedFileMutation: false,
         partial: true,
       })
     })
 
-    expect(streamCallbacks.onComplete).toHaveBeenCalledWith([], null, {
+    expect(streamCallbacks.onComplete).toHaveBeenCalledWith([], {
       confirmedFileMutation: false,
       partial: true,
     })
@@ -970,7 +957,7 @@ describe('ChatPanel mount smoke', () => {
 
   type RoundOptions = {
     onQuotaRefunded: (kind: 'no_progress' | 'error' | 'stopped', removedFiles?: Array<{ id: string; title: string }>) => void
-    onComplete: (segments: unknown[], action: unknown, meta?: Record<string, unknown>) => Promise<void>
+    onComplete: (segments: unknown[], meta?: Record<string, unknown>) => Promise<void>
   }
   const roundOptions = () => capturedUseAgentStream.options as unknown as RoundOptions
   const userBubbles = () =>
@@ -1043,7 +1030,7 @@ describe('ChatPanel mount smoke', () => {
         { type: 'workflow_stopped', id: 'stop', reason: 'user_stopped', timestamp: new Date() },
       ]
       await act(async () => {
-        await roundOptions().onComplete([], null, {
+        await roundOptions().onComplete([], {
           stoppedByAuthor: true,
           producedOutput: false,
           assistantMessageId: 'assistant-stopped',
@@ -1070,7 +1057,7 @@ describe('ChatPanel mount smoke', () => {
 
     // The stop fell back to dropping the connection: no id arrived.
     await act(async () => {
-      await roundOptions().onComplete([{ type: 'content', id: 'c', content: '第一段' }], null, { partial: true })
+      await roundOptions().onComplete([{ type: 'content', id: 'c', content: '第一段' }], { partial: true })
     })
 
     const last = (mockMessageList.mock.calls.at(-1)?.[0] as {
@@ -1090,7 +1077,7 @@ describe('ChatPanel mount smoke', () => {
     mockStreamSnapshot.items = [{ type: 'thinking_status', id: 't', content: '正在组装上下文...', timestamp: new Date() }]
 
     await act(async () => {
-      await roundOptions().onComplete([], null, { partial: true })
+      await roundOptions().onComplete([], { partial: true })
     })
 
     const messages = (mockMessageList.mock.calls.at(-1)?.[0] as { messages: Array<{ role: string }> }).messages
@@ -1215,7 +1202,7 @@ describe('ChatPanel mount smoke', () => {
     mockAgentStreamState.error = '上游模型超时，本轮生成已中断。'
     mockAgentStreamState.retryable = true
     await act(async () => {
-      await roundOptions().onComplete([{ id: 'files', type: 'tool_calls', toolCalls }], null, { partial: true })
+      await roundOptions().onComplete([{ id: 'files', type: 'tool_calls', toolCalls }], { partial: true })
     })
 
     expect(screen.getByText('上游模型超时，本轮生成已中断。')).toBeInTheDocument()
@@ -1252,7 +1239,7 @@ describe('ChatPanel mount smoke', () => {
 
     // The stop is refunded; the progress refresh after the round finds the framework still ready.
     await act(async () => {
-      await roundOptions().onComplete([], null, { stoppedByAuthor: true, producedOutput: false })
+      await roundOptions().onComplete([], { stoppedByAuthor: true, producedOutput: false })
     })
     act(() => roundOptions().onQuotaRefunded('stopped'))
     expect(await screen.findByTestId('chat-resend-after-stop')).toBeInTheDocument()
@@ -1339,13 +1326,13 @@ describe('ChatPanel mount smoke', () => {
 
     const options = capturedUseAgentStream.options as {
       onWorkflowStopped?: (data: Record<string, unknown>) => void
-      onComplete?: (segments: unknown[], applyAction: unknown, meta?: Record<string, unknown>) => Promise<void>
+      onComplete?: (segments: unknown[], meta?: Record<string, unknown>) => Promise<void>
     }
     act(() => {
       options.onWorkflowStopped?.({ reason: 'clarification_needed', question: '要我按默认设定先写第一章吗？' })
     })
     await act(async () => {
-      await options.onComplete?.([], null, {})
+      await options.onComplete?.([], {})
     })
     await act(async () => {})
     expect(mockGetProgress.mock.calls.length).toBeGreaterThan(1)
@@ -1458,7 +1445,7 @@ describe('ChatPanel mount smoke', () => {
     let resolveRoundEnd: (value: unknown) => void = () => {}
     mockGetProgress.mockImplementationOnce(() => new Promise((resolve) => { resolveRoundEnd = resolve }) as never)
     await act(async () => {
-      await roundOptions().onComplete([], null, {})
+      await roundOptions().onComplete([], {})
     })
     mockGetProgress.mockResolvedValue(proseWritten)
     await act(async () => { notifyEditorContentSaved('project-1') })
@@ -1539,9 +1526,7 @@ describe('ChatPanel mount smoke', () => {
       onToolResult: (toolName: string, status: string, result?: Record<string, unknown>, error?: string) => void
       onSegmentUpdate: (segmentId: string, content: string) => void
       onToolCall: (toolName: string, args: Record<string, unknown>) => void
-      onAgentSelected: (agentType: string, agentName?: string) => void
-      onHandoff: (data: Record<string, unknown>) => void
-      onComplete: (segments: unknown[], action: unknown, meta?: Record<string, unknown>) => Promise<void>
+      onComplete: (segments: unknown[], meta?: Record<string, unknown>) => Promise<void>
     }
     const stopOptions = () => capturedUseAgentStream.options as StopOptions
 
@@ -1566,7 +1551,7 @@ describe('ChatPanel mount smoke', () => {
       expect(screen.queryByTestId('chat-user-stop-note')).not.toBeInTheDocument()
       mockAgentStreamState.isStreaming = false
       await act(async () => {
-        await stopOptions().onComplete([], null, { stoppedByAuthor: true, ...doneMeta })
+        await stopOptions().onComplete([], { stoppedByAuthor: true, ...doneMeta })
       })
       return screen.findByTestId('chat-user-stop-note')
     }
@@ -1594,9 +1579,7 @@ describe('ChatPanel mount smoke', () => {
         options.onToolResult('query_files', 'success', {})
         options.onToolResult('edit_file', 'error', {})
         options.onToolResult('create_file', 'success', { id: 'ch-1', title: '第1章', content: '' })
-        options.onToolResult('parallel_execute', 'success', {
-          tasks: [{ type: 'query_files', status: 'completed' }],
-        })
+        options.onToolResult('rename_file', 'success', { id: 'ch-1', mutation_applied: false })
       })
       // Nothing was written, so the server refunds the round; never say "计入" up front.
       expect(note).toHaveTextContent(/^已停止$/)
@@ -1611,9 +1594,7 @@ describe('ChatPanel mount smoke', () => {
       mockQuota.value = { ai_conversations: { used: 12, limit: -1, reset_at: null } }
       const note = await runRoundThenStop((options) => {
         options.onSessionStarted('session-stop')
-        options.onToolResult('parallel_execute', 'success', {
-          tasks: [{ type: 'write_chapter', status: 'completed' }],
-        })
+        options.onToolResult('write_chapter', 'success', { mutation_applied: true })
       })
       expect(note).toHaveTextContent('已停止 · 已写入的内容已保存')
       expect(note).not.toHaveTextContent('今日 AI 消息')
@@ -1730,7 +1711,7 @@ describe('ChatPanel mount smoke', () => {
       // No runId yet: the hook drops the connection and completes the round synchronously.
       mockStop.mockImplementationOnce(() => {
         mockAgentStreamState.isStreaming = false
-        void stopOptions().onComplete([], null, { partial: true })
+        void stopOptions().onComplete([], { partial: true })
       })
       await act(async () => {
         fireEvent.click(screen.getByTestId('mock-stop-button'))
@@ -1793,23 +1774,10 @@ describe('ChatPanel mount smoke', () => {
       mockAgentStreamState.isStreaming = false
       // A normal done (no stop_reason): the reply completed and was charged as completed.
       await act(async () => {
-        await stopOptions().onComplete([], null, { assistantMessageId: 'assistant-done' })
+        await stopOptions().onComplete([], { assistantMessageId: 'assistant-done' })
       })
       expect(screen.queryByTestId('chat-user-stop-note')).not.toBeInTheDocument()
       expect(screen.queryByText(/已停止/)).not.toBeInTheDocument()
-    })
-
-    it('counts prose like the server: an agent switch or handoff starts a new segment', async () => {
-      // 40 visible characters before the switch, 30 after: two short segments, no real prose.
-      const note = await runRoundThenStop((options) => {
-        options.onSessionStarted('session-stop')
-        options.onSegmentUpdate('seg-1', '甲'.repeat(40))
-        options.onAgentSelected('writer', '写手')
-        options.onSegmentUpdate('seg-1', '甲'.repeat(40) + '乙'.repeat(30))
-        options.onHandoff({ target_agent: 'reviewer' })
-        options.onSegmentUpdate('seg-1', '甲'.repeat(40) + '乙'.repeat(30) + '丙'.repeat(30))
-      })
-      expect(note).toHaveTextContent(/^已停止$/)
     })
 
     it('counts prose like the server: a tool call starts a new segment', async () => {
@@ -2125,7 +2093,7 @@ describe('ChatPanel mount smoke', () => {
       mockStreamSnapshot.items = [{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS, timestamp: new Date() }]
 
       await act(async () => {
-        await roundOptions().onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }], null)
+        await roundOptions().onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }])
       })
       await act(async () => { vi.advanceTimersByTime(1600) })
 
@@ -2182,7 +2150,7 @@ describe('ChatPanel mount smoke', () => {
       await act(async () => {
         options.onFileContent('ch-2', '已经保存的正文')
         options.onError('这一轮写得太久，先停下了。', 'ERR_AGENT_RUN_TIMEOUT', false)
-        await options.onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }], null, { partial: true })
+        await options.onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }], { partial: true })
       })
       await act(async () => { vi.advanceTimersByTime(20000) })
 
@@ -2239,7 +2207,7 @@ describe('ChatPanel mount smoke', () => {
       await act(async () => {
         options.onIterationExhausted(layer, 2, 2, 'internal', 'writer', undefined, liveFiles)
         // The stream still ends with done: the round stopped unfinished, it did not fail.
-        await options.onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }], null)
+        await options.onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }])
       })
       await act(async () => { vi.advanceTimersByTime(20000) })
 
@@ -2297,7 +2265,7 @@ describe('ChatPanel mount smoke', () => {
       localStorage.setItem('zenstory_suggestions_cache_project-1', JSON.stringify({ suggestions: ['旧建议'], updatedAt: Date.now() }))
 
       await act(async () => {
-        await roundOptions().onComplete([], null, { deliveryOutcome: {
+        await roundOptions().onComplete([], { deliveryOutcome: {
           reason: 'incomplete', charged: true, savedOutput: true, removedFiles: [], writtenFiles: [],
         } })
         vi.advanceTimersByTime(20_000)
@@ -2346,7 +2314,7 @@ describe('ChatPanel mount smoke', () => {
         options.onStart()
         options.onFileContent('ch-2', '已经保存的正文')
         options.onError('这一轮写得太久，先停下了。', 'ERR_AGENT_RUN_TIMEOUT', false)
-        await options.onComplete([{ type: 'content', id: 'reply', content: '写到一半' }], null, { partial: true })
+        await options.onComplete([{ type: 'content', id: 'reply', content: '写到一半' }], { partial: true })
       })
     }
 
@@ -2394,7 +2362,7 @@ describe('ChatPanel mount smoke', () => {
         const slow = deferred()
         vi.mocked(fetchSuggestions).mockReturnValueOnce(slow.promise)
         await act(async () => {
-          await options.onComplete([{ type: 'content', id: 'turn-1', content: '第一章写好了' }], null)
+          await options.onComplete([{ type: 'content', id: 'turn-1', content: '第一章写好了' }])
         })
         await act(async () => { vi.advanceTimersByTime(1600) })
         await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(2))
@@ -2495,10 +2463,10 @@ describe('ChatPanel mount smoke', () => {
       await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
 
       const options = capturedUseAgentStream.options as {
-        onComplete: (segments: unknown[], action: unknown) => Promise<void>
+        onComplete: (segments: unknown[]) => Promise<void>
       }
       await act(async () => {
-        await options.onComplete([{ type: 'content', id: 'turn-1', content: '第一章写好了' }], null)
+        await options.onComplete([{ type: 'content', id: 'turn-1', content: '第一章写好了' }])
       })
       await act(async () => {
         vi.advanceTimersByTime(20000)
@@ -2514,7 +2482,7 @@ describe('ChatPanel mount smoke', () => {
 })
 
 type CapturedStreamOptions = {
-  onComplete: (segments: unknown[], action: unknown, meta?: Record<string, unknown>) => Promise<void>
+  onComplete: (segments: unknown[], meta?: Record<string, unknown>) => Promise<void>
   onSessionStarted: (sessionId: string) => void
   onError: (message?: string, code?: string, retryable?: boolean) => void
   onQuotaRefunded: (kind: 'no_progress' | 'error') => void
@@ -2745,8 +2713,8 @@ describe('ChatPanel new-author flow', () => {
     mockAgentStreamState.isStreaming = false
     await act(async () => {
       await (capturedUseAgentStream.options as {
-        onComplete: (segments: unknown[], action: unknown, meta?: Record<string, unknown>) => Promise<void>
-      }).onComplete([], null, { assistantMessageId: 'assistant-10' })
+        onComplete: (segments: unknown[], meta?: Record<string, unknown>) => Promise<void>
+      }).onComplete([], { assistantMessageId: 'assistant-10' })
     })
     expect(await screen.findByTestId('chat-quota-card')).toBeInTheDocument()
   })
@@ -2867,7 +2835,7 @@ describe('ChatPanel new-author flow', () => {
       })
       refuse()
       await act(async () => {
-        await (capturedUseAgentStream.options as { onComplete: (segments: unknown[], action: unknown) => Promise<void> }).onComplete([], null)
+        await (capturedUseAgentStream.options as { onComplete: (segments: unknown[]) => Promise<void> }).onComplete([])
       })
       expect(mockAttachments.clearMaterials).not.toHaveBeenCalled()
       mockAttachments.fileIds = []
@@ -2985,7 +2953,7 @@ describe('ChatPanel new-author flow', () => {
       // The hook finishes the refused round through onComplete, as it does for any error.
       await act(async () => {
         await (capturedUseAgentStream.options as { onComplete: (...args: unknown[]) => Promise<void> })
-          .onComplete([], null)
+          .onComplete([])
       })
       expect(mockAttachments.clearMaterials).not.toHaveBeenCalled()
     })
@@ -3088,7 +3056,7 @@ describe('ChatPanel new-author flow', () => {
     expectQuotaInvalidated()
 
     await act(async () => {
-      await streamOptions().onComplete([{ type: 'content', id: 'c', content: '写好了' }], null)
+      await streamOptions().onComplete([{ type: 'content', id: 'c', content: '写好了' }])
     })
     expectQuotaInvalidated()
 
@@ -3241,7 +3209,7 @@ describe('ChatPanel new-author flow', () => {
     await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
 
     await act(async () => {
-      await streamOptions().onComplete([{ type: 'content', id: 'c', content: '大纲好了' }], null)
+      await streamOptions().onComplete([{ type: 'content', id: 'c', content: '大纲好了' }])
     })
 
     expect(mockProjectState.refreshProjects).not.toHaveBeenCalled()

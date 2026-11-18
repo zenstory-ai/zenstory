@@ -53,7 +53,6 @@ describe('useAgentStream', () => {
       expect(result.current.isThinking).toBe(false)
       expect(result.current.state.content).toBe('')
       expect(result.current.error).toBe(null)
-      expect(result.current.conflicts).toEqual([])
     })
 
     it('accepts projectId parameter', () => {
@@ -124,7 +123,7 @@ describe('useAgentStream', () => {
       expect(result.current.isStreaming).toBe(false)
       expect(result.current.isThinking).toBe(false)
       expect(onComplete).toHaveBeenCalledTimes(1)
-      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), null, expect.objectContaining({ partial: true }))
+      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ partial: true }))
     })
 
     it('calls onStart callback', () => {
@@ -148,8 +147,6 @@ describe('useAgentStream', () => {
           message: 'Hello AI',
           session_id: 'session-123',
           selected_text: 'selected',
-          context_before: 'before',
-          context_after: 'after',
         })
       })
 
@@ -159,8 +156,6 @@ describe('useAgentStream', () => {
           message: 'Hello AI',
           session_id: 'session-123',
           selected_text: 'selected',
-          context_before: 'before',
-          context_after: 'after',
         }),
         expect.any(Object)
       )
@@ -447,7 +442,7 @@ describe('useAgentStream', () => {
 
       expect(onComplete).toHaveBeenCalledWith(
         [expect.objectContaining({ type: 'content', content: 'Hello', isStreaming: false })],
-        null
+        {}
       )
     })
   })
@@ -896,7 +891,7 @@ describe('useAgentStream', () => {
         })
       })
       expect(hook.result.current.isStreaming).toBe(false)
-      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), null, expect.objectContaining({
+      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({
         assistantMessageId: 'assistant-7',
         stoppedByAuthor: true,
         producedOutput: false,
@@ -929,7 +924,7 @@ describe('useAgentStream', () => {
           unwritten_files: [{ id: 'ch-4', title: '周念' }],
         })
       })
-      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), null, expect.objectContaining({
+      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({
         stoppedByAuthor: true,
         writtenFiles: [{ title: '雨夜', words: 1039 }, { title: '人物', words: null }],
         unwrittenFiles: [{ title: '周念', words: null }],
@@ -953,7 +948,7 @@ describe('useAgentStream', () => {
       act(() => {
         controller.getCallbacks()?.onDone?.({ assistant_message_id: 'assistant-8', ...receipt })
       })
-      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), null, expect.objectContaining({
+      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({
         deliveryOutcome: { charged: true, removedFiles: [], ...outcome },
       }))
     })
@@ -982,7 +977,7 @@ describe('useAgentStream', () => {
       act(() => hook.result.current.startStream({ message: 'test' }))
       act(() => controller.getCallbacks()?.onDone?.({ assistant_message_id: 'assistant-incomplete', ...receipt }))
 
-      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), null, expect.objectContaining({
+      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({
         deliveryOutcome: { charged: true, removedFiles: [], ...outcome },
       }))
     })
@@ -1004,7 +999,7 @@ describe('useAgentStream', () => {
       act(() => {
         controller.getCallbacks()?.onDone?.({ stop_reason: 'user_stopped', produced_output: true })
       })
-      const meta = onComplete.mock.calls.at(-1)?.[2]
+      const meta = onComplete.mock.calls.at(-1)?.[1]
       expect(meta).toMatchObject({ stoppedByAuthor: true })
       expect(meta).not.toHaveProperty('writtenFiles')
     })
@@ -1138,40 +1133,29 @@ describe('useAgentStream', () => {
   })
 
   describe('prose segment boundaries', () => {
-    it.each(['agent_selected', 'handoff', 'file_created', 'parallel_start'] as const)(
-      'delivers the text streamed before %s first, so the prose count can restart there',
-      (boundary) => {
-        const onSegmentUpdate = vi.fn()
-        const onBoundary = vi.fn()
-        const { result } = renderHook(() =>
-          useAgentStream('test-project-id', {
-            onSegmentUpdate,
-            onAgentSelected: onBoundary,
-            onHandoff: onBoundary,
-            onFileCreated: onBoundary,
-            onParallelStart: onBoundary,
-          }),
-        )
-        const controller = createMockStreamController()
-        act(() => {
-          result.current.startStream({ message: 'test' })
-        })
-        act(() => {
-          const callbacks = controller.getCallbacks()
-          callbacks?.onContent?.('甲'.repeat(40))
-          if (boundary === 'agent_selected') callbacks?.onAgentSelected?.('writer', '写手', 1, 5, 4)
-          if (boundary === 'handoff') {
-            callbacks?.onHandoff?.({ target_agent: 'writer', reason: '', context: '' } as never)
-          }
-          if (boundary === 'file_created') callbacks?.onFileCreated?.('file-1', 'draft', '第1章')
-          if (boundary === 'parallel_start') callbacks?.onParallelStart?.('exec-1', 2, ['a', 'b'], 0)
-        })
+    it('delivers the text streamed before file_created first, so the prose count can restart there', () => {
+      const onSegmentUpdate = vi.fn()
+      const onBoundary = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', {
+          onSegmentUpdate,
+          onFileCreated: onBoundary,
+        }),
+      )
+      const controller = createMockStreamController()
+      act(() => {
+        result.current.startStream({ message: 'test' })
+      })
+      act(() => {
+        const callbacks = controller.getCallbacks()
+        callbacks?.onContent?.('甲'.repeat(40))
+        callbacks?.onFileCreated?.('file-1', 'draft', '第1章')
+      })
 
-        expect(onSegmentUpdate).toHaveBeenCalledWith(expect.any(String), '甲'.repeat(40))
-        expect(onBoundary).toHaveBeenCalledTimes(1)
-        expect(onSegmentUpdate.mock.invocationCallOrder[0]).toBeLessThan(onBoundary.mock.invocationCallOrder[0])
-      },
-    )
+      expect(onSegmentUpdate).toHaveBeenCalledWith(expect.any(String), '甲'.repeat(40))
+      expect(onBoundary).toHaveBeenCalledTimes(1)
+      expect(onSegmentUpdate.mock.invocationCallOrder[0]).toBeLessThan(onBoundary.mock.invocationCallOrder[0])
+    })
   })
 
   describe('onComplete', () => {
@@ -1198,30 +1182,7 @@ describe('useAgentStream', () => {
         expect.arrayContaining([
           expect.objectContaining({ content: 'Hello' })
         ]),
-        null
-      )
-    })
-
-    it('calls onComplete with applyAction when provided', () => {
-      const onComplete = vi.fn()
-      const { result } = renderHook(() =>
-        useAgentStream('test-project-id', { onComplete })
-      )
-      const controller = createMockStreamController()
-
-      act(() => {
-        result.current.startStream({ message: 'test' })
-      })
-
-      const callbacks = controller.getCallbacks()!
-
-      act(() => {
-        callbacks.onDone?.({ apply_action: 'insert' })
-      })
-
-      expect(onComplete).toHaveBeenCalledWith(
-        expect.any(Array),
-        'insert'
+        {}
       )
     })
 
@@ -1247,7 +1208,6 @@ describe('useAgentStream', () => {
 
       expect(onComplete).toHaveBeenCalledWith(
         expect.any(Array),
-        null,
         {
           assistantMessageId: 'assistant-1',
           sessionId: 'session-1',
@@ -1272,7 +1232,6 @@ describe('useAgentStream', () => {
 
       expect(onComplete).toHaveBeenCalledWith(
         expect.any(Array),
-        null,
         { confirmedFileMutation: fileMutated },
       )
     })
@@ -1292,10 +1251,9 @@ describe('useAgentStream', () => {
       expect(onComplete).toHaveBeenNthCalledWith(
         1,
         expect.any(Array),
-        null,
         { confirmedFileMutation: true },
       )
-      expect(onComplete).toHaveBeenNthCalledWith(2, expect.any(Array), null)
+      expect(onComplete).toHaveBeenNthCalledWith(2, expect.any(Array), {})
     })
 
     it('prevents duplicate onComplete calls', () => {
@@ -1319,7 +1277,6 @@ describe('useAgentStream', () => {
       expect(onComplete).toHaveBeenCalledTimes(1)
       expect(onComplete).toHaveBeenCalledWith(
         expect.any(Array),
-        null,
         { confirmedFileMutation: true },
       )
     })
@@ -1414,37 +1371,28 @@ describe('useAgentStream', () => {
       expect(result.current.isStreaming).toBe(false)
       expect(result.current.isThinking).toBe(false)
     })
-  })
 
-  describe('conflicts', () => {
-    it('handles conflict events', async () => {
-      const onConflict = vi.fn()
-      const { result } = renderHook(() =>
-        useAgentStream('test-project-id', { onConflict })
-      )
+    it('clearError clears error, errorCode, state.error, state.errorCode, and retryable', () => {
+      const { result } = renderHook(() => useAgentStream('test-project-id'))
       const controller = createMockStreamController()
 
-      act(() => {
-        result.current.startStream({ message: 'test' })
-      })
+      act(() => result.current.startStream({ message: 'first' }))
+      act(() => controller.getCallbacks()!.onError?.('网络错误', 'STREAM_CLOSED', true))
 
-      const callbacks = controller.getCallbacks()!
+      expect(result.current.error).toBe('网络错误')
+      expect(result.current.errorCode).toBe('STREAM_CLOSED')
+      expect(result.current.state.error).toBe('网络错误')
+      expect(result.current.state.errorCode).toBe('STREAM_CLOSED')
+      expect(result.current.retryable).toBe(true)
 
-      act(() => {
-        callbacks.onConflict?.({
-          type: 'character_conflict',
-          severity: 'high',
-          title: 'Character inconsistency',
-          description: 'Character behavior contradicts previous actions',
-          suggestions: ['Review character arc'],
-        })
-      })
+      act(() => result.current.clearError())
 
-      expect(result.current.conflicts).toHaveLength(1)
-      expect(result.current.conflicts[0].type).toBe('character_conflict')
-      expect(onConflict).toHaveBeenCalled()
+      expect(result.current.error).toBeNull()
+      expect(result.current.errorCode).toBeNull()
+      expect(result.current.state.error).toBeNull()
+      expect(result.current.state.errorCode).toBeNull()
+      expect(result.current.retryable).toBe(false)
     })
-
   })
 
   describe('context items', () => {
@@ -1585,18 +1533,16 @@ describe('useAgentStream', () => {
       expect(onFileEditStart).toHaveBeenCalledWith('file-123', 'Edit File', 3, undefined)
 
       act(() => {
-        callbacks.onFileEditApplied?.('file-123', 0, 'replace', 'old', 'new', true)
+        callbacks.onFileEditApplied?.(0, 'replace')
       })
-      expect(onFileEditApplied).toHaveBeenCalledWith('file-123', 0, 'replace', 'old', 'new', true, undefined)
+      expect(onFileEditApplied).toHaveBeenCalledWith(0, 'replace')
 
       act(() => {
-        callbacks.onFileEditEnd?.('file-123', 3, 100)
+        callbacks.onFileEditEnd?.('file-123', 3)
       })
-      // 第 8 个参数是新增的批量编辑结果；上游没传时原样转发 undefined。
       expect(onFileEditEnd).toHaveBeenCalledWith(
         'file-123',
         3,
-        100,
         undefined,
         undefined,
         undefined,
@@ -1625,13 +1571,6 @@ describe('useAgentStream', () => {
           reason: 'clarification_needed',
           agent_type: 'writer',
           message: 'Need more info',
-          confidence: 0.8,
-          evaluation: {
-            complete_score: 0.1,
-            clarification_score: 0.8,
-            consistency_score: 0.3,
-            decision_reason: 'heuristic_clarification',
-          },
         })
       })
 
@@ -1640,238 +1579,7 @@ describe('useAgentStream', () => {
         reason: 'clarification_needed',
         agent_type: 'writer',
         message: 'Need more info',
-        confidence: 0.8,
-        evaluation: {
-          complete_score: 0.1,
-          clarification_score: 0.8,
-          consistency_score: 0.3,
-          decision_reason: 'heuristic_clarification',
-        },
       })
-    })
-
-    it('handles workflow_complete event', async () => {
-      const onWorkflowComplete = vi.fn()
-      const { result } = renderHook(() =>
-        useAgentStream('test-project-id', { onWorkflowComplete })
-      )
-      const controller = createMockStreamController()
-
-      act(() => {
-        result.current.startStream({ message: 'test' })
-      })
-
-      const callbacks = controller.getCallbacks()!
-
-      act(() => {
-        callbacks.onWorkflowComplete?.({
-          reason: 'task_complete',
-          agent_type: 'writer',
-          message: 'Done',
-          confidence: 1,
-          evaluation: {
-            complete_score: 1,
-            clarification_score: 0,
-            consistency_score: 0,
-            decision_reason: 'explicit_complete_marker',
-          },
-        })
-      })
-
-      expect(result.current.isStreaming).toBe(false)
-      expect(onWorkflowComplete).toHaveBeenCalledWith({
-        reason: 'task_complete',
-        agent_type: 'writer',
-        message: 'Done',
-        confidence: 1,
-        evaluation: {
-          complete_score: 1,
-          clarification_score: 0,
-          consistency_score: 0,
-          decision_reason: 'explicit_complete_marker',
-        },
-      })
-    })
-
-    it('handles handoff event', async () => {
-      const onHandoff = vi.fn()
-      const { result } = renderHook(() =>
-        useAgentStream('test-project-id', { onHandoff })
-      )
-      const controller = createMockStreamController()
-
-      act(() => {
-        result.current.startStream({ message: 'test' })
-      })
-
-      const callbacks = controller.getCallbacks()!
-
-      act(() => {
-        callbacks.onHandoff?.({
-          target_agent: 'quality_reviewer',
-          reason: 'auto review',
-          context: 'content length > threshold',
-          handoff_packet: {
-            target_agent: 'quality_reviewer',
-            reason: 'auto review',
-            context: 'content length > threshold',
-            completed: ['draft updated'],
-            todo: ['review consistency'],
-            evidence: ['content_length=900'],
-          },
-        })
-      })
-
-      expect(onHandoff).toHaveBeenCalledWith({
-        target_agent: 'quality_reviewer',
-        reason: 'auto review',
-        context: 'content length > threshold',
-        handoff_packet: {
-          target_agent: 'quality_reviewer',
-          reason: 'auto review',
-          context: 'content length > threshold',
-          completed: ['draft updated'],
-          todo: ['review consistency'],
-          evidence: ['content_length=900'],
-        },
-      })
-    })
-
-    it('resolves pending handoff_to_agent tool call when handoff event arrives', async () => {
-      const onSegmentUpdateToolCalls = vi.fn()
-      const onSegmentEnd = vi.fn()
-      const { result } = renderHook(() =>
-        useAgentStream('test-project-id', { onSegmentUpdateToolCalls, onSegmentEnd })
-      )
-      const controller = createMockStreamController()
-
-      act(() => {
-        result.current.startStream({ message: 'test' })
-      })
-
-      const callbacks = controller.getCallbacks()!
-
-      act(() => {
-        callbacks.onToolCall?.('handoff_to_agent', {
-          target_agent: 'quality_reviewer',
-          reason: 'review',
-        })
-      })
-
-      act(() => {
-        callbacks.onHandoff?.({
-          target_agent: 'quality_reviewer',
-          reason: 'review',
-          context: 'done',
-        })
-      })
-
-      expect(onSegmentUpdateToolCalls).toHaveBeenLastCalledWith(
-        expect.any(String),
-        [expect.objectContaining({ tool_name: 'handoff_to_agent', status: 'success' })]
-      )
-      expect(onSegmentEnd).toHaveBeenCalledTimes(1)
-    })
-
-    it('resolves pending request_clarification tool call on workflow_stopped', async () => {
-      const onSegmentUpdateToolCalls = vi.fn()
-      const { result } = renderHook(() =>
-        useAgentStream('test-project-id', { onSegmentUpdateToolCalls })
-      )
-      const controller = createMockStreamController()
-
-      act(() => {
-        result.current.startStream({ message: 'test' })
-      })
-
-      const callbacks = controller.getCallbacks()!
-
-      act(() => {
-        callbacks.onToolCall?.('request_clarification', {
-          question: '请补充主角名',
-        })
-      })
-
-      act(() => {
-        callbacks.onWorkflowStopped?.({
-          reason: 'clarification_needed',
-          agent_type: 'writer',
-          message: '请补充主角名',
-        })
-      })
-
-      expect(onSegmentUpdateToolCalls).toHaveBeenLastCalledWith(
-        expect.any(String),
-        [expect.objectContaining({ tool_name: 'request_clarification', status: 'success' })]
-      )
-      expect(result.current.isStreaming).toBe(false)
-    })
-
-    it('handles router_thinking and router_decided events', async () => {
-      const onRouterThinking = vi.fn()
-      const onRouterDecided = vi.fn()
-      const { result } = renderHook(() =>
-        useAgentStream('test-project-id', { onRouterThinking, onRouterDecided })
-      )
-      const controller = createMockStreamController()
-
-      act(() => {
-        result.current.startStream({ message: 'test' })
-      })
-
-      const callbacks = controller.getCallbacks()!
-
-      act(() => {
-        callbacks.onRouterThinking?.('Analyzing request...')
-      })
-      expect(onRouterThinking).toHaveBeenCalledWith('Analyzing request...')
-      expect(result.current.isThinking).toBe(true)
-
-      act(() => {
-        callbacks.onRouterDecided?.(
-          'writer',
-          'Write content',
-          ['writer', 'editor'],
-          {
-            agent_type: 'writer',
-            workflow_type: 'quick',
-            reason: 'default route',
-            confidence: 0.6,
-          }
-        )
-      })
-      expect(onRouterDecided).toHaveBeenCalledWith(
-        'writer',
-        'Write content',
-        ['writer', 'editor'],
-        {
-          agent_type: 'writer',
-          workflow_type: 'quick',
-          reason: 'default route',
-          confidence: 0.6,
-        }
-      )
-      expect(result.current.isThinking).toBe(false)
-    })
-
-    it('handles agent_selected event', async () => {
-      const onAgentSelected = vi.fn()
-      const { result } = renderHook(() =>
-        useAgentStream('test-project-id', { onAgentSelected })
-      )
-      const controller = createMockStreamController()
-
-      act(() => {
-        result.current.startStream({ message: 'test' })
-      })
-
-      const callbacks = controller.getCallbacks()!
-
-      act(() => {
-        callbacks.onAgentSelected?.('writer', 'Content Writer', 1, 5, 4)
-      })
-
-      expect(onAgentSelected).toHaveBeenCalledWith('writer', 'Content Writer', 1, 5, 4)
     })
 
     it('handles iteration_exhausted event', async () => {
@@ -1915,31 +1623,6 @@ describe('useAgentStream', () => {
 
       expect(onSkillMatched).toHaveBeenCalledWith('skill-123', 'Auto-correct', '/fix')
     })
-
-    it('handles skills_matched event', async () => {
-      const onSkillsMatched = vi.fn()
-      const { result } = renderHook(() =>
-        useAgentStream('test-project-id', { onSkillsMatched })
-      )
-      const controller = createMockStreamController()
-
-      act(() => {
-        result.current.startStream({ message: 'test' })
-      })
-
-      const callbacks = controller.getCallbacks()!
-
-      const skills = [
-        { id: '1', name: 'Skill 1', trigger: '/s1', confidence: 0.9 },
-        { id: '2', name: 'Skill 2', trigger: '/s2', confidence: 0.8 },
-      ]
-
-      act(() => {
-        callbacks.onSkillsMatched?.(skills)
-      })
-
-      expect(onSkillsMatched).toHaveBeenCalledWith(skills)
-    })
   })
 
   describe('steering', () => {
@@ -1976,18 +1659,15 @@ describe('useAgentStream', () => {
   })
 
   describe('callback freshness', () => {
-    it('uses latest callbacks for newly added stream events after rerender', () => {
+    it('uses latest callbacks for stream events after rerender', () => {
       const onSessionStartedV1 = vi.fn()
-      const onParallelStartV1 = vi.fn()
       const onSteeringReceivedV1 = vi.fn()
 
       const onSessionStartedV2 = vi.fn()
-      const onParallelStartV2 = vi.fn()
       const onSteeringReceivedV2 = vi.fn()
 
       type CallbackProps = {
         onSessionStarted: (sessionId: string) => void
-        onParallelStart: (executionId: string, taskCount: number, descriptions: string[]) => void
         onSteeringReceived: (messageId: string, preview: string) => void
       }
 
@@ -1995,13 +1675,11 @@ describe('useAgentStream', () => {
         (props: CallbackProps) =>
           useAgentStream('test-project-id', {
             onSessionStarted: props.onSessionStarted,
-            onParallelStart: props.onParallelStart,
             onSteeringReceived: props.onSteeringReceived,
           }),
         {
           initialProps: {
             onSessionStarted: onSessionStartedV1,
-            onParallelStart: onParallelStartV1,
             onSteeringReceived: onSteeringReceivedV1,
           },
         }
@@ -2014,17 +1692,14 @@ describe('useAgentStream', () => {
       let callbacks = controller.getCallbacks()!
       act(() => {
         callbacks.onSessionStarted?.('session-v1')
-        callbacks.onParallelStart?.('exec-v1', 1, ['task-v1'])
         callbacks.onSteeringReceived?.('steer-v1', 'preview-v1')
       })
 
       expect(onSessionStartedV1).toHaveBeenCalledWith('session-v1')
-      expect(onParallelStartV1).toHaveBeenCalledWith('exec-v1', 1, ['task-v1'], undefined)
       expect(onSteeringReceivedV1).toHaveBeenCalledWith('steer-v1', 'preview-v1')
 
       rerender({
         onSessionStarted: onSessionStartedV2,
-        onParallelStart: onParallelStartV2,
         onSteeringReceived: onSteeringReceivedV2,
       })
 
@@ -2034,21 +1709,13 @@ describe('useAgentStream', () => {
       callbacks = controller.getCallbacks()!
       act(() => {
         callbacks.onSessionStarted?.('session-v2')
-        callbacks.onParallelStart?.('exec-v2', 2, ['task-a', 'task-b'])
         callbacks.onSteeringReceived?.('steer-v2', 'preview-v2')
       })
 
       expect(onSessionStartedV2).toHaveBeenCalledWith('session-v2')
-      expect(onParallelStartV2).toHaveBeenCalledWith(
-        'exec-v2',
-        2,
-        ['task-a', 'task-b'],
-        undefined,
-      )
       expect(onSteeringReceivedV2).toHaveBeenCalledWith('steer-v2', 'preview-v2')
 
       expect(onSessionStartedV1).toHaveBeenCalledTimes(1)
-      expect(onParallelStartV1).toHaveBeenCalledTimes(1)
       expect(onSteeringReceivedV1).toHaveBeenCalledTimes(1)
     })
   })

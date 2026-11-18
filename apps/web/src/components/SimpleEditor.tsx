@@ -334,12 +334,6 @@ export const SimpleEditor = ({
   const [isNaturalPolishRunning, setIsNaturalPolishRunning] = useState(false);
   const naturalPolishRunIdRef = useRef(0);
   const naturalPolishAbortRef = useRef<AbortController | null>(null);
-  const naturalPolishBaselineRef = useRef<{
-    content: string;
-    start: number;
-    end: number;
-    selection: string;
-  } | null>(null);
   // 去AI味这一次没能用上（模型回复对不回选区、或模型没响应）：留一条提示，作者手动点「再试一次」。
   // 记住失败时的选区和正文，正文没变就按原选区重试。存文案 key，切换界面语言时提示跟着变。
   const [naturalPolishRetry, setNaturalPolishRetry] = useState<{
@@ -555,7 +549,6 @@ export const SimpleEditor = ({
     naturalPolishRunIdRef.current += 1;
     naturalPolishAbortRef.current?.abort();
     naturalPolishAbortRef.current = null;
-    naturalPolishBaselineRef.current = null;
     setIsNaturalPolishRunning(false);
   }, [fileId, adjustTextareaHeight, clearSelectionState]);
 
@@ -779,7 +772,6 @@ export const SimpleEditor = ({
 
     const baselineContent = textarea.value;
     setNaturalPolishRetry(null);
-    naturalPolishBaselineRef.current = { content: baselineContent, start, end, selection };
     const runId = naturalPolishRunIdRef.current + 1;
     naturalPolishRunIdRef.current = runId;
 
@@ -809,47 +801,33 @@ export const SimpleEditor = ({
       refreshAiQuota();
 
       if (naturalPolishRunIdRef.current !== runId) return;
-      const baseline = naturalPolishBaselineRef.current;
       setIsNaturalPolishRunning(false);
+      naturalPolishAbortRef.current = null;
 
-      if (!baseline) {
-        naturalPolishAbortRef.current = null;
-        naturalPolishBaselineRef.current = null;
-        return;
-      }
       if (latestFileIdRef.current !== fileId) {
         // File switched while request was in flight; ignore this result.
-        naturalPolishAbortRef.current = null;
-        naturalPolishBaselineRef.current = null;
         return;
       }
 
       if (unchanged) {
         // 服务端判定没有实质改动并已退还额度：不进审阅，原文一个字节都不动。
-        naturalPolishAbortRef.current = null;
-        naturalPolishBaselineRef.current = null;
         toast.info(t("editor:naturalPolishNoChange"));
         return;
       }
 
       const rewrittenCore = rewrittenRaw.trim();
       if (!rewrittenCore) {
-        naturalPolishAbortRef.current = null;
-        naturalPolishBaselineRef.current = null;
         toast.error(t("editor:naturalPolishEmpty"));
         return;
       }
 
-      const replacement = preserveSelectionWhitespace(baseline.selection, rewrittenCore);
+      const replacement = preserveSelectionWhitespace(selection, rewrittenCore);
       const modifiedContent =
-        baseline.content.slice(0, baseline.start) +
+        baselineContent.slice(0, start) +
         replacement +
-        baseline.content.slice(baseline.end);
+        baselineContent.slice(end);
 
-      naturalPolishAbortRef.current = null;
-      naturalPolishBaselineRef.current = null;
-
-      onEnterDiffReview?.(fileId, baseline.content, modifiedContent);
+      onEnterDiffReview?.(fileId, baselineContent, modifiedContent);
     } catch (error) {
       refreshAiQuota();
       // Abort is user-intentional (or file-switch cleanup); keep silent.
@@ -857,7 +835,6 @@ export const SimpleEditor = ({
         if (naturalPolishRunIdRef.current === runId) {
           setIsNaturalPolishRunning(false);
           naturalPolishAbortRef.current = null;
-          naturalPolishBaselineRef.current = null;
         }
         return;
       }
@@ -865,7 +842,6 @@ export const SimpleEditor = ({
       if (naturalPolishRunIdRef.current !== runId) return;
       setIsNaturalPolishRunning(false);
       naturalPolishAbortRef.current = null;
-      naturalPolishBaselineRef.current = null;
       if (latestFileIdRef.current === fileId) {
         const retryable = readNaturalPolishRetryableFailure(error);
         if (retryable) {

@@ -3,7 +3,11 @@ import type { ReactNode } from 'react';
 import type { Project, SelectedItem, ProjectType, DiffReviewState, DiffReviewOrigin } from '../types';
 import { projectApi } from '../lib/api';
 import { useAuth } from './AuthContext';
-import { applyPendingEditsToDiffs, buildParagraphReviewData } from '../lib/diffReview';
+import {
+  applyPendingEditsToDiffs,
+  buildParagraphReviewData,
+  computeParagraphReviewDiffs,
+} from '../lib/diffReview';
 import { logger } from '../lib/logger';
 import { trackEvent } from '../lib/analytics';
 
@@ -74,9 +78,7 @@ export interface ProjectContextType {
   // Diff review state (for Cursor-style inline diff)
   diffReviewState: DiffReviewState | null;
   /**
-   * Open the paragraph review of `originalContent` → `newContent`. A later agent write to a file
-   * whose agent-write review is still open keeps that review's original, so one review always
-   * spans every AI write since the author last decided, ending at the latest text.
+   * Open the inline review of `originalContent` → `newContent` (conflict comparison or natural-polish candidate).
    */
   enterDiffReview: (fileId: string, originalContent: string, newContent: string, origin?: DiffReviewOrigin) => void;
   acceptEdit: (editId: string) => void;
@@ -238,7 +240,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     resetStreamingContent();
   }, [resetStreamingContent]);
 
-  // Enter diff review mode - compute diffs and create pending edits
+  // Enter diff review mode - compute diffs and create pending edits when needed
   const enterDiffReview = useCallback((
     fileId: string,
     originalContent: string,
@@ -246,7 +248,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     origin?: DiffReviewOrigin,
   ) => {
     setDiffReviewState(() => {
-      const { pendingEdits } = buildParagraphReviewData(originalContent, newContent);
+      const pendingEdits = origin === 'polish'
+        ? []
+        : buildParagraphReviewData(originalContent, newContent).pendingEdits;
       logger.log(`[DiffReview] Entering review mode for file ${fileId} with ${pendingEdits.length} edits`);
       return {
         isReviewing: true,
@@ -333,7 +337,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (!diffReviewState) return '';
 
     const { originalContent, pendingEdits } = diffReviewState;
-    const { diffs } = buildParagraphReviewData(
+    const diffs = computeParagraphReviewDiffs(
       originalContent,
       diffReviewState.modifiedContent
     );

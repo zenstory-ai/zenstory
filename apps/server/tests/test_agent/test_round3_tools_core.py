@@ -12,7 +12,6 @@ import asyncio
 import json
 import threading
 import time
-from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -142,19 +141,15 @@ async def test_concurrent_empty_create_file_is_atomic(db_session, monkeypatch):
         create_session_func=TestSessionLocal,
     )
     try:
-        # 强制走 offload 分支（生产 PG 路径）：create_file 在 await 处让出事件循环，
-        # 两次调用的"检查"与"置位"因此真正交错。
-        with patch(
-            "agent.tools.mcp_tools._should_offload_tool_execution", return_value=True
-        ):
-            results = await asyncio.gather(
-                mcp_tools.create_file(
-                    {"title": "第一章", "file_type": "draft", "content": ""}
-                ),
-                mcp_tools.create_file(
-                    {"title": "第二章", "file_type": "draft", "content": ""}
-                ),
-            )
+        # create_file 在 await 处让出事件循环，两次调用的"检查"与"置位"因此真正交错。
+        results = await asyncio.gather(
+            mcp_tools.create_file(
+                {"title": "第一章", "file_type": "draft", "content": ""}
+            ),
+            mcp_tools.create_file(
+                {"title": "第二章", "file_type": "draft", "content": ""}
+            ),
+        )
         statuses = sorted(_payload(r)["status"] for r in results)
         assert statuses == ["error", "success"]
 
@@ -352,21 +347,6 @@ async def test_edit_file_tool_string_false_stops_on_first_failure(db_session):
 
 
 # --------------------------------------------------------------------------- rank 6 / 28 应用侧
-def test_offload_decision_is_decoupled_from_database_type(monkeypatch):
-    """rank 6/28：是否 offload 取决于"这段代码 CPU/IO 密集"，与数据库类型无关。
-
-    绑定 is_postgres 会让 SQLite 部署（项目默认）把 difflib/近似匹配扫描和阻塞式
-    threading.Lock 获取全都放在事件循环线程上，实测停顿 21.93 秒。
-    """
-    import database
-
-    monkeypatch.setattr(database, "is_postgres", False, raising=False)
-    assert mcp_tools._should_offload_tool_execution() is True
-
-    monkeypatch.setattr(database, "is_postgres", True, raising=False)
-    assert mcp_tools._should_offload_tool_execution() is True
-
-
 @pytest.mark.asyncio
 async def test_write_tools_run_off_event_loop_thread_on_sqlite(db_session, monkeypatch):
     """rank 28：SQLite 模式下写工具的同步实现不得跑在事件循环线程上。"""

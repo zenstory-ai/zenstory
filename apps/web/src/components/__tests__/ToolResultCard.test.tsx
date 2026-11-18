@@ -109,9 +109,6 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
     'chat:action.new_snippet': 'New snippet',
     'chat:action.reference_only': 'Reference only',
     'chat:action.apply': 'Apply',
-    'chat:conflict.suggestions_label': 'Suggestions',
-    'chat:conflict.fix_suggestions': 'Fix suggestions',
-    'chat:conflict.location': 'Location',
     'common:undo': 'Undo',
     'common:retry': 'Retry',
     'common:copy': 'Copy',
@@ -1094,87 +1091,6 @@ describe('ToolResultCard', () => {
       )
       expect(screen.getByText(/chat:tool.generic failed/)).toBeInTheDocument()
       expect(screen.queryByText(/rewrite_chapter/)).not.toBeInTheDocument()
-    })
-  })
-
-  describe('Conflict rendering', () => {
-    it('renders conflict with high severity', () => {
-      render(
-        <ToolResultCard
-          type="conflict"
-          result={{
-            conflict: {
-              type: 'consistency',
-              severity: 'high',
-              title: 'Critical Issue',
-              description: 'This is a critical issue',
-              suggestions: ['Fix it now'],
-              references: [],
-            },
-          }}
-        />
-      )
-      expect(screen.getByText('Critical Issue')).toBeInTheDocument()
-      expect(screen.getByText('This is a critical issue')).toBeInTheDocument()
-    })
-
-    it('renders conflict with medium severity', () => {
-      render(
-        <ToolResultCard
-          type="conflict"
-          result={{
-            conflict: {
-              type: 'consistency',
-              severity: 'medium',
-              title: 'Warning',
-              description: 'This is a warning',
-              suggestions: ['Consider fixing'],
-              references: [],
-            },
-          }}
-        />
-      )
-      expect(screen.getByText('Warning')).toBeInTheDocument()
-    })
-
-    it('renders conflict with low severity', () => {
-      render(
-        <ToolResultCard
-          type="conflict"
-          result={{
-            conflict: {
-              type: 'consistency',
-              severity: 'low',
-              title: 'Suggestion',
-              description: 'This is a suggestion',
-              suggestions: ['Optional improvement'],
-              references: [],
-            },
-          }}
-        />
-      )
-      expect(screen.getByText('Suggestion')).toBeInTheDocument()
-    })
-
-    it('displays conflict suggestions', () => {
-      render(
-        <ToolResultCard
-          type="conflict"
-          result={{
-            conflict: {
-              type: 'consistency',
-              severity: 'high',
-              title: 'Issue',
-              description: 'Description',
-              suggestions: ['Suggestion 1', 'Suggestion 2', 'Suggestion 3'],
-              references: [],
-            },
-          }}
-        />
-      )
-      expect(screen.getByText('Suggestion 1')).toBeInTheDocument()
-      expect(screen.getByText('Suggestion 2')).toBeInTheDocument()
-      expect(screen.getByText('Suggestion 3')).toBeInTheDocument()
     })
   })
 

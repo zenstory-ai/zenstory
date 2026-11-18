@@ -61,12 +61,21 @@ class _FakeService:
     """Yields the given frames; like the real service, hands back the assistant message id
     once the (cancelled) round's history is saved."""
 
-    def __init__(self, frames_factory, message_id: str | None = _FAKE_ASSISTANT_MESSAGE_ID, saved_file_word_counts=None):
+    def __init__(
+        self,
+        frames_factory,
+        message_id: str | None = _FAKE_ASSISTANT_MESSAGE_ID,
+        saved_file_word_counts=None,
+        runs_started: int = 0,
+    ):
         self._frames_factory = frames_factory
         self._message_id = message_id
         self._saved_file_word_counts = saved_file_word_counts
+        self._runs_started = runs_started
 
     async def process_stream(self, *, run_outcome=None, **_kwargs):
+        if run_outcome is not None and self._runs_started:
+            run_outcome.runs_started = self._runs_started
         try:
             async for frame in self._frames_factory():
                 yield frame
@@ -98,7 +107,7 @@ async def _post_stream(client, token, project):
 async def test_offloaded_refund_preserves_charged_period(db_session):
     """Postgres-style threadpool refunds must target the reservation's day."""
     with (
-        patch("api.agent._should_offload_session_work", return_value=True),
+        patch("api.agent.should_offload_session_work", return_value=True),
         patch("api.agent.asyncio.to_thread", new=AsyncMock(return_value=True)) as to_thread,
     ):
         refunded = await agent_api._refund_quota(
@@ -1083,9 +1092,9 @@ async def test_completed_project_metadata_update_does_not_report_a_file_mutation
                 _sse(
                     "tool_result",
                     {
-                        "tool_name": "parallel_execute",
+                        "tool_name": "delete_file",
                         "status": "success",
-                        "data": {"tasks": [{"type": "write_chapter", "status": "completed"}]},
+                        "data": True,
                     },
                 )
             ],
@@ -1247,9 +1256,9 @@ async def test_undelivered_done_still_persists_source_observed_incomplete_round(
         if source_fact in {"rolled_back", "tool_call_exhausted"}:
             # A successful write that cannot name its target still counts as saved output.
             yield _sse("tool_result", {
-                "tool_name": "parallel_execute",
+                "tool_name": "delete_file",
                 "status": "success",
-                "data": {"tasks": [{"type": "write_chapter", "status": "completed"}]},
+                "data": True,
             })
         if source_fact != "tool_call_exhausted":
             yield _create_file_result(placeholder)
@@ -1733,14 +1742,12 @@ async def test_rolled_back_empty_file_still_records_incomplete_without_a_deliver
                 "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
             }),
         ],
-        routing=_WRITE_REQUEST,
     )
 
     assert done["delivery_incomplete"] is True
     assert done["saved_output"] is False
     assert "written_files" not in done
     assert "unwritten_files" not in done
-    assert "no_file_changes" not in done
     assert metadata["stop_outcome"]["reason"] == "incomplete"
     assert metadata["stop_outcome"]["saved_output"] is False
     assert "written_files" not in metadata["stop_outcome"]
@@ -1763,7 +1770,6 @@ async def test_edit_plus_rolled_back_placeholder_is_incomplete_with_saved_output
                 "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
             }),
         ],
-        routing=_WRITE_REQUEST,
     )
 
     assert done["delivery_incomplete"] is True
@@ -1792,7 +1798,6 @@ async def test_edit_then_terminal_iteration_exhaustion_is_incomplete_with_saved_
                 "reason": "run reached its wall-clock wrap-up boundary",
             }),
         ],
-        routing=_WRITE_REQUEST,
         stop_reason="run_deadline_exceeded",
     )
 
@@ -1812,9 +1817,9 @@ async def test_unlistable_write_plus_rollback_keeps_saved_output_live_and_in_his
         db_session,
         lambda _file: [
             _sse("tool_result", {
-                "tool_name": "parallel_execute",
+                "tool_name": "delete_file",
                 "status": "success",
-                "data": {"tasks": [{"type": "write_chapter", "status": "completed"}]},
+                "data": True,
             }),
             _sse("tool_result", {
                 "tool_name": "create_file", "status": "success",
@@ -1825,7 +1830,6 @@ async def test_unlistable_write_plus_rollback_keeps_saved_output_live_and_in_his
                 "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
             }),
         ],
-        routing=_WRITE_REQUEST,
     )
 
     assert done["delivery_incomplete"] is True
@@ -1838,7 +1842,7 @@ async def test_unlistable_write_plus_rollback_keeps_saved_output_live_and_in_his
 
 
 async def _run_completed_round(
-    client, db_session, frames_after_route, *, routing, stop_reason="end_turn"
+    client, db_session, frames_for_round, *, stop_reason="end_turn"
 ):
     """A normally completed round (#267): the done frame and the persisted outcome."""
     from models import ChatMessage
@@ -1851,8 +1855,7 @@ async def _run_completed_round(
     db_session.commit()
 
     async def frames():
-        yield _sse("router_decided", {"initial_agent": "writer", "routing_metadata": routing})
-        for frame in frames_after_route(filled):
+        for frame in frames_for_round(filled):
             yield frame
         yield _sse("text", {"text": "已更新全部内容。"})
         yield _sse("done", {"assistant_message_id": message_id})
@@ -1870,25 +1873,9 @@ async def _run_completed_round(
     return _frame_data(text, "done"), metadata, filled
 
 
-_WRITE_REQUEST = {"write_content": True, "read_only": False}
-
-
 def _edit_result(file, **data):
     return _sse("tool_result", {"tool_name": "edit_file", "status": "success",
                                 "data": {"id": file.id, "title": file.title, **data}})
-
-
-@pytest.mark.integration
-async def test_completed_round_claiming_edits_without_writes_gets_a_no_change_receipt(client, db_session):
-    done, metadata, _file = await _run_completed_round(
-        client, db_session, lambda _file: [], routing=_WRITE_REQUEST,
-    )
-
-    assert done["no_file_changes"] is True
-    assert "written_files" not in done
-    assert metadata["stop_reason"] == "end_turn"
-    assert metadata["stop_outcome"]["reason"] == "completed"
-    assert metadata["stop_outcome"]["no_file_changes"] is True
 
 
 @pytest.mark.integration
@@ -1898,12 +1885,11 @@ async def test_completed_round_claiming_edits_without_writes_gets_a_no_change_re
 ])
 async def test_edit_that_changed_nothing_is_not_a_write_receipt(client, db_session, result):
     done, metadata, _file = await _run_completed_round(
-        client, db_session, lambda file: [_edit_result(file, **result)], routing=_WRITE_REQUEST,
+        client, db_session, lambda file: [_edit_result(file, **result)],
     )
 
-    assert done["no_file_changes"] is True
     assert "written_files" not in done
-    assert metadata["stop_outcome"]["no_file_changes"] is True
+    assert "stop_outcome" not in metadata
 
 
 @pytest.mark.integration
@@ -1912,95 +1898,11 @@ async def test_partial_edit_is_listed_as_partial_not_as_a_complete_write(client,
         client, db_session,
         lambda file: [_edit_result(file, mutation_applied=True, edits_applied=1, partial_success=True,
                                    failed_edits=[{"index": 1, "error": "anchor not found"}])],
-        routing=_WRITE_REQUEST,
     )
 
     assert done["written_files"] == [{"id": file.id, "title": file.title, "partial": True}]
-    assert "no_file_changes" not in done
     assert metadata["stop_outcome"]["reason"] == "completed"
     assert metadata["stop_outcome"]["written_files"] == done["written_files"]
-
-
-def _parallel_result(*tasks) -> str:
-    """parallel_execute 的整批结果，子任务与 parallel_executor.result_data["tasks"] 同形。"""
-    return _sse("tool_result", {
-        "tool_name": "parallel_execute",
-        "status": "success",
-        "data": {"execution_id": "exec-1", "total_tasks": len(tasks), "tasks": list(tasks)},
-    })
-
-
-def _parallel_chapter(file, *, index=0, status="completed", mutation_applied=True):
-    return {
-        "id": f"task-{index}", "index": index, "params": {"title": file.title}, "type": "write_chapter",
-        "description": "", "status": status, "error": None,
-        "result": {"status": "success", "mutation_applied": mutation_applied,
-                   "data": {"id": file.id, "title": file.title, "content": "正文", "file_type": "draft"}},
-    }
-
-
-@pytest.mark.integration
-async def test_parallel_only_writes_get_a_completed_receipt_live_and_in_history(client, db_session):
-    """只靠 parallel_execute 写成的一轮：done 与落库的 stop_outcome 列出同一批文件，计费照旧。"""
-    done, metadata, file = await _run_completed_round(
-        client, db_session,
-        lambda file: [_parallel_result(
-            _parallel_chapter(file),
-            {"id": "task-1", "index": 1, "params": {"title": "失败的章"}, "type": "write_chapter",
-             "description": "", "status": "failed", "error": "boom",
-             "result": {"status": "error", "error": "boom"}},
-        )],
-        routing=_WRITE_REQUEST,
-    )
-
-    assert done["written_files"] == [{"id": file.id, "title": file.title}]
-    assert "no_file_changes" not in done
-    assert "delivery_incomplete" not in done
-    assert metadata["stop_reason"] == "end_turn"
-    assert metadata["stop_outcome"]["reason"] == "completed"
-    assert metadata["stop_outcome"]["charged"] is True
-    assert metadata["stop_outcome"]["saved_output"] is True
-    assert metadata["stop_outcome"]["written_files"] == done["written_files"]
-
-
-@pytest.mark.integration
-async def test_parallel_write_into_a_new_empty_shell_is_not_incomplete(client, db_session):
-    """先直接建空壳、再用并行 edit_file 写入：这一轮是完成，不是「有文件未确认保存」。"""
-    done, metadata, file = await _run_completed_round(
-        client, db_session,
-        lambda file: [
-            _create_file_result(file),
-            _parallel_result({
-                "id": "task-0", "index": 0, "params": {"id": file.id}, "type": "edit_file",
-                "description": "", "status": "completed", "error": None,
-                "result": {"status": "success", "mutation_applied": True,
-                           "data": {"id": file.id, "title": file.title, "mutation_applied": True,
-                                    "edits_applied": 1}},
-            }),
-        ],
-        routing=_WRITE_REQUEST,
-    )
-
-    assert done["written_files"] == [{"id": file.id, "title": file.title}]
-    assert "unwritten_files" not in done
-    assert "delivery_incomplete" not in done
-    assert metadata["stop_outcome"]["reason"] == "completed"
-    assert "unwritten_files" not in metadata["stop_outcome"]
-
-
-@pytest.mark.integration
-async def test_parallel_task_that_reused_a_file_without_writing_is_not_a_receipt(client, db_session):
-    done, metadata, _file = await _run_completed_round(
-        client, db_session,
-        lambda file: [_parallel_result(_parallel_chapter(file, mutation_applied=False))],
-        routing=_WRITE_REQUEST,
-    )
-
-    # 计费口径仍把 completed 的写章子任务算作产出（不改计费），所以不说「没有改动」；
-    # 但内层结果没有证实写入，回执不列这个文件。
-    assert "written_files" not in done
-    assert "no_file_changes" not in done
-    assert "stop_outcome" not in metadata
 
 
 @pytest.mark.integration
@@ -2012,7 +1914,6 @@ async def test_unexecuted_tool_text_marks_the_round_incomplete_without_changing_
             "layer": "unexecuted_tool_text", "iterations_used": 1, "max_iterations": 12,
             "reason": "回复里有一步操作只写成了文字，没有实际执行。", "last_agent": None,
         })],
-        routing=_WRITE_REQUEST,
     )
 
     assert done["delivery_incomplete"] is True
@@ -2021,23 +1922,6 @@ async def test_unexecuted_tool_text_marks_the_round_incomplete_without_changing_
     assert metadata["stop_outcome"]["reason"] == "incomplete"
     assert metadata["stop_outcome"]["charged"] is True
     assert metadata["stop_outcome"]["unexecuted_tool_text"] is True
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("routing", [
-    {"write_content": False, "read_only": False},
-    {"write_content": True, "read_only": True},
-    {"write_content": None, "read_only": False},
-])
-async def test_rounds_that_did_not_ask_for_body_writes_get_no_receipt(client, db_session, routing):
-    done, metadata, _file = await _run_completed_round(
-        client, db_session, lambda _file: [], routing=routing,
-    )
-
-    assert "no_file_changes" not in done
-    assert "delivery_incomplete" not in done
-    assert "saved_output" not in done
-    assert "stop_outcome" not in metadata
 
 
 @pytest.mark.integration
@@ -2179,17 +2063,17 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
 
     async def frames():
         yield _sse("session_started", {"session_id": "s1"})
-        yield _sse("agent_selected", {"agent_type": "writer", "agent_name": "写作"})
         if with_body:
             yield _sse("file_created", {"file_id": filled.id, "title": filled.title})
             yield _sse("file_content", {"file_id": filled.id, "chunk": _PROSE})
-        # 审稿人要求返修，writer 的返修调用还在途时撞上时限
-        yield _sse("handoff", {"target_agent": "writer", "reason": "返修"})
         await asyncio.sleep(30)
 
     receipts = {filled.id: count_words(_PROSE)} if with_body else {}
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id, receipts)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, message_id, receipts, runs_started=2),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
         patch("api.agent.log_with_context", wraps=agent_api.log_with_context) as log_spy,
@@ -2212,7 +2096,8 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
         card = _frame_data(text, "iteration_exhausted")
         assert card["limit"] == "wall_clock"
         assert card["layer"] == "collaboration"
-        assert card["last_agent"] == "writer"
+        assert card["iterations_used"] == 2
+        assert card["last_agent"] is None
         done = _frame_data(text, "done")
         assert done["delivery_incomplete"] is True
         # done 在收尾之前发出：流式正文的保存回执还没到，不在这里声称已保存，也不说成未保存。
@@ -2223,16 +2108,19 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
         assert outcome["written_files"] == [
             {"id": filled.id, "title": filled.title, "words": count_words(_PROSE)}
         ]
-        # 刷新后同一张暂停卡：有展示时间线时追加在末尾，状态卡带 lastAgent 供「继续」路由。
+        # 刷新后同一张暂停卡：有展示时间线时追加在末尾，单循环下 lastAgent 为 None、轮数按真实启动次数记。
         assert metadata["display_events"][-1]["type"] == "iteration_exhausted"
         assert metadata["display_events"][-1]["data"]["limit"] == "wall_clock"
+        assert metadata["display_events"][-1]["data"]["iterations_used"] == 2
+        assert metadata["display_events"][-1]["data"]["last_agent"] is None
         assert metadata["status_cards"][-1]["type"] == "iteration_exhausted"
-        assert metadata["status_cards"][-1]["lastAgent"] == "writer"
+        assert metadata["status_cards"][-1]["iterationsUsed"] == 2
+        assert metadata["status_cards"][-1]["lastAgent"] is None
         assert metadata["status_cards"][-1]["limit"] == "wall_clock"
     else:
         assert "ERR_AGENT_RUN_TIMEOUT" in text
         assert _frame_data(text, "iteration_exhausted") is None
-        assert _frame_data(text, "done") is None and _frame_data(text, "workflow_complete") is None
+        assert _frame_data(text, "done") is None
         assert outcome["reason"] == "error"
         assert "written_files" not in outcome
         assert "status_cards" not in metadata
@@ -2245,19 +2133,19 @@ async def test_deadline_pause_follows_the_interface_language_and_never_doubles_t
     client, db_session, monkeypatch, card_already_streamed
 ):
     """墙钟硬超时的暂停卡：reason 跟随界面语言（它会回放进下一轮模型历史）；
-    图层收尾的暂停卡已经流出、done 之前撞上硬超时时，只补 done，不发第二张卡，历史里也不追加。"""
+    循环收尾的暂停卡已经流出、done 之前撞上硬超时时，只补 done，不发第二张卡，历史里也不追加。"""
     from models import ChatMessage
     from utils.text_metrics import count_words
 
     _token, project, user = await _login_with_project(client, db_session)
     message_id, _placeholder, filled, _older = _seed_round(db_session, project, user)
     assistant = db_session.get(ChatMessage, message_id)
-    graph_card = {
+    loop_card = {
         "layer": "collaboration", "iterations_used": 2, "max_iterations": 12,
-        "reason": "This round is almost out of time.", "last_agent": "writer", "limit": "wall_clock",
+        "reason": "This round is almost out of time.", "last_agent": None, "limit": "wall_clock",
     }
     saved_cards = (
-        [{"type": "iteration_exhausted", "layer": "collaboration", "limit": "wall_clock", "lastAgent": "writer"}]
+        [{"type": "iteration_exhausted", "layer": "collaboration", "limit": "wall_clock", "lastAgent": None}]
         if card_already_streamed else []
     )
     assistant.message_metadata = json.dumps({
@@ -2272,11 +2160,10 @@ async def test_deadline_pause_follows_the_interface_language_and_never_doubles_t
 
     async def frames():
         yield _sse("session_started", {"session_id": "s1"})
-        yield _sse("agent_selected", {"agent_type": "writer", "agent_name": "Writer"})
         yield _sse("file_created", {"file_id": filled.id, "title": filled.title})
         yield _sse("file_content", {"file_id": filled.id, "chunk": _PROSE})
         if card_already_streamed:
-            yield _sse("iteration_exhausted", graph_card)
+            yield _sse("iteration_exhausted", loop_card)
         await asyncio.sleep(30)
 
     with (
@@ -2305,10 +2192,14 @@ async def test_deadline_pause_follows_the_interface_language_and_never_doubles_t
         0 if card_already_streamed else 1
     )
     if card_already_streamed:
-        assert card == graph_card
+        assert card == loop_card
     else:
+        assert card["iterations_used"] == 1
+        assert card["last_agent"] is None
         assert card["reason"] == agent_api.DEADLINE_PAUSE_REASON_EN
         assert not any("\u4e00" <= ch <= "\u9fff" for ch in card["reason"])
+        assert pause_cards[0]["iterationsUsed"] == 1
+        assert pause_cards[0]["lastAgent"] is None
         assert pause_cards[0]["reason"] == agent_api.DEADLINE_PAUSE_REASON_EN
 
 
@@ -2339,7 +2230,6 @@ async def test_disconnect_during_deadline_pause_cleanup_keeps_the_resumable_paus
         async def process_stream(self, *, run_outcome=None, **_kwargs):
             try:
                 yield _sse("session_started", {"session_id": "s1"})
-                yield _sse("agent_selected", {"agent_type": "writer", "agent_name": "写作"})
                 yield _sse("file_created", {"file_id": filled.id, "title": filled.title})
                 yield _sse("file_content", {"file_id": filled.id, "chunk": _PROSE})
                 await asyncio.sleep(30)
@@ -2411,7 +2301,8 @@ async def test_disconnect_during_deadline_pause_cleanup_keeps_the_resumable_paus
     pause_cards = [c for c in metadata.get("status_cards", []) if c.get("type") == "iteration_exhausted"]
     assert len(pause_cards) == 1
     assert pause_cards[0]["limit"] == "wall_clock"
-    assert pause_cards[0]["lastAgent"] == "writer"
+    assert pause_cards[0]["iterationsUsed"] == 1
+    assert pause_cards[0]["lastAgent"] is None
     assert all(fields["billing_reason"] == "run_deadline_exceeded" for _, fields in billing_logs)
 
 
@@ -2464,7 +2355,6 @@ async def test_author_requested_empty_chapter_completes_without_an_incomplete_st
             "id": file.id, "title": file.title, "content": "", "file_type": "draft",
             "empty_by_request": True, "updated_at": file.updated_at.isoformat(),
         }})],
-        routing={"write_content": False, "read_only": False},
     )
 
     assert "unwritten_files" not in done
@@ -3033,7 +2923,7 @@ async def test_deadline_after_a_clean_done_records_the_completed_receipt(client,
     from models import ChatMessage
 
     _token, project, user = await _login_with_project(client, db_session)
-    message_id, _empty, _filled, _older = _seed_round(db_session, project, user)
+    message_id, _empty, filled, _older = _seed_round(db_session, project, user)
     assistant = db_session.get(ChatMessage, message_id)
     assistant.message_metadata = json.dumps({"stop_reason": "end_turn"})
     db_session.add(assistant)
@@ -3042,7 +2932,7 @@ async def test_deadline_after_a_clean_done_records_the_completed_receipt(client,
     monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
 
     async def frames():
-        yield _sse("router_decided", {"initial_agent": "writer", "routing_metadata": _WRITE_REQUEST})
+        yield _edit_result(filled, mutation_applied=True, edits_applied=1)
         yield _sse("text", {"text": "已更新全部内容。"})
         yield _sse("done", {"assistant_message_id": message_id})
         # 收尾清理还没结束就撞上时限
@@ -3062,13 +2952,13 @@ async def test_deadline_after_a_clean_done_records_the_completed_receipt(client,
     assert "ERR_AGENT_RUN_TIMEOUT" not in text
     refund.assert_not_called()
     done = _frame_data(text, "done")
-    assert done["no_file_changes"] is True
+    assert done["written_files"] == [{"id": filled.id, "title": filled.title}]
     db_session.expire_all()
     metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
     assert metadata["stop_reason"] == "end_turn"
     assert metadata["stop_outcome"]["reason"] == "completed"
     assert metadata["stop_outcome"]["charged"] is True
-    assert metadata["stop_outcome"]["no_file_changes"] is True
+    assert metadata["stop_outcome"]["written_files"] == [{"id": filled.id, "title": filled.title}]
 
 
 class _InflightWriteService:

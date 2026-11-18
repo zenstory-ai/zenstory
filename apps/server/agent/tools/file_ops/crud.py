@@ -61,7 +61,6 @@ from .edit import (
     attach_author_edits_for_agent,
     file_write_lock,
     normalize_ai_body_first_indent,
-    remember_pre_write_content,
     resolve_write_quote_style,
     stage_pre_ai_write_backup,
     written_snapshot_for_commit,
@@ -724,10 +723,6 @@ class FileCRUD:
         else:
             self.session.commit()
         self.session.refresh(file)
-
-        if file.file_type != FILE_TYPE_FOLDER:
-            # 本请求新建的文件整份都是新写的（之后同一请求里的 edit_file 不改变这一点）。
-            remember_pre_write_content(file.id, "")
 
         if content and file.file_type != FILE_TYPE_FOLDER:
             activation_event_service.record_ai_write_accepted(
