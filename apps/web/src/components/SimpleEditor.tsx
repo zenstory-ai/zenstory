@@ -126,7 +126,96 @@ interface SimpleEditorProps {
   onAcceptAllEdits?: () => void;
   onRejectAllEdits?: () => void;
   onFinishReview?: () => void;
+  /** Resolve a generated natural-polish candidate without paragraph-by-paragraph review. */
+  onResolvePolish?: (decision: 'accept' | 'discard') => void | Promise<void>;
 }
+
+const NaturalPolishCandidate = ({
+  originalContent,
+  modifiedContent,
+  onResolve,
+}: {
+  originalContent: string;
+  modifiedContent: string;
+  onResolve: (decision: 'accept' | 'discard') => void | Promise<void>;
+}) => {
+  const { t } = useTranslation(['editor']);
+  const [showOriginal, setShowOriginal] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
+  const resolvingRef = useRef(false);
+
+  const resolveCandidate = async (decision: 'accept' | 'discard') => {
+    if (resolvingRef.current) return;
+    resolvingRef.current = true;
+    setIsResolving(true);
+    try {
+      await onResolve(decision);
+    } catch (error) {
+      logger.error('Failed to resolve natural-polish candidate:', error);
+    } finally {
+      resolvingRef.current = false;
+      setIsResolving(false);
+    }
+  };
+
+  return (
+    <section
+      role="region"
+      aria-label={t('editor:naturalPolishCandidate')}
+      className="flex min-h-0 flex-1 flex-col bg-[hsl(var(--bg-primary))]"
+    >
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[hsl(var(--border-color))] px-4 py-3 sm:px-6">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-[hsl(var(--text-primary))]">
+            {t('editor:naturalPolishCandidate')}
+          </p>
+          <p className="mt-0.5 text-xs text-[hsl(var(--text-secondary))]">
+            {t('editor:naturalPolishCandidateHint')}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-secondary min-h-11 shrink-0 px-3 text-sm"
+          onClick={() => setShowOriginal((value) => !value)}
+          aria-pressed={showOriginal}
+          disabled={isResolving}
+        >
+          {t(showOriginal ? 'editor:naturalPolishShowCandidate' : 'editor:naturalPolishShowOriginal')}
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto px-4 py-4 sm:px-6">
+        <p className="mb-2 text-xs font-medium text-[hsl(var(--text-secondary))]">
+          {t(showOriginal ? 'editor:naturalPolishOriginalLabel' : 'editor:naturalPolishCandidateLabel')}
+        </p>
+        <pre className="m-0 whitespace-pre-wrap break-words font-[inherit] text-base leading-relaxed text-[hsl(var(--text-primary))]">
+          {showOriginal ? originalContent : modifiedContent}
+        </pre>
+      </div>
+
+      <div className="flex shrink-0 flex-wrap-reverse justify-end gap-2 border-t border-[hsl(var(--border-color))] px-4 py-3 sm:px-6">
+        <button
+          type="button"
+          className="btn-secondary min-h-11 px-4 text-sm"
+          onClick={() => void resolveCandidate('discard')}
+          disabled={isResolving}
+        >
+          <X size={16} aria-hidden="true" />
+          {t('editor:naturalPolishDiscard')}
+        </button>
+        <button
+          type="button"
+          className="btn-primary min-h-11 px-4 text-sm"
+          onClick={() => void resolveCandidate('accept')}
+          disabled={isResolving}
+        >
+          {isResolving ? <Loader2 size={16} aria-hidden="true" className="animate-spin" /> : <Check size={16} aria-hidden="true" />}
+          {t('editor:naturalPolishAccept')}
+        </button>
+      </div>
+    </section>
+  );
+};
 
 export const SimpleEditor = ({
   emptyHint,
@@ -160,6 +249,7 @@ export const SimpleEditor = ({
   onAcceptAllEdits,
   onRejectAllEdits,
   onFinishReview,
+  onResolvePolish,
 }: SimpleEditorProps) => {
   const displayContent = isStreaming ? streamingContent ?? content : content;
   const { t } = useTranslation(['editor', 'versions']);
@@ -406,6 +496,9 @@ export const SimpleEditor = ({
 
   // Check if in diff review mode
   const isReviewMode = diffReviewState?.isReviewing && diffReviewState.fileId === fileId;
+  const isPolishCandidate = Boolean(
+    isReviewMode && diffReviewState?.origin === 'polish' && onResolvePolish,
+  );
   const isReviewModeRef = useRef(false);
   isReviewModeRef.current = Boolean(isReviewMode);
 
@@ -1038,6 +1131,9 @@ export const SimpleEditor = ({
     // Diff review mode shortcuts
     // In review mode, we should not start new natural polish requests.
     if (isReviewMode) {
+      // Natural polish is one complete candidate. Only its explicit buttons resolve it;
+      // ordinary Enter/Space scrolling must not inherit paragraph-review shortcuts.
+      if (isPolishCandidate) return;
       // Shift+Y: Accept all
       if (e.shiftKey && (e.key === 'y' || e.key === 'Y')) {
         e.preventDefault();
@@ -1148,7 +1244,7 @@ export const SimpleEditor = ({
   return (
     <div className="relative flex flex-col h-full bg-[hsl(var(--bg-primary))]" onKeyDown={handleKeyDown}>
       {/* Diff Review Toolbar - shown when in review mode */}
-      {isReviewMode && diffReviewState && onAcceptAllEdits && onRejectAllEdits && onFinishReview && (
+      {isReviewMode && !isPolishCandidate && diffReviewState && onAcceptAllEdits && onRejectAllEdits && onFinishReview && (
         <DiffToolbar
           pendingEdits={diffReviewState.pendingEdits}
           onAcceptAll={onAcceptAllEdits}
@@ -1196,7 +1292,13 @@ export const SimpleEditor = ({
       </div>
 
       {/* Content area - switch between normal editor and diff review */}
-      {isReviewMode && diffReviewState && onAcceptEdit && onRejectEdit && onResetEdit ? (
+      {isPolishCandidate && diffReviewState && onResolvePolish ? (
+        <NaturalPolishCandidate
+          originalContent={diffReviewState.originalContent}
+          modifiedContent={diffReviewState.modifiedContent}
+          onResolve={onResolvePolish}
+        />
+      ) : isReviewMode && diffReviewState && onAcceptEdit && onRejectEdit && onResetEdit ? (
         <DiffReviewSplitView
           originalContent={diffReviewState.originalContent}
           modifiedContent={diffReviewState.modifiedContent}

@@ -46,10 +46,16 @@ const createEditorTranslator = () => (key: string) => editorTranslations[key] ||
 
 // Mock SimpleEditor component
 vi.mock('../SimpleEditor', () => ({
-  SimpleEditor: ({ fileId, fileTitle, baseUpdatedAt, content, streamingContent, onTitleChange, onContentChange, onSave, onFlushReady, onFinishReview, onEnterDiffReview, isStreaming }: { fileId: string; fileTitle: string; baseUpdatedAt?: string; content: string; streamingContent?: string; onTitleChange?: (value: string) => void; onContentChange?: (value: string) => void; onSave?: (submission: { fileId: string; title: string; content: string; previousTitle: string; baseUpdatedAt?: string }) => Promise<SaveResult>; onFlushReady?: (flush: (() => Promise<'saved' | 'conflict' | 'failed'>) | null) => void; onFinishReview?: () => void; onEnterDiffReview?: (fileId: string, originalContent: string, newContent: string) => void; isStreaming?: boolean }) => {
+  SimpleEditor: ({ fileId, fileTitle, baseUpdatedAt, content, streamingContent, serverBaseline, onTitleChange, onContentChange, onSave, onFlushReady, onFinishReview, onEnterDiffReview, onResolvePolish, isStreaming }: { fileId: string; fileTitle: string; baseUpdatedAt?: string; content: string; streamingContent?: string; serverBaseline?: { version: number; fileId: string; updatedAt?: string }; onTitleChange?: (value: string) => void; onContentChange?: (value: string) => void; onSave?: (submission: { fileId: string; title: string; content: string; previousTitle: string; baseUpdatedAt?: string }) => Promise<SaveResult>; onFlushReady?: (flush: (() => Promise<'saved' | 'conflict' | 'failed'>) | null) => void; onFinishReview?: () => void; onEnterDiffReview?: (fileId: string, originalContent: string, newContent: string) => void; onResolvePolish?: (decision: 'accept' | 'discard') => void | Promise<void>; isStreaming?: boolean }) => {
     const dirtyRef = React.useRef(false)
     const draftRef = React.useRef({ fileId, title: fileTitle, content, baseUpdatedAt, previousTitle: 'Test Chapter' })
+    const appliedBaselineRef = React.useRef(serverBaseline?.version ?? 0)
     if (!dirtyRef.current) draftRef.current = { fileId, title: fileTitle, content, baseUpdatedAt, previousTitle: fileTitle }
+    React.useEffect(() => {
+      if (!serverBaseline || serverBaseline.fileId !== fileId || serverBaseline.version === appliedBaselineRef.current) return
+      appliedBaselineRef.current = serverBaseline.version
+      draftRef.current = { ...draftRef.current, baseUpdatedAt: serverBaseline.updatedAt }
+    }, [fileId, serverBaseline])
     React.useEffect(() => {
       onFlushReady?.(async () => {
         if (!dirtyRef.current || !onSave) return 'saved'
@@ -91,6 +97,24 @@ vi.mock('../SimpleEditor', () => ({
       <button data-testid="natural-polish-review-button" onClick={() => onEnterDiffReview?.(fileId, content, 'Polished content')}>
         Natural Polish
       </button>
+      <button
+        data-testid="overlapping-polish-review-button"
+        onClick={() => onEnterDiffReview?.(fileId, content, `${content}\n\nServer paragraph\n\nPolished paragraph`)}
+      >
+        Overlapping Natural Polish
+      </button>
+      <button
+        data-testid="mergeable-polish-review-button"
+        onClick={() => onEnterDiffReview?.(
+          fileId,
+          content,
+          content.replace(/^A$/m, 'A2').replace(/^B$/m, 'B2'),
+        )}
+      >
+        Mergeable Natural Polish
+      </button>
+      <button data-testid="accept-polish-button" onClick={() => onResolvePolish?.('accept')}>Accept Polish</button>
+      <button data-testid="discard-polish-button" onClick={() => onResolvePolish?.('discard')}>Discard Polish</button>
       <div data-testid="content-display">{isStreaming ? streamingContent ?? content : content}</div>
       {isStreaming && <div data-testid="streaming-indicator">Streaming...</div>}
     </div>
@@ -837,6 +861,50 @@ describe('Editor', () => {
     expect(screen.queryByTestId('upgrade-modal')).not.toBeInTheDocument()
   })
 
+  it('ignores a late stream-finish load after a newer direct-write sync resolves', async () => {
+    let resolveStreamFinish: (file: typeof mockFile) => void = () => {}
+    const streamFinishRead = new Promise<typeof mockFile>((resolve) => {
+      resolveStreamFinish = resolve
+    })
+    vi.mocked(api.fileApi.get).mockResolvedValueOnce({
+      ...mockFile,
+      project_id: 'project-1',
+      content: 'Initial body',
+      updated_at: 'server-v0',
+    })
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      streamingFileId: 'file-1',
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Initial body'))
+
+    vi.mocked(api.fileApi.get).mockImplementationOnce(() => streamFinishRead)
+    mockProjectContext = { ...mockProjectContext, streamingFileId: null }
+    rerender(<UnmemoizedEditor />)
+    await waitFor(() => expect(api.fileApi.get).toHaveBeenCalledTimes(2))
+
+    vi.mocked(api.fileApi.get).mockResolvedValueOnce({
+      ...mockFile,
+      project_id: 'project-1',
+      content: 'Newest direct write',
+      updated_at: 'server-v2',
+    })
+    mockProjectContext = { ...mockProjectContext, editorRefreshVersion: 1, lastEditedFileId: 'file-1' }
+    rerender(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Newest direct write'))
+
+    resolveStreamFinish({
+      ...mockFile,
+      project_id: 'project-1',
+      content: 'Older streamed body',
+      updated_at: 'server-v1',
+    })
+    await waitFor(() => expect(api.fileApi.get).toHaveBeenCalledTimes(3))
+    expect(screen.getByTestId('content-input')).toHaveValue('Newest direct write')
+  })
+
   it('flushes edits to the previous file before showing a newly selected file', async () => {
     const fileA = { ...mockFile, id: 'file-a', title: 'File A', content: 'Original A' }
     const fileB = { ...mockFile, id: 'file-b', title: 'File B', content: 'Original B' }
@@ -1086,7 +1154,7 @@ describe('Editor', () => {
     })
   })
 
-  it('exits a natural-polish review without saving or versioning when every edit was rejected', async () => {
+  it('discards a natural-polish candidate without saving or versioning', async () => {
     const enterDiffReview = vi.fn()
     const exitDiffReview = vi.fn()
     const applyDiffReviewChanges = vi.fn().mockReturnValue('Test content')
@@ -1110,17 +1178,18 @@ describe('Editor', () => {
         fileId: 'file-1',
         originalContent: 'Test content',
         modifiedContent: 'Polished content',
+        origin: 'polish',
         pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'a', newText: 'b', status: 'rejected' }],
       },
     }
     rerender(<UnmemoizedEditor />)
-    fireEvent.click(screen.getByTestId('finish-review-button'))
+    fireEvent.click(screen.getByTestId('discard-polish-button'))
 
     await waitFor(() => expect(exitDiffReview).toHaveBeenCalledTimes(1))
     expect(api.fileApi.update).not.toHaveBeenCalled()
   })
 
-  it('saves an accepted natural-polish review as AI polish, not as the author\'s own edits', async () => {
+  it('saves an accepted natural-polish candidate as AI polish, not as the author\'s own edits', async () => {
     // The server counts "AI edit (reviewed)" (after the agent wrote the file) as the author's choice;
     // a polish review's diff is AI text the author accepted.
     const enterDiffReview = vi.fn()
@@ -1145,11 +1214,12 @@ describe('Editor', () => {
         fileId: 'file-1',
         originalContent: 'Test content',
         modifiedContent: 'Polished content',
+        origin: 'polish',
         pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'Test', newText: 'Polished', status: 'accepted' }],
       },
     }
     rerender(<UnmemoizedEditor />)
-    fireEvent.click(screen.getByTestId('finish-review-button'))
+    fireEvent.click(screen.getByTestId('accept-polish-button'))
 
     await waitFor(() =>
       expect(api.fileApi.update).toHaveBeenCalledWith(
@@ -1157,6 +1227,418 @@ describe('Editor', () => {
         expect.objectContaining({ change_type: 'ai_edit', change_summary: 'AI polish (reviewed)' })
       )
     )
+  })
+
+  it('clears an applied recovery draft after accepting its polish candidate', async () => {
+    const scope = { userId: 'user-1', projectId: 'project-1', fileId: 'file-1' }
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, updated_at: 'server-v1' })
+    writeEditorDraftSnapshot(localStorage, createEditorDraftSnapshot({
+      ...scope,
+      title: 'Recovered title',
+      content: 'Recovered body',
+      baseUpdatedAt: 'server-v1',
+      capturedAt: '2026-10-07T08:00:00.000Z',
+    }))
+    vi.mocked(api.fileApi.update).mockResolvedValue({
+      ...mockFile,
+      content: 'Polished content',
+      updated_at: 'server-v2',
+    })
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender, unmount } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Recovered body'))
+
+    fireEvent.click(screen.getByTestId('natural-polish-review-button'))
+    mockProjectContext = {
+      ...mockProjectContext,
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'Recovered body',
+        modifiedContent: 'Polished content',
+        origin: 'polish',
+        pendingEdits: [],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    fireEvent.click(screen.getByTestId('accept-polish-button'))
+
+    await waitFor(() => expect(localStorage.getItem(getEditorDraftRecoveryKey(scope))).toBeNull())
+    expect(screen.queryByText('Recovered unsaved draft')).not.toBeInTheDocument()
+
+    unmount()
+    mockProjectContext = { ...mockProjectContext, diffReviewState: null }
+    vi.mocked(api.fileApi.get).mockResolvedValue({
+      ...mockFile,
+      content: 'Polished content',
+      updated_at: 'server-v2',
+    })
+    render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Polished content'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('uses a newer chat-written server copy when a clean polish candidate is discarded', async () => {
+    const exitDiffReview = vi.fn()
+    vi.mocked(api.fileApi.get)
+      .mockResolvedValueOnce({ ...mockFile, project_id: 'project-1', content: 'A\n\nB', updated_at: 'server-v1' })
+      .mockResolvedValueOnce({ ...mockFile, project_id: 'project-1', content: 'A2\n\nB', updated_at: 'server-v2' })
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      exitDiffReview,
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('A\n\nB'))
+
+    fireEvent.click(screen.getByTestId('natural-polish-review-button'))
+    mockProjectContext = {
+      ...mockProjectContext,
+      editorRefreshVersion: 1,
+      lastEditedFileId: 'file-1',
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'A\n\nB',
+        modifiedContent: 'Polished content',
+        origin: 'polish',
+        pendingEdits: [],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    await waitFor(() => expect(api.fileApi.get).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByTestId('discard-polish-button'))
+
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('A2\n\nB'))
+    expect(exitDiffReview).toHaveBeenCalledTimes(1)
+    expect(api.fileApi.update).not.toHaveBeenCalled()
+  })
+
+  it('preserves dirty author text when a chat-written server copy arrives under a polish candidate', async () => {
+    const enterDiffReview = vi.fn()
+    const exitDiffReview = vi.fn()
+    vi.mocked(api.fileApi.get)
+      .mockResolvedValueOnce({ ...mockFile, project_id: 'project-1', content: 'A\n\nB', updated_at: 'server-v1' })
+      .mockResolvedValueOnce({ ...mockFile, project_id: 'project-1', content: 'A2\n\nB', updated_at: 'server-v2' })
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      enterDiffReview,
+      exitDiffReview,
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('A\n\nB'))
+    fireEvent.change(screen.getByTestId('content-input'), { target: { value: 'A\n\nB\n\nAuthor' } })
+
+    fireEvent.click(screen.getByTestId('natural-polish-review-button'))
+    mockProjectContext = {
+      ...mockProjectContext,
+      editorRefreshVersion: 1,
+      lastEditedFileId: 'file-1',
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'A\n\nB\n\nAuthor',
+        modifiedContent: 'Polished content',
+        origin: 'polish',
+        pendingEdits: [],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    await waitFor(() => expect(api.fileApi.get).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByTestId('discard-polish-button'))
+
+    await waitFor(() => expect(enterDiffReview).toHaveBeenLastCalledWith(
+      'file-1',
+      'A\n\nB\n\nAuthor',
+      'A2\n\nB\n\nAuthor',
+      'conflict',
+    ))
+    expect(exitDiffReview).not.toHaveBeenCalled()
+    expect(api.fileApi.update).not.toHaveBeenCalled()
+  })
+
+  it('adopts a title-only server refresh and its new token when a clean polish candidate is discarded', async () => {
+    const exitDiffReview = vi.fn()
+    vi.mocked(api.fileApi.get)
+      .mockResolvedValueOnce({ ...mockFile, project_id: 'project-1', updated_at: 'server-v1' })
+      .mockResolvedValueOnce({
+        ...mockFile,
+        project_id: 'project-1',
+        title: 'AI title',
+        updated_at: 'server-v2',
+      })
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      exitDiffReview,
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+
+    fireEvent.click(screen.getByTestId('natural-polish-review-button'))
+    mockProjectContext = {
+      ...mockProjectContext,
+      editorRefreshVersion: 1,
+      lastEditedFileId: 'file-1',
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'Test content',
+        modifiedContent: 'Polished content',
+        origin: 'polish',
+        pendingEdits: [],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    await waitFor(() => expect(api.fileApi.get).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByTestId('discard-polish-button'))
+
+    await waitFor(() => expect(screen.getByTestId('title-input')).toHaveValue('AI title'))
+    fireEvent.change(screen.getByTestId('content-input'), { target: { value: 'Author continues' } })
+    fireEvent.click(screen.getByTestId('save-button'))
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalledWith('file-1', expect.objectContaining({
+      content: 'Author continues',
+      base_updated_at: 'server-v2',
+    })))
+    expect(exitDiffReview).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps dirty author text and title on a title-only server refresh while adopting its new token', async () => {
+    const exitDiffReview = vi.fn()
+    vi.mocked(api.fileApi.get)
+      .mockResolvedValueOnce({ ...mockFile, project_id: 'project-1', updated_at: 'server-v1' })
+      .mockResolvedValueOnce({
+        ...mockFile,
+        project_id: 'project-1',
+        title: 'AI title',
+        updated_at: 'server-v2',
+      })
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      exitDiffReview,
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+    fireEvent.change(screen.getByTestId('content-input'), { target: { value: 'Author body' } })
+    fireEvent.change(screen.getByTestId('title-input'), { target: { value: 'Author title' } })
+
+    fireEvent.click(screen.getByTestId('natural-polish-review-button'))
+    mockProjectContext = {
+      ...mockProjectContext,
+      editorRefreshVersion: 1,
+      lastEditedFileId: 'file-1',
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'Author body',
+        modifiedContent: 'Polished content',
+        origin: 'polish',
+        pendingEdits: [],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    await waitFor(() => expect(api.fileApi.get).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByTestId('discard-polish-button'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('content-input')).toHaveValue('Author body')
+      expect(screen.getByTestId('title-input')).toHaveValue('Author title')
+    })
+    fireEvent.click(screen.getByTestId('save-button'))
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalledWith('file-1', expect.objectContaining({
+      content: 'Author body',
+      title: 'Author title',
+      base_updated_at: 'server-v2',
+    })))
+    expect(exitDiffReview).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a natural-polish candidate available after a failed accept and retries with its polish intent', async () => {
+    const enterDiffReview = vi.fn()
+    const exitDiffReview = vi.fn()
+    vi.mocked(api.fileApi.update).mockRejectedValueOnce(new Error('save failed'))
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      enterDiffReview,
+      exitDiffReview,
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+
+    fireEvent.click(screen.getByTestId('natural-polish-review-button'))
+    mockProjectContext = {
+      ...mockProjectContext,
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'Test content',
+        modifiedContent: 'Polished content',
+        origin: 'polish',
+        pendingEdits: [],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    fireEvent.click(screen.getByTestId('accept-polish-button'))
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalledTimes(1))
+    expect(exitDiffReview).not.toHaveBeenCalled()
+
+    vi.mocked(api.fileApi.update).mockResolvedValueOnce({ ...mockFile, content: 'Polished content' })
+    fireEvent.click(screen.getByTestId('accept-polish-button'))
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalledTimes(2))
+    expect(api.fileApi.update).toHaveBeenLastCalledWith('file-1', expect.objectContaining({
+      content: 'Polished content',
+      change_type: 'ai_edit',
+      change_summary: 'AI polish (reviewed)',
+    }))
+    expect(exitDiffReview).toHaveBeenCalledTimes(1)
+  })
+
+  it('turns a stale natural-polish accept into the existing unsaved-content conflict comparison', async () => {
+    const enterDiffReview = vi.fn()
+    vi.mocked(api.fileApi.update).mockRejectedValueOnce(new ApiError(
+      409,
+      'ERR_STALE_WRITE',
+      {
+        reason: 'stale_write',
+        current_content: 'Test content\n\nConcurrent paragraph',
+        current_updated_at: 'server-v2',
+      },
+    ))
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      enterDiffReview,
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+
+    fireEvent.click(screen.getByTestId('natural-polish-review-button'))
+    mockProjectContext = {
+      ...mockProjectContext,
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'Test content',
+        modifiedContent: 'Polished content',
+        origin: 'polish',
+        pendingEdits: [],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    fireEvent.click(screen.getByTestId('accept-polish-button'))
+
+    await waitFor(() => {
+      expect(enterDiffReview).toHaveBeenLastCalledWith(
+        'file-1',
+        'Polished content',
+        'Polished content\n\nConcurrent paragraph',
+        'conflict',
+      )
+    })
+  })
+
+  it('discarding after a stale polish accept keeps newer server text instead of autosaving the old body', async () => {
+    const enterDiffReview = vi.fn()
+    const exitDiffReview = vi.fn()
+    vi.mocked(api.fileApi.update).mockRejectedValueOnce(new ApiError(
+      409,
+      'ERR_STALE_WRITE',
+      {
+        reason: 'stale_write',
+        current_content: 'A2\n\nB',
+        current_updated_at: 'server-v2',
+      },
+    ))
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      enterDiffReview,
+      exitDiffReview,
+    })
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, content: 'A\n\nB' })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('A\n\nB'))
+
+    fireEvent.click(screen.getByTestId('mergeable-polish-review-button'))
+    mockProjectContext = {
+      ...mockProjectContext,
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'A\n\nB',
+        modifiedContent: 'A2\n\nB2',
+        origin: 'polish',
+        pendingEdits: [],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    fireEvent.click(screen.getByTestId('accept-polish-button'))
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalledTimes(1))
+    expect(exitDiffReview).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('discard-polish-button'))
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('A2\n\nB'))
+    expect(exitDiffReview).toHaveBeenCalledTimes(1)
+    expect(api.fileApi.update).toHaveBeenCalledTimes(1)
+  })
+
+  it('discarding after a stale polish accept preserves dirty author text through conflict review', async () => {
+    const enterDiffReview = vi.fn()
+    const exitDiffReview = vi.fn()
+    vi.mocked(api.fileApi.update).mockRejectedValueOnce(new ApiError(
+      409,
+      'ERR_STALE_WRITE',
+      {
+        reason: 'stale_write',
+        current_content: 'A2\n\nB',
+        current_updated_at: 'server-v2',
+      },
+    ))
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      enterDiffReview,
+      exitDiffReview,
+    })
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, content: 'A\n\nB' })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('A\n\nB'))
+    fireEvent.change(screen.getByTestId('content-input'), {
+      target: { value: 'A\n\nB\n\nAuthor' },
+    })
+    fireEvent.click(screen.getByTestId('mergeable-polish-review-button'))
+    mockProjectContext = {
+      ...mockProjectContext,
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'A\n\nB\n\nAuthor',
+        modifiedContent: 'A2\n\nB2\n\nAuthor',
+        origin: 'polish',
+        pendingEdits: [],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    fireEvent.click(screen.getByTestId('accept-polish-button'))
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByTestId('discard-polish-button'))
+    await waitFor(() => {
+      expect(enterDiffReview).toHaveBeenLastCalledWith(
+        'file-1',
+        'A\n\nB\n\nAuthor',
+        'A2\n\nB\n\nAuthor',
+        'conflict',
+      )
+    })
+    expect(exitDiffReview).not.toHaveBeenCalled()
+    expect(api.fileApi.update).toHaveBeenCalledTimes(1)
   })
 
   it('writes the original back when every agent edit is rejected', async () => {

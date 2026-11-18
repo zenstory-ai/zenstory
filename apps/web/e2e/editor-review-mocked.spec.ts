@@ -420,109 +420,67 @@ test('file history restore confirmation opens above the history modal and comple
 
 for (const theme of ['light', 'dark'] as const) {
   for (const width of [390, 1920]) {
-    test(`review reading contrast and preserved decisions ${theme} ${width}`, async ({ page }, info) => {
+    test(`humanize candidate stays readable and uses one complete decision ${theme} ${width}`, async ({ page }, info) => {
       await page.setViewportSize({ width, height: 1000 });
       const paragraphs = Array.from({ length: 10 }, (_, i) => `雨停后的第${i + 1}天，沈砚回到旧灯铺。\n他先检查门口的灯，再把那封信放在桌上。\n掌柜没有问他的来意，只给他倒了一碗热茶。`);
       const revise = (text: string) => text.replace('先检查门口的灯', '看了一眼门口的灯');
       const original = paragraphs.join('\n\n');
+      const revised = paragraphs.map(revise).join('\n\n');
       const f = await fixture(page, original, 'zh');
       await page.addInitScript(value => localStorage.setItem('zenstory-theme', value), theme);
-      await page.route('**/api/v1/editor/natural-polish', route => route.fulfill({ json: { text: paragraphs.map(revise).join('\n\n') } }));
+      await page.route('**/api/v1/editor/natural-polish', route => route.fulfill({ json: { text: revised } }));
       await page.goto(`/project/${projectA}?file=A`);
       if (width < 768) await page.locator('#editor-tab').click();
       await expect(textarea(page)).toHaveValue(original);
       await textarea(page).click();
       await textarea(page).press('ControlOrMeta+a');
       await page.getByRole('button', { name: humanizeLabel.zh, exact: true }).click();
-      const pane = page.getByText('段落审阅', { exact: true }).locator('xpath=ancestor::div[@tabindex="0"][1]');
-      await expect(page.getByTitle('待审 (10)', { exact: true })).toBeVisible();
-      await page.screenshot({ path: info.outputPath('review-full.png'), animations: 'disabled' });
-      await pane.locator('xpath=..').screenshot({ path: info.outputPath('review-detail.png'), animations: 'disabled' });
-      if (width >= 768) {
-        const inline = pane.locator('[data-edit-id]').first();
-        const decorations = await inline.evaluate(el => {
-          const style = getComputedStyle(el);
-          return { outline: style.outlineStyle === 'none' ? 0 : parseFloat(style.outlineWidth), borders: Array.from(el.children).map(child => {
-            const s = getComputedStyle(child);
-            return parseFloat(s.borderLeftWidth) + parseFloat(s.borderRightWidth);
-          }) };
-        });
-        expect(decorations.outline, 'paragraphs have no persistent selection rectangle').toBe(0);
-        expect(decorations.borders, 'diff tint does not need repeated red/green edges').toEqual([0, 0]);
-      }
-      const cards = pane.locator('[data-index] > div');
-      await expect(pane.locator('[data-index] > [aria-current="true"]')).toHaveCount(1);
-      for (const card of (await cards.all()).slice(0, 2)) {
-        expect(await card.evaluate(el => getComputedStyle(el).boxShadow), 'review entries have no enclosing ring').toBe('none');
-        // Both source/suggestion groups are plain editorial text, not nested surfaces.
-        for (const label of ['原段落', '建议段落']) {
-          const group = card.getByText(label, { exact: true }).locator('xpath=../..');
-          const style = await group.evaluate(el => ({ background: getComputedStyle(el).backgroundColor, radius: getComputedStyle(el).borderRadius }));
-          expect(style).toEqual({ background: 'rgba(0, 0, 0, 0)', radius: '0px' });
-        }
-      }
-      const contrast = await pane.evaluate((root, width) => {
-        // Same canvas/sRGB measurement as visual-standard-mocked, compositing
-        // every ancestor because review previews and semantic fills are translucent.
+      const candidate = page.getByRole('region', { name: '去AI味结果' });
+      await expect(candidate).toBeVisible();
+      await expect(page.getByText('段落审阅', { exact: true })).toHaveCount(0);
+      await expect(candidate.getByText('看了一眼门口的灯', { exact: false }).first()).toBeVisible();
+      await page.screenshot({ path: info.outputPath('humanize-candidate.png'), animations: 'disabled' });
+      const contrast = await candidate.evaluate((root) => {
         const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
         const ctx = canvas.getContext('2d')!;
         const rgba = (css: string) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return Array.from(ctx.getImageData(0, 0, 1, 1).data); };
         const blend = (front: number[], back: number[]) => front.slice(0, 3).map((c, i) => c * front[3] / 255 + back[i] * (1 - front[3] / 255));
         const luminance = (rgb: number[]) => rgb.slice(0, 3).map(c => { const s = c / 255; return s <= .04045 ? s / 12.92 : ((s + .055) / 1.055) ** 2.4; }).reduce((sum, c, i) => sum + c * [.2126, .7152, .0722][i], 0);
-        const selectors = width < 768 ? ['[title="接受 (Y)"]', '[title="拒绝 (N)"]'] : ['.diff-add', '.diff-remove', '[title="接受 (Y)"]', '[title="拒绝 (N)"]'];
-        return selectors.map(selector => {
-          const el = root.querySelector(selector)!;
+        return Array.from(root.querySelectorAll('pre, button')).map(el => {
           const ancestors: Element[] = []; for (let node: Element | null = el; node; node = node.parentElement) ancestors.unshift(node);
           const background = ancestors.reduce((color, node) => blend(rgba(getComputedStyle(node).backgroundColor), color), [255, 255, 255]);
           const foreground = blend(rgba(getComputedStyle(el).color), background);
           const a = luminance(foreground), b = luminance(background);
-          return { selector, ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) };
+          return { text: el.textContent?.trim().slice(0, 30), ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) };
         });
-      }, width);
-      await info.attach('review-contrast', { body: JSON.stringify(contrast), contentType: 'application/json' });
-      for (const item of contrast) expect(item.ratio, `${theme} ${item.selector} readable without relying on hue`).toBeGreaterThanOrEqual(4.5);
+      });
+      await info.attach('candidate-contrast', { body: JSON.stringify(contrast), contentType: 'application/json' });
+      for (const item of contrast) expect(item.ratio, `${theme} ${item.text} remains readable`).toBeGreaterThanOrEqual(4.5);
       expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
-      if (width >= 768) {
-        await pane.focus();
-        await page.keyboard.press('Tab');
-        const target = pane.getByRole('button', { name: '定位到第 1 处修改', exact: true });
-        await expect(target).toBeFocused();
-        expect(await target.evaluate(el => parseFloat(getComputedStyle(el).outlineWidth)), 'keyboard focus remains visible without a persistent paragraph box').toBeGreaterThanOrEqual(2);
-        await pane.getByRole('button', { name: '定位到第 2 处修改', exact: true }).press('Enter');
-        await expect(cards.nth(1)).toHaveAttribute('aria-current', 'true');
-        await pane.getByRole('button', { name: '定位到第 1 处修改', exact: true }).press('Space');
-        await expect(cards.first()).toHaveAttribute('aria-current', 'true');
-        expect(puts(f), 'locating a paragraph must not apply the review through the editor Enter shortcut').toHaveLength(0);
-      }
-      await pane.focus(); await pane.press('y');
-      await expect(page.getByTitle('已接受 (1)', { exact: true })).toBeVisible();
-      await pane.press('n');
-      await expect(page.getByTitle('已拒绝 (1)', { exact: true })).toBeVisible();
-      await page.getByTitle('全部 (10)', { exact: true }).click();
-      await page.getByText('段落 #1', { exact: true }).click();
-      await pane.focus(); await pane.press('u');
-      await expect(page.getByTitle('已接受 (0)', { exact: true })).toBeVisible();
-      await expect(page.getByTitle('待审 (9)', { exact: true })).toBeVisible();
-      await page.getByRole('button', { name: /^(完成审阅|应用修改)$/ }).click();
+      const showOriginal = candidate.getByRole('button', { name: '查看原文', exact: true });
+      await showOriginal.click();
+      await expect(candidate.getByText('先检查门口的灯', { exact: false }).first()).toBeVisible();
+      await candidate.getByRole('button', { name: '查看修改后', exact: true }).click();
+      await candidate.getByRole('button', { name: '采用修改', exact: true }).click();
       await expect.poll(() => puts(f).length).toBe(1);
-      expect(puts(f)[0].body).toMatchObject({ content: paragraphs.map((text, i) => i === 1 ? text : revise(text)).join('\n\n'), base_updated_at: token0, change_type: 'ai_edit' });
+      expect(puts(f)[0].body).toMatchObject({ content: revised, base_updated_at: token0, change_type: 'ai_edit' });
+      await expect(textarea(page)).toHaveValue(revised);
     });
   }
 }
 
 for (const conflict of [false, true]) {
-  test(`humanize real selection and diff apply ${conflict ? '409 retains review' : 'success'}`, async ({ page }) => {
+  test(`humanize complete candidate ${conflict ? '409 opens conflict comparison' : 'saves'}`, async ({ page }) => {
     const f = await fixture(page, 'A local story.');
     await openA(page);
     await textarea(page).click();
     await textarea(page).press('ControlOrMeta+a');
     await page.getByRole('button', { name: humanizeLabel.en, exact: true }).click();
-    await expect(page.getByRole('button', { name: /^(Apply changes|Finish review)$/ })).toBeVisible();
+    const candidate = page.getByRole('region', { name: 'Humanize result' });
+    await expect(candidate).toBeVisible();
     expect(f.requests.find(r => r.path.endsWith('natural-polish'))?.body).toMatchObject({ selected_text: 'A local story.', project_id: projectA });
-    // Desktop keeps the side-by-side panes and lets the queue list scroll itself.
-    expect(await page.getByText('Paragraph review', { exact: true }).evaluate(el => getComputedStyle(el.closest('div[tabindex="0"]')!).overflowY)).toBe('hidden');
     f.conflict = conflict;
-    await page.getByRole('button', { name: /^(Apply changes|Finish review)$/ }).click();
+    await candidate.getByRole('button', { name: 'Use changes', exact: true }).click();
     await expect.poll(() => puts(f).length).toBe(1);
     expect(puts(f)[0].body).toMatchObject({ content: 'A polished local story.', base_updated_at: token0, change_type: 'ai_edit' });
     if (conflict) {
@@ -534,9 +492,7 @@ for (const conflict of [false, true]) {
   });
 }
 
-test('narrow humanize review: per-paragraph Accept is reachable by scrolling the review pane', async ({ page }) => {
-  // One 30-line paragraph (no blank lines) gives a single replace card whose
-  // original and suggestion previews both hit their height cap, as in the audit.
+test('narrow humanize candidate scrolls as one document and can be discarded', async ({ page }, info) => {
   const original = Array.from({ length: 30 }, (_, i) => `line ${i + 1} of the local story.`).join('\n');
   const polished = original.replace(/line/g, 'Line');
   const f = await fixture(page, original);
@@ -547,71 +503,24 @@ test('narrow humanize review: per-paragraph Accept is reachable by scrolling the
   await textarea(page).click();
   await textarea(page).press('ControlOrMeta+a');
   await page.getByRole('button', { name: humanizeLabel.en, exact: true }).click();
-  const finish = page.getByRole('button', { name: /^(Apply changes|Finish review)$/ });
-  await expect(finish).toBeVisible();
-  const header = page.getByText('Paragraph review', { exact: true });
-  const accept = page.getByRole('button', { name: 'Accept', exact: true });
-  await expect(accept).toHaveCount(1);
-  const pane = header.locator('xpath=ancestor::div[@tabindex="0"][1]');
-  // Resolves once the pane's scrollTop has not changed for 10 consecutive frames.
-  const settledScrollTop = () => pane.evaluate(root => new Promise<number>(resolve => {
-    let last = root.scrollTop;
-    let still = 0;
-    const tick = () => {
-      if (root.scrollTop !== last) { last = root.scrollTop; still = 0; } else if (++still >= 10) { resolve(last); return; }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
+  const candidate = page.getByRole('region', { name: 'Humanize result' });
+  await expect(candidate).toBeVisible();
+  const document = candidate.locator('pre');
+  const scroller = document.locator('xpath=..');
+  const before = await scroller.evaluate(root => ({ scrollTop: root.scrollTop, scrollHeight: root.scrollHeight, clientHeight: root.clientHeight }));
+  expect(before.scrollHeight).toBeGreaterThan(before.clientHeight);
+  await scroller.hover();
+  await page.mouse.wheel(0, 900);
+  await expect.poll(() => scroller.evaluate(root => root.scrollTop)).toBeGreaterThan(100);
+  await page.screenshot({ path: info.outputPath('humanize-candidate-mobile-scrolled.png'), animations: 'disabled' });
+  const actions = await candidate.getByRole('button', { name: /^(Discard|Use changes)$/ }).evaluateAll(buttons => buttons.map(button => {
+    const box = button.getBoundingClientRect();
+    return { width: box.width, height: box.height, right: box.right };
   }));
-  // On a phone the inline diff is 0px high, so opening the review must not scroll the pane.
-  expect(await settledScrollTop()).toBe(0);
-  const geometry = () => accept.evaluate(button => {
-    const root = button.closest('div[tabindex="0"]')!;
-    const b = button.getBoundingClientRect();
-    const r = root.getBoundingClientRect();
-    const hit = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
-    return { buttonBottom: b.bottom, rootBottom: r.bottom, scrollTop: root.scrollTop, scrollHeight: root.scrollHeight, clientHeight: root.clientHeight, onTop: !!hit && (hit === button || button.contains(hit)), x: b.x + b.width / 2, y: b.y + b.height / 2 };
-  });
-  const before = await geometry();
-  f.observations.beforeScroll = before;
-  expect(before.scrollHeight, 'precondition: the review card is taller than the pane').toBeGreaterThan(before.clientHeight);
-  expect(before.buttonBottom, 'precondition: Accept starts below the visible pane').toBeGreaterThan(before.rootBottom);
-
-  // Real wheel input from the queue header (outside the preview boxes); no
-  // locator auto-scroll, which could move an overflow-hidden ancestor.
-  const headerBox = await header.boundingBox();
-  await page.mouse.move(headerBox!.x + headerBox!.width / 2, headerBox!.y + headerBox!.height / 2);
-  await page.mouse.wheel(0, 800);
-  await expect.poll(async () => (await geometry()).onTop, { message: 'Accept must become the top element after scrolling' }).toBe(true);
-  const after = await geometry();
-  f.observations.afterScroll = after;
-  expect(after.buttonBottom).toBeLessThanOrEqual(after.rootBottom);
-  await page.mouse.click(after.x, after.y);
-
-  // The last pending card was accepted, so the queue switches to "All" and keeps it visible.
-  await expect(page.getByText('0 pending / 1 total', { exact: true })).toBeVisible();
-  await expect(accept).toBeDisabled();
-  await expect(page.getByTitle('Accepted (1)', { exact: true })).toBeVisible();
-
-  // Tapping a card locates it in the inline diff, which is 0px high on a phone:
-  // that must not pull the pane back to the top. (Accepting the last pending card
-  // rebuilds the list under the "All" filter, so the pane may restart at 0 here.)
-  const currentHeaderBox = await header.boundingBox();
-  // Finish becomes Apply after the last decision; on phones that toolbar can
-  // wrap to a new row. Use the live header, not pre-decision coordinates.
-  f.observations.reviewHeaderAfterAccept = { before: headerBox, after: currentHeaderBox };
-  await page.mouse.move(currentHeaderBox!.x + currentHeaderBox!.width / 2, currentHeaderBox!.y + currentHeaderBox!.height / 2);
-  await page.mouse.wheel(0, 800);
-  const beforeLocate = await settledScrollTop();
-  expect(beforeLocate, 'precondition: pane is scrolled').toBeGreaterThan(0);
-  // dispatchEvent instead of click(): Playwright's actionability scroll would move the pane itself.
-  await page.getByText('Paragraph #1', { exact: true }).dispatchEvent('click');
-  expect(await settledScrollTop(), 'pane keeps its position after tapping a card').toBe(beforeLocate);
-
-  await finish.click();
-  await expect.poll(() => puts(f).length).toBe(1);
-  expect(puts(f)[0].body).toMatchObject({ content: polished, change_type: 'ai_edit' });
-  await expect(textarea(page)).toHaveValue(polished);
+  expect(actions.every(action => action.height >= 44 && action.right <= 390)).toBe(true);
+  await candidate.getByRole('button', { name: 'Discard', exact: true }).click();
+  expect(puts(f)).toHaveLength(0);
+  await expect(textarea(page)).toHaveValue(original);
 });
 
 test('narrow mobile panels retain actual textarea and responsive remount loads saved content', async ({ page }) => {
@@ -874,15 +783,13 @@ test.describe('footer locale and viewport matrix', () => {
   }
 });
 
-test.describe('narrow review touch scrolling', () => {
+test.describe('narrow humanize candidate touch scrolling', () => {
   // Describe-level skip runs before fixtures; CDP touch input exists only in Chromium.
   test.skip(({ browserName }) => browserName !== 'chromium', 'CDP touch input is Chromium-only');
   // hasTouch only: isMobile would be rejected by Firefox at context creation, before any skip.
   test.use({ hasTouch: true });
-  test('a vertical swipe that starts on a short paragraph preview scrolls the review pane', async ({ page }) => {
-    // Eight short paragraphs give eight replace cards whose previews fit without
-    // their own scrollbar, as in the audit (short paragraph cards on 390x844).
-    const original = Array.from({ length: 8 }, (_, i) => `Paragraph ${i + 1} of the local story stays short.`).join('\n\n');
+  test('a vertical swipe on the complete candidate scrolls its document', async ({ page }) => {
+    const original = Array.from({ length: 30 }, (_, i) => `Paragraph ${i + 1} of the local story stays short.`).join('\n\n');
     const polished = original.replace(/local story/g, 'polished story');
     const f = await fixture(page, original);
     await page.route('**/api/v1/editor/natural-polish', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: polished }) }));
@@ -892,18 +799,17 @@ test.describe('narrow review touch scrolling', () => {
     await textarea(page).click();
     await textarea(page).press('ControlOrMeta+a');
     await page.getByRole('button', { name: humanizeLabel.en, exact: true }).click();
-    await expect(page.getByRole('button', { name: /^(Apply changes|Finish review)$/ })).toBeVisible();
-    const pane = page.getByText('Paragraph review', { exact: true }).locator('xpath=ancestor::div[@tabindex="0"][1]');
-    const preview = page.getByText('Original paragraph', { exact: true }).first().locator('xpath=../following-sibling::div[1]');
-    const start = await preview.evaluate(box => {
+    const candidate = page.getByRole('region', { name: 'Humanize result' });
+    await expect(candidate).toBeVisible();
+    const scroller = candidate.locator('pre').locator('xpath=..');
+    const start = await scroller.evaluate(box => {
       const r = box.getBoundingClientRect();
       const x = r.x + r.width / 2, y = r.y + r.height / 2;
       const hit = document.elementFromPoint(x, y);
-      const root = box.closest('div[tabindex="0"]')!;
-      return { x, y, onBox: !!hit && box.contains(hit), fits: box.scrollHeight <= box.clientHeight, paneTop: root.scrollTop, paneScrollable: root.scrollHeight > root.clientHeight };
+      return { x, y, onBox: !!hit && box.contains(hit), scrollTop: box.scrollTop, scrollable: box.scrollHeight > box.clientHeight };
     });
     f.observations.touchStart = start;
-    expect(start, 'precondition: the swipe starts on a non-scrolling preview inside a scrollable pane at the top').toMatchObject({ onBox: true, fits: true, paneTop: 0, paneScrollable: true });
+    expect(start, 'precondition: the swipe starts on the complete scrollable candidate at the top').toMatchObject({ onBox: true, scrollTop: 0, scrollable: true });
 
     // Browser-level touch input (not wheel, not scrollTop writes): finger moves up 240px.
     const session = await page.context().newCDPSession(page);
@@ -914,11 +820,7 @@ test.describe('narrow review touch scrolling', () => {
       }
       await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     } finally { await session.detach(); }
-    await expect.poll(() => pane.evaluate(root => root.scrollTop), { message: 'the outer review pane must scroll when the swipe starts on a preview' }).toBeGreaterThan(100);
-    f.observations.paneAfterSwipe = await pane.evaluate(root => root.scrollTop);
-
-    // Desktop keeps the inner previews from chaining wheel scroll into the queue.
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await expect.poll(() => preview.evaluate(box => getComputedStyle(box).overscrollBehaviorY)).toBe('contain');
+    await expect.poll(() => scroller.evaluate(root => root.scrollTop), { message: 'the complete candidate must follow native touch scrolling' }).toBeGreaterThan(100);
+    f.observations.candidateAfterSwipe = await scroller.evaluate(root => root.scrollTop);
   });
 });

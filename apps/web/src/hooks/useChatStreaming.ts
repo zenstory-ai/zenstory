@@ -17,7 +17,6 @@ import type { Dispatch, SetStateAction } from "react";
 import type {
   AgentContextItem,
   ApplyAction,
-  DiffReviewOrigin,
   FileEditOutcome,
   FileType,
   IterationExhaustedFiles,
@@ -414,8 +413,6 @@ export interface UseChatStreamingDependencies {
   streamingFileId?: string | null;
   /** Returns the latest streaming file ID at callback execution time */
   getCurrentStreamingFileId?: () => string | null;
-  /** Function to enter diff review mode */
-  enterDiffReview: (fileId: string, originalContent: string, newContent: string, origin?: DiffReviewOrigin) => void;
   /** Active UI project ID; scopes file checks during the stream */
   activeProjectId: string | null;
   /**
@@ -710,7 +707,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
         startFileStreaming,
         streamingFileId,
         getCurrentStreamingFileId,
-        enterDiffReview,
         activeProjectId,
         onProjectRenamed,
         t,
@@ -1381,11 +1377,10 @@ export function useChatStreaming(): UseChatStreamingReturn {
             }
           }
 
-          // If we have both original and new content, enter diff review mode
+          // Chat edits are already committed and recoverable through the edit card's undo
+          // action and file history. Show the latest saved copy directly; the editor's
+          // server-sync path still opens a conflict comparison when the author has unsaved text.
           if (newContent && originalContent && newContent !== originalContent) {
-            // A second write in this round to a file under review extends that review (ProjectContext).
-            enterDiffReview(fileId, originalContent, newContent, "agent_write");
-
             const currentSelected = getCurrentSelectedItem?.() ?? null;
             const trackedMeta = fileEditMetaByIdRef.current.get(fileId);
             const resolvedType =
@@ -1403,10 +1398,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
               type: resolvedType,
               title: resolvedTitle,
             });
-          } else {
-            // Fallback: trigger editor refresh to show updated content
-            triggerEditorRefresh(fileId);
           }
+          triggerEditorRefresh(fileId);
           fileEditMetaByIdRef.current.delete(fileId);
         },
 
