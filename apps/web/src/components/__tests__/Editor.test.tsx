@@ -1543,6 +1543,69 @@ describe('Editor', () => {
     })
   })
 
+  it('adopts the server token when another client already saved the same polish candidate', async () => {
+    const exitDiffReview = vi.fn()
+    vi.mocked(api.fileApi.get).mockResolvedValue({
+      ...mockFile,
+      project_id: 'project-1',
+      updated_at: 'server-v1',
+    })
+    vi.mocked(api.fileApi.update).mockRejectedValueOnce(new ApiError(
+      409,
+      'ERR_STALE_WRITE',
+      {
+        reason: 'stale_write',
+        current_content: 'Polished content',
+        current_updated_at: 'server-v2',
+      },
+    ))
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      exitDiffReview,
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+
+    fireEvent.click(screen.getByTestId('natural-polish-review-button'))
+    mockProjectContext = {
+      ...mockProjectContext,
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'Test content',
+        modifiedContent: 'Polished content',
+        origin: 'polish',
+        pendingEdits: [],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    fireEvent.click(screen.getByTestId('accept-polish-button'))
+
+    await waitFor(() => expect(exitDiffReview).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('content-input')).toHaveValue('Polished content')
+    expect(api.fileApi.update).toHaveBeenCalledTimes(1)
+
+    mockProjectContext = { ...mockProjectContext, diffReviewState: null }
+    rerender(<UnmemoizedEditor />)
+    vi.mocked(api.fileApi.update).mockResolvedValueOnce({
+      ...mockFile,
+      project_id: 'project-1',
+      content: 'Polished content plus author line',
+      updated_at: 'server-v3',
+    })
+    fireEvent.change(screen.getByTestId('content-input'), {
+      target: { value: 'Polished content plus author line' },
+    })
+    fireEvent.click(screen.getByTestId('save-button'))
+
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalledTimes(2))
+    expect(api.fileApi.update).toHaveBeenLastCalledWith('file-1', expect.objectContaining({
+      content: 'Polished content plus author line',
+      base_updated_at: 'server-v2',
+    }))
+  })
+
   it('discarding after a stale polish accept keeps newer server text instead of autosaving the old body', async () => {
     const enterDiffReview = vi.fn()
     const exitDiffReview = vi.fn()
