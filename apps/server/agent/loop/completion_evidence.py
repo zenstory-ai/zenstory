@@ -75,8 +75,11 @@ __all__ = [
 # <invoke name="已注册工具"> … </invoke>，其间可能夹着模型专用分隔符。只有开头或结尾的残片、
 # 没有外层 <tool_call> 的 invoke、其他写法都不认（宁可漏报，不扩大词表去猜）。
 _MODEL_TOOL_DELIMITER = "]<]minimax[>["
-_TOOL_CALL_BLOCK_RE = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
-_INVOKE_RE = re.compile(r"<invoke name=\"([^\"<>\n]{1,64})\">.*?</invoke>", re.DOTALL)
+_SWALLOWED_MINIMAX_TAG_RE = re.compile(
+    r"\]<\]minimax\[>\[\s*(/?(?:tool_call|invoke)\b)", re.IGNORECASE
+)
+_TOOL_CALL_BLOCK_RE = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL | re.IGNORECASE)
+_INVOKE_RE = re.compile(r"<invoke name=\"([^\"<>\n]{1,64})\">.*?</invoke>", re.DOTALL | re.IGNORECASE)
 # 示例与转述：代码围栏（未闭合时到结尾）、行内代码、Markdown 引用行。
 _FENCE_RE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n.*?(?:^[ \t]*\1[ \t]*$|\Z)", re.DOTALL | re.MULTILINE)
 _INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
@@ -90,12 +93,13 @@ def unexecuted_tool_protocol(tail_text: str, registered_tools: set[str] | frozen
     最后一次真实工具事件之后的文字上调用它，所以命中的调用一定没有被执行。``<file>`` 正文、
     代码、引用里的同形文字是正文或示例，不算；工具名必须属于当前 agent 实际注册的工具。
     """
-    if not tail_text or "<tool_call>" not in tail_text:
+    if not tail_text or "tool_call>" not in tail_text.lower():
         return []
     text = _FILE_BLOCK_RE.sub("", normalize_file_markers(tail_text))
     text = _FENCE_RE.sub("", text)
     text = _INLINE_CODE_RE.sub("", text)
     text = _BLOCKQUOTE_LINE_RE.sub("", text)
+    text = _SWALLOWED_MINIMAX_TAG_RE.sub(r"\n<\1", text)
     text = text.replace(_MODEL_TOOL_DELIMITER, "\n")
     names: list[str] = []
     for block in _TOOL_CALL_BLOCK_RE.finditer(text):

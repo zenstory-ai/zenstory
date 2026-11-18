@@ -846,6 +846,11 @@ class FileEditor:
                             f"Edit {i}: missing op. Each edit must include op=replace/insert_after/insert_before/append/prepend/delete"
                         )
 
+                # 剥离模型偶发夹带的 NUL 字节（\x00），避免 PostgreSQL DataError。
+                edit = {
+                    k: (v.replace("\x00", "") if isinstance(v, str) and "\x00" in v else v)
+                    for k, v in edit.items()
+                }
                 # Normalize common field aliases
                 if "old" not in edit and isinstance(edit.get("from"), str):
                     edit["old"] = edit.get("from")
@@ -1121,6 +1126,8 @@ class FileEditor:
         """
         from database import is_postgres
 
+        if "\x00" in content:
+            content = content.replace("\x00", "")
         if is_postgres:
             return self._replace_body_impl(
                 id, content, expected_updated_at, normalize_quotes, protect_author_content

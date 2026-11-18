@@ -63,8 +63,8 @@ from .loop.engine import run_loop_agent_streaming
 from .loop.history import (
     LOOP_ENGINE_METADATA_VALUE,
     LoopHistory,
-    bounded_items,
-    estimate_items_tokens,
+    bound_history_for_provider,
+    estimate_provider_items_tokens,
     load_loop_history,
     row_metadata,
     valid_compaction,
@@ -832,6 +832,10 @@ class AgentService:
             nonlocal display_text_run_type
             if not isinstance(content, str) or not content:
                 return
+            if "\x00" in content:
+                content = content.replace("\x00", "")
+                if not content:
+                    return
             if (
                 display_text_run_type == event_type
                 and assistant_display_events
@@ -894,6 +898,8 @@ class AgentService:
                 for index, text in enumerate(texts):
                     if not (isinstance(text, str) and text.strip()):
                         continue
+                    if "\x00" in text:
+                        text = text.replace("\x00", "")
                     sent_at = first_created_at if index == 0 else None
                     row_metadata = first_metadata if index == 0 else None
                     append_session.add(
@@ -1273,19 +1279,23 @@ class AgentService:
                     and isinstance(retry_carried_compaction.get("compaction_skipped"), dict)
                 ):
                     loop_compaction_skipped = retry_carried_compaction["compaction_skipped"]
-                # 兜底上限：压缩一直不成时丢掉最旧的项，会话降级而不是每轮超出供应商上下文。
-                run_history = list(writing_state.get("history_items") or [])
-                bounded_history = bounded_items(run_history, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS)
-                if len(bounded_history) < len(run_history):
-                    log_with_context(
-                        logger,
-                        30,  # WARNING
-                        "Loop history exceeded the run bound; oldest items left out",
-                        session_id=session_id,
-                        dropped_items=len(run_history) - len(bounded_history),
-                        kept_tokens=estimate_items_tokens(bounded_history),
+                # 兜底上限：压缩一直不成、实测（或供应商同量纲估算）逼近 1M 窗口时才丢掉最旧项；
+                # 本轮刚完成压缩时 items 已是摘要结果，不再按压缩前读数裁剪。
+                if loop_compaction_record is None:
+                    run_history = list(writing_state.get("history_items") or [])
+                    bounded_history = bound_history_for_provider(
+                        loop_history, run_history, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS
                     )
-                    writing_state["history_items"] = bounded_history
+                    if len(bounded_history) < len(run_history):
+                        log_with_context(
+                            logger,
+                            30,  # WARNING
+                            "Loop history exceeded the run bound; oldest items left out",
+                            session_id=session_id,
+                            dropped_items=len(run_history) - len(bounded_history),
+                            kept_tokens=estimate_provider_items_tokens(bounded_history),
+                        )
+                        writing_state["history_items"] = bounded_history
                 workflow_events = self._loop_events(
                     writing_state,
                     get_steering_messages=get_steering_messages,

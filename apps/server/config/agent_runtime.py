@@ -119,7 +119,7 @@ AGENT_SSE_HEARTBEAT_INTERVAL_S = _get_int_env("AGENT_SSE_HEARTBEAT_INTERVAL_S", 
 # the last model call of the previous turn (measured, cached tokens included) exceeds this,
 # the next turn first writes a handoff summary with the same model; the history loader then
 # replays recent author messages + the summary instead of everything before it.
-AGENT_LOOP_COMPACT_AT_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_AT_TOKENS", 600_000)
+AGENT_LOOP_COMPACT_AT_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_AT_TOKENS", 300_000)
 # Token budget for the most recent original author messages kept verbatim after compaction.
 AGENT_LOOP_COMPACT_KEEP_USER_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_KEEP_USER_TOKENS", 20_000)
 # Output cap of the summary call (reasoning tokens count against it).

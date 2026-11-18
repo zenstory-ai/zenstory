@@ -207,6 +207,31 @@ class StreamBillingTracker:
     _parallel_task_types: dict[tuple[str, str], str] = field(default_factory=dict, repr=False)
     # 发出了 tool_call、还没有 tool_result 的写工具调用（tool_use_id）：截停时它们的线程可能仍在提交。
     _unanswered_write_calls: set[str] = field(default_factory=set, repr=False)
+    # 非流式工具（create_file 带正文、edit_file、delete_file、rename_file、write_chapter 替换落库等）已确认的文件写入。
+    _confirmed_tool_file_write: bool = field(default=False, repr=False)
+    # update_project 改动了可见项目信息（简介、文风、备注、项目名）。
+    _project_info_written: bool = field(default=False, repr=False)
+    # 流式正文落库明确失败的文件 id：其此前流过的 file_content 不算已保存产出。
+    _failed_save_file_ids: set[str] = field(default_factory=set, repr=False)
+
+    def _recompute_output_flags(self) -> None:
+        has_streamed_write = any(fid not in self.replace_target_ids for fid in self.filled_file_ids)
+        self.file_written = self._confirmed_tool_file_write or has_streamed_write
+        self.write_succeeded = self.file_written or self._project_info_written
+        self.produced_output = self.write_succeeded or self.prose_output
+        if not self.produced_output:
+            self.first_output_ms = None
+        elif self.first_output_ms is None:
+            self.first_output_ms = int((time.monotonic() - self.started_at) * 1000)
+
+    def _mark_file_save_failed(self, file_id: str) -> None:
+        if not file_id:
+            return
+        self._failed_save_file_ids.add(file_id)
+        self.filled_file_ids.discard(file_id)
+        self._recompute_output_flags()
+        if self.file_body_pending() and not self._segment_reached:
+            self.ended_on_reply = False
 
     def observe_delivery(self, frame: Any) -> None:
         if isinstance(frame, str):
@@ -222,10 +247,6 @@ class StreamBillingTracker:
         if not event_type:
             return  # SSE 注释帧（心跳）等
         payload = data if isinstance(data, dict) else {}
-        if _is_terminal_event(event_type, payload):
-            self.saw_terminal_event = True
-            if (self._segment_reached or self._segment_text.strip()) and not self.file_body_pending():
-                self.ended_on_reply = True
 
         if event_type == "session_started" and isinstance(payload.get("session_id"), str):
             self.session_id = payload["session_id"]
@@ -239,26 +260,33 @@ class StreamBillingTracker:
                 or payload.get("code") in RUNAWAY_ERROR_CODES
             ):
                 self.runaway_stop = True
+            if payload.get("code") == ErrorCode.AGENT_FILE_SAVE_FAILED and isinstance(payload.get("file_id"), str):
+                self._mark_file_save_failed(payload["file_id"])
         elif event_type == "iteration_exhausted" and payload.get("layer") in RUNAWAY_ITERATION_LAYERS:
             self.runaway_stop = True
 
         self._track_write_calls(event_type, payload)
-        wrote = self._observe_effects(event_type, payload)
+        self._observe_effects(event_type, payload)
         prose = self._prose_reached(event_type, payload)
         if prose:
             self.prose_output = True
-        if not self.produced_output and (wrote or prose):
-            self.produced_output = True
-            self.first_output_ms = int((time.monotonic() - self.started_at) * 1000)
+        self._recompute_output_flags()
+
+        if _is_terminal_event(event_type, payload):
+            self.saw_terminal_event = True
+            if (self._segment_reached or self._segment_text.strip()) and not self.file_body_pending():
+                self.ended_on_reply = True
 
     def _observe_effects(self, event_type: str, payload: dict[str, Any]) -> bool:
         """一帧（或一份按帧格式还原的工具结果）对文件的影响：占位候选、写入标记。返回是否算写入。"""
         self._track_files(event_type, payload)
         wrote = self._write_effect(event_type, payload)
         if wrote:
-            self.write_succeeded = True
-            if not (event_type == "tool_result" and payload.get("tool_name") == "update_project"):
-                self.file_written = True
+            if event_type == "tool_result" and payload.get("tool_name") == "update_project":
+                self._project_info_written = True
+            elif event_type != "file_content":
+                self._confirmed_tool_file_write = True
+        self._recompute_output_flags()
         return wrote
 
     def _track_write_calls(self, event_type: str, payload: dict[str, Any]) -> None:
@@ -285,10 +313,7 @@ class StreamBillingTracker:
         for payload in results:
             if not isinstance(payload, dict):
                 continue
-            wrote = self._observe_effects("tool_result", payload)
-            if wrote and not self.produced_output:
-                self.produced_output = True
-                self.first_output_ms = int((time.monotonic() - self.started_at) * 1000)
+            self._observe_effects("tool_result", payload)
 
     def removable_placeholders(self) -> list[dict[str, str]]:
         """本轮新建、之后也没收到任何正文的文件（候选；落库前还要再查一次是否为空、版本是否未变）。"""
@@ -304,9 +329,18 @@ class StreamBillingTracker:
         ]
 
     def _track_files(self, event_type: str, payload: dict[str, Any]) -> None:
+        if event_type == "file_created":
+            file_id = payload.get("file_id")
+            if isinstance(file_id, str) and file_id:
+                self._failed_save_file_ids.discard(file_id)
+            return
         if event_type == "file_content":
             file_id = payload.get("file_id")
-            if isinstance(file_id, str) and str(payload.get("chunk") or "").strip():
+            if (
+                isinstance(file_id, str)
+                and file_id not in self._failed_save_file_ids
+                and str(payload.get("chunk") or "").strip()
+            ):
                 self.filled_file_ids.add(file_id)
             return
         if (
@@ -364,19 +398,19 @@ class StreamBillingTracker:
     def note_saved_receipts(self, receipts: Mapping[str, int | None]) -> None:
         """按 StreamAdapter 的保存回执补记写入：落库结果没来得及作为帧发出（停止 / 断线时保存仍在
         途中、之后才提交，或短正文只在解析器尾缓冲里、截停时才补存）时，回执里有字数就说明正文
-        已经写进了文件，算写入。覆盖整章替换的目标和本轮新建的空文件；None（没保存成）不算。"""
+        已经写进了文件，算写入。覆盖整章替换的目标和本轮新建的空文件；None（停止 / 断线时补存未确认）
+        只表示不补记，不回滚停止前已流给编辑器的 file_content（平台侧落库报错由 ERR_AGENT_FILE_SAVE_FAILED 帧回滚）。"""
         committed_created = {
             file_id for file_id in self.created_empty_files if isinstance(receipts.get(file_id), int)
         }
-        self.filled_file_ids |= committed_created
-        if committed_created or any(
+        if committed_created:
+            self._failed_save_file_ids -= committed_created
+            self.filled_file_ids |= committed_created
+        if any(
             isinstance(receipts.get(file_id), int) for file_id in self.unconfirmed_replacement_ids()
         ):
-            self.write_succeeded = True
-            self.file_written = True
-            if not self.produced_output:
-                self.produced_output = True
-                self.first_output_ms = int((time.monotonic() - self.started_at) * 1000)
+            self._confirmed_tool_file_write = True
+        self._recompute_output_flags()
 
     def _write_effect(self, event_type: str, payload: dict[str, Any]) -> bool:
         """这一帧是否意味着某个文件被写进了正文（或被删除）、项目信息被改了。"""

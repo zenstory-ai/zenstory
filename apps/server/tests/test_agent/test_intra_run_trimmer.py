@@ -56,10 +56,10 @@ def _chars(items: list[Any]) -> int:
     return len(json.dumps(items, ensure_ascii=False))
 
 
-def test_default_constructor_is_a_600k_safety_valve():
+def test_default_constructor_is_a_1800k_safety_valve():
     trimmer = IntraRunToolOutputTrimmer()
-    assert trimmer.max_input_chars == DEFAULT_MAX_INPUT_CHARS == 600_000
-    assert trimmer.target_chars == 420_000
+    assert trimmer.max_input_chars == DEFAULT_MAX_INPUT_CHARS == 1_800_000
+    assert trimmer.target_chars == 1_260_000
 
 
 def test_regression_four_full_reads_and_a_search_pass_through_unchanged():

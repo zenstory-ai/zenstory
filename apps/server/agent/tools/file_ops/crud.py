@@ -313,6 +313,10 @@ class FileCRUD:
         Raises:
             PermissionError: If user doesn't have permission
         """
+        if "\x00" in title:
+            title = title.replace("\x00", "")
+        if content and "\x00" in content:
+            content = content.replace("\x00", "")
         validate_file_title(title)
         log_with_context(
             logger,
@@ -788,7 +792,11 @@ class FileCRUD:
             ValueError: If file not found
         """
         if title is not None:
+            if "\x00" in title:
+                title = title.replace("\x00", "")
             validate_file_title(title)
+        if content is not None and "\x00" in content:
+            content = content.replace("\x00", "")
 
         from database import is_postgres
 
