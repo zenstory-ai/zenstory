@@ -354,22 +354,3 @@ export function buildParagraphReviewData(
     pendingEdits: buildPendingEditsFromDiffs(diffs),
   };
 }
-
-/**
- * A rebuilt review keeps the author's decision on every block that is the same change as before
- * (same operation, same old and new text); each earlier decision is used at most once, in order.
- * Blocks a later write changed start pending again.
- */
-export function carryOverDecisions(previous: PendingEdit[], rebuilt: PendingEdit[]): PendingEdit[] {
-  const decided = new Map<string, PendingEdit["status"][]>();
-  const keyOf = (edit: PendingEdit) => JSON.stringify([edit.op, edit.oldText ?? "", edit.newText ?? ""]);
-  for (const edit of previous) {
-    if (edit.status === "pending") continue;
-    const key = keyOf(edit);
-    decided.set(key, [...(decided.get(key) ?? []), edit.status]);
-  }
-  return rebuilt.map((edit) => {
-    const status = decided.get(keyOf(edit))?.shift();
-    return status ? { ...edit, status } : edit;
-  });
-}

@@ -34,7 +34,7 @@ Save recent edits in the editor before sending your message. Each turn operates 
 ## Check file operation cards and steer active runs
 
 - **Inspect file cards**: Whenever the AI reads, creates, or edits project files, operation cards appear in its reply. Click a file card to open that file in the center editor and verify the result, or click **Undo** on an edit card to revert that file change. If candidate prose appears only inside the chat reply without a file card, it has not been written to a project file yet.
-- **Steer or stop mid-run**: One generation task can run per account at a time. While the AI is generating, you can type follow-up instructions into the input box (**Add to your request**) and click **Add request**—the interface reports whether your note was received into the current run. To halt output immediately, click **Stop generating** in the bottom right; file edits completed before stopping remain saved.
+- **Steer or stop mid-run**: One generation task can run per account at a time. While the AI is generating, you can type follow-up instructions directly into the input box (applied at its next step) and click **Add request**—the interface reports whether your note was received into the current run. To halt output immediately, click **Stop generating** in the bottom right; file edits completed before stopping remain saved.
 
 ## Continue after an interruption
 

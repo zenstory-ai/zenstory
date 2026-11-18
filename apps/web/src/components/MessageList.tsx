@@ -34,6 +34,13 @@ import { RoundEndNote } from './RoundEndNote';
 import { exhaustionLeftFilesUnfinished, type RoundStopOutcome } from '../lib/chatRoundEnd';
 import { isClarificationStop as isClarificationStopItem } from '../lib/nextStep';
 import { isInternalOrderingRefusal } from '../lib/agentRoundProgress';
+import {
+  CHAT_CARD_PRIMARY_BUTTON,
+  CHAT_CARD_PROMPT_SURFACE,
+  CHAT_CARD_SECONDARY_BUTTON,
+  CHAT_CARD_SURFACE,
+  CHAT_CARD_WARNING_SURFACE,
+} from './chatCardStyles';
 
 /** The author pressed stop: a quiet note, not a warning (nothing went wrong). */
 function UserStoppedNote() {
@@ -329,7 +336,7 @@ function iterationExhaustedText(
 type IterationExhaustedCardData = Parameters<NonNullable<MessageListProps['onIterationAssistAction']>>[1]
   & Parameters<typeof iterationExhaustedText>[1];
 
-/** A paused round (not a failure): neutral style; the next-step buttons only while a message can be sent. */
+/** A paused round (not a failure): calm card surface; one primary CTA and uniform neutral secondary options. */
 function IterationExhaustedCard({ card, onIterationAssistAction, nextStepsBlocked }: {
   card: IterationExhaustedCardData;
   onIterationAssistAction?: MessageListProps['onIterationAssistAction'];
@@ -340,47 +347,118 @@ function IterationExhaustedCard({ card, onIterationAssistAction, nextStepsBlocke
   const exhausted = iterationExhaustedText(t, card, nextStepsBlocked);
   const showNextSteps = !nextStepsBlocked && card.layer !== 'unexecuted_tool_text';
   return (
-    <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-      <CirclePause size={14} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <span className="text-xs font-medium text-[hsl(var(--text-primary))]">
+    <div className={`inline-flex max-w-full items-start gap-2.5 ${CHAT_CARD_SURFACE} ${isMobile ? 'px-3 py-2.5' : 'p-3'}`}>
+      <CirclePause size={15} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
+      <div className="flex flex-col gap-1 min-w-0">
+        <span className="text-xs font-semibold leading-5 text-[hsl(var(--text-primary))]">
           {exhausted.title}
         </span>
         {exhausted.lines.map((line) => (
-          <span key={line} className="text-xs text-[hsl(var(--text-primary))] break-words">
+          <span key={line} className="text-xs leading-5 text-[hsl(var(--text-secondary))] break-words">
             {line}
           </span>
         ))}
         {showNextSteps && (
-          <>
-            <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
-              {t('workflow.nextStepHint', { ns: 'chat' })}
-            </span>
-            <div className={`mt-1 flex flex-wrap ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
-              <button
-                type="button"
-                className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
-                onClick={() => onIterationAssistAction?.('continue', card)}
-              >
-                {t('workflow.actionContinue', { ns: 'chat' })}
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
-                onClick={() => onIterationAssistAction?.('split', card)}
-              >
-                {t('workflow.actionSplit', { ns: 'chat' })}
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--text-secondary)/0.4)] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
-                onClick={() => onIterationAssistAction?.('manual', card)}
-              >
-                {t('workflow.actionManual', { ns: 'chat' })}
-              </button>
-            </div>
-          </>
+          <div className={`mt-1.5 flex flex-wrap items-center ${isMobile ? 'gap-1.5' : 'gap-2'}`}>
+            <button
+              type="button"
+              className={CHAT_CARD_PRIMARY_BUTTON}
+              onClick={() => onIterationAssistAction?.('continue', card)}
+            >
+              {t('workflow.actionContinue', { ns: 'chat' })}
+            </button>
+            <button
+              type="button"
+              className={CHAT_CARD_SECONDARY_BUTTON}
+              onClick={() => onIterationAssistAction?.('split', card)}
+            >
+              {t('workflow.actionSplit', { ns: 'chat' })}
+            </button>
+            <button
+              type="button"
+              className={CHAT_CARD_SECONDARY_BUTTON}
+              onClick={() => onIterationAssistAction?.('manual', card)}
+            >
+              {t('workflow.actionManual', { ns: 'chat' })}
+            </button>
+          </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Shared card for clarification requests and workflow-stopped states across live and saved timelines. */
+function WorkflowStoppedCard({ stop }: {
+  stop: {
+    type?: string;
+    reason?: string;
+    message?: string;
+    question?: string;
+    context?: string;
+    details?: string[];
+  };
+}) {
+  const { t } = useTranslation(['chat']);
+  const { isMobile } = useMobileLayout();
+  const workflowQuestion = stop.question?.trim() || stop.message?.trim() || '';
+  const workflowContext = stop.context?.trim() || '';
+  const workflowDetails = (stop.details ?? []).map((d) => d.trim()).filter(Boolean);
+  const isClarificationStop = isClarificationStopItem({ ...stop, type: stop.type ?? 'workflow_stopped' });
+  const paddingClass = isMobile ? 'px-3 py-2.5' : 'p-3';
+
+  if (!isClarificationStop) {
+    const isErrorStop = stop.reason === 'error';
+    const stopMessage = workflowQuestion || t('workflow.stoppedGeneric', { ns: 'chat' });
+    return (
+      <div className={`inline-flex max-w-full items-start gap-2.5 ${isErrorStop ? CHAT_CARD_WARNING_SURFACE : CHAT_CARD_SURFACE} ${paddingClass}`}>
+        {isErrorStop ? (
+          <AlertTriangle size={15} className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0" />
+        ) : (
+          <CirclePause size={15} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
+        )}
+        <div className="flex flex-col gap-1 min-w-0">
+          <span className={`text-xs font-semibold leading-5 ${isErrorStop ? 'text-[hsl(var(--warning-text))]' : 'text-[hsl(var(--text-primary))]'}`}>
+            {t('workflow.stoppedTitle', { ns: 'chat' })}
+          </span>
+          <span className="text-xs leading-5 text-[hsl(var(--text-secondary))] break-words">
+            {stopMessage}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`inline-flex max-w-full items-start gap-2.5 ${CHAT_CARD_PROMPT_SURFACE} ${paddingClass}`}>
+      <Bot size={15} className="text-[hsl(var(--accent-primary))] mt-0.5 shrink-0" />
+      <div className="flex flex-col gap-1 min-w-0">
+        <span className="text-xs font-semibold leading-5 text-[hsl(var(--text-primary))]">
+          {t('workflow.waitingForReply', { ns: 'chat' })}
+        </span>
+        {workflowQuestion ? (
+          <span className="text-xs leading-5 text-[hsl(var(--text-primary))] break-words">
+            {workflowQuestion}
+          </span>
+        ) : (
+          <span className="text-xs leading-5 text-[hsl(var(--text-secondary))] break-words">
+            {t('workflow.needsConfirmation', { ns: 'chat' })}
+          </span>
+        )}
+        {workflowContext ? (
+          <span className="text-xs leading-5 text-[hsl(var(--text-secondary))] break-words">
+            {workflowContext}
+          </span>
+        ) : null}
+        {workflowDetails.length > 0 ? (
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs leading-5 text-[hsl(var(--text-primary))]">
+            {workflowDetails.map((detail, detailIdx) => (
+              <li key={detailIdx} className="break-words">
+                {detail}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
     </div>
   );
@@ -447,14 +525,14 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
       </button>
 
       {isOpen && (
-        <div className="mt-2 space-y-1">
+        <div className="mt-2 space-y-1.5">
           {items.map((item, index) => {
             return (
               <details
                 key={item.id || `${item.type}-${index}`}
-                className="rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary))]"
+                className={CHAT_CARD_SURFACE}
               >
-                <summary className="cursor-pointer select-none px-2 py-1.5 text-xs flex items-center gap-2 min-w-0 list-none"
+                <summary className="cursor-pointer select-none px-3 py-2 text-xs flex items-center gap-2 min-w-0 list-none"
                   style={{ listStyle: 'none' }}
                 >
                   <svg
@@ -481,8 +559,8 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
                   </Badge>
                 </summary>
 
-                <div className="px-2 pb-2">
-                  <div className="text-xs text-[hsl(var(--text-primary))] whitespace-pre-wrap max-h-40 overflow-auto rounded bg-[hsl(var(--bg-primary))] p-2">
+                <div className="px-3 pb-2.5">
+                  <div className="text-xs text-[hsl(var(--text-primary))] whitespace-pre-wrap max-h-40 overflow-auto rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-primary))] p-2.5">
                     {item.content}
                   </div>
                 </div>
@@ -519,10 +597,10 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
   return <>
   {items.map((item) => {
     if (item.type === 'thinking_status' && item.content) {
-      // 1. thinking 事件 - 状态小气泡，最小、最淡
+      // 1. thinking 事件 - 轻量状态小标签（不透明文字 token）
       return (
         <div key={item.id} className="mb-2">
-          <div className={`inline-block rounded-lg bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-tertiary))] text-xs opacity-70 ${isMobile ? 'px-2 py-0.5' : 'px-2.5 py-1'}`}>
+          <div className={`inline-block rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] text-xs ${isMobile ? 'px-2.5 py-0.5' : 'px-2.5 py-1'}`}>
             {item.content}
           </div>
         </div>
@@ -538,9 +616,9 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
         />
       );
     } else if (item.type === 'thinking_content' && item.content) {
-      // 2. thinking_content - 思考过程，可折叠，半透明
+      // 2. thinking_content - 思考过程，可折叠
       return (
-        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
+        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-2.5'}>
           <ThinkingContent content={item.content} isStreaming={isStreaming} />
         </div>
       );
@@ -550,7 +628,7 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
       if (!cleanContent.trim()) return null;
       return (
         <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
-          <div className={`inline-block max-w-full rounded-xl text-sm bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] shadow-sm ${isMobile ? 'px-3 py-2' : 'px-4 py-3'}`}>
+          <div className={`inline-block max-w-full rounded-xl text-sm bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] ${isMobile ? 'px-3 py-2' : 'px-4 py-3'}`}>
             <div className="markdown-content">
               <LazyMarkdown>{cleanContent}</LazyMarkdown>
             </div>
@@ -562,7 +640,7 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
       const toolCalls = visibleToolCalls(item.toolCalls);
       if (toolCalls.length === 0) return null;
       return (
-        <div key={item.id} className={`${isMobile ? 'mb-2' : 'mb-3'} space-y-2`}>
+        <div key={item.id} className={`${isMobile ? 'mb-2' : 'mb-2.5'} space-y-2`}>
           {toolCalls.map((toolCall, idx) => (
             <ToolResultCard
               key={`${item.id}-${idx}`}
@@ -586,7 +664,7 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
     } else if (item.type === 'context' && item.items) {
       // 5. context - 引用来源，次要
       return (
-        <div key={item.id} className={`${isMobile ? 'mb-2' : 'mb-3'} opacity-80`}>
+        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-2.5'}>
           <ContextItemsView items={item.items} />
         </div>
       );
@@ -595,10 +673,10 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
       return (
         <div key={item.id} className="mb-2">
           <div className={`inline-flex items-center rounded-lg ${
-            isMobile ? 'gap-1 px-2 py-0.5' : 'gap-1.5 px-2.5 py-1'
-          } bg-[hsl(var(--accent-primary)/0.1)] border border-[hsl(var(--accent-primary)/0.2)]`}>
-            <Bot size={12} className="text-[hsl(var(--accent-primary))]" />
-            <span className={`text-xs text-[hsl(var(--accent-primary))] ${isMobile ? 'truncate max-w-[120px]' : ''}`}>
+            isMobile ? 'gap-1.5 px-2.5 py-0.5' : 'gap-1.5 px-2.5 py-1'
+          } bg-[hsl(var(--accent-primary)/0.08)] border border-[hsl(var(--accent-primary)/0.2)]`}>
+            <Bot size={13} className="text-[hsl(var(--accent-primary))] shrink-0" />
+            <span className={`text-xs font-medium text-[hsl(var(--accent-primary))] ${isMobile ? 'truncate max-w-[140px]' : ''}`}>
               {agentLabel(item.agentType, item.agentName)}
             </span>
           </div>
@@ -611,7 +689,7 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
       if (isStreaming && item.layer === 'empty_file_correction') return null;
       // 7. iteration_exhausted - 这一轮的步数/协作轮数用完，或有文件没写成正文：暂停，用中性样式。
       return (
-        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
+        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-2.5'}>
           <IterationExhaustedCard card={item} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} />
         </div>
       );
@@ -619,9 +697,9 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
       // router_thinking - Router 正在分析请求
       return (
         <div key={item.id} className="mb-2">
-          <div className={`inline-flex items-center rounded-lg bg-[hsl(var(--accent-primary)/0.1)] border border-[hsl(var(--accent-primary)/0.2)] ${isMobile ? 'gap-1 px-2 py-0.5' : 'gap-1.5 px-2.5 py-1'}`}>
-            <Sparkles size={12} className="text-[hsl(var(--accent-primary))] animate-pulse" />
-            <span className="text-xs text-[hsl(var(--accent-primary))] truncate">
+          <div className={`inline-flex max-w-full items-center rounded-lg bg-[hsl(var(--accent-primary)/0.08)] border border-[hsl(var(--accent-primary)/0.2)] ${isMobile ? 'gap-1.5 px-2.5 py-0.5' : 'gap-1.5 px-2.5 py-1'}`}>
+            <Sparkles size={13} className="text-[hsl(var(--accent-primary))] animate-pulse shrink-0" />
+            <span className="text-xs font-medium text-[hsl(var(--accent-primary))] truncate">
               {item.content}
             </span>
           </div>
@@ -631,87 +709,24 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
       // Routing topology stays in the raw timeline for diagnostics/history restoration.
       return null;
     } else if (item.type === 'workflow_stopped') {
-      // workflow_stopped - 工作流因需要澄清而停止
-      const workflowQuestion =
-        (item as { question?: string; message?: string }).question?.trim() ||
-        (item as { message?: string }).message?.trim() ||
-        "";
-      const workflowContext = (item as { context?: string }).context?.trim() || "";
-      const workflowDetails = ((item as { details?: string[] }).details ?? [])
-        .map((d) => d.trim())
-        .filter(Boolean);
       const workflowReason = (item as { reason?: string }).reason;
       if (workflowReason === 'user_stopped') {
         return <UserStoppedNote key={item.id} />;
       }
-      const isClarificationStop = isClarificationStopItem(item);
-
-      if (!isClarificationStop) {
-        const stopMessage =
-          workflowQuestion
-          || t('workflow.stoppedGeneric', { ns: 'chat' });
-        return (
-          <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
-            <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-              <AlertTriangle size={14} className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0" />
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-xs font-medium text-[hsl(var(--warning-text))]">
-                  {t('workflow.stoppedTitle', { ns: 'chat' })}
-                </span>
-                <span className="text-xs text-[hsl(var(--text-primary))] break-words">
-                  {stopMessage}
-                </span>
-              </div>
-            </div>
-          </div>
-        );
-      }
       return (
-        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
-          <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-            <AlertTriangle size={14} className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0" />
-            <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-xs font-medium text-[hsl(var(--warning-text))]">
-                {t('workflow.waitingForReply', { ns: 'chat' })}
-              </span>
-              {workflowQuestion ? (
-                <span className="text-xs text-[hsl(var(--text-primary))] break-words">
-                  {workflowQuestion}
-                </span>
-              ) : (
-                <span className="text-xs text-[hsl(var(--text-secondary))] break-words">
-                  {t('workflow.needsConfirmation', { ns: 'chat' })}
-                </span>
-              )}
-              {workflowContext ? (
-                <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
-                  {workflowContext}
-                </span>
-              ) : null}
-              {workflowDetails.length > 0 ? (
-                <ul className="mt-1 list-disc pl-4 text-xs text-[hsl(var(--text-primary))]">
-                  {workflowDetails.map((detail, detailIdx) => (
-                    <li key={detailIdx} className="break-words">
-                      {detail}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          </div>
+        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-2.5'}>
+          <WorkflowStoppedCard stop={item as { reason?: string; message?: string; question?: string; context?: string; details?: string[] }} />
         </div>
       );
     } else if (item.type === 'workflow_complete') {
       // workflow_complete - 任务完成
       return (
-        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
-          <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--success)/0.1)] border border-[hsl(var(--success)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-            <Sparkles size={14} className="text-[hsl(var(--success-text))] mt-0.5 shrink-0" />
-            <div className="flex flex-col gap-0.5">
-              <span className="text-xs font-medium text-[hsl(var(--success-text))]">
-                {t('workflow.taskCompleted', { ns: 'chat' })}
-              </span>
-            </div>
+        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-2.5'}>
+          <div className={`inline-flex items-center gap-2 ${CHAT_CARD_SURFACE} ${isMobile ? 'px-3 py-2' : 'px-3 py-2'}`}>
+            <Sparkles size={14} className="text-[hsl(var(--success-text))] shrink-0" />
+            <span className="text-xs font-medium text-[hsl(var(--text-primary))]">
+              {t('workflow.taskCompleted', { ns: 'chat' })}
+            </span>
           </div>
         </div>
       );
@@ -799,6 +814,14 @@ const Row = React.memo(function Row({
     ? message.displayItems?.filter((item) => item !== quietIncompleteCard)
     : message.displayItems;
   const hasDisplayItems = message.role === 'assistant' && Boolean(orderedDisplayItems?.length);
+  const hasVisibleIterationExhaustedCard = message.role === 'assistant' && (
+    hasDisplayItems
+      ? Boolean(orderedDisplayItems?.some((item) => item.type === 'iteration_exhausted'))
+      : Boolean(message.statusCards?.some(
+          (card) => card.type === 'iteration_exhausted'
+            && !(message.stopOutcome?.reason === 'incomplete' && card.layer === 'empty_file_correction'),
+        ))
+  );
   const toolCalls = visibleToolCalls(message.toolCalls);
   const toolResults = visibleToolCalls(message.toolResults);
   const shouldShowFeedbackActions =
@@ -857,17 +880,23 @@ const Row = React.memo(function Row({
         {message.role === 'assistant' && (
           <>
             {/* Show all reasoning segments */}
-            {message.reasoningSegments && message.reasoningSegments.length > 0 && message.reasoningSegments.map((segment, idx) => (
-              <ThinkingContent
-                key={`reasoning-${idx}`}
-                content={segment.content}
-                isStreaming={false}
-              />
-            ))}
+            {message.reasoningSegments && message.reasoningSegments.length > 0 && (
+              <div className="mb-2.5 space-y-2">
+                {message.reasoningSegments.map((segment, idx) => (
+                  <ThinkingContent
+                    key={`reasoning-${idx}`}
+                    content={segment.content}
+                    isStreaming={false}
+                  />
+                ))}
+              </div>
+            )}
             {/* Fallback to legacy reasoningContent */}
             {!message.reasoningSegments || message.reasoningSegments.length === 0 ? (
               message.reasoningContent ? (
-                <ThinkingContent content={message.reasoningContent} isStreaming={false} />
+                <div className="mb-2.5">
+                  <ThinkingContent content={message.reasoningContent} isStreaming={false} />
+                </div>
               ) : null
             ) : null}
           </>
@@ -902,12 +931,17 @@ const Row = React.memo(function Row({
 
         {message.role === 'assistant' && message.stopOutcome && (
           <>
-            <RoundEndNote outcome={message.stopOutcome} showDailyCount={showDailyCount} nextStepsBlocked={nextStepsBlocked} />
+            <RoundEndNote
+              outcome={message.stopOutcome}
+              showDailyCount={showDailyCount}
+              nextStepsBlocked={nextStepsBlocked}
+              pauseCardShown={hasVisibleIterationExhaustedCard}
+            />
             {quietIncompleteCard && !nextStepsBlocked && (
               <div className="mt-2">
                 <button
                   type="button"
-                  className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
+                  className={CHAT_CARD_PRIMARY_BUTTON}
                   onClick={() => onIterationAssistAction?.('continue', quietIncompleteCard)}
                 >
                   {t('workflow.actionContinue', { ns: 'chat' })}
@@ -915,12 +949,12 @@ const Row = React.memo(function Row({
               </div>
             )}
             {deliveredFiles.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5" data-testid="round-delivery-receipt">
+              <div className="mt-2 flex flex-wrap gap-2" data-testid="round-delivery-receipt">
                 {deliveredFiles.map((file) => (
                   <button
                     key={file.id}
                     type="button"
-                    className="inline-flex items-center min-h-11 md:min-h-7 max-w-full px-3 text-xs text-left break-words rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
+                    className={`max-w-full text-left break-words ${CHAT_CARD_SECONDARY_BUTTON}`}
                     onClick={() => onOpenFile?.(file.id, '', file.title)}
                   >
                     {t('panel.openWrittenFile', { ns: 'chat', title: file.title })}
@@ -937,7 +971,7 @@ const Row = React.memo(function Row({
               type="button"
               data-testid="read-written-files"
               onClick={switchToEditor}
-              className="btn-primary rounded-md px-3 text-xs min-h-[44px]"
+              className={CHAT_CARD_PRIMARY_BUTTON}
             >
               {t('chat:panel.readWrittenFiles')}
             </button>
@@ -958,10 +992,10 @@ const Row = React.memo(function Row({
               title={!canSubmitFeedback
                 ? t('feedback.pendingSave', { ns: 'chat' })
                 : undefined}
-              className={`inline-flex items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-10 h-10 sm:w-8 sm:h-8 ${
+              className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-10 h-10 sm:w-8 sm:h-8 ${
                 selectedFeedbackVote === 'up'
                   ? 'border-[hsl(var(--success)/0.45)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
-                  : 'border-[hsl(var(--separator-color))] text-[hsl(var(--text-tertiary))] hover:border-[hsl(var(--text-secondary)/0.45)] hover:text-[hsl(var(--text-primary))]'
+                  : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
               } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
             >
               <ThumbsUp size={14} />
@@ -978,10 +1012,10 @@ const Row = React.memo(function Row({
               title={!canSubmitFeedback
                 ? t('feedback.pendingSave', { ns: 'chat' })
                 : undefined}
-              className={`inline-flex items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-10 h-10 sm:w-8 sm:h-8 ${
+              className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-10 h-10 sm:w-8 sm:h-8 ${
                 selectedFeedbackVote === 'down'
                   ? 'border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]'
-                  : 'border-[hsl(var(--separator-color))] text-[hsl(var(--text-tertiary))] hover:border-[hsl(var(--text-secondary)/0.45)] hover:text-[hsl(var(--text-primary))]'
+                  : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
               } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
             >
               <ThumbsDown size={14} />
@@ -1059,70 +1093,15 @@ const Row = React.memo(function Row({
 
         {/* Status cards (e.g. clarification needed / iteration exhausted) */}
         {message.role === 'assistant' && !hasDisplayItems && message.statusCards && message.statusCards.length > 0 && (
-          <div className="mt-3 space-y-2">
+          <div className="mt-2.5 space-y-2">
             {message.statusCards.map((card, idx) => {
               if (card.type === 'workflow_stopped' && card.reason === 'user_stopped') {
                 return <UserStoppedNote key={`status-${idx}`} />;
               }
               if (card.type === 'workflow_stopped') {
-                const workflowQuestion = card.question?.trim() || card.message?.trim() || "";
-                const workflowContext = (card.context ?? "").trim();
-                const workflowDetails = (card.details ?? []).map((d) => d.trim()).filter(Boolean);
-                const isClarificationStop = isClarificationStopItem(card);
-
-                if (!isClarificationStop) {
-                  const stopMessage =
-                    workflowQuestion
-                    || t('workflow.stoppedGeneric', { ns: 'chat' });
-                  return (
-                    <div key={`status-${idx}`} className="max-w-full">
-                      <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-                        <AlertTriangle size={14} className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0" />
-                        <div className="flex flex-col gap-0.5 min-w-0">
-                          <span className="text-xs font-medium text-[hsl(var(--warning-text))]">
-                            {t('workflow.stoppedTitle', { ns: 'chat' })}
-                          </span>
-                          <span className="text-xs text-[hsl(var(--text-primary))] break-words">
-                            {stopMessage}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
                 return (
                   <div key={`status-${idx}`} className="max-w-full">
-                    <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-                      <AlertTriangle size={14} className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0" />
-                      <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className="text-xs font-medium text-[hsl(var(--warning-text))]">
-                          {t('workflow.waitingForReply', { ns: 'chat' })}
-                        </span>
-                        {workflowQuestion ? (
-                          <span className="text-xs text-[hsl(var(--text-primary))] break-words">
-                            {workflowQuestion}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-[hsl(var(--text-secondary))] break-words">
-                            {t('workflow.needsConfirmation', { ns: 'chat' })}
-                          </span>
-                        )}
-                        {workflowContext ? (
-                          <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
-                            {workflowContext}
-                          </span>
-                        ) : null}
-                        {workflowDetails.length > 0 ? (
-                          <ul className="mt-1 list-disc pl-4 text-xs text-[hsl(var(--text-primary))]">
-                            {workflowDetails.map((detail, detailIdx) => (
-                              <li key={detailIdx} className="break-words">
-                                {detail}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                      </div>
-                    </div>
+                    <WorkflowStoppedCard stop={card} />
                   </div>
                 );
               }
@@ -1327,7 +1306,7 @@ export const MessageList = React.memo(
         <div key="stream-items" className={`flex items-start py-2 ${isMobile ? 'gap-2' : 'gap-3'}`}>
           {/* AI Avatar - 只在第一条消息是 assistant 时显示 */}
           {shouldShowAIAvatar ? (
-            <div className={`shrink-0 rounded-full bg-[hsl(var(--accent-primary))] flex items-center justify-center ${isMobile ? 'w-7 h-7' : 'w-8 h-8'}`}>
+            <div className={`shrink-0 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center ring-2 ring-[hsl(var(--accent-primary)/0.3)] ${isMobile ? 'w-7 h-7' : 'w-8 h-8'}`}>
               <Sparkles size={isMobile ? 14 : 16} className="text-white" />
             </div>
           ) : (

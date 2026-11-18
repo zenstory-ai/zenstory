@@ -2,6 +2,11 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Sparkles } from "lucide-react";
 import { nextStepKind } from "../lib/nextStep";
+import {
+  CHAT_CARD_PRIMARY_BUTTON,
+  CHAT_CARD_SECONDARY_BUTTON,
+  CHAT_CARD_SURFACE,
+} from "./chatCardStyles";
 
 interface StarterCardsProps {
   /** novel / short / screenplay: picks the example premise. */
@@ -72,7 +77,7 @@ export const StarterCards: React.FC<StarterCardsProps> = ({
             <div
               data-testid="starter-manuscript"
               data-highlighted={highlighted || undefined}
-              className={`space-y-1.5 rounded-lg transition-[box-shadow] duration-slow ${
+              className={`space-y-2 rounded-xl transition-[box-shadow] duration-slow ${
                 highlighted ? "shadow-[0_0_0_3px_hsl(var(--accent-primary)/0.18)]" : ""
               }`}
             >
@@ -84,7 +89,7 @@ export const StarterCards: React.FC<StarterCardsProps> = ({
                     type="button"
                     data-testid={`starter-manuscript-${requestKind}`}
                     onClick={() => onSendManuscript(message, requestKind)}
-                    className="block w-full min-h-[44px] md:min-h-0 rounded-lg border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.05)] px-3 py-2 text-left text-sm leading-6 text-[hsl(var(--text-primary))] [overflow-wrap:anywhere] hover:border-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)]"
+                    className={`block w-full min-h-[44px] md:min-h-0 px-3 py-2.5 text-left text-sm leading-6 text-[hsl(var(--text-primary))] [overflow-wrap:anywhere] transition-colors hover:border-[hsl(var(--accent-primary)/0.45)] hover:bg-[hsl(var(--bg-tertiary)/0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${CHAT_CARD_SURFACE}`}
                   >
                     {message}
                   </button>
@@ -112,7 +117,7 @@ export const StarterCards: React.FC<StarterCardsProps> = ({
             <p className="text-xs text-[hsl(var(--text-secondary))]">{t("chat:starter.example.hint")}</p>
             <div
               data-highlighted={highlighted || undefined}
-              className={`mt-1.5 rounded-lg border bg-[hsl(var(--accent-primary)/0.05)] px-3 py-2.5 transition-[border-color,box-shadow] duration-slow ${
+              className={`mt-1.5 rounded-xl border bg-[hsl(var(--accent-primary)/0.05)] p-3 transition-[border-color,box-shadow] duration-slow ${
                 highlighted
                   ? "border-[hsl(var(--accent-primary))] shadow-[0_0_0_3px_hsl(var(--accent-primary)/0.18)]"
                   : "border-[hsl(var(--accent-primary)/0.25)]"
@@ -121,12 +126,12 @@ export const StarterCards: React.FC<StarterCardsProps> = ({
               <p data-testid="starter-message-text" className="text-sm leading-6 text-[hsl(var(--text-primary))]">
                 {example}
               </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1">
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   data-testid="starter-send"
                   onClick={() => onSend(example)}
-                  className="btn-primary rounded-md px-3 text-xs min-h-[44px] md:min-h-0 md:h-7"
+                  className={CHAT_CARD_PRIMARY_BUTTON}
                 >
                   {t("chat:starter.example.use")}
                 </button>
@@ -134,7 +139,7 @@ export const StarterCards: React.FC<StarterCardsProps> = ({
                   type="button"
                   data-testid="starter-edit"
                   onClick={() => onEdit(example)}
-                  className="rounded-md px-2 text-xs min-h-[44px] md:min-h-0 md:h-7 text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]"
+                  className={CHAT_CARD_SECONDARY_BUTTON}
                 >
                   {t("chat:starter.example.edit")}
                 </button>

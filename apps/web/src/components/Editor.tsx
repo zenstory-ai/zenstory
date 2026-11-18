@@ -223,8 +223,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
    */
   const [serverSyncIssue, setServerSyncIssue] = useState<{ fileId: string; retrying: boolean } | null>(null);
   const conflictReviewRef = useRef<ConflictReview | null>(null);
-  // The latest server copy an agent-write review followed (see followServerUnderAgentReview).
-  const agentReviewServerCopyRef = useRef<File | null>(null);
   const removedFileHandlerRef = useRef<(fileId: string) => void>(() => {});
   const [removedDrafts, setRemovedDrafts] = useState<Array<{ snapshot: EditorDraftSnapshot; persisted: boolean }>>([]);
   // syncOpenFileFromServer (defined below), for reloads of the open file in loadData.
@@ -357,24 +355,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
    * `discardUnsaved`: a version restore the author confirmed (it discards the
    * unsaved text by design).
    */
-  /**
-   * An agent-write review follows the server copy of its file: another AI write (or an undo)
-   * rebuilds it from its original to that copy, and a copy equal to the original closes it.
-   * Finishing then saves exactly the latest text on the latest token, never the older review.
-   * Conflict and polish comparisons are left alone (their save keeps the author's text).
-   */
-  const followServerUnderAgentReview = useCallback((data: File): void => {
-    const review = currentReviewRef.current;
-    if (review?.fileId !== data.id || review.origin !== 'agent_write') return;
-    // Its token, for finishing on top of unsaved author text that keeps an older token.
-    agentReviewServerCopyRef.current = data;
-    const serverContent = data.content || "";
-    if (serverContent === review.originalContent) exitDiffReview();
-    else if (serverContent !== review.modifiedContent) {
-      enterDiffReview(data.id, review.originalContent, serverContent, 'agent_write');
-    }
-  }, [enterDiffReview, exitDiffReview]);
-
   const loadData = useCallback(async (options?: { followServer?: boolean; discardUnsaved?: boolean }) => {
     if (activeProjectIdRef.current !== currentProjectId || selectedIdRef.current !== selectedItem?.id) return;
     const generation = ++loadGenerationRef.current;
@@ -450,8 +430,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
       }
       hasLoadedRef.current = true;
       setServerSyncIssue((prev) => (prev?.fileId === data.id ? null : prev));
-      // Reopening a file whose agent-write review is still open: the review follows this copy.
-      followServerUnderAgentReview(data);
       const serverContent = data.content || "";
       const scope = currentUserId ? {
         userId: currentUserId,
@@ -525,7 +503,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setSelectedItem,
     currentUserId,
     markServerBaseline,
-    followServerUnderAgentReview,
   ]);
 
   useEffect(() => {
@@ -830,21 +807,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
       // opened with, so a newer server copy surfaces there as a conflict.
       if (review.origin === 'polish') {
         naturalPolishServerCopyRef.current = data;
-        return;
       }
-      if (review.origin !== 'agent_write') return;
-      // The review and the save token follow the newer server copy (the body is locked while
-      // it is open).
-      followServerUnderAgentReview(data);
-      if (localContent === savedContent || localContent === serverContent) {
-        adoptServerCopy(data, nextTitle);
-        return;
-      }
-      // Unsaved text typed before the review opened keeps its body and older token while the
-      // review stays open: finishing it compares that text with the reviewed copy.
-      if (serverContent !== review.originalContent) return;
-      // The copy went back to the review's original (an undo) and closed the review: the
-      // unsaved text meets that copy like any other newer copy, below.
+      return;
     }
 
     if (
@@ -872,7 +836,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setFile((prev) => (prev?.id === fileId ? merged : prev));
     setEditTitle(nextTitle);
     toast.error(translateRef.current('editor:aiEditedWhileDirty'));
-  }, [adoptServerCopy, keepLocalOnServerCopy, openConflictReview, followServerUnderAgentReview]);
+  }, [adoptServerCopy, keepLocalOnServerCopy, openConflictReview]);
   syncOpenFileFromServerRef.current = syncOpenFileFromServer;
 
   const retryServerSync = useCallback(() => {
@@ -1349,115 +1313,30 @@ const EditorComponent: React.FC<EditorProps> = () => {
     // Get the final content based on accept/reject decisions
     const finalContent = applyDiffReviewChanges();
     // A "your unsaved text vs a newer copy" comparison: the saved text is the
-    // author's (with whichever AI changes the author accepted).
+    // author's (with whichever external/AI changes the author accepted).
     const conflictReview = isSameReview(diffReviewState, conflictReviewRef.current)
       ? conflictReviewRef.current
       : null;
 
-    const polishReview = naturalPolishReviewRef.current;
-    naturalPolishReviewRef.current = null;
-    const isNaturalPolishReview =
-      polishReview !== null &&
-      polishReview.fileId === diffReviewState.fileId &&
-      polishReview.originalContent === diffReviewState.originalContent &&
-      polishReview.modifiedContent === diffReviewState.modifiedContent;
-
-    // 去AI味审阅全部拒绝（或接受的改动都只是空白差异）时，定稿和审阅前、
-    // 服务端已存的正文、编辑器里的正文三者逐字节相同：屏幕和服务端都不会变，
-    // 直接退出审阅，不写库，也不生成一条「AI 编辑」版本。
-    if (
-      isNaturalPolishReview &&
-      finalContent === diffReviewState.originalContent &&
-      finalContent === (file.content ?? "") &&
-      finalContent === editContent
-    ) {
-      exitDiffReview();
-      return;
-    }
-    
     // 审阅期间标题输入框是禁用的，但进入审阅前作者可能改了标题还没保存。
     // 完成审阅后编辑器会被标记为已保存，所以标题必须随这次写回一起保存。
     const reviewedTitle = editTitleRef.current;
     const titleChanged = reviewedTitle !== file.title;
-
-    // Unsaved text the author typed before this AI review opened keeps its body and older
-    // token (see syncOpenFileFromServer), and the reviewed text does not contain it. Never
-    // save the review over it: replay the author's edits onto the reviewed text, on the
-    // copy the review shows, and let the author choose where both changed the same place.
     const savedContent = file.content ?? "";
-    const authorUnsaved =
-      diffReviewState.origin === 'agent_write' &&
-      !conflictReview &&
-      !isNaturalPolishReview &&
-      editContent !== savedContent &&
-      editContent !== diffReviewState.modifiedContent;
-    let baseUpdatedAt = file.updated_at;
-    if (authorUnsaved) {
-      let latest = agentReviewServerCopyRef.current;
-      if (latest?.id !== file.id || (latest.content || "") !== diffReviewState.modifiedContent) {
-        try {
-          latest = await fileApi.get(file.id);
-        } catch (err) {
-          if (!canCompleteReview()) return;
-          logger.warn("Failed to read the reviewed copy before finishing:", err);
-          toast.error(handleApiError(err));
-          return;
-        }
-        if (!canCompleteReview()) return;
-      }
-      if ((latest.content || "") !== diffReviewState.modifiedContent) {
-        // The server moved past this review: it follows that copy first.
-        followServerUnderAgentReview(latest);
-        toast.error(t('editor:saveStaleWrite'));
-        return;
-      }
-      const latestCopy = latest;
-      const outcome = openConflictReview(file.id, savedContent, finalContent, editContent);
-      if (outcome === "server") {
-        // Every edit of the author's is already in the reviewed text: save it on the latest token.
-        baseUpdatedAt = latestCopy.updated_at;
-      } else {
-        const onLatest = (prev: File): File => ({
-          ...prev,
-          content: latestCopy.content || "",
-          updated_at: latestCopy.updated_at,
-        });
-        if (currentFileRef.current) currentFileRef.current = onLatest(currentFileRef.current);
-        setFile((prev) => (prev ? onLatest(prev) : null));
-        if (outcome === "local") {
-          // The reviewed text adds nothing to the author's: keep it, still unsaved, on the
-          // latest token (SimpleEditor's autosave then saves it there).
-          exitDiffReview();
-          if (currentFileRef.current) keepLocalOnServerCopy(currentFileRef.current, reviewedTitle);
-        } else {
-          toast.error(t('editor:aiEditedWhileDirty'));
-        }
-        return;
-      }
-    }
 
     // Update the file with the final content
     try {
       const updated = await fileApi.update(file.id, {
         content: finalContent,
         ...(titleChanged ? { title: reviewedTitle } : {}),
-        // A conflict comparison saves the author's own text (plus the AI
-        // changes they accepted): record it as the author's edit, so the
-        // server's author-edit guard keeps protecting it (ai_edit versions
-        // count as AI text).
-        // A natural-polish review saves the AI polish the author accepted ("AI polish
-        // (reviewed)", counted as AI text); a review after the agent wrote the file
-        // saves the parts the author rejected back to their own text ("AI edit
-        // (reviewed)", counted as the author's choice) — see the server's author_changes.
-        ...(conflictReview
-          ? { change_type: "edit" as const, change_source: "user" as const }
-          : {
-              change_type: "ai_edit" as const,
-              change_summary: isNaturalPolishReview ? "AI polish (reviewed)" : "AI edit (reviewed)",
-            }),
+        // Paragraph diff review is used exclusively for unsaved-draft / stale-write
+        // conflict resolution: record it as the author's edit so the server's
+        // author-edit guard keeps protecting the author's words.
+        change_type: "edit",
+        change_source: "user",
         // 与 handleSaveFile 对齐的乐观并发令牌。这同样是一次整篇覆盖写，
         // 不带令牌就会无声盖掉审阅期间落库的其它改动。
-        base_updated_at: baseUpdatedAt,
+        base_updated_at: file.updated_at,
       });
 
       if (!canCompleteReview()) return;
@@ -1585,7 +1464,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
     applyDiffReviewChanges,
     openConflictReview,
     keepLocalOnServerCopy,
-    followServerUnderAgentReview,
     exitDiffReview,
     triggerFileTreeRefresh,
     t,

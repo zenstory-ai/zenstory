@@ -996,16 +996,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       ) : null}
 
-      {/* Steering hint: shown while the agent is generating and steering is available */}
-      {steerActive ? (
-        <div
-          className="text-xs text-[hsl(var(--text-secondary))] px-1"
-          data-testid="steer-hint"
-        >
-          {t("chat:input.steerHint")}
-        </div>
-      ) : null}
-
       {/* Input row */}
       <div
         className={

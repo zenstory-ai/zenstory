@@ -2,6 +2,11 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { PenLine } from "lucide-react";
 import { nextStepKind } from "../lib/nextStep";
+import {
+  CHAT_CARD_PRIMARY_BUTTON,
+  CHAT_CARD_PROMPT_SURFACE,
+  CHAT_CARD_SECONDARY_BUTTON,
+} from "./chatCardStyles";
 
 interface NextStepCardProps {
   /** novel / short / screenplay: chapter 1, the opening, or episode 1. */
@@ -22,25 +27,25 @@ export const NextStepCard: React.FC<NextStepCardProps> = ({ projectType, onStart
   return (
     <div
       data-testid="next-step-card"
-      className="mb-2 rounded-lg border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.06)] px-3 py-2.5"
+      className={`mb-2 p-3 ${CHAT_CARD_PROMPT_SURFACE}`}
     >
-      <p className="flex items-start gap-1.5 text-xs leading-5 text-[hsl(var(--text-primary))]">
-        <PenLine size={14} className="mt-[3px] shrink-0 text-[hsl(var(--accent-primary))]" />
-        {t(`chat:nextStep.${kind}.frameworkReady`)}
+      <p className="flex items-start gap-2 text-xs leading-5 text-[hsl(var(--text-primary))]">
+        <PenLine size={15} className="mt-0.5 shrink-0 text-[hsl(var(--accent-primary))]" />
+        <span>{t(`chat:nextStep.${kind}.frameworkReady`)}</span>
       </p>
-      <div className="mt-2 flex items-center gap-1 pl-5">
+      <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-[23px]">
         <button
           type="button"
           data-testid="next-step-start"
           onClick={() => onStart(t(`chat:nextStep.${kind}.message`))}
-          className="btn-primary rounded-md px-3 text-xs min-h-[44px] md:min-h-0 md:h-7"
+          className={CHAT_CARD_PRIMARY_BUTTON}
         >
           {t(`chat:nextStep.${kind}.label`)}
         </button>
         <button
           type="button"
           onClick={onDismiss}
-          className="rounded-md px-2 text-xs min-h-[44px] md:min-h-0 md:h-7 text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]"
+          className={CHAT_CARD_SECONDARY_BUTTON}
         >
           {t("chat:nextStep.dismiss")}
         </button>
