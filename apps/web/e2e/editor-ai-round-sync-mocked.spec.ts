@@ -126,7 +126,15 @@ async function runRound(page: Page, f: Fixture, secondWrite: 'edit_file' | 'para
     await push(page, 'tool_result', { tool_use_id: 't2', tool_name: 'edit_file', status: 'success', data: { id: 'ch2', title: '第2章 倒着拨的表', file_type: 'draft', new_length: V2.length } });
     await push(page, 'file_edit_start', { file_id: 'ch2', title: '第2章 倒着拨的表', total_edits: 1, file_type: 'draft' });
     await push(page, 'file_edit_applied', { file_id: 'ch2', edit_index: 0, op: 'prepend', success: true });
-    await push(page, 'file_edit_end', { file_id: 'ch2', edits_applied: 1, new_length: V2.length, file_type: 'draft', title: '第2章 倒着拨的表' });
+    await push(page, 'file_edit_end', {
+      file_id: 'ch2',
+      edits_applied: 1,
+      new_length: V2.length,
+      new_content: V2,
+      original_content: V1,
+      file_type: 'draft',
+      title: '第2章 倒着拨的表',
+    });
   } else {
     // Edits made inside parallel_execute sub-tasks emit no file_edit_* events
     // (the audited round wrote v2 this way).
@@ -145,6 +153,8 @@ for (const secondWrite of ['edit_file', 'parallel_execute'] as const) {
     const f = await setup(page);
     await runRound(page, f, secondWrite);
     await expect(textarea(page)).toHaveValue(V2);
+    await expect(page.getByTitle(/完成审阅|应用更改/)).toHaveCount(0);
+    expect(putsToCh2(f), 'a committed chat edit must not create a second review save').toHaveLength(0);
 
     // The author types one character at the end.
     await textarea(page).click();

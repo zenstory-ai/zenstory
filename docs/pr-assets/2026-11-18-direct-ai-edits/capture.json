@@ -1,0 +1,62 @@
+{
+  "baseline_sha": "97460f1224f2e25fb3e5954bb6faeb0990dbfe22",
+  "capture": "Real Chromium UI with synthetic local API/SSE fixtures; not staging or live model evidence",
+  "scenarios": [
+    "whole chapter replacement",
+    "natural polish candidate"
+  ],
+  "viewports": [
+    [
+      1440,
+      900
+    ],
+    [
+      390,
+      844
+    ]
+  ],
+  "mobile": "viewport emulation, not a physical device",
+  "comparability": "same synthetic original/new manuscript and viewport on baseline and candidate",
+  "files": [
+    {
+      "file": "chapter-1440-after.png",
+      "sha256": "b0941aa8d7dcda0367f42419b0f575d5206192a7a2d458fc0e126c0a87a99449",
+      "bytes": 307340
+    },
+    {
+      "file": "chapter-1440-before.png",
+      "sha256": "6dcc6c9765a06edf0ff77ba06ac874328e9adaaca12a47e04026c2dc37309ad3",
+      "bytes": 277753
+    },
+    {
+      "file": "chapter-390-after.png",
+      "sha256": "4ba6e9b9348b4f9d44e96c377daba56d0a8505cf03fb83ce2cd746cc614b2f53",
+      "bytes": 118614
+    },
+    {
+      "file": "chapter-390-before.png",
+      "sha256": "94ae599273adbc43bbdd2705ae4a7befc15033f645cdcdb815fe4986a78a3f95",
+      "bytes": 89267
+    },
+    {
+      "file": "polish-1440-after.png",
+      "sha256": "38064fb3c1eff3c032bbdad1a26a7cadf3b803766fdfcd67f3f383217f1b0d25",
+      "bytes": 270377
+    },
+    {
+      "file": "polish-1440-before.png",
+      "sha256": "fdc3b5bc448d0afce5fd3be99daf8b694bbd0181c2a34f4020ff69b1de94bd0b",
+      "bytes": 270755
+    },
+    {
+      "file": "polish-390-after.png",
+      "sha256": "4c270a35024006210eb1feb35d559e6b6c7cabe882071eb9302e2e41a65c6330",
+      "bytes": 115356
+    },
+    {
+      "file": "polish-390-before.png",
+      "sha256": "94ae599273adbc43bbdd2705ae4a7befc15033f645cdcdb815fe4986a78a3f95",
+      "bytes": 89267
+    }
+  ]
+}

@@ -71,7 +71,7 @@ async function cleanupProject(page: Page, projectId: string | null, token: strin
 }
 
 test.describe('Natural polish', () => {
-  test('regular users can run 去AI味 and apply reviewed changes', async ({ page }) => {
+  test('regular users can use the natural-polish candidate without paragraph review', async ({ page }) => {
     test.slow();
 
     let projectId: string | null = null;
@@ -130,11 +130,12 @@ test.describe('Natural polish', () => {
         selected_text: selectedText,
       });
 
-      await expect(page.getByRole('button', { name: /完成审阅|应用更改/ })).toBeVisible({ timeout: 10000 });
-      await expect(page.getByText('段落审阅', { exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: '采用修改', exact: true })).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('button', { name: '放弃', exact: true })).toBeVisible();
+      await expect(page.getByText('段落审阅', { exact: true })).toHaveCount(0);
 
       await page.screenshot({
-        path: test.info().outputPath('natural-polish-review.png'),
+        path: test.info().outputPath('natural-polish-candidate.png'),
         fullPage: true,
       });
 
@@ -144,7 +145,7 @@ test.describe('Natural polish', () => {
         response.ok()
       );
 
-      await page.getByRole('button', { name: /完成审阅|应用更改/ }).click();
+      await page.getByRole('button', { name: '采用修改', exact: true }).click();
       await saveResponsePromise;
 
       const updatedEditor = page.locator(`textarea[placeholder="${EDITOR_PLACEHOLDER}"]`).first();

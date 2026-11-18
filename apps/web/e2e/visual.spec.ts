@@ -82,7 +82,7 @@ test.describe('Visual Regression', () => {
     await page.getByTestId('chat-input').fill('这封旧信可以怎样推动剧情？');
     await page.getByTestId('send-button').click();
     await expect(page.getByTestId('chat-panel').getByText(answer, { exact: true })).toBeVisible();
-    await expect(page.getByTestId('chat-panel').getByTestId('quota-badge-compact')).toHaveAttribute('aria-label', '今日 AI 消息 1/3 条');
+    await expect(page.getByTestId('chat-panel').getByTestId('quota-badge-compact')).toHaveAttribute('title', '今日 AI 消息 1/3 条');
     await page.getByTestId('chat-input').fill('让沈砚先查看信封上的字迹。');
     await expect(page.getByTestId('send-button')).toBeEnabled();
     await expect(page.getByTestId('chat-panel')).toHaveScreenshot('chat-with-messages.png', { maxDiffPixels: 100 });

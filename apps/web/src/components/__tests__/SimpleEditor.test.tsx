@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SimpleEditor } from '../SimpleEditor';
 import { MobileLayoutProvider, useMobileLayout } from '../../contexts/MobileLayoutContext';
 import { toast } from '../../lib/toast';
+import { logger } from '../../lib/logger';
+import type { DiffReviewState } from '../../types';
 import {
   BEFORE_CHUNK_RELOAD_EVENT,
   readEditorDraftSnapshot,
@@ -70,6 +72,10 @@ vi.mock('../DiffToolbar', () => ({
   DiffToolbar: () => null,
 }));
 
+vi.mock('../DiffReviewSplitView', () => ({
+  DiffReviewSplitView: () => <div data-testid="paragraph-review" />,
+}));
+
 vi.mock('../SelectionToolbar', () => ({
   // Stand-in for the floating 「引用到对话」 toolbar: just the action, no positioning.
   SelectionToolbar: ({ onAdd }: { onAdd: () => void }) => (
@@ -78,6 +84,160 @@ vi.mock('../SelectionToolbar', () => ({
 }));
 
 describe('SimpleEditor', () => {
+  const reviewState = (origin: DiffReviewState['origin']): DiffReviewState => ({
+    isReviewing: true,
+    fileId: 'file-1',
+    originalContent: 'Original paragraph.\n\nSecond original paragraph.',
+    modifiedContent: 'Polished paragraph.\n\nSecond polished paragraph.',
+    pendingEdits: [{
+      id: 'edit-0',
+      op: 'replace',
+      oldText: 'Original paragraph.',
+      newText: 'Polished paragraph.',
+      status: 'pending',
+    }],
+    origin,
+  });
+
+  it('shows a natural-polish candidate as one accept-or-discard decision', () => {
+    const onResolvePolish = vi.fn();
+    const onFinishReview = vi.fn();
+    render(
+      <SimpleEditor
+        fileId="file-1"
+        title="Draft"
+        content="Original paragraph.\n\nSecond original paragraph."
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn()}
+        diffReviewState={reviewState('polish')}
+        onResolvePolish={onResolvePolish}
+        onAcceptEdit={vi.fn()}
+        onRejectEdit={vi.fn()}
+        onResetEdit={vi.fn()}
+        onAcceptAllEdits={vi.fn()}
+        onRejectAllEdits={vi.fn()}
+        onFinishReview={onFinishReview}
+      />,
+    );
+
+    const candidate = screen.getByRole('region', { name: 'editor:naturalPolishCandidate' });
+    expect(within(candidate).getByText('Polished paragraph.', { exact: false })).toBeInTheDocument();
+    expect(candidate.querySelector('pre')?.textContent).toBe(
+      'Polished paragraph.\n\nSecond polished paragraph.',
+    );
+    expect(screen.queryByTestId('paragraph-review')).not.toBeInTheDocument();
+
+    fireEvent.keyDown(candidate, { key: 'Enter' });
+    fireEvent.keyDown(candidate, { key: ' ' });
+    expect(onResolvePolish).not.toHaveBeenCalled();
+    expect(onFinishReview).not.toHaveBeenCalled();
+
+    fireEvent.click(within(candidate).getByRole('button', { name: 'editor:naturalPolishShowOriginal' }));
+    expect(within(candidate).getByText('Original paragraph.', { exact: false })).toBeInTheDocument();
+    expect(candidate.querySelector('pre')?.textContent).toBe(
+      'Original paragraph.\n\nSecond original paragraph.',
+    );
+    fireEvent.click(within(candidate).getByRole('button', { name: 'editor:naturalPolishDiscard' }));
+    expect(onResolvePolish).toHaveBeenCalledWith('discard');
+  });
+
+  it('accepts the complete natural-polish candidate with one explicit action', () => {
+    const onResolvePolish = vi.fn();
+    render(
+      <SimpleEditor
+        fileId="file-1"
+        title="Draft"
+        content="Original paragraph.\n\nSecond original paragraph."
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn()}
+        diffReviewState={reviewState('polish')}
+        onResolvePolish={onResolvePolish}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolishAccept' }));
+    expect(onResolvePolish).toHaveBeenCalledTimes(1);
+    expect(onResolvePolish).toHaveBeenCalledWith('accept');
+  });
+
+  it('submits a natural-polish decision once and disables every candidate action while saving', async () => {
+    let finishResolve: () => void = () => {};
+    const resolving = new Promise<void>((resolve) => { finishResolve = resolve; });
+    const onResolvePolish = vi.fn(() => resolving);
+    render(
+      <SimpleEditor
+        fileId="file-1"
+        title="Draft"
+        content="Original paragraph.\n\nSecond original paragraph."
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn()}
+        diffReviewState={reviewState('polish')}
+        onResolvePolish={onResolvePolish}
+      />,
+    );
+
+    const accept = screen.getByRole('button', { name: 'editor:naturalPolishAccept' });
+    fireEvent.click(accept);
+    fireEvent.click(accept);
+
+    expect(onResolvePolish).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'editor:naturalPolishAccept' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'editor:naturalPolishDiscard' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'editor:naturalPolishShowOriginal' })).toBeDisabled();
+
+    finishResolve();
+    await waitFor(() => expect(accept).not.toBeDisabled());
+  });
+
+  it('restores natural-polish actions when applying the candidate fails', async () => {
+    const failure = new Error('save failed');
+    const onResolvePolish = vi.fn().mockRejectedValueOnce(failure);
+    const logSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    render(
+      <SimpleEditor
+        fileId="file-1"
+        title="Draft"
+        content="Original paragraph.\n\nSecond original paragraph."
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn()}
+        diffReviewState={reviewState('polish')}
+        onResolvePolish={onResolvePolish}
+      />,
+    );
+
+    const accept = screen.getByRole('button', { name: 'editor:naturalPolishAccept' });
+    fireEvent.click(accept);
+
+    await waitFor(() => expect(logSpy).toHaveBeenCalledWith('Failed to resolve natural-polish candidate:', failure));
+    expect(accept).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'editor:naturalPolishDiscard' })).not.toBeDisabled();
+  });
+
+  it('keeps save conflicts in the paragraph comparison', () => {
+    render(
+      <SimpleEditor
+        fileId="file-1"
+        title="Draft"
+        content="Original paragraph.\n\nSecond original paragraph."
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn()}
+        diffReviewState={reviewState('conflict')}
+        onResolvePolish={vi.fn()}
+        onAcceptEdit={vi.fn()}
+        onRejectEdit={vi.fn()}
+        onResetEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('paragraph-review')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'editor:naturalPolishCandidate' })).not.toBeInTheDocument();
+  });
+
   it('shows successful save status after StrictMode effect replay', async () => {
     const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     const Harness = () => {

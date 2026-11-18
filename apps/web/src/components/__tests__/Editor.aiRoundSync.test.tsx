@@ -105,7 +105,6 @@ function Harness({ initialSelection = true }: { initialSelection?: boolean }) {
       startFileStreaming: project.startFileStreaming,
       streamingFileId: project.streamingFileId,
       getCurrentStreamingFileId: () => streamingRef.current,
-      enterDiffReview: project.enterDiffReview,
       activeProjectId: project.currentProjectId,
       t: (key: string) => key,
     });
@@ -213,7 +212,6 @@ afterEach(async () => {
   vi.clearAllTimers();
   vi.useRealTimers();
 });
-
 describe('AI writes the open chapter twice in one round', () => {
   for (const kind of ['edit_file', 'parallel_execute'] as const) {
     it(`editor follows the server copy after a second ${kind} write`, async () => {
@@ -1153,7 +1151,7 @@ it('keeps the committed body when a direct edit is followed by a stream error', 
   expect(server.files.get(CH2_ID)!.content).toBe(V2);
 });
 
-describe('AI replaces the open chapter, then edits it again in the same round', () => {
+describe('chat chapter replacement applies directly', () => {
   const ORIGINAL = '旧的开头。\n\n旧的中段。\n\n旧的结尾。';
   const REPLACED = '新的开头，老周出场。\n\n新的中段，老周在摊上。\n\n新的结尾，老周收摊。';
   const EDITED = '新的开头，老王出场。\n\n新的中段，老王在摊上。\n\n新的结尾，老王收摊。';
@@ -1162,263 +1160,93 @@ describe('AI replaces the open chapter, then edits it again in the same round', 
   const T_EDITED = '2026-11-16T10:02:00.000001';
   const T_RESTORED = '2026-11-16T10:03:00.000001';
   const OUTCOME = { failedCount: 0, partialSuccess: false, allFailed: false, warnings: [] };
-  const review = () => harness.project!.diffReviewState;
 
-  /** write_chapter replacement: the new text streams in, is saved, and opens the review. */
-  async function replaceChapter() {
+  async function openOriginal() {
     server.files.set(CH1.id, { ...CH1, content: ORIGINAL, updated_at: T_ORIGINAL });
     render(<ProjectProvider><Harness /></ProjectProvider>);
     await settle(); await advance(50); await settle();
-    expect(textarea().value).toBe(ORIGINAL);
+    expect(textarea()).toHaveValue(ORIGINAL);
+  }
 
-    act(() => {
-      callbacks().onStart();
-      callbacks().onToolResult('write_chapter', 'success', { id: CH1.id, action: 'replaced', awaiting_body: true });
-      callbacks().onFileCreated(CH1.id, 'draft', CH1.title);
-    });
-    await settle();
-    act(() => callbacks().onFileContent(CH1.id, REPLACED));
-    await advance(50);
-    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: REPLACED, updated_at: T_REPLACED });
+  async function announceWrite(content: string, updatedAt: string) {
+    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content, updated_at: updatedAt });
     act(() => {
       callbacks().onFileEditStart(CH1.id, CH1.title, 1, 'draft');
       callbacks().onFileEditApplied(CH1.id, 0, 'replace');
-      callbacks().onFileEditEnd(CH1.id, 1, REPLACED.length, REPLACED, ORIGINAL, 'draft', CH1.title, OUTCOME);
-    });
-    await advance(300); await settle();
-    expect(review()).toMatchObject({ fileId: CH1.id, originalContent: ORIGINAL, modifiedContent: REPLACED, origin: 'agent_write' });
-  }
-
-  /** edit_file on the same chapter: no content on the event, only a refresh. */
-  async function editChapter() {
-    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: EDITED, updated_at: T_EDITED });
-    act(() => {
-      callbacks().onToolResult('edit_file', 'success', { id: CH1.id });
-      callbacks().onFileEditStart(CH1.id, CH1.title, 1, 'draft');
-      callbacks().onFileEditApplied(CH1.id, 0, 'replace');
-      callbacks().onFileEditEnd(CH1.id, 1, EDITED.length, undefined, undefined, 'draft', CH1.title, OUTCOME);
+      callbacks().onFileEditEnd(CH1.id, 1, content.length, content, ORIGINAL, 'draft', CH1.title, OUTCOME);
     });
     await advance(300); await settle();
   }
 
-  /** An undo of a chat card restored `content` on the server and asked the editor to re-read. */
-  async function undoTo(content: string) {
-    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content, updated_at: T_RESTORED });
-    act(() => harness.project!.triggerEditorRefresh(CH1.id));
-    await advance(300); await settle();
-  }
+  it('shows a whole-chapter replacement without opening review or sending a confirmation PUT', async () => {
+    await openOriginal();
+    await announceWrite(REPLACED, T_REPLACED);
 
-  it('rebuilds the one review from the original to the latest text, and finishing saves exactly that text', async () => {
-    await replaceChapter();
-    await editChapter();
-
-    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
-    expect(review()!.pendingEdits.every(edit => edit.status === 'pending')).toBe(true);
-
-    finishReview();
-    await settle();
-    expect(putsFor(CH1.id)).toHaveLength(1);
-    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_EDITED });
-    expect(server.files.get(CH1.id)!.content).toBe(EDITED);
-    expect(review()).toBeNull();
-    expect(toastError).not.toHaveBeenCalled();
+    expect(textarea()).toHaveValue(REPLACED);
+    expect(harness.project!.diffReviewState).toBeNull();
+    expect(putsFor(CH1.id)).toHaveLength(0);
   });
 
-  it('keeps the author choice on a block the later write left as it was', async () => {
-    await replaceChapter();
-    // The author rejects the replaced ending while the round is still running.
-    const ending = review()!.pendingEdits.find(edit => edit.oldText === '旧的结尾。');
-    expect(ending).toBeDefined();
-    act(() => harness.project!.rejectEdit(ending!.id));
-    // The self-check edit changes only the opening.
-    const edited = REPLACED.replace('老周出场', '老王出场');
-    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: edited, updated_at: T_EDITED });
-    act(() => callbacks().onFileEditEnd(CH1.id, 1, edited.length, edited, REPLACED, 'draft', CH1.title, OUTCOME));
-    await advance(300); await settle();
+  it('follows consecutive AI writes and keeps the latest save token', async () => {
+    await openOriginal();
+    await announceWrite(REPLACED, T_REPLACED);
+    await announceWrite(EDITED, T_EDITED);
 
-    expect(review()!.pendingEdits.find(edit => edit.oldText === '旧的结尾。')?.status).toBe('rejected');
-    finishReview();
-    await settle();
+    expect(textarea()).toHaveValue(EDITED);
+    expect(harness.project!.diffReviewState).toBeNull();
+    fireEvent.change(textarea(), { target: { value: `${EDITED}\n\n作者续写。` } });
+    await advance(3100); await settle();
+    expect(putsFor(CH1.id)).toHaveLength(1);
     expect(putsFor(CH1.id)[0][1]).toMatchObject({
-      content: '新的开头，老王出场。\n\n新的中段，老周在摊上。\n\n旧的结尾。',
+      content: `${EDITED}\n\n作者续写。`,
       base_updated_at: T_EDITED,
     });
   });
 
-  it('an older re-read answering after a newer one does not roll the review back', async () => {
-    await replaceChapter();
-    // A re-read of the replaced copy is still in flight when the edit lands.
+  it('ignores an older refresh that completes after a newer AI write', async () => {
+    await openOriginal();
+    await announceWrite(REPLACED, T_REPLACED);
+    const replacedCopy = { ...server.files.get(CH1.id)! };
     let answerOlder: (file: ServerFile) => void = () => {};
     server.get.mockImplementationOnce(() => new Promise<ServerFile>((resolve) => { answerOlder = resolve; }));
-    const replacedCopy = { ...server.files.get(CH1.id)! };
+
     act(() => harness.project!.triggerEditorRefresh(CH1.id));
-    await advance(300); await settle();
-    await editChapter();
-    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
+    await advance(150); await settle();
+    await announceWrite(EDITED, T_EDITED);
+    expect(textarea()).toHaveValue(EDITED);
 
     await act(async () => { answerOlder(replacedCopy); });
-    await advance(300); await settle();
-    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
-    finishReview();
     await settle();
-    expect(putsFor(CH1.id)).toHaveLength(1);
-    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_EDITED });
-    expect(toastError).not.toHaveBeenCalled();
+    expect(textarea()).toHaveValue(EDITED);
+    expect(harness.project!.diffReviewState).toBeNull();
   });
 
-  /** The author types inside the autosave delay, then the AI replaces the chapter (and edits it again). */
-  async function typeThenAiWrites(typed: string, writes: 1 | 2) {
-    server.files.set(CH1.id, { ...CH1, content: ORIGINAL, updated_at: T_ORIGINAL });
-    render(<ProjectProvider><Harness /></ProjectProvider>);
-    await settle(); await advance(50); await settle();
-    fireEvent.change(textarea(), { target: { value: typed } });
-    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: REPLACED, updated_at: T_REPLACED });
-    act(() => {
-      callbacks().onStart();
-      callbacks().onFileEditEnd(CH1.id, 1, REPLACED.length, REPLACED, ORIGINAL, 'draft', CH1.title, OUTCOME);
+  it('keeps unsaved author text and opens only the conflict comparison', async () => {
+    await openOriginal();
+    const authorText = `${ORIGINAL}\n\n作者补的一段。`;
+    fireEvent.change(textarea(), { target: { value: authorText } });
+    await announceWrite(REPLACED, T_REPLACED);
+
+    expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).toBeNull();
+    expect(harness.project!.diffReviewState).toMatchObject({
+      origin: 'conflict',
+      originalContent: authorText,
+      modifiedContent: `${REPLACED}\n\n作者补的一段。`,
     });
-    await advance(300); await settle();
-    if (writes === 2) await editChapter();
-  }
-
-  it('unsaved author text from before the review keeps its body and older save token, and survives finishing', async () => {
-    const typed = `${ORIGINAL}作者补的一句。`;
-    await typeThenAiWrites(typed, 2);
-
-    // The review still follows the latest copy, but the editor does not adopt it over the
-    // author's text: the save token stays on the copy that text was typed on.
-    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED, origin: 'agent_write' });
-    finishReview();
-    await settle();
-    // Finishing does not save the AI text over the author's: it opens the comparison of the
-    // author's text against the reviewed AI text with the author's sentence replayed onto it.
     expect(putsFor(CH1.id)).toHaveLength(0);
-    expect(review()).toMatchObject({ origin: 'conflict', originalContent: typed });
+    expect(server.files.get(CH1.id)!.content).toBe(REPLACED);
     expect(toastError).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
-
-    finishReview();
-    await settle();
-    const ending = `${EDITED}作者补的一句。`;
-    expect(putsFor(CH1.id)).toHaveLength(1);
-    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: ending, base_updated_at: T_EDITED, change_source: 'user' });
-    expect(server.files.get(CH1.id)!.content).toBe(ending);
-    expect(review()).toBeNull();
-    expect(textarea().value).toBe(ending);
   });
 
-  for (const writes of [1, 2] as const) {
-    it(`an unsaved author paragraph is replayed onto the reviewed AI text (${writes} write${writes > 1 ? 's' : ''})`, async () => {
-      const added = '作者补的一段。';
-      await typeThenAiWrites(`${ORIGINAL}\n\n${added}`, writes);
-      const aiText = writes === 1 ? REPLACED : EDITED;
-      expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: aiText, origin: 'agent_write' });
-
-      finishReview();
-      await settle();
-      expect(putsFor(CH1.id)).toHaveLength(0);
-      expect(review()).toMatchObject({ origin: 'conflict', modifiedContent: `${aiText}\n\n${added}` });
-
-      finishReview();
-      await settle();
-      expect(putsFor(CH1.id)).toHaveLength(1);
-      expect(putsFor(CH1.id)[0][1]).toMatchObject({
-        content: `${aiText}\n\n${added}`,
-        base_updated_at: writes === 1 ? T_REPLACED : T_EDITED,
-      });
-      expect(server.files.get(CH1.id)!.content).toBe(`${aiText}\n\n${added}`);
-      expect(textarea().value).toBe(`${aiText}\n\n${added}`);
-    });
-  }
-
-  it('rejecting every AI change keeps the unsaved author text unsaved, then saves it on the latest token', async () => {
-    const typed = `${ORIGINAL}作者补的一句。`;
-    await typeThenAiWrites(typed, 2);
-    act(() => harness.project!.rejectAllEdits());
-    finishReview();
-    await settle();
-
-    // The reviewed text adds nothing to the author's: the review closes without a save,
-    // so the editor must not claim the author's text was saved.
-    expect(review()).toBeNull();
-    expect(textarea().value).toBe(typed);
-    expect(putsFor(CH1.id)).toHaveLength(0);
-    act(() => { window.dispatchEvent(new Event('pagehide')); });
-    expect(readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH1.id })?.content).toBe(typed);
-
-    await advance(3500); await settle();
-    expect(putsFor(CH1.id)).toHaveLength(1);
-    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: typed, base_updated_at: T_EDITED });
-    expect(server.files.get(CH1.id)!.content).toBe(typed);
-  });
-
-  it('undoing back to the original during the review keeps the unsaved author text and saves it on the restored token', async () => {
-    const typed = `${ORIGINAL}作者补的一句。`;
-    await typeThenAiWrites(typed, 2);
-    await undoTo(ORIGINAL);
-
-    expect(review()).toBeNull();
-    expect(textarea().value).toBe(typed);
-    expect(putsFor(CH1.id)).toHaveLength(0);
-    act(() => { window.dispatchEvent(new Event('pagehide')); });
-    expect(readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH1.id })?.content).toBe(typed);
-
-    await advance(3500); await settle();
-    expect(putsFor(CH1.id)).toHaveLength(1);
-    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: typed, base_updated_at: T_RESTORED });
-    expect(server.files.get(CH1.id)!.content).toBe(typed);
-    expect(toastError).not.toHaveBeenCalled();
-  });
-
-  it('a second content-bearing write keeps the earliest original of the open review', async () => {
-    await replaceChapter();
-    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: EDITED, updated_at: T_EDITED });
-    act(() => callbacks().onFileEditEnd(CH1.id, 1, EDITED.length, EDITED, REPLACED, 'draft', CH1.title, OUTCOME));
+  it('shows a clean undo immediately without another save', async () => {
+    await openOriginal();
+    await announceWrite(REPLACED, T_REPLACED);
+    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: ORIGINAL, updated_at: T_RESTORED });
+    act(() => harness.project!.triggerEditorRefresh(CH1.id));
     await advance(300); await settle();
-    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
 
-    finishReview();
-    await settle();
-    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_EDITED });
-  });
-
-  it('undoing the later edit rebuilds the review against the restored text', async () => {
-    await replaceChapter();
-    await editChapter();
-    await undoTo(REPLACED);
-
-    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: REPLACED });
-    finishReview();
-    await settle();
-    expect(putsFor(CH1.id)).toHaveLength(1);
-    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: REPLACED, base_updated_at: T_RESTORED });
-    expect(toastError).not.toHaveBeenCalled();
-  });
-
-  it('undoing back to the original closes the review and shows the original', async () => {
-    await replaceChapter();
-    await undoTo(ORIGINAL);
-
-    expect(review()).toBeNull();
-    expect(textarea().value).toBe(ORIGINAL);
-    await advance(3500); await settle();
+    expect(textarea()).toHaveValue(ORIGINAL);
+    expect(harness.project!.diffReviewState).toBeNull();
     expect(putsFor(CH1.id)).toHaveLength(0);
-  });
-
-  it('a review left open on another file follows the latest copy when that file is opened again', async () => {
-    await replaceChapter();
-    server.files.set(CH2_ID, { ...CH1, id: CH2_ID, title: '第2章', content: '另一章。', updated_at: T_CREATED });
-    act(() => harness.project!.setSelectedItem({ id: CH2_ID, type: 'draft', title: '第2章' }));
-    await settle(); await advance(50); await settle();
-    expect(textarea().value).toBe('另一章。');
-
-    await editChapter();
-    act(() => harness.project!.setSelectedItem({ id: CH1.id, type: 'draft', title: CH1.title }));
-    await settle(); await advance(50); await settle();
-
-    expect(review()).toMatchObject({ originalContent: ORIGINAL, modifiedContent: EDITED });
-    finishReview();
-    await settle();
-    expect(putsFor(CH1.id)).toHaveLength(1);
-    expect(putsFor(CH1.id)[0][1]).toMatchObject({ content: EDITED, base_updated_at: T_EDITED });
   });
 });

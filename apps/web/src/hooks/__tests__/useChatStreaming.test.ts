@@ -16,7 +16,6 @@ function createMockDeps(): UseChatStreamingDependencies {
     finishFileStreaming: vi.fn(),
     startFileStreaming: vi.fn(),
     streamingFileId: null,
-    enterDiffReview: vi.fn(),
     activeProjectId: 'test-project-id',
     t: vi.fn((key: string) => key),
   }
@@ -1462,7 +1461,7 @@ describe('useChatStreaming', () => {
     })
 
     describe('onFileEditEnd callback', () => {
-      it('clears edit progress and enters diff review', () => {
+      it('clears edit progress and refreshes the committed AI edit directly', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
         deps.getCurrentSelectedItem = vi.fn(() => ({
@@ -1488,7 +1487,7 @@ describe('useChatStreaming', () => {
         })
 
         expect(result.current.editProgress).toBe(null)
-        expect(deps.enterDiffReview).toHaveBeenCalledWith('file-123', 'old content', 'new content', 'agent_write')
+        expect(deps.triggerEditorRefresh).toHaveBeenCalledWith('file-123')
         expect(deps.triggerFileTreeRefresh).toHaveBeenCalled()
         expect(deps.setSelectedItem).toHaveBeenCalledWith({
           id: 'file-123',
@@ -1497,7 +1496,7 @@ describe('useChatStreaming', () => {
         })
       })
 
-      it('switches selection to edited file for visible diff review when current file is different', () => {
+      it('switches selection to the edited file and refreshes its committed content', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
         deps.getCurrentSelectedItem = vi.fn(() => ({
@@ -1515,7 +1514,7 @@ describe('useChatStreaming', () => {
           callbacks.onFileEditEnd('file-999', 1, 88, 'new content', 'old content', 'outline', 'Edited File')
         })
 
-        expect(deps.enterDiffReview).toHaveBeenCalledWith('file-999', 'old content', 'new content', 'agent_write')
+        expect(deps.triggerEditorRefresh).toHaveBeenCalledWith('file-999')
         expect(deps.setSelectedItem).toHaveBeenCalledWith({
           id: 'file-999',
           type: 'outline',
@@ -1523,7 +1522,7 @@ describe('useChatStreaming', () => {
         })
       })
 
-      it('triggers editor refresh without diff review if no original content', () => {
+      it('triggers editor refresh when the event omits original content', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
         const callbacks = result.current.getStreamCallbacks(deps)
@@ -1536,7 +1535,6 @@ describe('useChatStreaming', () => {
           callbacks.onFileEditEnd('file-123', 5, 100, 'new content')
         })
 
-        expect(deps.enterDiffReview).not.toHaveBeenCalled()
         expect(deps.triggerEditorRefresh).toHaveBeenCalledWith('file-123')
       })
     })
