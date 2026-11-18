@@ -64,6 +64,7 @@ for (const { width, language, theme } of [
 test('phone history scrolls and returns to the same row after preview', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = await openHistory(page, 'zh', 'light', 30);
+  await dialog.evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)));
   const list = page.getByTestId('version-list');
   await list.evaluate(el => { el.scrollTop = 300; });
   let releasePreview!: () => void;
