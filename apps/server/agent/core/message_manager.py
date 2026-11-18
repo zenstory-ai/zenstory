@@ -240,6 +240,13 @@ class MessageManager:
                     f"Chat session does not belong to project/user: {session_id}"
                 )
 
+            if "\x00" in user_message:
+                user_message = user_message.replace("\x00", "")
+            if assistant_message and "\x00" in assistant_message:
+                assistant_message = assistant_message.replace("\x00", "")
+            if reasoning_content and "\x00" in reasoning_content:
+                reasoning_content = reasoning_content.replace("\x00", "")
+
             # Save user message
             # 用户消息的时间是作者发出它的时间（回合开始），不是这一轮落库的时间。
             user_chat_message = ChatMessage(
@@ -257,7 +264,11 @@ class MessageManager:
             # instead of being dropped when the stream ends.
             steering_saved = 0
             for steering_text in steering_messages or []:
-                if not isinstance(steering_text, str) or not steering_text.strip():
+                if not isinstance(steering_text, str):
+                    continue
+                if "\x00" in steering_text:
+                    steering_text = steering_text.replace("\x00", "")
+                if not steering_text.strip():
                     continue
                 session.add(
                     ChatMessage(

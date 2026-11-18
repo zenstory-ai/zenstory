@@ -26,21 +26,26 @@ logger = get_logger(__name__)
 # content before it can be reassembled and matched.
 MAX_MARKER_LEN = 32
 
+# MiniMax M3.1 偶发将内部特殊分隔符 ``]<]minimax[>[`` 原样吐出，且常吞掉紧随其后的 ``<``
+# （如 ``]<]minimax[>[file>``、``]<]minimax[>[/file>``、``]<]minimax[>[<tool_call>``）。
+_MINIMAX_DELIM = "]<\x5dminimax[>["
+_TAG_OPEN_PREFIX = r"(?:\]<\]minimax\[>\[\s*<?|<\s*)"
+
 # 容错正则表达式 - 匹配各种 <file> 变体（避免误匹配 <filex>/<filename>）
 FILE_START_PATTERN = re.compile(
-    r'<\s*[Ff][Ii][Ll][Ee]\b(?:\s+[^>]*)?>',
-    re.IGNORECASE
+    rf"{_TAG_OPEN_PREFIX}[Ff][Ii][Ll][Ee]\b(?:\s+[^>]*)?>",
+    re.IGNORECASE,
 )
 FILE_END_PATTERN = re.compile(
-    r'<\s*/\s*[Ff][Ii][Ll][Ee]\b\s*>',
-    re.IGNORECASE
+    rf"{_TAG_OPEN_PREFIX}/\s*[Ff][Ii][Ll][Ee]\b\s*>",
+    re.IGNORECASE,
 )
 
 # 边界情况：内容中合法包含 <file> 文本的模式
 ESCAPED_FILE_PATTERNS = [
-    r'`<\s*/?\s*[Ff][Ii][Ll][Ee]\b[^>]*>`',  # 行内代码
-    r'```[\s\S]*?<\s*/?\s*[Ff][Ii][Ll][Ee]\b[^>]*>[\s\S]*?```',  # 代码块
-    r'&lt;file&gt;',       # HTML 转义
+    rf"`{_TAG_OPEN_PREFIX}/?\s*[Ff][Ii][Ll][Ee]\b[^>]*>`",  # 行内代码
+    rf"```[\s\S]*?{_TAG_OPEN_PREFIX}/?\s*[Ff][Ii][Ll][Ee]\b[^>]*>[\s\S]*?```",  # 代码块
+    r"&lt;file&gt;",       # HTML 转义
 ]
 
 # 代码块围栏定界符（与 ESCAPED_FILE_PATTERNS 中代码块模式的定界一致）
@@ -108,15 +113,34 @@ BUFFER_MAX_SIZE = 1024 * 1024
 # "刚收尾、尚未出现任何非空白文字"的窗口里识别并丢弃这一对；窗口内一旦出现
 # 别的文字（叙述、反引号、围栏、非空块）就立即关闭，原样输出。
 _EMPTY_FILE_PAIR_COMPACT = "<file></file>"
-_EMPTY_FILE_PAIR_PATTERN = re.compile(r"<\s*file\s*>\s*<\s*/\s*file\s*>", re.IGNORECASE)
+_EMPTY_FILE_PAIR_PATTERN = re.compile(
+    rf"{_TAG_OPEN_PREFIX}file\s*>\s*{_TAG_OPEN_PREFIX}/\s*file\s*>",
+    re.IGNORECASE,
+)
 
 # IDLE 下（没有进行中的捕获）独占一行的 <file> / </file>：协议标记，不是对话。
 # 生产 10-10 U082：rework 前的总结末尾单独一行「</file>」进了作者看到的回复。
 # 只认整行就是一个标签（允许首尾空白和标签内空白）；行内提到的标签、反引号
 # 包着的、``` 围栏里的都原样保留。
-_LONE_FILE_TAG_LINE_PATTERN = re.compile(r"[ \t]*<\s*/?\s*file\s*>[ \t]*\r?", re.IGNORECASE)
-_LONE_FILE_TAG_PREFIXES: tuple[str, ...] = ("<file>", "</file>")
-_LONE_FILE_START_LINE_PATTERN = re.compile(r"[ \t]*<\s*file\s*>[ \t]*\r?", re.IGNORECASE)
+_LONE_FILE_TAG_LINE_PATTERN = re.compile(rf"[ \t]*{_TAG_OPEN_PREFIX}/?\s*file\s*>[ \t]*\r?", re.IGNORECASE)
+_LONE_FILE_TAG_PREFIXES: tuple[str, ...] = (
+    "<file>",
+    "</file>",
+    "]<\x5dminimax[>[file>",
+    "]<\x5dminimax[>[<file>",
+    "]<\x5dminimax[>[/file>",
+    "]<\x5dminimax[>[</file>",
+)
+_LONE_FILE_START_LINE_PATTERN = re.compile(rf"[ \t]*{_TAG_OPEN_PREFIX}file\s*>[ \t]*\r?", re.IGNORECASE)
+
+# 对话气泡中剥离 MiniMax 泄漏的文字版工具调用协议（如 ``]<]minimax[>[<tool_call>…`` 及流末未闭合残片）；
+# 代码围栏与行内代码内的示例字面量保留，``<file>`` 正文走 WRITING 分支不经过此过滤。
+_MM_TOOL_OPEN_RE = re.compile(r"^\]<\]minimax\[>\[\s*<?\s*tool_call\b[^>]*>", re.IGNORECASE)
+_MM_TOOL_CLOSE_RE = re.compile(r"(?:\]<\]minimax\[>\[\s*<?|<\s*)/\s*tool_call\s*>", re.IGNORECASE)
+_MM_TOOL_OPEN_PREFIXES: tuple[str, ...] = (
+    "]<\x5dminimax[>[<tool_call>",
+    "]<\x5dminimax[>[tool_call>",
+)
 
 # 没有待写文件时，模型有时在同一条回复里先写正文、再调用 create_file 建这个文件
 # （生产 10-26：备用模型连写十五章，正文全部晚一章落库）。开启 prebody_capture 的
@@ -125,10 +149,10 @@ _LONE_FILE_START_LINE_PATTERN = re.compile(r"[ \t]*<\s*file\s*>[ \t]*\r?", re.IG
 PREBODY_FILE_ID = "reply-prebody"
 
 # 模型陷入循环、把一大段原样一遍遍重写（生产 10-26：一段约五千字的正文连续重复九遍，
-# 直到单轮时限才停）：最近这么多字符按同一间隔连续出现第三遍，就算循环。正常稿件
-# 最多把一段原样写两遍（对照、引用）；只有空白或少数几个字反复的片段不算（例如分隔线）。
+# 直到单轮时限才停；生产 11-18：``dl/`` 短词或 18 字短句重复上千遍）：最近这么多字符按同一间隔
+# 连续出现第三遍，且包含足够多的文字/字母/数字（排除纯标点分隔线、表格横线与空白），就算循环。
 REPEAT_WINDOW_CHARS = 800
-_REPEAT_MIN_DISTINCT_CHARS = 30
+_REPEAT_MIN_ALNUM_CHARS = 64
 
 # 悬置（ambiguous）标记候选的等待上限：一个 </file> 候选因反引号/围栏未闭合被
 # 挂起后，若其后又累积了这么多字符仍无法判定，就按真实结束标记处理。没有这个
@@ -246,9 +270,14 @@ class StreamResult:
     auto_completed: bool = False
 
 
-# 模型把工具调用写成文字时的开头标记（有的模型会多写一个 "<"）。只用于识别等正文时悬置的协议残片。
-_TOOL_CALL_MARKERS = ("<tool_call>", "<<tool_call>")
-_BARE_PROTOCOL_PREFIXES = frozenset({"<", "<<"})
+# 模型把工具调用写成文字时的开头标记（有的模型会多写一个 "<" 或带 MiniMax 分隔符）。只用于识别等正文时悬置的协议残片。
+_TOOL_CALL_MARKERS = (
+    "<tool_call>",
+    "<<tool_call>",
+    "]<\x5dminimax[>[<tool_call>",
+    "]<\x5dminimax[>[tool_call>",
+)
+_BARE_PROTOCOL_PREFIXES = frozenset({"<", "<<", _MINIMAX_DELIM})
 
 
 def _starts_with_tool_call_marker(text: str) -> bool:
@@ -310,6 +339,12 @@ class StreamProcessor:
     idle_line_head: str = ""
     idle_fence_open: bool = False
 
+    # 对话流中剥离 MiniMax 协议泄漏的跨 chunk 状态（代码围栏、行内代码、正在吞掉的工具块与短前瞻缓冲）
+    mm_fence_open: bool = False
+    mm_inline_code: bool = False
+    mm_swallowing_tool_call: bool = False
+    mm_buf: str = ""
+
     def reset(self) -> None:
         """Reset processor to idle state."""
         self.state = StreamState.IDLE
@@ -322,12 +357,19 @@ class StreamProcessor:
         self.after_close = False
         self.idle_hold = ""
         self._reset_idle_lines()
+        self._reset_minimax_filter()
 
     def _reset_idle_lines(self) -> None:
         self.idle_line_hold = ""
         self.idle_at_line_start = True
         self.idle_line_head = ""
         self.idle_fence_open = False
+
+    def _reset_minimax_filter(self) -> None:
+        self.mm_fence_open = False
+        self.mm_inline_code = False
+        self.mm_swallowing_tool_call = False
+        self.mm_buf = ""
 
     def start_file_write(self, file_id: str) -> None:
         """
@@ -346,6 +388,7 @@ class StreamProcessor:
         self.after_close = False
         self.idle_hold = ""
         self._reset_idle_lines()
+        self._reset_minimax_filter()
 
         log_with_context(
             logger,
@@ -369,7 +412,162 @@ class StreamProcessor:
             or self.after_close
             or bool(self.idle_hold)
             or bool(self.idle_line_hold)
+            or bool(self.mm_buf)
+            or self.mm_swallowing_tool_call
         )
+
+    def _filter_minimax_tool_leak(self, text: str, *, at_eof: bool = False) -> str:
+        """剥离对话中 MiniMax 泄漏的 ``]<]minimax[>[<tool_call>…`` 协议块（保留代码围栏与行内代码）。"""
+        buf = self.mm_buf + text
+        self.mm_buf = ""
+        if not buf and not (at_eof and self.mm_swallowing_tool_call):
+            return ""
+        out: list[str] = []
+        while buf or (at_eof and self.mm_swallowing_tool_call):
+            if self.mm_swallowing_tool_call:
+                close_match = _MM_TOOL_CLOSE_RE.search(buf)
+                if close_match is not None:
+                    self.mm_swallowing_tool_call = False
+                    rest = buf[close_match.end() :]
+                    if rest.startswith("\r\n"):
+                        rest = rest[2:]
+                    elif rest.startswith("\n"):
+                        rest = rest[1:]
+                    buf = rest
+                    continue
+                if at_eof:
+                    log_with_context(
+                        logger,
+                        30,  # WARNING
+                        "Dropping an unclosed leaked MiniMax tool_call fragment from conversation",
+                        project_id=self.project_id,
+                        user_id=self.user_id,
+                    )
+                    self.mm_swallowing_tool_call = False
+                    buf = ""
+                    break
+                self.mm_buf = buf[-MAX_MARKER_LEN:]
+                break
+
+            if self.mm_fence_open:
+                idx = buf.find("`")
+                if idx < 0:
+                    out.append(buf)
+                    buf = ""
+                    break
+                if idx > 0:
+                    out.append(buf[:idx])
+                    buf = buf[idx:]
+                if buf.startswith(FENCE):
+                    self.mm_fence_open = False
+                    out.append(FENCE)
+                    buf = buf[len(FENCE) :]
+                    continue
+                if len(buf) < len(FENCE) and FENCE.startswith(buf) and not at_eof:
+                    self.mm_buf = buf
+                    break
+                run_len = len(buf) - len(buf.lstrip("`"))
+                out.append(buf[:run_len])
+                buf = buf[run_len:]
+                continue
+
+            if self.mm_inline_code:
+                b_idx = buf.find("`")
+                n_idx = buf.find("\n")
+                candidates = [x for x in (b_idx, n_idx) if x >= 0]
+                if not candidates:
+                    out.append(buf)
+                    buf = ""
+                    break
+                idx = min(candidates)
+                if idx > 0:
+                    out.append(buf[:idx])
+                    buf = buf[idx:]
+                self.mm_inline_code = False
+                out.append(buf[0])
+                buf = buf[1:]
+                continue
+
+            b_idx = buf.find("`")
+            m_idx = buf.find("]")
+            candidates = [x for x in (b_idx, m_idx) if x >= 0]
+            if not candidates:
+                out.append(buf)
+                buf = ""
+                break
+            idx = min(candidates)
+            if idx > 0:
+                out.append(buf[:idx])
+                buf = buf[idx:]
+
+            if buf[0] == "`":
+                if buf.startswith(FENCE):
+                    self.mm_fence_open = True
+                    out.append(FENCE)
+                    buf = buf[len(FENCE) :]
+                    continue
+                if len(buf) < len(FENCE) and FENCE.startswith(buf) and not at_eof:
+                    self.mm_buf = buf
+                    break
+                run_len = len(buf) - len(buf.lstrip("`"))
+                if run_len == 1:
+                    self.mm_inline_code = True
+                out.append(buf[:run_len])
+                buf = buf[run_len:]
+                continue
+
+            open_match = _MM_TOOL_OPEN_RE.match(buf)
+            if open_match is not None:
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Stripping leaked MiniMax tool_call protocol from conversation",
+                    project_id=self.project_id,
+                    user_id=self.user_id,
+                )
+                self.mm_swallowing_tool_call = True
+                buf = buf[open_match.end() :]
+                continue
+
+            compact = re.sub(r"\s+", "", buf).lower()
+            could_grow = len(buf) <= MAX_MARKER_LEN * 2 and (
+                any(prefix.startswith(compact) for prefix in _MM_TOOL_OPEN_PREFIXES)
+                or (
+                    (
+                        compact.startswith("]<\x5dminimax[>[<tool_call")
+                        or compact.startswith("]<\x5dminimax[>[tool_call")
+                    )
+                    and ">" not in buf[len(_MINIMAX_DELIM) :]
+                )
+            )
+            if could_grow:
+                if not at_eof:
+                    self.mm_buf = buf
+                    break
+                if compact.startswith(_MINIMAX_DELIM):
+                    buf = ""
+                    break
+                out.append(buf)
+                buf = ""
+                break
+
+            if buf.lower().startswith(_MINIMAX_DELIM):
+                buf = buf[len(_MINIMAX_DELIM) :]
+                continue
+
+            out.append("]")
+            buf = buf[1:]
+
+        if at_eof:
+            self._reset_minimax_filter()
+        return "".join(out)
+
+    @staticmethod
+    def _strip_minimax_tool_leaks_once(text: str) -> str:
+        if not text or "]" not in text:
+            return text
+        helper = StreamProcessor()
+        return helper._filter_minimax_tool_leak(text, at_eof=True)
 
     def process_content(self, content: str) -> StreamResult:
         """
@@ -387,9 +585,11 @@ class StreamProcessor:
             conversation = self._filter_lone_tag_lines(content)
             if self.state == StreamState.WRITING:
                 # 这一段里出现了待认领正文的 <file> 行，之后的文字已放进 temp_buffer
+                conversation = self._filter_minimax_tool_leak(conversation, at_eof=True)
                 result = self._scan_writing_buffer(at_eof=False)
                 result.conversation_content = conversation + result.conversation_content
                 return result
+            conversation = self._filter_minimax_tool_leak(conversation, at_eof=False)
             return StreamResult(conversation_content=conversation)
 
         if self.state == StreamState.WAITING_START:
@@ -532,7 +732,7 @@ class StreamProcessor:
         """
         if self.state != StreamState.IDLE:
             return ""
-        return self._release_line_hold()
+        return self._filter_minimax_tool_leak(self._release_line_hold(), at_eof=True)
 
     def trim_repeated_tail(self) -> bool:
         """正在写的正文末尾在前文里原样出现过（模型在循环）：截到重复开始之前。返回是否截了。"""
@@ -584,11 +784,12 @@ class StreamProcessor:
         return held
 
     def _release_idle_holds(self) -> str:
-        """交还 IDLE 下所有暂扣的文字（空标签对前缀、行首标签前缀）。"""
+        """交还 IDLE 下所有暂扣的文字（空标签对前缀、行首标签前缀、MiniMax 过滤前瞻）。"""
         # 流/agent 收尾时不再开始新的待认领正文：扣着的文字按原样判定后交还
         prebody_capture, self.prebody_capture = self.prebody_capture, False
         try:
-            return self._filter_lone_tag_lines(self._release_after_close()) + self._release_line_hold()
+            released = self._filter_lone_tag_lines(self._release_after_close()) + self._release_line_hold()
+            return self._filter_minimax_tool_leak(released, at_eof=True)
         finally:
             self.prebody_capture = prebody_capture
 
@@ -627,7 +828,8 @@ class StreamProcessor:
             # This is required for "<file>...</file>" arriving in one delta.
             result = self._process_writing("")
             if before_marker:
-                result.conversation_content = before_marker + result.conversation_content
+                cleaned_before = self._strip_minimax_tool_leaks_once(before_marker)
+                result.conversation_content = cleaned_before + result.conversation_content
             return result
 
         # Check buffer size limit
@@ -840,6 +1042,7 @@ class StreamProcessor:
         # 的收尾路径都不经过这里
         self.after_close = True
         after_marker = self._filter_lone_tag_lines(self._filter_after_close(after_marker))
+        after_marker = self._filter_minimax_tool_leak(after_marker, at_eof=False)
 
         return StreamResult(
             file_content=file_content,
@@ -1009,8 +1212,9 @@ class StreamProcessor:
                 self.at_body_start = True
                 result = self.finalize_on_stream_end()
                 if before_marker:
+                    cleaned_before = self._strip_minimax_tool_leaks_once(before_marker)
                     result.conversation_content = (
-                        before_marker + result.conversation_content
+                        cleaned_before + result.conversation_content
                     )
                 return result
 
@@ -1041,7 +1245,7 @@ class StreamProcessor:
                 buffered_length=len(buffered),
             )
             self.reset()
-            return StreamResult(conversation_content=buffered)
+            return StreamResult(conversation_content=self._strip_minimax_tool_leaks_once(buffered))
 
         if self.state == StreamState.WRITING:
             # 流结束后悬置的反引号/围栏不会再闭合：先按 at_eof 语义重扫缓冲，
@@ -1130,16 +1334,24 @@ class StreamProcessor:
 
 
 def _trailing_end_tag_fragment_length(text: str) -> int:
-    """正文末尾、未写完的 </file> 前缀的长度（例如 ``</fi``），没有为 0。
+    """正文末尾、未写完的 </file>（或 ``]<]minimax[>[/file>``）前缀的长度（例如 ``</fi``），没有为 0。
 
-    只看最后一个 ``<`` 起到末尾的这段：去掉空白、转小写后是 ``</file>`` 的严格前缀才算。
+    只看最后一个 ``<``（或 ``]<]`` 分隔符）起到末尾的这段：去掉空白、转小写后是结束标记的严格前缀才算。
     ``<file>`` 的前缀（如 ``<f``）、比较式、其他标签都不算。
     """
+    mm_start = text.rfind("]<]m")
+    if mm_start < 0:
+        mm_start = text.rfind("]<]M")
+    if mm_start >= 0 and len(text) - mm_start <= MAX_MARKER_LEN:
+        mm_compact = re.sub(r"\s+", "", text[mm_start:]).lower()
+        for mm_end in ("]<\x5dminimax[>[/file>", "]<\x5dminimax[>[</file>"):
+            if mm_compact != mm_end and mm_end.startswith(mm_compact):
+                return len(text) - mm_start
     start = text.rfind("<")
     if start < 0 or len(text) - start > MAX_MARKER_LEN:
         return 0
     compact = re.sub(r"\s+", "", text[start:]).lower()
-    end_tag = _LONE_FILE_TAG_PREFIXES[1]
+    end_tag = "</file>"
     if compact == end_tag or not end_tag.startswith(compact):
         return 0
     return len(text) - start
@@ -1174,7 +1386,8 @@ def find_repetition_start(text: str, window: int = REPEAT_WINDOW_CHARS) -> int |
     if len(text) < window * 2:
         return None
     tail = text[-window:]
-    if len(set(tail) - set(" \t\r\n")) < _REPEAT_MIN_DISTINCT_CHARS:
+    min_alnum = min(_REPEAT_MIN_ALNUM_CHARS, max(2, window // 12))
+    if sum(1 for ch in tail if ch.isalnum()) < min_alnum:
         return None
     start = len(text) - window
     previous = text.rfind(tail, 0, start - 1 + window)

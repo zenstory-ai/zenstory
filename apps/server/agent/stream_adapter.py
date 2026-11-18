@@ -1021,6 +1021,7 @@ class StreamAdapter:
                 message=error_message_for(ErrorCode.AGENT_FILE_SAVE_FAILED),
                 code=ErrorCode.AGENT_FILE_SAVE_FAILED,
                 retryable=True,
+                file_id=file_id,
             )
             return
         yield file_content_end_event(file_id)
@@ -1680,6 +1681,7 @@ class StreamAdapter:
                 message=error_message_for(ErrorCode.AGENT_FILE_SAVE_FAILED),
                 code=ErrorCode.AGENT_FILE_SAVE_FAILED,
                 retryable=True,
+                file_id=result.file_id,
             )
             return
 

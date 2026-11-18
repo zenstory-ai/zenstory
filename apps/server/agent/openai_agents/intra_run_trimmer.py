@@ -56,13 +56,14 @@ logger = get_logger(__name__)
 
 # 只读检索工具：结果体积大，且原文仍可按 id 重新读取，超预算时可安全折叠。
 DEFAULT_TRIMMABLE_TOOLS: frozenset[str] = frozenset({"query_files"})
-DEFAULT_WRITE_TOOLS: frozenset[str] = frozenset({"create_file", "edit_file"})
+DEFAULT_WRITE_TOOLS: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file"})
 PARALLEL_TOOL = "parallel_execute"
 PARALLEL_KNOWN_TASKS = frozenset({"write_chapter", *DEFAULT_WRITE_TOOLS, *DEFAULT_TRIMMABLE_TOOLS})
 MAX_TRACE_VALUES = 40
 
-# 安全阀阈值：600k 字符远低于 deepseek-flash 的 1M token 上下文。
-DEFAULT_MAX_INPUT_CHARS = 600_000
+# 安全阀阈值：1.8M 字符（约 90~110 万真实中文 token 的极限边界，远高于 300k 轮间压缩阈值）。
+# 常态全靠轮间压缩（agent/loop/compaction.py）维持前缀缓存，只有单轮工具输出极端暴涨逼近 1M 窗口才触发。
+DEFAULT_MAX_INPUT_CHARS = 1_800_000
 # 超预算后折叠到预算的 70% 左右；30% 的余量就是滞回台阶。
 DEFAULT_TARGET_RATIO = 0.7
 # 小于该长度的载荷不值得折叠（摘要本身也有几百字符）。

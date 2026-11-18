@@ -100,7 +100,7 @@ def bounded_items(items: list[dict[str, Any]], max_tokens: int) -> list[dict[str
 
 
 def estimate_items_tokens(items: list[dict[str, Any]]) -> int:
-    """输入项的粗略 token 数（只用于压缩触发的兜底与压缩输入的上限）。"""
+    """输入项的 cl100k_base 粗估 token 数。"""
     total = 0
     for item in items:
         if not isinstance(item, dict):
@@ -111,6 +111,60 @@ def estimate_items_tokens(items: list[dict[str, Any]]) -> int:
                 total += estimate_text_tokens(value)
         total += 4
     return total
+
+
+def estimate_provider_text_tokens(text: str) -> int:
+    """按 DeepSeek / MiniMax 等 1M 中文模型的分词量纲粗估 token 数。
+
+    cl100k_base 对汉字按字节拆成约 1.5~2.2 token/字，比国产模型实测（约 0.55~0.70 token/字）
+    虚高 2.5~3 倍；无实测读数或评估超窗降级时必须使用供应商同量纲估算，避免在 ~30 万真实 token
+    处误触发滑窗截断。
+    """
+    if not text:
+        return 0
+    cjk = sum(1 for ch in text if ord(ch) >= 0x2E80)
+    other = len(text) - cjk
+    return max(1, int(cjk * 0.65 + other * 0.30))
+
+
+def estimate_provider_items_tokens(items: list[dict[str, Any]]) -> int:
+    """按供应商分词量纲粗估输入项 token 数。"""
+    total = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        for key in ("content", "arguments", "output"):
+            value = item.get(key)
+            if isinstance(value, str) and value:
+                total += estimate_provider_text_tokens(value)
+        total += 4
+    return total
+
+
+def bound_history_for_provider(
+    history: LoopHistory,
+    items: list[dict[str, Any]],
+    max_provider_tokens: int,
+) -> list[dict[str, Any]]:
+    """仅当供应商实测（或同量纲估算）token 超过硬上限时，按比例滑窗丢弃最旧项。
+
+    常态由轮间压缩控制上下文长度，绝不在真实窗口以下因 cl100k_base 虚高而提前砍旧消息；
+    只有压缩连续失败、上下文逼近供应商 1M 窗口时才作为最后防线降级。
+    """
+    if len(items) <= 1:
+        return list(items)
+    provider_tokens = (
+        history.last_prompt_tokens
+        if history.last_prompt_tokens > 0
+        else estimate_provider_items_tokens(items)
+    )
+    if provider_tokens <= max_provider_tokens:
+        return list(items)
+    cl100k_total = estimate_items_tokens(items)
+    if cl100k_total <= 0:
+        return list(items)
+    scaled_max_tokens = max(1, int(cl100k_total * (max_provider_tokens / provider_tokens)))
+    return bounded_items(items, scaled_max_tokens)
 
 
 def _parse_json(value: Any) -> Any:

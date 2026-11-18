@@ -111,8 +111,8 @@ agent/
   新建写入看 service 落库前按保存回执写进卡片的 `body_saved`（`service._stamp_body_receipts`），为 false 时附说明，修复前没有这个键的行照旧当作已保存）。成功的历史文件写入回执另带 `write_target_active=false`：不恢复上一轮捕获目标，本轮仍需按作者要求重新定位，改为只读时不恢复写入；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、
   需要时重新调用。思考只在一次 run 内回放。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
   的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
-- **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用历史估算）
-  超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（600000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，带工具清单、`tool_choice=none`），
+- **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用供应商同量纲估算 `estimate_provider_items_tokens`）
+  超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，带工具清单、`tool_choice=none`），
   空或被截断时 `reasoning_effort=low` 重试一次，仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
   （`summary`、`covers_through_message_id`、`kept_author_messages`、`created_at`），之后的历史 = 压缩点之前最近的作者原话（`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`
   预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。保留的作者原话按 `kept_author_messages`（压缩那一轮实际发出的文字，含截断后缀）原样回放，
@@ -122,7 +122,7 @@ agent/
   重试（`retry_unanswered`）删掉这条没得到回复的作者行前接过它上面的记录，本轮历史照它重建，本轮没有新记录时随本轮的行落库，不重付摘要。
   作者看得到这一步：摘要调用前发 `thinking`（`step=history_compaction`，「正在压缩对话…」）；成功后发 `history_compacted`（`data.summary`），
   并在本轮 `display_events` 开头记 `{"type": "history_compacted", "data": {}}`，刷新后前端在同一位置回放「对话已压缩」标记，摘要读本行的
-  `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件。交给 run 的历史另有估算上限 `AGENT_LOOP_RUN_HISTORY_MAX_TOKENS`（丢最旧的项）。
+  `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件。交给 run 与摘要调用的历史上限（`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS` / `AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS`）按供应商实测 `last_prompt_tokens`（无实测时用供应商同量纲估算）判断，常态绝不因 `cl100k_base` 虚高而提前砍掉旧消息，只有压缩连续失败、逼近 1M 硬窗口时才按比例丢最旧项（`bound_history_for_provider`）。[loop-post-launch-fixes][n-loop-fixes]
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
   （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时也经 `FILE_BODY_RESUME` 恢复捕获、
   补不成就作废定位，原文不动）、
@@ -207,9 +207,9 @@ agent/
 `AGENT_RUN_MAX_MODEL_CALLS`（120，请求级）、`AGENT_RUN_WALL_CLOCK_TIMEOUT_S`（780，须早于 Railway 900 秒断连）、
 `AGENT_RUN_WRAP_UP_AFTER_S`（默认时限减 180 秒：之后每次模型调用都提醒收尾、不再开新的 run；两种收尾和已有写入的墙钟硬超时都发 `limit=wall_clock` 暂停卡，这一轮记 `run_deadline_exceeded`，见 [pause-card][n-pause-card]）、
 `AGENT_SSE_HEARTBEAT_INTERVAL_S`（15）、
-`AGENT_LOOP_COMPACT_AT_TOKENS`（600000）、`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`（20000）、`AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS`（24000）、
+`AGENT_LOOP_COMPACT_AT_TOKENS`（300000）、`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`（20000）、`AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS`（24000）、
 `AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS`（900000）。见 [runtime-budget-and-heartbeat][n-budget]、
-[no-progress-guard-and-soft-cap][n-noprogress]、[platform-deadline-and-terminal-guard][n-deadline]、[wall-clock-wrap-up][n-wrap-up]。
+[no-progress-guard-and-soft-cap][n-noprogress]、[platform-deadline-and-terminal-guard][n-deadline]、[wall-clock-wrap-up][n-wrap-up]、[loop-post-launch-fixes][n-loop-fixes]。
 
 ## 流的终止、停止与计费
 
@@ -330,3 +330,4 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-account-tasks]: ../../../.agents/notes/implemented/feature/2026-11-05-account-concurrency-availability-first.md
 [n-loop]: ../../../.agents/notes/implemented/architecture/2026-11-16-single-loop-agent.md
 [n-remove-graph]: ../../../.agents/notes/implemented/simplification/2026-11-17-remove-graph-agent.md
+[n-loop-fixes]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-post-launch-fixes.md

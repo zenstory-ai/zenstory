@@ -164,6 +164,10 @@ class ErrorEventData(BaseModel):
             "the billing tracker uses it to recognise runaway stops."
         ),
     )
+    file_id: str | None = Field(
+        default=None,
+        description="Target file ID when a streamed file write failed to persist",
+    )
     written_files: list[dict[str, Any]] | None = None
     unwritten_files: list[dict[str, Any]] | None = None
 
@@ -366,18 +370,20 @@ def error_event(
     retryable: bool = False,
     refundable: bool | None = None,
     reason: str | None = None,
+    file_id: str | None = None,
 ) -> StreamEvent:
     """Create an error event."""
-    return StreamEvent(
-        type=EventType.ERROR,
-        data=ErrorEventData(
-            message=message,
-            code=code,
-            retryable=retryable,
-            refundable=refundable,
-            reason=reason,
-        ).model_dump(exclude={"written_files", "unwritten_files"})
-    )
+    data = ErrorEventData(
+        message=message,
+        code=code,
+        retryable=retryable,
+        refundable=refundable,
+        reason=reason,
+        file_id=file_id,
+    ).model_dump(exclude={"written_files", "unwritten_files"})
+    if data.get("file_id") is None:
+        data.pop("file_id", None)
+    return StreamEvent(type=EventType.ERROR, data=data)
 
 
 def done_event(

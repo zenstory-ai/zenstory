@@ -23,7 +23,13 @@ from config.agent_runtime import (
 from config.datetime_utils import utcnow
 from utils.logger import get_logger, log_with_context
 
-from .history import LoopHistory, bounded_items, kept_author_messages, summary_message
+from .history import (
+    LoopHistory,
+    bound_history_for_provider,
+    estimate_provider_items_tokens,
+    kept_author_messages,
+    summary_message,
+)
 from .prompts import COMPACT_PROMPT
 
 if TYPE_CHECKING:
@@ -61,7 +67,11 @@ def should_compact(
     if not history.items or not history.last_message_id:
         return False
     limit = AGENT_LOOP_COMPACT_AT_TOKENS if threshold is None else threshold
-    measured = history.last_prompt_tokens if history.last_prompt_tokens > 0 else history.estimated_tokens
+    measured = (
+        history.last_prompt_tokens
+        if history.last_prompt_tokens > 0
+        else estimate_provider_items_tokens(history.items)
+    )
     if measured <= limit:
         return False
     if history.compaction_skipped_at_tokens > 0:
@@ -72,7 +82,11 @@ def should_compact(
 
 def skipped_record(history: LoopHistory, reason: str) -> dict[str, Any]:
     """没压缩成时随本轮落库的记录（``message_metadata.compaction_skipped``），下一轮据此退避。"""
-    measured = history.last_prompt_tokens if history.last_prompt_tokens > 0 else history.estimated_tokens
+    measured = (
+        history.last_prompt_tokens
+        if history.last_prompt_tokens > 0
+        else estimate_provider_items_tokens(history.items)
+    )
     return {"reason": reason, "at_prompt_tokens": int(measured), "created_at": utcnow().isoformat()}
 
 
@@ -149,7 +163,10 @@ async def compact_history(
     from services.usage.cost_budget import budget_attribution
 
     attribution = agent_usage_attribution()
-    messages = _request_messages(system_prompt, bounded_items(history.items, AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS))
+    messages = _request_messages(
+        system_prompt,
+        bound_history_for_provider(history, history.items, AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS),
+    )
     usage: dict[str, int] = {}
     summary = ""
     started = time.monotonic()
