@@ -267,8 +267,7 @@ async function navigateToInspirations(page: Page, request: APIRequestContext) {
   expect(response.ok()).toBeTruthy();
   const tokens = await response.json();
 
-  await page.goto('/');
-  await page.evaluate((tokenData) => {
+  await page.addInitScript((tokenData) => {
     localStorage.setItem('access_token', tokenData.access_token);
     localStorage.setItem('refresh_token', tokenData.refresh_token);
     localStorage.setItem('token_type', tokenData.token_type);

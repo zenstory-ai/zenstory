@@ -13,7 +13,7 @@ import {
 
 const ENABLE_EXPORT_E2E = process.env.E2E_ENABLE_EXPORT_E2E === 'true'
 const EXPORT_OPT_IN_MESSAGE = 'Export E2E tests are opt-in. Set E2E_ENABLE_EXPORT_E2E=true to run.'
-const EXPORT_BUTTON_NAME = /导出正文|Export manuscript/i
+const EXPORT_BUTTON_NAME = /^(?:导出整本正文（TXT）|Export whole work \(TXT\))$/i
 
 function exportButton(page: Page) {
   return page.getByRole('button', { name: EXPORT_BUTTON_NAME }).first()

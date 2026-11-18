@@ -307,17 +307,20 @@ test.describe('Version History', () => {
     await selectFile(page, '版本列表测试')
 
     // Edit content to create multiple versions
-    await editFileContent(page, '第一个版本的内容')
-    await editFileContent(page, '第二个版本的内容')
-    await editFileContent(page, '第三个版本的内容')
+    const contents = ['第一个版本的内容', '第二个版本的内容', '第三个版本的内容']
+    for (const content of contents) {
+      await editFileContent(page, content)
+    }
 
     // Open version history
     await openVersionHistory(page)
 
-    // Verify the panel reports at least one version entry
-    await expect(page.getByText(/共\s*\d+\s*个版本|total versions/i).first()).toBeVisible({
-      timeout: 5000,
-    })
+    // Verify the visible entries correspond to the real snapshots, including the latest edit.
+    const versions = await getVersionsFromApi(page)
+    expect(versions.total).toBeGreaterThanOrEqual(contents.length)
+    await expect(getVersionItems(page)).toHaveCount(versions.versions.length)
+    await expect(getVersionItem(page, versions.versions[0].version_number)).toHaveCount(1)
+    expect((await getVersionContentFromApi(page, versions.versions[0].version_number)).content).toBe(contents[contents.length - 1])
   })
 
   test('version list displays correct metadata', async ({ page }) => {
@@ -345,19 +348,24 @@ test.describe('Version History', () => {
     await selectFile(page, '分页测试')
 
     // Five edits exercise multiple versions within the current 50-row page.
+    const contents: string[] = []
     for (let i = 1; i <= 5; i++) {
-      await editFileContent(page, `版本 ${i} 的内容，用于测试分页功能。这是第 ${i} 次编辑。`)
+      const content = `版本 ${i} 的内容，用于测试分页功能。这是第 ${i} 次编辑。`
+      contents.push(content)
+      await editFileContent(page, content)
     }
 
     // Open version history
     await openVersionHistory(page)
 
-    // Verify the backend really accumulated multiple versions and the panel surfaced total count.
-    const count = await getVersionCountFromApi(page)
-    expect(count).toBeGreaterThanOrEqual(5)
-    await expect(page.getByText(/共\s*\d+\s*个版本|total versions/i).first()).toBeVisible({
-      timeout: 5000,
-    })
+    // Verify the backend accumulated the seeded history and every returned version is represented.
+    const versions = await getVersionsFromApi(page)
+    expect(versions.total).toBeGreaterThanOrEqual(contents.length)
+    await expect(getVersionItems(page)).toHaveCount(versions.versions.length)
+    for (const version of versions.versions) {
+      await expect(getVersionItem(page, version.version_number)).toHaveCount(1)
+    }
+    expect((await getVersionContentFromApi(page, versions.versions[0].version_number)).content).toBe(contents[contents.length - 1])
   })
 
   // ==================== Version Content Viewing ====================
