@@ -61,9 +61,9 @@ PARALLEL_TOOL = "parallel_execute"
 PARALLEL_KNOWN_TASKS = frozenset({"write_chapter", *DEFAULT_WRITE_TOOLS, *DEFAULT_TRIMMABLE_TOOLS})
 MAX_TRACE_VALUES = 40
 
-# 安全阀阈值：1.8M 字符（约 90~110 万真实中文 token 的极限边界，远高于 300k 轮间压缩阈值）。
-# 常态全靠轮间压缩（agent/loop/compaction.py）维持前缀缓存，只有单轮工具输出极端暴涨逼近 1M 窗口才触发。
-DEFAULT_MAX_INPUT_CHARS = 1_800_000
+# 安全阀阈值：1.5M 字符（约 70~75 万真实中文 token，远高于 300k 轮间压缩阈值，同时离 1M 硬顶留足约 25 万 token 缓冲）。
+# 常态全靠轮间压缩（agent/loop/compaction.py）维持前缀缓存，只有单轮工具输出或存量老会话极端暴涨才触发。
+DEFAULT_MAX_INPUT_CHARS = 1_500_000
 # 超预算后折叠到预算的 70% 左右；30% 的余量就是滞回台阶。
 DEFAULT_TARGET_RATIO = 0.7
 # 小于该长度的载荷不值得折叠（摘要本身也有几百字符）。
@@ -149,21 +149,15 @@ class IntraRunToolOutputTrimmer:
     def target_chars(self) -> int:
         return int(self.max_input_chars * self.target_ratio)
 
-    def __call__(self, data: CallModelData[Any]) -> ModelInputData:
-        from agents.run_config import ModelInputData
-
-        model_data = data.model_data
-        items = model_data.input
+    def trim_items(self, items: list[Any], *, instructions_chars: int = 0) -> list[Any]:
+        """按安全阀预算折叠超预算的旧工具载荷；未超预算时原样返回同一个 ``items`` 对象。"""
         if not items:
-            return model_data
+            return items
 
-        instructions = model_data.instructions
-        instructions_chars = len(instructions) if isinstance(instructions, str) else 0
-        chars_before = self._input_chars(items) + instructions_chars
-
+        chars_before = self._input_chars(items) + max(0, instructions_chars)
         if chars_before <= self.max_input_chars:
-            # 常态路径：不改写任何历史，保住 DeepSeek 前缀缓存，也不让模型「忘掉」读过的文件。
-            return model_data
+            # 常态路径：不改写任何历史，保住前缀缓存，也不让模型「忘掉」读过的文件。
+            return items
 
         # 需要折叠掉的量按台阶量化：台阶 = max - target。输入在同一台阶内增长时，
         # required 不变 → 最旧优先的折叠边界不变 → 前缀稳定；结果总落在 (target, max] 内。
@@ -191,17 +185,34 @@ class IntraRunToolOutputTrimmer:
             trimmed_count += 1
             chars_saved += saved
 
+        if not trimmed_count:
+            return items
+
         chars_after = chars_before - chars_saved
-        if trimmed_count:
-            logger.info(
-                "IntraRunToolOutputTrimmer over budget: compacted %d payload(s), saved ~%d chars (%d -> %d, max %d)",
-                trimmed_count,
-                chars_saved,
-                chars_before,
-                chars_after,
-                self.max_input_chars,
-            )
-        return ModelInputData(input=new_items, instructions=instructions)
+        logger.info(
+            "IntraRunToolOutputTrimmer over budget: compacted %d payload(s), saved ~%d chars (%d -> %d, max %d)",
+            trimmed_count,
+            chars_saved,
+            chars_before,
+            chars_after,
+            self.max_input_chars,
+        )
+        return new_items
+
+    def __call__(self, data: CallModelData[Any]) -> ModelInputData:
+        from agents.run_config import ModelInputData
+
+        model_data = data.model_data
+        items = model_data.input
+        if not items:
+            return model_data
+
+        instructions = model_data.instructions
+        instructions_chars = len(instructions) if isinstance(instructions, str) else 0
+        trimmed = self.trim_items(items, instructions_chars=instructions_chars)
+        if trimmed is items:
+            return model_data
+        return ModelInputData(input=trimmed, instructions=instructions)
 
     # ------------------------------------------------------------------ candidates
 
