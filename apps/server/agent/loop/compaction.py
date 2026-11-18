@@ -26,7 +26,7 @@ from utils.logger import get_logger, log_with_context
 from .history import (
     LoopHistory,
     bound_history_for_provider,
-    estimate_provider_items_tokens,
+    effective_history_provider_tokens,
     kept_author_messages,
     summary_message,
 )
@@ -54,39 +54,44 @@ class CompactionOutcome:
     skipped: str | None = None
 
 
+# 退避目标的硬封顶：防止存量老会话在 ~96 万 token 处记下 skipped 后要求涨到 >100 万（物理不可能）才重试。
+_MAX_SKIPPED_RETRY_CEILING_TOKENS = 950_000
+
+
+def _is_request_rejected_error(exc: BaseException) -> bool:
+    status = getattr(exc, "status_code", None)
+    if not isinstance(status, int):
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+    return status in {400, 413}
+
+
 def should_compact(
     history: LoopHistory,
     threshold: int | None = None,
     retry_growth: int | None = None,
 ) -> bool:
-    """按实测输入 token 判断；没有实测值的旧会话（多 agent 图写下的行）用历史的估算兜底。
+    """按实测输入与未折叠历史同量纲估算的较大值判断。
 
-    上次没压缩成（摘要不可用）时退避：输入比那次至少再长 ``retry_growth`` 才再试，
+    上次没压缩成（摘要不可用）时退避：输入比那次至少再长 ``retry_growth`` 才再试
+    （封顶 ``_MAX_SKIPPED_RETRY_CEILING_TOKENS``，避免逼近 1M 窗口的老会话死锁），
     不让每一轮都多付两次整段历史的摘要调用。
     """
     if not history.items or not history.last_message_id:
         return False
     limit = AGENT_LOOP_COMPACT_AT_TOKENS if threshold is None else threshold
-    measured = (
-        history.last_prompt_tokens
-        if history.last_prompt_tokens > 0
-        else estimate_provider_items_tokens(history.items)
-    )
+    measured = effective_history_provider_tokens(history)
     if measured <= limit:
         return False
     if history.compaction_skipped_at_tokens > 0:
         growth = AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS if retry_growth is None else retry_growth
-        return measured >= history.compaction_skipped_at_tokens + growth
+        retry_at = min(history.compaction_skipped_at_tokens + growth, _MAX_SKIPPED_RETRY_CEILING_TOKENS)
+        return measured >= retry_at
     return True
 
 
 def skipped_record(history: LoopHistory, reason: str) -> dict[str, Any]:
     """没压缩成时随本轮落库的记录（``message_metadata.compaction_skipped``），下一轮据此退避。"""
-    measured = (
-        history.last_prompt_tokens
-        if history.last_prompt_tokens > 0
-        else estimate_provider_items_tokens(history.items)
-    )
+    measured = effective_history_provider_tokens(history)
     return {"reason": reason, "at_prompt_tokens": int(measured), "created_at": utcnow().isoformat()}
 
 
@@ -159,18 +164,24 @@ async def compact_history(
     发生在这一轮开始前，所以这里不看预算是否用完。
     """
     from agent.core import llm_failover
+    from agent.openai_agents.intra_run_trimmer import IntraRunToolOutputTrimmer
     from agent.openai_agents.usage_hooks import agent_usage_attribution
     from services.usage.cost_budget import budget_attribution
 
     attribution = agent_usage_attribution()
-    messages = _request_messages(
-        system_prompt,
-        bound_history_for_provider(history, history.items, AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS),
+    input_budget = AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS
+    # 先用与摘要 token 预算同量纲的字符上限（700k -> 1.05M 字符，约 ≤650k 中文 token）折叠超预算旧工具载荷，
+    # 尽量保住全部轮次的起止脉络与文件 id 摘要，不让硬上限兜底白白丢掉早期作者指令。
+    trimmer_max_chars = max(200_000, int(input_budget * 1.5))
+    trimmed_items = IntraRunToolOutputTrimmer(max_input_chars=trimmer_max_chars).trim_items(
+        history.items, instructions_chars=len(system_prompt)
     )
     usage: dict[str, int] = {}
     summary = ""
     started = time.monotonic()
-    for effort in _ATTEMPT_EFFORTS:
+    for attempt_index, effort in enumerate(_ATTEMPT_EFFORTS):
+        bounded = bound_history_for_provider(history, trimmed_items, input_budget)
+        messages = _request_messages(system_prompt, bounded)
         sink: dict[str, Any] = {}
         if run_meter is not None:
             run_meter.record_model_call()
@@ -190,6 +201,18 @@ async def compact_history(
                     top_p=0.95,
                 )
         except Exception as exc:  # noqa: BLE001 - 压缩失败不影响这一轮照常运行
+            has_next_attempt = attempt_index + 1 < len(_ATTEMPT_EFFORTS)
+            if has_next_attempt and len(bounded) > 1 and _is_request_rejected_error(exc):
+                current_tokens = effective_history_provider_tokens(history, bounded)
+                input_budget = max(100_000, min(input_budget, current_tokens) // 2)
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Loop history compaction rejected (400/413); retrying with halved input budget",
+                    error_type=type(exc).__name__,
+                    next_input_budget=input_budget,
+                )
+                continue
             log_with_context(
                 logger,
                 30,  # WARNING

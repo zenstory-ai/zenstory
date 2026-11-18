@@ -87,7 +87,7 @@ class LoopHistory:
 
 
 def bounded_items(items: list[dict[str, Any]], max_tokens: int) -> list[dict[str, Any]]:
-    """输入项的上限：从最旧的项开始丢，丢完后开头不留没有调用的工具输出。"""
+    """输入项的上限：从最旧的项开始丢，丢完后开头不留没有调用的工具输出或悬空助手轮。"""
     sizes = [estimate_items_tokens([item]) for item in items]
     total = sum(sizes)
     start = 0
@@ -96,6 +96,13 @@ def bounded_items(items: list[dict[str, Any]], max_tokens: int) -> list[dict[str
         start += 1
     while start < len(items) and items[start].get("type") == "function_call_output":
         start += 1
+    if start > 0 and start < len(items) and items[start].get("role") != "user":
+        first_user = next(
+            (idx for idx in range(start, len(items)) if items[idx].get("role") == "user"),
+            None,
+        )
+        if first_user is not None:
+            start = first_user
     return list(items[start:])
 
 
@@ -141,23 +148,37 @@ def estimate_provider_items_tokens(items: list[dict[str, Any]]) -> int:
     return total
 
 
+def effective_history_provider_tokens(
+    history: LoopHistory,
+    items: list[dict[str, Any]] | None = None,
+) -> int:
+    """评估当前输入项对应的供应商真实 token 量级。
+
+    数据库存的是未折叠的完整工具载荷，而上一轮落库的 ``last_prompt_tokens`` 可能是经过
+    ``IntraRunToolOutputTrimmer`` 内存折叠后的较小数（例如库内原始历史已达 115~136 万 token，
+    折叠后实测仅 32~76 万）。因此对未改动的原始历史取 ``max(last_prompt_tokens, 同量纲估算)``，
+    对调用方已经单独折叠过的 ``items`` 副本则直接取该副本的同量纲估算。
+    """
+    target_items = history.items if items is None else items
+    estimated = estimate_provider_items_tokens(target_items) if target_items else 0
+    if items is not None and items is not history.items:
+        return estimated
+    return max(history.last_prompt_tokens, estimated)
+
+
 def bound_history_for_provider(
     history: LoopHistory,
     items: list[dict[str, Any]],
     max_provider_tokens: int,
 ) -> list[dict[str, Any]]:
-    """仅当供应商实测（或同量纲估算）token 超过硬上限时，按比例滑窗丢弃最旧项。
+    """仅当供应商实测或未折叠历史同量纲估算超过硬上限时，按比例滑窗丢弃最旧项。
 
     常态由轮间压缩控制上下文长度，绝不在真实窗口以下因 cl100k_base 虚高而提前砍旧消息；
-    只有压缩连续失败、上下文逼近供应商 1M 窗口时才作为最后防线降级。
+    当存量老会话未折叠历史或压缩连续失败后的体积逼近供应商 1M 窗口时，作为最后防线降级。
     """
     if len(items) <= 1:
         return list(items)
-    provider_tokens = (
-        history.last_prompt_tokens
-        if history.last_prompt_tokens > 0
-        else estimate_provider_items_tokens(items)
-    )
+    provider_tokens = effective_history_provider_tokens(history, items)
     if provider_tokens <= max_provider_tokens:
         return list(items)
     cl100k_total = estimate_items_tokens(items)

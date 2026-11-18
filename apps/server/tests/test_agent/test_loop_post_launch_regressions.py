@@ -488,3 +488,115 @@ def test_stream_processor_strips_leaked_minimax_tool_call_blocks_from_chat():
     # completion_evidence 同样能识别吞掉 < 的 ]<]minimax[>[tool_call>
     swallowed = '好的。\n]<]minimax[>[tool_call>]<]minimax[>[invoke name="query_files">]<]minimax[>[/invoke>]<]minimax[>[/tool_call>'
     assert unexecuted_tool_protocol(swallowed, {"query_files"}) == ["query_files"]
+
+
+# ---------------------------------------------------------------------------
+# 5. 存量超长老会话未折叠工具载荷超 1M 窗口自愈（生产会话 a494f728 / 658fb656）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_compaction_folds_untrimmed_db_tool_payloads_and_escapes_960k_skip_deadlock():
+    """库内未折叠工具载荷 > 115 万真实 token、但上一轮内存折叠后 last_prompt_tokens 仅 32~76 万（甚至 skipped=960k）时：
+    1) should_compact 不会卡死在 960k + 100k > 1M；
+    2) compact_history 先折叠超预算旧工具载荷，保留第 0 轮起的作者消息，不把 >1M 原始载荷直接发给供应商；
+    3) bound_history_for_provider 对未折叠原始历史也会按真实估算兜底裁剪。
+    """
+    from agent.loop.history import bound_history_for_provider, estimate_provider_items_tokens
+
+    big_read = json.dumps({"status": "success", "data": {"content": "章节设定与正文片段" * 3500}}, ensure_ascii=False)
+    items: list[dict[str, Any]] = []
+    for idx in range(75):
+        items.append({"role": "user", "content": f"第{idx}轮指令：推进剧情"})
+        items.append({"type": "function_call", "call_id": f"q-{idx}", "name": "query_files", "arguments": "{}"})
+        items.append({"type": "function_call_output", "call_id": f"q-{idx}", "output": big_read})
+        items.append({"role": "assistant", "content": f"第{idx}轮处理完毕。"})
+
+    raw_provider_tokens = estimate_provider_items_tokens(items)
+    assert raw_provider_tokens > 1_100_000
+
+    # 模拟上一轮内存折叠后记下的较小 prompt_tokens（322,605），以及此前在 960,416 处失败留下的 skipped 记录。
+    history = LoopHistory(
+        items=items,
+        last_message_id="msg-last",
+        last_prompt_tokens=322_605,
+        compaction_skipped_at_tokens=960_416,
+        author_messages=["第0轮指令：推进剧情", "第74轮指令：推进剧情"],
+    )
+    assert should_compact(history) is True
+
+    # 若不折叠而直接走 run 兜底，bound_history_for_provider 也会识破未折叠原始体积 > 750k 并对齐到 user 边界裁剪。
+    run_bounded = bound_history_for_provider(history, history.items, 750_000)
+    assert len(run_bounded) < len(items)
+    assert run_bounded[0].get("role") == "user"
+    assert estimate_provider_items_tokens(run_bounded) <= 800_000
+
+    completion = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="超长老会话自愈交接摘要"), finish_reason="stop")],
+        usage=SimpleNamespace(
+            prompt_tokens=180_000,
+            completion_tokens=900,
+            total_tokens=180_900,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=120_000),
+        ),
+    )
+    mock_call = AsyncMock(return_value=(completion, SimpleNamespace(name="minimax", model="MiniMax-M3.1-Flash")))
+    with patch("agent.core.llm_failover.acreate_chat_completion", mock_call):
+        outcome = await compact_history(history, system_prompt="系统提示", session_id="sess-giant")
+
+    assert outcome.record is not None
+    assert outcome.record["summary"] == "超长老会话自愈交接摘要"
+    sent_messages = mock_call.await_args.kwargs["messages"]
+    sent_chars = sum(len(json.dumps(m, ensure_ascii=False)) for m in sent_messages)
+    # 折叠旧 query_files 输出后总字符远低于 150 万，且第 0 轮作者指令完整保留在开头！
+    assert sent_chars < 1_500_000
+    assert sent_messages[1] == {"role": "user", "content": "第0轮指令：推进剧情"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_compaction_halves_input_budget_and_succeeds_after_400_context_overflow():
+    """首次摘要请求若仍被供应商以 HTTP 400 超窗拒绝，第二次尝试自动将输入预算减半并成功自愈。"""
+    chunk = "非工具纯对话历史段落，不可被工具折叠器压缩。" * 350
+    items: list[dict[str, Any]] = []
+    for idx in range(80):
+        items.append({"role": "user", "content": f"用户第{idx}轮：{chunk}"})
+        items.append({"role": "assistant", "content": f"助手第{idx}轮：{chunk}"})
+
+    history = LoopHistory(
+        items=items,
+        last_message_id="msg-80",
+        last_prompt_tokens=680_000,
+        author_messages=["用户第79轮"],
+    )
+
+    class _FakeBadRequestError(Exception):
+        def __init__(self) -> None:
+            super().__init__("context window exceeds limit (2013)")
+            self.status_code = 400
+
+    completion = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="减半窗口后的交接摘要"), finish_reason="stop")],
+        usage=SimpleNamespace(
+            prompt_tokens=320_000,
+            completion_tokens=600,
+            total_tokens=320_600,
+            prompt_tokens_details=None,
+        ),
+    )
+    provider = SimpleNamespace(name="minimax", model="MiniMax-M3.1-Flash")
+    mock_call = AsyncMock(side_effect=[_FakeBadRequestError(), (completion, provider)])
+
+    with patch("agent.core.llm_failover.acreate_chat_completion", mock_call):
+        outcome = await compact_history(history, system_prompt="系统提示", session_id="sess-400")
+
+    assert outcome.record is not None
+    assert outcome.record["summary"] == "减半窗口后的交接摘要"
+    assert mock_call.await_count == 2
+    first_msgs = mock_call.await_args_list[0].kwargs["messages"]
+    second_msgs = mock_call.await_args_list[1].kwargs["messages"]
+    assert len(second_msgs) < len(first_msgs)
+    assert second_msgs[1]["role"] == "user"
+    assert mock_call.await_args_list[1].kwargs["reasoning_effort"] == "low"
+

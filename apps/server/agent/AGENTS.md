@@ -122,7 +122,7 @@ agent/
   重试（`retry_unanswered`）删掉这条没得到回复的作者行前接过它上面的记录，本轮历史照它重建，本轮没有新记录时随本轮的行落库，不重付摘要。
   作者看得到这一步：摘要调用前发 `thinking`（`step=history_compaction`，「正在压缩对话…」）；成功后发 `history_compacted`（`data.summary`），
   并在本轮 `display_events` 开头记 `{"type": "history_compacted", "data": {}}`，刷新后前端在同一位置回放「对话已压缩」标记，摘要读本行的
-  `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件。交给 run 与摘要调用的历史上限（`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS` / `AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS`）按供应商实测 `last_prompt_tokens`（无实测时用供应商同量纲估算）判断，常态绝不因 `cl100k_base` 虚高而提前砍掉旧消息，只有压缩连续失败、逼近 1M 硬窗口时才按比例丢最旧项（`bound_history_for_provider`）。[loop-post-launch-fixes][n-loop-fixes]
+  `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件（退避目标封顶 950k，避免逼近 1M 窗口的存量老会话死锁）。摘要调用前先经 `IntraRunToolOutputTrimmer.trim_items` 折叠超预算旧工具载荷，再与 run 兜底一起按 `effective_history_provider_tokens`（对原始历史取 `max(last_prompt_tokens, 同量纲估算)`，防止数据库未折叠体积超过内存折叠后的实测读数而漏过 >1M 请求；若摘要首次请求仍遇 400/413 超窗则自动减半输入预算重试一次）做硬上限裁剪（`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS` 750000 / `AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS` 700000，`bound_history_for_provider`），常态绝不因 `cl100k_base` 虚高而提前砍掉旧消息。[loop-post-launch-fixes][n-loop-fixes]
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
   （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时也经 `FILE_BODY_RESUME` 恢复捕获、
   补不成就作废定位，原文不动）、
@@ -208,7 +208,7 @@ agent/
 `AGENT_RUN_WRAP_UP_AFTER_S`（默认时限减 180 秒：之后每次模型调用都提醒收尾、不再开新的 run；两种收尾和已有写入的墙钟硬超时都发 `limit=wall_clock` 暂停卡，这一轮记 `run_deadline_exceeded`，见 [pause-card][n-pause-card]）、
 `AGENT_SSE_HEARTBEAT_INTERVAL_S`（15）、
 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）、`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`（20000）、`AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS`（24000）、
-`AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS`（900000）。见 [runtime-budget-and-heartbeat][n-budget]、
+`AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS`（700000）、`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS`（750000）。见 [runtime-budget-and-heartbeat][n-budget]、
 [no-progress-guard-and-soft-cap][n-noprogress]、[platform-deadline-and-terminal-guard][n-deadline]、[wall-clock-wrap-up][n-wrap-up]、[loop-post-launch-fixes][n-loop-fixes]。
 
 ## 流的终止、停止与计费
