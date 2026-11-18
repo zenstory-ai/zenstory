@@ -1,6 +1,45 @@
 import { useEffect, useId, useState } from 'react';
+import type { ReactNode } from 'react';
+import type { Components } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Layers, Loader2 } from 'lucide-react';
+import { LazyMarkdown } from './LazyMarkdown';
+
+const summaryMarkdownComponents: Components = {
+  h1: ({ children }) => <h3 className="mt-3 first:mt-0 text-sm font-semibold leading-snug">{children}</h3>,
+  h2: ({ children }) => <h4 className="mt-3 first:mt-0 text-xs font-semibold leading-snug">{children}</h4>,
+  h3: ({ children }) => <h5 className="mt-2.5 first:mt-0 text-xs font-semibold leading-snug">{children}</h5>,
+  h4: ({ children }) => <h6 className="mt-2.5 first:mt-0 text-xs font-semibold leading-snug">{children}</h6>,
+  p: ({ children }) => <p className="mt-1.5 first:mt-0">{children}</p>,
+  ul: ({ children }) => <ul className="mt-1.5 list-disc space-y-1 pl-4">{children}</ul>,
+  ol: ({ children }) => <ol className="mt-1.5 list-decimal space-y-1 pl-4">{children}</ol>,
+  table: ({ children }) => (
+    <div tabIndex={0} className="mt-2 max-w-full overflow-x-auto rounded-md border border-[hsl(var(--separator-color))]">
+      <table className="w-max min-w-full border-collapse text-left">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-[hsl(var(--bg-secondary))]">{children}</thead>,
+  th: ({ children }) => (
+    <th className="border-b border-r border-[hsl(var(--separator-color))] px-2 py-1.5 font-semibold last:border-r-0">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => (
+    <td className="border-b border-r border-[hsl(var(--separator-color))] px-2 py-1.5 align-top last:border-r-0">
+      {children}
+    </td>
+  ),
+  code: ({ children }) => (
+    <code className="break-all rounded bg-[hsl(var(--bg-secondary))] px-1 py-0.5 font-mono text-[0.9em]">
+      {children}
+    </code>
+  ),
+  pre: ({ children }: { children?: ReactNode }) => (
+    <pre className="mt-2 max-w-full overflow-x-auto rounded-md bg-[hsl(var(--bg-secondary))] p-2 font-mono text-[0.9em]">
+      {children}
+    </pre>
+  ),
+};
 
 /**
  * Earlier conversation summarized before this round (single loop agent).
@@ -43,7 +82,7 @@ export function HistoryCompactionMarker({ state, summary, startedAt }: {
   const chipClass =
     'inline-flex min-h-11 md:min-h-7 max-w-full items-center gap-1.5 rounded-full border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-primary))] px-3 text-xs font-medium text-[hsl(var(--text-secondary))]';
   return (
-    <div className="mb-3" data-testid="history-compaction-marker">
+    <div className="mb-3 min-w-0" data-testid="history-compaction-marker">
       <div className="flex items-center gap-3">
         <div aria-hidden="true" className="h-px flex-1 bg-[hsl(var(--separator-color))]" />
         {text ? (
@@ -76,14 +115,17 @@ export function HistoryCompactionMarker({ state, summary, startedAt }: {
       {text && open && (
         <div
           id={summaryId}
-          className="mt-2 max-h-72 overflow-auto rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary))] p-3"
+          className="mt-2 min-w-0 max-w-full max-h-72 overflow-auto rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary))] p-3"
         >
           <div className="mb-1.5 text-xs font-medium text-[hsl(var(--text-secondary))]">
             {t('compaction.summaryLabel', { ns: 'chat' })}
           </div>
-          <div className="whitespace-pre-wrap break-words text-xs leading-relaxed text-[hsl(var(--text-primary))]">
+          <LazyMarkdown
+            className="min-w-0 max-w-full break-words text-xs leading-relaxed text-[hsl(var(--text-primary))]"
+            components={summaryMarkdownComponents}
+          >
             {text}
-          </div>
+          </LazyMarkdown>
         </div>
       )}
     </div>
