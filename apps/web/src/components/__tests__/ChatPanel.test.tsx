@@ -39,7 +39,6 @@ describe('ChatPanel Unit Tests', () => {
       finishFileStreaming: vi.fn(),
       startFileStreaming: vi.fn(),
       streamingFileId: null,
-      enterDiffReview: vi.fn(),
     }
 
     expect(mockUseProject).toHaveProperty('currentProjectId')

@@ -4,6 +4,7 @@ import type { Components } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Layers, Loader2 } from 'lucide-react';
 import { LazyMarkdown } from './LazyMarkdown';
+import { CHAT_CARD_SURFACE } from './chatCardStyles';
 
 const summaryMarkdownComponents: Components = {
   h1: ({ children }) => <h3 className="mt-3 first:mt-0 text-sm font-semibold leading-snug">{children}</h3>,
@@ -14,11 +15,11 @@ const summaryMarkdownComponents: Components = {
   ul: ({ children }) => <ul className="mt-1.5 list-disc space-y-1 pl-4">{children}</ul>,
   ol: ({ children }) => <ol className="mt-1.5 list-decimal space-y-1 pl-4">{children}</ol>,
   table: ({ children }) => (
-    <div tabIndex={0} className="mt-2 max-w-full overflow-x-auto rounded-md border border-[hsl(var(--separator-color))]">
+    <div tabIndex={0} className="mt-2 max-w-full overflow-x-auto rounded-lg border border-[hsl(var(--separator-color))]">
       <table className="w-max min-w-full border-collapse text-left">{children}</table>
     </div>
   ),
-  thead: ({ children }) => <thead className="bg-[hsl(var(--bg-secondary))]">{children}</thead>,
+  thead: ({ children }) => <thead className="bg-[hsl(var(--bg-tertiary)/0.6)]">{children}</thead>,
   th: ({ children }) => (
     <th className="border-b border-r border-[hsl(var(--separator-color))] px-2 py-1.5 font-semibold last:border-r-0">
       {children}
@@ -30,12 +31,12 @@ const summaryMarkdownComponents: Components = {
     </td>
   ),
   code: ({ children }) => (
-    <code className="break-all rounded bg-[hsl(var(--bg-secondary))] px-1 py-0.5 font-mono text-[0.9em]">
+    <code className="break-all rounded bg-[hsl(var(--bg-tertiary)/0.6)] px-1 py-0.5 font-mono text-[0.9em]">
       {children}
     </code>
   ),
   pre: ({ children }: { children?: ReactNode }) => (
-    <pre className="mt-2 max-w-full overflow-x-auto rounded-md bg-[hsl(var(--bg-secondary))] p-2 font-mono text-[0.9em]">
+    <pre className="mt-2 max-w-full overflow-x-auto rounded-lg bg-[hsl(var(--bg-tertiary)/0.6)] p-2 font-mono text-[0.9em]">
       {children}
     </pre>
   ),
@@ -64,7 +65,7 @@ export function HistoryCompactionMarker({ state, summary, startedAt }: {
       <div className="mb-3" data-testid="history-compaction-running">
         <div
           role="status"
-          className="inline-flex max-w-full items-center gap-2 rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary))] px-3 py-2 text-xs"
+          className={`inline-flex max-w-full items-center gap-2 px-3 py-2 text-xs ${CHAT_CARD_SURFACE}`}
         >
           <Loader2 size={14} aria-hidden="true" className="shrink-0 animate-spin text-[hsl(var(--accent-primary))]" />
           <span className="font-medium text-[hsl(var(--text-primary))]">{t('compaction.running', { ns: 'chat' })}</span>
@@ -80,7 +81,7 @@ export function HistoryCompactionMarker({ state, summary, startedAt }: {
 
   const text = summary?.trim();
   const chipClass =
-    'inline-flex min-h-11 md:min-h-7 max-w-full items-center gap-1.5 rounded-full border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-primary))] px-3 text-xs font-medium text-[hsl(var(--text-secondary))]';
+    'inline-flex min-h-11 md:min-h-7 max-w-full items-center gap-1.5 rounded-full border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 text-xs font-medium text-[hsl(var(--text-secondary))]';
   return (
     <div className="mb-3 min-w-0" data-testid="history-compaction-marker">
       <div className="flex items-center gap-3">
@@ -88,22 +89,22 @@ export function HistoryCompactionMarker({ state, summary, startedAt }: {
         {text ? (
           <button
             type="button"
-            className={`${chipClass} transition-colors hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]`}
+            className={`${chipClass} transition-colors hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]`}
             aria-expanded={open}
             aria-controls={summaryId}
             onClick={() => setOpen((value) => !value)}
           >
-            <Layers size={12} aria-hidden="true" className="shrink-0" />
+            <Layers size={13} aria-hidden="true" className="shrink-0" />
             <span>{t('compaction.done', { ns: 'chat' })}</span>
             <ChevronDown
-              size={12}
+              size={13}
               aria-hidden="true"
               className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
             />
           </button>
         ) : (
           <span className={chipClass}>
-            <Layers size={12} aria-hidden="true" className="shrink-0" />
+            <Layers size={13} aria-hidden="true" className="shrink-0" />
             <span>{t('compaction.done', { ns: 'chat' })}</span>
           </span>
         )}
@@ -115,7 +116,7 @@ export function HistoryCompactionMarker({ state, summary, startedAt }: {
       {text && open && (
         <div
           id={summaryId}
-          className="mt-2 min-w-0 max-w-full max-h-72 overflow-auto rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary))] p-3"
+          className={`mt-2 min-w-0 max-w-full max-h-72 overflow-auto p-3 ${CHAT_CARD_SURFACE}`}
         >
           <div className="mb-1.5 text-xs font-medium text-[hsl(var(--text-secondary))]">
             {t('compaction.summaryLabel', { ns: 'chat' })}

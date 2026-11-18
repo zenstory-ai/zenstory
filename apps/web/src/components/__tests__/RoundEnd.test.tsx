@@ -171,6 +171,41 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
     expect(screen.getByTestId('round-end-note')).toHaveTextContent(new RegExp(`^${text}$`))
   })
 
+  it('omits duplicate unfinished/continue copy when the pause card is already shown above', () => {
+    const { rerender } = render(<RoundEndNote
+      outcome={outcome({
+        reason: 'incomplete',
+        charged: true,
+        saved_output: true,
+        written_files: [{ id: 'ch-5', title: '第五章 点验' }],
+      })}
+      showDailyCount
+      pauseCardShown
+    />)
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent(/^已保存《第五章 点验》$/)
+
+    rerender(<RoundEndNote
+      outcome={outcome({ reason: 'incomplete', charged: true, saved_output: true })}
+      showDailyCount
+      pauseCardShown
+    />)
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent(/^已保存本轮完成的修改。$/)
+
+    rerender(<RoundEndNote
+      outcome={outcome({ reason: 'incomplete', charged: true, saved_output: false, no_file_changes: true })}
+      showDailyCount
+      pauseCardShown
+    />)
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent(/^本轮没有改动文件$/)
+
+    rerender(<RoundEndNote
+      outcome={outcome({ reason: 'incomplete', charged: true, saved_output: false })}
+      showDailyCount
+      pauseCardShown
+    />)
+    expect(screen.queryByTestId('round-end-note')).not.toBeInTheDocument()
+  })
+
   it('reads only well-formed written files, and older messages without them as before', () => {
     expect(outcome({ reason: 'user_stopped', charged: true, saved_output: true }).writtenFiles).toEqual([])
     expect(outcome({

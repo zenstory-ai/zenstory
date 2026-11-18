@@ -49,7 +49,7 @@ const fileB = { ...fileA, id: 'file-b', title: 'Title B', content: 'Original B' 
 const token2 = '2026-10-06T10:00:00.000002';
 const selected = (file = fileA): SelectedItem => ({ id: file.id, type: file.file_type, title: file.title });
 const review = (file = fileA, text = 'Reviewed A'): DiffReviewState => ({
-  isReviewing: true, fileId: file.id, originalContent: file.content, modifiedContent: text, pendingEdits: [],
+  isReviewing: true, fileId: file.id, originalContent: file.content, modifiedContent: text, pendingEdits: [], origin: 'conflict',
 });
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -233,7 +233,7 @@ for (const strict of [false, true]) {
           const view = mount(strict); await settle();
           fireEvent.click(screen.getByRole('button', { name: 'editor:applyChanges' })); await settle();
           expect(mocks.update).toHaveBeenCalledTimes(1);
-          expect(mocks.update).toHaveBeenCalledWith(fileA.id, expect.objectContaining({ content: 'Reviewed A', base_updated_at: fileA.updated_at, change_type: 'ai_edit' }));
+          expect(mocks.update).toHaveBeenCalledWith(fileA.id, expect.objectContaining({ content: 'Reviewed A', base_updated_at: fileA.updated_at, change_type: 'edit', change_source: 'user' }));
           if (boundary === 'unmount') view.unmount();
           else {
             if (boundary !== 'review') mocks.context.selectedItem = selected(fileB);

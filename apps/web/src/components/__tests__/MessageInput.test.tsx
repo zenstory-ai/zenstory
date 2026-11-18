@@ -688,12 +688,12 @@ describe('MessageInput', () => {
       canSteer: true,
     }
 
-    it('shows the steering placeholder and hint while generating', () => {
+    it('shows the steering placeholder without an extra hint row while generating', () => {
       render(<MessageInput {...defaultProps} {...steerProps} />)
       expect(
         screen.getByPlaceholderText('chat:input.steerPlaceholder')
       ).toBeInTheDocument()
-      expect(screen.getByTestId('steer-hint')).toBeInTheDocument()
+      expect(screen.queryByTestId('steer-hint')).not.toBeInTheDocument()
     })
 
     it('keeps the textarea editable while generating', () => {

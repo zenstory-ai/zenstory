@@ -1112,48 +1112,6 @@ describe('Editor', () => {
     })
   })
 
-  it('saves reviewed content with ai version intent', async () => {
-    const triggerFileTreeRefresh = vi.fn()
-    const exitDiffReview = vi.fn()
-    const applyDiffReviewChanges = vi.fn().mockReturnValue('Reviewed AI content')
-
-    vi.mocked(api.fileVersionApi.getVersions).mockResolvedValue({ total: 1, items: [] })
-    mockProjectContext = createMockProjectContext({
-      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
-      diffReviewState: {
-        isReviewing: true,
-        fileId: 'file-1',
-        originalContent: 'Original content',
-        modifiedContent: 'Reviewed AI content',
-        pendingEdits: [],
-      },
-      triggerFileTreeRefresh,
-      exitDiffReview,
-      applyDiffReviewChanges,
-    })
-
-    render(<Editor />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('simple-editor')).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByTestId('finish-review-button'))
-
-    await waitFor(() => {
-      // base_updated_at：审阅写回同样是整篇覆盖写，必须带乐观并发令牌
-      // （mockFile 没有 updated_at，因此这里是 undefined，字段本身必须存在）
-      expect(api.fileApi.update).toHaveBeenCalledWith('file-1', {
-        content: 'Reviewed AI content',
-        change_type: 'ai_edit',
-        change_summary: 'AI edit (reviewed)',
-        base_updated_at: undefined,
-      })
-      expect(exitDiffReview).toHaveBeenCalled()
-      expect(triggerFileTreeRefresh).toHaveBeenCalled()
-    })
-  })
-
   it('discards a natural-polish candidate without saving or versioning', async () => {
     const enterDiffReview = vi.fn()
     const exitDiffReview = vi.fn()
@@ -1702,66 +1660,6 @@ describe('Editor', () => {
     })
     expect(exitDiffReview).not.toHaveBeenCalled()
     expect(api.fileApi.update).toHaveBeenCalledTimes(1)
-  })
-
-  it('writes the original back when every agent edit is rejected', async () => {
-    // edit_file 已经把 AI 文本落库，编辑器也重新加载成了 AI 文本。
-    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, content: 'AI content', updated_at: 'server-v2' })
-    vi.mocked(api.fileApi.update).mockResolvedValue({ ...mockFile, content: 'Original content', updated_at: 'server-v3' })
-    const exitDiffReview = vi.fn()
-    mockProjectContext = createMockProjectContext({
-      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
-      diffReviewState: {
-        isReviewing: true,
-        fileId: 'file-1',
-        originalContent: 'Original content',
-        modifiedContent: 'AI content',
-        pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'a', newText: 'b', status: 'rejected' }],
-      },
-      exitDiffReview,
-      applyDiffReviewChanges: vi.fn().mockReturnValue('Original content'),
-    })
-
-    render(<Editor />)
-    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('AI content'))
-    fireEvent.click(screen.getByTestId('finish-review-button'))
-
-    await waitFor(() => {
-      expect(api.fileApi.update).toHaveBeenCalledWith('file-1', expect.objectContaining({
-        content: 'Original content',
-        base_updated_at: 'server-v2',
-      }))
-      expect(screen.getByTestId('content-input')).toHaveValue('Original content')
-    })
-  })
-
-  it('still writes back a rejected agent review before the editor has reloaded the AI text', async () => {
-    // 审阅进入得比 editorRefreshVersion 触发的重新加载早：编辑器里仍是原文，
-    // 但服务端已经是 AI 文本——全部拒绝不能当成「什么都没变」跳过写库。
-    vi.mocked(api.fileApi.update).mockResolvedValue({ ...mockFile, updated_at: 'server-v3' })
-    const exitDiffReview = vi.fn()
-    mockProjectContext = createMockProjectContext({
-      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
-      diffReviewState: {
-        isReviewing: true,
-        fileId: 'file-1',
-        originalContent: 'Test content',
-        modifiedContent: 'AI content',
-        pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'a', newText: 'b', status: 'rejected' }],
-      },
-      exitDiffReview,
-      applyDiffReviewChanges: vi.fn().mockReturnValue('Test content'),
-    })
-
-    render(<Editor />)
-    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
-    fireEvent.click(screen.getByTestId('finish-review-button'))
-
-    await waitFor(() => {
-      expect(api.fileApi.update).toHaveBeenCalledWith('file-1', expect.objectContaining({
-        content: 'Test content',
-      }))
-    })
   })
 
   it('shows the server text after accepting the newer copy in a stale-write conflict review (author draft on the left)', async () => {

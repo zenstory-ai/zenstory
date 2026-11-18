@@ -205,11 +205,11 @@ for (const visual of quietCases) {
     await page.getByTestId('chat-input').fill(visual.language === 'zh' ? '继续处理当前章节' : 'Continue the current chapter');
     await page.getByTestId('send-button').click();
 
-    // A saved round that names its files lists them as a receipt and still says it is unfinished.
+    // When a pause card is already rendered above, the receipt lists the saved files without repeating "not finished; you can continue".
     const expected = writtenFiles.length
       ? visual.language === 'zh'
-        ? `已保存《${tool.title}》 · 本轮尚未完成，可以继续`
-        : `Saved "${tool.title}" · This round is not finished; you can continue`
+        ? `已保存《${tool.title}》`
+        : `Saved "${tool.title}"`
       : visual.savedOutput
       ? visual.language === 'zh'
         ? '已保存本轮完成的修改，可以继续写后续内容。'

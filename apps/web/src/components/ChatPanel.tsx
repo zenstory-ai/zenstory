@@ -44,8 +44,14 @@ import { MessageList } from "./MessageList";
 import type { Message, MessageListRef, MessageStatusCard } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ToolResultCard } from "./ToolResultCard";
-import { Sparkles, Loader2, Plus, Edit3, Database, ArrowDown } from "lucide-react";
+import { AlertTriangle, Sparkles, Loader2, Plus, Edit3, Database, ArrowDown } from "lucide-react";
 import { QuotaBadge } from "./subscription/QuotaBadge";
+import {
+  CHAT_CARD_PRIMARY_BUTTON,
+  CHAT_CARD_SECONDARY_BUTTON,
+  CHAT_CARD_SURFACE,
+  CHAT_CARD_WARNING_SURFACE,
+} from "./chatCardStyles";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import { isAiMessageQuotaExhausted } from "../hooks/useAiMessageQuota";
@@ -2765,9 +2771,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       <div ref={messagesScrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" data-testid="message-list">
         <div className={`py-3 ${isMobile ? 'px-2 pb-2' : 'px-3'}`}>
           {sessionRecoveryError === currentProjectId && (
-            <div role="alert" className="mb-3 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-3 text-sm">
-              <p>{t("chat:panel.sessionRecoveryFailed")}</p>
-              <button type="button" className="btn-secondary mt-2 min-h-11" disabled={isLoadingHistory} onClick={() => { if (currentProjectId) void loadChatHistory(currentProjectId, true); }}>{t("common:retry")}</button>
+            <div role="alert" className={`mb-3 p-3 ${CHAT_CARD_SURFACE}`}>
+              <p className="text-xs leading-5 text-[hsl(var(--text-primary))]">{t("chat:panel.sessionRecoveryFailed")}</p>
+              <button
+                type="button"
+                className={`mt-2.5 ${CHAT_CARD_SECONDARY_BUTTON}`}
+                disabled={isLoadingHistory}
+                onClick={() => { if (currentProjectId) void loadChatHistory(currentProjectId, true); }}
+              >
+                {t("common:retry")}
+              </button>
             </div>
           )}
           {isLoadingHistory ? (
@@ -2822,29 +2835,29 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
               {/* Edit progress indicator */}
               {editProgress && (
-                <div className="mt-3">
-                  <div className={`bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg ${isMobile ? 'p-2' : 'p-3'}`}>
+                <div className="mt-2.5">
+                  <div className={`${CHAT_CARD_SURFACE} ${isMobile ? 'px-3 py-2.5' : 'p-3'}`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <Edit3 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-                      <span className={`text-[hsl(var(--success-text))] font-medium ${isMobile ? 'text-xs truncate flex-1' : 'text-sm'}`}>
+                      <Edit3 className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />
+                      <span className={`text-[hsl(var(--text-primary))] font-medium ${isMobile ? 'text-xs truncate flex-1' : 'text-sm'}`}>
                         {t('chat:panel.editing')} {editProgress.title}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-[hsl(var(--bg-tertiary))] rounded-full h-2 overflow-hidden">
+                      <div className="flex-1 bg-[hsl(var(--bg-tertiary))] rounded-full h-1.5 overflow-hidden">
                         <div
-                          className="h-full bg-[hsl(var(--success-light))] transition-all duration-300"
+                          className="h-full bg-[hsl(var(--accent-primary))] transition-all duration-300"
                           style={{
                             width: `${(editProgress.completedEdits / editProgress.totalEdits) * 100}%`,
                           }}
                         />
                       </div>
-                      <span className="text-xs text-[hsl(var(--success-text))]">
+                      <span className="tabular-nums text-xs text-[hsl(var(--text-secondary))]">
                         {editProgress.completedEdits}/{editProgress.totalEdits}
                       </span>
                     </div>
                     {editProgress.currentOp && (
-                      <div className="mt-2 text-xs text-[hsl(var(--text-secondary))] truncate">
+                      <div className="mt-1.5 text-xs text-[hsl(var(--text-secondary))] truncate">
                         {t('chat:panel.operation')} {editProgress.currentOp}
                       </div>
                     )}
@@ -2854,7 +2867,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
               {/* Conflicts */}
               {conflicts.length > 0 && (
-                <div className="mt-3 space-y-2">
+                <div className="mt-2.5 space-y-2">
                   {conflicts.map((conflict, index) => (
                     <ToolResultCard
                       key={index}
@@ -2870,21 +2883,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
               {/* Error */}
               {error && !(isAiQuotaLimit && aiSendBlocked) && (
-                <div role="alert" className="mt-3 bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)] rounded-lg p-3">
-                  <div className="flex items-start gap-2">
-                    <svg
-                      className="w-4 h-4 text-[hsl(var(--warning-text))] mt-0.5 flex-shrink-0"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                <div role="alert" className={`mt-2.5 p-3 ${CHAT_CARD_WARNING_SURFACE}`}>
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle
+                      size={15}
+                      aria-hidden="true"
+                      className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0"
+                    />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[hsl(var(--warning-text))] text-sm font-medium">
+                      <p className="text-[hsl(var(--warning-text))] text-xs font-semibold leading-5">
                         {isAiQuotaLimit
                           ? t('chat:panel.quotaExceededTitle')
                           : isNetworkQuotaLimit
@@ -2894,7 +2901,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                             : t('chat:panel.streamErrorTitle')}
                       </p>
                       {!isAiQuotaLimit && !isNetworkQuotaLimit && (
-                        <p className="text-[hsl(var(--warning-text))] text-sm break-words whitespace-pre-line">
+                        <p className="mt-0.5 text-[hsl(var(--text-primary))] text-xs leading-5 break-words whitespace-pre-line">
                           {/* Today's messages are used up: 「回复继续」/ retry could not send, the quota card below says when it comes back. */}
                           {aiSendBlocked ? t('chat:panel.streamErrorQuotaPaused') : error}
                         </p>
@@ -2903,20 +2910,20 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                         <button
                           type="button"
                           onClick={handleRetry}
-                          className="mt-2 inline-flex min-h-11 md:min-h-8 items-center rounded-md border border-[hsl(var(--warning)/0.35)] px-3 text-xs font-medium text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.12)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
+                          className={`mt-2.5 ${CHAT_CARD_SECONDARY_BUTTON}`}
                         >
                           {t('common:retry')}
                         </button>
                       )}
                       {(isAiQuotaLimit || isNetworkQuotaLimit) && (
-                        <div className="mt-2 space-y-2">
-                          <p className="text-xs text-[hsl(var(--text-secondary))]">
+                        <div className="mt-1 space-y-2.5">
+                          <p className="text-xs leading-5 text-[hsl(var(--text-secondary))]">
                             {isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededHint') : t('chat:panel.quotaExceededHint')}
                           </p>
                           <button
                             type="button"
                             onClick={() => setShowQuotaUpgradeModal(true)}
-                            className="inline-flex min-h-11 md:min-h-8 items-center rounded-md border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.08)] px-3 text-xs font-medium text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.16)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
+                            className={CHAT_CARD_PRIMARY_BUTTON}
                           >
                             {t('dashboard:billing.ctaUpgradePro')}
                           </button>

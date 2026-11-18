@@ -33,6 +33,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { LazyMarkdown } from "./LazyMarkdown";
 import { sanitizeThinkingForDisplay } from "../lib/thinkingDisplay";
+import { CHAT_CARD_SURFACE } from "./chatCardStyles";
 
 /**
  * Props for the ThinkingContent component.
@@ -117,19 +118,19 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
   }
 
   return (
-    <div className="max-w-full rounded-lg mb-2">
+    <div className={`max-w-full ${CHAT_CARD_SURFACE}`}>
       {/* Header */}
       <button
         type="button"
         onClick={handleToggle}
         aria-expanded={isExpanded}
-        className="w-full px-2 py-1.5 flex items-center justify-between rounded hover:bg-[hsl(var(--bg-tertiary)/0.5)] transition-colors"
+        className="w-full px-3 py-2 flex items-center justify-between gap-2 rounded-xl text-left hover:bg-[hsl(var(--bg-tertiary)/0.6)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
         aria-label={isExpanded
           ? t('chat:thinking.collapse', '收起思考过程')
           : t('chat:thinking.expand', '展开思考过程')}
       >
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[hsl(var(--text-secondary))]">
+          <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">
             {t('chat:thinking.title')}
           </span>
           {isStreaming && (
@@ -140,18 +141,18 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
             </div>
           )}
         </div>
-        <div className="flex items-center">
+        <div className="flex items-center shrink-0">
           {isExpanded ? (
-            <ChevronUp className="w-3 h-3 text-[hsl(var(--text-secondary))]" />
+            <ChevronUp className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />
           ) : (
-            <ChevronDown className="w-3 h-3 text-[hsl(var(--text-secondary))]" />
+            <ChevronDown className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />
           )}
         </div>
       </button>
 
       {/* Content */}
       {isExpanded && (
-        <div className="px-2 py-1.5">
+        <div className="border-t border-[hsl(var(--separator-color))] px-3 py-2.5">
           <div className="prose prose-xs max-w-none text-[hsl(var(--text-secondary))]">
             <LazyMarkdown>{displayContent}</LazyMarkdown>
           </div>

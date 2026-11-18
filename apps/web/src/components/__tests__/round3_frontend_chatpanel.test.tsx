@@ -85,7 +85,6 @@ vi.mock('../../contexts/ProjectContext', () => ({
     finishFileStreaming: vi.fn(),
     startFileStreaming: vi.fn(),
     streamingFileId: null,
-    enterDiffReview: vi.fn(),
   }),
 }))
 

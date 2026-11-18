@@ -49,6 +49,7 @@ import { isPersistedUndoTarget, readFileEditUndoTarget, readWriteChapterOutcome,
 import { countWords } from '../lib/documentChunker';
 import { sanitizeAgentText } from '../lib/agentDisplayName';
 import { RememberedNotes } from './RememberedNotes';
+import { CHAT_CARD_INLINE_ACTION, CHAT_CARD_SURFACE } from './chatCardStyles';
 
 const quote = (text: string) => {
   const isZh = i18n.language === 'zh';
@@ -133,35 +134,26 @@ interface ToolResultCardProps {
 const getSeverityColor = (severity: string) => {
   switch (severity) {
     case 'high':
-      return 'text-[hsl(var(--error-text))] border-[hsl(var(--error))]';
+      return 'text-[hsl(var(--error-text))] border-[hsl(var(--error)/0.35)]';
     case 'medium':
-      return 'text-[hsl(var(--warning-text))] border-[hsl(var(--warning))]';
+      return 'text-[hsl(var(--warning-text))] border-[hsl(var(--warning)/0.35)]';
     case 'low':
-      return 'text-[hsl(var(--success-text))] border-[hsl(var(--success))]';
+      return 'text-[hsl(var(--text-primary))] border-[hsl(var(--border-color))]';
     default:
-      return 'text-[hsl(var(--text-secondary))] border-[hsl(var(--text-secondary))]';
+      return 'text-[hsl(var(--text-secondary))] border-[hsl(var(--border-color))]';
   }
 };
 
-/**
- * Returns CSS classes for severity-based background colors.
- *
- * @param severity - Severity level ('high', 'medium', 'low')
- * @returns CSS classes for background color
- *
- * @example
- * const bgClass = getSeverityBgColor('high'); // 'bg-[hsl(var(--error)/0.1)]'
- */
 const getSeverityBgColor = (severity: string) => {
   switch (severity) {
     case 'high':
-      return 'bg-[hsl(var(--error)/0.1)]';
+      return 'bg-[hsl(var(--error)/0.06)]';
     case 'medium':
-      return 'bg-[hsl(var(--warning)/0.1)]';
+      return 'bg-[hsl(var(--warning)/0.06)]';
     case 'low':
-      return 'bg-[hsl(var(--success)/0.1)]';
+      return 'bg-[hsl(var(--bg-secondary))]';
     default:
-      return 'bg-[hsl(var(--bg-tertiary))]';
+      return 'bg-[hsl(var(--bg-secondary))]';
   }
 };
 
@@ -195,68 +187,68 @@ const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { ico
   switch (toolName) {
     case 'create_file':
       return { 
-        icon: <FilePlus className="w-4 h-4 text-[hsl(var(--success-text))]" />,
+        icon: <FilePlus className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />,
         label: t('chat:tool.create_file')
       };
     case 'update_file':
       return { 
-        icon: <FileEdit className="w-4 h-4 text-[hsl(var(--accent-primary))]" />, 
+        icon: <FileEdit className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />, 
         label: t('chat:tool.update_file')
       };
     case 'edit_file':
       return { 
-        icon: <Edit3 className="w-4 h-4 text-[hsl(var(--success-text))]" />,
+        icon: <Edit3 className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />,
         label: t('chat:tool.edit_file')
       };
     case 'write_chapter':
       return {
-        icon: <FileEdit className="w-4 h-4 text-[hsl(var(--success-text))]" />,
+        icon: <FileEdit className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />,
         label: t('chat:tool.write_chapter')
       };
     case 'delete_file':
       return { 
-        icon: <Trash2 className="w-4 h-4 text-[hsl(var(--error-text))]" />,
+        icon: <Trash2 className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />,
         label: t('chat:tool.delete_file')
       };
     case 'rename_file':
       return {
-        icon: <FileEdit className="w-4 h-4 text-[hsl(var(--accent-primary))]" />,
+        icon: <FileEdit className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />,
         label: t('chat:tool.rename_file')
       };
     case 'query_files':
       return { 
-        icon: <Search className="w-4 h-4 text-[hsl(var(--ref-tag-text))]" />, 
+        icon: <Search className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />, 
         label: t('chat:tool.query_files')
       };
     case 'hybrid_search':
       return {
-        icon: <Search className="w-4 h-4 text-[hsl(var(--ref-tag-text))]" />,
+        icon: <Search className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />,
         label: t('chat:tool.hybrid_search')
       };
     case 'update_project':
       return {
-        icon: <Settings className="w-4 h-4 text-[hsl(var(--warning-text))]" />,
+        icon: <Settings className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />,
         label: t('chat:tool.update_project')
       };
     case 'parallel_execute':
       return {
-        icon: <Layers className="w-4 h-4 text-[hsl(var(--accent-primary))]" />,
+        icon: <Layers className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />,
         label: t('chat:tool.parallel_execute')
       };
     case 'load_skill':
       return {
-        icon: <BookOpen className="w-4 h-4 text-[hsl(var(--accent-primary))]" />,
+        icon: <BookOpen className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />,
         label: t('chat:tool.load_skill')
       };
     case 'read_skill_resource':
       return {
-        icon: <FileText className="w-4 h-4 text-[hsl(var(--accent-primary))]" />,
+        icon: <FileText className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />,
         label: t('chat:tool.read_skill_resource')
       };
     default:
       // 不认识的工具不把内部名字露给作者。
       return {
-        icon: <FileText className="w-4 h-4 text-[hsl(var(--ref-tag-text))]" />,
+        icon: <FileText className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />,
         label: t('chat:tool.generic')
       };
   }
@@ -389,17 +381,17 @@ const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: 
       };
     case 'draft':
       return { 
-        icon: <FileText className="w-3.5 h-3.5 text-[hsl(var(--success-text))]" />,
+        icon: <FileText className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />,
         label: t('chat:fileType.draft')
       };
     case 'character':
       return { 
-        icon: <User className="w-3.5 h-3.5 text-[hsl(var(--warning-text))]" />,
+        icon: <User className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />,
         label: t('chat:fileType.character')
       };
     case 'lore':
       return { 
-        icon: <BookOpen className="w-3.5 h-3.5 text-[hsl(var(--ref-tag-text))]" />, 
+        icon: <BookOpen className="w-3.5 h-3.5 text-[hsl(var(--accent-primary))]" />, 
         label: t('chat:fileType.lore')
       };
     case 'snippet':
@@ -409,7 +401,7 @@ const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: 
       };
     case 'script':
       return {
-        icon: <FileText className="w-3.5 h-3.5 text-[hsl(var(--success-text))]" />,
+        icon: <FileText className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />,
         label: t('chat:fileType.script')
       };
     case 'document':
@@ -515,7 +507,7 @@ const CardUndoControl: React.FC<{
           type="button"
           disabled
           aria-describedby={hintId}
-          className={`flex items-center gap-1 min-h-11 md:min-h-0 shrink-0 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] rounded cursor-not-allowed opacity-60 ${className}`}
+          className={`inline-flex items-center gap-1 min-h-11 md:min-h-7 shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[hsl(var(--text-secondary))] cursor-not-allowed opacity-60 ${className}`}
         >
           <RotateCcw className="w-3 h-3" />
           {t('common:undo')}
@@ -530,7 +522,7 @@ const CardUndoControl: React.FC<{
     <button
       type="button"
       onClick={() => onUndo(target)}
-      className={`flex items-center gap-1 min-h-11 md:min-h-0 shrink-0 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors ${className}`}
+      className={`${CHAT_CARD_INLINE_ACTION} ${className}`}
       title={t('chat:tool.undo_edit')}
     >
       <RotateCcw className="w-3 h-3" />
@@ -600,24 +592,24 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     }
     
     return (
-      <div className="bg-[hsl(var(--ref-tag-bg))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
+      <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
         <div className="flex items-center gap-2">
           {isPending ? (
-            <Loader2 className="w-4 h-4 text-[hsl(var(--accent-primary))] animate-spin" />
+            <Loader2 className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))] animate-spin" />
           ) : (
             icon
           )}
-          <span className="text-sm text-[hsl(var(--text-primary))]">
+          <span className="min-w-0 text-sm text-[hsl(var(--text-primary))] break-words">
             {label}
             {description && <span className="text-[hsl(var(--text-secondary))]"> {description}</span>}
           </span>
           {isPending && (
-            <span className="text-xs text-[hsl(var(--text-secondary))] animate-pulse ml-auto">
+            <span className="shrink-0 text-xs text-[hsl(var(--text-secondary))] animate-pulse ml-auto">
               {t('chat:tool.processing_ellipsis')}
             </span>
           )}
           {!isPending && interrupted && (
-            <span className="text-xs text-[hsl(var(--text-secondary))] ml-auto">
+            <span className="shrink-0 text-xs text-[hsl(var(--text-secondary))] ml-auto">
               {t('chat:tool.interrupted')}
             </span>
           )}
@@ -630,7 +622,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   if (type === 'tool_result' && toolName) {
     // Handle error case
     if (error) {
-      // 中途某一步没做成是常态（AI 会换个方式继续），用中性灰色，不用红色报错。
+      // 中途某一步没做成是常态（AI 会换个方式继续），用中性样式，不用红色报错。
       const { label } = getToolDisplayInfo(toolName, t);
       const { kind, message: userMessage } = resolveToolFailure(result, t);
       const intentionalSkip = INTENTIONAL_SKIP_KINDS.has(kind);
@@ -639,22 +631,22 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         ? readNotesAdded((result?.data || result) as Record<string, unknown> | undefined)
         : null;
       return (
-        <div>
-        <div className="bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
-          <div className="flex items-center gap-2">
-            {intentionalSkip ? (
-              <Info className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
-            ) : (
-              <XCircle className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
-            )}
-            <span className="text-sm text-[hsl(var(--text-secondary))]">
-              {intentionalSkip ? t(`chat:tool.skippedTitle.${kind}`) : t('chat:tool.failed', { label })}
-            </span>
+        <div className="space-y-2">
+          <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+            <div className="flex items-center gap-2">
+              {intentionalSkip ? (
+                <Info className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
+              ) : (
+                <XCircle className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
+              )}
+              <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
+                {intentionalSkip ? t(`chat:tool.skippedTitle.${kind}`) : t('chat:tool.failed', { label })}
+              </span>
+            </div>
+            <p className="text-xs leading-5 text-[hsl(var(--text-secondary))] mt-1 ml-6">
+              {userMessage}
+            </p>
           </div>
-          <p className="text-xs text-[hsl(var(--text-secondary))] mt-1 ml-6">
-            {userMessage}
-          </p>
-        </div>
           {partialNotes && !isPending && !interrupted && (
             <RememberedNotes entries={partialNotes} onOpen={onOpenAIMemory} />
           )}
@@ -684,10 +676,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const typeInfo = getFileTypeInfo(fileType, t);
       
       return (
-        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
-            <span className="min-w-0 flex-1 text-sm text-[hsl(var(--success-text))]">
+            <span className="min-w-0 flex-1 text-sm font-medium text-[hsl(var(--text-primary))]">
               {t('chat:tool.created', { type: typeInfo.label })}
             </span>
             {wordCount > 0 && (
@@ -696,7 +688,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               </span>
             )}
             <span className="flex basis-full min-w-0 items-start gap-1 pl-6 text-sm text-[hsl(var(--text-primary))]">
-              <span className="shrink-0">{typeInfo.icon}</span>
+              <span className="shrink-0 mt-0.5">{typeInfo.icon}</span>
               {fileTitle(title, fileType)}
             </span>
           </div>
@@ -728,16 +720,14 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const undone = undoTarget !== null && isFileEditUndone(data, undoTarget, undoneEdits);
 
       return (
-        <div className={succeeded
-          ? 'bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2'
-          : 'bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2'}>
+        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {succeeded ? (
               <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
             ) : (
               <Info className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
             )}
-            <span className={`min-w-0 flex-1 text-sm ${succeeded ? 'text-[hsl(var(--success-text))]' : 'text-[hsl(var(--text-secondary))]'}`}>
+            <span className={`min-w-0 flex-1 text-sm ${succeeded ? 'font-medium text-[hsl(var(--text-primary))]' : 'text-[hsl(var(--text-secondary))]'}`}>
               {headline}
             </span>
             {succeeded && newWords !== null && newWords > 0 && (
@@ -757,7 +747,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               />
             )}
             <span className="flex basis-full min-w-0 items-start gap-1 pl-6 text-sm text-[hsl(var(--text-primary))]">
-              <span className="shrink-0">{typeInfo.icon}</span>
+              <span className="shrink-0 mt-0.5">{typeInfo.icon}</span>
               {fileTitle(title, fileType)}
             </span>
             {(outcome === 'replaced' || outcome === 'replacing') && previousWords !== null && previousWords > 0 && (
@@ -779,10 +769,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const wordCount = typeof data.content === 'string' ? countWords(data.content) : 0;
       
       return (
-        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
-            <span className="min-w-0 flex-1 text-sm text-[hsl(var(--success-text))]">
+            <span className="min-w-0 flex-1 text-sm font-medium text-[hsl(var(--text-primary))]">
               {t('chat:tool.updated')}
             </span>
             {wordCount > 0 && (
@@ -804,10 +794,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const from = typeof renamed.previous_title === 'string' ? renamed.previous_title : '';
       const to = typeof renamed.title === 'string' ? renamed.title : '';
       return (
-        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-            <span className="text-sm text-[hsl(var(--success-text))] break-words">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+            <span className="text-sm font-medium text-[hsl(var(--text-primary))] break-words">
               {t('chat:tool.renamed', { from, to })}
             </span>
           </div>
@@ -818,10 +808,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     // delete_file success
     if (toolName === 'delete_file') {
       return (
-        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-            <span className="text-sm text-[hsl(var(--success-text))]">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+            <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
               {t('chat:tool.deleted')}
             </span>
           </div>
@@ -836,9 +826,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       
       if (count === 0) {
         return (
-          <div className="bg-[hsl(var(--ref-tag-bg))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
+          <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
             <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
+              <Search className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
               <span className="text-sm text-[hsl(var(--text-secondary))]">
                 {t('chat:tool.no_files_found')}
               </span>
@@ -848,15 +838,15 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       }
       
       return (
-        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-            <span className="text-sm text-[hsl(var(--success-text))]">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+            <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
               {t('chat:tool.files_found', { count })}
             </span>
           </div>
           {count <= 5 && (
-            <div className="mt-2 ml-6 space-y-1">
+            <div className="mt-1.5 ml-6 space-y-1">
               {files.map((file: Record<string, unknown>, index: number) => {
                 const fileTitle = file.title as string || t('common:untitled');
                 const fileType = file.file_type as string || '';
@@ -902,9 +892,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       // Nothing visible changed (e.g. notes copied back unchanged): no green success.
       if (!changed) {
         return (
-          <div className="bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
+          <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
             <div className="flex items-center gap-2">
-              <Info className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
+              <Info className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
               <span className="text-sm text-[hsl(var(--text-secondary))]">
                 {typeof data.notes_note === 'string' ? t('chat:notesAdded.full') : t('chat:tool.status_unchanged')}
               </span>
@@ -914,11 +904,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       }
 
       return (
-        <div className="rounded-lg border border-[hsl(var(--result-border))] bg-[hsl(var(--result-bg))] px-3 py-2">
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
           {(shownFields.length > 0 || otherChanges) && (
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 shrink-0 text-[hsl(var(--success-text))]" />
-              <span className="text-sm text-[hsl(var(--success-text))]">{t('chat:tool.status_updated')}</span>
+              <span className="text-sm font-medium text-[hsl(var(--text-primary))]">{t('chat:tool.status_updated')}</span>
               {updatedLabels && <span className="text-xs text-[hsl(var(--text-secondary))]">({updatedLabels})</span>}
             </div>
           )}
@@ -926,7 +916,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             <p className="text-xs text-[hsl(var(--text-secondary))] mt-1 ml-6">{t('chat:notesAdded.full')}</p>
           )}
           {notesAdded && !isPending && !interrupted && (
-            <div className={shownFields.length > 0 || otherChanges ? 'mt-2 border-t border-[hsl(var(--result-border))]' : ''}>
+            <div className={shownFields.length > 0 || otherChanges ? 'mt-2 border-t border-[hsl(var(--separator-color))]' : ''}>
               <RememberedNotes entries={notesAdded} onOpen={onOpenAIMemory} embedded showIcon={!(shownFields.length > 0 || otherChanges)} />
             </div>
           )}
@@ -960,7 +950,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const getOpIcon = (op: string) => {
         switch (op) {
           case 'replace':
-            return <ArrowRight className="w-3 h-3 text-[hsl(var(--ref-tag-text))]" />;
+            return <ArrowRight className="w-3 h-3 text-[hsl(var(--text-secondary))]" />;
           case 'append':
           case 'prepend':
           case 'insert_after':
@@ -969,7 +959,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           case 'delete':
             return <Minus className="w-3 h-3 text-[hsl(var(--error-text))]" />;
           default:
-            return <Edit3 className="w-3 h-3 text-[hsl(var(--ref-tag-text))]" />;
+            return <Edit3 className="w-3 h-3 text-[hsl(var(--text-secondary))]" />;
         }
       };
       
@@ -986,10 +976,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       };
       
       return (
-        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg p-3">
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <Edit3 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-            <span className="text-sm text-[hsl(var(--success-text))] font-medium">
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+            <span className="text-sm text-[hsl(var(--text-primary))] font-medium">
               {t('chat:tool.edit_success')}
             </span>
             {authorEditsTouched && (
@@ -1017,7 +1007,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           </div>
           
           {details && details.length > 0 && (
-            <details className="mt-3" open={authorEditsTouched || authorDeletionRestored || undefined}>
+            <details className="mt-2" open={authorEditsTouched || authorDeletionRestored || undefined}>
               <summary className="cursor-pointer select-none text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] flex items-center gap-1 list-none"
                 style={{ listStyle: 'none' }}
               >
@@ -1033,10 +1023,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               </summary>
               <div className="space-y-2 mt-2">
                 {details.map((detail, index) => (
-                  <div key={index} className="bg-[hsl(var(--bg-tertiary))] rounded p-2 text-xs">
+                  <div key={index} className="rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary)/0.45)] p-2.5 text-xs">
                     <div className="flex items-center gap-1 mb-1">
                       {getOpIcon(detail.op)}
-                      <span className="text-[hsl(var(--ref-tag-text))] font-medium">
+                      <span className="text-[hsl(var(--text-primary))] font-medium">
                         {getOpLabel(detail.op)}
                       </span>
                       {detail.count && detail.count > 1 && (
@@ -1047,8 +1037,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                     </div>
 
                     {detail.op === 'replace' && (
-                      <div className="space-y-2 mt-1">
-                        <div className="bg-[hsl(var(--diff-remove-bg))] p-2 rounded border-l-2 border-[hsl(var(--diff-remove-text))]">
+                      <div className="space-y-2 mt-1.5">
+                        <div className="bg-[hsl(var(--diff-remove-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-remove-text))]">
                           <div className="flex items-center gap-1 mb-1">
                             <Minus className="w-3 h-3 text-[hsl(var(--diff-remove-text))]" />
                             <span className="text-xs text-[hsl(var(--diff-remove-text))]">{t('chat:edit.label_delete')}</span>
@@ -1057,7 +1047,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                             {detail.matched_original || detail.old_preview}
                           </div>
                         </div>
-                        <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded border-l-2 border-[hsl(var(--diff-add-text))]">
+                        <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-add-text))]">
                           <div className="flex items-center gap-1 mb-1">
                             <Plus className="w-3 h-3 text-[hsl(var(--diff-add-text))]" />
                             <span className="text-xs text-[hsl(var(--diff-add-text))]">{t('chat:edit.label_add')}</span>
@@ -1070,7 +1060,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                     )}
 
                     {(detail.op === 'append' || detail.op === 'prepend') && (
-                      <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded border-l-2 border-[hsl(var(--diff-add-text))] mt-1">
+                      <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-add-text))] mt-1.5">
                         <div className="flex items-center gap-1 mb-1">
                           <Plus className="w-3 h-3 text-[hsl(var(--diff-add-text))]" />
                           <span className="text-xs text-[hsl(var(--diff-add-text))]">
@@ -1089,8 +1079,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                     )}
 
                     {(detail.op === 'insert_after' || detail.op === 'insert_before') && (
-                      <div className="space-y-2 mt-1">
-                        <div className="bg-[hsl(var(--bg-secondary))] p-2 rounded border-l-2 border-[hsl(var(--text-secondary))]">
+                      <div className="space-y-2 mt-1.5">
+                        <div className="bg-[hsl(var(--bg-secondary))] p-2 rounded-lg border-l-2 border-[hsl(var(--border-color))]">
                           <div className="flex items-center gap-1 mb-1">
                             <span className="text-xs text-[hsl(var(--text-secondary))]">
                               {detail.op === 'insert_after' ? t('chat:edit.insert_after_label') : t('chat:edit.insert_before_label')}
@@ -1100,7 +1090,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                             {detail.anchor_preview}
                           </div>
                         </div>
-                        <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded border-l-2 border-[hsl(var(--diff-add-text))]">
+                        <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-add-text))]">
                           <div className="flex items-center gap-1 mb-1">
                             <Plus className="w-3 h-3 text-[hsl(var(--diff-add-text))]" />
                             <span className="text-xs text-[hsl(var(--diff-add-text))]">
@@ -1120,7 +1110,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                     )}
 
                     {detail.op === 'delete' && (
-                      <div className="bg-[hsl(var(--diff-remove-bg))] p-2 rounded border-l-2 border-[hsl(var(--diff-remove-text))] mt-1">
+                      <div className="bg-[hsl(var(--diff-remove-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-remove-text))] mt-1.5">
                         <div className="flex items-center gap-1 mb-1">
                           <Minus className="w-3 h-3 text-[hsl(var(--diff-remove-text))]" />
                           <span className="text-xs text-[hsl(var(--diff-remove-text))]">{t('chat:edit.delete_content')}</span>
@@ -1169,21 +1159,24 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const skippedCount = tasks.filter(isIntentionalSkip).length;
       const shownFailed = Math.max(0, failed - skippedCount);
       const anyFailed = shownFailed > 0 || partial > 0;
-      const accentClass = anyFailed
+      const iconClass = anyFailed
         ? 'text-[hsl(var(--warning-text))]'
-        : 'text-[hsl(var(--success-text))]';
+        : 'text-[hsl(var(--accent-primary))]';
+      const titleClass = anyFailed
+        ? 'text-[hsl(var(--warning-text))] font-medium'
+        : 'text-[hsl(var(--text-primary))] font-medium';
 
       return (
         <div
-          className={`bg-[hsl(var(--result-bg))] border rounded-lg px-3 py-2 ${
+          className={`rounded-xl border bg-[hsl(var(--bg-secondary))] px-3 py-2.5 ${
             anyFailed
               ? 'border-[hsl(var(--warning))]'
-              : 'border-[hsl(var(--result-border))]'
+              : 'border-[hsl(var(--border-color))]'
           }`}
         >
           <div className="flex items-center gap-2">
-            <Layers className={`w-4 h-4 ${accentClass}`} />
-            <span className={`text-sm ${accentClass}`}>
+            <Layers className={`w-4 h-4 shrink-0 ${iconClass}`} />
+            <span className={`text-sm ${titleClass}`}>
               {partial > 0
                 ? skippedCount > 0
                   ? t('chat:tool.parallel_summary_with_partial_and_skipped', { total, completed, partial, skipped: skippedCount, failed: shownFailed })
@@ -1277,14 +1270,14 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const path = typeof data.path === 'string' ? data.path : '';
       const detail = [skillName ? quote(skillName) : '', path].filter(Boolean).join(' · ');
       return (
-        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-            <span className="text-sm text-[hsl(var(--success-text))]">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+            <span className="shrink-0 text-sm font-medium text-[hsl(var(--text-primary))]">
               {label}{t('chat:tool.complete_suffix')}
             </span>
             {detail && (
-              <span className="text-sm text-[hsl(var(--text-primary))] truncate">{detail}</span>
+              <span className="min-w-0 text-xs text-[hsl(var(--text-secondary))] truncate">{detail}</span>
             )}
           </div>
         </div>
@@ -1294,10 +1287,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     // Default fallback - show minimal success message without technical details
     const { label } = getToolDisplayInfo(toolName, t);
     return (
-      <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+      <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
         <div className="flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-          <span className="text-sm text-[hsl(var(--success-text))]">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+          <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
             {label}{t('chat:tool.complete_suffix')}
           </span>
         </div>
@@ -1310,27 +1303,27 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     const conflict = result.conflict as Conflict;
     return (
       <div
-        className={`border rounded-lg p-3 mb-2 ${getSeverityColor(conflict.severity).split(' ')[1]} ${getSeverityBgColor(conflict.severity)}`}
+        className={`rounded-xl border p-3 ${getSeverityColor(conflict.severity).split(' ')[1]} ${getSeverityBgColor(conflict.severity)}`}
       >
-        <div className="flex items-start gap-2 mb-2">
+        <div className="flex items-start gap-2.5">
           {conflict.severity === 'high' ? (
             <XCircle className="w-4 h-4 text-[hsl(var(--error-text))] shrink-0 mt-0.5" />
           ) : conflict.severity === 'medium' ? (
             <AlertCircle className="w-4 h-4 text-[hsl(var(--warning-text))] shrink-0 mt-0.5" />
           ) : (
-            <Lightbulb className="w-4 h-4 text-[hsl(var(--success-text))] shrink-0 mt-0.5" />
+            <Lightbulb className="w-4 h-4 text-[hsl(var(--accent-primary))] shrink-0 mt-0.5" />
           )}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h4 className={`text-sm font-medium mb-1 ${getSeverityColor(conflict.severity).split(' ')[0]}`}>
               {conflict.title}
             </h4>
-            <p className="text-sm text-[hsl(var(--text-secondary))] mb-2">
+            <p className="text-xs leading-5 text-[hsl(var(--text-secondary))] mb-2">
               {conflict.description}
             </p>
             {conflict.suggestions && conflict.suggestions.length > 0 && (
               <div className="mt-2">
-                <div className="text-xs text-[hsl(var(--text-secondary))] mb-1">{t('chat:conflict.suggestions_label')}</div>
-                <ul className="text-sm text-[hsl(var(--text-secondary))] space-y-1">
+                <div className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-1">{t('chat:conflict.suggestions_label')}</div>
+                <ul className="text-xs leading-5 text-[hsl(var(--text-secondary))] space-y-1">
                   {conflict.suggestions.map((suggestion, sIndex) => (
                     <li key={sIndex} className="flex items-start gap-2">
                       <span className="text-[hsl(var(--accent-primary))]">•</span>

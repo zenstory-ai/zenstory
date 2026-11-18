@@ -29,7 +29,7 @@ describe('update_project Writing Conventions receipt', () => {
     expect(screen.queryByText('chat:tool.status_unchanged')).not.toBeInTheDocument()
     expect(screen.queryByText('chat:tool.status_updated')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /undo|撤销/i })).not.toBeInTheDocument()
-    expect(container.querySelectorAll('.rounded-lg.border')).toHaveLength(1)
+    expect(container.querySelectorAll('.rounded-xl.border')).toHaveLength(1)
   })
 
   it('opens the shared editor from live and history-loaded cards without reading or deleting', async () => {
@@ -58,7 +58,7 @@ describe('update_project Writing Conventions receipt', () => {
     expect(screen.getByText('chat:tool.status_updated')).toBeInTheDocument()
     expect(screen.getByText('(chat:project.field.summary)')).toBeInTheDocument()
     expect(screen.getByText('chat:notesAdded.title')).toBeInTheDocument()
-    expect(container.querySelectorAll('.rounded-lg.border')).toHaveLength(1)
+    expect(container.querySelectorAll('.rounded-xl.border')).toHaveLength(1)
   })
 
   it('keeps the capacity result concise when nothing was written', () => {

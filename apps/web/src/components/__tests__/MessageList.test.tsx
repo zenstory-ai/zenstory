@@ -310,8 +310,14 @@ describe('MessageList', () => {
     const onAction = vi.fn()
     const item: NonNullable<Message['displayItems']>[number] = { id: 'limit', type: 'iteration_exhausted', layer, maxIterations: 4, iterationsUsed: 4, reason: 'Ordered limit reason', lastAgent: 'writer', timestamp: new Date() }
     render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [item], statusCards: [{ type: 'iteration_exhausted', layer, maxIterations: 4 }] })]} onIterationAssistAction={onAction} />)
-    for (const [label, action] of [['workflow.actionContinue', 'continue'], ['workflow.actionSplit', 'split'], ['workflow.actionManual', 'manual']]) {
-      const button = screen.getByRole('button', { name: label })
+    const continueButton = screen.getByRole('button', { name: 'workflow.actionContinue' })
+    const splitButton = screen.getByRole('button', { name: 'workflow.actionSplit' })
+    const manualButton = screen.getByRole('button', { name: 'workflow.actionManual' })
+    expect(continueButton.className).toContain('bg-[hsl(var(--primary))]')
+    expect(splitButton.className).toBe(manualButton.className)
+    expect(splitButton.className).not.toContain('--warning')
+    expect(screen.queryByText('workflow.nextStepHint')).not.toBeInTheDocument()
+    for (const [button, action] of [[continueButton, 'continue'], [splitButton, 'split'], [manualButton, 'manual']] as const) {
       fireEvent.click(button)
       expect(onAction).toHaveBeenLastCalledWith(action, item)
     }
@@ -457,6 +463,8 @@ describe('MessageList', () => {
     expect(screen.getByText('workflow.timeLimitSummary')).toBeInTheDocument()
     expect(screen.queryByText('workflow.collaborationExhaustedSummary')).not.toBeInTheDocument()
     expect(screen.getByTestId('round-end-note')).toHaveTextContent('panel.roundSavedFiles')
+    expect(screen.getByTestId('round-end-note')).not.toHaveTextContent('panel.roundUnfinishedContinueItem')
+    expect(screen.getByTestId('round-end-note')).not.toHaveTextContent('panel.roundUnfinishedItem')
     fireEvent.click(screen.getByRole('button', { name: 'workflow.actionContinue' }))
     expect(onAction).toHaveBeenCalledWith('continue', item)
     unmount()
@@ -467,6 +475,8 @@ describe('MessageList', () => {
       onIterationAssistAction={onAction}
     />)
     expect(screen.getByText('workflow.timeLimitSummary')).toBeInTheDocument()
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent('panel.roundSavedFiles')
+    expect(screen.getByTestId('round-end-note')).not.toHaveTextContent('panel.roundUnfinishedContinueItem')
     expect(screen.getAllByRole('button', { name: 'workflow.actionContinue' })).toHaveLength(1)
   })
 
