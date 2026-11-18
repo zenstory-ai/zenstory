@@ -777,3 +777,42 @@ def test_compact_prompt_has_no_cramped_2500_char_hard_cap():
     assert "不要调用工具" in COMPACT_PROMPT
 
 
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_failover_model_and_usage_hooks_record_prompt_chars_on_run_meter():
+    """FailoverChatModel 成功调用后由 UsageMeteringMixin.on_llm_end 将实发字符数写入 run_meter.last_prompt_chars。"""
+    from agent.core.run_meter import AgentRunMeter
+    from agent.loop.history import items_char_length
+    from agent.openai_agents.model import FailoverChatModel
+    from agent.openai_agents.usage_hooks import UsageMeteringMixin
+
+    assert items_char_length([]) == 0
+    assert items_char_length("纯字符串输入") == len("纯字符串输入")
+    assert items_char_length(12345) == 5
+
+    meter = AgentRunMeter()
+    model = FailoverChatModel(session_id="sess-hook")
+    sample_items = [{"role": "user", "content": "测试提示词长度计量" * 200}]
+
+    fake_provider = SimpleNamespace(name="minimax", model="MiniMax-M3.1-Flash", key_slot="primary", reasoning_effort_for=lambda e: e)
+    fake_sdk_model = SimpleNamespace(get_response=AsyncMock(return_value="ok"))
+    with (
+        patch("agent.openai_agents.model.llm_failover.aordered_providers", AsyncMock(return_value=[fake_provider])),
+        patch("agent.openai_agents.model.llm_failover.arecord_success", AsyncMock()),
+        patch("agent.openai_agents.model._sdk_model_for", return_value=fake_sdk_model),
+    ):
+        await model.get_response("系统提示", sample_items, None)
+
+    hooks = UsageMeteringMixin(attribution=None, model="MiniMax-M3.1-Flash", run_meter=meter)
+    fake_agent = SimpleNamespace(model=model)
+    fake_response = SimpleNamespace(usage=SimpleNamespace(input_tokens=1888, output_tokens=42, output_tokens_details=None))
+
+    with patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record"):
+        await hooks.on_llm_end(None, fake_agent, fake_response)
+
+    assert meter.last_prompt_tokens == 1888
+    assert meter.last_prompt_chars == items_char_length(sample_items) > 1500
+    assert model.take_prompt_chars() is None
+
+
+
