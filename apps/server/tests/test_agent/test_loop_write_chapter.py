@@ -1297,6 +1297,39 @@ async def test_new_chapter_cut_at_the_output_cap_is_kept_and_continued_from_the_
     assert CUT_BODY not in outcome.chat_text
 
 
+async def test_cut_body_still_continues_when_saved_word_count_cannot_be_read(workspace, monkeypatch):
+    """字数只是续写提示的附加信息；临时查询失败不能让已落库的截断正文失去续写机会。"""
+    from agent.loop import run_support
+
+    def _append_rest(reply: Reply) -> None:
+        [chapter] = _drafts(workspace)
+        reply.tools = (("edit_file", {"id": chapter.id, "edits": [{"op": "append", "text": REST_BODY}]}),)
+
+    def _word_count_unavailable(_file_ids: list[str]):
+        raise RuntimeError("synthetic word-count read failure")
+
+    continuation = Reply(text="")
+    continuation.before = lambda: _append_rest(continuation)
+    model = ScriptedModel(runs=[
+        [
+            Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "雨夜", "file_type": "draft"}),)),
+            Reply(text=f"<file>\n{CUT_BODY}", output_tokens=_cap_tokens()),
+        ],
+        [continuation, Reply(text="第一章写完了。")],
+    ])
+    monkeypatch.setattr(run_support, "collect_body_word_counts", _word_count_unavailable)
+
+    outcome = await _run_loop(workspace, model, "写第一章")
+
+    [chapter] = _drafts(workspace)
+    assert _content(workspace, chapter.id).startswith(CUT_BODY.rstrip("，"))
+    assert _content(workspace, chapter.id).rstrip("\n").endswith(REST_BODY)
+    followup = _latest_note(model, 1)
+    assert "输出上限" in followup and "append" in followup
+    assert "[截断处已保存的字数]" not in followup
+    assert "输出上限" in outcome.chat_text
+
+
 async def test_unclosed_new_chapter_below_the_cap_keeps_the_saved_note(workspace):
     """没有撞上输出上限的未闭合正文（模型漏写 </file>）照旧按已保存续跑，不说被截断。"""
     model = ScriptedModel(runs=[
