@@ -73,8 +73,9 @@ class AgentRunMeter:
     timing_origin: float | None = None
     first_tool_started_ms: float | None = None
     first_body_persisted_ms: float | None = None
-    # 最近一次模型调用的输入 token（含命中缓存的部分）：单循环 agent 据此决定下一轮前是否压缩历史。
+    # 最近一次模型调用的输入 token（含命中缓存的部分）及对应输入字符数：单循环 agent 据此自校准字词比并决定下一轮前是否压缩历史。
     last_prompt_tokens: int = 0
+    last_prompt_chars: int = 0
     _stage_timings: dict[TimingStage, dict[str, float | int]] = field(default_factory=dict)
     _tool_failures: dict[str, _ToolFailureStats] = field(default_factory=dict)
 

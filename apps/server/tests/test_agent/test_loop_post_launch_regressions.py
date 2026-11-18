@@ -600,3 +600,180 @@ async def test_compaction_halves_input_budget_and_succeeds_after_400_context_ove
     assert second_msgs[1]["role"] == "user"
     assert mock_call.await_args_list[1].kwargs["reasoning_effort"] == "low"
 
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_session_calibrated_prompt_chars_anchor_and_trimmer_budget(db_session):
+    """方案一回归：落库 (prompt_tokens, prompt_chars) 后，常态增量与折叠后估算均按本会话真实密度自校准。"""
+    from agent.loop.history import (
+        LOOP_ENGINE_METADATA_VALUE,
+        calibrated_tokens_per_char,
+        effective_history_provider_tokens,
+        items_char_length,
+        load_loop_history,
+    )
+    from models import ChatMessage, ChatSession, Project, User
+
+    user = User(username="calib_u", email="calib_u@example.test", hashed_password="x", email_verified=True)
+    db_session.add(user)
+    db_session.flush()
+    project = Project(name="校准测试项目", owner_id=user.id)
+    db_session.add(project)
+    db_session.flush()
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="校准会话")
+    db_session.add(chat)
+    db_session.flush()
+
+    # 1) 常态未折叠路径：上一轮实测 450,000 字符 -> 321,014 prompt_tokens，本轮仅多一条短回复，锚点误差趋近 0
+    normal_chunk = "雾港钟楼第三层的樟木书架上整齐排列着往年航道水文志与潮汐观测簿。" * 500  # ~16,000 字
+    normal_items = [{"role": "user", "content": normal_chunk} for _ in range(28)]
+    prev_chars = items_char_length(normal_items)
+    normal_items_after_reply = [*normal_items, {"role": "assistant", "content": "已核对完毕。" * 100}]
+    normal_history = LoopHistory(
+        items=normal_items_after_reply,
+        last_message_id="m-normal",
+        last_prompt_tokens=321_014,
+        last_prompt_chars=prev_chars,
+    )
+    ratio = calibrated_tokens_per_char(normal_history)
+    assert ratio is not None and 0.60 < ratio < 0.75
+    eff_normal = effective_history_provider_tokens(normal_history)
+    # 增量仅 ~600 字（约 +400 token），不会像静态粗估那样偏离数万 token
+    assert 321_100 <= eff_normal <= 322_000
+
+    # 2) 库内持久化往返 + JSON 工具高密度会话（实测 0.82 token/字）：compact_history 按实测密度收紧折叠上限，不超 700k
+    big_json_read = {
+        "name": "query_files",
+        "status": "success",
+        "arguments": {"id": "f-1", "response_mode": "full"},
+        "result": {"id": "f-1", "content": "漕帮盐引账册与水路图志片段" * 2600},
+    }
+    for idx in range(40):
+        db_session.add(ChatMessage(session_id=chat.id, role="user", content=f"第{idx}轮核对"))
+        meta: dict[str, Any] = {
+            "engine": LOOP_ENGINE_METADATA_VALUE,
+            "display_events": [
+                {"type": "tool_call", "tool_call_index": 0},
+                {"type": "content", "content": f"第{idx}轮已核对"},
+            ],
+        }
+        if idx == 39:
+            # 模拟上一轮折叠到 500,000 字符时供应商实测返回 427,630 prompt_tokens（真实密度 ~0.82）
+            meta["prompt_tokens"] = 427_630
+            meta["prompt_chars"] = 500_000
+        db_session.add(
+            ChatMessage(
+                session_id=chat.id,
+                role="assistant",
+                content=f"第{idx}轮已核对",
+                tool_calls=json.dumps([big_json_read], ensure_ascii=False),
+                message_metadata=json.dumps(meta, ensure_ascii=False),
+            )
+        )
+    db_session.commit()
+
+    loaded = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert loaded.last_prompt_tokens == 427_630
+    assert loaded.last_prompt_chars == 500_000
+    loaded_ratio = calibrated_tokens_per_char(loaded)
+    assert loaded_ratio is not None and 0.80 <= loaded_ratio <= 0.84
+    # 库内未折叠原始体积 ~138 万字 -> 按本会话 0.82 密度反推 >110 万 token，不会误信 42.7 万
+    assert effective_history_provider_tokens(loaded) > 1_100_000
+
+    completion = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="按实测密度校准后的摘要"), finish_reason="stop")],
+        usage=SimpleNamespace(prompt_tokens=640_000, completion_tokens=800, total_tokens=640_800, prompt_tokens_details=None),
+    )
+    mock_call = AsyncMock(return_value=(completion, SimpleNamespace(name="minimax", model="MiniMax-M3.1-Flash")))
+    with patch("agent.core.llm_failover.acreate_chat_completion", mock_call):
+        outcome = await compact_history(loaded, system_prompt="系统提示", session_id=chat.id)
+    assert outcome.record is not None
+    sent_msgs = mock_call.await_args.kwargs["messages"]
+    sent_chars = sum(len(json.dumps(m, ensure_ascii=False)) for m in sent_msgs)
+    # 若未校准（默认 1.05M 字符上限），0.82 密度下会发 ~860k token；校准后折叠上限收紧到 ~83 万字符以内！
+    assert sent_chars <= 860_000
+
+
+@pytest.mark.unit
+def test_kept_author_messages_20k_budget_preserves_30k_chinese_chars_and_db_paging(db_session):
+    """kept_author_messages 与旧压缩点数据库分页统一按供应商 token 量纲计预算，20k 预算完整保留 ~3 万中文字。"""
+    from agent.loop.history import (
+        KEPT_USER_TRUNCATED_SUFFIX,
+        LOOP_ENGINE_METADATA_VALUE,
+        kept_author_messages,
+        load_loop_history,
+    )
+    from models import ChatMessage, ChatSession, Project, User
+
+    # 15 条 × ~1,960 中文字 ≈ 29,400 中文字（cl100k_base 虚算为 ~42,600 token 会腰斩，国产模型真实仅 ~19,100 token）
+    msgs = [f"第{i:02d}章作者设定原话：" + ("山雨欲来风满楼，青石巷尽头灯火未熄。" * 108) for i in range(15)]
+    total_chars = sum(len(m) for m in msgs)
+    assert 29_000 <= total_chars <= 30_500
+
+    kept = kept_author_messages(msgs, 20_000)
+    assert len(kept) == 15
+    assert all(KEPT_USER_TRUNCATED_SUFFIX not in item["content"] for item in kept)
+    assert [item["content"] for item in kept] == msgs
+
+    # 验证数据库旧压缩点（无 stored kept_author_messages）倒序分页也不会在 1.8 万字处提前 break
+    user = User(username="kept_zh_u", email="kept_zh_u@example.test", hashed_password="x", email_verified=True)
+    db_session.add(user)
+    db_session.flush()
+    project = Project(name="三万字原话保留测试", owner_id=user.id)
+    db_session.add(project)
+    db_session.flush()
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="分页保留测试")
+    db_session.add(chat)
+    db_session.flush()
+
+    last_covered_id = ""
+    for i, m in enumerate(msgs):
+        db_session.add(ChatMessage(session_id=chat.id, role="user", content=m))
+        asst = ChatMessage(
+            session_id=chat.id,
+            role="assistant",
+            content=f"收到第{i}条",
+            message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE}),
+        )
+        db_session.add(asst)
+        db_session.flush()
+        last_covered_id = asst.id
+
+    db_session.add(ChatMessage(session_id=chat.id, role="user", content="压缩后新指令"))
+    db_session.add(
+        ChatMessage(
+            session_id=chat.id,
+            role="assistant",
+            content="压缩后回复",
+            message_metadata=json.dumps(
+                {
+                    "engine": LOOP_ENGINE_METADATA_VALUE,
+                    "compaction": {
+                        "summary": "旧格式压缩点（不含 kept_author_messages 字段）",
+                        "covers_through_message_id": last_covered_id,
+                        "created_at": "2026-11-18T12:00:00Z",
+                    },
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db_session.commit()
+
+    reloaded = load_loop_history(
+        db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id, keep_user_tokens=20_000
+    )
+    assert reloaded.compacted is True
+    assert reloaded.author_messages[:15] == msgs
+
+
+@pytest.mark.unit
+def test_compact_prompt_has_no_cramped_2500_char_hard_cap():
+    """COMPACT_PROMPT 对齐 Codex，不再写死 2500 字硬上限挤压长篇文件 UUID 与章节伏笔，同时保留禁复述正文与禁调工具约束。"""
+    from agent.loop.prompts import COMPACT_PROMPT
+
+    assert "2500" not in COMPACT_PROMPT
+    assert "不复述正文" in COMPACT_PROMPT
+    assert "不要调用工具" in COMPACT_PROMPT
+
+

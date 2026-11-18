@@ -751,10 +751,11 @@ class AgentService:
         retry_carried_compaction: dict[str, Any] = {}
 
         def _loop_extra_metadata() -> dict[str, Any] | None:
-            """单循环 agent 的 assistant 行：引擎标记、最后一次模型调用的输入 token、压缩点。"""
+            """单循环 agent 的 assistant 行：引擎标记、最后一次模型调用的输入 token/字符锚点、压缩点。"""
             return {
                 "engine": LOOP_ENGINE_METADATA_VALUE,
                 "prompt_tokens": run_meter.last_prompt_tokens or None,
+                "prompt_chars": run_meter.last_prompt_chars or None,
                 "compaction": loop_compaction_record,
                 "compaction_skipped": loop_compaction_skipped,
             }
