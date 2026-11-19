@@ -61,6 +61,7 @@ from core.error_codes import ErrorCode
 
 # 会改动用户文件的工具；是否算「写出了东西」见 StreamBillingTracker._write_effect。
 WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file", "delete_file", "rename_file"})
+_INFLIGHT_TRACKED_WRITE_TOOLS: frozenset[str] = WRITE_TOOL_NAMES | frozenset({"update_project"})
 # 同一段回复正文累计到这么多可见字符才算「真正的回复」：工具调用前的一句过渡旁白
 # （「我先看一遍全书大纲。」「正在查看已有的全书大纲，确认现有设定后再梳理主线。」）
 # 通常 10～30 字，到不了这里。前端 lib/agentRoundProgress.ts 用同一个值。
@@ -191,6 +192,8 @@ class StreamBillingTracker:
     filled_file_ids: set[str] = field(default_factory=set)
     # write_chapter 定位为整章替换的已有章节（结果 action=replaced 的 id）：它们的流式正文不算写入。
     replace_target_ids: set[str] = field(default_factory=set)
+    # 原本 0 字的已有空章走 write_chapter(replaced)：中途停止时流过的正文照常落库，但在开始流正文前（或保存失败后）仍属待正文状态。
+    empty_replace_target_ids: set[str] = field(default_factory=set)
     # 收到了落库结果（body_saved）的替换目标：保存的事实已经由帧确认。
     confirmed_replacement_ids: set[str] = field(default_factory=set)
     # session_started 帧里的聊天会话 id（停止路径的 done 帧带上它）。
@@ -290,7 +293,7 @@ class StreamBillingTracker:
         return wrote
 
     def _track_write_calls(self, event_type: str, payload: dict[str, Any]) -> None:
-        if event_type not in ("tool_call", "tool_result") or payload.get("tool_name") not in WRITE_TOOL_NAMES:
+        if event_type not in ("tool_call", "tool_result") or payload.get("tool_name") not in _INFLIGHT_TRACKED_WRITE_TOOLS:
             return
         tool_use_id = payload.get("tool_use_id")
         if not isinstance(tool_use_id, str) or not tool_use_id:
@@ -352,21 +355,23 @@ class StreamBillingTracker:
         data = payload.get("data")
         if not isinstance(data, dict):
             return
-        if payload.get("tool_name") == "write_chapter" and data.get("body_saved") is True:
-            if isinstance(data.get("id"), str) and data["id"]:
-                self.confirmed_replacement_ids.add(data["id"])
+        if payload.get("tool_name") == "write_chapter" and isinstance(data.get("body_saved"), bool):
+            file_id = data.get("id")
+            if isinstance(file_id, str) and file_id:
+                if data["body_saved"]:
+                    self.confirmed_replacement_ids.add(file_id)
+                else:
+                    self._mark_file_save_failed(file_id)
             return
         if payload.get("tool_name") == "write_chapter" and data.get("action") != "created":
             # 整章替换的目标是已有的章节，不是这一轮建的空白占位；有原文时它的流式正文要等落库结果才算写入。
             # 原文为空的章节没有要保护的正文（适配器的截断覆盖保护同样只看原长度 > 0）：中途停下时
-            # 流过的正文照常落库，所以照常按 file_content 计入。
-            if (
-                data.get("action") == "replaced"
-                and isinstance(data.get("id"), str)
-                and data["id"]
-                and _positive_int(data.get("original_content_length", data.get("previous_length")))
-            ):
-                self.replace_target_ids.add(data["id"])
+            # 流过的正文照常落库，所以照常按 file_content 计入；但在收到流式正文前（或落库失败回滚后）仍属待写正文。
+            if data.get("action") == "replaced" and isinstance(data.get("id"), str) and data["id"]:
+                if _positive_int(data.get("original_content_length", data.get("previous_length"))):
+                    self.replace_target_ids.add(data["id"])
+                else:
+                    self.empty_replace_target_ids.add(data["id"])
             return
         file_id = data.get("id")
         if (
@@ -389,7 +394,8 @@ class StreamBillingTracker:
         这时最后那段文字是 ``<file>`` 之前的引子：适配器把它扣在捕获缓冲里，出错 / 收尾时
         才放出，作者并没有先读到一段回复，所以不算 ``ended_on_reply``（见模块说明第 5 条）。
         """
-        return bool(self.removable_placeholders() or self.unconfirmed_replacement_ids())
+        pending_empty_replace = self.empty_replace_target_ids - self.filled_file_ids - self.confirmed_replacement_ids
+        return bool(self.removable_placeholders() or self.unconfirmed_replacement_ids() or pending_empty_replace)
 
     def unconfirmed_replacement_ids(self) -> set[str]:
         """定位了整章替换、还没收到落库结果的章节（停止 / 断线时保存可能还在途中）。"""
@@ -400,12 +406,14 @@ class StreamBillingTracker:
         途中、之后才提交，或短正文只在解析器尾缓冲里、截停时才补存）时，回执里有字数就说明正文
         已经写进了文件，算写入。覆盖整章替换的目标和本轮新建的空文件；None（停止 / 断线时补存未确认）
         只表示不补记，不回滚停止前已流给编辑器的 file_content（平台侧落库报错由 ERR_AGENT_FILE_SAVE_FAILED 帧回滚）。"""
-        committed_created = {
-            file_id for file_id in self.created_empty_files if isinstance(receipts.get(file_id), int)
+        committed_empty = {
+            file_id
+            for file_id in (set(self.created_empty_files) | self.empty_replace_target_ids)
+            if isinstance(receipts.get(file_id), int)
         }
-        if committed_created:
-            self._failed_save_file_ids -= committed_created
-            self.filled_file_ids |= committed_created
+        if committed_empty:
+            self._failed_save_file_ids -= committed_empty
+            self.filled_file_ids |= committed_empty
         if any(
             isinstance(receipts.get(file_id), int) for file_id in self.unconfirmed_replacement_ids()
         ):

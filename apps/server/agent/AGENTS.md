@@ -103,7 +103,7 @@ agent/
   `LOOP_AUTHOR_REPLY_PROTOCOL`、`LOOP_TOOL_USAGE_PROTOCOL`）+ 回复语言 + `loop/prompts.py` 的输入布局与
   工作方式（含写后连贯自查、按真实字数汇报）+ 技能目录，跨轮不变。`<turn_context>`（`loop/turn_context.py`）只放这一轮请求带来的东西：
   项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、本轮回复语言（沿用 ContextAssembler 的解析器与渲染，不做
-  优先级裁剪、检索和文件清单），以及 `<author_edits>`：焦点、附加文件和本会话 AI 写过的正文文件（`SessionLoader.session_written_file_ids`，
+  优先级裁剪、检索和文件清单；超出 `AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS` 120000 供应商 token 时按 `TokenBudget` 优先保留引用与焦点文件全文、截断超大附加稿并标注 `query_files`），以及 `<author_edits>`：焦点、附加文件和本会话 AI 写过的正文文件（`SessionLoader.session_written_file_ids`，
   按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改（`SessionLoader.author_edits_for_files`）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件作为 edit_file 陈旧检查的起点。
 - **历史**（`loop/history.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
   assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file / write_chapter 结果去掉
@@ -122,7 +122,7 @@ agent/
   重试（`retry_unanswered`）删掉这条没得到回复的作者行前接过它上面的记录，本轮历史照它重建，本轮没有新记录时随本轮的行落库，不重付摘要。
   作者看得到这一步：摘要调用前发 `thinking`（`step=history_compaction`，「正在压缩对话…」）；成功后发 `history_compacted`（`data.summary`），
   并在本轮 `display_events` 开头记 `{"type": "history_compacted", "data": {}}`，刷新后前端在同一位置回放「对话已压缩」标记，摘要读本行的
-  `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件（退避目标封顶 950k，避免逼近 1M 窗口的存量老会话死锁）。模型调用成功时随 `prompt_tokens` 一并记录输入项字符数 `prompt_chars`，`effective_history_provider_tokens` 与 `compact_history` 优先按 `(prompt_tokens, prompt_chars)` 标定本会话真实字词比做锚点增量与折叠上限计算（无 `prompt_chars` 的旧行退回同量纲估算）；`kept_author_messages` 与旧压缩点分页统一用 `estimate_provider_text_tokens` 计 20k 预算，`COMPACT_PROMPT` 不设硬字数上限（由 `AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS` 兜底）；若摘要首次请求仍遇 400/413 超窗则自动减半输入预算重试一次（`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS` 750000 / `AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS` 700000，`bound_history_for_provider`），常态绝不因 `cl100k_base` 虚高而提前砍掉旧消息。[loop-post-launch-fixes][n-loop-fixes]
+  `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件（退避目标封顶 950k，避免逼近 1M 窗口的存量老会话死锁；平台 `APIException` 如免费成本上限原样上抛、不记退避）。模型调用成功时随 `prompt_tokens` 一并记录输入项字符数 `prompt_chars`，`effective_history_provider_tokens` 与 `compact_history` 优先按 `(prompt_tokens, prompt_chars)` 标定本会话真实字词比做锚点增量与折叠上限计算（无 `prompt_chars` 的旧行退回同量纲估算，浅拷贝保留实测上限）；`kept_author_messages` 与旧压缩点分页统一用 `estimate_provider_text_tokens` 计 20k 预算，`COMPACT_PROMPT` 不设硬字数上限（由 `AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS` 兜底）；若摘要首次请求仍遇 400/413/422 超窗则自动减半输入预算并重折旧工具载荷重试一次，裁剪后为空则直接跳过不落空摘要（`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS` 750000 / `AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS` 700000，`bound_history_for_provider`），常态绝不因 `cl100k_base` 虚高而提前砍掉旧消息。[loop-post-launch-fixes][n-loop-fixes]、[cross-review-fixes][n-xreview]
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
   （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时也经 `FILE_BODY_RESUME` 恢复捕获、
   补不成就作废定位，原文不动）、
@@ -208,8 +208,8 @@ agent/
 `AGENT_RUN_WRAP_UP_AFTER_S`（默认时限减 180 秒：之后每次模型调用都提醒收尾、不再开新的 run；两种收尾和已有写入的墙钟硬超时都发 `limit=wall_clock` 暂停卡，这一轮记 `run_deadline_exceeded`，见 [pause-card][n-pause-card]）、
 `AGENT_SSE_HEARTBEAT_INTERVAL_S`（15）、
 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）、`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`（20000）、`AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS`（24000）、
-`AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS`（700000）、`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS`（750000）。见 [runtime-budget-and-heartbeat][n-budget]、
-[no-progress-guard-and-soft-cap][n-noprogress]、[platform-deadline-and-terminal-guard][n-deadline]、[wall-clock-wrap-up][n-wrap-up]、[loop-post-launch-fixes][n-loop-fixes]。
+`AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS`（700000）、`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS`（750000）、`AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS`（120000）。见 [runtime-budget-and-heartbeat][n-budget]、
+[no-progress-guard-and-soft-cap][n-noprogress]、[platform-deadline-and-terminal-guard][n-deadline]、[wall-clock-wrap-up][n-wrap-up]、[loop-post-launch-fixes][n-loop-fixes]、[cross-review-fixes][n-xreview]。
 
 ## 流的终止、停止与计费
 
@@ -331,3 +331,4 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-loop]: ../../../.agents/notes/implemented/architecture/2026-11-16-single-loop-agent.md
 [n-remove-graph]: ../../../.agents/notes/implemented/simplification/2026-11-17-remove-graph-agent.md
 [n-loop-fixes]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-post-launch-fixes.md
+[n-xreview]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-agent-cross-review-fixes.md

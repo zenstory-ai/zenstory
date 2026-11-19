@@ -135,3 +135,7 @@ AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_RETRY_
 # failing, the oldest items are left out so the session degrades instead of exceeding the
 # provider's 1M context window mid-turn.
 AGENT_LOOP_RUN_HISTORY_MAX_TOKENS = _get_int_env("AGENT_LOOP_RUN_HISTORY_MAX_TOKENS", 750_000)
+# Single-turn <turn_context> bound (provider tokens, ~185k Chinese chars): keeps ordinary
+# multi-chapter attachments verbatim while preventing 500k-char uploaded drafts from blowing
+# past the 1M provider window on turn 1.
+AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS = _get_int_env("AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS", 120_000)

@@ -56,6 +56,9 @@ class RunOutcome:
     # 作者停止时编辑器里还有没存下的字的文件（前端停止前的保存失败或超时，随 /stop 送来）：
     # 这一轮被退还时不当作空白占位文件移除，见 :meth:`removable`。
     keep_file_ids: set[str] = field(default_factory=set)
+    # 保存等待发生 TimeoutError、后台线程可能仍在提交的文件 id：结果未知，不当空白占位移除。
+    # 同步已完成但明确失败 / 已回滚的保存（saved_file_word_counts[id] = None）不进这里，照常可回收。
+    uncertain_save_file_ids: set[str] = field(default_factory=set)
     # 最后确认保存的整篇字数；取消补存可能包含尚未发出的控制标记尾部缓冲。
     # None 表示尚无成功保存；后续失败不能抹去之前已保存的正文回执。
     saved_file_word_counts: dict[str, int | None] = field(default_factory=dict)
@@ -86,10 +89,12 @@ class RunOutcome:
     def removable(self, candidates: list[dict[str, str]]) -> list[dict[str, str]]:
         """去掉不能当空白占位移除的文件，剩下的才交给 remove_empty_placeholders。
 
-        作者编辑器里还有未保存文字的文件不动；这一轮有补存回执的文件也不动（任何回执都算，
-        包括 0 字）：保存失败或超时（回执为 None）时后台线程可能稍后才提交，结果未知就保留。
+        作者编辑器里还有未保存文字的文件不动；已确认保存的文件（包括 0 字）不动；
+        保存超时、后台线程可能稍后提交（uncertain_save_file_ids）的文件不动；
+        同步明确失败且已回滚（saved_file_word_counts 为 None 且未超时）的空白占位允许回收。
         """
-        keep = self.keep_file_ids | set(self.saved_file_word_counts)
+        confirmed = {fid for fid, words in self.saved_file_word_counts.items() if words is not None}
+        keep = self.keep_file_ids | self.uncertain_save_file_ids | confirmed
         if not keep:
             return candidates
         return [item for item in candidates if item.get("id") not in keep]

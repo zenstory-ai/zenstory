@@ -275,12 +275,22 @@ async def test_wait_message_id_does_not_swallow_cancellation():
     assert await outcome.wait_message_id(1.0) == "m2"
 
 
-def test_removable_keeps_files_whose_capture_save_was_attempted():
-    """补存过正文的文件不当空白占位移除：失败 / 超时（回执 None）时后台线程可能稍后才提交。"""
-    outcome = RunOutcome(keep_file_ids={"typed"}, saved_file_word_counts={"timed_out": None, "saved": 12})
-    candidates = [{"id": fid, "title": fid} for fid in ("blank", "typed", "timed_out", "saved")]
+def test_removable_keeps_timed_out_and_confirmed_saves_but_allows_sync_failed_placeholders():
+    """超时结果未知或已确认保存的文件保留；同步明确失败（已回滚）的空白占位允许回收。"""
+    outcome = RunOutcome(
+        keep_file_ids={"typed"},
+        uncertain_save_file_ids={"timed_out"},
+        saved_file_word_counts={"timed_out": None, "sync_failed": None, "saved": 12, "saved_zero": 0},
+    )
+    candidates = [
+        {"id": fid, "title": fid}
+        for fid in ("blank", "typed", "timed_out", "sync_failed", "saved", "saved_zero")
+    ]
 
-    assert outcome.removable(candidates) == [{"id": "blank", "title": "blank"}]
+    assert outcome.removable(candidates) == [
+        {"id": "blank", "title": "blank"},
+        {"id": "sync_failed", "title": "sync_failed"},
+    ]
 
 
 # ---------------------------------------------------------------------- RoundWrittenFiles

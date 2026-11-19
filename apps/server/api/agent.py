@@ -142,6 +142,7 @@ _round_outcome_tasks: set[asyncio.Task[Any]] = set()
 class _RunningStream:
     pump: SSEStreamPump
     outcome: RunOutcome
+    tracker: StreamBillingTracker | None = None
 
 
 # 进行中的 /stream：(user_id, agent_run_id) → 该请求的 SSE 泵与收尾信息，供 /stop 找到并停止。
@@ -1078,7 +1079,7 @@ async def stream_request(
                 return await _offload(remove_empty_placeholders, body.project_id, candidates)
             return []
 
-        _running_streams[run_key] = _RunningStream(pump=pump, outcome=run_outcome)
+        _running_streams[run_key] = _RunningStream(pump=pump, outcome=run_outcome, tracker=tracker)
         if is_draining():
             pump.end_within(AGENT_DRAIN_STOP_AFTER_S)
         try:
@@ -1531,7 +1532,10 @@ async def stop_stream(
     别人的运行）返回 stop_requested=false，前端直接断开连接。
     """
     running = _running_streams.get((current_user.id, body.agent_run_id))
-    if running is not None:
+    stop_accepted = running is not None and not (
+        running.tracker is not None and running.tracker.saw_terminal_event
+    )
+    if stop_accepted and running is not None:
         # 先记下停止原因再取消：process_stream 补存部分历史时据此落库 stop_reason。
         running.outcome.stop_kind = STOP_KIND_USER_STOPPED
         running.outcome.keep_file_ids.update(body.keep_file_ids)
@@ -1542,6 +1546,6 @@ async def stop_stream(
         "Agent stop requested",
         user_id=current_user.id,
         agent_run_id=body.agent_run_id,
-        found=running is not None,
+        found=stop_accepted,
     )
-    return StopResponse(stop_requested=running is not None)
+    return StopResponse(stop_requested=stop_accepted)

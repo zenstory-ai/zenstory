@@ -2999,11 +2999,7 @@ async def update_project(
     """更新项目信息和任务计划。"""
     if _should_offload_tool_execution():
         if written_artifact_ids is None:
-            return await asyncio.to_thread(
-                _run_sync_tool_with_owned_session_cleanup,
-                _update_project_sync,
-                args,
-            )
+            return await _offload_write_tool("update_project", _update_project_sync, args)
         return await asyncio.to_thread(
             _run_sync_tool_with_owned_session_cleanup,
             _update_project_sync,

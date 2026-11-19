@@ -193,6 +193,7 @@ class StreamAdapter:
         # 停止 / 断线时还在提交的整章替换（线程里的提交不会随取消中止）：收尾时等它的真实结果。
         self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]], str | None] | None = None
         self._saved_file_word_counts: dict[str, int | None] = {}
+        self._timed_out_save_file_ids: set[str] = set()
         # 整章替换的保存回执，按 write_chapter 的 tool_use_id 记：同一章在一轮里可能先后替换多次，
         # 文件级回执只说「这个文件存过」，不能拿来证明后一次替换也存了。
         self._replacement_receipts: dict[str, int | None] = {}
@@ -1387,6 +1388,8 @@ class StreamAdapter:
         try:
             replaced = await asyncio.shield(save)
         except Exception as exc:  # noqa: BLE001 - 提交失败：回执记为未保存
+            if isinstance(exc, TimeoutError):
+                self._timed_out_save_file_ids.add(file_id)
             log_with_context(
                 logger, 30, "Chapter replacement in flight at abort did not commit",
                 file_id=file_id, error_type=type(exc).__name__,
@@ -1407,6 +1410,10 @@ class StreamAdapter:
     def get_saved_file_word_counts(self) -> dict[str, int | None]:
         """保存回执；收到结束标记或正文 chunk 本身不代表落库成功。"""
         return dict(self._saved_file_word_counts)
+
+    def get_timed_out_save_file_ids(self) -> set[str]:
+        """发生过保存超时、后台线程可能仍在提交的文件 id。"""
+        return set(self._timed_out_save_file_ids)
 
     def _note_replacement_receipt(self, replace_tool_use_id: str | None, words: int | None) -> None:
         if replace_tool_use_id:
@@ -1739,6 +1746,7 @@ class StreamAdapter:
         这是一份完整（非截断补全）的正文，同时记进本请求的已保存正文（续跑、任务板、write_chapter 守卫读它）。
         file_type 是保存目标的类型（知道时传），续跑只对正文类文件要求自查。"""
         self._saved_file_word_counts[file_id] = words
+        self._timed_out_save_file_ids.discard(file_id)
         if title is not None:
             from agent.tools.mcp_tools import ToolContext
 
@@ -1837,6 +1845,7 @@ class StreamAdapter:
                 self._saved_file_word_counts.setdefault(file_id, None)
             return saved
         except TimeoutError:
+            self._timed_out_save_file_ids.add(file_id)
             self._saved_file_word_counts.setdefault(file_id, None)
             log_with_context(
                 logger,

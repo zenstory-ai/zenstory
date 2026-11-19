@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any
@@ -813,6 +814,244 @@ async def test_failover_model_and_usage_hooks_record_prompt_chars_on_run_meter()
     assert meter.last_prompt_tokens == 1888
     assert meter.last_prompt_chars == items_char_length(sample_items) > 1500
     assert model.take_prompt_chars() is None
+
+
+@pytest.mark.unit
+def test_shallow_copied_history_retains_measured_prompt_tokens_on_legacy_rows():
+    """service.py 传 list(history.items) 浅拷贝时，无 prompt_chars 的旧会话行仍保留实测 last_prompt_tokens 保护。"""
+    from agent.loop.history import (
+        LoopHistory,
+        bound_history_for_provider,
+        effective_history_provider_tokens,
+        items_char_length,
+    )
+
+    cyc: list[object] = []
+    cyc.append(cyc)
+    assert items_char_length([cyc]) > 2
+
+    empty_h = LoopHistory(items=[], last_prompt_tokens=12_000)
+    assert effective_history_provider_tokens(empty_h) == 0
+    assert effective_history_provider_tokens(empty_h, []) == 0
+
+    items = [
+        {"role": "user", "content": "第1轮设定：" + ("甲乙丙丁戊己庚辛" * 6_000)},
+        {"role": "assistant", "content": "收到第1轮"},
+        {"role": "user", "content": "第2轮推进：" + ("天地玄黄宇宙洪荒" * 6_000)},
+        {"role": "assistant", "content": "收到第2轮"},
+    ]
+    h = LoopHistory(items=items, last_prompt_tokens=920_000, last_prompt_chars=0)
+    shallow = list(h.items)
+    assert shallow is not h.items
+    assert effective_history_provider_tokens(h, shallow) == 920_000
+    bounded = bound_history_for_provider(h, shallow, 750_000)
+    assert len(bounded) < len(shallow)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_compact_history_skips_empty_bounded_slice_and_reraises_cost_limit_api_exception():
+    """末尾未折叠大工具输出致裁剪切片为空时不发空摘要抹除历史；免费 ¥15 成本兜底 APIException 原样抛出不记退避。"""
+    from agent.loop.compaction import SKIPPED_EMPTY_OR_TRUNCATED, compact_history
+    from agent.loop.history import LoopHistory, bounded_items
+    from core.error_codes import ErrorCode
+    from core.error_handler import APIException
+
+    # 1) 非 user 结尾且预算压过唯一一条 user 消息时，bounded_items 返回 [] 而非悬空 assistant/tool 切片
+    dangling_input = [
+        {"role": "user", "content": "请读全文"},
+        {"type": "function_call", "call_id": "c1", "name": "query_files", "arguments": "{}"},
+        {"type": "function_call_output", "call_id": "c1", "output": "长文" * 90_000},
+    ]
+    assert bounded_items(dangling_input, 50_000) == []
+    assert bounded_items([*dangling_input, {"role": "assistant", "content": "读完了"}], 50_000) == []
+
+    # 2) compact_history 遇 400/422 减半重试后若 bounded 变空，绝不调用模型生成空白摘要覆盖 last_message_id
+    class _Fake422Error(Exception):
+        status_code = 422
+
+    h = LoopHistory(
+        items=dangling_input,
+        last_prompt_tokens=650_000,
+        last_message_id="msg-last-99",
+        author_messages=["请读全文"],
+    )
+    mock_call = AsyncMock(
+        side_effect=[
+            _Fake422Error("context rejected"),
+            (SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="空摘要"), finish_reason="stop")], usage=None), None),
+        ]
+    )
+    with patch("agent.core.llm_failover.acreate_chat_completion", mock_call):
+        outcome = await compact_history(h, system_prompt="sys", session_id="s-empty")
+
+    assert outcome.record is None
+    assert outcome.skipped == SKIPPED_EMPTY_OR_TRUNCATED
+    assert mock_call.await_count == 1
+
+    # 3) 免费每日成本兜底 APIException(402) 必须原样上抛，不吞成 SKIPPED_PROVIDER_ERROR
+    cost_err = APIException(
+        error_code=ErrorCode.QUOTA_AI_DAILY_COST_EXCEEDED,
+        status_code=402,
+        message="今日免费用量已达上限",
+    )
+    with (
+        patch("agent.core.llm_failover.acreate_chat_completion", AsyncMock(side_effect=cost_err)),
+        pytest.raises(APIException) as exc_info,
+    ):
+        await compact_history(h, system_prompt="sys", session_id="s-cost")
+    assert exc_info.value.error_code == ErrorCode.QUOTA_AI_DAILY_COST_EXCEEDED
+
+
+@pytest.mark.unit
+def test_build_loop_turn_context_bounds_oversize_attachments_while_preserving_focus_snapshot(db_session):
+    """附加多份数十万字草稿时，<turn_context> 按预算截断并标明 query_files，同时优先保留当前焦点全文快照。"""
+    from agent.loop.history import estimate_provider_text_tokens
+    from agent.loop.turn_context import build_loop_turn_context
+    from models import File, Project, User
+
+    user = User(username="turn_cap_u", email="turn_cap_u@example.test", hashed_password="x", email_verified=True)
+    db_session.add(user)
+    db_session.flush()
+    project = Project(name="长卷导入项目", owner_id=user.id)
+    db_session.add(project)
+    db_session.flush()
+
+    focus_body = "　　这是当前正在改的第三章正文，一共几百字。\n\n" * 20
+    focus = File(project_id=project.id, title="第3章 当前焦点", content=focus_body, file_type="draft")
+    huge_body = "　　旧卷合并长稿正文，山高水长江湖夜雨十年灯。\n" * 18_000  # ~396,000 字/份
+    att1 = File(project_id=project.id, title="第一卷合集", content=huge_body, file_type="draft")
+    att2 = File(project_id=project.id, title="第二卷合集", content=huge_body, file_type="draft")
+    db_session.add_all([focus, att1, att2])
+    db_session.commit()
+
+    turn = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": focus.id, "attached_file_ids": [att1.id, att2.id]},
+        language="zh-CN",
+        author_message="结合前两卷设定改一下第三章开头",
+    )
+
+    # 总体积控制在单轮预算内，绝不打出 50 万+ token
+    assert estimate_provider_text_tokens(turn.text) <= 135_000
+    # 焦点文件未截断，完整进入 read_snapshots 供 edit_file 陈旧检查使用
+    assert turn.read_snapshots.get(focus.id) == focus_body
+    # 超大附加文件被截断，不混入完整快照，且渲染了 query_files 引导
+    assert att1.id not in turn.read_snapshots
+    assert att2.id not in turn.read_snapshots
+    assert "已截断" in turn.text
+    assert f'query_files(id="{att1.id}")' in turn.text
+
+
+@pytest.mark.unit
+def test_billing_tracker_treats_empty_replaced_chapter_as_pending_body_on_failure():
+    """已有 0 字空章走 write_chapter(replaced, original_content_length=0) 时，导语后保存失败或中断应按未交付退费。"""
+    from agent.core.stream_billing import StreamBillingTracker
+    from core.error_codes import ErrorCode
+
+    def _sse(event: str, data: dict) -> str:
+        return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+    tracker = StreamBillingTracker()
+    tracker.observe(
+        _sse(
+            "tool_result",
+            {
+                "tool_name": "write_chapter",
+                "status": "success",
+                "data": {
+                    "id": "ch-empty",
+                    "title": "第1章 空章",
+                    "file_type": "draft",
+                    "action": "replaced",
+                    "original_content_length": 0,
+                    "awaiting_body": True,
+                },
+            },
+        )
+    )
+    assert tracker.file_body_pending() is True
+    tracker.observe(_sse("content", {"chunk": "好的，现在开始写第一章。"}))
+    tracker.observe(_sse("file_created", {"file_id": "ch-empty", "file_type": "draft", "title": "第1章 空章"}))
+    tracker.observe(_sse("file_content", {"file_id": "ch-empty", "chunk": "正文流了一半"}))
+    tracker.observe(
+        _sse(
+            "error",
+            {"code": ErrorCode.AGENT_FILE_SAVE_FAILED, "message": "保存失败", "file_id": "ch-empty", "refundable": True},
+        )
+    )
+    assert tracker.produced_output is False
+    assert tracker.ended_on_reply is False
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == ("internal_error", True)
+
+    # 整章替换因并发修改被拒（补发 body_saved=False）时同样回滚此前流过的 file_content 记账
+    tracker2 = StreamBillingTracker()
+    tracker2.observe(
+        _sse(
+            "tool_result",
+            {
+                "tool_name": "write_chapter",
+                "status": "success",
+                "data": {"id": "ch-zero-2", "title": "第2章", "file_type": "draft", "action": "replaced", "original_content_length": 0},
+            },
+        )
+    )
+    tracker2.observe(_sse("file_content", {"file_id": "ch-zero-2", "chunk": "流过一段正文"}))
+    assert tracker2.file_written is True
+    tracker2.observe(
+        _sse(
+            "tool_result",
+            {
+                "tool_name": "write_chapter",
+                "status": "success",
+                "data": {"id": "ch-zero-2", "title": "第2章", "file_type": "draft", "action": "replaced", "body_saved": False, "mutation_applied": False},
+            },
+        )
+    )
+    assert tracker2.file_written is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_stream_adapter_tracks_timeout_separately_from_sync_save_failure(monkeypatch):
+    """StreamAdapter 仅在 TimeoutError 时将 file_id 记入 get_timed_out_save_file_ids，后续成功保存后清除。"""
+    from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+
+    adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u", process_file_markers=True))
+    monkeypatch.setattr(adapter, "_save_file_content_sync", lambda _id, _c: (False, False))
+    assert await adapter._save_file_content("sync-fail", "正文") is False
+    assert adapter.get_timed_out_save_file_ids() == set()
+
+    async def fake_wait_for(coro, timeout):
+        coro.close()
+        raise TimeoutError()
+
+    monkeypatch.setattr("agent.stream_adapter.asyncio.wait_for", fake_wait_for)
+    assert await adapter._save_file_content("slow-file", "正文") is False
+    assert adapter.get_timed_out_save_file_ids() == {"slow-file"}
+
+    adapter._note_body_saved("slow-file", 2)
+    assert adapter.get_timed_out_save_file_ids() == set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_aborted_chapter_replacement_timeout_remains_uncertain():
+    """A timed-out replacement may still commit in its worker, so settlement must not classify it as a safe failure."""
+    from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+
+    adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u", process_file_markers=True))
+    save = asyncio.get_running_loop().create_future()
+    save.set_exception(TimeoutError())
+    adapter._replacement_in_flight = ("chapter-1", "replacement", save, "call-1")
+
+    await adapter._settle_replacement_in_flight()
+
+    assert adapter.get_timed_out_save_file_ids() == {"chapter-1"}
+    assert adapter.get_replacement_receipts() == {"call-1": None}
+
 
 
 
