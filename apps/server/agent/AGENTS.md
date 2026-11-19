@@ -175,7 +175,7 @@ agent/
   edit_file 改 draft / script 时 `FileEditor.edit_file(body_guards=True)` 在提交前做两道逐字检查（`file_ops.edit.check_body_edit_guards`，不判断语义）：
   一处 replace 的 old 就是整份原文、或只有一处 replace 且原文两段以上而改完一段都没留下 → `whole_body_replace`（几处各自定位的小改动不算）；改完后有一段（≥ 80 字）逐字出现两次以上而改之前没有
   重复 → `duplicated_paragraph`。整批不落库。资料文件不受影响。
-- **落库**：assistant 行 `routing` 为空，`display_events` 只有 content / thinking_content / tool_call / iteration_exhausted / workflow_stopped / history_compacted，额外 metadata
+- **落库**：assistant 行 `routing` 为空，`display_events` 只有 content / thinking_content / tool_call / iteration_exhausted / workflow_stopped / history_compacted（`file_content_end` 邻接纯空白协议换行丢弃、移除孤立纯空白文本段并仅裁去首个非空 `content` 段首部换行，普通内部文本段逐字保留，纯空白文本段不触发空 assistant 行落库；本轮已保存正文的章节在自查中重调 `write_chapter` 返回的 `chapter_written_this_turn` 属内部防重守卫，前端 `INTERNAL_ORDERING_ERROR_TYPES` 不渲染为失败卡，见 [issue-413][n-issue-413]），额外 metadata
   `engine`、`prompt_tokens`、`prompt_chars`、`compaction`（`MessageManager.save_messages(assistant_extra_metadata=…)`，取消 / 失败补存也带）。
 - **测试**：AgentService 外壳用例（test_service、test_round3_service、test_user_message_sent_at、test_steering_live_run_enqueue、
   test_agent_service_session_id、test_first_message_hint、test_prompt_cache_prefix、e2e/test_agent_stream_e2e 与 test_api/test_agent、
@@ -335,3 +335,4 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-direct-edits]: ../../../.agents/notes/implemented/feature/2026-11-18-direct-ai-edits.md
 [n-prod-review]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-prod-review-followups.md
 [n-prod-audit2]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-loop-prod-audit-round2-fixes.md
+[n-issue-413]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-issue-413-blank-display-and-write-chapter-guard.md

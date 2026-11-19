@@ -22,4 +22,13 @@ describe('hasSubstantiveDisplayItems', () => {
     ]
     expect(hasSubstantiveDisplayItems(items)).toBe(true)
   })
+
+  it('whitespace-only content segments do not count as substantive output', () => {
+    const items: StreamRenderItem[] = [
+      { type: 'thinking_status', id: 'ctx', content: '正在思考…', transient: true, timestamp },
+      { type: 'content', id: 'blank-1', content: '', timestamp },
+      { type: 'content', id: 'blank-2', content: '\n\n\r\n  ', timestamp },
+    ]
+    expect(hasSubstantiveDisplayItems(items)).toBe(false)
+  })
 })

@@ -16,7 +16,13 @@ const TRANSIENT_ITEM_TYPES = new Set<StreamRenderItem["type"]>([
  * leave an empty bubble next to the error card.
  */
 export function hasSubstantiveDisplayItems(items: StreamRenderItem[]): boolean {
-  return items.some((item) => !item.transient && !TRANSIENT_ITEM_TYPES.has(item.type));
+  return items.some((item) => {
+    if (item.transient || TRANSIENT_ITEM_TYPES.has(item.type)) return false;
+    if (item.type === "content" || item.type === "thinking_content") {
+      return Boolean(item.content?.trim());
+    }
+    return true;
+  });
 }
 
 /** How a stopped / interrupted round ended, as the server recorded it on the assistant message. */

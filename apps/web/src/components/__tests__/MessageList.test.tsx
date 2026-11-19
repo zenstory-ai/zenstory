@@ -885,6 +885,37 @@ describe('MessageList', () => {
     rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', toolCalls: [created, refused], toolResults: [created, refused] })]} />)
     expect(container.textContent).not.toMatch(/chat:tool\.failed/)
     expect(container.textContent).toMatch(/第一章/)
+
+    const savedChapter = {
+      id: 'tool-write-ch1', tool_name: 'write_chapter', arguments: { chapter: 1, title: '第1章 开篇' }, status: 'success' as const,
+      result: { data: { id: 'ch-1', title: '第1章 开篇', file_type: 'draft', chapter: 1, action: 'created', body_saved: true, new_word_count: 849 } },
+    }
+    const duplicateWriteChapter = {
+      id: 'tool-dup-ch1', tool_name: 'write_chapter', arguments: { chapter: 1, title: '第1章 开篇' }, status: 'error' as const,
+      result: { error_type: 'chapter_written_this_turn' },
+      error: '第1章《第1章 开篇》的正文这一轮已经用 write_chapter 写好并保存了',
+    }
+    rerender(
+      <MessageList
+        messages={[]}
+        streamRenderItems={[{ id: 'tools-ch1', type: 'tool_calls' as const, toolCalls: [savedChapter, duplicateWriteChapter], timestamp }]}
+      />,
+    )
+    expect(container.textContent).not.toMatch(/chat:tool\.failed/)
+    expect(container.textContent).toMatch(/第1章 开篇/)
+
+    rerender(
+      <MessageList
+        messages={[createMessage({
+          role: 'assistant',
+          content: '第1章已写好，共 849 字。',
+          toolCalls: [savedChapter, duplicateWriteChapter],
+          toolResults: [savedChapter, duplicateWriteChapter],
+        })]}
+      />,
+    )
+    expect(container.textContent).not.toMatch(/chat:tool\.failed/)
+    expect(container.textContent).toMatch(/第1章 开篇/)
   })
 
   it('labels citations by the real file type and shows the quoted file name', () => {

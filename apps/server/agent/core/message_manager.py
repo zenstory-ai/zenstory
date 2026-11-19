@@ -51,6 +51,67 @@ TURN_CONTEXT_CLOSE = "</turn_context>"
 # 本次运行的系统指令（作为 agent 运行输入的最后一条消息，例如截断后的交付说明）的开头。
 AGENT_DIRECTIVE_HEADER = "[本次运行的系统指令]"
 
+
+def normalize_assistant_content(content: str | None) -> str:
+    """规范化待落库的助手消息正文：纯空白归一为空串，非空正文仅裁去首部换行（保留缩进与内部全部原文）。"""
+    if not content:
+        return ""
+    cleaned = content.replace("\x00", "")
+    if not cleaned.strip():
+        return ""
+    return cleaned.lstrip("\r\n")
+
+
+def normalize_assistant_display_events(
+    display_events: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    """清理待落库的有序展示事件：移除孤立的纯空白文本段，首个非空 content 段剥离首部换行，内部文本段逐字保留。"""
+    if not display_events or not isinstance(display_events, list):
+        return None
+    normalized: list[dict[str, Any]] = []
+    seen_content = False
+    for event in display_events:
+        if not isinstance(event, dict):
+            continue
+        event_type = event.get("type")
+        if event_type in {"content", "thinking_content"} and isinstance(event.get("content"), str):
+            raw = event["content"].replace("\x00", "")
+            if not raw.strip():
+                continue
+            if event_type == "content" and not seen_content:
+                cleaned = raw.lstrip("\r\n")
+                seen_content = True
+            else:
+                cleaned = raw
+            normalized.append(event if cleaned == event["content"] else {**event, "content": cleaned})
+            continue
+        normalized.append(event)
+    return normalized or None
+
+
+def has_substantive_display_events(display_events: list[dict[str, Any]] | None) -> bool:
+    """展示时间线里是否含有实质可展示内容（排除压缩标记与纯空白文本块）。"""
+    if not display_events or not isinstance(display_events, list):
+        return False
+    for event in display_events:
+        if not isinstance(event, dict):
+            continue
+        event_type = event.get("type")
+        if event_type == "history_compacted":
+            continue
+        if event_type in {"content", "thinking_content"}:
+            if isinstance(event.get("content"), str):
+                if event["content"].strip():
+                    return True
+                continue
+            if isinstance(event.get("text"), str):
+                if event["text"].strip():
+                    return True
+                continue
+            continue
+        return True
+    return False
+
 class MessageManager:
     """
     Manages chat messages and system prompt construction.
@@ -233,10 +294,10 @@ class MessageManager:
 
             if "\x00" in user_message:
                 user_message = user_message.replace("\x00", "")
-            if assistant_message and "\x00" in assistant_message:
-                assistant_message = assistant_message.replace("\x00", "")
+            assistant_message = normalize_assistant_content(assistant_message)
             if reasoning_content and "\x00" in reasoning_content:
                 reasoning_content = reasoning_content.replace("\x00", "")
+            assistant_display_events = normalize_assistant_display_events(assistant_display_events)
 
             # Save user message
             # 用户消息的时间是作者发出它的时间（回合开始），不是这一轮落库的时间。
@@ -287,10 +348,10 @@ class MessageManager:
             assistant_chat_message: ChatMessage | None = None
             if (
                 persist_empty_assistant
-                or (assistant_message or "").strip()
+                or assistant_message.strip()
                 or tool_calls
                 or assistant_status_cards
-                or assistant_display_events
+                or has_substantive_display_events(assistant_display_events)
                 or (reasoning_content or "").strip()
             ):
                 assistant_chat_message = ChatMessage(
