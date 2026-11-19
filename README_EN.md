@@ -1,4 +1,4 @@
-<!-- Last synced with README.md: 2026-11-09 -->
+<!-- Last synced with README.md: 2026-11-19 -->
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/zenstory-ai/zenstory/main/apps/web/public/brand/zenstory-ai-mark.svg" alt="" width="76" height="76">
@@ -40,9 +40,9 @@ The workspace puts the file tree on the left, the editor in the middle and AI ch
 
 ## What it is
 
-ZenStory Workbench is a browser workspace for writing **long-form novels, short stories and short-drama screenplays**. Outlines, chapters, character sheets, worldbuilding lore and reference materials are all files in your project. You talk to the AI on the right, and it creates or edits those files directly without copy-pasting between a chat window and a word processor. Use it online at [app.zenstory.ai](https://app.zenstory.ai), or self-host it under the AGPL-3.0 license.
+ZenStory Workbench is a browser workspace for writing **long-form novels, short stories and short-drama screenplays**. Outlines, chapters, character sheets, worldbuilding lore and reference materials are all files in your project; talk to the AI on the right, and it creates or edits those files directly without copy-pasting between a chat window and a word processor. Use it online at [app.zenstory.ai](https://app.zenstory.ai), or self-host it under the AGPL-3.0 license.
 
-- **Direct file edits that respect your own revisions**: ask for a new character sheet, outline or chapter in chat and the Agent streams it straight into the file, with one-click undo on the chat card. Anything you edit by hand in the editor is synced back to the AI so continuations build on your changes, and your saved manuscripts cannot be deleted or overwritten in full from chat.
+- **Direct file edits that respect your own revisions**: ask for a new character sheet, outline or chapter in chat and the agent streams it straight into the editor, with one-click undo on the chat card. Anything you edit by hand is synced back to the AI so continuations build on your changes, and saved manuscripts cannot be deleted or overwritten wholesale from chat.
 - **One agent, start to finish**: a single writing agent reads your project, plans, writes and checks continuity, doing only what this turn asks for — ask for an outline and it stops at the outline; ask for prose and it writes the chapter. Chapters are written by number, so writing chapter 3 changes only chapter 3, and word counts in replies come from what was actually saved.
 - **Paced for web fiction and short dramas**: openings start inside the conflict, payoffs land on screen, dialogue drives the stakes, and chapters end on a hook. Select any passage in the editor and click **Humanize** to review paragraph-by-paragraph rewrites and accept only the lines you want.
 - **Long-form continuity without digging through chat history**: each turn automatically brings in AI Memory, the full text of chapters you just read or edited, the previous chapter, and relevant character and lore sheets.
@@ -118,18 +118,7 @@ npx zenstory skill install   # installs for Claude Code by default; add --target
 npx zenstory whoami          # verify login status and read/write scopes
 ```
 
-Once installed, the external agent writes with its own model while using the `zenstory` CLI to fetch project context and save chapters back:
-
-```bash
-dir=$(mktemp -d)
-zenstory files list <projectId> --type draft --fields id,title --json                # list drafts
-zenstory context <projectId> --file <chapterId> --query "what happens next" --json   # fetch project context
-zenstory files get <chapterId> --fields updated_at --json                            # record current timestamp token
-zenstory files get <chapterId> -o "$dir/<chapterId>.md"                              # download chapter to a temp file
-zenstory files put <chapterId> --content-file "$dir/<chapterId>.md" --if-updated-at <updated_at>   # write chapter back
-```
-
-See [apps/cli/README.md](apps/cli/README.md) and <https://api.zenstory.ai/skill.md?lang=en> for the full CLI and HTTP reference.
+Once installed, just talk to Claude Code, Codex or OpenClaw in natural language — the agent uses `zenstory` behind the scenes to fetch project context and save chapters back. See [apps/cli/README.md](apps/cli/README.md) and <https://api.zenstory.ai/skill.md?lang=en> for the full CLI and HTTP reference.
 
 ## Core features
 
@@ -154,15 +143,15 @@ flowchart LR
     A --> S["Reply and change cards"]
 ```
 
-- **One model, one conversation**: every turn runs through the same agent, with no router or hand-offs; the conversation history stays in order and is compacted into a hand-off summary when it grows very long.
-- **Chapters addressed by number**: prose is written to "chapter N" — the chapter is created if it does not exist, otherwise exactly that chapter is replaced. The card says whether it was new or how long the replaced text was, and a replacement can be undone in one click. Generic edit tools cannot replace a whole chapter, overwrite it wholesale or insert duplicated paragraphs.
-- **The outline is both ceiling and floor**: characters, events and reveals from later chapters are not written early; this chapter's key outline events always happen; when you change the outline, the agent follows you and updates the outline file.
-- **Follow-up instructions & resumable runs**: send additional instructions while the AI is still writing — the AI finishes its current step uninterrupted and applies your follow-up next. Long tasks that reach the single-turn time limit wrap up cleanly with a **Continue** card so you can pick up right where it stopped, and revision options at the end of a reply become one-click buttons above the input box.
+- **One model, one conversation**: every turn runs through the same agent, with no router or hand-offs; conversation history stays in order and compacts into a hand-off summary when it grows very long.
+- **Chapters addressed by number**: prose is written to "chapter N" — created if new, or replaced cleanly as a single chapter with the prior word count shown and one-click undo on the card, while partial-edit tools are blocked from wholesale overwrites or duplicate insertions.
+- **The outline is both ceiling and floor**: characters, events and reveals from later chapters are not written early; this chapter's key outline events always land; when you revise the outline, the agent follows your direction and updates the outline file.
+- **Follow-up instructions & resumable runs**: send additional instructions while the AI is still writing — it finishes its current step uninterrupted and applies your follow-up next. Long tasks near the single-turn limit wrap up cleanly with a **Continue** card so you can resume right where it stopped, and revision suggestions at the end of a reply become one-click buttons above the input box.
 
 ### AI Memory and project context
 
-- **Relevant files assembled every turn**: alongside the most recent ~32,000 tokens of chat history and full text of chapters you just read or edited, a separate ~32,000-token budget brings in the open chapter, quoted passages, character sheets, core lore, the previous chapter, and keyword search matches. Stable project material stays at the front of the prompt so continuing across chapters is fast and cache-friendly.
-- **AI Memory & Writing Conventions**: organized into four fields (Project Summary, Writing Style, Current Phase, Writing Conventions). When you ask the AI in chat to remember a rule (e.g. "Remember: the heroine doesn't appear until Chapter 5"), it appends the rule to Writing Conventions without altering your existing notes and shows what was saved on the chat card.
+- **Relevant files assembled every turn**: alongside the most recent ~32,000 tokens of chat history and the full text of chapters you just read or edited, a separate ~32,000-token budget brings in the open chapter, quoted passages, character sheets, core lore, the previous chapter, and keyword search matches. Stable project material stays at the front of the prompt so continuing across chapters is fast and cache-friendly.
+- **AI Memory & Writing Conventions**: organized into four fields (Project Summary, Writing Style, Current Phase, Writing Conventions). Ask the AI in chat to remember a rule (e.g. "Remember: the heroine doesn't appear until Chapter 5") and it appends the rule to Writing Conventions without altering your existing notes, listing what was saved on the chat card.
 
 ### 14 built-in skills and custom skill packages
 
@@ -176,71 +165,19 @@ The app shows these English names in the English interface; the Chinese names ar
 | Character | Create a Character 创建角色 |
 | Worldbuilding | Build the World 世界观设定 |
 
-Enable skills under **Skills → Discover**. Each turn, the AI sees the names and purposes of enabled skills and reads the full method when needed; you can also type `/` in chat or pick skills from the sidebar to attach up to 3 directly to a message. Custom skills use the open Agent Skills `SKILL.md` format (with optional `references/` files) and can be imported or exported as `.zip` or `.md` packages.
+Enable skills under **Skills → Discover**. Each turn, the AI sees the names and purposes of enabled skills and loads the full method on demand; you can also type `/` in chat or pick skills from the sidebar to attach up to 3 directly to a message. Custom skills use the open Agent Skills `SKILL.md` format (with optional `references/` files) and can be imported or exported as `.zip` or `.md` packages.
 
 ### Reference novel deconstruction (Material Library)
 
 Upload a reference novel as TXT (up to 300,000 characters) and the backend extracts per-chapter summaries, a whole-book synopsis, character profiles, worldbuilding settings and protagonist edges (金手指). Attach entries to chat or import them into your project as searchable files.
 
-## Further reading
-
-- [Quick start](https://zenstory.ai/docs/getting-started/quick-start#en): from an empty project to a first outline you can edit.
-- [Your first short story](https://zenstory.ai/docs/getting-started/first-project#en): an original short story's file plan and three scoped requests.
-- [AI assistant](https://zenstory.ai/docs/user-guide/ai-assistant#en): focused files, quotes, and picking up after an interruption.
-- [AI Memory](https://zenstory.ai/docs/advanced/ai-memory#en): what to put in the four fields and how to correct them.
-- [Version history](https://zenstory.ai/docs/user-guide/version-history#en): view, compare and restore one file's versions.
-- [From a reference passage to your own scene](https://zenstory.ai/docs/advanced/material-analysis#en): after analysing a reference novel, how to write a scene of your own.
-- [Writing environments compared](https://zenstory.ai/compare/writing-workflows): plain chat, the Oh Story skill pack, the DSH plugin and ZenStory Workbench, and what each suits.
-- [Keeping your voice when AI continues](https://zenstory.ai/oh-story/preserve-author-voice): describe your voice in concrete terms and give a short sample of your own.
-
-## Contributing
-
-- **GitHub Issues**: [report a bug](https://github.com/zenstory-ai/zenstory/issues/new?template=bug_report.md) · [request a feature](https://github.com/zenstory-ai/zenstory/issues/new?template=feature_request.md). In the hosted app you can also use the **…** menu at the top right of the project page → **Feedback** to attach a screenshot.
-- Read [CONTRIBUTING.md](CONTRIBUTING.md) and the repository documentation index [docs/en/README.md](docs/en/README.md) before changing code. The writing agent's workflow, tools and SSE events are documented in [`apps/server/agent/AGENTS.md`](apps/server/agent/AGENTS.md).
-
-<details>
-<summary>Project layout and tech stack</summary>
-
-```text
-zenstory/
-├── apps/web/                 # React frontend
-│   ├── src/components/       #   Layout, sidebar/FileTreePane, Editor, ChatPanel, skills …
-│   ├── src/pages/            #   Dashboard, project, materials, pricing …
-│   └── docs/                 #   docs source, published to zenstory.ai/docs
-├── apps/cli/                 # zenstory CLI and external Agent Skill package
-└── apps/server/              # FastAPI backend
-    ├── api/                  #   routes: auth, projects, files, agent, agent_api, materials, admin …
-    ├── agent/                #   the writing agent
-    │   ├── loop/             #     single-loop writing agent: prompts, history, compaction, run loop
-    │   ├── tools/            #     file, project and skill tools
-    │   ├── context/          #     per-turn context assembly, token budgets and priority ordering
-    │   ├── prompts/          #     writing protocols and genre guidance
-    │   └── skills/           #     skill loading and injection
-    ├── flows/                #   material decomposition pipeline (Prefect)
-    ├── services/             #   business logic
-    └── models/               #   data models
-```
-
-| Layer | Technologies |
-| --- | --- |
-| Frontend | React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Zustand · TanStack Query |
-| Backend | FastAPI · SQLModel · Server-Sent Events |
-| AI | DeepSeek / MiniMax (OpenAI-compatible API) · openai-agents-python |
-| Retrieval | Database keyword search with snippets and line numbers; edits are searchable immediately, without indexing |
-| Data | SQLite (default) / PostgreSQL · Redis · Alembic |
-| Deploy | Docker Compose; the hosted app runs the frontend on Vercel and the API plus Prefect on Railway |
-
-</details>
-
 ## License
 
-[GNU AGPL-3.0](LICENSE) &copy; 2024-2026 ZenStory
+This repository is licensed under [GNU AGPL-3.0](LICENSE) (&copy; 2024-2026 ZenStory): you may freely use, modify and self-host it, provided that offering a modified version as a network service makes the corresponding source available to its users. The `apps/cli` command-line client is separately licensed under MIT ([apps/cli/LICENSE](apps/cli/LICENSE)). The ZenStory name and logo are not covered by the license — please use your own branding for forks or self-hosted deployments, and contact the maintainers if you need a commercial license without AGPL obligations.
 
-This repository is licensed under the GNU Affero General Public License v3.0. You may use, modify and self-host it; if you offer a modified version to others as a network service, the AGPL requires you to make the corresponding source available to those users.
+## Acknowledgments
 
-The ZenStory name and logo are not licensed: forks and self-hosted services should use their own name. For a commercial license without the AGPL obligations, contact the maintainers.
-
-The `apps/cli` command-line client stays under the MIT license; see [apps/cli/LICENSE](apps/cli/LICENSE).
+<https://linux.do>
 
 ## Part of ZenStory AI
 

@@ -38,11 +38,11 @@
 
 ## 这是什么
 
-ZenStory 工作台是一个在浏览器里写**长篇小说、短篇小说和短剧剧本**的地方。大纲、正文、角色卡、世界观设定和参考素材都是项目里的文件；你在右边和 AI 说话，AI 直接新建或改写这些文件，不用在聊天窗口和文档软件之间来回复制粘贴。可以在 [app.zenstory.ai](https://app.zenstory.ai) 在线使用，也可以按 AGPL-3.0 许可自己部署。
+ZenStory 工作台是在浏览器里写**长篇小说、短篇小说和短剧剧本**的创作空间。大纲、正文、角色卡、世界观设定和参考素材都是项目里的文件；你在右侧和 AI 对话，AI 直接新建或改写这些文件，无需在聊天窗口和文档软件之间来回复制粘贴。可在 [app.zenstory.ai](https://app.zenstory.ai) 在线使用，也可按 AGPL-3.0 许可自行部署。
 
-- **对话直接改稿，也认得你的手改**：在右边提要求，Agent 直接在左边新建角色卡、大纲或续写章节，边写边显示在编辑器里，对话卡片可一键撤销。你在编辑器里亲手改过的内容也会同步给 AI，续写时顺着你的改稿往下接，不会在对话里误删或覆盖你写好的稿子。
-- **一个 Agent 从头接到尾**：同一个写作 Agent 读你的项目、规划、写正文、自查前后连贯，只做你这一轮要的事——只要细纲就停在大纲，要求写正文才动笔；章节按章号写入，第几章就只改第几章，回复里的字数取自实际保存的结果。
-- **懂网文与短剧节奏**：开篇直接进冲突，爽点当场兑现，对白推着剧情走，章末留钩子；选中编辑器里的文字点「去AI味」，会按段落对比改写前后，逐段选择采用或保留原稿。
+- **对话直接改稿，也认得你的手改**：在右侧提要求，Agent 直接新建角色卡、大纲或续写章节，边写边流式写入编辑器，对话卡片可一键撤销。你在编辑器里的手改内容会同步给 AI，续写时顺着改稿往下接，不会从对话里误删或整篇覆盖已保存的稿件。
+- **一个 Agent 从头接到尾**：同一个写作 Agent 读项目、做规划、写正文、查连贯，只做当前这一轮要求的事——只要细纲就停在大纲，要求写正文才动笔；章节按章号落盘，写第几章就只改第几章，回复里的字数取自实际保存结果。
+- **懂网文与短剧节奏**：开篇直接进冲突，爽点当场兑现，对白推着剧情走，章末留钩子；选中正文点「去AI味」，可按段落对比改写前后，逐段选择采用或保留原稿。
 - **长篇连载不断片**：每轮自动带上「AI 记忆」、刚读写过的章节全文、上一章以及相关的角色卡和世界观设定，不靠翻长聊天记录记设定。
 - **自带 14 个技能，也能接外部 Agent**：内置续写、钩子设计、短篇写作、短剧分集和去 AI 味等 14 个技能，支持导入导出 `SKILL.md` 技能包；通过 `npx zenstory` 命令行，Claude Code、Codex、OpenClaw 等外部工具也能直接读写你的项目。
 
@@ -50,11 +50,11 @@ ZenStory 工作台是一个在浏览器里写**长篇小说、短篇小说和短
 
 ### 在线使用
 
-打开 [app.zenstory.ai](https://app.zenstory.ai) 注册即可创作。新建一个「长篇小说」项目后，第一条请求可以先让 AI 规划「黄金三章」细纲，确认节奏后再动笔写正文：
+打开 [app.zenstory.ai](https://app.zenstory.ai) 注册即可创作。新建「长篇小说」项目后，第一条消息可以先让 AI 规划「黄金三章」细纲，确认节奏后再动笔写正文：
 
 > 我想写一本玄幻爽文，先规划黄金三章细纲，暂不写正文。男主萧无涯是诸天万界最大的商会之主，十年来倾尽灵石、极品丹药和护山大阵把青云女帝洛清寒捧上神坛。开篇女帝证道大典，她为了刚入门的剑道白月光叶尘，当众嘲讽萧无涯满身铜臭、不配与她并肩，直接将他逐出宗门。萧无涯当场笑纳，一键切断宗门所有灵石、丹药和阵法供应。请按黄金三章给出每章的核心冲突、打脸爽点和章末卡点钩子。
 
-细纲敲定后，再让 AI 落盘并写正文（第三行的「钩子设计：」需先在「技能 → 发现技能」里启用该技能）：
+细纲敲定后，再指定文件名让 AI 落盘并写正文（第三行的「钩子设计：」需先在「技能 → 发现技能」里启用）：
 
 ```text
 把刚才的黄金三章细纲存进「大纲」文件夹，命名为「黄金三章细纲」。
@@ -116,18 +116,7 @@ npx zenstory skill install   # 默认装到 Claude Code；Codex、OpenClaw 加 -
 npx zenstory whoami          # 确认登录状态和读写权限
 ```
 
-装好技能后，外部 Agent 使用自己的模型写作，通过 `zenstory` CLI 读取项目上下文并写回章节：
-
-```bash
-dir=$(mktemp -d)
-zenstory files list <项目ID> --type draft --fields id,title --json           # 列出草稿
-zenstory context <项目ID> --file <章节ID> --query "接下来写什么" --json        # 获取项目上下文
-zenstory files get <章节ID> --fields updated_at --json                       # 记录当前版本时间戳
-zenstory files get <章节ID> -o "$dir/<章节ID>.md"                            # 导出到本地临时文件
-zenstory files put <章节ID> --content-file "$dir/<章节ID>.md" --if-updated-at <updated_at>   # 写回章节
-```
-
-完整命令与 HTTP 接口说明见 [apps/cli/README.md](apps/cli/README.md) 及 <https://api.zenstory.ai/skill.md>。
+装好技能后，直接在 Claude Code、Codex 或 OpenClaw 里用自然语言提写作需求即可，Agent 会自动调用 `zenstory` 读取项目上下文并写回章节。完整 CLI 命令与 HTTP 接口说明见 [apps/cli/README.md](apps/cli/README.md) 及 <https://api.zenstory.ai/skill.md>。
 
 ## 工作台核心功能
 
@@ -152,15 +141,15 @@ flowchart LR
     A --> S["回复与改动卡片"]
 ```
 
-- **一个模型、一份对话**：每一轮由同一个 Agent 跑完，没有路由和角色交接；对话历史按时间顺序保留，很长时会先压缩成交接摘要再继续。
-- **按章号写章节**：写正文用「第几章」定位——没有这一章就新建，已有就只整章替换这一章，卡片会写明是新建还是替换了原来多少字，替换后可一键撤销；整章替换不能借由普通的编辑工具完成，编辑也不能整篇覆盖或插入重复段落。
-- **大纲既是上限也是下限**：后面章节才出场的人物、事件和揭示不会提前写；这一章大纲里的关键事件一定写到；作者改了大纲就按作者的来，并同步更新大纲文件。
-- **边写边追回、长任务接着写**：AI 生成途中可以继续在输入框发补充要求，AI 写完手头这一步后就会按新要求调整，不会打断正在写的正文。长任务接近单次运行上限时会自动收尾并给出「继续」卡片，点一下就能从停下的地方接着写；回复末尾给出的改稿方向也会直接变成输入框上方的快捷按钮。
+- **一个模型、一份对话**：每一轮由同一个 Agent 跑完，没有路由和角色交接；对话历史按时间顺序保留，过长时会先压缩成交接摘要再继续。
+- **按章号写章节**：写正文按「第几章」对号落盘——没有就新建，已有就只替换这一章，卡片会标明新建字数或替换前的字数，并支持一键撤销；局部编辑工具禁止整章覆盖或插入重复段落。
+- **大纲既是上限也是下限**：后续章节才出场的人物、事件和揭示不会提前写；本章大纲里的关键事件一定落实；作者改了大纲就按新方向推进，并同步更新大纲文件。
+- **中途追加要求、长任务接着写**：AI 生成时可继续在输入框发补充要求，写完手头这一步就会按新要求调整，不打断正在写的正文；接近单次运行上限时会自动收尾并给出「继续」卡片，一键从断点接着写，回复末尾的改稿建议也会变成输入框上方的快捷按钮。
 
 ### AI 记忆与项目上下文
 
-- **自动带上相关稿件**：每轮对话除了保留最近约 32,000 token 的聊天记录和刚读写过的几章全文外，还会用独立的 32,000 token 预算按重要度带上当前打开的章节、选区引用、角色卡、核心设定、上一章以及关键词命中的片段。常用的稳定资料固定在提示词前缀，翻章续写时更快也更省 token。
-- **AI 记忆与写作约定**：面板分为「项目简介、写作风格、当前阶段、写作约定」四栏。需要长期遵守的设定（比如「记住：女主第五章才出场」），直接在对话里告诉 AI，它就会追加到「写作约定」里并在对话卡片中列出，不会擅自删改你写好的备注。
+- **自动组装相关稿件**：每轮对话除了保留最近约 32,000 token 的聊天记录和刚读写过的章节全文，还会用独立的 32,000 token 预算按重要度带上当前章节、选区引用、角色卡、核心设定、上一章和关键词命中片段。稳定的项目资料固定在提示词前缀，翻章续写更快也更省 token。
+- **AI 记忆与写作约定**：面板分为「项目简介、写作风格、当前阶段、写作约定」四栏。需要长期遵守的设定（如「记住：女主第五章才出场」），直接在对话里告诉 AI，就会追加到「写作约定」并在对话卡片中列出，不会擅自删改已有备注。
 
 ### 14 个内置技能与自定义技能包
 
@@ -172,71 +161,19 @@ flowchart LR
 | 角色 | 创建角色 |
 | 世界观 | 世界观设定 |
 
-在「技能 → 发现技能」启用后，AI 每轮先看到已启用技能的名称与用途，匹配你的请求时再读取完整方法；你也可以在输入框打 `/` 或从侧栏点选技能，直接附在当前消息上（最多 3 个）。自定义技能采用开放 Agent Skills 的 `SKILL.md` 格式，可附带 `references/` 参考资料，支持以 `.zip` 或 `.md` 导入导出。
+在「技能 → 发现技能」启用后，AI 每轮先看到已启用技能的名称与用途，匹配需求时再按需读取完整方法；也可以在输入框打 `/` 或从侧栏点选技能，直接附在当前消息上（最多 3 个）。自定义技能采用开放 Agent Skills 的 `SKILL.md` 格式，可附带 `references/` 参考资料，支持以 `.zip` 或 `.md` 导入导出。
 
 ### 参考小说拆解（素材库）
 
-上传一本 30 万字以内的 TXT 参考小说，后台自动拆出每章摘要、全书概要、角色档案、世界观和金手指。要用时在项目的「参考小说库」面板把条目附加到对话，或直接导入项目变成可检索的文件。
-
-## 延伸阅读
-
-- [快速开始](https://zenstory.ai/docs/getting-started/quick-start)：从空项目到第一份能改的提纲。
-- [第一篇短篇](https://zenstory.ai/docs/getting-started/first-project)：一个原创短篇的文件安排和三段范围明确的请求。
-- [AI 创作助手](https://zenstory.ai/docs/user-guide/ai-assistant)：焦点文件、引用文字，以及中断后怎么接着写。
-- [AI 记忆](https://zenstory.ai/docs/advanced/ai-memory)：四栏怎么填，写错了怎么改。
-- [版本历史](https://zenstory.ai/docs/user-guide/version-history)：查看、比较和恢复单个文件的版本。
-- [从参考片段写到自己的场景](https://zenstory.ai/docs/advanced/material-analysis)：拆完参考小说，怎样写出自己的戏。
-- [写作环境对比](https://zenstory.ai/zh/compare/writing-workflows)：普通聊天、Oh Story skill 包、DSH 插件和 ZenStory 工作台各适合什么。
-- [AI 续写怎么保持文风](https://zenstory.ai/zh/oh-story/preserve-author-voice)：把文风拆成说得清的几点，附一段自己的样本。
-
-## 参与贡献
-
-- **GitHub Issues**：[提交 Bug](https://github.com/zenstory-ai/zenstory/issues/new?template=bug_report.md) · [功能建议](https://github.com/zenstory-ai/zenstory/issues/new?template=feature_request.md)。在线版也可以从项目页右上角「…」→「问题反馈」提交并附截图。
-- 改代码前请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与仓库文档索引 [docs/README.md](docs/README.md)。写作 Agent 的工作流、工具和 SSE 事件说明见 [`apps/server/agent/AGENTS.md`](apps/server/agent/AGENTS.md)。
-
-<details>
-<summary>项目结构与技术栈</summary>
-
-```text
-zenstory/
-├── apps/web/                 # React 前端
-│   ├── src/components/       #   Layout、sidebar/FileTreePane、Editor、ChatPanel、skills …
-│   ├── src/pages/            #   Dashboard、项目、素材库、定价 …
-│   └── docs/                 #   使用文档源文件，发布到 zenstory.ai/docs
-├── apps/cli/                 # zenstory 命令行工具与外部 Agent 技能包
-└── apps/server/              # FastAPI 后端
-    ├── api/                  #   路由：auth、projects、files、agent、agent_api、materials、admin …
-    ├── agent/                #   写作 Agent
-    │   ├── loop/             #     单循环写作 Agent：提示、历史、压缩与运行循环
-    │   ├── tools/            #     文件、项目和技能工具
-    │   ├── context/          #     每轮上下文组装、预算和重要度排序
-    │   ├── prompts/          #     写作协议与题材规范
-    │   └── skills/           #     技能加载与注入
-    ├── flows/                #   素材拆解流水线（Prefect）
-    ├── services/             #   业务逻辑
-    └── models/               #   数据模型
-```
-
-| 层 | 技术 |
-| --- | --- |
-| 前端 | React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Zustand · TanStack Query |
-| 后端 | FastAPI · SQLModel · Server-Sent Events |
-| AI | DeepSeek / MiniMax（OpenAI 兼容接口）· openai-agents-python |
-| 检索 | 数据库关键词匹配、相关片段与行号；文件编辑后立即可搜，无索引任务 |
-| 数据 | SQLite（默认）/ PostgreSQL · Redis · Alembic |
-| 部署 | Docker Compose；在线版前端在 Vercel，后端与 Prefect 在 Railway |
-
-</details>
+上传一本 30 万字以内的 TXT 参考小说，后台会自动拆出每章摘要、全书概要、角色档案、世界观和金手指。写作时可在「参考小说库」面板把条目附加到对话，或直接导入项目成为可检索文件。
 
 ## 许可证
 
-[GNU AGPL-3.0](LICENSE) &copy; 2024-2026 ZenStory
+本仓库采用 [GNU AGPL-3.0](LICENSE)（&copy; 2024-2026 ZenStory）：可自由使用、修改和自部署；若将修改版作为网络服务对他人提供，需按 AGPL 向对应用户公开源代码。`apps/cli` 命令行客户端独立采用 MIT 许可（见 [apps/cli/LICENSE](apps/cli/LICENSE)）。ZenStory 名称与标识不在开源许可范围内，fork 或自部署请使用自己的名称；如需免除 AGPL 义务的商业授权，请联系维护者。
 
-本仓库采用 GNU Affero General Public License v3.0。你可以自由使用、修改和自部署；如果把修改后的版本作为网络服务提供给他人，需要按 AGPL 向这些用户公开对应的源代码。
+## 致谢
 
-ZenStory 名称与标识不在许可范围内：fork 或自部署的服务请使用自己的名称。需要商业授权（不受 AGPL 义务约束）请联系维护者。
-
-`apps/cli` 命令行客户端仍按 MIT 许可提供，见 [apps/cli/LICENSE](apps/cli/LICENSE)。
+<https://linux.do>
 
 ## ZenStory AI 项目
 

@@ -400,7 +400,7 @@
     "slug": "novel-to-game",
     "repo": "novel-to-game",
     "github": "https://github.com/zenstory-ai/novel-to-game",
-    "readme_en": "https://github.com/zenstory-ai/novel-to-game",
+    "readme_en": "https://github.com/zenstory-ai/novel-to-game/blob/main/README_EN.md",
     "format": {
       "en": "Adaptation skill pack",
       "zh": "改编 skill 包"
@@ -542,7 +542,7 @@
     "slug": "video-recap",
     "repo": "video-recap-skills",
     "github": "https://github.com/zenstory-ai/video-recap-skills",
-    "readme_en": "https://github.com/zenstory-ai/video-recap-skills/blob/main/README.en.md",
+    "readme_en": "https://github.com/zenstory-ai/video-recap-skills/blob/main/README_EN.md",
     "format": {
       "en": "Video workflow",
       "zh": "视频工作流"
