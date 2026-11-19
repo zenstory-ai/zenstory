@@ -441,7 +441,7 @@ class StreamBillingTracker:
                 return edits_applied > 0
             return True  # 旧格式结果没有这两个字段：成功即算
         if tool_name == "delete_file":
-            return True
+            return payload.get("data") is True or data.get("mutation_applied") is True
         if tool_name == "rename_file":
             return data.get("mutation_applied") is True
         if tool_name == "update_project":

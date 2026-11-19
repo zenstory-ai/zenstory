@@ -87,7 +87,7 @@ agent/
 │   ├── registry.py         # schema / handler / 单循环 agent 工具集的唯一接线处
 │   ├── file_ops/           # 文件 CRUD、编辑、项目操作（FileToolExecutor 组合三者）
 │   ├── author_changes.py   # 作者在 AI 写过之后的净改动
-│   ├── author_edit_guard.py# 作者手改文件的删除 / 整份覆盖保护
+│   ├── write_errors.py     # 写入恢复记录失败的独立错误域
 │   ├── task_progress.py    # 任务板编号范围与实际文件对照
 │   └── permissions.py
 └── utils/                  # token_utils
@@ -97,7 +97,7 @@ agent/
 
 - **接入点**：`AgentService.process_stream` 用 `_prepare_loop_turn` 准备输入，
   把 `loop.engine.run_loop_agent_streaming` 交给 `StreamAdapter.process_workflow_events`。SSE 外壳、计费 / 退还、停止 / 插话、
-  残稿补存、`round_outcome`、文件版本并发与作者正文保护都在这条路径上。请求 `metadata.generation_mode` 照旧接受、不读取。
+  残稿补存、`round_outcome`、文件版本并发与原稿恢复记录都在这条路径上。请求 `metadata.generation_mode` 照旧接受、不读取。
 - **输入**：`[系统提示][重建的历史][<turn_context> + 作者消息]`。系统提示 = 项目类型配置（`prompts.get_prompt_for_project_type`：
   `LOOP_AUTHOR_REPLY_PROTOCOL`、`LOOP_TOOL_USAGE_PROTOCOL`）+ 回复语言 + `loop/prompts.py` 的输入布局与
   工作方式（含写后连贯自查、按真实字数汇报）+ 技能目录，跨轮不变。`<turn_context>`（`loop/turn_context.py`）只放这一轮请求带来的东西：
@@ -144,6 +144,8 @@ agent/
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` 是唯一的工具集（顺序即请求里工具清单的顺序，前缀缓存依赖它），请求里直接从 `tool_schemas.TOOL_SCHEMAS` 按序取出（`get_exposed_tools()`；`CREATE_FILE_TOOL` 只列资料文件与文件夹，不列 draft / script）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入直接落库并保留修改卡撤销、历史版本及草稿冲突与版本并发保护（[direct-ai-edits][n-direct-edits]）；
   写作约定追加许可放开（只追加、`expected_notes` 冲突保护不变）。
   create_file 的 `empty=true` 在单循环轮次里直接生效（`ToolContext.author_wants_no_body`，由模型判断，不从原话推断）。
+- **改稿恢复**：`services/file_edit_operations.py` 在文件写锁内为 edit_file / write_chapter / rename_file 保存精确前后版本、标题/顺序与操作记录；流式新正文、调用内直接正文与 `source_text` 非空创建统一建立 atomic empty-before/body-after `edit_file` operation，任一必需记录失败整次不写。新正文的“撤销正文”不删文件，保留同一 ID、标题、parent/order，并以三方合并保留后续不重叠作者文字。正文来源只通过 `author_changes` 帮助模型理解手改，不决定能否改写。新卡用 operation_id 撤销，旧卡仍兼容条件版本回滚。选择性撤销以 AI 后稿为 base、当前稿为 local、AI 前稿为 target，在前端复用三方合并，二次提交必须核对当前版本。仅真冲突显示紧凑选择；标题与正文同动作原子恢复，未被该操作修改的维度保留现值。聊天清空后文件历史仍可查操作。
+- **可恢复删除**：`delete_file` 单文件 id 与多文件 ids 恰一者提供；根 ID 规范化去重后最多 100 个，目录展开目标可更多。目录和大批次返回一次范围确认；同请求直接删除累计最多 5 个叶文件，不能拆调用绕过。一次请求触发确认后，`ToolContext` 的 request-local sticky 标记让后续缩小目标或拆分调用仍只能返回 UI 确认，下一条作者请求重置。`services/file_trash.py` 统一 REST、聊天、回收站，删除/恢复均锁项目树、核对精确集合与删除代次；恢复不遍历当前目录补旧孩子、不改上传对象。所有结构 writer 先取 Project gate：创建/排序 shared，父子图、标题唯一性、删除/恢复与撤销路径 exclusive，再按固定顺序取文件及 operation/batch 锁。确认接口仅供真实 UI 点击，模型没有 force 工具。停止后的空占位清理仍走既有内部条件删除，不混进作者回收站。
 - **正文按章号写入**（`mcp_tools.write_chapter`）：`write_chapter(chapter, title, file_type=draft|script, parent_id?, empty?)` 在本项目未删除的
   draft / script 里按标题开头的章号（draft）或集号（script）解析目标（`utils.title_sequence.extract_sequence_number(unit=…)`，无前缀章号时按 `file_type` 回退读取 `file_metadata` 的 `chapter_number` / `episode_number` 以识别导入拆章，有界的标识符解析；
   给了 parent_id 只看那个目录，先按 `file_ops.crud.resolve_create_target` 与 create_file 同样归一父节点；正文分在多个目录而没给 parent_id 时
@@ -151,12 +153,12 @@ agent/
   （`action=created`，两次回复协议、待写守卫、空文件纠偏 / 回滚、退还时移除空白占位都照旧）；恰好一个 → `action=replaced`，定位时不改数据库，
   记下 `updated_at` 与原长度、绑定待写守卫（传入了非裸章号的新章名时记为 `new_title`，在 `</file>` 落库同一事务内一并更新标题；不记建好时的版本：补不成不回滚、不算可取消的空文件；记下替换的定位结果，
   `<file>` 落库前对同一文件再调 `write_chapter`、`rename_file` 或 `edit_file` 一律返回 `chapter_replace_pending` 且 `mutation_applied=false`，不推进 `updated_at`）；不止一个 → `chapter_target_ambiguous`
-  列出候选，不写。作者保存过正文（或来源无法确认）的章节在定位时以 `author_edit_protected` / `author_edit_protection_unavailable` 拒绝。
+  列出候选，不写。作者保存过或没有来源记录的原稿同样可按本轮请求重写，不再做来源权限判断。
   `empty=true` 只建缺的空章节（已有的 `action=exists` 不动）。StreamAdapter 在 `</file>` 后把整章替换交给 `FileEditor.replace_body`
-  （与 edit_file 共用 `_commit_ai_content`：写锁内重读、版本核对、原稿备份、AI 版本「AI 整章替换」、同事务更新新标题、撤销锚点、锁内再核作者保护），
+  （与 edit_file 共用 `_commit_ai_content`：写锁内重读、版本核对、原稿备份、AI 版本「AI 整章替换」、同事务更新新标题、精确前后版本与 `FileEditOperation` 撤销记录），
   然后发 `file_content_end`、`file_edit_start/applied/end`（end 带 `original_content` / `new_content`，前端直接刷新展示最新正文），
   并以同一个 tool_use_id 补发一条 write_chapter 的 tool_result（`body_saved`、`new_word_count`、`previous_word_count`、`undo`；落库卡片随之更新，
-  `services/chat_tool_cards` 的撤销标记接受 write_chapter 卡）。版本变了或作者保护命中时不覆盖、发「这一章的整章替换没有保存，原文保持不变」、
+  `services/chat_tool_cards` 的撤销标记接受 write_chapter 卡）。版本变了或恢复记录无法建立时不覆盖、发「这一章的整章替换没有保存，原文保持不变」、
   补发 `body_saved=false`，然后结束这一轮（`_stop_after_refused_replace`：之后的模型文字不放出，正常 done；`ToolContext.close_pending_body_files`
   撤销模型跑在前面建好的空文件，之后才建好的由 `_create_file_sync` 自己撤销）。计费（`StreamBillingTracker._write_effect`）：write_chapter
   新建同 create_file 只看 content，替换只认 `body_saved` 且 `mutation_applied` 的补发结果（替换目标即结果 `action=replaced` 且原文非空的 id 记进

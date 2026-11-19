@@ -6,6 +6,7 @@ import pytest
 from sqlmodel import select
 
 from agent.tools.file_ops import FileCRUD, FileEditor
+from agent.tools.write_errors import PreWriteHistoryUnavailableError
 from api import files as files_api
 from models import File, FileVersion, Project, User
 from services.features.activation_event_service import activation_event_service
@@ -120,7 +121,7 @@ def test_backup_does_not_use_user_version_quota(db_session, chapter, monkeypatch
     assert FileVersionService().get_version_count(db_session, file.id, change_source="user") == 0
 
 
-def test_backup_failure_does_not_block_the_ai_write(db_session, chapter, monkeypatch):
+def test_backup_failure_blocks_the_ai_write_without_changing_the_manuscript(db_session, chapter, monkeypatch):
     user, _, file = chapter
     _manual_save_without_version(db_session, user, file, "手改稿。\n")
     real_create = FileVersionService.create_version
@@ -132,11 +133,12 @@ def test_backup_failure_does_not_block_the_ai_write(db_session, chapter, monkeyp
 
     monkeypatch.setattr(FileVersionService, "create_version", failing_backup)
 
-    FileCRUD(db_session, user.id).update_file(file.id, content="AI 重写。\n")
+    with pytest.raises(PreWriteHistoryUnavailableError):
+        FileCRUD(db_session, user.id).update_file(file.id, content="AI 重写。\n")
 
     db_session.expire_all()
-    assert db_session.get(File, file.id).content == "AI 重写。\n"
-    assert [v.change_source for v in _versions(db_session, file.id)] == ["system", "ai"]
+    assert db_session.get(File, file.id).content == "手改稿。\n"
+    assert [v.change_source for v in _versions(db_session, file.id)] == ["system"]
 
 
 def _manual_save(session, user, file, content):
@@ -198,7 +200,7 @@ def _fail_backup_with_real_db_error(_self, session, *_args, **_kwargs):
 
 def test_edit_refuses_when_unversioned_original_cannot_reach_history(db_session, chapter, monkeypatch):
     """备份失败、原稿不在任何历史版本里：AI 修改不能提交，否则被删的作者文字无处恢复。"""
-    from agent.tools.author_edit_guard import PreWriteHistoryUnavailableError
+    from agent.tools.write_errors import PreWriteHistoryUnavailableError
 
     user, _, file = chapter
     author_bytes = "作者新加、还没进历史的一段。\n"
@@ -206,7 +208,7 @@ def test_edit_refuses_when_unversioned_original_cannot_reach_history(db_session,
     db_session.expire_all()
     before = db_session.get(File, file.id)
     before_content, before_updated_at = before.content, before.updated_at
-    monkeypatch.setattr(FileVersionService, "backup_unversioned_content", _fail_backup_with_real_db_error)
+    monkeypatch.setattr(FileVersionService, "create_version", _fail_backup_with_real_db_error)
 
     with pytest.raises(PreWriteHistoryUnavailableError) as raised:
         FileEditor(db_session, user.id).edit_file(
@@ -225,18 +227,18 @@ def test_edit_refuses_when_unversioned_original_cannot_reach_history(db_session,
 
 
 def test_replace_body_refuses_when_unversioned_original_cannot_reach_history(db_session, chapter, monkeypatch):
-    from agent.tools.author_edit_guard import PreWriteHistoryUnavailableError
+    from agent.tools.write_errors import PreWriteHistoryUnavailableError
 
     user, _, file = chapter
     _manual_save_without_version(db_session, user, file, "作者手改、没进历史的原稿。\n")
     db_session.expire_all()
     before = db_session.get(File, file.id)
     before_content, before_updated_at = before.content, before.updated_at
-    monkeypatch.setattr(FileVersionService, "backup_unversioned_content", _fail_backup_with_real_db_error)
+    monkeypatch.setattr(FileVersionService, "create_version", _fail_backup_with_real_db_error)
 
     with pytest.raises(PreWriteHistoryUnavailableError):
         FileEditor(db_session, user.id).replace_body(
-            file.id, "AI 整章新稿。\n", expected_updated_at=None, protect_author_content=False
+            file.id, "AI 整章新稿。\n", expected_updated_at=None
         )
 
     db_session.expire_all()
@@ -246,16 +248,16 @@ def test_replace_body_refuses_when_unversioned_original_cannot_reach_history(db_
     assert [v.change_source for v in _versions(db_session, file.id)] == ["system"]
 
 
-def test_blank_original_still_takes_the_ai_write_when_backup_fails(db_session, chapter, monkeypatch):
-    """空白原稿没有可丢的字：备份出错也照常写入。"""
+def test_blank_original_also_requires_a_reliable_recovery_record(db_session, chapter, monkeypatch):
     user, _, file = chapter
     file.content = ""
     db_session.add(file)
     db_session.commit()
-    monkeypatch.setattr(FileVersionService, "backup_unversioned_content", _fail_backup_with_real_db_error)
+    monkeypatch.setattr(FileVersionService, "create_version", _fail_backup_with_real_db_error)
 
-    result = FileEditor(db_session, user.id).edit_file(file.id, [{"op": "append", "text": "AI 写的第一段。\n"}])
+    with pytest.raises(PreWriteHistoryUnavailableError):
+        FileEditor(db_session, user.id).edit_file(file.id, [{"op": "append", "text": "AI 写的第一段。\n"}])
 
-    assert result["mutation_applied"] is True
     db_session.expire_all()
-    assert db_session.get(File, file.id).content.strip() == "AI 写的第一段。"
+    assert db_session.get(File, file.id).content == ""
+    assert [v.change_source for v in _versions(db_session, file.id)] == ["system"]

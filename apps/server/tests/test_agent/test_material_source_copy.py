@@ -68,7 +68,6 @@ async def test_source_text_is_saved_byte_for_byte_from_current_author_message():
         order=None,
         metadata=None,
         normalize_quotes=True,
-        protect_author_content=True,
     )
     assert not ToolContext.has_pending_empty_file()
 

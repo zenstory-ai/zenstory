@@ -370,8 +370,14 @@ class RoundWrittenFiles:
     def _observe_tool_result(self, payload: dict[str, Any]) -> None:
         if payload.get("tool_name") == "delete_file":
             file_id = self._delete_targets.pop(payload.get("tool_use_id"), None)
-            if payload.get("status") == "success" and payload.get("data") is True and file_id:
-                self._forget_file(file_id)
+            data = payload.get("data")
+            if payload.get("status") == "success":
+                if data is True and file_id:
+                    self._forget_file(file_id)
+                elif isinstance(data, dict) and data.get("mutation_applied") is True:
+                    for target in data.get("targets", []):
+                        if isinstance(target, dict) and isinstance(target.get("id"), str):
+                            self._forget_file(target["id"])
             return
         if payload.get("status") != "success":
             return

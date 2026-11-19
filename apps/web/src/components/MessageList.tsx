@@ -24,7 +24,7 @@ import { ToolResultCard } from './ToolResultCard';
 import { Badge, type BadgeProps } from './ui/Badge';
 import { ThinkingContent } from './ThinkingContent';
 import { HistoryCompactionMarker } from './HistoryCompactionMarker';
-import type { AgentContextItem, FileEditUndoTarget, IterationExhaustedLayer, ToolCall } from '../types';
+import type { AgentContextItem, FileDeletionPreview, FileDeletionResult, FileEditUndoTarget, IterationExhaustedLayer, ToolCall } from '../types';
 import { getLocaleCode } from '../lib/i18n-helpers';
 import { stripThinkTags } from '../lib/utils';
 import { getAgentDisplayName } from '../lib/agentDisplayName';
@@ -133,6 +133,8 @@ interface MessageListProps {
   messages: Message[];
   /** Callback invoked when user requests to undo a file edit operation */
   onUndo?: (target: FileEditUndoTarget) => void;
+  onRestoreDeletion?: (batchId: string) => void;
+  onConfirmDeletion?: (preview: FileDeletionPreview) => Promise<FileDeletionResult>;
   /** Open a successful file result in the current project. */
   onOpenFile?: (fileId: string, fileType: string, title: string) => void;
   /** Open AI Memory at the Writing Conventions field. */
@@ -543,10 +545,12 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
 /**
  * Props passed to each message Row component.
  */
-function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIterationAssistAction, nextStepsBlocked = false, isStreaming = false, chatMessageId }: {
+function OrderedMessageItems({ items, onUndo, onRestoreDeletion, onConfirmDeletion, onOpenFile, onOpenAIMemory, onIterationAssistAction, nextStepsBlocked = false, isStreaming = false, chatMessageId }: {
   items: StreamRenderItem[];
   nextStepsBlocked?: boolean;
   onUndo?: MessageListProps['onUndo'];
+  onRestoreDeletion?: MessageListProps['onRestoreDeletion'];
+  onConfirmDeletion?: MessageListProps['onConfirmDeletion'];
   /** The saved assistant message these items belong to (absent while streaming). */
   chatMessageId?: string;
   onOpenFile?: MessageListProps['onOpenFile'];
@@ -620,6 +624,8 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
               isPending={toolCall.status === 'pending' && isStreaming}
               interrupted={toolCall.status === 'pending' && !isStreaming}
               onUndo={onUndo}
+              onRestoreDeletion={onRestoreDeletion}
+              onConfirmDeletion={onConfirmDeletion}
               toolUseId={toolCall.id}
               chatMessageId={chatMessageId}
               onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
@@ -696,6 +702,8 @@ interface RowDataProps {
   formatTime: (date: Date) => string;
   /** Callback to undo a file edit */
   onUndo?: (target: FileEditUndoTarget) => void;
+  onRestoreDeletion?: (batchId: string) => void;
+  onConfirmDeletion?: MessageListProps['onConfirmDeletion'];
   /** Open a successful file result in the current project. */
   onOpenFile?: (fileId: string, fileType: string, title: string) => void;
   /** Open AI Memory at the Writing Conventions field. */
@@ -727,6 +735,8 @@ const Row = React.memo(function Row({
   nextRole,
   formatTime,
   onUndo,
+  onRestoreDeletion,
+  onConfirmDeletion,
   onOpenFile,
   onOpenAIMemory,
   onSubmitFeedback,
@@ -826,7 +836,7 @@ const Row = React.memo(function Row({
       {/* Content */}
       <div className="flex-1 min-w-0 overflow-hidden">
         {hasDisplayItems ? (
-          <OrderedMessageItems items={orderedDisplayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={false} chatMessageId={message.backendMessageId} />
+          <OrderedMessageItems items={orderedDisplayItems!} onUndo={onUndo} onRestoreDeletion={onRestoreDeletion} onConfirmDeletion={onConfirmDeletion} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={false} chatMessageId={message.backendMessageId} />
         ) : (
           hasDisplayContent && (
             <div className="flex items-end gap-0.5">
@@ -965,6 +975,8 @@ const Row = React.memo(function Row({
                 isPending={false}
                 interrupted={toolCall.status === 'pending'}
                 onUndo={onUndo}
+                onRestoreDeletion={onRestoreDeletion}
+                onConfirmDeletion={onConfirmDeletion}
                 toolUseId={toolCall.id}
                 chatMessageId={message.backendMessageId}
                 onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
@@ -985,6 +997,8 @@ const Row = React.memo(function Row({
                 result={result.result ?? {}}
                 error={result.status === 'error' ? result.error : undefined}
                 onUndo={onUndo}
+                onRestoreDeletion={onRestoreDeletion}
+                onConfirmDeletion={onConfirmDeletion}
                 toolUseId={result.id}
                 chatMessageId={message.backendMessageId}
                 onOpenFile={result.status === 'success' ? onOpenFile : undefined}
@@ -1075,6 +1089,8 @@ export const MessageList = React.memo(
   forwardRef<MessageListRef, MessageListProps>(({
   messages,
   onUndo,
+  onRestoreDeletion,
+  onConfirmDeletion,
   onOpenFile,
   onOpenAIMemory,
   onSubmitFeedback,
@@ -1185,6 +1201,8 @@ export const MessageList = React.memo(
           nextRole={visibleMessages[index + 1]?.role}
           formatTime={formatTime}
           onUndo={onUndo}
+          onRestoreDeletion={onRestoreDeletion}
+          onConfirmDeletion={onConfirmDeletion}
           onOpenFile={onOpenFile}
           onOpenAIMemory={onOpenAIMemory}
           onSubmitFeedback={onSubmitFeedback}
@@ -1209,7 +1227,7 @@ export const MessageList = React.memo(
 
           {/* Stream items */}
           <div className="flex-1 min-w-0 overflow-hidden">
-            <OrderedMessageItems items={safeStreamRenderItems} onUndo={onUndo} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={true} />
+            <OrderedMessageItems items={safeStreamRenderItems} onUndo={onUndo} onRestoreDeletion={onRestoreDeletion} onConfirmDeletion={onConfirmDeletion} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={true} />
 
             {/* Timestamp */}
             <div className={`text-xs text-[hsl(var(--text-secondary))] ${isMobile ? 'mt-2' : 'mt-3'}`}>

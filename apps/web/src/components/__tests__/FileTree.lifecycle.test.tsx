@@ -8,6 +8,7 @@ import { MobileFileTree } from '../MobileFileTree';
 
 const mocks = vi.hoisted(() => ({
   getTree: vi.fn(), create: vi.fn(), delete: vi.fn(), upload: vi.fn(), uploadDraft: vi.fn(),
+  trashPreview: vi.fn(), trashDeleteBatch: vi.fn(), trashList: vi.fn(), trashRestore: vi.fn(),
   select: vi.fn(), switchToEditor: vi.fn(), error: vi.fn(), success: vi.fn(), info: vi.fn(),
   loggerError: vi.fn(), addMaterial: vi.fn(() => true), removeMaterial: vi.fn(),
   attached: false, atLimit: false,
@@ -30,7 +31,15 @@ vi.mock('../../contexts/MaterialAttachmentContext', () => ({
     isMaterialAttached: () => mocks.attached, isAtLimit: mocks.atLimit,
   }),
 }));
-vi.mock('../../lib/api', () => ({ fileApi: mocks }));
+vi.mock('../../lib/api', () => ({
+  fileApi: mocks,
+  fileTrashApi: {
+    preview: mocks.trashPreview,
+    deleteBatch: mocks.trashDeleteBatch,
+    list: mocks.trashList,
+    restore: mocks.trashRestore,
+  },
+}));
 vi.mock('../../lib/toast', () => ({ toast: { error: mocks.error, success: mocks.success, info: mocks.info } }));
 vi.mock('../../lib/logger', () => ({ logger: { error: mocks.loggerError, warn: vi.fn() } }));
 
@@ -43,9 +52,11 @@ function deferred<T>() {
   const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
   return { promise, resolve, reject };
 }
-function answerDeleteDialog(confirm = true) {
-  const dialog = screen.getByRole('dialog');
-  fireEvent.click(within(dialog).getByRole('button', { name: confirm ? 'common:delete' : 'common:cancel' }));
+async function answerDeleteDialog(confirm = true) {
+  const dialog = await screen.findByRole('dialog');
+  const button = within(dialog).getByRole('button', { name: confirm ? 'common:delete' : 'common:cancel' });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
 }
 function mountTree(mobile: boolean, strict = false, fileTreeVersion = 0) {
   let project = {
@@ -69,6 +80,19 @@ beforeEach(() => {
   mocks.attached = false;
   mocks.atLimit = false;
   mocks.addMaterial.mockReturnValue(true);
+  mocks.trashPreview.mockImplementation(async (_projectId: string, ids: string[], recursive: boolean) => ({
+    root_ids: ids,
+    recursive,
+    targets: ids.map((id) => ({ id, title: id, file_type: 'draft', parent_id: null, order: 0 })),
+    count: ids.length,
+    target_hash: 'a'.repeat(64),
+  }));
+  mocks.trashDeleteBatch.mockImplementation((_projectId: string, preview: { root_ids: string[]; targets: unknown[] }) =>
+    Promise.resolve(mocks.delete(preview.root_ids[0])).then(() => ({
+      batch_id: 'batch-1', root_ids: preview.root_ids, targets: preview.targets,
+      count: preview.targets.length, restored: false, mutation_applied: true,
+    })));
+  mocks.trashList.mockResolvedValue({ batches: [], total: 0, limit: 50, offset: 0, next_offset: null });
   mocks.getTree.mockResolvedValue({ tree: [node('root', '角色', 'folder', [node('file', 'Author', 'character')])] });
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -98,7 +122,7 @@ for (const mobile of [false, true]) {
           view.update({ selectedItem: sharedSelection });
           mocks.delete.mockReturnValue(pending.promise);
           fireEvent.click(screen.getByTitle('common:delete'));
-          answerDeleteDialog();
+          await answerDeleteDialog();
           expect(mocks.delete).toHaveBeenCalledTimes(1);
         } else {
           mocks.upload.mockReturnValue(pending.promise);
@@ -217,7 +241,7 @@ for (const mobile of [false, true]) {
       } else if (mutation === 'delete') {
         mocks.delete.mockReturnValue(pending.promise);
         fireEvent.click(await screen.findByTitle('common:delete'));
-        answerDeleteDialog();
+        await answerDeleteDialog();
         expect(mocks.delete).toHaveBeenCalledTimes(1);
       } else {
         if (mutation === 'draft') mocks.uploadDraft.mockReturnValue(pending.promise);
@@ -241,7 +265,7 @@ for (const mobile of [false, true]) {
       await screen.findByText('Author');
       view.update({ selectedItem: { id: 'file', title: 'Author', type: 'character' } });
       fireEvent.click(screen.getByTitle('common:delete'));
-      answerDeleteDialog();
+      await answerDeleteDialog();
       expect(mocks.delete).toHaveBeenCalledTimes(1);
       mocks.getTree.mockResolvedValueOnce({ tree: [node('new', 'New project file')] });
       view.update({ currentProjectId: 'project-2', selectedItem: { id: 'new', title: 'New project file', type: 'draft' } });
@@ -378,7 +402,7 @@ for (const mobile of [false, true]) {
       view.update({ selectedItem: { id: 'file', type: 'character', title: 'Author' } });
       fireEvent.click(screen.getByTitle('common:delete'));
       expect(mocks.delete).not.toHaveBeenCalled();
-      answerDeleteDialog(confirmed);
+      await answerDeleteDialog(confirmed);
       expect(nativeConfirm).not.toHaveBeenCalled();
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
       if (confirmed) {
@@ -398,7 +422,7 @@ for (const mobile of [false, true]) {
       await screen.findByText('Author');
       view.update({ selectedItem: { id: 'file', type: 'character', title: 'Author' } });
       fireEvent.click(screen.getByTitle('common:delete'));
-      answerDeleteDialog();
+      await answerDeleteDialog();
       await waitFor(() => expect(mocks.error).toHaveBeenCalledWith('editor:fileTree.deleteFailed'));
       expect(screen.getByText('Author')).toBeInTheDocument();
       expect(mocks.select).not.toHaveBeenCalled();

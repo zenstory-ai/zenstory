@@ -40,7 +40,7 @@ Edit the title in the editor and save. There is no direct type-conversion interf
 
 ### Is there a trash for deleted work?
 
-There is no user-facing file or project trash, and deleted files cannot be restored from [history](../user-guide/version-history.md). Do not test recovery by deleting work.
+Open **Trash** in the project file panel to restore files or whole deletion batches created after this feature became available. Chat deletion cards also offer recovery. Earlier deletions and deleted projects are not included. Use [history](../user-guide/version-history.md) to recover older manuscript text.
 
 ### Does export include the whole project?
 

@@ -1,7 +1,7 @@
-"""聊天里 AI 修改卡的当前状态：作者撤销了这次修改之后，卡片不再显示「修改完成 / 撤销」。
+"""聊天恢复卡的显示状态。
 
-状态写回原助手消息 tool_calls 里那一张卡（``result.undo.undone``），不改助手原话，
-不新建表或第二份变更账本；撤销本身仍是既有的条件回滚（file_version_service.rollback_to_version）。
+新卡从持久 operation/deletion batch 校准状态，聊天 JSON 不作为恢复事实。
+没有 operation_id 的历史卡仍保留原条件回滚与 JSON 撤销标记兼容。
 """
 
 import contextlib
@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 
 # 带撤销锚点的 AI 修改卡：edit_file，以及单循环 agent 的整章替换（write_chapter）。
-_UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter"})
+_UNDOABLE_CARD_TOOLS = frozenset({"create_file", "edit_file", "write_chapter", "rename_file"})
 
 
 def _card_undo(call: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -40,6 +40,119 @@ def _same_token(stored: Any, expected: datetime) -> bool:
     except ValueError:
         return False
     return normalize_datetime_to_utc(parsed) == normalize_datetime_to_utc(expected)
+
+
+def hydrate_recovery_card_states(
+    session: Session,
+    calls: list[dict[str, Any]],
+    *,
+    user_id: str,
+    project_id: str,
+) -> list[dict[str, Any]]:
+    """Overlay durable edit/deletion state onto decoded chat cards in place.
+
+    Chat JSON is a presentation cache.  New cards carry ``operation_id`` and
+    use ``FileEditOperation.undone_at`` as the source of truth after refresh.
+    Old cards without an operation keep their historical JSON behavior.
+    """
+    from models.file_deletion_batch import FileDeletionBatch
+    from models.file_edit_operation import FileEditOperation
+
+    operation_ids: set[str] = set()
+    batch_ids: set[str] = set()
+    preview_hashes: set[str] = set()
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        _data, undo = _card_undo(call)
+        operation_id = undo.get("operation_id") if isinstance(undo, dict) else None
+        if isinstance(operation_id, str) and operation_id:
+            operation_ids.add(operation_id)
+        batch_id = _data.get("batch_id") if isinstance(_data, dict) else None
+        if isinstance(batch_id, str) and batch_id:
+            batch_ids.add(batch_id)
+        preview = _data.get("preview") if isinstance(_data, dict) else None
+        target_hash = preview.get("target_hash") if isinstance(preview, dict) else None
+        if isinstance(target_hash, str) and target_hash:
+            preview_hashes.add(target_hash)
+    states = (
+        {
+            row.id: row.undone_at is not None
+            for row in session.exec(
+                select(FileEditOperation).where(
+                    FileEditOperation.id.in_(operation_ids),  # type: ignore[attr-defined]
+                    FileEditOperation.user_id == user_id,
+                    FileEditOperation.project_id == project_id,
+                )
+            ).all()
+        }
+        if operation_ids
+        else {}
+    )
+    restored_states = (
+        {
+            row.id: row.restored_at is not None
+            for row in session.exec(
+                select(FileDeletionBatch).where(
+                    FileDeletionBatch.id.in_(batch_ids),  # type: ignore[attr-defined]
+                    FileDeletionBatch.user_id == user_id,
+                    FileDeletionBatch.project_id == project_id,
+                )
+            ).all()
+        }
+        if batch_ids
+        else {}
+    )
+    confirmed_by_hash = (
+        {
+            row.target_hash: row
+            for row in session.exec(
+                select(FileDeletionBatch)
+                .where(
+                    FileDeletionBatch.target_hash.in_(preview_hashes),  # type: ignore[attr-defined]
+                    FileDeletionBatch.user_id == user_id,
+                    FileDeletionBatch.project_id == project_id,
+                    FileDeletionBatch.source == "agent_confirmed",
+                )
+                .order_by(FileDeletionBatch.created_at.desc())  # type: ignore[attr-defined]
+            ).all()
+        }
+        if preview_hashes
+        else {}
+    )
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        _data, undo = _card_undo(call)
+        operation_id = undo.get("operation_id") if isinstance(undo, dict) else None
+        if isinstance(operation_id, str) and operation_id in states:
+            undo["undone"] = states[operation_id]
+        batch_id = _data.get("batch_id") if isinstance(_data, dict) else None
+        if isinstance(batch_id, str) and batch_id in restored_states:
+            _data["restored"] = restored_states[batch_id]
+        preview = _data.get("preview") if isinstance(_data, dict) else None
+        target_hash = preview.get("target_hash") if isinstance(preview, dict) else None
+        confirmed = confirmed_by_hash.get(target_hash) if isinstance(target_hash, str) else None
+        if confirmed is not None:
+            items = json.loads(confirmed.items_json)
+            _data.update(
+                {
+                    "batch_id": confirmed.id,
+                    "targets": [
+                        {key: item.get(key) for key in ("id", "title", "file_type", "parent_id", "order")}
+                        for item in items
+                    ],
+                    "count": confirmed.item_count,
+                    "restored": confirmed.restored_at is not None,
+                    "confirmation_required": False,
+                    "mutation_applied": True,
+                }
+            )
+    return calls
+
+
+# Backward-compatible name for callers landed during this feature branch.
+hydrate_edit_operation_states = hydrate_recovery_card_states
 
 
 def record_edit_card_undone(

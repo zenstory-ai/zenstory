@@ -204,7 +204,7 @@ class StreamAdapter:
         self._matched_skill_ids: set[str] = set(self.config.matched_skill_ids)
         # Fatal stream error flag (e.g. file content persistence failure)
         self._fatal_stream_error = False
-        # write_chapter 的整章替换没保存（版本变了 / 作者正文受保护）：模型还在同一次回复里往下写，
+        # write_chapter 的整章替换没保存（版本变了 / 恢复记录失败）：模型还在同一次回复里往下写，
         # 接下来的话会当作已经换好。告诉作者之后就结束这一轮（正常 done，不是错误），不放出那些话。
         self._stop_after_refused_replace = False
         self._file_mutated = False
@@ -212,6 +212,8 @@ class StreamAdapter:
         # 停止 / 断线时还在提交的整章替换（线程里的提交不会随取消中止）：收尾时等它的真实结果。
         self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]], str | None] | None = None
         self._saved_file_word_counts: dict[str, int | None] = {}
+        self._created_tool_cards: dict[str, tuple[str, str, dict[str, Any]]] = {}
+        self._saved_body_undos: dict[str, dict[str, Any]] = {}
         self._timed_out_save_file_ids: set[str] = set()
         # 整章替换的保存回执，按 write_chapter 的 tool_use_id 记：同一章在一轮里可能先后替换多次，
         # 文件级回执只说「这个文件存过」，不能拿来证明后一次替换也存了。
@@ -676,24 +678,40 @@ class StreamAdapter:
             )
 
             if tool_name == "delete_file":
-                deleted_id = self._delete_targets.pop(tool_use_id, None)
+                legacy_id = self._delete_targets.pop(tool_use_id, None)
+                deleted_ids = {legacy_id} if result_data is True and legacy_id else set()
+                if isinstance(result_data, dict) and result_data.get("mutation_applied") is True:
+                    deleted_ids.update(
+                        target["id"] for target in result_data.get("targets", [])
+                        if isinstance(target, dict) and isinstance(target.get("id"), str)
+                    )
                 pending = self._pending_file_write
                 if (
-                    deleted_id is not None
-                    and pending is not None
-                    and pending.file_id == deleted_id
+                    pending is not None
+                    and pending.file_id in deleted_ids
                     and status == "success"
                     and isinstance(parsed_result, dict)
                     and parsed_result.get("mutation_applied") is True
                 ):
                     # 模型取消了在等正文的那份文件：同一 run 里之后的 <file> 不能再落进已删文件。
                     # 等待中的缓冲按既有语义回到对话；待写守卫由 tools_adapter 按同一删除结果清除。
-                    if self._stream_processor.file_id == deleted_id:
+                    if self._stream_processor.file_id == pending.file_id:
                         async for event in self._flush_active_capture():
                             yield event
                     self._pending_file_write = None
 
             # Handle file creation
+            if (
+                tool_name in {"create_file", "write_chapter"}
+                and status == "success"
+                and tool_use_id
+                and isinstance(result_data, dict)
+                and result_data.get("id")
+                and result_data.get("reused_existing") is not True
+                and result_data.get("action") != "replaced"
+                and (result_data.get("awaiting_body") is True or result_data.get("body_in_reply") is True)
+            ):
+                self._created_tool_cards[str(result_data["id"])] = (tool_name, tool_use_id, dict(result_data))
             if tool_name == "create_file" and status == "success":
                 async for event in self._handle_create_file_result(result_data):
                     yield event
@@ -969,7 +987,7 @@ class StreamAdapter:
         return events
 
     async def _complete_chapter_replace(self, result: StreamResult, pending: PendingFileWrite) -> AsyncIterator[SSEEvent]:
-        """整章替换的正文写完：用 replace_body 提交，发 diff 审阅事件，并把结果补发到同一张卡上。"""
+        """整章替换的正文写完：用 replace_body 提交，通知编辑器并补发含撤销锚点的结果卡。"""
         file_id = pending.file_id
         outcome, replaced = await self._save_chapter_replacement(
             file_id, result.final_content, pending, complete=not result.auto_completed
@@ -1026,7 +1044,7 @@ class StreamAdapter:
             file_id=file_id,
             edits_applied=1 if mutated else 0,
             new_length=int(replaced.get("new_length") or 0),
-            # 原稿与新稿一起给前端：进入逐段 diff 审阅（与作者在编辑器里审 AI 改稿同一套）。
+            # 原稿与新稿一起给前端：同步直接保存的正文与恢复锚点。
             new_content=new_content if mutated else None,
             original_content=original if mutated else None,
             file_type=file_type,
@@ -1063,9 +1081,9 @@ class StreamAdapter:
     async def _save_chapter_replacement(
         self, file_id: str, content: str, pending: PendingFileWrite, *, complete: bool = False
     ) -> tuple[str, dict[str, Any] | None]:
-        """("saved", 结果) / ("refused", None)：版本变了或作者正文受保护 / ("failed", None)：其他失败。"""
-        from agent.tools.author_edit_guard import AuthorContentProtectionError
+        """("saved", 结果) / ("refused", None)：版本冲突或恢复记录建立失败 / ("failed", None)：其他失败。"""
         from agent.tools.file_ops.crud import ConcurrentFileWriteError
+        from agent.tools.write_errors import FileWriteRecoveryError
 
         run_meter = self.config.run_meter
         timing = run_meter.measure_stage("file_save") if run_meter is not None else contextlib.nullcontext()
@@ -1093,7 +1111,7 @@ class StreamAdapter:
             save.add_done_callback(_ABORT_SAVE_TASKS.discard)
             save.add_done_callback(lambda done: done.cancelled() or done.exception())
             raise
-        except (ConcurrentFileWriteError, AuthorContentProtectionError) as exc:
+        except (ConcurrentFileWriteError, FileWriteRecoveryError) as exc:
             log_with_context(
                 logger, 30, "Chapter replacement refused", file_id=file_id, error_type=type(exc).__name__
             )
@@ -1140,7 +1158,6 @@ class StreamAdapter:
                 expected_updated_at=expected_updated_at,
                 title=title,
                 normalize_quotes=True,
-                protect_author_content=True,
             )
         )
 
@@ -1151,7 +1168,7 @@ class StreamAdapter:
         纠偏轮写出的 <file> 正文只会落进聊天。只认本适配器自己记下的待写文件（这一请求里
         成功的 create_file 结果）：同一个 id、建的时候是空文件、图刚读到的版本仍是
         create_file 结果里的版本（之后作者或别的写入都没动过它）。落库照旧走
-        _save_file_content_sync 的作者保护与版本检查。
+        _save_file_content_sync 的历史备份与版本检查。
         """
         if not isinstance(request, FileBodyResume):
             return
@@ -1315,7 +1332,7 @@ class StreamAdapter:
             )
             return
         if target is not None and target.replace_card:
-            # 整章替换的新稿还没开始提交就被截停：不覆盖作者的原文（截停后没有 diff 审阅和撤销卡），
+            # 整章替换的新稿还没开始提交就被截停：保留原文，不产生已提交的撤销回执，
             # 与还在捕获中的替换一样作废；已经开始提交的那次由 _settle_replacement_in_flight 等结果。
             log_with_context(
                 logger, 30, "Dropping a whole-chapter replacement stopped before its commit", file_id=file_id
@@ -1376,6 +1393,15 @@ class StreamAdapter:
     def get_saved_file_word_counts(self) -> dict[str, int | None]:
         """保存回执；收到结束标记或正文 chunk 本身不代表落库成功。"""
         return dict(self._saved_file_word_counts)
+
+    def get_created_body_undos(self) -> dict[str, dict[str, Any]]:
+        """Only confirmed body commits may attach undo to their own creation card."""
+        return {
+            call_id: dict(self._saved_body_undos[file_id])
+            for file_id, (_name, call_id, _card) in self._created_tool_cards.items()
+            if isinstance(self._saved_file_word_counts.get(file_id), int)
+            and file_id in self._saved_body_undos
+        }
 
     def get_timed_out_save_file_ids(self) -> set[str]:
         """发生过保存超时、后台线程可能仍在提交的文件 id。"""
@@ -1629,6 +1655,19 @@ class StreamAdapter:
 
         yield file_content_end_event(result.file_id)
 
+        created = self._created_tool_cards.get(result.file_id)
+        if created is not None:
+            tool_name, call_id, card = created
+            undo = self.get_created_body_undos().get(call_id)
+            if undo is not None:
+                yield tool_result_event(
+                    tool_name=tool_name,
+                    tool_use_id=call_id,
+                    status="success",
+                    data={**card, "body_saved": True, "awaiting_body": False,
+                          "new_word_count": self._saved_file_word_counts[result.file_id], "undo": undo},
+                )
+
         # Clear pending file write
         self._pending_file_write = None
 
@@ -1835,10 +1874,13 @@ class StreamAdapter:
                 id=file_id,
                 content=content,
                 normalize_quotes=True,
-                protect_author_content=True,
                 expected_updated_at=expected_updated_at,
             )
         )
+
+        undo = result.get("undo")
+        if isinstance(undo, dict) and undo.get("operation_id"):
+            self._saved_body_undos[file_id] = dict(undo)
 
         log_with_context(
             logger,

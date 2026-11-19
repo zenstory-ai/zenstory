@@ -35,6 +35,8 @@ from .entities import (
     User,
 )
 from .feedback import UserFeedback
+from .file_deletion_batch import FileDeletionBatch
+from .file_edit_operation import FileEditOperation
 from .file_model import (
     FILE_TYPE_CHARACTER,
     FILE_TYPE_DRAFT,
@@ -135,6 +137,8 @@ __all__ = [
     # File models
     "File",
     "FileVersion",
+    "FileEditOperation",
+    "FileDeletionBatch",
     "UserFeedback",
     # File type constants
     "FILE_TYPE_OUTLINE",

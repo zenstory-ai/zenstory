@@ -155,6 +155,8 @@ def _cancels_overdue_file(raw_arguments: str, overdue_ids: set[str]) -> str | No
     if parse_error is not None or not isinstance(parsed, dict):
         return None
     file_id = parsed.get("id")
+    if "id" not in parsed and isinstance(parsed.get("ids"), list) and len(parsed["ids"]) == 1:
+        file_id = parsed["ids"][0]
     if isinstance(file_id, str) and file_id in overdue_ids and not coerce_bool(parsed.get("recursive")):
         return file_id
     return None

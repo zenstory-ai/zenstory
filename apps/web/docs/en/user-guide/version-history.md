@@ -18,6 +18,12 @@ On phones, clicking **View Content** or **Compare** switches to the content pane
 
 To recover just a sentence or paragraph without rolling back later work, open **View Content** on the older version, copy the lines you want, close **History**, and paste them into your current draft.
 
+## Undo one AI change
+
+Undo is available on chat result cards and in the file history’s AI change records, including after chat is cleared. A combined title and body change is undone as one action; a title-only undo preserves the body.
+
+Ordinary undo takes one click and preserves later writing that does not overlap the AI change. Only genuinely overlapping passages require a choice, with your current text kept by default. A newer save invalidates an older conflict choice. Earlier chat cards retain their original conditional undo behavior. Recover deleted files through Trash in the file panel.
+
 ## Restore the whole file
 
 Click **Restore this version** on the version you want and confirm **Restore** in the dialog. Restoring replaces the file's current body text, so save or copy any unsaved edits in the editor first.
@@ -26,6 +32,6 @@ Before overwriting the file, the server automatically records a backup version o
 
 ## When text is missing from history
 
-If you cannot find a passage in **History**, check that you are signed into the right account and project, verify that you opened the right file, and check whether the text is still sitting in an unsaved editor draft or only appeared as a candidate suggestion inside the AI chat reply without being written to the file. Never delete a file to test recovery.
+If you cannot find a passage in **History**, check that you are signed into the right account and project, verify that you opened the right file, and check whether the text is still sitting in an unsaved editor draft or only appeared as a candidate suggestion inside the AI chat reply without being written to the file. If the file was deleted, look for its deletion batch in the file panel’s Trash.
 
 For independent local backups, see [Export your manuscript](export.md). For unsaved draft recovery and save conflicts, see [Using the editor](editor.md).

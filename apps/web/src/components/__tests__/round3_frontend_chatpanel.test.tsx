@@ -7,7 +7,7 @@
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
+import { act, render as rtlRender, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -206,6 +206,9 @@ vi.mock('../../lib/analytics', () => ({
 }))
 
 vi.mock('../../lib/api', () => ({
+  projectApi: {
+    getProgress: vi.fn(async () => [{ framework_ready: false, written_units: 0 }]),
+  },
   fileVersionApi: {
     getVersions: getVersionsMock,
     rollback: rollbackMock,
@@ -299,19 +302,14 @@ async function renderAndGetUndo(): Promise<(target: {
   }) => Promise<void>
 }
 
-/** Clicking undo opens the in-app confirm dialog; the rollback runs on its confirm button. */
-async function undoAndConfirm(
+/** Legacy cards still undo directly, without reviving the removed review/confirm step. */
+async function undoDirectly(
   onUndo: (target: { fileId: string; beforeVersionNumber: number; expectedAfterUpdatedAt: string }) => unknown,
   target: { fileId: string; beforeVersionNumber: number; expectedAfterUpdatedAt: string },
 ) {
-  act(() => {
-    onUndo(target)
-  })
-  const confirmButton = await screen.findByRole('button', { name: 'chat:actions.undo' })
   await act(async () => {
-    fireEvent.click(confirmButton)
+    await onUndo(target)
   })
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 }
 
 describe('round3 #24 ChatPanel.handleSteer 必须把失败抛回调用方', () => {
@@ -597,7 +595,7 @@ describe('ChatPanel immutable edit undo', () => {
     })
     const onUndo = await renderAndGetUndo()
 
-    await undoAndConfirm(onUndo, target)
+    await undoDirectly(onUndo, target)
 
     expect(getVersionsMock).not.toHaveBeenCalled()
     expect(rollbackMock).toHaveBeenCalledWith(
@@ -617,7 +615,7 @@ describe('ChatPanel immutable edit undo', () => {
     const fromCard = { ...target, chatMessageId: 'assistant-message', toolUseId: 'tool-edit-1' }
     expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(false)
 
-    await undoAndConfirm(onUndo, fromCard)
+    await undoDirectly(onUndo, fromCard)
 
     expect(rollbackMock).toHaveBeenCalledWith('file-immutable', 7, '2026-10-06T12:34:56.000Z', {
       chatMessageId: 'assistant-message',
@@ -626,25 +624,18 @@ describe('ChatPanel immutable edit undo', () => {
     await waitFor(() => expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(true))
   })
 
-  it('confirms with the file-level undo message', async () => {
+  it('undoes immediately without a file-level confirmation dialog', async () => {
     const confirmMock = vi.fn(() => false)
     vi.stubGlobal('confirm', confirmMock)
+    rollbackMock.mockResolvedValue({ success: true, snapshot_created: true, version_quota_exceeded: false })
     const onUndo = await renderAndGetUndo()
 
-    act(() => {
-      void onUndo(target)
-    })
+    await undoDirectly(onUndo, target)
 
-    // File rollback does not save the current text first, so the undo confirm
-    // has its own copy and uses the in-app dialog.
-    const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('editor:versionHistory.confirmUndoAIEdit')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(confirmMock).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'common:cancel' }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(rollbackMock).not.toHaveBeenCalled()
-    expect(triggerEditorRefreshMock).not.toHaveBeenCalled()
+    expect(rollbackMock).toHaveBeenCalledTimes(1)
+    expect(triggerEditorRefreshMock).toHaveBeenCalledWith(target.fileId)
   })
 
   it.each([
@@ -664,7 +655,7 @@ describe('ChatPanel immutable edit undo', () => {
     rollbackMock.mockResolvedValue(result)
     const onUndo = await renderAndGetUndo()
 
-    await undoAndConfirm(onUndo, target)
+    await undoDirectly(onUndo, target)
 
     expect(toast.error).toHaveBeenCalledWith(feedback)
     expect(triggerFileTreeRefreshMock).toHaveBeenCalledTimes(1)
@@ -681,7 +672,7 @@ describe('ChatPanel immutable edit undo', () => {
     rollbackMock.mockRejectedValue(new ApiError(409, 'ERR_RESOURCE_CONFLICT'))
     const onUndo = await renderAndGetUndo()
 
-    await undoAndConfirm(onUndo, target)
+    await undoDirectly(onUndo, target)
 
     expect(toast.error).toHaveBeenCalledTimes(1)
     expect(triggerFileTreeRefreshMock).not.toHaveBeenCalled()
