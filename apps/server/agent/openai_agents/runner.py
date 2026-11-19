@@ -820,6 +820,7 @@ async def run_openai_agents_streaming_agent(
     )
 
     result: Any = None
+    sdk_stream_exhausted = False
     run_hooks: Any = None
     timing_outcome: TimingOutcome = "completed"
     try:
@@ -1009,6 +1010,8 @@ async def run_openai_agents_streaming_agent(
                         mid_run_steering, get_steering_messages
                     ):
                         yield steering_event
+            else:
+                sdk_stream_exhausted = True
         except MaxTurnsExceeded:
             # 轮数耗尽的对外事件放到熔断/无进展判定之后统一发出（见下方）。
             max_turns_exhausted = True
@@ -1334,7 +1337,11 @@ async def run_openai_agents_streaming_agent(
             data=error_info.as_event_data(error_type=type(exc).__name__),
         )
     finally:
-        if result is not None and not getattr(result, "is_complete", False):
+        if (
+            result is not None
+            and not sdk_stream_exhausted
+            and not getattr(result, "is_complete", False)
+        ):
             _safe_cancel(result, "immediate")
         if run_hooks is not None:
             # A call lacking on_llm_end is unfinished, even if the consumer ended normally.

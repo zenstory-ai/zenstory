@@ -166,6 +166,52 @@ async def test_runner_maps_sdk_text_tool_and_message_end():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+async def test_runner_cancels_sdk_result_when_consumer_closes_before_stream_exhaustion():
+    from agent.core.workflow_events import StreamEventType
+    from agent.openai_agents.runner import run_openai_agents_streaming_agent
+
+    class FakeResult:
+        is_complete = False
+        raw_responses = []
+
+        def __init__(self):
+            self.cancel_modes = []
+
+        def cancel(self, mode="immediate"):
+            self.cancel_modes.append(mode)
+            self.is_complete = True
+
+        async def stream_events(self):
+            yield SimpleNamespace(
+                type="raw_response_event",
+                data=SimpleNamespace(type="response.output_text.delta", delta="半截正文"),
+            )
+            yield SimpleNamespace(
+                type="raw_response_event",
+                data=SimpleNamespace(type="response.completed"),
+            )
+
+    fake_result = FakeResult()
+    event_stream = run_openai_agents_streaming_agent(
+        state={"user_message": "写一章", "messages": [], "system_prompt": "base"},
+        agent_type="writer",
+        system_prompt="system",
+    )
+
+    with (
+        patch("agent.openai_agents.runner._build_agent", return_value=object()),
+        patch("agents.Runner.run_streamed", return_value=fake_result),
+    ):
+        assert (await anext(event_stream)).type == StreamEventType.MESSAGE_START
+        assert (await anext(event_stream)).type == StreamEventType.TEXT
+        await event_stream.aclose()
+
+    assert fake_result.cancel_modes
+    assert set(fake_result.cancel_modes) == {"immediate"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_runner_consumes_steering_at_tool_output_boundary():
     """SDK run 进行中无法注入消息，工具输出边界必须消费 steering：
     向前端发确认事件，并把内容作为用户消息写回 state 供下一次迭代使用。"""
