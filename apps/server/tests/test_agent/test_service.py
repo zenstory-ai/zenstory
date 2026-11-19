@@ -1063,6 +1063,61 @@ class TestAgentServiceProcessStream:
         assert any("event: done" in event for event in events)
         assert not any("event: error" in event for event in events)
 
+    async def test_process_stream_folds_tool_payloads_before_bounding_oversize_history(
+        self, mock_agent_service, test_user_with_project, db_session: Session
+    ):
+        """When compaction is unavailable, the run first folds old tool payloads and sends the folded history."""
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+        from agent.loop.history import LoopHistory
+        from agent.loop.turn_context import LoopTurnContext
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+        history_items = [
+            {"role": "user", "content": "read the old chapter"},
+            {"type": "function_call_output", "call_id": "old-read", "output": "x" * 100_000},
+        ]
+        folded_items = [{"role": "user", "content": "read the old chapter"}]
+        captured: dict[str, object] = {}
+
+        async def workflow(state, **_kwargs):
+            captured["history_items"] = state["history_items"]
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "done"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        with (
+            patch.object(
+                service,
+                "_prepare_loop_turn",
+                return_value=(
+                    LoopHistory(items=history_items, last_prompt_tokens=900_000),
+                    LoopTurnContext(),
+                    [],
+                    "system prompt",
+                ),
+            ),
+            patch("agent.service.should_compact", return_value=False),
+            patch("agent.service.effective_history_provider_tokens", return_value=900_000),
+            patch(
+                "agent.openai_agents.intra_run_trimmer.IntraRunToolOutputTrimmer.trim_items",
+                return_value=folded_items,
+            ),
+            patch("agent.service.run_loop_agent_streaming", side_effect=workflow),
+        ):
+            events = [
+                event
+                async for event in service.process_stream(
+                    project_id=project.id,
+                    user_id=user.id,
+                    message="continue",
+                    session=db_session,
+                )
+            ]
+
+        assert captured["history_items"] == folded_items
+        assert any("event: done" in event for event in events)
+
     async def test_process_stream_persists_stop_reason_and_usage_metadata(
         self, mock_agent_service, test_user_with_project, db_session: Session
     ):

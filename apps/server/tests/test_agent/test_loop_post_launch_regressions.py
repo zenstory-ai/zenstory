@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any
@@ -1033,6 +1034,23 @@ async def test_stream_adapter_tracks_timeout_separately_from_sync_save_failure(m
 
     adapter._note_body_saved("slow-file", 2)
     assert adapter.get_timed_out_save_file_ids() == set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_aborted_chapter_replacement_timeout_remains_uncertain():
+    """A timed-out replacement may still commit in its worker, so settlement must not classify it as a safe failure."""
+    from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+
+    adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u", process_file_markers=True))
+    save = asyncio.get_running_loop().create_future()
+    save.set_exception(TimeoutError())
+    adapter._replacement_in_flight = ("chapter-1", "replacement", save, "call-1")
+
+    await adapter._settle_replacement_in_flight()
+
+    assert adapter.get_timed_out_save_file_ids() == {"chapter-1"}
+    assert adapter.get_replacement_receipts() == {"call-1": None}
 
 
 

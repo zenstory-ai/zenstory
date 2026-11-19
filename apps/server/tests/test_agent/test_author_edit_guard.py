@@ -2,11 +2,12 @@
 
 import json
 import threading
+from types import SimpleNamespace
 
 import pytest
 from sqlmodel import Session, select
 
-from agent.tools import mcp_tools
+from agent.tools import author_edit_guard, mcp_tools
 from agent.tools.author_edit_guard import (
     AUTHOR_EDIT_PROTECTED_ERROR,
     AuthorEditProtectedError,
@@ -768,4 +769,26 @@ async def test_partial_ai_polish_on_author_or_mixed_chapter_keeps_protection(db_
         mcp_tools.delete_file, db_session, user, project, {"id": mixed.id}, message="删掉第二章"
     )
     assert mixed_delete["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+
+
+@pytest.mark.unit
+def test_non_user_ai_edit_is_not_classified_as_an_editor_polish_save():
+    latest = SimpleNamespace(change_source="ai", change_summary="AI polish (reviewed)")
+
+    assert author_edit_guard._is_editor_polish_save(latest) is False
+
+
+@pytest.mark.unit
+def test_polish_with_unavailable_lineage_keeps_protection_status_unknown(monkeypatch):
+    monkeypatch.setattr("agent.tools.author_changes.line_blame", lambda *_args: None)
+
+    assert author_edit_guard._polish_retains_author_content(object(), "chapter-1", "作者正文") is None
+
+
+@pytest.mark.unit
+def test_polish_with_incomplete_lineage_keeps_author_content_protected(monkeypatch):
+    blame = SimpleNamespace(complete=False)
+    monkeypatch.setattr("agent.tools.author_changes.line_blame", lambda *_args: blame)
+
+    assert author_edit_guard._polish_retains_author_content(object(), "chapter-1", "作者正文") is True
 
