@@ -382,6 +382,20 @@ async def test_self_check_hitting_wrap_up_right_after_file_block_emits_saved_not
     finalize.assert_awaited_once()
 
 
+@pytest.mark.parametrize(
+    ("english", "expected"),
+    [
+        (False, "正文已保存"),
+        (True, "The text is saved"),
+    ],
+)
+async def test_self_check_wrap_up_without_a_title_uses_the_saved_body_fallback(english: bool, expected: str):
+    """已落库的正文没有可用标题时，收尾仍明确告知作者正文已保存。"""
+    from agent.loop.run_support import wrap_up_self_check_skipped_text
+
+    assert expected in wrap_up_self_check_skipped_text(english, ["", "   "])
+
+
 async def test_cut_body_hitting_wrap_up_still_emits_wall_clock_pause_card():
     """正文写到输出上限被中途截断（cut_body）时撞上收尾时间：章节确实没写完，照旧发 wall_clock 暂停卡。"""
     from unittest.mock import AsyncMock

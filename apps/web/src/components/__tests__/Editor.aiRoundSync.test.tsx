@@ -431,7 +431,14 @@ describe('AI writes the open chapter twice in one round', () => {
     await runRoundUntilV1();
     fireEvent.change(textarea(), { target: { value: `${V1}作者补的一句。` } });
     server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, title: '第2章 新名', updated_at: T_V2 });
-    act(() => { callbacks().onToolResult('parallel_execute', 'success', { total_tasks: 1, completed: 1, tasks: [] }); });
+    act(() => {
+      callbacks().onToolResult('edit_file', 'success', { id: CH2_ID });
+      callbacks().onFileEditStart(CH2_ID, '第2章', 1, 'draft');
+      callbacks().onFileEditApplied(CH2_ID, 0, 'replace');
+      callbacks().onFileEditEnd(CH2_ID, 1, V2.length, undefined, undefined, 'draft', '第2章', {
+        failedCount: 0, partialSuccess: false, allFailed: false, warnings: [],
+      });
+    });
     await advance(300); await settle();
 
     // Nothing from the AI to review: no comparison, the author's text stays.
@@ -476,6 +483,25 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(putsFor(CH2_ID)).toHaveLength(1);
     expect(putsFor(CH2_ID)[0][1]).toMatchObject({ title: '第2章 新名', content: V2, base_updated_at: T_V2 });
     expect(server.files.get(CH2_ID)).toMatchObject({ title: '第2章 新名', content: V2 });
+  });
+
+  it('keeps a title typed while the AI refresh GET is pending', async () => {
+    await runRoundUntilV1();
+    let resolveRefresh!: (file: ServerFile) => void;
+    server.get.mockImplementationOnce(() => new Promise<ServerFile>((resolve) => { resolveRefresh = resolve; }));
+    const v2 = { ...server.files.get(CH2_ID)!, content: V2, updated_at: T_V2 };
+    server.files.set(CH2_ID, v2);
+
+    act(() => { callbacks().onToolResult('parallel_execute', 'success', { total_tasks: 1, completed: 1, tasks: [] }); });
+    await advance(300);
+    fireEvent.change(titleInput(), { target: { value: '第2章 作者新名' } });
+    await act(async () => { resolveRefresh({ ...v2 }); });
+    await settle();
+
+    expect(titleInput().value).toBe('第2章 作者新名');
+    expect(textarea().value).toBe(V2);
+    await advance(3100); await settle();
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ title: '第2章 作者新名', content: V2, base_updated_at: T_V2 });
   });
 
   it('saves an unsaved title rename together with the comparison result', async () => {
