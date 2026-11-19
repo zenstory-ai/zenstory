@@ -91,6 +91,10 @@ async function fixture(page: Page, content = '你好 world\n\n第二段 story', 
         return fulfill(files[fileId]);
       }
     }
+    const operationsFile = url.pathname.match(/^\/api\/v1\/files\/([^/]+)\/edit-operations$/)?.[1];
+    if (operationsFile && files[operationsFile] && method === 'GET') {
+      return fulfill({ operations: [], total: 0 });
+    }
     const versionsFile = url.pathname.match(/^\/api\/v1\/files\/([^/]+)\/versions$/)?.[1];
     if (versionsFile && files[versionsFile] && method === 'GET') {
       const version = (version_number: number, change_type: string) => ({ id: `${versionsFile}-v${version_number}`, file_id: versionsFile, project_id: files[versionsFile].project_id, version_number, is_base_version: version_number === 1, word_count: 3, char_count: 12, change_type, change_source: 'user', lines_added: 1, lines_removed: 0, created_at: token0 });
