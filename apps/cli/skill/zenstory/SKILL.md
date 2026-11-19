@@ -161,7 +161,7 @@ content was restored but no new version was recorded — because the per-file ve
 is full when `version_quota_exceeded` is `true`, otherwise because the snapshot could not
 be saved. Files created with content
 through the CLI start at version 1; the local `backupPath` copies from `files put` remain a
-second net (e.g. for files whose history started before the CLI touched them).
+local fallback (e.g. for files whose history started before the CLI touched them).
 
 ## Safety rules
 

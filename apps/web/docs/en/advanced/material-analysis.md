@@ -4,7 +4,7 @@ Read reference novels with a specific craft question in mind, then adapt the und
 
 ## Choose one specific question
 
-Start with an observable craft question—for example, *“How does a character change their goal through concrete action rather than delivering a speech?”* Locate a specific chapter or passage instead of asking the AI to summarize every strength of an entire book at once.
+Start with an observable craft question—for example, *“How does a character change their goal through concrete action without delivering a speech?”* Locate a specific chapter or passage instead of asking the AI to summarize every strength of an entire book at once.
 
 Separate your reading notes into three layers: **explicit facts in the text**, **supported interpretation**, and **open questions requiring further reading**. Character labels and chapter synopses help you find scenes, but they cannot replace concrete actions and dialogue.
 
@@ -38,11 +38,11 @@ actual choice, and remaining cost. Support interpretations with short quotes.
 Identify missing context. Do not invent biographies, continue the story, or edit files.
 ```
 
-Check the AI's reply against the original lines afterward. Keep unsupported guesses as open questions rather than copying them into your story's established settings.
+Check the AI's reply against the original lines afterward. Keep unsupported guesses as open questions instead of copying them into your story's established settings.
 
 ## Turn the method into a new scene
 
-To borrow the structure *“shift the criterion for success while keeping the cost,”* design a new situation and action rather than merely swapping names or replacing a recording with a video:
+To borrow the structure *“shift the criterion for success while keeping the cost,”* design a new situation and action—do not just swap names or replace a recording with a video:
 
 Suppose Cen Yi has ten minutes left to practice with his remote-controlled car. He can finish his own full-speed lap or ask first-time visitor Tao Tao whether she wants to try a left turn. If he gives her the slot, show that choice through asking, handing over the controller, and waiting—and leave his own full-speed run unfinished at the end.
 

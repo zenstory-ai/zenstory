@@ -24,7 +24,7 @@ On the public [pricing page](https://app.zenstory.ai/pricing) or **Plans & Benef
 
 ## Upgrade, renew, or redeem a code
 
-- **Activate or renew Pro**: Choose a monthly (30-day) or yearly (365-day) duration and complete the one-time payment—subscriptions **do not auto-renew**. Renewing while Pro is active extends your current expiration date. After returning from checkout, verify your plan status and expiration date; if payment confirmation is still processing, wait rather than paying again. If you were charged without receiving Pro benefits, keep your order details and contact [support@zenstory.ai](mailto:support@zenstory.ai).
+- **Activate or renew Pro**: Choose a monthly (30-day) or yearly (365-day) duration and complete the one-time payment—subscriptions **do not auto-renew**. Renewing while Pro is active extends your current expiration date. After returning from checkout, verify your plan status and expiration date; if payment confirmation is still processing, give it a moment instead of paying twice. If you were charged without receiving Pro benefits, keep your order details and contact [support@zenstory.ai](mailto:support@zenstory.ai).
 - **Redeem a code**: To use a Pro redemption code, click the gear icon in the top right to open **Settings → Subscription**, click **Redeem Code**, enter your code, and confirm.
 
 Related: [Materials Library](materials.md), [Using skills](skills.md), and [Error messages and next steps](../troubleshooting/error-messages.md).

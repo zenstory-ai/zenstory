@@ -1,51 +1,51 @@
 # Error messages and next steps
 
-An error describes the state of an operation. Read the complete message before deciding to save, wait, retry, or contact support.
+When ZenStory shows an error banner or dialog, read the specific message before refreshing or retrying—most alerts tell you directly whether to back up local text, sign back in, adjust an upload, or wait.
 
-## Saving and recovery
+## Saving, conflicts, and version history
 
-| Meaning | Next step |
+| What the message indicates | Recommended next step |
 | --- | --- |
-| Content changed; save conflict | Retain local text, compare, and merge the newer server draft |
-| Saved without a new history version | Current prose is saved; check history allowance and keep milestone copies |
-| Local draft could not be retained | Copy important text now; do not assume recovery after reload |
-| Version missing | Reload history and check the file and selected record |
-| Could not back up before restoring | Restoration was not executed; retain the draft and address the error |
+| Cloud file changed elsewhere (save conflict) | Copy your local draft just in case, compare it with the newer cloud text, merge what you want to keep, and save |
+| File saved, without adding a new manual history version | Your latest text is safely saved in the cloud; your file's manual version slots (10 on Free / 100 on Pro) are full and could not merge—export milestone `.txt` backups locally or upgrade |
+| Browser could not cache the local draft | Copy unsaved text to a local file right away; do not rely on browser refresh recovery in this window |
+| Selected history version no longer exists | Reopen **History** to refresh the list and confirm you have the intended file and snapshot open |
+| Pre-restore backup could not be created | The restore was safely aborted so your current text stays untouched; copy your current draft locally and resolve the save error before retrying |
 
-See the [editor](../user-guide/editor.md) and [history](../user-guide/version-history.md).
+See [Using the editor](../user-guide/editor.md) and [Version history](../user-guide/version-history.md).
 
-## Account and usage
+## Account, login, and plan limits
 
-| Meaning | Next step |
+| What the message indicates | Recommended next step |
 | --- | --- |
-| Expired login or invalid credentials | Retain unsaved prose, then sign in again |
-| Incorrect username or password | Check the account; request a reset code when needed |
-| Email not verified | Enter the registration email's code |
-| Incorrect or expired code | Check the latest code; wait for the resend countdown |
-| Invalid, expired, or exhausted invite | Check the full code or ask the inviter for another |
-| Daily AI messages exhausted | Wait until 00:00 Beijing time the next day or check Pro |
-| Project or custom-skill limit reached | Inspect usage; remove only unneeded items or upgrade |
+| Session expired or invalid login state | Copy any unsaved text in the editor first, then sign in again |
+| Incorrect email/username or password | Verify your login identifier and password case, or click **Forgot password?** to reset via email |
+| Email address not verified yet | Enter the 6-digit verification code sent to your registration email |
+| Verification code incorrect or expired | Check the newest email in your inbox (codes expire after 10 minutes) or wait for the countdown to request a fresh code |
+| Invite or redemption code invalid, expired, or used up | Double-check every character of the code, or confirm with the sender whether a new code is needed |
+| Daily free AI messages used up | Save your work and continue after **00:00 Beijing time (UTC+8)**, or upgrade to Pro for unlimited daily messages |
+| Active project or custom-skill limit reached | Check **Plans & Benefits**; delete only unused test items to free a slot, or upgrade to Pro |
 
-Do not delete work you still need just to free a slot. See [Plans & Benefits](../user-guide/billing-benefits.md).
+Never delete active manuscripts just to free up a project slot—export backups first if you are archiving old work. See [Plans and benefits](../user-guide/billing-benefits.md).
 
-## Files, uploads, and export
+## Files, imports, uploads, and export
 
-| Meaning | Next step |
+| What the message indicates | Recommended next step |
 | --- | --- |
-| Missing file or project | Check account, project, and deletion state; there is no general trash interface |
-| Access denied | Use the owning account or check your plan |
-| Unsupported type, oversized file, or text limit | Prepare text within that upload entry's limits |
-| No chapters recognized | Preserve clear chapter headings and select the file again |
-| No manuscript to export | Check saved Draft or Script files |
+| File or project not found | Confirm you are signed into the owning account and right project; check chat cards if the AI recently deleted a file (click **Restore** there) |
+| Permission or plan access denied | Sign in with the owning account, or check whether the feature requires Pro |
+| Unsupported format, file too large, or character count exceeded | Convert to plain UTF-8 / GBK `.txt` (or `.md` where supported) and split or trim the file to fit that upload dialog's stated limit |
+| No chapters recognized during novel upload | Make sure chapter headings (`Chapter 1`, `第一章`, etc.) sit on their own lines, save the `.txt` file, and select it again |
+| No exportable manuscript chapters found | Verify that your chapters live under **Drafts** or **Scripts** (`draft` / `script`) and show **Saved** |
 
-Trial and full-book analysis have different scopes. See [Materials](../user-guide/materials.md).
+Note that the Free 3-chapter trial and Pro full-book breakdowns enforce different size and chapter limits—see [Materials Library](../user-guide/materials.md).
 
-## AI, voice, and service errors
+## AI chat, voice input, and payment processing
 
-For unavailable services, interruption, or internal errors, inspect existing file writes first. Continue from current content instead of automatically repeating generation.
+If AI chat reports a temporary service error, connection drop, or internal failure, inspect the open file before sending the prompt again—any edits completed before the interruption are already saved, so ask only for what remains instead of regenerating the whole chapter from scratch.
 
-For voice errors, check microphone access and recording state, or type instead. Wait for payment processing; if charged without benefits, retain the order and contact support.
+If voice input fails, check browser microphone permissions and confirm another app is not holding the mic, or switch to typing. If Pro status does not appear immediately after checkout, give payment confirmation a moment and refresh **Plans & Benefits**; if you were charged and Pro still does not activate, keep your order receipt and contact support without paying a second time.
 
-## Report a problem
+## Reporting a persistent issue
 
-Copy the exact error, time, page path, steps, and browser version. Email [support@zenstory.ai](mailto:support@zenstory.ai) or use in-app feedback. Retain this evidence if the issue persists; repeated retries are unnecessary.
+Copy the exact error text along with the time it happened, the page URL, what you clicked right before it appeared, and your browser version, then send it via in-app feedback or [support@zenstory.ai](mailto:support@zenstory.ai). Once an operation fails consistently with the same error, save that info for support rather than clicking retry in a loop.

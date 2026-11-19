@@ -11,7 +11,7 @@ DEEPSEEK_API_KEY=填写自己的Key
 JWT_SECRET_KEY=填写至少32字符的随机密钥
 ```
 
-写作服务当前使用 `deepseek-flash`。使用真实 Key 生成文字会产生模型费用；开发验证使用 mock。仅启动页面不会替你配置项目写作提示词。
+写作服务当前使用 `deepseek-flash`。使用真实 Key 生成文字会产生模型费用；开发验证使用 mock。启动容器后，仍需在管理后台配置各体裁的写作系统提示词（见下一节）。
 
 ```sh
 docker compose up -d --build
@@ -70,7 +70,7 @@ docker compose -f docker-compose.full.yml up -d --build
 
 完整部署默认只在本机绑定 Web `127.0.0.1:8080`、API `127.0.0.1:8000`；数据库和 Redis 不暴露宿主端口。对外服务先配置 TLS 反向代理与准确的 `CORS_ORIGINS`、`FRONTEND_URL`。
 
-`postgres-init` 初始化 app 角色；名为 `migrate` 的服务当前调用 `init_db` 创建缺失表，**不会替已有数据库执行 Alembic 列迁移**。升级前核对待执行迁移、备份与回滚兼容性，不把容器健康当成 schema 已更新。
+`postgres-init` 初始化 app 角色；名为 `migrate` 的服务当前调用 `init_db` 创建缺失表，**不会替已有数据库执行 Alembic 列迁移**。升级前先核对待执行的迁移脚本、数据备份与回滚兼容性；容器健康检查通过，并不代表数据库表结构已完成更新。
 
 ## 可选能力
 

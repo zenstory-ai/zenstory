@@ -8,7 +8,7 @@
     },
     "answer": {
       "en": "Keep the environment you already want to work in: choose Oh Story for a supported agent working on a writing-project folder; the Oh Story DSH plugin for a DSH workspace and session; or ZenStory Workbench for an account-based project workspace in the browser. Both DSH Web and ZenStory can appear in a browser—the host, files and account boundary matter more than the presence of a web page.",
-      "zh": "看你想在哪里写：已经在用 Claude Code、Codex 等 Agent，想让它直接在写作项目文件夹里干活，选 Oh Story；想在 DeepSeek Harness（DSH）的工作区和会话里写，选 Oh Story DSH 插件；不想装任何东西、登录浏览器就能管理整个项目，选 ZenStory 工作台。DSH Web 和 ZenStory 都能在浏览器里打开，真正的差别在宿主、文件与账户：由谁来运行、文件存在哪、要不要账号。"
+      "zh": "看你想在哪里写：已经在用 Claude Code、Codex 等 Agent，想让它直接在写作项目文件夹里干活，选 Oh Story；想在 DeepSeek Harness（DSH）的工作区和会话里写，选 Oh Story DSH 插件；不想装任何东西、登录浏览器就能管理整个项目，选 ZenStory 工作台。DSH Web 和 ZenStory 都能在浏览器里打开，关键差别在宿主、文件与账户：由谁来运行、文件存在哪、要不要账号。"
     },
     "disclosure": {
       "en": "This is ZenStory AI’s first-party guide to its own three writing environments, not an independent review.",
@@ -22,7 +22,7 @@
           "zh": "已经在用受支持的编程 Agent，希望它直接读写你的写作项目文件夹时选它。已有项目不用为此搬到别的产品里。"
         },
         "environment": {
-          "en": "Install the skill pack using the adapter documented for your host, then run its setup/check workflow in the intended project. Integrations are not identical: some hosts use skills-only or solo/direct execution rather than every custom agent and hook.",
+          "en": "Install the skill pack using the adapter documented for your host, then run its setup/check workflow in the intended project. Integrations are not identical: some hosts run skills directly in a single session while others also wire up custom subagents and hooks.",
           "zh": "按你用的 Agent 安装对应的 skill 包，在写作项目里运行 setup/check。不同宿主支持的分工方式不完全一样，有的走纯 skill 流程或单角色直接执行；是否支持自定义子 Agent 与 hooks，请对照各端说明确认。"
         },
         "configuration": {
@@ -102,7 +102,7 @@
       {
         "project": "workbench",
         "fit": {
-          "en": "Choose ZenStory Workbench when you want an account-based browser project with a file tree, editor, AI chat and version features, rather than managing an agent-host installation for this workflow.",
+          "en": "Choose ZenStory Workbench when you want an account-based browser project with a file tree, editor, AI chat and version history, with no local agent host to install.",
           "zh": "想要登录就能用的网页项目：文件树、编辑器、AI 对话和版本管理都在一处，也不想自己装 Agent 时，选 ZenStory 工作台。"
         },
         "environment": {
