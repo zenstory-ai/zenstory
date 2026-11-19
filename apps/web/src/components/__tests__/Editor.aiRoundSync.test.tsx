@@ -981,15 +981,16 @@ describe('deleted open file terminal state', () => {
   });
 
   it('recovers an in-memory deleted draft when storage fails and clears protection once saved after restore', async () => {
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    await mountOpenFile();
+    fireEvent.change(textarea(), { target: { value: '仅内存保存的未落盘草稿' } });
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
       throw new DOMException('QuotaExceededError', 'QuotaExceededError');
     });
-    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+    const removeItem = vi.spyOn(localStorage, 'removeItem').mockImplementation(() => {
       throw new DOMException('QuotaExceededError', 'QuotaExceededError');
     });
     try {
-      await mountOpenFile();
-      fireEvent.change(textarea(), { target: { value: '仅内存保存的未落盘草稿' } });
+      server.files.delete(CH1.id);
       act(() => callbacks().onToolResult('delete_file', 'success', { id: CH1.id }));
       await settle();
       expect(screen.getByText('editor:deletedFile.storageFailed')).toBeInTheDocument();
