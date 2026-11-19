@@ -66,6 +66,26 @@ def _ai_chapter(session, project, title: str, content: str, parent_id: str | Non
     return file
 
 
+def _ai_body_file(
+    session, project, title: str, content: str, *, file_type: str, parent_id: str | None = None
+) -> File:
+    file = File(
+        project_id=project.id,
+        title=title,
+        content=content,
+        file_type=file_type,
+        parent_id=parent_id,
+    )
+    session.add(file)
+    session.flush()
+    FileVersionService().create_version(
+        session, file.id, content, change_type="create", change_source="ai", commit=False, skip_quota=True
+    )
+    session.commit()
+    session.refresh(file)
+    return file
+
+
 def _author_saves(session, file: File, content: str) -> None:
     FileVersionService().create_version(
         session, file.id, content, change_type="edit", change_source="user", skip_quota=True
@@ -860,6 +880,82 @@ async def test_write_chapter_empty_builds_missing_chapters_and_leaves_existing_o
     assert ToolContext.has_pending_empty_file() is False
     assert _content(loop_tools, existing.id) == "合成第一章原文。"
     assert sorted(f.title for f in _drafts(loop_tools)) == ["第1章 雨夜", "第2章", "第3章"]
+
+
+@pytest.mark.parametrize(
+    ("requested_type", "wrong_type", "wrong_title", "requested_title"),
+    [
+        ("draft", "script", "第1章 分镜", "第1章 新稿"),
+        ("script", "draft", "第1集 小说", "第1集 新稿"),
+    ],
+)
+@pytest.mark.parametrize("empty", [True, False], ids=["existence-check", "replacement-arming"])
+async def test_write_chapter_ignores_same_number_from_the_other_body_type(
+    loop_tools, requested_type, wrong_type, wrong_title, requested_title, empty
+):
+    from agent.tools.mcp_tools import write_chapter
+
+    wrong = _ai_body_file(
+        loop_tools.session,
+        loop_tools.project,
+        wrong_title,
+        "另一种正文类型的内容。",
+        file_type=wrong_type,
+    )
+
+    created = _payload(
+        await write_chapter(
+            {"chapter": 1, "title": requested_title, "file_type": requested_type, "empty": empty}
+        )
+    )
+
+    assert created["status"] == "success" and created["data"]["action"] == "created"
+    assert created["data"]["id"] != wrong.id
+    assert ToolContext.pending_chapter_replacement(wrong.id) is None
+    assert loop_tools.session.get(File, created["data"]["id"]).file_type == requested_type
+    assert _content(loop_tools, wrong.id) == "另一种正文类型的内容。"
+
+
+@pytest.mark.parametrize(
+    ("requested_type", "wrong_type", "correct_title", "wrong_title"),
+    [
+        ("draft", "script", "第1章 正文", "第2章 分镜"),
+        ("script", "draft", "第1集 分镜", "第2集 小说"),
+    ],
+)
+async def test_other_body_type_folders_do_not_make_replacement_ambiguous(
+    loop_tools, requested_type, wrong_type, correct_title, wrong_title
+):
+    from agent.tools.mcp_tools import write_chapter
+
+    session, project = loop_tools.session, loop_tools.project
+    correct_folder = File(project_id=project.id, title="目标正文", file_type="folder")
+    wrong_folder = File(project_id=project.id, title="另一类型正文", file_type="folder")
+    session.add_all([correct_folder, wrong_folder])
+    session.commit()
+    correct = _ai_body_file(
+        session,
+        project,
+        correct_title,
+        "目标正文原稿。",
+        file_type=requested_type,
+        parent_id=correct_folder.id,
+    )
+    _ai_body_file(
+        session,
+        project,
+        wrong_title,
+        "另一类型正文。",
+        file_type=wrong_type,
+        parent_id=wrong_folder.id,
+    )
+
+    armed = _payload(
+        await write_chapter({"chapter": 1, "title": correct_title, "file_type": requested_type})
+    )
+
+    assert armed["status"] == "success" and armed["data"]["action"] == "replaced"
+    assert armed["data"]["id"] == correct.id
 
 
 async def test_repeating_write_chapter_for_the_pending_chapter_hands_back_the_same_file(loop_tools):
