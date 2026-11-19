@@ -50,7 +50,7 @@
         ],
         [
           "How do I start writing in Claude Code?",
-          "After installing the pack, run `/story-setup` in your writing-project folder and open a fresh session. Use `/story` to describe your task rather than memorizing every skill. For a new long-form project, `/story-long-write 帮我开书` prepares settings, an outline and chapter blueprints, then stops before prose by default. Review that plan, then request `/story-long-write 写第1章`. This is the agent-host workflow, not a login to the separate ZenStory Workbench. “No prose” still creates planning files; tracking is initialized when the creator explicitly requests the first prose chapter. For a first reply before project creation, [the writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers) compares two concrete investigation openings and carries the chosen direction into a separate planning request. For a detailed character profile that still does not generate action, [character motivation](https://zenstory.ai/oh-story/character-motivation) moves from a relay plan into an original scene of resistance and shared credit, without treating an agreement as a completed delivery."
+          "After installing the pack, run `/story-setup` in your writing-project folder and open a fresh session. Use `/story` to describe your task directly—no need to memorize every skill name. For a new long-form project, `/story-long-write 帮我开书` prepares settings, an outline and chapter blueprints, then stops before prose by default. Review that plan, then request `/story-long-write 写第1章`. This is the agent-host workflow, not a login to the separate ZenStory Workbench. “No prose” still creates planning files; tracking is initialized when the creator explicitly requests the first prose chapter. For a first reply before project creation, [the writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers) compares two concrete investigation openings and carries the chosen direction into a separate planning request. For a detailed character profile that still does not generate action, [character motivation](https://zenstory.ai/oh-story/character-motivation) moves from a relay plan into an original scene of resistance and shared credit, without treating an agreement as a completed delivery."
         ],
         [
           "How do I make the first three chapters invite continued reading?",
@@ -78,7 +78,7 @@
         ],
         [
           "Should I apply every conflicting review suggestion?",
-          "No. Connect feedback to passage evidence and this book’s constraints, then choose the repair rather than accepting every proposed plot change. The [original review-to-revision example](https://zenstory.ai/oh-story/review-and-revise) turns an accepted agency diagnosis into a transfer-slip scene: the protagonist compares evidence and resists delay without breaking the seal or revealing the culprit. It separates agreement from completed registration and makes later-chapter attribution checks concrete."
+          "No. Connect feedback to passage evidence and this book’s constraints, then choose the repair instead of accepting every proposed plot change. The [original review-to-revision example](https://zenstory.ai/oh-story/review-and-revise) turns an accepted agency diagnosis into a transfer-slip scene: the protagonist compares evidence and resists delay without breaking the seal or revealing the culprit. It separates agreement from completed registration and makes later-chapter attribution checks concrete."
         ],
         [
           "Why does a detailed outline still become flat prose?",
@@ -162,7 +162,7 @@
     },
     "distinctive": {
       "en": [
-        "Local verifiers check contracts and detectable patterns, rather than assigning literary quality scores.",
+        "Local verifiers check file contracts and detectable patterns without scoring literary quality.",
         "Project settings, outlines, drafts, references and tracking remain inspectable files.",
         "Host-aware setup can use specialist roles or a direct fallback; supported hosts do not imply identical orchestration.",
         "The repository includes complete deconstruction, continuation and cover examples you can run through yourself."
@@ -495,7 +495,7 @@
     },
     "distinctive": {
       "en": [
-        "Source evidence and adaptation decisions are written down as explicit files rather than an unsupported genre guess.",
+        "Source evidence and adaptation decisions are recorded in explicit files instead of jumping straight to a genre guess.",
         "The target platform, engine and test runtime are recorded; passing in a substitute runtime does not establish target-platform compatibility.",
         "The repository links to example games built with this workflow; you can play one before you start."
       ],
@@ -601,7 +601,7 @@
         ],
         [
           "What if the voiceover is too long?",
-          "Reduce or move the thought instead of speaking over the next protected line. Bounded speed adjustment is not unlimited; an unsafe fit can block placement rather than clipping the spoken ending."
+          "Reduce or move the thought instead of speaking over the next protected line. Bounded speed adjustment is not unlimited; when a block cannot fit safely, placement stops and flags it instead of clipping the spoken ending."
         ],
         [
           "Does an audio-owner label automatically preserve the mix?",
@@ -635,7 +635,7 @@
         ],
         [
           "写了声音职责标签，就能自动保住原声吗？",
-          "不能。合成渲染器不会直接读取编导策划表里的文字标签，而是靠实际的旁白起止时间、对白区间和混音参数来压低或恢复原声；原片声音在旁白读完后可能还会短暂压低，直到合适的空档才恢复音量。最终效果一定要以渲染成片的实际试听为准。"
+          "不能。合成渲染器并不读取编导策划表里的文字标签；原声压低和恢复只看实际的旁白起止时间、对白区间与混音参数，原片声音在旁白读完后可能还会短暂压低，直到合适的空档才恢复音量。最终效果一定要以渲染成片的实际试听为准。"
         ],
         [
           "可以再手动精修声音和字幕吗？",
@@ -759,7 +759,7 @@
       "zh": [
         [
           "安装",
-          "按版本化安装指南准备 Node.js 24+，用附带 pnpm 的命令将插件安装到 DSH Web profile，再启动 DSH Web。只安装创作插件不会给全新的 profile 添加网页界面。"
+          "准备 Node.js 24+，按指定版本安装指南运行自带临时 pnpm 的命令，把插件装进 DSH Web profile 并启动 DSH Web。注意：在全新的空 profile 里只装创作插件，不会单独启用网页界面。"
         ],
         [
           "配置",
@@ -845,7 +845,7 @@
     },
     "audience": {
       "en": [
-        "Novelists who want a workspace rather than a terminal",
+        "Novelists who want a visual workspace without a terminal",
         "Writers managing long projects with version history"
       ],
       "zh": [

@@ -20,10 +20,10 @@ pnpm e2e:zenstory:local:full
 
 ## GitHub 门禁
 
-- `CI / ci-summary` 汇总变更检测与相关检查，相关任务不能靠 skipped 通过。
+- `CI / ci-summary` 汇总变更检测与对应检查项；命中变更范围的任务必须实际跑过，不能靠 `skipped` 算通过。
 - `E2E Tests / e2e-summary` 汇总浏览器任务。
 - `.github/workflows/e2e.yml` 在 main/develop push、定时与手动调用时触发，没有 PR 触发器。push 和手动 default 使用八个 Chromium 分片，手动 full 额外加入 Firefox；nightly、release、smoke 使用各自固定范围。
-- 生产提升要求同一 main 提交的两项总结成功，不用 PR 上另一 SHA 的结果替代。
+- 推进生产发布前，同一个 main 提交上的两项汇总检查都必须通过，不能拿 PR 分支上其他 commit SHA 的结果替代。
 
 工作流和发布条件见[发布流程](../ops/release-ci-cd.md)。
 
@@ -40,6 +40,6 @@ pnpm e2e:zenstory:local:full
 
 ## 证据边界
 
-Mock 浏览器证明交互，真实测试服务证明集成，预发布验证证明目标环境。分别记录，不把其中一个说成另一个。生产来源还需要 provider 元数据；健康响应不能代替部署 SHA。
+Mock 浏览器测试验证前端交互，真实测试服务验证前后端集成，预发布检查验证线上目标环境。三类验证结果应分开记录，不能混为一谈。生产来源还需要 provider 元数据；健康响应不能代替部署 SHA。
 
 原有四月 lane 设计与当时 runner 记录保留在[历史设计](../archive/design/e2e-lane-governance-2026-04.md)，不用于判断今天的服务或账单状态。

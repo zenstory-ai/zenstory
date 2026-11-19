@@ -51,7 +51,7 @@ pytest <affected-tests> -q --no-cov
 ruff check agent/ api/ services/
 ```
 
-浏览器测试与完整门禁见 [E2E 与 CI](e2e.md)。这些命令不授权线上迁移或部署。
+浏览器测试与完整门禁见 [E2E 与 CI](e2e.md)。上述本地检查仅用于开发验证，不包含线上数据库迁移或部署操作。
 
 ## 更新文档
 
@@ -61,4 +61,4 @@ ruff check agent/ api/ services/
 
 ## 提交与发布
 
-保护未提交工作，按行为变化补有意义的回归。记录检查对应的最终源码，创建 PR 后等必要 CI 完成。main 部署预发布；生产必须另有授权并通过 tag 提升。完整要求见[发布流程](../ops/release-ci-cd.md)。
+保护未提交工作，按行为变化补有意义的回归。记录检查对应的最终源码，创建 PR 后等必要 CI 完成。合并到 main 会部署预发布环境；正式上生产环境须另获明确授权，并通过发布 tag 推进。完整要求见[发布流程](../ops/release-ci-cd.md)。

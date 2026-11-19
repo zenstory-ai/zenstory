@@ -76,7 +76,7 @@ zenstory files put $CHAPTER --content-file chapter.md --if-updated-at "$UPDATED_
 ```
 
 `--if-updated-at` sends the original timestamp to the server for a locked check;
-if the current token differs, the server rejects the write with 409. Both local
+if the server's current timestamp differs, the server rejects the write with 409. Both local
 and server stale-write errors use `STALE_WRITE`. Re-read and merge before retrying;
 naive timestamps are UTC, and microseconds must not be rounded.
 
@@ -107,9 +107,9 @@ zenstory skill install --target ./skills   # any skills directory → ./skills/z
 zenstory skill path                        # where the bundled copy lives
 ```
 
-An existing installation is only replaced with `--force`, and only if it is a previous
-ZenStory skill install (a `SKILL.md` named `zenstory` plus `references/`); any other
-directory is left alone. A symlink at the destination is never followed.
+Pass `--force` to overwrite an existing ZenStory skill installation (a directory containing a
+`zenstory` `SKILL.md` and `references/`); unrelated directories are never touched, and
+destination symlinks are never followed.
 
 The `codex` target installs into `~/.agents/skills`; `openclaw` uses
 `$OPENCLAW_STATE_DIR/skills` when set, otherwise `~/.openclaw/skills`. Use

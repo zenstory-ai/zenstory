@@ -1,55 +1,55 @@
 # File types
 
-A type identifies a file's purpose. Titles, folders, and types are related, but changing a title does not convert its type. Choose types to organize evidence and export prose correctly.
+Every file in a ZenStory project has a file type that tells the workbench—and manuscript export—what role that document plays. Editing a file's title renames it, while its underlying file type stays the same. Picking the right type keeps planning notes separate from finished chapters when you export your manuscript.
 
-## Types and uses
+## File types and export scope
 
-| Type | Contents and export |
+| Type | Typical contents and export behavior |
 | --- | --- |
-| Outline `outline` | Direction, chapter goals, scene changes. Not part of the manuscript export; can be downloaded on its own. |
-| Draft `draft` | Novel or short-story prose. Exported. |
-| Character `character` | Goals, relationships, background, knowledge. Not exported. |
-| Lore `lore` | Places, rules, history, ability limits. Not exported. |
-| Material `snippet` | Reference text and reading notes. Not exported. |
-| Script `script` | Scenes, dialogue, and actions. Exported. |
-| Folder `folder` | File organization. Not exported. |
+| Outline `outline` | Story premise, volume arcs, chapter beats, and scene plans. Excluded from whole-manuscript export; can be downloaded individually. |
+| Draft `draft` | Novel or short-story chapters. Included in **Export manuscript**. |
+| Character `character` | Goals, relationships, backstory, and what each character knows. Excluded from whole-manuscript export. |
+| Lore `lore` | Locations, world rules, timelines, and power limits. Excluded from whole-manuscript export. |
+| Material `snippet` | Project reference excerpts and reading notes. Excluded from whole-manuscript export. |
+| Script `script` | Episodic scenes, action lines, and dialogue. Included in **Export manuscript**. |
+| Folder `folder` | Project directory container. Not exported. |
 
-Content files use the text editor. A type does not verify every setting or require a fixed form.
+All content files open in the same plain-text editor—file types do not lock you into rigid form fields.
 
 ## Outline example
 
 ```text
-Scene 1 — The claim
-Goal: Shen claims the bag; Lin checks the evidence.
-Obstacle: She names the wrong inner-pocket item.
-Change: Lin pauses the handover and asks further questions.
-Open: The reason for the mistake and final recipient.
+Scene 1 — Claiming the bag
+Goal: Shen claims the lost bag; Lin checks her proof.
+Obstacle: Shen names the wrong item inside the inner pocket.
+Turn: Lin pauses the handover and asks follow-up questions.
+Open thread: Why she got the item wrong, and who the bag is really for.
 ```
 
-Put chosen directions in the outline. Label alternatives as undecided, then update the plan to reflect actual prose.
+Record settled plot decisions in your outline, mark open options clearly as undecided, and update the outline whenever a finished chapter takes a new turn.
 
-## Character and lore example
+## Character and lore notes
 
-Start with the character information needed for the current scene:
+Start with the facts that actively constrain the current chapters instead of writing an exhaustive encyclopedia up front:
 
 ```text
-Lin He: Lost-property desk attendant.
-Goal: Process the claim before closing.
-Boundary: Cannot release the bag on a spoken claim alone.
-Known: Exterior matches; inner-pocket description does not.
-Unknown: Why Shen describes it incorrectly.
+Lin He — Lost-and-found attendant
+Goal: Finish the handover before closing time.
+Rule: Cannot release an item on a verbal claim alone.
+Knows: The bag's outside matches Shen's description, but the inner pocket does not.
+Does not know: Why Shen named the wrong item.
 ```
 
-Lore records rules and limits that affect action; a complete encyclopedia is unnecessary. Separate character knowledge from author knowledge.
+In lore and character sheets, separate what a character currently knows from hidden truths only the author knows so the AI does not leak spoilers into dialogue or narration.
 
 ## Materials and scripts
 
-Material items store reference text and can be attached to chat. Library breakdown results are read separately in your account's Materials Library.
+`Materials` (`snippet`) files hold reference excerpts inside a project and can be pinned to chat turns. Full-book AI breakdowns live separately in your account's [Materials Library](../user-guide/materials.md) until you import selected entries into a project.
 
-Scripts can use scene, location, characters, action, and dialogue. Script type organizes and exports text; it does not generate video.
+`Script` (`script`) files hold scene headings, character lists, action beats, and dialogue for short-drama or screenplay projects, and are exported as plain text—ZenStory does not render video from scripts.
 
-## If the type is wrong
+## Changing a file's type
 
-Check the folder's purpose when creating, or choose an explicit type from the empty editor. There is currently no direct type-conversion interface. Create a file of the correct type, copy adopted content, verify saving, and decide how to retain the original.
+ZenStory sets a new file's type automatically from the folder where you create it (or from the creation button you pick in the empty editor), and does not have an in-place type switcher. If prose ended up in an `outline` or `snippet` file by mistake, create a new file under **Drafts** or **Scripts**, copy the text over, wait for **Saved** in the status bar, and then decide whether to keep or delete the old file.
 
-Copies have independent files and history. See [file management](../user-guide/file-tree.md) and [export](../user-guide/export.md).
+New files start with their own version history. See [File tree and file management](../user-guide/file-tree.md) and [Export your manuscript](../user-guide/export.md).

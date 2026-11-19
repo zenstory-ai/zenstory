@@ -66,7 +66,7 @@ A `.zip` package may also include `references/` or `assets/` text resource folde
 
 ## Test and iterate
 
-Test a new skill on a short passage first, then test how it behaves when evidence is missing and when a fact conflicts with an established character sheet. Inspect whether it pinpoints the right lines and respects your edit boundaries rather than just checking whether the skill was loaded.
+Test a new skill on a short passage first, then test how it behaves when evidence is missing and when a fact conflicts with an established character sheet. Check whether it pinpoints the right lines and respects your edit boundaries—seeing the skill load is only the first step.
 
 If the output misses the mark, adjust the single most relevant instruction first; if a skill grows too long or combines conflicting goals, split it into separate skills. Before clicking **Share to Discover**, export a local backup with **Export as zip** and remove any private or unlicensed text.
 

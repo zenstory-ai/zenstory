@@ -26,7 +26,7 @@ Chat result cards for edits and whole-chapter replacements offer **Undo** to rol
 
 Click **Restore this version** on the version you want and confirm **Restore** in the dialog. Restoring replaces the file's current body text, so save or copy any unsaved edits in the editor first.
 
-Before overwriting the file, the server automatically records a backup version of any current prose that has not entered history yet; if that backup cannot be created, the restore is cancelled so your current text is never lost. After restoring, check both the editor and the history list to confirm the result. Keep separate local exports for important milestones rather than relying on version history alone.
+Before overwriting the file, the server automatically records a backup version of any current prose that has not entered history yet; if that backup cannot be created, the restore is cancelled so your current text is never lost. After restoring, check both the editor and the history list to confirm the result. Export local copies at major milestones so you always have an independent backup outside version history.
 
 ## When text is missing from history
 

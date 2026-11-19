@@ -5,7 +5,7 @@ ZenStory provides two distinct places for reference materials:
 - **Account Materials Library (Reference Library)**: Opened from **Materials** in the top dashboard navigation. Upload a `.txt` reference novel here to have the AI break it down into chapter summaries, characters, worldbuilding, special powers, storylines, plot points, and plotlines that you can browse and cite across all of your projects.
 - **Project `Materials` folder**: Located inside an individual project under **Files → Materials** (see [File tree and file management](file-tree.md)). Use this folder to upload plain-text reference notes scoped to that project (up to 2MB and 200,000 characters per file, free on all plans without running AI novel breakdown).
 
-Note: To import **your own manuscript chapters** for continued writing, use **Have a draft already? Import it (txt / md)** on the dashboard home or the `+` button next to **Drafts** inside a project rather than uploading to the Reference Library.
+Note: To import **your own manuscript chapters** for continued writing, use **Have a draft already? Import it (txt / md)** on the dashboard home or the `+` button next to **Drafts** inside a project; the Reference Library is for analyzing other books, not editing your own draft.
 
 ## Free trial and Pro allowance
 
