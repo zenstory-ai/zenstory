@@ -514,14 +514,16 @@ async def test_compaction_skips_when_summary_is_empty_or_truncated(responses, ex
     assert create.await_count == expected_calls
     # 每次摘要调用都计入这个请求的模型调用预算。
     assert meter.model_calls == expected_calls
-    # 第二次降低思考强度。
+    # 保持模型默认思考强度（不降低 reasoning_effort），第二次追加重试说明。
     assert create.await_args_list[0].kwargs["reasoning_effort"] is None
-    assert create.await_args_list[1].kwargs["reasoning_effort"] == "low"
+    assert create.await_args_list[1].kwargs["reasoning_effort"] is None
+    assert "[重试提醒]" not in create.await_args_list[0].kwargs["messages"][-1]["content"]
+    assert "[重试提醒]" in create.await_args_list[1].kwargs["messages"][-1]["content"]
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_compaction_retry_at_lower_effort_can_succeed():
+async def test_compaction_retry_with_guidance_keeps_default_effort_and_can_succeed():
     from agent.loop.compaction import compact_history
 
     provider = SimpleNamespace(name="p", model="m")
@@ -529,6 +531,9 @@ async def test_compaction_retry_at_lower_effort_can_succeed():
     with patch("agent.core.llm_failover.acreate_chat_completion", create):
         outcome = await compact_history(_history(), system_prompt="系统", session_id="s")
     assert outcome.record["summary"] == "第二次的摘要"
+    assert create.await_args_list[0].kwargs["reasoning_effort"] is None
+    assert create.await_args_list[1].kwargs["reasoning_effort"] is None
+    assert "[重试提醒]" in create.await_args_list[1].kwargs["messages"][-1]["content"]
 
 
 @pytest.mark.asyncio

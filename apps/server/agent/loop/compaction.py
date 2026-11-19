@@ -1,10 +1,10 @@
 """单循环 agent 的历史压缩（轮与轮之间，从不在一次工具循环中途）。
 
 上一轮最后一次模型调用的实测输入 token（``message_metadata.prompt_tokens``）超过
-``AGENT_LOOP_COMPACT_AT_TOKENS`` 时，本轮开始前用同一个模型（会话固定的供应商）写一份交接摘要：
-校验非空且没有被输出上限截断，失败时降低思考强度重试一次，仍失败就不压缩、照常跑这一轮。
-摘要随本轮的 assistant 行写进 ``message_metadata.compaction``（不改表结构），下一轮起
-``history.load_loop_history`` 据此重建历史。
+``AGENT_LOOP_COMPACT_AT_TOKENS`` 时，本轮开始前用同一个模型（会话固定的供应商，保持默认思考强度）
+写一份交接摘要：校验非空、没有被输出上限截断且未混入工具调用标签，失败时附带精炼重试说明再试一次，
+仍失败就不压缩、照常跑这一轮。摘要随本轮的 assistant 行写进 ``message_metadata.compaction``（不改表结构），
+下一轮起 ``history.load_loop_history`` 据此重建历史。
 """
 
 from __future__ import annotations
@@ -41,8 +41,13 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 COMPACTION_CALL_SITE = "agent_loop_compaction"
-# 第一次按模型默认思考强度；摘要为空或被截断时降一档再试一次。
-_ATTEMPT_EFFORTS: tuple[str | None, ...] = (None, "low")
+# 始终保持模型默认思考强度（不降低 reasoning_effort），最多尝试两次。
+_MAX_COMPACTION_ATTEMPTS = 2
+_COMPACT_RETRY_NOTE = (
+    "\n\n[重试提醒] 上一次摘要输出为空、超出单次长度被截断或混入了工具调用协议标签。"
+    "本次请不在思考中逐章复述原文或预写全文，只抓关键骨架，直接输出完整纯文本交接摘要，"
+    "严禁调用工具或输出任何 <tool_call>、<invoke>、<parameter> 标签。"
+)
 SKIPPED_EMPTY_OR_TRUNCATED = "empty_or_truncated_summary"
 SKIPPED_PROVIDER_ERROR = "provider_error"
 
@@ -67,7 +72,7 @@ def _extract_valid_summary(choice: Any) -> tuple[str, bool]:
 
     供应商偶发无视 ``tool_choice="none"`` 输出结构化 ``tool_calls`` 或将内部
     ``]<]minimax[>[<tool_call>…`` / ``<invoke>`` 协议标签直接吐进正文并中断生成；
-    此类响应不是完整摘要，返回 ``("", True)`` 触发低思考强度重试或安全跳过压缩。
+    此类响应不是完整摘要，返回 ``("", True)`` 触发带提示重试或安全跳过压缩。
     代码块与行内反引号内引用的字面标签原样保留。
     """
     if choice is None:
@@ -134,12 +139,13 @@ def _chat_tools() -> list[dict[str, Any]]:
     return [dict(Converter.tool_to_openai(tool)) for tool in build_agent_function_tools()]
 
 
-def _request_messages(system_prompt: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _request_messages(system_prompt: str, items: list[dict[str, Any]], *, retry_prompt: bool = False) -> list[dict[str, Any]]:
     from agents.models.chatcmpl_converter import Converter
 
+    prompt = f"{COMPACT_PROMPT}{_COMPACT_RETRY_NOTE}" if retry_prompt else COMPACT_PROMPT
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     messages.extend(Converter.items_to_messages(items))  # type: ignore[arg-type]
-    messages.append({"role": "user", "content": COMPACT_PROMPT})
+    messages.append({"role": "user", "content": prompt})
     return messages
 
 
@@ -180,7 +186,7 @@ async def compact_history(
 ) -> CompactionOutcome:
     """写交接摘要并给出压缩后的历史；摘要不可用时返回 skipped，历史保持原样。
 
-    每次摘要调用都记进 ``run_meter``（请求级模型调用预算）。次数由 ``_ATTEMPT_EFFORTS`` 限定、
+    每次摘要调用都记进 ``run_meter``（请求级模型调用预算）。次数由 ``_MAX_COMPACTION_ATTEMPTS`` 限定、
     发生在这一轮开始前，所以这里不看预算是否用完。
     """
     from agent.core import llm_failover
@@ -210,8 +216,9 @@ async def compact_history(
     trimmed_items = _trim_for_budget(input_budget)
     usage: dict[str, int] = {}
     summary = ""
+    retry_after_invalid_output = False
     started = time.monotonic()
-    for attempt_index, effort in enumerate(_ATTEMPT_EFFORTS):
+    for attempt_index in range(_MAX_COMPACTION_ATTEMPTS):
         bounded = bound_history_for_provider(history, trimmed_items, input_budget)
         if not bounded:
             log_with_context(
@@ -221,7 +228,7 @@ async def compact_history(
                 input_budget=input_budget,
             )
             break
-        messages = _request_messages(system_prompt, bounded)
+        messages = _request_messages(system_prompt, bounded, retry_prompt=retry_after_invalid_output)
         sink: dict[str, Any] = {}
         if run_meter is not None:
             run_meter.record_model_call()
@@ -230,7 +237,7 @@ async def compact_history(
                 response, _provider = await llm_failover.acreate_chat_completion(
                     call_site=COMPACTION_CALL_SITE,
                     session_id=session_id,
-                    reasoning_effort=effort,
+                    reasoning_effort=None,
                     usage_attribution=attribution,
                     attempt_sink=sink,
                     max_retries=0,
@@ -245,7 +252,7 @@ async def compact_history(
             # 平台自身的配额/成本限制（如免费用户 ¥15 成本兜底 402）必须原样上抛，不降级成退避也不重撞主循环。
             raise
         except Exception as exc:  # noqa: BLE001 - 压缩失败不影响这一轮照常运行
-            has_next_attempt = attempt_index + 1 < len(_ATTEMPT_EFFORTS)
+            has_next_attempt = attempt_index + 1 < _MAX_COMPACTION_ATTEMPTS
             if has_next_attempt and len(bounded) > 1 and _is_request_rejected_error(exc):
                 current_tokens = effective_history_provider_tokens(history, bounded)
                 input_budget = max(100_000, min(input_budget, current_tokens) // 2)
@@ -263,7 +270,7 @@ async def compact_history(
                 30,  # WARNING
                 "Loop history compaction call failed; continuing without compaction",
                 error_type=type(exc).__name__,
-                effort=effort or "default",
+                attempt=attempt_index + 1,
             )
             return CompactionOutcome(usage=usage or None, skipped=SKIPPED_PROVIDER_ERROR)
         _merge_usage(usage, _usage_of(response))
@@ -274,11 +281,12 @@ async def compact_history(
         if candidate:
             summary = candidate
             break
+        retry_after_invalid_output = True
         log_with_context(
             logger,
             30,  # WARNING
             "Loop history compaction summary empty, truncated, or contained tool protocol",
-            effort=effort or "default",
+            attempt=attempt_index + 1,
             finish_reason=finish_reason,
             summary_chars=len(raw_text),
             leaked_tool_protocol=leaked_tool_protocol,

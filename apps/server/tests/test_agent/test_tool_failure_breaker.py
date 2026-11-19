@@ -358,15 +358,13 @@ def test_user_message_drops_sqlalchemy_statement_details():
 
 
 @pytest.mark.unit
-# file_body_pending 是 tools_adapter 前置守卫的同类拒绝：2026-10-25 事故里漏了它，同参数第 3 次即熔断。
-@pytest.mark.parametrize("error_type", ["pending_empty_file_unwritten", "file_body_pending"])
-def test_ordering_rejection_counts_toward_cap_but_never_trips_identical_rule(error_type):
-    """「先写完上一个空文件」这类顺序性拒绝：模型补完前置动作即可成功，
-    不按同一调用连续失败熔断（否则空文件纠偏轮也跑不到），只受累计上限约束。"""
+def test_ordering_rejection_counts_toward_cap_but_never_trips_identical_rule():
+    """建文件后的下一次回复仍未写 <file> 正文（file_body_pending）：不按同一调用连续失败熔断
+    （否则空文件纠偏轮也跑不到），但仍计入请求累计失败上限兜底。"""
     breaker = ToolFailureBreaker()
     rejection = _error(
-        "文件「苏晚」未创建：上一个文件「沈砚」正文还是空的",
-        error_type=error_type,
+        "「沈砚」已经建好但还没写正文，create_file 未执行",
+        error_type="file_body_pending",
     )
     args = json.dumps({"title": "苏晚", "file_type": "character"}, ensure_ascii=False)
     for _ in range(MAX_IDENTICAL_TOOL_FAILURES + 2):
@@ -380,6 +378,24 @@ def test_ordering_rejection_counts_toward_cap_but_never_trips_identical_rule(err
         breaker.observe("create_file", args, rejection)
     assert breaker.is_open
     assert breaker.trip.reason == TRIP_REASON_TOTAL
+
+
+@pytest.mark.unit
+def test_parallel_batch_pending_empty_file_unwritten_never_counts_toward_failure_cap():
+    """单条回复并列发出多个流式 create_file 时，同批后续调用返回的 pending_empty_file_unwritten
+    属于批次顺序化拒绝，既不触发同参数熔断，也不计入请求级累计失败上限。"""
+    breaker = ToolFailureBreaker()
+    for batch in range(3):
+        for name in ("沈晦", "邵振坤", "和姐", "姜维", "孙立"):
+            rejection = _error(
+                f"文件「{name}」未创建：上一个文件正文还是空的，一次只能流式写入一个文件。",
+                error_type="pending_empty_file_unwritten",
+            )
+            args = json.dumps({"title": f"{name}-{batch}", "file_type": "character"}, ensure_ascii=False)
+            output = breaker.observe("create_file", args, rejection)
+            assert output == rejection
+    assert not breaker.is_open
+    assert breaker.total_failures == 0
 
 
 # ---------------------------------------------------------------------------

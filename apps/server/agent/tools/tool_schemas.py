@@ -19,7 +19,8 @@ CREATE_FILE_TOOL: dict[str, Any] = {
     "name": "create_file",
     "description": (
         "创建大纲、角色、设定、素材等资料文件或文件夹。正文章节（draft / script）不用这个工具，用 write_chapter。"
-        "通常只创建空文件，文件内容在工具调用后的下一次回复里用 <file>内容</file> 写入；"
+        "通常只创建空文件，文件内容在工具调用后的下一次回复里用 <file>内容</file> 写入"
+        "（一次只能流式写入一个文件：要生成多份资料文件时逐个创建，写完一份的 <file>…</file> 后再调用下一个 create_file，不要在同一条回复里并列发出多个待写 <file> 的 create_file）；"
         "仅 source_text 通过作者原文校验时会在这次调用里直接保存该原文。"
         f"{WORD_COUNT_CONTRACT}"
     ),

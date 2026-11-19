@@ -96,10 +96,9 @@ LOOP_SOFT_LANDING_PROMPT = (
 LOOP_TIME_LANDING_PROMPT = (
     "[系统提醒] 这次请求的时间快用完了。不要再开始新的章节或大段改写，也不要再读文件："
     "正在写的 <file> 正文先写完并用 </file> 结束；刚调用 write_chapter（或 create_file）还没写正文的，"
-    "在本次回复里写完它的 <file> 正文。然后直接用文字给作者写阶段总结：\n"
-    "1. 已完成的工作；\n"
-    "2. 尚未完成、需要下一轮继续的工作。\n"
-    "用户回复「继续」后会从这里接着完成剩余部分。"
+    "在本次回复里写完它的 <file> 正文。然后直接用文字给作者收尾：\n"
+    "- 如果作者本轮要求的内容已经全部保存完成，直接用一到三句话总结已完成的文件与字数即可，不要编造待续工作；\n"
+    "- 只有作者本轮明确要求、但还没来得及完成的部分，才如实写明已完成的工作与尚未完成的部分（用户回复「继续」后会接着完成剩余部分）。"
 )
 
 
@@ -1275,7 +1274,7 @@ async def run_openai_agents_streaming_agent(
         run_stop_reason = exhausted_stop_reason if turns_exhausted else "end_turn"
         message_end: dict[str, Any] = {"stop_reason": run_stop_reason, "usage": usage}
         if (
-            not turns_exhausted
+            (not turns_exhausted or time_landed)
             and AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS > 0
             and last_output_tokens >= AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS * OUTPUT_CAP_RATIO
         ):

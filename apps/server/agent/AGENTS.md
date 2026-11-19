@@ -112,7 +112,7 @@ agent/
   的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用供应商同量纲估算 `estimate_provider_items_tokens`）
   超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，工具清单经 `Converter.tool_to_openai(build_agent_function_tools())` 生成以保持 `strict=false` 前缀缓存一致、`tool_choice=none`、`max_retries=0`），
-  空、被截断或混入未执行的工具调用机器协议（结构化 `tool_calls` 或代码外泄漏 `<tool_call>` / `<invoke>` / `<parameter>` 标签）时 `reasoning_effort=low` 重试一次，仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
+  空、被截断或混入未执行的工具调用机器协议（结构化 `tool_calls` 或代码外泄漏 `<tool_call>` / `<invoke>` / `<parameter>` 标签）时保持默认思考强度附带精炼重试说明再试一次（不降低 `reasoning_effort`），仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
   （`summary`、`covers_through_message_id`、`kept_author_messages`、`created_at`），之后的历史 = 压缩点之前最近的作者原话（`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`
   预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。保留的作者原话按 `kept_author_messages`（压缩那一轮实际发出的文字，含截断后缀）原样回放，
   不按行重新截断，前缀跨轮逐字不变（再次压缩时被截断过的原话再截一次，按行重算会挪动截断点、让之后整段历史缓存 miss）；没有这个字段的旧记录照旧按行重算。`kept_author_messages` 只给模型回放，聊天历史接口（`client_message_metadata`）不把它发给浏览器。压缩用量以一条 MESSAGE_END 汇入本轮用量；从不在工具循环中途压缩。
@@ -138,7 +138,7 @@ agent/
   「《…》写到了单次回复的输出上限，正文已保存到中断处。」（`author_facing_text.body_cut_at_output_cap_notice`），续跑说明 `_BODY_CUT_CONTEXT` 附落库正文末尾 200 字，
   要求用 edit_file `op=append` 从断点续写、不整章重写，写完再自查；没撞上限的未闭合正文（漏写 `</file>`）照旧按已保存续跑。整章替换的新正文被截断时
   仍是原文不动、在纠偏次数内重试，重试说明换成 `_CHAPTER_REPLACE_CUT_RETRY_CONTEXT`（说明被截断、思考尽量简短）。到收尾时间不再开新 run：
-  若结构化 `followup_kind == "self_check"`（已有确认落库正文，且无待写空文件、截断残稿、未保存替换、未执行工具与插话），直接正常收尾并跑 `auto_finalize_task_board_on_completion`（上一轮停在 `</file>` 尚未写总结时补一句确定性的已保存说明），不发暂停卡；其余未完成续跑照旧发 `layer=collaboration`、`limit=wall_clock` 的暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空（API 墙钟硬超时补发暂停卡时 `iterations_used` 取 `RunOutcome.runs_started`）。[prod-review-followups][n-prod-review]
+  若结构化 `followup_kind == "self_check"`（或正在跑的 `run_kind == "self_check"` 在总结阶段触发内层 `limit=wall_clock` 软着陆），且已有确认落库正文、任务板收尾后无未完任务（`has_incomplete_task_board_items() == False`）、无待写空文件、无截断残稿、无未保存替换、无未执行工具与插话，直接按 `end_turn` 正常收尾并跑 `auto_finalize_task_board_on_completion`（上一轮停在 `</file>` 尚未写总结时补一句确定性的已保存说明），不发暂停卡；任务板仍有未完成项或其余未完成续跑照旧发 `wall_clock` 暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空（API 墙钟硬超时补发暂停卡时 `iterations_used` 取 `RunOutcome.runs_started`）。[prod-review-followups][n-prod-review]、[prod-audit-round2][n-prod-audit2]
   收尾提醒（`runner._ModelCallCountingFilter`）用 `LOOP_SOFT_LANDING_PROMPT` / `LOOP_TIME_LANDING_PROMPT`
   （刚调用 write_chapter 或 create_file 还没写 `<file>` 的先写完）。空文件的核验与回滚在 `core/empty_files.py`，收尾说明、插话追加轮提示与续跑说明里的字数在 `loop/run_support.py`。
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` 是唯一的工具集（顺序即请求里工具清单的顺序，前缀缓存依赖它），请求里直接从 `tool_schemas.TOOL_SCHEMAS` 按序取出（`get_exposed_tools()`；`CREATE_FILE_TOOL` 只列资料文件与文件夹，不列 draft / script）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入直接落库并保留修改卡撤销、历史版本及草稿冲突与版本并发保护（[direct-ai-edits][n-direct-edits]）；
@@ -249,8 +249,8 @@ agent/
 
 工具清单以 `tools/registry.LOOP_TOOL_NAMES` 为准，每一轮在请求里看到的都是同一份（前缀缓存不分裂）。旧会话历史里调用已删除的工具
 （handoff_to_agent / request_clarification / parallel_execute）时，SDK 按 `tool_not_found_behavior="return_error_to_model"` 把错误交还模型。
-create_file 录入本轮作者资料时可传 `source_text`：只接受原始作者消息中的非空连续原文，直接沿用创建路径保存；不与 content/empty 混用、不建正文或文件夹，不覆盖同名旧文件。原文复制不进入待写正文状态；模型仍负责选择资料范围，程序不从自然语言判断意图。
-普通 create_file 建好空文件后返回 `awaiting_body` 与 `next_step`；下一次回复没先以 <file> 写完正文就调用的工具
+create_file 录入本轮作者资料时可传 `source_text`：只接受原始作者消息中的非空连续原文（兼容 CRLF、行尾多余空白与连续空行个数差异，唯一命中时截取对应原始切片保存，禁止改写、跳段拼接或补字段），直接沿用创建路径保存；不与 content/empty 混用、不建正文或文件夹，不覆盖同名旧文件。原文复制不进入待写正文状态；模型仍负责选择资料范围，程序不从自然语言判断意图。
+普通 create_file 建好空文件后返回 `awaiting_body` 与 `next_step`（同条模型回复里并列发出的后续流式 `create_file` 以 `pending_empty_file_unwritten` 顺序化挡回，不计入请求级失败熔断上限）；下一次回复没先以 <file> 写完正文就调用的工具
 （按精确 id 非递归删除本请求新建的这份待写文件除外，删成功后守卫随之清除；下面的 `tool_choice="none"` 之后，这个例外只在文件定为待写后作者又插话、或供应商不遵守 `none` 时用得上）以 `file_body_pending` 拒绝（`tools_adapter`，按 on_llm_start 记的回复序号判断），
 拒绝后 runner 同步结束当前 run，由单循环 agent 核验并经 `FILE_BODY_RESUME` 安排纠偏轮；这类拒绝不参与同参数熔断，仍计入请求累计上限。
 这次回复（与守卫同一状态，含整章替换与纠偏轮的第一次调用）由 `FailoverChatModel` 以 `tool_choice="none"` 发出（工具清单不变，主备供应商都带上），
@@ -334,3 +334,4 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-xreview]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-agent-cross-review-fixes.md
 [n-direct-edits]: ../../../.agents/notes/implemented/feature/2026-11-18-direct-ai-edits.md
 [n-prod-review]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-prod-review-followups.md
+[n-prod-audit2]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-loop-prod-audit-round2-fixes.md
