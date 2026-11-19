@@ -21,10 +21,11 @@ logger = get_logger(__name__)
 
 # 带撤销锚点的 AI 修改卡：edit_file，以及单循环 agent 的整章替换（write_chapter）。
 _UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter"})
+_FAILED_CARD_STATUSES = frozenset({"error", "failed", "pending"})
 
 
 def _card_undo(call: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    """一张 edit_file 卡的结果数据与撤销锚点（结果可能带一层 data）。"""
+    """一张修改卡的结果数据与撤销锚点（结果可能带一层 data）。"""
     result = call.get("result")
     data = result.get("data") if isinstance(result, dict) and isinstance(result.get("data"), dict) else result
     if not isinstance(data, dict):
@@ -33,14 +34,70 @@ def _card_undo(call: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, A
     return data, undo if isinstance(undo, dict) else None
 
 
-def _same_token(stored: Any, expected: datetime) -> bool:
-    if not isinstance(stored, str):
-        return False
+def _parse_card_args(call: dict[str, Any]) -> dict[str, Any]:
+    for key in ("arguments", "input"):
+        raw = call.get(key)
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, str) and raw.strip():
+            try:
+                parsed = json.loads(raw)
+            except ValueError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+    return {}
+
+
+def _parse_iso_utc(stored: Any) -> datetime | None:
+    if not isinstance(stored, str) or not stored.strip():
+        return None
     try:
         parsed = datetime.fromisoformat(stored.replace("Z", "+00:00"))
     except ValueError:
-        return False
-    return normalize_datetime_to_utc(parsed) == normalize_datetime_to_utc(expected)
+        return None
+    return normalize_datetime_to_utc(parsed)
+
+
+def _same_token(stored: Any, expected: datetime) -> bool:
+    parsed = _parse_iso_utc(stored)
+    return parsed is not None and parsed == normalize_datetime_to_utc(expected)
+
+
+def read_delete_card_deleted_at(
+    session: Session,
+    *,
+    user_id: str,
+    project_id: str,
+    file_id: str,
+    message_id: str,
+    tool_use_id: str,
+) -> datetime | None:
+    """读取指定 delete_file 卡片上记录的 deleted_at 时间戳（用于根目录已自愈时的子树恢复核对）。"""
+    message = session.get(ChatMessage, message_id)
+    if message is None or message.role != "assistant" or not message.tool_calls:
+        return None
+    chat = session.get(ChatSession, message.session_id)
+    if chat is None or chat.user_id != user_id or chat.project_id != project_id:
+        return None
+    try:
+        calls = json.loads(message.tool_calls)
+    except ValueError:
+        return None
+    if not isinstance(calls, list):
+        return None
+    for call in calls:
+        if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") != "delete_file":
+            continue
+        if str(call.get("status") or "").strip().lower() in _FAILED_CARD_STATUSES:
+            return None
+        data, _ = _card_undo(call)
+        args = _parse_card_args(call)
+        card_id = data.get("id") if isinstance(data, dict) else None
+        if not isinstance(data, dict) or data.get("mutation_applied") is not True or (card_id or args.get("id")) != file_id:
+            return None
+        return _parse_iso_utc(data.get("deleted_at"))
+    return None
 
 
 def record_delete_card_restored(
@@ -51,6 +108,7 @@ def record_delete_card_restored(
     file_id: str,
     message_id: str,
     tool_use_id: str,
+    restored_deleted_at: datetime | None = None,
 ) -> bool:
     """一次删除恢复成功之后，把它对应的 delete_file 卡标成已恢复；返回是否标上。"""
     from agent.tools.file_ops.edit import acquire_file_write_lock
@@ -81,14 +139,27 @@ def record_delete_card_restored(
             for call in calls:
                 if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") != "delete_file":
                     continue
-                args = call.get("input") if isinstance(call.get("input"), dict) else {}
+                if str(call.get("status") or "").strip().lower() in _FAILED_CARD_STATUSES or call.get("error"):
+                    break
+                args = _parse_card_args(call)
                 result = call.get("result")
                 if result is True and args.get("id") == file_id:
                     call["result"] = {"id": file_id, "restored": True, "mutation_applied": True}
                 else:
                     data, _ = _card_undo(call)
                     card_id = data.get("id") if isinstance(data, dict) else None
-                    if not isinstance(data, dict) or (card_id or args.get("id")) != file_id:
+                    if (
+                        not isinstance(data, dict)
+                        or "error" in data
+                        or data.get("mutation_applied") is not True
+                        or (card_id or args.get("id")) != file_id
+                    ):
+                        break
+                    if (
+                        restored_deleted_at is not None
+                        and isinstance(data.get("deleted_at"), str)
+                        and not _same_token(data.get("deleted_at"), restored_deleted_at)
+                    ):
                         break
                     data["restored"] = True
                 locked.tool_calls = json.dumps(calls, ensure_ascii=False)

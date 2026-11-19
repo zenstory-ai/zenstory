@@ -232,6 +232,16 @@ def test_post_save_and_compaction_prompts_forbid_word_count_churn_and_uuid_table
 
 
 @pytest.mark.unit
+def test_create_file_schema_empty_description_matches_loop_contract():
+    from agent.tools.tool_schemas import CREATE_FILE_TOOL
+
+    empty_desc = CREATE_FILE_TOOL["input_schema"]["properties"]["empty"]["description"]
+    assert "先建空章节" not in empty_desc
+    assert "设了也不生效" not in empty_desc
+    assert "<file>" in empty_desc
+
+
+@pytest.mark.unit
 @pytest.mark.parametrize(("directory_structure", "expected"), [
     ("正文目录: {draft}", "正文目录: draft-folder"),
     ("设定集 {unknown} 和 {draft}", "设定集 {unknown} 和 draft-folder"),

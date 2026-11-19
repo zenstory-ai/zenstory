@@ -227,7 +227,7 @@ async def test_tools_see_the_author_words_without_the_hidden_hint(
     seen: dict = {}
 
     def fake_workflow(state, **_kwargs):
-        seen["author_messages"] = ToolContext.get_author_messages()
+        seen["author_message"] = ToolContext._get_context().get("author_message")
 
         async def stream():
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
@@ -244,7 +244,7 @@ async def test_tools_see_the_author_words_without_the_hidden_hint(
         ):
             pass
 
-    assert seen["author_messages"] == [IDEA]
+    assert seen["author_message"] == IDEA
 
 
 @pytest.mark.asyncio

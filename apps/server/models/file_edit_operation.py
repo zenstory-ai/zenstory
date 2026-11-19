@@ -34,6 +34,3 @@ class FileEditOperation(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow, index=True)
     undone_at: datetime | None = Field(default=None, index=True)
     undo_version_id: str | None = Field(default=None, foreign_key="file_version.id", index=True)
-
-
-EDIT_OPERATION_KINDS = frozenset({"edit_file", "write_chapter", "rename_file"})

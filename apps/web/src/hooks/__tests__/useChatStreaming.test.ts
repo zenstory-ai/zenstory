@@ -286,7 +286,6 @@ describe('useChatStreaming', () => {
       expect(typeof callbacks.onSegmentStart).toBe('function')
       expect(typeof callbacks.onSegmentUpdate).toBe('function')
       expect(typeof callbacks.onSegmentUpdateToolCalls).toBe('function')
-      expect(typeof callbacks.onSegmentEnd).toBe('function')
       expect(typeof callbacks.onIterationExhausted).toBe('function')
       expect(typeof callbacks.onWorkflowStopped).toBe('function')
       expect(typeof callbacks.onToolResult).toBe('function')
@@ -695,29 +694,26 @@ describe('useChatStreaming', () => {
 
         expect(result.current.streamRenderItems).toHaveLength(0)
       })
-    })
-
-    describe('onSegmentEnd callback', () => {
-      it('handles segment end without error', () => {
+      it('clears a previously flushed partial `<author` segment once `<author_edits>` finishes empty', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
         const callbacks = result.current.getStreamCallbacks(deps)
 
         act(() => {
-          callbacks.onSegmentStart({ id: 'seg-1', type: 'content' })
+          callbacks.onSegmentUpdate('seg-author', '<author')
         })
-
         act(() => {
           vi.advanceTimersByTime(100)
         })
+        expect(result.current.streamRenderItems[0]?.content).toBe('<author')
 
-        // Should not throw
         act(() => {
-          callbacks.onSegmentEnd('seg-1')
+          callbacks.onSegmentUpdate('seg-author', '<author_edits>无</author_edits>')
         })
-
-        // Segment should still exist
-        expect(result.current.streamRenderItems).toHaveLength(1)
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+        expect(result.current.streamRenderItems[0]?.content).toBe('')
       })
     })
 

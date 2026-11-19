@@ -113,7 +113,6 @@ const streamCallbacks = {
   onSegmentStart: vi.fn(),
   onSegmentUpdate: vi.fn(),
   onSegmentUpdateToolCalls: vi.fn(),
-  onSegmentEnd: vi.fn(),
   onComplete: vi.fn(async () => {}),
   onError: vi.fn(),
   onToolResult: vi.fn(),
@@ -696,16 +695,43 @@ describe('ChatPanel immutable edit undo', () => {
     expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(false)
   })
 
-  it('restores a soft-deleted file from the chat card and propagates conflicts', async () => {
+  it('restores a soft-deleted file from the chat card, clears removed fences, and propagates conflicts', async () => {
+    composerState.projectId = 'project-1'
+    const { isFileRemoved, notifyFileRemoved } = await import('../../lib/fileRemovalEvents')
+    notifyFileRemoved('project-1', 'deleted-file-1')
+    notifyFileRemoved('project-1', 'deleted-child-2')
+    expect(isFileRemoved('project-1', 'deleted-file-1')).toBe(true)
+
+    getRecentMessagesMock.mockResolvedValueOnce([{
+      id: 'msg-1',
+      role: 'assistant',
+      content: '已删除',
+      created_at: '2026-10-06T12:00:00.000Z',
+      session_id: 'session-1',
+      metadata: JSON.stringify({ display_events: [{ type: 'tool_call', tool_call_index: 0 }] }),
+      tool_calls: JSON.stringify([{
+        id: 'del-1',
+        name: 'delete_file',
+        arguments: { id: 'deleted-file-1' },
+        status: 'success',
+        result: { id: 'deleted-file-1', title: '废稿', restored: false },
+      }]),
+    }])
+
     restoreMock.mockReset()
     restoreMock.mockResolvedValueOnce({
       id: 'deleted-file-1',
       title: '废稿',
       restored: true,
       already_restored: false,
-      restored_count: 1,
+      restored_count: 2,
+      file_ids: ['deleted-file-1', 'deleted-child-2'],
     })
     await renderAndGetUndo()
+    await waitFor(() => {
+      const msgs = (messageListMock.mock.lastCall?.[0] as { messages?: unknown[] } | undefined)?.messages
+      expect(msgs?.length).toBe(1)
+    })
     const onRestoreDeletion = messageListMock.mock.lastCall?.[0]?.onRestoreDeletion as (
       fileId: string,
       card?: { chatMessageId?: string; toolUseId?: string },
@@ -715,6 +741,16 @@ describe('ChatPanel immutable edit undo', () => {
       await onRestoreDeletion('deleted-file-1', { chatMessageId: 'msg-1', toolUseId: 'del-1' })
     })
     expect(restoreMock).toHaveBeenCalledWith('deleted-file-1', { chatMessageId: 'msg-1', toolUseId: 'del-1' })
+    expect(isFileRemoved('project-1', 'deleted-file-1')).toBe(false)
+    expect(isFileRemoved('project-1', 'deleted-child-2')).toBe(false)
+    const updatedMessages = (messageListMock.mock.lastCall?.[0] as {
+      messages?: Array<{
+        displayItems?: Array<{ toolCalls?: Array<{ result?: Record<string, unknown> }> }>
+        toolResults?: Array<{ result?: Record<string, unknown> }>
+      }>
+    } | undefined)?.messages
+    expect(updatedMessages?.[0]?.toolResults?.[0]?.result?.restored).toBe(true)
+    expect(updatedMessages?.[0]?.displayItems?.[0]?.toolCalls?.[0]?.result?.restored).toBe(true)
     expect(triggerFileTreeRefreshMock).toHaveBeenCalledTimes(1)
     expect(toast.success).toHaveBeenCalledWith('chat:tool.deletionRestored')
 

@@ -270,6 +270,44 @@ describe('MessageList', () => {
     expect(container.textContent).not.toContain('无')
   })
 
+  it('omits empty assistant bubbles whose only displayItems content was stripped author_edits, and wires legacy/streaming delete_file cards safely', () => {
+    const emptyEcho = createMessage({
+      role: 'assistant',
+      content: '',
+      displayItems: [{ id: 'echo-only', type: 'content', content: '<author_edits>无</author_edits>', timestamp: new Date() }],
+    })
+    const { container: emptyContainer } = render(
+      <MessageList
+        messages={[emptyEcho]}
+        streamRenderItems={[{ id: 'stream-echo', type: 'content', content: '', timestamp: new Date() }]}
+      />,
+    )
+    expect(emptyContainer).toBeEmptyDOMElement()
+
+    const onRestoreDeletion = vi.fn()
+    const legacyDelete = createMessage({
+      role: 'assistant',
+      backendMessageId: 'msg-legacy-del',
+      content: '已删除',
+      toolResults: [
+        { id: 'legacy-del-1', tool_name: 'delete_file', arguments: { id: 'legacy-file-1' }, status: 'success', result: undefined },
+      ],
+    })
+    const streamItems = [
+      {
+        id: 'stream-del',
+        type: 'tool_calls' as const,
+        timestamp: new Date(),
+        toolCalls: [
+          { id: 'live-del-1', tool_name: 'delete_file', arguments: { id: 'live-file-1' }, status: 'success' as const, result: { id: 'live-file-1', restored: false } },
+        ],
+      },
+    ]
+    render(<MessageList messages={[legacyDelete]} streamRenderItems={streamItems} onRestoreDeletion={onRestoreDeletion} />)
+    const restoreButtons = screen.getAllByRole('button', { name: /restoreDeleted/ })
+    expect(restoreButtons).toHaveLength(1)
+  })
+
   it('marks the conversation as off-limits to analytics DOM capture', () => {
     const { container } = render(
       <MessageList messages={[createMessage({ role: 'user', content: 'private prompt text' })]} />

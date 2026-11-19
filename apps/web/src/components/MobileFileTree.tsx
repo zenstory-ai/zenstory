@@ -29,7 +29,7 @@ import { toast } from "../lib/toast";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Button } from "./ui/Button";
 import { findAncestorFolderIds } from "../lib/lastOpenedFile";
-import { notifyFileRemoved } from "../lib/fileRemovalEvents";
+import { clearLiveTreeRemoved, notifyFileRemoved } from "../lib/fileRemovalEvents";
 import { FileSearchInput } from "./FileSearchInput";
 import { useFileSearch, type FileSearchResult } from "../hooks/useFileSearch";
 import SearchResultsDropdown from "./SearchResultsDropdown";
@@ -184,7 +184,9 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
       if (abortController.signal.aborted || requestId !== loadRequestIdRef.current) {
         return;
       }
-      setTree(response.tree || []);
+      const nextTree = response.tree || [];
+      clearLiveTreeRemoved(currentProjectId, nextTree);
+      setTree(nextTree);
       setLoadError(false);
       if (selectedAtRequest && selectedItemRef.current?.id === selectedAtRequest.id
         && findAncestorFolderIds(previousTree, selectedAtRequest.id) !== null

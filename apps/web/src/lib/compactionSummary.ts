@@ -1,36 +1,46 @@
 const UUID_CORE =
   '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:-[a-z]+-folder)?';
 
+const ID_LABEL_NAMES = 'id|uuid|file_id|folder_id|parent_id|project_id';
+
 const WRAPPED_ID_PATTERN = new RegExp(
-  `[（(\\[]\\s*(?:(?:文件|目录|文件夹)?\\s*(?:id|file_id|folder_id|parent_id)\\s*[:=：]?\\s*)?\`?${UUID_CORE}\`?\\s*[\\])）]`,
+  `[（(\\[【]\\s*(?:(?:文件|目录|文件夹|项目)?\\s*(?:${ID_LABEL_NAMES})\\s*[:=：]?\\s*)?\`?${UUID_CORE}\`?\\s*[\\]】)）]`,
   'gi',
 );
 const LABELLED_ID_PATTERN = new RegExp(
-  `(?:(?:文件|目录|文件夹)\\s*)?\\b(?:id|file_id|folder_id|parent_id)\\s*[:=：]\\s*\`?${UUID_CORE}\`?`,
+  `(?:(?:文件|目录|文件夹|项目)\\s*)?\\b(?:${ID_LABEL_NAMES})\\s*[:=：]\\s*\`?${UUID_CORE}\`?`,
   'gi',
 );
 const BARE_UUID_PATTERN = new RegExp(`\`?${UUID_CORE}\`?`, 'gi');
 
-const ID_COLUMN_HEADER = /^(?:(?:文件|目录|文件夹)\s*)?(?:id|uuid|file_id|folder_id|parent_id)$/i;
-const PIPE_DIVIDER_CELL = /^:?-{2,}:?$/;
+const ID_COLUMN_HEADER = /^(?:(?:文件|目录|文件夹|项目)\s*)?(?:id|uuid|file_id|folder_id|parent_id|project_id)$/i;
+const PIPE_DIVIDER_CELL = /^:?-+:?$/;
 
 function stripInternalIds(line: string): string {
   return line
     .replace(WRAPPED_ID_PATTERN, '')
     .replace(LABELLED_ID_PATTERN, '')
     .replace(BARE_UUID_PATTERN, '')
-    .replace(/[（(]\s*[)）]/g, '')
+    .replace(/[（([【]\s*[,，、;；:：·\-—]*\s*[\]】)）]/g, '')
     .replace(/\s{2,}/g, (spaces, offset) => (offset === 0 ? spaces : ' '))
     .replace(/\s+([，。；：、,.])/g, '$1');
 }
 
 function splitPipeRow(line: string): string[] | null {
   const trimmed = line.trim();
-  if (!trimmed.startsWith('|') || !trimmed.endsWith('|') || trimmed.length < 3) {
+  if (!trimmed) return null;
+  if (trimmed.startsWith('|') && /(?<!\\)\|$/.test(trimmed) && trimmed.length >= 3) {
+    return trimmed
+      .slice(1, -1)
+      .split(/(?<!\\)\|/)
+      .map((cell) => cell.replace(/\\\|/g, '|').trim());
+  }
+  if (!/(?<!\\)\|/.test(trimmed)) {
     return null;
   }
-  const inner = trimmed.slice(1, -1);
-  return inner.split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, '|').trim());
+  const inner = trimmed.replace(/^\|/, '').replace(/(?<!\\)\|$/, '');
+  const cells = inner.split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, '|').trim());
+  return cells.length >= 2 ? cells : null;
 }
 
 function isDividerRow(cells: string[]): boolean {
@@ -54,7 +64,7 @@ function convertPipeTable(headers: string[], rows: string[][]): string[] {
     }
     if (parts.length === 0) continue;
     const [head, ...rest] = parts;
-    const boldHead = head.startsWith('**') && head.endsWith('**') ? head : `**${head}**`;
+    const boldHead = head.includes('**') ? head : `**${head}**`;
     bulletLines.push(rest.length > 0 ? `- ${boldHead}：${rest.join(' · ')}` : `- ${boldHead}`);
   }
   return bulletLines;
@@ -97,11 +107,17 @@ export function formatCompactionSummary(summary: string | undefined): string {
       let cursor = i + 2;
       while (cursor < lines.length) {
         const cells = splitPipeRow(lines[cursor]);
-        if (!cells) break;
+        if (!cells || (!lines[cursor].trim().startsWith('|') && cells.length !== headerCells.length)) {
+          break;
+        }
         dataRows.push(cells);
         cursor += 1;
       }
-      output.push(...convertPipeTable(headerCells, dataRows));
+      const bullets = convertPipeTable(headerCells, dataRows);
+      output.push(...bullets);
+      if (bullets.length > 0 && cursor < lines.length && lines[cursor].trim() !== '') {
+        output.push('');
+      }
       i = cursor - 1;
       continue;
     }

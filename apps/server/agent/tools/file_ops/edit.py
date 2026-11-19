@@ -1224,7 +1224,8 @@ class FileEditor:
                 file_type=file.file_type,
             )
             file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
-            self.session.commit()
+            with written_snapshot_for_commit(file.id, content, full=True):
+                self.session.commit()
             self.session.refresh(file)
         result: dict[str, Any] = {
             "id": file.id,

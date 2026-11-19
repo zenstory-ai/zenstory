@@ -46,7 +46,10 @@ CREATE_FILE_TOOL: dict[str, Any] = {
             },
             "empty": {
                 "type": "boolean",
-                "description": "作者明确只要建文件、这一轮不写内容时（如「只建标题」「先建空章节」）设为 true：文件保持空白，不用写正文。作者要正文时设了也不生效",
+                "description": (
+                    "仅在作者明确要求只建空文件、这一轮不写内容时（如「只建空档」「先建标题不写内容」）设为 true："
+                    "文件保持空白，不再用 <file> 写入；需要写入内容时不要设 true"
+                ),
             },
             "source_text": {
                 "type": "string",

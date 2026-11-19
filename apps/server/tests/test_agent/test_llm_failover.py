@@ -638,8 +638,8 @@ async def test_422_is_observed_without_retry_or_raw_data(endpoints, monkeypatch,
     try:
         with pytest.raises(openai.APIStatusError) as raised:
             await llm_failover.acreate_chat_completion(
-                call_site="router", messages=[{"role": "user", "content": "PRIVATE_PROMPT"}],
-                usage_attribution=LLMUsageAttribution(user_id="PRIVATE_ACCOUNT", source="router"),
+                call_site="agent_loop_compaction", messages=[{"role": "user", "content": "PRIVATE_PROMPT"}],
+                usage_attribution=LLMUsageAttribution(user_id="PRIVATE_ACCOUNT", source="agent_loop_compaction"),
             )
     finally:
         reset_request_context(tokens)
@@ -654,7 +654,7 @@ async def test_422_is_observed_without_retry_or_raw_data(endpoints, monkeypatch,
     assert record.custom_fields == {
         "request_id": "synthetic-request", "agent_run_id": "synthetic-run",
         "provider": provider, "model": "deepseek-flash" if provider == "deepseek" else "MiniMax-M3.1-Flash",
-        "slot": "primary", "key_slot": "primary", "call_site": "router", "phase": "request",
+        "slot": "primary", "key_slot": "primary", "call_site": "agent_loop_compaction", "phase": "request",
         "status_code": 422, "failure_category": "request_rejected",
         "provider_error_format": "base_resp",
         "provider_reason": "invalid_parameters",

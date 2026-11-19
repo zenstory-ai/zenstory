@@ -117,13 +117,12 @@ async def test_author_saved_or_unversioned_file_soft_deletes_and_restores_from_c
     result = await _run(mcp_tools.delete_file, db_session, user, project, {"id": chapter.id}, message="删掉这份废稿")
     assert result["status"] == "success"
     data = result["data"]
-    assert data == {
-        "id": chapter.id,
-        "title": chapter.title,
-        "file_type": "draft",
-        "restored": False,
-        "mutation_applied": True,
-    }
+    assert data["id"] == chapter.id
+    assert data["title"] == chapter.title
+    assert data["file_type"] == "draft"
+    assert data["restored"] is False
+    assert data["mutation_applied"] is True
+    assert isinstance(data.get("deleted_at"), str)
     db_session.expire_all()
     assert db_session.get(File, chapter.id).is_deleted is True
     assert db_session.get(File, chapter.id).content == AUTHOR_CH3
@@ -141,9 +140,9 @@ async def test_author_saved_or_unversioned_file_soft_deletes_and_restores_from_c
                 {
                     "id": "call_del_1",
                     "name": "delete_file",
-                    "input": {"id": chapter.id},
+                    "arguments": json.dumps({"id": chapter.id}, ensure_ascii=False),
                     "result": data,
-                    "status": "completed",
+                    "status": "success",
                 }
             ],
             ensure_ascii=False,
@@ -168,13 +167,12 @@ async def test_author_saved_or_unversioned_file_soft_deletes_and_restores_from_c
         current_user=user,
         session=db_session,
     )
-    assert restored == {
-        "id": chapter.id,
-        "title": chapter.title,
-        "restored": True,
-        "already_restored": False,
-        "restored_count": 1,
-    }
+    assert restored["id"] == chapter.id
+    assert restored["title"] == chapter.title
+    assert restored["restored"] is True
+    assert restored["already_restored"] is False
+    assert restored["restored_count"] == 1
+    assert restored["file_ids"] == [chapter.id]
 
     # Idempotent repeat call keeps already_restored=True without error.
     repeat = files_api.restore_file(
@@ -302,7 +300,8 @@ def test_restore_file_rejects_missing_parent_duplicate_title_and_legacy_card_mis
         files_api.restore_file("nonexistent-id", request=None, current_user=user, session=db_session)
     assert not_found.value.status_code == 404
 
-    # Legacy boolean delete_file card upgrades cleanly on matching restore, rejects mismatched file_id.
+    # Legacy boolean delete_file card with persisted MessageManager `arguments` JSON string upgrades cleanly,
+    # while failed / unapplied cards are never mutated to restored=True.
     chat = ChatSession(user_id=user.id, project_id=project.id, title="旧卡片测试")
     db_session.add(chat)
     db_session.flush()
@@ -311,23 +310,46 @@ def test_restore_file_rejects_missing_parent_duplicate_title_and_legacy_card_mis
         role="assistant",
         content="已删",
         tool_calls=json.dumps(
-            [{"id": "legacy_del", "name": "delete_file", "input": {"id": deleted_child.id}, "result": True}]
+            [
+                {
+                    "id": "failed_del",
+                    "name": "delete_file",
+                    "arguments": json.dumps({"id": deleted_child.id}),
+                    "status": "error",
+                    "result": {"error": "not found", "error_type": "not_found"},
+                },
+                {
+                    "id": "noop_del",
+                    "name": "delete_file",
+                    "arguments": {"id": deleted_child.id},
+                    "status": "success",
+                    "result": {"mutation_applied": False, "data": False},
+                },
+                {
+                    "id": "legacy_del",
+                    "name": "delete_file",
+                    "arguments": json.dumps({"id": deleted_child.id}),
+                    "status": "success",
+                    "result": True,
+                },
+            ]
         ),
     )
     db_session.add(msg)
     db_session.commit()
 
-    assert (
-        record_delete_card_restored(
-            db_session,
-            user_id=user.id,
-            project_id=project.id,
-            file_id="wrong-id",
-            message_id=msg.id,
-            tool_use_id="legacy_del",
+    for bad_tool_id, bad_file_id in (("failed_del", deleted_child.id), ("noop_del", deleted_child.id), ("legacy_del", "wrong-id")):
+        assert (
+            record_delete_card_restored(
+                db_session,
+                user_id=user.id,
+                project_id=project.id,
+                file_id=bad_file_id,
+                message_id=msg.id,
+                tool_use_id=bad_tool_id,
+            )
+            is False
         )
-        is False
-    )
     assert (
         record_delete_card_restored(
             db_session,
@@ -340,4 +362,233 @@ def test_restore_file_rejects_missing_parent_duplicate_title_and_legacy_card_mis
         is True
     )
     upgraded = json.loads(db_session.get(ChatMessage, msg.id).tool_calls)
-    assert upgraded[0]["result"] == {"id": deleted_child.id, "restored": True, "mutation_applied": True}
+    assert "restored" not in upgraded[0]["result"]
+    assert "restored" not in upgraded[1]["result"]
+    assert upgraded[2]["result"] == {"id": deleted_child.id, "restored": True, "mutation_applied": True}
+
+    from services.chat_tool_cards import read_delete_card_deleted_at
+
+    assert read_delete_card_deleted_at(db_session, user_id=user.id, project_id=project.id, file_id=deleted_child.id, message_id="missing", tool_use_id="x") is None
+    assert read_delete_card_deleted_at(db_session, user_id=user.id, project_id=project.id, file_id=deleted_child.id, message_id=msg.id, tool_use_id="failed_del") is None
+    assert read_delete_card_deleted_at(db_session, user_id=user.id, project_id=project.id, file_id=deleted_child.id, message_id=msg.id, tool_use_id="noop_del") is None
+
+    # Already-live file with a legacy boolean card still persists restored: True via restore_file,
+    # while a card with a mismatched deleted_at is left untouched.
+    live_file = _ai_chapter(db_session, project, title="第2章 已存活")
+    legacy_live_msg = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="旧卡",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "legacy_live_del",
+                    "name": "delete_file",
+                    "arguments": json.dumps({"id": live_file.id}),
+                    "status": "success",
+                    "result": True,
+                },
+                {
+                    "id": "mismatch_stamp_del",
+                    "name": "delete_file",
+                    "arguments": json.dumps({"id": live_file.id}),
+                    "status": "success",
+                    "result": {"id": live_file.id, "deleted_at": "2026-11-19T00:00:00+00:00", "restored": False},
+                },
+            ]
+        ),
+    )
+    db_session.add(legacy_live_msg)
+    db_session.commit()
+    assert (
+        record_delete_card_restored(
+            db_session,
+            user_id=user.id,
+            project_id=project.id,
+            file_id=live_file.id,
+            message_id=legacy_live_msg.id,
+            tool_use_id="mismatch_stamp_del",
+            restored_deleted_at=datetime(2026, 11, 19, 1, 0, 0, tzinfo=UTC),
+        )
+        is False
+    )
+    already = files_api.restore_file(
+        live_file.id,
+        request=files_api.RestoreFileRequest(chat_message_id=legacy_live_msg.id, tool_use_id="legacy_live_del"),
+        current_user=user,
+        session=db_session,
+    )
+    assert already["already_restored"] is True
+    assert json.loads(db_session.get(ChatMessage, legacy_live_msg.id).tool_calls)[0]["result"]["restored"] is True
+
+
+def test_restored_delete_card_keeps_written_file_in_session_author_edits_and_recovers_repaired_root_children(
+    db_session, owner_project, monkeypatch
+):
+    from agent.core.session_loader import SessionLoader
+    from agent.tools.file_ops import crud as crud_module
+
+    user, project = owner_project
+    root_folder = File(id=f"{project.id}-draft-folder", project_id=project.id, title="正文", file_type="folder")
+    db_session.add(root_folder)
+    db_session.flush()
+    chapter = File(
+        project_id=project.id,
+        parent_id=root_folder.id,
+        title="第1章 钟楼",
+        file_type="draft",
+        content=AI_CH3,
+    )
+    db_session.add(chapter)
+    db_session.commit()
+
+    del_stamp = datetime(2026, 11, 19, 6, 0, 0, tzinfo=UTC)
+    monkeypatch.setattr(crud_module, "utcnow", lambda: del_stamp)
+    assert crud_module.FileCRUD(db_session, user.id).delete_file(root_folder.id, recursive=True) is True
+
+    # Simulate canonical root folder auto-repair before user clicks Restore on the chat card.
+    repaired_root = db_session.get(File, root_folder.id)
+    repaired_root.is_deleted = False
+    repaired_root.deleted_at = None
+    db_session.add(repaired_root)
+    db_session.commit()
+
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="根修复恢复与手改追踪")
+    db_session.add(chat)
+    db_session.flush()
+    msg1 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="已写第一章",
+        tool_calls=json.dumps([{"id": "w1", "name": "write_chapter", "status": "success", "result": {"id": chapter.id, "action": "created", "body_saved": True}}]),
+    )
+    msg2 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="已删目录",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "d1",
+                    "name": "delete_file",
+                    "arguments": json.dumps({"id": root_folder.id, "recursive": True}),
+                    "status": "success",
+                    "result": {
+                        "id": root_folder.id,
+                        "title": "正文",
+                        "file_type": "folder",
+                        "deleted_at": del_stamp.isoformat(),
+                        "restored": False,
+                        "mutation_applied": True,
+                    },
+                }
+            ]
+        ),
+    )
+    db_session.add_all([msg1, msg2])
+    db_session.commit()
+
+    restored = files_api.restore_file(
+        root_folder.id,
+        request=files_api.RestoreFileRequest(chat_message_id=msg2.id, tool_use_id="d1"),
+        current_user=user,
+        session=db_session,
+    )
+    assert restored["restored_count"] == 1
+    assert restored["file_ids"] == [chapter.id]
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).is_deleted is False
+
+    # Now delete chapter directly, verify SessionLoader excludes it while deleted, then restore and verify it returns.
+    direct_del_stamp = datetime(2026, 11, 19, 6, 5, 0, tzinfo=UTC)
+    monkeypatch.setattr(crud_module, "utcnow", lambda: direct_del_stamp)
+    assert crud_module.FileCRUD(db_session, user.id).delete_file(chapter.id, recursive=False) is True
+    msg3 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="已删章节",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "d2",
+                    "name": "delete_file",
+                    "arguments": json.dumps({"id": chapter.id}),
+                    "status": "success",
+                    "result": {
+                        "id": chapter.id,
+                        "title": chapter.title,
+                        "file_type": "draft",
+                        "deleted_at": direct_del_stamp.isoformat(),
+                        "restored": False,
+                        "mutation_applied": True,
+                    },
+                }
+            ]
+        ),
+    )
+    db_session.add(msg3)
+    db_session.commit()
+    loader = SessionLoader(project.id, user.id)
+    assert loader.session_written_file_ids(db_session, chat_session_id=chat.id, limit=10) == []
+
+    files_api.restore_file(
+        chapter.id,
+        request=files_api.RestoreFileRequest(chat_message_id=msg3.id, tool_use_id="d2"),
+        current_user=user,
+        session=db_session,
+    )
+    # Unapplied/false delete cards must also never hide a written file in SessionLoader.
+    msg4 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="删除未生效",
+        tool_calls=json.dumps(
+            [
+                {"id": "d3", "name": "delete_file", "arguments": json.dumps({"id": chapter.id}), "status": "success", "result": False},
+                {"id": "d4", "name": "delete_file", "arguments": json.dumps({"id": chapter.id}), "status": "success", "result": {"id": chapter.id, "mutation_applied": False, "data": False}},
+            ]
+        ),
+    )
+    db_session.add(msg4)
+    db_session.commit()
+    assert loader.session_written_file_ids(db_session, chat_session_id=chat.id, limit=10) == [chapter.id]
+
+
+async def test_delete_file_refuses_pending_chapter_replacement_and_billing_clears_deleted_targets(db_session, owner_project):
+    from agent.core.events import tool_call_event, tool_result_event
+    from agent.core.stream_billing import StreamBillingTracker
+
+    user, project = owner_project
+    chapter = _ai_chapter(db_session, project, title="第1章 钟楼")
+
+    engine = db_session.get_bind()
+    mcp_tools.ToolContext.set_context(
+        None,
+        user.id,
+        project.id,
+        None,
+        create_session_func=lambda: Session(engine),
+        author_message="重写第一章",
+        author_steering=[],
+    )
+    try:
+        armed = json.loads((await mcp_tools.write_chapter({"chapter": 1, "title": "第1章 钟楼", "file_type": "draft"}))["content"][0]["text"])
+        assert armed["status"] == "success" and armed["data"]["action"] == "replaced"
+
+        refused = json.loads((await mcp_tools.delete_file({"id": chapter.id}))["content"][0]["text"])
+        assert refused["status"] == "error"
+        assert refused["error_type"] == "chapter_replace_pending"
+        assert refused["mutation_applied"] is False
+    finally:
+        mcp_tools.ToolContext.clear_pending_empty_file()
+        mcp_tools.ToolContext.clear_context()
+
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).is_deleted is False
+
+    tracker = StreamBillingTracker()
+    tracker.observe(tool_result_event("write_chapter", "success", {"id": "ch-1", "action": "replaced", "original_content_length": 100}).to_sse())
+    assert tracker.file_body_pending() is True
+    tracker.observe(tool_call_event("delete_file", {"id": "ch-1"}, tool_use_id="del-ch-1").to_sse())
+    tracker.observe(tool_result_event("delete_file", "success", {"id": "ch-1", "mutation_applied": True}, tool_use_id="del-ch-1").to_sse())
+    assert tracker.file_body_pending() is False

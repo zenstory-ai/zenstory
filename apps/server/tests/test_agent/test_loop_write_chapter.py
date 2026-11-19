@@ -1905,3 +1905,91 @@ async def test_refused_replacement_clears_pending_new_title_from_card():
     assert tool_frame.data["data"]["title"] == "第3章 灯塔"
     assert "new_title" not in tool_frame.data["data"]
 
+
+@pytest.mark.parametrize(
+    ("existing_title", "passed_title", "expected_title"),
+    [
+        ("剑来 - 第1章 惊蛰", "第1章 惊蛰", "剑来 - 第1章 惊蛰"),
+        ("剑来 - 第1章 惊蛰", "惊蛰", "剑来 - 第1章 惊蛰"),
+        ("剑来 - 第1章 惊蛰", "风起", "剑来 - 第1章 风起"),
+        ("剑来 -  第1章 惊蛰", "风起", "剑来 - 第1章 风起"),
+        ("剑来 - 第1章 惊蛰", "第1章 风起", "剑来 - 第1章 风起"),
+        ("剑来 - 第1章 惊蛰", "第1章", "剑来 - 第1章 惊蛰"),
+    ],
+)
+async def test_uploaded_prefixed_chapter_preserves_book_prefix_across_replace_titles(
+    workspace, existing_title, passed_title, expected_title
+):
+    chapter = _ai_chapter(
+        workspace.session,
+        workspace.project,
+        existing_title,
+        "导入原文。",
+    )
+
+    model = ScriptedModel(
+        runs=[
+            [
+                Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": passed_title, "file_type": "draft"}),)),
+                Reply(text=f"<file>\n{NEW_BODY}\n</file>\n已重写。"),
+            ]
+        ]
+    )
+    await _run_loop(workspace, model)
+    workspace.session.expire_all()
+    assert workspace.session.get(File, chapter.id).title == expected_title
+
+
+def test_stamp_body_receipts_drops_unsaved_new_title_and_promotes_committed_abort_replacement():
+    from agent.service import _stamp_body_receipts
+    from agent.stream_adapter import StreamAdapter
+
+    adapter = StreamAdapter()
+    adapter._note_replacement_receipt("call-saved", 380)
+    adapter._note_replacement_card_update(
+        "call-saved",
+        {"title": "第2章 新名", "undo": {"before_version_number": 1, "expected_after_updated_at": "t2"}},
+    )
+    adapter._note_replacement_receipt("call-empty-abort", 120)
+
+    calls = [
+        {
+            "id": "call-unsaved",
+            "name": "write_chapter",
+            "status": "success",
+            "result": {"id": "f1", "title": "第1章 旧名", "new_title": "第1章 新名", "action": "replaced", "awaiting_body": True},
+        },
+        {
+            "id": "call-saved",
+            "name": "write_chapter",
+            "status": "success",
+            "result": {"id": "f2", "title": "第2章 旧名", "new_title": "第2章 新名", "action": "replaced", "awaiting_body": True},
+        },
+        {
+            "id": "call-empty-abort",
+            "name": "write_chapter",
+            "status": "success",
+            "result": {"id": "f3", "title": "第3章 旧名", "new_title": "第3章 未落库名", "action": "replaced", "awaiting_body": True},
+        },
+    ]
+    _stamp_body_receipts(
+        calls,
+        receipts={},
+        replacement_receipts=adapter.get_replacement_receipts(),
+        replacement_card_updates=adapter.get_replacement_card_updates(),
+    )
+    assert calls[0]["result"]["body_saved"] is False
+    assert "new_title" not in calls[0]["result"]
+    assert calls[0]["result"]["title"] == "第1章 旧名"
+
+    assert calls[1]["result"]["body_saved"] is True
+    assert calls[1]["result"]["new_word_count"] == 380
+    assert calls[1]["result"]["title"] == "第2章 新名"
+    assert "new_title" not in calls[1]["result"]
+    assert calls[1]["result"]["undo"]["before_version_number"] == 1
+
+    assert calls[2]["result"]["body_saved"] is True
+    assert calls[2]["result"]["new_word_count"] == 120
+    assert calls[2]["result"]["title"] == "第3章 旧名"
+    assert "new_title" not in calls[2]["result"]
+

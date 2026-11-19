@@ -1138,10 +1138,76 @@ def restore_file(
     verify_project_ownership(file.project_id, current_user, session)
     project_id = file.project_id
 
+    from services.chat_tool_cards import read_delete_card_deleted_at, record_delete_card_restored
+
+    card_deleted_at = (
+        read_delete_card_deleted_at(
+            session,
+            user_id=current_user.id,
+            project_id=project_id,
+            file_id=file_id,
+            message_id=request.chat_message_id,
+            tool_use_id=request.tool_use_id,
+        )
+        if request and request.chat_message_id and request.tool_use_id
+        else None
+    )
+
+    def _collect_deleted_descendants(root_id: str, target_stamp: datetime) -> list[File]:
+        descendants: list[File] = []
+        frontier = [root_id]
+        seen = {root_id}
+        while frontier:
+            query = select(File).where(
+                File.project_id == project_id,
+                col(File.parent_id).in_(frontier),
+                File.is_deleted.is_(True),
+            )
+            if is_postgres:
+                query = query.with_for_update(key_share=True)
+            rows = session.exec(query.execution_options(populate_existing=True)).all()
+            frontier = []
+            for row in rows:
+                if (
+                    row.id not in seen
+                    and row.deleted_at is not None
+                    and normalize_datetime_to_utc(row.deleted_at) == target_stamp
+                ):
+                    seen.add(row.id)
+                    descendants.append(row)
+                    if row.file_type == "folder":
+                        frontier.append(row.id)
+        return descendants
+
+    def _ensure_no_live_title_conflicts(items: list[File]) -> None:
+        for item in items:
+            parent_clause = (
+                File.parent_id.is_(None)
+                if item.parent_id is None
+                else File.parent_id == item.parent_id
+            )
+            clash = session.exec(
+                select(File.id).where(
+                    File.project_id == project_id,
+                    parent_clause,
+                    File.title == item.title,
+                    File.is_deleted.is_(False),
+                    File.id != item.id,
+                )
+            ).first()
+            if clash is not None:
+                raise APIException(
+                    error_code=ErrorCode.RESOURCE_CONFLICT,
+                    status_code=409,
+                    detail=f"原位置已存在同名文件《{item.title}》，请先改名后再恢复",
+                )
+
     lock_project_for_files(session, project_id, exclusive=True)
     from agent.tools.file_ops.edit import file_write_lock
     from database import is_postgres
 
+    restored_stamp: datetime | None = None
+    restored_ids: list[str] = []
     lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
     with lock_ctx:
         file = _load_file_for_write(session, file_id)
@@ -1150,9 +1216,33 @@ def restore_file(
         verify_project_ownership(file.project_id, current_user, session)
 
         if not file.is_deleted:
-            restored_title = file.title
-            already_restored = True
-            restored_count = 0
+            # Canonical root folders (e.g. `{project_id}-draft-folder`) may be auto-repaired live
+            # before the user clicks Restore on the folder's delete card; still recover descendants
+            # stamped with that card's exact `deleted_at`.
+            repaired_children = (
+                _collect_deleted_descendants(file.id, card_deleted_at)
+                if file.file_type == "folder" and card_deleted_at is not None
+                else []
+            )
+            if repaired_children:
+                _ensure_no_live_title_conflicts(repaired_children)
+                now = utcnow()
+                for item in repaired_children:
+                    item.is_deleted = False
+                    item.deleted_at = None
+                    item.updated_at = advance_timestamp(item.updated_at, now=now)
+                    session.add(item)
+                restored_title = file.title
+                already_restored = False
+                restored_ids = [item.id for item in repaired_children]
+                restored_count = len(restored_ids)
+                restored_stamp = card_deleted_at
+                session.commit()
+            else:
+                restored_title = file.title
+                already_restored = True
+                restored_count = 0
+                restored_stamp = card_deleted_at
         else:
             if file.parent_id is not None:
                 parent = session.get(File, file.parent_id, populate_existing=True)
@@ -1163,53 +1253,12 @@ def restore_file(
                         detail="上级文件夹不存在或已删除，无法恢复到原位置",
                     )
 
+            restored_stamp = normalize_datetime_to_utc(file.deleted_at) if file.deleted_at is not None else None
             targets: list[File] = [file]
-            if file.file_type == "folder" and file.deleted_at is not None:
-                target_stamp = normalize_datetime_to_utc(file.deleted_at)
-                frontier = [file.id]
-                seen = {file.id}
-                while frontier:
-                    query = select(File).where(
-                        File.project_id == project_id,
-                        col(File.parent_id).in_(frontier),
-                        File.is_deleted.is_(True),
-                    )
-                    if is_postgres:
-                        query = query.with_for_update(key_share=True)
-                    rows = session.exec(query.execution_options(populate_existing=True)).all()
-                    frontier = []
-                    for row in rows:
-                        if (
-                            row.id not in seen
-                            and row.deleted_at is not None
-                            and normalize_datetime_to_utc(row.deleted_at) == target_stamp
-                        ):
-                            seen.add(row.id)
-                            targets.append(row)
-                            if row.file_type == "folder":
-                                frontier.append(row.id)
+            if file.file_type == "folder" and restored_stamp is not None:
+                targets.extend(_collect_deleted_descendants(file.id, restored_stamp))
 
-            for item in targets:
-                parent_clause = (
-                    File.parent_id.is_(None)
-                    if item.parent_id is None
-                    else File.parent_id == item.parent_id
-                )
-                clash = session.exec(
-                    select(File.id).where(
-                        File.project_id == project_id,
-                        parent_clause,
-                        File.title == item.title,
-                        File.is_deleted.is_(False),
-                        File.id != item.id,
-                    )
-                ).first()
-                if clash is not None:
-                    raise APIException(
-                        error_code=ErrorCode.RESOURCE_CONFLICT,
-                        status_code=409,
-                        detail=f"原位置已存在同名文件《{item.title}》，请先改名后再恢复",
-                    )
+            _ensure_no_live_title_conflicts(targets)
 
             now = utcnow()
             for item in targets:
@@ -1219,12 +1268,11 @@ def restore_file(
                 session.add(item)
             restored_title = file.title
             already_restored = False
-            restored_count = len(targets)
+            restored_ids = [item.id for item in targets]
+            restored_count = len(restored_ids)
             session.commit()
 
     if request and request.chat_message_id and request.tool_use_id:
-        from services.chat_tool_cards import record_delete_card_restored
-
         record_delete_card_restored(
             session,
             user_id=current_user.id,
@@ -1232,6 +1280,7 @@ def restore_file(
             file_id=file_id,
             message_id=request.chat_message_id,
             tool_use_id=request.tool_use_id,
+            restored_deleted_at=restored_stamp,
         )
 
     return {
@@ -1240,6 +1289,7 @@ def restore_file(
         "restored": True,
         "already_restored": already_restored,
         "restored_count": restored_count,
+        "file_ids": restored_ids,
     }
 
 

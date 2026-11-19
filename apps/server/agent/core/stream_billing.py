@@ -204,6 +204,8 @@ class StreamBillingTracker:
     _project_info_written: bool = field(default=False, repr=False)
     # 流式正文落库明确失败的文件 id：其此前流过的 file_content 不算已保存产出。
     _failed_save_file_ids: set[str] = field(default_factory=set, repr=False)
+    # delete_file 调用记录的目标文件 id（tool_use_id -> file_id），供成功结果清理待写状态。
+    _delete_targets: dict[str, str] = field(default_factory=dict, repr=False)
 
     def _recompute_output_flags(self) -> None:
         has_streamed_write = any(fid not in self.replace_target_ids for fid in self.filled_file_ids)
@@ -320,6 +322,27 @@ class StreamBillingTracker:
         ]
 
     def _track_files(self, event_type: str, payload: dict[str, Any]) -> None:
+        if event_type == "tool_call" and payload.get("tool_name") == "delete_file":
+            tool_use_id = payload.get("tool_use_id")
+            args = payload.get("arguments")
+            target_id = args.get("id") if isinstance(args, dict) else None
+            if isinstance(tool_use_id, str) and tool_use_id and isinstance(target_id, str) and target_id:
+                self._delete_targets[tool_use_id] = target_id
+            return
+        if event_type == "tool_result" and payload.get("tool_name") == "delete_file":
+            tool_use_id = payload.get("tool_use_id")
+            call_target = self._delete_targets.pop(tool_use_id, None) if isinstance(tool_use_id, str) else None
+            data = payload.get("data")
+            if payload.get("status") == "success" and (
+                data is True or (isinstance(data, dict) and data.get("mutation_applied") is True)
+            ):
+                deleted_id = data.get("id") if isinstance(data, dict) and isinstance(data.get("id"), str) else call_target
+                if deleted_id:
+                    self.created_empty_files.pop(deleted_id, None)
+                    self.created_empty_versions.pop(deleted_id, None)
+                    self.replace_target_ids.discard(deleted_id)
+                    self.empty_replace_target_ids.discard(deleted_id)
+            return
         if event_type == "file_created":
             file_id = payload.get("file_id")
             if isinstance(file_id, str) and file_id:

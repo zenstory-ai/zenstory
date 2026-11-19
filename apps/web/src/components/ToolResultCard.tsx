@@ -791,7 +791,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             </span>
             {isRestored ? (
               <span className="ml-auto text-xs text-[hsl(var(--text-secondary))]">{t('chat:tool.deletionRestored')}</span>
-            ) : fileId && onRestoreDeletion ? (
+            ) : deleted.mutation_applied !== false && fileId && onRestoreDeletion ? (
               <button
                 type="button"
                 className={`${CHAT_CARD_INLINE_ACTION} ml-auto`}
@@ -1297,5 +1297,3 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 };
 
 export const ToolResultCard = React.memo(ToolResultCardComponent);
-
-export default ToolResultCard;

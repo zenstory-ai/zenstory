@@ -446,29 +446,28 @@ const visibleToolCalls = (calls: ToolCall[] | undefined): ToolCall[] =>
   (calls ?? []).filter((call) => !CONTROL_FLOW_TOOL_NAMES.has(call.tool_name)
     && !(call.status === 'error' && isInternalOrderingRefusal(call.result as Record<string, unknown> | undefined)));
 
-/**
- * Props for the ContextItemsView component.
- */
-interface ContextItemsViewProps {
-  /** Array of context items to display */
-  items: AgentContextItem[];
-  /** Optional token count to display */
-  tokenCount?: number | null;
-  /** Custom label for the context section (defaults to localized "来源") */
-  label?: string;
-}
+const toolCardPayload = (tc: { result?: unknown; arguments?: unknown }): Record<string, unknown> =>
+  tc.result && typeof tc.result === 'object'
+    ? (tc.result as Record<string, unknown>)
+    : tc.arguments && typeof tc.arguments === 'object'
+      ? (tc.arguments as Record<string, unknown>)
+      : {};
+
+const hasRenderableDisplayItem = (item: StreamRenderItem): boolean => {
+  if (item.type === 'content') {
+    return Boolean(item.content && stripThinkTags(item.content).trim());
+  }
+  if (item.type === 'tool_calls') {
+    return visibleToolCalls(item.toolCalls).length > 0;
+  }
+  return true;
+};
 
 /**
  * Displays a collapsible list of context items (citations) used by the AI.
- * Each item shows its type, title, priority, relevance score, and content preview.
- *
- * @param props - Component props
- * @param props.items - Array of context items to display
- * @param props.tokenCount - Optional token count to display
- * @param props.label - Custom label for the context section
- * @returns Collapsible details element with context items, or null if empty
+ * Each item shows its type, title, priority, and content preview.
  */
-export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, tokenCount, label }) => {
+const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) => {
   const { t } = useTranslation(['chat']);
   const [isOpen, setIsOpen] = React.useState(false);
   if (!items || items.length === 0) return null;
@@ -488,12 +487,9 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
         <span>
-          {label || t("context.label", { ns: "chat" })}
+          {t("context.label", { ns: "chat" })}
           <span className="ml-1">({items.length})</span>
         </span>
-        {typeof tokenCount === "number" && (
-          <span className="ml-2">{t("context.tokenEstimate", { ns: "chat", value: tokenCount })}</span>
-        )}
       </button>
 
       {isOpen && (
@@ -619,14 +615,14 @@ function OrderedMessageItems({ items, onUndo, onRestoreDeletion, onOpenFile, onO
               key={`${item.id}-${idx}`}
               type={toolCall.status === 'pending' ? 'tool_call' : 'tool_result'}
               toolName={toolCall.tool_name}
-              result={(toolCall.result || toolCall.arguments) as Record<string, unknown>}
+              result={toolCardPayload(toolCall)}
               error={toolCall.error}
               // A call still pending in a finished round (stopped / dropped) never got its
               // result: it did not finish, it is not still running.
               isPending={toolCall.status === 'pending' && isStreaming}
               interrupted={toolCall.status === 'pending' && !isStreaming}
               onUndo={onUndo}
-              onRestoreDeletion={onRestoreDeletion}
+              onRestoreDeletion={isStreaming ? undefined : onRestoreDeletion}
               toolUseId={toolCall.id}
               chatMessageId={chatMessageId}
               onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
@@ -970,7 +966,7 @@ const Row = React.memo(function Row({
                 key={idx}
                 type={toolCall.status === 'pending' ? 'tool_call' : 'tool_result'}
                 toolName={toolCall.tool_name}
-                result={toolCall.result ?? (toolCall.arguments as Record<string, unknown>)}
+                result={toolCardPayload(toolCall)}
                 error={toolCall.status === 'error' ? toolCall.error : undefined}
                 isPending={false}
                 interrupted={toolCall.status === 'pending'}
@@ -993,7 +989,7 @@ const Row = React.memo(function Row({
                 key={idx}
                 type="tool_result"
                 toolName={result.tool_name}
-                result={result.result ?? {}}
+                result={toolCardPayload(result)}
                 error={result.status === 'error' ? result.error : undefined}
                 onUndo={onUndo}
                 onRestoreDeletion={onRestoreDeletion}
@@ -1121,7 +1117,7 @@ export const MessageList = React.memo(
     const hasStopOutcome = m.role === 'assistant' && Boolean(m.stopOutcome);
 
     return (
-      Boolean(m.displayItems?.length) ||
+      Boolean(m.displayItems?.some(hasRenderableDisplayItem)) ||
       hasStopOutcome ||
       hasVisibleContent ||
       hasToolCalls ||
@@ -1169,7 +1165,7 @@ export const MessageList = React.memo(
     [streamRenderItems]
   );
   const shouldShowStreamItems = useMemo(() => {
-    return safeStreamRenderItems.length > 0;
+    return safeStreamRenderItems.some(hasRenderableDisplayItem);
   }, [safeStreamRenderItems]);
 
   const formatTime = useMemo(() => {

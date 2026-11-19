@@ -963,6 +963,53 @@ describe('deleted open file terminal state', () => {
     expect(screen.getAllByLabelText('editor:deletedFile.draft')).toHaveLength(1);
   });
 
+  it('clears the deleted-file draft banner and recovers the unsaved draft once a restored file is reopened', async () => {
+    await mountOpenFile();
+    fireEvent.change(textarea(), { target: { value: '恢复前尚未保存的修改' } });
+    act(() => callbacks().onToolResult('delete_file', 'success', { id: CH1.id }));
+    await settle();
+    expect(screen.getAllByLabelText('editor:deletedFile.draft')).toHaveLength(1);
+
+    // Simulate restoring CH1 on the server and reopening it from the file tree.
+    server.files.set(CH1.id, { ...CH1 });
+    act(() => harness.project?.setSelectedItem({ id: CH1.id, type: 'draft', title: CH1.title }));
+    await settle();
+    expect(screen.queryByLabelText('editor:deletedFile.draft')).not.toBeInTheDocument();
+    expect(textarea()).toHaveValue('恢复前尚未保存的修改');
+    const snapshot = readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH1.id });
+    expect(snapshot?.reason).toBe('page-exit');
+  });
+
+  it('recovers an in-memory deleted draft when storage fails and clears protection once saved after restore', async () => {
+    await mountOpenFile();
+    fireEvent.change(textarea(), { target: { value: '仅内存保存的未落盘草稿' } });
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('QuotaExceededError', 'QuotaExceededError');
+    });
+    const removeItem = vi.spyOn(localStorage, 'removeItem').mockImplementation(() => {
+      throw new DOMException('QuotaExceededError', 'QuotaExceededError');
+    });
+    try {
+      server.files.delete(CH1.id);
+      act(() => callbacks().onToolResult('delete_file', 'success', { id: CH1.id }));
+      await settle();
+      expect(screen.getByText('editor:deletedFile.storageFailed')).toBeInTheDocument();
+
+      server.files.set(CH1.id, { ...CH1 });
+      act(() => harness.project?.setSelectedItem({ id: CH1.id, type: 'draft', title: CH1.title }));
+      await settle();
+      expect(textarea()).toHaveValue('仅内存保存的未落盘草稿');
+
+      fireEvent.keyDown(textarea(), { key: 's', ctrlKey: true });
+      await settle();
+      expect(server.update).toHaveBeenCalledWith(CH1.id, expect.objectContaining({ content: '仅内存保存的未落盘草稿' }));
+      expect(screen.queryByLabelText('editor:deletedFile.draft')).not.toBeInTheDocument();
+    } finally {
+      setItem.mockRestore();
+      removeItem.mockRestore();
+    }
+  });
+
   it('retains both an unanswered recovery conflict and newer edits after deletion and remount', async () => {
     writeEditorDraftSnapshot(localStorage, createEditorDraftSnapshot({
       userId: 'user-1', projectId: 'project-1', fileId: CH1.id,

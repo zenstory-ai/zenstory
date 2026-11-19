@@ -9,7 +9,7 @@ import { toast } from "../../lib/toast";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Button } from "../ui/Button";
 import { findAncestorFolderIds } from "../../lib/lastOpenedFile";
-import { notifyFileRemoved } from "../../lib/fileRemovalEvents";
+import { clearLiveTreeRemoved, notifyFileRemoved } from "../../lib/fileRemovalEvents";
 import { FOLDER_TYPE_MAP } from "../../lib/folderTypeMap";
 import type { FileTreeNode, TreeNodeType } from "../../types";
 import { useFileSearch } from "../../hooks/useFileSearch";
@@ -161,7 +161,9 @@ export const FileTreePane: React.FC = () => {
       if (abortController.signal.aborted || requestId !== loadRequestIdRef.current) {
         return;
       }
-      setTree(response.tree || []);
+      const nextTree = response.tree || [];
+      clearLiveTreeRemoved(currentProjectId, nextTree);
+      setTree(nextTree);
       setLoadError(false);
       if (selectedAtRequest && selectedItemRef.current?.id === selectedAtRequest.id
         && findAncestorFolderIds(previousTree, selectedAtRequest.id) !== null

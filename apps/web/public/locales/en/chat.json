@@ -17,8 +17,6 @@
     "sources": "Sources:",
     "operation": "Operation:",
     "resizeHandle": "Drag to adjust input area height (double-click to reset)",
-    "skillMatched": "Skill activated: {{name}}",
-    "skillMatchedMulti": "Skill {{index}}: {{name}}",
     "streamErrorTitle": "Generation was interrupted",
     "accountRunsBusyTitle": "Can’t start a new task yet",
     "streamErrorQuotaPaused": "This round didn't finish; anything already saved is kept. Today's AI messages are used up, so pick it up again once they come back.",
@@ -122,9 +120,7 @@
       "inspiration": "Reference",
       "default": "Source"
     },
-    "label": "Context",
-    "citations": "Citations",
-    "tokenEstimate": "≈ {{value}} tokens"
+    "label": "Context"
   },
   "workflow": {
     "iterationExhausted": "Pausing here for now",
@@ -241,9 +237,6 @@
     "undoLaterFirst": "Undo the later change to this file first",
     "edit_touched_author_edits": "Changed text you edited yourself",
     "edit_restored_author_deletion": "Put back a paragraph you deleted; you can undo this",
-    "edits_summary_one": "{{editsApplied}} edit · {{size}}",
-    "edits_summary_other": "{{editsApplied}} edits · {{size}}",
-    "edits_summary": "{{editsApplied}} edits · {{size}}",
     "complete_suffix": " completed",
     "view_edit_details": "View change details ({{count}})",
     "failed": "{{label}} failed",
@@ -283,13 +276,6 @@
     "quote": "Quote",
     "default": "File"
   },
-  "action": {
-    "insert": "Insert after cursor",
-    "replace": "Replace selected text",
-    "new_snippet": "Create as material",
-    "reference_only": "Reference only",
-    "apply": "Apply"
-  },
   "size": {
     "characters": "{{length}} chars",
     "kCharacters": "{{length}}k chars"
@@ -309,14 +295,6 @@
     "insert_before_label": "Insert before",
     "insert_content": "Inserted content",
     "delete_content": "Deleted content"
-  },
-  "response": {
-    "generated_result": "Generated Result",
-    "used_snippets": "Referenced Materials",
-    "reasoning_label": "AI Reasoning Process:",
-    "conflicts_detected_one": "1 potential issue detected",
-    "conflicts_detected_other": "{{count}} potential issues detected",
-    "conflicts_detected": "{{count}} potential issues detected"
   },
   "voice": {
     "recognition_success": "Recognition successful",

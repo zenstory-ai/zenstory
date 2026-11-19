@@ -26,7 +26,7 @@ from agent.tools.permissions import (
     check_file_access_in_tool_context,
     check_project_ownership,
 )
-from config.datetime_utils import advance_timestamp, utcnow
+from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
 from models import File
 from models.file_model import FILE_TYPE_FOLDER, validate_file_title
 from models.file_version import (
@@ -210,6 +210,7 @@ class FileCRUD:
         """
         self.session = session
         self.user_id = user_id
+        self._last_deleted_meta: dict[str, Any] | None = None
 
     def create_file(
         self,
@@ -1007,6 +1008,12 @@ class FileCRUD:
             # Keep postcommit logging independent of expired rows.
             project_id = file.project_id
             deleted_count = len(deleted)
+            self._last_deleted_meta = {
+                "id": file.id,
+                "title": file.title,
+                "file_type": file.file_type,
+                "deleted_at": normalize_datetime_to_utc(now).isoformat(),
+            }
             self.session.commit()
 
         log_with_context(
