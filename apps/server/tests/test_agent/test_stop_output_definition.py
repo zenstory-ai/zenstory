@@ -122,48 +122,6 @@ def test_edit_counts_only_when_text_changed(data, is_output):
     assert tracker.produced_output is is_output
 
 
-@pytest.mark.parametrize("decide", [_stop, _disconnect])
-def test_parallel_chapter_writes_are_output_for_stop_and_disconnect(decide):
-    """P2-20：只有 parallel_execute 写入成功、没有任何旁白的一轮，停止或断线都计费。"""
-    tracker = _tracker(
-        _sse(
-            "tool_result",
-            {
-                "tool_name": "parallel_execute",
-                "status": "success",
-                "data": {
-                    "tasks": [
-                        {"type": "write_chapter", "status": "completed"},
-                        {"type": "write_chapter", "status": "completed"},
-                    ]
-                },
-            },
-        )
-    )
-    assert tracker.produced_output is True
-    assert decide(tracker)[1] is False
-
-
-def test_parallel_lookups_or_failed_writes_are_not_output():
-    tracker = _tracker(
-        _sse(
-            "tool_result",
-            {
-                "tool_name": "parallel_execute",
-                "status": "success",
-                "data": {
-                    "tasks": [
-                        {"type": "query_files", "status": "completed"},
-                        {"type": "write_chapter", "status": "failed"},
-                    ]
-                },
-            },
-        )
-    )
-    assert tracker.produced_output is False
-    assert _stop(tracker) == ("user_stopped_no_output", True)
-
-
 def test_thinking_and_reads_are_not_output():
     tracker = _tracker(
         _sse("thinking_content", {"content": _PROSE}),
@@ -402,7 +360,7 @@ def test_deadline_after_only_a_memory_update_and_narration_is_refunded():
             "tool_result",
             {"tool_name": "update_project", "status": "success", "data": {"updated_fields": ["summary", "notes"]}},
         ),
-        _sse("handoff", {"target_agent": "writer"}),
+        _sse("tool_call", {"tool_name": "query_files"}),
         _error(),
     )
     assert tracker.produced_output is True  # 停止 / 断线口径不变：改了项目信息算产出
@@ -418,64 +376,6 @@ def test_short_reply_does_not_make_a_stop_charged():
         _sse("content", {"text": _SHORT_ANSWER}),
         _sse("workflow_stopped", {"reason": "user_stopped"}),
     )
-    assert _stop(tracker) == ("user_stopped_no_output", True)
-
-
-# --------------------------------------------- 被打断的并行批次里已完成的写入子任务（stop.nb[5]）
-
-
-def _task_start(task_id: str, task_type: str) -> str:
-    return _sse(
-        "parallel_task_start",
-        {"execution_id": "e1", "task_id": task_id, "task_type": task_type, "description": task_id},
-    )
-
-
-def _task_end(task_id: str, status: str = "completed") -> str:
-    return _sse("parallel_task_end", {"execution_id": "e1", "task_id": task_id, "status": status})
-
-
-@pytest.mark.parametrize("decide", [_stop, _disconnect])
-def test_completed_write_subtask_of_an_interrupted_parallel_batch_is_output(decide):
-    """停在并行批次中途：第 1 章已写完（parallel_task_end），整批的 tool_result 还没来。"""
-    tracker = _tracker(
-        _sse("parallel_start", {"execution_id": "e1", "task_count": 2, "task_descriptions": []}),
-        _task_start("t1", "write_chapter"),
-        _task_start("t2", "write_chapter"),
-        _task_end("t1"),
-    )
-    assert tracker.produced_output is True
-    assert tracker.write_succeeded is True
-    assert decide(tracker)[1] is False
-
-
-def test_partially_applied_parallel_edit_is_output():
-    """partial 子任务的改动已经落地：与旧执行器把它记成 completed 时一样算产出。"""
-    streamed = _tracker(_task_start("t1", "edit_file"), _task_end("t1", status="partial"))
-    assert streamed.produced_output is True
-    batch = _tracker(
-        _sse(
-            "tool_result",
-            {
-                "tool_name": "parallel_execute",
-                "status": "success",
-                "data": {"tasks": [{"type": "edit_file", "status": "partial"}]},
-            },
-        )
-    )
-    assert batch.produced_output is True
-
-
-def test_parallel_lookups_or_failed_write_subtasks_are_not_output():
-    tracker = _tracker(
-        _task_start("t1", "query_files"),
-        _task_start("t2", "write_chapter"),
-        _task_end("t1"),
-        _task_end("t2", status="failed"),
-        # 没有 start 帧的子任务不知道类型，不算。
-        _task_end("t3"),
-    )
-    assert tracker.produced_output is False
     assert _stop(tracker) == ("user_stopped_no_output", True)
 
 

@@ -5,13 +5,12 @@
  * A versatile component for displaying AI agent tool execution results.
  * Renders different UI based on the tool type (create_file, update_file,
  * write_chapter, edit_file, delete_file, query_files, update_project) and result status
- * (pending, success, error, conflict).
+ * (pending, success, error).
  *
  * Features:
  * - Tool call loading state with animated spinner
  * - Success/error states with appropriate icons
  * - Diff-style display for file edits (replace, insert, delete)
- * - Conflict display with severity levels and suggestions
  * - Response card with action buttons (apply, retry, copy)
  * - Used snippets display with view links
  * - Internationalization support via react-i18next
@@ -27,7 +26,6 @@ import {
   RotateCcw,
   FileText,
   Info,
-  Lightbulb,
   Edit3,
   ArrowRight,
   Plus,
@@ -43,7 +41,7 @@ import {
   Settings,
   Layers,
 } from 'lucide-react';
-import type { Conflict, FileEditUndoTarget } from '../types';
+import type { FileEditUndoTarget } from '../types';
 import { UndoBlockedContext, UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
 import { isPersistedUndoTarget, readFileEditUndoTarget, readWriteChapterOutcome, type WriteChapterOutcome } from '../lib/aiWriteCards';
 import { countWords } from '../lib/documentChunker';
@@ -66,9 +64,8 @@ interface ToolResultCardProps {
    * The type of content to render.
    * - 'tool_call': Tool execution in progress (loading state)
    * - 'tool_result': Completed tool execution result
-   * - 'conflict': Conflict warning with severity and suggestions
    */
-  type: 'tool_call' | 'tool_result' | 'conflict';
+  type: 'tool_call' | 'tool_result';
 
   /**
    * Name of the tool being executed or completed.
@@ -121,41 +118,6 @@ interface ToolResultCardProps {
   /** Open the current project's AI Memory editor at Writing Conventions. */
   onOpenAIMemory?: () => void;
 }
-
-/**
- * Returns CSS classes for severity-based text and border colors.
- *
- * @param severity - Severity level ('high', 'medium', 'low')
- * @returns CSS classes for text and border colors
- *
- * @example
- * const colorClass = getSeverityColor('high'); // 'text-[hsl(var(--error-text))] border-[hsl(var(--error))]'
- */
-const getSeverityColor = (severity: string) => {
-  switch (severity) {
-    case 'high':
-      return 'text-[hsl(var(--error-text))] border-[hsl(var(--error)/0.35)]';
-    case 'medium':
-      return 'text-[hsl(var(--warning-text))] border-[hsl(var(--warning)/0.35)]';
-    case 'low':
-      return 'text-[hsl(var(--text-primary))] border-[hsl(var(--border-color))]';
-    default:
-      return 'text-[hsl(var(--text-secondary))] border-[hsl(var(--border-color))]';
-  }
-};
-
-const getSeverityBgColor = (severity: string) => {
-  switch (severity) {
-    case 'high':
-      return 'bg-[hsl(var(--error)/0.06)]';
-    case 'medium':
-      return 'bg-[hsl(var(--warning)/0.06)]';
-    case 'low':
-      return 'bg-[hsl(var(--bg-secondary))]';
-    default:
-      return 'bg-[hsl(var(--bg-secondary))]';
-  }
-};
 
 /**
  * Returns display icon and localized label for a tool name.
@@ -1293,47 +1255,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
             {label}{t('chat:tool.complete_suffix')}
           </span>
-        </div>
-      </div>
-    );
-  }
-
-  // Render Conflict
-  if (type === 'conflict' && result?.conflict) {
-    const conflict = result.conflict as Conflict;
-    return (
-      <div
-        className={`rounded-xl border p-3 ${getSeverityColor(conflict.severity).split(' ')[1]} ${getSeverityBgColor(conflict.severity)}`}
-      >
-        <div className="flex items-start gap-2.5">
-          {conflict.severity === 'high' ? (
-            <XCircle className="w-4 h-4 text-[hsl(var(--error-text))] shrink-0 mt-0.5" />
-          ) : conflict.severity === 'medium' ? (
-            <AlertCircle className="w-4 h-4 text-[hsl(var(--warning-text))] shrink-0 mt-0.5" />
-          ) : (
-            <Lightbulb className="w-4 h-4 text-[hsl(var(--accent-primary))] shrink-0 mt-0.5" />
-          )}
-          <div className="flex-1 min-w-0">
-            <h4 className={`text-sm font-medium mb-1 ${getSeverityColor(conflict.severity).split(' ')[0]}`}>
-              {conflict.title}
-            </h4>
-            <p className="text-xs leading-5 text-[hsl(var(--text-secondary))] mb-2">
-              {conflict.description}
-            </p>
-            {conflict.suggestions && conflict.suggestions.length > 0 && (
-              <div className="mt-2">
-                <div className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-1">{t('chat:conflict.suggestions_label')}</div>
-                <ul className="text-xs leading-5 text-[hsl(var(--text-secondary))] space-y-1">
-                  {conflict.suggestions.map((suggestion, sIndex) => (
-                    <li key={sIndex} className="flex items-start gap-2">
-                      <span className="text-[hsl(var(--accent-primary))]">•</span>
-                      <span>{suggestion}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     );

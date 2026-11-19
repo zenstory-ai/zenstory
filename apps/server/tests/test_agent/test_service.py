@@ -722,14 +722,6 @@ class TestAgentServiceProcessStream:
         user = test_user_with_project["user"]
 
         async def ordered_stream():
-            yield StreamEvent(
-                type=StreamEventType.ROUTER_THINKING,
-                data={"message": "Choosing the best agent"},
-            )
-            yield StreamEvent(
-                type=StreamEventType.ROUTER_DECIDED,
-                data={"agent_type": "planner", "reason": "Outline first"},
-            )
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "before "})
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "tool"})
             yield StreamEvent(
@@ -746,14 +738,6 @@ class TestAgentServiceProcessStream:
                 data={"tool_use_id": "tool-1", "name": "query_files", "result": {"ok": True}},
             )
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": " after"})
-            yield StreamEvent(
-                type=StreamEventType.HANDOFF,
-                data={"target_agent": "writer", "reason": "draft", "context": "draft it"},
-            )
-            yield StreamEvent(
-                type=StreamEventType.AGENT_SELECTED,
-                data={"agent_type": "writer", "agent_name": "Writer", "iteration": 2},
-            )
             yield StreamEvent(type=StreamEventType.THINKING, data={"thinking": "plan "})
             yield StreamEvent(type=StreamEventType.THINKING, data={"thinking": "details"})
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "final"})
@@ -786,12 +770,8 @@ class TestAgentServiceProcessStream:
                     "iterations_used": 3,
                     "max_iterations": 3,
                     "reason": "limit reached",
-                    "last_agent": "writer",
+                    "last_agent": None,
                 },
-            )
-            yield StreamEvent(
-                type=StreamEventType.WORKFLOW_COMPLETE,
-                data={"reason": "completed", "agent_type": "writer"},
             )
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
@@ -813,28 +793,9 @@ class TestAgentServiceProcessStream:
         assert latest_assistant.message_metadata is not None
         metadata = json.loads(latest_assistant.message_metadata)
         assert metadata["display_events"] == [
-            {"type": "router_thinking", "data": {"message": "Choosing the best agent"}},
-            {
-                "type": "router_decided",
-                "data": {"agent_type": "planner", "reason": "Outline first"},
-            },
             {"type": "content", "content": "before tool"},
             {"type": "tool_call", "tool_call_index": 0},
             {"type": "content", "content": " after"},
-            {
-                "type": "handoff",
-                "data": {"target_agent": "writer", "reason": "draft", "context": "draft it"},
-            },
-            {
-                "type": "agent_selected",
-                "data": {
-                    "agent_type": "writer",
-                    "agent_name": "Writer",
-                    "iteration": 2,
-                    "max_iterations": None,
-                    "remaining": None,
-                },
-            },
             {"type": "thinking_content", "content": "plan details"},
             {"type": "content", "content": "final"},
             {"type": "tool_call", "tool_call_index": 1},
@@ -846,10 +807,9 @@ class TestAgentServiceProcessStream:
                     "iterations_used": 3,
                     "max_iterations": 3,
                     "reason": "limit reached",
-                    "last_agent": "writer",
+                    "last_agent": None,
                 },
             },
-            {"type": "workflow_complete", "data": {"reason": "completed", "agent_type": "writer"}},
         ]
         assert [event for event in metadata["display_events"] if event["type"] == "tool_call"] == [
             {"type": "tool_call", "tool_call_index": 0},
@@ -875,13 +835,13 @@ class TestAgentServiceProcessStream:
 
         async def control_only_stream():
             yield StreamEvent(
-                type=StreamEventType.AGENT_SELECTED,
+                type=StreamEventType.ITERATION_EXHAUSTED,
                 data={
-                    "agent_type": "writer",
-                    "agent_name": "Writer",
-                    "iteration": 1,
+                    "layer": "collaboration",
+                    "iterations_used": 3,
                     "max_iterations": 3,
-                    "remaining": 2,
+                    "reason": "limit reached",
+                    "last_agent": None,
                 },
             )
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
@@ -906,13 +866,13 @@ class TestAgentServiceProcessStream:
         assert latest_assistant.content == ""
         assert json.loads(latest_assistant.message_metadata or "{}")["display_events"] == [
             {
-                "type": "agent_selected",
+                "type": "iteration_exhausted",
                 "data": {
-                    "agent_type": "writer",
-                    "agent_name": "Writer",
-                    "iteration": 1,
+                    "layer": "collaboration",
+                    "iterations_used": 3,
                     "max_iterations": 3,
-                    "remaining": 2,
+                    "reason": "limit reached",
+                    "last_agent": None,
                 },
             }
         ]
@@ -1360,14 +1320,25 @@ class TestAgentServiceProcessStream:
         project = test_user_with_project["project"]
         user = test_user_with_project["user"]
 
+        from agent.stream_adapter import create_stream_adapter as real_create_stream_adapter
+
+        created_adapters = []
+
+        def tracking_create_stream_adapter(*args, **kwargs):
+            adapter = real_create_stream_adapter(*args, **kwargs)
+            created_adapters.append(adapter)
+            return adapter
+
         async def mock_error_stream():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "partial reply"})
+            created_adapters[-1]._note_body_saved("saved-file", 12)
+            created_adapters[-1]._note_save_unconfirmed("failed-file")
             yield StreamEvent(type=StreamEventType.ERROR, data={"error": "workflow failed"})
 
         outcome = RunOutcome()
         with (
             patch("agent.service.run_loop_agent_streaming") as mock_workflow,
-            patch("agent.stream_adapter.StreamAdapter.get_saved_file_word_counts", return_value={"saved-file": 12, "failed-file": None}),
+            patch("agent.service.create_stream_adapter", side_effect=tracking_create_stream_adapter),
         ):
             mock_workflow.return_value = mock_error_stream()
 
@@ -1510,12 +1481,12 @@ class TestAgentServiceProcessStream:
 
         started = asyncio.Event()
 
-        routing_usage = {"input_tokens": 12, "output_tokens": 3, "total_tokens": 15}
+        run_usage = {"input_tokens": 12, "output_tokens": 3, "total_tokens": 15}
 
         async def mock_slow_stream():
             yield StreamEvent(
-                type=StreamEventType.ROUTER_DECIDED,
-                data={"agent_type": "writer", "routing_usage": routing_usage},
+                type=StreamEventType.MESSAGE_END,
+                data={"stop_reason": "tool_use", "usage": run_usage},
             )
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "partial reply"})
             started.set()
@@ -1574,8 +1545,8 @@ class TestAgentServiceProcessStream:
         partial_assistant = next(m for m in saved_messages if m.role == "assistant")
         display_events = json.loads(partial_assistant.message_metadata or "{}")["display_events"]
         assert display_events[-1] == {"type": "content", "content": "partial reply"}
-        # Usage already accumulated before the cancel (here: routing) is kept.
-        assert json.loads(partial_assistant.message_metadata or "{}")["usage"] == routing_usage
+        # Usage already accumulated before the cancel is kept.
+        assert json.loads(partial_assistant.message_metadata or "{}")["usage"] == run_usage
 
     async def test_process_stream_persists_unconsumed_steering_before_cleanup(
         self, mock_agent_service, test_user_with_project, db_session: Session

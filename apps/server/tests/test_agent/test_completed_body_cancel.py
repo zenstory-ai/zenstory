@@ -318,6 +318,28 @@ async def test_refused_replacement_receipt_is_keyed_by_its_own_tool_use_id():
 
 
 @pytest.mark.asyncio
+async def test_failed_replacement_records_an_unsaved_receipt():
+    adapter = StreamAdapter()
+    card = _replace_card("chapter-4", 1200)
+    adapter.set_pending_file_write(
+        "chapter-4", "draft", "第4章", original_content_length=1200,
+        baseline_updated_at="v1", replace_tool_use_id="call-4", replace_card=card,
+    )
+
+    def fail(file_id, content, expected):
+        raise RuntimeError("database unavailable")
+
+    adapter._replace_file_body_sync = fail
+    outcome, replaced = await adapter._save_chapter_replacement(
+        "chapter-4", BODY, adapter._pending_file_write
+    )
+
+    assert (outcome, replaced) == ("failed", None)
+    assert adapter.get_replacement_receipts() == {"call-4": None}
+    assert adapter.get_saved_file_word_counts() == {"chapter-4": None}
+
+
+@pytest.mark.asyncio
 async def test_stop_settles_body_saves_and_write_tool_threads_together():
     """截停收尾同时等正文补存与线程里的写工具：两者都记进 run_outcome，总等待不是两段相加。"""
     import time

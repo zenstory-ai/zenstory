@@ -24,7 +24,6 @@ from agent.skills.content_budget import SkillContentBudget
 from agent.tools.author_edit_guard import (
     AuthorContentProtectionError,
     AuthorEditProtectedError,
-    AuthorEditRefusals,
     protected_user_message,
 )
 from agent.tools.file_ops import FileToolExecutor
@@ -61,26 +60,6 @@ PROJECT_STATUS_FIELD_ALIASES: dict[str, str] = {
     "writingStyle": "writing_style",
     "projectSummary": "summary",
 }
-
-
-def _should_offload_tool_execution() -> bool:
-    """工具的同步实现是否必须放到线程池里执行。
-
-    判据是"这段代码本身是不是 CPU/IO 密集"，与数据库类型**无关**：
-
-    - 所有 ``*_sync`` 实现都做阻塞式 DB 读写。SQLite 还配了
-      ``PRAGMA busy_timeout=30000``，写锁被别人占住时单次 commit 最长阻塞 30 秒。
-    - ``_edit_file_sync`` 会对整章正文做近似匹配扫描与 difflib 比对（纯 CPU），
-      并以**阻塞方式**获取按 file_id 分条带的 ``threading.Lock``；而该锁的另一个
-      持有者 ``stream_adapter._save_file_content`` 本来就跑在
-      ``asyncio.to_thread`` 的工作线程里。
-
-    历史实现返回 ``is_postgres``，于是在项目默认的 SQLite 部署下，上面这些工作
-    全部同步跑在事件循环线程上：实测单次 edit_file 可让事件循环停顿 21.93 秒，
-    期间该 worker 的所有 SSE 流、HTTP 请求与心跳一起停摆；threading.Lock 也变成
-    "在事件循环线程上等另一个线程释放"的死等。因此这里恒为 True。
-    """
-    return True
 
 
 def _run_sync_tool_with_owned_session_cleanup(
@@ -568,31 +547,6 @@ class _PendingEmptyFileState:
             self._reservations.pop(ticket, None)
 
 
-class _PreWriteContents:
-    """本次请求里每个文件第一次被 AI 写入之前的正文（跨子任务/线程共享，原因同上）。
-
-    送审时用它找出「本请求改了哪一段」：在 14 万字的单文件里追加 5 章，送审内容不能是
-    文件开头的旧章节（10-10 U074）。只记第一次：同一请求里后面的写入覆盖的是本请求
-    自己写的字。本请求新建的文件记为空串（整份都是新写的）。
-    """
-
-    __slots__ = ("_contents", "_lock")
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._contents: dict[str, str] = {}
-
-    def remember(self, file_id: str, content: str) -> None:
-        if not file_id:
-            return
-        with self._lock:
-            self._contents.setdefault(file_id, content or "")
-
-    def get(self, file_id: str) -> str | None:
-        with self._lock:
-            return self._contents.get(file_id)
-
-
 class _ReadSnapshots:
     """本次请求里模型看到的文件正文（跨子任务/线程共享，原因同上）。
 
@@ -721,7 +675,6 @@ class ToolContext:
         skill_tokens_used: int = 0,
         author_message: str | None = None,
         author_steering: list[str] | None = None,
-        author_edit_refusals: AuthorEditRefusals | None = None,
         read_snapshots: dict[str, str] | None = None,
         inflight_tool_writes: list[tuple[str, Any]] | None = None,
     ) -> None:
@@ -732,8 +685,6 @@ class ToolContext:
                 它只标识应用内对话并提供模型上下文，不授予删除、整份覆盖或改名权限。
             author_steering: 本轮运行中作者追加的消息（service 的 consumed_steering，
                 同一个 list 对象，运行中会继续追加），只作为模型上下文。
-            author_edit_refusals: 本轮因为作者手改过而没删 / 没整份重写的文件（service 持有，
-                交接给下一个 agent 时说明它们保持原样）。
             skill_tokens_used: 显式选择的技能注入 system prompt 时已占用的技能内容 token，
                 从本次请求的技能内容预算里先扣掉。
             read_snapshots: 本轮开始时以全文给模型看的文件正文（file_id → 正文），edit_file 的
@@ -753,8 +704,6 @@ class ToolContext:
             "skill_content_budget": SkillContentBudget(used=skill_tokens_used),
             "author_message": author_message,
             "author_steering": author_steering,
-            "author_edit_refusals": author_edit_refusals,
-            "pre_write_contents": _PreWriteContents(),
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
             "inflight_tool_writes": inflight_tool_writes,
         })
@@ -892,21 +841,6 @@ class ToolContext:
         return isinstance(cls._get_context().get("author_message"), str)
 
     @classmethod
-    def record_author_edit_refusal(cls, file_id: str) -> None:
-        """记下本轮因为作者手改过而没删 / 没整份重写的文件。"""
-        holder = cls._get_context().get("author_edit_refusals")
-        if isinstance(holder, AuthorEditRefusals):
-            holder.add(file_id)
-
-    @classmethod
-    def author_edit_refused_file_ids(cls) -> list[str]:
-        """本请求里因为作者手改过而没删 / 没整份重写的文件 id（按先后）；没有上下文时为空。"""
-        holder = cls._get_context().get("author_edit_refusals")
-        if isinstance(holder, AuthorEditRefusals):
-            return holder.file_ids()
-        return []
-
-    @classmethod
     def tracks_reads(cls) -> bool:
         """当前是应用内对话（有快照容器）：读文件时要记快照、附作者手改。"""
         return isinstance(cls._get_context().get("read_snapshots"), _ReadSnapshots)
@@ -993,21 +927,6 @@ class ToolContext:
         holder = cls._get_context().get("read_snapshots")
         if isinstance(holder, _ReadSnapshots):
             holder.begin_agent_run()
-
-    @classmethod
-    def remember_pre_write_content(cls, file_id: str, content: str | None) -> None:
-        """记下文件在本请求第一次被 AI 写入之前的正文；没有请求上下文时什么也不做。"""
-        holder = cls._get_context().get("pre_write_contents")
-        if isinstance(holder, _PreWriteContents):
-            holder.remember(str(file_id or ""), content or "")
-
-    @classmethod
-    def pre_write_content(cls, file_id: str) -> str | None:
-        """文件在本请求第一次被 AI 写入之前的正文；本请求没写过它（或没有上下文）时为 None。"""
-        holder = cls._get_context().get("pre_write_contents")
-        if isinstance(holder, _PreWriteContents):
-            return holder.get(str(file_id or ""))
-        return None
 
     @classmethod
     def get_current_agent(cls) -> str | None:
@@ -2043,9 +1962,7 @@ def _write_chapter_error(error: str, *, error_type: str, **fields: Any) -> dict[
 
 async def write_chapter(args: dict[str, Any]) -> dict[str, Any]:
     """按章号 / 集号写一章正文：不存在就新建，已存在就替换这一章（正文随后以 <file> 写入）。"""
-    if _should_offload_tool_execution():
-        return await _offload_write_tool(WRITE_CHAPTER_TOOL_NAME, _write_chapter_sync, args)
-    return _write_chapter_sync(args)
+    return await _offload_write_tool(WRITE_CHAPTER_TOOL_NAME, _write_chapter_sync, args)
 
 
 def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
@@ -2427,12 +2344,10 @@ def _payload_of(result: Any) -> Any:
 
 async def create_file(args: dict[str, Any]) -> dict[str, Any]:
     """创建新文件。"""
-    if _should_offload_tool_execution():
-        # asyncio.to_thread 运行在拷贝上下文中，但 pending-empty-file 标记通过
-        # 请求上下文 dict 里的共享持有者原地修改，_create_file_sync 在工作线程
-        # 里设置后对主上下文同样可见，无需在此回填。
-        return await _offload_write_tool("create_file", _create_file_sync, args)
-    return _create_file_sync(args)
+    # asyncio.to_thread 运行在拷贝上下文中，但 pending-empty-file 标记通过
+    # 请求上下文 dict 里的共享持有者原地修改，_create_file_sync 在工作线程
+    # 里设置后对主上下文同样可见，无需在此回填。
+    return await _offload_write_tool("create_file", _create_file_sync, args)
 
 
 def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -> dict[str, Any]:
@@ -2603,7 +2518,6 @@ def _author_content_protection_payload(
 ) -> dict[str, Any]:
     """Render a typed locked-domain refusal as an MCP result."""
     if isinstance(error, AuthorEditProtectedError):
-        ToolContext.record_author_edit_refusal(error.file_id)
         log_with_context(
             logger,
             20,
@@ -2629,9 +2543,7 @@ def _author_content_protection_payload(
 
 async def edit_file(args: dict[str, Any]) -> dict[str, Any]:
     """精确编辑文件内容。"""
-    if _should_offload_tool_execution():
-        return await _offload_write_tool("edit_file", _edit_file_sync, args)
-    return _edit_file_sync(args)
+    return await _offload_write_tool("edit_file", _edit_file_sync, args)
 
 
 def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
@@ -2804,9 +2716,7 @@ def _derive_edit_status(result: dict[str, Any]) -> str:
 
 async def delete_file(args: dict[str, Any]) -> dict[str, Any]:
     """删除文件。"""
-    if _should_offload_tool_execution():
-        return await _offload_write_tool("delete_file", _delete_file_sync, args)
-    return _delete_file_sync(args)
+    return await _offload_write_tool("delete_file", _delete_file_sync, args)
 
 
 def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
@@ -2842,9 +2752,7 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
 
 async def rename_file(args: dict[str, Any]) -> dict[str, Any]:
     """只改文件标题（#273）：不碰正文、不新建、不删除。"""
-    if _should_offload_tool_execution():
-        return await _offload_write_tool("rename_file", _rename_file_sync, args)
-    return _rename_file_sync(args)
+    return await _offload_write_tool("rename_file", _rename_file_sync, args)
 
 
 def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
@@ -2927,9 +2835,7 @@ def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
 
 async def query_files(args: dict[str, Any]) -> dict[str, Any]:
     """查询和搜索项目中的文件。"""
-    if _should_offload_tool_execution():
-        return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _query_files_sync, args)
-    return _query_files_sync(args)
+    return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _query_files_sync, args)
 
 
 def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
@@ -3165,16 +3071,14 @@ async def update_project(
     written_artifact_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """更新项目信息和任务计划。"""
-    if _should_offload_tool_execution():
-        if written_artifact_ids is None:
-            return await _offload_write_tool("update_project", _update_project_sync, args)
-        return await asyncio.to_thread(
-            _run_sync_tool_with_owned_session_cleanup,
-            _update_project_sync,
-            args,
-            written_artifact_ids,
-        )
-    return _update_project_sync(args, written_artifact_ids)
+    if written_artifact_ids is None:
+        return await _offload_write_tool("update_project", _update_project_sync, args)
+    return await asyncio.to_thread(
+        _run_sync_tool_with_owned_session_cleanup,
+        _update_project_sync,
+        args,
+        written_artifact_ids,
+    )
 
 
 NOTES_FULL_NOTE = "写作约定已接近 4000 字上限，这次没有记入；请作者在 AI 记忆里精简后再记。"
@@ -3384,9 +3288,7 @@ def _update_project_sync(
 
 async def load_skill(args: dict[str, Any]) -> dict[str, Any]:
     """按名称加载一个已启用技能的完整方法与资源清单（技能 L2）。"""
-    if _should_offload_tool_execution():
-        return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _load_skill_sync, args)
-    return _load_skill_sync(args)
+    return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _load_skill_sync, args)
 
 
 def _resolve_skill_for_tool(session: Session, tool_name: str, name: str):
@@ -3507,11 +3409,9 @@ def _load_skill_sync(args: dict[str, Any]) -> dict[str, Any]:
 
 async def read_skill_resource(args: dict[str, Any]) -> dict[str, Any]:
     """读取已启用技能的一个参考文件（技能 L3）。"""
-    if _should_offload_tool_execution():
-        return await asyncio.to_thread(
-            _run_sync_tool_with_owned_session_cleanup, _read_skill_resource_sync, args
-        )
-    return _read_skill_resource_sync(args)
+    return await asyncio.to_thread(
+        _run_sync_tool_with_owned_session_cleanup, _read_skill_resource_sync, args
+    )
 
 
 def _read_skill_resource_sync(args: dict[str, Any]) -> dict[str, Any]:

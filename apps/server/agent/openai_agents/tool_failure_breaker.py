@@ -58,19 +58,7 @@ TRIP_REASON_TOTAL = "too_many_tool_failures"
 # 调用根本没执行，也没有「参数」可言，单独一个原因与文案，不说成「以相同参数失败」。
 TRIP_REASON_TOOL_NOT_FOUND = "repeated_unavailable_tool_call"
 _TOOL_NOT_FOUND_ERROR_TYPE = "tool_not_found"
-# tools_adapter 在执行前拒绝写工具时用的 error_type（它从这里 import，两边不再各写一份字面量）。
-READ_ONLY_REQUEST_ERROR_TYPE = "read_only_request"
-ROLE_NOT_PERMITTED_ERROR_TYPE = "tool_not_permitted_for_role"
-CLARIFY_FIRST_ERROR_TYPE = "clarify_first"
-# 调用根本没执行的错误：工具不存在，或只读请求 / 角色权限 / 先澄清拒绝了写工具。
-_UNEXECUTED_CALL_ERROR_TYPES = frozenset(
-    {
-        _TOOL_NOT_FOUND_ERROR_TYPE,
-        READ_ONLY_REQUEST_ERROR_TYPE,
-        ROLE_NOT_PERMITTED_ERROR_TYPE,
-        CLARIFY_FIRST_ERROR_TYPE,
-    }
-)
+_UNEXECUTED_CALL_ERROR_TYPES = frozenset({_TOOL_NOT_FOUND_ERROR_TYPE})
 
 # 这两类失败即使模型每次换一点参数，恢复动作也不变：文件标识无效时必须重新取得
 # 当前真实标识；同一文件的锚点不存在时必须重读当前段落。按完整参数分别计数会让
@@ -164,44 +152,12 @@ def _error_fingerprint(payload: dict[str, Any]) -> str:
     return text
 
 
-def _parallel_failure_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
-    """parallel_execute 的子任务失败折算成一次失败。
-
-    parallel_execute 无论子任务成败都返回 status=success 的外壳（逐任务明细放在
-    data.tasks 里，见 parallel_executor），只看顶层 status 会让「全部子任务都撞上
-    数据库锁、模型原样重发同一批任务」永远不被计数。这里以 data.any_failed 判失败，
-    错误指纹取各失败子任务（类型 + 错误）排序后的拼接，与参数无关的顺序不影响比较。
-
-    只有 status=failed 的子任务算失败：partial（edit_file 部分生效）虽然也让
-    any_failed=True，但与直接调用 edit_file 返回 partial 一样不计数。
-    """
-    data = payload.get("data")
-    if not isinstance(data, dict) or data.get("any_failed") is not True:
-        return None
-    task_errors = sorted(
-        f"{task.get('type') or 'task'}: {task.get('error') or '未知错误'}"
-        for task in data.get("tasks") or []
-        if isinstance(task, dict) and task.get("status") == "failed"
-    )
-    failed = data.get("failed")
-    if not failed and not task_errors:
-        return None
-    total = data.get("total_tasks")
-    summary = f"并行子任务失败 {failed}/{total}"
-    return {
-        "status": "error",
-        "error_type": "parallel_tasks_failed",
-        "error": f"{summary}：{'；'.join(task_errors)}" if task_errors else summary,
-    }
-
-
 def _parse_error_payload(output_text: str, tool_name: str = "") -> dict[str, Any] | None:
     """工具输出是否是失败结果；是则返回解析后的 payload。
 
-    项目工具统一以 {"status": "error", "error": ...} 报错（mcp_tools、tool_error_text）；其余 status（success/handoff/ignored…）都不算失败。
-    唯一例外是 parallel_execute：子任务失败藏在 success 外壳里（见
-    _parallel_failure_payload）。
+    项目工具统一以 {"status": "error", "error": ...} 报错（mcp_tools、tool_error_text）；其余 status 都不算失败。
     """
+    del tool_name
     if not output_text:
         return None
     try:
@@ -212,8 +168,6 @@ def _parse_error_payload(output_text: str, tool_name: str = "") -> dict[str, Any
         return None
     if payload.get("status") == "error":
         return payload
-    if tool_name == "parallel_execute" and payload.get("status") == "success":
-        return _parallel_failure_payload(payload)
     return None
 
 
@@ -419,11 +373,8 @@ def _with_recovery_hint(output_text: str, error_type: str, count: int, threshold
 
 
 __all__ = [
-    "CLARIFY_FIRST_ERROR_TYPE",
     "MAX_IDENTICAL_TOOL_FAILURES",
     "MAX_TOOL_FAILURES_PER_REQUEST",
-    "READ_ONLY_REQUEST_ERROR_TYPE",
-    "ROLE_NOT_PERMITTED_ERROR_TYPE",
     "TRIP_REASON_IDENTICAL",
     "TRIP_REASON_RECOVERY",
     "TRIP_REASON_TOOL_NOT_FOUND",

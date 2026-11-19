@@ -51,7 +51,7 @@ import {
 } from "../lib/editorDraftRecovery";
 import { notifyEditorContentSaved, setOpenEditorFlush } from "../lib/editorSaveTracker";
 import { rebaseLocalEdits } from "../lib/rebaseLocalEdits";
-import { applyPendingEditsToDiffs, buildParagraphReviewData } from "../lib/diffReview";
+import { applyPendingEditsToDiffs, computeParagraphReviewDiffs } from "../lib/diffReview";
 import type { DiffReviewState } from "../types";
 import { FILE_REMOVED_EVENT, clearFileRemoved, isFileRemoved, notifyFileRemoved, setUnprotectedDeletedDraft, type FileRemovedDetail } from "../lib/fileRemovalEvents";
 import { clearLastOpenedFile } from "../lib/lastOpenedFile";
@@ -621,7 +621,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const undecided = review.pendingEdits.some(
       (edit) => edit.status === 'rejected' && conflict.undecidedConflictIds.has(edit.id),
     );
-    const { diffs } = buildParagraphReviewData(review.originalContent, review.modifiedContent);
+    const diffs = computeParagraphReviewDiffs(review.originalContent, review.modifiedContent);
     return {
       title: editTitleRef.current,
       content: applyPendingEditsToDiffs(diffs, review.pendingEdits),
@@ -1130,11 +1130,9 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setDraftRecovery(null);
   }, [draftRecovery, currentUserId, currentProjectId]);
 
-  // 只有「去AI味」进入的审阅才允许在全部拒绝时跳过写库。另外两条审阅入口里
-  // originalContent 并不等于服务端/编辑器当前持有的正文：Agent 的 edit_file 已经把
-  // AI 文本落库，全部拒绝必须把原文 PUT 回去；保存冲突审阅的 originalContent 是服务端
-  // 正文、编辑器里还是本地正文，必须 setEditContent 并带新令牌写回。这里按审阅的
-  // 三元组记下去AI味审阅的来源，完成审阅时逐项比对。
+  // 只有「去AI味」进入的审阅才允许在全部拒绝时跳过写库。保存冲突审阅的
+  // originalContent 是本地草稿、服务端持有另一份正文，完成审阅必须 setEditContent
+  // 并带新令牌写回。这里按审阅的三元组记下去AI味审阅的来源，完成审阅时逐项比对。
   const naturalPolishReviewRef = useRef<{
     fileId: string;
     /** Saved server body the candidate's author text was based on. */
@@ -1332,7 +1330,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
     // 完成审阅后编辑器会被标记为已保存，所以标题必须随这次写回一起保存。
     const reviewedTitle = editTitleRef.current;
     const titleChanged = reviewedTitle !== file.title;
-    const savedContent = file.content ?? "";
 
     // Update the file with the final content
     try {
@@ -1414,31 +1411,18 @@ const EditorComponent: React.FC<EditorProps> = () => {
           updated_at:
             typeof serverUpdatedAt === "string" ? serverUpdatedAt : prev.updated_at,
         });
-        if (currentFileRef.current) currentFileRef.current = conflictFile(currentFileRef.current);
+        const opened = currentFileRef.current;
+        if (!opened) return;
+        const nextServerFile = conflictFile(opened);
+        currentFileRef.current = nextServerFile;
         setFile((prev) => (prev ? conflictFile(prev) : null));
         // The reviewed text was built on this review's server copy; replay
         // only what the review changed on top of the newer one.
         const reviewBase = conflictReview ? conflictReview.serverContent : diffReviewState.originalContent;
         const outcome = openConflictReview(file.id, reviewBase, serverContent, finalContent);
         if (outcome === "server") {
-          // The newer copy holds every reviewed change. It replaces the editor only when the
-          // editor shows nothing beyond this review; other unsaved author text is compared.
-          const editorShowsReview =
-            editContent === finalContent ||
-            editContent === diffReviewState.originalContent ||
-            editContent === diffReviewState.modifiedContent;
-          const authorOutcome = editorShowsReview
-            ? "server"
-            : openConflictReview(file.id, savedContent, serverContent, editContent);
-          if (authorOutcome === "server") {
-            exitDiffReview();
-            setEditContent(serverContent);
-          } else if (authorOutcome === "local") {
-            exitDiffReview();
-            if (currentFileRef.current) keepLocalOnServerCopy(currentFileRef.current, reviewedTitle);
-          } else {
-            toast.error(t('editor:aiEditedWhileDirty'));
-          }
+          exitDiffReview();
+          adoptServerCopy(nextServerFile, reviewedTitle);
           return;
         }
         if (outcome === "local") {
@@ -1466,14 +1450,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
     file?.id,
     file?.project_id,
     file?.updated_at,
-    file?.content,
     file?.title,
-    editContent,
     selectedItem,
     setSelectedItem,
     applyDiffReviewChanges,
+    adoptServerCopy,
     openConflictReview,
-    keepLocalOnServerCopy,
     exitDiffReview,
     triggerFileTreeRefresh,
     t,

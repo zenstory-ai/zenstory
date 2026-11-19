@@ -85,7 +85,6 @@ class MessageManager:
         assistant_status_cards: list[dict[str, Any]] | None = None,
         steering_messages: list[str] | None = None,
         assistant_display_events: list[dict[str, Any]] | None = None,
-        assistant_routing: dict[str, Any] | None = None,
         user_created_at: datetime | None = None,
         assistant_extra_metadata: dict[str, Any] | None = None,
     ) -> str | None:
@@ -106,9 +105,6 @@ class MessageManager:
                 their own user-role turns so they survive into later requests
             assistant_display_events: Ordered renderer timeline for the assistant
                 row; omitted for legacy callers that do not provide one
-            assistant_routing: This turn's routing (initial/last agent, workflow,
-                read_only, write_content, scope); read back by the next turn's
-                resume / clarification-reply routing
 
         Returns:
             Persisted assistant message ID when history save succeeds
@@ -126,7 +122,6 @@ class MessageManager:
                 assistant_status_cards,
                 steering_messages,
                 assistant_display_events,
-                assistant_routing,
                 user_created_at=user_created_at,
                 assistant_extra_metadata=assistant_extra_metadata,
             )
@@ -142,7 +137,6 @@ class MessageManager:
             assistant_status_cards,
             steering_messages,
             assistant_display_events,
-            assistant_routing,
             user_created_at=user_created_at,
             assistant_extra_metadata=assistant_extra_metadata,
         )
@@ -159,7 +153,6 @@ class MessageManager:
         assistant_status_cards: list[dict[str, Any]] | None = None,
         steering_messages: list[str] | None = None,
         assistant_display_events: list[dict[str, Any]] | None = None,
-        assistant_routing: dict[str, Any] | None = None,
         user_created_at: datetime | None = None,
         assistant_extra_metadata: dict[str, Any] | None = None,
     ) -> str | None:
@@ -177,7 +170,6 @@ class MessageManager:
                 assistant_status_cards,
                 steering_messages,
                 assistant_display_events,
-                assistant_routing,
                 user_created_at=user_created_at,
                 assistant_extra_metadata=assistant_extra_metadata,
             )
@@ -195,7 +187,6 @@ class MessageManager:
         assistant_status_cards: list[dict[str, Any]] | None = None,
         steering_messages: list[str] | None = None,
         assistant_display_events: list[dict[str, Any]] | None = None,
-        assistant_routing: dict[str, Any] | None = None,
         persist_empty_assistant: bool = False,
         user_created_at: datetime | None = None,
         assistant_extra_metadata: dict[str, Any] | None = None,
@@ -287,7 +278,6 @@ class MessageManager:
                 usage=assistant_usage,
                 status_cards=assistant_status_cards,
                 display_events=assistant_display_events,
-                routing=assistant_routing,
             )
 
             # 本轮没有任何 assistant 产出时不写空行：这条消息前端永远渲染不出来，
@@ -402,7 +392,6 @@ class MessageManager:
         usage: dict[str, Any] | None = None,
         status_cards: list[dict[str, Any]] | None = None,
         display_events: list[dict[str, Any]] | None = None,
-        routing: dict[str, Any] | None = None,
     ) -> str | None:
         """Serialize assistant metadata payload to JSON."""
         payload: dict[str, Any] = {}
@@ -414,8 +403,6 @@ class MessageManager:
             payload["status_cards"] = status_cards
         if display_events and isinstance(display_events, list):
             payload["display_events"] = display_events
-        if routing and isinstance(routing, dict):
-            payload["routing"] = routing
 
         if not payload:
             return None
@@ -547,14 +534,13 @@ class MessageManager:
             return [
                 "",
                 "## 本轮回复语言",
-                "本轮作者用中文写消息：这一轮给作者的所有回复都用中文，每个角色都一样，包括审稿后的总结。",
+                "本轮作者用中文写消息：这一轮给作者的所有回复都用中文。",
             ]
         if detected == "en":
             return [
                 "",
                 "## Reply language for this turn",
-                "The author wrote this turn's message in English: every reply to the author this turn is in English, "
-                "for every role, including the review summary.",
+                "The author wrote this turn's message in English: reply to the author in English this turn.",
             ]
         return []
 

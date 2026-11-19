@@ -13,8 +13,6 @@ author-delta reporting are handled by the edit executor and ``author_changes``.
 
 from __future__ import annotations
 
-import threading
-from dataclasses import dataclass, field
 from typing import Any
 
 AUTHOR_EDIT_PROTECTED_ERROR = "author_edit_protected"
@@ -228,40 +226,3 @@ def protected_user_message(title: str | None, *, action: str = "delete") -> str:
     if action == "rewrite":
         return f"{label}有你手动保存的内容，已保留原样；局部调整可在编辑器中修改。"
     return f"{label}有你手动保存的内容，已保留原样；删除请使用文件菜单。"
-
-
-@dataclass
-class AuthorEditRefusals:
-    """Protected files refused during this request (shared across tool worker threads)."""
-
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
-    _file_ids: list[str] = field(default_factory=list)
-
-    def add(self, file_id: str) -> None:
-        if not file_id:
-            return
-        with self._lock:
-            if file_id not in self._file_ids:
-                self._file_ids.append(file_id)
-
-    def file_ids(self) -> list[str]:
-        with self._lock:
-            return list(self._file_ids)
-
-
-def referenced_file_ids_from_metadata(metadata: dict[str, Any] | None) -> list[str]:
-    """Collect attached/quoted file IDs for context only, never destructive authority."""
-    if not isinstance(metadata, dict):
-        return []
-    ids: list[str] = []
-    attached = metadata.get("attached_file_ids")
-    if isinstance(attached, list):
-        ids.extend(str(item) for item in attached if isinstance(item, str) and item)
-    quotes = metadata.get("text_quotes")
-    if isinstance(quotes, list):
-        for quote in quotes:
-            if isinstance(quote, dict):
-                quote_file_id = quote.get("fileId") or quote.get("file_id")
-                if isinstance(quote_file_id, str) and quote_file_id:
-                    ids.append(quote_file_id)
-    return ids

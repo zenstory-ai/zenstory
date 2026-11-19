@@ -27,6 +27,7 @@ from pydantic_core import PydanticCustomError
 from services.auth import get_current_active_user
 from sqlmodel import Session
 
+from agent.constants import should_offload_session_work
 from agent.core.account_run_limit import (
     AccountRunLimitExceeded,
     acquire_account_run_slot,
@@ -187,13 +188,6 @@ CLIENT_STOP_CONTRACT_HEADER = "X-Client-Stop-Contract"
 # 这里保留同名再导出，既有引用与静态自检用例无需改动。
 
 
-def _should_offload_session_work(session: Session) -> bool:
-    """Only offload when running against PostgreSQL production-style sessions."""
-    bind = session.get_bind() if hasattr(session, "get_bind") else None
-    dialect_name = getattr(getattr(bind, "dialect", None), "name", "")
-    return dialect_name == "postgresql"
-
-
 def _check_ai_conversation_quota_sync(user_id: str) -> tuple[bool, int, int]:
     """Check quota using a fresh sync DB session."""
     with create_session() as quota_session:
@@ -235,7 +229,7 @@ def _record_activation(session: Session, user_id: str, project_id: str, event_na
     不能打断流的收尾（计费日志、请求上下文复位）。
     """
     try:
-        if _should_offload_session_work(session):
+        if should_offload_session_work(session):
             task = asyncio.create_task(
                 asyncio.to_thread(_record_activation_sync, user_id, project_id, event_name, entry)
             )
@@ -286,7 +280,7 @@ async def _refund_quota(
 ) -> bool:
     """退还一次已预扣的 AI 对话额度；失败只记日志，返回是否真的退了。"""
     try:
-        if _should_offload_session_work(session):
+        if should_offload_session_work(session):
             return await asyncio.to_thread(
                 _release_ai_conversation_sync,
                 user_id,
@@ -566,7 +560,7 @@ async def stream_request(
             ) from exc
 
     # Check AI conversation quota (pre-flight check for better UX).
-    if _should_offload_session_work(session):
+    if should_offload_session_work(session):
         allowed, used, limit = await asyncio.to_thread(
             _check_ai_conversation_quota_sync,
             current_user.id,
@@ -605,7 +599,7 @@ async def stream_request(
         # A run id names one request, so it is also this charge's reservation id.
         client_ip = get_client_ip(request)
         try:
-            if _should_offload_session_work(session):
+            if should_offload_session_work(session):
                 charged_period_start = await asyncio.to_thread(
                     _reserve_ai_conversation_sync,
                     current_user.id,
@@ -632,7 +626,7 @@ async def stream_request(
         # An observation failure must not turn an already reserved request into an
         # unrefunded pre-stream failure; the existing stream settlement still owns it.
         try:
-            if _should_offload_session_work(session):
+            if should_offload_session_work(session):
                 await asyncio.to_thread(_record_first_work_ai_sync, user_id, body.project_id)
             else:
                 from services.first_work_service import observe_first_work_ai_request
@@ -742,9 +736,6 @@ async def stream_request(
         completed_delivery: dict[str, Any] = {}
         known_incomplete = False
         source_done = False
-        # 最近一次选中的 agent 与已开始的 agent run 数：墙钟硬超时的暂停卡据此写 last_agent。
-        last_selected_agent: str | None = None
-        agent_runs_started = 0
         # 墙钟硬超时时本轮已经写进文件：按「未完成」收尾（暂停卡 + done，不是通用超时错误卡）。
         deadline_paused = False
         # 这一轮已经流出过墙钟暂停卡（图层 / runner 的时限收尾）：硬超时不再补第二张。
@@ -755,19 +746,13 @@ async def stream_request(
         deadline_pause_done: str | None = None
 
         def _observe_frame(frame: Any) -> None:
-            nonlocal source_done, last_selected_agent, agent_runs_started, wall_clock_card_seen
+            nonlocal source_done, wall_clock_card_seen
             if deadline_pause_done is not None and frame is deadline_pause_done:
                 return
             tracker.observe(frame)
             written_files.observe(frame)
             if isinstance(frame, str) and frame.startswith("event: done\n"):
                 source_done = True
-            elif isinstance(frame, str) and frame.startswith("event: agent_selected\n"):
-                _, selected = _parse_sse(frame)
-                agent_type = selected.get("agent_type") if isinstance(selected, dict) else None
-                if isinstance(agent_type, str) and agent_type:
-                    last_selected_agent = agent_type
-                    agent_runs_started += 1
             elif isinstance(frame, str) and frame.startswith("event: iteration_exhausted\n"):
                 _, card_data = _parse_sse(frame)
                 if isinstance(card_data, dict) and card_data.get("limit") == WALL_CLOCK_LIMIT:
@@ -827,7 +812,6 @@ async def stream_request(
                 # 正常收尾也带写入回执：作者对照它核对回复里说的「已修改」。
                 receipt = written_files.completion_receipt(
                     final_word_counts=run_outcome.saved_file_word_counts,
-                    any_write_succeeded=tracker.write_succeeded,
                 )
                 if not receipt:
                     return frame
@@ -861,10 +845,10 @@ async def stream_request(
                     english = lang == "en"
                     card = iteration_exhausted_event(
                         layer="collaboration",
-                        iterations_used=agent_runs_started,
+                        iterations_used=max(1, run_outcome.runs_started),
                         max_iterations=AGENT_COLLABORATION_MAX_ITERATIONS,
                         reason=DEADLINE_PAUSE_REASON_EN if english else DEADLINE_PAUSE_REASON,
-                        last_agent=last_selected_agent,
+                        last_agent=None,
                         limit=WALL_CLOCK_LIMIT,
                     )
                     deadline_pause_card = dict(card.data)
@@ -988,7 +972,7 @@ async def stream_request(
             return settlement
 
         async def _offload(fn: Any, *args: Any, **kwargs: Any) -> Any:
-            if _should_offload_session_work(session):
+            if should_offload_session_work(session):
                 return await asyncio.to_thread(fn, *args, **kwargs)
             return fn(*args, **kwargs)
 

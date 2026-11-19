@@ -16,14 +16,10 @@ import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   AgentContextItem,
-  ApplyAction,
   FileEditOutcome,
   FileType,
   IterationExhaustedFiles,
   IterationExhaustedLayer,
-  SSEHandoffData,
-  SSERoutingMetadata,
-  SSEWorkflowCompleteData,
   SSEWorkflowStoppedData,
   ToolCall,
 } from "../types";
@@ -34,19 +30,12 @@ import { findAncestorFolderIds } from "../lib/lastOpenedFile";
 import { isFileRemoved, notifyFileRemoved } from "../lib/fileRemovalEvents";
 import { stripThinkTags } from "../lib/utils";
 import { dispatchProjectStatusUpdated } from "../lib/projectStatusEvents";
-import { formatHandoffMessage } from "../lib/agentDisplayName";
 import type { MessageSegment, StreamCompletionMeta } from "./useAgentStream";
 import { HISTORY_COMPACTION_SKIPPED_STEP, HISTORY_COMPACTION_STEP } from "../lib/historyCompaction";
 
 /** Throttle delay for stream render updates in milliseconds */
 export const STREAM_UPDATE_THROTTLE_MS = 50;
 const FILE_TREE_REFRESH_DEBOUNCE_MS = 180;
-/**
- * Tools that can rewrite a file's body without emitting file_edit_* events
- * (parallel_execute runs edit_file inside sub-tasks). After they succeed the
- * open file must be re-read explicitly.
- */
-const AI_WRITES_WITHOUT_EDIT_EVENTS = new Set(["parallel_execute"]);
 const AI_MEMORY_STATUS_FIELDS = new Set([
   "summary",
   "current_phase",
@@ -86,8 +75,6 @@ export interface StreamRenderItem {
     | "content"
     | "agent_selected"
     | "iteration_exhausted"
-    | "router_thinking"
-    | "router_decided"
     | "workflow_stopped"
     | "workflow_complete"
     | "history_compaction";
@@ -129,14 +116,6 @@ export interface StreamRenderItem {
   lastAgent?: string;
   /** What ended a paused run: "wall_clock" means it stopped near the time limit and may already be done */
   limit?: string;
-  /** First agent selected by the router */
-  initialAgent?: string;
-  /** Planned workflow execution path */
-  workflowPlan?: string;
-  /** List of agents in the planned workflow */
-  workflowAgents?: string[];
-  /** Structured router metadata */
-  routingMetadata?: SSERoutingMetadata;
   /** Message from workflow status events */
   message?: string;
   /** Clarification question (optional) */
@@ -145,15 +124,6 @@ export interface StreamRenderItem {
   context?: string;
   /** Clarification details list (optional) */
   details?: string[];
-  /** Confidence score for router decisions (0-1) */
-  confidence?: number;
-  /** Structured evaluation payload from workflow stop/complete events */
-  evaluation?: {
-    complete_score: number;
-    clarification_score: number;
-    consistency_score: number;
-    decision_reason: string;
-  };
   /** Timestamp when this item was created */
   timestamp: Date;
 }
@@ -234,17 +204,8 @@ export interface UseChatStreamingOptions {
   onSegmentEnd?: (segmentId: string) => void;
 
   // ========================================
-  // Multi-agent workflow callbacks
+  // Workflow status callbacks
   // ========================================
-
-  /** Called when an agent is selected by the router */
-  onAgentSelected?: (
-    agentType: string,
-    agentName: string,
-    iteration?: number,
-    maxIterations?: number,
-    remaining?: number
-  ) => void;
 
   /** Called when iteration limit is exhausted */
   onIterationExhausted?: (
@@ -257,25 +218,8 @@ export interface UseChatStreamingOptions {
     files?: IterationExhaustedFiles
   ) => void;
 
-  /** Called when router starts thinking */
-  onRouterThinking?: (message: string) => void;
-
-  /** Called when router makes a decision */
-  onRouterDecided?: (
-    initialAgent: string,
-    workflowPlan: string,
-    workflowAgents: string[],
-    routingMetadata?: SSERoutingMetadata
-  ) => void;
-
-  /** Called when workflow hands off to another agent */
-  onHandoff?: (data: SSEHandoffData) => void;
-
-  /** Called when workflow stops for clarification */
+  /** Called when workflow stops */
   onWorkflowStopped?: (data: SSEWorkflowStoppedData) => void;
-
-  /** Called when workflow completes successfully */
-  onWorkflowComplete?: (data: SSEWorkflowCompleteData) => void;
 
   // ========================================
   // Tool result callbacks
@@ -312,20 +256,14 @@ export interface UseChatStreamingOptions {
 
   /** Called when a single edit is applied */
   onFileEditApplied?: (
-    fileId: string,
     editIndex: number,
     op: string,
-    oldPreview?: string,
-    newPreview?: string,
-    success?: boolean,
-    error?: string
   ) => void;
 
   /** Called when file editing ends */
   onFileEditEnd?: (
     fileId: string,
     editsApplied: number,
-    newLength: number,
     newContent?: string,
     originalContent?: string,
     fileType?: string,
@@ -340,28 +278,8 @@ export interface UseChatStreamingOptions {
   /** Called when a skill is matched */
   onSkillMatched?: (skillId: string, skillName: string, matchedTrigger: string) => void;
 
-  /** Called when multiple skills are matched (multi-skill activation) */
-  onSkillsMatched?: (skills: Array<{ id: string; name: string; trigger: string; confidence: number }>) => void;
-
   /** Called when session starts */
   onSessionStarted?: (sessionId: string) => void;
-
-  /** Called when parallel execution starts */
-  onParallelStart?: (
-    executionId: string,
-    taskCount: number,
-    descriptions: string[],
-    droppedCount?: number,
-  ) => void;
-
-  /** Called when a parallel task starts */
-  onParallelTaskStart?: (executionId: string, taskId: string, taskType: string, description: string) => void;
-
-  /** Called when a parallel task completes */
-  onParallelTaskEnd?: (executionId: string, taskId: string, status: string, result?: unknown, error?: string) => void;
-
-  /** Called when all parallel tasks complete */
-  onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number, partial?: number) => void;
 
   /** Called when steering message is received */
   onSteeringReceived?: (messageId: string, preview: string) => void;
@@ -376,7 +294,6 @@ export interface UseChatStreamingOptions {
    */
   onComplete?: (
     segments: MessageSegment[],
-    applyAction: ApplyAction | null,
     completionMeta?: StreamCompletionMeta,
   ) => void | Promise<void>;
 
@@ -409,8 +326,6 @@ export interface UseChatStreamingDependencies {
   finishFileStreaming: (fileId: string) => void;
   /** Function to start file streaming for a file */
   startFileStreaming: (fileId: string) => void;
-  /** Current streaming file ID (snapshot, may be stale in long-lived callbacks) */
-  streamingFileId?: string | null;
   /** Returns the latest streaming file ID at callback execution time */
   getCurrentStreamingFileId?: () => string | null;
   /** Active UI project ID; scopes file checks during the stream */
@@ -537,13 +452,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
    */
   const throttleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFlushTimeRef = useRef(0);
-
-  /**
-   * Maps a parallel_execute sub-task id to its description, captured on
-   * task-start so task-end (which omits the description) can render a
-   * meaningful per-task completion line.
-   */
-  const parallelTaskDescRef = useRef<Map<string, string>>(new Map());
 
   /**
    * Throttled flush function to update state from ref.
@@ -705,7 +613,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
         appendFileContent,
         finishFileStreaming,
         startFileStreaming,
-        streamingFileId,
         getCurrentStreamingFileId,
         activeProjectId,
         onProjectRenamed,
@@ -985,33 +892,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
         },
 
         // ========================================
-        // Multi-agent workflow callbacks
+        // Workflow status callbacks
         // ========================================
-
-        /**
-         * Called when an agent is selected by the router
-         */
-        onAgentSelected: (
-          agentType: string,
-          agentName: string,
-          iteration?: number,
-          maxIterations?: number,
-          remaining?: number
-        ) => {
-          updateStreamItems((prev) => [
-            ...prev,
-            {
-              type: "agent_selected",
-              id: generateUniqueId("agent-selected"),
-              agentType,
-              agentName,
-              iteration,
-              maxIterations,
-              remaining,
-              timestamp: new Date(),
-            },
-          ]);
-        },
 
         /**
          * Called when iteration limit is exhausted
@@ -1043,64 +925,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
         },
 
         /**
-         * Called when router starts thinking
-         */
-        onRouterThinking: (message: string) => {
-          updateStreamItems((prev) => [
-            ...prev,
-            {
-              type: "router_thinking",
-              id: generateUniqueId("router-thinking"),
-              content: message,
-              timestamp: new Date(),
-            },
-          ]);
-        },
-
-        /**
-         * Called when router makes a decision
-         */
-        onRouterDecided: (
-          initialAgent: string,
-          workflowPlan: string,
-          workflowAgents: string[],
-          routingMetadata?: SSERoutingMetadata
-        ) => {
-          // The decision ends 「正在理解你的要求…」: a pulsing chip left above the plan reads as still
-          // routing for the whole round (a saved reply drops it too, see dropProgressOnlyItems).
-          updateStreamItems((prev) => [
-            ...prev.filter((item) => item.type !== "router_thinking"),
-            {
-              type: "router_decided",
-              id: generateUniqueId("router-decided"),
-              initialAgent,
-              workflowPlan,
-              workflowAgents,
-              routingMetadata,
-              timestamp: new Date(),
-            },
-          ]);
-        },
-
-        /**
-         * Called when workflow handoff happens between agents
-         */
-        onHandoff: (data: SSEHandoffData) => {
-          const content = formatHandoffMessage(data, t);
-          if (!content) return;
-          updateStreamItems((prev) => [
-            ...prev,
-            {
-              type: "thinking_status",
-              id: generateUniqueId("handoff"),
-              content,
-              timestamp: new Date(),
-            },
-          ]);
-        },
-
-        /**
-         * Called when workflow stops for clarification
+         * Called when workflow stops
          */
         onWorkflowStopped: (data: SSEWorkflowStoppedData) => {
           updateStreamItems((prev) => [
@@ -1114,27 +939,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
               question: data.question,
               context: data.context,
               details: data.details,
-              confidence: data.confidence,
-              evaluation: data.evaluation,
-              timestamp: new Date(),
-            },
-          ]);
-        },
-
-        /**
-         * Called when workflow completes successfully
-         */
-        onWorkflowComplete: (data: SSEWorkflowCompleteData) => {
-          updateStreamItems((prev) => [
-            ...prev,
-            {
-              type: "workflow_complete",
-              id: generateUniqueId("workflow-complete"),
-              reason: data.reason,
-              agentType: data.agent_type,
-              message: data.message,
-              confidence: data.confidence,
-              evaluation: data.evaluation,
               timestamp: new Date(),
             },
           ]);
@@ -1157,14 +961,10 @@ export function useChatStreaming(): UseChatStreamingReturn {
             status === "success" &&
             [
               "create_file",
-              "update_file",
               "delete_file",
               "edit_file",
               "rename_file",
               "write_chapter",
-              // parallel_execute may create/edit/delete files across its
-              // sub-tasks, so its completion must also refresh the tree.
-              "parallel_execute",
             ].includes(toolName)
           ) {
             // Coalesce multiple tool/file events into one refresh.
@@ -1172,26 +972,17 @@ export function useChatStreaming(): UseChatStreamingReturn {
             roundWroteFilesRef.current = true;
           }
 
-          if (status === "success") {
+          if (status === "success" && toolName === "delete_file") {
+            roundMayDeleteFilesRef.current = true;
             const payload = (result?.data ?? result) as Record<string, unknown> | undefined;
-            const tasks = payload && Array.isArray(payload.tasks) ? payload.tasks as Array<Record<string, unknown>> : [];
-            const deletes = toolName === "delete_file" ? [payload] : toolName === "parallel_execute"
-              ? tasks.filter(task => task.type === "delete_file" && (task.status === "completed" || task.status === "success"))
-                .map(task => (task.result as Record<string, unknown> | undefined)?.data ?? task.result)
-              : [];
-            if (deletes.length > 0) {
-              roundMayDeleteFilesRef.current = true;
-              for (const deletion of deletes) {
-                if (!deletion || typeof deletion !== "object" || !activeProjectId) continue;
-                const data = deletion as Record<string, unknown>;
-                const id = data.id ?? data.file_id;
-                if (typeof id === "string") {
-                  notifyFileRemoved(activeProjectId, id);
-                  if (getCurrentSelectedItem?.()?.id === id) setSelectedItem(null);
-                }
+            if (payload && typeof payload === "object" && activeProjectId) {
+              const id = payload.id ?? payload.file_id;
+              if (typeof id === "string") {
+                notifyFileRemoved(activeProjectId, id);
+                if (getCurrentSelectedItem?.()?.id === id) setSelectedItem(null);
               }
-              refreshOpenFileFromServer();
             }
+            refreshOpenFileFromServer();
           }
 
           // 改名不发 file_edit_* 事件：打开着的正是这份文件时重读一次，标题跟上服务端
@@ -1201,13 +992,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
             if (typeof renamed?.id === "string" && getCurrentSelectedItem?.()?.id === renamed.id) {
               refreshOpenFileFromServer();
             }
-          }
-
-          // parallel_execute 改了正文却不发 file_edit_* 事件（子任务里可能有
-          // edit_file）。不在这里刷新的话，作者打开着的那一章会一直停在
-          // 本轮更早的版本上，接着打字就是在旧稿上改。
-          if (status === "success" && AI_WRITES_WITHOUT_EDIT_EVENTS.has(toolName)) {
-            refreshOpenFileFromServer();
           }
 
           if (status === "success" && toolName === "update_project") {
@@ -1313,13 +1097,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
          * Called when a single edit is applied
          */
         onFileEditApplied: (
-          _fileId: string,
           editIndex: number,
           op: string,
-          _oldPreview?: string,
-          _newPreview?: string,
-          _success?: boolean,
-          _error?: string
         ) => {
           setEditProgress((prev) =>
             prev
@@ -1338,7 +1117,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
         onFileEditEnd: (
           fileId: string,
           editsApplied: number,
-          _newLength: number,
           newContent?: string,
           originalContent?: string,
           fileType?: string,
@@ -1430,117 +1208,9 @@ export function useChatStreaming(): UseChatStreamingReturn {
           });
         },
 
-        /**
-         * Called when multiple skills are matched (multi-skill activation)
-         */
-        onSkillsMatched: (
-          skills: Array<{
-            id: string;
-            name: string;
-            trigger: string;
-            confidence: number;
-          }>
-        ) => {
-          setMatchedSkills(
-            skills.map((s) => ({ name: s.name, trigger: s.trigger }))
-          );
-        },
-
         onSessionStarted: (_sessionId: string) => {
           // No-op: this event is too noisy in the timeline.
           // Session state is tracked internally via useAgentStream.
-        },
-
-        onParallelStart: (
-          _executionId: string,
-          taskCount: number,
-          _descriptions: string[],
-          droppedCount?: number,
-        ) => {
-          // 后端单次并行有上限，超出的任务会被截断。只报"执行 N 个"会让用户
-          // 以为模型请求的任务全跑了，而实际上有几个根本没执行。
-          const dropped = droppedCount ?? 0;
-          const content =
-            dropped > 0
-              ? t('chat:workflow.parallelStartTruncated', {
-                  count: taskCount,
-                  dropped,
-                })
-              : t('chat:workflow.parallelStart', { count: taskCount });
-          updateStreamItems((prev) => [
-            ...prev,
-            {
-              type: "thinking_status",
-              id: generateUniqueId("parallel-start"),
-              content,
-              timestamp: new Date(),
-            },
-          ]);
-        },
-
-        onParallelTaskStart: (
-          _executionId: string,
-          taskId: string,
-          _taskType: string,
-          description: string
-        ) => {
-          // Remember the description so task-end can render a labeled line.
-          parallelTaskDescRef.current.set(taskId, description);
-        },
-
-        onParallelTaskEnd: (
-          _executionId: string,
-          taskId: string,
-          status: string,
-          _result?: unknown,
-          error?: string
-        ) => {
-          const description =
-            parallelTaskDescRef.current.get(taskId) || taskId;
-          parallelTaskDescRef.current.delete(taskId);
-          // Only "completed" claims success; servers before the partial status sent
-          // completed/failed only, and any status this client does not know stays neutral.
-          const content =
-            status === "failed"
-              ? t('chat:workflow.parallelTaskFailed', {
-                  description,
-                  error: error || '',
-                })
-              : status === "partial"
-                ? t('chat:workflow.parallelTaskPartial', { description })
-                : status === "completed"
-                  ? t('chat:workflow.parallelTaskCompleted', { description })
-                  : t('chat:workflow.parallelTaskEnded', { description });
-          updateStreamItems((prev) => [
-            ...prev,
-            {
-              type: "thinking_status",
-              id: generateUniqueId("parallel-task-end"),
-              content,
-              timestamp: new Date(),
-            },
-          ]);
-        },
-
-        onParallelEnd: (
-          _executionId: string,
-          total: number,
-          completed: number,
-          failed: number,
-          _durationMs: number,
-          partial?: number,
-        ) => {
-          updateStreamItems((prev) => [
-            ...prev,
-            {
-              type: "thinking_status",
-              id: generateUniqueId("parallel-end"),
-              content: partial
-                ? t('chat:workflow.parallelEndWithPartial', { completed, total, partial, failed })
-                : t('chat:workflow.parallelEnd', { completed, total, failed }),
-              timestamp: new Date(),
-            },
-          ]);
         },
 
         onSteeringReceived: (_messageId: string, preview: string) => {
@@ -1564,8 +1234,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
          * Handles cleanup and the final refresh of the open file.
          */
         onComplete: async (
-          segments: MessageSegment[],
-          _applyAction: ApplyAction | null,
+          _segments: MessageSegment[],
           completionMeta?: StreamCompletionMeta,
         ) => {
           setEditProgress(null);
@@ -1582,8 +1251,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           setAiEditingFileId?.(null);
 
           // Clear any remaining file streaming state
-          const latestStreamingFileId =
-            getCurrentStreamingFileId?.() ?? streamingFileId ?? null;
+          const latestStreamingFileId = getCurrentStreamingFileId?.() ?? null;
           if (latestStreamingFileId) {
             if (!fileContentEndByFileIdRef.current.has(latestStreamingFileId)) {
               logger.warn(
@@ -1610,8 +1278,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           setAiEditingFileId?.(null);
 
           // Clear any remaining file streaming state on error
-          const latestStreamingFileId =
-            getCurrentStreamingFileId?.() ?? streamingFileId ?? null;
+          const latestStreamingFileId = getCurrentStreamingFileId?.() ?? null;
           if (latestStreamingFileId) {
             if (!fileContentEndByFileIdRef.current.has(latestStreamingFileId)) {
               logger.warn(

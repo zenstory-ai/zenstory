@@ -40,7 +40,7 @@ function createMockStreamController() {
   }
 }
 
-type CompleteCall = [MessageSegment[], unknown, StreamCompletionMeta | undefined]
+type CompleteCall = [MessageSegment[], StreamCompletionMeta | undefined]
 
 describe('round3 前端终止路径', () => {
   beforeEach(() => {
@@ -85,8 +85,7 @@ describe('round3 前端终止路径', () => {
       expect(controller.mockAbortController.abort).toHaveBeenCalled()
       expect(onComplete).toHaveBeenCalledTimes(1)
 
-      const [segments, applyAction, meta] = onComplete.mock.calls[0] as CompleteCall
-      expect(applyAction).toBeNull()
+      const [segments, meta] = onComplete.mock.calls[0] as CompleteCall
       expect(meta?.partial).toBe(true)
       expect(meta?.sessionId).toBe('session-cancel-1')
 
@@ -199,7 +198,7 @@ describe('round3 前端终止路径', () => {
       expect(onError).toHaveBeenCalledWith('Stream closed unexpectedly', 'STREAM_CLOSED', true)
       expect(onComplete).toHaveBeenCalledTimes(1)
 
-      const [segments, , meta] = onComplete.mock.calls[0] as CompleteCall
+      const [segments, meta] = onComplete.mock.calls[0] as CompleteCall
       expect(meta?.partial).toBe(true)
       expect(
         segments

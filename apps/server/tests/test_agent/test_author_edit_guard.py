@@ -12,9 +12,7 @@ from agent.tools.author_edit_guard import (
     AUTHOR_EDIT_PROTECTED_ERROR,
     AuthorEditProtectedError,
     AuthorEditProtectionUnavailableError,
-    AuthorEditRefusals,
     enforce_author_content_protection,
-    referenced_file_ids_from_metadata,
 )
 from agent.tools.file_ops import FileToolExecutor
 from agent.tools.file_ops.edit import file_write_lock
@@ -27,22 +25,6 @@ from services.features.file_version_service import FileVersionService
 
 AI_CH3 = "老周在收摊。折叠桌一张张码上三轮车。老周回头看了他一眼。"
 AUTHOR_CH3 = "老秦在收摊。折叠桌一张张码上三轮车。老秦回头看了他一眼。"
-
-
-@pytest.mark.unit
-def test_reference_metadata_is_context_only():
-    assert referenced_file_ids_from_metadata(
-        {"attached_file_ids": ["a"], "text_quotes": [{"fileId": "b", "text": "x"}], "current_file_id": "c"}
-    ) == ["a", "b"]
-
-
-@pytest.mark.unit
-def test_refusals_are_unique_and_thread_safe_container():
-    refusals = AuthorEditRefusals()
-    refusals.add("a")
-    refusals.add("a")
-    refusals.add("b")
-    assert refusals.file_ids() == ["a", "b"]
 
 
 @pytest.fixture
@@ -88,7 +70,6 @@ async def _run(tool, session, user, project, args, *, message, **context):
         create_session_func=lambda: Session(engine),
         author_message=message,
         author_steering=[],
-        author_edit_refusals=AuthorEditRefusals(),
         **context,
     )
     try:

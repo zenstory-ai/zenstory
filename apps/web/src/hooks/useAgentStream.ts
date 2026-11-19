@@ -25,28 +25,20 @@ import type {
   AgentContextItem,
   AgentRequest,
   AgentStreamState,
-  Conflict,
-  ConflictType,
-  ApplyAction,
   FileEditOutcome,
   IterationExhaustedFiles,
   IterationExhaustedLayer,
-  SSEHandoffData,
-  SSERoutingMetadata,
-  SSEWorkflowCompleteData,
   SSEWorkflowStoppedData,
   ToolCall,
 } from "../types";
 
-/** A segment of assistant response (thinking, text content, or tool calls) */
+/** A segment of assistant response (text content or tool calls) */
 export interface MessageSegment {
   id: string;
-  type: "thinking" | "content" | "tool_calls";
+  type: "content" | "tool_calls";
   content?: string;
   toolCalls?: ToolCall[];
   isStreaming?: boolean;
-  isComplete?: boolean;
-  timestamp?: Date;
 }
 
 export interface StreamCompletionMeta {
@@ -108,12 +100,9 @@ export interface UseAgentStreamOptions {
    * so `chunk` can contain multiple SSE chunks concatenated together.
    */
   onContent?: (chunk: string, fullContent: string) => void;
-  /** Called when a conflict is detected */
-  onConflict?: (conflict: Conflict) => void;
   /** Called when streaming completes successfully */
   onComplete?: (
     segments: MessageSegment[],
-    applyAction: ApplyAction | null,
     completionMeta?: StreamCompletionMeta,
   ) => void;
   /** Called when an error occurs */
@@ -143,19 +132,13 @@ export interface UseAgentStreamOptions {
   ) => void;
   /** Called when a single edit is applied */
   onFileEditApplied?: (
-    fileId: string,
     editIndex: number,
     op: string,
-    oldPreview?: string,
-    newPreview?: string,
-    success?: boolean,
-    error?: string,
   ) => void;
   /** Called when file editing ends */
   onFileEditEnd?: (
     fileId: string,
     editsApplied: number,
-    newLength: number,
     newContent?: string,
     originalContent?: string,
     fileType?: string,
@@ -164,16 +147,6 @@ export interface UseAgentStreamOptions {
   ) => void;
   /** Called when a skill is matched */
   onSkillMatched?: (skillId: string, skillName: string, matchedTrigger: string) => void;
-  /** Called when multiple skills are matched (multi-skill activation) */
-  onSkillsMatched?: (skills: Array<{ id: string; name: string; trigger: string; confidence: number }>) => void;
-  /** Called when an agent is selected by the router */
-  onAgentSelected?: (
-    agentType: string,
-    agentName: string,
-    iteration?: number,
-    maxIterations?: number,
-    remaining?: number
-  ) => void;
   /** Called when iteration limit is exhausted */
   onIterationExhausted?: (
     layer: IterationExhaustedLayer,
@@ -184,36 +157,10 @@ export interface UseAgentStreamOptions {
     limit?: string,
     files?: IterationExhaustedFiles
   ) => void;
-  /** Called when router starts thinking */
-  onRouterThinking?: (message: string) => void;
-  /** Called when router makes a decision */
-  onRouterDecided?: (
-    initialAgent: string,
-    workflowPlan: string,
-    workflowAgents: string[],
-    routingMetadata?: SSERoutingMetadata
-  ) => void;
-  /** Called when workflow hands off to another agent */
-  onHandoff?: (data: SSEHandoffData) => void;
-  /** Called when workflow stops for clarification */
+  /** Called when workflow stops */
   onWorkflowStopped?: (data: SSEWorkflowStoppedData) => void;
-  /** Called when workflow completes successfully */
-  onWorkflowComplete?: (data: SSEWorkflowCompleteData) => void;
   /** Called when session starts */
   onSessionStarted?: (sessionId: string) => void;
-  /** Called when parallel execution starts */
-  onParallelStart?: (
-    executionId: string,
-    taskCount: number,
-    descriptions: string[],
-    droppedCount?: number,
-  ) => void;
-  /** Called when a parallel task starts */
-  onParallelTaskStart?: (executionId: string, taskId: string, taskType: string, description: string) => void;
-  /** Called when a parallel task completes */
-  onParallelTaskEnd?: (executionId: string, taskId: string, status: string, result?: unknown, error?: string) => void;
-  /** Called when all parallel tasks complete */
-  onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number, partial?: number) => void;
   /** Called when steering message is received */
   onSteeringReceived?: (messageId: string, preview: string) => void;
   /** Called when earlier conversation was summarized before this round */
@@ -250,8 +197,6 @@ export interface UseAgentStreamReturn {
   isStreaming: boolean;
   /** Whether waiting for thinking step */
   isThinking: boolean;
-  /** Detected conflicts */
-  conflicts: Conflict[];
   /** Error message if any */
   error: string | null;
   /** Backend error code if provided by SSE error event */
@@ -273,7 +218,6 @@ const initialState: AgentStreamState = {
   isStreaming: false,
   isThinking: false,
   content: "",
-  conflicts: [],
   error: null,
   errorCode: null,
   retryable: false,
@@ -289,10 +233,7 @@ export function useAgentStream(
   options: UseAgentStreamOptions = {},
 ): UseAgentStreamReturn {
   const [state, setState] = useState<AgentStreamState>(initialState);
-  const [error, setError] = useState<string | null>(null);
-  const [errorCode, setErrorCode] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ref to track current segments value for onComplete callback (avoids stale closure)
   const segmentsRef = useRef<MessageSegment[]>([]);
@@ -360,7 +301,6 @@ export function useAgentStream(
     onSegmentUpdateToolCalls,
     onSegmentEnd,
     onContent,
-    onConflict,
     onComplete,
     onError,
     onToolCall,
@@ -372,19 +312,9 @@ export function useAgentStream(
     onFileEditApplied,
     onFileEditEnd,
     onSkillMatched,
-    onSkillsMatched,
-    onAgentSelected,
     onIterationExhausted,
-    onRouterThinking,
-    onRouterDecided,
-    onHandoff,
     onWorkflowStopped,
-    onWorkflowComplete,
     onSessionStarted,
-    onParallelStart,
-    onParallelTaskStart,
-    onParallelTaskEnd,
-    onParallelEnd,
     onSteeringReceived,
     onHistoryCompacted,
     onQuotaRefunded,
@@ -421,23 +351,15 @@ export function useAgentStream(
         stopFallbackTimerRef.current = null;
       }
       clearFlushTimer();
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current);
-        errorTimeoutRef.current = null;
-      }
     };
   }, [clearFlushTimer, settleStreamClosed]);
 
-  /** 清除错误消息和 timeout */
   const clearError = useCallback(() => {
-    // 清除之前的 timeout
-    if (errorTimeoutRef.current) {
-      clearTimeout(errorTimeoutRef.current);
-      errorTimeoutRef.current = null;
-    }
-    // 清除错误状态
-    setError(null);
-    setErrorCode(null);
+    setState((prev) =>
+      prev.error === null && prev.errorCode == null && !prev.retryable
+        ? prev
+        : { ...prev, error: null, errorCode: null, retryable: false },
+    );
   }, []);
 
   /**
@@ -469,15 +391,12 @@ export function useAgentStream(
       onSegmentUpdate?.(segmentId, segmentContent);
     }
 
-    setState((prev) => {
-      // Use ref value for content to avoid repeated string concatenations.
-      onContent?.(chunk, fullContent);
-      return {
-        ...prev,
-        isThinking: false,
-        content: fullContent,
-      };
-    });
+    setState((prev) => ({
+      ...prev,
+      isThinking: false,
+      content: fullContent,
+    }));
+    onContent?.(chunk, fullContent);
   }, [clearFlushTimer, onContent, onSegmentUpdate, updateSegmentsSync]);
 
   /** Schedule a flush if not already scheduled */
@@ -519,22 +438,6 @@ export function useAgentStream(
       isThinking: false,
     }));
   }, [projectId, clearFlushTimer, settleStreamClosed]);
-
-  /** Set an error; actionable retry errors remain until retry/reset. */
-  const showError = useCallback((message: string, autoDismiss = true) => {
-    // 清除之前的 timeout
-    if (errorTimeoutRef.current) {
-      clearTimeout(errorTimeoutRef.current);
-    }
-    // 设置新错误
-    setError(message);
-    if (autoDismiss) {
-      errorTimeoutRef.current = setTimeout(() => {
-        setError(null);
-        errorTimeoutRef.current = null;
-      }, 3000);
-    }
-  }, []);
 
   /** Generate unique segment ID */
   const generateSegmentId = () => `segment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -651,40 +554,6 @@ export function useAgentStream(
   }, [onSegmentUpdateToolCalls, updateSegmentsSync, upsertToolCallsSegment]);
 
   /**
-   * Best-effort: resolve pending control tool calls when workflow control events
-   * (handoff/workflow_stopped) arrive before a tool_result callback.
-   *
-   * This keeps frontend tool-call lifecycle robust against backend event ordering
-   * differences and prevents stale pending tool cards.
-   */
-  const resolvePendingControlTool = useCallback((
-    toolName: "handoff_to_agent" | "request_clarification",
-    status: "success" | "error" = "success",
-    result?: Record<string, unknown>,
-    error?: string,
-  ) => {
-    let updated = false;
-    const nextPending = pendingToolCallsRef.current.map((tc) => {
-      if (!updated && tc.tool_name === toolName && tc.status === "pending") {
-        updated = true;
-        return { ...tc, status, result, error };
-      }
-      return tc;
-    });
-
-    if (!updated) {
-      return;
-    }
-
-    pendingToolCallsRef.current = nextPending;
-    const allDone = nextPending.every(tc => tc.status !== "pending");
-    upsertToolCallsSegment(nextPending, allDone);
-    if (allDone && nextPending.length > 0) {
-      pendingToolCallsRef.current = [];
-    }
-  }, [upsertToolCallsSegment]);
-
-  /**
    * Send a steering message to the active session.
    */
   const sendSteeringMessage = useCallback(async (message: string) => {
@@ -711,8 +580,6 @@ export function useAgentStream(
     clearFlushTimer();
     pendingContentChunkRef.current = "";
     contentRef.current = "";
-    // 清除错误和 timeout
-    clearError();
     setState(initialState);
     updateSegmentsSync(draft => { draft.length = 0; });
     currentSegmentIdRef.current = null;
@@ -724,7 +591,7 @@ export function useAgentStream(
     setSessionId(null);
     onCompleteCalledRef.current = false;
   // updateSegmentsSync is stable from useImmer, included to satisfy lint
-  }, [clearError, clearFlushTimer, settleStreamClosed, updateSegmentsSync]);
+  }, [clearFlushTimer, settleStreamClosed, updateSegmentsSync]);
 
   /**
    * 非正常终止的统一收尾通道（取消 / SSE error / 反向代理掐断空闲连接）。
@@ -741,7 +608,7 @@ export function useAgentStream(
   const finalizeStream = useCallback(() => {
     if (onCompleteCalledRef.current) return;
     onCompleteCalledRef.current = true;
-    onComplete?.(segmentsRef.current, null, {
+    onComplete?.(segmentsRef.current, {
       partial: true,
       sessionId: activeStreamSessionIdRef.current ?? undefined,
     });
@@ -865,8 +732,6 @@ export function useAgentStream(
       }
       setStopRequested(false);
 
-      // 清除之前的错误
-      clearError();
       clearFlushTimer();
       pendingContentChunkRef.current = "";
       contentRef.current = "";
@@ -902,9 +767,6 @@ export function useAgentStream(
           message: request.message,
           session_id: request.session_id ?? sessionIdRef.current ?? undefined,
           selected_text: request.selected_text,
-          context_before: request.context_before,
-          context_after: request.context_after,
-          outline_id: request.outline_id,
           metadata: request.metadata,
           selected_skill_ids: request.selected_skill_ids,
         },
@@ -1083,15 +945,14 @@ export function useAgentStream(
             onFileEditStart?.(fileId, title, totalEdits, fileType);
           },
 
-          onFileEditApplied: (fileId, editIndex, op, oldPreview, newPreview, success, error) => {
+          onFileEditApplied: (editIndex, op) => {
             if (isStaleEvent()) return;
-            onFileEditApplied?.(fileId, editIndex, op, oldPreview, newPreview, success, error);
+            onFileEditApplied?.(editIndex, op);
           },
 
           onFileEditEnd: (
             fileId,
             editsApplied,
-            newLength,
             newContent,
             originalContent,
             fileType,
@@ -1102,7 +963,6 @@ export function useAgentStream(
             onFileEditEnd?.(
               fileId,
               editsApplied,
-              newLength,
               newContent,
               originalContent,
               fileType,
@@ -1116,62 +976,14 @@ export function useAgentStream(
             onSkillMatched?.(skillId, skillName, matchedTrigger);
           },
 
-          onSkillsMatched: (skills) => {
-            if (isStaleEvent()) return;
-            onSkillsMatched?.(skills);
-          },
-
-          onAgentSelected: (agentType, agentName, iteration, maxIterations, remaining) => {
-            if (isStaleEvent()) return;
-            // Segment boundary for the prose count: deliver the text before it first.
-            flushPendingContent();
-            onAgentSelected?.(agentType, agentName, iteration, maxIterations, remaining);
-          },
-
           onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit, files) => {
             if (isStaleEvent()) return;
             onIterationExhausted?.(layer, iterationsUsed, maxIterations, reason, lastAgent, limit, ...(files ? [files] : []));
           },
 
-          onRouterThinking: (message) => {
-            if (isStaleEvent()) return;
-            setState((prev) => ({
-              ...prev,
-              isThinking: true,
-            }));
-            onRouterThinking?.(message);
-          },
-
-          onRouterDecided: (initialAgent, workflowPlan, workflowAgents, routingMetadata) => {
-            if (isStaleEvent()) return;
-            setState((prev) => ({
-              ...prev,
-              isThinking: false,
-            }));
-            onRouterDecided?.(initialAgent, workflowPlan, workflowAgents, routingMetadata);
-          },
-
-          onHandoff: (data) => {
-            if (isStaleEvent()) return;
-            flushPendingContent();
-            resolvePendingControlTool(
-              "handoff_to_agent",
-              "success",
-              data as unknown as Record<string, unknown>,
-            );
-            onHandoff?.(data);
-          },
-
           onWorkflowStopped: (data) => {
             if (isStaleEvent()) return;
             flushPendingContent();
-            if (data.reason === "clarification_needed") {
-              resolvePendingControlTool(
-                "request_clarification",
-                "success",
-                data as unknown as Record<string, unknown>,
-              );
-            }
             // The author's stop card comes before done (which carries this round's
             // assistant message id and arrives once the server saved it): keep the round
             // open ("正在停止…") until then, so a new send cannot cut the round off midway.
@@ -1184,17 +996,6 @@ export function useAgentStream(
             onWorkflowStopped?.(data);
           },
 
-          onWorkflowComplete: (data) => {
-            if (isStaleEvent()) return;
-            flushPendingContent();
-            setState((prev) => ({
-              ...prev,
-              isStreaming: false,
-              isThinking: false,
-            }));
-            onWorkflowComplete?.(data);
-          },
-
           onSessionStarted: (session_id) => {
             if (isStaleEvent()) return;
             sessionIdRef.current = session_id;
@@ -1202,27 +1003,6 @@ export function useAgentStream(
             activeStreamSessionIdRef.current = session_id;
             setSessionId(session_id);
             onSessionStarted?.(session_id);
-          },
-
-          onParallelStart: (execution_id, task_count, task_descriptions, dropped_count) => {
-            if (isStaleEvent()) return;
-            flushPendingContent();
-            onParallelStart?.(execution_id, task_count, task_descriptions, dropped_count);
-          },
-
-          onParallelTaskStart: (execution_id, task_id, task_type, description) => {
-            if (isStaleEvent()) return;
-            onParallelTaskStart?.(execution_id, task_id, task_type, description);
-          },
-
-          onParallelTaskEnd: (execution_id, task_id, status, result_preview, error) => {
-            if (isStaleEvent()) return;
-            onParallelTaskEnd?.(execution_id, task_id, status, result_preview, error);
-          },
-
-          onParallelEnd: (execution_id, total_tasks, completed, failed, duration_ms, partial) => {
-            if (isStaleEvent()) return;
-            onParallelEnd?.(execution_id, total_tasks, completed, failed, duration_ms, partial);
           },
 
           onSteeringReceived: (message_id, preview) => {
@@ -1240,30 +1020,10 @@ export function useAgentStream(
             onQuotaRefunded?.(kind, removedFiles);
           },
 
-          onConflict: (conflictData) => {
-            if (isStaleEvent()) return;
-            const conflict: Conflict = {
-              type: conflictData.type as ConflictType,
-              severity: conflictData.severity as "low" | "medium" | "high",
-              title: conflictData.title,
-              description: conflictData.description,
-              suggestions: conflictData.suggestions,
-              references: [],
-            };
-
-            setState((prev) => ({
-              ...prev,
-              conflicts: [...prev.conflicts, conflict],
-            }));
-
-            onConflict?.(conflict);
-          },
-
           onDone: (data) => {
             if (isStaleEvent()) return;
             try {
               flushPendingContent();
-              const applyAction = data.apply_action as ApplyAction | undefined;
 
               // End current segment
               if (currentSegmentIdRef.current) {
@@ -1332,16 +1092,7 @@ export function useAgentStream(
                       ...(data.no_file_changes === true ? { noFileChanges: true } : {}) };
                   }
                 }
-                if (
-                  completionMeta.assistantMessageId ||
-                  completionMeta.sessionId ||
-                  completionMeta.confirmedFileMutation !== undefined ||
-                  completionMeta.stoppedByAuthor || completionMeta.deliveryOutcome
-                ) {
-                  onComplete?.(segmentsRef.current, applyAction || null, completionMeta);
-                } else {
-                  onComplete?.(segmentsRef.current, applyAction || null);
-                }
+                onComplete?.(segmentsRef.current, completionMeta);
               }
             } finally {
               // agentApi 不会把 done 之后的回调异常报成失败（不再走 onError 收尾）：
@@ -1375,11 +1126,7 @@ export function useAgentStream(
             // 该标志由 startStream 在每轮开始时重置即可；在出错时清零会让
             // 下面的 finalizeStream 与已发生过的 done 提交重复叠加。
 
-            // 流式错误不再 3 秒自动消失：用户需要看清原因（错误码对应的 i18n 文案），
-            // 可重试时还要有时间点「重试」。下一次发送或 reset 时清除。
-            showError(message, false);
-            setErrorCode(code ?? null);
-
+            // 流式错误持续展示，直到下一次发送、reset 或调用方主动 clearError。
             setState((prev) => ({
               ...prev,
               isStreaming: false,
@@ -1406,7 +1153,6 @@ export function useAgentStream(
       projectId,
       onStart,
       onSegmentEnd,
-      onConflict,
       onComplete,
       onError,
       onToolCall,
@@ -1418,32 +1164,19 @@ export function useAgentStream(
       onFileEditApplied,
       onFileEditEnd,
       onSkillMatched,
-      onSkillsMatched,
-      onAgentSelected,
       onIterationExhausted,
-      onRouterThinking,
-      onRouterDecided,
-      onHandoff,
       onWorkflowStopped,
-      onWorkflowComplete,
       onSessionStarted,
-      onParallelStart,
-      onParallelTaskStart,
-      onParallelTaskEnd,
-      onParallelEnd,
       onSteeringReceived,
       onHistoryCompacted,
-    onQuotaRefunded,
+      onQuotaRefunded,
       onThinkingOption,
       onThinkingContentOption,
       startContentSegment,
       upsertToolCallsSegment,
       replaceResolvedToolResult,
-      resolvePendingControlTool,
       onContextOption,
-      clearError,
       clearFlushTimer,
-      showError,
       finalizeStream,
       flushPendingContent,
       scheduleContentFlush,
@@ -1462,9 +1195,8 @@ export function useAgentStream(
     whenStreamClosed,
     isStreaming: state.isStreaming,
     isThinking: state.isThinking,
-    conflicts: state.conflicts,
-    error,
-    errorCode,
+    error: state.error,
+    errorCode: state.errorCode ?? null,
     clearError,
     retryable: state.retryable,
     sessionId,

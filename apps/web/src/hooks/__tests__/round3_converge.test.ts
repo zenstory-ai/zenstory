@@ -218,7 +218,7 @@ describe('agentApi SSE 事件解析', () => {
     await runStream({ onFileEditEnd })
 
     expect(onFileEditEnd).toHaveBeenCalled()
-    const outcome = onFileEditEnd.mock.calls[0][7]
+    const outcome = onFileEditEnd.mock.calls[0][6]
     expect(outcome).toEqual({
       failedCount: 2,
       partialSuccess: true,
@@ -231,43 +231,18 @@ describe('agentApi SSE 事件解析', () => {
     localStorage.setItem('access_token', 'token')
 
     mockSseResponse([
-      sse('file_edit_end', { file_id: 'f1', edits_applied: 3, new_length: 100 }),
+      sse('file_edit_end', { file_id: 'f1', edits_applied: 3 }),
       sse('done', {}),
     ])
 
     const onFileEditEnd = vi.fn()
     await runStream({ onFileEditEnd })
 
-    expect(onFileEditEnd.mock.calls[0][7]).toEqual({
+    expect(onFileEditEnd.mock.calls[0][6]).toEqual({
       failedCount: 0,
       partialSuccess: false,
       allFailed: false,
       warnings: [],
     })
-  })
-
-  it('parallel_start 解析出 dropped_count', async () => {
-    localStorage.setItem('access_token', 'token')
-
-    mockSseResponse([
-      sse('parallel_start', {
-        execution_id: 'exec-1',
-        task_count: 5,
-        task_descriptions: ['a', 'b', 'c', 'd', 'e'],
-        requested_task_count: 7,
-        dropped_count: 2,
-      }),
-      sse('done', {}),
-    ])
-
-    const onParallelStart = vi.fn()
-    await runStream({ onParallelStart })
-
-    expect(onParallelStart).toHaveBeenCalledWith(
-      'exec-1',
-      5,
-      ['a', 'b', 'c', 'd', 'e'],
-      2,
-    )
   })
 })

@@ -719,7 +719,6 @@ async def test_offloaded_wrappers_cleanup_owned_session(tool_func, sync_helper, 
         return func(*call_args)
 
     with (
-        patch("agent.tools.mcp_tools._should_offload_tool_execution", return_value=True),
         patch("agent.tools.mcp_tools.asyncio.to_thread", side_effect=_run_inline) as mock_to_thread,
         patch(
             f"agent.tools.mcp_tools.{sync_helper}",
@@ -779,17 +778,11 @@ async def test_create_empty_file_sets_pending_marker_on_offload_path(db_session)
     )
     ToolContext.clear_pending_empty_file()
     try:
-        # Force the offload branch so the sync impl runs inside asyncio.to_thread
-        # (a copied context), reproducing the production Postgres path.
-        with patch(
-            "agent.tools.mcp_tools._should_offload_tool_execution",
-            return_value=True,
-        ):
-            result = await create_file({
-                "title": "空章节",
-                "file_type": "draft",
-                "content": "",  # empty -> expects <file>…</file> streaming to follow
-            })
+        result = await create_file({
+            "title": "空章节",
+            "file_type": "draft",
+            "content": "",  # empty -> expects <file>…</file> streaming to follow
+        })
 
         payload = _parse_payload(result)
         assert payload["status"] == "success"
@@ -957,14 +950,10 @@ async def test_create_folder_marker_free_on_offload_path(db_session):
         session_id="sess-folder-offload",
     )
     try:
-        with patch(
-            "agent.tools.mcp_tools._should_offload_tool_execution",
-            return_value=True,
-        ):
-            folder = await create_file({
-                "title": "第二卷",
-                "file_type": "folder",
-            })
+        folder = await create_file({
+            "title": "第二卷",
+            "file_type": "folder",
+        })
         assert _parse_payload(folder)["status"] == "success"
         assert ToolContext.has_pending_empty_file() is False
     finally:

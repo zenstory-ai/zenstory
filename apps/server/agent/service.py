@@ -76,8 +76,7 @@ from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .skills.content_budget import split_selected_budget
 from .stream_adapter import STREAM_FILE_SAVE_TIMEOUT_S, create_stream_adapter
-from .tools.author_edit_guard import AuthorEditRefusals
-from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
+from .tools.mcp_tools import ToolContext
 
 logger = get_logger(__name__)
 
@@ -221,21 +220,12 @@ def _stamp_body_receipts(
         call["result"] = stamped
 
 
-def _sync_uncertain_saves(run_outcome: Any, adapter: Any | None) -> None:
-    if run_outcome is None or adapter is None:
-        return
-    get_timed_out = getattr(adapter, "get_timed_out_save_file_ids", None)
-    if callable(get_timed_out):
-        run_outcome.uncertain_save_file_ids.update(get_timed_out())
-
-
 async def _settle_stopped_writes(run_outcome: Any, adapter: Any | None) -> None:
     """截停后同时等正文的补存 / 在途提交与线程里的写工具，结果写进 run_outcome（保存回执、工具结果）。"""
 
     async def _capture() -> None:
         if adapter is not None:
             run_outcome.saved_file_word_counts.update(await adapter.settle_aborted_capture())
-            _sync_uncertain_saves(run_outcome, adapter)
 
     await asyncio.gather(_capture(), run_outcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S))
 
@@ -751,8 +741,6 @@ class AgentService:
         assistant_usage: dict[str, Any] | None = None
         assistant_status_cards: list[dict[str, Any]] = []
         assistant_display_events: list[dict[str, Any]] = []
-        # 本轮因为作者手改过而没删 / 没整份重写的文件（工具按它给出拒绝说明）。
-        author_edit_refusals = AuthorEditRefusals()
 
         # 本轮开始前写下的压缩点，随本轮 assistant 行落库（agent/loop/compaction.py）。
         loop_compaction_record: dict[str, Any] | None = None
@@ -827,13 +815,10 @@ class AgentService:
                 assistant_response.strip()
                 or all_tool_calls
                 or assistant_status_cards
-                # A rejected route has no assistant reply to preserve; do not
-                # turn its transient progress indicator into an empty message.
                 # 「对话已压缩」标记本身不是回复：压缩成功后什么都没产出的一轮只落作者那条消息
                 # （压缩点记在它上面），否则末行不是作者消息，重试复用不了它、作者原话重复一条。
                 or any(
                     event.get("type") != "history_compacted"
-                    and (not had_stream_error or event.get("type") != "router_thinking")
                     for event in assistant_display_events
                 )
                 or (reasoning_content or "").strip()
@@ -1186,19 +1171,12 @@ class AgentService:
             if session.in_transaction():
                 session.commit()
 
-            # Set tool context for tool execution
-            # 工具上下文里放不放共享 session，必须与「工具是否 offload 到线程池」
-            # 同源判定，否则两个开关会在 SQLite 上错配：
-            # _should_offload_tool_execution() 已恒为 True，所有 *_sync 工具都跑在
-            # asyncio.to_thread 的工作线程里；而 _should_offload_session_work 只对
-            # PostgreSQL 为真，于是 SQLite 部署下这里传的是**请求级 Session**，
-            # ToolContext.get_session() 第一分支就把它交给工作线程——
-            # SDK 同一 turn 里的多个 tool_call 是并发 asyncio Task，两个以上工作
-            # 线程会同时在同一个 SQLAlchemy Session 上 flush/commit/refresh
-            # （Session 非线程安全；check_same_thread=False 只是让 sqlite3 不报错）。
-            # 传 None + create_session_func，让每个工作线程自建 session。
+            # Set tool context for tool execution.
+            # 所有工具都在 asyncio.to_thread 的工作线程里执行，而 SDK 同一 turn 里的多个
+            # tool_call 是并发 asyncio Task：传 session=None + create_session_func，让每个
+            # 工作线程自建独立 session，不在并发线程间共享同一个 SQLAlchemy Session。
             ToolContext.set_context(
-                session=None if _should_offload_tool_execution() else session,
+                session=None,
                 user_id=user_id,
                 project_id=project_id,
                 session_id=session_id,
@@ -1210,7 +1188,6 @@ class AgentService:
                 # 作者原话标识应用内对话并提供上下文，不授予删除、整份覆盖或改名权限。
                 author_message=message,
                 author_steering=consumed_steering,
-                author_edit_refusals=author_edit_refusals,
                 # 本轮开始时模型看到的正文：edit_file 拒绝基于旧正文的修改（作者生成期间又改了）。
                 read_snapshots=loop_turn.read_snapshots,
                 # 截停后还在线程里的写工具登记在 run_outcome 上，收尾时等它们的真实结果。
@@ -1230,6 +1207,7 @@ class AgentService:
                 "system_prompt": system_prompt,
                 "messages": [],
                 "run_meter": run_meter,
+                "run_outcome": run_outcome,
             }
             writing_state["history_items"] = loop_history.items
             # 前几轮连续停在输出上限的次数（历史在 history_items 里，不在 state["messages"]）。
@@ -1243,6 +1221,7 @@ class AgentService:
                 # 流开头已为显式选择的技能发过 skill_matched，load_skill 它们时不再重复发
                 matched_skill_ids=[selected["id"] for selected in selected_skills],
                 run_meter=run_meter,
+                run_outcome=run_outcome,
                 language=lang,
             )
             usage_source["adapter"] = stream_adapter
@@ -1332,9 +1311,6 @@ class AgentService:
                         continue
 
                     # Yield SSE event
-                    if event_type == "error" and run_outcome is not None:
-                        run_outcome.saved_file_word_counts.update(stream_adapter.get_saved_file_word_counts())
-                        _sync_uncertain_saves(run_outcome, stream_adapter)
                     yield event.to_sse()
 
                     if event_type not in {"content", "thinking_content"}:
@@ -1343,13 +1319,8 @@ class AgentService:
                         display_text_run_type = None
 
                     if event_type in {
-                        "agent_selected",
-                        "router_thinking",
-                        "router_decided",
-                        "handoff",
                         "iteration_exhausted",
                         "workflow_stopped",
-                        "workflow_complete",
                     }:
                         assistant_display_events.append(
                             {
@@ -1526,8 +1497,6 @@ class AgentService:
                 history_save_task.add_done_callback(_consume_history_save_error)
                 assistant_message_id = await asyncio.shield(history_save_task)
                 if run_outcome is not None:
-                    run_outcome.saved_file_word_counts.update(stream_adapter.get_saved_file_word_counts())
-                    _sync_uncertain_saves(run_outcome, stream_adapter)
                     run_outcome.resolve_message_id(assistant_message_id)
                 if pending_done_payload is not None:
                     yield done_event(
@@ -1650,7 +1619,6 @@ class AgentService:
                     )
                     saved_counts = adapter.get_saved_file_word_counts()
                 run_outcome.saved_file_word_counts.update(saved_counts)
-                _sync_uncertain_saves(run_outcome, adapter)
             if run_outcome is not None:
                 await run_outcome.settle_inflight_tool_writes(STREAM_FILE_SAVE_TIMEOUT_S)
             yield error_event(

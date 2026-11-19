@@ -38,21 +38,6 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
     expect(isWriteToolResult('rename_file', 'success', { id: 'ch1', title: '旧名', mutation_applied: false })).toBe(false)
   })
 
-  it('counts parallel chapter writes but not parallel lookups', () => {
-    expect(isWriteToolResult('parallel_execute', 'success', {
-      tasks: [{ type: 'write_chapter', status: 'completed' }],
-    })).toBe(true)
-    expect(isWriteToolResult('parallel_execute', 'success', {
-      tasks: [{ type: 'query_files', status: 'completed' }, { type: 'write_chapter', status: 'failed' }],
-    })).toBe(false)
-  })
-
-  it('counts a partially applied parallel edit as a write', () => {
-    expect(isWriteToolResult('parallel_execute', 'success', {
-      tasks: [{ type: 'edit_file', status: 'partial' }],
-    })).toBe(true)
-  })
-
   it('counts update_project only when the project info an author sees changed', () => {
     expect(isWriteToolResult('update_project', 'success', { updated_fields: ['summary'] })).toBe(true)
     expect(isWriteToolResult('update_project', 'success', { updated_fields: [], project_name_updated: true })).toBe(true)

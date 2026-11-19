@@ -7,7 +7,7 @@ import type { StreamRenderItem } from "../hooks/useChatStreaming";
  * holding just the marker would vanish on reload and hide the retry for the author's message).
  */
 const TRANSIENT_ITEM_TYPES = new Set<StreamRenderItem["type"]>([
-  "thinking_status", "context", "router_thinking", "history_compaction",
+  "thinking_status", "context", "history_compaction",
 ]);
 
 /**

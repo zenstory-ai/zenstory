@@ -63,22 +63,11 @@ AGENT_REASONING_EFFORT: str | None = (
 # 因供应商而异（services/usage/pricing.py）：DeepSeek 约为未命中的 1/50，MiniMax
 # M3.1-Flash 是 1/10，后者每多带一段上下文的成本明显更高。
 
-# Chat history loading budget (sliding window, newest-first)
-AGENT_CHAT_HISTORY_TOKEN_BUDGET = _get_int_env(
-    "AGENT_CHAT_HISTORY_TOKEN_BUDGET",
-    32000,
-)
-
 # 每次请求组装的项目上下文（焦点文件 / 附加文件 / 角色 / 设定 / 文件清单）token 预算
 AGENT_CONTEXT_TOKEN_BUDGET = _get_int_env(
     "AGENT_CONTEXT_TOKEN_BUDGET",
     32000,
 )
-
-# 跨轮工作集：上两轮读取/修改过的文件，按当前库内容整份注入本轮。
-# 最多附全文的文件数与总字符数；超出的只列标题 + id。
-AGENT_WORKING_SET_MAX_FILES = _get_int_env("AGENT_WORKING_SET_MAX_FILES", 8)
-AGENT_WORKING_SET_MAX_CHARS = _get_int_env("AGENT_WORKING_SET_MAX_CHARS", 60000)
 
 # Request-level budget for one POST /agent/stream (cost / runaway safety net).
 # The per-agent and collaboration caps above multiply (60 × 12), so a single

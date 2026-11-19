@@ -14,53 +14,8 @@ WORD_COUNT_CONTRACT = (
     "content_length / new_length 是含标点、空白的字符数，不能当字数报给作者。"
 )
 
-# Tool: create_file
+# Tool: create_file（资料文件与文件夹；正文章节走 WRITE_CHAPTER_TOOL）
 CREATE_FILE_TOOL: dict[str, Any] = {
-    "name": "create_file",
-    "description": (
-        "创建新文件。用于在项目中创建大纲、角色、设定、草稿等各类文件。注意：此工具只创建空文件，"
-        "文件内容需要在工具调用后使用 <file>内容</file> 标记流式输出。"
-        f"{WORD_COUNT_CONTRACT}"
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "title": {
-                "type": "string",
-                "description": "文件标题/名称，最多 255 字；不要把正文放在标题中，工具返回后用 <file> 流式输出正文",
-                "maxLength": 255
-            },
-            "file_type": {
-                "type": "string",
-                "description": "文件类型：outline(大纲)、character(角色)、lore(设定)、draft(草稿)、script(剧本)、snippet(素材)等",
-                "enum": ["outline", "character", "lore", "draft", "script", "snippet", "document", "folder"]
-            },
-            "parent_id": {
-                "type": "string",
-                "description": "父文件ID（用于创建子文件/文件夹结构）"
-            },
-            "order": {
-                "type": "integer",
-                "description": "可选排序顺序。仅在你明确要自定义排序时传；对带章节/分集标题的 draft/outline/script 文件，系统会强制按标题序号排序。"
-            },
-            "metadata": {
-                "type": "object",
-                "description": "文件元数据（JSON对象）"
-            },
-            "empty": {
-                "type": "boolean",
-                "description": (
-                    "仅在作者明确要求只建空文件、这一轮不写内容时（如「只建空档」「先建标题不写内容」）设为 true："
-                    "文件保持空白，不再用 <file> 写入；需要写入内容时不要设 true"
-                ),
-            }
-        },
-        "required": ["title", "file_type"]
-    }
-}
-
-# 单循环 agent 看到的 create_file：正文（draft / script）不经它建，见 WRITE_CHAPTER_TOOL。
-LOOP_CREATE_FILE_TOOL: dict[str, Any] = {
     "name": "create_file",
     "description": (
         "创建大纲、角色、设定、素材等资料文件或文件夹。正文章节（draft / script）不用这个工具，用 write_chapter。"
@@ -71,15 +26,28 @@ LOOP_CREATE_FILE_TOOL: dict[str, Any] = {
     "input_schema": {
         "type": "object",
         "properties": {
-            "title": CREATE_FILE_TOOL["input_schema"]["properties"]["title"],
+            "title": {
+                "type": "string",
+                "description": "文件标题/名称，最多 255 字；不要把正文放在标题中，工具返回后用 <file> 流式输出正文",
+                "maxLength": 255,
+            },
             "file_type": {
                 "type": "string",
                 "description": "文件类型：outline(大纲)、character(角色)、lore(设定)、snippet(素材)、document(其他文档)、folder(文件夹)",
                 "enum": ["outline", "character", "lore", "snippet", "document", "folder"],
             },
-            "parent_id": CREATE_FILE_TOOL["input_schema"]["properties"]["parent_id"],
-            "metadata": CREATE_FILE_TOOL["input_schema"]["properties"]["metadata"],
-            "empty": CREATE_FILE_TOOL["input_schema"]["properties"]["empty"],
+            "parent_id": {
+                "type": "string",
+                "description": "父文件ID（用于创建子文件/文件夹结构）",
+            },
+            "metadata": {
+                "type": "object",
+                "description": "文件元数据（JSON对象）",
+            },
+            "empty": {
+                "type": "boolean",
+                "description": "作者明确只要建文件、这一轮不写内容时（如「只建标题」「先建空章节」）设为 true：文件保持空白，不用写正文。作者要正文时设了也不生效",
+            },
             "source_text": {
                 "type": "string",
                 "description": (
@@ -549,9 +517,4 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "update_project": UPDATE_PROJECT_TOOL,
     "load_skill": LOAD_SKILL_TOOL,
     "read_skill_resource": READ_SKILL_RESOURCE_TOOL,
-}
-
-# 单循环 agent 请求里用的同名工具说明（覆盖 TOOL_SCHEMAS 里的同名项）。
-LOOP_TOOL_SCHEMA_OVERRIDES: dict[str, dict[str, Any]] = {
-    "create_file": LOOP_CREATE_FILE_TOOL,
 }

@@ -11,11 +11,7 @@ from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from agent.core.events import WALL_CLOCK_LIMIT
-from agent.core.output_truncation import (
-    OUTPUT_TRUNCATED_HISTORY,
-    trailing_output_truncations,
-)
-from agent.core.progress_channel import reset_progress_emitter, set_progress_emitter
+from agent.core.output_truncation import OUTPUT_TRUNCATED_HISTORY
 from agent.core.run_meter import AgentRunMeter, TimingOutcome
 from agent.core.server_drain import is_draining
 from agent.core.stream_errors import (
@@ -118,8 +114,8 @@ def _stop_run_after_tools(
     """SDK 的 tool_use_behavior 回调：本轮工具跑完后，需要停下时立即结束当前 run。
 
     为什么不能只靠 result.cancel(mode="after_turn")：cancel 是异步落地的——
-    SDK run-loop 把 tool_output 放进自己的 _event_queue，经 _pump_sdk_events 转发到
-    run_queue，本模块的消费循环才读到并 cancel；等标志位落地时 run-loop 早已发起了
+    SDK run-loop 把 tool_output 放进自己的 _event_queue，本模块的消费循环读到后才
+    cancel；等标志位落地时 run-loop 早已发起了
     下一次模型调用，那一轮的正文会被推给前端、工具会被真实执行。
     这里用 SDK 在 turn 内同步检查的 tool_use_behavior（turn_resolution.py
     check_for_final_output_from_tools），run-loop 不会再发起下一次模型调用。
@@ -732,30 +728,6 @@ async def _consume_boundary_steering(
         )
 
 
-async def _pump_sdk_events(result: Any, run_queue: asyncio.Queue[tuple[str, Any]]) -> None:
-    """Forward SDK stream events onto the shared run queue, tagged by kind.
-
-    Runs as a background task so the consumer can interleave live in-tool
-    progress events (pushed onto the same queue via the progress channel) with
-    the SDK's own events. The SDK parks ``stream_events()`` while a tool's
-    callback runs, so without this pump those progress events could not be
-    surfaced until the tool returned.
-
-    Terminal protocol: on a stream exception, emits ``("error", exc)`` so the
-    consumer can re-raise it in the original control flow; ``("done", None)`` is
-    always emitted last so the consumer's drain loop can terminate.
-    """
-    try:
-        async for sdk_event in result.stream_events():
-            run_queue.put_nowait(("sdk", sdk_event))
-    except asyncio.CancelledError:
-        raise
-    except BaseException as exc:  # noqa: BLE001 — forwarded to consumer for unified handling
-        run_queue.put_nowait(("error", exc))
-    finally:
-        run_queue.put_nowait(("done", None))
-
-
 async def run_openai_agents_streaming_agent(
     state: WritingState,
     agent_type: str,
@@ -773,11 +745,7 @@ async def run_openai_agents_streaming_agent(
     （单循环 agent 每个请求建一个、跨 run 共享）；都没有时本次 run 自建一个。
     重复读取守卫同理取 state["repeat_read_guard"]。
     """
-    # Snapshot the persisted conversation before per-agent replay strips metadata.
-    # Keep it across same-request re-runs, which are not separate author turns.
-    state.setdefault(
-        "previous_output_truncations", trailing_output_truncations(list(state.get("messages") or []))
-    )
+    state.setdefault("previous_output_truncations", 0)
     api_messages = build_history_messages(state)
     assistant_text_parts: list[str] = []
     thinking_text_parts: list[str] = []
@@ -851,10 +819,8 @@ async def run_openai_agents_streaming_agent(
         data={"model": start_model, "agent_type": agent_type},
     )
 
-    # Shared queue interleaving SDK events (via _pump_sdk_events) with live
-    # in-tool progress events (via the progress channel emitter installed below).
-    run_queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
-    pump_task: asyncio.Task[None] | None = None
+    result: Any = None
+    sdk_stream_exhausted = False
     run_hooks: Any = None
     timing_outcome: TimingOutcome = "completed"
     try:
@@ -878,72 +844,49 @@ async def run_openai_agents_streaming_agent(
             run_meter,
             max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
         )
-        # Install the progress emitter only across run_streamed. The SDK creates
-        # its background task synchronously inside run_streamed, copying the
-        # current context (with the emitter) into it; that snapshot is
-        # independent of ours, so we reset immediately afterwards to keep this
-        # generator's context clean and avoid cross-yield contextvar tokens.
-        emitter_token = set_progress_emitter(
-            lambda event: run_queue.put_nowait(("progress", event))
+        run_hooks = build_agent_run_hooks(start_model, run_meter=run_meter)
+        result = Runner.run_streamed(
+            sdk_agent,
+            input=(
+                _continued_run_input(continued, state, agent_directive, initial_steering)
+                if continued is not None
+                else build_run_input(_with_history_items(state, api_messages), agent_directive)
+            ),
+            max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
+            # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；
+            # 之后 run 报错/取消也不会丢掉已完成调用的用量。同一钩子在执行本轮工具前
+            # 告诉空文件守卫"上一份正文已在本条回复里写完"（见 usage_hooks）。
+            hooks=run_hooks,
+            # When DeepSeek emits multiple tool_calls in one turn, the SDK would run them
+            # concurrently (asyncio.create_task). Project tools share a single SQLAlchemy
+            # Session via ToolContext, which is NOT safe for concurrent use. Serialize tool
+            # execution to preserve the previous sequential contract and avoid Session races.
+            run_config=RunConfig(
+                # 不向 OpenAI 的 trace 后端导出任何内容（作者的稿件与对话）。模型客户端在第一次
+                # 模型调用时才建，那时 SDK 已经为这次 run 开了 trace，所以这里按 run 关掉。
+                tracing_disabled=True,
+                trace_include_sensitive_data=False,
+                tool_execution=ToolExecutionConfig(max_function_tool_concurrency=1),
+                # IntraRunToolOutputTrimmer 只是上下文安全阀：输入未超 max_input_chars 时原样
+                # 返回、不改写任何历史（保住前缀缓存，也不让模型「忘掉」读过的文件而重读）；
+                # 超限才从最旧的读/写载荷开始折叠。见 intra_run_trimmer。
+                # 计数 + 软着陆见上方 turn_filter。
+                call_model_input_filter=turn_filter,
+                # 模型调用了工具集里没有的工具（例如照着旧会话历史调已删除的工具、
+                # 或幻觉出的工具名）：SDK 默认抛 ModelBehaviorError，整轮
+                # 以致命 ERROR 结束、原始异常文本直接展示给用户。改为把结构化错误
+                # 交还模型让它自行纠正；这类错误同样经熔断器记账（见
+                # _format_tool_error），乱试有上限。
+                tool_not_found_behavior="return_error_to_model",
+                tool_error_formatter=functools.partial(
+                    _format_tool_error, failure_breaker=failure_breaker
+                ),
+            ),
         )
-        try:
-            run_hooks = build_agent_run_hooks(start_model, run_meter=run_meter)
-            result = Runner.run_streamed(
-                sdk_agent,
-                input=(
-                    _continued_run_input(continued, state, agent_directive, initial_steering)
-                    if continued is not None
-                    else build_run_input(_with_history_items(state, api_messages), agent_directive)
-                ),
-                max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
-                # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；
-                # 之后 run 报错/取消也不会丢掉已完成调用的用量。同一钩子在执行本轮工具前
-                # 告诉空文件守卫"上一份正文已在本条回复里写完"（见 usage_hooks）。
-                hooks=run_hooks,
-                # When DeepSeek emits multiple tool_calls in one turn, the SDK would run them
-                # concurrently (asyncio.create_task). Project tools share a single SQLAlchemy
-                # Session via ToolContext, which is NOT safe for concurrent use. Serialize tool
-                # execution to preserve the previous sequential contract and avoid Session races.
-                run_config=RunConfig(
-                    # 不向 OpenAI 的 trace 后端导出任何内容（作者的稿件与对话）。模型客户端在第一次
-                    # 模型调用时才建，那时 SDK 已经为这次 run 开了 trace，所以这里按 run 关掉。
-                    tracing_disabled=True,
-                    trace_include_sensitive_data=False,
-                    tool_execution=ToolExecutionConfig(max_function_tool_concurrency=1),
-                    # IntraRunToolOutputTrimmer 只是上下文安全阀：输入未超 max_input_chars 时原样
-                    # 返回、不改写任何历史（保住前缀缓存，也不让模型「忘掉」读过的文件而重读）；
-                    # 超限才从最旧的读/写载荷开始折叠。见 intra_run_trimmer。
-                    # 计数 + 软着陆见上方 turn_filter。
-                    call_model_input_filter=turn_filter,
-                    # 模型调用了工具集里没有的工具（例如照着旧会话历史调已删除的工具、
-                    # 或幻觉出的工具名）：SDK 默认抛 ModelBehaviorError，整轮
-                    # 以致命 ERROR 结束、原始异常文本直接展示给用户。改为把结构化错误
-                    # 交还模型让它自行纠正；这类错误同样经熔断器记账（见
-                    # _format_tool_error），乱试有上限。
-                    tool_not_found_behavior="return_error_to_model",
-                    tool_error_formatter=functools.partial(
-                        _format_tool_error, failure_breaker=failure_breaker
-                    ),
-                ),
-            )
-        finally:
-            reset_progress_emitter(emitter_token)
 
-        pump_task = asyncio.create_task(_pump_sdk_events(result, run_queue))
-
+        sdk_events = result.stream_events()
         try:
-            while True:
-                kind, payload = await run_queue.get()
-                if kind == "progress":
-                    # Pre-built workflow/SSE event emitted from inside a tool call
-                    # (agent.core.progress_channel). Forward as-is.
-                    yield payload
-                    continue
-                if kind == "done":
-                    break
-                if kind == "error":
-                    raise payload
-                sdk_event = payload
+            async for sdk_event in sdk_events:
                 if (
                     failure_stopped or budget_stopped or no_progress_stopped
                     or repetition_stopped
@@ -1067,9 +1010,18 @@ async def run_openai_agents_streaming_agent(
                         mid_run_steering, get_steering_messages
                     ):
                         yield steering_event
+            else:
+                sdk_stream_exhausted = True
         except MaxTurnsExceeded:
             # 轮数耗尽的对外事件放到熔断/无进展判定之后统一发出（见下方）。
             max_turns_exhausted = True
+        except BaseException:
+            _safe_cancel(result, "immediate")
+            raise
+        finally:
+            aclose = getattr(sdk_events, "aclose", None)
+            if callable(aclose):
+                await aclose()
 
         if repetition_stopped:
             # 与无进展停止同一个收尾：先让 usage 入账，再以 ERROR 结束整条工作流。StreamAdapter 收到
@@ -1365,6 +1317,8 @@ async def run_openai_agents_streaming_agent(
 
     except (asyncio.CancelledError, GeneratorExit):
         timing_outcome = "interrupted"
+        if result is not None:
+            _safe_cancel(result, "immediate")
         raise
     except Exception as exc:
         timing_outcome = "error"
@@ -1383,12 +1337,12 @@ async def run_openai_agents_streaming_agent(
             data=error_info.as_event_data(error_type=type(exc).__name__),
         )
     finally:
-        # Stop the SDK pump if it is still running (e.g. the consumer aborted
-        # early before the stream drained), so it cannot outlive this run.
-        if pump_task is not None and not pump_task.done():
-            pump_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await pump_task
+        if (
+            result is not None
+            and not sdk_stream_exhausted
+            and not getattr(result, "is_complete", False)
+        ):
+            _safe_cancel(result, "immediate")
         if run_hooks is not None:
             # A call lacking on_llm_end is unfinished, even if the consumer ended normally.
             run_hooks.finish_timing("error" if timing_outcome == "error" else "interrupted")

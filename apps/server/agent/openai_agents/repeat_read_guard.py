@@ -45,11 +45,8 @@ from agent.tools.file_ops.content_range import DEFAULT_RANGE_CHARS, wants_range
 from agent.tools.file_ops.serialization import resolve_query_files_response_mode
 
 READ_TOOL_NAME = "query_files"
-PARALLEL_TOOL_NAME = "parallel_execute"
 # 直接调用即写文件的工具（成功后清零该文件的读取计数）。
 WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file", "delete_file", "rename_file"})
-# parallel_execute 里会改动文件的子任务类型。
-PARALLEL_WRITE_TASK_TYPES: frozenset[str] = frozenset({"write_chapter", "edit_file", "delete_file"})
 
 # 同一键第几次成功读取开始附提示 / 强警告，第几次起拦下不执行。
 READ_HINT_AT = 2
@@ -172,14 +169,7 @@ class ReadPlan:
 
     arguments: str
     blocked_output: str | None = None
-    # 直接 query_files：[key]；parallel_execute：改写后 tasks 下标 → key。
     read_keys: dict[int, ReadKey] = field(default_factory=dict)
-    # parallel_execute 中被拦下的子任务说明（附在结果里告诉模型）。
-    blocked_notes: tuple[str, ...] = ()
-    # parallel_execute 改写后的子任务（用于写入识别 id/标题）。
-    tasks: tuple[dict[str, Any], ...] = ()
-    # parallel_execute 改写后下标 → 过滤前原始 tasks 下标。只由服务端 plan() 生成。
-    source_indices: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -258,8 +248,6 @@ class RepeatReadGuard:
         self._forget_newly_saved_bodies()
         if tool_name == READ_TOOL_NAME:
             return self._plan_direct_read(raw_arguments)
-        if tool_name == PARALLEL_TOOL_NAME:
-            return self._plan_parallel(raw_arguments)
         return ReadPlan(arguments=raw_arguments)
 
     def _plan_direct_read(self, raw_arguments: str) -> ReadPlan:
@@ -280,65 +268,6 @@ class RepeatReadGuard:
                 ),
             )
         return ReadPlan(arguments=raw_arguments, read_keys={0: key})
-
-    def _plan_parallel(self, raw_arguments: str) -> ReadPlan:
-        args, parse_error, _ = parse_json_object(raw_arguments or "")
-        tasks = args.get("tasks") if parse_error is None else None
-        if not isinstance(tasks, list):
-            return ReadPlan(arguments=raw_arguments)
-
-        kept: list[Any] = []
-        kept_source_indices: list[int] = []
-        read_keys: dict[int, ReadKey] = {}
-        blocked_notes: list[str] = []
-        blocked_titles: list[str] = []
-        # 同一批里重复的读取也要算上（同批两次读同一文件，第二次就是重复）。
-        pending: dict[ReadKey, int] = {}
-        for source_index, task in enumerate(tasks):
-            key = None
-            if isinstance(task, dict) and task.get("type") == READ_TOOL_NAME:
-                key = _read_key(task.get("params"))
-            if key is None:
-                kept.append(task)
-                kept_source_indices.append(source_index)
-                continue
-            seen = self._read_counts.get(key, 0) + pending.get(key, 0)
-            if seen + 1 >= READ_BLOCK_AT:
-                label = self._register_blocked(key)
-                blocked_notes.append(self._blocked_message(label, key))
-                blocked_titles.append(self._titles.get(key[1], ""))
-                continue
-            pending[key] = pending.get(key, 0) + 1
-            read_keys[len(kept)] = key
-            kept.append(task)
-            kept_source_indices.append(source_index)
-
-        kept_dicts = tuple(task for task in kept if isinstance(task, dict))
-        if not blocked_notes:
-            return ReadPlan(
-                arguments=raw_arguments,
-                read_keys=read_keys,
-                tasks=kept_dicts,
-                source_indices=tuple(kept_source_indices),
-            )
-        if not kept:
-            return ReadPlan(
-                arguments=raw_arguments,
-                blocked_output=_blocked_error_text(
-                    "；".join(blocked_notes),
-                    user_message=_blocked_user_message(blocked_titles),
-                    tool_name=PARALLEL_TOOL_NAME,
-                ),
-            )
-        rewritten = dict(args)
-        rewritten["tasks"] = kept
-        return ReadPlan(
-            arguments=json.dumps(rewritten, ensure_ascii=False),
-            read_keys=read_keys,
-            blocked_notes=tuple(blocked_notes),
-            tasks=kept_dicts,
-            source_indices=tuple(kept_source_indices),
-        )
 
     def _register_blocked(self, key: ReadKey) -> str:
         self.blocked_reads += 1
@@ -376,8 +305,6 @@ class RepeatReadGuard:
             return output_text
         if tool_name == READ_TOOL_NAME and plan.read_keys:
             return self._observe_direct_read(plan, output_text)
-        if tool_name == PARALLEL_TOOL_NAME:
-            return self._observe_parallel(plan, output_text)
         return output_text
 
     def _observe_direct_read(self, plan: ReadPlan, output_text: str) -> str:
@@ -397,67 +324,6 @@ class RepeatReadGuard:
         hinted["repeated_reads"] = count
         hinted["read_hint"] = hint
         return json.dumps(hinted, ensure_ascii=False)
-
-    def _observe_parallel(self, plan: ReadPlan, output_text: str) -> str:
-        payload = _load_json(output_text)
-        if payload is None:
-            return output_text
-        data = payload.get("data")
-        task_results = data.get("tasks") if isinstance(data, dict) else None
-        hints: list[str] = []
-        if payload.get("status") == "success" and isinstance(task_results, list):
-            for index, task_result in enumerate(task_results):
-                if not isinstance(task_result, dict):
-                    continue
-                if index < len(plan.source_indices):
-                    # 执行器按过滤后的批次重新编号；把服务端计划保存的原始下标附回结果，
-                    # 供下游用原始工具参数核算正文写入。覆盖结果里的同名字段，不信任调用方输入。
-                    task_result["source_index"] = plan.source_indices[index]
-                task_type = task_result.get("type")
-                planned = plan.tasks[index] if index < len(plan.tasks) else {}
-                params = planned.get("params") if isinstance(planned.get("params"), dict) else {}
-                result = task_result.get("result")
-                if isinstance(result, dict) and result.get("error_type") == "stale_content":
-                    # 与直接调用 edit_file 一样：文件读过之后被改了，再读是在看新内容。
-                    self._forget_reads(str(params.get("id") or params.get("file_id") or ""))
-                    continue
-                # partial：continue_on_error 的 edit_file 只生效了一部分，文件也已经改了。
-                if task_result.get("status") not in {"completed", "partial"}:
-                    continue
-                result_data = result.get("data") if isinstance(result, dict) else None
-                if task_type == READ_TOOL_NAME and index in plan.read_keys:
-                    title = _first_file_title(result_data)
-                    complete = not _is_partial(result_data)
-                    if title is None:
-                        # 子任务结果被截断成预览时拿不到标题：仍算读过（模型看到了预览），
-                        # 但不记进「已读取全文」的交接台账。
-                        if isinstance(result, dict) and result.get("truncated"):
-                            title = ""
-                            complete = False
-                        else:
-                            continue
-                    key = plan.read_keys[index]
-                    count = self._record_read(key, title, complete=complete)
-                    hint = self._hint_for(key, count)
-                    if hint is not None:
-                        hints.append(f"{self._file_label(key[1])}：{hint}")
-                elif task_type in PARALLEL_WRITE_TASK_TYPES:
-                    file_id = ""
-                    title = ""
-                    if isinstance(result_data, dict):
-                        file_id = str(result_data.get("id") or "")
-                        title = str(result_data.get("title") or "")
-                    file_id = file_id or str(params.get("id") or "")
-                    title = title or str(params.get("title") or "")
-                    self._record_write(file_id, title)
-        if not hints and not plan.blocked_notes:
-            return output_text
-        annotated = dict(payload)
-        if hints:
-            annotated["read_hint"] = "；".join(hints)
-        if plan.blocked_notes:
-            annotated["repeated_read_blocked"] = list(plan.blocked_notes)
-        return json.dumps(annotated, ensure_ascii=False)
 
     def _forget_reads(self, file_id: str) -> None:
         """这个文件读过之后被别人改了：之前的读取计数作废。"""

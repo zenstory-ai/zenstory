@@ -184,19 +184,19 @@ class TestMultiTurnConversations:
         )
 
         # Load chat history and verify context
-        from agent.core.session_loader import SessionLoader
+        from agent.loop.history import load_loop_history
 
-        session_loader = SessionLoader(
+        loaded = load_loop_history(
+            db_session,
             project_id=str(test_project.id),
             user_id=str(test_user.id),
+            chat_session_id=chat_session.id,
         )
 
-        session_data = session_loader.load_chat_session(db_session)
-
         # Verify that history contains both turns
-        assert len(session_data.history_messages) >= 2
-        assert "main character" in session_data.history_messages[0]["content"]
-        assert "Tell me more" in session_data.history_messages[2]["content"]
+        assert len(loaded.items) >= 2
+        assert "main character" in loaded.items[0]["content"]
+        assert "Tell me more" in loaded.items[2]["content"]
 
     @pytest.mark.asyncio
     async def test_context_budget_truncation(

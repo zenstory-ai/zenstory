@@ -1053,5 +1053,35 @@ async def test_aborted_chapter_replacement_timeout_remains_uncertain():
     assert adapter.get_replacement_receipts() == {"call-1": None}
 
 
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_aborted_chapter_replacement_without_mutation_records_unsaved_receipt():
+    from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+
+    adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u"))
+    save = asyncio.get_running_loop().create_future()
+    save.set_result({"mutation_applied": False})
+    adapter._replacement_in_flight = ("chapter-1", "replacement", save, "call-1")
+
+    await adapter._settle_replacement_in_flight()
+
+    assert adapter.get_saved_file_word_counts() == {"chapter-1": None}
+    assert adapter.get_replacement_receipts() == {"call-1": None}
+
+
+@pytest.mark.unit
+def test_timed_out_save_marks_shared_round_outcome_uncertain():
+    from agent.core.round_outcome import RunOutcome
+    from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+
+    outcome = RunOutcome()
+    adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u", run_outcome=outcome))
+
+    adapter._note_save_unconfirmed("chapter-1", timed_out=True)
+
+    assert outcome.saved_file_word_counts == {"chapter-1": None}
+    assert outcome.uncertain_save_file_ids == {"chapter-1"}
+
+
 
 

@@ -205,35 +205,6 @@ export interface DiffLine {
   content: string;
 }
 
-// ==================== Conflict Detection ====================
-
-export type ConflictType =
-  | "timeline_conflict"
-  | "character_conflict"
-  | "lore_conflict"
-  | "logic_conflict"
-  | "style_conflict"
-  | "missing_foreshadowing"
-  | "contradiction"
-  | "pov_conflict"
-  | "tense_conflict";
-
-export interface Conflict {
-  type: ConflictType;
-  severity: "low" | "medium" | "high";
-  title: string;
-  description: string;
-  location?: string;
-  suggestions: string[];
-  references: Record<string, unknown>[];
-}
-
-export type ApplyAction =
-  | "insert"
-  | "replace"
-  | "new_snippet"
-  | "reference_only";
-
 // ==================== Agent Context Items ====================
 
 export type ContextPriority =
@@ -268,8 +239,6 @@ export type SSEEventType =
   | "content_end"
   | "tool_call"
   | "tool_result"
-  | "conflict"
-  | "reference"
   | "file_created"
   | "file_content"
   | "file_content_end"
@@ -277,19 +246,9 @@ export type SSEEventType =
   | "file_edit_applied"
   | "file_edit_end"
   | "skill_matched"
-  | "skills_matched"
-  | "agent_selected"
   | "iteration_exhausted"
-  | "router_thinking"
-  | "router_decided"
-  | "handoff"
   | "workflow_stopped"
-  | "workflow_complete"
   | "session_started"
-  | "parallel_start"
-  | "parallel_task_start"
-  | "parallel_task_end"
-  | "parallel_end"
   | "steering_received"
   // Earlier conversation was summarized before this round (single loop agent).
   | "history_compacted"
@@ -332,14 +291,6 @@ export interface SSEToolResultData {
   error?: string;
 }
 
-export interface SSEConflictData {
-  type: ConflictType;
-  severity: "low" | "medium" | "high";
-  title: string;
-  description: string;
-  suggestions: string[];
-}
-
 export interface SSEErrorData {
   message: string;
   code?: string;
@@ -369,21 +320,15 @@ export interface SSEFileEditStartData {
 }
 
 export interface SSEFileEditAppliedData {
-  file_id: string;
   edit_index: number;
   op: string;
-  old_preview?: string;
-  new_preview?: string;
-  success: boolean;
-  error?: string;
 }
 
 export interface SSEFileEditEndData {
   file_id: string;
   edits_applied: number;
-  new_length: number;
-  new_content?: string;  // Full content after edits (for diff review)
-  original_content?: string;  // Content before edits (for diff review)
+  new_content?: string;  // Full content after edits (for chapter auto-select)
+  original_content?: string;  // Content before edits (for chapter auto-select)
   file_type?: string;
   title?: string;
 }
@@ -392,24 +337,6 @@ export interface SSESkillMatchedData {
   skill_id: string;
   skill_name: string;
   matched_trigger: string;
-}
-
-export interface SSESkillsMatchedData {
-  skills: Array<{
-    id: string;
-    name: string;
-    trigger: string;
-    confidence: number;
-  }>;
-  total_count: number;
-}
-
-export interface SSEAgentSelectedData {
-  agent_type: string;
-  agent_name: string;
-  iteration?: number;
-  max_iterations?: number;
-  remaining?: number;
 }
 
 /**
@@ -440,27 +367,6 @@ export interface SSEIterationExhaustedData {
   rolled_back_files?: { id?: string; title?: string }[];
 }
 
-export interface SSERoutingMetadata {
-  agent_type: string;
-  workflow_type: string;
-  reason: string;
-  confidence: number;
-}
-
-export interface SSERouterDecidedData {
-  initial_agent: string;
-  workflow_plan: string;
-  workflow_agents: string[];
-  routing_metadata?: SSERoutingMetadata;
-}
-
-export interface SSEWorkflowEvaluationData {
-  complete_score: number;
-  clarification_score: number;
-  consistency_score: number;
-  decision_reason: string;
-}
-
 export interface SSEWorkflowStoppedData {
   reason:
     | "clarification_needed"
@@ -480,79 +386,15 @@ export interface SSEWorkflowStoppedData {
   context?: string;
   /** Optional list of concrete information points the user should provide. */
   details?: string[];
-  confidence?: number;
-  evaluation?: SSEWorkflowEvaluationData;
-}
-
-export interface SSEWorkflowCompleteData {
-  reason: "task_complete";
-  agent_type: string;
-  message: string;
-  confidence?: number;
-  evaluation?: SSEWorkflowEvaluationData;
-}
-
-export interface SSEHandoffPacket {
-  target_agent: string;
-  reason: string;
-  context?: string;
-  completed?: string[];
-  todo?: string[];
-  evidence?: string[];
-}
-
-export interface SSEHandoffData {
-  target_agent: string;
-  reason: string;
-  context?: string;
-  handoff_packet?: SSEHandoffPacket;
 }
 
 export interface SSESessionStartedData {
   session_id: string;
 }
 
-export interface SSEParallelStartData {
-  execution_id: string;
-  task_count: number;
-  task_descriptions: string[];
-}
-
-export interface SSEParallelTaskStartData {
-  execution_id: string;
-  task_id: string;
-  task_type: string;
-  description: string;
-}
-
-export interface SSEParallelTaskEndData {
-  execution_id: string;
-  task_id: string;
-  status: "completed" | "partial" | "failed";
-  result_preview?: string;
-  error?: string;
-}
-
-export interface SSEParallelEndData {
-  execution_id: string;
-  total_tasks: number;
-  completed: number;
-  failed: number;
-  /** Partially applied tasks; absent from servers older than this field. */
-  partial?: number;
-  duration_ms: number;
-}
-
 export interface SSESteeringReceivedData {
   message_id: string;
   preview: string;
-}
-
-export interface SSEDoneData {
-  apply_action?: ApplyAction;
-  refs?: number[];
-  assistant_message_id?: string;
-  session_id?: string;
 }
 
 export interface SSEEvent {
@@ -564,9 +406,7 @@ export interface SSEEvent {
     | SSEContentData
     | SSEToolCallData
     | SSEToolResultData
-    | SSEConflictData
     | SSEErrorData
-    | SSEDoneData
     | SSEFileCreatedData
     | SSEFileContentData
     | SSEFileContentEndData
@@ -574,18 +414,9 @@ export interface SSEEvent {
     | SSEFileEditAppliedData
     | SSEFileEditEndData
     | SSESkillMatchedData
-    | SSESkillsMatchedData
-    | SSEAgentSelectedData
     | SSEIterationExhaustedData
-    | SSERouterDecidedData
-    | SSEHandoffData
     | SSEWorkflowStoppedData
-    | SSEWorkflowCompleteData
     | SSESessionStartedData
-    | SSEParallelStartData
-    | SSEParallelTaskStartData
-    | SSEParallelTaskEndData
-    | SSEParallelEndData
     | SSESteeringReceivedData
     | Record<string, unknown>;
 }
@@ -605,35 +436,19 @@ export interface AgentStreamState {
   isStreaming: boolean;
   isThinking: boolean;
   content: string;
-  conflicts: Conflict[];
   error: string | null;
   errorCode?: string | null;
   retryable: boolean;
 }
 
-// ==================== Agent Request/Response ====================
-
-export interface AgentResponse {
-  text: string;
-  apply_action: ApplyAction;
-  refs: number[];
-  used_files: Record<string, unknown>[];
-  used_snippets?: Record<string, unknown>[]; // Alias for used_files for backward compatibility
-  conflicts: Conflict[];
-  reasoning?: string;
-}
+// ==================== Agent Request ====================
 
 export interface AgentRequest {
   project_id: string;
   message: string;
   session_id?: string;
   selected_text?: string;
-  context_before?: string;
-  context_after?: string;
-  file_id?: string;
-  outline_id?: string; // For backward compatibility
   metadata?: Record<string, unknown>;
-  stream?: boolean;
   /** Skills explicitly selected by the user for this message (max 3). */
   selected_skill_ids?: string[];
 }

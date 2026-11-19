@@ -11,13 +11,12 @@ describe('ChatPanel Unit Tests', () => {
   it('verifies useAgentStream hook interface', () => {
     // Test that our mock provides the expected interface
     const mockUseAgentStream = {
-      state: { conflicts: [], content: '' },
+      state: { content: '' },
       startStream: vi.fn(),
       stop: vi.fn(),
       reset: vi.fn(),
       isStreaming: false,
       isThinking: false,
-      conflicts: [],
       error: null,
     }
 

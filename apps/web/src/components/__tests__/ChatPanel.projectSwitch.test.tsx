@@ -112,14 +112,13 @@ vi.mock('../../hooks/useAgentStream', () => ({
   useAgentStream: (_projectId: string, options?: Record<string, unknown>) => {
     capturedUseAgentStream.options = options ?? null
     return {
-      state: { conflicts: [], retryable: mockAgentStreamState.retryable },
+      state: { retryable: mockAgentStreamState.retryable },
       startStream: agentStartStream,
       cancel: vi.fn(),
       reset: agentStreamReset,
       isStreaming: mockAgentStreamState.isStreaming,
       isThinking: mockAgentStreamState.isThinking,
       thinkingContent: '',
-      conflicts: [],
       error: mockAgentStreamState.error,
       errorCode: mockAgentStreamState.errorCode,
       retryable: mockAgentStreamState.retryable,
@@ -209,11 +208,9 @@ import { fetchSuggestions } from '../../lib/agentApi'
 
 type StreamCallbackOptions = {
   onStart?: () => void
-  onComplete?: (segments: unknown[], action: unknown) => Promise<void>
+  onComplete?: (segments: unknown[]) => Promise<void>
   onThinking?: (message: string) => void
-  onSkillsMatched?: (
-    skills: Array<{ id: string; name: string; trigger: string; confidence: number }>
-  ) => void
+  onSkillMatched?: (skillId: string, skillName: string, matchedTrigger: string) => void
   onQuotaRefunded?: (kind: 'no_progress' | 'error' | 'stopped') => void
 }
 
@@ -257,9 +254,7 @@ describe('ChatPanel project switch stream cleanup', () => {
     const options = capturedUseAgentStream.options as StreamCallbackOptions
     act(() => {
       options.onThinking?.('旧项目残留内容')
-      options.onSkillsMatched?.([
-        { id: 'skill-1', name: '写作技能', trigger: '续写', confidence: 0.9 },
-      ])
+      options.onSkillMatched?.('skill-1', '写作技能', '续写')
     })
 
     await waitFor(() => {
@@ -331,7 +326,7 @@ describe('ChatPanel project switch stream cleanup', () => {
       await waitFor(() => expect(lastMessageInputProps()?.suggestionDisplayState).toBe('ready'))
       const finishRound = async () => {
         const options = capturedUseAgentStream.options as StreamCallbackOptions
-        await act(async () => { options.onStart?.(); await options.onComplete?.([], null) })
+        await act(async () => { options.onStart?.(); await options.onComplete?.([]) })
         await act(async () => { vi.advanceTimersByTime(1600) })
       }
       await finishRound()
@@ -357,7 +352,7 @@ describe('ChatPanel project switch stream cleanup', () => {
       await waitFor(() => expect(lastMessageInputProps()?.suggestionDisplayState).toBe('ready'))
       const options = capturedUseAgentStream.options as StreamCallbackOptions
       for (let i = 0; i < 2; i++) {
-        await act(async () => { options.onStart?.(); await options.onComplete?.([], null) })
+        await act(async () => { options.onStart?.(); await options.onComplete?.([]) })
         await act(async () => { vi.advanceTimersByTime(1600) })
         expect(lastMessageInputProps()?.suggestionDisplayState).toBe('fallback')
       }
@@ -426,7 +421,7 @@ describe('ChatPanel project switch stream cleanup', () => {
       await waitFor(() => expect(lastMessageInputProps()?.suggestionDisplayState).toBe('ready'))
       const options = capturedUseAgentStream.options as StreamCallbackOptions
       for (let i = 0; i < 2; i++) {
-        await act(async () => { options.onStart?.(); await options.onComplete?.([], null) })
+        await act(async () => { options.onStart?.(); await options.onComplete?.([]) })
         await act(async () => { vi.advanceTimersByTime(1600) })
         expect(lastMessageInputProps()?.suggestionDisplayState).toBe(mode === 'empty' ? 'fallback' : 'ready')
         expect(lastMessageInputProps()?.aiSuggestions).toEqual(existing)
@@ -445,7 +440,7 @@ describe('ChatPanel project switch stream cleanup', () => {
       await waitFor(() => expect(lastMessageInputProps()?.suggestionDisplayState).toBe('ready'))
       const options = capturedUseAgentStream.options as StreamCallbackOptions
       for (let i = 0; i < 2; i++) {
-        await act(async () => { options.onStart?.(); await options.onComplete?.([], null) })
+        await act(async () => { options.onStart?.(); await options.onComplete?.([]) })
         await act(async () => { vi.advanceTimersByTime(1600) })
         expect(lastMessageInputProps()?.suggestionDisplayState).toBe('ready')
         expect(lastMessageInputProps()?.aiSuggestions).toEqual(['已有建议'])
@@ -468,7 +463,7 @@ describe('ChatPanel project switch stream cleanup', () => {
       await waitFor(() => expect(lastMessageInputProps()?.suggestionDisplayState).toBe('ready'))
       const finishRound = async () => {
         const options = capturedUseAgentStream.options as StreamCallbackOptions
-        await act(async () => { options.onStart?.(); await options.onComplete?.([], null) })
+        await act(async () => { options.onStart?.(); await options.onComplete?.([]) })
         await act(async () => { vi.advanceTimersByTime(1600) })
       }
       await finishRound()

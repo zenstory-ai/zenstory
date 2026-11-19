@@ -357,86 +357,6 @@ def test_user_message_drops_sqlalchemy_statement_details():
     assert "正文片段" not in trip.user_message()
 
 
-def _parallel(tasks: list[dict], *, completed: int = 0) -> str:
-    failed = sum(1 for task in tasks if task.get("status") == "failed")
-    return json.dumps(
-        {
-            "status": "success",
-            "data": {
-                "total_tasks": len(tasks),
-                "completed": completed,
-                "failed": failed,
-                "any_failed": failed > 0,
-                "tasks": tasks,
-            },
-        },
-        ensure_ascii=False,
-    )
-
-
-PARALLEL_ARGS = json.dumps(
-    {"tasks": [{"type": "edit_file", "id": "file-1"}, {"type": "edit_file", "id": "file-2"}]}
-)
-
-
-@pytest.mark.unit
-def test_parallel_execute_with_all_tasks_failed_counts_and_trips():
-    """parallel_execute 把子任务失败藏在 success 外壳里，也必须计数并熔断。"""
-    breaker = ToolFailureBreaker()
-    outputs = []
-    for attempt in range(MAX_IDENTICAL_TOOL_FAILURES):
-        # 每次报错里的时间戳不同，归一后仍是同一种错误；子任务顺序也不影响
-        tasks = [
-            {"id": "t1", "type": "edit_file", "status": "failed", "error": f"database is locked @{attempt}"},
-            {"id": "t2", "type": "edit_file", "status": "failed", "error": f"database is locked @{attempt}"},
-        ]
-        if attempt % 2:
-            tasks.reverse()
-        outputs.append(breaker.observe("parallel_execute", PARALLEL_ARGS, _parallel(tasks)))
-
-    assert breaker.total_failures == MAX_IDENTICAL_TOOL_FAILURES
-    assert breaker.is_open
-    assert breaker.trip.reason == TRIP_REASON_IDENTICAL
-    assert breaker.trip.tool_name == "parallel_execute"
-    assert "database is locked" in breaker.trip.last_error
-    # 第 2 次的提示附加在原始输出上：逐任务明细仍然交给模型
-    hinted = json.loads(outputs[1])
-    assert hinted["status"] == "success"
-    assert hinted["data"]["tasks"][0]["status"] == "failed"
-    assert hinted["repeated_failures"] == 2
-
-
-@pytest.mark.unit
-def test_parallel_execute_partial_failure_counts_but_full_success_does_not():
-    breaker = ToolFailureBreaker()
-    ok_task = {"id": "t1", "type": "edit_file", "status": "completed", "error": None}
-    bad_task = {"id": "t2", "type": "edit_file", "status": "failed", "error": "找不到片段"}
-
-    breaker.observe("parallel_execute", PARALLEL_ARGS, _parallel([ok_task, ok_task], completed=2))
-    assert breaker.total_failures == 0
-
-    breaker.observe("parallel_execute", PARALLEL_ARGS, _parallel([ok_task, bad_task], completed=1))
-    assert breaker.total_failures == 1
-    assert not breaker.is_open
-
-
-@pytest.mark.unit
-def test_partially_applied_parallel_edit_is_not_a_breaker_failure():
-    """与直接调用 edit_file 一致：partial 不算失败（已生效的改动不能被当成同一错误重复熔断）。"""
-    breaker = ToolFailureBreaker()
-    partial_task = {"id": "t1", "type": "edit_file", "status": "partial", "error": "部分修改没有生效"}
-    output = json.dumps(
-        {
-            "status": "success",
-            "data": {"total_tasks": 1, "completed": 0, "partial": 1, "failed": 0, "any_failed": True, "tasks": [partial_task]},
-        },
-        ensure_ascii=False,
-    )
-    for _ in range(3):
-        breaker.observe("parallel_execute", PARALLEL_ARGS, output)
-    assert breaker.total_failures == 0
-
-
 @pytest.mark.unit
 # file_body_pending 是 tools_adapter 前置守卫的同类拒绝：2026-10-25 事故里漏了它，同参数第 3 次即熔断。
 @pytest.mark.parametrize("error_type", ["pending_empty_file_unwritten", "file_body_pending"])
@@ -534,9 +454,9 @@ async def test_stream_adapter_ends_on_trip_error_and_closes_workflow():
                 type=StreamEventType.MESSAGE_END,
                 data={"stop_reason": "tool_failure_circuit_open", "usage": {"total_tokens": 9}},
             )
-            yield StreamEvent(type=StreamEventType.ERROR, data=breaker.trip.as_event_data("writer"))
+            yield StreamEvent(type=StreamEventType.ERROR, data=breaker.trip.as_event_data("loop"))
             upstream["resumed_after_error"] = True
-            yield StreamEvent(type=StreamEventType.HANDOFF, data={"target_agent": "quality_reviewer"})
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "unreachable"})
         finally:
             upstream["closed"] = True
 
@@ -759,7 +679,6 @@ async def test_sdk_run_stops_after_identical_failures_and_ends_with_error(monkey
     assert types[0] == StreamEventType.MESSAGE_START
     assert types.count(StreamEventType.TOOL_RESULT) == MAX_IDENTICAL_TOOL_FAILURES
     assert types[-2:] == [StreamEventType.MESSAGE_END, StreamEventType.ERROR]
-    assert StreamEventType.HANDOFF not in types
 
     message_end = events[-2].data
     assert message_end["stop_reason"] == TOOL_FAILURE_STOP_REASON
@@ -941,22 +860,6 @@ def test_real_tool_identical_failures_keep_identical_reason():
     assert breaker.trip is not None
     assert breaker.trip.reason == TRIP_REASON_IDENTICAL
     assert "连续几次都没做成" in breaker.trip.user_message()
-
-
-@pytest.mark.unit
-def test_repeated_read_only_refusal_trips_as_unavailable_call():
-    """只读请求下同一写调用连续被拒：调用没执行，原因与文案同「本轮不可用」，不说「相同参数」。"""
-    breaker = ToolFailureBreaker()
-    refusal = json.dumps(
-        {"status": "error", "error_type": "read_only_request", "error": "本轮只回答，不修改文件"}
-    )
-    for _ in range(MAX_IDENTICAL_TOOL_FAILURES):
-        breaker.observe("edit_file", '{"id": "f1"}', refusal)
-
-    trip = breaker.trip
-    assert trip is not None
-    assert trip.reason == TRIP_REASON_TOOL_NOT_FOUND
-    assert "相同参数" not in trip.user_message()
 
 
 @pytest.mark.asyncio
