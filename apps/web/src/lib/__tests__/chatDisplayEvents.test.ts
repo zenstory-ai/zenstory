@@ -129,15 +129,15 @@ describe('persisted chat display sequence', () => {
     expect(items.some(item => item.content?.includes('正在规划工作流'))).toBe(false);
   });
 
-  it('drops progress-only lines from a finished round but keeps handoff lines and text', () => {
+  it('drops progress-only lines from a finished round while keeping handoffs and text', () => {
     const now = new Date();
     const items = [
       { id: 'a', type: 'thinking_status' as const, content: '正在组装上下文...', transient: true, timestamp: now },
       { id: 'b', type: 'thinking_status' as const, content: '正在思考...', transient: true, timestamp: now },
-      { id: 'e', type: 'thinking_status' as const, content: '接下来由内容创作者继续', timestamp: now },
-      { id: 'f', type: 'content' as const, content: '正文', timestamp: now },
+      { id: 'c', type: 'thinking_status' as const, content: '接下来由内容创作者继续', timestamp: now },
+      { id: 'd', type: 'content' as const, content: '正文', timestamp: now },
     ];
-    expect(dropProgressOnlyItems(items).map(item => item.id)).toEqual(['e', 'f']);
+    expect(dropProgressOnlyItems(items).map(item => item.id)).toEqual(['c', 'd']);
   });
 
   it.each([

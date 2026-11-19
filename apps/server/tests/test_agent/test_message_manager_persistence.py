@@ -124,3 +124,102 @@ def test_save_requires_the_resolved_session_id(db_session: Session, saved_chat: 
         manager._save_messages_with_session(db_session, None, "作者原话", "不能串进其他会话")
     assert not db_session.exec(select(ChatMessage).where(ChatMessage.session_id == chat_id)).all()
     assert db_session.get(ChatSession, chat_id).message_count == 0
+
+
+def test_blank_content_display_events_do_not_bypass_empty_assistant_guard(
+    db_session: Session, saved_chat: tuple[str, str, str]
+) -> None:
+    """Issue #413 (#2): pure-whitespace content events must not force an empty assistant row."""
+    user_id, project_id, chat_id = saved_chat
+    manager = MessageManager(project_id=project_id, user_id=user_id)
+
+    assistant_id = manager._save_messages_with_session(
+        db_session,
+        chat_id,
+        "建角色卡",
+        "\n\n\n\n\n\n",
+        assistant_display_events=[
+            {"type": "history_compacted", "data": {}},
+            {"type": "content", "content": "\n\n"},
+            {"type": "content", "content": "  \r\n\t  "},
+        ],
+    )
+
+    assert assistant_id is None
+    db_session.expire_all()
+    rows = db_session.exec(select(ChatMessage).where(ChatMessage.session_id == chat_id)).all()
+    assert [(row.role, row.content) for row in rows] == [("user", "建角色卡")]
+    assert db_session.get(ChatSession, chat_id).message_count == 1
+
+
+def test_save_drops_isolated_blank_segments_while_preserving_indent_markdown_and_crlf(
+    db_session: Session, saved_chat: tuple[str, str, str]
+) -> None:
+    """Issue #413 (#2): trim only leading line breaks on complete segments; preserve indentation & CRLF."""
+    user_id, project_id, chat_id = saved_chat
+    manager = MessageManager(project_id=project_id, user_id=user_id)
+    prose_with_code = "    def keep_indent():\r\n        return 1\r\n\r\n　　第二段保留全角缩进与空行。"
+
+    assistant_id = manager._save_messages_with_session(
+        db_session,
+        chat_id,
+        "检查排版保留",
+        "\r\n\n\n" + prose_with_code,
+        tool_calls=[{"id": "tc-1", "name": "create_file", "arguments": {"title": "甲"}, "status": "success"}],
+        assistant_display_events=[
+            {"type": "tool_call", "tool_call_index": 0},
+            {"type": "content", "content": "\n\n"},
+            {"type": "content", "content": "\r\n\n" + prose_with_code},
+        ],
+    )
+
+    assert assistant_id is not None
+    db_session.expire_all()
+    saved = db_session.get(ChatMessage, assistant_id)
+    assert saved is not None
+    assert saved.content == prose_with_code
+    metadata = json.loads(saved.message_metadata or "{}")
+    assert metadata["display_events"] == [
+        {"type": "tool_call", "tool_call_index": 0},
+        {"type": "content", "content": prose_with_code},
+    ]
+
+
+def test_internal_runs_single_newline_tab_crlf_and_triple_newlines_stay_verbatim(
+    db_session: Session, saved_chat: tuple[str, str, str]
+) -> None:
+    """Internal whitespace runs must never be rewritten into synthetic paragraph breaks or spaces."""
+    from agent.core.message_manager import (
+        normalize_assistant_content,
+        normalize_assistant_display_events,
+    )
+
+    assert normalize_assistant_content("".join(["甲", "\n", "乙"])) == "甲\n乙"
+    assert normalize_assistant_content("".join(["甲", "\t", "乙"])) == "甲\t乙"
+    assert normalize_assistant_content("".join(["甲", "\r\n", "乙"])) == "甲\r\n乙"
+    assert normalize_assistant_content("".join(["甲", "\n\n\n", "乙"])) == "甲\n\n\n乙"
+    assert normalize_assistant_content("\t首行Tab缩进\n次行") == "\t首行Tab缩进\n次行"
+
+    user_id, project_id, chat_id = saved_chat
+    manager = MessageManager(project_id=project_id, user_id=user_id)
+    events = [
+        {"type": "content", "content": "甲"},
+        {"type": "tool_call", "tool_call_index": 0},
+        {"type": "content", "content": "\n乙\r\n\r\n\r\n丙\t丁"},
+    ]
+    assert normalize_assistant_display_events(events) == events
+
+    assistant_id = manager._save_messages_with_session(
+        db_session,
+        chat_id,
+        "保留内部空白",
+        "甲\n乙\r\n\r\n\r\n丙\t丁",
+        tool_calls=[{"id": "tc-1", "name": "query_files", "arguments": {}, "status": "success"}],
+        assistant_display_events=events,
+    )
+    assert assistant_id is not None
+    db_session.expire_all()
+    saved = db_session.get(ChatMessage, assistant_id)
+    assert saved is not None
+    assert saved.content == "甲\n乙\r\n\r\n\r\n丙\t丁"
+    assert json.loads(saved.message_metadata or "{}")["display_events"] == events

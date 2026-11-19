@@ -2152,3 +2152,312 @@ class TestStoppedRoundHistory:
             select(ChatMessage).where(ChatMessage.session_id == chat.id, ChatMessage.role == "user")
         ).all()
         assert len(users) == 2
+
+    async def test_process_stream_drops_post_file_blank_segments_without_touching_markdown_or_file_body(
+        self, mock_agent_service, test_user_with_project, db_session: Session
+    ):
+        """Issue #413 (#2): </file> trailing newlines must not leave blank display_events or leading blank lines."""
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+        from models import File
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+
+        char_one = File(project_id=project.id, title="角色甲", file_type="character", content="")
+        char_two = File(project_id=project.id, title="角色乙", file_type="character", content="")
+        db_session.add_all([char_one, char_two])
+        db_session.commit()
+
+        file_one_body = "　　第一行全角缩进。\r\n\r\n　　第二段保留 CRLF。"
+        file_two_body = "【小标题】\n- 条目一\n\n- 条目二"
+        summary_part_1 = "三份角色档案已建在角色目录。\r\n"
+        summary_part_2 = "\r\n"
+        summary_part_3 = "    code_example = 1\r\n\r\n　　结尾段落。"
+
+        def _fresh_session():
+            return Session(db_session.get_bind())
+
+        async def batch_create_stream():
+            yield StreamEvent(
+                type=StreamEventType.TOOL_USE,
+                data={"id": "c1", "name": "create_file", "input": {"title": "角色甲"}, "status": "complete"},
+            )
+            yield StreamEvent(
+                type=StreamEventType.TOOL_RESULT,
+                data={
+                    "tool_use_id": "c1",
+                    "name": "create_file",
+                    "result": {
+                        "status": "success",
+                        "mutation_applied": True,
+                        "data": {
+                            "id": char_one.id,
+                            "title": "角色甲",
+                            "file_type": "character",
+                            "content": "",
+                            "updated_at": char_one.updated_at.isoformat(),
+                        },
+                    },
+                },
+            )
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"<file>\n{file_one_body}</file>\n\n"})
+            yield StreamEvent(
+                type=StreamEventType.TOOL_USE,
+                data={"id": "c2", "name": "create_file", "input": {"title": "角色乙"}, "status": "complete"},
+            )
+            yield StreamEvent(
+                type=StreamEventType.TOOL_RESULT,
+                data={
+                    "tool_use_id": "c2",
+                    "name": "create_file",
+                    "result": {
+                        "status": "success",
+                        "mutation_applied": True,
+                        "data": {
+                            "id": char_two.id,
+                            "title": "角色乙",
+                            "file_type": "character",
+                            "content": "",
+                            "updated_at": char_two.updated_at.isoformat(),
+                        },
+                    },
+                },
+            )
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"<file>\n{file_two_body}</file>\n\n"})
+            yield StreamEvent(type=StreamEventType.THINKING, data={"thinking": "核对两份档案已保存"})
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "\n\n" + summary_part_1})
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": summary_part_2})
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": summary_part_3})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        with (
+            patch("agent.service.run_loop_agent_streaming", return_value=batch_create_stream()),
+            patch("agent.service.create_session", side_effect=_fresh_session),
+            patch("database.create_session", side_effect=_fresh_session),
+            patch("database.is_postgres", True),
+        ):
+            async for _ in service.process_stream(
+                project_id=str(project.id),
+                user_id=str(user.id),
+                message="创建两份角色档案",
+                session=db_session,
+            ):
+                pass
+
+        db_session.expire_all()
+        assert db_session.get(File, char_one.id).content == file_one_body
+        assert db_session.get(File, char_two.id).content == file_two_body
+
+        latest_assistant = db_session.exec(
+            select(ChatMessage)
+            .where(ChatMessage.role == "assistant")
+            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+        ).first()
+        assert latest_assistant is not None
+        expected_summary = summary_part_1 + summary_part_2 + summary_part_3
+        assert latest_assistant.content == expected_summary
+        metadata = json.loads(latest_assistant.message_metadata or "{}")
+        assert metadata["display_events"] == [
+            {"type": "tool_call", "tool_call_index": 0},
+            {"type": "tool_call", "tool_call_index": 1},
+            {"type": "thinking_content", "content": "核对两份档案已保存"},
+            {"type": "content", "content": expected_summary},
+        ]
+
+    async def test_process_stream_does_not_persist_empty_assistant_when_only_whitespace_text_emitted(
+        self, mock_agent_service, test_user_with_project, db_session: Session
+    ):
+        """Issue #413 (#2): a stream emitting only whitespace TEXT chunks must not save a blank assistant row."""
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+
+        def _fresh_session():
+            return Session(db_session.get_bind())
+
+        async def whitespace_only_stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "\n\n"})
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "\r\n  \n"})
+            yield StreamEvent(type=StreamEventType.ERROR, data={"error": "upstream interrupted"})
+
+        with (
+            patch("agent.service.run_loop_agent_streaming", return_value=whitespace_only_stream()),
+            patch("agent.service.create_session", side_effect=_fresh_session),
+        ):
+            events = [
+                event
+                async for event in service.process_stream(
+                    project_id=str(project.id),
+                    user_id=str(user.id),
+                    message="建档中断",
+                    session=db_session,
+                )
+            ]
+
+        session_started = next(e for e in events if "event: session_started" in e)
+        session_id = json.loads(session_started.split("data:", 1)[1].strip())["session_id"]
+        db_session.expire_all()
+        rows = db_session.exec(select(ChatMessage).where(ChatMessage.session_id == session_id)).all()
+        assert [(row.role, row.content) for row in rows] == [("user", "建档中断")]
+        assert db_session.get(ChatSession, session_id).message_count == 1
+
+    @pytest.mark.parametrize(
+        ("chunks", "expected"),
+        [
+            (["甲", "\n", "乙"], "甲\n乙"),
+            (["甲", "\t", "乙"], "甲\t乙"),
+            (["甲", "\r\n", "乙"], "甲\r\n乙"),
+            (["甲", "\n\n\n", "乙"], "甲\n\n\n乙"),
+        ],
+    )
+    async def test_process_stream_preserves_internal_whitespace_across_non_content_events(
+        self,
+        mock_agent_service,
+        test_user_with_project,
+        db_session: Session,
+        chunks: list[str],
+        expected: str,
+    ):
+        """Ordinary content runs separated by non-content events must concatenate verbatim."""
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+
+        def _fresh_session():
+            return Session(db_session.get_bind())
+
+        async def interleaved_stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": chunks[0]})
+            yield StreamEvent(type=StreamEventType.THINKING, data={"thinking": "step 1"})
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": chunks[1]})
+            yield StreamEvent(type=StreamEventType.THINKING, data={"thinking": "step 2"})
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": chunks[2]})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        with (
+            patch("agent.service.run_loop_agent_streaming", return_value=interleaved_stream()),
+            patch("agent.service.create_session", side_effect=_fresh_session),
+        ):
+            events = [
+                event
+                async for event in service.process_stream(
+                    project_id=str(project.id),
+                    user_id=str(user.id),
+                    message="逐字保留测试",
+                    session=db_session,
+                )
+            ]
+
+        done = [json.loads(event.split("data:", 1)[1]) for event in events if "event: done" in event]
+        assert len(done) == 1
+        db_session.expire_all()
+        saved = db_session.get(ChatMessage, done[0]["assistant_message_id"])
+        assert saved is not None
+        assert saved.content == expected
+
+    async def test_process_stream_absorbs_adjacent_post_file_blank_while_keeping_prior_prose_break(
+        self,
+        mock_agent_service,
+        test_user_with_project,
+        db_session: Session,
+    ):
+        """Post-file_content_end whitespace between files is dropped, while prose before and after keeps its break."""
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+        char_one = File(project_id=project.id, title="甲", content="", file_type="character")
+        char_two = File(project_id=project.id, title="乙", content="", file_type="character")
+        db_session.add_all([char_one, char_two])
+        db_session.commit()
+        db_session.refresh(char_one)
+        db_session.refresh(char_two)
+
+        def _fresh_session():
+            return Session(db_session.get_bind())
+
+        async def stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "先建档案："})
+            yield StreamEvent(
+                type=StreamEventType.TOOL_USE,
+                data={"id": "p1", "name": "create_file", "input": {"title": "甲"}, "status": "complete"},
+            )
+            yield StreamEvent(
+                type=StreamEventType.TOOL_RESULT,
+                data={
+                    "tool_use_id": "p1",
+                    "name": "create_file",
+                    "result": {
+                        "status": "success",
+                        "mutation_applied": True,
+                        "data": {
+                            "id": char_one.id,
+                            "title": "甲",
+                            "file_type": "character",
+                            "content": "",
+                            "updated_at": char_one.updated_at.isoformat(),
+                        },
+                    },
+                },
+            )
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n甲设定\n</file>\n\n"})
+            yield StreamEvent(
+                type=StreamEventType.TOOL_USE,
+                data={"id": "p2", "name": "create_file", "input": {"title": "乙"}, "status": "complete"},
+            )
+            yield StreamEvent(
+                type=StreamEventType.TOOL_RESULT,
+                data={
+                    "tool_use_id": "p2",
+                    "name": "create_file",
+                    "result": {
+                        "status": "success",
+                        "mutation_applied": True,
+                        "data": {
+                            "id": char_two.id,
+                            "title": "乙",
+                            "file_type": "character",
+                            "content": "",
+                            "updated_at": char_two.updated_at.isoformat(),
+                        },
+                    },
+                },
+            )
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n乙设定\n</file>\n\n两份档案已建好。"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        with (
+            patch("agent.service.run_loop_agent_streaming", return_value=stream()),
+            patch("agent.service.create_session", side_effect=_fresh_session),
+            patch("database.create_session", side_effect=_fresh_session),
+            patch("database.is_postgres", True),
+        ):
+            events = [
+                event
+                async for event in service.process_stream(
+                    project_id=str(project.id),
+                    user_id=str(user.id),
+                    message="建两份设定",
+                    session=db_session,
+                )
+            ]
+
+        done = [json.loads(event.split("data:", 1)[1]) for event in events if "event: done" in event]
+        assert len(done) == 1
+        db_session.expire_all()
+        saved = db_session.get(ChatMessage, done[0]["assistant_message_id"])
+        assert saved is not None
+        assert saved.content == "先建档案：\n\n两份档案已建好。"
+        metadata = json.loads(saved.message_metadata or "{}")
+        assert metadata["display_events"] == [
+            {"type": "content", "content": "先建档案："},
+            {"type": "tool_call", "tool_call_index": 0},
+            {"type": "tool_call", "tool_call_index": 1},
+            {"type": "content", "content": "两份档案已建好。"},
+        ]

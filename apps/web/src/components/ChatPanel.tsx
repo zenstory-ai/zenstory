@@ -1139,8 +1139,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // leaves no bubble: the error card / stop note below says what happened.
     // The finished bubble keeps what the round did, not 「正在组装上下文… / 正在思考… / 正在规划工作流…」.
     const finishedItems = dropProgressOnlyItems(displayItems);
+    const hasNonBlankFinishedItem = finishedItems.some(
+      (item) => (item.type !== 'content' && item.type !== 'thinking_content') || Boolean(item.content?.trim()),
+    );
     const hasSubstance = Boolean(accumulatedContent.trim() || statusCards.length > 0 || toolResults?.length || completionMeta?.deliveryOutcome)
-      || (endedEarly ? hasSubstantiveDisplayItems(displayItems) : finishedItems.length > 0);
+      || (endedEarly ? hasSubstantiveDisplayItems(displayItems) : hasNonBlankFinishedItem);
     if (hasSubstance) {
       const aiMessage: Message = {
         id: `ai-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,

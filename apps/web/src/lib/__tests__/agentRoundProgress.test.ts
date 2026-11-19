@@ -156,9 +156,12 @@ describe('createBodyWriteProgress (the chat waiting line while a file gets its t
 })
 
 describe('isInternalOrderingRefusal', () => {
-  it('recognises the server\'s write-order refusals, top-level or nested, and nothing else', () => {
+  it('recognises the server\'s write-order and same-turn chapter-rewrite guards, and nothing else', () => {
     expect(isInternalOrderingRefusal({ status: 'error', error_type: 'file_body_pending', error: 'internal' })).toBe(true)
     expect(isInternalOrderingRefusal({ data: { error_type: 'pending_empty_file_unwritten' } })).toBe(true)
+    expect(isInternalOrderingRefusal({ status: 'error', error_type: 'chapter_written_this_turn', error: 'internal' })).toBe(true)
+    expect(isInternalOrderingRefusal({ data: { error_type: 'chapter_written_this_turn' } })).toBe(true)
+    expect(isInternalOrderingRefusal({ status: 'error', error_type: 'chapter_replace_pending' })).toBe(false)
     expect(isInternalOrderingRefusal({ status: 'error', error_type: 'stale_content' })).toBe(false)
     expect(isInternalOrderingRefusal({ status: 'error', error_type: 'clarify_first' })).toBe(false)
     expect(isInternalOrderingRefusal(undefined)).toBe(false)

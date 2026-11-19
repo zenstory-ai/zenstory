@@ -8,7 +8,7 @@ import { parseIterationExhaustedFiles } from './chatRoundEnd';
  * lines that only said it was still working (「正在组装上下文… / 正在思考…」).
  */
 export function dropProgressOnlyItems(items: StreamRenderItem[]): StreamRenderItem[] {
-  return items.filter((item) => !item.transient);
+  return items.filter(item => !item.transient);
 }
 
 /** Replay the sequence recorded by the server, not a guessed category order. */

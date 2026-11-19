@@ -45,7 +45,11 @@ from .core.events import (
     thinking_event,
 )
 from .core.llm_providers import primary_model_name
-from .core.message_manager import MessageManager
+from .core.message_manager import (
+    MessageManager,
+    has_substantive_display_events,
+    normalize_assistant_display_events,
+)
 from .core.round_outcome import RunOutcome
 from .core.run_meter import AgentRunMeter
 from .core.session_loader import SessionLoader
@@ -746,6 +750,8 @@ class AgentService:
         tool_call_index_by_id: dict[str, int] = {}
         consumed_steering: list[str] = []
         assistant_response = ""
+        post_file_whitespace_pending = False
+        post_file_whitespace_buf = ""
         reasoning_content = ""
         assistant_stop_reason: str | None = None
         assistant_usage: dict[str, Any] | None = None
@@ -825,32 +831,36 @@ class AgentService:
                 assistant_response.strip()
                 or all_tool_calls
                 or assistant_status_cards
-                # 「对话已压缩」标记本身不是回复：压缩成功后什么都没产出的一轮只落作者那条消息
-                # （压缩点记在它上面），否则末行不是作者消息，重试复用不了它、作者原话重复一条。
-                or any(
-                    event.get("type") != "history_compacted"
-                    for event in assistant_display_events
-                )
+                # 「对话已压缩」标记与纯空白文本块本身都不是有效回复：没有实质产出的一轮只落作者那条消息。
+                or has_substantive_display_events(assistant_display_events)
                 or (reasoning_content or "").strip()
             )
 
-        def _append_display_text(event_type: str, content: Any) -> None:
+        def _append_display_text(
+            event_type: str, content: Any, *, response_chunk: str | None = None
+        ) -> None:
             """Append one display text chunk, coalescing only an uninterrupted run."""
-            nonlocal display_text_run_type
+            nonlocal assistant_response, display_text_run_type
             if not isinstance(content, str) or not content:
                 return
             if "\x00" in content:
                 content = content.replace("\x00", "")
                 if not content:
                     return
-            if (
+            continuing_run = (
                 display_text_run_type == event_type
                 and assistant_display_events
                 and assistant_display_events[-1].get("type") == event_type
-            ):
+            )
+            if continuing_run:
                 assistant_display_events[-1]["content"] += content
             else:
                 assistant_display_events.append({"type": event_type, "content": content})
+            if event_type == "content":
+                chunk_for_response = (
+                    content if response_chunk is None else response_chunk.replace("\x00", "")
+                )
+                assistant_response += chunk_for_response
             display_text_run_type = event_type
 
         def _append_user_messages_sync(
@@ -1082,7 +1092,7 @@ class AgentService:
                     reasoning_content if reasoning_content else None,
                     assistant_status_cards=assistant_status_cards or None,
                     steering_messages=consumed_steering or None,
-                    assistant_display_events=assistant_display_events or None,
+                    assistant_display_events=normalize_assistant_display_events(assistant_display_events),
                     assistant_usage=_accumulated_usage(),
                     assistant_stop_reason=stop_reason,
                     persist_empty_assistant=persist_empty_assistant,
@@ -1348,11 +1358,38 @@ class AgentService:
                             }
                         )
 
+                    if event_type == "file_content_end":
+                        post_file_whitespace_pending = True
+                        post_file_whitespace_buf = ""
+                    elif event_type in {
+                        "tool_call",
+                        "thinking_content",
+                        "file_content_start",
+                        "iteration_exhausted",
+                        "workflow_stopped",
+                        "error",
+                    }:
+                        post_file_whitespace_pending = False
+                        post_file_whitespace_buf = ""
+
                     # Track content for history
                     if event_type == "content":
                         text_chunk = event.data.get("text", "")
-                        assistant_response += text_chunk
-                        _append_display_text("content", text_chunk)
+                        if post_file_whitespace_pending:
+                            candidate = (post_file_whitespace_buf + text_chunk).replace("\x00", "")
+                            if not candidate.strip():
+                                post_file_whitespace_buf = candidate
+                            else:
+                                trimmed = candidate.lstrip("\r\n")
+                                _append_display_text(
+                                    "content",
+                                    trimmed,
+                                    response_chunk=trimmed if not assistant_response else candidate,
+                                )
+                                post_file_whitespace_pending = False
+                                post_file_whitespace_buf = ""
+                        else:
+                            _append_display_text("content", text_chunk)
                     elif event_type == "thinking_content":
                         thinking_chunk = event.data.get("content", "")
                         reasoning_content += thinking_chunk
@@ -1499,7 +1536,7 @@ class AgentService:
                         assistant_usage=assistant_usage,
                         assistant_status_cards=assistant_status_cards or None,
                         steering_messages=consumed_steering or None,
-                        assistant_display_events=assistant_display_events or None,
+                        assistant_display_events=normalize_assistant_display_events(assistant_display_events),
                         user_created_at=user_sent_at,
                         assistant_extra_metadata=_loop_extra_metadata(),
                     )
