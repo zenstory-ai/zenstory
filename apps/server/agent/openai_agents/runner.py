@@ -110,6 +110,7 @@ def _stop_run_after_tools(
     failure_breaker: ToolFailureBreaker | None = None,
     run_meter: AgentRunMeter | None = None,
     read_guard: RepeatReadGuard | None = None,
+    author_protection: Any | None = None,
 ) -> Any:
     """SDK 的 tool_use_behavior 回调：本轮工具跑完后，需要停下时立即结束当前 run。
 
@@ -135,6 +136,11 @@ def _stop_run_after_tools(
         return ToolsToFinalOutputResult(
             is_final_output=True,
             final_output=read_guard.trip.user_message(),
+        )
+    if author_protection is not None and author_protection.is_stopped():
+        return ToolsToFinalOutputResult(
+            is_final_output=True,
+            final_output=author_protection.user_message(),
         )
 
     # 请求级模型调用预算：本轮工具已经执行完，预算用尽就不再发起下一次模型调用（与熔断同一个同步出口）。
@@ -624,6 +630,7 @@ def _build_agent(
     from agent.tools.mcp_tools import ToolContext
 
     effort = agent_runtime.AGENT_REASONING_EFFORT
+    author_protection = ToolContext.author_protection_refusal_state()
 
     return Agent(
         name=agent_type,
@@ -658,6 +665,7 @@ def _build_agent(
             failure_breaker=failure_breaker,
             run_meter=run_meter,
             read_guard=read_guard,
+            author_protection=author_protection,
         ),
     )
 

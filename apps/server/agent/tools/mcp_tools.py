@@ -22,6 +22,8 @@ from sqlmodel import Session, and_, select
 from agent.constants import CONTENT_FILE_TYPES, coerce_bool
 from agent.skills.content_budget import SkillContentBudget
 from agent.tools.author_edit_guard import (
+    AUTHOR_EDIT_PROTECTED_ERROR,
+    AUTHOR_EDIT_PROTECTION_UNAVAILABLE_ERROR,
     AuthorContentProtectionError,
     AuthorEditProtectedError,
     protected_user_message,
@@ -122,9 +124,19 @@ async def _offload_write_tool(
     ``RunOutcome``，比 ``clear_context()`` 活得长），正常返回或出错时移除；被取消时留着，
     由 service 的截停收尾等它的真实结果（``RunOutcome.settle_inflight_tool_writes``）。
     """
-    future = asyncio.ensure_future(
-        asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, sync_func, args)
-    )
+    async def run_write() -> dict[str, Any]:
+        author_refusal = ToolContext.author_protection_refusal_state()
+        if author_refusal is None:
+            return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, sync_func, args)
+        # openai-agents 会把同一回复里的 function tool 放进兄弟任务。写工具在中央入口按
+        # 实际进入顺序串行；首个已经完成的作者保护拒绝会让后续写入口原样返回拒绝而不执行。
+        async with author_refusal.write_lock:
+            refused = author_refusal.payload()
+            if refused is not None:
+                return _make_mcp_payload(refused, tool_name=tool_name)
+            return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, sync_func, args)
+
+    future = asyncio.ensure_future(run_write())
     # 取消之后没人再取结果时，先把异常取走（不留 "exception was never retrieved"）。
     future.add_done_callback(lambda done: done.cancelled() or done.exception())
     registry = ToolContext.inflight_tool_writes()
@@ -174,6 +186,54 @@ _owned_session_var: contextvars.ContextVar[Session | None] = contextvars.Context
 # 放在工具上下文 dict 里而不是 ContextVar，因为它必须随上下文的浅拷贝一起进到
 # asyncio.to_thread 的线程副本。
 SESSION_ISOLATION_KEY = "isolated_session"
+
+_AUTHOR_PROTECTION_STOP_ERROR_TYPES = frozenset(
+    {AUTHOR_EDIT_PROTECTED_ERROR, AUTHOR_EDIT_PROTECTION_UNAVAILABLE_ERROR}
+)
+
+
+class _AuthorProtectionRefusalState:
+    """请求级作者保护拒绝事实，跨 SDK 工具子任务共享。
+
+    ``write_lock`` 只串行应用内 agent 的写工具回调；读工具仍可并行。首个已完成的
+    类型化作者保护拒绝会原样留作同批后续写工具的结果，并让 runner 在本轮工具
+    执行完后同步结束 run。新请求由 ``ToolContext.set_context`` 创建新实例。
+    """
+
+    def __init__(self) -> None:
+        self.write_lock = asyncio.Lock()
+        self._lock = threading.Lock()
+        self._payload: dict[str, Any] | None = None
+        self._user_message = ""
+        self._file_id = ""
+
+    def record(self, payload: dict[str, Any]) -> bool:
+        if not isinstance(payload, dict) or payload.get("status") != "error":
+            return False
+        if payload.get("error_type") not in _AUTHOR_PROTECTION_STOP_ERROR_TYPES:
+            return False
+        with self._lock:
+            if self._payload is None:
+                self._payload = dict(payload)
+                self._user_message = str(payload.get("user_message") or payload.get("error") or "")
+                self._file_id = str(payload.get("id") or "")
+        return True
+
+    def payload(self) -> dict[str, Any] | None:
+        with self._lock:
+            return dict(self._payload) if self._payload is not None else None
+
+    def is_stopped(self) -> bool:
+        with self._lock:
+            return self._payload is not None
+
+    def user_message(self) -> str:
+        with self._lock:
+            return self._user_message
+
+    def file_id(self) -> str:
+        with self._lock:
+            return self._file_id
 
 
 class _PendingEmptyFileState:
@@ -701,6 +761,9 @@ class ToolContext:
             "create_session_func": create_session_func,
             "current_agent": current_agent,
             "pending_empty_file_state": _PendingEmptyFileState(),
+            "author_protection_refusal_state": (
+                _AuthorProtectionRefusalState() if isinstance(author_message, str) else None
+            ),
             "skill_content_budget": SkillContentBudget(used=skill_tokens_used),
             "author_message": author_message,
             "author_steering": author_steering,
@@ -714,6 +777,12 @@ class ToolContext:
         """请求级的在途写工具登记（见 set_context）；没有时为 None。"""
         registry = cls._get_context().get("inflight_tool_writes")
         return registry if isinstance(registry, list) else None
+
+    @classmethod
+    def author_protection_refusal_state(cls) -> _AuthorProtectionRefusalState | None:
+        """本请求的作者保护拒绝事实；无应用工具上下文时不创建。"""
+        state = cls._get_context().get("author_protection_refusal_state")
+        return state if isinstance(state, _AuthorProtectionRefusalState) else None
 
     @classmethod
     def _get_context(cls) -> dict[str, Any]:
@@ -2538,6 +2607,9 @@ def _author_content_protection_payload(
         payload["user_message"] = protected_user_message(
             error.title, action=error.action
         )
+    refusal_state = ToolContext.author_protection_refusal_state()
+    if refusal_state is not None:
+        refusal_state.record(payload)
     return _make_mcp_payload(payload, tool_name=tool_name)
 
 

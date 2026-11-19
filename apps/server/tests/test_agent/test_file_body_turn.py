@@ -25,7 +25,9 @@ def tools(monkeypatch):
         "agent.openai_agents.tools_adapter.TOOL_FUNCTIONS",
         {name: fake(name) for name in ("create_file", "update_project", "edit_file", "delete_file", "query_files")},
     )
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    ToolContext.set_context(
+        session=None, user_id="u", project_id="p", session_id="s", author_message="写第一章"
+    )
     try:
         yield {tool.name: tool for tool in build_agent_function_tools()}, executed
     finally:
@@ -234,6 +236,64 @@ async def test_run_keeps_going_without_a_trusted_overdue_body(tools):
     other_error = {"status": "error", "error_type": "anchor_not_found", "error": "file_body_pending"}
     _overdue()
     assert _stop_run_after_tools(None, [_result("edit_file", other_error)]).is_final_output is False
+
+
+@pytest.mark.parametrize("error_type", ["author_edit_protected", "author_edit_protection_unavailable"])
+async def test_typed_author_protection_refusal_ends_the_run_with_its_existing_message(tools, error_type):
+    from agent.openai_agents.runner import _stop_run_after_tools
+
+    state = ToolContext.author_protection_refusal_state()
+    assert state is not None
+    payload = {
+        "status": "error",
+        "error_type": error_type,
+        "error": "原文保持不变。",
+        "user_message": "已保留作者原文。",
+        "id": "protected-file",
+    }
+    assert state.record(payload) is True
+
+    decision = _stop_run_after_tools(None, [_result("write_chapter", payload)], author_protection=state)
+
+    assert decision.is_final_output is True
+    assert decision.final_output == "已保留作者原文。"
+    assert state.file_id() == "protected-file"
+
+
+@pytest.mark.parametrize("error_type", ["whole_body_replace", "chapter_written_this_turn"])
+async def test_normal_write_refusals_do_not_become_author_protection_stops(tools, error_type):
+    from agent.openai_agents.runner import _stop_run_after_tools
+
+    state = ToolContext.author_protection_refusal_state()
+    assert state is not None
+    payload = {"status": "error", "error_type": error_type, "error": "换个方式继续。"}
+    assert state.record(payload) is False
+    assert _stop_run_after_tools(None, [_result("edit_file", payload)], author_protection=state).is_final_output is False
+
+
+async def test_new_tool_context_does_not_inherit_an_author_protection_refusal():
+    ToolContext.set_context(
+        session=None, user_id="u", project_id="p", session_id="first", author_message="重写第三章"
+    )
+    first = ToolContext.author_protection_refusal_state()
+    assert first is not None
+    assert first.record({
+        "status": "error",
+        "error_type": "author_edit_protected",
+        "error": "原文保持不变。",
+        "id": "protected-file",
+    }) is True
+    ToolContext.clear_context()
+
+    try:
+        ToolContext.set_context(
+            session=None, user_id="u", project_id="p", session_id="second", author_message="润色第三章"
+        )
+        second = ToolContext.author_protection_refusal_state()
+        assert second is not None and second is not first
+        assert second.is_stopped() is False
+    finally:
+        ToolContext.clear_context()
 
 
 async def test_breaker_and_budget_stops_keep_priority_over_the_pending_stop(tools):

@@ -553,6 +553,12 @@ async def run_loop_agent_streaming(
             if errored or tool_call_exhausted:
                 terminated = True
                 break
+            author_refusal = ToolContext.author_protection_refusal_state()
+            if author_refusal is not None and author_refusal.is_stopped():
+                # runner 的 tool_use_behavior 已同步阻止下一次模型调用；这里把同一个
+                # 请求级事实提升为整轮终止，不能再因正文自查 / 插话等外层续跑换工具绕过。
+                terminated = True
+                break
 
             if ToolContext.has_pending_empty_file():
                 can_correct = (

@@ -252,6 +252,7 @@ def test_build_agent_wires_the_stop_callback_and_include_usage(monkeypatch):
         "failure_breaker": breaker,
         "run_meter": None,
         "read_guard": None,
+        "author_protection": None,
     }
     assert agent.model_settings.include_usage is True
 

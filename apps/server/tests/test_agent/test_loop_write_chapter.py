@@ -652,6 +652,128 @@ async def test_author_saved_chapter_is_not_replaced_through_chat(workspace):
     assert outcome.of("file_created") == []
 
 
+def _author_bypass_edits(original: str) -> list[dict[str, str]]:
+    first, second, third = original.split("\n")
+    return [
+        {"op": "replace", "old": first, "new": "全新正文第一段。"},
+        {"op": "delete", "old": second},
+        {"op": "delete", "old": third},
+    ]
+
+
+async def test_author_protection_refusal_stops_before_a_later_local_edit_bypass(workspace):
+    original = "作者第一段。\n作者第二段。\n作者第三段。"
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
+    _author_saves(workspace.session, three, original)
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"}),)),
+        Reply(text="", tools=(("edit_file", {"id": three.id, "edits": _author_bypass_edits(original)}),)),
+        Reply(text="第三章已经改完。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model)
+
+    assert len(model.tool_calls) == 1, "类型化作者保护拒绝后不得再发起下一次模型调用"
+    assert model.tool_calls[0].output["error_type"] == "author_edit_protected"
+    assert _content(workspace, three.id) == original
+    [refusal] = _results(outcome, "write_chapter")
+    assert refusal["status"] == "error"
+    assert refusal["error"] == model.tool_calls[0].output["user_message"]
+    assert refusal["data"]["error_type"] == "author_edit_protected"
+    assert outcome.of("error") == []
+    assert len(outcome.of("done")) == 1
+
+    next_model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("edit_file", {
+            "id": three.id,
+            "edits": [{"op": "replace", "old": "作者第一段。", "new": "作者润色后的第一段。"}],
+        }),)),
+        Reply(text="第一段已经润色。"),
+    ]])
+    await _run_loop(workspace, next_model, "把第三章第一段润色一下")
+    assert next_model.tool_calls[0].output["status"] == "success"
+    assert _content(workspace, three.id) == "作者润色后的第一段。\n作者第二段。\n作者第三段。"
+
+
+async def test_author_protection_refusal_short_circuits_later_writes_in_the_same_tool_batch(workspace):
+    original = "作者第一段。\n作者第二段。\n作者第三段。"
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
+    _author_saves(workspace.session, three, original)
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(
+            ("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"}),
+            ("edit_file", {"id": three.id, "edits": _author_bypass_edits(original)}),
+        )),
+        Reply(text="第三章已经改完。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model)
+
+    assert [call.output.get("error_type") for call in model.tool_calls] == [
+        "author_edit_protected",
+        "author_edit_protected",
+    ]
+    assert _content(workspace, three.id) == original
+    assert outcome.of("error") == []
+    assert len(outcome.of("done")) == 1
+
+
+async def test_concurrent_sibling_write_tasks_close_after_the_first_author_refusal(workspace):
+    from agent.tools.mcp_tools import edit_file, write_chapter
+
+    original = "作者第一段。\n作者第二段。\n作者第三段。"
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
+    _author_saves(workspace.session, three, original)
+    ToolContext.set_context(
+        session=workspace.session,
+        user_id=workspace.user.id,
+        project_id=workspace.project.id,
+        session_id="concurrent-author-refusal",
+        author_message="把第三章换成新稿",
+        read_snapshots={},
+    )
+    ToolContext.set_current_agent("loop")
+    try:
+        refused_task = asyncio.create_task(
+            write_chapter({"chapter": 3, "title": "第3章", "file_type": "draft"})
+        )
+        await asyncio.sleep(0)  # 让排在前面的破坏性调用先进入中央写锁。
+        sibling_task = asyncio.create_task(
+            edit_file({"id": three.id, "edits": _author_bypass_edits(original)})
+        )
+        refused, sibling = (_payload(result) for result in await asyncio.gather(refused_task, sibling_task))
+    finally:
+        ToolContext.clear_context()
+
+    assert refused["error_type"] == "author_edit_protected"
+    assert sibling["error_type"] == "author_edit_protected"
+    assert _content(workspace, three.id) == original
+
+
+async def test_author_refusal_after_a_saved_body_does_not_start_another_self_check_run(workspace):
+    protected = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
+    _author_saves(workspace.session, protected, "作者保存的第三章。")
+    model = ScriptedModel(runs=[
+        [
+            Reply(text="", tools=(("write_chapter", {"chapter": 4, "title": "第4章", "file_type": "draft"}),)),
+            Reply(text=f"<file>\n{NEW_BODY}\n</file>"),
+        ],
+        [
+            Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"}),)),
+            Reply(text="第三章也自查改好了。"),
+        ],
+        [Reply(text="不应启动的额外自查。")],
+    ])
+
+    outcome = await _run_loop(workspace, model, "写第四章并自查")
+
+    assert len(model.run_inputs) == 2
+    assert [call.name for call in model.tool_calls] == ["write_chapter", "write_chapter"]
+    assert model.tool_calls[-1].output["error_type"] == "author_edit_protected"
+    assert _content(workspace, protected.id) == "作者保存的第三章。"
+    assert len(outcome.of("done")) == 1 and outcome.of("error") == []
+
+
 # ---------------------------------------------------------------------------
 # 工具层：解析、歧义、空章节、create_file 不建正文
 # ---------------------------------------------------------------------------
