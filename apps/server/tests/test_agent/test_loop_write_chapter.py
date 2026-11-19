@@ -91,7 +91,10 @@ def _author_saves(session, file: File, content: str) -> None:
         session, file.id, content, change_type="edit", change_source="user", skip_quota=True
     )
     current = session.get(File, file.id)
+    from config.datetime_utils import advance_timestamp, utcnow
+
     current.content = content
+    current.updated_at = advance_timestamp(current.updated_at, now=utcnow())
     session.add(current)
     session.commit()
 
@@ -184,7 +187,7 @@ async def test_write_chapter_replaces_exactly_that_chapter_with_diff_and_undo(wo
     assert len(_drafts(workspace)) == 3
     assert NEW_BODY not in outcome.chat_text
 
-    # 编辑器实时打字，再进入 diff 审阅（原稿与新稿都在 file_edit_end 上）。
+    # 编辑器直接展示已保存正文；事件保留前后稿供草稿冲突和恢复使用。
     assert outcome.file_text(three.id).rstrip("\n") == NEW_BODY
     [edit_end] = outcome.of("file_edit_end")
     assert edit_end.data["original_content"] == "合成第三章原文。\n第二段原文。"
@@ -635,21 +638,28 @@ async def test_rearmed_replacement_that_fails_again_is_reported_next_to_a_saved_
     assert "《第3章 灯塔》的整章替换没有保存" in followup
 
 
-async def test_author_saved_chapter_is_not_replaced_through_chat(workspace):
+async def test_author_saved_chapter_can_be_rewritten_with_an_exact_recovery_anchor(workspace):
     three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。")
     _author_saves(workspace.session, three, "作者自己写的第三章。")
+    two = _ai_chapter(workspace.session, workspace.project, "第2章 渡口", "第二章不在本次改写范围。")
     model = ScriptedModel(runs=[[
         Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第3章", "file_type": "draft"}),)),
-        Reply(text="第三章是你自己写的，需要整章替换请在编辑器里操作。"),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章已重写，原稿可撤销恢复。"),
     ]])
 
     outcome = await _run_loop(workspace, model)
 
-    refused = model.tool_calls[0].output
-    assert refused["status"] == "error" and refused["error_type"] == "author_edit_protected"
-    assert "edit_file" in refused["error"]
-    assert _content(workspace, three.id) == "作者自己写的第三章。"
-    assert outcome.of("file_created") == []
+    assert model.tool_calls[0].output["status"] == "success"
+    assert _content(workspace, three.id).rstrip("\n") == NEW_BODY
+    assert workspace.session.get(File, three.id).title == "第3章 灯塔"
+    assert _content(workspace, two.id) == "第二章不在本次改写范围。"
+    final = _results(outcome, "write_chapter")[-1]["data"]
+    assert final["body_saved"] is True
+    undo = final["undo"]
+    assert FileVersionService().get_content_at_version(
+        workspace.session, three.id, undo["before_version_number"]
+    ) == "作者自己写的第三章。"
+    assert {row.id for row in _drafts(workspace)} == {two.id, three.id}
 
 
 # ---------------------------------------------------------------------------
@@ -1241,7 +1251,7 @@ async def test_second_undo_back_to_ai_text_after_an_earlier_restore_stays_replac
     assert _content(workspace, one.id).rstrip("\n") == NEW_BODY
 
 
-async def test_restore_chain_back_to_author_text_stays_protected(workspace):
+async def test_restored_author_text_can_be_rewritten_again(workspace):
     # 作者正文 → AI 整章替换 → 作者恢复作者正文 → AI 再替换 → 作者撤销：比对越过那次恢复，仍找到作者版本。
     one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", AI_FIRST)
     _save(workspace.session, one, AUTHOR_TEXT, change_type="edit", change_source="user")
@@ -1255,12 +1265,13 @@ async def test_restore_chain_back_to_author_text_stays_protected(workspace):
 
     armed = await _write_chapter_one(workspace)
 
-    assert armed["status"] == "error" and armed["error_type"] == "author_edit_protected"
-    assert _content(workspace, one.id) == AUTHOR_TEXT
+    assert armed["status"] == "success"
+    assert _content(workspace, one.id).rstrip("\n") == NEW_BODY
+    assert _number_of(workspace, one.id, AUTHOR_TEXT) > 0
 
 
 @pytest.mark.parametrize("back_to_author", ["restore_author_version", "mixed_review_save"])
-async def test_author_text_reached_by_restore_or_review_stays_protected(workspace, back_to_author):
+async def test_author_text_reached_by_restore_or_review_remains_rewriteable(workspace, back_to_author):
     one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", AI_FIRST)
     if back_to_author == "restore_author_version":
         _save(workspace.session, one, AUTHOR_TEXT, change_type="edit", change_source="user")
@@ -1276,8 +1287,9 @@ async def test_author_text_reached_by_restore_or_review_stays_protected(workspac
 
     armed = await _write_chapter_one(workspace)
 
-    assert armed["status"] == "error" and armed["error_type"] == "author_edit_protected"
-    assert _content(workspace, one.id) == expected
+    assert armed["status"] == "success"
+    assert _content(workspace, one.id).rstrip("\n") == NEW_BODY
+    assert _number_of(workspace, one.id, expected) > 0
 
 
 async def test_undo_marks_a_write_chapter_card(workspace):
@@ -1637,7 +1649,6 @@ async def test_replace_body_commits_a_title_change_when_the_body_is_unchanged(wo
         original,
         expected_updated_at=chapter.updated_at.isoformat() if chapter.updated_at else None,
         title="第4章 破晓",
-        protect_author_content=False,
     )
 
     workspace.session.expire_all()
@@ -1661,7 +1672,6 @@ async def test_replace_body_preserves_the_old_title_when_the_new_title_now_confl
         original,
         expected_updated_at=chapter.updated_at.isoformat() if chapter.updated_at else None,
         title="第3章 破晓",
-        protect_author_content=False,
     )
 
     workspace.session.expire_all()

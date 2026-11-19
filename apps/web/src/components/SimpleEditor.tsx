@@ -955,7 +955,7 @@ export const SimpleEditor = ({
   // Handle save
   const handleSave = async (providedSubmission?: SaveSubmission): Promise<SaveOutcome> => {
     if (isFileRemoved(draftScopeRef.current.projectId, providedSubmission?.fileId ?? draftRef.current.fileId)) return "failed";
-    if ((!dirtyRef.current && !providedSubmission) || isNaturalPolishRunning || isAiEditing || showVersionHistory) {
+    if ((!dirtyRef.current && !providedSubmission) || isNaturalPolishRunning || isAiEditing || (showVersionHistory && !providedSubmission)) {
       return "failed";
     }
 
@@ -1199,6 +1199,21 @@ export const SimpleEditor = ({
     }
     // Finish writes already queued before the dialog opened; don't flush an
     // unscheduled dirty draft that the restore confirmation will discard.
+    await saveChainRef.current;
+  };
+
+  const prepareOperationUndo = async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    if (dirtyRef.current) {
+      const outcome = await handleSave({
+        ...draftRef.current,
+        previousTitle: lastSavedTitleRef.current,
+      });
+      if (outcome !== 'saved') throw new Error('Current draft must be saved before undo');
+    }
     await saveChainRef.current;
   };
 
@@ -1481,6 +1496,7 @@ export const SimpleEditor = ({
           fileTitle={title}
           onClose={() => setShowVersionHistory(false)}
           onBeforeRollback={prepareHistoryRollback}
+          onBeforeOperationUndo={prepareOperationUndo}
           onRollback={handleRollback}
         />
       )}

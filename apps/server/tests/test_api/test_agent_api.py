@@ -13,9 +13,8 @@ Tests endpoints for programmatic access using X-Agent-API-Key authentication:
 - POST /api/v1/agent/projects/{project_id}/search - Semantic search
 """
 
-import threading
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -522,6 +521,48 @@ async def test_delete_file_success(client: AsyncClient, db_session: Session):
     # Verify soft delete
     db_session.refresh(file)
     assert file.is_deleted is True
+
+    from services.file_trash import FileTrashService
+
+    trash = FileTrashService(db_session, user_id=user.id, project_id=project.id)
+    batches = trash.list_batches(limit=50, offset=0)["batches"]
+    assert len(batches) == 1
+    assert batches[0]["source"] == "agent_api"
+    assert batches[0]["count"] == 1
+    restored = trash.restore(batches[0]["batch_id"])
+    assert restored["file_ids"] == [file.id]
+    db_session.refresh(file)
+    assert file.is_deleted is False
+
+
+@pytest.mark.integration
+async def test_delete_folder_api_key_scope_and_recoverable_tree(client, db_session):
+    from services.file_trash import FileTrashService
+
+    user = create_test_user(db_session, "delete_scope_owner")
+    project = create_test_project(db_session, user.id)
+    inaccessible = create_test_project(db_session, user.id, "Outside key scope")
+    folder = create_test_file(db_session, project.id, "Folder", file_type="folder")
+    child = create_test_file(db_session, project.id, "Child")
+    child.parent_id = folder.id
+    db_session.add(child)
+    db_session.commit()
+    other = create_test_file(db_session, inaccessible.id, "Keep")
+    _, plain_key = create_test_api_key(db_session, user.id, scopes=["write"], project_ids=[project.id])
+    headers = {"X-Agent-API-Key": plain_key}
+    refused = await client.delete(f"/api/v1/agent/files/{other.id}", headers=headers)
+    assert refused.status_code == 403
+    db_session.refresh(other)
+    assert other.is_deleted is False
+    deleted = await client.delete(f"/api/v1/agent/files/{folder.id}", headers=headers)
+    assert deleted.status_code == 200
+    trash = FileTrashService(db_session, user_id=user.id, project_id=project.id)
+    batch = trash.list_batches(limit=50, offset=0)["batches"][0]
+    assert batch["count"] == 2
+    restored = trash.restore(batch["batch_id"])
+    assert set(restored["file_ids"]) == {folder.id, child.id}
+    db_session.refresh(child)
+    assert not child.is_deleted and child.parent_id == folder.id
 
 
 @pytest.mark.integration

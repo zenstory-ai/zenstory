@@ -243,6 +243,8 @@ vi.mock('../../lib/agentApi', () => ({
 
 vi.mock('../../lib/api', () => ({
   fileVersionApi: { rollback: mockRollback },
+  fileEditOperationApi: { undo: vi.fn(), list: vi.fn() },
+  fileTrashApi: { restore: vi.fn(), list: vi.fn(), preview: vi.fn(), deleteBatch: vi.fn() },
   projectApi: { getProgress: mockGetProgress },
   fileApi: { get: mockGetFile },
 }))
@@ -339,10 +341,12 @@ import { fetchSuggestions } from '../../lib/agentApi'
 import { toast } from '../../lib/toast'
 import { subscriptionApi } from '../../lib/subscriptionApi'
 import { notifyEditorContentSaved, setOpenEditorFlush } from '../../lib/editorSaveTracker'
+import { fileEditOperationApi } from '../../lib/api'
 
 describe('ChatPanel mount smoke', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setOpenEditorFlush(null)
     sessionStorage.clear()
     mockFirstWork.get.mockReset().mockResolvedValue(inactiveFirstWork)
     // clearAllMocks keeps queued *Once values, so a lookup left over from one test cannot leak into the next.
@@ -3078,7 +3082,7 @@ describe('ChatPanel new-author flow', () => {
     expect(screen.getByTestId('mock-quota-badge')).toHaveAttribute('data-compact', 'true')
   })
 
-  it('asks for confirmation in an in-app dialog before undoing an AI edit', async () => {
+  it('undoes an AI edit in one click without a preliminary confirmation', async () => {
     const nativeConfirm = vi.fn(() => true)
     vi.stubGlobal('confirm', nativeConfirm)
     mockRollback.mockResolvedValue({ snapshot_created: true })
@@ -3089,25 +3093,85 @@ describe('ChatPanel new-author flow', () => {
     await waitFor(() => expect(lastMessageListProps()?.onUndo).toBeTypeOf('function'))
     const target = { fileId: 'file-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: '2026-10-08T10:01:00Z' }
 
-    act(() => lastMessageListProps().onUndo?.(target))
-    const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('撤销这次 AI 修改？正文会换回修改前的内容，已有的历史版本都会保留。')
-    expect(nativeConfirm).not.toHaveBeenCalled()
-
-    // Cancelling leaves the text alone.
-    fireEvent.click(screen.getByRole('button', { name: '取消' }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(mockRollback).not.toHaveBeenCalled()
-
-    act(() => lastMessageListProps().onUndo?.(target))
-    await screen.findByRole('dialog')
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+      lastMessageListProps().onUndo?.(target)
     })
     expect(mockRollback).toHaveBeenCalledWith('file-1', 3, '2026-10-08T10:01:00Z', { chatMessageId: undefined, toolUseId: undefined })
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(nativeConfirm).not.toHaveBeenCalled()
     expect(mockProjectState.triggerEditorRefresh).toHaveBeenCalledWith('file-1')
     vi.unstubAllGlobals()
+  })
+
+  it('does not undo over an unsaved draft when the open editor cannot save it', async () => {
+    const flush = vi.fn(async () => 'failed')
+    setOpenEditorFlush(flush, null, () => 'file-1')
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'a-1', session_id: 'session-1', role: 'assistant', content: '改好了', created_at: '2026-10-08T10:01:00Z' },
+    ] as never)
+    try {
+      render(<ChatPanel />)
+      await waitFor(() => expect(lastMessageListProps()?.onUndo).toBeTypeOf('function'))
+
+      await act(async () => {
+        lastMessageListProps().onUndo?.({ fileId: 'file-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: 'now' })
+      })
+
+      expect(flush).toHaveBeenCalledTimes(1)
+      expect(mockRollback).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith('editor:saveFailed')
+    } finally {
+      setOpenEditorFlush(null, flush)
+    }
+  })
+
+  it('uses durable operation undo in one click when the card has an operation id', async () => {
+    vi.mocked(fileEditOperationApi.undo).mockResolvedValueOnce({
+      status: 'undone', operation_id: 'operation-1', file_id: 'file-1', updated_at: 'later',
+    })
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'a-1', session_id: 'session-1', role: 'assistant', content: '改好了', created_at: '2026-10-08T10:01:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageListProps()?.onUndo).toBeTypeOf('function'))
+
+    await act(async () => {
+      lastMessageListProps().onUndo?.({
+        fileId: 'file-1', operationId: 'operation-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: 'now',
+      })
+    })
+
+    expect(fileEditOperationApi.undo).toHaveBeenCalledWith('file-1', 'operation-1')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mockProjectState.triggerEditorRefresh).toHaveBeenCalledWith('file-1')
+  })
+
+  it('shows the exact current and restore sort positions in an operation conflict', async () => {
+    vi.mocked(fileEditOperationApi.undo).mockResolvedValueOnce({
+      status: 'needs_merge', operation_id: 'operation-1', file_id: 'file-1',
+      before: { content: 'before', title: '旧标题', order: 3 },
+      after: { content: 'after', title: '新标题', order: 4 },
+      current: { content: 'after', title: '作者标题', order: 7, updated_at: 'later', content_sha256: 'sha' },
+      content_conflict: false, metadata_conflict: true,
+    })
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'a-1', session_id: 'session-1', role: 'assistant', content: '改好了', created_at: '2026-10-08T10:01:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageListProps()?.onUndo).toBeTypeOf('function'))
+
+    await act(async () => {
+      lastMessageListProps().onUndo?.({
+        fileId: 'file-1', operationId: 'operation-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: 'now',
+      })
+    })
+
+    const dialog = await screen.findByRole('dialog', { name: '这几处和你后写的内容重叠' })
+    expect(within(dialog).getByText('当前排序位置')).toBeInTheDocument()
+    expect(within(dialog).getByText('恢复排序位置')).toBeInTheDocument()
+    expect(within(dialog).getByText('7')).toBeInTheDocument()
+    expect(within(dialog).getByText('3')).toBeInTheDocument()
+    expect(within(dialog).getByRole('checkbox', { name: '同时恢复这次修改前的标题和位置' })).not.toBeChecked()
   })
 
   it('keeps a replacement card waiting until the later edit to the same file is undone, then undoes it by content', async () => {
@@ -3130,17 +3194,13 @@ describe('ChatPanel new-author flow', () => {
     const editTarget = { fileId: 'ch-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: editUndo.expected_after_updated_at }
     await waitFor(() => expect([...lastUndoBlocked()]).toEqual([undoneEditKey(replaceTarget)]))
 
-    act(() => lastMessageListProps().onUndo?.(editTarget))
-    await screen.findByRole('dialog')
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+      lastMessageListProps().onUndo?.(editTarget)
     })
     await waitFor(() => expect(lastUndoBlocked().size).toBe(0))
 
-    act(() => lastMessageListProps().onUndo?.(replaceTarget))
-    await screen.findByRole('dialog')
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+      lastMessageListProps().onUndo?.(replaceTarget)
     })
     expect(mockRollback).toHaveBeenLastCalledWith('ch-1', 2, replaceUndo.expected_after_updated_at, expect.objectContaining({
       expectedAfterContentSha256: hash,
@@ -3169,10 +3229,8 @@ describe('ChatPanel new-author flow', () => {
     const editTarget = { fileId: 'ch-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: editUndo.expected_after_updated_at }
     await waitFor(() => expect([...lastUndoBlocked()]).toEqual([undoneEditKey(replaceTarget)]))
 
-    act(() => lastMessageListProps().onUndo?.(editTarget))
-    await screen.findByRole('dialog')
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+      lastMessageListProps().onUndo?.(editTarget)
     })
     expect(toast.error).toHaveBeenCalledWith('versions:undoStaleWrite')
     // The server decides the earlier undo (by token or content); the chat no longer holds it back.
@@ -3180,6 +3238,7 @@ describe('ChatPanel new-author flow', () => {
   })
 
   it('points to the version history when the file changed after the AI edit, instead of 请刷新后重试', async () => {
+    setOpenEditorFlush(null)
     const { ApiError } = await import('../../lib/apiClient')
     mockRollback.mockRejectedValue(new ApiError(409, 'ERR_RESOURCE_CONFLICT', {
       reason: 'stale_write', file_id: 'file-1',
@@ -3190,10 +3249,8 @@ describe('ChatPanel new-author flow', () => {
     ] as never)
     render(<ChatPanel />)
     await waitFor(() => expect(lastMessageListProps()?.onUndo).toBeTypeOf('function'))
-    act(() => lastMessageListProps().onUndo?.({ fileId: 'file-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: '2026-10-08T10:01:00Z' }))
-    await screen.findByRole('dialog')
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+      lastMessageListProps().onUndo?.({ fileId: 'file-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: '2026-10-08T10:01:00Z' })
     })
     expect(toast.error).toHaveBeenCalledWith('versions:undoStaleWrite')
     expect(toast.error).toHaveBeenCalledTimes(1)

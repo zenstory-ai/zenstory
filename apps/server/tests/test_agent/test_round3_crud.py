@@ -403,17 +403,17 @@ def _deleted_flags(db_session: Session, ids: list[str]) -> list[bool]:
 
 @pytest.mark.parametrize("falsy", ["false", "False", " false ", "0", "", "null", "no"])
 @pytest.mark.unit
-def test_delete_file_string_falsy_recursive_does_not_cascade(
+def test_delete_file_string_falsy_recursive_still_deletes_the_whole_folder_tree(
     db_session: Session, test_user: User, novel_project: Project, falsy: str
 ):
-    """字符串形态的假值绝不能触发级联软删除。"""
+    """文件夹是一个树对象：即使旧调用传假值，也不能留下不可见的活子节点。"""
     crud = FileCRUD(db_session, user_id=test_user.id)
     folder_id, child_ids = _build_folder_with_children(db_session, novel_project)
 
     crud.delete_file(id=folder_id, recursive=falsy)
 
     assert _deleted_flags(db_session, [folder_id]) == [True]
-    assert _deleted_flags(db_session, child_ids) == [False] * len(child_ids)
+    assert _deleted_flags(db_session, child_ids) == [True] * len(child_ids)
 
 
 @pytest.mark.parametrize("truthy", [True, "true", "True", "1", "yes"])
@@ -435,11 +435,11 @@ def test_delete_file_truthy_recursive_still_cascades(
 def test_delete_file_unknown_recursive_value_is_conservative(
     db_session: Session, test_user: User, novel_project: Project
 ):
-    """无法判定的值（如 json_repair 产出的 "fals"）按保守语义处理，不级联。"""
+    """无法判定的值不会改变文件夹必须整棵进入回收站的产品不变量。"""
     crud = FileCRUD(db_session, user_id=test_user.id)
     folder_id, child_ids = _build_folder_with_children(db_session, novel_project)
 
     crud.delete_file(id=folder_id, recursive="fals")
 
     assert _deleted_flags(db_session, [folder_id]) == [True]
-    assert _deleted_flags(db_session, child_ids) == [False] * len(child_ids)
+    assert _deleted_flags(db_session, child_ids) == [True] * len(child_ids)

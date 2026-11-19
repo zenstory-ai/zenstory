@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToolResultCard } from '../ToolResultCard'
 
@@ -274,6 +274,29 @@ describe('ToolResultCard', () => {
       expect(onOpenFile).toHaveBeenCalledWith('ch-3', 'draft', '第3章 雨夜')
     })
 
+    it.each([
+      ['create_file', { id: 'ch-new', title: '新章', file_type: 'draft', content: '正文' }],
+      ['write_chapter', { id: 'ch-new', title: '新章', file_type: 'draft', chapter: 1, action: 'created', body_saved: true, awaiting_body: false, new_word_count: 2 }],
+    ])('offers operation-backed Undo text on a newly written %s card', async (toolName, data) => {
+      const user = userEvent.setup()
+      const onUndo = vi.fn()
+      const undo = {
+        before_version_number: 1,
+        expected_after_updated_at: '2026-11-19T08:00:00Z',
+        expected_after_content_sha256: 'a'.repeat(64),
+        operation_id: 'operation-created-1',
+      }
+      render(<ToolResultCard type="tool_result" toolName={toolName} result={{ data: { ...data, undo } }} onUndo={onUndo} />)
+
+      await user.click(screen.getByRole('button', { name: 'chat:tool.undoCreatedText' }))
+      expect(onUndo).toHaveBeenCalledWith(expect.objectContaining({ fileId: 'ch-new', operationId: 'operation-created-1' }))
+    })
+
+    it('does not invent an undo action for an older created card without an operation anchor', () => {
+      render(<ToolResultCard type="tool_result" toolName="create_file" result={{ data: { id: 'old-file', title: '旧卡', file_type: 'draft', content: '正文' } }} onUndo={vi.fn()} />)
+      expect(screen.queryByRole('button', { name: 'chat:tool.undoCreatedText' })).not.toBeInTheDocument()
+    })
+
     it('says which chapter a saved replacement overwrote, the old and new length, and offers undo', async () => {
       const user = userEvent.setup()
       const onUndo = vi.fn()
@@ -488,6 +511,19 @@ describe('ToolResultCard', () => {
       expect(screen.getByText(/1.5k/)).toBeInTheDocument()
     })
 
+    it('prefers the saved body receipt count on both live and reloaded create cards', () => {
+      const saved = {
+        title: 'Streamed file', file_type: 'draft', content: '', body_saved: true,
+        new_word_count: 1234,
+      }
+      const view = render(<ToolResultCard type="tool_result" toolName="create_file" result={{ data: saved }} />)
+      expect(screen.getByText('1.2k')).toBeInTheDocument()
+
+      view.unmount()
+      render(<ToolResultCard type="tool_result" toolName="create_file" result={{ data: { ...saved } }} />)
+      expect(screen.getByText('1.2k')).toBeInTheDocument()
+    })
+
     it('counts words the way the editor does, not raw characters', () => {
       // 1200 Chinese characters plus punctuation and blank lines: 2400 characters.
       const content = '你好，世界！\n\n'.repeat(300)
@@ -608,6 +644,84 @@ describe('ToolResultCard', () => {
         />
       )
       expect(screen.getByText('Renamed 合集 to 第一卷 雨夜')).toBeInTheDocument()
+    })
+
+    it('offers the same durable undo for a standalone rename', async () => {
+      const user = userEvent.setup()
+      const onUndo = vi.fn()
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="rename_file"
+          chatMessageId="msg-rename"
+          toolUseId="rename-1"
+          onUndo={onUndo}
+          result={{ data: {
+            id: 'f1', title: '新标题', previous_title: '旧标题', mutation_applied: true,
+            undo: {
+              operation_id: 'op-rename',
+              before_version_number: 7,
+              expected_after_updated_at: '2026-11-19T04:00:00Z',
+            },
+          } }}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: /undo/i }))
+      expect(onUndo).toHaveBeenCalledWith(expect.objectContaining({ operationId: 'op-rename', fileId: 'f1' }))
+    })
+
+    it('shows a recoverable deletion batch with its exact count', async () => {
+      const user = userEvent.setup()
+      const onRestoreDeletion = vi.fn()
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="delete_file"
+          onRestoreDeletion={onRestoreDeletion}
+          result={{ data: { batch_id: 'batch-1', count: 2, restored: false, targets: [] } }}
+        />,
+      )
+      expect(screen.getByText('chat:tool.deletedCount')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'chat:tool.restoreDeleted' }))
+      expect(onRestoreDeletion).toHaveBeenCalledWith('batch-1')
+    })
+
+    it('confirms the exact deletion preview and turns the same card into a restorable batch', async () => {
+      const user = userEvent.setup()
+      const onConfirmDeletion = vi.fn().mockResolvedValue({
+        batch_id: 'batch-confirmed', root_ids: ['file-1'], targets: [], count: 1,
+        restored: false, mutation_applied: true,
+      })
+      const onRestoreDeletion = vi.fn()
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="delete_file"
+          onConfirmDeletion={onConfirmDeletion}
+          onRestoreDeletion={onRestoreDeletion}
+          result={{ data: {
+            confirmation_required: true,
+            mutation_applied: false,
+            preview: {
+              root_ids: ['folder-1'], recursive: true, count: 2, target_hash: 'hash-1',
+              targets: [
+                { id: 'folder-1', title: '第一卷', file_type: 'folder', parent_id: null, order: 0 },
+                { id: 'file-1', title: '第一章', file_type: 'draft', parent_id: 'folder-1', order: 0 },
+              ],
+            },
+          } }}
+        />,
+      )
+
+      const scope = screen.getByRole('list', { name: 'deleteScope' })
+      expect(within(scope).getByText('第一卷 / 第一章')).toBeInTheDocument()
+      expect(within(scope).getByText('fileTypes.draft')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'common:delete' }))
+      await waitFor(() => expect(onConfirmDeletion).toHaveBeenCalledWith(expect.objectContaining({ target_hash: 'hash-1' })))
+      await user.click(await screen.findByRole('button', { name: 'chat:tool.restoreDeleted' }))
+      expect(onRestoreDeletion).toHaveBeenCalledWith('batch-confirmed')
+      expect(await screen.findByText('chat:tool.deletionRestored')).toBeInTheDocument()
     })
 
     it('says when an edit put back a paragraph the author deleted, not that it changed their text', () => {

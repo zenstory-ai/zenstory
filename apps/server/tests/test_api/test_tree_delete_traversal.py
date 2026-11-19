@@ -13,7 +13,9 @@ from sqlmodel import select
 from agent.tools.file_ops.crud import FileCRUD
 from api import files as files_api
 from config.datetime_utils import normalize_datetime_to_utc
+from core.error_handler import APIException
 from models import File, Project, User
+from services import file_trash
 
 EntryPoint = Literal["web", "tool"]
 BASE_TIME = datetime(2026, 10, 6, 12, 0, 0, tzinfo=UTC)
@@ -84,9 +86,8 @@ def _delete(
     user: User,
     file_id: str,
     recursive: bool,
-) -> list[str]:
+) -> None:
     if entrypoint == "web":
-        background_tasks = BackgroundTasks()
         result = files_api.delete_file(
             file_id,
 
@@ -94,7 +95,10 @@ def _delete(
             current_user=user,
             session=db_session,
         )
-        assert result == {"message": "File deleted successfully"}
+        assert result["message"] == "File deleted successfully"
+        assert result["batch_id"]
+        assert result["mutation_applied"] is True
+        assert result["restored"] is False
         return None
 
 
@@ -142,7 +146,7 @@ def test_web_recursive_delete_handles_legacy_cycles_once(
     )
     db_session.execute(update(File).where(File.id == ids[0]).values(parent_id=ids[-1]))
     db_session.commit()
-    monkeypatch.setattr(files_api, "utcnow", lambda: BASE_TIME)
+    monkeypatch.setattr(file_trash, "utcnow", lambda: BASE_TIME)
 
     _delete(
         db_session,
@@ -166,8 +170,6 @@ def test_web_recursive_delete_handles_legacy_cycles_once(
 def test_tool_recursive_delete_keeps_legacy_cycle_visited_behavior(
     db_session, monkeypatch, cycle_size: int,
 ):
-    from agent.tools.file_ops import crud as crud_module
-
     user, project = _make_user_and_project(db_session, f"tool-cycle-{cycle_size}")
     ids = _bulk_seed_chain(
         db_session,
@@ -177,7 +179,7 @@ def test_tool_recursive_delete_keeps_legacy_cycle_visited_behavior(
     )
     db_session.execute(update(File).where(File.id == ids[0]).values(parent_id=ids[-1]))
     db_session.commit()
-    monkeypatch.setattr(crud_module, "utcnow", lambda: BASE_TIME)
+    monkeypatch.setattr(file_trash, "utcnow", lambda: BASE_TIME)
 
     _delete(
         db_session,
@@ -256,7 +258,7 @@ def test_recursive_delete_does_not_cross_project_boundary_from_legacy_parent_lin
 
 
 @pytest.mark.parametrize("entrypoint", ["web", "tool"])
-def test_nonrecursive_delete_preserves_active_child_body_and_timestamp(
+def test_folder_delete_is_recursive_even_when_legacy_flag_is_false(
     db_session, monkeypatch, entrypoint: EntryPoint,
 ):
     user, project = _make_user_and_project(db_session, f"nonrecursive-{entrypoint}")
@@ -295,13 +297,13 @@ def test_nonrecursive_delete_preserves_active_child_body_and_timestamp(
     root = db_session.get(File, root_id, populate_existing=True)
     child = db_session.get(File, child_id, populate_existing=True)
     assert root is not None and root.is_deleted
-    assert child is not None and not child.is_deleted
+    assert child is not None and child.is_deleted
     assert child.content == "child-body-must-survive"
-    assert normalize_datetime_to_utc(child.updated_at) == BASE_TIME
+    assert normalize_datetime_to_utc(child.updated_at) > BASE_TIME
 
 
 @pytest.mark.parametrize("entrypoint", ["web", "tool"])
-def test_recursive_delete_obeys_three_file_select_budget_for_50_node_subtree(
+def test_recursive_delete_obeys_constant_file_select_budget_for_50_node_subtree(
     db_session, monkeypatch, entrypoint: EntryPoint,
 ):
     user, project = _make_user_and_project(db_session, f"select-count-{entrypoint}")
@@ -335,18 +337,17 @@ def test_recursive_delete_obeys_three_file_select_budget_for_50_node_subtree(
         event.remove(engine, "before_cursor_execute", count_file_selects)
 
     print(f"FILE_SELECT_COUNT[{entrypoint}]={file_selects}")
-    assert file_selects == 3
+    # Entry-point ownership lookup + two root/subtree reads: one discovery
+    # snapshot and one after acquiring SQLite's deterministic file stripes.
+    assert file_selects == 5
 
 
-def test_web_recursive_delete_of_already_deleted_root_still_deletes_active_children(
+def test_already_deleted_folder_cannot_create_a_second_deletion_generation(
     db_session, monkeypatch,
 ):
     user, project = _make_user_and_project(db_session, "web-redelete")
     ids = _bulk_seed_chain(db_session, project.id, count=3, prefix="web-redelete")
-    from agent.tools.file_ops import crud as crud_module
-
-    monkeypatch.setattr(files_api, "utcnow", lambda: BASE_TIME)
-    monkeypatch.setattr(crud_module, "utcnow", lambda: BASE_TIME)
+    monkeypatch.setattr(file_trash, "utcnow", lambda: BASE_TIME)
     _delete(
         db_session, monkeypatch, entrypoint="web", user=user, file_id=ids[0], recursive=False,
     )
@@ -355,12 +356,14 @@ def test_web_recursive_delete_of_already_deleted_root_still_deletes_active_child
     with pytest.raises(ValueError, match="文件不存在或已删除"):
         FileCRUD(db_session, user.id).delete_file(ids[0], recursive=True)
 
-    _delete(
-        db_session, monkeypatch, entrypoint="web", user=user, file_id=ids[0], recursive=True,
-    )
+    with pytest.raises(APIException) as raised:
+        _delete(
+            db_session, monkeypatch, entrypoint="web", user=user, file_id=ids[0], recursive=True,
+        )
+    assert raised.value.status_code == 404
     rows = db_session.exec(select(File).where(File.id.in_(ids)).order_by(File.id)).all()
     assert all(row.is_deleted for row in rows)
-    assert normalize_datetime_to_utc(rows[0].updated_at) > previous_token
+    assert normalize_datetime_to_utc(rows[0].updated_at) == previous_token
     assert [row.content for row in rows] == [f"body-{index}" for index in range(3)]
 
 
@@ -388,8 +391,6 @@ def test_recursive_delete_prunes_deleted_intermediate_and_keeps_live_grandchild(
 def test_recursive_delete_has_stable_id_postorder_and_preserves_payload(
     db_session, monkeypatch, entrypoint: EntryPoint, future_days: int,
 ):
-    from agent.tools.file_ops import crud as crud_module
-
     user, project = _make_user_and_project(db_session, f"postorder-{entrypoint}-{future_days}")
     prefix = f"postorder-{entrypoint}-{future_days}"
     root, a, b, a_child, b_child = [f"{prefix}-{name}" for name in ("root", "a", "b", "z", "c")]
@@ -404,8 +405,7 @@ def test_recursive_delete_has_stable_id_postorder_and_preserves_payload(
     ]
     db_session.execute(insert(File), rows)
     db_session.commit()
-    for module in (files_api, crud_module):
-        monkeypatch.setattr(module, "utcnow", lambda: BASE_TIME)
+    monkeypatch.setattr(file_trash, "utcnow", lambda: BASE_TIME)
     _delete(
         db_session, monkeypatch, entrypoint=entrypoint, user=user, file_id=root, recursive=True,
     )
@@ -466,7 +466,7 @@ def _invoke_real_delete(session, user, entrypoint, file_id, recursive, backgroun
 
 @pytest.mark.parametrize("entrypoint", ["web", "tool"])
 @pytest.mark.parametrize("count", [1, 50, 1200])
-def test_default_expiration_delete_uses_three_selects(
+def test_default_expiration_recoverable_delete_uses_constant_selects(
     db_session, provider_delete_calls, entrypoint: EntryPoint, count: int,
 ):
     import asyncio
@@ -505,24 +505,22 @@ def test_default_expiration_delete_uses_three_selects(
             result = _invoke_real_delete(production_session, owner, entrypoint, ids[0], True, tasks)
             assert committed
             if entrypoint == "web":
-                assert result == {"message": "File deleted successfully"}
+                assert result["message"] == "File deleted successfully"
+                assert result["count"] == count
+                assert result["batch_id"]
                 asyncio.run(tasks())
             else:
                 assert result is True
         finally:
             event.remove(engine, "before_cursor_execute", observe)
             event.remove(production_session, "after_commit", after_commit)
-    expected = [
-        (project_id, "draft" if file_id == ids[-1] else "folder", file_id)
-        for file_id in reversed(ids)
-    ]
     print(f"DEFAULT_EXPIRATION_FILE_SELECTS[{entrypoint},{count}]={len(selects)} POSTCOMMIT={len(postcommit_selects)}")
-    assert len(selects) == 3
+    assert len(selects) == 5
     assert postcommit_selects == []
 
 
 @pytest.mark.parametrize("entrypoint", ["web", "tool"])
-def test_default_expiration_nonrecursive_delete_has_two_selects(
+def test_default_expiration_nonrecursive_leaf_delete_has_three_selects(
     db_session, provider_delete_calls, entrypoint: EntryPoint,
 ):
     import asyncio
@@ -531,7 +529,11 @@ def test_default_expiration_nonrecursive_delete_has_two_selects(
 
     user, project = _make_user_and_project(db_session, f"expiration-single-{entrypoint}")
     ids = _bulk_seed_chain(db_session, project.id, count=3, prefix=f"expiration-single-{entrypoint}")
-    user_id, project_id = user.id, project.id
+    # Historical dirty-data shape: a non-folder root with children. A leaf
+    # deletion must remain nonrecursive, while folder deletion always cascades.
+    db_session.execute(update(File).where(File.id == ids[0]).values(file_type="draft"))
+    db_session.commit()
+    user_id = user.id
     tasks = BackgroundTasks()
     selects: list[str] = []
 
@@ -551,7 +553,7 @@ def test_default_expiration_nonrecursive_delete_has_two_selects(
             event.remove(engine, "before_cursor_execute", observe)
     assert not db_session.get(File, ids[1], populate_existing=True).is_deleted
     print(f"DEFAULT_EXPIRATION_NONRECURSIVE_SELECTS[{entrypoint}]={len(selects)}")
-    assert len(selects) == 2
+    assert len(selects) == 3
 
 
 @pytest.mark.parametrize("entrypoint", ["web", "tool"])
@@ -564,7 +566,7 @@ def test_default_expiration_already_deleted_root_keeps_web_tool_contract(
 
     user, project = _make_user_and_project(db_session, f"expiration-redelete-{entrypoint}")
     ids = _bulk_seed_chain(db_session, project.id, count=3, prefix=f"expiration-redelete-{entrypoint}")
-    user_id, project_id = user.id, project.id
+    user_id = user.id
     db_session.execute(update(File).where(File.id == ids[0]).values(is_deleted=True, deleted_at=BASE_TIME))
     db_session.commit()
     tasks = BackgroundTasks()
@@ -574,7 +576,9 @@ def test_default_expiration_already_deleted_root_keeps_web_tool_contract(
             with pytest.raises(ValueError, match="文件不存在或已删除"):
                 _invoke_real_delete(production_session, owner, entrypoint, ids[0], True, tasks)
         else:
-            _invoke_real_delete(production_session, owner, entrypoint, ids[0], True, tasks)
+            with pytest.raises(APIException) as raised:
+                _invoke_real_delete(production_session, owner, entrypoint, ids[0], True, tasks)
+            assert raised.value.status_code == 404
             asyncio.run(tasks())
 
 

@@ -204,9 +204,18 @@ def test_base_prompt_rename_rule_points_only_to_rename_file():
 
     tool_list = LOOP_TOOL_USAGE_PROTOCOL.split("## 写正文")[0]
     assert "\n- rename_file" in tool_list
-    assert "改标题" not in prompt.replace("要改标题用 rename_file", "")
+    assert "改标题用 edit_file" not in prompt
+    assert "改标题用 create_file" not in prompt
     assert "建一个新标题的文件" not in prompt
     assert "只改文件名（文件标题）时用 rename_file" in prompt
+
+
+@pytest.mark.unit
+def test_delete_tool_prompt_uses_recovery_scope_without_authorship_refusal():
+    assert "删除未受作者正文保护" not in LOOP_TOOL_USAGE_PROTOCOL
+    assert "受保护正文及含它的文件夹请作者用文件菜单删除" not in LOOP_TOOL_USAGE_PROTOCOL
+    assert "至多 5 个明确叶文件直接删除" in LOOP_TOOL_USAGE_PROTOCOL
+    assert "文件夹或更大范围返回一次确认卡" in LOOP_TOOL_USAGE_PROTOCOL
 
 
 @pytest.mark.unit

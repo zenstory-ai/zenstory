@@ -32,7 +32,6 @@ from models.file_model import FILE_TYPE_FOLDER, validate_file_title
 from models.file_version import (
     CHANGE_SOURCE_AI,
     CHANGE_TYPE_AI_EDIT,
-    CHANGE_TYPE_CREATE,
 )
 from services.features.activation_event_service import activation_event_service
 from services.file_tree_rules import (
@@ -43,7 +42,6 @@ from services.file_tree_rules import (
     # 依旧可用。
     begin_file_creation_savepoint,
     is_descendant_of,
-    load_live_subtree_postorder,
     lock_project_for_files,
     resolve_new_file_order,
     validate_parent_assignment,
@@ -59,10 +57,8 @@ from .edit import (
     NORMALIZED_QUOTE_FILE_TYPES,
     acquire_file_write_lock,
     attach_author_edits_for_agent,
-    file_write_lock,
     normalize_ai_body_first_indent,
     resolve_write_quote_style,
-    stage_pre_ai_write_backup,
     written_snapshot_for_commit,
 )
 from .serialization import (
@@ -74,7 +70,6 @@ from .serialization import (
 
 logger = get_logger(__name__)
 
-_SQLITE_PROTECTED_RECURSIVE_LOCK_ATTEMPTS = 4
 
 
 
@@ -101,71 +96,6 @@ def _invalid_parent_message(
 
 class ConcurrentFileWriteError(RuntimeError):
     """The file changed after a full-body write captured its baseline."""
-
-
-@contextlib.contextmanager
-def _acquire_file_write_locks(file_ids: list[str]):
-    """Acquire each SQLite stripe once in stable order for a subtree mutation."""
-    representatives: dict[int, str] = {}
-    for file_id in file_ids:
-        lock = file_write_lock(file_id)
-        representatives.setdefault(id(lock), file_id)
-    with contextlib.ExitStack() as stack:
-        for lock_id in sorted(representatives):
-            stack.enter_context(acquire_file_write_lock(representatives[lock_id]))
-        yield
-
-
-def _file_write_lock_ids(file_ids: list[str]) -> set[int]:
-    """Return the SQLite stripe identities covered by ``file_ids``."""
-    return {id(file_write_lock(file_id)) for file_id in file_ids}
-
-
-@contextlib.contextmanager
-def _acquire_protected_recursive_delete_locks(session: Session, root: File):
-    """Hold every stripe represented by a fresh recursive-delete target set.
-
-    SQLite has no project row lock. A child can therefore appear after the
-    preliminary subtree read but before those stripes are acquired. Reload the
-    subtree while holding the candidate stripes and retry whenever that fresh
-    membership includes another stripe. No provenance check or mutation may
-    run until one fresh target set is completely covered.
-    """
-    from agent.tools.author_edit_guard import AuthorEditProtectionUnavailableError
-
-    root_id = root.id
-    action = "folder" if root.file_type == "folder" else "delete"
-    candidate_ids = [item.id for item in load_live_subtree_postorder(session, root)]
-    # The preliminary membership read is only a lock-discovery hint. End its
-    # transaction before any locked provenance read so a pre-existing SQLite
-    # snapshot cannot hide a writer that committed before stripe acquisition.
-    session.rollback()
-
-    for _attempt in range(_SQLITE_PROTECTED_RECURSIVE_LOCK_ATTEMPTS):
-        fresh_targets: list[File] = []
-        fresh_ids: list[str] = []
-        with _acquire_file_write_locks(candidate_ids):
-            fresh_root = session.exec(
-                select(File)
-                .where(File.id == root_id)
-                .execution_options(populate_existing=True)
-            ).first()
-            if not fresh_root or fresh_root.is_deleted:
-                raise ValueError("文件不存在或已删除")
-
-            fresh_targets = load_live_subtree_postorder(session, fresh_root)
-            fresh_ids = [item.id for item in fresh_targets]
-            held_stripes = _file_write_lock_ids(candidate_ids)
-            if all(id(file_write_lock(file_id)) in held_stripes for file_id in fresh_ids):
-                yield fresh_root, fresh_targets
-                return
-
-        # End any SQLite read snapshot before the next membership scan. There
-        # are deliberately no staged writes before this point.
-        session.rollback()
-        candidate_ids.extend(file_id for file_id in fresh_ids if file_id not in candidate_ids)
-
-    raise AuthorEditProtectionUnavailableError(root_id, action=action)
 
 
 def find_nearest_folder_ancestor(
@@ -288,7 +218,6 @@ class FileCRUD:
         order: int | None = None,
         metadata: dict[str, Any] | None = None,
         normalize_quotes: bool = False,
-        protect_author_content: bool = False,
     ) -> dict[str, Any]:
         """
         Create a new file.
@@ -618,15 +547,6 @@ class FileCRUD:
                             if candidate is None or candidate.is_deleted:
                                 raise ValueError("文件不存在或已删除")
 
-                        if protect_author_content:
-                            from agent.tools.author_edit_guard import (
-                                enforce_author_content_protection,
-                            )
-
-                            enforce_author_content_protection(
-                                self.session, [candidate], action="rewrite"
-                            )
-
                         changed = False
                         promoted = False
 
@@ -683,11 +603,16 @@ class FileCRUD:
         if normalize_quotes and content:
             content = normalize_ai_body_first_indent(content, file_type)
 
-        # Create file
+        recoverable_body_create = bool(content) and file_type != FILE_TYPE_FOLDER
+
+        # A non-empty agent create starts as a real empty file.  The shared
+        # recovery helper then writes the body and its exact before/after
+        # anchors in the same transaction; a recovery failure rolls the new
+        # File row back as well.
         file = File(
             project_id=project_id,
             title=title,
-            content=content,
+            content="" if recoverable_body_create else content,
             file_type=file_type,
             parent_id=parent_id,
             order=resolved_order,
@@ -695,26 +620,24 @@ class FileCRUD:
         )
 
         self.session.add(file)
+        undo: dict[str, Any] | None = None
+        if recoverable_body_create:
+            from services.file_edit_operations import stage_recoverable_file_mutation
 
-        # Snapshot the initial content so the pre-first-edit original is
-        # recoverable via version history, mirroring update_file/edit_file.
-        # Empty create + streaming is unaffected: it gets version 1 from the
-        # subsequent update_file that writes the streamed body.
-        if content:
-            try:
-                with self.session.begin_nested():
-                    self._create_version(
-                        file.id,
-                        content,
-                        change_type=CHANGE_TYPE_CREATE,
-                        change_summary="创建文件",
-                    )
-            except Exception as exc:
-                logger.warning(
-                    "Failed to create initial file version; file will persist",
-                    exc_info=True,
-                    extra={"file_id": file.id, "error": str(exc)},
-                )
+            self.session.flush()
+            undo = stage_recoverable_file_mutation(
+                self.session,
+                user_id=str(self.user_id),
+                file=file,
+                before_content="",
+                after_content=content,
+                before_title=title,
+                after_title=title,
+                before_order=resolved_order,
+                after_order=resolved_order,
+                kind="edit_file",
+                change_summary="AI 创建文件正文",
+            )
 
         if file.file_type != FILE_TYPE_FOLDER:
             # 记这次自己写下的正文（提交前记、失败还原），不记 refresh 后的（提交后作者可能已经又存了一版）。
@@ -749,6 +672,8 @@ class FileCRUD:
 
         result = serialize_file(file)
         result["mutation_applied"] = True
+        if undo is not None:
+            result["undo"] = undo
         return result
 
     def update_file(
@@ -760,7 +685,6 @@ class FileCRUD:
         order: int | None = None,
         metadata: dict[str, Any] | None = None,
         normalize_quotes: bool = False,
-        protect_author_content: bool = False,
         expected_updated_at: str | None = None,
     ) -> dict[str, Any]:
         """
@@ -795,17 +719,26 @@ class FileCRUD:
 
         from database import is_postgres
 
-        if parent_id is not None:
+        if (
+            parent_id is not None
+            or title is not None
+            or order is not None
+            or metadata is not None
+        ):
             target = self.session.get(File, id)
             if not target or target.is_deleted:
                 raise ValueError("文件不存在或已删除")
             check_file_access_in_tool_context(self.session, target, self.user_id)
-            lock_project_for_files(self.session, target.project_id, exclusive=True)
+            lock_project_for_files(
+                self.session,
+                target.project_id,
+                exclusive=parent_id is not None or title is not None,
+            )
 
         if is_postgres:
             return self._update_file_impl(
                 id, title, content, parent_id, order, metadata, normalize_quotes,
-                protect_author_content, expected_updated_at,
+                expected_updated_at,
             )
         # SQLite has no row locks: serialize same-file writes with the
         # in-process per-file lock (shared with edit_file) so concurrent
@@ -819,7 +752,7 @@ class FileCRUD:
         with acquire_file_write_lock(id):
             return self._update_file_impl(
                 id, title, content, parent_id, order, metadata, normalize_quotes,
-                protect_author_content, expected_updated_at,
+                expected_updated_at,
             )
 
     def _update_file_impl(
@@ -831,7 +764,6 @@ class FileCRUD:
         order: int | None,
         metadata: dict[str, Any] | None,
         normalize_quotes: bool = False,
-        protect_author_content: bool = False,
         expected_updated_at: str | None = None,
     ) -> dict[str, Any]:
         log_with_context(
@@ -881,11 +813,6 @@ class FileCRUD:
                 raise ConcurrentFileWriteError(
                     "文件在流式写入期间已被修改，本次整篇内容未保存"
                 )
-
-        if protect_author_content and content is not None:
-            from agent.tools.author_edit_guard import enforce_author_content_protection
-
-            enforce_author_content_protection(self.session, [file], action="rewrite")
 
         # Store old content for version history
         old_content = file.content
@@ -949,36 +876,35 @@ class FileCRUD:
                 file_type=file.file_type,
             )
 
-        # AI 整篇覆盖前，先把还没进历史的当前正文（例如作者手动改过、没生成
-        # 版本）备份成系统版本；在任何字段改动之前做，savepoint 失败也不会
-        # 牵连本次写入。
-        if content is not None and content != old_content:
-            stage_pre_ai_write_backup(self.session, id, old_content or "")
+        content_changed = content is not None and content != old_content
+        title_changed = prospective_title != file.title
+        recoverable_mutation = content_changed or title_changed
+        undo: dict[str, Any] | None = None
+        if recoverable_mutation:
+            from services.file_edit_operations import stage_recoverable_file_mutation
 
-        file.title = prospective_title
-        file.content = prospective_content
+            undo = stage_recoverable_file_mutation(
+                self.session,
+                user_id=str(self.user_id),
+                file=file,
+                before_content=old_content or "",
+                after_content=prospective_content or "",
+                before_title=file.title,
+                after_title=prospective_title,
+                before_order=file.order,
+                after_order=prospective_order,
+                kind="edit_file",
+                change_summary="AI 更新文件内容",
+            )
+        else:
+            file.title = prospective_title
+            file.content = prospective_content
+            file.order = prospective_order
+
         file.parent_id = prospective_parent_id
         file.file_metadata = prospective_metadata
-        file.order = prospective_order
-
-        # Update timestamp
-        file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
-
-        # Check if content changed
-        content_changed = content is not None and content != old_content
-
-        # Stage content and snapshot in one locked transaction. The savepoint
-        # lets content persist even if version generation itself fails.
-        if content_changed:
-            try:
-                with self.session.begin_nested():
-                    self._create_version(id, content)
-            except Exception as exc:
-                logger.warning(
-                    "Failed to create file version; content will persist",
-                    exc_info=True,
-                    extra={"file_id": id, "error": str(exc)},
-                )
+        if not recoverable_mutation:
+            file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
 
         if content_changed:
             # 记这次自己写下的整份正文（提交前记、失败还原），不记 refresh 后的（提交后作者可能已经又存了一版）。
@@ -1011,13 +937,14 @@ class FileCRUD:
 
         result = serialize_file(file)
         result["content_changed"] = content_changed
+        if undo is not None:
+            result["undo"] = undo
         return result
 
     def delete_file(
         self,
         id: str,
         recursive: bool = False,
-        protect_author_content: bool = False,
     ) -> bool:
         """
         Delete a file.
@@ -1050,91 +977,53 @@ class FileCRUD:
             recursive=recursive,
         )
 
-        # Get file
-        file = self.session.get(File, id)
+        self.delete_files(ids=[id], recursive=recursive)
+        return True
 
-        if not file or file.is_deleted:
-            # Do not leak internal IDs to end users
-            log_with_context(
-                logger,
-                40,  # ERROR
-                "File not found",
-                file_id=id,
-                user_id=self.user_id,
-            )
-            raise ValueError("文件不存在或已删除")
+    def delete_files(
+        self,
+        *,
+        ids: list[str],
+        recursive: bool = False,
+        expected_target_hash: str | None = None,
+        source: str = "agent_direct",
+    ) -> dict[str, Any]:
+        """Delete one exact recoverable batch; callers decide whether confirmation is required."""
+        from services.file_trash import FileTrashService
 
-        # Check permission (target must belong to the current tool-context project)
-        check_file_access_in_tool_context(self.session, file, self.user_id)
-
-        lock_project_for_files(self.session, file.project_id, exclusive=True)
-        from database import is_postgres
-
-        if is_postgres:
-            lock_ctx = contextlib.nullcontext()
-        elif recursive is True and protect_author_content:
-            lock_ctx = _acquire_protected_recursive_delete_locks(self.session, file)
-        else:
-            lock_ctx = acquire_file_write_lock(id)
-        with lock_ctx as locked_recursive_state:
-            if locked_recursive_state is not None:
-                file, targets = locked_recursive_state
-            else:
-                query = select(File).where(File.id == id)
-                if is_postgres:
-                    query = query.with_for_update(key_share=True)
-                file = self.session.exec(query.execution_options(populate_existing=True)).first()
-                if not file or file.is_deleted:
-                    raise ValueError("文件不存在或已删除")
-                targets = (
-                    load_live_subtree_postorder(self.session, file)
-                    if recursive is True
-                    else [file]
-                )
+        canonical_ids = sorted({value.strip() for value in ids if isinstance(value, str) and value.strip()})
+        if not canonical_ids:
+            raise ValueError("至少需要一个文件")
+        roots: list[File] = []
+        for file_id in canonical_ids:
+            file = self.session.get(File, file_id, populate_existing=True)
+            if not file or file.is_deleted:
+                raise ValueError("文件不存在或已删除")
             check_file_access_in_tool_context(self.session, file, self.user_id)
-
-            if protect_author_content:
-                from agent.tools.author_edit_guard import enforce_author_content_protection
-
-                enforce_author_content_protection(
-                    self.session,
-                    targets,
-                    action="folder" if recursive is True and file.file_type == "folder" else "delete",
-                )
-
-            # Delete recursively if requested
-            if recursive is True:
-                deleted = targets
-                for item in deleted:
-                    item.is_deleted = True
-                    item.deleted_at = utcnow()
-                    item.updated_at = advance_timestamp(item.updated_at, now=utcnow())
-            else:
-                # Soft delete: mark as deleted instead of removing from database
-                file.is_deleted = True
-                file.deleted_at = utcnow()
-                file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
-                deleted = [file]
-                self.session.add(file)
-
-            # Keep postcommit logging independent of expired rows.
-            project_id = file.project_id
-            deleted_count = len(deleted)
-            self.session.commit()
-
-
+            roots.append(file)
+        project_ids = {file.project_id for file in roots}
+        if len(project_ids) != 1:
+            raise ValueError("文件必须属于同一个项目")
+        project_id = next(iter(project_ids))
+        result = FileTrashService(
+            self.session, user_id=str(self.user_id), project_id=project_id
+        ).delete(
+            canonical_ids,
+            recursive=recursive,
+            source=source,
+            expected_target_hash=expected_target_hash,
+        )
         log_with_context(
             logger,
-            20,  # INFO
+            20,
             "delete_file completed",
-            file_id=id,
+            file_id=canonical_ids[0],
             user_id=self.user_id,
             project_id=project_id,
-            deleted_count=deleted_count,
+            deleted_count=result["count"],
             recursive=recursive,
         )
-
-        return True
+        return result
 
     def query_files(
         self,

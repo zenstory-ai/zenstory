@@ -13,13 +13,19 @@ import {
   FileText,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { fileVersionApi } from "../lib/api";
+import { fileEditOperationApi, fileVersionApi } from "../lib/api";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { formatRelativeTime } from "../lib/dateUtils";
 import { describeVersionSummary } from "../lib/versionSummary";
-import type { FileVersion, VersionComparison } from "../types";
+import type {
+  FileEditOperationSummary,
+  FileEditOperationUndoResponse,
+  FileVersion,
+  PendingEdit,
+  VersionComparison,
+} from "../types";
 import { DiffViewer } from "./DiffViewer";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
@@ -30,6 +36,8 @@ import { logger } from "../lib/logger";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
+import { rebaseLocalEdits } from "../lib/rebaseLocalEdits";
+import { applyPendingEditsToDiffs, buildParagraphReviewData, type ReviewDiffTuple } from "../lib/diffReview";
 
 const VERSION_PAGE_SIZE = 50;
 
@@ -38,6 +46,8 @@ interface FileVersionHistoryProps {
   fileTitle: string;
   onClose: () => void;
   onBeforeRollback?: () => void | Promise<void>;
+  /** Persist the current draft before a one-click operation undo. */
+  onBeforeOperationUndo?: () => void | Promise<void>;
   onRollback?: (versionNumber: number) => void | Promise<void>;
   onViewContent?: (content: string, versionNumber: number) => void;
 }
@@ -60,6 +70,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   fileTitle,
   onClose,
   onBeforeRollback,
+  onBeforeOperationUndo,
   onRollback,
   onViewContent,
 }) => {
@@ -78,6 +89,19 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isRollingBack, setIsRollingBack] = useState(false);
   const [pendingRollback, setPendingRollback] = useState<number | null>(null);
+  const [operations, setOperations] = useState<FileEditOperationSummary[]>([]);
+  const [operationTotal, setOperationTotal] = useState(0);
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const [operationsLoadingMore, setOperationsLoadingMore] = useState(false);
+  const [undoingOperationId, setUndoingOperationId] = useState<string | null>(null);
+  const [operationConflict, setOperationConflict] = useState<{
+    operation: FileEditOperationSummary;
+    response: FileEditOperationUndoResponse;
+    diffs: ReviewDiffTuple[];
+    edits: PendingEdit[];
+    conflictIds: string[];
+    restoreMetadata: boolean;
+  } | null>(null);
   // Only the server can tell whether the live text is already in history.
   // A missing field (older server) leaves every row unmarked.
   const [currentVersionNumber, setCurrentVersionNumber] = useState<number | null>(null);
@@ -92,6 +116,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   const listScrollRef = useRef(0);
   const listHidden = isMobile && (showComparison || preview !== null);
   const listRequestGenerationRef = useRef(0);
+  const operationRequestGenerationRef = useRef(0);
   const fileContextGenerationRef = useRef(0);
   const translateRef = useRef(t);
 
@@ -152,12 +177,47 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     }
   }, [fileId]);
 
+  const loadOperations = useCallback(async (offset = 0, append = false) => {
+    if (!fileEditOperationApi?.list) return;
+    const requestGeneration = ++operationRequestGenerationRef.current;
+    const fileContextGeneration = fileContextGenerationRef.current;
+    setOperationError(null);
+    if (append) setOperationsLoadingMore(true);
+    try {
+      const response = await fileEditOperationApi.list(fileId, { limit: 50, offset });
+      if (
+        requestGeneration !== operationRequestGenerationRef.current ||
+        fileContextGeneration !== fileContextGenerationRef.current
+      ) return;
+      setOperations((current) => append ? [...current, ...response.operations] : response.operations);
+      setOperationTotal(response.total);
+    } catch (err) {
+      if (
+        requestGeneration !== operationRequestGenerationRef.current ||
+        fileContextGeneration !== fileContextGenerationRef.current
+      ) return;
+      setOperationError(translateRef.current('operationLoadFailed', { defaultValue: 'AI 操作记录暂时没能加载' }));
+      logger.error('Failed to load AI edit operations:', err);
+    } finally {
+      if (
+        requestGeneration === operationRequestGenerationRef.current &&
+        fileContextGeneration === fileContextGenerationRef.current
+      ) setOperationsLoadingMore(false);
+    }
+  }, [fileId]);
+
   useEffect(() => {
     fileContextGenerationRef.current += 1;
     setVersions([]);
     setTotal(0);
     setCurrentVersionNumber(null);
     setPendingRollback(null);
+    setOperations([]);
+    setOperationTotal(0);
+    setOperationError(null);
+    setOperationsLoadingMore(false);
+    setOperationConflict(null);
+    setUndoingOperationId(null);
     setSelectedVersions([]);
     setComparison(null);
     setIsComparing(false);
@@ -167,11 +227,13 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     setLoadingMore(false);
     listScrollRef.current = 0;
     void loadVersions(0, false);
+    void loadOperations();
     return () => {
       fileContextGenerationRef.current += 1;
       listRequestGenerationRef.current += 1;
+      operationRequestGenerationRef.current += 1;
     };
-  }, [loadVersions]);
+  }, [loadOperations, loadVersions]);
 
   useLayoutEffect(() => {
     if (listHidden) return;
@@ -271,6 +333,93 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       }
     }
   };
+
+  const finishOperationUndo = useCallback(async (operation: FileEditOperationSummary) => {
+    await Promise.all([loadOperations(), loadVersions(0, false)]);
+    await onRollback?.(operation.before_version_number);
+  }, [loadOperations, loadVersions, onRollback]);
+
+  const submitOperationResolution = useCallback(async (
+    operation: FileEditOperationSummary,
+    response: FileEditOperationUndoResponse,
+    resolvedContent: string,
+    metadataResolution: 'preserve' | 'restore',
+  ) => {
+    if (!response.current?.updated_at || !response.current.content_sha256) throw new Error('Missing current edit snapshot');
+    const result = await fileEditOperationApi.undo(fileId, operation.id, {
+      expected_updated_at: response.current.updated_at,
+      expected_after_content_sha256: response.current.content_sha256,
+      resolved_content: resolvedContent,
+      metadata_resolution: metadataResolution,
+    });
+    if (result.status !== 'undone') throw new Error('Edit operation changed during undo');
+    await finishOperationUndo(operation);
+  }, [fileId, finishOperationUndo]);
+
+  const handleOperationUndo = useCallback(async (operation: FileEditOperationSummary) => {
+    if (undoingOperationId || operation.undone_at) return;
+    const fileContextGeneration = fileContextGenerationRef.current;
+    setUndoingOperationId(operation.id);
+    try {
+      await (onBeforeOperationUndo ?? onBeforeRollback)?.();
+      if (fileContextGeneration !== fileContextGenerationRef.current) return;
+      const response = await fileEditOperationApi.undo(fileId, operation.id);
+      if (fileContextGeneration !== fileContextGenerationRef.current) return;
+      if (response.status === 'undone') {
+        await finishOperationUndo(operation);
+        return;
+      }
+      if (!response.before || !response.after || !response.current) {
+        throw new Error('Incomplete edit operation merge response');
+      }
+      const rebased = rebaseLocalEdits(
+        response.after.content,
+        response.current.content,
+        response.before.content,
+      );
+      if (rebased.conflictEditIds.length === 0 && !response.metadata_conflict) {
+        await submitOperationResolution(operation, response, rebased.merged, 'preserve');
+        return;
+      }
+      const review = buildParagraphReviewData(response.current.content, rebased.merged);
+      const conflicts = new Set(rebased.conflictEditIds);
+      setOperationConflict({
+        operation,
+        response,
+        diffs: review.diffs,
+        edits: review.pendingEdits.map((edit) => ({
+          ...edit,
+          status: conflicts.has(edit.id) ? 'rejected' : 'accepted',
+        })),
+        conflictIds: rebased.conflictEditIds,
+        restoreMetadata: false,
+      });
+    } catch (err) {
+      logger.error('Failed to undo AI edit operation:', err);
+      toast.error(err instanceof ApiError ? handleApiError(err) : translateRef.current('rollbackFailed'));
+    } finally {
+      if (fileContextGeneration === fileContextGenerationRef.current) setUndoingOperationId(null);
+    }
+  }, [fileId, finishOperationUndo, onBeforeOperationUndo, onBeforeRollback, submitOperationResolution, undoingOperationId]);
+
+  const submitOperationConflict = useCallback(async () => {
+    if (!operationConflict || undoingOperationId) return;
+    setUndoingOperationId(operationConflict.operation.id);
+    try {
+      await submitOperationResolution(
+        operationConflict.operation,
+        operationConflict.response,
+        applyPendingEditsToDiffs(operationConflict.diffs, operationConflict.edits),
+        operationConflict.restoreMetadata ? 'restore' : 'preserve',
+      );
+      setOperationConflict(null);
+    } catch (err) {
+      logger.error('Failed to resolve AI edit operation undo:', err);
+      toast.error(err instanceof ApiError ? handleApiError(err) : translateRef.current('rollbackFailed'));
+    } finally {
+      setUndoingOperationId(null);
+    }
+  }, [operationConflict, submitOperationResolution, undoingOperationId]);
 
   const handleClose = () => {
     // Before submission close still cancels via the generation guard. Once a
@@ -506,10 +655,61 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
             </div>
           )}
 
-          {!loading && !error && versions.length === 0 && (
+          {!loading && !error && !operationError && versions.length === 0 && operations.length === 0 && (
             <div className="p-8 text-center text-[hsl(var(--text-secondary))]">
               {t('noVersions')}
             </div>
+          )}
+
+          {!loading && operationError && (
+            <div role="alert" className="border-b border-[hsl(var(--border-color))] p-4 text-sm text-[hsl(var(--error-text))]">
+              <p>{operationError}</p>
+              <Button className="mt-2" variant="secondary" size={isMobile ? 'touch' : 'sm'} onClick={() => void loadOperations(0, false)}>{t('common:retry')}</Button>
+            </div>
+          )}
+
+          {!loading && !error && operations.length > 0 && (
+            <section className="border-b border-[hsl(var(--border-color))]" aria-label={t('aiOperations', { defaultValue: '最近 AI 操作' })}>
+              <h3 className="px-4 pb-1 pt-3 text-xs font-semibold text-[hsl(var(--text-secondary))]">
+                {t('aiOperations', { defaultValue: '最近 AI 操作' })}
+              </h3>
+              <div className="divide-y divide-[hsl(var(--border-color))]">
+                {operations.map((operation) => (
+                  <div key={operation.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[hsl(var(--text-primary))]">
+                        {operation.kind === 'rename_file'
+                          ? `${operation.before_title} → ${operation.after_title}`
+                          : t(`operationKinds.${operation.kind}`, { defaultValue: operation.kind === 'write_chapter' ? 'AI 写作' : 'AI 编辑' })}
+                      </p>
+                      <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">{formatRelativeTime(operation.created_at)}</p>
+                    </div>
+                    {operation.undone_at ? (
+                      <Badge variant="success" className="whitespace-nowrap">{t('operationUndone', { defaultValue: '已撤销' })}</Badge>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="touch"
+                        leftIcon={<RotateCcw size={14} />}
+                        disabled={undoingOperationId !== null || isRollingBack}
+                        isLoading={undoingOperationId === operation.id}
+                        onClick={() => { void handleOperationUndo(operation); }}
+                      >
+                        {t('undoOperation', { defaultValue: '撤销' })}
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {operations.length < operationTotal && (
+                <div className="flex justify-center p-3">
+                  <Button variant="secondary" size="touch" isLoading={operationsLoadingMore} disabled={operationsLoadingMore} onClick={() => void loadOperations(operations.length, true)}>
+                    {t('loadMoreOperations', { defaultValue: '加载更早的 AI 操作' })}
+                  </Button>
+                </div>
+              )}
+            </section>
           )}
 
           {!loading && !error && versions.length > 0 && (
@@ -614,6 +814,67 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         cancelLabel={t('common:cancel')}
         variant="warning"
       />
+
+      <Modal
+        open={operationConflict !== null}
+        onClose={() => { if (!undoingOperationId) setOperationConflict(null); }}
+        title={t('undoConflictTitle', { defaultValue: '这几处和你后写的内容重叠' })}
+        description={t('undoConflictDescription', { defaultValue: '默认保留你现在的文字；只选择确实要恢复的片段。' })}
+        size="md"
+        closeOnBackdropClick={!undoingOperationId}
+        closeOnEscape={!undoingOperationId}
+      >
+        {operationConflict && (
+          <div className="space-y-4">
+            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+              {operationConflict.edits
+                .filter((edit) => operationConflict.conflictIds.includes(edit.id))
+                .map((edit) => (
+                  <label key={edit.id} className="block rounded-xl border border-[hsl(var(--border-color))] p-3">
+                    <span className="flex min-h-11 items-center gap-2 text-sm font-medium text-[hsl(var(--text-primary))]">
+                      <input
+                        type="checkbox"
+                        checked={edit.status === 'accepted'}
+                        disabled={undoingOperationId !== null}
+                        onChange={(event) => setOperationConflict((current) => current && ({
+                          ...current,
+                          edits: current.edits.map((item) => item.id === edit.id
+                            ? { ...item, status: event.target.checked ? 'accepted' : 'rejected' }
+                            : item),
+                        }))}
+                      />
+                      {t('restoreThisOverlap', { defaultValue: '恢复这处 AI 修改前的文字' })}
+                    </span>
+                    {edit.oldText && <div className="mt-1"><span className="text-[11px] font-medium text-[hsl(var(--text-secondary))]">{t('currentTextLabel', { defaultValue: '当前文字' })}</span><p className="mt-1 whitespace-pre-wrap break-words text-xs text-[hsl(var(--text-secondary))]">{edit.oldText}</p></div>}
+                    {edit.newText && <div className="mt-2"><span className="text-[11px] font-medium text-[hsl(var(--text-secondary))]">{t('restoreTextLabel', { defaultValue: '恢复为' })}</span><p className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-[hsl(var(--bg-secondary))] p-2 text-xs text-[hsl(var(--text-primary))]">{edit.newText}</p></div>}
+                  </label>
+                ))}
+            </div>
+            {operationConflict.response.metadata_conflict && (
+              <div className="rounded-xl border border-[hsl(var(--border-color))] p-3">
+                <dl className="grid gap-2 text-xs">
+                  <div><dt className="text-[hsl(var(--text-secondary))]">{t('currentTitleLabel', { defaultValue: '当前标题' })}</dt><dd className="mt-0.5 break-words text-[hsl(var(--text-primary))]">{operationConflict.response.current?.title}</dd></div>
+                  <div><dt className="text-[hsl(var(--text-secondary))]">{t('restoreTitleLabel', { defaultValue: '恢复为' })}</dt><dd className="mt-0.5 break-words text-[hsl(var(--text-primary))]">{operationConflict.response.before?.title}</dd></div>
+                  {typeof operationConflict.response.current?.order === 'number' && <div><dt className="text-[hsl(var(--text-secondary))]">{t('currentPositionLabel', { defaultValue: '当前排序位置' })}</dt><dd className="mt-0.5 text-[hsl(var(--text-primary))]">{operationConflict.response.current.order}</dd></div>}
+                  {typeof operationConflict.response.before?.order === 'number' && <div><dt className="text-[hsl(var(--text-secondary))]">{t('restorePositionLabel', { defaultValue: '恢复排序位置' })}</dt><dd className="mt-0.5 text-[hsl(var(--text-primary))]">{operationConflict.response.before.order}</dd></div>}
+                </dl>
+                <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-[hsl(var(--text-primary))]">
+                  <input type="checkbox" checked={operationConflict.restoreMetadata} disabled={undoingOperationId !== null} onChange={(event) => setOperationConflict((current) => current && ({ ...current, restoreMetadata: event.target.checked }))} />
+                  {t('restoreEarlierTitle', { defaultValue: '同时恢复这次修改前的标题和位置' })}
+                </label>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" size="touch" onClick={() => setOperationConflict(null)} disabled={undoingOperationId !== null}>
+                {t('common:cancel')}
+              </Button>
+              <Button size="touch" onClick={() => { void submitOperationConflict(); }} disabled={undoingOperationId !== null} isLoading={undoingOperationId !== null}>
+                {t('undoOperation', { defaultValue: '撤销' })}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <UpgradePromptModal
         open={showUpgradeModal}

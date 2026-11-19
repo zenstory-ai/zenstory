@@ -21,11 +21,6 @@ from sqlmodel import Session, and_, select
 
 from agent.constants import CONTENT_FILE_TYPES, coerce_bool
 from agent.skills.content_budget import SkillContentBudget
-from agent.tools.author_edit_guard import (
-    AuthorContentProtectionError,
-    AuthorEditProtectedError,
-    protected_user_message,
-)
 from agent.tools.file_ops import FileToolExecutor
 from agent.tools.file_ops.content_range import ContentRangeError, apply_content_range, wants_range
 from agent.tools.file_ops.edit import (
@@ -46,6 +41,7 @@ from agent.tools.file_ops.serialization import (
     serialize_file,
 )
 from agent.tools.permissions import ForbiddenError, NotFoundError
+from agent.tools.write_errors import FileWriteRecoveryError
 from config.project_notes import merge_project_notes
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import extract_chapter_like_sequence_number, parse_chinese_number
@@ -682,7 +678,7 @@ class ToolContext:
 
         Args:
             author_message: 作者这一轮的原话（不含选中文本、上下文等拼接内容）。
-                它只标识应用内对话并提供模型上下文，不授予删除、整份覆盖或改名权限。
+                由模型理解本轮意图与范围；程序只校验结构化目标、权限、版本和恢复记录。
             author_steering: 本轮运行中作者追加的消息（service 的 consumed_steering，
                 同一个 list 对象，运行中会继续追加），只作为模型上下文。
             skill_tokens_used: 显式选择的技能注入 system prompt 时已占用的技能内容 token，
@@ -706,6 +702,7 @@ class ToolContext:
             "author_steering": author_steering,
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
             "inflight_tool_writes": inflight_tool_writes,
+            "direct_deletions": {"lock": threading.Lock(), "file_ids": set(), "confirmation_required": False},
         })
         _owned_session_var.set(None)
 
@@ -828,17 +825,12 @@ class ToolContext:
     def author_wants_no_body(cls) -> bool:
         """create_file 的 empty 是否生效。
 
-        单循环 agent 由模型按提示判断：它传 empty=true 就是它的判断（写入照旧受 diff 审阅 / 撤销 / 版本保护），
+        单循环 agent 由模型按提示判断：它传 empty=true 就是它的判断（写入照旧受撤销 / 版本保护），
         不从原话推断。
         """
         from agent.tools.registry import LOOP_AGENT_TYPE
 
         return cls.get_current_agent() == LOOP_AGENT_TYPE
-
-    @classmethod
-    def has_author_scope(cls) -> bool:
-        """当前是应用内对话（有作者本轮原话）：作者手改过的文件受保护。"""
-        return isinstance(cls._get_context().get("author_message"), str)
 
     @classmethod
     def tracks_reads(cls) -> bool:
@@ -2177,7 +2169,6 @@ def _write_chapter_replace(
     project_id: str,
     requested_title: str | None = None,
 ) -> dict[str, Any]:
-    from agent.tools.author_edit_guard import enforce_author_content_protection
     from models import File
     from models.file_model import validate_file_title
     from utils.text_metrics import count_words
@@ -2234,22 +2225,6 @@ def _write_chapter_replace(
             id=file_id,
             chapter=number,
         )
-
-    if content.strip():
-        try:
-            _run_session_probe(
-                session, lambda s: enforce_author_content_protection(s, [row], action="rewrite")
-            )
-        except AuthorContentProtectionError as e:
-            refusal = _author_content_protection_payload(e, tool_name=tool_name)
-            refused = _payload_of(refusal)
-            if isinstance(refused, dict):
-                refused["error"] = (
-                    f"第{number}{unit}《{row.title}》有作者手动保存的内容（或来源无法确认），应用内对话不能整章替换它，没有写入。"
-                    "要改其中几处用 edit_file 做局部修改；需要整章替换时请作者在编辑器里操作。"
-                )
-                return _make_mcp_payload(refused, tool_name=tool_name)
-            return refusal
 
     new_title: str | None = None
     if isinstance(requested_title, str):
@@ -2417,7 +2392,6 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
             metadata=args.get("metadata"),
             # 应用内 agent 写正文：draft/script 的双引号按稿件体例规范化。
             normalize_quotes=True,
-            protect_author_content=ToolContext.has_author_scope(),
         )
 
         # 如果创建的是空文件，把占坑换成真实 file_id
@@ -2479,8 +2453,8 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
             },
             tool_name=tool_name,
         )
-    except AuthorContentProtectionError as e:
-        return _author_content_protection_payload(e, tool_name=tool_name)
+    except FileWriteRecoveryError as e:
+        return _write_recovery_payload(e, tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
     finally:
@@ -2511,34 +2485,12 @@ def _withdraw_file_created_after_close(
     )
 
 
-def _author_content_protection_payload(
-    error: AuthorContentProtectionError,
-    *,
-    tool_name: str,
-) -> dict[str, Any]:
-    """Render a typed locked-domain refusal as an MCP result."""
-    if isinstance(error, AuthorEditProtectedError):
-        log_with_context(
-            logger,
-            20,
-            "Refused destructive app-chat write to author-owned text",
-            tool_name=tool_name,
-            protected_file_id=error.file_id,
-            agent_type=ToolContext.get_current_agent(),
-        )
-    payload: dict[str, Any] = {
-        "status": "error",
-        "error": str(error),
-        "error_type": error.error_type,
-        "id": error.file_id,
-        "mutation_applied": False,
-    }
-    if isinstance(error, AuthorEditProtectedError):
-        payload["title"] = error.title
-        payload["user_message"] = protected_user_message(
-            error.title, action=error.action
-        )
-    return _make_mcp_payload(payload, tool_name=tool_name)
+def _write_recovery_payload(error: FileWriteRecoveryError, *, tool_name: str) -> dict[str, Any]:
+    return _make_mcp_payload(
+        {"status": "error", "error": str(error), "error_type": error.error_type,
+         "id": error.file_id, "mutation_applied": False, "user_message": str(error)},
+        tool_name=tool_name,
+    )
 
 
 async def edit_file(args: dict[str, Any]) -> dict[str, Any]:
@@ -2653,7 +2605,7 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         return _make_edit_error(str(e), **e.payload_fields())
     except FileWriteBusyError as e:
         return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_BUSY)
-    except AuthorContentProtectionError as e:
+    except FileWriteRecoveryError as e:
         # 原稿没能先进历史：提交前已回滚，一处都没改。
         return _make_edit_error(str(e), error_type=e.error_type, user_message=str(e))
     except NotFoundError as e:
@@ -2720,34 +2672,60 @@ async def delete_file(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
-    """Synchronous delete_file implementation."""
-    tool_name = "delete_file"
-    executor = ToolContext.get_executor()
-    project_id = ToolContext._get_context().get("project_id")
+    """Move one exact batch to trash, or return a scope confirmation without writing."""
+    from services.file_trash import FileTrashService
 
-    # 删除工具必须运行在绑定了项目的上下文中；执行器层会进一步校验目标文件
-    # 属于该项目（check_file_access_in_tool_context）。
+    tool_name = "delete_file"
+    context = ToolContext._get_context()
+    project_id = context.get("project_id")
     if project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
-
+    has_id, has_ids = "id" in args, "ids" in args
+    if has_id == has_ids:
+        return _make_error("delete_file 必须且只能提供 id 或 ids", tool_name=tool_name)
+    raw_ids = [args["id"]] if has_id else args["ids"]
+    if not isinstance(raw_ids, list) or not raw_ids or any(
+        not isinstance(item, str) or not item.strip() for item in raw_ids
+    ):
+        return _make_error("delete_file 需要非空文件 ID 列表", tool_name=tool_name)
+    ids = list(dict.fromkeys(item.strip() for item in raw_ids))
+    if len(ids) > 100:
+        return _make_error("一次最多指定 100 个文件 ID；删除整个文件夹时请提供文件夹 ID", tool_name=tool_name)
+    recursive = coerce_bool(args.get("recursive"))
+    state = context["direct_deletions"]
     try:
-        # recursive 是本项目破坏性最强的布尔参数：判真会软删除整棵子树。
-        # 模型传来的 "false"/"0"/被截断修复出来的 "fals" 在朴素真值判断下全是
-        # True，历史上把"删一个文件"变成"删掉整个文件夹的所有章节"。
-        recursive = coerce_bool(args.get("recursive"))
-        result = executor.delete_file(
-            id=args.get("id", ""),
-            recursive=recursive,
-            protect_author_content=ToolContext.has_author_scope(),
+        service = FileTrashService(
+            ToolContext.get_session(), user_id=context.get("user_id"), project_id=project_id
         )
-        return _make_result(
-            {"status": "success", "mutation_applied": result is True, "data": result},
-            tool_name=tool_name,
-        )
-    except AuthorContentProtectionError as e:
-        return _author_content_protection_payload(e, tool_name=tool_name)
-    except Exception as e:
-        return _make_error(str(e), tool_name=tool_name)
+        # Shared across copied thread contexts; split tool calls cannot evade the per-request limit.
+        with state["lock"]:
+            preview = service.preview(ids, recursive=recursive)
+            targets = preview["targets"]
+            leaves = {item["id"] for item in targets if item["file_type"] != "folder"}
+            needs_confirmation = state["confirmation_required"] or any(item["file_type"] == "folder" for item in targets) or len(
+                state["file_ids"] | leaves
+            ) > 5
+            if needs_confirmation:
+                # A smaller retry in this request cannot bypass an already-required confirmation.
+                state["confirmation_required"] = True
+                data = {
+                    "confirmation_required": True,
+                    "mutation_applied": False,
+                    "preview": preview,
+                    "count": preview["count"],
+                    "result": "尚未删除。请作者在这张卡片确认删除范围；确认后可从回收站恢复。不要拆分调用绕过确认。",
+                }
+                return _make_result({"status": "success", "mutation_applied": False, "data": data}, tool_name=tool_name)
+            deleted = service.delete(
+                ids,
+                recursive=preview["recursive"],
+                source="agent_direct",
+                expected_target_hash=preview["target_hash"],
+            )
+            state["file_ids"].update(leaves)
+        return _make_result({"status": "success", "mutation_applied": True, "data": deleted}, tool_name=tool_name)
+    except Exception as exc:
+        return _make_error(str(exc), tool_name=tool_name)
 
 
 async def rename_file(args: dict[str, Any]) -> dict[str, Any]:
@@ -2756,7 +2734,7 @@ async def rename_file(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
-    """Synchronous rename_file implementation: a title-only FileCRUD.update_file."""
+    """Synchronous rename_file implementation with an atomic recovery record."""
     tool_name = "rename_file"
     executor = ToolContext.get_executor()
     project_id = ToolContext._get_context().get("project_id")
@@ -2787,50 +2765,15 @@ def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         )
 
     try:
-        from models import File
-
-        session = ToolContext.get_session()
-        current = session.get(File, file_id)
-        if current is None or current.is_deleted or current.project_id != project_id:
-            return _make_error("文件不存在或已删除", tool_name=tool_name)
-        previous_title = current.title
-        if title == previous_title:
-            data = {"id": file_id, "title": title, "previous_title": previous_title, "mutation_applied": False}
-            return _make_result(
-                {"status": "success", "mutation_applied": False, "data": data},
-                tool_name=tool_name,
-            )
-        clash = session.exec(
-            select(File.id).where(
-                File.project_id == project_id,
-                File.parent_id == current.parent_id,
-                File.title == title,
-                File.is_deleted.is_(False),
-                File.id != file_id,
-            )
-        ).first()
-        if clash is not None:
-            return _make_error(
-                f"同一文件夹里已有名为《{title}》的文件，换一个标题或先问作者",
-                tool_name=tool_name,
-            )
-
-        result = executor.update_file(id=file_id, title=title)
-        data = {
-            "id": result.get("id", file_id),
-            "title": result.get("title", title),
-            "previous_title": previous_title,
-            "file_type": result.get("file_type"),
-            "parent_id": result.get("parent_id"),
-            # SSE 的 tool_result 只转发 data：计费和前端进度从这里读是否真的改了。
-            "mutation_applied": True,
-        }
+        data = executor.rename_with_undo(id=file_id, title=title)
         return _make_result(
-            {"status": "success", "mutation_applied": True, "data": data},
+            {"status": "success", "mutation_applied": data.get("mutation_applied") is True, "data": data},
             tool_name=tool_name,
         )
-    except Exception as e:
-        return _make_error(str(e), tool_name=tool_name)
+    except FileWriteRecoveryError as exc:
+        return _write_recovery_payload(exc, tool_name=tool_name)
+    except Exception as exc:
+        return _make_error(str(exc), tool_name=tool_name)
 
 
 async def query_files(args: dict[str, Any]) -> dict[str, Any]:

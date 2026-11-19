@@ -52,5 +52,7 @@ Click `+` next to the **Materials** folder to upload a `.txt` or `.md` reference
 ## 4. Rename and delete files
 
 - **Rename a file**: Open the file in the editor and edit the **title field** at the top of the editor (up to 255 characters; keep body prose in the main text area rather than the title field). When the editor auto-saves after 3 seconds or you press `Ctrl/Cmd + S`, the file tree updates the title and re-sorts numbered chapters automatically.
-- **Delete a file**: Hover the file row in the tree, click the trash icon on the right, and click **Delete** in the confirmation dialog.
+- **Delete a file**: Hover the file row, click the trash icon, check the names and count, then confirm moving the batch to Trash. A folder includes its currently live descendants and needs one confirmation.
+- **Delete through chat**: A few precisely identified files can move directly to Trash. Folders and larger batches show one scope confirmation. The result card shows the actual count and offers batch recovery.
+- **Recover deleted files**: Open **Trash** in the file panel, find the batch, and choose **Restore**. File identity, title, text and hierarchy are preserved. A missing parent or a live file with the same name blocks the entire restore with an explanation; restore the parent or resolve the name conflict and retry. Trash covers file deletions after this feature became available, not project deletions.
 - **Unsaved draft protection for deleted files**: If an open file had unsaved local edits when it was deleted, the top of the editor expands a **“…” was deleted — your unsaved draft was kept** banner so you can copy the text or click **Download draft (.txt)** to save it to your device.

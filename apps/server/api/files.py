@@ -48,7 +48,6 @@ from services.file_tree_rules import (
     MAX_FILE_ORDER,
     ParentNotFoundError,
     begin_file_creation_savepoint,
-    load_live_subtree_postorder,
     lock_project_for_files,
     resolve_new_file_order,
     validate_parent_assignment,
@@ -825,13 +824,13 @@ def update_file(
     content_changed = False
     version_quota_exceeded = False
 
-    if "parent_id" in file_data.model_fields_set:
+    if file_data.model_fields_set & {"parent_id", "title", "order", "metadata"}:
         # Structural writers lock Project before File.
         target = session.get(File, file_id)
         if not target or target.is_deleted:
             raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
         verify_project_ownership(target.project_id, current_user, session)
-        lock_project_for_files(session, target.project_id, exclusive=True)
+        lock_project_for_files(session, target.project_id, exclusive="parent_id" in file_data.model_fields_set)
 
     with lock_ctx:
         file = _load_file_for_write(session, file_id)
@@ -1063,7 +1062,7 @@ def delete_file(
     )
 
     file = session.get(File, file_id)
-    if not file:
+    if not file or file.is_deleted:
         log_with_context(
             logger,
             logging.WARNING,
@@ -1076,47 +1075,35 @@ def delete_file(
     # Check project ownership
     verify_project_ownership(file.project_id, current_user, session)
 
-    lock_project_for_files(session, file.project_id, exclusive=True)
-    from agent.tools.file_ops.edit import file_write_lock
-    from database import is_postgres
+    from services.file_trash import FileTrashError, FileTrashService
 
-    lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
-    with lock_ctx:
-        file = _load_file_for_write(session, file_id)
-        if not file:
-            raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
-        verify_project_ownership(file.project_id, current_user, session)
-
-        deleted_files: list[File] = []
-
-        if recursive:
-            # Delete all children recursively
-            deleted_files = _delete_recursive(session, file)
-        else:
-            deleted_files = [file]
-            # Soft delete: mark as deleted instead of removing from database
-            file.is_deleted = True
-            file.deleted_at = utcnow()
-            file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
-
-        # Commit expires ORM rows in the production Session. Capture index data
-        # while loaded; enqueue only after commit succeeds.
-        deleted_count = len(deleted_files)
-        user_id = current_user.id
-        session.commit()
+    try:
+        result = FileTrashService(
+            session, user_id=current_user.id, project_id=file.project_id
+        ).delete(
+            [file_id],
+            recursive=recursive or file.file_type == "folder",
+            source="file_menu",
+        )
+    except FileTrashError as exc:
+        raise APIException(
+            error_code=ErrorCode.RESOURCE_CONFLICT,
+            status_code=409,
+            detail=str(exc),
+        ) from exc
 
     log_with_context(
         logger,
         logging.INFO,
         "File deleted successfully",
-        user_id=user_id,
+        user_id=current_user.id,
         file_id=file_id,
-        deleted_count=deleted_count,
-        recursive=recursive,
+        deleted_count=result["count"],
+        recursive=result["count"] > 1,
     )
 
 
-    return {"message": "File deleted successfully"}
+    return {"message": "File deleted successfully", **result}
 
 
 @router.post("/files/{file_id}/move", response_model=FileResponse)
@@ -1282,16 +1269,6 @@ def reorder_files(
     )
 
     return {"message": "Files reordered successfully", "count": len(files_to_update)}
-
-
-def _delete_recursive(session: Session, file: File) -> list[File]:
-    """Soft-delete the loaded subtree once each, children before parents."""
-    deleted = load_live_subtree_postorder(session, file)
-    for item in deleted:
-        item.is_deleted = True
-        item.deleted_at = utcnow()
-        item.updated_at = advance_timestamp(item.updated_at, now=utcnow())
-    return deleted
 
 
 # 成环检测原先在这里另写了一份 `_is_descendant`，与 agent 侧的实现同语义不同代码。

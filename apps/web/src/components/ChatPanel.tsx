@@ -51,7 +51,8 @@ import {
   CHAT_CARD_SURFACE,
   CHAT_CARD_WARNING_SURFACE,
 } from "./chatCardStyles";
-import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { Modal } from "./ui/Modal";
+import { Button } from "./ui/Button";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import { isAiMessageQuotaExhausted } from "../hooks/useAiMessageQuota";
 import {
@@ -62,7 +63,11 @@ import {
 } from "../lib/editorSaveTracker";
 import type {
   AgentRequest,
+  FileDeletionPreview,
+  FileDeletionResult,
   FileEditUndoTarget,
+  FileEditOperationUndoResponse,
+  PendingEdit,
   FileType,
   SSEWorkflowStoppedData,
 } from "../types";
@@ -75,7 +80,7 @@ import {
   type MessageFeedbackData,
   type MessageFeedbackVote,
 } from "../lib/chatApi";
-import { fileApi, fileVersionApi, projectApi } from "../lib/api";
+import { fileApi, fileEditOperationApi, fileTrashApi, fileVersionApi, projectApi } from "../lib/api";
 import { NextStepCard } from "./NextStepCard";
 import { StarterCards, type ManuscriptStarterKind } from "./StarterCards";
 import { hasPendingInspiration } from "../lib/pendingInspiration";
@@ -89,6 +94,8 @@ import { parseUTCDate } from "../lib/dateUtils";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
+import { rebaseLocalEdits } from "../lib/rebaseLocalEdits";
+import { applyPendingEditsToDiffs, buildParagraphReviewData, type ReviewDiffTuple } from "../lib/diffReview";
 import { ProjectStatusDialog } from "./ProjectStatusDialog";
 import { appendDraftForProject, useDraftPersistence } from "../hooks/useDraftPersistence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
@@ -565,7 +572,14 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const pendingMaterialClearRef = useRef(false);
   const pendingQuoteClearRef = useRef(false);
   const currentAgentSessionIdRef = useRef<string | null>(null);
-  const [pendingUndoTarget, setPendingUndoTarget] = useState<FileEditUndoTarget | null>(null);
+  const [undoConflict, setUndoConflict] = useState<{
+    target: FileEditUndoTarget;
+    response: FileEditOperationUndoResponse;
+    diffs: ReviewDiffTuple[];
+    edits: PendingEdit[];
+    conflictIds: string[];
+    restoreMetadata: boolean;
+  } | null>(null);
   const [undoneEdits, setUndoneEdits] = useState<ReadonlySet<string>>(() => new Set());
   // Cards whose undo the server refused as stale in this session (the file no longer holds that
   // edit's text). They can never be undone, so they stop holding back an earlier card's undo.
@@ -2451,39 +2465,83 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     void startNewChatAfterRound(isStreaming && !isStopping);
   };
 
-  /**
-   * Handles undoing the exact AI edit represented by a persisted tool result.
-   *
-   * @param target - Immutable before-version and post-edit concurrency token
-   */
-  // Handle undo AI edit using the immutable provenance stored with that edit.
-  // The click only opens the in-app confirm dialog; the rollback runs on confirm.
-  const handleUndo = useCallback((target: FileEditUndoTarget) => {
-    setPendingUndoTarget(target);
-  }, []);
+  const finishUndo = useCallback((target: FileEditUndoTarget) => {
+    setUndoneEdits((previous) => new Set(previous).add(undoneEditKey(target)));
+    triggerFileTreeRefresh();
+    triggerEditorRefresh(target.fileId);
+  }, [triggerFileTreeRefresh, triggerEditorRefresh]);
 
-  const handleCloseUndoDialog = useCallback(() => {
+  const submitOperationResolution = useCallback(async (
+    target: FileEditUndoTarget,
+    response: FileEditOperationUndoResponse,
+    resolvedContent: string,
+    metadataResolution: 'preserve' | 'restore',
+  ) => {
+    if (!target.operationId || !response.current?.updated_at || !response.current.content_sha256) {
+      throw new Error('Incomplete edit operation merge token');
+    }
+    const resolved = await fileEditOperationApi.undo(target.fileId, target.operationId, {
+      expected_updated_at: response.current.updated_at,
+      expected_after_content_sha256: response.current.content_sha256,
+      resolved_content: resolvedContent,
+      metadata_resolution: metadataResolution,
+    });
+    if (resolved.status !== 'undone') throw new Error('Edit operation changed during undo');
+    finishUndo(target);
+  }, [finishUndo]);
+
+  /** One click starts undo. A dialog appears only when current author text truly overlaps. */
+  const handleUndo = useCallback(async (target: FileEditUndoTarget) => {
     if (isUndoing) return;
-    setPendingUndoTarget(null);
-  }, [isUndoing]);
-
-  const handleConfirmUndo = useCallback(async () => {
-    const target = pendingUndoTarget;
-    if (!target) return;
     setIsUndoing(true);
     try {
-      const result = await fileVersionApi.rollback(
-        target.fileId,
-        target.beforeVersionNumber,
-        target.expectedAfterUpdatedAt,
-        {
-          chatMessageId: target.chatMessageId,
-          toolUseId: target.toolUseId,
-          expectedAfterContentSha256: target.expectedAfterContentSha256,
-        },
-      );
-      // The text is back to before this edit: the card stops offering it (a repeat would only conflict).
-      setUndoneEdits((previous) => new Set(previous).add(undoneEditKey(target)));
+      const editorSave = flushOpenEditor();
+      if (editorSave) {
+        const saved = await editorSave;
+        if (saved.fileId === target.fileId && !saved.saved) {
+          toast.error(t('editor:saveFailed'));
+          return;
+        }
+      }
+      if (target.operationId) {
+        const operation = await fileEditOperationApi.undo(target.fileId, target.operationId);
+        if (operation.status === 'undone') {
+          finishUndo(target);
+          return;
+        }
+        if (!operation.before || !operation.after || !operation.current) {
+          throw new Error('Incomplete edit operation merge response');
+        }
+        const rebased = rebaseLocalEdits(
+          operation.after.content,
+          operation.current.content,
+          operation.before.content,
+        );
+        if (rebased.conflictEditIds.length === 0 && !operation.metadata_conflict) {
+          await submitOperationResolution(target, operation, rebased.merged, 'preserve');
+          return;
+        }
+        const review = buildParagraphReviewData(operation.current.content, rebased.merged);
+        const conflicts = new Set(rebased.conflictEditIds);
+        setUndoConflict({
+          target,
+          response: operation,
+          diffs: review.diffs,
+          edits: review.pendingEdits.map((edit) => ({
+            ...edit,
+            status: conflicts.has(edit.id) ? 'rejected' : 'accepted',
+          })),
+          conflictIds: rebased.conflictEditIds,
+          restoreMetadata: false,
+        });
+        return;
+      }
+      const result = await fileVersionApi.rollback(target.fileId, target.beforeVersionNumber, target.expectedAfterUpdatedAt, {
+        chatMessageId: target.chatMessageId,
+        toolUseId: target.toolUseId,
+        expectedAfterContentSha256: target.expectedAfterContentSha256,
+      });
+      finishUndo(target);
       if (!result.snapshot_created) {
         if (result.version_quota_exceeded) {
           toast.error(t('versions:quota.limitDescription'));
@@ -2494,8 +2552,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           toast.error(t('versions:rollbackHistoryNotSaved'));
         }
       }
-      triggerFileTreeRefresh();
-      triggerEditorRefresh(target.fileId);
     } catch (err) {
       // The file changed after this AI edit: the card's version anchor can never match again, so
       // 「请刷新后重试」 would fail forever. The version guard stays; the history panel restores safely.
@@ -2528,9 +2584,55 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       );
     } finally {
       setIsUndoing(false);
-      setPendingUndoTarget(null);
     }
-  }, [pendingUndoTarget, fileVersionUpgradePrompt.surface, triggerFileTreeRefresh, triggerEditorRefresh, t]);
+  }, [isUndoing, fileVersionUpgradePrompt.surface, finishUndo, submitOperationResolution, t]);
+
+  const submitUndoConflict = useCallback(async () => {
+    if (!undoConflict || isUndoing) return;
+    setIsUndoing(true);
+    try {
+      const resolvedContent = applyPendingEditsToDiffs(undoConflict.diffs, undoConflict.edits);
+      await submitOperationResolution(
+        undoConflict.target,
+        undoConflict.response,
+        resolvedContent,
+        undoConflict.restoreMetadata ? 'restore' : 'preserve',
+      );
+      setUndoConflict(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? handleApiError(err) : t('editor:versionHistory.rollbackFailed'));
+    } finally {
+      setIsUndoing(false);
+    }
+  }, [undoConflict, isUndoing, submitOperationResolution, t]);
+
+  const handleRestoreDeletion = useCallback(async (batchId: string) => {
+    if (!currentProjectId) return;
+    try {
+      await fileTrashApi.restore(currentProjectId, batchId);
+      triggerFileTreeRefresh();
+      toast.success(t('chat:tool.deletionRestored'));
+    } catch (err) {
+      toast.error(err instanceof ApiError ? handleApiError(err) : t('editor:fileTree.restoreFailed', '恢复失败'));
+      throw err;
+    }
+  }, [currentProjectId, triggerFileTreeRefresh, t]);
+
+  const handleConfirmDeletion = useCallback(async (preview: FileDeletionPreview): Promise<FileDeletionResult> => {
+    if (!currentProjectId) throw new Error('No active project');
+    try {
+      const result = await fileTrashApi.deleteBatch(currentProjectId, preview);
+      result.targets.forEach((target) => notifyFileRemoved(currentProjectId, target.id));
+      triggerFileTreeRefresh();
+      if (selectedItem && result.targets.some((target) => target.id === selectedItem.id)) {
+        setSelectedItem(null);
+      }
+      return result;
+    } catch (err) {
+      toast.error(err instanceof ApiError ? handleApiError(err) : t('editor:fileTree.deleteFailed'));
+      throw err;
+    }
+  }, [currentProjectId, selectedItem, setSelectedItem, triggerFileTreeRefresh, t]);
 
   /**
    * Calculates the maximum allowed height for the input panel.
@@ -2761,6 +2863,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 onIterationAssistAction={handleIterationAssistAction}
                 nextStepsBlocked={aiSendBlocked}
                 onUndo={handleUndo}
+                onRestoreDeletion={handleRestoreDeletion}
+                onConfirmDeletion={handleConfirmDeletion}
                 onOpenFile={currentProjectId && currentProject?.id === currentProjectId ? handleOpenFile : undefined}
                 onOpenAIMemory={currentProjectId ? openWritingAgreements : undefined}
                 onSubmitFeedback={handleSubmitFeedback}
@@ -3076,19 +3180,76 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         }}
       />
 
-      {/* Undo an AI edit: the copy is the file-level undo message owned by the editor
-          namespace, shown in the in-app dialog instead of the browser's native confirm. */}
-      <ConfirmDialog
-        open={pendingUndoTarget !== null}
-        onClose={handleCloseUndoDialog}
-        onConfirm={handleConfirmUndo}
-        title={t('chat:tool.undo_edit')}
-        message={t('editor:versionHistory.confirmUndoAIEdit', '撤销这次 AI 修改？正文会换回修改前的内容，已有的历史版本都会保留。')}
-        confirmLabel={t('chat:actions.undo')}
-        cancelLabel={t('common:cancel')}
-        variant="warning"
-        loading={isUndoing}
-      />
+      <Modal
+        open={undoConflict !== null}
+        onClose={() => { if (!isUndoing) setUndoConflict(null); }}
+        title={t('chat:tool.undoConflictTitle', '这几处和你后写的内容重叠')}
+        description={t('chat:tool.undoConflictDescription', '默认保留你现在的文字；只选择确实要恢复的片段。')}
+        size="md"
+        closeOnBackdropClick={!isUndoing}
+        closeOnEscape={!isUndoing}
+      >
+        {undoConflict && (
+          <div className="space-y-4">
+            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+              {undoConflict.edits
+                .filter((edit) => undoConflict.conflictIds.includes(edit.id))
+                .map((edit) => (
+                  <label key={edit.id} className="block rounded-xl border border-[hsl(var(--border-color))] p-3">
+                    <span className="flex min-h-11 items-center gap-2 text-sm font-medium text-[hsl(var(--text-primary))]">
+                      <input
+                        type="checkbox"
+                        checked={edit.status === 'accepted'}
+                        disabled={isUndoing}
+                        onChange={(event) => setUndoConflict((current) => current && ({
+                          ...current,
+                          edits: current.edits.map((item) => item.id === edit.id
+                            ? { ...item, status: event.target.checked ? 'accepted' : 'rejected' }
+                            : item),
+                        }))}
+                      />
+                      {t('chat:tool.restoreThisOverlap', '恢复这处 AI 修改前的文字')}
+                    </span>
+                    {edit.oldText && (
+                      <div className="mt-1">
+                        <span className="text-[11px] font-medium text-[hsl(var(--text-secondary))]">{t('chat:tool.currentText', '当前文字')}</span>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-xs text-[hsl(var(--text-secondary))]">{edit.oldText}</p>
+                      </div>
+                    )}
+                    {edit.newText && (
+                      <div className="mt-2">
+                        <span className="text-[11px] font-medium text-[hsl(var(--text-secondary))]">{t('chat:tool.restoreText', '恢复为')}</span>
+                        <p className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-[hsl(var(--bg-secondary))] p-2 text-xs text-[hsl(var(--text-primary))]">{edit.newText}</p>
+                      </div>
+                    )}
+                  </label>
+                ))}
+            </div>
+            {undoConflict.response.metadata_conflict && (
+              <div className="rounded-xl border border-[hsl(var(--border-color))] p-3">
+                <dl className="grid gap-2 text-xs">
+                  <div><dt className="text-[hsl(var(--text-secondary))]">{t('chat:tool.currentTitle', '当前标题')}</dt><dd className="mt-0.5 break-words text-[hsl(var(--text-primary))]">{undoConflict.response.current?.title}</dd></div>
+                  <div><dt className="text-[hsl(var(--text-secondary))]">{t('chat:tool.restoreTitle', '恢复为')}</dt><dd className="mt-0.5 break-words text-[hsl(var(--text-primary))]">{undoConflict.response.before?.title}</dd></div>
+                  {typeof undoConflict.response.current?.order === 'number' && <div><dt className="text-[hsl(var(--text-secondary))]">{t('chat:tool.currentPosition', '当前排序位置')}</dt><dd className="mt-0.5 text-[hsl(var(--text-primary))]">{undoConflict.response.current.order}</dd></div>}
+                  {typeof undoConflict.response.before?.order === 'number' && <div><dt className="text-[hsl(var(--text-secondary))]">{t('chat:tool.restorePosition', '恢复排序位置')}</dt><dd className="mt-0.5 text-[hsl(var(--text-primary))]">{undoConflict.response.before.order}</dd></div>}
+                </dl>
+                <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-[hsl(var(--text-primary))]">
+                  <input type="checkbox" checked={undoConflict.restoreMetadata} disabled={isUndoing} onChange={(event) => setUndoConflict((current) => current && ({ ...current, restoreMetadata: event.target.checked }))} />
+                  {t('chat:tool.restoreEarlierTitle', '同时恢复这次修改前的标题和位置')}
+                </label>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setUndoConflict(null)} disabled={isUndoing}>
+                {t('common:cancel')}
+              </Button>
+              <Button onClick={() => { void submitUndoConflict(); }} disabled={isUndoing}>
+                {isUndoing ? t('common:saving', '保存中…') : t('chat:actions.undo')}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Leaving the workbench mid-round drops the stream and ends the round. */}
       {leaveConfirmation}

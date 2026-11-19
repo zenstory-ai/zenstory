@@ -74,6 +74,7 @@ export const readFileEditUndoTarget = (
     return null;
   }
   const contentSha256 = undo?.expected_after_content_sha256;
+  const operationId = typeof undo?.operation_id === 'string' ? undo.operation_id.trim() : '';
   return {
     fileId,
     beforeVersionNumber,
@@ -81,6 +82,7 @@ export const readFileEditUndoTarget = (
     ...(typeof contentSha256 === 'string' && SHA256_HEX.test(contentSha256)
       ? { expectedAfterContentSha256: contentSha256 }
       : {}),
+    ...(operationId ? { operationId } : {}),
     ...(chatMessageId && toolUseId ? { chatMessageId, toolUseId } : {}),
   };
 };
@@ -90,7 +92,7 @@ export const readFileEditUndoTarget = (
  * ids the server cannot record the undo on the card, so it would come back as not undone after a reload.
  */
 export const isPersistedUndoTarget = (target: FileEditUndoTarget | null): target is FileEditUndoTarget =>
-  Boolean(target?.chatMessageId && target.toolUseId);
+  Boolean(target?.operationId || (target?.chatMessageId && target.toolUseId));
 
 /** What a write_chapter result did to its chapter, from the server's `action` and saved-body fields. */
 export type WriteChapterOutcome = 'created' | 'exists' | 'replacing' | 'replaced' | 'unchanged' | 'not_saved';
@@ -119,8 +121,10 @@ export const readAiWriteUndoTarget = (call: ToolCall): FileEditUndoTarget | null
   if (call.status !== 'success') return null;
   const data = cardData(call.result);
   if (!data) return null;
+  if (call.tool_name === 'create_file') return readFileEditUndoTarget(data, undefined, undefined);
   if (call.tool_name === 'edit_file') return readFileEditUndoTarget(data, undefined, undefined);
-  if (call.tool_name === 'write_chapter' && readWriteChapterOutcome(data) === 'replaced') {
+  if (call.tool_name === 'rename_file') return readFileEditUndoTarget(data, undefined, undefined);
+  if (call.tool_name === 'write_chapter' && ['created', 'replaced'].includes(readWriteChapterOutcome(data) ?? '')) {
     return readFileEditUndoTarget(data, undefined, undefined);
   }
   return null;

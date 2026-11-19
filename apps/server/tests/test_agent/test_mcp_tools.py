@@ -1720,14 +1720,23 @@ def test_oversized_tool_result_is_bounded_without_opening_a_session(session_fact
 async def test_successful_writes_do_not_open_a_ledger_session(session_factory_spy):
     mock_executor = MagicMock()
     mock_executor.create_file.return_value = {"id": "f-1", "title": "第一章", "file_type": "draft", "content": "正文"}
-    mock_executor.delete_file.return_value = True
+    trash = MagicMock()
+    trash.preview.return_value = {
+        "targets": [{"id": "f-1", "file_type": "draft"}], "recursive": False,
+        "count": 1, "target_hash": "0" * 64,
+    }
+    trash.delete.return_value = {"batch_id": "batch-1", "mutation_applied": True}
     mock_executor.update_project_status.return_value = {
         "project_id": "proj-1",
         "updated_fields": ["summary"],
         "current_status": {"summary": "新"},
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor):
+    with (
+        patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor),
+        patch("agent.tools.mcp_tools.ToolContext.get_session", return_value=MagicMock()),
+        patch("services.file_trash.FileTrashService", return_value=trash),
+    ):
         created = _parse_payload(await create_file({"title": "第一章", "file_type": "draft", "content": "正文"}))
         deleted = _parse_payload(await delete_file({"id": "f-1"}))
         updated = _parse_payload(await update_project({"summary": "新"}))
