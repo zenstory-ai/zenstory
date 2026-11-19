@@ -14,13 +14,13 @@ def test_stage_totals_max_and_interrupted_outcomes(monkeypatch):
     clock = iter([10.0, 12.0, 13.0, 16.0, 20.0, 24.0])
     monkeypatch.setattr("agent.core.run_meter.time.monotonic", lambda: next(clock))
     meter = AgentRunMeter(started_at=0.0)
-    with meter.measure_stage("router"):
+    with meter.measure_stage("compaction"):
         pass
-    with pytest.raises(ValueError), meter.measure_stage("router"):
+    with pytest.raises(ValueError), meter.measure_stage("compaction"):
         raise ValueError("synthetic-private-exception-must-not-appear")
-    with pytest.raises(asyncio.CancelledError), meter.measure_stage("router"):
+    with pytest.raises(asyncio.CancelledError), meter.measure_stage("compaction"):
         raise asyncio.CancelledError
-    timing = meter.timing_report()["stage_timings"]["router"]
+    timing = meter.timing_report()["stage_timings"]["compaction"]
     assert timing == {
         "count": 3,
         "total_ms": 9000.0,
@@ -90,11 +90,11 @@ async def test_usage_hook_writes_the_answered_attempt_timing_once():
     assert schedule.call_args_list[1].kwargs["timing"] is None
 
 
-def test_role_timing_keeps_legacy_sdk_run_counter():
+def test_role_timing_keeps_sdk_run_counter():
     meter = AgentRunMeter()
-    meter.record_agent_run(123.0, agent_type="planner")
-    meter.record_agent_run(300.0, agent_type="writer", outcome="interrupted")
+    meter.record_agent_run(123.0, agent_type="loop")
+    meter.record_agent_run(300.0, agent_type="loop", outcome="interrupted")
     assert (meter.agent_runs, meter.llm_duration_ms) == (2, 423.0)
     report = meter.timing_report()
-    assert report["stage_timings"]["agent_planner"]["total_ms"] == 123.0
-    assert report["stage_timings"]["agent_writer"]["interrupted_count"] == 1
+    assert report["stage_timings"]["agent_loop"]["total_ms"] == 423.0
+    assert report["stage_timings"]["agent_loop"]["interrupted_count"] == 1

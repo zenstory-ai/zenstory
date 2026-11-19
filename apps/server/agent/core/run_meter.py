@@ -21,14 +21,9 @@ from .server_drain import is_draining
 
 TimingStage = Literal[
     "prepare_context",
-    "router",
     "model",
     "tool",
     "file_save",
-    "agent_planner",
-    "agent_hook_designer",
-    "agent_writer",
-    "agent_quality_reviewer",
     "agent_loop",
     "compaction",
 ]
@@ -47,10 +42,6 @@ class _ToolFailureStats:
 
 
 _ROLE_STAGES: dict[str, TimingStage] = {
-    "planner": "agent_planner",
-    "hook_designer": "agent_hook_designer",
-    "writer": "agent_writer",
-    "quality_reviewer": "agent_quality_reviewer",
     "loop": "agent_loop",
 }
 

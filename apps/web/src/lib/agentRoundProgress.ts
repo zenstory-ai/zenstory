@@ -1,6 +1,5 @@
 import { countWords } from './documentChunker';
 
-const PARALLEL_WRITE_TASKS = new Set(['write_chapter', 'edit_file', 'delete_file']);
 /** update_project fields an author can see; a task-board or current_phase update alone is not output. */
 const PROJECT_INFO_FIELDS = new Set(['summary', 'writing_style', 'notes']);
 
@@ -77,7 +76,6 @@ export function createProseCounter(): ProseCounter {
  * chapter body streams in afterwards) or an edit that changed nothing does not count;
  * `write_chapter` counts only on the re-sent replacement card that saved new text
  * (`mutation_applied: true`), never when it only found or created the chapter;
- * `parallel_execute` counts only when one of its completed sub-tasks is a write;
  * `update_project` counts only when it renamed the work or changed its synopsis, style or
  * notes. Body text streamed into a file arrives as file_content, which callers count
  * separately.
@@ -92,7 +90,7 @@ export function isWriteToolResult(
 
   if (toolName === 'write_chapter') return payload?.mutation_applied === true;
 
-  if (toolName === 'create_file' || toolName === 'update_file') {
+  if (toolName === 'create_file') {
     const content = typeof payload?.content === 'string' ? payload.content : '';
     return content.trim().length > 0 && payload?.reused_existing !== true;
   }
@@ -110,16 +108,7 @@ export function isWriteToolResult(
       fields.some((field) => typeof field === 'string' && PROJECT_INFO_FIELDS.has(field))
     );
   }
-  if (toolName !== 'parallel_execute') return false;
-
-  const tasks = Array.isArray(payload?.tasks) ? (payload.tasks as Array<Record<string, unknown>>) : [];
-  return tasks.some(
-    // partial: a continue_on_error edit_file applied some of its edits, so the file did change.
-    (task) =>
-      (task?.status === 'completed' || task?.status === 'partial') &&
-      typeof task.type === 'string' &&
-      PARALLEL_WRITE_TASKS.has(task.type),
-  );
+  return false;
 }
 
 /**

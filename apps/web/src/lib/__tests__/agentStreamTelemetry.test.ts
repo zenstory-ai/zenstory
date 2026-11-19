@@ -87,7 +87,7 @@ describe("agent stream telemetry", () => {
       sseResponse([
         'event: tool_call\ndata: {"tool_name":"edit_file","arguments":{}}\n\n',
         'event: content\ndata: {"text":"雨夜里，她推开了门"}\n\n',
-        'event: done\ndata: {"apply_action":"insert"}\n\n',
+        'event: done\ndata: {}\n\n',
       ]),
     );
 

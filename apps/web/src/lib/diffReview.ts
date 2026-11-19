@@ -195,7 +195,7 @@ export interface ReviewDiffSegment {
   editIndex?: number;
 }
 
-function buildAtomicReviewSegments(diffs: ReviewDiffTuple[]): ReviewDiffSegment[] {
+export function buildReviewSegmentsFromDiffs(diffs: ReviewDiffTuple[]): ReviewDiffSegment[] {
   const segments: ReviewDiffSegment[] = [];
   let editIndex = 0;
 
@@ -308,17 +308,11 @@ function buildAtomicReviewSegments(diffs: ReviewDiffTuple[]): ReviewDiffSegment[
   return segments;
 }
 
-export function buildReviewSegmentsFromDiffs(
-  diffs: ReviewDiffTuple[]
-): ReviewDiffSegment[] {
-  return buildAtomicReviewSegments(diffs);
-}
-
 export function applyPendingEditsToDiffs(
   diffs: ReviewDiffTuple[],
   pendingEdits: PendingEdit[]
 ): string {
-  const segments = buildAtomicReviewSegments(diffs);
+  const segments = buildReviewSegmentsFromDiffs(diffs);
   let result = "";
 
   for (const segment of segments) {

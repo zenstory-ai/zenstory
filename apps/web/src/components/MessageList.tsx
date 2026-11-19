@@ -79,13 +79,6 @@ export type MessageStatusCard =
       question?: string;
       context?: string;
       details?: string[];
-      confidence?: number;
-      evaluation?: {
-        complete_score: number;
-        clarification_score: number;
-        consistency_score: number;
-        decision_reason: string;
-      };
     }
   | {
       type: 'iteration_exhausted';
@@ -110,38 +103,12 @@ export interface Message {
   content: string;
   /** Timestamp when the message was created */
   timestamp: Date;
-  /** @deprecated Legacy field for backward compatibility - use reasoningSegments instead */
-  reasoningContent?: string;
-  /** Array of reasoning/thinking content segments with timestamps */
-  reasoningSegments?: Array<{
-    /** Content of the reasoning segment */
-    content: string;
-    /** When this reasoning segment was generated */
-    timestamp: Date;
-  }>;
   /** Tool calls made by the assistant during message generation */
   toolCalls?: ToolCall[];
   /** Results from executed tool calls */
   toolResults?: ToolCall[];
   /** Ordered live/persisted display sequence, when the original order is known. */
   displayItems?: StreamRenderItem[];
-  /** Consistency conflicts detected during content generation */
-  conflicts?: Array<{
-    /** Type of conflict detected */
-    type: string;
-    /** Severity level: low, medium, or high */
-    severity: 'low' | 'medium' | 'high';
-    /** Human-readable conflict title */
-    title: string;
-    /** Detailed description of the conflict */
-    description: string;
-    /** Suggested resolutions for the conflict */
-    suggestions: string[];
-    /** References to related content causing the conflict */
-    references: unknown[];
-  }>;
-  /** Context items (citations) used to generate this message */
-  contextItems?: AgentContextItem[];
   /** User feedback state for assistant message */
   feedback?: MessageFeedback;
   /**
@@ -693,21 +660,6 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
           <IterationExhaustedCard card={item} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} />
         </div>
       );
-    } else if (item.type === 'router_thinking' && item.content) {
-      // router_thinking - Router 正在分析请求
-      return (
-        <div key={item.id} className="mb-2">
-          <div className={`inline-flex max-w-full items-center rounded-lg bg-[hsl(var(--accent-primary)/0.08)] border border-[hsl(var(--accent-primary)/0.2)] ${isMobile ? 'gap-1.5 px-2.5 py-0.5' : 'gap-1.5 px-2.5 py-1'}`}>
-            <Sparkles size={13} className="text-[hsl(var(--accent-primary))] animate-pulse shrink-0" />
-            <span className="text-xs font-medium text-[hsl(var(--accent-primary))] truncate">
-              {item.content}
-            </span>
-          </div>
-        </div>
-      );
-    } else if (item.type === 'router_decided') {
-      // Routing topology stays in the raw timeline for diagnostics/history restoration.
-      return null;
     } else if (item.type === 'workflow_stopped') {
       const workflowReason = (item as { reason?: string }).reason;
       if (workflowReason === 'user_stopped') {
@@ -875,59 +827,31 @@ const Row = React.memo(function Row({
       <div className="flex-1 min-w-0 overflow-hidden">
         {hasDisplayItems ? (
           <OrderedMessageItems items={orderedDisplayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={false} chatMessageId={message.backendMessageId} />
-        ) : <>
-        {/* Thinking content - historical segments */}
-        {message.role === 'assistant' && (
-          <>
-            {/* Show all reasoning segments */}
-            {message.reasoningSegments && message.reasoningSegments.length > 0 && (
-              <div className="mb-2.5 space-y-2">
-                {message.reasoningSegments.map((segment, idx) => (
-                  <ThinkingContent
-                    key={`reasoning-${idx}`}
-                    content={segment.content}
-                    isStreaming={false}
-                  />
-                ))}
+        ) : (
+          hasDisplayContent && (
+            <div className="flex items-end gap-0.5">
+              <div
+                className={`chat-message-bubble ${
+                  message.role === 'user'
+                    ? 'chat-message-bubble-user'
+                    : 'chat-message-bubble-ai'
+                } inline-block max-w-full text-sm ${
+                  isMobile ? 'px-3 py-2' : 'px-3.5 py-2.5'
+                }`}
+              >
+                {message.role === 'assistant' ? (
+                  <div className="markdown-content">
+                    <LazyMarkdown>{displayContent}</LazyMarkdown>
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap">
+                    {displayContent}
+                  </div>
+                )}
               </div>
-            )}
-            {/* Fallback to legacy reasoningContent */}
-            {!message.reasoningSegments || message.reasoningSegments.length === 0 ? (
-              message.reasoningContent ? (
-                <div className="mb-2.5">
-                  <ThinkingContent content={message.reasoningContent} isStreaming={false} />
-                </div>
-              ) : null
-            ) : null}
-          </>
-        )}
-
-        {/* Message bubble - only show if there's visible content */}
-        {hasDisplayContent && (
-          <div className="flex items-end gap-0.5">
-            <div
-              className={`chat-message-bubble ${
-                message.role === 'user'
-                  ? 'chat-message-bubble-user'
-                  : 'chat-message-bubble-ai'
-              } inline-block max-w-full text-sm ${
-                isMobile ? 'px-3 py-2' : 'px-3.5 py-2.5'
-              }`}
-            >
-              {message.role === 'assistant' ? (
-                <div className="markdown-content">
-                  <LazyMarkdown>{displayContent}</LazyMarkdown>
-                </div>
-              ) : (
-                <div className="whitespace-pre-wrap">
-                  {displayContent}
-                </div>
-              )}
             </div>
-          </div>
+          )
         )}
-
-        </>}
 
         {message.role === 'assistant' && message.stopOutcome && (
           <>
@@ -1028,11 +952,6 @@ const Row = React.memo(function Row({
           </div>
         )}
 
-        {/* Context items for assistant messages */}
-        {message.role === 'assistant' && !hasDisplayItems && message.contextItems && message.contextItems.length > 0 && (
-          <ContextItemsView items={message.contextItems} label={t('context.citations', { ns: 'chat' })} />
-        )}
-
         {/* Tool calls */}
         {message.role === 'assistant' && !hasDisplayItems && toolCalls.length > 0 && (
           <div className={hasDisplayContent ? "mt-3 space-y-2" : "space-y-2"}>
@@ -1070,22 +989,6 @@ const Row = React.memo(function Row({
                 chatMessageId={message.backendMessageId}
                 onOpenFile={result.status === 'success' ? onOpenFile : undefined}
                 onOpenAIMemory={onOpenAIMemory}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Conflicts */}
-        {message.role === 'assistant' && message.conflicts && message.conflicts.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {message.conflicts.map((conflict, idx) => (
-              <ToolResultCard
-                key={idx}
-                type="conflict"
-                toolName="consistency_check"
-                result={{
-                  conflict,
-                }}
               />
             ))}
           </div>
@@ -1199,12 +1102,7 @@ export const MessageList = React.memo(
     const hasVisibleContent = Boolean(visibleContent && visibleContent.trim());
     const hasToolCalls = m.role === 'assistant' && visibleToolCalls(m.toolCalls).length > 0;
     const hasToolResults = m.role === 'assistant' && visibleToolCalls(m.toolResults).length > 0;
-    const hasConflicts = m.role === 'assistant' && Boolean(m.conflicts?.length);
-    const hasContextItems = m.role === 'assistant' && Boolean(m.contextItems?.length);
     const hasStatusCards = m.role === 'assistant' && Boolean(m.statusCards?.length);
-    // Include messages with reasoning segments (thinking content)
-    const hasReasoningSegments = m.role === 'assistant' && Boolean(m.reasoningSegments?.length);
-    const hasReasoningContent = m.role === 'assistant' && Boolean(m.reasoningContent?.trim());
 
     // A stopped / interrupted round with nothing else to show still shows how it ended.
     const hasStopOutcome = m.role === 'assistant' && Boolean(m.stopOutcome);
@@ -1215,11 +1113,7 @@ export const MessageList = React.memo(
       hasVisibleContent ||
       hasToolCalls ||
       hasToolResults ||
-      hasConflicts ||
-      hasContextItems ||
-      hasStatusCards ||
-      hasReasoningSegments ||
-      hasReasoningContent
+      hasStatusCards
     );
   }), [messages]);
 

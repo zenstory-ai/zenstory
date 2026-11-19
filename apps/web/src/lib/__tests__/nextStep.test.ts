@@ -113,12 +113,9 @@ describe('latestRoundAwaitsReply', () => {
     ])).toBe(false)
   })
 
-  it('reads the round end in display order, and prefers the live round items', () => {
+  it('reads the round end in display order on saved displayItems', () => {
     expect(latestRoundAwaitsReply([{ role: 'assistant', displayItems: [ask, done] }])).toBe(false)
-    expect(latestRoundAwaitsReply([{ role: 'assistant', statusCards: [ask] }], [done])).toBe(false)
-    expect(latestRoundAwaitsReply([{ role: 'user' }], [{ type: 'content' }, ask])).toBe(true)
-    // Leftover items of an errored round carry no round end: fall back to the saved turn.
-    expect(latestRoundAwaitsReply([{ role: 'assistant', statusCards: [ask] }], [{ type: 'content' }])).toBe(true)
+    expect(latestRoundAwaitsReply([{ role: 'assistant', displayItems: [{ type: 'content' }, ask] }])).toBe(true)
   })
 
   it('does not treat a user stop or an error stop as waiting for an answer', () => {

@@ -1,13 +1,13 @@
 """单循环 agent 一轮里用到的收尾说明、插话追加轮提示、正文字数与事件整理。"""
 
 import asyncio
-import json
 from collections.abc import AsyncIterator
 from typing import Any
 
 from agent.constants import CONTENT_FILE_TYPES
 from agent.core.author_facing_text import AgentTextShaper
 from agent.core.workflow_events import StreamEvent, StreamEventType
+from agent.openai_agents.events import parse_mcp_tool_payload
 from agent.tools.mcp_tools import ToolContext
 from utils.logger import get_logger
 from utils.text_metrics import count_words
@@ -155,18 +155,8 @@ def format_cut_body_word_counts(counts: list[tuple[str, int]] | None) -> str:
 
 def tool_result_failed(result: Any) -> bool:
     """TOOL_RESULT 事件的 result（MCP 文本载荷）是否是 status=error 的失败结果。"""
-    if not isinstance(result, dict):
-        return False
-    for block in result.get("content") or []:
-        if not isinstance(block, dict):
-            continue
-        try:
-            payload = json.loads(str(block.get("text") or ""))
-        except (json.JSONDecodeError, TypeError):
-            continue
-        if isinstance(payload, dict) and payload.get("status") == "error":
-            return True
-    return False
+    payload = parse_mcp_tool_payload(result)
+    return isinstance(payload, dict) and payload.get("status") == "error"
 
 
 async def shape_agent_text(

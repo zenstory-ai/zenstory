@@ -46,42 +46,18 @@ class EventType(StrEnum):
     # Skill events
     SKILL_MATCHED = "skill_matched"  # Skill was matched and loaded
 
-    # Agent events
-    AGENT_SELECTED = "agent_selected"  # Agent was selected by router
-    HANDOFF = "handoff"  # Agent handoff request emitted by workflow
+    # Agent / workflow events
     ITERATION_EXHAUSTED = "iteration_exhausted"  # Iteration limit reached
-
-    # Router events
-    ROUTER_THINKING = "router_thinking"  # Router is analyzing the request
-    ROUTER_DECIDED = "router_decided"    # Router has made a decision
-
-    # Workflow events
-    WORKFLOW_STOPPED = "workflow_stopped"   # Workflow stopped (e.g., needs clarification)
-    WORKFLOW_COMPLETE = "workflow_complete" # Workflow completed successfully
+    WORKFLOW_STOPPED = "workflow_stopped"   # Workflow stopped (e.g., author stop)
 
     # Session lifecycle events
     SESSION_STARTED = "session_started"    # Agent session started
-
-    # Parallel execution events
-    PARALLEL_START = "parallel_start"          # Parallel execution started
-    PARALLEL_TASK_START = "parallel_task_start"  # Individual parallel task started
-    PARALLEL_TASK_END = "parallel_task_end"    # Individual parallel task ended
-    PARALLEL_END = "parallel_end"              # Parallel execution completed
 
     # Steering events
     STEERING_RECEIVED = "steering_received"  # Steering message received
 
     # History compaction (single loop agent, between rounds)
     HISTORY_COMPACTED = "history_compacted"  # Earlier conversation was summarized for this round
-
-
-# 只读请求拦下「交接给有写权限的 agent」时，WORKFLOW_STOPPED 提示卡片的 reason。
-# 这张卡片在工作流收尾时（终止事件之前）才发出，只是一条说明，不代表流结束：
-# api/agent.py 判定「是否收到终止事件」（决定兜底 error 帧与计费分类）时必须跳过它。
-READ_ONLY_HANDOFF_BLOCKED_REASON = "read_only_handoff_blocked"
-NON_TERMINAL_WORKFLOW_STOPPED_REASONS: frozenset[str] = frozenset(
-    {READ_ONLY_HANDOFF_BLOCKED_REASON}
-)
 
 
 class StreamEvent(BaseModel):
@@ -178,18 +154,6 @@ class DoneEventData(BaseModel):
         default=False,
         description="This normally completed turn confirmed a committed file mutation",
     )
-    apply_action: str | None = Field(
-        default=None,
-        description="Suggested apply action: insert/replace/new_snippet/reference_only"
-    )
-    refs: list[int] = Field(
-        default_factory=list,
-        description="Referenced snippet IDs"
-    )
-    intent: str | None = Field(
-        default=None,
-        description="Detected intent"
-    )
     assistant_message_id: str | None = Field(
         default=None,
         description="Persisted assistant chat message ID for this turn",
@@ -215,10 +179,6 @@ class DoneEventData(BaseModel):
         ),
     )
     unwritten_files: list[dict[str, Any]] | None = None
-    no_file_changes: bool | None = Field(
-        default=None,
-        description="Completed rounds only: the author asked for body writes and nothing was written",
-    )
 
 
 class ToolCallEventData(BaseModel):
@@ -387,9 +347,6 @@ def error_event(
 
 
 def done_event(
-    apply_action: str | None = None,
-    refs: list[int] | None = None,
-    intent: str | None = None,
     assistant_message_id: str | None = None,
     session_id: str | None = None,
     file_mutated: bool = False,
@@ -401,9 +358,6 @@ def done_event(
     """Create a done event."""
     data = DoneEventData(
         file_mutated=file_mutated,
-        apply_action=apply_action,
-        refs=refs or [],
-        intent=intent,
         assistant_message_id=assistant_message_id,
         session_id=session_id,
         stop_reason=stop_reason,
@@ -412,7 +366,7 @@ def done_event(
         unwritten_files=unwritten_files or None,
     ).model_dump()
     # 只有提供这些可选回执时才带字段，其余 done 帧保持原样。
-    for key in ("stop_reason", "produced_output", "written_files", "unwritten_files", "no_file_changes"):
+    for key in ("stop_reason", "produced_output", "written_files", "unwritten_files"):
         if data.get(key) is None:
             data.pop(key, None)
     return StreamEvent(type=EventType.DONE, data=data)
@@ -593,40 +547,11 @@ def skill_matched_event(
     )
 
 
-class AgentSelectedEventData(BaseModel):
-    """Data for agent_selected events."""
-    agent_type: str = Field(..., description="Type of the selected agent")
-    agent_name: str = Field(..., description="Name of the selected agent")
-    iteration: int | None = Field(default=None, description="Current iteration number")
-    max_iterations: int | None = Field(default=None, description="Maximum iterations allowed")
-    remaining: int | None = Field(default=None, description="Remaining iterations")
-
-
-def agent_selected_event(
-    agent_type: str,
-    agent_name: str,
-    iteration: int | None = None,
-    max_iterations: int | None = None,
-    remaining: int | None = None,
-) -> StreamEvent:
-    """Create an agent_selected event when router selects an agent."""
-    return StreamEvent(
-        type=EventType.AGENT_SELECTED,
-        data=AgentSelectedEventData(
-            agent_type=agent_type,
-            agent_name=agent_name,
-            iteration=iteration,
-            max_iterations=max_iterations,
-            remaining=remaining,
-        ).model_dump()
-    )
-
-
-# iteration_exhausted 的 limit：请求时间快用完了（runner 的时限收尾、图层收尾、墙钟硬超时且已有写入）。
+# iteration_exhausted 的 limit：请求时间快用完了（runner 的时限收尾、循环收尾、墙钟硬超时且已有写入）。
 # 前端据此显示「这一轮先做到这里」与继续按钮；StreamAdapter 据此把这一轮记成可「继续」的时限截停。
 WALL_CLOCK_LIMIT = "wall_clock"
 # iteration_exhausted 的一层：回复里有写成文字的完整工具调用、它没有执行（见
-# graph.completion_evidence.unexecuted_tool_protocol）。不带 limit，不改 stop_reason，不是失控停止。
+# loop.completion_evidence.unexecuted_tool_protocol）。不带 limit，不改 stop_reason，不是失控停止。
 UNEXECUTED_TOOL_TEXT_LAYER = "unexecuted_tool_text"
 
 
@@ -665,59 +590,6 @@ class IterationExhaustedEventData(BaseModel):
 class SessionStartedEventData(BaseModel):
     """Data for session_started events."""
     session_id: str = Field(..., description="ID of the started session")
-
-
-class ParallelStartEventData(BaseModel):
-    """Data for parallel_start events."""
-    execution_id: str = Field(..., description="Unique ID for this parallel execution")
-    task_count: int = Field(..., description="Number of tasks actually executed this round")
-    task_descriptions: list[str] = Field(..., description="Descriptions of each executed task")
-    # 图写下的旧事件：单次并行有上限，超出的任务会被截断丢弃。
-    # 只报 task_count 会让前端进度条显示 "5/5 完成" 而隐藏掉被丢弃的 2 个任务；
-    # 只把 task_count 改成请求数又会让进度条永远停在 "5/7"。
-    # 因此两者都发：task_count 驱动进度条，requested_task_count/dropped_count 用于
-    # 在完成后追加 "2 个未执行" 的提示。
-    requested_task_count: int = Field(
-        default=0, description="Number of tasks the model originally requested"
-    )
-    dropped_count: int = Field(
-        default=0, description="Number of requested tasks dropped due to the concurrency cap"
-    )
-
-
-class ParallelTaskStartEventData(BaseModel):
-    """Data for parallel_task_start events."""
-    execution_id: str = Field(..., description="ID of the parent parallel execution")
-    task_id: str = Field(..., description="Unique ID for this task")
-    task_type: str = Field(..., description="Type of the task")
-    description: str = Field(..., description="Description of the task")
-
-
-class ParallelTaskEndEventData(BaseModel):
-    """Data for parallel_task_end events."""
-    execution_id: str = Field(..., description="ID of the parent parallel execution")
-    task_id: str = Field(..., description="Unique ID for this task")
-    status: str = Field(..., description="Task status: 'completed', 'partial' or 'failed'")
-    result_preview: str | None = Field(default=None, description="Preview of the result (first 100 chars)")
-    error: str | None = Field(default=None, description="Error message if failed")
-
-
-class ParallelEndEventData(BaseModel):
-    """Data for parallel_end events."""
-    execution_id: str = Field(..., description="ID of the parallel execution")
-    total_tasks: int = Field(..., description="Total number of tasks")
-    completed: int = Field(..., description="Number of completed tasks")
-    failed: int = Field(..., description="Number of failed tasks")
-    partial: int = Field(default=0, description="Number of partially applied tasks")
-    duration_ms: int = Field(..., description="Total execution duration in milliseconds")
-    # 与 ParallelStartEventData 同义：让 UI 在收尾时也能说明"还有 N 个未执行"，
-    # 不必缓存 start 事件的字段。
-    requested_task_count: int = Field(
-        default=0, description="Number of tasks the model originally requested"
-    )
-    dropped_count: int = Field(
-        default=0, description="Number of requested tasks dropped due to the concurrency cap"
-    )
 
 
 class SteeringReceivedEventData(BaseModel):
@@ -781,94 +653,6 @@ def session_started_event(session_id: str) -> StreamEvent:
     return StreamEvent(
         type=EventType.SESSION_STARTED,
         data=SessionStartedEventData(session_id=session_id).model_dump()
-    )
-
-
-def parallel_start_event(
-    execution_id: str,
-    task_count: int,
-    task_descriptions: list[str],
-    requested_task_count: int | None = None,
-    dropped_count: int = 0,
-) -> StreamEvent:
-    """Create a parallel_start event when parallel execution begins."""
-    return StreamEvent(
-        type=EventType.PARALLEL_START,
-        data=ParallelStartEventData(
-            execution_id=execution_id,
-            task_count=task_count,
-            task_descriptions=task_descriptions,
-            requested_task_count=(
-                task_count if requested_task_count is None else requested_task_count
-            ),
-            dropped_count=max(0, dropped_count),
-        ).model_dump()
-    )
-
-
-def parallel_task_start_event(
-    execution_id: str,
-    task_id: str,
-    task_type: str,
-    description: str,
-) -> StreamEvent:
-    """Create a parallel_task_start event when a parallel task begins."""
-    return StreamEvent(
-        type=EventType.PARALLEL_TASK_START,
-        data=ParallelTaskStartEventData(
-            execution_id=execution_id,
-            task_id=task_id,
-            task_type=task_type,
-            description=description,
-        ).model_dump()
-    )
-
-
-def parallel_task_end_event(
-    execution_id: str,
-    task_id: str,
-    status: str,
-    result_preview: str | None = None,
-    error: str | None = None,
-) -> StreamEvent:
-    """Create a parallel_task_end event when a parallel task completes."""
-    return StreamEvent(
-        type=EventType.PARALLEL_TASK_END,
-        data=ParallelTaskEndEventData(
-            execution_id=execution_id,
-            task_id=task_id,
-            status=status,
-            result_preview=result_preview,
-            error=error,
-        ).model_dump()
-    )
-
-
-def parallel_end_event(
-    execution_id: str,
-    total_tasks: int,
-    completed: int,
-    failed: int,
-    duration_ms: int,
-    requested_task_count: int | None = None,
-    dropped_count: int = 0,
-    partial: int = 0,
-) -> StreamEvent:
-    """Create a parallel_end event when parallel execution completes."""
-    return StreamEvent(
-        type=EventType.PARALLEL_END,
-        data=ParallelEndEventData(
-            execution_id=execution_id,
-            total_tasks=total_tasks,
-            completed=completed,
-            failed=failed,
-            partial=partial,
-            duration_ms=duration_ms,
-            requested_task_count=(
-                total_tasks if requested_task_count is None else requested_task_count
-            ),
-            dropped_count=max(0, dropped_count),
-        ).model_dump()
     )
 
 

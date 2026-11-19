@@ -9,7 +9,7 @@ This module provides one place to assemble:
 from typing import Any
 
 from agent.tools.mcp_tools import MCP_TOOL_HANDLERS
-from agent.tools.tool_schemas import LOOP_TOOL_SCHEMA_OVERRIDES, TOOL_SCHEMAS
+from agent.tools.tool_schemas import TOOL_SCHEMAS
 
 # 单循环 agent（agent/loop）的工具集。正文按章号写：write_chapter 紧跟 create_file，create_file 不建正文。
 # 顺序就是请求里工具清单的顺序：工具清单排在对话前面，换顺序会让整段前缀缓存失效。
@@ -32,9 +32,7 @@ TOOL_FUNCTIONS: dict[str, Any] = dict(MCP_TOOL_HANDLERS)
 
 def get_exposed_tools() -> list[dict[str, Any]]:
     """The tool list the loop agent sees in its requests."""
-    return [
-        LOOP_TOOL_SCHEMA_OVERRIDES.get(name, TOOL_SCHEMAS[name]) for name in LOOP_TOOL_NAMES if name in TOOL_SCHEMAS
-    ]
+    return [TOOL_SCHEMAS[name] for name in LOOP_TOOL_NAMES if name in TOOL_SCHEMAS]
 
 
 def validate_registry_alignment() -> dict[str, list[str]]:

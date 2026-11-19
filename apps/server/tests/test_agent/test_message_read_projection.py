@@ -8,7 +8,6 @@ import pytest
 from sqlalchemy import create_engine, event
 from sqlmodel import Session, SQLModel
 
-from agent.core.session_loader import SessionLoader
 from agent.suggest_service import SuggestService
 from models import ChatMessage, ChatSession, Project, User
 
@@ -68,11 +67,6 @@ def add_message(session, message_id, *, role="assistant", tool_calls=None, chat=
     ))
 
 
-def query_call(file_id):
-    return {"name": "query_files", "status": "success", "arguments": {"id": file_id},
-            "result": [{"id": file_id, "title": file_id, "content": "读取正文"}]}
-
-
 def test_suggestions_keep_latest_window_order_and_role_filter_without_hidden_payloads(message_engine):
     at = datetime(2026, 1, 1)
     with Session(message_engine) as session:
@@ -101,42 +95,3 @@ def test_suggestions_keep_latest_window_order_and_role_filter_without_hidden_pay
     with message_result_columns(message_engine) as denied_columns, Session(message_engine) as session:
         assert service._get_recent_chat_history(session, "project", "other") == []
     assert denied_columns == []
-
-
-def test_working_set_keeps_two_turns_deletions_and_deduplication_without_text_payloads(message_engine):
-    with Session(message_engine) as session:
-        add_message(session, "a0", tool_calls=json.dumps([query_call("stale")]))
-        add_message(session, "a1", tool_calls=json.dumps([
-            query_call("deleted"), query_call("shared"), query_call("kept"),
-        ]))
-        add_message(session, "a2", tool_calls=json.dumps([
-            {"name": "delete_file", "status": "success", "arguments": {"id": "deleted"}},
-            query_call("shared"), query_call("shared"),
-            {**query_call("failed"), "status": "error"},
-        ]))
-        add_message(session, "z-user", role="user", tool_calls=json.dumps([query_call("user-only")]))
-        add_message(session, "z-archived", chat="archived", tool_calls=json.dumps([query_call("other-chat")]))
-        session.commit()
-
-    with message_result_columns(message_engine) as columns, Session(message_engine) as session:
-        actual = SessionLoader("project", "owner")._load_recent_working_set_refs(
-            session=session, chat_session_id="active",
-        )
-
-    assert actual == [
-        {"file_id": "shared", "title": "shared", "action": "read"},
-        {"file_id": "kept", "title": "kept", "action": "read"},
-    ]
-    assert len(columns) == 1
-    assert not columns[0] & {"content", "reasoning_content", "message_metadata", "tool_call_id"}
-
-
-@pytest.mark.parametrize("raw", [None, "not-json", "[]", "{}"])
-def test_working_set_empty_or_legacy_tool_payloads(message_engine, raw):
-    with Session(message_engine) as session:
-        add_message(session, "empty", tool_calls=raw)
-        session.commit()
-    with Session(message_engine) as session:
-        assert SessionLoader("project", "owner")._load_recent_working_set_refs(
-            session=session, chat_session_id="active",
-        ) == []

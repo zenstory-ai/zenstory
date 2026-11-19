@@ -29,6 +29,29 @@ def extract_tool_result_text(raw_result: Any) -> str:
     return ""
 
 
+def parse_mcp_tool_payload(raw_result: Any, default: Any = None) -> Any:
+    """Parse the JSON payload inside an MCP ``{"content": [{"type": "text", "text": ...}]}`` tool result."""
+    if not isinstance(raw_result, dict):
+        return default
+    content_list = raw_result.get("content")
+    if not isinstance(content_list, list):
+        return default
+    for item in content_list:
+        if not isinstance(item, dict):
+            continue
+        text = item.get("text")
+        if text is None:
+            continue
+        raw_text = text if isinstance(text, str) else str(text)
+        if not raw_text:
+            continue
+        try:
+            return json.loads(raw_text)
+        except (TypeError, json.JSONDecodeError):
+            continue
+    return default
+
+
 def mcp_text_result(text: str) -> dict[str, Any]:
     """Wrap a text tool output in the project's MCP-style payload."""
     return {"content": [{"type": "text", "text": text}]}

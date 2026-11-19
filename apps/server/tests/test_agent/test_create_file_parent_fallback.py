@@ -4,7 +4,7 @@ import pytest
 from sqlmodel import Session
 
 from agent.tools.file_ops.crud import FileCRUD
-from agent.tools.tool_schemas import CREATE_FILE_TOOL
+from agent.tools.tool_schemas import CREATE_FILE_TOOL, WRITE_CHAPTER_TOOL
 from models import File, Project, User
 
 
@@ -49,10 +49,12 @@ def screenplay_project(db_session: Session, test_user: User) -> Project:
 
 
 @pytest.mark.unit
-def test_create_file_tool_schema_includes_script_and_snippet():
-    enums = CREATE_FILE_TOOL["input_schema"]["properties"]["file_type"]["enum"]
-    assert "script" in enums
-    assert "snippet" in enums
+def test_create_file_and_write_chapter_tool_schemas_split_body_and_notes():
+    create_enums = CREATE_FILE_TOOL["input_schema"]["properties"]["file_type"]["enum"]
+    chapter_enums = WRITE_CHAPTER_TOOL["input_schema"]["properties"]["file_type"]["enum"]
+    assert "snippet" in create_enums
+    assert "script" not in create_enums
+    assert "script" in chapter_enums
 
 
 @pytest.mark.unit

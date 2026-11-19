@@ -57,8 +57,6 @@ logger = get_logger(__name__)
 # 只读检索工具：结果体积大，且原文仍可按 id 重新读取，超预算时可安全折叠。
 DEFAULT_TRIMMABLE_TOOLS: frozenset[str] = frozenset({"query_files"})
 DEFAULT_WRITE_TOOLS: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file"})
-PARALLEL_TOOL = "parallel_execute"
-PARALLEL_KNOWN_TASKS = frozenset({"write_chapter", *DEFAULT_WRITE_TOOLS, *DEFAULT_TRIMMABLE_TOOLS})
 MAX_TRACE_VALUES = 40
 
 # 安全阀阈值：1.5M 字符（约 70~75 万真实中文 token，远高于 300k 轮间压缩阈值，同时离 1M 硬顶留足约 25 万 token 缓冲）。
@@ -261,30 +259,12 @@ class IntraRunToolOutputTrimmer:
                 info["output_index"] = index
         return mapping
 
-    def _tool_categories(self, name: str, arguments: Any) -> frozenset[str]:
+    def _tool_categories(self, name: str, _arguments: Any = None) -> frozenset[str]:
         if name in self.trimmable_tools:
             return frozenset({"read"})
         if name in DEFAULT_WRITE_TOOLS:
             return frozenset({"write"})
-        if name != PARALLEL_TOOL:
-            return frozenset()
-
-        parsed = self._parse_json(arguments)
-        tasks = parsed.get("tasks", []) if isinstance(parsed, dict) else []
-        if not isinstance(tasks, list) or any(
-            not isinstance(task, dict) or task.get("type") not in PARALLEL_KNOWN_TASKS for task in tasks
-        ):
-            # 混入未知任务的并行调用整体保持不透明：折叠整个信封会抹掉本过滤器
-            # 不理解其语义的参数/结果。
-            return frozenset()
-        categories: set[str] = set()
-        for task in tasks:
-            task_type = task.get("type")
-            if task_type in self.trimmable_tools:
-                categories.add("read")
-            elif task_type in {"write_chapter", *DEFAULT_WRITE_TOOLS}:
-                categories.add("write")
-        return frozenset(categories)
+        return frozenset()
 
     def _write_output_succeeded(self, item: Any) -> bool:
         if not isinstance(item, dict) or item.get("type") != "function_call_output":
@@ -361,13 +341,7 @@ class IntraRunToolOutputTrimmer:
         trace = self._collect_trace(parsed)
         if trace:
             summary_payload["trace"] = trace
-        if tool_name == PARALLEL_TOOL and isinstance(parsed, dict):
-            tasks = parsed.get("tasks")
-            if isinstance(tasks, list):
-                summary_payload["tasks"] = [
-                    self._summarize_parallel_task(task) for task in tasks if isinstance(task, dict)
-                ]
-        elif isinstance(parsed, dict):
+        if isinstance(parsed, dict):
             if isinstance(parsed.get("content"), str):
                 summary_payload["content_chars"] = len(parsed["content"])
             if isinstance(parsed.get("edits"), list):
@@ -379,22 +353,6 @@ class IntraRunToolOutputTrimmer:
         compacted = dict(item)
         compacted["arguments"] = summary
         return compacted
-
-    def _summarize_parallel_task(self, task: dict[str, Any]) -> dict[str, Any]:
-        summary: dict[str, Any] = {"type": task.get("type")}
-        description = task.get("description")
-        if isinstance(description, str) and description:
-            summary["description"] = description[:160]
-        params = task.get("params")
-        if isinstance(params, dict):
-            trace = self._collect_trace(params)
-            if trace:
-                summary["trace"] = trace
-            if isinstance(params.get("content"), str):
-                summary["content_chars"] = len(params["content"])
-            if isinstance(params.get("edits"), list):
-                summary["edit_count"] = len(params["edits"])
-        return summary
 
     def _collect_trace(self, value: Any) -> dict[str, list[Any]]:
         found: dict[str, list[Any]] = {}

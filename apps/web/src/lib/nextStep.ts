@@ -84,18 +84,14 @@ interface ChatMessageLike {
 }
 
 /**
- * True while the latest round ended by asking the author something (a structured
+ * True while the latest saved round ended by asking the author something (a structured
  * clarification), so the "write chapter 1" card must not compete with that question:
- * its fixed request would not answer it. Uses the in-flight / just-ended round's
- * stream items first, then the last saved message (history replay keeps the card).
+ * its fixed request would not answer it.
  * Plain-text offers like 「要我开始写第一章吗？」 are not clarification stops and keep the card.
  */
 export function latestRoundAwaitsReply(
   messages: readonly ChatMessageLike[],
-  streamItems?: readonly WorkflowStopLike[],
 ): boolean {
-  const streamEnd = lastRoundEnd(streamItems);
-  if (streamEnd) return isClarificationStop(streamEnd);
   const last = messages[messages.length - 1];
   if (!last || last.role !== "assistant") return false;
   // Same source MessageList renders: the saved timeline when there is one, else the status cards.

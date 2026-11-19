@@ -447,11 +447,7 @@ def stage_pre_ai_write_backup(session: Session, file_id: str, current_content: s
     里开 savepoint，任何失败只回滚 savepoint、记 WARNING、返回 False，不阻断 AI
     写入（沿用「版本失败正文照存」的语义）。edit_file 与整章替换另有更严的规则：
     原稿非空却拿不到撤销锚点（备份或锚点读取失败）时不提交（见 ``FileEditor._commit_ai_content``）。
-
-    这里也是 AI 覆盖正文前唯一的必经点，顺带记下本请求第一次写入前的正文，
-    送审时据此只附本请求改动的那一段（见 ToolContext.remember_pre_write_content）。
     """
-    remember_pre_write_content(file_id, current_content)
     try:
         with session.begin_nested():
             backup = FileVersionService().backup_unversioned_content(
@@ -517,16 +513,6 @@ def written_snapshot_for_commit(file_id: str, content: str | None, *, full: bool
         except Exception as exc:  # pragma: no cover
             logger.debug("Failed to restore written snapshot", extra={"file_id": file_id, "error": str(exc)})
         raise
-
-
-def remember_pre_write_content(file_id: str, content: str | None) -> None:
-    """记下本请求第一次写入前的正文；失败只记 DEBUG，不影响写入。"""
-    try:
-        from agent.tools.mcp_tools import ToolContext
-
-        ToolContext.remember_pre_write_content(file_id, content)
-    except Exception as exc:  # pragma: no cover - 防御：送审辅助信息不能拖垮写入
-        logger.debug("Failed to remember pre-write content", extra={"file_id": file_id, "error": str(exc)})
 
 
 # 正文结构检查只对承载成稿正文的类型生效。

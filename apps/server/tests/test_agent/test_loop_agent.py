@@ -633,10 +633,10 @@ async def test_loop_runs_once_and_emits_no_router_or_agent_events(loop_tool_cont
 
     assert [s["agent_type"] for s in seen] == ["loop"]
     assert seen[0]["history_items"] == [{"role": "user", "content": "旧"}]
-    types = {event.type for event in events}
+    types = {event.type.value for event in events}
     assert not types & {
-        StreamEventType.ROUTER_THINKING, StreamEventType.ROUTER_DECIDED, StreamEventType.AGENT_SELECTED,
-        StreamEventType.HANDOFF, StreamEventType.WORKFLOW_COMPLETE, StreamEventType.CHAT_HOLD,
+        "router_thinking", "router_decided", "agent_selected",
+        "handoff", "workflow_complete", "chat_hold",
     }
 
 

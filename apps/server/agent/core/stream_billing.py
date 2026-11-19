@@ -31,8 +31,7 @@
   只认落库后补发的 ``body_saved`` 且 ``mutation_applied`` 结果）；截停时才补存的正文
   （整章替换或本轮新建的文件）按 StreamAdapter 的保存回执补记（``note_saved_receipts``）；``create_file`` 带着非空
   正文新建（复用已有文件不算）；``edit_file`` 真的改动了文字（``mutation_applied``）；
-  ``delete_file`` 成功；``parallel_execute`` 里有写入类子任务完成（整批的 tool_result，
-  或批次中途被打断前已完成子任务的 ``parallel_task_end``）；``update_project`` 改了
+  ``delete_file`` 成功；``rename_file`` 成功改名；``update_project`` 改了
   作品名、简介、文风或备注（只更新任务板 / 当前进度不算）。只建了一个空文件（后面的
   正文还没写进去）不算。
 - 真正的回复正文：同一段正文（两次工具调用之间）累计到 ``PROSE_MIN_CHARS`` 个单位
@@ -56,7 +55,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from agent.core.events import NON_TERMINAL_WORKFLOW_STOPPED_REASONS
 from core.error_codes import ErrorCode
 
 # 会改动用户文件的工具；是否算「写出了东西」见 StreamBillingTracker._write_effect。
@@ -69,15 +67,11 @@ PROSE_MIN_CHARS = 60
 # 一个拉丁字母单词折合的单位：60 个单位约等于两句中文或 40 个英文单词。
 LATIN_WORD_UNITS = 1.5
 _LATIN_WORD_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+")
-# 这些帧意味着一段正文结束（模型转去调工具、换 agent）：之后的正文重新计数。
+# 这些帧意味着一段正文结束（模型转去调工具、建文件）：之后的正文重新计数。
 _SEGMENT_BOUNDARY_EVENTS: frozenset[str] = frozenset(
-    {"tool_call", "tool_result", "handoff", "agent_selected", "file_created", "parallel_start"}
+    {"tool_call", "tool_result", "file_created"}
 )
 _FOLDER_FILE_TYPE = "folder"
-# parallel_execute 中会改动文件的子任务类型。
-PARALLEL_WRITE_TASK_TYPES: frozenset[str] = frozenset({"write_chapter", "edit_file", "delete_file"})
-# 子任务的改动已经落地的状态：partial 是 continue_on_error 的 edit_file 只生效了一部分。
-_APPLIED_PARALLEL_TASK_STATUSES: frozenset[str] = frozenset({"completed", "partial"})
 # update_project 里作者看得见的项目信息：改了这些才算产出。只更新任务板（tasks）或
 # current_phase（进度标记，任务板更新时还会被自动推进）不算。
 PROJECT_INFO_FIELDS: frozenset[str] = frozenset({"summary", "writing_style", "notes"})
@@ -88,7 +82,7 @@ RUNAWAY_ERROR_CODES: frozenset[str] = frozenset({ErrorCode.AGENT_MODEL_CALL_LIMI
 RUNAWAY_ITERATION_LAYERS: frozenset[str] = frozenset({"tool_call"})
 RUNAWAY_BILLING_REASON = "runaway_no_progress"
 
-_TERMINAL_EVENT_TYPES = frozenset({"done", "workflow_complete"})
+_TERMINAL_EVENT_TYPES = frozenset({"done", "error", "workflow_stopped"})
 
 # 退还落库后补发的 SSE 帧。kind 只区分前端要用的两种说法：
 # no_progress（失控停止、没改文件）与 error（平台出错 / 超时且没有产出）。
@@ -142,12 +136,8 @@ def _parse_sse(frame: str) -> tuple[str, Any]:
         return event_type, None
 
 
-def _is_terminal_event(event_type: str, payload: dict[str, Any]) -> bool:
-    return (
-        event_type in _TERMINAL_EVENT_TYPES
-        or event_type == "error"
-        or (event_type == "workflow_stopped" and payload.get("reason") not in NON_TERMINAL_WORKFLOW_STOPPED_REASONS)
-    )
+def _is_terminal_event(event_type: str) -> bool:
+    return event_type in _TERMINAL_EVENT_TYPES
 
 
 def prose_units(text: str) -> float:
@@ -206,8 +196,6 @@ class StreamBillingTracker:
     # 一个单词拆开，所以按累计原文重算 prose_units），以及是否已经到达。
     _segment_text: str = field(default="", repr=False)
     _segment_reached: bool = field(default=False, repr=False)
-    # parallel_task_start 帧里的子任务类型：(execution_id, task_id) -> task_type。
-    _parallel_task_types: dict[tuple[str, str], str] = field(default_factory=dict, repr=False)
     # 发出了 tool_call、还没有 tool_result 的写工具调用（tool_use_id）：截停时它们的线程可能仍在提交。
     _unanswered_write_calls: set[str] = field(default_factory=set, repr=False)
     # 非流式工具（create_file 带正文、edit_file、delete_file、rename_file、write_chapter 替换落库等）已确认的文件写入。
@@ -238,8 +226,8 @@ class StreamBillingTracker:
 
     def observe_delivery(self, frame: Any) -> None:
         if isinstance(frame, str):
-            event_type, data = _parse_sse(frame)
-            if _is_terminal_event(event_type, data if isinstance(data, dict) else {}):
+            event_type, _ = _parse_sse(frame)
+            if _is_terminal_event(event_type):
                 self.delivered_terminal_event = True
 
     def observe(self, frame: Any) -> None:
@@ -275,7 +263,7 @@ class StreamBillingTracker:
             self.prose_output = True
         self._recompute_output_flags()
 
-        if _is_terminal_event(event_type, payload):
+        if _is_terminal_event(event_type):
             self.saw_terminal_event = True
             if (self._segment_reached or self._segment_text.strip()) and not self.file_body_pending():
                 self.ended_on_reply = True
@@ -429,8 +417,6 @@ class StreamBillingTracker:
                 # 有原文的整章替换，正文在 </file> 之前只在缓冲里，没写完的不覆盖原文：只认落库后补发的结果。
                 return False
             return bool(str(payload.get("chunk") or "").strip())
-        if event_type in ("parallel_task_start", "parallel_task_end"):
-            return self._parallel_task_wrote(event_type, payload)
         if event_type != "tool_result" or payload.get("status") != "success":
             return False
         tool_name = payload.get("tool_name")
@@ -464,28 +450,7 @@ class StreamBillingTracker:
                 field_name in PROJECT_INFO_FIELDS for field_name in updated_fields
             )
             return changed_info or data.get("project_name_updated") is True
-        if tool_name == "parallel_execute":
-            tasks = data.get("tasks")
-            return any(
-                isinstance(task, dict)
-                and task.get("type") in PARALLEL_WRITE_TASK_TYPES
-                and task.get("status") in _APPLIED_PARALLEL_TASK_STATUSES
-                for task in tasks or []
-            )
         return False
-
-    def _parallel_task_wrote(self, event_type: str, payload: dict[str, Any]) -> bool:
-        """并行批次里的写入子任务完成了（批次中途被打断时，整批的 tool_result 还没来）。"""
-        key = (str(payload.get("execution_id") or ""), str(payload.get("task_id") or ""))
-        if event_type == "parallel_task_start":
-            task_type = payload.get("task_type")
-            if isinstance(task_type, str):
-                self._parallel_task_types[key] = task_type
-            return False
-        return (
-            payload.get("status") in _APPLIED_PARALLEL_TASK_STATUSES
-            and self._parallel_task_types.get(key) in PARALLEL_WRITE_TASK_TYPES
-        )
 
     def _prose_reached(self, event_type: str, payload: dict[str, Any]) -> bool:
         """真正的回复正文：同一段正文累计到 PROSE_MIN_CHARS 个单位（见 prose_units）。

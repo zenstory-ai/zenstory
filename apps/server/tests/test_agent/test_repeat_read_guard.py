@@ -147,107 +147,6 @@ def test_successful_write_resets_that_file_only():
     assert failed.write_succeeded is False
 
 
-def _parallel_output(tasks: list[dict]) -> str:
-    return json.dumps(
-        {"status": "success", "data": {"any_failed": False, "tasks": tasks}}, ensure_ascii=False
-    )
-
-
-def _parallel_read_result(file_id: str, title: str) -> dict:
-    return {
-        "type": "query_files",
-        "status": "completed",
-        "description": f"读 {title}",
-        "result": {"status": "success", "data": [{"id": file_id, "title": title}]},
-    }
-
-
-@pytest.mark.unit
-def test_parallel_read_subtasks_share_keys_and_blocked_ones_are_stripped():
-    guard = RepeatReadGuard()
-    for _ in range(READ_BLOCK_AT - 1):
-        _guarded_read(guard)  # 直接读 f1 三次
-
-    raw = json.dumps(
-        {
-            "tasks": [
-                {"type": "query_files", "description": "再读第一章", "params": {"id": "f1", "response_mode": "full"}},
-                {"type": "query_files", "description": "读第二章", "params": {"id": "f2", "response_mode": "full"}},
-            ]
-        },
-        ensure_ascii=False,
-    )
-    plan = guard.plan("parallel_execute", raw)
-    assert plan.blocked_output is None
-    executed = json.loads(plan.arguments)["tasks"]
-    assert [task["params"]["id"] for task in executed] == ["f2"], "被拦下的子任务不执行"
-
-    output = json.loads(
-        guard.observe("parallel_execute", plan, _parallel_output([_parallel_read_result("f2", "第二章")]))
-    )
-    assert len(output["repeated_read_blocked"]) == 1
-    assert "《第一章》(id=f1)" in output["repeated_read_blocked"][0]
-    assert guard.blocked_reads == 1
-
-    # 并行里读过的文件与直接读取同一个键：再直接读 f2 就是第 2 次
-    assert "read_hint" in json.loads(_guarded_read(guard, json.dumps({"id": "f2", "response_mode": "full"}), _read_ok("f2", "第二章")))
-
-    # 同一批全部被拦下：整次不执行
-    only_blocked = guard.plan(
-        "parallel_execute",
-        json.dumps({"tasks": [{"type": "query_files", "params": {"id": "f1", "response_mode": "full"}}]}),
-    )
-    assert json.loads(only_blocked.blocked_output)["error_type"] == REPEATED_READ_ERROR_TYPE
-
-
-@pytest.mark.unit
-def test_duplicate_reads_within_one_parallel_batch_count():
-    guard = RepeatReadGuard()
-    task = {"type": "query_files", "params": {"id": "f1", "response_mode": "full"}}
-    plan = guard.plan("parallel_execute", json.dumps({"tasks": [task] * 5}))
-    # 同批第 4、5 个已经是第 4、5 次读取
-    assert len(json.loads(plan.arguments)["tasks"]) == READ_BLOCK_AT - 1
-    assert guard.blocked_reads == 5 - (READ_BLOCK_AT - 1)
-
-
-@pytest.mark.unit
-def test_parallel_write_subtask_resets_reads_and_is_recorded():
-    guard = RepeatReadGuard()
-    for _ in range(READ_BLOCK_AT - 1):
-        _guarded_read(guard)
-    raw = json.dumps({"tasks": [{"type": "edit_file", "params": {"id": "f1", "edits": []}}]})
-    plan = guard.plan("parallel_execute", raw)
-    guard.observe(
-        "parallel_execute",
-        plan,
-        _parallel_output(
-            [{"type": "edit_file", "status": "completed", "result": {"status": "success", "data": {"id": "f1"}}}]
-        ),
-    )
-    assert json.loads(_guarded_read(guard))["status"] == "success"
-    assert "f1" in guard.files_written
-    assert guard.written_file_ids() == ["f1"]
-
-
-@pytest.mark.unit
-def test_partially_applied_parallel_edit_still_resets_reads():
-    """并行 edit_file 只生效了一部分（status=partial）：文件已经改了，之前的读取作废。"""
-    guard = RepeatReadGuard()
-    for _ in range(READ_BLOCK_AT - 1):
-        _guarded_read(guard)
-    raw = json.dumps({"tasks": [{"type": "edit_file", "params": {"id": "f1", "edits": []}}]})
-    plan = guard.plan("parallel_execute", raw)
-    guard.observe(
-        "parallel_execute",
-        plan,
-        _parallel_output(
-            [{"type": "edit_file", "status": "partial", "result": {"status": "partial", "data": {"id": "f1"}}}]
-        ),
-    )
-    assert json.loads(_guarded_read(guard))["status"] == "success"
-    assert guard.written_file_ids() == ["f1"]
-
-
 @pytest.mark.unit
 def test_breaker_does_not_count_guard_blocks_as_failures():
     """拦下的重复读取不能让熔断器以「相同参数连续失败」抢先熔断。"""
@@ -349,23 +248,6 @@ def test_partial_edit_that_changed_the_file_counts_as_a_write():
     )
     assert json.loads(_guarded_read(untouched))["error_type"] == REPEATED_READ_ERROR_TYPE
     assert untouched.write_succeeded is False
-
-
-@pytest.mark.unit
-def test_blocked_parallel_batch_carries_a_short_user_message():
-    guard = RepeatReadGuard()
-    for file_id, title in _THREE_FILES[:2]:
-        for _ in range(READ_BLOCK_AT - 1):
-            _read_file(guard, file_id, title)
-    tasks = [
-        {"type": "query_files", "params": {"id": file_id, "response_mode": "full"}}
-        for file_id, _title in _THREE_FILES[:2]
-    ]
-    plan = guard.plan("parallel_execute", json.dumps({"tasks": tasks}))
-    blocked = json.loads(plan.blocked_output)
-    assert blocked["error_type"] == REPEATED_READ_ERROR_TYPE
-    assert "(id=f1)" in blocked["error"] and "(id=f2)" in blocked["error"]
-    assert blocked["user_message"] == "《卷纲》、《第四章》刚才已经读过，AI 直接用已读内容继续。"
 
 
 # ------------------------------------------------------- tools_adapter 接线
@@ -721,20 +603,6 @@ def test_tool_call_cap_after_a_write_is_charged():
     ]
     assert _decide(frames) == ("completed", False)
 
-    parallel_write = [
-        _sse(
-            "tool_result",
-            {
-                "tool_name": "parallel_execute",
-                "status": "success",
-                "data": {"tasks": [{"type": "write_chapter", "status": "completed"}]},
-            },
-        ),
-        _sse("iteration_exhausted", {"layer": "tool_call"}),
-        _sse("done", {}),
-    ]
-    assert _decide(parallel_write) == ("completed", False)
-
 
 @pytest.mark.unit
 def test_no_progress_and_model_call_limit_errors_refund_without_writes():
@@ -809,26 +677,6 @@ def test_stale_content_lets_the_file_be_read_again_without_the_unchanged_hint():
     reread = json.loads(_guarded_read(guard))
     assert reread["status"] == "success" and "read_hint" not in reread
     assert guard.write_succeeded is False
-
-
-def test_parallel_stale_edit_also_lets_the_file_be_read_again():
-    """parallel_execute 里的 edit_file 报 stale_content：与直接调用一样，之前的读取计数作废。"""
-    guard = RepeatReadGuard()
-    for _ in range(READ_BLOCK_AT - 1):
-        _guarded_read(guard)
-    raw = json.dumps(
-        {"tasks": [{"type": "edit_file", "description": "改第一章", "params": {"id": "f1", "edits": []}}]},
-        ensure_ascii=False,
-    )
-    stale = {
-        "type": "edit_file",
-        "status": "failed",
-        "description": "改第一章",
-        "result": {"status": "error", "error_type": "stale_content", "error": "…"},
-    }
-    guard.observe("parallel_execute", guard.plan("parallel_execute", raw), _parallel_output([stale]))
-    reread = json.loads(_guarded_read(guard))
-    assert reread["status"] == "success" and "read_hint" not in reread
 
 
 # ------------------------------------------------------- 范围读取（F-11）
@@ -910,33 +758,6 @@ def test_range_read_covering_the_whole_file_counts_as_full_text():
     out = json.loads(_guarded_read(guard, json.dumps(tail), _range_read_ok(tail)))
     assert out["data"][0]["content_partial"] is False
     assert guard.files_read == {"f1": "长篇合集"}
-
-
-@pytest.mark.unit
-def test_parallel_range_subtasks_use_their_own_keys_and_partial_is_not_full_text():
-    guard = RepeatReadGuard()
-    for _ in range(READ_BLOCK_AT - 1):
-        _guarded_read(guard)  # 全文读三次：再读全文会被拦
-
-    windows = [{"id": "f1", "section": "第3章"}, {"id": "f1", "tail_chars": 200}]
-    raw = json.dumps(
-        {"tasks": [{"type": "query_files", "params": params} for params in windows]}, ensure_ascii=False
-    )
-    plan = guard.plan("parallel_execute", raw)
-    assert plan.blocked_output is None
-    assert len(json.loads(plan.arguments)["tasks"]) == 2, "范围读取与全文读取不共用计数"
-
-    fresh = RepeatReadGuard()
-    plan = fresh.plan("parallel_execute", json.dumps({"tasks": [{"type": "query_files", "params": windows[1]}]}))
-    tail_row = json.loads(_range_read_ok(windows[1]))["data"]
-    result = {
-        "type": "query_files",
-        "status": "completed",
-        "description": "读结尾",
-        "result": {"status": "success", "data": tail_row},
-    }
-    fresh.observe("parallel_execute", plan, _parallel_output([result]))
-    assert fresh.files_read == {}
 
 
 def _write_chapter_target(guard: RepeatReadGuard, file_id: str = "f1", title: str = "第一章") -> None:

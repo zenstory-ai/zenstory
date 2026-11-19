@@ -303,7 +303,7 @@ class ContextAssembler:
             )
 
         # 7. Format context with project status
-        formatted, blocks = self._format_context_with_blocks(
+        formatted = self._format_context(
             selected,
             file_inventory,
             project_status,
@@ -315,7 +315,6 @@ class ContextAssembler:
 
         return ContextData(
             context=formatted,
-            blocks=blocks,
             items=[item.to_dict() for item in selected],
             refs=refs,
             token_estimate=budget.estimate_tokens(formatted),
@@ -1841,23 +1840,8 @@ class ContextAssembler:
         project_status: dict[str, Any] | None = None,
         inventory_token_budget: int | None = None,
     ) -> str:
-        """Format context items into a structured prompt with clear sections."""
-        return self._format_context_with_blocks(
-            items, file_inventory, project_status, inventory_token_budget
-        )[0]
-
-    def _format_context_with_blocks(
-        self,
-        items: list[ContextItem],
-        file_inventory: dict[str, list[dict[str, Any]]] | None = None,
-        project_status: dict[str, Any] | None = None,
-        inventory_token_budget: int | None = None,
-    ) -> tuple[str, list[dict[str, str]]]:
         """
         Format context items into a structured prompt with clear sections.
-
-        Also returns keyed blocks for the prompt layout. Blocks marked for this turn
-        go after the history; the other blocks can be shared in the session snapshot.
 
         Args:
             items: List of context items to format
@@ -1916,8 +1900,6 @@ class ContextAssembler:
         parts.append("以上是当前保存的写作约定；历史对话中的记住请求不代表本轮追加要求。")
         parts.append("")
 
-        blocks: list[dict[str, str]] = [{"key": "header", "text": "\n".join(parts).strip()}]
-        turn_header_start = len(parts)
         if project_status and project_status.get("current_phase"):
             parts.extend(["【当前阶段】", project_status["current_phase"], ""])
 
@@ -1927,12 +1909,6 @@ class ContextAssembler:
             parts.extend(
                 self._render_file_inventory(file_inventory, inventory_token_budget)
             )
-        if len(parts) > turn_header_start:
-            blocks.append({
-                "key": "turn_header",
-                "text": "\n".join(parts[turn_header_start:]).strip(),
-                "placement": "turn",
-            })
 
         # Group items by type
         sections: dict[str, list[ContextItem]] = {
@@ -1958,33 +1934,20 @@ class ContextAssembler:
         for section_items in sections.values():
             section_items.sort(key=lambda x: x.title or "")
 
-        def add_block(section: str, item: ContextItem, start: int, *, turn_only: bool = False) -> None:
-            body = "\n".join(parts[start:]).strip()
-            # label：条目的可读名字（分区 + 标题 + id）。
-            file_id = self._item_file_id(item)
-            label = f"{section}{item.title}" + (f" (id={file_id})" if file_id else "")
-            block = {"key": f"{section}:{item.id or item.title}", "text": f"{section}\n{body}", "label": label}
-            if turn_only or item.is_focus or item.metadata.get("relation"):
-                block["placement"] = "turn"
-            blocks.append(block)
-
         # Outlines (detailed content)
         if sections["outline"]:
             parts.append("【大纲详情】")
             for item in sections["outline"]:
-                start = len(parts)
                 relation = item.metadata.get("relation", "")
                 prefix = f"[{relation}] " if relation else ""
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【大纲详情】", item, start)
 
         # Drafts (detailed content)
         if sections["draft"]:
             parts.append("【正文详情】")
             for item in sections["draft"]:
-                start = len(parts)
                 relation = item.metadata.get("relation", "")
                 prefix = f"[{relation}] " if relation else ""
                 parts.append(self._item_heading(item, prefix))
@@ -1993,13 +1956,11 @@ class ContextAssembler:
                     parts.append(PREVIOUS_CHAPTER_NOTE)
                 parts.append(item.content)
                 parts.append("")
-                add_block("【正文详情】", item, start, turn_only=True)
 
         # Snippets
         if sections["snippet"]:
             parts.append("【参考素材】")
             for item in sections["snippet"]:
-                start = len(parts)
                 source = item.metadata.get("source", "")
                 line_start = item.metadata.get("line_start")
                 fused_score = item.metadata.get("fused_score")
@@ -2023,42 +1984,35 @@ class ContextAssembler:
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【参考素材】", item, start, turn_only=True)
 
         # Characters
         if sections["character"]:
             parts.append("【角色信息】")
             for item in sections["character"]:
-                start = len(parts)
                 parts.append(self._item_heading(item))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【角色信息】", item, start)
 
         # Lores
         if sections["lore"]:
             parts.append("【世界设定】")
             for item in sections["lore"]:
-                start = len(parts)
                 category = item.metadata.get("category", "")
                 prefix = f"[{category}] " if category else ""
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【世界设定】", item, start)
 
         # Quotes (user-selected text)
         if sections["quote"]:
             parts.append("【用户引用文本】")
             parts.append("以下是用户选中并引用的文本片段，请特别关注：")
             for item in sections["quote"]:
-                start = len(parts)
                 parts.append(f"{item.title}")
                 parts.append(item.content)
                 parts.append("")
-                add_block("【用户引用文本】", item, start, turn_only=True)
 
-        return "\n".join(parts), blocks
+        return "\n".join(parts)
 
 
 # Singleton

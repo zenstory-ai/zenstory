@@ -55,14 +55,14 @@ def test_english_ui_with_chinese_message_does_not_force_english(db_session):
 
 
 @pytest.mark.unit
-def test_chinese_ui_with_english_message_states_english_for_every_role(db_session):
+def test_chinese_ui_with_english_message_states_english(db_session):
     """中文界面、英文作者：本轮上下文写明本轮用英文。"""
     manager = _create_manager(db_session)
     turn_context = "\n".join(
         manager._build_author_language_line("Write the opening scene of a short story about a night-shift nurse.")
     )
     assert "wrote this turn's message in English" in turn_context
-    assert "including the review summary" in turn_context
+    assert "reply to the author in English" in turn_context
 
 
 @pytest.mark.unit

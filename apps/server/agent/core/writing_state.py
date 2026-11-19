@@ -42,6 +42,8 @@ class WritingState(TypedDict, total=False):
     repeat_read_guard: Any
     # 请求级模型调用计数与预算（agent.core.run_meter.AgentRunMeter，跨 agent run 共享）
     run_meter: Any
+    # 请求级收尾状态（agent.core.round_outcome.RunOutcome，跨 agent run 共享）
+    run_outcome: Any
 
     # Conversation messages; the runner replaces it with a new list.
     messages: list[dict[str, Any]]

@@ -43,7 +43,6 @@ import { useChatStreaming } from "../hooks/useChatStreaming";
 import { MessageList } from "./MessageList";
 import type { Message, MessageListRef, MessageStatusCard } from "./MessageList";
 import { MessageInput } from "./MessageInput";
-import { ToolResultCard } from "./ToolResultCard";
 import { AlertTriangle, Sparkles, Loader2, Plus, Edit3, Database, ArrowDown } from "lucide-react";
 import { QuotaBadge } from "./subscription/QuotaBadge";
 import {
@@ -63,7 +62,6 @@ import {
 } from "../lib/editorSaveTracker";
 import type {
   AgentRequest,
-  ApplyAction,
   FileEditUndoTarget,
   FileType,
   SSEWorkflowStoppedData,
@@ -127,8 +125,6 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
           const question = (card as { question?: unknown }).question;
           const context = (card as { context?: unknown }).context;
           const details = (card as { details?: unknown }).details;
-          const confidence = (card as { confidence?: unknown }).confidence;
-          const evaluation = (card as { evaluation?: unknown }).evaluation;
 
           return {
             type: "workflow_stopped",
@@ -140,19 +136,6 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
             details: Array.isArray(details)
               ? details.filter((detail): detail is string => typeof detail === "string")
               : undefined,
-            confidence: typeof confidence === "number" ? confidence : undefined,
-            evaluation:
-              evaluation && typeof evaluation === "object"
-                ? {
-                    complete_score: Number((evaluation as { complete_score?: unknown }).complete_score ?? 0),
-                    clarification_score: Number((evaluation as { clarification_score?: unknown }).clarification_score ?? 0),
-                    consistency_score: Number((evaluation as { consistency_score?: unknown }).consistency_score ?? 0),
-                    decision_reason:
-                      typeof (evaluation as { decision_reason?: unknown }).decision_reason === "string"
-                        ? (evaluation as { decision_reason: string }).decision_reason
-                        : "",
-                  }
-                : undefined,
           };
         }
 
@@ -800,12 +783,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     aiSuggestionsRef.current = aiSuggestions;
   }, [aiSuggestions]);
 
-  // 🔥 防止 onComplete 重复调用
-  const onCompleteCalledRef = useRef<boolean>(false);
-  const resetOnCompleteFlag = useCallback(() => {
-    onCompleteCalledRef.current = false;
-  }, []);
-
   // Terminal status cards emitted during the current stream (e.g. clarification needed).
   // These should be persisted into the final assistant message so they render as part of it,
   // rather than as a separate timestamped "message".
@@ -822,7 +799,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       appendFileContent,
       finishFileStreaming,
       startFileStreaming,
-      streamingFileId,
       getCurrentStreamingFileId: () => streamingFileIdRef.current,
       activeProjectId: currentProjectId,
       // update_project 报告服务端给默认名项目改了名：只重读这一个项目，顶栏换上新名字。
@@ -841,7 +817,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     appendFileContent,
     finishFileStreaming,
     startFileStreaming,
-    streamingFileId,
     currentProjectId,
     refreshProject,
     t,
@@ -1131,21 +1106,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * Handles completion of an AI response stream.
    * Adds message to the messages array and fetches suggestions.
    * The hook's onComplete handles the rest (cleanup, final file refresh).
-   * Protected against duplicate calls with a ref flag.
    *
    * @param completedSegments - Array of message segments from the completed stream
-   * @param applyAction - Optional apply action from the stream
    */
   const onCompleteHandler = useCallback(async (
     completedSegments: MessageSegment[],
-    applyAction: unknown,
     completionMeta?: StreamCompletionMeta,
   ) => {
-    // 防止重复调用
-    if (onCompleteCalledRef.current) {
-      return;
-    }
-    onCompleteCalledRef.current = true;
     void queryClient.invalidateQueries({ queryKey: firstWorkQueryKey(userId) });
 
     // 【关键修复】将流式内容持久化到 messages，防止下一轮对话时丢失
@@ -1225,7 +1192,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Let the streaming hook finalize cleanup in the background.
     void streamCallbacks.onComplete(
       completedSegments,
-      applyAction as ApplyAction | null,
       completionMeta,
     );
 
@@ -1321,7 +1287,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     whenStreamClosed,
     isStreaming,
     isThinking,
-    conflicts,
     error,
     errorCode,
     clearError,
@@ -1341,7 +1306,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       proseCounterRef.current.reset();
       bodyWriteRef.current.reset();
       stopRequestedProjectRef.current = null;
-      resetOnCompleteFlag();
     },
 
     // Context and Thinking callbacks
@@ -1424,13 +1388,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     // Skill matching callbacks
     onSkillMatched: streamCallbacks.onSkillMatched,
-    onSkillsMatched: streamCallbacks.onSkillsMatched,
 
-    // Multi-agent workflow callbacks
-    onAgentSelected: (agentType, agentName, iteration, maxIterations, remaining) => {
-      proseCounterRef.current.boundary();
-      streamCallbacks.onAgentSelected(agentType, agentName, iteration, maxIterations, remaining);
-    },
+    // Workflow status callbacks
     onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit, files) => {
       if (exhaustionLeftFilesUnfinished({ layer, ...files })) roundProgressRef.current.endedIncomplete = true;
       terminalStatusCardsRef.current = [{
@@ -1445,12 +1404,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }];
       streamCallbacks.onIterationExhausted(layer, iterationsUsed, maxIterations, reason, lastAgent, limit, ...(files ? [files] : []));
     },
-    onRouterThinking: streamCallbacks.onRouterThinking,
-    onRouterDecided: streamCallbacks.onRouterDecided,
-    onHandoff: (data) => {
-      proseCounterRef.current.boundary();
-      streamCallbacks.onHandoff(data);
-    },
     onWorkflowStopped: (data: SSEWorkflowStoppedData) => {
       terminalStatusCardsRef.current = [{
         type: "workflow_stopped",
@@ -1460,12 +1413,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         question: data.question,
         context: data.context,
         details: data.details,
-        confidence: data.confidence,
-        evaluation: data.evaluation,
       }];
       streamCallbacks.onWorkflowStopped(data);
     },
-    onWorkflowComplete: streamCallbacks.onWorkflowComplete,
     onSessionStarted: (sessionId) => {
       blockedCandidateRef.current = null;
       currentAgentSessionIdRef.current = sessionId;
@@ -1475,13 +1425,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       invalidateQuota();
       void queryClient.invalidateQueries({ queryKey: firstWorkQueryKey(userId) });
     },
-    onParallelStart: (executionId, taskCount, taskDescriptions, droppedCount) => {
-      proseCounterRef.current.boundary();
-      streamCallbacks.onParallelStart(executionId, taskCount, taskDescriptions, droppedCount);
-    },
-    onParallelTaskStart: streamCallbacks.onParallelTaskStart,
-    onParallelTaskEnd: streamCallbacks.onParallelTaskEnd,
-    onParallelEnd: streamCallbacks.onParallelEnd,
     onSteeringReceived: streamCallbacks.onSteeringReceived,
     onQuotaRefunded: (kind, removedFiles = []) => {
       if (currentProjectId) setQuotaRefund({ projectId: currentProjectId, kind, removedFiles });
@@ -1531,7 +1474,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       confirmLeave();
     });
   };
-  const conflictCount = state.conflicts?.length ?? 0;
   // AI write cards that must wait for a later AI write to the same file to be undone first.
   const undoBlocked = useMemo(
     () => undoBlockedByLaterWrite(collectUndoCardRefs(
@@ -1808,7 +1750,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, [
     messages.length,
     state.content,
-    conflictCount,
     streamRenderItemCount,
     isStreaming,
     isThinking,
@@ -2013,9 +1954,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const request: Omit<AgentRequest, "project_id"> = {
       message,
       selected_text: undefined, // Editor selection via text quote feature - see TextQuoteContext
-      context_before: undefined,
-      context_after: undefined,
-      outline_id: selectedItem?.id,
       selected_skill_ids: selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
       metadata: {
         // Current focused file info (used by backend context assembler)
@@ -2718,7 +2656,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       // 卡片固定的「按大纲写第一章正文」答不了它的问题，只会再问一遍。
       && !isLoadingHistory
       && sessionRecoveryError !== currentProjectId
-      && !latestRoundAwaitsReply(messages, streamRenderItems),
+      && !latestRoundAwaitsReply(messages),
   );
 
   return (
@@ -2862,22 +2800,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                       </div>
                     )}
                   </div>
-                </div>
-              )}
-
-              {/* Conflicts */}
-              {conflicts.length > 0 && (
-                <div className="mt-2.5 space-y-2">
-                  {conflicts.map((conflict, index) => (
-                    <ToolResultCard
-                      key={index}
-                      type="conflict"
-                      toolName="consistency_check"
-                      result={{
-                        conflict,
-                      }}
-                    />
-                  ))}
                 </div>
               )}
 

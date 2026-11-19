@@ -17,7 +17,6 @@ import pytest
 
 from agent.core.events import (
     EventType,
-    parallel_end_event,
     session_started_event,
     steering_received_event,
 )
@@ -33,15 +32,14 @@ from agent.stream_adapter import (
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("boundary", [StreamEventType.AGENT_SELECTED, StreamEventType.MESSAGE_START])
-async def test_new_agent_run_error_does_not_inherit_previous_stop_reason(boundary):
+async def test_new_agent_run_error_does_not_inherit_previous_stop_reason():
     adapter = StreamAdapter()
 
     async def workflow():
         yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={
             "stop_reason": "end_turn", "usage": {"input_tokens": 10, "output_tokens": 5},
         })
-        yield WorkflowStreamEvent(type=boundary, data={"agent_type": "writer", "iteration": 2})
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_START)
         yield WorkflowStreamEvent(type=StreamEventType.ERROR, data={"error": "synthetic upstream failure"})
 
     events = [event async for event in adapter.process_workflow_events(workflow())]
@@ -59,7 +57,6 @@ async def test_same_run_structured_stop_survives_following_error(reason):
     adapter = StreamAdapter()
 
     async def workflow():
-        yield WorkflowStreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "writer"})
         yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_START)
         yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={
             "stop_reason": reason, "usage": {"input_tokens": 7, "output_tokens": 3},
@@ -87,12 +84,12 @@ async def test_wall_clock_pause_card_records_the_resumable_deadline_stop(card, e
     adapter = StreamAdapter()
 
     async def workflow():
-        yield WorkflowStreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "writer"})
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_START)
         yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={
             "stop_reason": "end_turn", "usage": {"input_tokens": 4, "output_tokens": 2},
         })
         yield WorkflowStreamEvent(type=StreamEventType.ITERATION_EXHAUSTED, data={
-            "iterations_used": 1, "max_iterations": 12, "reason": "r", "last_agent": "writer", **card,
+            "iterations_used": 1, "max_iterations": 12, "reason": "r", "last_agent": None, **card,
         })
 
     events = [event async for event in adapter.process_workflow_events(workflow())]
@@ -619,36 +616,6 @@ class TestProcessEventToolResult:
         assert EventType.DONE in event_types
 
 
-class TestProcessEventAgentSelected:
-    """Tests for processing AGENT_SELECTED events."""
-
-    @pytest.mark.asyncio
-    async def test_agent_selected_event(self, adapter):
-        """Test agent selected event."""
-        event = WorkflowStreamEvent(
-            type=StreamEventType.AGENT_SELECTED,
-            data={
-                "agent_type": "planner",
-                "agent_name": "大纲规划师",
-                "iteration": 1,
-                "max_iterations": 5,
-                "remaining": 4,
-            },
-        )
-
-        events = []
-        async for sse_event in adapter._process_workflow_event(event):
-            events.append(sse_event)
-
-        assert len(events) == 1
-        assert events[0].type == EventType.AGENT_SELECTED
-        assert events[0].data["agent_type"] == "planner"
-        assert events[0].data["agent_name"] == "大纲规划师"
-        assert events[0].data["iteration"] == 1
-        assert events[0].data["max_iterations"] == 5
-        assert events[0].data["remaining"] == 4
-
-
 class TestProcessEventIterationExhausted:
     """Tests for processing ITERATION_EXHAUSTED events."""
 
@@ -681,23 +648,6 @@ class TestProcessEventPassthrough:
     """Tests for passthrough workflow events."""
 
     @pytest.mark.asyncio
-    async def test_handoff_event_passthrough(self, adapter):
-        """Test handoff event is mapped to a valid SSE event type."""
-        event = WorkflowStreamEvent(
-            type=StreamEventType.HANDOFF,
-            data={"from_agent": "planner", "to_agent": "writer"},
-        )
-
-        events = []
-        async for sse_event in adapter._process_workflow_event(event):
-            events.append(sse_event)
-
-        assert len(events) == 1
-        assert events[0].type == EventType.HANDOFF
-        assert events[0].data["from_agent"] == "planner"
-        assert events[0].data["to_agent"] == "writer"
-
-    @pytest.mark.asyncio
     async def test_core_steering_received_event_passthrough(self, adapter):
         """Test core steering_received event is passed through by value."""
         event = steering_received_event(
@@ -725,26 +675,6 @@ class TestProcessEventPassthrough:
         assert len(events) == 1
         assert events[0].type == EventType.SESSION_STARTED
         assert events[0].data["session_id"] == "session-123"
-
-    @pytest.mark.asyncio
-    async def test_core_parallel_end_event_passthrough(self, adapter):
-        """Test core parallel_end event is passed through by value."""
-        event = parallel_end_event(
-            execution_id="exec-1",
-            total_tasks=4,
-            completed=3,
-            failed=1,
-            duration_ms=1200,
-        )
-
-        events = []
-        async for sse_event in adapter._process_workflow_event(event):
-            events.append(sse_event)
-
-        assert len(events) == 1
-        assert events[0].type == EventType.PARALLEL_END
-        assert events[0].data["execution_id"] == "exec-1"
-        assert events[0].data["total_tasks"] == 4
 
 
 class TestProcessEventError:
@@ -842,8 +772,8 @@ class TestProcessWorkflowEvents:
         """Test stream without any content events."""
         async def mock_events():
             yield WorkflowStreamEvent(
-                type=StreamEventType.AGENT_SELECTED,
-                data={"agent_type": "writer"},
+                type=StreamEventType.THINKING,
+                data={"thinking": "Planning..."},
             )
             yield WorkflowStreamEvent(
                 type=StreamEventType.MESSAGE_END,
@@ -854,9 +784,9 @@ class TestProcessWorkflowEvents:
         async for sse_event in adapter.process_workflow_events(mock_events()):
             events.append(sse_event)
 
-        # Should have agent_selected and done (no content_end)
+        # Should have thinking_content and done (no content_end)
         event_types = [e.type for e in events]
-        assert EventType.AGENT_SELECTED in event_types
+        assert EventType.THINKING_CONTENT in event_types
         assert EventType.DONE in event_types
         assert EventType.CONTENT_END not in event_types
 
@@ -1359,10 +1289,6 @@ class TestIntegration:
         """Test complete conversation flow with multiple event types."""
         async def mock_events():
             yield WorkflowStreamEvent(
-                type=StreamEventType.AGENT_SELECTED,
-                data={"agent_type": "writer", "agent_name": "内容创作者"},
-            )
-            yield WorkflowStreamEvent(
                 type=StreamEventType.THINKING,
                 data={"thinking": "Planning the content..."},
             )
@@ -1385,7 +1311,6 @@ class TestIntegration:
 
         # Should have all event types
         event_types = [e.type for e in events]
-        assert EventType.AGENT_SELECTED in event_types
         assert EventType.THINKING_CONTENT in event_types
         assert EventType.CONTENT_START in event_types
         assert EventType.CONTENT in event_types
@@ -1396,11 +1321,6 @@ class TestIntegration:
     async def test_tool_workflow(self, adapter):
         """Test complete tool calling workflow."""
         async def mock_events():
-            # Agent selection
-            yield WorkflowStreamEvent(
-                type=StreamEventType.AGENT_SELECTED,
-                data={"agent_type": "writer"},
-            )
             # Tool call
             yield WorkflowStreamEvent(
                 type=StreamEventType.TOOL_USE,

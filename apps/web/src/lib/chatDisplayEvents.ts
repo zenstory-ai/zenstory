@@ -4,11 +4,11 @@ import { formatHandoffMessage } from './agentDisplayName';
 import { parseIterationExhaustedFiles } from './chatRoundEnd';
 
 /**
- * A finished reply keeps what the round did (plan, handoffs, tools, text) but not the
- * lines that only said it was still working (「正在组装上下文… / 正在思考… / 正在规划工作流…」).
+ * A finished reply keeps what the round did (tools, text, status) but not the
+ * lines that only said it was still working (「正在组装上下文… / 正在思考…」).
  */
 export function dropProgressOnlyItems(items: StreamRenderItem[]): StreamRenderItem[] {
-  return items.filter((item) => !item.transient && item.type !== 'router_thinking');
+  return items.filter((item) => !item.transient);
 }
 
 /** Replay the sequence recorded by the server, not a guessed category order. */
@@ -47,11 +47,7 @@ export function parseChatDisplayEvents(
           items.push({ ...base, type: 'agent_selected', agentType: data.agent_type, agentName: data.agent_name, iteration: data.iteration, maxIterations: data.max_iterations, remaining: data.remaining });
           break;
         case 'router_thinking':
-          // 「高质量模式：正在规划工作流…」 only meant "working on it"; the router_decided
-          // that follows already says what the plan was.
-          break;
         case 'router_decided':
-          items.push({ ...base, type: 'router_decided', initialAgent: data.initial_agent, workflowPlan: data.workflow_plan, workflowAgents: data.workflow_agents, routingMetadata: data.routing_metadata });
           break;
         case 'handoff': {
           const content = formatHandoffMessage(data, t);
@@ -69,7 +65,7 @@ export function parseChatDisplayEvents(
         }
         case 'workflow_stopped':
         case 'workflow_complete':
-          items.push({ ...base, type: event.type, reason: data.reason, agentType: data.agent_type, message: data.message, question: data.question, context: data.context, details: data.details, confidence: data.confidence, evaluation: data.evaluation });
+          items.push({ ...base, type: event.type, reason: data.reason, agentType: data.agent_type, message: data.message, question: data.question, context: data.context, details: data.details });
           break;
         default:
           // Unknown/invalid timelines must not hide the original message fields.

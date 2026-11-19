@@ -290,8 +290,7 @@ describe('MessageList', () => {
   it('replays useful task activity without internal topology or budgets', () => {
     const timestamp = new Date()
     const displayItems: NonNullable<Message['displayItems']> = [
-      { id: 'router-start', type: 'router_thinking', content: 'Choosing ordered agent', timestamp },
-      { id: 'router-end', type: 'router_decided', workflowPlan: 'Plan then write', workflowAgents: ['planner', 'writer'], timestamp },
+      { id: 'handoff', type: 'thinking_status', content: 'Choosing ordered agent', timestamp },
       { id: 'agent-low', type: 'agent_selected', agentName: 'Ordered writer', iteration: 3, maxIterations: 4, remaining: 1, timestamp },
       { id: 'reply', type: 'content', content: 'Ordered control reply', timestamp },
       { id: 'done', type: 'workflow_complete', timestamp },
@@ -300,9 +299,6 @@ describe('MessageList', () => {
     render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
     for (const marker of ['Choosing ordered agent', 'Ordered writer', 'Ordered control reply', 'workflow.taskCompleted']) expect(screen.getByText(marker)).toBeInTheDocument()
     expect(screen.queryByText('workflow.lowTurnWarning')).not.toBeInTheDocument()
-    expect(screen.queryByText(/chat:workflow\.agents\.planner → chat:workflow\.agents\.writer/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Plan then write/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/planner → writer/)).not.toBeInTheDocument()
     expect(screen.queryByText('Not visible')).not.toBeInTheDocument()
   })
 
@@ -553,22 +549,6 @@ describe('MessageList', () => {
     expect(screen.getByText('Agent label reply')).toBeInTheDocument()
   })
 
-  it('does not expose router topology or internal agent identifiers', () => {
-    const timestamp = new Date()
-    const { unmount } = render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [
-      { id: 'router-multi', type: 'router_decided', initialAgent: 'planner', workflowAgents: ['planner', 'hook_designer', 'writer'], timestamp },
-    ] })]} />)
-    expect(screen.queryByText(/workflow\.workflowLabel/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/planner|hook_designer|writer/)).not.toBeInTheDocument()
-    unmount()
-
-    render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [
-      { id: 'router-single', type: 'router_decided', initialAgent: 'custom_router_target', timestamp },
-    ] })]} />)
-    expect(screen.queryByText(/workflow\.workflowLabel|workflow\.singleMode/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/custom_router_target/)).not.toBeInTheDocument()
-  })
-
   it('renders user message correctly', () => {
     const messages = [createMessage({ role: 'user', content: 'Hello' })]
     render(<MessageList messages={messages} />)
@@ -665,20 +645,6 @@ describe('MessageList', () => {
     expect(screen.getByText('Hello')).toBeInTheDocument()
     expect(screen.getByText('Hi there')).toBeInTheDocument()
     expect(screen.getByText('How are you?')).toBeInTheDocument()
-  })
-
-  it('renders thinking content with toggle', () => {
-    const messages = [
-      createMessage({
-        role: 'assistant',
-        content: 'Response',
-        reasoningContent: 'Analyzing your request...',
-      }),
-    ]
-    render(<MessageList messages={messages} />)
-
-    // Check if thinking label is present (ThinkingContent renders with 'chat:thinking.title' key)
-    expect(screen.getByText('chat:thinking.title')).toBeInTheDocument()
   })
 
   it('renders tool call cards', () => {
@@ -861,20 +827,21 @@ describe('MessageList', () => {
   })
 
   it('labels citations by the real file type and shows the quoted file name', () => {
-    const messages = [
-      createMessage({
-        role: 'assistant',
-        content: 'Response',
-        contextItems: [
+    const streamRenderItems = [
+      {
+        id: 'ctx-live',
+        type: 'context' as const,
+        timestamp: new Date(),
+        items: [
           // 组装器把正文装成 type="outline"，真实类型在 metadata.file_type。
           { id: 'ctx-draft', type: 'outline', title: 'Chapter 3', content: 'Body', metadata: { file_type: 'draft' } },
           { id: 'ctx-script', type: 'outline', title: 'Episode 1', content: 'Body', metadata: { file_type: 'script' } },
           { id: 'ctx-quote', type: 'quote', title: '引用自: Chapter 2', content: 'Quoted', metadata: { file_title: 'Chapter 2', is_quote: true } },
         ],
-      }),
+      },
     ]
-    render(<MessageList messages={messages} />)
-    fireEvent.click(screen.getByText('context.citations'))
+    render(<MessageList messages={[]} streamRenderItems={streamRenderItems} />)
+    fireEvent.click(screen.getByText('context.label'))
     expect(screen.getByText('fileType.draft')).toBeInTheDocument()
     expect(screen.getByText('fileType.script')).toBeInTheDocument()
     expect(screen.queryByText('fileType.outline')).not.toBeInTheDocument()
@@ -964,75 +931,13 @@ describe('MessageList', () => {
     // Timestamp should be rendered (format varies by locale)
   })
 
-  it('displays context items for assistant messages', () => {
-    const messages = [
-      createMessage({
-        role: 'assistant',
-        content: 'Response',
-        contextItems: [
-          {
-            id: 'ctx-1',
-            type: 'draft',
-            title: 'Chapter 1',
-            content: 'Content preview',
-            priority: 'relevant',
-          },
-        ],
-      }),
-    ]
-    render(<MessageList messages={messages} />)
-    // MessageList uses t('context.citations', { ns: 'chat' }) which returns 'context.citations'
-    expect(screen.getByText('context.citations')).toBeInTheDocument()
-  })
-
-  it('displays conflicts', () => {
-    const messages = [
-      createMessage({
-        role: 'assistant',
-        content: 'Response',
-        conflicts: [
-          {
-            type: 'consistency',
-            severity: 'high',
-            title: 'Conflict Title',
-            description: 'Conflict description',
-            suggestions: ['Fix suggestion 1'],
-            references: [],
-          },
-        ],
-      }),
-    ]
-    render(<MessageList messages={messages} />)
-    expect(screen.getByText('Conflict Title')).toBeInTheDocument()
-    expect(screen.getByText('Conflict description')).toBeInTheDocument()
-  })
-
   it('filters out invisible messages', () => {
     const messages = [
       createMessage({ role: 'assistant', content: '' }), // Empty content
       createMessage({ role: 'assistant', content: '<think thinking</think' }), // Only think tags
     ]
     render(<MessageList messages={messages} />)
-    // These messages should be filtered out - no thinking content should be shown
-    // because reasoningContent is not set
     expect(screen.queryByText('chat:thinking.title')).not.toBeInTheDocument()
-  })
-
-  it('renders reasoning segments', () => {
-    const messages = [
-      createMessage({
-        role: 'assistant',
-        content: 'Response',
-        reasoningSegments: [
-          { content: 'First thought', timestamp: new Date() },
-          { content: 'Second thought', timestamp: new Date() },
-        ],
-      }),
-    ]
-    render(<MessageList messages={messages} />)
-    // Thinking content should be rendered - each segment renders a ThinkingContent
-    // with 'chat:thinking.title' label
-    expect(screen.getAllByText('chat:thinking.title')).toHaveLength(2)
   })
 
   it('handles stream render items', () => {
@@ -1248,33 +1153,27 @@ describe('MessageList', () => {
       expect(screen.getByText('Visible message 3')).toBeInTheDocument()
     })
 
-    it('virtualizes messages with complex content (tool calls, thinking)', () => {
+    it('renders messages with complex content (tool calls, thinking)', () => {
+      const timestamp = new Date()
+      const tool = {
+        id: 'tool-1',
+        tool_name: 'create_file',
+        arguments: { title: 'Test' },
+        status: 'success' as const,
+      }
       const messages = [
         createMessage({
           role: 'assistant',
-          content: 'Response with thinking',
-          reasoningContent: 'AI is analyzing...',
-          toolCalls: [
-            {
-              id: 'tool-1',
-              tool_name: 'create_file',
-              arguments: { title: 'Test' },
-              status: 'success',
-            },
+          content: '',
+          displayItems: [
+            { id: 'think-1', type: 'thinking_content', content: 'AI is analyzing...', timestamp },
+            { id: 'tools-1', type: 'tool_calls', toolCalls: [tool], timestamp },
+            { id: 'reply-1', type: 'content', content: 'Response with thinking', timestamp },
           ],
         }),
         createMessage({
           role: 'assistant',
           content: 'Another response',
-          contextItems: [
-            {
-              id: 'ctx-1',
-              type: 'draft',
-              title: 'Context',
-              content: 'Context content',
-              priority: 'relevant',
-            },
-          ],
         }),
       ]
 

@@ -924,11 +924,13 @@ describe('ProjectContext', () => {
       await waitFor(() => expect(result.current.projects.length).toBe(2))
 
       act(() => result.current.enterDiffReview('file-1', 'mine', 'merged', 'conflict'))
+      expect(result.current.diffReviewState?.pendingEdits.length).toBeGreaterThan(0)
       act(() => result.current.enterDiffReview('file-1', 'server', 'polished', 'polish'))
       expect(result.current.diffReviewState).toMatchObject({
         fileId: 'file-1',
         originalContent: 'server',
         modifiedContent: 'polished',
+        pendingEdits: [],
         origin: 'polish',
       })
 
