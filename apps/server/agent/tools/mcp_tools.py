@@ -702,7 +702,7 @@ class ToolContext:
             "author_steering": author_steering,
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
             "inflight_tool_writes": inflight_tool_writes,
-            "direct_deletions": {"lock": threading.Lock(), "file_ids": set(), "confirmation_required": False},
+            "direct_deletions": {"lock": threading.Lock(), "file_ids": set()},
         })
         _owned_session_var.set(None)
 
@@ -2702,12 +2702,10 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             preview = service.preview(ids, recursive=recursive)
             targets = preview["targets"]
             leaves = {item["id"] for item in targets if item["file_type"] != "folder"}
-            needs_confirmation = state["confirmation_required"] or any(item["file_type"] == "folder" for item in targets) or len(
+            needs_confirmation = any(item["file_type"] == "folder" for item in targets) or len(
                 state["file_ids"] | leaves
             ) > 5
             if needs_confirmation:
-                # A smaller retry in this request cannot bypass an already-required confirmation.
-                state["confirmation_required"] = True
                 data = {
                     "confirmation_required": True,
                     "mutation_applied": False,

@@ -20,9 +20,9 @@ To recover just a sentence or paragraph without rolling back later work, open **
 
 ## Undo one AI change
 
-Undo is available on chat result cards and in the file history’s AI change records, including after chat is cleared. A combined title and body change is undone as one action; a title-only undo preserves the body.
+Chat result cards for edits, chapter replacements, and renames offer one-click **Undo**. A combined title and body change is undone as one action; a title-only undo preserves the body. After chat is cleared, full before/after snapshots remain available in **History** to view or restore.
 
-Ordinary undo takes one click and preserves later writing that does not overlap the AI change. Only genuinely overlapping passages require a choice, with your current text kept by default. A newer save invalidates an older conflict choice. Earlier chat cards retain their original conditional undo behavior. Recover deleted files through Trash in the file panel.
+Ordinary undo takes one click and preserves later writing that does not overlap the AI change. Only genuinely overlapping passages or a subsequently edited title require a choice, with your current text kept by default. A newer save invalidates an older conflict choice. Earlier chat cards retain their original conditional undo behavior. Recover deleted files through **Trash** at the bottom of the file panel.
 
 ## Restore the whole file
 

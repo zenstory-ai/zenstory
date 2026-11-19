@@ -14,8 +14,6 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   createFile: vi.fn(),
   deleteFile: vi.fn(),
-  previewDeletion: vi.fn(),
-  deleteBatch: vi.fn(),
   listTrash: vi.fn(),
   restoreTrash: vi.fn(),
   toastError: vi.fn(),
@@ -43,8 +41,6 @@ vi.mock('../../../contexts/MaterialAttachmentContext', () => ({
 vi.mock('../../../lib/api', () => ({
   fileApi: { getTree: mocks.getTree, create: mocks.createFile, delete: mocks.deleteFile, uploadDraft: mocks.uploadDraft },
   fileTrashApi: {
-    preview: mocks.previewDeletion,
-    deleteBatch: mocks.deleteBatch,
     list: mocks.listTrash,
     restore: mocks.restoreTrash,
   },
@@ -275,20 +271,8 @@ describe('FileTreePane create/delete failures', () => {
     vi.clearAllMocks();
     mocks.projectId = 'project-1';
     mocks.getTree.mockResolvedValue({ tree });
-    mocks.previewDeletion.mockResolvedValue({
-      root_ids: ['char-1'],
-      recursive: false,
-      targets: [{
-        id: 'char-1',
-        title: 'Lin Feng',
-        file_type: 'character',
-        parent_id: 'folder-characters',
-        order: 0,
-      }],
-      count: 1,
-      target_hash: 'delete-char-1',
-    });
-    mocks.deleteBatch.mockResolvedValue({
+    mocks.deleteFile.mockResolvedValue({
+      message: 'File deleted successfully',
       batch_id: 'batch-1',
       root_ids: ['char-1'],
       targets: [],
@@ -337,7 +321,7 @@ describe('FileTreePane create/delete failures', () => {
   it('shows the deleteFailed toast and keeps the file in the tree when deleting fails', async () => {
     const nativeConfirm = vi.fn(() => true);
     vi.stubGlobal('confirm', nativeConfirm);
-    mocks.deleteBatch.mockRejectedValue(new Error('server error'));
+    mocks.deleteFile.mockRejectedValue(new Error('server error'));
     render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
     expect(await screen.findByText('Lin Feng')).toBeInTheDocument();
     fireEvent.click(within(screen.getByText('Lin Feng').closest('[data-testid="file-tree-node"]') as HTMLElement).getByTitle('common:delete'));
@@ -350,10 +334,7 @@ describe('FileTreePane create/delete failures', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'common:delete' }));
 
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('editor:fileTree.deleteFailed'));
-    expect(mocks.deleteBatch).toHaveBeenCalledWith('project-1', expect.objectContaining({
-      root_ids: ['char-1'],
-      target_hash: 'delete-char-1',
-    }));
+    expect(mocks.deleteFile).toHaveBeenCalledWith('char-1');
     expect(mocks.select).not.toHaveBeenCalled();
     expect(screen.getByText('Lin Feng')).toBeInTheDocument();
     expect(mocks.getTree).toHaveBeenCalledTimes(1);
@@ -366,32 +347,41 @@ describe('FileTreePane create/delete failures', () => {
     fireEvent.click(within(screen.getByText('Lin Feng').closest('[data-testid="file-tree-node"]') as HTMLElement).getByTitle('common:delete'));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'common:cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(mocks.deleteBatch).not.toHaveBeenCalled();
+    expect(mocks.deleteFile).not.toHaveBeenCalled();
 
     fireEvent.click(within(screen.getByText('Lin Feng').closest('[data-testid="file-tree-node"]') as HTMLElement).getByTitle('common:delete'));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'common:delete' }));
-    await waitFor(() => expect(mocks.deleteBatch).toHaveBeenCalledWith('project-1', expect.objectContaining({
-      root_ids: ['char-1'],
-      target_hash: 'delete-char-1',
-    })));
+    await waitFor(() => expect(mocks.deleteFile).toHaveBeenCalledWith('char-1'));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await waitFor(() => expect(mocks.getTree).toHaveBeenCalledTimes(2));
   });
 
-  it('shows the exact multi-file deletion range before confirming', async () => {
-    mocks.previewDeletion.mockResolvedValueOnce({
-      root_ids: ['folder-arc'], recursive: true, count: 2, target_hash: 'delete-arc',
-      targets: [
-        { id: 'folder-arc', title: '第一卷', file_type: 'folder', parent_id: null, order: 0 },
-        { id: 'draft-1', title: '第一章', file_type: 'draft', parent_id: 'folder-arc', order: 0 },
-      ],
+  it('shows the exact multi-file deletion range before confirming a folder delete', async () => {
+    mocks.getTree.mockResolvedValueOnce({
+      tree: [{
+        id: 'folder-drafts',
+        title: '正文',
+        file_type: 'folder',
+        parent_id: null,
+        children: [{
+          id: 'folder-arc',
+          title: '第一卷',
+          file_type: 'folder',
+          parent_id: 'folder-drafts',
+          children: [{ id: 'draft-1', title: '第一章', file_type: 'draft', parent_id: 'folder-arc', children: [] }],
+        }],
+      }],
     });
     render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
-    fireEvent.click(within((await screen.findByText('Lin Feng')).closest('[data-testid="file-tree-node"]') as HTMLElement).getByTitle('common:delete'));
+    fireEvent.click(await screen.findByText('第一卷'));
+    fireEvent.click(within(screen.getByText('第一卷').closest('[data-testid="file-tree-node"]') as HTMLElement).getByTitle('common:delete'));
 
-    const scope = within(await screen.findByRole('dialog')).getByRole('list', { name: 'deleteScope' });
+    const dialog = await screen.findByRole('dialog');
+    const scope = within(dialog).getByRole('list', { name: 'deleteScope' });
     expect(within(scope).getByText('第一卷 / 第一章')).toBeInTheDocument();
     expect(within(scope).getByText('fileTypes.draft')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common:delete' }));
+    await waitFor(() => expect(mocks.deleteFile).toHaveBeenCalledWith('folder-arc', true));
   });
 
   it('loads older recoverable deletion batches from the persistent trash', async () => {

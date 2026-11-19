@@ -32,6 +32,7 @@ from models.file_model import FILE_TYPE_FOLDER, validate_file_title
 from models.file_version import (
     CHANGE_SOURCE_AI,
     CHANGE_TYPE_AI_EDIT,
+    CHANGE_TYPE_CREATE,
 )
 from services.features.activation_event_service import activation_event_service
 from services.file_tree_rules import (
@@ -603,16 +604,10 @@ class FileCRUD:
         if normalize_quotes and content:
             content = normalize_ai_body_first_indent(content, file_type)
 
-        recoverable_body_create = bool(content) and file_type != FILE_TYPE_FOLDER
-
-        # A non-empty agent create starts as a real empty file.  The shared
-        # recovery helper then writes the body and its exact before/after
-        # anchors in the same transaction; a recovery failure rolls the new
-        # File row back as well.
         file = File(
             project_id=project_id,
             title=title,
-            content="" if recoverable_body_create else content,
+            content=content,
             file_type=file_type,
             parent_id=parent_id,
             order=resolved_order,
@@ -620,24 +615,22 @@ class FileCRUD:
         )
 
         self.session.add(file)
-        undo: dict[str, Any] | None = None
-        if recoverable_body_create:
-            from services.file_edit_operations import stage_recoverable_file_mutation
-
-            self.session.flush()
-            undo = stage_recoverable_file_mutation(
-                self.session,
-                user_id=str(self.user_id),
-                file=file,
-                before_content="",
-                after_content=content,
-                before_title=title,
-                after_title=title,
-                before_order=resolved_order,
-                after_order=resolved_order,
-                kind="edit_file",
-                change_summary="AI 创建文件正文",
-            )
+        if content and file_type != FILE_TYPE_FOLDER:
+            try:
+                with self.session.begin_nested():
+                    self.session.flush()
+                    self._create_version(
+                        file.id,
+                        content,
+                        change_type=CHANGE_TYPE_CREATE,
+                        change_summary="创建文件",
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to create initial file version; file will persist",
+                    exc_info=True,
+                    extra={"file_id": file.id, "error": str(exc)},
+                )
 
         if file.file_type != FILE_TYPE_FOLDER:
             # 记这次自己写下的正文（提交前记、失败还原），不记 refresh 后的（提交后作者可能已经又存了一版）。
@@ -672,8 +665,6 @@ class FileCRUD:
 
         result = serialize_file(file)
         result["mutation_applied"] = True
-        if undo is not None:
-            result["undo"] = undo
         return result
 
     def update_file(
@@ -719,12 +710,7 @@ class FileCRUD:
 
         from database import is_postgres
 
-        if (
-            parent_id is not None
-            or title is not None
-            or order is not None
-            or metadata is not None
-        ):
+        if parent_id is not None or title is not None or order is not None:
             target = self.session.get(File, id)
             if not target or target.is_deleted:
                 raise ValueError("文件不存在或已删除")
@@ -878,7 +864,13 @@ class FileCRUD:
 
         content_changed = content is not None and content != old_content
         title_changed = prospective_title != file.title
-        recoverable_mutation = content_changed or title_changed
+        initial_body_fill = (
+            content_changed
+            and not title_changed
+            and not (old_content or "").strip()
+            and FileVersionService().get_latest_version(self.session, id) is None
+        )
+        recoverable_mutation = (content_changed or title_changed) and not initial_body_fill
         undo: dict[str, Any] | None = None
         if recoverable_mutation:
             from services.file_edit_operations import stage_recoverable_file_mutation
@@ -905,6 +897,16 @@ class FileCRUD:
         file.file_metadata = prospective_metadata
         if not recoverable_mutation:
             file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+        if initial_body_fill:
+            try:
+                with self.session.begin_nested():
+                    self._create_version(id, prospective_content or "")
+            except Exception as exc:
+                logger.warning(
+                    "Failed to create initial streamed file version; content will persist",
+                    exc_info=True,
+                    extra={"file_id": id, "error": str(exc)},
+                )
 
         if content_changed:
             # 记这次自己写下的整份正文（提交前记、失败还原），不记 refresh 后的（提交后作者可能已经又存了一版）。
@@ -977,53 +979,27 @@ class FileCRUD:
             recursive=recursive,
         )
 
-        self.delete_files(ids=[id], recursive=recursive)
-        return True
-
-    def delete_files(
-        self,
-        *,
-        ids: list[str],
-        recursive: bool = False,
-        expected_target_hash: str | None = None,
-        source: str = "agent_direct",
-    ) -> dict[str, Any]:
-        """Delete one exact recoverable batch; callers decide whether confirmation is required."""
         from services.file_trash import FileTrashService
 
-        canonical_ids = sorted({value.strip() for value in ids if isinstance(value, str) and value.strip()})
-        if not canonical_ids:
-            raise ValueError("至少需要一个文件")
-        roots: list[File] = []
-        for file_id in canonical_ids:
-            file = self.session.get(File, file_id, populate_existing=True)
-            if not file or file.is_deleted:
-                raise ValueError("文件不存在或已删除")
-            check_file_access_in_tool_context(self.session, file, self.user_id)
-            roots.append(file)
-        project_ids = {file.project_id for file in roots}
-        if len(project_ids) != 1:
-            raise ValueError("文件必须属于同一个项目")
-        project_id = next(iter(project_ids))
+        file = self.session.get(File, id, populate_existing=True)
+        if not file or file.is_deleted:
+            raise ValueError("文件不存在或已删除")
+        check_file_access_in_tool_context(self.session, file, self.user_id)
+        project_id = file.project_id
         result = FileTrashService(
             self.session, user_id=str(self.user_id), project_id=project_id
-        ).delete(
-            canonical_ids,
-            recursive=recursive,
-            source=source,
-            expected_target_hash=expected_target_hash,
-        )
+        ).delete([id], recursive=recursive, source="agent_direct")
         log_with_context(
             logger,
             20,
             "delete_file completed",
-            file_id=canonical_ids[0],
+            file_id=id,
             user_id=self.user_id,
             project_id=project_id,
             deleted_count=result["count"],
             recursive=recursive,
         )
-        return result
+        return True
 
     def query_files(
         self,

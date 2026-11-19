@@ -133,8 +133,11 @@ interface MessageListProps {
   messages: Message[];
   /** Callback invoked when user requests to undo a file edit operation */
   onUndo?: (target: FileEditUndoTarget) => void;
-  onRestoreDeletion?: (batchId: string) => void;
-  onConfirmDeletion?: (preview: FileDeletionPreview) => Promise<FileDeletionResult>;
+  onRestoreDeletion?: (batchId: string) => void | Promise<void>;
+  onConfirmDeletion?: (
+    preview: FileDeletionPreview,
+    card?: { chatMessageId?: string; toolUseId?: string },
+  ) => Promise<FileDeletionResult>;
   /** Open a successful file result in the current project. */
   onOpenFile?: (fileId: string, fileType: string, title: string) => void;
   /** Open AI Memory at the Writing Conventions field. */
@@ -1243,6 +1246,8 @@ export const MessageList = React.memo(
   // Custom comparison function for React.memo.
   // Prefer cheap reference checks to avoid O(n) message comparisons.
   if (prevProps.onUndo !== nextProps.onUndo) return false;
+  if (prevProps.onRestoreDeletion !== nextProps.onRestoreDeletion) return false;
+  if (prevProps.onConfirmDeletion !== nextProps.onConfirmDeletion) return false;
   if (prevProps.onOpenFile !== nextProps.onOpenFile) return false;
   if (prevProps.onOpenAIMemory !== nextProps.onOpenAIMemory) return false;
   if (prevProps.onSubmitFeedback !== nextProps.onSubmitFeedback) return false;

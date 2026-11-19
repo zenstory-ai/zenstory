@@ -189,8 +189,8 @@ test.describe('Files', () => {
     await node.hover()
     await node.getByTitle(/删除|delete/i).click()
     const responsePromise = page.waitForResponse(response =>
-      response.url().endsWith(`/api/v1/projects/${project!.id}/files/delete-batch`)
-        && response.request().method() === 'POST',
+      response.url().includes(`/api/v1/files/${file.id}`)
+        && response.request().method() === 'DELETE',
     )
     await page.getByRole('dialog').getByRole('button', { name: /删除|delete/i }).click()
     const deleted = await responsePromise

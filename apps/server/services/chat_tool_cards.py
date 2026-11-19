@@ -1,6 +1,7 @@
-"""聊天恢复卡的显示状态。
+"""聊天恢复卡的显示状态与确认回写。
 
-新卡从持久 operation/deletion batch 校准状态，聊天 JSON 不作为恢复事实。
+新卡从持久 operation/deletion batch 校准状态，聊天 JSON 不作为唯一恢复事实；
+作者在聊天确认范围删除后一并回写对应卡片，使下一轮历史回放与模型输入保持一致。
 没有 operation_id 的历史卡仍保留原条件回滚与 JSON 撤销标记兼容。
 """
 
@@ -18,12 +19,12 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 
-# 带撤销锚点的 AI 修改卡：edit_file，以及单循环 agent 的整章替换（write_chapter）。
-_UNDOABLE_CARD_TOOLS = frozenset({"create_file", "edit_file", "write_chapter", "rename_file"})
+# 带撤销锚点的 AI 修改卡：edit_file、write_chapter（整章替换）与 rename_file。
+_UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter", "rename_file"})
 
 
 def _card_undo(call: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    """一张 edit_file 卡的结果数据与撤销锚点（结果可能带一层 data）。"""
+    """一张修改卡的结果数据与撤销锚点（结果可能带一层 data）。"""
     result = call.get("result")
     data = result.get("data") if isinstance(result, dict) and isinstance(result.get("data"), dict) else result
     if not isinstance(data, dict):
@@ -49,12 +50,7 @@ def hydrate_recovery_card_states(
     user_id: str,
     project_id: str,
 ) -> list[dict[str, Any]]:
-    """Overlay durable edit/deletion state onto decoded chat cards in place.
-
-    Chat JSON is a presentation cache.  New cards carry ``operation_id`` and
-    use ``FileEditOperation.undone_at`` as the source of truth after refresh.
-    Old cards without an operation keep their historical JSON behavior.
-    """
+    """Overlay durable edit/deletion state onto decoded chat cards in place."""
     from models.file_deletion_batch import FileDeletionBatch
     from models.file_edit_operation import FileEditOperation
 
@@ -71,10 +67,11 @@ def hydrate_recovery_card_states(
         batch_id = _data.get("batch_id") if isinstance(_data, dict) else None
         if isinstance(batch_id, str) and batch_id:
             batch_ids.add(batch_id)
-        preview = _data.get("preview") if isinstance(_data, dict) else None
-        target_hash = preview.get("target_hash") if isinstance(preview, dict) else None
-        if isinstance(target_hash, str) and target_hash:
-            preview_hashes.add(target_hash)
+        elif isinstance(_data, dict) and _data.get("confirmation_required") is True:
+            preview = _data.get("preview")
+            target_hash = preview.get("target_hash") if isinstance(preview, dict) else None
+            if isinstance(target_hash, str) and target_hash:
+                preview_hashes.add(target_hash)
     states = (
         {
             row.id: row.undone_at is not None
@@ -103,6 +100,7 @@ def hydrate_recovery_card_states(
         if batch_ids
         else {}
     )
+    # Ascending order ensures the latest batch wins when building the dict.
     confirmed_by_hash = (
         {
             row.target_hash: row
@@ -114,7 +112,7 @@ def hydrate_recovery_card_states(
                     FileDeletionBatch.project_id == project_id,
                     FileDeletionBatch.source == "agent_confirmed",
                 )
-                .order_by(FileDeletionBatch.created_at.desc())  # type: ignore[attr-defined]
+                .order_by(FileDeletionBatch.created_at.asc(), FileDeletionBatch.id.asc())  # type: ignore[attr-defined]
             ).all()
         }
         if preview_hashes
@@ -130,29 +128,100 @@ def hydrate_recovery_card_states(
         batch_id = _data.get("batch_id") if isinstance(_data, dict) else None
         if isinstance(batch_id, str) and batch_id in restored_states:
             _data["restored"] = restored_states[batch_id]
-        preview = _data.get("preview") if isinstance(_data, dict) else None
-        target_hash = preview.get("target_hash") if isinstance(preview, dict) else None
-        confirmed = confirmed_by_hash.get(target_hash) if isinstance(target_hash, str) else None
-        if confirmed is not None:
-            items = json.loads(confirmed.items_json)
-            _data.update(
-                {
-                    "batch_id": confirmed.id,
-                    "targets": [
-                        {key: item.get(key) for key in ("id", "title", "file_type", "parent_id", "order")}
-                        for item in items
-                    ],
-                    "count": confirmed.item_count,
-                    "restored": confirmed.restored_at is not None,
-                    "confirmation_required": False,
-                    "mutation_applied": True,
-                }
-            )
+        elif isinstance(_data, dict) and _data.get("confirmation_required") is True:
+            preview = _data.get("preview")
+            target_hash = preview.get("target_hash") if isinstance(preview, dict) else None
+            confirmed = confirmed_by_hash.get(target_hash) if isinstance(target_hash, str) else None
+            if confirmed is not None:
+                items = json.loads(confirmed.items_json)
+                _data.update(
+                    {
+                        "batch_id": confirmed.id,
+                        "targets": [
+                            {key: item.get(key) for key in ("id", "title", "file_type", "parent_id", "order")}
+                            for item in items
+                        ],
+                        "count": confirmed.item_count,
+                        "restored": confirmed.restored_at is not None,
+                        "confirmation_required": False,
+                        "mutation_applied": True,
+                    }
+                )
     return calls
 
 
-# Backward-compatible name for callers landed during this feature branch.
-hydrate_edit_operation_states = hydrate_recovery_card_states
+def record_delete_card_confirmed(
+    session: Session,
+    *,
+    user_id: str,
+    project_id: str,
+    message_id: str,
+    tool_use_id: str,
+    expected_target_hash: str,
+    deleted_result: dict[str, Any],
+) -> bool:
+    """Persist confirmed batch receipt onto the originating delete_file chat card."""
+    from agent.tools.file_ops.edit import acquire_file_write_lock
+    from database import is_postgres
+
+    try:
+        message = session.get(ChatMessage, message_id)
+        if message is None or message.role != "assistant" or not message.tool_calls:
+            return False
+        chat = session.get(ChatSession, message.session_id)
+        if chat is None or chat.user_id != user_id or chat.project_id != project_id:
+            return False
+        lock_ctx = contextlib.nullcontext() if is_postgres else acquire_file_write_lock(message_id)
+        with lock_ctx:
+            locked = session.exec(
+                select(ChatMessage)
+                .where(ChatMessage.id == message_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            ).first()
+            if locked is None or not locked.tool_calls:
+                session.rollback()
+                return False
+            calls = json.loads(locked.tool_calls)
+            if not isinstance(calls, list):
+                session.rollback()
+                return False
+            for call in calls:
+                if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") != "delete_file":
+                    continue
+                data, _ = _card_undo(call)
+                preview = data.get("preview") if isinstance(data, dict) else None
+                if (
+                    data is None
+                    or data.get("confirmation_required") is not True
+                    or not isinstance(preview, dict)
+                    or preview.get("target_hash") != expected_target_hash
+                ):
+                    break
+                data.update(
+                    {
+                        "batch_id": deleted_result["batch_id"],
+                        "root_ids": deleted_result["root_ids"],
+                        "targets": deleted_result["targets"],
+                        "count": deleted_result["count"],
+                        "restored": False,
+                        "confirmation_required": False,
+                        "mutation_applied": True,
+                    }
+                )
+                data.pop("result", None)
+                locked.tool_calls = json.dumps(calls, ensure_ascii=False)
+                session.add(locked)
+                session.commit()
+                return True
+            session.rollback()
+            return False
+    except Exception as exc:  # noqa: BLE001 - deletion already committed
+        session.rollback()
+        log_with_context(
+            logger, 30, "Failed to record confirmed delete card", project_id=project_id, error_type=type(exc).__name__
+        )
+        return False
 
 
 def record_edit_card_undone(

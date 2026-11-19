@@ -121,10 +121,9 @@ export const readAiWriteUndoTarget = (call: ToolCall): FileEditUndoTarget | null
   if (call.status !== 'success') return null;
   const data = cardData(call.result);
   if (!data) return null;
-  if (call.tool_name === 'create_file') return readFileEditUndoTarget(data, undefined, undefined);
   if (call.tool_name === 'edit_file') return readFileEditUndoTarget(data, undefined, undefined);
   if (call.tool_name === 'rename_file') return readFileEditUndoTarget(data, undefined, undefined);
-  if (call.tool_name === 'write_chapter' && ['created', 'replaced'].includes(readWriteChapterOutcome(data) ?? '')) {
+  if (call.tool_name === 'write_chapter' && readWriteChapterOutcome(data) === 'replaced') {
     return readFileEditUndoTarget(data, undefined, undefined);
   }
   return null;
@@ -143,6 +142,7 @@ export interface UndoCardRef {
   fileId: string;
   expectedAfterUpdatedAt: string;
   undone: boolean;
+  hasOperation?: boolean;
 }
 
 /**
@@ -160,7 +160,14 @@ export const collectUndoCardRefs = (
     const key = undoneEditKey(target);
     const recorded = (cardData(call.result)?.undo as Record<string, unknown> | undefined)?.undone === true;
     const undone = recorded || undoneEdits.has(key) || refs.get(key)?.undone === true;
-    refs.set(key, { key, fileId: target.fileId, expectedAfterUpdatedAt: target.expectedAfterUpdatedAt, undone });
+    const hasOperation = Boolean(target.operationId || refs.get(key)?.hasOperation);
+    refs.set(key, {
+      key,
+      fileId: target.fileId,
+      expectedAfterUpdatedAt: target.expectedAfterUpdatedAt,
+      undone,
+      hasOperation,
+    });
   };
   for (const source of sources) {
     source.toolCalls?.forEach(visit);
@@ -173,10 +180,9 @@ export const collectUndoCardRefs = (
 };
 
 /**
- * Keys of AI write cards whose file has a later AI write card (by post-edit token) that is not
- * undone. Undoing such a card first would restore the file over the later change, so the server
- * refuses it as stale; it becomes possible once every later change to that file is undone.
- * A later write without an undo anchor is not listed, so it never asks for an impossible undo.
+ * Keys of legacy AI write cards whose file has a later AI write card (by post-edit token) that is
+ * not undone. Legacy conditional rollback refuses stale writes until later changes are undone;
+ * operation-backed cards support selective 3-way merge out of order and are never blocked here.
  */
 export const undoBlockedByLaterWrite = (cards: ReadonlyArray<UndoCardRef>): ReadonlySet<string> => {
   const latestLiveByFile = new Map<string, number>();
@@ -188,7 +194,7 @@ export const undoBlockedByLaterWrite = (cards: ReadonlyArray<UndoCardRef>): Read
   }
   const blocked = new Set<string>();
   for (const card of cards) {
-    if (card.undone) continue;
+    if (card.undone || card.hasOperation) continue;
     const latest = latestLiveByFile.get(card.fileId);
     if (latest !== undefined && latest > undoTimestampMicros(card.expectedAfterUpdatedAt)) blocked.add(card.key);
   }

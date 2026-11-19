@@ -5,6 +5,8 @@ from datetime import datetime
 from sqlalchemy import Index
 from sqlmodel import Field, SQLModel
 
+from config.datetime_utils import utcnow
+
 from .utils import generate_uuid
 
 
@@ -29,7 +31,7 @@ class FileEditOperation(SQLModel, table=True):
     after_order: int
     after_updated_at: datetime
     after_content_sha256: str = Field(max_length=64)
-    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    created_at: datetime = Field(default_factory=utcnow, index=True)
     undone_at: datetime | None = Field(default=None, index=True)
     undo_version_id: str | None = Field(default=None, foreign_key="file_version.id", index=True)
 

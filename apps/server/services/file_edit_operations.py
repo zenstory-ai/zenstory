@@ -6,7 +6,7 @@ import contextlib
 from datetime import datetime
 from typing import Any, Literal
 
-from sqlmodel import Session, col, func, select
+from sqlmodel import Session, select
 
 from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
 from models import File, FileVersion, Project
@@ -40,7 +40,7 @@ def _ensure_exact_version(
     content: str,
     change_summary: str,
 ) -> FileVersion:
-    """Return an exact latest anchor, creating a quota-free full base if needed."""
+    """Return an exact latest anchor, creating a quota-free backup version if needed."""
     service = FileVersionService()
     latest = service.get_latest_version(session, file.id)
     if latest is not None and (
@@ -145,19 +145,19 @@ def stage_recoverable_file_mutation(
         file.order = after_order
         file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
         session.add(file)
-        after_version = FileVersionService().create_version(
-            session=session,
-            file_id=file.id,
-            new_content=after_content,
-            change_type=CHANGE_TYPE_AI_EDIT,
-            change_source=CHANGE_SOURCE_AI,
-            change_summary=change_summary,
-            # A required full after image makes operation undo independent of
-            # later delta-chain cleanup and supports title-only operations.
-            force_base=True,
-            skip_quota=True,
-            commit=False,
-        )
+        if after_content == before_content:
+            after_version = before_version
+        else:
+            after_version = FileVersionService().create_version(
+                session=session,
+                file_id=file.id,
+                new_content=after_content,
+                change_type=CHANGE_TYPE_AI_EDIT,
+                change_source=CHANGE_SOURCE_AI,
+                change_summary=change_summary,
+                skip_quota=True,
+                commit=False,
+            )
         operation = create_edit_operation(
             session,
             user_id=user_id,
@@ -185,33 +185,6 @@ def stage_recoverable_file_mutation(
     }
 
 
-def list_edit_operations(
-    session: Session,
-    *,
-    user_id: str,
-    project_id: str,
-    file_id: str,
-    limit: int,
-    offset: int,
-) -> tuple[list[FileEditOperation], int]:
-    clauses = (
-        FileEditOperation.user_id == user_id,
-        FileEditOperation.project_id == project_id,
-        FileEditOperation.file_id == file_id,
-    )
-    rows = list(
-        session.exec(
-            select(FileEditOperation)
-            .where(*clauses)
-            .order_by(col(FileEditOperation.created_at).desc())
-            .offset(offset)
-            .limit(limit)
-        ).all()
-    )
-    total = int(session.exec(select(func.count()).select_from(FileEditOperation).where(*clauses)).one())
-    return rows, total
-
-
 def _snapshots(
     session: Session, operation: FileEditOperation, file: File
 ) -> dict[str, dict[str, Any]]:
@@ -220,48 +193,43 @@ def _snapshots(
     after = session.get(FileVersion, operation.after_version_id)
     if before is None or after is None or before.file_id != file.id or after.file_id != file.id:
         raise EditOperationConflictError("operation_history_unavailable")
+    before_content = service.get_content_at_version(session, file.id, before.version_number)
+    after_content = (
+        before_content
+        if after.id == before.id
+        else service.get_content_at_version(session, file.id, after.version_number)
+    )
     return {
         "before": {
-            "content": service.get_content_at_version(session, file.id, before.version_number),
+            "content": before_content,
             "title": operation.before_title,
-            "order": operation.before_order,
         },
         "after": {
-            "content": service.get_content_at_version(session, file.id, after.version_number),
+            "content": after_content,
             "title": operation.after_title,
-            "order": operation.after_order,
         },
         "current": {
             "content": file.content or "",
             "title": file.title,
-            "order": file.order,
             "updated_at": normalize_datetime_to_utc(file.updated_at).isoformat(),
             "content_sha256": content_sha256(file.content),
         },
     }
 
 
-def _metadata_target(
+def _title_target(
     operation: FileEditOperation,
     file: File,
     requested: Literal["preserve", "restore"] | None,
 ) -> tuple[str, int, bool]:
-    def target(before: Any, after: Any, current: Any) -> tuple[Any, bool]:
-        # Each field is independent: undoing a title cannot undo a later
-        # author reorder when this operation did not change order.
-        if before == after or current == before:
-            return current, False
-        if current == after:
-            return before, False
-        if requested == "preserve":
-            return current, False
-        if requested == "restore":
-            return before, False
-        return current, True
-
-    title, title_conflict = target(operation.before_title, operation.after_title, file.title)
-    order, order_conflict = target(operation.before_order, operation.after_order, file.order)
-    return title, order, title_conflict or order_conflict
+    if operation.before_title == operation.after_title or file.title == operation.before_title:
+        return file.title, file.order, False
+    if file.title == operation.after_title or requested == "restore":
+        order = operation.before_order if file.order == operation.after_order else file.order
+        return operation.before_title, order, False
+    if requested == "preserve":
+        return file.title, file.order, False
+    return file.title, file.order, True
 
 
 def undo_edit_operation(
@@ -314,20 +282,8 @@ def undo_edit_operation(
         after_content = str(snapshots["after"]["content"])
         current_content = file.content or ""
         content_changed = before_content != after_content
-        title, order, metadata_conflict = _metadata_target(operation, file, metadata_resolution)
+        title, order, metadata_conflict = _title_target(operation, file, metadata_resolution)
         content_conflict = content_changed and current_content not in (before_content, after_content)
-        if (content_conflict and resolved_content is None) or metadata_conflict:
-            if resolved_content is not None or metadata_resolution is not None:
-                # A resolution submission supplied only part of a real
-                # conflict; return the current complete preview instead of
-                # treating it as a fresh initial request.
-                pass
-            else:
-                return {
-                    "status": "needs_merge", "operation_id": operation.id, "file_id": file.id,
-                    **snapshots, "content_conflict": content_conflict,
-                    "metadata_conflict": metadata_conflict,
-                }
 
         resolution_attempt = resolved_content is not None or metadata_resolution is not None
         if resolution_attempt:
@@ -342,6 +298,7 @@ def undo_edit_operation(
                     {"current_updated_at": current_time.isoformat(),
                      "current_content_sha256": content_sha256(current_content)},
                 )
+
         if (content_conflict and resolved_content is None) or metadata_conflict:
             return {
                 "status": "needs_merge", "operation_id": operation.id, "file_id": file.id,
@@ -366,7 +323,7 @@ def undo_edit_operation(
             if clash is not None:
                 raise EditOperationConflictError("title_conflict")
 
-        _ensure_exact_version(
+        before_undo_version = _ensure_exact_version(
             session,
             file=file,
             content=current_content,
@@ -377,12 +334,15 @@ def undo_edit_operation(
         file.order = order
         file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
         session.add(file)
-        undo_version = FileVersionService().create_version(
-            session=session, file_id=file.id, new_content=target_content,
-            change_type=CHANGE_TYPE_RESTORE, change_source=CHANGE_SOURCE_SYSTEM,
-            change_summary=f"Undid AI {operation.kind}", force_base=True,
-            skip_quota=True, commit=False,
-        )
+        if target_content == current_content:
+            undo_version = before_undo_version
+        else:
+            undo_version = FileVersionService().create_version(
+                session=session, file_id=file.id, new_content=target_content,
+                change_type=CHANGE_TYPE_RESTORE, change_source=CHANGE_SOURCE_SYSTEM,
+                change_summary=f"Undid AI {operation.kind}",
+                skip_quota=True, commit=False,
+            )
         operation.undone_at = utcnow()
         operation.undo_version_id = undo_version.id
         session.add(operation)
@@ -395,5 +355,10 @@ def undo_edit_operation(
         }
 
 
-__all__ = ["EditOperationConflictError", "EditOperationNotFoundError",
-           "create_edit_operation", "list_edit_operations", "undo_edit_operation"]
+__all__ = [
+    "EditOperationConflictError",
+    "EditOperationNotFoundError",
+    "create_edit_operation",
+    "stage_recoverable_file_mutation",
+    "undo_edit_operation",
+]

@@ -7,46 +7,59 @@ const file = {
   metadata: null, created_at: '2026-11-19T04:00:00Z', updated_at: '2026-11-19T04:05:00Z',
 };
 
-const operation = {
-  id: 'operation-1', file_id: file.id, kind: 'edit_file', before_title: '旧标题',
-  after_title: '新标题', before_version_number: 2, created_at: '2026-11-19T04:00:00Z', undone_at: null,
-};
+const operationId = 'operation-1';
 
-async function openOperationHistory(page: Page, conflict: boolean) {
+async function openChatWithOperationCard(page: Page, conflict: boolean, width = 1440) {
+  await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
   await mockResponsiveApp(page, null, 'free', 'zh');
-  let undone = false;
   await page.route('**/api/v1/files/draft-0', route => route.fulfill({ json: file }));
-  await page.route('**/api/v1/files/draft-0/versions*', route => route.fulfill({ json: { total: 0, current_version_number: null, versions: [] } }));
-  await page.route('**/api/v1/files/draft-0/edit-operations**', async route => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({ json: { operations: [{ ...operation, undone_at: undone ? '2026-11-19T04:10:00Z' : null }], total: 1 } });
-      return;
-    }
+  await page.route('**/api/v1/chat/session/*/recent?*', route => route.fulfill({ json: [{
+    id: 'assistant-edit-1', session_id: 'local-session', role: 'assistant', content: '',
+    created_at: '2026-11-19T04:06:00Z', metadata: null,
+    tool_calls: JSON.stringify([{
+      id: 'edit-call-1',
+      name: 'edit_file',
+      status: 'success',
+      result: {
+        id: file.id,
+        title: file.title,
+        details: [{ op: 'replace', old_preview: '她留在原地。', new_preview: '她向东走。' }],
+        undo: {
+          before_version_number: 2,
+          expected_after_updated_at: file.updated_at,
+          expected_after_content_sha256: 'a'.repeat(64),
+          operation_id: operationId,
+        },
+      },
+    }]),
+  }] }));
+  await page.route(`**/api/v1/files/draft-0/edit-operations/${operationId}/undo`, async route => {
     const rawBody = route.request().postData();
     const body = rawBody ? JSON.parse(rawBody) as Record<string, unknown> : null;
     if (!conflict || body?.expected_updated_at) {
-      undone = true;
-      await route.fulfill({ json: { status: 'undone', operation_id: operation.id, file_id: file.id, updated_at: '2026-11-19T04:10:00Z' } });
+      await route.fulfill({ json: { status: 'undone', operation_id: operationId, file_id: file.id, updated_at: '2026-11-19T04:10:00Z' } });
       return;
     }
     await route.fulfill({ json: {
-      status: 'needs_merge', operation_id: operation.id, file_id: file.id,
-      before: { content: '她留在原地。', title: '旧标题', order: 3 },
-      after: { content: '她向东走。', title: '新标题', order: 4 },
-      current: { content: '她向西走。', title: '作者标题', order: 7, updated_at: file.updated_at, content_sha256: 'current-sha' },
+      status: 'needs_merge', operation_id: operationId, file_id: file.id,
+      before: { content: '她留在原地。', title: '旧标题' },
+      after: { content: '她向东走。', title: '新标题' },
+      current: { content: '她向西走。', title: '作者标题', updated_at: file.updated_at, content_sha256: 'b'.repeat(64) },
       content_conflict: true, metadata_conflict: true,
     } });
   });
   await page.goto('/project/responsive-project-0?file=draft-0');
-  await page.getByRole('button', { name: /^(历史版本|历史)$/ }).first().click();
-  return page.getByRole('dialog', { name: /历史版本/ });
+  if (width < 768) {
+    await page.locator('#chat-tab').click();
+  }
+  return page.getByTestId('message-list');
 }
 
-test('AI operation undo is one click when there is no overlap', async ({ page }) => {
-  const history = await openOperationHistory(page, false);
-  await history.getByRole('button', { name: '撤销' }).click();
-  await expect(history.getByText('已撤销')).toBeVisible();
-  await expect(page.getByText(/恢复到版本/)).toHaveCount(0);
+test('AI operation undo on chat card is one click when there is no overlap', async ({ page }) => {
+  const messages = await openChatWithOperationCard(page, false);
+  await messages.getByRole('button', { name: '撤销', exact: true }).click();
+  await expect(messages.getByText('已撤销')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('saved chapter replacement stays a compact undoable card without a review diff', async ({ page }, testInfo) => {
@@ -59,7 +72,7 @@ test('saved chapter replacement stays a compact undoable card without a review d
     updated_at: file.updated_at,
     undo: {
       before_version_number: 2, expected_after_updated_at: file.updated_at,
-      expected_after_content_sha256: 'a'.repeat(64), operation_id: operation.id,
+      expected_after_content_sha256: 'a'.repeat(64), operation_id: operationId,
     },
   };
   await page.route('**/api/v1/chat/session/*/recent?*', route => route.fulfill({ json: [{
@@ -67,9 +80,6 @@ test('saved chapter replacement stays a compact undoable card without a review d
     created_at: '2026-11-19T04:06:00Z', metadata: null,
     tool_calls: JSON.stringify([{ id: 'replace-chapter-12', name: 'write_chapter', status: 'success', result: replacement }]),
   }] }));
-  await page.route('**/api/v1/files/draft-0/edit-operations**', route => route.fulfill({ json: {
-    operations: [{ ...operation, kind: 'write_chapter', before_title: replacement.title, after_title: replacement.title }], total: 1,
-  } }));
   await page.goto('/project/responsive-project-0?file=draft-0');
   const messages = page.getByTestId('message-list');
   const undo = messages.getByRole('button', { name: '撤销', exact: true });
@@ -83,10 +93,9 @@ test('saved chapter replacement stays a compact undoable card without a review d
 });
 
 for (const width of [1440, 390] as const) {
-  test(`${width}px: overlap undo shows only the compact conflict choices`, async ({ page }, testInfo) => {
-    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
-    const history = await openOperationHistory(page, true);
-    await history.getByRole('button', { name: '撤销' }).click();
+  test(`${width}px: overlap undo shows only compact text and title conflict choices`, async ({ page }, testInfo) => {
+    const messages = await openChatWithOperationCard(page, true, width);
+    await messages.getByRole('button', { name: '撤销', exact: true }).click();
     const conflict = page.getByRole('dialog', { name: '这几处和你后写的内容重叠' });
     await expect(conflict).toBeVisible();
     await expect(conflict.getByRole('checkbox', { name: /恢复这处 AI 修改前的文字/ })).not.toBeChecked();
@@ -98,42 +107,49 @@ for (const width of [1440, 390] as const) {
     await expect(conflict.getByText('当前标题')).toBeVisible();
     await expect(conflict.getByText('作者标题')).toBeVisible();
     await expect(conflict.getByText('旧标题')).toBeVisible();
-    await expect(conflict.getByText('当前排序位置')).toBeVisible();
-    await expect(conflict.getByText('恢复排序位置')).toBeVisible();
-    await expect(conflict.getByText('7')).toBeVisible();
-    await expect(conflict.getByText('3')).toBeVisible();
+    await expect(conflict.getByText('当前排序位置')).toHaveCount(0);
     await expect(conflict.locator('[data-testid="diff-review-split-view"]')).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath(`undo-conflict-${width}.png`), animations: 'disabled' });
   });
 }
 
-test('file tree previews the exact delete set once and restores the resulting trash batch', async ({ page }, testInfo) => {
+test('file tree keeps search-to-tree Tab focus, previews folder subtree synchronously, and restores from Trash', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await mockResponsiveApp(page, null, 'free', 'zh');
   let deleted = false;
   let restored = false;
   const folderTarget = { id: 'arc-1', title: '第一卷 风暴将至', file_type: 'folder', parent_id: 'folder-drafts', order: 0 };
   const target = { id: 'draft-0', title: '第一章 很长的标题和人物的选择', file_type: 'draft', parent_id: 'arc-1', order: 0 };
+  await page.route('**/api/v1/files/draft-0', route => route.fulfill({ json: file }));
   await page.route('**/api/v1/projects/responsive-project-0/file-tree', route => route.fulfill({ json: { tree: [{
     id: 'folder-drafts', title: '正文', file_type: 'folder', parent_id: null, order: 0,
     children: deleted && !restored ? [] : [{ ...folderTarget, children: [{ ...target, children: [] }] }],
   }] } }));
-  await page.route('**/api/v1/projects/responsive-project-0/files/deletion-preview', route => route.fulfill({ json: {
-    root_ids: ['arc-1'], recursive: true, targets: [folderTarget, target], count: 2, target_hash: 'target-hash-1',
-  } }));
-  await page.route('**/api/v1/projects/responsive-project-0/files/delete-batch', async route => {
-    expect(route.request().postDataJSON()).toMatchObject({ ids: ['arc-1'], recursive: true, target_hash: 'target-hash-1' });
+  await page.route('**/api/v1/files/arc-1*', async route => {
+    expect(route.request().method()).toBe('DELETE');
+    expect(route.request().url()).toContain('recursive=true');
     deleted = true;
-    await route.fulfill({ json: { batch_id: 'batch-1', root_ids: ['arc-1'], targets: [folderTarget, target], count: 2, restored: false, mutation_applied: true } });
+    await route.fulfill({ json: { message: 'File deleted successfully', batch_id: 'batch-1', root_ids: ['arc-1'], targets: [folderTarget, target], count: 2, restored: false, mutation_applied: true } });
   });
   await page.route('**/api/v1/projects/responsive-project-0/files/trash**', async route => {
     if (route.request().method() === 'GET') {
-      await route.fulfill({ json: { batches: restored ? [] : [{ batch_id: 'batch-1', root_ids: ['arc-1'], titles: [folderTarget.title, target.title], count: 2, source: 'agent_confirmed', created_at: '2026-11-19T04:00:00Z', restored: false }], total: restored ? 0 : 1, limit: 50, offset: 0, next_offset: null } });
+      await route.fulfill({ json: { batches: restored ? [] : [{ batch_id: 'batch-1', root_ids: ['arc-1'], titles: [folderTarget.title, target.title], count: 2, source: 'file_menu', created_at: '2026-11-19T04:00:00Z', restored: false }], total: restored ? 0 : 1, limit: 50, offset: 0, next_offset: null } });
       return;
     }
     restored = true;
-    await route.fulfill({ json: { batch_id: 'batch-1', file_ids: ['draft-0'], restored: true, already_restored: false } });
+    await route.fulfill({ json: { batch_id: 'batch-1', file_ids: ['arc-1', 'draft-0'], restored: true, already_restored: false } });
   });
+
   await page.goto('/project/responsive-project-0?file=draft-0');
+  const tree = page.getByRole('tree');
+  const firstItem = tree.getByRole('treeitem').first();
+  await expect(firstItem).toBeVisible();
+
+  // Regression: Trash button sits below the tree so Search -> Tab reaches the first treeitem directly.
+  await page.locator('input[placeholder*="搜索文件"], [role="searchbox"]').first().focus();
+  await page.keyboard.press('Tab');
+  await expect(firstItem).toBeFocused();
+
   const row = page.locator('[data-file-id="arc-1"]');
   await row.getByRole('button', { name: '删除' }).click();
   const confirm = page.getByRole('dialog', { name: '确定要删除吗？' });

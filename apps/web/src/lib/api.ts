@@ -21,7 +21,6 @@ import type {
   FileDeletionBatchSummary,
   FileDeletionPreview,
   FileDeletionResult,
-  FileEditOperationSummary,
   FileEditOperationUndoResponse,
   FileTreeNode,
   FileVersionListResponse,
@@ -554,15 +553,6 @@ export const fileVersionApi = {
 };
 
 export const fileEditOperationApi = {
-  list: (fileId: string, options?: { limit?: number; offset?: number }) => {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    if (options?.offset) params.set('offset', String(options.offset));
-    const query = params.size ? `?${params}` : '';
-    return api.get<{ operations: FileEditOperationSummary[]; total: number }>(
-      `/api/v1/files/${fileId}/edit-operations${query}`,
-    );
-  },
   undo: (
     fileId: string,
     operationId: string,
@@ -579,13 +569,18 @@ export const fileEditOperationApi = {
 };
 
 export const fileTrashApi = {
-  preview: (projectId: string, ids: string[], recursive: boolean) =>
-    api.post<FileDeletionPreview>(`/api/v1/projects/${projectId}/files/deletion-preview`, { ids, recursive }),
-  deleteBatch: (projectId: string, preview: Pick<FileDeletionPreview, 'root_ids' | 'recursive' | 'target_hash'>) =>
+  deleteBatch: (
+    projectId: string,
+    preview: Pick<FileDeletionPreview, 'root_ids' | 'recursive' | 'target_hash'>,
+    card?: { chatMessageId?: string; toolUseId?: string },
+  ) =>
     api.post<FileDeletionResult>(`/api/v1/projects/${projectId}/files/delete-batch`, {
       ids: preview.root_ids,
       recursive: preview.recursive,
       target_hash: preview.target_hash,
+      ...(card?.chatMessageId && card.toolUseId
+        ? { chat_message_id: card.chatMessageId, tool_use_id: card.toolUseId }
+        : {}),
     }),
   list: (projectId: string, options?: { limit?: number; offset?: number }) => {
     const params = new URLSearchParams();
@@ -763,7 +758,7 @@ export const fileApi = {
    */
   delete: (fileId: string, recursive = false) => {
     const params = recursive ? "?recursive=true" : "";
-    return api.delete(`/api/v1/files/${fileId}${params}`);
+    return api.delete<{ message: string } & Partial<FileDeletionResult>>(`/api/v1/files/${fileId}${params}`);
   },
 
   /**

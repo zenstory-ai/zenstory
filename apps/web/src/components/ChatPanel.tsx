@@ -2504,36 +2504,55 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         }
       }
       if (target.operationId) {
-        const operation = await fileEditOperationApi.undo(target.fileId, target.operationId);
-        if (operation.status === 'undone') {
-          finishUndo(target);
-          return;
+        try {
+          const operation = await fileEditOperationApi.undo(target.fileId, target.operationId);
+          if (operation.status === 'undone') {
+            finishUndo(target);
+            return;
+          }
+          if (!operation.before || !operation.after || !operation.current) {
+            throw new Error('Incomplete edit operation merge response');
+          }
+          const rebased = rebaseLocalEdits(
+            operation.after.content,
+            operation.current.content,
+            operation.before.content,
+          );
+          if (rebased.conflictEditIds.length === 0 && !operation.metadata_conflict) {
+            await submitOperationResolution(target, operation, rebased.merged, 'preserve');
+            return;
+          }
+          const review = buildParagraphReviewData(operation.current.content, rebased.merged);
+          const conflicts = new Set(rebased.conflictEditIds);
+          setUndoConflict({
+            target,
+            response: operation,
+            diffs: review.diffs,
+            edits: review.pendingEdits.map((edit) => ({
+              ...edit,
+              status: conflicts.has(edit.id) ? 'rejected' : 'accepted',
+            })),
+            conflictIds: rebased.conflictEditIds,
+            restoreMetadata: false,
+          });
+        } catch (err) {
+          if (
+            err instanceof ApiError &&
+            err.errorCode === "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
+          ) {
+            toast.error(handleApiError(err));
+            if (fileVersionUpgradePrompt.surface === "modal") {
+              setShowFileVersionUpgradeModal(true);
+            }
+            return;
+          }
+          logger.error("Failed to undo operation:", err);
+          toast.error(
+            err instanceof ApiError
+              ? handleApiError(err)
+              : t('editor:versionHistory.rollbackFailed'),
+          );
         }
-        if (!operation.before || !operation.after || !operation.current) {
-          throw new Error('Incomplete edit operation merge response');
-        }
-        const rebased = rebaseLocalEdits(
-          operation.after.content,
-          operation.current.content,
-          operation.before.content,
-        );
-        if (rebased.conflictEditIds.length === 0 && !operation.metadata_conflict) {
-          await submitOperationResolution(target, operation, rebased.merged, 'preserve');
-          return;
-        }
-        const review = buildParagraphReviewData(operation.current.content, rebased.merged);
-        const conflicts = new Set(rebased.conflictEditIds);
-        setUndoConflict({
-          target,
-          response: operation,
-          diffs: review.diffs,
-          edits: review.pendingEdits.map((edit) => ({
-            ...edit,
-            status: conflicts.has(edit.id) ? 'rejected' : 'accepted',
-          })),
-          conflictIds: rebased.conflictEditIds,
-          restoreMetadata: false,
-        });
         return;
       }
       const result = await fileVersionApi.rollback(target.fileId, target.beforeVersionNumber, target.expectedAfterUpdatedAt, {
@@ -2618,10 +2637,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
   }, [currentProjectId, triggerFileTreeRefresh, t]);
 
-  const handleConfirmDeletion = useCallback(async (preview: FileDeletionPreview): Promise<FileDeletionResult> => {
+  const handleConfirmDeletion = useCallback(async (
+    preview: FileDeletionPreview,
+    card?: { chatMessageId?: string; toolUseId?: string },
+  ): Promise<FileDeletionResult> => {
     if (!currentProjectId) throw new Error('No active project');
     try {
-      const result = await fileTrashApi.deleteBatch(currentProjectId, preview);
+      const result = await fileTrashApi.deleteBatch(currentProjectId, preview, card);
       result.targets.forEach((target) => notifyFileRemoved(currentProjectId, target.id));
       triggerFileTreeRefresh();
       if (selectedItem && result.targets.some((target) => target.id === selectedItem.id)) {
@@ -3230,12 +3252,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 <dl className="grid gap-2 text-xs">
                   <div><dt className="text-[hsl(var(--text-secondary))]">{t('chat:tool.currentTitle', '当前标题')}</dt><dd className="mt-0.5 break-words text-[hsl(var(--text-primary))]">{undoConflict.response.current?.title}</dd></div>
                   <div><dt className="text-[hsl(var(--text-secondary))]">{t('chat:tool.restoreTitle', '恢复为')}</dt><dd className="mt-0.5 break-words text-[hsl(var(--text-primary))]">{undoConflict.response.before?.title}</dd></div>
-                  {typeof undoConflict.response.current?.order === 'number' && <div><dt className="text-[hsl(var(--text-secondary))]">{t('chat:tool.currentPosition', '当前排序位置')}</dt><dd className="mt-0.5 text-[hsl(var(--text-primary))]">{undoConflict.response.current.order}</dd></div>}
-                  {typeof undoConflict.response.before?.order === 'number' && <div><dt className="text-[hsl(var(--text-secondary))]">{t('chat:tool.restorePosition', '恢复排序位置')}</dt><dd className="mt-0.5 text-[hsl(var(--text-primary))]">{undoConflict.response.before.order}</dd></div>}
                 </dl>
                 <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-[hsl(var(--text-primary))]">
                   <input type="checkbox" checked={undoConflict.restoreMetadata} disabled={isUndoing} onChange={(event) => setUndoConflict((current) => current && ({ ...current, restoreMetadata: event.target.checked }))} />
-                  {t('chat:tool.restoreEarlierTitle', '同时恢复这次修改前的标题和位置')}
+                  {t('chat:tool.restoreEarlierTitle', '同时恢复这次修改前的标题')}
                 </label>
               </div>
             )}

@@ -111,7 +111,10 @@ interface ToolResultCardProps {
   /** Restore one recoverable deletion batch. */
   onRestoreDeletion?: (batchId: string) => void | Promise<void>;
   /** Confirm the exact server-previewed deletion target set. */
-  onConfirmDeletion?: (preview: FileDeletionPreview) => Promise<FileDeletionResult>;
+  onConfirmDeletion?: (
+    preview: FileDeletionPreview,
+    card?: { chatMessageId?: string; toolUseId?: string },
+  ) => Promise<FileDeletionResult>;
 
   /** The tool call of this card and its saved assistant message: an undo names them so the server marks this card undone. */
   toolUseId?: string;
@@ -464,8 +467,7 @@ const CardUndoControl: React.FC<{
   blocked: boolean;
   onUndo: (target: FileEditUndoTarget) => void;
   className?: string;
-  label?: string;
-}> = ({ target, blocked, onUndo, className = '', label }) => {
+}> = ({ target, blocked, onUndo, className = '' }) => {
   const { t } = useTranslation(['chat', 'common']);
   const hintId = useId();
   if (blocked) {
@@ -494,7 +496,7 @@ const CardUndoControl: React.FC<{
       title={t('chat:tool.undo_edit')}
     >
       <RotateCcw className="w-3 h-3" />
-      {label ?? t('common:undo')}
+      {t('common:undo')}
     </button>
   );
 };
@@ -649,8 +651,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const wordCount = readWordCount(data.new_word_count)
         ?? (typeof data.content === 'string' ? countWords(data.content) : 0);
       const typeInfo = getFileTypeInfo(fileType, t);
-      const undoTarget = readFileEditUndoTarget(data, chatMessageId, toolUseId);
-      const undone = undoTarget !== null && isFileEditUndone(data, undoTarget, undoneEdits);
       
       return (
         <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
@@ -664,11 +664,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 {formatWordCount(wordCount, t)}
               </span>
             )}
-            {undone ? (
-              <span className="shrink-0 text-xs text-[hsl(var(--text-secondary))]">{t('chat:tool.edit_undone')}</span>
-            ) : onUndo && isPersistedUndoTarget(undoTarget) ? (
-              <CardUndoControl target={undoTarget} blocked={undoBlocked.has(undoneEditKey(undoTarget))} onUndo={handleUndo} label={t('chat:tool.undoCreatedText')} />
-            ) : null}
             <span className="flex basis-full min-w-0 items-start gap-1 pl-6 text-sm text-[hsl(var(--text-primary))]">
               <span className="shrink-0 mt-0.5">{typeInfo.icon}</span>
               {fileTitle(title, fileType)}
@@ -696,7 +691,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           ? t(headlines[outcome].unnumbered)
           : t(headlines[outcome].numbered, { chapter });
       const succeeded = outcome === 'created' || outcome === 'replaced';
-      const undoTarget = outcome === 'replaced' || outcome === 'created'
+      const undoTarget = outcome === 'replaced'
         ? readFileEditUndoTarget(data, chatMessageId, toolUseId)
         : null;
       const undone = undoTarget !== null && isFileEditUndone(data, undoTarget, undoneEdits);
@@ -726,7 +721,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 target={undoTarget}
                 blocked={undoBlocked.has(undoneEditKey(undoTarget))}
                 onUndo={handleUndo}
-                label={outcome === 'created' ? t('chat:tool.undoCreatedText') : undefined}
               />
             )}
             <span className="flex basis-full min-w-0 items-start gap-1 pl-6 text-sm text-[hsl(var(--text-primary))]">
@@ -788,7 +782,12 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             {undone ? (
               <span className="ml-auto text-xs text-[hsl(var(--text-secondary))]">{t('chat:tool.edit_undone')}</span>
             ) : onUndo && isPersistedUndoTarget(undoTarget) ? (
-              <CardUndoControl target={undoTarget} blocked={false} onUndo={handleUndo} className="ml-auto" />
+              <CardUndoControl
+                target={undoTarget}
+                blocked={undoBlocked.has(undoneEditKey(undoTarget))}
+                onUndo={handleUndo}
+                className="ml-auto"
+              />
             ) : null}
           </div>
         </div>
@@ -823,7 +822,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                   disabled={confirmingDeletion}
                   onClick={() => {
                     setConfirmingDeletion(true);
-                    void onConfirmDeletion(deletionPreview)
+                    void onConfirmDeletion(deletionPreview, { chatMessageId, toolUseId })
                       .then(setConfirmedDeletion)
                       .catch(() => undefined)
                       .finally(() => setConfirmingDeletion(false));

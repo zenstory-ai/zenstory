@@ -10,7 +10,6 @@
 """
 
 import threading
-from datetime import datetime
 
 import pytest
 from services.file_version import FileVersionService
@@ -20,7 +19,6 @@ from agent.tools.file_ops import FileCRUD, FileEditor
 from models import File, Project, User
 from models.file_edit_operation import FileEditOperation
 from models.file_version import FileVersion
-from services.file_edit_operations import undo_edit_operation
 
 
 @pytest.fixture
@@ -34,90 +32,43 @@ def _history_failure(*_args, **_kwargs):
     raise RuntimeError("Optional AI history failure")
 
 
-def test_ai_create_rolls_back_file_when_required_history_fails(
+def test_ai_create_persists_content_when_optional_history_fails(
     db_session, test_user, test_project, local_history_sideeffects, monkeypatch
 ):
-    from agent.tools.write_errors import FileWriteRecoveryError
-
     crud = FileCRUD(db_session, test_user.id)
-    monkeypatch.setattr(FileVersionService, "create_version", _history_failure)
-    with pytest.raises(FileWriteRecoveryError):
-        crud.create_file(test_project.id, "New chapter", "draft", content="Created body")
+    monkeypatch.setattr(crud, "_create_version", _history_failure)
+    result = crud.create_file(test_project.id, "New chapter", "draft", content="Created body")
     db_session.expire_all()
-    assert db_session.exec(select(File).where(File.title == "New chapter")).first() is None
+    assert db_session.get(File, result["id"]).content == "Created body"
+    assert db_session.exec(select(FileVersion).where(FileVersion.file_id == result["id"])).all() == []
 
 
-def test_ai_create_with_body_has_exact_empty_anchor_and_can_undo_to_empty(
+def test_ai_create_with_body_records_single_initial_version_without_edit_operation(
     db_session, test_user, test_project, local_history_sideeffects
 ):
     crud = FileCRUD(db_session, test_user.id)
     result = crud.create_file(test_project.id, "New chapter", "draft", content="Created body")
-    operation = db_session.get(FileEditOperation, result["undo"]["operation_id"])
-    assert operation is not None
-    before = db_session.get(FileVersion, operation.before_version_id)
-    after = db_session.get(FileVersion, operation.after_version_id)
-    assert before is not None and after is not None
-    assert FileVersionService().get_content_at_version(
-        db_session, result["id"], before.version_number
-    ) == ""
-    assert FileVersionService().get_content_at_version(
-        db_session, result["id"], after.version_number
-    ) == "Created body"
-
-    undone = undo_edit_operation(
-        db_session,
-        operation_id=operation.id,
-        file_id=result["id"],
-        user_id=test_user.id,
+    assert "undo" not in result
+    assert (
+        db_session.exec(
+            select(FileEditOperation).where(FileEditOperation.file_id == result["id"])
+        ).all()
+        == []
     )
-    db_session.expire_all()
-    restored = db_session.get(File, result["id"])
-    assert undone["status"] == "undone"
-    assert restored is not None
-    assert restored.content == ""
-    assert (restored.title, restored.parent_id, restored.order) == (
-        result["title"], result["parent_id"], result["order"]
-    )
+    version = db_session.exec(
+        select(FileVersion).where(FileVersion.file_id == result["id"])
+    ).one()
+    assert version.version_number == 1
+    assert version.is_base_version is True
+    assert version.change_source == "ai"
+    assert FileVersionService().get_content_at_version(db_session, result["id"], 1) == "Created body"
 
 
-def test_ai_created_body_merge_undo_preserves_later_author_text(
-    db_session, test_user, test_project, local_history_sideeffects
-):
-    crud = FileCRUD(db_session, test_user.id)
-    result = crud.create_file(test_project.id, "New chapter", "draft", content="Created body")
-    file = db_session.get(File, result["id"])
-    assert file is not None
-    file.content = "Created body\nAuthor addition"
-    file.updated_at = datetime(2026, 1, 2)
-    db_session.add(file)
-    db_session.commit()
-
-    preview = undo_edit_operation(
-        db_session,
-        operation_id=result["undo"]["operation_id"],
-        file_id=file.id,
-        user_id=test_user.id,
-    )
-    assert preview["status"] == "needs_merge"
-    done = undo_edit_operation(
-        db_session,
-        operation_id=result["undo"]["operation_id"],
-        file_id=file.id,
-        user_id=test_user.id,
-        expected_updated_at=datetime.fromisoformat(preview["current"]["updated_at"]),
-        expected_after_content_sha256=preview["current"]["content_sha256"],
-        resolved_content="Author addition",
-        metadata_resolution="preserve",
-    )
-    db_session.refresh(file)
-    assert done["status"] == "undone"
-    assert file.content == "Author addition"
-
-
-def test_update_structural_gate_is_shared_for_metadata_and_exclusive_for_title(
+def test_update_structural_gate_skips_metadata_uses_shared_for_order_and_exclusive_for_title(
     db_session, test_user, test_project, local_history_sideeffects, monkeypatch
 ):
     from agent.tools.file_ops import crud as crud_module
+    from api import files as files_api
 
     file = File(
         project_id=test_project.id,
@@ -128,19 +79,43 @@ def test_update_structural_gate_is_shared_for_metadata_and_exclusive_for_title(
     db_session.add(file)
     db_session.commit()
     calls: list[tuple[str, bool]] = []
-    monkeypatch.setattr(
-        crud_module,
-        "lock_project_for_files",
-        lambda _session, project_id, *, exclusive=False: calls.append(
-            (project_id, exclusive)
-        ),
-    )
+
+    def recorder(_session, project_id, *, exclusive=False):
+        calls.append((project_id, exclusive))
+
+    monkeypatch.setattr(crud_module, "lock_project_for_files", recorder)
+    monkeypatch.setattr(files_api, "lock_project_for_files", recorder)
     crud = FileCRUD(db_session, test_user.id)
 
     crud.update_file(file.id, metadata={"status": "draft"})
+    crud.update_file(file.id, order=3)
     crud.update_file(file.id, title="Renamed")
 
-    assert calls == [(test_project.id, False), (test_project.id, True)]
+    files_api.update_file(
+        file.id,
+        files_api.FileUpdate(metadata={"status": "revised"}),
+        current_user=test_user,
+        session=db_session,
+    )
+    files_api.update_file(
+        file.id,
+        files_api.FileUpdate(order=4),
+        current_user=test_user,
+        session=db_session,
+    )
+    files_api.update_file(
+        file.id,
+        files_api.FileUpdate(title="Renamed via REST"),
+        current_user=test_user,
+        session=db_session,
+    )
+
+    assert calls == [
+        (test_project.id, False),
+        (test_project.id, True),
+        (test_project.id, False),
+        (test_project.id, True),
+    ]
 
 
 def test_ai_empty_create_gets_first_history_when_content_is_filled(db_session, test_user, test_project, local_history_sideeffects):
@@ -150,17 +125,17 @@ def test_ai_empty_create_gets_first_history_when_content_is_filled(db_session, t
     crud.update_file(result["id"], content="Streamed body")
     db_session.expire_all()
     assert db_session.get(File, result["id"]).content == "Streamed body"
-    versions = db_session.exec(
-        select(FileVersion)
-        .where(FileVersion.file_id == result["id"])
-        .order_by(FileVersion.version_number)
-    ).all()
-    assert [(version.version_number, version.change_source) for version in versions] == [
-        (1, "system"),
-        (2, "ai"),
-    ]
-    assert FileVersionService().get_content_at_version(db_session, result["id"], 1) == ""
-    assert FileVersionService().get_content_at_version(db_session, result["id"], 2) == "Streamed body"
+    assert (
+        db_session.exec(
+            select(FileEditOperation).where(FileEditOperation.file_id == result["id"])
+        ).all()
+        == []
+    )
+    version = db_session.exec(select(FileVersion).where(FileVersion.file_id == result["id"])).one()
+    assert version.version_number == 1
+    assert version.is_base_version is True
+    assert version.change_source == "ai"
+    assert version.content == "Streamed body"
 
 
 def test_ai_update_rolls_back_when_required_after_history_fails(db_session, test_user, test_project, local_history_sideeffects, monkeypatch):
@@ -185,8 +160,8 @@ def test_ai_update_rolls_back_when_required_after_history_fails(db_session, test
         .where(FileVersion.file_id == result["id"])
         .order_by(FileVersion.version_number)
     ).all()
-    assert [version.version_number for version in versions] == [1, 2]
-    assert FileVersionService().get_content_at_version(db_session, result["id"], 2) == "Original body"
+    assert [version.version_number for version in versions] == [1]
+    assert FileVersionService().get_content_at_version(db_session, result["id"], 1) == "Original body"
 
 # ========== Fixtures ==========
 

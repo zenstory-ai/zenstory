@@ -1,16 +1,12 @@
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest'
-const { getVersions, getVersionContent, rollback, compare, listOperations, undoOperation, toastError, upgradeModal, translator, viewport } = vi.hoisted(() => ({
+const { getVersions, getVersionContent, rollback, compare, toastError, upgradeModal, translator, viewport } = vi.hoisted(() => ({
   getVersions: vi.fn(), getVersionContent: vi.fn(), rollback: vi.fn(), compare: vi.fn(),
-  listOperations: vi.fn(), undoOperation: vi.fn(),
   toastError: vi.fn(), upgradeModal: vi.fn(), translator: { current: (key: string) => key },
   viewport: { isMobile: true },
 }))
 vi.mock('../../hooks/useMediaQuery', () => ({ useIsMobile: () => viewport.isMobile }))
-vi.mock('../../lib/api', () => ({
-  fileVersionApi: { getVersions, getVersionContent, rollback, compare },
-  fileEditOperationApi: { list: listOperations, undo: undoOperation },
-}))
+vi.mock('../../lib/api', () => ({ fileVersionApi: { getVersions, getVersionContent, rollback, compare } }))
 vi.mock('../../lib/toast', () => ({ toast: { error: toastError, success: vi.fn(), info: vi.fn() } }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: translator.current }) }))
 vi.mock('../subscription/UpgradePromptModal', () => ({
@@ -28,7 +24,6 @@ const confirmRestore = async () => {
 }
 
 const version = (n: number) => ({ id:`version-${n}`,version_number:n,change_type:'edit',change_source:'user',created_at:'2026-10-04T00:00:00Z',word_count:10,lines_added:1,lines_removed:0 })
-const operation = { id: 'operation-1', file_id: 'file-1', kind: 'edit_file' as const, before_title: '旧标题', after_title: '新标题', before_version_number: 2, created_at: '2026-10-04T00:00:00Z', undone_at: null }
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -43,7 +38,6 @@ const deferred = <T,>() => {
 describe('FileVersionHistory saved-state boundary', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    listOperations.mockResolvedValue({ operations: [], total: 0 })
     translator.current = (key: string) => key
   })
   afterEach(() => { vi.unstubAllGlobals() })
@@ -58,117 +52,6 @@ describe('FileVersionHistory saved-state boundary', () => {
     await confirmRestore()
     await waitFor(()=>expect(rollback).toHaveBeenCalledWith('file-1',3))
     await waitFor(()=>expect(onRollback).toHaveBeenCalledWith(3))
-  })
-
-  it('discovers and undoes a recent AI operation in one click without a confirmation', async () => {
-    getVersions.mockResolvedValue({ total: 0, versions: [] })
-    listOperations.mockResolvedValue({ operations: [operation], total: 1 })
-    undoOperation.mockResolvedValue({ status: 'undone', operation_id: operation.id, file_id: 'file-1' })
-    const onRollback = vi.fn()
-    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} onRollback={onRollback} />)
-
-    fireEvent.click(await screen.findByRole('button', { name: 'undoOperation' }))
-
-    await waitFor(() => expect(undoOperation).toHaveBeenCalledWith('file-1', operation.id))
-    expect(screen.queryByText('rollbackConfirm')).not.toBeInTheDocument()
-    await waitFor(() => expect(onRollback).toHaveBeenCalledWith(2))
-  })
-
-  it('loads older AI operations after chat history has been cleared', async () => {
-    getVersions.mockResolvedValue({ total: 0, versions: [] })
-    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...operation, id: `operation-${index}` }))
-    listOperations
-      .mockResolvedValueOnce({ operations: firstPage, total: 51 })
-      .mockResolvedValueOnce({ operations: [{ ...operation, id: 'operation-old', kind: 'rename_file', before_title: '最早标题' }], total: 51 })
-    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
-
-    fireEvent.click(await screen.findByRole('button', { name: 'loadMoreOperations' }))
-
-    expect(await screen.findByText(/最早标题/)).toBeInTheDocument()
-    expect(listOperations).toHaveBeenLastCalledWith('file-1', { limit: 50, offset: 50 })
-  })
-
-  it('shows an operation-history load error and retries it explicitly', async () => {
-    getVersions.mockResolvedValue({ total: 0, versions: [] })
-    listOperations.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ operations: [operation], total: 1 })
-    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
-
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('operationLoadFailed')
-    fireEvent.click(within(alert).getByRole('button', { name: 'common:retry' }))
-
-    expect(await screen.findByRole('button', { name: 'undoOperation' })).toBeInTheDocument()
-    expect(listOperations).toHaveBeenCalledTimes(2)
-  })
-
-  it('ignores an operation list that resolves after the file context changes', async () => {
-    getVersions.mockResolvedValue({ total: 0, versions: [] })
-    const oldRequest = deferred<{ operations: Array<typeof operation>; total: number }>()
-    listOperations.mockImplementation((fileId: string) => fileId === 'file-1'
-      ? oldRequest.promise
-      : Promise.resolve({ operations: [{ ...operation, id: 'new-operation', file_id: 'file-2', kind: 'rename_file' as const, before_title: '新文件标题' }], total: 1 }))
-    const view = render(<FileVersionHistory fileId="file-1" fileTitle="Old" onClose={vi.fn()} />)
-
-    view.rerender(<FileVersionHistory fileId="file-2" fileTitle="New" onClose={vi.fn()} />)
-    expect(await screen.findByText(/新文件标题/)).toBeInTheDocument()
-    await act(async () => oldRequest.resolve({ operations: [{ ...operation, before_title: '旧文件迟到标题' }], total: 1 }))
-
-    expect(screen.getByText(/新文件标题/)).toBeInTheDocument()
-  })
-
-  it('ignores an operation error that rejects after the file context changes', async () => {
-    getVersions.mockResolvedValue({ total: 0, versions: [] })
-    const oldRequest = deferred<{ operations: Array<typeof operation>; total: number }>()
-    listOperations.mockImplementation((fileId: string) => fileId === 'file-1'
-      ? oldRequest.promise
-      : Promise.resolve({ operations: [{ ...operation, id: 'new-operation', file_id: 'file-2', kind: 'rename_file' as const, before_title: '仍显示的新文件' }], total: 1 }))
-    const view = render(<FileVersionHistory fileId="file-1" fileTitle="Old" onClose={vi.fn()} />)
-
-    view.rerender(<FileVersionHistory fileId="file-2" fileTitle="New" onClose={vi.fn()} />)
-    expect(await screen.findByText(/仍显示的新文件/)).toBeInTheDocument()
-    await act(async () => oldRequest.reject(new Error('late failure')))
-
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByText(/仍显示的新文件/)).toBeInTheDocument()
-  })
-
-  it('shows only overlapping text in the operation conflict modal and keeps current text by default', async () => {
-    getVersions.mockResolvedValue({ total: 0, versions: [] })
-    listOperations.mockResolvedValue({ operations: [operation], total: 1 })
-    undoOperation.mockResolvedValueOnce({
-      status: 'needs_merge', operation_id: operation.id, file_id: 'file-1',
-      before: { content: '她留在原地。', title: '旧标题', order: 3 },
-      after: { content: '她向东走。', title: '新标题', order: 0 },
-      current: { content: '她向西走。', title: '作者标题', order: 7, updated_at: 'now', content_sha256: 'sha' },
-      content_conflict: true,
-      metadata_conflict: true,
-    }).mockResolvedValueOnce({ status: 'undone', operation_id: operation.id, file_id: 'file-1' })
-    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
-
-    fireEvent.click(await screen.findByRole('button', { name: 'undoOperation' }))
-
-    expect(await screen.findByText('undoConflictTitle')).toBeInTheDocument()
-    expect(screen.getByText('currentTextLabel')).toBeInTheDocument()
-    expect(screen.getByText('restoreTextLabel')).toBeInTheDocument()
-    expect(screen.getByText('currentTitleLabel')).toBeInTheDocument()
-    expect(screen.getByText('作者标题')).toBeInTheDocument()
-    expect(screen.getByText('旧标题')).toBeInTheDocument()
-    expect(screen.getByText('currentPositionLabel')).toBeInTheDocument()
-    expect(screen.getByText('restorePositionLabel')).toBeInTheDocument()
-    expect(screen.getByText('7')).toBeInTheDocument()
-    expect(screen.getByText('3')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: /restoreThisOverlap/ })).not.toBeChecked()
-    const restoreMetadata = screen.getByRole('checkbox', { name: 'restoreEarlierTitle' })
-    expect(restoreMetadata).not.toBeChecked()
-    expect(screen.queryByText('rollbackConfirm')).not.toBeInTheDocument()
-
-    fireEvent.click(restoreMetadata)
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'undoConflictTitle' })).getByRole('button', { name: 'undoOperation' }))
-    await waitFor(() => expect(undoOperation).toHaveBeenLastCalledWith('file-1', operation.id, expect.objectContaining({
-      metadata_resolution: 'restore',
-      expected_updated_at: 'now',
-      expected_after_content_sha256: 'sha',
-    })))
   })
 
   it('still allows closing before restore submission and cancels the pending preparation', async () => {
@@ -562,7 +445,6 @@ describe('FileVersionHistory saved-state boundary', () => {
 describe('FileVersionHistory current-text marker and restore confirmation', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    listOperations.mockResolvedValue({ operations: [], total: 0 })
     translator.current = (key: string) => key
   })
   afterEach(() => { vi.unstubAllGlobals() })

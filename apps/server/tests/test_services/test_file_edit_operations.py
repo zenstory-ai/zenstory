@@ -182,8 +182,12 @@ def test_stale_merge_resolution_and_later_title_are_never_overwritten(db_session
 def test_rename_only_operation_keeps_body_and_can_be_undone(db_session, operation_file):
     user, _project, file = operation_file
     body = file.content
+    initial_versions = db_session.exec(select(FileVersion).where(FileVersion.file_id == file.id)).all()
+    assert len(initial_versions) == 1
     renamed = FileEditor(db_session, user.id).rename_with_undo(file.id, "第1章 新标题")
-    assert renamed["undo"]["operation_id"]
+    operation = _operation(db_session, renamed["undo"]["operation_id"])
+    assert operation.before_version_id == operation.after_version_id == initial_versions[0].id
+    assert len(db_session.exec(select(FileVersion).where(FileVersion.file_id == file.id)).all()) == 1
     db_session.refresh(file)
     assert file.content == body and file.title == "第1章 新标题"
     undo_edit_operation(
@@ -194,6 +198,7 @@ def test_rename_only_operation_keeps_body_and_can_be_undone(db_session, operatio
     )
     db_session.refresh(file)
     assert file.content == body and file.title == "第1章 原题"
+    assert len(db_session.exec(select(FileVersion).where(FileVersion.file_id == file.id)).all()) == 1
 
 
 def test_undo_rename_preserves_later_author_order_without_a_conflict(db_session, operation_file):
@@ -277,7 +282,7 @@ def test_referenced_user_version_is_not_coalesced(db_session, operation_file):
     ) is None
 
 
-async def test_list_and_undo_api_match_the_frontend_contract(
+async def test_undo_api_matches_the_frontend_contract(
     client, db_session, operation_file, monkeypatch
 ):
     user, _project, file = operation_file
@@ -291,23 +296,9 @@ async def test_list_and_undo_api_match_the_frontend_contract(
     )
     operation_id = result["undo"]["operation_id"]
 
-    listed = await client.get(f"/api/v1/files/{file.id}/edit-operations")
-    assert listed.status_code == 200
-    assert listed.json() == {
-        "operations": [
-            {
-                "id": operation_id,
-                "file_id": file.id,
-                "kind": "edit_file",
-                "before_title": "第1章 原题",
-                "after_title": "第1章 原题",
-                "before_version_number": 1,
-                "created_at": listed.json()["operations"][0]["created_at"],
-                "undone_at": None,
-            }
-        ],
-        "total": 1,
-    }
+    removed_list = await client.get(f"/api/v1/files/{file.id}/edit-operations")
+    assert removed_list.status_code == 404
+
     undone = await client.post(
         f"/api/v1/files/{file.id}/edit-operations/{operation_id}/undo"
     )

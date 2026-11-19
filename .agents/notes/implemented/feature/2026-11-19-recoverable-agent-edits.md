@@ -1,6 +1,6 @@
 # 改稿按本轮意图执行，删除和撤销提供真实恢复
 
-Status: implemented locally, pending release validation (2026-11-19).
+Status: implemented locally, pending release validation (2026-11-19). 部分小场景与接口细节由后续[收敛可恢复改稿与回收站](../../implemented/simplification/2026-11-19-simplify-recoverable-agent-edits.md)精简与修正。
 
 ## Problem
 

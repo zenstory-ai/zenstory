@@ -277,24 +277,16 @@ describe('ToolResultCard', () => {
     it.each([
       ['create_file', { id: 'ch-new', title: '新章', file_type: 'draft', content: '正文' }],
       ['write_chapter', { id: 'ch-new', title: '新章', file_type: 'draft', chapter: 1, action: 'created', body_saved: true, awaiting_body: false, new_word_count: 2 }],
-    ])('offers operation-backed Undo text on a newly written %s card', async (toolName, data) => {
-      const user = userEvent.setup()
-      const onUndo = vi.fn()
+    ])('does not offer Undo on a newly created %s card', (toolName, data) => {
       const undo = {
         before_version_number: 1,
         expected_after_updated_at: '2026-11-19T08:00:00Z',
         expected_after_content_sha256: 'a'.repeat(64),
         operation_id: 'operation-created-1',
       }
-      render(<ToolResultCard type="tool_result" toolName={toolName} result={{ data: { ...data, undo } }} onUndo={onUndo} />)
+      render(<ToolResultCard type="tool_result" toolName={toolName} result={{ data: { ...data, undo } }} onUndo={vi.fn()} />)
 
-      await user.click(screen.getByRole('button', { name: 'chat:tool.undoCreatedText' }))
-      expect(onUndo).toHaveBeenCalledWith(expect.objectContaining({ fileId: 'ch-new', operationId: 'operation-created-1' }))
-    })
-
-    it('does not invent an undo action for an older created card without an operation anchor', () => {
-      render(<ToolResultCard type="tool_result" toolName="create_file" result={{ data: { id: 'old-file', title: '旧卡', file_type: 'draft', content: '正文' } }} onUndo={vi.fn()} />)
-      expect(screen.queryByRole('button', { name: 'chat:tool.undoCreatedText' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument()
     })
 
     it('says which chapter a saved replacement overwrote, the old and new length, and offers undo', async () => {
@@ -697,6 +689,8 @@ describe('ToolResultCard', () => {
         <ToolResultCard
           type="tool_result"
           toolName="delete_file"
+          chatMessageId="msg-del-1"
+          toolUseId="call-del-1"
           onConfirmDeletion={onConfirmDeletion}
           onRestoreDeletion={onRestoreDeletion}
           result={{ data: {
@@ -718,7 +712,10 @@ describe('ToolResultCard', () => {
       expect(within(scope).getByText('fileTypes.draft')).toBeInTheDocument()
 
       await user.click(screen.getByRole('button', { name: 'common:delete' }))
-      await waitFor(() => expect(onConfirmDeletion).toHaveBeenCalledWith(expect.objectContaining({ target_hash: 'hash-1' })))
+      await waitFor(() => expect(onConfirmDeletion).toHaveBeenCalledWith(
+        expect.objectContaining({ target_hash: 'hash-1' }),
+        { chatMessageId: 'msg-del-1', toolUseId: 'call-del-1' },
+      ))
       await user.click(await screen.findByRole('button', { name: 'chat:tool.restoreDeleted' }))
       expect(onRestoreDeletion).toHaveBeenCalledWith('batch-confirmed')
       expect(await screen.findByText('chat:tool.deletionRestored')).toBeInTheDocument()

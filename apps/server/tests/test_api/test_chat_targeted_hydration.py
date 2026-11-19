@@ -170,42 +170,22 @@ def test_history_reads_durable_undo_state_without_rewriting_chat_json(history_cl
         assert session.get(ChatMessage, "recovery-message").tool_calls == raw
 
 
-def test_created_body_card_reloads_actual_undone_state(history_client):
-    from agent.tools.file_ops.crud import FileCRUD
+def test_confirmed_delete_card_reloads_latest_batch_state_without_matching_file_menu_deletes(history_client):
+    from datetime import timedelta
+
     from models import File
-    from services.file_edit_operations import undo_edit_operation
-
-    with next(history_client.app.dependency_overrides[get_session]()) as session:
-        result = FileCRUD(session, "owner").create_file(project_id="project", title="新正文", content="新写的正文。")
-        raw = json.dumps([{"id": "create-body", "name": "create_file", "status": "success", "result": result}])
-        session.add(ChatMessage(id="created-body-message", session_id="active", role="assistant", content="已写好。", tool_calls=raw))
-        session.commit()
-        undone = undo_edit_operation(session, operation_id=result["undo"]["operation_id"], file_id=result["id"], user_id="owner")
-        assert undone["status"] == "undone"
-        session.expire_all()
-        file = session.get(File, result["id"])
-        assert file is not None and file.content == "" and file.is_deleted is False
-
-    response = history_client.get("/api/v1/chat/session/project/recent", params={"message_id": "created-body-message"})
-    assert response.status_code == 200
-    card = json.loads(response.json()[0]["tool_calls"])[0]
-    assert card["result"]["undo"]["undone"] is True
-    with next(history_client.app.dependency_overrides[get_session]()) as session:
-        assert session.get(ChatMessage, "created-body-message").tool_calls == raw
-
-
-def test_confirmed_delete_card_reloads_as_one_restorable_then_restored_batch(history_client):
-    from models import File
+    from models.file_deletion_batch import FileDeletionBatch
     from services.file_trash import FileTrashService
 
     with next(history_client.app.dependency_overrides[get_session]()) as session:
         folder = File(project_id="project", title="废稿卷", file_type="folder")
         session.add(folder)
         session.flush()
-        session.add(File(project_id="project", parent_id=folder.id, title="废稿一", content="合成正文。"))
+        folder_id = folder.id
+        session.add(File(project_id="project", parent_id=folder_id, title="废稿一", content="合成正文。"))
         session.commit()
         service = FileTrashService(session, user_id="owner", project_id="project")
-        preview = service.preview([folder.id], recursive=True)
+        preview = service.preview([folder_id], recursive=True)
         session.add(ChatMessage(
             id="delete-confirmation", session_id="active", role="assistant", content="请确认范围。",
             tool_calls=json.dumps([{
@@ -215,19 +195,61 @@ def test_confirmed_delete_card_reloads_as_one_restorable_then_restored_batch(his
             }], ensure_ascii=False), created_at=datetime(2026, 1, 4),
         ))
         session.commit()
-        deleted = service.delete(
-            [folder.id], recursive=True, source="agent_confirmed", expected_target_hash=preview["target_hash"],
-        )
+        # A manual sidebar delete (`file_menu`) must never flip an unconfirmed chat preview card.
+        manual = service.delete([folder_id], recursive=True, source="file_menu")
 
     url = "/api/v1/chat/session/project/recent"
     params = {"message_id": "delete-confirmation"}
+    unconfirmed = json.loads(history_client.get(url, params=params).json()[0]["tool_calls"])[0]["result"]
+    assert unconfirmed["confirmation_required"] is True
+
+    with next(history_client.app.dependency_overrides[get_session]()) as session:
+        service = FileTrashService(session, user_id="owner", project_id="project")
+        service.restore(manual["batch_id"])
+        fresh_preview = service.preview([folder_id], recursive=True)
+        msg = session.get(ChatMessage, "delete-confirmation")
+        msg.tool_calls = json.dumps([{
+            "id": "delete-1", "name": "delete_file", "result": {
+                "confirmation_required": True, "mutation_applied": False, "preview": fresh_preview,
+            },
+        }], ensure_ascii=False)
+        session.add(msg)
+        session.commit()
+        deleted = service.delete(
+            [folder_id], recursive=True, source="agent_confirmed", expected_target_hash=fresh_preview["target_hash"],
+        )
+
     response = history_client.get(url, params=params)
     assert response.status_code == 200
     data = json.loads(response.json()[0]["tool_calls"])[0]["result"]
     assert data["confirmation_required"] is False
     assert data["batch_id"] == deleted["batch_id"] and data["count"] == 2
     assert data["restored"] is False
+
     with next(history_client.app.dependency_overrides[get_session]()) as session:
-        FileTrashService(session, user_id="owner", project_id="project").restore(deleted["batch_id"])
+        service = FileTrashService(session, user_id="owner", project_id="project")
+        service.restore(deleted["batch_id"])
     data = json.loads(history_client.get(url, params=params).json()[0]["tool_calls"])[0]["result"]
     assert data["restored"] is True
+
+    # If a later confirmed batch shares the same target_hash, the newest batch wins over the older restored one.
+    with next(history_client.app.dependency_overrides[get_session]()) as session:
+        old_batch = session.get(FileDeletionBatch, deleted["batch_id"])
+        newer_batch = FileDeletionBatch(
+            user_id="owner",
+            project_id="project",
+            root_ids_json=old_batch.root_ids_json,
+            items_json=old_batch.items_json,
+            target_hash=old_batch.target_hash,
+            item_count=old_batch.item_count,
+            source="agent_confirmed",
+            created_at=old_batch.created_at + timedelta(seconds=10),
+            restored_at=None,
+        )
+        session.add(newer_batch)
+        session.commit()
+        newer_id = newer_batch.id
+
+    latest = json.loads(history_client.get(url, params=params).json()[0]["tool_calls"])[0]["result"]
+    assert latest["batch_id"] == newer_id
+    assert latest["restored"] is False

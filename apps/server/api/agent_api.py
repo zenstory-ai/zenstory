@@ -852,7 +852,7 @@ def update_file(
     # This sync endpoint keeps DB IO and SQLite lock waits off the event loop.
     if file_data.title is not None or file_data.order is not None:
         target = _load_accessible_file(session, user_id, api_key, file_id)
-        lock_project_for_files(session, target.project_id)
+        lock_project_for_files(session, target.project_id, exclusive=file_data.title is not None)
     lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
     with lock_ctx:
         file = _load_accessible_file(session, user_id, api_key, file_id, for_write=True)

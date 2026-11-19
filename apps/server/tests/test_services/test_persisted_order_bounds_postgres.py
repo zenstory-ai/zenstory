@@ -160,20 +160,14 @@ def _snapshot(engine, project_id):
         }
 
 
-def _assert_create_history(snapshot, file_id, body, *, recoverable_create):
+def _assert_create_history(snapshot, file_id, body):
     versions = sorted(
         (version for version in snapshot["versions"] if version["file_id"] == file_id),
         key=lambda version: version["version_number"],
     )
-    if recoverable_create:
-        assert [version["version_number"] for version in versions] == [1, 2]
-        assert [version["change_source"] for version in versions] == ["system", "ai"]
-        assert [version["content"] for version in versions] == ["", body]
-        assert all(version["is_base_version"] for version in versions)
-    else:
-        assert len(versions) == 1
-        assert versions[0]["version_number"] == 1 and versions[0]["is_base_version"]
-        assert versions[0]["content"] == body
+    assert len(versions) == 1
+    assert versions[0]["version_number"] == 1 and versions[0]["is_base_version"]
+    assert versions[0]["content"] == body
     return versions
 
 
@@ -360,12 +354,7 @@ def test_valid_explicit_create_bounds_keep_content_baseline(
     row = next(f for f in after["files"] if f["id"] == file_id)
     assert row["order"] == expected_order
     assert row["content"] == "Created baseline body" and row["parent_id"] == ids["a"]
-    versions = _assert_create_history(
-        after,
-        file_id,
-        "Created baseline body",
-        recoverable_create=writer == "tool",
-    )
+    versions = _assert_create_history(after, file_id, "Created baseline body")
     assert len(after["files"]) == len(before["files"]) + 1
     _record(
         record_property,
@@ -397,12 +386,7 @@ def test_valid_derived_create_order_and_sibling_domain(order_engine, effects, re
         file_id = result["id"] if isinstance(result, dict) else result.id
     after = _snapshot(order_engine, ids["project"])
     assert next(f for f in after["files"] if f["id"] == file_id)["order"] == expected
-    _assert_create_history(
-        after,
-        file_id,
-        "Derived baseline",
-        recoverable_create=writer == "tool",
-    )
+    _assert_create_history(after, file_id, "Derived baseline")
     _record(record_property, {"writer": writer, "operation": "create", "control": kind, "stored_order": expected})
 
 

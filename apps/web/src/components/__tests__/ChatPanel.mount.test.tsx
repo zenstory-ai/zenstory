@@ -3146,12 +3146,12 @@ describe('ChatPanel new-author flow', () => {
     expect(mockProjectState.triggerEditorRefresh).toHaveBeenCalledWith('file-1')
   })
 
-  it('shows the exact current and restore sort positions in an operation conflict', async () => {
+  it('shows only title conflict in an operation conflict modal without internal sort positions', async () => {
     vi.mocked(fileEditOperationApi.undo).mockResolvedValueOnce({
       status: 'needs_merge', operation_id: 'operation-1', file_id: 'file-1',
-      before: { content: 'before', title: '旧标题', order: 3 },
-      after: { content: 'after', title: '新标题', order: 4 },
-      current: { content: 'after', title: '作者标题', order: 7, updated_at: 'later', content_sha256: 'sha' },
+      before: { content: 'before', title: '旧标题' },
+      after: { content: 'after', title: '新标题' },
+      current: { content: 'after', title: '作者标题', updated_at: 'later', content_sha256: 'sha' },
       content_conflict: false, metadata_conflict: true,
     })
     vi.mocked(getRecentMessages).mockResolvedValueOnce([
@@ -3167,11 +3167,37 @@ describe('ChatPanel new-author flow', () => {
     })
 
     const dialog = await screen.findByRole('dialog', { name: '这几处和你后写的内容重叠' })
-    expect(within(dialog).getByText('当前排序位置')).toBeInTheDocument()
-    expect(within(dialog).getByText('恢复排序位置')).toBeInTheDocument()
-    expect(within(dialog).getByText('7')).toBeInTheDocument()
-    expect(within(dialog).getByText('3')).toBeInTheDocument()
-    expect(within(dialog).getByRole('checkbox', { name: '同时恢复这次修改前的标题和位置' })).not.toBeChecked()
+    expect(within(dialog).getByText('作者标题')).toBeInTheDocument()
+    expect(within(dialog).getByText('旧标题')).toBeInTheDocument()
+    expect(within(dialog).queryByText('当前排序位置')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('checkbox', { name: '同时恢复这次修改前的标题' })).not.toBeChecked()
+  })
+
+  it('does not treat a transient stale_write on operation-backed undo as a permanent legacy history lock', async () => {
+    const { ApiError } = await import('../../lib/apiClient')
+    vi.mocked(fileEditOperationApi.undo)
+      .mockResolvedValueOnce({
+        status: 'needs_merge', operation_id: 'operation-race', file_id: 'file-1',
+        before: { content: '第一段原稿。', title: '章一' },
+        after: { content: '第一段 AI 新稿。', title: '章一' },
+        current: { content: '第一段 AI 新稿。\n\n作者追加段。', title: '章一', updated_at: '2026-11-19T10:00:00Z', content_sha256: 'b'.repeat(64) },
+        content_conflict: true, metadata_conflict: false,
+      })
+      .mockRejectedValueOnce(new ApiError(409, 'ERR_RESOURCE_CONFLICT', { reason: 'stale_write', file_id: 'file-1' }, '文件刚有新改动，请重试'))
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'a-1', session_id: 'session-1', role: 'assistant', content: '改好了', created_at: '2026-10-08T10:01:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageListProps()?.onUndo).toBeTypeOf('function'))
+
+    await act(async () => {
+      lastMessageListProps().onUndo?.({
+        fileId: 'file-1', operationId: 'operation-race', beforeVersionNumber: 2, expectedAfterUpdatedAt: '2026-11-19T09:59:00Z',
+      })
+    })
+
+    expect(toast.error).not.toHaveBeenCalledWith('versions:undoStaleWrite')
+    expect(toast.error).toHaveBeenCalledTimes(1)
   })
 
   it('keeps a replacement card waiting until the later edit to the same file is undone, then undoes it by content', async () => {

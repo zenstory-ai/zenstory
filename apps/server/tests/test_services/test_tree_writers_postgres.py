@@ -28,7 +28,6 @@ from models.agent_api_key import AgentApiKey
 from models.file_deletion_batch import FileDeletionBatch
 from models.file_edit_operation import FileEditOperation
 from models.file_version import FileVersion
-from services import file_edit_operations as file_edit_operations_module
 from services.features.file_version_service import FileVersionService
 from services.file_trash import FileTrashService
 from services.file_tree_rules import lock_project_for_files
@@ -678,7 +677,7 @@ def _take_strong_gate(engine, project_id, pid, started):
         )
 
 
-def _assert_active_with_baseline(session, file_id, *, recoverable_create=False):
+def _assert_active_with_baseline(session, file_id):
     file = session.get(File, file_id)
     assert file.is_deleted is False
     assert file.content == CREATED_BODY
@@ -688,16 +687,7 @@ def _assert_active_with_baseline(session, file_id, *, recoverable_create=False):
     contents = [
         FileVersionService().get_content_at_version(session, file_id, version.version_number) for version in versions
     ]
-    if recoverable_create:
-        operation = session.exec(select(FileEditOperation).where(FileEditOperation.file_id == file_id)).one()
-        assert contents == ["", CREATED_BODY]
-        assert [version.change_source for version in versions] == ["system", "ai"]
-        assert (operation.before_version_id, operation.after_version_id) == (
-            versions[0].id,
-            versions[1].id,
-        )
-    else:
-        assert contents == [CREATED_BODY]
+    assert contents == [CREATED_BODY]
 
 
 @pytest.mark.parametrize("entrypoint", ["material", "draft", "import", "tool-folder"])
@@ -722,7 +712,7 @@ def test_create_waits_for_strong_gate_then_remains_active(pg_engine, material_st
         created_id = creator.result(10)
     assert waited, "creation did not wait for the strong tree gate"
     with Session(pg_engine) as verify:
-        _assert_active_with_baseline(verify, created_id, recoverable_create=entrypoint == "tool-folder")
+        _assert_active_with_baseline(verify, created_id)
 
 
 @pytest.mark.parametrize("entrypoint", ["material", "draft", "tool-folder"])
@@ -766,7 +756,7 @@ def test_canonical_folder_repair_holds_gate_until_content_commit(pg_engine, monk
     assert waited, "folder repair committed and released the logical creation gate"
     assert created_id in visible, "strong taker was granted the gate before the child committed"
     with Session(pg_engine) as verify:
-        _assert_active_with_baseline(verify, created_id, recoverable_create=entrypoint == "tool-folder")
+        _assert_active_with_baseline(verify, created_id)
 
 
 @pytest.mark.parametrize("entrypoint", ["material", "draft", "tool-folder"])
@@ -796,18 +786,14 @@ def test_concurrent_canonical_folder_duplicate_preserves_creation_gate(pg_engine
             assert finish_duplicate.wait(8), "duplicate recovery was not released"
 
     if entrypoint == "tool-folder":
-        original_operation = file_edit_operations_module.create_edit_operation
+        original_version = FileCRUD._create_version
 
-        def pause_tool_operation(session, *args, **kwargs):
-            result = original_operation(session, *args, **kwargs)
-            pause_duplicate(session)
+        def pause_tool_version(self, *args, **kwargs):
+            result = original_version(self, *args, **kwargs)
+            pause_duplicate(self.session)
             return result
 
-        monkeypatch.setattr(
-            file_edit_operations_module,
-            "create_edit_operation",
-            pause_tool_operation,
-        )
+        monkeypatch.setattr(FileCRUD, "_create_version", pause_tool_version)
     else:
         original_initial = FileVersionService.create_initial_version
 
@@ -840,4 +826,4 @@ def test_concurrent_canonical_folder_duplicate_preserves_creation_gate(pg_engine
         folders = verify.exec(select(File).where(File.project_id == project_id, File.file_type == "folder")).all()
         assert len(folders) == 1
         for created_id in created_ids:
-            _assert_active_with_baseline(verify, created_id, recoverable_create=entrypoint == "tool-folder")
+            _assert_active_with_baseline(verify, created_id)

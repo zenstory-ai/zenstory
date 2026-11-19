@@ -527,7 +527,6 @@ export interface FileEditUndoTarget {
 export interface FileEditOperationSnapshot {
   content: string;
   title: string;
-  order: number;
   updated_at?: string;
   content_sha256?: string;
 }
@@ -544,17 +543,6 @@ export interface FileEditOperationUndoResponse {
   current?: FileEditOperationSnapshot;
   content_conflict?: boolean;
   metadata_conflict?: boolean;
-}
-
-export interface FileEditOperationSummary {
-  id: string;
-  file_id: string;
-  kind: 'edit_file' | 'write_chapter' | 'rename_file';
-  before_title: string;
-  after_title: string;
-  before_version_number: number;
-  created_at: string;
-  undone_at: string | null;
 }
 
 export interface FileDeletionTarget {

@@ -151,7 +151,9 @@ async def test_split_calls_share_the_five_leaf_limit(db_session, owner_project):
 
 
 @pytest.mark.parametrize("first_scope", ["folder", "six_leaves"])
-async def test_confirmation_cannot_be_bypassed_by_smaller_retry(db_session, owner_project, first_scope):
+async def test_unapplied_preview_does_not_block_author_narrowed_single_leaf_delete(
+    db_session, owner_project, first_scope
+):
     user, project = owner_project
     folder = File(project_id=project.id, title="废弃卷", file_type="folder")
     db_session.add(folder)
@@ -163,17 +165,87 @@ async def test_confirmation_cannot_be_bypassed_by_smaller_retry(db_session, owne
     mcp_tools.ToolContext.set_context(db_session, user.id, project.id, None, author_message="删除这批废稿")
     try:
         first = json.loads((await mcp_tools.delete_file(first_args))["content"][0]["text"])
-        retry = json.loads((await mcp_tools.delete_file({"ids": [row.id for row in leaves[:5]]}))["content"][0]["text"])
+        narrowed = json.loads((await mcp_tools.delete_file({"id": leaves[0].id}))["content"][0]["text"])
     finally:
         mcp_tools.ToolContext.clear_context()
     assert first["data"]["confirmation_required"] is True
-    assert retry["data"]["confirmation_required"] is True
-    assert retry["data"]["mutation_applied"] is False
+    assert first["data"]["mutation_applied"] is False
+    assert narrowed["data"]["mutation_applied"] is True
     db_session.expire_all()
-    assert all(not db_session.get(File, row.id).is_deleted for row in [folder, *leaves])
-    # A later author request has its own five-leaf allowance.
-    later = await _run(mcp_tools.delete_file, db_session, user, project, {"id": leaves[0].id}, message="只删这一份废稿")
-    assert later["data"]["mutation_applied"] is True
+    assert db_session.get(File, leaves[0].id).is_deleted is True
+    assert all(not db_session.get(File, row.id).is_deleted for row in [folder, *leaves[1:]])
+
+
+async def test_confirming_delete_card_persists_receipt_for_next_loop_turn(db_session, owner_project):
+    from agent.loop.history import load_loop_history
+    from models import ChatMessage, ChatSession
+    from services.chat_tool_cards import record_delete_card_confirmed
+    from services.file_trash import FileTrashService
+
+    user, project = owner_project
+    folder = File(project_id=project.id, title="废弃卷", file_type="folder")
+    db_session.add(folder)
+    db_session.flush()
+    leaf = File(project_id=project.id, parent_id=folder.id, title="废稿一", content=AUTHOR_CH3)
+    chat_session = ChatSession(id="loop-del-session", project_id=project.id, user_id=user.id, title="Chat")
+    db_session.add_all([leaf, chat_session])
+    db_session.commit()
+
+    preview_result = await _run(mcp_tools.delete_file, db_session, user, project, {"id": folder.id}, message="删掉废弃卷")
+    preview = preview_result["data"]["preview"]
+    db_session.add_all([
+        ChatMessage(id="u-1", session_id=chat_session.id, role="user", content="删掉废弃卷"),
+        ChatMessage(
+            id="a-1",
+            session_id=chat_session.id,
+            role="assistant",
+            content="请确认删除范围。",
+            tool_calls=json.dumps([{
+                "id": "call-del-1",
+                "name": "delete_file",
+                "status": "success",
+                "arguments": {"id": folder.id},
+                "result": preview_result["data"],
+            }], ensure_ascii=False),
+            message_metadata=json.dumps({
+                "engine": "loop",
+                "display_events": [
+                    {"type": "tool_call", "tool_call_index": 0},
+                    {"type": "content", "content": "请确认删除范围。"},
+                ],
+            }, ensure_ascii=False),
+        ),
+    ])
+    db_session.commit()
+
+    deletion = FileTrashService(db_session, user_id=user.id, project_id=project.id).delete(
+        preview["root_ids"],
+        recursive=preview["recursive"],
+        source="agent_confirmed",
+        expected_target_hash=preview["target_hash"],
+    )
+    assert record_delete_card_confirmed(
+        db_session,
+        user_id=user.id,
+        project_id=project.id,
+        message_id="a-1",
+        tool_use_id="call-del-1",
+        expected_target_hash=preview["target_hash"],
+        deleted_result=deletion,
+    ) is True
+
+    history = load_loop_history(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat_session.id,
+    )
+    outputs = [item for item in history.items if item.get("type") == "function_call_output"]
+    assert len(outputs) == 1
+    replayed = json.loads(outputs[0]["output"])["data"]
+    assert replayed["confirmation_required"] is False
+    assert replayed["mutation_applied"] is True
+    assert replayed["batch_id"] == deletion["batch_id"]
 
 
 async def test_folder_returns_one_exact_confirmation_without_deleting(db_session, owner_project):

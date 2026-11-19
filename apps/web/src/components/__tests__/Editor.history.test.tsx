@@ -15,10 +15,6 @@ const { getFile, updateFile, getVersions, rollback, toastError, projectContext, 
 vi.mock('../../lib/api', () => ({
   fileApi: { get: getFile, update: updateFile },
   fileVersionApi: { getVersions, rollback },
-  fileEditOperationApi: {
-    list: vi.fn(async () => ({ operations: [], total: 0 })),
-    undo: vi.fn(),
-  },
 }))
 vi.mock('../../lib/toast', () => ({ toast: { error: toastError } }))
 vi.mock('../../lib/upgradeAnalytics', () => ({ trackUpgradeClick: vi.fn(), trackUpgradeExpose: vi.fn() }))

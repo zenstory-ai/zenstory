@@ -1,4 +1,4 @@
-"""Recoverable file deletion, confirmation, trash listing, and restoration."""
+"""Recoverable file deletion confirmation, trash listing, and restoration."""
 
 from typing import Any
 
@@ -11,18 +11,18 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from models import User
+from services.chat_tool_cards import record_delete_card_confirmed
 from services.file_trash import FileTrashConflictError, FileTrashError, FileTrashService
 
 router = APIRouter(prefix="/api/v1", tags=["files"])
 
 
-class DeletionPreviewRequest(BaseModel):
+class DeleteBatchRequest(BaseModel):
     ids: list[str] = Field(min_length=1, max_length=100)
     recursive: bool = False
-
-
-class DeleteBatchRequest(DeletionPreviewRequest):
     target_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    chat_message_id: str | None = None
+    tool_use_id: str | None = None
 
 
 def _service(session: Session, user: User, project_id: str) -> FileTrashService:
@@ -37,19 +37,6 @@ def _translate_error(exc: FileTrashError) -> APIException:
     )
 
 
-@router.post("/projects/{project_id}/files/deletion-preview")
-def preview_file_deletion(
-    project_id: str,
-    request: DeletionPreviewRequest,
-    current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session),
-) -> dict[str, Any]:
-    try:
-        return _service(session, current_user, project_id).preview(request.ids, recursive=request.recursive)
-    except FileTrashError as exc:
-        raise _translate_error(exc) from exc
-
-
 @router.post("/projects/{project_id}/files/delete-batch")
 def delete_file_batch(
     project_id: str,
@@ -58,7 +45,7 @@ def delete_file_batch(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     try:
-        return _service(session, current_user, project_id).delete(
+        result = _service(session, current_user, project_id).delete(
             request.ids,
             recursive=request.recursive,
             source="agent_confirmed",
@@ -66,6 +53,17 @@ def delete_file_batch(
         )
     except FileTrashError as exc:
         raise _translate_error(exc) from exc
+    if request.chat_message_id and request.tool_use_id:
+        record_delete_card_confirmed(
+            session,
+            user_id=current_user.id,
+            project_id=project_id,
+            message_id=request.chat_message_id,
+            tool_use_id=request.tool_use_id,
+            expected_target_hash=request.target_hash,
+            deleted_result=result,
+        )
+    return result
 
 
 @router.get("/projects/{project_id}/files/trash")

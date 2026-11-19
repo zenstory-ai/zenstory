@@ -1,9 +1,9 @@
-"""Recoverable AI file edit operation endpoints."""
+"""Recoverable AI file edit operation endpoint."""
 
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from services.auth import get_current_active_user
 from sqlmodel import Session
@@ -15,27 +15,10 @@ from models import User
 from services.file_edit_operations import (
     EditOperationConflictError,
     EditOperationNotFoundError,
-    list_edit_operations,
     undo_edit_operation,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["file-edit-operations"])
-
-
-class EditOperationSummary(BaseModel):
-    id: str
-    file_id: str
-    kind: str
-    before_title: str
-    after_title: str
-    before_version_number: int
-    created_at: datetime
-    undone_at: datetime | None
-
-
-class EditOperationListResponse(BaseModel):
-    operations: list[EditOperationSummary]
-    total: int
 
 
 class EditOperationUndoRequest(BaseModel):
@@ -43,36 +26,6 @@ class EditOperationUndoRequest(BaseModel):
     expected_after_content_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     resolved_content: str | None = None
     metadata_resolution: Literal["preserve", "restore"] | None = None
-
-
-@router.get("/files/{file_id}/edit-operations", response_model=EditOperationListResponse)
-def get_file_edit_operations(
-    file_id: str,
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session),
-) -> EditOperationListResponse:
-    from api.versions import verify_file_ownership
-    from models import FileVersion
-
-    file = verify_file_ownership(session, file_id, current_user, include_content=False)
-    rows, total = list_edit_operations(
-        session, user_id=current_user.id, project_id=file.project_id,
-        file_id=file.id, limit=limit, offset=offset,
-    )
-    summaries: list[EditOperationSummary] = []
-    for row in rows:
-        before = session.get(FileVersion, row.before_version_id)
-        if before is None:
-            continue
-        summaries.append(EditOperationSummary(
-            id=row.id, file_id=row.file_id, kind=row.kind,
-            before_title=row.before_title, after_title=row.after_title,
-            before_version_number=before.version_number,
-            created_at=row.created_at, undone_at=row.undone_at,
-        ))
-    return EditOperationListResponse(operations=summaries, total=total)
 
 
 @router.post("/files/{file_id}/edit-operations/{operation_id}/undo")

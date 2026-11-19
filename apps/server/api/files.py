@@ -824,13 +824,17 @@ def update_file(
     content_changed = False
     version_quota_exceeded = False
 
-    if file_data.model_fields_set & {"parent_id", "title", "order", "metadata"}:
+    if file_data.model_fields_set & {"parent_id", "title", "order"}:
         # Structural writers lock Project before File.
         target = session.get(File, file_id)
         if not target or target.is_deleted:
             raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
         verify_project_ownership(target.project_id, current_user, session)
-        lock_project_for_files(session, target.project_id, exclusive="parent_id" in file_data.model_fields_set)
+        lock_project_for_files(
+            session,
+            target.project_id,
+            exclusive=bool(file_data.model_fields_set & {"parent_id", "title"}),
+        )
 
     with lock_ctx:
         file = _load_file_for_write(session, file_id)

@@ -239,8 +239,14 @@ class FileTrashService:
             "mutation_applied": True,
         }
 
+    def _verify_project_access(self) -> Project:
+        project = self.session.get(Project, self.project_id)
+        if project is None or project.is_deleted or project.owner_id != self.user_id:
+            raise FileTrashError("项目不存在或无权访问")
+        return project
+
     def list_batches(self, *, limit: int = 50, offset: int = 0) -> dict[str, Any]:
-        self._lock_project()
+        self._verify_project_access()
         where = (
             FileDeletionBatch.project_id == self.project_id,
             FileDeletionBatch.user_id == self.user_id,
@@ -268,7 +274,6 @@ class FileTrashService:
                     "restored": False,
                 }
             )
-        self.session.rollback()
         next_offset = offset + len(batches)
         return {
             "batches": batches,

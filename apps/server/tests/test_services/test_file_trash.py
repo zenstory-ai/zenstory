@@ -153,7 +153,10 @@ def test_list_only_exposes_unrestored_batches(db_session, trash_tree):
 
 
 @pytest.mark.integration
-async def test_trash_api_preview_confirm_list_and_restore(client: AsyncClient, db_session):
+async def test_trash_api_confirm_list_and_restore(client: AsyncClient, db_session):
+    import json
+
+    from models import ChatMessage, ChatSession
     from services.core.auth_service import hash_password
 
     user = User(
@@ -166,32 +169,65 @@ async def test_trash_api_preview_confirm_list_and_restore(client: AsyncClient, d
     project = Project(name="Trash API", owner_id=user.id)
     first = File(project_id=project.id, title="第一章", file_type="draft", content="一")
     second = File(project_id=project.id, title="第二章", file_type="draft", content="二")
-    db_session.add_all([user, project, first, second])
+    chat_session = ChatSession(id="trash-api-session", project_id=project.id, user_id=user.id, title="Chat")
+    db_session.add_all([user, project, first, second, chat_session])
     db_session.commit()
+    preview_data = FileTrashService(
+        db_session, user_id=user.id, project_id=project.id
+    ).preview([first.id, second.id], recursive=False)
+    db_session.add(
+        ChatMessage(
+            id="trash-api-msg",
+            session_id=chat_session.id,
+            role="assistant",
+            content="请确认删除。",
+            tool_calls=json.dumps([
+                {
+                    "id": "trash-call-1",
+                    "name": "delete_file",
+                    "status": "success",
+                    "result": {
+                        "confirmation_required": True,
+                        "mutation_applied": False,
+                        "preview": preview_data,
+                    },
+                }
+            ]),
+        )
+    )
+    db_session.commit()
+
     login = await client.post(
         "/api/auth/login", data={"username": user.username, "password": "password123"}
     )
     headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
-    preview = await client.post(
+    removed_preview = await client.post(
         f"/api/v1/projects/{project.id}/files/deletion-preview",
         json={"ids": [first.id, second.id], "recursive": False},
         headers=headers,
     )
-    assert preview.status_code == 200
-    preview_data = preview.json()
-    assert preview_data["count"] == 2
+    assert removed_preview.status_code == 404
+
     deleted = await client.post(
         f"/api/v1/projects/{project.id}/files/delete-batch",
         json={
             "ids": [first.id, second.id],
             "recursive": False,
             "target_hash": preview_data["target_hash"],
+            "chat_message_id": "trash-api-msg",
+            "tool_use_id": "trash-call-1",
         },
         headers=headers,
     )
     assert deleted.status_code == 200
     batch_id = deleted.json()["batch_id"]
+    db_session.expire_all()
+    saved_card = json.loads(db_session.get(ChatMessage, "trash-api-msg").tool_calls)[0]["result"]
+    assert saved_card["confirmation_required"] is False
+    assert saved_card["mutation_applied"] is True
+    assert saved_card["batch_id"] == batch_id
+
     trash = await client.get(f"/api/v1/projects/{project.id}/files/trash", headers=headers)
     assert trash.status_code == 200
     assert trash.json()["batches"][0]["batch_id"] == batch_id
