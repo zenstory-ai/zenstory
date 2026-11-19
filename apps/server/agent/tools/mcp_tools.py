@@ -1932,11 +1932,11 @@ def _row_chapter_number(row: Any, *, unit: str, expected_file_type: str) -> int 
 
     from utils.title_sequence import extract_sequence_number, extract_sequence_number_from_metadata
 
+    if getattr(row, "file_type", None) != expected_file_type:
+        return None
     seq = extract_sequence_number(row.title, unit=unit)
     if seq is not None:
         return seq
-    if getattr(row, "file_type", None) != expected_file_type:
-        return None
     raw_meta = getattr(row, "file_metadata", None)
     if not raw_meta:
         return None
@@ -1968,7 +1968,7 @@ async def write_chapter(args: dict[str, Any]) -> dict[str, Any]:
 def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
     """write_chapter 的同步实现。
 
-    目标只按编号解析：本项目未删除的正文类文件（draft / script）里，标题开头的章号（draft）或集号
+    目标只按编号解析：本项目未删除、与请求同类型的正文文件里，标题开头的章号（draft）或集号
     （script）等于 ``chapter`` 的那一个（给了 parent_id 只看那个目录）。
 
     - 没有：按 create_file 的路径新建空文件（标题不带章号时补上），正文在下一次回复用 <file> 写入；
@@ -2032,7 +2032,7 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
                 select(File.id, File.title, File.parent_id, File.file_type, File.file_metadata).where(
                     File.project_id == project_id,
                     File.is_deleted.is_(False),
-                    File.file_type.in_(CONTENT_FILE_TYPES),
+                    File.file_type == file_type,
                 )
             ).all(),
         )
