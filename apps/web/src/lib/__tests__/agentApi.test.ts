@@ -1029,6 +1029,60 @@ describe('agentApi', () => {
       expect(onFileCreated).toHaveBeenCalledWith('123', 'draft', 'Chapter 1')
     })
 
+    it.each([
+      {
+        name: 'content_end',
+        event: 'event: content_end\ndata: {}\n\n',
+        callback: 'onContentEnd',
+        expected: [],
+      },
+      {
+        name: 'file_content',
+        event: 'event: file_content\ndata: {"file_id":"file-1","chunk":"正文"}\n\n',
+        callback: 'onFileContent',
+        expected: ['file-1', '正文'],
+      },
+      {
+        name: 'file_content_end',
+        event: 'event: file_content_end\ndata: {"file_id":"file-1"}\n\n',
+        callback: 'onFileContentEnd',
+        expected: ['file-1'],
+      },
+      {
+        name: 'file_edit_applied',
+        event: 'event: file_edit_applied\ndata: {"edit_index":2,"op":"replace"}\n\n',
+        callback: 'onFileEditApplied',
+        expected: [2, 'replace'],
+      },
+      {
+        name: 'skill_matched',
+        event: 'event: skill_matched\ndata: {"skill_id":"skill-1","skill_name":"节奏","matched_trigger":"加快节奏"}\n\n',
+        callback: 'onSkillMatched',
+        expected: ['skill-1', '节奏', '加快节奏'],
+      },
+      {
+        name: 'steering_received',
+        event: 'event: steering_received\ndata: {"message_id":"message-1","preview":"改成夜晚"}\n\n',
+        callback: 'onSteeringReceived',
+        expected: ['message-1', '改成夜晚'],
+      },
+    ])('dispatches the live $name SSE callback', async ({ event, callback, expected }) => {
+      const handler = vi.fn()
+      const mockStream = createMockStream([event, 'event: done\ndata: {}\n\n'])
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: mockStream,
+      }))
+
+      streamAgentRequest(
+        { project_id: 'test-project', message: 'test' },
+        { [callback]: handler } as Parameters<typeof streamAgentRequest>[1]
+      )
+
+      await vi.waitFor(() => expect(handler).toHaveBeenCalledWith(...expected))
+    })
+
     it('calls onContext for context events', async () => {
       const onContext = vi.fn()
       const mockStream = createMockStream([
