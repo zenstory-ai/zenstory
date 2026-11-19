@@ -1718,6 +1718,102 @@ def _loop_agent_type() -> str:
     return LOOP_AGENT_TYPE
 
 
+def _canonicalize_source_span(text: str) -> tuple[str, list[int], list[int]]:
+    """有界空白归一化：仅消除 CRLF/CR、行尾空格/Tab 与连续空行个数差异，保留原文字节偏移。"""
+    line_tokens: list[tuple[str, int, int]] = []
+    pending_hspace: list[tuple[str, int, int]] = []
+    idx = 0
+    length = len(text)
+    while idx < length:
+        ch = text[idx]
+        if ch == "\r":
+            end = idx + 2 if idx + 1 < length and text[idx + 1] == "\n" else idx + 1
+            pending_hspace.clear()
+            line_tokens.append(("\n", idx, end))
+            idx = end
+        elif ch == "\n":
+            pending_hspace.clear()
+            line_tokens.append(("\n", idx, idx + 1))
+            idx += 1
+        elif ch in (" ", "\t"):
+            pending_hspace.append((ch, idx, idx + 1))
+            idx += 1
+        else:
+            if pending_hspace:
+                line_tokens.extend(pending_hspace)
+                pending_hspace.clear()
+            line_tokens.append((ch, idx, idx + 1))
+            idx += 1
+
+    start_pos = 0
+    end_pos = len(line_tokens)
+    while start_pos < end_pos and line_tokens[start_pos][0] == "\n":
+        start_pos += 1
+    while end_pos > start_pos and line_tokens[end_pos - 1][0] == "\n":
+        end_pos -= 1
+
+    collapsed: list[tuple[str, int, int]] = []
+    for ch, start, end in line_tokens[start_pos:end_pos]:
+        if ch == "\n" and collapsed and collapsed[-1][0] == "\n":
+            collapsed[-1] = ("\n", collapsed[-1][1], end)
+            continue
+        collapsed.append((ch, start, end))
+
+    return (
+        "".join(tok[0] for tok in collapsed),
+        [tok[1] for tok in collapsed],
+        [tok[2] for tok in collapsed],
+    )
+
+
+def _find_unique_canonical_slice(
+    author_message: str,
+    canon_author: str,
+    starts: list[int],
+    ends: list[int],
+    candidate: str,
+) -> str | None:
+    canon_source, _, _ = _canonicalize_source_span(candidate)
+    if not canon_source or not canon_author:
+        return None
+    span_len = len(canon_source)
+    matched_slices: list[str] = []
+    search_from = 0
+    while True:
+        pos = canon_author.find(canon_source, search_from)
+        if pos < 0:
+            break
+        raw_slice = author_message[starts[pos] : ends[pos + span_len - 1]]
+        normalized_slice = raw_slice.replace("\r\n", "\n").replace("\r", "\n")
+        if normalized_slice not in matched_slices:
+            matched_slices.append(normalized_slice)
+            if len(matched_slices) > 1:
+                return None
+        search_from = pos + 1
+    return matched_slices[0] if len(matched_slices) == 1 else None
+
+
+def _match_verbatim_author_span(author_message: str, source_text: str) -> str | None:
+    """在作者本轮原始消息中核验并截取连续原文片段（兼容 CRLF 与行尾多余空白，禁止改写或跳段拼接）。"""
+    if source_text in author_message:
+        return source_text
+    stripped = source_text.strip()
+    if not stripped:
+        return None
+
+    canon_author, starts, ends = _canonicalize_source_span(author_message)
+    # 先用保留首行缩进（含中文全角「　　」或列表前导空格）的 source_text 匹配，避免 strip() 吞掉第一段段首缩进。
+    preserved_indent_match = _find_unique_canonical_slice(
+        author_message, canon_author, starts, ends, source_text
+    )
+    if preserved_indent_match is not None:
+        return preserved_indent_match
+
+    if stripped in author_message:
+        return stripped
+    return _find_unique_canonical_slice(author_message, canon_author, starts, ends, stripped)
+
+
 def _source_copy_content(args: dict[str, Any]) -> tuple[str | None, dict[str, Any] | None]:
     """Validate a model-selected exact span from this request's raw author message.
 
@@ -1773,7 +1869,8 @@ def _source_copy_content(args: dict[str, Any]) -> tuple[str | None, dict[str, An
             },
             tool_name="create_file",
         )
-    if source_text not in author_message:
+    matched_span = _match_verbatim_author_span(author_message, source_text)
+    if matched_span is None:
         return None, _make_mcp_payload(
             {
                 "status": "error",
@@ -1783,7 +1880,7 @@ def _source_copy_content(args: dict[str, Any]) -> tuple[str | None, dict[str, An
             },
             tool_name="create_file",
         )
-    return source_text, None
+    return matched_span, None
 
 
 def _loop_body_create_refusal(args: dict[str, Any]) -> dict[str, Any] | None:

@@ -126,7 +126,7 @@
     "iterationExhausted": "Pausing here for now",
     "collaborationExhaustedSummary": "This task has several steps; completed work is kept, and you can continue or go step by step.",
     "toolCallExhaustedSummary": "This task has several steps; completed work is kept, and you can continue or go step by step.",
-    "timeLimitSummary": "This step ran long; completed work is kept, and you can continue from here.",
+    "timeLimitSummary": "This step ran long and completed work is saved; if part of your request is still unfinished above, click \"Keep going\".",
     "unexecutedToolText": "A step did not run",
     "unexecutedToolTextSummary": "Part of the reply only wrote an action out as text; it did not actually run, so no file was created or changed by it. Saved work is listed in the receipt; ask again if you still need that step.",
     "emptyFileUnfinished": "This round is unfinished",
@@ -143,7 +143,7 @@
     "actionSplit": "Split into steps",
     "actionManual": "Just suggest edits",
     "actionPrompt": {
-      "continue": "Please continue from the previous result and finish the remaining work, prioritizing the most critical goal.",
+      "continue": "If part of the previous request is still unfinished, please finish the remaining work; if everything requested was already saved, simply confirm nothing is left and do not write extra unrequested chapters.",
       "split": "Please break the remaining work into 2-3 smaller steps and complete step 1 first.",
       "manual": "Don't change the files yet — tell me what to change and I'll do it myself."
     },

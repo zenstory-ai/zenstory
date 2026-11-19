@@ -214,3 +214,35 @@ async def auto_finalize_task_board_on_completion(
             project_id=project_id,
         )
         return []
+
+
+async def has_incomplete_task_board_items() -> bool:
+    """会话任务板里是否还有尚未完成的任务（in_progress / pending）。"""
+    session_id = ToolContext.get_session_id()
+    if not session_id:
+        return False
+    user_id = ToolContext.get_user_id()
+    project_id = ToolContext.get_project_id()
+    try:
+        from services.infra.task_board_service import task_board_service
+
+        current_tasks = await asyncio.to_thread(
+            task_board_service.get_tasks,
+            session_id,
+            user_id=user_id,
+            project_id=project_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Task board read for wrap-up check failed",
+            error_type=type(exc).__name__,
+            session_id=session_id,
+        )
+        return False
+    return any(
+        isinstance(task, dict) and task.get("status") in ("in_progress", "pending")
+        for task in (current_tasks or [])
+    )
+

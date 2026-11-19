@@ -126,7 +126,7 @@
     "iterationExhausted": "这一轮先做到这里",
     "collaborationExhaustedSummary": "这次任务步骤较多，已完成的部分会保留，可以继续或分步推进。",
     "toolCallExhaustedSummary": "这次任务步骤较多，已完成的部分会保留，可以继续或分步推进。",
-    "timeLimitSummary": "单次处理时间较长，已完成的部分会保留，可以接着做完。",
+    "timeLimitSummary": "单次处理时间较长，已写好的内容均已保存；若上方还有未完成的部分，可点「继续完成」接着做。",
     "unexecutedToolText": "有一步没有执行",
     "unexecutedToolTextSummary": "回复里有一段操作只写成了文字，并没有真正执行，相关文件没有因此新建或修改。已保存的内容以回执为准；还需要这一步的话，请再说一次。",
     "emptyFileUnfinished": "这一轮没写完",
@@ -143,7 +143,7 @@
     "actionSplit": "拆成小步骤",
     "actionManual": "只要修改建议",
     "actionPrompt": {
-      "continue": "请基于上一步结果继续完成剩余任务，优先最关键目标。",
+      "continue": "如果上一轮请求还有未完成的部分，请接着完成剩余工作；若上一轮要求的内容已全部保存完成，请直接说明无需继续，不要额外续写未要求的新章节。",
       "split": "请把剩余任务拆成 2-3 个小步骤，并先完成第 1 步。",
       "manual": "先别改文件，告诉我接下来怎么改，我自己动手。"
     },

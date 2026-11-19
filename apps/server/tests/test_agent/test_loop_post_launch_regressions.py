@@ -599,7 +599,8 @@ async def test_compaction_halves_input_budget_and_succeeds_after_400_context_ove
     second_msgs = mock_call.await_args_list[1].kwargs["messages"]
     assert len(second_msgs) < len(first_msgs)
     assert second_msgs[1]["role"] == "user"
-    assert mock_call.await_args_list[1].kwargs["reasoning_effort"] == "low"
+    assert mock_call.await_args_list[1].kwargs["reasoning_effort"] is None
+    assert "[重试提醒]" not in second_msgs[-1]["content"]
 
 
 @pytest.mark.asyncio
