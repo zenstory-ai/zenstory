@@ -247,6 +247,29 @@ describe('MessageList', () => {
     expect(clarification.textContent).not.toContain('[需要澄清]')
   })
 
+  it('preserves author edit tags when they are part of a user message', () => {
+    const content = '请保留这段示例：<author_edits>作者原文</author_edits>'
+    const { container } = render(
+      <MessageList messages={[createMessage({ role: 'user', content })]} />
+    )
+
+    expect(container.textContent).toContain(content)
+  })
+
+  it('hides internal author edit context in a saved assistant reply', () => {
+    const { container } = render(
+      <MessageList messages={[createMessage({
+        role: 'assistant',
+        content: '第二章已改写。\n\n<author_edits>无</author_edits>\n\n可以继续写下一章。',
+      })]} />
+    )
+
+    expect(container.textContent).toContain('第二章已改写。')
+    expect(container.textContent).toContain('可以继续写下一章。')
+    expect(container.textContent).not.toContain('author_edits')
+    expect(container.textContent).not.toContain('无')
+  })
+
   it('marks the conversation as off-limits to analytics DOM capture', () => {
     const { container } = render(
       <MessageList messages={[createMessage({ role: 'user', content: 'private prompt text' })]} />
