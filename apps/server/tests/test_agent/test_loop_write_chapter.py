@@ -1625,6 +1625,100 @@ async def test_write_chapter_replacement_updates_title_atomically_on_save(worksp
     assert final_three["body_saved"] is True and final_three["title"] == "第3章 破晓"
 
 
+async def test_replace_body_commits_a_title_change_when_the_body_is_unchanged(workspace):
+    """整章保存返回了与原稿相同的正文时，仍原子落库新章名与顺序。"""
+    from agent.tools.file_ops.edit import FileEditor
+
+    original = "第三章原文。\n第二段原文。"
+    chapter = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+
+    result = FileEditor(workspace.session, workspace.user.id).replace_body(
+        chapter.id,
+        original,
+        expected_updated_at=chapter.updated_at.isoformat() if chapter.updated_at else None,
+        title="第4章 破晓",
+        protect_author_content=False,
+    )
+
+    workspace.session.expire_all()
+    refreshed = workspace.session.get(File, chapter.id)
+    assert result["mutation_applied"] is True
+    assert result["new_content"] == original
+    assert refreshed.title == "第4章 破晓"
+    assert refreshed.order == 4
+
+
+async def test_replace_body_preserves_the_old_title_when_the_new_title_now_conflicts(workspace):
+    """定位章节后若同目录出现同名文件，落库时不覆盖原章名。"""
+    from agent.tools.file_ops.edit import FileEditor
+
+    original = "第三章原文。\n第二段原文。"
+    chapter = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+    _ai_chapter(workspace.session, workspace.project, "第3章 破晓", "同名目标。")
+
+    result = FileEditor(workspace.session, workspace.user.id).replace_body(
+        chapter.id,
+        original,
+        expected_updated_at=chapter.updated_at.isoformat() if chapter.updated_at else None,
+        title="第3章 破晓",
+        protect_author_content=False,
+    )
+
+    workspace.session.expire_all()
+    assert result["mutation_applied"] is False
+    assert workspace.session.get(File, chapter.id).title == "第3章 灯塔"
+
+
+@pytest.mark.parametrize("file_metadata", [None, "{not-json", 42])
+def test_imported_chapter_lookup_ignores_unusable_metadata(file_metadata):
+    """导入章节没有可用的结构化章号时，不把它误认为目标章节。"""
+    from agent.tools.mcp_tools import _row_chapter_number
+
+    row = SimpleNamespace(title="导入稿件", file_type="draft", file_metadata=file_metadata)
+
+    assert _row_chapter_number(row, unit="章", expected_file_type="draft") is None
+
+
+def test_prefixed_import_title_without_a_sequence_is_not_a_chapter_heading():
+    """导入标题有书名前缀但没有章号时，不把后半段当成章节标题。"""
+    from agent.tools.mcp_tools import _prefixed_chapter_heading
+
+    assert _prefixed_chapter_heading("剑来 - 序章", "章") is None
+
+
+def test_empty_chapter_title_has_no_subtitle():
+    """空章名不能被当成需要同步落库的新副标题。"""
+    from agent.tools.mcp_tools import _chapter_title_has_subtitle
+
+    assert _chapter_title_has_subtitle("\x00  ", "章") is False
+
+
+def test_imported_chapter_lookup_reads_mapping_metadata():
+    """导入器已解析成映射的 file_metadata 也能定位章号。"""
+    from agent.tools.mcp_tools import _row_chapter_number
+
+    row = SimpleNamespace(
+        title="导入稿件",
+        file_type="draft",
+        file_metadata={"source": "upload", "chapter_number": 7},
+    )
+
+    assert _row_chapter_number(row, unit="章", expected_file_type="draft") == 7
+
+
+def test_imported_chapter_lookup_rejects_the_other_body_type():
+    """导入元数据中的同号分集不能命中小说章节查找。"""
+    from agent.tools.mcp_tools import _row_chapter_number
+
+    row = SimpleNamespace(
+        title="导入稿件",
+        file_type="script",
+        file_metadata={"episode_number": 7},
+    )
+
+    assert _row_chapter_number(row, unit="章", expected_file_type="draft") is None
+
+
 @pytest.mark.parametrize("second_tool", ["rename_file", "edit_file"])
 async def test_same_reply_rename_or_edit_on_armed_write_chapter_is_refused_and_preserves_streamed_save(
     workspace, second_tool: str
