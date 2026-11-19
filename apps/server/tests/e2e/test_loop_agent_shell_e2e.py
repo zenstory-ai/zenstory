@@ -204,10 +204,10 @@ async def test_loop_chapter_replacement_round_persists_an_undoable_card_and_is_c
     from services.quota_service import quota_service
 
     user, token, project = await _login(client, db_session)
-    one = _ai_chapter(db_session, project, "第1章 雨夜", "合成第一章原文。")
-    three = _ai_chapter(db_session, project, "第3章 灯塔", "合成第三章原文。")
+    one = _ai_chapter(db_session, project, "剑来 - 第1章 雨夜", "合成第一章原文。")
+    three = _ai_chapter(db_session, project, "剑来 - 第3章 灯塔", "合成第三章原文。")
     model = ScriptedModel(runs=[[
-        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第三章", "file_type": "draft"}),)),
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "第3章 雾散", "file_type": "draft"}),)),
         Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章换好了。"),
     ]])
 
@@ -216,7 +216,7 @@ async def test_loop_chapter_replacement_round_persists_an_undoable_card_and_is_c
     with patches[0], patches[1], patches[2], patches[3], patch.object(
         quota_service, "release_ai_conversation", side_effect=real_release
     ) as release:
-        response = await _post(client, token, project, "把第三章换成新稿")
+        response = await _post(client, token, project, "把第三章换成新稿并改名雾散")
 
     events = _parse_sse(response.text)
     names = [name for name, _ in events]
@@ -229,13 +229,16 @@ async def test_loop_chapter_replacement_round_persists_an_undoable_card_and_is_c
     assert done["file_mutated"] is True
     assert _content(db_session, one.id) == "合成第一章原文。"
     assert _content(db_session, three.id).rstrip("\n") == NEW_BODY
+    db_session.expire_all()
+    assert db_session.get(File, three.id).title == "剑来 - 第3章 雾散"
 
     row = _assistant_row(db_session, project)
     [card] = [call for call in json.loads(row.tool_calls) if call["name"] == "write_chapter"]
     assert card["result"]["action"] == "replaced" and card["result"]["body_saved"] is True
     undo = card["result"]["undo"]
+    assert undo["before_title"] == "剑来 - 第3章 灯塔"
 
-    # 撤销接口按卡上的锚点恢复原稿，并把这张卡标成已撤销。
+    # 撤销接口按卡上的锚点同时恢复原稿正文与改名前标题，并把这张卡标成已撤销。
     rollback = await client.post(
         f"/api/v1/files/{three.id}/versions/{undo['before_version_number']}/rollback",
         json={
@@ -248,6 +251,8 @@ async def test_loop_chapter_replacement_round_persists_an_undoable_card_and_is_c
     assert rollback.status_code == 200, rollback.text
     assert rollback.json()["undo_recorded"] is True
     assert _content(db_session, three.id) == "合成第三章原文。"
+    db_session.expire_all()
+    assert db_session.get(File, three.id).title == "剑来 - 第3章 灯塔"
 
 
 @pytest.mark.asyncio

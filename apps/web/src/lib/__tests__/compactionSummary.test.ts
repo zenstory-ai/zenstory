@@ -58,4 +58,33 @@ describe('formatCompactionSummary', () => {
       ].join('\n'),
     )
   })
+
+  it('strips persisted MiniMax or XML tool-call protocol leaks while preserving inline, fenced, and prose mentions', () => {
+    const rawOnlyLeak =
+      ']<]minimax[>[<tool_call> ]<]minimax[>[</invoke:query_files"> <parameter name="query">all]<]minimax[>[parameter></invoke>'
+    expect(formatCompactionSummary(rawOnlyLeak)).toBe('')
+
+    const mixed = [
+      '## 已完成进度',
+      '- 第1章已定稿，作者要求避免 `<tool_call>` 字面标签与 `` `<invoke>` ``。',
+      '- 原话：「禁止输出 <tool_call>」，且满足 a < parameter and b > c。',
+      '~~~xml',
+      '<tool_call><invoke name="example" /></tool_call>',
+      '~~~',
+      ']<]minimax[>[<tool_call>',
+      '<invoke name="query_files"><parameter name="query">all</parameter></invoke>',
+      '</tool_call>',
+    ].join('\r\n')
+
+    expect(formatCompactionSummary(mixed)).toBe(
+      [
+        '## 已完成进度',
+        '- 第1章已定稿，作者要求避免 `<tool_call>` 字面标签与 `` `<invoke>` ``。',
+        '- 原话：「禁止输出 <tool_call>」，且满足 a < parameter and b > c。',
+        '~~~xml',
+        '<tool_call><invoke name="example" /></tool_call>',
+        '~~~',
+      ].join('\n'),
+    )
+  })
 })

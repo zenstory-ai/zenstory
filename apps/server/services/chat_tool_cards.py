@@ -100,6 +100,56 @@ def read_delete_card_deleted_at(
     return None
 
 
+def read_edit_card_before_title(
+    session: Session,
+    *,
+    user_id: str,
+    project_id: str,
+    file_id: str,
+    message_id: str,
+    tool_use_id: str,
+    before_version_number: int,
+    expected_after_updated_at: datetime,
+) -> tuple[str | None, str | None]:
+    """读取指定修改卡（write_chapter 整章替换）上记录的改名前标题与替换后标题。"""
+    message = session.get(ChatMessage, message_id)
+    if message is None or message.role != "assistant" or not message.tool_calls:
+        return None, None
+    chat = session.get(ChatSession, message.session_id)
+    if chat is None or chat.user_id != user_id or chat.project_id != project_id:
+        return None, None
+    try:
+        calls = json.loads(message.tool_calls)
+    except ValueError:
+        return None, None
+    if not isinstance(calls, list):
+        return None, None
+    for call in calls:
+        if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") not in _UNDOABLE_CARD_TOOLS:
+            continue
+        if str(call.get("status") or "").strip().lower() in _FAILED_CARD_STATUSES:
+            return None, None
+        data, undo = _card_undo(call)
+        if (
+            data is None
+            or undo is None
+            or undo.get("undone") is True
+            or data.get("id") != file_id
+            or type(undo.get("before_version_number")) is not int
+            or undo["before_version_number"] != before_version_number
+            or not _same_token(undo.get("expected_after_updated_at"), expected_after_updated_at)
+        ):
+            return None, None
+        before_title = undo.get("before_title")
+        if not isinstance(before_title, str) or not before_title.strip():
+            return None, None
+        after_title = data.get("title")
+        return before_title.strip(), (
+            after_title.strip() if isinstance(after_title, str) and after_title.strip() else None
+        )
+    return None, None
+
+
 def record_delete_card_restored(
     session: Session,
     *,

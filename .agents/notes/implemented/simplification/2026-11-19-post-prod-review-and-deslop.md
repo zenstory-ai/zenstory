@@ -1,6 +1,6 @@
 # 上一线上版本以来跨批次回归收口与冗余代码清理
 
-Status: implemented locally, pending staging validation (2026-11-19). 补充收口 `prod-v2026.11.18.5`（`a33febfd`）至 `34d74203`（PR #397–#406、Issue #407）之间的跨改动边界问题与遗留防御/死代码。
+Status: implemented and verified against Railway staging (2026-11-19). 补充收口 `prod-v2026.11.18.5`（`a33febfd`）至 `883f2711`（PR #397–#408、Issue #407）之间的跨改动边界问题、真实 staging E2E 暴露的两处回归与遗留防御/死代码。
 
 ## Problem
 
@@ -10,6 +10,7 @@ Status: implemented locally, pending staging validation (2026-11-19). 补充收�
    - **聊天删除恢复闭环不完整**：`MessageManager` 落库字段为 `arguments` 而 `record_delete_card_restored` 读取 `input`，导致旧布尔结果卡无法写回 `restored: true`，且未过滤失败卡或核对 `deleted_at`；固定根目录（`{project_id}-*-folder`）在恢复前被自愈复活时，其同批软删的子章节会失联；恢复后的删除卡仍在 `SessionLoader.session_written_file_ids` 中屏蔽 `<author_edits>`；前端点击“恢复”后未清除 `fileRemovalEvents` 删除围栏、未同步更新当前消息状态，流式中尚未落库的删除卡过早暴露“恢复”按钮，且恢复文件重新打开后 `Editor` 顶部的“已删除文件草稿”横幅无法消退。
    - **待写正文窗口与计费账本不一致**：`_delete_file_sync` 缺少对 `write_chapter` 整章替换待写 `<file>` 窗口的拦截，且 `StreamBillingTracker` 在 `delete_file` 成功后未同步清理 `replace_target_ids`；合并冲突曾回退 `CREATE_FILE_TOOL` 的 `empty` 契约说明；导入章节带 `书名 - 第N章 标题` 前缀时整章替换会丢失书名前缀；流式 EOF 降级重试漏传 `input_items`。
    - **前端 `<author_edits>` 与摘要纯语法清洗边界**：行内代码反引号提及 `` `<author_edits>` `` 会误吞后续全部回复；流式半截 `<author_` 在闭合为空串后残留在 `streamRenderItems`；仅含 `<author_edits>` 回显的消息仍渲染空头像壳；`formatCompactionSummary` 未覆盖单横线/无外竖线 GFM 表格、`UUID`/`project_id` 标签、局部加粗首列及表后紧接正文的懒续行。
+   - **真实 staging E2E 发现的两处线上级缺陷**：（1）MiniMax M3.1 Flash 在 `compact_history`（`tool_choice="none"`）中偶发吐出 `]<]minimax[>[<tool_call> … </invoke>` 原始工具协议标签并提前停止，`compaction.py` 仅校验非空与 `finish_reason != "length"`，误将该协议残片当作合法交接摘要落库并清空更早对话历史；（2）`write_chapter(replaced)` 整章重写并改名时，`FileVersion` 仅存正文，单卡点击「撤销」只回滚正文却留下改名后的标题。
 2. **重构残余与冗余防御代码（AI slop）**：
    - 后端残留多智能体路由器与旧操作账本时代的死代码：`FileWriteRecoveryError` 抽象基类及 `_create_file_sync` 不可达捕获分支、休眠模型上的 `EDIT_OPERATION_KINDS`、`ToolContext.get_author_messages()`、`_write_recovery_payload`、`empty_requested` 路由旧注记、`_delete_file_sync` 锁外重复 `SELECT` 预探测，以及 `_FAILURE_CALL_SITES` 中已下线的 `"router"`。
    - 前端残留 `useAgentStream` 中仅用于更新普通数组 `ref` 的 `immer` `produce` 代理与过时注释、空实现的 `onSegmentEnd` 透传、16 个零引用的 `TreeNode` / `SSE*Data` 接口、`ContextItemsView` 未使用的 `tokenCount`/`label` 参数，以及 `chat.json` 中每语种 18 个零引用的历史叶子文案键。
@@ -20,7 +21,8 @@ Status: implemented locally, pending staging validation (2026-11-19). 补充收�
    - `record_delete_card_restored` 兼容解析 `arguments`（字典或 JSON 字符串）与 `input`，跳过失败/未生效卡并核对 `deleted_at`；`POST /api/v1/files/{file_id}/restore` 支持固定根目录自愈后按卡片 `deleted_at` 找回同批软删子项并返回恢复 `file_ids`；`SessionLoader` 忽略 `restored: true` 或未生效的删除卡。
    - 前端恢复成功后同步调用 `clearFileRemoved`（文件树刷新时亦对存活节点清理围栏）并即时标记消息卡 `restored: true`；流式未落库阶段隐藏恢复按钮；恢复后的文件在 `Editor` 重新加载、保存或丢弃草稿时自动将 `"file-deleted"` 快照收敛回常规草稿并移除已删文件横幅。
    - `_delete_file_sync` 补齐非新建或递归删除时的 `pending_empty_file_for` 拦截（保留新建空占位文件的非递归清理语义），`StreamBillingTracker` 在删除成功时同步清理替换目标集合；恢复 `CREATE_FILE_TOOL.empty` 说明；`write_chapter` 保留上传章节的 `书名 - ` 前缀；补齐流式降级 `input_items` 与取消收尾时的标题/撤销回执校准。
-   - 收紧 `stripThinkTags`（排除反引号包裹、剥离流式末尾 `<author_` 半截标签）、`useChatStreaming.onSegmentUpdate`（流式闭合为空时清空内容）、`MessageList` 空历史/流式消息过滤与 `formatCompactionSummary` 表格/UUID 纯语法转换。
+   - 收紧 `stripThinkTags`（排除反引号包裹、剥离流式末尾 `<author_` 半截标签）、`useChatStreaming.onSegmentUpdate`（流式闭合为空时清空内容）、`MessageList` 空历史/流式消息过滤与 `formatCompactionSummary` 表格/UUID/协议残片纯语法转换。
+   - `COMPACT_PROMPT` 明确只整理对话已涉及文件并严禁输出 `<tool_call>` / `<invoke>` 标签；`compact_history` 增加有界机器协议结构校验（拒绝结构化 `tool_calls` 或代码块/行内反引号之外的 `<tool_call>` / `<invoke>` / `<parameter>` 协议泄漏，触发 `low` 重试或安全跳过压缩而不覆盖历史）；`FileEditor.replace_body` 在整章替换改名时于 `undo.before_title` 记录改名前标题，`rollback_to_version` 从服务端已落库卡片核验后在同一写锁事务内一并恢复原稿标题与章节排序（不信任客户端入参、不覆盖作者后续手动改名、同级重名时仅回滚正文）。
 2. **直接删除死代码与过度包装，不加兼容垫片**：
    - 删除 `FileWriteRecoveryError`、`EDIT_OPERATION_KINDS`、`ToolContext.get_author_messages()`、`_write_recovery_payload`、`empty_requested` 旧注记与 `_delete_file_sync` 锁外预查询（改由 `FileCRUD.delete_file` 锁内记录 `_last_deleted_meta`）。
    - 移除 `useAgentStream` 对 `immer` 的依赖与默认导出、空 `onSegmentEnd` 消费端透传、`ContextItemsView` 冗余参数、16 个未引用类型接口及中英文 `chat.json` 中各 18 个孤儿叶子文案键。

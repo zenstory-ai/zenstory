@@ -1213,6 +1213,8 @@ class FileEditor:
                 full_snapshot=True,
                 new_title=prospective_title if title_changed else None,
             )
+            if title_changed and previous_title and undo is not None:
+                undo["before_title"] = previous_title
         elif title_changed:
             from utils.title_sequence import resolve_persisted_sequence_order
 

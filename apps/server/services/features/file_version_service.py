@@ -622,6 +622,8 @@ class FileVersionService:
         *,
         expected_updated_at: datetime | None = None,
         expected_after_content_sha256: str | None = None,
+        restore_title: str | None = None,
+        expected_current_title: str | None = None,
     ) -> tuple[File, FileVersion | None, bool]:
         """
         Rollback a file to a previous version.
@@ -707,7 +709,46 @@ class FileVersionService:
                 version_number=version_number,
             )
 
-            # Update file content
+            # Update file content (and restore pre-replace chapter title when undoing a renamed write_chapter card)
+            if expected_updated_at is not None and restore_title:
+                from models.file_model import validate_file_title
+                from utils.title_sequence import resolve_persisted_sequence_order
+
+                candidate_title = restore_title.replace("\x00", "").strip()
+                cleaned_restore_title: str | None = None
+                if candidate_title:
+                    with contextlib.suppress(ValueError):
+                        validate_file_title(candidate_title)
+                        cleaned_restore_title = candidate_title
+                title_unmodified_since_card = current == expected or (
+                    isinstance(expected_current_title, str)
+                    and bool(expected_current_title.strip())
+                    and file.title == expected_current_title.strip()
+                )
+                if (
+                    cleaned_restore_title is not None
+                    and cleaned_restore_title != file.title
+                    and title_unmodified_since_card
+                ):
+                    clash = session.exec(
+                        select(File.id).where(
+                            File.project_id == file.project_id,
+                            File.parent_id == file.parent_id,
+                            File.title == cleaned_restore_title,
+                            File.is_deleted.is_(False),
+                            File.id != file.id,
+                        )
+                    ).first()
+                    if clash is None:
+                        file.title = cleaned_restore_title
+                        with contextlib.suppress(ValueError):
+                            file.order = resolve_persisted_sequence_order(
+                                file.order,
+                                title=cleaned_restore_title,
+                                metadata=file.get_metadata(),
+                                file_type=file.file_type,
+                            )
+
             file.content = content
             file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
             session.add(file)

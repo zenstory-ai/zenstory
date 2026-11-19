@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -248,14 +249,42 @@ def row_metadata(row: Any) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+_COMPACTION_CODE_SPAN_OR_FENCE_RE = re.compile(
+    r"(^[ \t]*(```|~~~)[^\r\n]*\r?\n.*?(?:^[ \t]*\2[ \t]*\r?$|\Z)|(`+)(?:(?!\3)[^\r\n])+\3)",
+    re.DOTALL | re.MULTILINE,
+)
+_COMPACTION_LEAKED_TOOL_PROTOCOL_RE = re.compile(
+    r"(?:\]<\]minimax\[>\[|</\s*tool_call\s*>|<tool_call\b[^><\r\n]{0,512}>\s*(?:<|\Z)|</?(?:invoke|parameter)\b[^><\r\n]{0,512}>)",
+    re.IGNORECASE,
+)
+
+
+def contains_leaked_tool_protocol(text: str) -> bool:
+    """检查摘要文本在代码围栏与行内反引号之外是否混入未执行的工具调用机器协议。"""
+    if not text:
+        return False
+    pos = 0
+    for match in _COMPACTION_CODE_SPAN_OR_FENCE_RE.finditer(text):
+        if _COMPACTION_LEAKED_TOOL_PROTOCOL_RE.search(text[pos : match.start()]) is not None:
+            return True
+        pos = match.end()
+    return _COMPACTION_LEAKED_TOOL_PROTOCOL_RE.search(text[pos:]) is not None
+
+
 def valid_compaction(metadata: dict[str, Any]) -> dict[str, Any] | None:
-    """assistant 行上可用的压缩点：摘要非空、覆盖到的行 id 非空。"""
+    """assistant 行上可用的压缩点：摘要非空、不含泄漏工具协议、覆盖到的行 id 非空。"""
     compaction = metadata.get("compaction")
     if not isinstance(compaction, dict):
         return None
     summary = compaction.get("summary")
     covers = compaction.get("covers_through_message_id")
-    if not isinstance(summary, str) or not summary.strip() or not isinstance(covers, str) or not covers:
+    if (
+        not isinstance(summary, str)
+        or not summary.strip()
+        or contains_leaked_tool_protocol(summary)
+        or not isinstance(covers, str)
+        or not covers
+    ):
         return None
     return compaction
 
