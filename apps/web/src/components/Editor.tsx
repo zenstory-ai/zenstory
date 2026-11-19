@@ -350,7 +350,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
    * so the AI's words are not counted as the author's on the next save.
    *
    * Reloading the file that is already open (the AI's stream ended, or the AI
-   * selected it again) while the author has unsaved body text never replaces
+   * selected it again) while the author has unsaved title or body text never replaces
    * that text: it goes through syncOpenFileFromServer, which compares instead.
    * `discardUnsaved`: a version restore the author confirmed (it discards the
    * unsaved text by design).
@@ -392,7 +392,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
     if (
       !options?.discardUnsaved &&
       currentFile?.id === selectedItem.id &&
-      editContentRef.current !== (currentFile.content || "")
+      (editTitleRef.current !== currentFile.title ||
+        editContentRef.current !== (currentFile.content || ""))
     ) {
       void syncOpenFileFromServerRef.current();
       return;
@@ -413,7 +414,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
       if (
         !options?.discardUnsaved &&
         currentFileRef.current?.id === data.id &&
-        editContentRef.current !== (currentFileRef.current.content || "")
+        (editTitleRef.current !== currentFileRef.current.title ||
+          editContentRef.current !== (currentFileRef.current.content || ""))
       ) {
         void syncOpenFileFromServerRef.current();
         return;

@@ -1274,4 +1274,45 @@ describe('chat chapter replacement applies directly', () => {
     expect(server.files.get(CH1.id)!.content).toBe(`${REPLACED}\n\n作者在重载途中刚打的一句。`);
     expect(putsFor(CH1.id)[0][1]).toMatchObject({ base_updated_at: T_REPLACED, change_source: 'user' });
   });
+
+  it('preserves a title-only edit typed while post-stream fileApi.get reload is in flight', async () => {
+    await openOriginal();
+
+    act(() => {
+      callbacks().onStart();
+      callbacks().onFileCreated(CH1.id, 'draft', CH1.title);
+      callbacks().onFileContent(CH1.id, REPLACED);
+    });
+    await settle();
+    server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: REPLACED, updated_at: T_REPLACED });
+
+    let resolveReloadGet: (file: ServerFile) => void = () => {};
+    server.get.mockImplementationOnce(
+      () => new Promise<ServerFile>((resolve) => { resolveReloadGet = resolve; }),
+    );
+
+    act(() => callbacks().onFileContentEnd(CH1.id));
+    await advance(110); await settle();
+
+    const authorTitle = '作者在重载途中改的标题';
+    fireEvent.change(titleInput(), { target: { value: authorTitle } });
+
+    await act(async () => {
+      resolveReloadGet({ ...server.files.get(CH1.id)! });
+    });
+    await advance(300); await settle();
+
+    expect(titleInput()).toHaveValue(authorTitle);
+    expect(textarea()).toHaveValue(REPLACED);
+    expect(harness.project!.diffReviewState).toBeNull();
+
+    await advance(3100); await settle();
+    expect(putsFor(CH1.id)).toHaveLength(1);
+    expect(putsFor(CH1.id)[0][1]).toMatchObject({
+      title: authorTitle,
+      content: REPLACED,
+      base_updated_at: T_REPLACED,
+    });
+    expect(server.files.get(CH1.id)!.title).toBe(authorTitle);
+  });
 });
