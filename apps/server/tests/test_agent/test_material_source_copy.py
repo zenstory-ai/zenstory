@@ -293,3 +293,85 @@ async def test_source_copy_does_not_overwrite_an_existing_material_file(db_sessi
     assert db_session.get(File, existing.id).content == "作者已经保存的旧设定。"
     assert result["data"]["id"] != existing.id
     assert result["data"]["content"] == copied
+
+
+async def test_source_copy_matches_crlf_trailing_spaces_and_blank_line_runs_while_keeping_author_slice():
+    author_block = "## 世界观总纲  \r\n\r\n第一条：灵气复苏百年。\t\r\n第二条：东海群岛封禁。   "
+    _context(f"请帮我把下面这段设定原样建档：\r\n\r\n{author_block}\r\n\r\n先不要写正文。")
+    model_normalized = "## 世界观总纲\n第一条：灵气复苏百年。\n第二条：东海群岛封禁。\n"
+    expected_saved = "## 世界观总纲  \n\n第一条：灵气复苏百年。\t\n第二条：东海群岛封禁。"
+
+    executor = MagicMock()
+    executor.create_file.side_effect = lambda **kwargs: {
+        "id": "lore-crlf",
+        "title": kwargs["title"],
+        "file_type": kwargs["file_type"],
+        "content": kwargs["content"],
+        "mutation_applied": True,
+    }
+    with patch.object(ToolContext, "get_executor", return_value=executor):
+        result = _payload(
+            await create_file(
+                {"title": "世界观总纲", "file_type": "lore", "source_text": model_normalized}
+            )
+        )
+
+    assert result["status"] == "success"
+    assert executor.create_file.call_args.kwargs["content"] == expected_saved
+    assert result["data"]["source_copied"] is True
+
+
+async def test_source_copy_preserves_first_line_chinese_indent_across_crlf_and_trailing_spaces():
+    author_block = "　　第一段：寒江孤影。  \r\n　　第二段：江湖故人。  "
+    _context(f"设定如下：\r\n{author_block}\r\n完。")
+    model_source = "　　第一段：寒江孤影。\n　　第二段：江湖故人。\n"
+    expected_saved = "　　第一段：寒江孤影。  \n　　第二段：江湖故人。"
+
+    executor = MagicMock()
+    executor.create_file.side_effect = lambda **kwargs: {
+        "id": "lore-indent",
+        "title": kwargs["title"],
+        "file_type": kwargs["file_type"],
+        "content": kwargs["content"],
+        "mutation_applied": True,
+    }
+    with patch.object(ToolContext, "get_executor", return_value=executor):
+        result = _payload(
+            await create_file(
+                {"title": "门派小传", "file_type": "lore", "source_text": model_source}
+            )
+        )
+
+    assert result["status"] == "success"
+    assert executor.create_file.call_args.kwargs["content"] == expected_saved
+
+
+async def test_source_copy_still_rejects_skipped_middle_line_or_ambiguous_raw_slices():
+    _context("第一行：沈砚\n第二行：二十八岁\n第三行：六扇门捕快")
+    executor = MagicMock()
+    with patch.object(ToolContext, "get_executor", return_value=executor):
+        skipped = _payload(
+            await create_file(
+                {
+                    "title": "沈砚",
+                    "file_type": "character",
+                    "source_text": "第一行：沈砚\n第三行：六扇门捕快",
+                }
+            )
+        )
+    assert skipped["status"] == "error"
+    assert skipped["error_type"] == "source_text_not_in_author_message"
+    executor.create_file.assert_not_called()
+
+    # 两处归一化相同但原始空行不同的重复块：无法唯一确定哪一处原文切片时拒绝。
+    _context("版本A：\n甲行\n乙行\n---\n版本B：\n甲行\n\n\n乙行")
+    with patch.object(ToolContext, "get_executor", return_value=executor):
+        ambiguous = _payload(
+            await create_file(
+                {"title": "重复块", "file_type": "lore", "source_text": "甲行\n\n乙行"}
+            )
+        )
+    assert ambiguous["status"] == "error"
+    assert ambiguous["error_type"] == "source_text_not_in_author_message"
+    executor.create_file.assert_not_called()
+

@@ -38,13 +38,16 @@ MAX_IDENTICAL_TOOL_FAILURES = 3
 # 一般一两次就能成功，10 次远高于正常恢复所需。
 MAX_TOOL_FAILURES_PER_REQUEST = 10
 
-# 这些 error_type 是「先做另一件事再来」的顺序性拒绝（例如上一个空文件正文还没
-# 写，create_file 被守卫挡回）：同一调用原样重试会被同样拒绝，但只要模型先做完
-# 错误里点名的前置动作就会成功，属于正常的自我纠正路径。只计入累计失败上限，
-# 不参与「同一调用连续失败」判定——否则模型补写正文前多试了两次 create_file，
-# 整条工作流就被 ERROR 终止，空文件纠偏轮也跑不到，只留下一个空文件。
-# file_body_pending 是 tools_adapter 在执行前挡回的同类拒绝（建文件后的下一次回复没先写正文）。
-_ORDERING_ERROR_TYPES = frozenset({"pending_empty_file_unwritten", "file_body_pending"})
+# 同一条模型回复里并列发出多个流式 create_file / write_chapter 时，第 1 个占住待写槽位，
+# 同批其余调用在模型看到 awaiting_body 之前就被同步挡回（pending_empty_file_unwritten）。
+# 这属于单批并列调用的顺序化，不是工具失败，也不计入请求级累计失败上限（否则一次批量建 5～6 份
+# 角色档案就会凭空耗掉一半熔断额度）。
+_PARALLEL_BATCH_ORDERING_ERROR_TYPES = frozenset({"pending_empty_file_unwritten"})
+
+# 建文件后的**下一次**模型回复仍未先写 <file> 正文就调工具时，tools_adapter 在执行前以
+# file_body_pending 挡回，并由 runner 结束当前 run 交回 FILE_BODY_RESUME 纠偏：不参与「同参数连续
+# 三次失败」熔断（否则纠偏轮跑不到），但仍计入请求累计失败上限作兜底。
+_ORDERING_ERROR_TYPES = frozenset({"file_body_pending"})
 
 # 重复读取守卫（repeat_read_guard.GUARD_ERROR_TYPES）主动拦下的结果：不是工具失败，由守卫
 # 自己计数并判定「无进展」；熔断器若也记账，同一文件第 4～6 次读取会先以「相同参数连续失败」
@@ -254,7 +257,9 @@ class ToolFailureBreaker:
         """记录一次工具结果，返回交给模型的输出（重复失败时附带不要原样重试的提示）。"""
         key = (tool_name, _normalize_arguments(raw_arguments))
         payload = _parse_error_payload(output_text, tool_name)
-        if payload is not None and payload.get("error_type") in GUARD_ERROR_TYPES:
+        if payload is not None and payload.get("error_type") in (
+            GUARD_ERROR_TYPES | _PARALLEL_BATCH_ORDERING_ERROR_TYPES
+        ):
             return output_text
         if payload is None:
             # 同一调用成功：它的连续失败计数清零。累计失败数不清零——那是整次请求的兜底。
@@ -360,7 +365,8 @@ def _with_recovery_hint(output_text: str, error_type: str, count: int, threshold
         )
     else:
         recovery = (
-            "同一文件已连续定位失败。先用 query_files 按准确 id 重读当前段落，"
+            "同一文件已连续定位失败。先用 query_files 按准确 id 重读当前段落"
+            "（长文件可传 query=关键词 精确取命中片段，或传 start_char 与 max_chars 按范围读取），"
             "从结果复制较短、逐字、唯一的 old/anchor；改动多时拆成几次 edit_file 调用、"
             "每次只改少量几处，不要在一次调用里堆很多条；不要放宽匹配或整篇覆盖。"
         )

@@ -491,3 +491,182 @@ async def test_non_output_capped_cut_body_hitting_wrap_up_still_emits_wall_clock
     assert card["limit"] == "wall_clock"
     finalize.assert_not_awaited()
 
+
+async def test_self_check_run_soft_landing_on_wall_clock_finishes_cleanly_without_pause_card():
+    """第 1 次 run 已把章节落库，第 2 次自查 run 在总结阶段撞上 runner 内层 wall_clock 软着陆：
+    无待写空文件/残稿/未完任务板时抑制 wall_clock 暂停卡，将 stop_reason 归一为 end_turn 并收尾任务板。"""
+    from unittest.mock import AsyncMock
+
+    from agent.loop.engine import run_loop_agent_streaming
+    from agent.openai_agents.runner import RUN_DEADLINE_STOP_REASON
+
+    meter = AgentRunMeter(wrap_up_after_s=600)
+    task_event = StreamEvent(
+        type=StreamEventType.TOOL_RESULT,
+        data={"tool_use_id": "workflow_auto_completion", "name": "update_project", "result": {"status": "success"}},
+    )
+    finalize = AsyncMock(return_value=[task_event])
+    has_incomplete = AsyncMock(return_value=False)
+    run_count = 0
+
+    async def two_runs(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
+        nonlocal run_count
+        run_count += 1
+        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
+        if run_count == 1:
+            ToolContext.mark_chapter_body_saved("ch4", "第4章 死册与名额", "draft")
+            for ev in _create_events():
+                yield ev
+            yield _BODY
+            state["native_run_holder"].update(agent_type=agent_type, items=[{"role": "user", "content": "x"}])
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+            return
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "《第4章 死册与名额》已写完并存入正文目录，3560 字。"})
+        yield StreamEvent(
+            type=StreamEventType.ITERATION_EXHAUSTED,
+            data={"layer": "tool_call", "limit": "wall_clock", "reason": "时间快用完了", "last_agent": None},
+        )
+        yield StreamEvent(
+            type=StreamEventType.MESSAGE_END,
+            data={"stop_reason": RUN_DEADLINE_STOP_REASON, "usage": {"total_tokens": 120}},
+        )
+
+    with (
+        patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs),
+        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
+        patch("agent.core.task_board_completion.has_incomplete_task_board_items", has_incomplete),
+    ):
+        events = [event async for event in run_loop_agent_streaming(_state(user_message="写第4章", run_meter=meter))]
+
+    assert run_count == 2
+    assert not [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    msg_ends = [e.data for e in events if e.type == StreamEventType.MESSAGE_END]
+    assert [m["stop_reason"] for m in msg_ends] == ["end_turn", "end_turn"]
+    finalize.assert_awaited_once()
+    assert task_event in events
+
+
+async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_task_board_incomplete():
+    """多章任务板仍有未完成章节（has_incomplete_task_board_items=True）时，自查软着陆保留 wall_clock 暂停卡供继续。"""
+    from unittest.mock import AsyncMock
+
+    from agent.loop.engine import run_loop_agent_streaming
+    from agent.openai_agents.runner import RUN_DEADLINE_STOP_REASON
+
+    meter = AgentRunMeter(wrap_up_after_s=600)
+    finalize = AsyncMock(return_value=[])
+    has_incomplete = AsyncMock(return_value=True)
+    run_count = 0
+
+    async def two_runs(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
+        nonlocal run_count
+        run_count += 1
+        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
+        if run_count == 1:
+            ToolContext.mark_chapter_body_saved("ch1", "第1章 起航", "draft")
+            for ev in _create_events():
+                yield ev
+            yield _BODY
+            state["native_run_holder"].update(agent_type=agent_type, items=[{"role": "user", "content": "x"}])
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+            return
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "第1章已保存，第2章尚未开始。"})
+        yield StreamEvent(
+            type=StreamEventType.ITERATION_EXHAUSTED,
+            data={"layer": "tool_call", "limit": "wall_clock", "reason": "时间快用完了", "last_agent": None},
+        )
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": RUN_DEADLINE_STOP_REASON})
+
+    with (
+        patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs),
+        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
+        patch("agent.core.task_board_completion.has_incomplete_task_board_items", has_incomplete),
+    ):
+        events = [event async for event in run_loop_agent_streaming(_state(user_message="写第1章和第2章", run_meter=meter))]
+
+    [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert card["limit"] == "wall_clock"
+    finalize.assert_awaited_once()
+
+
+async def test_empty_file_correction_after_output_cap_gives_concise_thinking_guidance():
+    """create_file 后因思考过长撞上 output_capped 仍为空文件时，纠偏说明明确指出输出上限并要求简短思考、首行直接输出 <file>。"""
+    from agent.loop.engine import _settle_pending_empty_files
+
+    ToolContext.set_context(session=None, user_id="u1", project_id="p1", session_id="s1")
+    ok, _ = ToolContext.try_reserve_pending_empty_file("res-1", "排布总表")
+    assert ok
+    ToolContext.bind_pending_empty_file("res-1", "f-table", "排布总表", "2026-11-19T00:00:00Z")
+
+    with (
+        patch("agent.core.empty_files.probe_pending_file_body", return_value="unwritten"),
+        patch("agent.core.empty_files.resume_target_version", return_value=("2026-11-19T00:00:00Z", 0)),
+    ):
+        context, resume_event, notices, settle_events = await _settle_pending_empty_files(
+            can_correct=True,
+            english=False,
+            body_cut=False,
+            output_capped=True,
+        )
+
+    assert resume_event is not None
+    assert notices == [] and settle_events == []
+    assert "单次输出上限" in (context or "")
+    assert "思考尽量简短" in (context or "")
+    assert "第一行直接输出 <file>" in (context or "")
+
+
+@pytest.mark.parametrize("reason", ["started_new_file", "output_capped"])
+async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_new_file_started_or_output_capped(reason: str):
+    """第 2 次 run 虽以 self_check 进入，但若期间又新建了文件（如第2章细纲）或总结撞上 output_capped，
+    不得静默吞掉 wall_clock 暂停卡。"""
+    from unittest.mock import AsyncMock
+
+    from agent.loop.engine import run_loop_agent_streaming
+    from agent.openai_agents.runner import OUTPUT_CAPPED_KEY, RUN_DEADLINE_STOP_REASON
+
+    meter = AgentRunMeter(wrap_up_after_s=600)
+    finalize = AsyncMock(return_value=[])
+    has_incomplete = AsyncMock(return_value=False)
+    run_count = 0
+
+    async def two_runs(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
+        nonlocal run_count
+        run_count += 1
+        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
+        if run_count == 1:
+            ToolContext.mark_chapter_body_saved("ch1", "第1章 起航", "draft")
+            for ev in _create_events():
+                yield ev
+            yield _BODY
+            state["native_run_holder"].update(agent_type=agent_type, items=[{"role": "user", "content": "x"}])
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+            return
+        if reason == "started_new_file":
+            for ev in _create_events():
+                yield ev
+            yield _BODY
+        else:
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "半句被截断的总结"})
+        yield StreamEvent(
+            type=StreamEventType.ITERATION_EXHAUSTED,
+            data={"layer": "tool_call", "limit": "wall_clock", "reason": "时间快用完了", "last_agent": None},
+        )
+        msg_end_data = {"stop_reason": RUN_DEADLINE_STOP_REASON}
+        if reason == "output_capped":
+            msg_end_data[OUTPUT_CAPPED_KEY] = True
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data=msg_end_data)
+
+    with (
+        patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs),
+        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
+        patch("agent.core.task_board_completion.has_incomplete_task_board_items", has_incomplete),
+    ):
+        events = [event async for event in run_loop_agent_streaming(_state(user_message="写第1章和第2章", run_meter=meter))]
+
+    [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert card["limit"] == "wall_clock"
+    finalize.assert_not_awaited()
+
+
+

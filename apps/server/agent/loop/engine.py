@@ -37,7 +37,11 @@ from agent.core.workflow_events import FileBodyResume, StreamEvent, StreamEventT
 from agent.core.writing_state import WritingState
 from agent.openai_agents.events import parse_mcp_tool_payload
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
-from agent.openai_agents.runner import OUTPUT_CAPPED_KEY, run_openai_agents_streaming_agent
+from agent.openai_agents.runner import (
+    OUTPUT_CAPPED_KEY,
+    RUN_DEADLINE_STOP_REASON,
+    run_openai_agents_streaming_agent,
+)
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 from agent.tools.mcp_tools import ToolContext
 from agent.tools.registry import LOOP_AGENT_TYPE, LOOP_TOOL_NAMES
@@ -55,12 +59,20 @@ logger = get_logger(__name__)
 
 _EMPTY_FILE_CORRECTION_CONTEXT = (
     "[系统提醒] 你创建的文件《{title}》(id={file_id}) 正文仍为空：上一次没有用 <file>…</file> 写完它的正文。"
-    "系统已为这个文件重新打开正文写入。这一次回复第一行直接输出 <file>，接着写它的完整正文，最后用 </file> 结束；"
+    "系统已为这个文件重新打开正文写入。这一次不要在思考里重新推演全盘方案、逐条排表或预写全文（思考只留两三行提纲，否则会挤占单次输出上限导致保存失败）；"
+    "回复第一行直接输出 <file>，把完整内容直接写进 <file>…</file> 中，最后用 </file> 结束；"
+    "写完之前不要调用任何工具（write_chapter / create_file / edit_file 都会被拒绝），也不要只在对话里复述正文。"
+)
+_EMPTY_FILE_CUT_CORRECTION_CONTEXT = (
+    "[系统提醒] 你创建的文件《{title}》(id={file_id}) 正文仍为空：上一次回复在写出完整 <file>…</file> 之前就达到了单次输出上限"
+    "（思考或前置内容过长），文件内容没有保存。系统已为这个文件重新打开正文写入：这一次思考尽量简短（只留两三行要点，绝不在思考里逐条排表或起草全文），"
+    "回复第一行直接输出 <file>，把完整内容直接写进 <file>…</file> 中，最后用 </file> 结束；"
     "写完之前不要调用任何工具（write_chapter / create_file / edit_file 都会被拒绝），也不要只在对话里复述正文。"
 )
 _CHAPTER_REPLACE_RETRY_CONTEXT = (
     "[系统提醒] 你用 write_chapter 定下了整章替换《{title}》(id={file_id})，但上一次回复没有用 <file>…</file> 写出新正文，"
-    "原文保持不变。系统已为这一章重新打开正文写入：这一次回复第一行直接输出 <file>，接着写这一章完整的新正文，最后用 </file> 结束；"
+    "原文保持不变。系统已为这一章重新打开正文写入：这一次思考尽量简短（不在思考里起草全文），"
+    "回复第一行直接输出 <file>，接着写这一章完整的新正文，最后用 </file> 结束；"
     "写完之前不要调用任何工具（write_chapter 也不要再调用），也不要只在对话里复述正文。"
 )
 # 整章替换的新正文写到单次回复的输出上限被截断（runner 的 output_capped）时的重试说明。
@@ -231,6 +243,7 @@ async def _settle_pending_empty_files(
     can_correct: bool,
     english: bool,
     body_cut: bool = False,
+    output_capped: bool = False,
 ) -> tuple[str | None, StreamEvent | None, list[StreamEvent], list[StreamEvent]]:
     """run 边界核验仍在等正文的空文件。
 
@@ -275,7 +288,8 @@ async def _settle_pending_empty_files(
         facts = await asyncio.to_thread(empty_files.resume_target_version, target["file_id"])
         if facts is not None:
             resume = FileBodyResume(file_id=target["file_id"], expected_updated_at=facts[0])
-            context = _EMPTY_FILE_CORRECTION_CONTEXT.format(title=target["title"], file_id=target["file_id"])
+            template = _EMPTY_FILE_CUT_CORRECTION_CONTEXT if output_capped else _EMPTY_FILE_CORRECTION_CONTEXT
+            context = template.format(title=target["title"], file_id=target["file_id"])
             return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), notices, []
     return None, None, notices, [await _empty_file_card(unfinished, None)]
 
@@ -428,29 +442,33 @@ async def run_loop_agent_streaming(
         while runs < max_runs:
             if runs > 0 and run_meter.past_wrap_up:
                 if followup_kind == "self_check":
-                    # 正文已确认落库、无待写空文件、无截断残稿、无未保存替换、无未执行工具与插话：
-                    # 待办仅剩常规写后自查，直接按正常完成收尾，不发「可能未完成 / 继续」暂停卡。
-                    log_with_context(
-                        logger,
-                        20,  # INFO
-                        "Loop agent finishing cleanly instead of starting post-save self-check near wrap-up",
-                        runs=runs,
-                        ended_on_file=followup_ended_on_file,
-                        saved_count=len(followup_saved_titles),
-                    )
-                    if followup_ended_on_file:
-                        yield StreamEvent(
-                            type=StreamEventType.TEXT,
-                            data={
-                                "text": run_support.wrap_up_self_check_skipped_text(
-                                    english, followup_saved_titles
-                                )
-                            },
+                    task_events = await task_board_completion.auto_finalize_task_board_on_completion(read_guard)
+                    if not await task_board_completion.has_incomplete_task_board_items():
+                        # 正文已确认落库、任务板无未完待办、无待写空文件/截断残稿/未保存替换/未执行工具与插话：
+                        # 待办仅剩常规写后自查，直接按正常完成收尾，不发「可能未完成 / 继续」暂停卡。
+                        log_with_context(
+                            logger,
+                            20,  # INFO
+                            "Loop agent finishing cleanly instead of starting post-save self-check near wrap-up",
+                            runs=runs,
+                            ended_on_file=followup_ended_on_file,
+                            saved_count=len(followup_saved_titles),
                         )
-                    for task_event in await task_board_completion.auto_finalize_task_board_on_completion(read_guard):
+                        if followup_ended_on_file:
+                            yield StreamEvent(
+                                type=StreamEventType.TEXT,
+                                data={
+                                    "text": run_support.wrap_up_self_check_skipped_text(
+                                        english, followup_saved_titles
+                                    )
+                                },
+                            )
+                        for task_event in task_events:
+                            yield task_event
+                        terminated = True
+                        break
+                    for task_event in task_events:
                         yield task_event
-                    terminated = True
-                    break
                 # 请求时间快用完：不再开新的 run，停在已经完成的部分（同图层收尾的暂停卡）。
                 yield StreamEvent(type=StreamEventType.TEXT, data={"text": await run_support.wrap_up_text(english)})
                 yield StreamEvent(
@@ -467,6 +485,8 @@ async def run_loop_agent_streaming(
                 terminated = True
                 break
             runs += 1
+            run_kind = followup_kind
+            run_saved_titles = list(followup_saved_titles)
             followup_kind = None
             followup_ended_on_file = False
             followup_saved_titles = []
@@ -504,6 +524,18 @@ async def run_loop_agent_streaming(
                     run_started = True
                 elif event.type == StreamEventType.MESSAGE_END:
                     output_capped = output_capped or event.data.get(OUTPUT_CAPPED_KEY) is True
+                    if (
+                        run_kind == "self_check"
+                        and deferred_exhausted is not None
+                        and deferred_exhausted.data.get("limit") == WALL_CLOCK_LIMIT
+                        and event.data.get("stop_reason") == RUN_DEADLINE_STOP_REASON
+                    ):
+                        # 先按 end_turn 交给 StreamAdapter 结算当前流；若 run 结束核验出仍有未完结构化待办，
+                        # 随后补发的 wall_clock 暂停卡会照旧把 stop_reason 覆写回 run_deadline_exceeded。
+                        event = StreamEvent(
+                            type=StreamEventType.MESSAGE_END,
+                            data={**event.data, "stop_reason": "end_turn"},
+                        )
                 elif event.type == StreamEventType.ERROR:
                     errored = True
                 elif getattr(event.type, "value", "") == "steering_received" and run_started:
@@ -528,11 +560,62 @@ async def run_loop_agent_streaming(
                         reported_unsaved_ids.discard(rearmed_id)
                 if event.type == StreamEventType.ITERATION_EXHAUSTED and event.data.get("layer") == "tool_call":
                     tool_call_exhausted = True
-                    if ToolContext.has_pending_empty_file():
-                        # 等 run 收尾、核验 / 回滚空文件之后再发，文件事实写在同一张卡上。
+                    if ToolContext.has_pending_empty_file() or (
+                        run_kind == "self_check" and event.data.get("limit") == WALL_CLOCK_LIMIT
+                    ):
+                        # 等 run 收尾（StreamAdapter 跑完 MESSAGE_END）后再按结构化事实决定是否发暂停卡 / 附空文件状态。
                         deferred_exhausted = event
                         continue
                 yield event
+
+            if (
+                run_kind == "self_check"
+                and deferred_exhausted is not None
+                and deferred_exhausted.data.get("limit") == WALL_CLOCK_LIMIT
+                and not errored
+            ):
+                cut_after_self_check = ToolContext.take_cut_bodies()
+                boundary_steering = await _drain_boundary_steering(get_steering_messages)
+                if boundary_steering:
+                    state["messages"] = list(state.get("messages") or []) + [
+                        {"role": "user", "content": msg["content"]} for msg in boundary_steering
+                    ]
+                    from agent.core.events import steering_received_event
+
+                    for msg in boundary_steering:
+                        yield steering_received_event(message_id=msg["id"], preview=msg["content"][:50])
+                textual_calls_after_self_check = (
+                    unexecuted_tool_protocol(tail_text, frozenset(LOOP_TOOL_NAMES))
+                    if not unexecuted_reported
+                    else []
+                )
+                if (
+                    not output_capped
+                    and not (create_ids - failed_ids)
+                    and not run_resumed
+                    and not (set(ToolContext.saved_content_body_ids()) - self_checked_ids)
+                    and not ToolContext.has_pending_empty_file()
+                    and not ToolContext.unsaved_chapter_replacement_ids()
+                    and not cut_after_self_check
+                    and not textual_calls_after_self_check
+                    and not mid_run_steering
+                    and not boundary_steering
+                ):
+                    task_events = await task_board_completion.auto_finalize_task_board_on_completion(read_guard)
+                    if not await task_board_completion.has_incomplete_task_board_items():
+                        log_with_context(
+                            logger,
+                            20,  # INFO
+                            "Loop agent finishing cleanly after self-check soft-landed near wrap-up",
+                            runs=runs,
+                            saved_count=len(run_saved_titles),
+                        )
+                        for task_event in task_events:
+                            yield task_event
+                        terminated = True
+                        break
+                    for task_event in task_events:
+                        yield task_event
 
             if deferred_exhausted is not None:
                 # 耗尽后不再重试：作废还在等正文的整章替换并如实说明（原文没动，不是空文件，不交给空文件核验——
@@ -559,6 +642,7 @@ async def run_loop_agent_streaming(
                     can_correct=can_correct,
                     english=english,
                     body_cut=output_capped and ends_on_unclosed_file_block(tail_text),
+                    output_capped=output_capped,
                 )
                 for notice in notices:
                     yield notice
