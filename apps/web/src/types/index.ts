@@ -99,14 +99,6 @@ export interface FileTreeNode {
  */
 export type TreeNodeType = FileType;
 
-export interface TreeNode {
-  id: string;
-  name: string;
-  type: TreeNodeType;
-  children?: TreeNode[];
-  data?: Record<string, unknown>;
-}
-
 /**
  * Selected item for editor
  */
@@ -257,95 +249,10 @@ export type SSEEventType =
   // Sent after the terminal frame, only once the backend actually refunded the round.
   | "quota_refunded";
 
-export interface SSEThinkingData {
-  message: string;
-  step?: string;
-}
-
-export interface SSEThinkingContentData {
-  content: string;
-  is_complete?: boolean;
-}
-
-export interface SSEContextData {
-  items: AgentContextItem[];
-  token_count?: number;
-}
-
-export interface SSEContentData {
-  text: string;
-  index?: number;
-}
-
-export interface SSEToolCallData {
-  tool_use_id?: string;
-  tool_name: string;
-  arguments: Record<string, unknown>;
-}
-
-export interface SSEToolResultData {
-  tool_use_id?: string;
-  tool_name: string;
-  status: "success" | "error";
-  data?: Record<string, unknown>;
-  error?: string;
-}
-
-export interface SSEErrorData {
-  message: string;
-  code?: string;
-  retryable: boolean;
-}
-
-export interface SSEFileCreatedData {
-  file_id: string;
-  file_type: string;
-  title: string;
-}
-
-export interface SSEFileContentData {
-  file_id: string;
-  chunk: string;
-}
-
-export interface SSEFileContentEndData {
-  file_id: string;
-}
-
-export interface SSEFileEditStartData {
-  file_id: string;
-  title: string;
-  total_edits: number;
-  file_type?: string;
-}
-
-export interface SSEFileEditAppliedData {
-  edit_index: number;
-  op: string;
-}
-
-export interface SSEFileEditEndData {
-  file_id: string;
-  edits_applied: number;
-  new_content?: string;  // Full content after edits (for chapter auto-select)
-  original_content?: string;  // Content before edits (for chapter auto-select)
-  file_type?: string;
-  title?: string;
-}
-
-export interface SSESkillMatchedData {
-  skill_id: string;
-  skill_name: string;
-  matched_trigger: string;
-}
-
 /**
  * Which layer stopped the round. empty_file_correction: a created file never got its text
  * (it was removed again, or is left unfinished because it could not be removed safely).
- */
-/**
- * unexecuted_tool_text: the reply wrote a complete tool call out as text and it never ran. A truthful
- * notice, not a paused task: no "keep going" promise.
+ * unexecuted_tool_text: the reply wrote a complete tool call out as text and it never ran.
  */
 export type IterationExhaustedLayer = "collaboration" | "tool_call" | "empty_file_correction" | "unexecuted_tool_text";
 
@@ -388,37 +295,9 @@ export interface SSEWorkflowStoppedData {
   details?: string[];
 }
 
-export interface SSESessionStartedData {
-  session_id: string;
-}
-
-export interface SSESteeringReceivedData {
-  message_id: string;
-  preview: string;
-}
-
 export interface SSEEvent {
   type: SSEEventType;
-  data:
-    | SSEThinkingData
-    | SSEThinkingContentData
-    | SSEContextData
-    | SSEContentData
-    | SSEToolCallData
-    | SSEToolResultData
-    | SSEErrorData
-    | SSEFileCreatedData
-    | SSEFileContentData
-    | SSEFileContentEndData
-    | SSEFileEditStartData
-    | SSEFileEditAppliedData
-    | SSEFileEditEndData
-    | SSESkillMatchedData
-    | SSEIterationExhaustedData
-    | SSEWorkflowStoppedData
-    | SSESessionStartedData
-    | SSESteeringReceivedData
-    | Record<string, unknown>;
+  data: SSEIterationExhaustedData | SSEWorkflowStoppedData | Record<string, unknown>;
 }
 
 // ==================== Agent Stream State ====================

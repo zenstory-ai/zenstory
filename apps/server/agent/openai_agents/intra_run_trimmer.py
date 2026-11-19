@@ -249,7 +249,7 @@ class IntraRunToolOutputTrimmer:
                     mapping[str(call_id)] = {
                         "name": normalized_name,
                         "index": index,
-                        "categories": self._tool_categories(normalized_name, it.get("arguments")),
+                        "categories": self._tool_categories(normalized_name),
                     }
         for index, it in enumerate(items):
             if not isinstance(it, dict) or it.get("type") != "function_call_output":
@@ -259,7 +259,7 @@ class IntraRunToolOutputTrimmer:
                 info["output_index"] = index
         return mapping
 
-    def _tool_categories(self, name: str, _arguments: Any = None) -> frozenset[str]:
+    def _tool_categories(self, name: str) -> frozenset[str]:
         if name in self.trimmable_tools:
             return frozenset({"read"})
         if name in DEFAULT_WRITE_TOOLS:

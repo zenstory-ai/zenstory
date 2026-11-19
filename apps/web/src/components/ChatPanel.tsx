@@ -25,7 +25,7 @@ import { claimAutoUpgradePrompt } from "../lib/upgradeTriggerStrategy";
  * @module components/ChatPanel
  */
 import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
-import { hasAnyUnprotectedDeletedDraft, notifyFileRemoved, subscribeDeletedDraftProtection } from "../lib/fileRemovalEvents";
+import { clearFileRemoved, hasAnyUnprotectedDeletedDraft, notifyFileRemoved, subscribeDeletedDraftProtection } from "../lib/fileRemovalEvents";
 import React, { useState, useRef, useEffect, useCallback, useMemo, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1324,7 +1324,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       streamCallbacks.onSegmentUpdate(segmentId, content);
     },
     onSegmentUpdateToolCalls: streamCallbacks.onSegmentUpdateToolCalls,
-    onSegmentEnd: streamCallbacks.onSegmentEnd,
 
     // Completion and error callbacks
     onComplete: onCompleteHandler,
@@ -2535,7 +2534,40 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const handleRestoreDeletion = useCallback(
     async (fileId: string, card?: { chatMessageId?: string; toolUseId?: string }) => {
       try {
-        await fileApi.restore(fileId, card);
+        const restored = await fileApi.restore(fileId, card);
+        if (currentProjectId) {
+          clearFileRemoved(currentProjectId, fileId);
+          for (const id of restored.file_ids ?? []) {
+            clearFileRemoved(currentProjectId, id);
+          }
+        }
+        if (card?.chatMessageId && card?.toolUseId) {
+          const markToolRestored = <T extends { id?: string; result?: unknown }>(item: T): T => {
+            if (item.id !== card.toolUseId) return item;
+            const prevResult =
+              item.result && typeof item.result === "object"
+                ? (item.result as Record<string, unknown>)
+                : { id: fileId };
+            return { ...item, result: { ...prevResult, restored: true } };
+          };
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.backendMessageId !== card.chatMessageId && msg.id !== card.chatMessageId) {
+                return msg;
+              }
+              return {
+                ...msg,
+                displayItems: msg.displayItems?.map((item) =>
+                  item.type === "tool_calls" && item.toolCalls
+                    ? { ...item, toolCalls: item.toolCalls.map(markToolRestored) }
+                    : item,
+                ),
+                toolCalls: msg.toolCalls?.map(markToolRestored),
+                toolResults: msg.toolResults?.map(markToolRestored),
+              };
+            }),
+          );
+        }
         triggerFileTreeRefresh();
         toast.success(t('chat:tool.deletionRestored'));
       } catch (err) {
@@ -2544,7 +2576,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         throw err;
       }
     },
-    [triggerFileTreeRefresh, t],
+    [currentProjectId, triggerFileTreeRefresh, t],
   );
 
   /**

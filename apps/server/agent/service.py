@@ -189,6 +189,7 @@ def _stamp_body_receipts(
     tool_calls: list[dict[str, Any]],
     receipts: dict[str, int | None],
     replacement_receipts: dict[str, int | None] | None = None,
+    replacement_card_updates: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     """落库前给等正文的写入卡片写上正文回执：等正文的 create_file / write_chapter 结果带
     ``body_saved``（StreamAdapter 的保存回执里有字数才是 True）。历史回放据此说明正文是否保存，
@@ -207,16 +208,25 @@ def _stamp_body_receipts(
         ):
             continue
         replaced = result.get("action") == "replaced"
+        call_id = str(call.get("id") or "")
+        card_extra: dict[str, Any] = {}
         if replaced:
-            receipt = (replacement_receipts or {}).get(str(call.get("id") or ""))
+            receipt = (replacement_receipts or {}).get(call_id)
+            card_extra = (replacement_card_updates or {}).get(call_id) or {}
         else:
             receipt = receipts.get(str(result.get("id") or ""))
         saved = isinstance(receipt, int)
         stamped = {**result, "body_saved": saved}
         if replaced:
+            stamped.pop("new_title", None)
             stamped["mutation_applied"] = saved
             if saved:
                 stamped["new_word_count"] = receipt
+                committed_title = card_extra.get("title")
+                if isinstance(committed_title, str) and committed_title:
+                    stamped["title"] = committed_title
+                if isinstance(card_extra.get("undo"), dict):
+                    stamped["undo"] = card_extra["undo"]
         call["result"] = stamped
 
 
@@ -1029,6 +1039,10 @@ class AgentService:
             adapter = usage_source.get("adapter")
             return adapter.get_replacement_receipts() if adapter is not None else {}
 
+        def _current_replacement_card_updates() -> dict[str, dict[str, Any]]:
+            adapter = usage_source.get("adapter")
+            return adapter.get_replacement_card_updates() if adapter is not None else {}
+
         def _save_partial_history_sync(
             stop_reason: str | None = None,
             persist_empty_assistant: bool = False,
@@ -1048,7 +1062,12 @@ class AgentService:
                 )
                 return None
 
-            _stamp_body_receipts(all_tool_calls, _current_receipts(), _current_replacement_receipts())
+            _stamp_body_receipts(
+                all_tool_calls,
+                _current_receipts(),
+                _current_replacement_receipts(),
+                _current_replacement_card_updates(),
+            )
             recovery_manager = MessageManager(
                 project_id=project_id,
                 user_id=user_id,
@@ -1467,6 +1486,7 @@ class AgentService:
                         all_tool_calls,
                         stream_adapter.get_saved_file_word_counts(),
                         stream_adapter.get_replacement_receipts(),
+                        stream_adapter.get_replacement_card_updates(),
                     )
                     saved_id = await message_manager.save_messages(
                         session,

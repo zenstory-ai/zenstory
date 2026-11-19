@@ -404,7 +404,7 @@ class FailoverChatModel:
                 for held in preamble:
                     yield held
             if not completed:
-                self._succeeded(attempt_started, ttft_ms)
+                self._succeeded(attempt_started, ttft_ms, input_items=input)
                 self._thinking_before_answer = (thinking_chars, first_answer_ms)
             if not key_cooled:
                 await llm_failover.arecord_success(provider, self._session_id, ordered)

@@ -12,7 +12,6 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { produce } from "immer";
 import { parseWrittenFiles, type RoundWrittenFile, type RoundStopOutcome } from "../lib/chatRoundEnd";
 import {
   sendSteeringRequest,
@@ -238,8 +237,8 @@ export function useAgentStream(
   // Ref to track current segments value for onComplete callback (avoids stale closure)
   const segmentsRef = useRef<MessageSegment[]>([]);
 
-  const updateSegmentsSync = useCallback((updater: (draft: MessageSegment[]) => void) => {
-    segmentsRef.current = produce(segmentsRef.current, updater);
+  const updateSegmentsSync = useCallback((updater: (prev: MessageSegment[]) => MessageSegment[]) => {
+    segmentsRef.current = updater(segmentsRef.current);
   }, []);
 
   // Track current segment for streaming
@@ -382,12 +381,9 @@ export function useAgentStream(
     const fullContent = contentRef.current;
 
     if (segmentId) {
-      updateSegmentsSync(draft => {
-        const seg = draft.find(s => s.id === segmentId);
-        if (seg) {
-          seg.content = segmentContent;
-        }
-      });
+      updateSegmentsSync(prev =>
+        prev.map(s => (s.id === segmentId ? { ...s, content: segmentContent } : s)),
+      );
       onSegmentUpdate?.(segmentId, segmentContent);
     }
 
@@ -463,11 +459,10 @@ export function useAgentStream(
       isStreaming: true,
     };
     
-    updateSegmentsSync(draft => { draft.push(segment); });
+    updateSegmentsSync(prev => [...prev, segment]);
     onSegmentStart?.(segment);
 
     return segmentId;
-  // updateSegmentsSync is stable from useImmer, included to satisfy lint
   }, [flushPendingContent, onSegmentStart, onSegmentEnd, updateSegmentsSync]);
 
   /** Create or update tool calls segment (called on each tool call) */
@@ -490,18 +485,14 @@ export function useAgentStream(
         isStreaming: !isComplete, // streaming until all tool calls complete
       };
 
-      updateSegmentsSync(draft => { draft.push(segment); });
+      updateSegmentsSync(prev => [...prev, segment]);
       onSegmentStart?.(segment);
     } else {
       // Update existing segment
       const segmentId = currentToolCallsSegmentIdRef.current;
-      updateSegmentsSync(draft => {
-        const seg = draft.find(s => s.id === segmentId);
-        if (seg) {
-          seg.toolCalls = toolCalls;
-          seg.isStreaming = !isComplete;
-        }
-      });
+      updateSegmentsSync(prev =>
+        prev.map(s => (s.id === segmentId ? { ...s, toolCalls, isStreaming: !isComplete } : s)),
+      );
       // Notify ChatPanel to update streamRenderItems
       onSegmentUpdateToolCalls?.(segmentId, toolCalls);
     }
@@ -511,7 +502,6 @@ export function useAgentStream(
       onSegmentEnd?.(currentToolCallsSegmentIdRef.current);
       currentToolCallsSegmentIdRef.current = null;
     }
-  // updateSegmentsSync is stable from useImmer, included to satisfy lint
   }, [onSegmentStart, onSegmentEnd, onSegmentUpdateToolCalls, updateSegmentsSync]);
 
   /**
@@ -545,10 +535,9 @@ export function useAgentStream(
     if (!segment?.toolCalls) return false;
     const segmentId = segment.id;
     const nextCalls = segment.toolCalls.map(tc => (tc.id === toolUseId ? apply(tc) : tc));
-    updateSegmentsSync(draft => {
-      const seg = draft.find(s => s.id === segmentId);
-      if (seg) seg.toolCalls = nextCalls;
-    });
+    updateSegmentsSync(prev =>
+      prev.map(s => (s.id === segmentId ? { ...s, toolCalls: nextCalls } : s)),
+    );
     onSegmentUpdateToolCalls?.(segmentId, nextCalls);
     return true;
   }, [onSegmentUpdateToolCalls, updateSegmentsSync, upsertToolCallsSegment]);
@@ -581,7 +570,7 @@ export function useAgentStream(
     pendingContentChunkRef.current = "";
     contentRef.current = "";
     setState(initialState);
-    updateSegmentsSync(draft => { draft.length = 0; });
+    updateSegmentsSync(() => []);
     currentSegmentIdRef.current = null;
     currentToolCallsSegmentIdRef.current = null;
     currentSegmentContentRef.current = "";
@@ -590,7 +579,6 @@ export function useAgentStream(
     activeStreamSessionIdRef.current = null;
     setSessionId(null);
     onCompleteCalledRef.current = false;
-  // updateSegmentsSync is stable from useImmer, included to satisfy lint
   }, [clearFlushTimer, settleStreamClosed, updateSegmentsSync]);
 
   /**
@@ -636,12 +624,9 @@ export function useAgentStream(
     // End current segment
     if (currentSegmentIdRef.current) {
       const segmentId = currentSegmentIdRef.current;
-      updateSegmentsSync(draft => {
-        const seg = draft.find(s => s.id === segmentId);
-        if (seg) {
-          seg.isStreaming = false;
-        }
-      });
+      updateSegmentsSync(prev =>
+        prev.map(s => (s.id === segmentId ? { ...s, isStreaming: false } : s)),
+      );
       onSegmentEnd?.(segmentId);
       currentSegmentIdRef.current = null;
     }
@@ -742,7 +727,7 @@ export function useAgentStream(
         isStreaming: true,
         isThinking: true,
       });
-      updateSegmentsSync(draft => { draft.length = 0; });
+      updateSegmentsSync(() => []);
       currentSegmentIdRef.current = null;
       currentSegmentContentRef.current = "";
       pendingToolCallsRef.current = [];
@@ -840,12 +825,9 @@ export function useAgentStream(
             // Mark current segment as done streaming
             if (currentSegmentIdRef.current) {
               const segmentId = currentSegmentIdRef.current;
-              updateSegmentsSync(draft => {
-                const seg = draft.find(s => s.id === segmentId);
-                if (seg) {
-                  seg.isStreaming = false;
-                }
-              });
+              updateSegmentsSync(prev =>
+                prev.map(s => (s.id === segmentId ? { ...s, isStreaming: false } : s)),
+              );
             }
           },
 
@@ -1028,12 +1010,9 @@ export function useAgentStream(
               // End current segment
               if (currentSegmentIdRef.current) {
                 const segmentId = currentSegmentIdRef.current;
-                updateSegmentsSync(draft => {
-                  const seg = draft.find(s => s.id === segmentId);
-                  if (seg) {
-                    seg.isStreaming = false;
-                  }
-                });
+                updateSegmentsSync(prev =>
+                  prev.map(s => (s.id === segmentId ? { ...s, isStreaming: false } : s)),
+                );
                 onSegmentEnd?.(segmentId);
                 currentSegmentIdRef.current = null;
               }
@@ -1112,12 +1091,9 @@ export function useAgentStream(
             // End current segment
             if (currentSegmentIdRef.current) {
               const segmentId = currentSegmentIdRef.current;
-              updateSegmentsSync(draft => {
-                const seg = draft.find(s => s.id === segmentId);
-                if (seg) {
-                  seg.isStreaming = false;
-                }
-              });
+              updateSegmentsSync(prev =>
+                prev.map(s => (s.id === segmentId ? { ...s, isStreaming: false } : s)),
+              );
               onSegmentEnd?.(segmentId);
               currentSegmentIdRef.current = null;
             }
@@ -1181,7 +1157,6 @@ export function useAgentStream(
       flushPendingContent,
       scheduleContentFlush,
       settleStreamClosed,
-      // updateSegmentsSync is stable from useImmer, included to satisfy lint
       updateSegmentsSync,
     ],
   );
@@ -1203,5 +1178,3 @@ export function useAgentStream(
     sendSteeringMessage,
   };
 }
-
-export default useAgentStream;

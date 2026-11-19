@@ -41,7 +41,7 @@ from agent.tools.file_ops.serialization import (
     serialize_file,
 )
 from agent.tools.permissions import ForbiddenError, NotFoundError
-from agent.tools.write_errors import FileWriteRecoveryError
+from agent.tools.write_errors import PreWriteHistoryUnavailableError
 from config.project_notes import merge_project_notes
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import extract_chapter_like_sequence_number, parse_chinese_number
@@ -273,12 +273,16 @@ class _PendingEmptyFileState:
                 for file_id, title in self._entries.items()
             ]
 
-    def entry_for(self, file_id: str) -> dict[str, str] | None:
-        """file_id 当前在待写入集合里时返回 {file_id, title}，否则为 None。"""
+    def entry_for(self, file_id: str) -> dict[str, Any] | None:
+        """file_id 当前在待写入集合里时返回 {file_id, title, created_here}，否则为 None。"""
         with self._lock:
             if file_id not in self._entries:
                 return None
-            return {"file_id": file_id, "title": self._entries[file_id]}
+            return {
+                "file_id": file_id,
+                "title": self._entries[file_id],
+                "created_here": file_id in self._versions,
+            }
 
     # ---- 写入 --------------------------------------------------------------
     def begin_reply(self) -> None:
@@ -808,19 +812,6 @@ class ToolContext:
         return project_id if isinstance(project_id, str) and project_id else None
 
     @classmethod
-    def get_author_messages(cls) -> list[str]:
-        """作者本轮的原话：首条消息加运行中追加的消息（拿不到时为空）。"""
-        context = cls._get_context()
-        messages: list[str] = []
-        first = context.get("author_message")
-        if isinstance(first, str):
-            messages.append(first)
-        steering = context.get("author_steering")
-        if isinstance(steering, list):
-            messages.extend(item for item in list(steering) if isinstance(item, str))
-        return messages
-
-    @classmethod
     def author_wants_no_body(cls) -> bool:
         """create_file 的 empty 是否生效。
 
@@ -1036,8 +1027,8 @@ class ToolContext:
         return state.latest() if state is not None else None
 
     @classmethod
-    def pending_empty_file_for(cls, file_id: str) -> dict[str, str] | None:
-        """file_id 当前是待写入正文或待整章替换的文件时返回 {file_id, title}，否则为 None。"""
+    def pending_empty_file_for(cls, file_id: str) -> dict[str, Any] | None:
+        """file_id 当前是待写入正文或待整章替换的文件时返回 {file_id, title, created_here}，否则为 None。"""
         state = cls._get_pending_empty_file_state()
         return state.entry_for(str(file_id or "")) if state is not None else None
 
@@ -1878,8 +1869,8 @@ def _chapter_title(title: str, number: int, unit: str) -> str:
     return f"{label} {number}: {text}"
 
 
-def _prefixed_chapter_heading(raw_title: str, unit: str) -> tuple[int, str] | None:
-    """识别导入拆章形如「{书名} - 第N章 …」的标题：返回 (标题里的章/集号, 章号所在半段 heading)，不匹配返回 None。"""
+def _split_prefixed_chapter_title(raw_title: str, unit: str) -> tuple[str, int, str] | None:
+    """识别导入拆章形如「{书名} - 第N章 …」的标题：返回 (书名前缀, 章/集号, 章号所在半段 heading)，不匹配返回 None。"""
     from utils.title_sequence import extract_sequence_number
 
     text = raw_title.replace("\x00", "").strip()
@@ -1893,8 +1884,14 @@ def _prefixed_chapter_heading(raw_title: str, unit: str) -> tuple[int, str] | No
             continue
         seq = extract_sequence_number(heading, unit=unit)
         if seq is not None:
-            return seq, heading
+            return prefix, seq, heading
     return None
+
+
+def _prefixed_chapter_heading(raw_title: str, unit: str) -> tuple[int, str] | None:
+    """识别导入拆章形如「{书名} - 第N章 …」的标题：返回 (标题里的章/集号, 章号所在半段 heading)，不匹配返回 None。"""
+    parsed = _split_prefixed_chapter_title(raw_title, unit)
+    return (parsed[1], parsed[2]) if parsed is not None else None
 
 
 def _chapter_title_has_subtitle(raw_title: str, unit: str) -> bool:
@@ -1928,20 +1925,23 @@ def _row_chapter_number(row: Any, *, unit: str, expected_file_type: str) -> int 
     seq = extract_sequence_number(row.title, unit=unit)
     if seq is not None:
         return seq
+    prefixed = _prefixed_chapter_heading(str(getattr(row, "title", "") or ""), unit)
     raw_meta = getattr(row, "file_metadata", None)
-    if not raw_meta:
-        return None
-    if isinstance(raw_meta, Mapping):
-        meta: Mapping[str, Any] | None = raw_meta
-    elif isinstance(raw_meta, str):
-        try:
-            parsed = json.loads(raw_meta)
-        except (json.JSONDecodeError, TypeError):
-            return None
-        meta = parsed if isinstance(parsed, Mapping) else None
-    else:
-        return None
-    return extract_sequence_number_from_metadata(meta, file_type=expected_file_type)
+    if raw_meta:
+        meta: Mapping[str, Any] | None = None
+        if isinstance(raw_meta, Mapping):
+            meta = raw_meta
+        elif isinstance(raw_meta, str):
+            try:
+                parsed = json.loads(raw_meta)
+            except (json.JSONDecodeError, TypeError):
+                parsed = None
+            meta = parsed if isinstance(parsed, Mapping) else None
+        if meta is not None:
+            meta_seq = extract_sequence_number_from_metadata(meta, file_type=expected_file_type)
+            if meta_seq is not None:
+                return meta_seq
+    return prefixed[0] if prefixed is not None else None
 
 
 def _write_chapter_error(error: str, *, error_type: str, **fields: Any) -> dict[str, Any]:
@@ -2087,10 +2087,14 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
             tool_name=tool_name,
         )
     existing_title = (matches[0].title or "").strip()
-    if raw_title and raw_title == existing_title:
+    if (raw_title and raw_title == existing_title) or not _chapter_title_has_subtitle(raw_title, unit):
         requested_replace_title = None
     else:
-        requested_replace_title = title if _chapter_title_has_subtitle(raw_title, unit) else None
+        candidate_title = title
+        existing_prefixed = _split_prefixed_chapter_title(existing_title, unit)
+        if existing_prefixed is not None and _split_prefixed_chapter_title(raw_title, unit) is None:
+            candidate_title = f"{existing_prefixed[0]} - {title}"
+        requested_replace_title = None if candidate_title == existing_title else candidate_title
     return _write_chapter_replace(
         matches[0].id,
         number=number,
@@ -2440,8 +2444,6 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
             data = {**data, "body_in_reply": True, "next_step": _body_in_reply_next_step(title, tool_name)}
         elif awaiting_body:
             data = _awaiting_body_data(data, title)
-            if empty_requested:
-                data["next_step"] = "作者这一轮要正文，empty 不生效。" + data["next_step"]
         elif empty_by_request:
             data = {**data, "empty_by_request": True}
         return _make_result(
@@ -2452,8 +2454,6 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
             },
             tool_name=tool_name,
         )
-    except FileWriteRecoveryError as e:
-        return _write_recovery_payload(e, tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
     finally:
@@ -2480,14 +2480,6 @@ def _withdraw_file_created_after_close(
             "error_type": "round_closed",
             "mutation_applied": False,
         },
-        tool_name=tool_name,
-    )
-
-
-def _write_recovery_payload(error: FileWriteRecoveryError, *, tool_name: str) -> dict[str, Any]:
-    return _make_mcp_payload(
-        {"status": "error", "error": str(error), "error_type": error.error_type,
-         "id": error.file_id, "mutation_applied": False, "user_message": str(error)},
         tool_name=tool_name,
     )
 
@@ -2604,7 +2596,7 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         return _make_edit_error(str(e), **e.payload_fields())
     except FileWriteBusyError as e:
         return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_BUSY)
-    except FileWriteRecoveryError as e:
+    except PreWriteHistoryUnavailableError as e:
         # 原稿没能先进历史：提交前已回滚，一处都没改。
         return _make_edit_error(str(e), error_type=e.error_type, user_message=str(e))
     except NotFoundError as e:
@@ -2683,22 +2675,27 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
 
     raw_id = args.get("id", "")
     file_id = raw_id.strip() if isinstance(raw_id, str) else ""
+    recursive = coerce_bool(args.get("recursive"))
+    if (pending := ToolContext.pending_empty_file_for(file_id)) is not None and (
+        not pending.get("created_here") or recursive
+    ):
+        return _make_mcp_payload(
+            {
+                "status": "error",
+                "error": (
+                    f"《{pending['title']}》正在等待 <file>…</file> 写入替换正文，delete_file 未执行（没有改动）。"
+                    "若本轮不再重写而改为删除，请先结束当前待写状态或在下一次回复说明。"
+                ),
+                "error_type": WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE,
+                "id": file_id,
+                "mutation_applied": False,
+            },
+            tool_name=tool_name,
+        )
     try:
-        title: str | None = None
-        file_type: str | None = None
-        session = getattr(executor, "session", None)
-        if isinstance(session, Session) and file_id:
-            from models import File
-
-            existing = session.get(File, file_id)
-            if existing is not None and not existing.is_deleted and existing.project_id == project_id:
-                title = existing.title
-                file_type = existing.file_type
-
         # recursive 是本项目破坏性最强的布尔参数：判真会软删除整棵子树。
         # 模型传来的 "false"/"0"/被截断修复出来的 "fals" 在朴素真值判断下全是
         # True，历史上把"删一个文件"变成"删掉整个文件夹的所有章节"。
-        recursive = coerce_bool(args.get("recursive"))
         result = executor.delete_file(
             id=file_id,
             recursive=recursive,
@@ -2708,15 +2705,18 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
                 {"status": "success", "mutation_applied": False, "data": False},
                 tool_name=tool_name,
             )
+        if pending is not None:
+            ToolContext.clear_pending_empty_file(file_id)
+        meta = getattr(executor, "_last_deleted_meta", None)
         data: dict[str, Any] = {
             "id": file_id,
             "restored": False,
             "mutation_applied": True,
         }
-        if title is not None:
-            data["title"] = title
-        if file_type is not None:
-            data["file_type"] = file_type
+        if isinstance(meta, dict) and meta.get("id") == file_id:
+            for key in ("title", "file_type", "deleted_at"):
+                if isinstance(meta.get(key), str):
+                    data[key] = meta[key]
         return _make_result(
             {"status": "success", "mutation_applied": True, "data": data},
             tool_name=tool_name,

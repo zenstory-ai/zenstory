@@ -9,6 +9,13 @@ export function isFileRemoved(projectId: string | null | undefined, fileId: stri
 export function clearFileRemoved(projectId: string, fileId: string): void {
   removed.delete(key(projectId, fileId));
 }
+type IdTreeNode = { id: string; children?: ReadonlyArray<IdTreeNode> };
+export function clearLiveTreeRemoved(projectId: string, nodes: ReadonlyArray<IdTreeNode>): void {
+  for (const node of nodes) {
+    removed.delete(key(projectId, node.id));
+    if (node.children?.length) clearLiveTreeRemoved(projectId, node.children);
+  }
+}
 export function notifyFileRemoved(projectId: string, fileId: string): void {
   removed.add(key(projectId, fileId));
   window.dispatchEvent(new CustomEvent<FileRemovedDetail>(FILE_REMOVED_EVENT, { detail: { projectId, fileId } }));

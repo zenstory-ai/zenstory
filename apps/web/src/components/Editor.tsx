@@ -225,6 +225,18 @@ const EditorComponent: React.FC<EditorProps> = () => {
   const conflictReviewRef = useRef<ConflictReview | null>(null);
   const removedFileHandlerRef = useRef<(fileId: string) => void>(() => {});
   const [removedDrafts, setRemovedDrafts] = useState<Array<{ snapshot: EditorDraftSnapshot; persisted: boolean }>>([]);
+  const removedDraftsRef = useRef(removedDrafts);
+  removedDraftsRef.current = removedDrafts;
+  const clearRemovedDraftEntry = useCallback((scope: { userId: string; projectId: string; fileId: string }) => {
+    setRemovedDrafts((previous) =>
+      previous.filter(
+        (item) =>
+          item.snapshot.userId !== scope.userId ||
+          item.snapshot.projectId !== scope.projectId ||
+          item.snapshot.fileId !== scope.fileId,
+      ),
+    );
+  }, []);
   // syncOpenFileFromServer (defined below), for reloads of the open file in loadData.
   const syncOpenFileFromServerRef = useRef<() => Promise<void>>(async () => {});
   const [draftRecovery, setDraftRecovery] = useState<{
@@ -446,8 +458,17 @@ const EditorComponent: React.FC<EditorProps> = () => {
         projectId: currentProjectId,
         fileId: data.id,
       } : null;
-      const snapshot = scope ? readEditorDraftSnapshot(localStorage, scope) : null;
+      const memoryRemoved = scope
+        ? removedDraftsRef.current.find(
+            (item) =>
+              item.snapshot.userId === scope.userId &&
+              item.snapshot.projectId === scope.projectId &&
+              item.snapshot.fileId === scope.fileId,
+          )
+        : undefined;
+      const snapshot = (scope ? readEditorDraftSnapshot(localStorage, scope) : null) ?? memoryRemoved?.snapshot ?? null;
       if (!snapshot) {
+        if (scope) clearRemovedDraftEntry(scope);
         setDraftRecovery(null);
         setEditTitle(data.title);
         setEditContent(serverContent);
@@ -459,32 +480,45 @@ const EditorComponent: React.FC<EditorProps> = () => {
           updatedAt: data.updated_at,
         });
         if (resolution === "identical") {
-          if (scope) clearEditorDraftSnapshot(localStorage, scope);
+          if (scope) {
+            clearEditorDraftSnapshot(localStorage, scope);
+            clearRemovedDraftEntry(scope);
+          }
           setDraftRecovery(null);
           setEditTitle(data.title);
           setEditContent(serverContent);
           if (followServer) markServerBaseline(data);
-        } else if (resolution === "recover") {
-          setDraftRecovery({
-            snapshot,
-            serverTitle: data.title,
-            serverContent,
-            kind: "recover",
-            applied: true,
-          });
-          setEditTitle(snapshot.title);
-          setEditContent(snapshot.content);
         } else {
-          setDraftRecovery({
-            snapshot,
-            serverTitle: data.title,
-            serverContent,
-            kind: "conflict",
-            applied: false,
-          });
-          setEditTitle(data.title);
-          setEditContent(serverContent);
-          if (followServer) markServerBaseline(data);
+          const liveSnapshot: EditorDraftSnapshot =
+            snapshot.reason === "file-deleted" ? { ...snapshot, reason: "page-exit" } : snapshot;
+          if (scope && (snapshot.reason === "file-deleted" || memoryRemoved)) {
+            const persistedNow = writeEditorDraftSnapshot(localStorage, liveSnapshot);
+            if (persistedNow && !liveSnapshot.recoveryDraft) {
+              clearRemovedDraftEntry(scope);
+            }
+          }
+          if (resolution === "recover") {
+            setDraftRecovery({
+              snapshot: liveSnapshot,
+              serverTitle: data.title,
+              serverContent,
+              kind: "recover",
+              applied: true,
+            });
+            setEditTitle(liveSnapshot.title);
+            setEditContent(liveSnapshot.content);
+          } else {
+            setDraftRecovery({
+              snapshot: liveSnapshot,
+              serverTitle: data.title,
+              serverContent,
+              kind: "conflict",
+              applied: false,
+            });
+            setEditTitle(data.title);
+            setEditContent(serverContent);
+            if (followServer) markServerBaseline(data);
+          }
         }
       }
     } catch (err: unknown) {
@@ -513,6 +547,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setSelectedItem,
     currentUserId,
     markServerBaseline,
+    clearRemovedDraftEntry,
   ]);
 
   useEffect(() => {
@@ -1099,12 +1134,20 @@ const EditorComponent: React.FC<EditorProps> = () => {
       && currentUserId
       && currentProjectId
     ) {
-      const cleared = clearEditorDraftSnapshot(localStorage, {
+      const scope = {
         userId: currentUserId,
         projectId: currentProjectId,
         fileId: targetFileId,
-      });
-      if (cleared) setDraftRecovery(null);
+      };
+      const hasMemoryRemoved = removedDraftsRef.current.some(
+        (item) =>
+          item.snapshot.userId === scope.userId &&
+          item.snapshot.projectId === scope.projectId &&
+          item.snapshot.fileId === scope.fileId,
+      );
+      const cleared = clearEditorDraftSnapshot(localStorage, scope);
+      clearRemovedDraftEntry(scope);
+      if (cleared || hasMemoryRemoved) setDraftRecovery(null);
     }
     notifyEditorContentSaved(updated?.project_id ?? currentFileRef.current?.project_id ?? "");
     return { outcome: "saved", updatedAt: updated.updated_at };
@@ -1119,16 +1162,24 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
   const discardRecoveredDraft = useCallback(() => {
     if (!draftRecovery || !currentUserId || !currentProjectId) return;
-    const cleared = clearEditorDraftSnapshot(localStorage, {
+    const scope = {
       userId: currentUserId,
       projectId: currentProjectId,
       fileId: draftRecovery.snapshot.fileId,
-    });
-    if (!cleared) return;
+    };
+    const cleared = clearEditorDraftSnapshot(localStorage, scope);
+    const hasMemoryRemoved = removedDraftsRef.current.some(
+      (item) =>
+        item.snapshot.userId === scope.userId &&
+        item.snapshot.projectId === scope.projectId &&
+        item.snapshot.fileId === scope.fileId,
+    );
+    if (!cleared && !hasMemoryRemoved) return;
+    clearRemovedDraftEntry(scope);
     setEditTitle(draftRecovery.serverTitle);
     setEditContent(draftRecovery.serverContent);
     setDraftRecovery(null);
-  }, [draftRecovery, currentUserId, currentProjectId]);
+  }, [draftRecovery, currentUserId, currentProjectId, clearRemovedDraftEntry]);
 
   // 只有「去AI味」进入的审阅才允许在全部拒绝时跳过写库。保存冲突审阅的
   // originalContent 是本地草稿、服务端持有另一份正文，完成审阅必须 setEditContent

@@ -216,6 +216,7 @@ class StreamAdapter:
         # 整章替换的保存回执，按 write_chapter 的 tool_use_id 记：同一章在一轮里可能先后替换多次，
         # 文件级回执只说「这个文件存过」，不能拿来证明后一次替换也存了。
         self._replacement_receipts: dict[str, int | None] = {}
+        self._replacement_card_updates: dict[str, dict[str, Any]] = {}
         # 停止时补存的残稿属于哪一次整章替换（tool_use_id），没有则为 None。
         self._abort_capture_replace_id: str | None = None
         # 解析器已经收到 </file>、正文完整但还没开始保存的结果（解析器此时已 reset，完整正文只在这里）：
@@ -1067,7 +1068,7 @@ class StreamAdapter:
     ) -> tuple[str, dict[str, Any] | None]:
         """("saved", 结果) / ("refused", None)：版本冲突或恢复记录建立失败 / ("failed", None)：其他失败。"""
         from agent.tools.file_ops.crud import ConcurrentFileWriteError
-        from agent.tools.write_errors import FileWriteRecoveryError
+        from agent.tools.write_errors import PreWriteHistoryUnavailableError
 
         run_meter = self.config.run_meter
         timing = run_meter.measure_stage("file_save") if run_meter is not None else contextlib.nullcontext()
@@ -1095,7 +1096,7 @@ class StreamAdapter:
             save.add_done_callback(_ABORT_SAVE_TASKS.discard)
             save.add_done_callback(lambda done: done.cancelled() or done.exception())
             raise
-        except (ConcurrentFileWriteError, FileWriteRecoveryError) as exc:
+        except (ConcurrentFileWriteError, PreWriteHistoryUnavailableError) as exc:
             log_with_context(
                 logger, 30, "Chapter replacement refused", file_id=file_id, error_type=type(exc).__name__
             )
@@ -1121,6 +1122,7 @@ class StreamAdapter:
             file_type=pending.file_type,
         )
         self._note_replacement_receipt(pending.replace_tool_use_id, words)
+        self._note_replacement_card_update(pending.replace_tool_use_id, replaced)
         from agent.tools.mcp_tools import ToolContext
 
         ToolContext.mark_chapter_replacement_saved(file_id)
@@ -1372,6 +1374,7 @@ class StreamAdapter:
         words = count_words(str(replaced.get("new_content") or content))
         self._note_body_saved(file_id, words)
         self._note_replacement_receipt(replace_tool_use_id, words)
+        self._note_replacement_card_update(replace_tool_use_id, replaced)
         log_with_context(logger, 20, "Chapter replacement committed after abort", file_id=file_id)
 
     def get_saved_file_word_counts(self) -> dict[str, int | None]:
@@ -1386,9 +1389,24 @@ class StreamAdapter:
         if replace_tool_use_id:
             self._replacement_receipts[replace_tool_use_id] = words
 
+    def _note_replacement_card_update(self, replace_tool_use_id: str | None, replaced: dict[str, Any]) -> None:
+        if not replace_tool_use_id:
+            return
+        card_update: dict[str, Any] = {}
+        if isinstance(replaced.get("title"), str) and replaced["title"]:
+            card_update["title"] = replaced["title"]
+        if isinstance(replaced.get("undo"), dict):
+            card_update["undo"] = replaced["undo"]
+        if card_update:
+            self._replacement_card_updates[replace_tool_use_id] = card_update
+
     def get_replacement_receipts(self) -> dict[str, int | None]:
         """整章替换的保存回执（write_chapter tool_use_id → 字数，None 表示这一次没有保存）。"""
         return dict(self._replacement_receipts)
+
+    def get_replacement_card_updates(self) -> dict[str, dict[str, Any]]:
+        """停止后在途提交成功的整章替换附加字段（title / undo）。"""
+        return dict(self._replacement_card_updates)
 
     async def _flush_capture_and_held_reply(self) -> AsyncIterator[SSEEvent]:
         """出错收尾：进行中的捕获照常收尾，没被认领的正文作为对话放出（都在 error 帧之前）。"""

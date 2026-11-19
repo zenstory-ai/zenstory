@@ -53,8 +53,9 @@ const AGENT_CONTROL_MARKER_PATTERN = new RegExp(
   'g',
 );
 
-const AUTHOR_EDITS_BLOCK_PATTERN = /<author_edits>[\s\S]*?<\/author_edits>/gi;
-const UNFINISHED_AUTHOR_EDITS_BLOCK_PATTERN = /<author_edits>[\s\S]*$/gi;
+const AUTHOR_EDITS_BLOCK_PATTERN = /(?<!`)<author_edits>(?!`)[\s\S]*?<\/author_edits>/gi;
+const UNFINISHED_AUTHOR_EDITS_BLOCK_PATTERN = /(?<!`)<author_edits>(?!`)[\s\S]*$/gi;
+const PARTIAL_AUTHOR_EDITS_OPEN_TAG_PATTERN = /(?<!`)<author_(?:e(?:d(?:i(?:t(?:s)?)?)?)?)?$/i;
 
 /**
  * Escape special characters in a string for use in a regular expression.
@@ -82,7 +83,8 @@ export function stripThinkTags(content: string): string {
   const result = content
     .replace(/<\/think>/gi, '')
     .replace(AUTHOR_EDITS_BLOCK_PATTERN, '')
-    .replace(UNFINISHED_AUTHOR_EDITS_BLOCK_PATTERN, '');
+    .replace(UNFINISHED_AUTHOR_EDITS_BLOCK_PATTERN, '')
+    .replace(PARTIAL_AUTHOR_EDITS_OPEN_TAG_PATTERN, '');
   return stripAgentControlMarkers(result).trim();
 }
 

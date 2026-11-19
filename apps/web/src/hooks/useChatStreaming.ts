@@ -200,9 +200,6 @@ export interface UseChatStreamingOptions {
   /** Called when tool calls segment updates */
   onSegmentUpdateToolCalls?: (segmentId: string, toolCalls: ToolCall[]) => void;
 
-  /** Called when a segment completes */
-  onSegmentEnd?: (segmentId: string) => void;
-
   // ========================================
   // Workflow status callbacks
   // ========================================
@@ -841,7 +838,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
          */
         onSegmentUpdate: (segmentId: string, content: string) => {
           const cleanContent = stripThinkTags(content);
-          if (!cleanContent.trim()) return;
 
           updateStreamItems((prev) => {
             const contentIndex = prev.findIndex((item) => item.id === segmentId);
@@ -852,6 +848,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
               updated[contentIndex] = { ...currentItem, content: cleanContent };
               return updated;
             }
+
+            if (!cleanContent.trim()) return prev;
 
             // If segment not found, create new one
             return [
@@ -882,13 +880,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
             }
             return prev;
           });
-        },
-
-        /**
-         * Called when a segment completes - currently no action needed
-         */
-        onSegmentEnd: (_segmentId: string) => {
-          // Segment is complete, nothing special to do
         },
 
         // ========================================

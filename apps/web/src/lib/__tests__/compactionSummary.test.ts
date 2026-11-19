@@ -41,4 +41,21 @@ describe('formatCompactionSummary', () => {
       ].join('\n'),
     )
   })
+
+  it('handles UUID/project_id labels, single-dash or pipeless GFM tables, partial bold, and trailing prose separation', () => {
+    const raw = [
+      '标题 | UUID',
+      '- | -',
+      '**第1章** 雨夜 | de904a54-c7b1-4fa0-be3c-ee0d4033048d',
+      '下一段说明（UUID: 09ab1059-6f47-440c-8ef3-8a47bfb38943）与【project_id: 11111111-2222-3333-4444-555555555555】。',
+    ].join('\n')
+
+    expect(formatCompactionSummary(raw)).toBe(
+      [
+        '- **第1章** 雨夜',
+        '',
+        '下一段说明与。',
+      ].join('\n'),
+    )
+  })
 })

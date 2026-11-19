@@ -575,6 +575,15 @@ class SessionLoader:
                 continue
 
             unknown = {"outcome_unknown": True} if status == _PENDING_TOOL_STATUS else {}
+            if name == "delete_file":
+                raw_res = self._parse_json_value(tc.get("result"))
+                res_data = raw_res.get("data") if isinstance(raw_res, dict) and "data" in raw_res else raw_res
+                if raw_res is False or res_data is False:
+                    continue
+                if isinstance(res_data, dict) and (
+                    res_data.get("mutation_applied") is False or res_data.get("restored") is True
+                ):
+                    continue
             if name in {"create_file", "write_chapter", "edit_file", "delete_file", "rename_file"}:
                 actions.append(
                     {

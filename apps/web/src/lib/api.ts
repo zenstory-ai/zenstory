@@ -722,6 +722,7 @@ export const fileApi = {
       restored: boolean;
       already_restored: boolean;
       restored_count: number;
+      file_ids?: string[];
     }>(`/api/v1/files/${fileId}/restore`, {
       chat_message_id: options?.chatMessageId,
       tool_use_id: options?.toolUseId,

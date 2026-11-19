@@ -16,5 +16,12 @@ describe('stripThinkTags', () => {
   it('hides an unfinished internal author edit block while streaming', () => {
     expect(stripThinkTags('可见回复。<author_edits>正在生成的内部上下文'))
       .toBe('可见回复。');
+    expect(stripThinkTags('可见回复。<author_ed'))
+      .toBe('可见回复。');
+  });
+
+  it('does not eat prose after inline-code mentions of `<author_edits>`', () => {
+    expect(stripThinkTags('系统内部块 `<author_edits>` 不会向作者展示，后续正文正常保留。'))
+      .toBe('系统内部块 `<author_edits>` 不会向作者展示，后续正文正常保留。');
   });
 });

@@ -162,7 +162,6 @@ const streamCallbacks = {
   onSegmentStart: vi.fn(),
   onSegmentUpdate: vi.fn(),
   onSegmentUpdateToolCalls: vi.fn(),
-  onSegmentEnd: vi.fn(),
   onComplete: vi.fn(async () => {}),
   onError: vi.fn(),
   onToolResult: vi.fn(),

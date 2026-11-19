@@ -17,8 +17,6 @@
     "sources": "参考来源：",
     "operation": "操作：",
     "resizeHandle": "拖动调整输入区域高度（双击重置）",
-    "skillMatched": "已启用技能: {{name}}",
-    "skillMatchedMulti": "技能{{index}}: {{name}}",
     "streamErrorTitle": "这次生成中断了",
     "accountRunsBusyTitle": "暂时不能开始新任务",
     "streamErrorQuotaPaused": "这一轮没做完，已经保存的内容不受影响。今天的 AI 消息用完了，额度恢复后再接着写。",
@@ -122,9 +120,7 @@
       "inspiration": "参考",
       "default": "来源"
     },
-    "label": "来源",
-    "citations": "引用来源",
-    "tokenEstimate": "约 {{value}} token"
+    "label": "来源"
   },
   "workflow": {
     "iterationExhausted": "这一轮先做到这里",
@@ -241,9 +237,6 @@
     "undoLaterFirst": "先撤销后面对这个文件的修改",
     "edit_touched_author_edits": "改到了你手动改过的地方",
     "edit_restored_author_deletion": "放回了你删掉的段落，可以撤销",
-    "edits_summary": "{{editsApplied}} 处变更 · {{size}}",
-    "edits_summary_one": "{{editsApplied}} 处变更 · {{size}}",
-    "edits_summary_other": "{{editsApplied}} 处变更 · {{size}}",
     "complete_suffix": "完成",
     "view_edit_details": "查看变更详情（{{count}}）",
     "failed": "{{label}}失败",
@@ -283,13 +276,6 @@
     "quote": "引用",
     "default": "文件"
   },
-  "action": {
-    "insert": "插入到光标后",
-    "replace": "替换选中文本",
-    "new_snippet": "创建为素材",
-    "reference_only": "仅参考",
-    "apply": "应用"
-  },
   "size": {
     "characters": "{{length}} 字",
     "kCharacters": "{{length}} 千字"
@@ -309,14 +295,6 @@
     "insert_before_label": "在此之前插入",
     "insert_content": "插入内容",
     "delete_content": "删除内容"
-  },
-  "response": {
-    "generated_result": "生成结果",
-    "used_snippets": "引用的素材",
-    "reasoning_label": "AI 思考过程:",
-    "conflicts_detected": "检测到 {{count}} 个潜在问题",
-    "conflicts_detected_one": "检测到 {{count}} 个潜在问题",
-    "conflicts_detected_other": "检测到 {{count}} 个潜在问题"
   },
   "voice": {
     "recognition_success": "识别成功",

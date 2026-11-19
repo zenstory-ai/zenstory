@@ -51,9 +51,6 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   if (key === 'chat:tool.chapterReplacedPrevious' && options?.size !== undefined) {
     return `Replaced the previous ${options.size}`
   }
-  if (key === 'chat:response.conflicts_detected' && options?.count !== undefined) {
-    return `Conflicts detected`
-  }
 
   const translations: Record<string, string> = {
     'chat:tool.created': 'Created',
@@ -100,15 +97,6 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
     'chat:edit.insert_after_label': 'After',
     'chat:edit.insert_before_label': 'Before',
     'chat:edit.delete_content': 'Delete content',
-    'chat:response.generated_result': 'Generated result',
-    'chat:response.used_snippets': 'Used snippets',
-    'chat:response.conflicts_detected': 'Conflicts detected',
-    'chat:response.reasoning_label': 'Reasoning',
-    'chat:action.insert': 'Insert',
-    'chat:action.replace': 'Replace',
-    'chat:action.new_snippet': 'New snippet',
-    'chat:action.reference_only': 'Reference only',
-    'chat:action.apply': 'Apply',
     'common:undo': 'Undo',
     'common:retry': 'Retry',
     'common:copy': 'Copy',

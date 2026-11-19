@@ -87,7 +87,7 @@ _MINIMAX_FAILURE_REASONS = {
     2064: "server_overloaded", 2066: "timeout", 2067: "usage_limit", 2068: "model_access_denied",
     2069: "model_unavailable",
 }
-_FAILURE_CALL_SITES = frozenset({"agent", "router", "suggest", "polish", "material", "llm_client"})
+_FAILURE_CALL_SITES = frozenset({"agent", "agent_loop_compaction", "suggest", "polish", "material", "llm_client"})
 _FAILURE_PARAMETER_FIELDS = frozenset({
     "model", "messages", "max_tokens", "max_completion_tokens", "temperature", "top_p",
     "tools", "tool_choice", "response_format", "stream", "stream_options", "thinking", "reasoning_effort",
