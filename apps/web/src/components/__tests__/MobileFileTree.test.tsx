@@ -80,20 +80,6 @@ vi.mock('../../lib/api', () => ({
     create: vi.fn(),
     delete: (...args: unknown[]) => mockDelete(...args),
   },
-  fileTrashApi: {
-    preview: vi.fn(async (_projectId: string, ids: string[], recursive: boolean) => ({
-      root_ids: ids, recursive,
-      targets: ids.map((id) => ({ id, title: '第一章', file_type: 'draft', parent_id: 'folder-drafts', order: 0 })),
-      count: ids.length, target_hash: 'a'.repeat(64),
-    })),
-    deleteBatch: vi.fn((_projectId: string, preview: { root_ids: string[]; targets: unknown[] }) =>
-      Promise.resolve(mockDelete(preview.root_ids[0])).then(() => ({
-        batch_id: 'batch-1', root_ids: preview.root_ids, targets: preview.targets,
-        count: preview.targets.length, restored: false, mutation_applied: true,
-      }))),
-    list: vi.fn(async () => ({ batches: [], total: 0, limit: 50, offset: 0, next_offset: null })),
-    restore: vi.fn(),
-  },
 }));
 
 vi.mock('../SearchResultsDropdown', () => ({
@@ -254,7 +240,7 @@ describe('MobileFileTree', () => {
     let dialog = await screen.findByRole('dialog');
     expect(nativeConfirm).not.toHaveBeenCalled();
     expect(within(dialog).getByText('common:confirmDelete')).toBeInTheDocument();
-    expect(dialog).toHaveTextContent('第一章');
+    expect(within(dialog).getByText('第一章')).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'common:cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

@@ -19,45 +19,25 @@ from api import agent_api
 from api import files as web
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
-from models import (
-    File,
-    FileEditOperation,
-    FileVersion,
-    Project,
-    Snapshot,
-    User,
-    WorkspaceOnboarding,
-)
+from models import File, FileVersion, Project, Snapshot, User, WorkspaceOnboarding
 from models.agent_api_key import AgentApiKey
 from services.features.file_version_service import FileVersionService, get_file_version_service
 
 MIN_ORDER = -2_147_483_648
 MAX_ORDER = 2_147_483_647
 STAMP = datetime(2026, 10, 6, 12, 0, 0, 123456)
-TABLES = [
-    User.__table__,
-    Project.__table__,
-    File.__table__,
-    Snapshot.__table__,
-    FileVersion.__table__,
-    AgentApiKey.__table__,
-    WorkspaceOnboarding.__table__,
-    FileEditOperation.__table__,
-]
+TABLES = [User.__table__, Project.__table__, File.__table__, Snapshot.__table__,
+          FileVersion.__table__, AgentApiKey.__table__, WorkspaceOnboarding.__table__]
 pytestmark = pytest.mark.skipif(
-    not os.getenv("ZENSTORY_TEST_POSTGRES_URL"),
-    reason="owned PostgreSQL URL required",
+    not os.getenv("ZENSTORY_TEST_POSTGRES_URL"), reason="owned PostgreSQL URL required",
 )
 
 
 @pytest.fixture(scope="module")
 def order_engine():
-    engine = create_engine(
-        os.environ["ZENSTORY_TEST_POSTGRES_URL"],
-        connect_args={
-            "options": "-c timezone=UTC -c statement_timeout=10000 -c lock_timeout=8000",
-        },
-    )
+    engine = create_engine(os.environ["ZENSTORY_TEST_POSTGRES_URL"], connect_args={
+        "options": "-c timezone=UTC -c statement_timeout=10000 -c lock_timeout=8000",
+    })
     SQLModel.metadata.create_all(engine, tables=TABLES)
     try:
         yield engine
@@ -70,13 +50,10 @@ def order_engine():
 def effects(monkeypatch):
     import database
     from services.features.activation_event_service import activation_event_service
-
     captured = {"activation": []}
     monkeypatch.setattr(database, "is_postgres", True)
     monkeypatch.setattr(activation_event_service, "record_once", lambda *a, **kw: captured["activation"].append(kw))
-    monkeypatch.setattr(
-        activation_event_service, "record_ai_write_accepted", lambda *a, **kw: captured["activation"].append(kw)
-    )
+    monkeypatch.setattr(activation_event_service, "record_ai_write_accepted", lambda *a, **kw: captured["activation"].append(kw))
     monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *a, **kw: (True, 0, 100))
     return captured
 
@@ -96,85 +73,40 @@ def _seed(engine, *, kind="plain"):
         session.add_all([a, b])
         session.flush()
         target = File(
-            project_id=project.id,
-            title=f"Chapter {MAX_ORDER + 1}" if kind == "title" else "Plain target",
-            content="Original body",
-            parent_id=a.id,
-            file_type="draft",
-            order=13,
+            project_id=project.id, title=f"Chapter {MAX_ORDER + 1}" if kind == "title" else "Plain target",
+            content="Original body", parent_id=a.id, file_type="draft", order=13,
             updated_at=STAMP,
             file_metadata=json.dumps({"chapter_number": MAX_ORDER + 1}) if kind == "metadata" else None,
         )
-        peer = File(
-            project_id=project.id,
-            title="Mixed type peer",
-            file_type="snippet",
-            parent_id=a.id,
-            order=MAX_ORDER if kind in {"append", "title-max"} else 41,
-        )
-        key = AgentApiKey(
-            user_id=user.id,
-            name="Order audit",
-            key_prefix=suffix[:8],
-            key_hash=suffix,
-            scopes=["read", "write"],
-            project_ids=[project.id],
-        )
+        peer = File(project_id=project.id, title="Mixed type peer", file_type="snippet", parent_id=a.id,
+                    order=MAX_ORDER if kind in {"append", "title-max"} else 41)
+        key = AgentApiKey(user_id=user.id, name="Order audit", key_prefix=suffix[:8], key_hash=suffix,
+                          scopes=["read", "write"], project_ids=[project.id])
         session.add_all([target, peer, key])
         session.flush()
         get_file_version_service().create_initial_version(session, target)
         if kind == "scope":
-            session.add_all(
-                [
-                    File(project_id=project.id, title="Other parent", parent_id=b.id, order=MAX_ORDER),
-                    File(project_id=project.id, title="Deleted peer", parent_id=a.id, order=MAX_ORDER, is_deleted=True),
-                    # FK-valid historical cross-project parent edge must not affect owned allocation.
-                    File(project_id=foreign.id, title="Foreign peer", parent_id=a.id, order=MAX_ORDER),
-                ]
-            )
+            session.add_all([
+                File(project_id=project.id, title="Other parent", parent_id=b.id, order=MAX_ORDER),
+                File(project_id=project.id, title="Deleted peer", parent_id=a.id, order=MAX_ORDER, is_deleted=True),
+                # FK-valid historical cross-project parent edge must not affect owned allocation.
+                File(project_id=foreign.id, title="Foreign peer", parent_id=a.id, order=MAX_ORDER),
+            ])
         session.commit()
-        return {
-            "user": user.id,
-            "project": project.id,
-            "target": target.id,
-            "a": a.id,
-            "b": b.id,
-            "peer": peer.id,
-            "key": key.id,
-        }
+        return {"user": user.id, "project": project.id, "target": target.id,
+                "a": a.id, "b": b.id, "peer": peer.id, "key": key.id}
 
 
 def _snapshot(engine, project_id):
     with Session(engine) as reader:
         return {
-            "files": [
-                row.model_dump(mode="json")
-                for row in reader.exec(select(File).where(File.project_id == project_id).order_by(File.id)).all()
-            ],
-            "versions": [
-                row.model_dump(mode="json")
-                for row in reader.exec(
-                    select(FileVersion).where(FileVersion.project_id == project_id).order_by(FileVersion.id)
-                ).all()
-            ],
+            "files": [row.model_dump(mode="json") for row in reader.exec(
+                select(File).where(File.project_id == project_id).order_by(File.id)
+            ).all()],
+            "versions": [row.model_dump(mode="json") for row in reader.exec(
+                select(FileVersion).where(FileVersion.project_id == project_id).order_by(FileVersion.id)
+            ).all()],
         }
-
-
-def _assert_create_history(snapshot, file_id, body, *, recoverable_create):
-    versions = sorted(
-        (version for version in snapshot["versions"] if version["file_id"] == file_id),
-        key=lambda version: version["version_number"],
-    )
-    if recoverable_create:
-        assert [version["version_number"] for version in versions] == [1, 2]
-        assert [version["change_source"] for version in versions] == ["system", "ai"]
-        assert [version["content"] for version in versions] == ["", body]
-        assert all(version["is_base_version"] for version in versions)
-    else:
-        assert len(versions) == 1
-        assert versions[0]["version_number"] == 1 and versions[0]["is_base_version"]
-        assert versions[0]["content"] == body
-    return versions
 
 
 def _invoke(session, ids, writer, operation, payload, background):
@@ -183,26 +115,19 @@ def _invoke(session, ids, writer, operation, payload, background):
     assert key.is_active and "write" in key.scopes and ids["project"] in key.project_ids
     if writer == "web":
         if operation == "create":
-            return web.create_file(ids["project"], web.FileCreate(**payload), current_user=user, session=session)
+            return web.create_file(ids["project"], web.FileCreate(**payload),  current_user=user, session=session)
         if operation == "update":
-            return web.update_file(ids["target"], web.FileUpdate(**payload), current_user=user, session=session)
+            return web.update_file(ids["target"], web.FileUpdate(**payload),  current_user=user, session=session)
         if operation == "move":
-            return web.move_file(ids["target"], web.MoveFileRequest(**payload), current_user=user, session=session)
-        return web.reorder_files(
-            ids["project"],
-            web.ReorderFilesRequest(ordered_ids=[ids["target"], ids["peer"]]),
-            current_user=user,
-            session=session,
-        )
+            return web.move_file(ids["target"], web.MoveFileRequest(**payload),  current_user=user, session=session)
+        return web.reorder_files(ids["project"], web.ReorderFilesRequest(ordered_ids=[ids["target"], ids["peer"]]), current_user=user, session=session)
     if writer == "agent":
         context = (session, ids["user"], key)
         if operation == "create":
-            return agent_api.create_file(
-                ids["project"], agent_api.FileCreate(**payload), _rate_limit=0, context=context
-            )
+            return agent_api.create_file(ids["project"], agent_api.FileCreate(**payload),  _rate_limit=0, context=context)
         if operation == "update":
-            return agent_api.update_file(ids["target"], agent_api.FileUpdate(**payload), _rate_limit=0, context=context)
-        return agent_api.move_file(ids["target"], agent_api.FileMove(**payload), _rate_limit=0, context=context)
+            return agent_api.update_file(ids["target"], agent_api.FileUpdate(**payload),  _rate_limit=0, context=context)
+        return agent_api.move_file(ids["target"], agent_api.FileMove(**payload),  _rate_limit=0, context=context)
     ToolContext.set_context(session, ids["user"], ids["project"], None)
     try:
         crud = FileCRUD(session, ids["user"])
@@ -219,18 +144,21 @@ def _record(record_property, facts):
     print(f"ORDER_BOUNDARY {value}")
 
 
-INVALID_CASES = (
-    [(writer, "create", kind) for writer in ["web", "agent", "tool"] for kind in ["title", "metadata", "append"]]
-    + [(writer, "update", kind) for writer in ["web", "agent", "tool"] for kind in ["title", "metadata"]]
-    + [("agent", "move", kind) for kind in ["title", "metadata"]]
-    + [(writer, operation, "below-min") for writer in ["web", "tool"] for operation in ["create", "update"]]
-)
+INVALID_CASES = [
+    (writer, "create", kind) for writer in ["web", "agent", "tool"]
+    for kind in ["title", "metadata", "append"]
+] + [
+    (writer, "update", kind) for writer in ["web", "agent", "tool"]
+    for kind in ["title", "metadata"]
+] + [("agent", "move", kind) for kind in ["title", "metadata"]] + [
+    (writer, operation, "below-min")
+    for writer in ["web", "tool"]
+    for operation in ["create", "update"]
+]
 
 
 @pytest.mark.parametrize(("writer", "operation", "kind"), INVALID_CASES)
-def test_invalid_persisted_order_is_domain_rejection_and_atomic(
-    order_engine, effects, record_property, writer, operation, kind
-):
+def test_invalid_persisted_order_is_domain_rejection_and_atomic(order_engine, effects, record_property, writer, operation, kind):
     ids = _seed(order_engine, kind=kind if operation in {"move", "reorder"} or kind == "append" else "plain")
     before = _snapshot(order_engine, ids["project"])
     if operation == "create":
@@ -261,17 +189,13 @@ def test_invalid_persisted_order_is_domain_rejection_and_atomic(
 
     def capture(context):
         parameters = context.parameters
-        sql_errors.append(
-            {
-                "sqlstate": getattr(context.original_exception, "pgcode", None),
-                "statement_kind": (context.statement or "").split(" ", 1)[0],
-                "attempted_order": parameters.get("order")
-                if isinstance(parameters, dict)
-                else [item.get("order") for item in parameters if isinstance(item, dict)]
-                if isinstance(parameters, (list, tuple))
-                else None,
-            }
-        )
+        sql_errors.append({
+            "sqlstate": getattr(context.original_exception, "pgcode", None),
+            "statement_kind": (context.statement or "").split(" ", 1)[0],
+            "attempted_order": parameters.get("order") if isinstance(parameters, dict) else [
+                item.get("order") for item in parameters if isinstance(item, dict)
+            ] if isinstance(parameters, (list, tuple)) else None,
+        })
 
     background = BackgroundTasks()
     error = None
@@ -287,108 +211,70 @@ def test_invalid_persisted_order_is_domain_rejection_and_atomic(
     finally:
         event.remove(order_engine, "handle_error", capture)
     after = _snapshot(order_engine, ids["project"])
-    _record(
-        record_property,
-        {
-            "writer": writer,
-            "operation": operation,
-            "kind": kind,
-            "exception": type(error).__name__ if error else None,
-            "sql_errors": sql_errors,
-            "all_persisted_fields_unchanged": after == before,
-            "files_before_after": [len(before["files"]), len(after["files"])],
-            "versions_before_after": [len(before["versions"]), len(after["versions"])],
-            "target_before": next(f for f in before["files"] if f["id"] == ids["target"]),
-            "target_after": next(f for f in after["files"] if f["id"] == ids["target"]),
-            "background_tasks": len(background.tasks),
-            "effects": {k: len(v) for k, v in effects.items()},
-        },
-    )
+    _record(record_property, {
+        "writer": writer, "operation": operation, "kind": kind,
+        "exception": type(error).__name__ if error else None,
+        "sql_errors": sql_errors, "all_persisted_fields_unchanged": after == before,
+        "files_before_after": [len(before["files"]), len(after["files"])],
+        "versions_before_after": [len(before["versions"]), len(after["versions"])],
+        "target_before": next(f for f in before["files"] if f["id"] == ids["target"]),
+        "target_after": next(f for f in after["files"] if f["id"] == ids["target"]),
+        "background_tasks": len(background.tasks), "effects": {k: len(v) for k, v in effects.items()},
+    })
     assert after == before, "Rejected order changed File/token/parent/content/metadata/history"
     assert all(not calls for calls in effects.values())
     if writer == "tool":
-        assert isinstance(error, ValueError), (
-            f"Expected tool input ValueError, got {type(error).__name__}; PG={sql_errors}"
-        )
+        assert isinstance(error, ValueError), f"Expected tool input ValueError, got {type(error).__name__}; PG={sql_errors}"
     else:
-        assert isinstance(error, APIException), (
-            f"Expected API validation error, got {type(error).__name__}; PG={sql_errors}"
-        )
+        assert isinstance(error, APIException), f"Expected API validation error, got {type(error).__name__}; PG={sql_errors}"
         assert error.status_code == 400 and error.error_code == ErrorCode.VALIDATION_ERROR
     assert sql_errors == [], "Input-domain rejection must happen before out-of-range SQL"
 
 
-CREATE_CONTROLS = (
-    [(writer, value, value) for writer in ["web", "agent", "tool"] for value in [17, MAX_ORDER]]
-    + [(writer, value, value) for writer in ["web", "tool"] for value in [MIN_ORDER, -7]]
-    + [
-        # Agent order=0 is the unset sentinel, so sibling allocation chooses 42.
-        ("agent", 0, 42),
-    ]
-)
+CREATE_CONTROLS = [
+    (writer, value, value)
+    for writer in ["web", "agent", "tool"]
+    for value in [17, MAX_ORDER]
+] + [
+    (writer, value, value)
+    for writer in ["web", "tool"]
+    for value in [MIN_ORDER, -7]
+] + [
+    # Agent order=0 is the unset sentinel, so sibling allocation chooses 42.
+    ("agent", 0, 42),
+]
 
 
 @pytest.mark.parametrize(("writer", "order", "expected_order"), CREATE_CONTROLS)
 def test_valid_explicit_create_bounds_keep_content_baseline(
-    order_engine,
-    effects,
-    record_property,
-    writer,
-    order,
-    expected_order,
+    order_engine, effects, record_property, writer, order, expected_order,
 ):
     ids = _seed(order_engine)
     before = _snapshot(order_engine, ids["project"])
     background = BackgroundTasks()
     with Session(order_engine) as session:
-        result = _invoke(
-            session,
-            ids,
-            writer,
-            "create",
-            {
-                "title": "Plain created",
-                "file_type": "draft",
-                "content": "Created baseline body",
-                "parent_id": ids["a"],
-                "order": order,
-            },
-            background,
-        )
+        result = _invoke(session, ids, writer, "create", {
+            "title": "Plain created", "file_type": "draft", "content": "Created baseline body",
+            "parent_id": ids["a"], "order": order,
+        }, background)
         file_id = result["id"] if isinstance(result, dict) else result.id
     after = _snapshot(order_engine, ids["project"])
     row = next(f for f in after["files"] if f["id"] == file_id)
     assert row["order"] == expected_order
     assert row["content"] == "Created baseline body" and row["parent_id"] == ids["a"]
-    versions = _assert_create_history(
-        after,
-        file_id,
-        "Created baseline body",
-        recoverable_create=writer == "tool",
-    )
+    versions = [v for v in after["versions"] if v["file_id"] == file_id]
+    assert len(versions) == 1 and versions[0]["version_number"] == 1 and versions[0]["is_base_version"]
+    assert versions[0]["content"] == "Created baseline body"
     assert len(after["files"]) == len(before["files"]) + 1
-    _record(
-        record_property,
-        {
-            "writer": writer,
-            "operation": "create",
-            "control_order": order,
-            "stored_order": row["order"],
-            "initial_versions": len(versions),
-        },
-    )
+    _record(record_property, {"writer": writer, "operation": "create", "control_order": order, "stored_order": row["order"], "initial_versions": 1})
 
 
 @pytest.mark.parametrize("writer", ["web", "agent", "tool"])
 @pytest.mark.parametrize("kind", ["title-max", "metadata-max", "scope"])
 def test_valid_derived_create_order_and_sibling_domain(order_engine, effects, record_property, writer, kind):
     ids = _seed(order_engine, kind=kind)
-    payload = {
-        "title": f"Chapter {MAX_ORDER}" if kind == "title-max" else "Plain created",
-        "file_type": "draft",
-        "content": "Derived baseline",
-        "parent_id": ids["a"],
-    }
+    payload = {"title": f"Chapter {MAX_ORDER}" if kind == "title-max" else "Plain created",
+               "file_type": "draft", "content": "Derived baseline", "parent_id": ids["a"]}
     if kind == "metadata-max":
         payload["metadata"] = {"chapter_number": MAX_ORDER}
     expected = 42 if kind == "scope" else MAX_ORDER
@@ -397,21 +283,12 @@ def test_valid_derived_create_order_and_sibling_domain(order_engine, effects, re
         file_id = result["id"] if isinstance(result, dict) else result.id
     after = _snapshot(order_engine, ids["project"])
     assert next(f for f in after["files"] if f["id"] == file_id)["order"] == expected
-    _assert_create_history(
-        after,
-        file_id,
-        "Derived baseline",
-        recoverable_create=writer == "tool",
-    )
+    assert len([v for v in after["versions"] if v["file_id"] == file_id]) == 1
     _record(record_property, {"writer": writer, "operation": "create", "control": kind, "stored_order": expected})
 
 
-@pytest.mark.parametrize(
-    ("writer", "order"), [(w, MAX_ORDER) for w in ["web", "agent", "tool"]] + [(w, MIN_ORDER) for w in ["web", "tool"]]
-)
-def test_valid_update_bound_keeps_real_history_and_advances_token(
-    order_engine, effects, record_property, writer, order
-):
+@pytest.mark.parametrize(("writer", "order"), [(w, MAX_ORDER) for w in ["web", "agent", "tool"]] + [(w, MIN_ORDER) for w in ["web", "tool"]])
+def test_valid_update_bound_keeps_real_history_and_advances_token(order_engine, effects, record_property, writer, order):
     ids = _seed(order_engine)
     before = _snapshot(order_engine, ids["project"])
     original = next(f for f in before["files"] if f["id"] == ids["target"])
@@ -424,10 +301,7 @@ def test_valid_update_bound_keeps_real_history_and_advances_token(
     assert changed["parent_id"] == original["parent_id"]
     assert changed["updated_at"] > original["updated_at"]
     assert len(after["versions"]) == len(before["versions"]) + 1
-    _record(
-        record_property,
-        {"writer": writer, "operation": "update", "control_order": order, "token_advanced": True, "history_added": 1},
-    )
+    _record(record_property, {"writer": writer, "operation": "update", "control_order": order, "token_advanced": True, "history_added": 1})
 
 
 @pytest.mark.parametrize("kind", ["title", "metadata"])
@@ -443,16 +317,11 @@ def test_web_move_does_not_resolve_order_from_legacy_title_metadata(order_engine
     assert moved["parent_id"] == ids["b"] and moved["order"] == 13 and moved["content"] == old["content"]
     assert moved["title"] == old["title"] and moved["file_metadata"] == old["file_metadata"]
     assert moved["updated_at"] > old["updated_at"] and after["versions"] == before["versions"]
-    _record(
-        record_property,
-        {"writer": "web", "operation": "move", "kind": kind, "stored_order": 13, "derived_order": False},
-    )
+    _record(record_property, {"writer": "web", "operation": "move", "kind": kind, "stored_order": 13, "derived_order": False})
 
 
 @pytest.mark.parametrize("title", [f"Chapter {MAX_ORDER}", "Plain target"])
-def test_valid_agent_move_preserves_explicit_order_and_advances_parent_token(
-    order_engine, effects, record_property, title
-):
+def test_valid_agent_move_preserves_explicit_order_and_advances_parent_token(order_engine, effects, record_property, title):
     ids = _seed(order_engine)
     with Session(order_engine) as setup:
         setup.get(File, ids["target"]).title = title
@@ -466,16 +335,8 @@ def test_valid_agent_move_preserves_explicit_order_and_advances_parent_token(
     moved = next(f for f in after["files"] if f["id"] == ids["target"])
     assert moved["order"] == 17 and moved["parent_id"] == ids["b"]
     assert moved["updated_at"] > old["updated_at"] and moved["content"] == old["content"]
-    _record(
-        record_property,
-        {
-            "writer": "agent",
-            "operation": "move",
-            "control_title": title,
-            "stored_order": 17,
-            "parent_token_advanced": True,
-        },
-    )
+    _record(record_property, {"writer": "agent", "operation": "move", "control_title": title,
+                              "stored_order": 17, "parent_token_advanced": True})
 
 
 def test_valid_reorder_uses_requested_positions_not_title_sequence(order_engine, effects, record_property):
@@ -495,9 +356,7 @@ def test_valid_reorder_uses_requested_positions_not_title_sequence(order_engine,
     _record(record_property, {"writer": "web", "operation": "reorder", "control": "title-max", "stored_orders": [1, 2]})
 
 
-@pytest.mark.parametrize(
-    "model", [web.FileCreate, web.FileUpdate, agent_api.FileCreate, agent_api.FileUpdate, agent_api.FileMove]
-)
+@pytest.mark.parametrize("model", [web.FileCreate, web.FileUpdate, agent_api.FileCreate, agent_api.FileUpdate, agent_api.FileMove])
 def test_supplied_above_max_is_request_schema_rejection(model):
     payload = {"order": MAX_ORDER + 1}
     if model in {web.FileCreate, agent_api.FileCreate}:
@@ -519,9 +378,7 @@ def test_agent_nonnegative_schema_policy_is_separate(model):
         model(**payload)
 
 
-@pytest.mark.parametrize(
-    ("writer", "operation"), [(w, "update") for w in ["web", "agent", "tool"]] + [("agent", "move")]
-)
+@pytest.mark.parametrize(("writer", "operation"), [(w, "update") for w in ["web", "agent", "tool"]] + [("agent", "move")])
 def test_invalid_order_preserves_attached_fields_before_rollback(order_engine, effects, writer, operation):
     ids = _seed(order_engine, kind="metadata" if operation == "move" else "plain")
     before = _snapshot(order_engine, ids["project"])
@@ -529,21 +386,12 @@ def test_invalid_order_preserves_attached_fields_before_rollback(order_engine, e
     with Session(order_engine) as session:
         row = session.get(File, ids["target"])
         attached_before = row.model_dump()
-        attached_versions_before = [
-            v.model_dump()
-            for v in session.exec(
-                select(FileVersion).where(FileVersion.project_id == ids["project"]).order_by(FileVersion.id)
-            ).all()
-        ]
-        payload = (
-            {"order": 0, "parent_id": ids["b"]}
-            if operation == "move"
-            else {
-                "title": f"Chapter {MAX_ORDER + 1}",
-                "content": "Prospective body",
-                "order": 0,
-            }
-        )
+        attached_versions_before = [v.model_dump() for v in session.exec(
+            select(FileVersion).where(FileVersion.project_id == ids["project"]).order_by(FileVersion.id)
+        ).all()]
+        payload = {"order": 0, "parent_id": ids["b"]} if operation == "move" else {
+            "title": f"Chapter {MAX_ORDER + 1}", "content": "Prospective body", "order": 0,
+        }
         if operation == "update" and writer != "agent":
             payload.update(parent_id=ids["b"], metadata={"custom": "prospective"})
         try:
@@ -551,12 +399,9 @@ def test_invalid_order_preserves_attached_fields_before_rollback(order_engine, e
                 _invoke(session, ids, writer, operation, payload, tasks)
             assert row.model_dump() == attached_before
             assert not session.dirty and not session.new
-            assert [
-                v.model_dump()
-                for v in session.exec(
-                    select(FileVersion).where(FileVersion.project_id == ids["project"]).order_by(FileVersion.id)
-                ).all()
-            ] == attached_versions_before
+            assert [v.model_dump() for v in session.exec(
+                select(FileVersion).where(FileVersion.project_id == ids["project"]).order_by(FileVersion.id)
+            ).all()] == attached_versions_before
         finally:
             session.rollback()
     assert _snapshot(order_engine, ids["project"]) == before
@@ -593,23 +438,14 @@ def test_later_invalid_reorder_preserves_earlier_attached_row(order_engine, effe
 def test_invalid_tool_create_canonical_repair_remains_caller_rollback_owned(order_engine, effects):
     ids = _seed(order_engine)
     before = _snapshot(order_engine, ids["project"])
-    canonical_id = f"{ids['project']}-draft-folder"
+    canonical_id = f'{ids["project"]}-draft-folder'
     with Session(order_engine) as session:
         try:
             with pytest.raises(ValueError):
-                _invoke(
-                    session,
-                    ids,
-                    "tool",
-                    "create",
-                    {
-                        "title": f"Chapter {MAX_ORDER + 1}",
-                        "content": "Rejected",
-                        "file_type": "draft",
-                        "parent_id": canonical_id,
-                    },
-                    BackgroundTasks(),
-                )
+                _invoke(session, ids, "tool", "create", {
+                    "title": f"Chapter {MAX_ORDER + 1}", "content": "Rejected", "file_type": "draft",
+                    "parent_id": canonical_id,
+                }, BackgroundTasks())
             assert session.get(File, canonical_id) is not None, "existing canonical repair may flush before allocation"
             assert session.is_active
             assert not session.new
@@ -622,7 +458,7 @@ def test_invalid_tool_create_canonical_repair_remains_caller_rollback_owned(orde
 def test_invalid_screenplay_reuse_never_promotes_attached_candidate(order_engine, effects):
     ids = _seed(order_engine)
     title = f"第{MAX_ORDER + 1}集"
-    script_parent_id = f"{ids['project']}-script-folder"
+    script_parent_id = f'{ids["project"]}-script-folder'
     with Session(order_engine) as setup:
         setup.get(Project, ids["project"]).project_type = "screenplay"
         setup.add(File(id=script_parent_id, project_id=ids["project"], title="Scripts", file_type="folder"))
@@ -638,19 +474,9 @@ def test_invalid_screenplay_reuse_never_promotes_attached_candidate(order_engine
         attached_before = candidate.model_dump()
         try:
             with pytest.raises(ValueError):
-                _invoke(
-                    session,
-                    ids,
-                    "tool",
-                    "create",
-                    {
-                        "title": title,
-                        "content": "",
-                        "file_type": "draft",
-                        "parent_id": script_parent_id,
-                    },
-                    BackgroundTasks(),
-                )
+                _invoke(session, ids, "tool", "create", {
+                    "title": title, "content": "", "file_type": "draft", "parent_id": script_parent_id,
+                }, BackgroundTasks())
             assert candidate.model_dump() == attached_before
             assert not session.dirty and not session.new
         finally:

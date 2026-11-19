@@ -263,7 +263,7 @@ def test_correction_exhaustion_rolls_back_verified_empty_artifact(db_session):
 
 @pytest.mark.asyncio
 async def test_delete_file_tool_string_false_does_not_cascade(db_session):
-    """文件夹删除必须先确认完整子树，字符串 false 不能绕过范围确认。"""
+    """rank 10：单体 delete_file 工具入口传 recursive="false" 不得级联删除子树。"""
     user, project = _make_user_project(db_session, "recursive")
 
     folder = File(project_id=project.id, title="旧草稿", file_type="folder")
@@ -293,17 +293,10 @@ async def test_delete_file_tool_string_false_does_not_cascade(db_session):
     )
     try:
         result = await mcp_tools.delete_file({"id": folder.id, "recursive": "false"})
-        payload = _payload(result)
-        assert payload["status"] == "success"
-        assert payload["mutation_applied"] is False
-        assert payload["data"]["confirmation_required"] is True
-        preview = payload["data"]["preview"]
-        assert preview["recursive"] is True
-        assert preview["count"] == 4
-        assert {item["id"] for item in preview["targets"]} == {folder.id, *child_ids}
+        assert _payload(result)["status"] == "success"
 
         db_session.expire_all()
-        assert db_session.get(File, folder.id).is_deleted is False
+        assert db_session.get(File, folder.id).is_deleted is True
         assert [bool(db_session.get(File, cid).is_deleted) for cid in child_ids] == [
             False,
             False,

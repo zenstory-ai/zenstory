@@ -42,11 +42,10 @@ async def _rename(session, user, project, args):
     return json.loads(raw["content"][0]["text"])
 
 
-async def test_rename_keeps_id_body_and_records_atomic_undo(db_session, owner_project):
-    from models import FileEditOperation
-
+async def test_rename_keeps_id_body_and_versions(db_session, owner_project):
     user, project = owner_project
     chapter = _file(db_session, project, "合集")
+    versions_before = len(db_session.exec(select(FileVersion).where(FileVersion.file_id == chapter.id)).all())
 
     payload = await _rename(db_session, user, project, {"id": chapter.id, "title": "第一卷 雨夜"})
 
@@ -57,10 +56,7 @@ async def test_rename_keeps_id_body_and_records_atomic_undo(db_session, owner_pr
     renamed = db_session.get(File, chapter.id)
     assert (renamed.title, renamed.content) == ("第一卷 雨夜", LONG_BODY)
     assert len(db_session.exec(select(File).where(File.project_id == project.id)).all()) == 1
-    operation = db_session.get(FileEditOperation, payload["data"]["undo"]["operation_id"])
-    assert (operation.before_title, operation.after_title) == ("合集", "第一卷 雨夜")
-    assert db_session.get(FileVersion, operation.before_version_id).content == LONG_BODY
-    assert db_session.get(FileVersion, operation.after_version_id).content == LONG_BODY
+    assert len(db_session.exec(select(FileVersion).where(FileVersion.file_id == chapter.id)).all()) == versions_before
 
 
 @pytest.mark.parametrize("args,error", [

@@ -25,28 +25,14 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models import File, Project, Snapshot, User, WorkspaceOnboarding
 from models.agent_api_key import AgentApiKey
-from models.file_deletion_batch import FileDeletionBatch
-from models.file_edit_operation import FileEditOperation
 from models.file_version import FileVersion
-from services import file_edit_operations as file_edit_operations_module
 from services.features.file_version_service import FileVersionService
-from services.file_trash import FileTrashService
 from services.file_tree_rules import lock_project_for_files
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"), reason="isolated PostgreSQL URL not configured"
 )
-TABLES = [
-    User.__table__,
-    Project.__table__,
-    File.__table__,
-    Snapshot.__table__,
-    FileVersion.__table__,
-    AgentApiKey.__table__,
-    WorkspaceOnboarding.__table__,
-    FileEditOperation.__table__,
-    FileDeletionBatch.__table__,
-]
+TABLES = [User.__table__, Project.__table__, File.__table__, Snapshot.__table__, FileVersion.__table__, AgentApiKey.__table__, WorkspaceOnboarding.__table__]
 STAMP = datetime(2026, 10, 6, 8, 0, 0, 123456)
 CREATED_BODY = "Created through the tree gate"
 
@@ -80,16 +66,13 @@ def isolate_side_effects(monkeypatch):
 def _seed(engine, suffix, *, screenplay=False):
     with Session(engine) as session:
         user = User(
-            username=f"tree-writer-{suffix}",
-            email=f"tree-writer-{suffix}@example.test",
-            hashed_password="unused",
-            email_verified=True,
+            username=f"tree-writer-{suffix}", email=f"tree-writer-{suffix}@example.test",
+            hashed_password="unused", email_verified=True,
         )
         session.add(user)
         session.flush()
         project = Project(
-            name=f"Tree {suffix}",
-            owner_id=user.id,
+            name=f"Tree {suffix}", owner_id=user.id,
             project_type="screenplay" if screenplay else "novel",
         )
         session.add(project)
@@ -101,18 +84,12 @@ def _seed(engine, suffix, *, screenplay=False):
         session.add_all([a, b])
         session.flush()
         c = File(
-            project_id=project.id,
-            title="C",
-            file_type="folder",
-            parent_id=a.id,
+            project_id=project.id, title="C", file_type="folder", parent_id=a.id,
             updated_at=STAMP,
         )
         key = AgentApiKey(
-            user_id=user.id,
-            key_prefix=suffix[:8],
-            key_hash=f"tree-writer-{suffix}",
-            name="Tree writer",
-            scopes=["read", "write"],
+            user_id=user.id, key_prefix=suffix[:8], key_hash=f"tree-writer-{suffix}",
+            name="Tree writer", scopes=["read", "write"],
         )
         session.add_all([c, key])
         session.commit()
@@ -124,27 +101,21 @@ def _move(session, kind, user_id, key_id, file_id, parent_id):
     try:
         if kind == "web-move":
             files_api.move_file(
-                file_id,
-                files_api.MoveFileRequest(target_parent_id=parent_id),
-                current_user=owner,
-                session=session,
+                file_id, files_api.MoveFileRequest(target_parent_id=parent_id),
+                 current_user=owner, session=session,
             )
         elif kind == "web-update":
             files_api.update_file(
-                file_id,
-                files_api.FileUpdate(parent_id=parent_id),
-                current_user=owner,
-                session=session,
+                file_id, files_api.FileUpdate(parent_id=parent_id),
+                current_user=owner, session=session,
             )
         elif kind == "tool-update":
             FileCRUD(session, user_id).update_file(file_id, parent_id=parent_id)
         else:
             key = session.get(AgentApiKey, key_id)
             agent_api.move_file(
-                file_id,
-                agent_api.FileMove(parent_id=parent_id),
-                _rate_limit=0,
-                context=(session, user_id, key),
+                file_id, agent_api.FileMove(parent_id=parent_id),
+                _rate_limit=0, context=(session, user_id, key),
             )
         return 200
     except APIException as exc:
@@ -172,7 +143,9 @@ def _observe_wait(engine, pid: int, future: Future) -> bool:
 @pytest.mark.parametrize("second_kind", ["web-move", "web-update", "tool-update", "agent-move"])
 @pytest.mark.parametrize("deeper_parent", [False, True])
 def test_reciprocal_parent_writers_cannot_commit_a_cycle(pg_engine, monkeypatch, second_kind, deeper_parent):
-    user_id, project_id, a_id, b_id, c_id, key_id = _seed(pg_engine, f"cycle-{second_kind}-{deeper_parent}")
+    user_id, project_id, a_id, b_id, c_id, key_id = _seed(
+        pg_engine, f"cycle-{second_kind}-{deeper_parent}"
+    )
     first_validated, release, second_started = Event(), Event(), Event()
     second_pid = []
     original = files_api._validate_parent_assignment
@@ -223,28 +196,22 @@ def test_recursive_delete_excludes_concurrent_child_creation(pg_engine, monkeypa
     user_id, project_id, a_id, _, c_id, key_id = _seed(pg_engine, f"delete-create-{creator}")
     deleted, release, started = Event(), Event(), Event()
     pid = []
-    original = FileTrashService._preview_locked
-    preview_calls = 0
+    original = files_api._delete_recursive
 
-    def pause_deleted(service, root_ids, recursive):
-        nonlocal preview_calls
-        result = original(service, root_ids, recursive)
-        if a_id in root_ids:
-            preview_calls += 1
-        if a_id in root_ids and preview_calls == 2:
+    def pause_deleted(session, file):
+        result = original(session, file)
+        if file.id == a_id:
             deleted.set()
             assert release.wait(8), "delete was not released"
         return result
 
-    monkeypatch.setattr(FileTrashService, "_preview_locked", pause_deleted)
+    monkeypatch.setattr(files_api, "_delete_recursive", pause_deleted)
 
     def delete():
         with Session(pg_engine) as session:
             return files_api.delete_file(
-                a_id,
-                recursive=True,
-                current_user=session.get(User, user_id),
-                session=session,
+                a_id,  recursive=True,
+                current_user=session.get(User, user_id), session=session,
             )
 
     def create():
@@ -256,18 +223,15 @@ def test_recursive_delete_excludes_concurrent_child_creation(pg_engine, monkeypa
             try:
                 if creator == "web":
                     files_api.create_file(
-                        project_id,
-                        files_api.FileCreate(title="New child", parent_id=a_id),
-                        current_user=session.get(User, user_id),
-                        session=session,
+                        project_id, files_api.FileCreate(title="New child", parent_id=a_id),
+                         current_user=session.get(User, user_id), session=session,
                     )
                 elif creator == "tool":
                     FileCRUD(session, user_id).create_file(project_id, "New child", parent_id=a_id)
                 else:
                     agent_api.create_file(
-                        project_id,
-                        agent_api.FileCreate(title="New child", parent_id=a_id),
-                        _rate_limit=0,
+                        project_id, agent_api.FileCreate(title="New child", parent_id=a_id),
+                         _rate_limit=0,
                         context=(session, user_id, session.get(AgentApiKey, key_id)),
                     )
                 return 200
@@ -294,13 +258,9 @@ def test_recursive_delete_excludes_concurrent_child_creation(pg_engine, monkeypa
     with Session(pg_engine) as verify:
         assert verify.get(File, a_id).is_deleted
         assert verify.get(File, c_id).is_deleted
-        assert not verify.exec(
-            select(File).where(
-                File.project_id == project_id,
-                File.title == "New child",
-                File.is_deleted.is_(False),
-            )
-        ).all()
+        assert not verify.exec(select(File).where(
+            File.project_id == project_id, File.title == "New child", File.is_deleted.is_(False),
+        )).all()
 
 
 def test_reorder_uses_committed_title_and_timestamp_not_cached_identity(pg_engine):
@@ -318,10 +278,8 @@ def test_reorder_uses_committed_title_and_timestamp_not_cached_identity(pg_engin
         winner.commit()
         assert cached.title == "A"
         files_api.reorder_files(
-            project_id,
-            files_api.ReorderFilesRequest(ordered_ids=[a_id]),
-            current_user=owner,
-            session=stale,
+            project_id, files_api.ReorderFilesRequest(ordered_ids=[a_id]),
+            current_user=owner, session=stale,
         )
     with Session(pg_engine) as verify:
         file = verify.get(File, a_id)
@@ -333,20 +291,13 @@ def test_reorder_uses_committed_title_and_timestamp_not_cached_identity(pg_engin
 @pytest.mark.parametrize("needs_promotion", [False, True])
 def test_screenplay_reuse_returns_and_mutates_fresh_candidate(pg_engine, needs_promotion):
     user_id, project_id, a_id, _, _, _ = _seed(
-        pg_engine,
-        f"reuse-fresh-{needs_promotion}",
-        screenplay=True,
+        pg_engine, f"reuse-fresh-{needs_promotion}", screenplay=True,
     )
     future = STAMP + timedelta(days=365)
     with Session(pg_engine) as setup:
         episode = File(
-            project_id=project_id,
-            parent_id=a_id,
-            title="第3集：复用",
-            file_type="draft",
-            order=0,
-            content="Old body",
-            updated_at=STAMP,
+            project_id=project_id, parent_id=a_id, title="第3集：复用", file_type="draft",
+            order=0, content="Old body", updated_at=STAMP,
         )
         setup.add(episode)
         setup.commit()
@@ -362,10 +313,7 @@ def test_screenplay_reuse_returns_and_mutates_fresh_candidate(pg_engine, needs_p
         winner.commit()
         assert cached.content == "Old body"
         result = FileCRUD(stale, user_id).create_file(
-            project_id,
-            "第3集：复用",
-            file_type="script",
-            parent_id=a_id,
+            project_id, "第3集：复用", file_type="script", parent_id=a_id,
         )
         assert result["id"] == episode_id
         assert result["content"] == "Newest committed body"
@@ -374,9 +322,7 @@ def test_screenplay_reuse_returns_and_mutates_fresh_candidate(pg_engine, needs_p
     with Session(pg_engine) as verify:
         episode = verify.get(File, episode_id)
         assert (episode.file_type, episode.order, episode.content) == (
-            "script",
-            9,
-            "Newest committed body",
+            "script", 9, "Newest committed body",
         )
         assert episode.updated_at > future if needs_promotion else episode.updated_at == future
 
@@ -404,12 +350,11 @@ def test_all_delete_entrypoints_exclude_reparent_and_advance_fresh_tokens(pg_eng
             session.info["pause_tree_delete"] = True
             owner = session.get(User, user_id)
             if deleter == "web":
-                return files_api.delete_file(a_id, recursive=True, current_user=owner, session=session)
+                return files_api.delete_file(a_id,  recursive=True, current_user=owner, session=session)
             if deleter == "tool":
                 return FileCRUD(session, user_id).delete_file(a_id, recursive=True)
             return agent_api.delete_file(
-                a_id,
-                _rate_limit=0,
+                a_id,  _rate_limit=0,
                 context=(session, user_id, session.get(AgentApiKey, key_id)),
             )
 
@@ -444,8 +389,8 @@ def test_all_delete_entrypoints_exclude_reparent_and_advance_fresh_tokens(pg_eng
         a, b, c = [verify.get(File, item) for item in [a_id, b_id, c_id]]
         assert a.is_deleted and a.updated_at > future
         assert b.parent_id is None and not b.is_deleted
-        assert c.is_deleted
-        assert c.updated_at > future
+        assert c.is_deleted is (deleter != "agent")
+        assert c.updated_at > future if deleter != "agent" else c.updated_at == future
 
 
 def test_reorder_rejects_foreign_file_without_taking_its_write_lock(pg_engine):
@@ -454,24 +399,17 @@ def test_reorder_rejects_foreign_file_without_taking_its_write_lock(pg_engine):
     with Session(pg_engine, autoflush=False) as actor:
         with pytest.raises(APIException) as rejected:
             files_api.reorder_files(
-                project_id,
-                files_api.ReorderFilesRequest(ordered_ids=[foreign_id]),
-                current_user=actor.get(User, user_id),
-                session=actor,
+                project_id, files_api.ReorderFilesRequest(ordered_ids=[foreign_id]),
+                current_user=actor.get(User, user_id), session=actor,
             )
         assert rejected.value.status_code == 400
         assert rejected.value.error_code == ErrorCode.VALIDATION_ERROR
         # Keep the rejected caller's transaction alive; another project's owner
         # must still be able to lock their row immediately, not wait for cleanup.
         with Session(pg_engine) as other:
-            row = other.exec(
-                select(File)
-                .where(File.id == foreign_id)
-                .with_for_update(
-                    key_share=True,
-                    nowait=True,
-                )
-            ).one()
+            row = other.exec(select(File).where(File.id == foreign_id).with_for_update(
+                key_share=True, nowait=True,
+            )).one()
             assert row.id == foreign_id
 
 
@@ -500,10 +438,8 @@ def test_tree_gate_does_not_serialize_unrelated_work(pg_engine, monkeypatch, wri
             if writer == "other-project-move":
                 return _move(session, "web-move", other_user, other_key, other_a, other_b)
             file = files_api.update_file(
-                c_id,
-                files_api.FileUpdate(content="Independent content"),
-                current_user=session.get(User, user_id),
-                session=session,
+                c_id, files_api.FileUpdate(content="Independent content"),
+                current_user=session.get(User, user_id), session=session,
             )
             return file.content
 
@@ -541,11 +477,7 @@ def test_recursive_delete_refreshes_descendant_after_content_writer_lock(pg_engi
             assert release.wait(8)
             # The version insert's FK KEY SHARE must stay compatible with the waiting delete's gate.
             FileVersionService().create_version(
-                session,
-                c_id,
-                child.content,
-                change_source="system",
-                commit=False,
+                session, c_id, child.content, change_source="system", commit=False,
             )
             session.commit()
 
@@ -558,10 +490,8 @@ def test_recursive_delete_refreshes_descendant_after_content_writer_lock(pg_engi
             if deleter == "tool":
                 return FileCRUD(session, user_id).delete_file(a_id, recursive=True)
             return files_api.delete_file(
-                a_id,
-                recursive=True,
-                current_user=session.get(User, user_id),
-                session=session,
+                a_id,  recursive=True,
+                current_user=session.get(User, user_id), session=session,
             )
 
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -587,10 +517,8 @@ def test_combined_parent_content_update_commits_history_under_strong_gate(pg_eng
     user_id, _, a_id, b_id, c_id, _ = _seed(pg_engine, "parent-content")
     with Session(pg_engine) as session:
         updated = files_api.update_file(
-            c_id,
-            files_api.FileUpdate(parent_id=b_id, content="Moved and saved"),
-            current_user=session.get(User, user_id),
-            session=session,
+            c_id, files_api.FileUpdate(parent_id=b_id, content="Moved and saved"),
+             current_user=session.get(User, user_id), session=session,
         )
         assert updated.parent_id == b_id and updated.content == "Moved and saved"
     with Session(pg_engine) as verify:
@@ -604,25 +532,17 @@ def material_stubs(monkeypatch):
     # Gate tests isolate unrelated material-library decoding/ownership. The
     # authentic preview/import transaction is covered by the SQLite regressions.
     monkeypatch.setattr(material_import, "_get_novel_or_404", lambda *_a, **_kw: None)
-    monkeypatch.setattr(
-        material_import,
-        "get_material_preview",
-        lambda **_kw: SimpleNamespace(
-            markdown=CREATED_BODY,
-            suggested_file_name="Concurrent",
-            suggested_file_type="snippet",
-            suggested_folder_name="Materials",
-        ),
-    )
+    monkeypatch.setattr(material_import, "get_material_preview", lambda **_kw: SimpleNamespace(
+        markdown=CREATED_BODY, suggested_file_name="Concurrent",
+        suggested_file_type="snippet", suggested_folder_name="Materials",
+    ))
 
 
 def _seed_empty_project(engine, suffix):
     with Session(engine) as session:
         user = User(
-            username=f"tree-gate-{suffix}",
-            email=f"tree-gate-{suffix}@example.test",
-            hashed_password="unused",
-            email_verified=True,
+            username=f"tree-gate-{suffix}", email=f"tree-gate-{suffix}@example.test",
+            hashed_password="unused", email_verified=True,
         )
         session.add(user)
         session.flush()
@@ -636,24 +556,13 @@ def _create_via(session, entrypoint, user_id, project_id):
     user = session.get(User, user_id)
     if entrypoint == "tool-folder":
         return FileCRUD(session, user_id).create_file(
-            project_id,
-            "Concurrent",
-            content=CREATED_BODY,
-            file_type="draft",
-            parent_id=f"{project_id}-draft-folder",
+            project_id, "Concurrent", content=CREATED_BODY,
+            file_type="draft", parent_id=f"{project_id}-draft-folder",
         )["id"]
     if entrypoint == "import":
-        return material_import.import_material(
-            MaterialImportRequest(
-                project_id=project_id,
-                novel_id=1,
-                entity_type="characters",
-                entity_id=1,
-            ),
-            current_user=user,
-            session=session,
-            accept_language="en",
-        ).file_id
+        return material_import.import_material(MaterialImportRequest(
+            project_id=project_id, novel_id=1, entity_type="characters", entity_id=1,
+        ), current_user=user, session=session, accept_language="en").file_id
     upload = UploadFile(filename="concurrent.txt", file=BytesIO(CREATED_BODY.encode()))
     if entrypoint == "material":
         return files_api.upload_material(project_id, upload, current_user=user, session=session).id
@@ -668,36 +577,18 @@ def _take_strong_gate(engine, project_id, pid, started):
         pid.append(session.exec(text("SELECT pg_backend_pid()")).scalar())
         started.set()
         lock_project_for_files(session, project_id, exclusive=True)
-        return set(
-            session.exec(
-                select(File.id).where(
-                    File.project_id == project_id,
-                    File.is_deleted.is_(False),
-                )
-            ).all()
-        )
+        return set(session.exec(select(File.id).where(
+            File.project_id == project_id, File.is_deleted.is_(False),
+        )).all())
 
 
-def _assert_active_with_baseline(session, file_id, *, recoverable_create=False):
+def _assert_active_with_baseline(session, file_id):
     file = session.get(File, file_id)
     assert file.is_deleted is False
     assert file.content == CREATED_BODY
-    versions = session.exec(
-        select(FileVersion).where(FileVersion.file_id == file_id).order_by(FileVersion.version_number)
-    ).all()
-    contents = [
-        FileVersionService().get_content_at_version(session, file_id, version.version_number) for version in versions
-    ]
-    if recoverable_create:
-        operation = session.exec(select(FileEditOperation).where(FileEditOperation.file_id == file_id)).one()
-        assert contents == ["", CREATED_BODY]
-        assert [version.change_source for version in versions] == ["system", "ai"]
-        assert (operation.before_version_id, operation.after_version_id) == (
-            versions[0].id,
-            versions[1].id,
-        )
-    else:
-        assert contents == [CREATED_BODY]
+    versions = session.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()
+    assert len(versions) == 1
+    assert FileVersionService().get_content_at_version(session, file_id, versions[0].version_number) == CREATED_BODY
 
 
 @pytest.mark.parametrize("entrypoint", ["material", "draft", "import", "tool-folder"])
@@ -722,7 +613,7 @@ def test_create_waits_for_strong_gate_then_remains_active(pg_engine, material_st
         created_id = creator.result(10)
     assert waited, "creation did not wait for the strong tree gate"
     with Session(pg_engine) as verify:
-        _assert_active_with_baseline(verify, created_id, recoverable_create=entrypoint == "tool-folder")
+        _assert_active_with_baseline(verify, created_id)
 
 
 @pytest.mark.parametrize("entrypoint", ["material", "draft", "tool-folder"])
@@ -737,13 +628,10 @@ def test_canonical_folder_repair_holds_gate_until_content_commit(pg_engine, monk
             folder_ready.set()
             assert finish_create.wait(8), "creator was not released after folder repair"
             return result
-
         return wrapped
 
     if entrypoint == "tool-folder":
-        monkeypatch.setattr(
-            FileCRUD, "_normalize_parent_to_folder", gate_after_folder(FileCRUD._normalize_parent_to_folder)
-        )
+        monkeypatch.setattr(FileCRUD, "_normalize_parent_to_folder", gate_after_folder(FileCRUD._normalize_parent_to_folder))
     else:
         name = "_ensure_material_folder" if entrypoint == "material" else "_ensure_draft_folder"
         monkeypatch.setattr(files_api, name, gate_after_folder(getattr(files_api, name)))
@@ -766,7 +654,7 @@ def test_canonical_folder_repair_holds_gate_until_content_commit(pg_engine, monk
     assert waited, "folder repair committed and released the logical creation gate"
     assert created_id in visible, "strong taker was granted the gate before the child committed"
     with Session(pg_engine) as verify:
-        _assert_active_with_baseline(verify, created_id, recoverable_create=entrypoint == "tool-folder")
+        _assert_active_with_baseline(verify, created_id)
 
 
 @pytest.mark.parametrize("entrypoint", ["material", "draft", "tool-folder"])
@@ -796,18 +684,14 @@ def test_concurrent_canonical_folder_duplicate_preserves_creation_gate(pg_engine
             assert finish_duplicate.wait(8), "duplicate recovery was not released"
 
     if entrypoint == "tool-folder":
-        original_operation = file_edit_operations_module.create_edit_operation
+        original_version = FileCRUD._create_version
 
-        def pause_tool_operation(session, *args, **kwargs):
-            result = original_operation(session, *args, **kwargs)
-            pause_duplicate(session)
+        def pause_tool_version(self, *args, **kwargs):
+            result = original_version(self, *args, **kwargs)
+            pause_duplicate(self.session)
             return result
 
-        monkeypatch.setattr(
-            file_edit_operations_module,
-            "create_edit_operation",
-            pause_tool_operation,
-        )
+        monkeypatch.setattr(FileCRUD, "_create_version", pause_tool_version)
     else:
         original_initial = FileVersionService.create_initial_version
 
@@ -840,4 +724,4 @@ def test_concurrent_canonical_folder_duplicate_preserves_creation_gate(pg_engine
         folders = verify.exec(select(File).where(File.project_id == project_id, File.file_type == "folder")).all()
         assert len(folders) == 1
         for created_id in created_ids:
-            _assert_active_with_baseline(verify, created_id, recoverable_create=entrypoint == "tool-folder")
+            _assert_active_with_baseline(verify, created_id)

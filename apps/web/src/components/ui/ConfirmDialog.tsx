@@ -51,9 +51,6 @@ export interface ConfirmDialogProps {
    */
   message: string;
 
-  /** Optional structured details shown below the message. */
-  details?: React.ReactNode;
-
   /**
    * Label for the confirm button.
    * @default "Confirm"
@@ -175,7 +172,6 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   title,
   message,
-  details,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   variant = 'info',
@@ -255,7 +251,6 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           <p id={descriptionId} className="text-sm text-[hsl(var(--text-secondary))] leading-relaxed">
             {message}
           </p>
-          {details && <div className="mt-3">{details}</div>}
         </div>
 
         {/* Footer with Buttons */}

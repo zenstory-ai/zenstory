@@ -668,7 +668,7 @@ async def test_delete_folder_with_recursive_flag(client: AsyncClient, db_session
 
 @pytest.mark.integration
 async def test_delete_folder_without_recursive_flag(client: AsyncClient, db_session):
-    """A folder is one tree object, so the legacy false flag still deletes its live subtree."""
+    """Test deleting a folder without recursive flag only deletes the folder."""
     from services.core.auth_service import hash_password
     user = User(
         username="user30", email="user30@example.com",
@@ -700,18 +700,14 @@ async def test_delete_folder_without_recursive_flag(client: AsyncClient, db_sess
         headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 200
-    data = response.json()
-    assert data["count"] == 3
-    assert data["batch_id"]
-    assert data["mutation_applied"] is True
 
-    # No live children are stranded under a deleted folder.
+    # Verify only folder is deleted, children remain
     db_session.refresh(folder)
     db_session.refresh(file1)
     db_session.refresh(file2)
     assert folder.is_deleted is True
-    assert file1.is_deleted is True
-    assert file2.is_deleted is True
+    assert file1.is_deleted is False  # Child files should remain
+    assert file2.is_deleted is False
 
 
 @pytest.mark.integration

@@ -1,7 +1,6 @@
 """Automatic project checkpoints rely on committed writes, not UI event guesses."""
 
 import json
-import threading
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -109,18 +108,7 @@ async def test_direct_tool_envelopes_keep_explicit_mutation(monkeypatch, tool_na
     result = {"id": "file", "content": "Body", "mutation_applied": changed}
     getattr(executor, tool_name).return_value = True if tool_name == "delete_file" else result
     monkeypatch.setattr(mcp_tools.ToolContext, "get_executor", lambda: executor)
-    context = {"project_id": "project", "user_id": "user", "direct_deletions": {
-        "lock": threading.Lock(), "file_ids": set(), "confirmation_required": False,
-    }}
-    monkeypatch.setattr(mcp_tools.ToolContext, "_get_context", lambda: context)
-    if tool_name == "delete_file":
-        from services import file_trash
-
-        trash = MagicMock()
-        trash.preview.return_value = {"targets": [{"id": "file", "file_type": "draft"}], "recursive": False, "target_hash": "hash"}
-        trash.delete.return_value = {"batch_id": "batch", "mutation_applied": changed}
-        monkeypatch.setattr(file_trash, "FileTrashService", lambda *_a, **_kw: trash)
-        monkeypatch.setattr(mcp_tools.ToolContext, "get_session", lambda: None)
+    monkeypatch.setattr(mcp_tools.ToolContext, "_get_context", lambda: {"project_id": "project"})
     payload = _payload(await getattr(mcp_tools, tool_name)({"id": "file", "title": "Title", "content": "Body", "edits": []}))
     assert payload["mutation_applied"] is changed
 

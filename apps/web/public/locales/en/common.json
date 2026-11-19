@@ -46,7 +46,6 @@
     "script": "Script",
     "scene": "Scene"
   },
-  "deleteScope": "Items to delete",
   "projectTypes": {
     "novel": "Novel",
     "short": "Short Story",

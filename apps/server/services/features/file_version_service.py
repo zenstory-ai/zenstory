@@ -405,23 +405,6 @@ class FileVersionService:
         if latest.snapshot_id is not None:
             return None
 
-        # Recoverable AI operations hold immutable before/after anchors. A
-        # later manual save must never amend either referenced version in place.
-        from models.file_edit_operation import FileEditOperation
-
-        referenced_by_operation = session.exec(
-            select(FileEditOperation.id)
-            .where(
-                or_(
-                    FileEditOperation.before_version_id == latest.id,
-                    FileEditOperation.after_version_id == latest.id,
-                )
-            )
-            .limit(1)
-        ).first()
-        if referenced_by_operation is not None:
-            return None
-
         current_time = normalize_datetime_to_utc(now or utcnow())
         started_at = normalize_datetime_to_utc(latest.created_at)
         if current_time - started_at >= timedelta(seconds=window):

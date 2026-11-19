@@ -214,8 +214,21 @@ def test_base_prompt_rename_rule_points_only_to_rename_file():
 def test_delete_tool_prompt_uses_recovery_scope_without_authorship_refusal():
     assert "删除未受作者正文保护" not in LOOP_TOOL_USAGE_PROTOCOL
     assert "受保护正文及含它的文件夹请作者用文件菜单删除" not in LOOP_TOOL_USAGE_PROTOCOL
-    assert "至多 5 个明确叶文件直接删除" in LOOP_TOOL_USAGE_PROTOCOL
-    assert "文件夹或更大范围返回一次确认卡" in LOOP_TOOL_USAGE_PROTOCOL
+    assert "软删除，作者可在该删除卡片上一键恢复" in LOOP_TOOL_USAGE_PROTOCOL
+    assert "移入回收站" not in LOOP_TOOL_USAGE_PROTOCOL
+
+
+@pytest.mark.unit
+def test_post_save_and_compaction_prompts_forbid_word_count_churn_and_uuid_tables():
+    from agent.loop.engine import _BODY_SAVED_CONTEXT, _BODY_SAVED_REPLIED_CONTEXT
+    from agent.loop.prompts import COMPACT_PROMPT, LOOP_WORKING_RULES
+
+    for text in (LOOP_WORKING_RULES, _BODY_SAVED_CONTEXT, _BODY_SAVED_REPLIED_CONTEXT):
+        assert "近似字数" in text
+        assert "edit_file" in text
+    assert "不写内部文件 ID 或 UUID" in COMPACT_PROMPT
+    assert "不使用 Markdown 表格" in COMPACT_PROMPT
+    assert "照工具结果原样抄" not in COMPACT_PROMPT
 
 
 @pytest.mark.unit

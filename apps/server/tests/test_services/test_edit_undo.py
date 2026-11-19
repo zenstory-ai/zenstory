@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import event
 from sqlmodel import Session, select
 
 from agent.core.message_manager import MessageManager
@@ -51,10 +52,11 @@ def test_edit_emits_exact_before_version_and_committed_after_token(db_session, u
     user, _, file, *_ = undo_file
     result = _edit(db_session, user, file)
     db_session.refresh(file)
-    assert result["undo"]["before_version_number"] == 1
-    assert result["undo"]["expected_after_updated_at"] == normalize_datetime_to_utc(file.updated_at).isoformat()
-    assert result["undo"]["expected_after_content_sha256"] == content_sha256("Before\nAI\n")
-    assert isinstance(result["undo"]["operation_id"], str)
+    assert result["undo"] == {
+        "before_version_number": 1,
+        "expected_after_updated_at": normalize_datetime_to_utc(file.updated_at).isoformat(),
+        "expected_after_content_sha256": content_sha256("Before\nAI\n"),
+    }
     assert file.content == "Before\nAI\n"
     assert normalize_datetime_to_utc(file.updated_at) > STAMP
     assert _count_versions(db_session, file.id) == 2
@@ -116,10 +118,11 @@ async def test_first_ai_edit_of_blank_file_undoes_to_blank_through_real_rollback
     result = _edit(db_session, user, blank_file)
     db_session.refresh(blank_file)
     token = normalize_datetime_to_utc(blank_file.updated_at).isoformat()
-    assert result["undo"]["before_version_number"] == 1
-    assert result["undo"]["expected_after_updated_at"] == token
-    assert result["undo"]["expected_after_content_sha256"] == content_sha256("AI\n")
-    assert result["undo"]["operation_id"]
+    assert result["undo"] == {
+        "before_version_number": 1,
+        "expected_after_updated_at": token,
+        "expected_after_content_sha256": content_sha256("AI\n"),
+    }
     assert _version_rows(db_session, blank_file.id) == [(1, "edit", "system"), (2, "ai_edit", "ai")]
     service = get_file_version_service()
     assert service.get_version_by_number(db_session, blank_file.id, 1).change_summary == "Before AI edit"
@@ -190,9 +193,7 @@ async def test_blank_undo_keeps_token_conflict_and_quota_rules(client, db_sessio
     assert blank_file.content == ""
 
 
-def test_blank_baseline_failure_rolls_back_the_ai_edit(db_session, undo_file, blank_file, monkeypatch):
-    from agent.tools.write_errors import PreWriteHistoryUnavailableError
-
+def test_blank_baseline_failure_keeps_the_ai_edit_without_undo(db_session, undo_file, blank_file, monkeypatch):
     user, *_ = undo_file
     original = FileVersionService.create_version
 
@@ -202,30 +203,21 @@ def test_blank_baseline_failure_rolls_back_the_ai_edit(db_session, undo_file, bl
         return original(self, *args, **kwargs)
 
     monkeypatch.setattr(FileVersionService, "create_version", fail_baseline)
-    with pytest.raises(PreWriteHistoryUnavailableError):
-        _edit(db_session, user, blank_file)
+    result = _edit(db_session, user, blank_file)
+    assert result.get("undo") is None
     db_session.refresh(blank_file)
-    assert blank_file.content == ""
-    assert _version_rows(db_session, blank_file.id) == []
+    assert blank_file.content == "AI\n"
+    assert _version_rows(db_session, blank_file.id) == [(1, "ai_edit", "ai")]
 
 
-def test_required_after_version_failure_rolls_back_blank_edit(db_session, undo_file, blank_file, monkeypatch):
-    from agent.tools.write_errors import FileWriteRecoveryError
-
+def test_blank_baseline_survives_a_failed_ai_version_and_still_anchors_undo(db_session, undo_file, blank_file, monkeypatch):
     user, *_ = undo_file
-    original = FileVersionService.create_version
-
-    def fail_after(self, *args, **kwargs):
-        if kwargs.get("change_source") == "ai":
-            raise RuntimeError("History unavailable")
-        return original(self, *args, **kwargs)
-
-    monkeypatch.setattr(FileVersionService, "create_version", fail_after)
-    with pytest.raises(FileWriteRecoveryError):
-        _edit(db_session, user, blank_file)
+    monkeypatch.setattr(FileEditor, "_create_edit_version", lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError("History unavailable")))
+    result = _edit(db_session, user, blank_file)
+    assert result["undo"]["before_version_number"] == 1
     db_session.refresh(blank_file)
-    assert blank_file.content == ""
-    assert _version_rows(db_session, blank_file.id) == []
+    assert blank_file.content == "AI\n"
+    assert _version_rows(db_session, blank_file.id) == [(1, "edit", "system")]
 
 
 def test_unanchored_edit_of_a_non_blank_original_is_refused(db_session, undo_file, monkeypatch):
@@ -264,22 +256,14 @@ def test_noop_or_all_failed_edits_do_not_offer_undo(db_session, undo_file, edits
     assert _count_versions(db_session, file.id) == 1
 
 
-def test_required_after_history_failure_rolls_back_the_edit(db_session, undo_file, monkeypatch):
-    from agent.tools.write_errors import FileWriteRecoveryError
-
+def test_edit_can_offer_anchored_undo_when_optional_after_history_fails(db_session, undo_file, monkeypatch):
     user, _, file, *_ = undo_file
-    original = FileVersionService.create_version
-
-    def fail_after(self, *args, **kwargs):
-        if kwargs.get("change_source") == "ai":
-            raise RuntimeError("History unavailable")
-        return original(self, *args, **kwargs)
-
-    monkeypatch.setattr(FileVersionService, "create_version", fail_after)
-    with pytest.raises(FileWriteRecoveryError):
-        _edit(db_session, user, file)
+    monkeypatch.setattr(FileEditor, "_create_edit_version", lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError("History unavailable")))
+    result = _edit(db_session, user, file)
     db_session.refresh(file)
-    assert file.content == "Before\n"
+    assert result["undo"]["before_version_number"] == 1
+    assert result["undo"]["expected_after_updated_at"] == normalize_datetime_to_utc(file.updated_at).isoformat()
+    assert file.content == "Before\nAI\n"
     assert _count_versions(db_session, file.id) == 1
 
 
@@ -427,7 +411,7 @@ async def test_edit_descriptor_survives_actual_mcp_sse_and_chat_persistence(db_s
 
 
 @pytest.mark.parametrize("delta", [False, True])
-def test_undo_anchor_is_the_exact_live_head(db_session, undo_file, delta):
+def test_undo_provenance_reuses_loaded_head_without_a_redundant_target_select(db_session, undo_file, delta):
     user, _, file, *_ = undo_file
     service = get_file_version_service()
     if delta:
@@ -435,12 +419,23 @@ def test_undo_anchor_is_the_exact_live_head(db_session, undo_file, delta):
         db_session.add(file)
         service.create_version(db_session, file.id, file.content, change_source="system", commit=False)
         db_session.commit()
-    result = _edit(db_session, user, file)
+    engine = db_session.get_bind()
+    statements = []
+
+    def record(_connection, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        result = _edit(db_session, user, file)
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    start = next(index for index, statement in enumerate(statements) if statement.startswith("SAVEPOINT "))
+    end = next(index for index, statement in enumerate(statements) if statement.startswith("RELEASE SAVEPOINT "))
+    provenance_reads = [statement for statement in statements[start + 1:end] if statement.startswith("SELECT ") and "file_version" in statement]
+    print(f"Undo provenance delta={delta}: {len(provenance_reads)} SELECTs plus read-savepoint pair")
+    assert len(provenance_reads) == (3 if delta else 1)
     assert result["undo"]["before_version_number"] == (2 if delta else 1)
-    expected = "Before\nEarlier edit\n" if delta else "Before\n"
-    assert service.get_content_at_version(
-        db_session, file.id, result["undo"]["before_version_number"]
-    ) == expected
 
 
 def _replace_then_edit(session, user, file):

@@ -79,20 +79,6 @@ describe('undoBlockedByLaterWrite', () => {
     const blocked = undoBlockedByLaterWrite(collectUndoCardRefs([{ toolCalls: [replace, armed] }], new Set()));
     expect(blocked.size).toBe(0);
   });
-
-  it('includes newly written create_file and created chapter cards in later-write ordering', () => {
-    const createdFile: ToolCall = {
-      id: 'created-file', tool_name: 'create_file', arguments: {}, status: 'success',
-      result: { data: { id: 'f1', undo: { before_version_number: 1, expected_after_updated_at: '2026-11-16T09:59:59Z', operation_id: 'op-create' } } },
-    };
-    const createdChapter: ToolCall = {
-      id: 'created-chapter', tool_name: 'write_chapter', arguments: {}, status: 'success',
-      result: { data: { id: 'f1', action: 'created', body_saved: true, undo: { before_version_number: 2, expected_after_updated_at: '2026-11-16T10:00:00Z', operation_id: 'op-chapter' } } },
-    };
-    const refs = collectUndoCardRefs([{ toolCalls: [createdFile, createdChapter] }], new Set());
-    expect(refs).toHaveLength(2);
-    expect([...undoBlockedByLaterWrite(refs)]).toEqual([key('f1', 1, '2026-11-16T09:59:59Z')]);
-  });
 });
 
 describe('readFileEditUndoTarget', () => {

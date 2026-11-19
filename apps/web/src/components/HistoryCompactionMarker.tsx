@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronDown, Layers, Loader2 } from 'lucide-react';
 import { LazyMarkdown } from './LazyMarkdown';
 import { CHAT_CARD_SURFACE } from './chatCardStyles';
+import { formatCompactionSummary } from '../lib/compactionSummary';
 
 const summaryMarkdownComponents: Components = {
   h1: ({ children }) => <h3 className="mt-3 first:mt-0 text-sm font-semibold leading-snug">{children}</h3>,
@@ -79,7 +80,7 @@ export function HistoryCompactionMarker({ state, summary, startedAt }: {
     );
   }
 
-  const text = summary?.trim();
+  const text = formatCompactionSummary(summary);
   const chipClass =
     'inline-flex min-h-11 md:min-h-7 max-w-full items-center gap-1.5 rounded-full border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 text-xs font-medium text-[hsl(var(--text-secondary))]';
   return (

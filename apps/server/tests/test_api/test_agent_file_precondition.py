@@ -4,8 +4,10 @@ import inspect
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta, timezone
 from threading import Barrier, get_ident
+from unittest.mock import Mock
 
 import pytest
+from fastapi import BackgroundTasks
 from sqlmodel import Session, select
 
 from api import agent_api
@@ -75,15 +77,14 @@ async def test_conditional_agent_write_advances_token_with_frozen_clock(client, 
 async def test_agent_old_token_cannot_overwrite_other_content_writers(
     client, db_session, conditional_file, monkeypatch, writer, clock_offset,
 ):
-    from agent.tools.file_ops import FileCRUD, FileEditor, crud
+    from agent.tools.file_ops import FileCRUD, FileEditor, crud, edit
     from api import files as files_api
-    from services import file_edit_operations as operations
     from services.features import file_version_service as versions
 
     file, headers = conditional_file
     project = db_session.get(Project, file.project_id)
     owner = db_session.get(User, project.owner_id)
-    for module in [files_api, crud, operations, versions]:
+    for module in [files_api, crud, edit, versions]:
         monkeypatch.setattr(module, "utcnow", lambda: STAMP + clock_offset)
     service = versions.get_file_version_service()
     monkeypatch.setattr(versions.FileVersionService, "check_user_version_quota", lambda *args, **kwargs: (True, 0, 10))
@@ -127,9 +128,8 @@ async def test_agent_write_runs_sync_database_work_off_event_loop(client, condit
     monkeypatch.setattr(agent_api, "_load_accessible_file", observe)
     response = await client.put(f"/api/v1/agent/files/{file.id}", headers=headers, json={"title": "Worker"})
     assert response.status_code == 200
-    # Structural updates may load once before the Project gate and again under it.
-    assert observed_threads
-    assert all(thread != loop_thread for thread in observed_threads)
+    assert len(observed_threads) == 1
+    assert observed_threads[0] != loop_thread
 
 
 async def test_malformed_precondition_cannot_be_ignored(client, db_session, conditional_file):

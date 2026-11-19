@@ -23,19 +23,17 @@ import { useTranslation } from "react-i18next";
 import { useProject } from "../contexts/ProjectContext";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import { useMaterialAttachment, MAX_ATTACHED_MATERIALS } from "../contexts/MaterialAttachmentContext";
-import { fileApi, fileTrashApi } from "../lib/api";
+import { fileApi } from "../lib/api";
 import { FOLDER_TYPE_MAP, MATERIAL_FOLDER_NAMES } from "../lib/folderTypeMap";
 import { toast } from "../lib/toast";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { DeletionTargetList } from "./DeletionTargetList";
-import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
 import { findAncestorFolderIds } from "../lib/lastOpenedFile";
 import { notifyFileRemoved } from "../lib/fileRemovalEvents";
 import { FileSearchInput } from "./FileSearchInput";
 import { useFileSearch, type FileSearchResult } from "../hooks/useFileSearch";
 import SearchResultsDropdown from "./SearchResultsDropdown";
-import type { FileDeletionBatchSummary, FileDeletionPreview, FileTreeNode, TreeNodeType } from "../types";
+import type { FileTreeNode, TreeNodeType } from "../types";
 import { logger } from "../lib/logger";
 import {
   ChevronDown,
@@ -51,8 +49,6 @@ import {
   Search,
   MessageSquarePlus,
   Check,
-  History,
-  RotateCcw,
 } from "lucide-react";
 
 /**
@@ -125,15 +121,8 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
   const [isCreating, setIsCreating] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState("");
   const [newItemType, setNewItemType] = useState<string>("draft");
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; projectId: string | null; preview: FileDeletionPreview | null } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; projectId: string | null } | null>(null);
   const [deletingFile, setDeletingFile] = useState(false);
-  const [trashOpen, setTrashOpen] = useState(false);
-  const [trashLoading, setTrashLoading] = useState(false);
-  const [trashError, setTrashError] = useState(false);
-  const [trashBatches, setTrashBatches] = useState<FileDeletionBatchSummary[]>([]);
-  const [trashNextOffset, setTrashNextOffset] = useState<number | null>(null);
-  const [trashLoadingMore, setTrashLoadingMore] = useState(false);
-  const [restoringBatchId, setRestoringBatchId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -425,21 +414,10 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
    * @param fileId - The ID of the file to delete
    * @param fileTitle - Shown in the dialog so the author knows which file goes
    */
-  const handleDelete = useCallback(async (e: React.MouseEvent, fileId: string, fileTitle: string, fileType: string) => {
+  const handleDelete = useCallback((e: React.MouseEvent, fileId: string, fileTitle: string) => {
     e.stopPropagation();
-    if (!currentProjectId) return;
-    setPendingDelete({ id: fileId, title: fileTitle, projectId: currentProjectId, preview: null });
-    try {
-      const preview = await fileTrashApi.preview(currentProjectId, [fileId], fileType === 'folder');
-      if (currentProjectId === activeProjectIdRef.current) {
-        setPendingDelete((current) => current?.id === fileId ? { ...current, preview } : current);
-      }
-    } catch (error) {
-      setPendingDelete(null);
-      toast.error(t('editor:fileTree.deleteFailed'));
-      logger.error('Failed to preview deletion:', error);
-    }
-  }, [currentProjectId, t]);
+    setPendingDelete({ id: fileId, title: fileTitle, projectId: currentProjectId });
+  }, [currentProjectId]);
 
   /**
    * Deletes the confirmed file.
@@ -451,11 +429,10 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     setDeletingFile(true);
 
     try {
-      if (!pendingDelete.preview) return;
-      const result = await fileTrashApi.deleteBatch(currentProjectId, pendingDelete.preview);
+      await fileApi.delete(fileId);
 
       if (currentProjectId !== activeProjectIdRef.current) return;
-      result.targets.forEach((target) => notifyFileRemoved(currentProjectId, target.id));
+      notifyFileRemoved(currentProjectId, fileId);
       // A selected descendant is corrected by the successful tree refresh.
       if (selectedItemRef.current?.id === fileId) {
         setSelectedItem(null);
@@ -470,61 +447,6 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
       setPendingDelete(null);
     }
   }, [pendingDelete, deletingFile, currentProjectId, setSelectedItem, loadData, t]);
-
-  const openTrash = useCallback(async () => {
-    if (!currentProjectId || trashLoading) return;
-    setTrashOpen(true);
-    setTrashLoading(true);
-    setTrashError(false);
-    try {
-      const response = await fileTrashApi.list(currentProjectId, { limit: 50, offset: 0 });
-      if (currentProjectId === activeProjectIdRef.current) {
-        setTrashBatches(response.batches);
-        setTrashNextOffset(response.next_offset);
-      }
-    } catch (error) {
-      setTrashError(true);
-      toast.error(t('editor:fileTree.trashLoadFailed'));
-      logger.error('Failed to load trash:', error);
-    } finally {
-      setTrashLoading(false);
-    }
-  }, [currentProjectId, trashLoading, t]);
-
-  const loadMoreTrash = useCallback(async () => {
-    if (!currentProjectId || trashNextOffset === null || trashLoadingMore) return;
-    setTrashLoadingMore(true);
-    try {
-      const response = await fileTrashApi.list(currentProjectId, { limit: 50, offset: trashNextOffset });
-      if (currentProjectId === activeProjectIdRef.current) {
-        setTrashBatches((current) => [...current, ...response.batches]);
-        setTrashNextOffset(response.next_offset);
-      }
-    } catch (error) {
-      toast.error(t('editor:fileTree.trashLoadFailed'));
-      logger.error('Failed to load more trash:', error);
-    } finally {
-      setTrashLoadingMore(false);
-    }
-  }, [currentProjectId, trashLoadingMore, trashNextOffset, t]);
-
-  const restoreBatch = useCallback(async (batchId: string) => {
-    if (!currentProjectId || restoringBatchId) return;
-    setRestoringBatchId(batchId);
-    try {
-      await fileTrashApi.restore(currentProjectId, batchId);
-      const response = await fileTrashApi.list(currentProjectId, { limit: 50, offset: 0 });
-      setTrashBatches(response.batches);
-      setTrashNextOffset(response.next_offset);
-      setTrashError(false);
-      await loadData(false);
-    } catch (error) {
-      toast.error(t('editor:fileTree.restoreFailed'));
-      logger.error('Failed to restore trash:', error);
-    } finally {
-      setRestoringBatchId(null);
-    }
-  }, [currentProjectId, restoringBatchId, loadData, t]);
 
   /**
    * Returns localized placeholder text for the file creation input.
@@ -761,14 +683,16 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
             </button>
           )}
 
-          {(!isFolder || node.parent_id !== null) && <button
-            onClick={(e) => handleDelete(e, node.id, node.title, node.file_type)}
-            className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
-            title={t('common:delete')}
-            aria-label={t('common:delete')}
-          >
-            <Trash2 size={18} />
-          </button>}
+          {/* Delete button */}
+          {!isFolder && (
+            <button
+              onClick={(e) => handleDelete(e, node.id, node.title)}
+              className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
+              title={t('common:delete')}
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
         </div>
 
         {/* Create input row */}
@@ -849,34 +773,6 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     </div>
   ) : null;
 
-  const trashModal = (
-    <Modal open={trashOpen} onClose={() => { if (!restoringBatchId) setTrashOpen(false); }} title={t('editor:fileTree.trash')} size="md">
-      {trashLoading ? <p className="py-6 text-center text-sm">{t('common:loading')}</p> : trashError ? (
-        <div role="alert" className="py-6 text-center text-sm text-[hsl(var(--error-text))]"><p>{t('editor:fileTree.trashLoadFailed')}</p><Button className="mt-3" variant="secondary" size="touch" onClick={() => { void openTrash(); }}>{t('common:retry')}</Button></div>
-      ) : trashBatches.length === 0 ? (
-        <p className="py-6 text-center text-sm text-[hsl(var(--text-secondary))]">{t('editor:fileTree.trashEmpty')}</p>
-      ) : (
-        <div className="max-h-[60vh] space-y-2 overflow-y-auto">
-          {trashBatches.map((batch) => (
-            <div key={batch.batch_id} className="rounded-xl border border-[hsl(var(--border-color))] p-3">
-              <p className="break-words text-sm text-[hsl(var(--text-primary))]">{batch.titles?.slice(0, 3).join('、') || t('chat:tool.deletedCount', { count: batch.count })}</p>
-              <Button className="mt-2" variant="secondary" size="touch" leftIcon={<RotateCcw size={14} />} isLoading={restoringBatchId === batch.batch_id} disabled={restoringBatchId !== null} onClick={() => { void restoreBatch(batch.batch_id); }}>
-                {t('editor:fileTree.restoreBatch')}
-              </Button>
-            </div>
-          ))}
-          {trashNextOffset !== null && (
-            <div className="flex justify-center pt-2">
-              <Button type="button" variant="secondary" size="touch" isLoading={trashLoadingMore} disabled={trashLoadingMore} onClick={() => { void loadMoreTrash(); }}>
-                {t('editor:fileTree.loadMoreTrash')}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </Modal>
-  );
-
   // Loading state
   if (loading && isInitialLoad && tree.length === 0) {
     return (
@@ -902,32 +798,26 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
   // Empty state
   if (tree.length === 0) {
     return (
-      <>
-        <div className={`flex flex-col h-full ${className || ''}`}>
-          {/* Search input disabled when no files */}
-          <div className="p-3 border-b border-[hsl(var(--border-color))]">
-            <FileSearchInput
-              value=""
-              onChange={() => {}}
-              onClear={() => {}}
-              placeholder={t('editor:fileTree.searchPlaceholder')}
-              className="w-full opacity-50 pointer-events-none"
-              disabled
-            />
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center text-[hsl(var(--text-secondary))] p-4">
-            {loadErrorNotice || <>
-              <Folder size={48} className="mb-4 opacity-30" />
-              <p className="text-sm">{t('editor:fileTree.folderEmpty')}</p>
-              <p className="text-xs mt-1">{t('editor:fileTree.createWithAI')}</p>
-              <Button type="button" variant="ghost" size="touch" className="mt-3" onClick={() => { void openTrash(); }} leftIcon={<History size={14} />}>
-                {t('editor:fileTree.trash')}
-              </Button>
-            </>}
-          </div>
+      <div className={`flex flex-col h-full ${className || ''}`}>
+        {/* Search input disabled when no files */}
+        <div className="p-3 border-b border-[hsl(var(--border-color))]">
+          <FileSearchInput
+            value=""
+            onChange={() => {}}
+            onClear={() => {}}
+            placeholder={t('editor:fileTree.searchPlaceholder')}
+            className="w-full opacity-50 pointer-events-none"
+            disabled
+          />
         </div>
-        {trashModal}
-      </>
+        <div className="flex-1 flex flex-col items-center justify-center text-[hsl(var(--text-secondary))] p-4">
+          {loadErrorNotice || <>
+            <Folder size={48} className="mb-4 opacity-30" />
+            <p className="text-sm">{t('editor:fileTree.folderEmpty')}</p>
+            <p className="text-xs mt-1">{t('editor:fileTree.createWithAI')}</p>
+          </>}
+        </div>
+      </div>
     );
   }
 
@@ -968,9 +858,6 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
             onClose={handleCloseSearchDropdown}
           />
         </div>
-        <button type="button" onClick={() => { void openTrash(); }} className="mt-2 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs text-[hsl(var(--text-secondary))]">
-          <History size={14} />{t('editor:fileTree.trash')}
-        </button>
       </div>
 
       {loadErrorNotice}
@@ -1005,14 +892,12 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         }}
         onConfirm={handleConfirmDelete}
         title={t('common:confirmDelete')}
-        message={pendingDelete?.preview ? `${pendingDelete.title} · ${pendingDelete.preview.count}` : t('common:loading')}
-        details={pendingDelete?.preview ? <DeletionTargetList targets={pendingDelete.preview.targets} /> : undefined}
+        message={pendingDelete?.title ?? ''}
         variant="danger"
-        loading={deletingFile || pendingDelete?.preview == null}
+        loading={deletingFile}
         confirmLabel={t('common:delete')}
         cancelLabel={t('common:cancel')}
       />
-      {trashModal}
     </div>
   );
 };

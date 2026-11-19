@@ -197,30 +197,22 @@ EDIT_FILE_TOOL: dict[str, Any] = {
 DELETE_FILE_TOOL: dict[str, Any] = {
     "name": "delete_file",
     "description": (
-        "将本轮明确要删除的文件一起移入回收站。多个文件用 ids 一次提交，可整批恢复。"
-        "文件夹及大批量返回待确认范围，尚未删除，需作者点击卡片确认；不要拆分调用绕过确认。"
+        "删除文件，支持递归删除子文件（软删除，作者可在该删除卡片上点击恢复）。"
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "id": {
                 "type": "string",
-                "description": "单个文件 ID，与 ids 只提供一个"
-            },
-            "ids": {
-                "type": "array",
-                "items": {"type": "string"},
-                "minItems": 1,
-                "maxItems": 100,
-                "description": "本次一起删除的准确文件 ID 列表，与 id 只提供一个"
+                "description": "要删除的文件ID"
             },
             "recursive": {
                 "type": "boolean",
-                "description": "是否包括子文件；文件夹始终预览完整子树并等待一次确认",
+                "description": "是否递归删除所有子文件",
                 "default": False
             }
         },
-        "oneOf": [{"required": ["id"]}, {"required": ["ids"]}]
+        "required": ["id"]
     }
 }
 
@@ -228,7 +220,7 @@ DELETE_FILE_TOOL: dict[str, Any] = {
 RENAME_FILE_TOOL: dict[str, Any] = {
     "name": "rename_file",
     "description": (
-        "只修改文件标题（文件名），文件 id、正文和目录不变，保存可撤销记录。"
+        "只修改文件标题（文件名），文件 id、正文、位置和版本历史都不变。"
         "作者只要求改名时用它；不要为改名新建文件、复制或重写正文、再删除旧文件。"
         "同一文件夹里已有同名文件时会被拒绝。结果只返回新旧标题，不返回正文。"
     ),

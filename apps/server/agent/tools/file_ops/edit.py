@@ -11,16 +11,24 @@ the LLM provides slightly different text.
 import asyncio
 import threading
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from typing import Any
 
+from services.file_version import FileVersionService
 from sqlmodel import Session, select
 
 from agent.constants import coerce_bool
 from agent.tools.permissions import check_file_access_in_tool_context
-from config.datetime_utils import normalize_datetime_to_utc
+from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
 from models import File
+from models.file_version import (
+    CHANGE_SOURCE_AI,
+    CHANGE_SOURCE_SYSTEM,
+    CHANGE_TYPE_AI_EDIT,
+    CHANGE_TYPE_EDIT,
+)
 from services.features.activation_event_service import activation_event_service
+from services.features.file_version_service import BEFORE_AI_EDIT_SUMMARY, content_sha256
 from utils.cjk_quotes import (
     QUOTE_STYLE_CURLY,
     detect_quote_style,
@@ -428,6 +436,34 @@ def resolve_write_quote_style(
         order=order,
     )
     return resolve_quote_style(reference, incoming_text)
+
+
+def stage_pre_ai_write_backup(session: Session, file_id: str, current_content: str) -> bool:
+    """AI 覆盖正文之前，把还没进历史的当前正文存成一个系统版本。
+
+    备份规则（何时备份、版本形态、不占额度）只在
+    ``FileVersionService.backup_unversioned_content`` 一处定义，恢复历史版本前的
+    备份用的也是它。这里只负责 AI 写入路径的失败策略：在调用方的同一个锁和事务
+    里开 savepoint，任何失败只回滚 savepoint、记 WARNING、返回 False，不阻断 AI
+    写入（沿用「版本失败正文照存」的语义）。edit_file 与整章替换另有更严的规则：
+    原稿非空却拿不到撤销锚点（备份或锚点读取失败）时不提交（见 ``FileEditor._commit_ai_content``）。
+    """
+    try:
+        with session.begin_nested():
+            backup = FileVersionService().backup_unversioned_content(
+                session,
+                file_id,
+                current_content,
+                change_summary=BEFORE_AI_EDIT_SUMMARY,
+            )
+            return backup is not None
+    except Exception as exc:
+        logger.warning(
+            "Failed to back up unversioned content before AI write; write will continue",
+            exc_info=True,
+            extra={"file_id": file_id, "error": str(exc)},
+        )
+        return False
 
 
 def attach_author_edits_for_agent(session: Session, file: Any, row: dict[str, Any]) -> None:
@@ -925,8 +961,8 @@ class FileEditor:
                 file,
                 old_content,
                 content,
+                create_version=lambda: self._create_edit_version(id, content, applied_edits),
                 tool="edit_file",
-                change_summary=self._edit_version_summary(applied_edits),
             )
 
         # 统一补齐 new_preview：replace 类操作的 detail 里叫 new_preview，
@@ -965,50 +1001,88 @@ class FileEditor:
         old_content: str,
         content: str,
         *,
+        create_version: Callable[[], None],
         tool: str,
-        change_summary: str,
         full_snapshot: bool = False,
         new_title: str | None = None,
-    ) -> dict[str, Any]:
-        """在持有文件写锁时原子提交 AI 写入及其完整恢复记录。
+    ) -> dict[str, Any] | None:
+        """在持有这个文件写锁时提交一次 AI 写入，返回撤销锚点（拿不到时为 None）。
 
         edit_file 与 write_chapter 的整章替换共用这一条路径：先备份还没进历史的原稿，
         撤销锚点落在与原稿逐字相同的历史版本上，正文与 AI 版本在同一事务里提交。
 
         原稿非空却没有撤销锚点，说明备份或锚点读取失败、原稿不在任何历史版本里：
         回滚、不写入，抛 PreWriteHistoryUnavailableError（局部修改可能删掉不在最近保存附近的
-        作者文字，没有历史就无处恢复）。空白原稿也必须保留精确的空正文锚点。
+        作者文字，没有历史就无处恢复）。空白原稿没有可丢的字，照常写入。
         """
-        from services.file_edit_operations import stage_recoverable_file_mutation
-
         file_id = file.id
-        before_title = file.title
-        before_order = file.order
-        after_title = before_title
-        after_order = before_order
-        if new_title is not None and new_title != before_title:
+        # Stage content and snapshot in the same transaction while the per-file
+        # lock is held. A savepoint keeps snapshot failures non-blocking without
+        # allowing content and history to describe different writes.
+        # 原稿可能是作者手动改过、还没进历史的正文：先备份（独立 savepoint），
+        # 撤销锚点随后就能落在这份备份上；拿不到锚点时下面拒绝写入。
+        stage_pre_ai_write_backup(self.session, file_id, old_content)
+        before_version_number: int | None = None
+        try:
+            # Provenance is optional, but its read failure must not poison
+            # the outer PostgreSQL content transaction. A loaded history
+            # head is usable only if it exactly reconstructs the live input.
+            with self.session.begin_nested():
+                version_service = FileVersionService()
+                latest = version_service.get_latest_version(self.session, file_id)
+                if latest is None and not old_content.strip():
+                    # 备份规则不存空白正文，这里只给「真要被改、没有历史」的空白文件补一个
+                    # 基线，撤销才有落点。有了版本就不会再补；新建未改的文件不经过这里。
+                    latest = version_service.create_version(
+                        session=self.session,
+                        file_id=file_id,
+                        new_content=old_content,
+                        change_type=CHANGE_TYPE_EDIT,
+                        change_source=CHANGE_SOURCE_SYSTEM,
+                        change_summary=BEFORE_AI_EDIT_SUMMARY,
+                        force_base=True,
+                        skip_quota=True,
+                        commit=False,
+                    )
+                if latest and version_service._get_contents_for_versions(self.session, {file_id: latest})[file_id] == old_content:
+                    before_version_number = latest.version_number
+        except Exception:
+            logger.warning("Unable to anchor edit undo", exc_info=True, extra={"file_id": file_id})
+        if old_content.strip() and before_version_number is None:
+            # 非空原稿备份后必然等于历史头；拿不到锚点 = 备份或读取失败，原稿无处恢复。
+            self.session.rollback()
+            logger.warning(
+                "Refused AI write: original body is not in history",
+                extra={"file_id": file_id, "tool": tool},
+            )
+            from agent.tools.write_errors import PreWriteHistoryUnavailableError
+
+            raise PreWriteHistoryUnavailableError(file_id, action=tool)
+
+        if new_title is not None and new_title != file.title:
             from utils.title_sequence import resolve_persisted_sequence_order
 
-            after_title = new_title
-            after_order = resolve_persisted_sequence_order(
-                before_order,
+            file.title = new_title
+            file.order = resolve_persisted_sequence_order(
+                file.order,
                 title=new_title,
                 metadata=file.get_metadata(),
                 file_type=file.file_type,
             )
-        undo = stage_recoverable_file_mutation(
-            self.session,
-            user_id=self.user_id,
-            file=file,
-            before_content=old_content,
-            after_content=content,
-            before_title=before_title,
-            after_title=after_title,
-            before_order=before_order,
-            after_order=after_order,
-            kind=tool,
-            change_summary=change_summary,
-        )
+        file.content = content
+        file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+        # Commit releases the PostgreSQL lock; a subsequent refresh may
+        # observe another writer. Undo must retain this edit's own token.
+        after_updated_at = normalize_datetime_to_utc(file.updated_at).isoformat()
+        try:
+            with self.session.begin_nested():
+                create_version()
+        except Exception as exc:
+            logger.warning(
+                f"Failed to create version for {tool}; content will persist",
+                exc_info=True,
+                extra={"file_id": file_id, "error": str(exc)},
+            )
         with written_snapshot_for_commit(file_id, content, full=full_snapshot):
             self.session.commit()
         self.session.refresh(file)
@@ -1020,7 +1094,15 @@ class FileEditor:
             file_type=file.file_type,
             tool=tool,
         )
-        return undo
+        if before_version_number is None:
+            return None
+        return {
+            "before_version_number": before_version_number,
+            "expected_after_updated_at": after_updated_at,
+            # 这次写入后的正文摘要：后面那次 AI 写入被撤销、正文又逐字回到这里时，
+            # 这张卡的撤销仍能通过（版本令牌已经变了）。
+            "expected_after_content_sha256": content_sha256(content),
+        }
 
     def replace_body(
         self,
@@ -1050,15 +1132,6 @@ class FileEditor:
             if candidate:
                 validate_file_title(candidate)
                 cleaned_title = candidate
-        if cleaned_title is not None:
-            from services.file_tree_rules import lock_project_for_files
-
-            initial = self.session.get(File, id)
-            if initial is None or initial.is_deleted:
-                raise EditFileError("文件不存在或已删除。", error_type=EDIT_ERROR_FILE_NOT_FOUND)
-            check_file_access_in_tool_context(self.session, initial, self.user_id)
-            # Title and derived order affect sibling restore/undo checks: Project before File.
-            lock_project_for_files(self.session, initial.project_id, exclusive=True)
         if is_postgres:
             return self._replace_body_impl(
                 id, content, expected_updated_at, cleaned_title, normalize_quotes
@@ -1067,63 +1140,6 @@ class FileEditor:
             return self._replace_body_impl(
                 id, content, expected_updated_at, cleaned_title, normalize_quotes
             )
-
-    def rename_with_undo(self, id: str, title: str) -> dict[str, Any]:
-        """Atomically rename a live file and create a durable undo operation."""
-        from database import is_postgres
-        from models.file_model import validate_file_title
-        from services.file_tree_rules import lock_project_for_files
-
-        cleaned = title.replace("\x00", "").strip()
-        validate_file_title(cleaned)
-        initial = self.session.get(File, id)
-        if initial is None or initial.is_deleted:
-            raise EditFileError("文件不存在或已删除。", error_type=EDIT_ERROR_FILE_NOT_FOUND)
-        check_file_access_in_tool_context(self.session, initial, self.user_id)
-        lock_project_for_files(self.session, initial.project_id, exclusive=True)
-        lock_ctx = nullcontext() if is_postgres else acquire_file_write_lock(id)
-        with lock_ctx:
-            if is_postgres:
-                file = self.session.exec(
-                    select(File).where(File.id == id).with_for_update(key_share=True)
-                    .execution_options(populate_existing=True)
-                ).first()
-            else:
-                file = self.session.get(File, id, populate_existing=True)
-            if file is None or file.is_deleted:
-                raise EditFileError("文件不存在或已删除。", error_type=EDIT_ERROR_FILE_NOT_FOUND)
-            check_file_access_in_tool_context(self.session, file, self.user_id)
-            if file.title == cleaned:
-                return {"id": file.id, "title": file.title, "mutation_applied": False}
-            clash = self.session.exec(
-                select(File.id).where(
-                    File.project_id == file.project_id,
-                    File.parent_id == file.parent_id,
-                    File.title == cleaned,
-                    File.is_deleted.is_(False),
-                    File.id != file.id,
-                )
-            ).first()
-            if clash is not None:
-                raise ValueError(f"同一文件夹里已有名为《{cleaned}》的文件")
-            previous_title = file.title
-            undo = self._commit_ai_content(
-                file,
-                file.content or "",
-                file.content or "",
-                tool="rename_file",
-                change_summary="AI 重命名文件",
-                new_title=cleaned,
-            )
-            return {
-                "id": file.id,
-                "title": file.title,
-                "previous_title": previous_title,
-                "file_type": file.file_type,
-                "parent_id": file.parent_id,
-                "mutation_applied": True,
-                "undo": undo,
-            }
 
     def _replace_body_impl(
         self,
@@ -1192,21 +1208,24 @@ class FileEditor:
                 file,
                 old_content,
                 content,
+                create_version=lambda: self._create_ai_version(file.id, content, CHAPTER_REPLACE_VERSION_SUMMARY),
                 tool="write_chapter",
-                change_summary=CHAPTER_REPLACE_VERSION_SUMMARY,
                 full_snapshot=True,
                 new_title=prospective_title if title_changed else None,
             )
         elif title_changed:
-            undo = self._commit_ai_content(
-                file,
-                old_content,
-                old_content,
-                tool="write_chapter",
-                change_summary=CHAPTER_REPLACE_VERSION_SUMMARY,
-                full_snapshot=True,
-                new_title=prospective_title,
+            from utils.title_sequence import resolve_persisted_sequence_order
+
+            file.title = prospective_title
+            file.order = resolve_persisted_sequence_order(
+                file.order,
+                title=prospective_title,
+                metadata=file.get_metadata(),
+                file_type=file.file_type,
             )
+            file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+            self.session.commit()
+            self.session.refresh(file)
         result: dict[str, Any] = {
             "id": file.id,
             "title": file.title,
@@ -2152,6 +2171,26 @@ class FileEditor:
         if len(op_summaries) > 3:
             change_summary += f" 等 {len(op_summaries)} 处修改"
         return change_summary
+
+    def _create_edit_version(
+        self,
+        file_id: str,
+        content: str,
+        applied_edits: list[dict[str, Any]],
+    ) -> None:
+        """Stage AI edit history in the caller's content transaction."""
+        self._create_ai_version(file_id, content, self._edit_version_summary(applied_edits))
+
+    def _create_ai_version(self, file_id: str, content: str, change_summary: str) -> None:
+        FileVersionService().create_version(
+            session=self.session,
+            file_id=file_id,
+            new_content=content,
+            change_type=CHANGE_TYPE_AI_EDIT,
+            change_source=CHANGE_SOURCE_AI,
+            change_summary=change_summary,
+            commit=False,
+        )
 
 
 

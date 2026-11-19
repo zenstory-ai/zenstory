@@ -7,7 +7,7 @@
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, render as rtlRender, screen, waitFor } from '@testing-library/react'
+import { act, render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -44,6 +44,7 @@ function notifyStream() {
 const sendSteeringMessageMock = vi.hoisted(() => vi.fn())
 const startStreamMock = vi.hoisted(() => vi.fn())
 const rollbackMock = vi.hoisted(() => vi.fn())
+const restoreMock = vi.hoisted(() => vi.fn())
 const getVersionsMock = vi.hoisted(() => vi.fn())
 const getRecentMessagesMock = vi.hoisted(() => vi.fn(async () => []))
 const triggerFileTreeRefreshMock = vi.hoisted(() => vi.fn())
@@ -206,8 +207,9 @@ vi.mock('../../lib/analytics', () => ({
 }))
 
 vi.mock('../../lib/api', () => ({
-  projectApi: {
-    getProgress: vi.fn(async () => [{ framework_ready: false, written_units: 0 }]),
+  fileApi: {
+    get: vi.fn(async () => ({ id: 'f', title: 't', content: '' })),
+    restore: restoreMock,
   },
   fileVersionApi: {
     getVersions: getVersionsMock,
@@ -302,14 +304,19 @@ async function renderAndGetUndo(): Promise<(target: {
   }) => Promise<void>
 }
 
-/** Legacy cards still undo directly, without reviving the removed review/confirm step. */
-async function undoDirectly(
+/** Clicking undo opens the in-app confirm dialog; the rollback runs on its confirm button. */
+async function undoAndConfirm(
   onUndo: (target: { fileId: string; beforeVersionNumber: number; expectedAfterUpdatedAt: string }) => unknown,
   target: { fileId: string; beforeVersionNumber: number; expectedAfterUpdatedAt: string },
 ) {
-  await act(async () => {
-    await onUndo(target)
+  act(() => {
+    onUndo(target)
   })
+  const confirmButton = await screen.findByRole('button', { name: 'chat:actions.undo' })
+  await act(async () => {
+    fireEvent.click(confirmButton)
+  })
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 }
 
 describe('round3 #24 ChatPanel.handleSteer 必须把失败抛回调用方', () => {
@@ -595,7 +602,7 @@ describe('ChatPanel immutable edit undo', () => {
     })
     const onUndo = await renderAndGetUndo()
 
-    await undoDirectly(onUndo, target)
+    await undoAndConfirm(onUndo, target)
 
     expect(getVersionsMock).not.toHaveBeenCalled()
     expect(rollbackMock).toHaveBeenCalledWith(
@@ -615,7 +622,7 @@ describe('ChatPanel immutable edit undo', () => {
     const fromCard = { ...target, chatMessageId: 'assistant-message', toolUseId: 'tool-edit-1' }
     expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(false)
 
-    await undoDirectly(onUndo, fromCard)
+    await undoAndConfirm(onUndo, fromCard)
 
     expect(rollbackMock).toHaveBeenCalledWith('file-immutable', 7, '2026-10-06T12:34:56.000Z', {
       chatMessageId: 'assistant-message',
@@ -624,18 +631,25 @@ describe('ChatPanel immutable edit undo', () => {
     await waitFor(() => expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(true))
   })
 
-  it('undoes immediately without a file-level confirmation dialog', async () => {
+  it('confirms with the file-level undo message', async () => {
     const confirmMock = vi.fn(() => false)
     vi.stubGlobal('confirm', confirmMock)
-    rollbackMock.mockResolvedValue({ success: true, snapshot_created: true, version_quota_exceeded: false })
     const onUndo = await renderAndGetUndo()
 
-    await undoDirectly(onUndo, target)
+    act(() => {
+      void onUndo(target)
+    })
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // File rollback does not save the current text first, so the undo confirm
+    // has its own copy and uses the in-app dialog.
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('editor:versionHistory.confirmUndoAIEdit')
     expect(confirmMock).not.toHaveBeenCalled()
-    expect(rollbackMock).toHaveBeenCalledTimes(1)
-    expect(triggerEditorRefreshMock).toHaveBeenCalledWith(target.fileId)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common:cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(rollbackMock).not.toHaveBeenCalled()
+    expect(triggerEditorRefreshMock).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -655,7 +669,7 @@ describe('ChatPanel immutable edit undo', () => {
     rollbackMock.mockResolvedValue(result)
     const onUndo = await renderAndGetUndo()
 
-    await undoDirectly(onUndo, target)
+    await undoAndConfirm(onUndo, target)
 
     expect(toast.error).toHaveBeenCalledWith(feedback)
     expect(triggerFileTreeRefreshMock).toHaveBeenCalledTimes(1)
@@ -672,7 +686,7 @@ describe('ChatPanel immutable edit undo', () => {
     rollbackMock.mockRejectedValue(new ApiError(409, 'ERR_RESOURCE_CONFLICT'))
     const onUndo = await renderAndGetUndo()
 
-    await undoDirectly(onUndo, target)
+    await undoAndConfirm(onUndo, target)
 
     expect(toast.error).toHaveBeenCalledTimes(1)
     expect(triggerFileTreeRefreshMock).not.toHaveBeenCalled()
@@ -680,5 +694,36 @@ describe('ChatPanel immutable edit undo', () => {
     // A rejected undo (the text changed after the edit) never shows the edit as undone.
     const { undoneEditKey } = await import('../../lib/undoneEdits')
     expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(false)
+  })
+
+  it('restores a soft-deleted file from the chat card and propagates conflicts', async () => {
+    restoreMock.mockReset()
+    restoreMock.mockResolvedValueOnce({
+      id: 'deleted-file-1',
+      title: '废稿',
+      restored: true,
+      already_restored: false,
+      restored_count: 1,
+    })
+    await renderAndGetUndo()
+    const onRestoreDeletion = messageListMock.mock.lastCall?.[0]?.onRestoreDeletion as (
+      fileId: string,
+      card?: { chatMessageId?: string; toolUseId?: string },
+    ) => Promise<void>
+
+    await act(async () => {
+      await onRestoreDeletion('deleted-file-1', { chatMessageId: 'msg-1', toolUseId: 'del-1' })
+    })
+    expect(restoreMock).toHaveBeenCalledWith('deleted-file-1', { chatMessageId: 'msg-1', toolUseId: 'del-1' })
+    expect(triggerFileTreeRefreshMock).toHaveBeenCalledTimes(1)
+    expect(toast.success).toHaveBeenCalledWith('chat:tool.deletionRestored')
+
+    restoreMock.mockRejectedValueOnce(new ApiError(409, 'ERR_RESOURCE_CONFLICT'))
+    await expect(
+      act(async () => {
+        await onRestoreDeletion('deleted-file-1', { chatMessageId: 'msg-1', toolUseId: 'del-1' })
+      }),
+    ).rejects.toThrow()
+    expect(toast.error).toHaveBeenCalled()
   })
 })

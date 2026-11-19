@@ -26,9 +26,11 @@ describe('HistoryCompactionMarker', () => {
       '',
       '- 保留作者原文',
       '',
-      '| 文件 | id |',
-      '| --- | --- |',
-      '| 第一章 | `de904a54-c7b1-4fa0-be3c-ee0d4033048d` |',
+      '| 文件 | 类型 | 字数 | id |',
+      '| --- | --- | --- | --- |',
+      '| 第一章 雨夜 | 正文 | 380 字 | `de904a54-c7b1-4fa0-be3c-ee0d4033048d` |',
+      '',
+      '- 正文目录（id: 09ab1059-6f47-440c-8ef3-8a47bfb38943-draft-folder）',
       '',
       '```',
       '第三章从旧挂钟继续。',
@@ -50,12 +52,11 @@ describe('HistoryCompactionMarker', () => {
     expect(screen.getByText('先核对作者原文').closest('ol')).not.toBeNull()
     expect(screen.getByText('再续写第三章').closest('ol')).not.toBeNull()
     expect(screen.getByText('保留作者原文').closest('li')).not.toBeNull()
-
-    const table = await screen.findByRole('table')
-    const scrollContainer = table.parentElement
-    expect(scrollContainer).toHaveClass('max-w-full', 'overflow-x-auto')
-    expect(table).toHaveClass('w-max', 'min-w-full')
-    expect(screen.getByText('de904a54-c7b1-4fa0-be3c-ee0d4033048d').tagName).toBe('CODE')
+    expect(screen.getByText('第一章 雨夜').closest('li')).toHaveTextContent('正文 · 380 字')
+    expect(screen.getByText('正文目录').closest('li')).not.toBeNull()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.queryByText(/de904a54-c7b1-4fa0-be3c-ee0d4033048d/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/09ab1059-6f47-440c-8ef3-8a47bfb38943/)).not.toBeInTheDocument()
     const fencedCode = screen.getByText('第三章从旧挂钟继续。')
     expect(fencedCode.tagName).toBe('CODE')
     expect(fencedCode.closest('pre')).toHaveClass('max-w-full', 'overflow-x-auto')

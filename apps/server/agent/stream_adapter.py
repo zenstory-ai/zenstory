@@ -212,8 +212,6 @@ class StreamAdapter:
         # 停止 / 断线时还在提交的整章替换（线程里的提交不会随取消中止）：收尾时等它的真实结果。
         self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]], str | None] | None = None
         self._saved_file_word_counts: dict[str, int | None] = {}
-        self._created_tool_cards: dict[str, tuple[str, str, dict[str, Any]]] = {}
-        self._saved_body_undos: dict[str, dict[str, Any]] = {}
         self._timed_out_save_file_ids: set[str] = set()
         # 整章替换的保存回执，按 write_chapter 的 tool_use_id 记：同一章在一轮里可能先后替换多次，
         # 文件级回执只说「这个文件存过」，不能拿来证明后一次替换也存了。
@@ -678,40 +676,26 @@ class StreamAdapter:
             )
 
             if tool_name == "delete_file":
-                legacy_id = self._delete_targets.pop(tool_use_id, None)
-                deleted_ids = {legacy_id} if result_data is True and legacy_id else set()
-                if isinstance(result_data, dict) and result_data.get("mutation_applied") is True:
-                    deleted_ids.update(
-                        target["id"] for target in result_data.get("targets", [])
-                        if isinstance(target, dict) and isinstance(target.get("id"), str)
-                    )
+                deleted_id = self._delete_targets.pop(tool_use_id, None)
+                if deleted_id is None and isinstance(result_data, dict) and isinstance(result_data.get("id"), str):
+                    deleted_id = result_data["id"]
                 pending = self._pending_file_write
                 if (
-                    pending is not None
-                    and pending.file_id in deleted_ids
+                    deleted_id is not None
+                    and pending is not None
+                    and pending.file_id == deleted_id
                     and status == "success"
                     and isinstance(parsed_result, dict)
                     and parsed_result.get("mutation_applied") is True
                 ):
                     # 模型取消了在等正文的那份文件：同一 run 里之后的 <file> 不能再落进已删文件。
                     # 等待中的缓冲按既有语义回到对话；待写守卫由 tools_adapter 按同一删除结果清除。
-                    if self._stream_processor.file_id == pending.file_id:
+                    if self._stream_processor.file_id == deleted_id:
                         async for event in self._flush_active_capture():
                             yield event
                     self._pending_file_write = None
 
             # Handle file creation
-            if (
-                tool_name in {"create_file", "write_chapter"}
-                and status == "success"
-                and tool_use_id
-                and isinstance(result_data, dict)
-                and result_data.get("id")
-                and result_data.get("reused_existing") is not True
-                and result_data.get("action") != "replaced"
-                and (result_data.get("awaiting_body") is True or result_data.get("body_in_reply") is True)
-            ):
-                self._created_tool_cards[str(result_data["id"])] = (tool_name, tool_use_id, dict(result_data))
             if tool_name == "create_file" and status == "success":
                 async for event in self._handle_create_file_result(result_data):
                     yield event
@@ -1394,15 +1378,6 @@ class StreamAdapter:
         """保存回执；收到结束标记或正文 chunk 本身不代表落库成功。"""
         return dict(self._saved_file_word_counts)
 
-    def get_created_body_undos(self) -> dict[str, dict[str, Any]]:
-        """Only confirmed body commits may attach undo to their own creation card."""
-        return {
-            call_id: dict(self._saved_body_undos[file_id])
-            for file_id, (_name, call_id, _card) in self._created_tool_cards.items()
-            if isinstance(self._saved_file_word_counts.get(file_id), int)
-            and file_id in self._saved_body_undos
-        }
-
     def get_timed_out_save_file_ids(self) -> set[str]:
         """发生过保存超时、后台线程可能仍在提交的文件 id。"""
         return set(self._timed_out_save_file_ids)
@@ -1655,19 +1630,6 @@ class StreamAdapter:
 
         yield file_content_end_event(result.file_id)
 
-        created = self._created_tool_cards.get(result.file_id)
-        if created is not None:
-            tool_name, call_id, card = created
-            undo = self.get_created_body_undos().get(call_id)
-            if undo is not None:
-                yield tool_result_event(
-                    tool_name=tool_name,
-                    tool_use_id=call_id,
-                    status="success",
-                    data={**card, "body_saved": True, "awaiting_body": False,
-                          "new_word_count": self._saved_file_word_counts[result.file_id], "undo": undo},
-                )
-
         # Clear pending file write
         self._pending_file_write = None
 
@@ -1877,10 +1839,6 @@ class StreamAdapter:
                 expected_updated_at=expected_updated_at,
             )
         )
-
-        undo = result.get("undo")
-        if isinstance(undo, dict) and undo.get("operation_id"):
-            self._saved_body_undos[file_id] = dict(undo)
 
         log_with_context(
             logger,

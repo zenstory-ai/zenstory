@@ -1,6 +1,6 @@
 # 改稿按本轮意图执行，删除和撤销提供真实恢复
 
-Status: implemented locally, pending release validation (2026-11-19).
+Status: superseded in part by [回归文件历史与单卡恢复](../../implemented/simplification/2026-11-19-simplify-recoverable-agent-edits.md) (2026-11-19).
 
 ## Problem
 
