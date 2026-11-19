@@ -53,6 +53,9 @@ const AGENT_CONTROL_MARKER_PATTERN = new RegExp(
   'g',
 );
 
+const AUTHOR_EDITS_BLOCK_PATTERN = /<author_edits>[\s\S]*?<\/author_edits>/gi;
+const UNFINISHED_AUTHOR_EDITS_BLOCK_PATTERN = /<author_edits>[\s\S]*$/gi;
+
 /**
  * Escape special characters in a string for use in a regular expression.
  *
@@ -66,7 +69,7 @@ function escapeRegExp(str: string): string {
 }
 
 /**
- * Strip orphaned </think&gt; tags and agent control markers from AI responses.
+ * Strip orphaned </think&gt; tags and internal agent protocol from AI responses.
  *
  * The &lt;think&gt;...&lt;/think&gt; content is handled separately via streaming events,
  * but orphaned closing tags may remain. This function removes them along with
@@ -76,7 +79,10 @@ function escapeRegExp(str: string): string {
  * @returns The cleaned content with think tags and control markers removed
  */
 export function stripThinkTags(content: string): string {
-  const result = content.replace(/<\/think>/gi, '');
+  const result = content
+    .replace(/<\/think>/gi, '')
+    .replace(AUTHOR_EDITS_BLOCK_PATTERN, '')
+    .replace(UNFINISHED_AUTHOR_EDITS_BLOCK_PATTERN, '');
   return stripAgentControlMarkers(result).trim();
 }
 
