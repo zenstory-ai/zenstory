@@ -15,6 +15,35 @@ const BARE_UUID_PATTERN = new RegExp(`\`?${UUID_CORE}\`?`, 'gi');
 
 const ID_COLUMN_HEADER = /^(?:(?:文件|目录|文件夹|项目)\s*)?(?:id|uuid|file_id|folder_id|parent_id|project_id)$/i;
 const PIPE_DIVIDER_CELL = /^:?-+:?$/;
+const CODE_SPAN_OR_FENCE_PATTERN =
+  /(^[ \t]*(```|~~~)[^\r\n]*\r?\n[\s\S]*?(?:^[ \t]*\2[ \t]*\r?$|(?![\s\S]))|(`+)(?:(?!\3)[^\r\n])+\3)/gm;
+const CLOSED_TOOL_CALL_BLOCK_PATTERN =
+  /(?:\]<\]minimax\[>\[\s*<?|<)tool_call\b[^><\r\n]{0,512}>[\s\S]*?(?:\]<\]minimax\[>\[\s*<?|<)\/\s*tool_call\s*>/gi;
+const UNCLOSED_TOOL_CALL_TO_EOF_PATTERN =
+  /(?:\]<\]minimax\[>\[\s*<?tool_call\b[^><\r\n]{0,512}>|<tool_call\b[^><\r\n]{0,512}>(?=\s*(?:\]<\]minimax\[>\[|<\/?invoke\b|(?![\s\S]))))[\s\S]*/gi;
+const LEAKED_TOOL_TAG_PATTERN =
+  /(?:\]<\]minimax\[>\[\s*<?\/?\s*(?:tool_call|invoke|parameter)\b[^><\r\n]{0,512}>|<\/?(?:invoke|parameter)\b[^><\r\n]{0,512}>|<\/\s*tool_call\s*>)/gi;
+const MINIMAX_DELIM_PATTERN = /\]<\]minimax\[>\[/gi;
+
+function sanitizeOutsideCode(segment: string): string {
+  return segment
+    .replace(CLOSED_TOOL_CALL_BLOCK_PATTERN, '')
+    .replace(UNCLOSED_TOOL_CALL_TO_EOF_PATTERN, '')
+    .replace(LEAKED_TOOL_TAG_PATTERN, '')
+    .replace(MINIMAX_DELIM_PATTERN, '');
+}
+
+function stripLeakedToolProtocol(raw: string): string {
+  let cleaned = '';
+  let cursor = 0;
+  for (const match of raw.matchAll(CODE_SPAN_OR_FENCE_PATTERN)) {
+    const start = match.index ?? 0;
+    cleaned += sanitizeOutsideCode(raw.slice(cursor, start)) + match[0];
+    cursor = start + match[0].length;
+  }
+  cleaned += sanitizeOutsideCode(raw.slice(cursor));
+  return cleaned.trim();
+}
 
 function stripInternalIds(line: string): string {
   return line
@@ -76,7 +105,7 @@ function convertPipeTable(headers: string[], rows: string[][]): string[] {
  * into compact vertical bullet rows that fit narrow mobile viewports.
  */
 export function formatCompactionSummary(summary: string | undefined): string {
-  const raw = summary?.trim();
+  const raw = summary ? stripLeakedToolProtocol(summary) : '';
   if (!raw) return '';
 
   const lines = raw.split(/\r?\n/);
@@ -85,7 +114,7 @@ export function formatCompactionSummary(summary: string | undefined): string {
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    if (/^\s*```/.test(line)) {
+    if (/^\s*(?:```|~~~)/.test(line)) {
       inFence = !inFence;
       output.push(line);
       continue;

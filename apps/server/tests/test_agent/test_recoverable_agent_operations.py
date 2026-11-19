@@ -592,3 +592,226 @@ async def test_delete_file_refuses_pending_chapter_replacement_and_billing_clear
     tracker.observe(tool_call_event("delete_file", {"id": "ch-1"}, tool_use_id="del-ch-1").to_sse())
     tracker.observe(tool_result_event("delete_file", "success", {"id": "ch-1", "mutation_applied": True}, tool_use_id="del-ch-1").to_sse())
     assert tracker.file_body_pending() is False
+
+
+def test_replace_body_undo_preserves_author_manual_rename_and_skips_sibling_title_collision(db_session, owner_project):
+    from agent.tools.file_ops import FileToolExecutor
+    from api import versions as versions_api
+
+    user, project = owner_project
+    chapter = _ai_chapter(db_session, project, title="剑来 - 第1章 惊蛰", content="第一章原稿正文。")
+
+    replaced = FileToolExecutor(session=db_session, user_id=user.id).replace_body(
+        chapter.id,
+        "第一章重写后正文。",
+        expected_updated_at=None,
+        title="剑来 - 第1章 风起",
+    )
+    undo = replaced["undo"]
+    assert undo["before_title"] == "剑来 - 第1章 惊蛰"
+
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="整章改名撤销保护")
+    db_session.add(chat)
+    db_session.flush()
+    msg = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="已重写第一章",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "wc-1",
+                    "name": "write_chapter",
+                    "arguments": {"chapter": 1, "title": "第1章 风起", "file_type": "draft"},
+                    "status": "success",
+                    "result": {
+                        "id": chapter.id,
+                        "action": "replaced",
+                        "body_saved": True,
+                        "mutation_applied": True,
+                        "title": replaced["title"],
+                        "undo": undo,
+                    },
+                }
+            ],
+            ensure_ascii=False,
+        ),
+    )
+    db_session.add(msg)
+    db_session.commit()
+
+    # Author manually renames chapter after AI rewrite without changing content:
+    # conditional undo via SHA-256 restores body but MUST NOT clobber the author's manual title!
+    files_api.update_file(
+        chapter.id,
+        files_api.FileUpdate(title="剑来 - 第1章 作者定稿名"),
+        current_user=user,
+        session=db_session,
+    )
+    resp = versions_api.rollback_to_version(
+        chapter.id,
+        undo["before_version_number"],
+        current_user=user,
+        session=db_session,
+        rollback_request=versions_api.RollbackRequest(
+            expected_updated_at=datetime.fromisoformat(undo["expected_after_updated_at"]),
+            expected_after_content_sha256=undo["expected_after_content_sha256"],
+            chat_message_id=msg.id,
+            tool_use_id="wc-1",
+        ),
+    )
+    assert resp.success is True
+    db_session.expire_all()
+    after_author_rename_undo = db_session.get(File, chapter.id)
+    assert after_author_rename_undo.content == "第一章原稿正文。"
+    assert after_author_rename_undo.title == "剑来 - 第1章 作者定稿名"
+
+    # Second scenario: sibling collision on before_title does not block content rollback.
+    chapter2 = _ai_chapter(db_session, project, title="剑来 - 第2章 听潮", content="第二章原稿正文。")
+    replaced2 = FileToolExecutor(session=db_session, user_id=user.id).replace_body(
+        chapter2.id,
+        "第二章重写后正文。",
+        expected_updated_at=None,
+        title="剑来 - 第2章 破浪",
+    )
+    undo2 = replaced2["undo"]
+    sibling = File(project_id=project.id, title="剑来 - 第2章 听潮", content="同名兄弟稿", file_type="draft")
+    msg2 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="已重写第二章",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "wc-2",
+                    "name": "write_chapter",
+                    "arguments": {"chapter": 2, "title": "第2章 破浪", "file_type": "draft"},
+                    "status": "success",
+                    "result": {
+                        "id": chapter2.id,
+                        "action": "replaced",
+                        "body_saved": True,
+                        "mutation_applied": True,
+                        "title": replaced2["title"],
+                        "undo": undo2,
+                    },
+                }
+            ],
+            ensure_ascii=False,
+        ),
+    )
+    db_session.add_all([sibling, msg2])
+    db_session.commit()
+
+    resp2 = versions_api.rollback_to_version(
+        chapter2.id,
+        undo2["before_version_number"],
+        current_user=user,
+        session=db_session,
+        rollback_request=versions_api.RollbackRequest(
+            expected_updated_at=datetime.fromisoformat(undo2["expected_after_updated_at"]),
+            expected_after_content_sha256=undo2["expected_after_content_sha256"],
+            chat_message_id=msg2.id,
+            tool_use_id="wc-2",
+        ),
+    )
+    assert resp2.success is True
+    db_session.expire_all()
+    after_clash_undo = db_session.get(File, chapter2.id)
+    assert after_clash_undo.content == "第二章原稿正文。"
+    assert after_clash_undo.title == "剑来 - 第2章 破浪"
+
+    # Third scenario: spoofed cross-project or failed card with before_title cannot rename file on rollback.
+    chapter3 = _ai_chapter(db_session, project, title="剑来 - 第3章 原名", content="第三章原稿正文。")
+    edited3 = FileToolExecutor(session=db_session, user_id=user.id).edit_file(
+        chapter3.id,
+        [{"op": "replace", "old": "原稿", "new": "精修"}],
+    )
+    undo3 = edited3["undo"]
+    other_project = Project(name="无关作品", owner_id=user.id)
+    db_session.add(other_project)
+    db_session.flush()
+    other_chat = ChatSession(user_id=user.id, project_id=other_project.id, title="无关会话")
+    db_session.add(other_chat)
+    db_session.flush()
+    spoof_msg = ChatMessage(
+        session_id=other_chat.id,
+        role="assistant",
+        content="伪造卡片",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "spoof-1",
+                    "name": "write_chapter",
+                    "status": "success",
+                    "result": {
+                        "id": chapter3.id,
+                        "title": "剑来 - 第3章 原名",
+                        "undo": {**undo3, "before_title": "被篡改的标题"},
+                    },
+                }
+            ],
+            ensure_ascii=False,
+        ),
+    )
+    failed_msg = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="失败卡片",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "failed-1",
+                    "name": "write_chapter",
+                    "status": "error",
+                    "result": {
+                        "id": chapter3.id,
+                        "title": "剑来 - 第3章 原名",
+                        "undo": {**undo3, "before_title": "失败卡标题"},
+                    },
+                }
+            ],
+            ensure_ascii=False,
+        ),
+    )
+    db_session.add_all([spoof_msg, failed_msg])
+    db_session.commit()
+
+    from services.chat_tool_cards import read_edit_card_before_title
+
+    assert read_edit_card_before_title(
+        db_session,
+        user_id=user.id,
+        project_id=project.id,
+        file_id=chapter3.id,
+        message_id=spoof_msg.id,
+        tool_use_id="spoof-1",
+        before_version_number=undo3["before_version_number"],
+        expected_after_updated_at=datetime.fromisoformat(undo3["expected_after_updated_at"]),
+    ) == (None, None)
+    assert read_edit_card_before_title(
+        db_session,
+        user_id=user.id,
+        project_id=project.id,
+        file_id=chapter3.id,
+        message_id=failed_msg.id,
+        tool_use_id="failed-1",
+        before_version_number=undo3["before_version_number"],
+        expected_after_updated_at=datetime.fromisoformat(undo3["expected_after_updated_at"]),
+    ) == (None, None)
+
+    resp3 = versions_api.rollback_to_version(
+        chapter3.id,
+        undo3["before_version_number"],
+        current_user=user,
+        session=db_session,
+        rollback_request=versions_api.RollbackRequest(
+            expected_updated_at=datetime.fromisoformat(undo3["expected_after_updated_at"]),
+            expected_after_content_sha256=undo3["expected_after_content_sha256"],
+            chat_message_id=spoof_msg.id,
+            tool_use_id="spoof-1",
+        ),
+    )
+    assert resp3.success is True and resp3.undo_recorded is False
+    db_session.expire_all()
+    assert db_session.get(File, chapter3.id).title == "剑来 - 第3章 原名"

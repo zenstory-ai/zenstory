@@ -112,7 +112,7 @@ agent/
   的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用供应商同量纲估算 `estimate_provider_items_tokens`）
   超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，工具清单经 `Converter.tool_to_openai(build_agent_function_tools())` 生成以保持 `strict=false` 前缀缓存一致、`tool_choice=none`、`max_retries=0`），
-  空或被截断时 `reasoning_effort=low` 重试一次，仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
+  空、被截断或混入未执行的工具调用机器协议（结构化 `tool_calls` 或代码外泄漏 `<tool_call>` / `<invoke>` / `<parameter>` 标签）时 `reasoning_effort=low` 重试一次，仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
   （`summary`、`covers_through_message_id`、`kept_author_messages`、`created_at`），之后的历史 = 压缩点之前最近的作者原话（`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`
   预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。保留的作者原话按 `kept_author_messages`（压缩那一轮实际发出的文字，含截断后缀）原样回放，
   不按行重新截断，前缀跨轮逐字不变（再次压缩时被截断过的原话再截一次，按行重算会挪动截断点、让之后整段历史缓存 miss）；没有这个字段的旧记录照旧按行重算。`kept_author_messages` 只给模型回放，聊天历史接口（`client_message_metadata`）不把它发给浏览器。压缩用量以一条 MESSAGE_END 汇入本轮用量；从不在工具循环中途压缩。
@@ -144,7 +144,7 @@ agent/
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` 是唯一的工具集（顺序即请求里工具清单的顺序，前缀缓存依赖它），请求里直接从 `tool_schemas.TOOL_SCHEMAS` 按序取出（`get_exposed_tools()`；`CREATE_FILE_TOOL` 只列资料文件与文件夹，不列 draft / script）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入直接落库并保留修改卡撤销、历史版本及草稿冲突与版本并发保护（[direct-ai-edits][n-direct-edits]）；
   写作约定追加许可放开（只追加、`expected_notes` 冲突保护不变）。
   create_file 的 `empty=true` 在单循环轮次里直接生效（`ToolContext.author_wants_no_body`，由模型判断，不从原话推断）。
-- **改稿恢复**：`FileEditor._commit_ai_content` 在文件写锁内为 edit_file 与 write_chapter(replaced) 先用 `stage_pre_ai_write_backup` 备份未进历史的原稿（非空原稿拿不到历史锚点时抛 `PreWriteHistoryUnavailableError` 拒绝覆盖），在同一事务内创建 AI `FileVersion` 并返回轻量 `undo` 锚点（`before_version_number`、`expected_after_updated_at`、`expected_after_content_sha256`）。聊天修改卡复用既有的条件版本回滚（`file_version_service.rollback_to_version` + `record_edit_card_undone`），后续又有编辑时由文件版本历史面板查看或恢复任意旧稿；不再维护独立的 `FileEditOperation` 账本或三方合并撤销接口。正文来源只通过 `author_changes` 帮助模型理解手改，不决定能否改写。
+- **改稿恢复**：`FileEditor._commit_ai_content` 在文件写锁内为 edit_file 与 write_chapter(replaced) 先用 `stage_pre_ai_write_backup` 备份未进历史的原稿（非空原稿拿不到历史锚点时抛 `PreWriteHistoryUnavailableError` 拒绝覆盖），在同一事务内创建 AI `FileVersion` 并返回轻量 `undo` 锚点（`before_version_number`、`expected_after_updated_at`、`expected_after_content_sha256`；write_chapter 整章替换顺带改名时另记 `before_title`）。聊天修改卡复用既有的条件版本回滚（`file_version_service.rollback_to_version` + `record_edit_card_undone`；整章替换改名卡在标题未被作者改写且无同级重名时同事务恢复 `before_title`），后续又有编辑时由文件版本历史面板查看或恢复任意旧稿；不再维护独立的 `FileEditOperation` 账本或三方合并撤销接口。正文来源只通过 `author_changes` 帮助模型理解手改，不决定能否改写。
 - **可恢复删除**：`delete_file(id, recursive=false)` 对目标文件（及 `recursive=true` 时的存活子树）执行软删除并统一打上同一 `deleted_at` 时间戳，结果卡返回 `id`、`title`、`file_type`、`restored=false`；作者点击聊天删除卡上的「恢复」调用 `POST /api/v1/files/{file_id}/restore`，在项目排他锁与文件写锁下校验父目录存活及同级重名，按同一 `deleted_at` 恢复该次删除的文件或目录子树（不复活更早单独删除的子项），并通过 `record_delete_card_restored` 将 `restored=true` 写回 `ChatMessage.tool_calls` 供刷新展示与后续轮次历史回放。工作台不单独设侧栏回收站。
 - **正文按章号写入**（`mcp_tools.write_chapter`）：`write_chapter(chapter, title, file_type=draft|script, parent_id?, empty?)` 在本项目未删除的
   draft / script 里按标题开头的章号（draft）或集号（script）解析目标（`utils.title_sequence.extract_sequence_number(unit=…)`，无前缀章号时按 `file_type` 回退读取 `file_metadata` 的 `chapter_number` / `episode_number` 以识别导入拆章，有界的标识符解析；

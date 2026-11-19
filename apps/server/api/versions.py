@@ -452,11 +452,32 @@ def rollback_to_version(
     records a new history snapshot when the user's version quota permits it.
     """
     # Check file exists and user has access
-    verify_file_ownership(session, file_id, current_user)
+    verified_file = verify_file_ownership(session, file_id, current_user)
 
     service = get_file_version_service()
 
     try:
+        restore_title: str | None = None
+        expected_current_title: str | None = None
+        if (
+            rollback_request is not None
+            and rollback_request.expected_updated_at is not None
+            and rollback_request.chat_message_id
+            and rollback_request.tool_use_id
+        ):
+            from services.chat_tool_cards import read_edit_card_before_title
+
+            restore_title, expected_current_title = read_edit_card_before_title(
+                session,
+                user_id=current_user.id,
+                project_id=verified_file.project_id,
+                file_id=file_id,
+                message_id=rollback_request.chat_message_id,
+                tool_use_id=rollback_request.tool_use_id,
+                before_version_number=version_number,
+                expected_after_updated_at=rollback_request.expected_updated_at,
+            )
+
         updated_file, new_version, version_quota_exceeded = service.rollback_to_version(
             session,
             file_id,
@@ -466,6 +487,8 @@ def rollback_to_version(
             expected_after_content_sha256=(
                 rollback_request.expected_after_content_sha256 if rollback_request else None
             ),
+            restore_title=restore_title,
+            expected_current_title=expected_current_title,
         )
 
         undo_recorded = False

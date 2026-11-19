@@ -28,6 +28,7 @@ from .history import (
     LoopHistory,
     bound_history_for_provider,
     calibrated_tokens_per_char,
+    contains_leaked_tool_protocol,
     effective_history_provider_tokens,
     kept_author_messages,
     summary_message,
@@ -58,6 +59,32 @@ class CompactionOutcome:
 
 # 退避目标的硬封顶：防止存量老会话在 ~96 万 token 处记下 skipped 后要求涨到 >100 万（物理不可能）才重试。
 _MAX_SKIPPED_RETRY_CEILING_TOKENS = 950_000
+_REJECTED_FINISH_REASONS = frozenset({"length", "tool_calls", "function_call", "content_filter"})
+
+
+def _extract_valid_summary(choice: Any) -> tuple[str, bool]:
+    """提取合法的纯文本交接摘要（有界机器协议结构校验，不判断自然语言语义）。
+
+    供应商偶发无视 ``tool_choice="none"`` 输出结构化 ``tool_calls`` 或将内部
+    ``]<]minimax[>[<tool_call>…`` / ``<invoke>`` 协议标签直接吐进正文并中断生成；
+    此类响应不是完整摘要，返回 ``("", True)`` 触发低思考强度重试或安全跳过压缩。
+    代码块与行内反引号内引用的字面标签原样保留。
+    """
+    if choice is None:
+        return "", False
+    finish_reason = getattr(choice, "finish_reason", None)
+    message = getattr(choice, "message", None)
+    has_structured_tool_call = finish_reason in {"tool_calls", "function_call"} or bool(
+        getattr(message, "tool_calls", None) or getattr(message, "function_call", None)
+    )
+    if finish_reason in _REJECTED_FINISH_REASONS or has_structured_tool_call:
+        return "", has_structured_tool_call
+    raw = str(getattr(message, "content", "") or "").strip()
+    if not raw:
+        return "", False
+    if contains_leaked_tool_protocol(raw):
+        return "", True
+    return raw, False
 
 
 def _is_request_rejected_error(exc: BaseException) -> bool:
@@ -241,18 +268,20 @@ async def compact_history(
             return CompactionOutcome(usage=usage or None, skipped=SKIPPED_PROVIDER_ERROR)
         _merge_usage(usage, _usage_of(response))
         choice = response.choices[0] if getattr(response, "choices", None) else None
-        text = str(getattr(getattr(choice, "message", None), "content", "") or "").strip()
+        raw_text = str(getattr(getattr(choice, "message", None), "content", "") or "").strip()
         finish_reason = getattr(choice, "finish_reason", None)
-        if text and finish_reason != "length":
-            summary = text
+        candidate, leaked_tool_protocol = _extract_valid_summary(choice)
+        if candidate:
+            summary = candidate
             break
         log_with_context(
             logger,
             30,  # WARNING
-            "Loop history compaction summary empty or truncated",
+            "Loop history compaction summary empty, truncated, or contained tool protocol",
             effort=effort or "default",
             finish_reason=finish_reason,
-            summary_chars=len(text),
+            summary_chars=len(raw_text),
+            leaked_tool_protocol=leaked_tool_protocol,
         )
     duration_ms = round((time.monotonic() - started) * 1000, 1)
     if not summary:

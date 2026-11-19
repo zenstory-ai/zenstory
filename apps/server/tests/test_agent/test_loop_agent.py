@@ -469,13 +469,40 @@ async def test_compaction_returns_record_and_compacted_items():
     [
         ([_completion(""), _completion("   ")], 2),
         ([_completion("被截断的摘要", "length"), _completion("", "stop")], 2),
+        (
+            [
+                _completion(
+                    ']<]minimax[>[<tool_call> ]<]minimax[>[</invoke:query_files"> '
+                    '<parameter name="query">all]<]minimax[>[parameter></invoke>'
+                ),
+                _completion(
+                    "<tool_call>\n<invoke name=\"query_files\"><parameter name=\"query\">all</parameter></invoke>\n</tool_call>"
+                ),
+            ],
+            2,
+        ),
+        (
+            [
+                SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            message=SimpleNamespace(content="先查一下项目文件。", tool_calls=[{"id": "call_1"}]),
+                            finish_reason="tool_calls",
+                        )
+                    ],
+                    usage=SimpleNamespace(
+                        prompt_tokens=900, completion_tokens=60, total_tokens=960, prompt_tokens_details=None
+                    ),
+                ),
+                _completion("", "stop"),
+            ],
+            2,
+        ),
     ],
 )
 async def test_compaction_skips_when_summary_is_empty_or_truncated(responses, expected_calls):
-    from agent.loop.compaction import SKIPPED_EMPTY_OR_TRUNCATED, compact_history
-
-    provider = SimpleNamespace(name="p", model="m")
     from agent.core.run_meter import AgentRunMeter
+    from agent.loop.compaction import SKIPPED_EMPTY_OR_TRUNCATED, compact_history
 
     provider = SimpleNamespace(name="p", model="m")
     create = AsyncMock(side_effect=[(response, provider) for response in responses])
@@ -502,6 +529,52 @@ async def test_compaction_retry_at_lower_effort_can_succeed():
     with patch("agent.core.llm_failover.acreate_chat_completion", create):
         outcome = await compact_history(_history(), system_prompt="系统", session_id="s")
     assert outcome.record["summary"] == "第二次的摘要"
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_compaction_rejects_leaked_minimax_tool_call_then_accepts_clean_retry_and_allows_inline_code():
+    from agent.loop.compaction import compact_history
+    from agent.loop.history import contains_leaked_tool_protocol, valid_compaction
+
+    provider = SimpleNamespace(name="p", model="m")
+    leaked_before_and_after_crlf_fence = (
+        "先查文件。]<]minimax[>[call:query_files\r\n"
+        "```xml\r\n<tool_call>literal</tool_call>\r\n```\r\n"
+    )
+    clean_with_quoted_rule = (
+        "## 作者硬性要求\n"
+        "- 原话：「禁止输出 <tool_call> 字样」，且满足 count < parameter 校验。\n"
+        "- 双反引号示例：`` `<tool_call>` ``\n"
+        "```xml\r\n<tool_call>literal</tool_call>\r\n```"
+    )
+    create = AsyncMock(
+        side_effect=[
+            (_completion(leaked_before_and_after_crlf_fence), provider),
+            (_completion(clean_with_quoted_rule), provider),
+        ]
+    )
+    with patch("agent.core.llm_failover.acreate_chat_completion", create):
+        outcome = await compact_history(_history(), system_prompt="系统", session_id="s")
+    assert create.await_count == 2
+    assert outcome.skipped is None
+    assert outcome.record["summary"] == clean_with_quoted_rule
+
+    # CRLF fence followed by leak is rejected, and valid_compaction ignores already-corrupted DB rows.
+    crlf_after_fence_leak = '```xml\r\n<tool_call>ok</tool_call>\r\n```\r\n]<]minimax[>[<tool_call>'
+    assert contains_leaked_tool_protocol(crlf_after_fence_leak) is True
+    assert (
+        valid_compaction(
+            {"compaction": {"summary": crlf_after_fence_leak, "covers_through_message_id": "msg-1"}}
+        )
+        is None
+    )
+    assert (
+        valid_compaction(
+            {"compaction": {"summary": clean_with_quoted_rule, "covers_through_message_id": "msg-1"}}
+        )
+        is not None
+    )
 
 
 @pytest.mark.asyncio
