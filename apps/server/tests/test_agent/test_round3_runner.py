@@ -404,4 +404,3 @@ async def test_stream_exception_cancels_incomplete_sdk_result_and_closes_stream(
     assert stream_closed is True
     assert cancel_modes == ["immediate"]
     assert events[-1].type == StreamEventType.ERROR
-

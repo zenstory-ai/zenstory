@@ -1101,4 +1101,3 @@ async def _login_with_project(client: AsyncClient, db_session: Session, username
     db_session.add(project)
     db_session.commit()
     return login_response.json()["access_token"], project
-
