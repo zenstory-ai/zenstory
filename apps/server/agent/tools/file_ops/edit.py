@@ -1018,6 +1018,7 @@ class FileEditor:
         create_version: Callable[[], None],
         tool: str,
         full_snapshot: bool = False,
+        new_title: str | None = None,
     ) -> dict[str, Any] | None:
         """在持有这个文件写锁时提交一次 AI 写入，返回撤销锚点（拿不到时为 None）。
 
@@ -1072,6 +1073,16 @@ class FileEditor:
 
             raise PreWriteHistoryUnavailableError(file_id, action=tool)
 
+        if new_title is not None and new_title != file.title:
+            from utils.title_sequence import resolve_persisted_sequence_order
+
+            file.title = new_title
+            file.order = resolve_persisted_sequence_order(
+                file.order,
+                title=new_title,
+                metadata=file.get_metadata(),
+                file_type=file.file_type,
+            )
         file.content = content
         file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
         # Commit releases the PostgreSQL lock; a subsequent refresh may
@@ -1113,6 +1124,7 @@ class FileEditor:
         content: str,
         *,
         expected_updated_at: str | None,
+        title: str | None = None,
         normalize_quotes: bool = False,
         protect_author_content: bool = True,
     ) -> dict[str, Any]:
@@ -1122,19 +1134,27 @@ class FileEditor:
         （``undo``）。``expected_updated_at`` 是工具定位这一章时读到的版本：之后有任何写入
         （作者在编辑器里存过、别的写入）就拒绝（ConcurrentFileWriteError），不覆盖。
         作者保存过正文的章节照旧不由应用内对话整份覆盖（``protect_author_content``）。
-        返回里带原稿与新稿，供 diff 审阅；不进模型的工具结果。
+        ``title`` 非空时在同一写事务内一并更新章节标题与序号排序。
+        返回里带原稿与新稿，供前端与撤销元数据使用；不进模型的工具结果。
         """
         from database import is_postgres
+        from models.file_model import validate_file_title
 
         if "\x00" in content:
             content = content.replace("\x00", "")
+        cleaned_title: str | None = None
+        if isinstance(title, str):
+            candidate = title.replace("\x00", "").strip()
+            if candidate:
+                validate_file_title(candidate)
+                cleaned_title = candidate
         if is_postgres:
             return self._replace_body_impl(
-                id, content, expected_updated_at, normalize_quotes, protect_author_content
+                id, content, expected_updated_at, cleaned_title, normalize_quotes, protect_author_content
             )
         with acquire_file_write_lock(id):
             return self._replace_body_impl(
-                id, content, expected_updated_at, normalize_quotes, protect_author_content
+                id, content, expected_updated_at, cleaned_title, normalize_quotes, protect_author_content
             )
 
     def _replace_body_impl(
@@ -1142,6 +1162,7 @@ class FileEditor:
         id: str,
         content: str,
         expected_updated_at: str | None,
+        title: str | None,
         normalize_quotes: bool,
         protect_author_content: bool,
     ) -> dict[str, Any]:
@@ -1169,6 +1190,21 @@ class FileEditor:
             enforce_author_content_protection(self.session, [file], action="rewrite")
 
         old_content = file.content or ""
+        previous_title = file.title or ""
+        prospective_title = title if title is not None else previous_title
+        if prospective_title != previous_title:
+            clash = self.session.exec(
+                select(File.id).where(
+                    File.project_id == file.project_id,
+                    File.parent_id == file.parent_id,
+                    File.title == prospective_title,
+                    File.is_deleted.is_(False),
+                    File.id != file.id,
+                )
+            ).first()
+            if clash is not None:
+                prospective_title = previous_title
+        title_changed = prospective_title != previous_title
         if normalize_quotes and content and file.file_type in NORMALIZED_QUOTE_FILE_TYPES:
             from utils.cjk_quotes import normalize_double_quotes
 
@@ -1187,8 +1223,9 @@ class FileEditor:
         if normalize_quotes and content:
             content = normalize_ai_body_first_indent(content, file.file_type, previous=old_content)
 
+        content_changed = content != old_content
         undo: dict[str, Any] | None = None
-        if content != old_content:
+        if content_changed:
             undo = self._commit_ai_content(
                 file,
                 old_content,
@@ -1196,12 +1233,26 @@ class FileEditor:
                 create_version=lambda: self._create_ai_version(file.id, content, CHAPTER_REPLACE_VERSION_SUMMARY),
                 tool="write_chapter",
                 full_snapshot=True,
+                new_title=prospective_title if title_changed else None,
             )
+        elif title_changed:
+            from utils.title_sequence import resolve_persisted_sequence_order
+
+            file.title = prospective_title
+            file.order = resolve_persisted_sequence_order(
+                file.order,
+                title=prospective_title,
+                metadata=file.get_metadata(),
+                file_type=file.file_type,
+            )
+            file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+            self.session.commit()
+            self.session.refresh(file)
         result: dict[str, Any] = {
             "id": file.id,
             "title": file.title,
             "file_type": file.file_type,
-            "mutation_applied": content != old_content,
+            "mutation_applied": content_changed or title_changed,
             "previous_length": len(old_content),
             "previous_word_count": count_words(old_content),
             "new_length": len(content),

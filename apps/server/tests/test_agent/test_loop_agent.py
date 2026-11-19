@@ -514,6 +514,60 @@ async def test_compaction_provider_error_skips_compaction():
     assert outcome.skipped == SKIPPED_PROVIDER_ERROR and outcome.record is None
 
 
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_compaction_chat_tools_match_sdk_converter_output_and_disable_client_retries(monkeypatch):
+    """P2-5(c)：压缩请求的 tools 头部与 SDK Converter.tool_to_openai 完全一致（含 strict=False），且传 max_retries=0 禁用底层重复重发。"""
+    from agents.models.chatcmpl_converter import Converter
+
+    from agent.core import llm_failover, llm_providers
+    from agent.loop.compaction import _chat_tools, compact_history
+    from agent.openai_agents.tools_adapter import build_agent_function_tools
+
+    expected_tools = [dict(Converter.tool_to_openai(tool)) for tool in build_agent_function_tools()]
+    actual_tools = _chat_tools()
+    assert json.dumps(actual_tools, sort_keys=True, ensure_ascii=False) == json.dumps(
+        expected_tools, sort_keys=True, ensure_ascii=False
+    )
+    assert all(item["function"].get("strict") is False for item in actual_tools)
+
+    create = AsyncMock(return_value=(_completion("合成交接摘要"), SimpleNamespace(name="p", model="m")))
+    with patch("agent.core.llm_failover.acreate_chat_completion", create):
+        await compact_history(_history(last_prompt_tokens=400_000), system_prompt="系统", session_id="s")
+    assert create.await_args.kwargs["max_retries"] == 0
+
+    with_options_calls: list[dict] = []
+    inner_create = AsyncMock(return_value=_completion("ok"))
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=inner_create))
+
+        def with_options(self, **opts):
+            with_options_calls.append(opts)
+            return self
+
+    provider = llm_providers.ModelProvider(
+        slot="primary",
+        kind=llm_providers.DEEPSEEK,
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        model="deepseek-chat",
+        reasoning_effort=None,
+    )
+    monkeypatch.setattr(llm_failover, "aordered_providers", AsyncMock(return_value=[provider]))
+    monkeypatch.setattr(llm_failover, "arecord_success", AsyncMock())
+    monkeypatch.setattr(llm_providers, "get_async_client", lambda _p: _FakeClient())
+
+    await llm_failover.acreate_chat_completion(
+        call_site="agent_loop_compaction",
+        messages=[{"role": "user", "content": "hi"}],
+        max_retries=0,
+    )
+    assert with_options_calls == [{"max_retries": 0}]
+    assert inner_create.await_count == 1
+
+
 @pytest.mark.unit
 def test_compaction_input_drops_oldest_items_without_orphan_outputs():
     from agent.loop.history import bounded_items as _bounded_items

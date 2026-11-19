@@ -126,10 +126,11 @@ class PendingFileWrite:
     # Optimistic token observed in create_file's result. A full-body finalization
     # must not overwrite any author/external/AI write committed after this point.
     baseline_updated_at: str | None = None
-    # write_chapter 的整章替换：正文写完后走 FileEditor.replace_body（撤销锚点、diff 审阅），
-    # 结果补发到这张卡（tool_use_id）上；card 是定位时的卡片数据。None 表示普通的新建写入。
+    # write_chapter 的整章替换：正文写完后走 FileEditor.replace_body（撤销锚点、版本保护），
+    # 结果补发到这张卡（tool_use_id）上；card 是定位时的卡片数据，target_title 是落库时一并更新的新标题。None 表示普通的新建写入。
     replace_tool_use_id: str | None = None
     replace_card: dict[str, Any] = field(default_factory=dict)
+    target_title: str | None = None
 
 
 class StreamAdapter:
@@ -297,6 +298,7 @@ class StreamAdapter:
         *,
         replace_tool_use_id: str | None = None,
         replace_card: dict[str, Any] | None = None,
+        target_title: str | None = None,
     ) -> None:
         """
         Set a pending file write operation.
@@ -339,6 +341,7 @@ class StreamAdapter:
             ),
             replace_tool_use_id=replace_tool_use_id,
             replace_card=dict(replace_card or {}),
+            target_title=target_title.strip() if isinstance(target_title, str) and target_title.strip() else None,
         )
         self._stream_processor.start_file_write(file_id)
 
@@ -953,6 +956,13 @@ class StreamAdapter:
             for key, value in result_data.items()
             if key not in ("awaiting_body", "next_step", "content", "original_content_length")
         }
+        requested_new_title = result_data.get("new_title")
+        target_title = (
+            requested_new_title.strip()
+            if isinstance(requested_new_title, str) and requested_new_title.strip()
+            else None
+        )
+        display_title = target_title or str(result_data.get("title") or "")
         self.set_pending_file_write(
             file_id,
             str(result_data.get("file_type") or ""),
@@ -961,8 +971,9 @@ class StreamAdapter:
             baseline_updated_at=result_data.get("updated_at"),
             replace_tool_use_id=tool_use_id or None,
             replace_card=card,
+            target_title=target_title,
         )
-        yield file_created_event(file_id, str(result_data.get("file_type") or ""), str(result_data.get("title") or ""))
+        yield file_created_event(file_id, str(result_data.get("file_type") or ""), display_title)
 
     async def _roll_back_files_created_ahead(self) -> None:
         """整章替换被拒、这一轮提前结束：模型跑在前面已经建好、还没写正文的空文件撤销掉。
@@ -1037,6 +1048,7 @@ class StreamAdapter:
                 yield content_start_event()
                 self._content_started = True
             yield content_event(warning_text)
+            card.pop("new_title", None)
             card.update({"mutation_applied": False, "body_saved": False})
             if pending.replace_tool_use_id:
                 yield tool_result_event(
@@ -1072,8 +1084,11 @@ class StreamAdapter:
         )
         chapter = card.get("chapter")
         unit = "集" if file_type == FILE_TYPE_SCRIPT else "章"
+        card.pop("new_title", None)
+        title_suffix = f"《{title}》" if title else ""
         card.update(
             {
+                "title": title,
                 "mutation_applied": mutated,
                 "body_saved": True,
                 "new_length": replaced.get("new_length"),
@@ -1082,7 +1097,7 @@ class StreamAdapter:
                 "previous_word_count": replaced.get("previous_word_count"),
                 "updated_at": replaced.get("updated_at"),
                 "result": (
-                    f"覆盖了已有的第{chapter}{unit}（原{replaced.get('previous_word_count')}字），"
+                    f"覆盖了已有的第{chapter}{unit}{title_suffix}（原{replaced.get('previous_word_count')}字），"
                     f"现在{replaced.get('new_word_count')}字。"
                 ),
             }
@@ -1104,9 +1119,16 @@ class StreamAdapter:
 
         run_meter = self.config.run_meter
         timing = run_meter.measure_stage("file_save") if run_meter is not None else contextlib.nullcontext()
+        replace_kwargs = {"title": pending.target_title} if pending.target_title is not None else {}
         save = asyncio.ensure_future(
             asyncio.wait_for(
-                asyncio.to_thread(self._replace_file_body_sync, file_id, content, pending.baseline_updated_at),
+                asyncio.to_thread(
+                    self._replace_file_body_sync,
+                    file_id,
+                    content,
+                    pending.baseline_updated_at,
+                    **replace_kwargs,
+                ),
                 timeout=STREAM_FILE_SAVE_TIMEOUT_S,
             )
         )
@@ -1152,7 +1174,13 @@ class StreamAdapter:
         ToolContext.mark_chapter_replacement_saved(file_id)
         return "saved", replaced
 
-    def _replace_file_body_sync(self, file_id: str, content: str, expected_updated_at: str | None) -> dict[str, Any]:
+    def _replace_file_body_sync(
+        self,
+        file_id: str,
+        content: str,
+        expected_updated_at: str | None,
+        title: str | None = None,
+    ) -> dict[str, Any]:
         from agent.tools.file_ops import FileToolExecutor
         from database import create_session, get_session, is_postgres
 
@@ -1161,6 +1189,7 @@ class StreamAdapter:
                 file_id,
                 content,
                 expected_updated_at=expected_updated_at,
+                title=title,
                 normalize_quotes=True,
                 protect_author_content=True,
             )

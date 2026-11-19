@@ -251,6 +251,10 @@ def test_error_after_narration_and_reads_is_refunded():
 
 
 _PREAMBLE = "好的，我来为这个设定写下完整的内容，先从世界观的"
+_LONG_PREAMBLE = (
+    "好的，我已经仔细核对了前三章的时间线、角色关系与伏笔安排，接下来马上为你把这一章完整写出来，"
+    "重点交代雨夜渡口的第一次正面交锋、旧账本暗藏的线索以及两位当面人物各自的底牌。"
+)
 
 
 def _write_chapter_replaced(file_id: str) -> str:
@@ -258,24 +262,75 @@ def _write_chapter_replaced(file_id: str) -> str:
     return _sse("tool_result", {"tool_name": "write_chapter", "status": "success", "data": data})
 
 
+@pytest.mark.parametrize("preamble", [_PREAMBLE, _LONG_PREAMBLE], ids=["short_preamble", "long_80char_preamble"])
 @pytest.mark.parametrize(
     "target",
     [_create_file("lore"), _write_chapter_replaced("ch1")],
     ids=["new_empty_file", "whole_chapter_replacement"],
 )
-def test_error_while_a_file_body_is_pending_is_refunded_even_after_its_preamble(target):
-    """文件建好（或定位了整章替换）、正文还没写进去时出错：适配器扣着的 ``<file>`` 引子
-    在 error 帧前才放出，作者没有先读到一段回复，这一轮什么也没交付，退还。"""
+def test_error_while_a_file_body_is_pending_is_refunded_even_after_its_preamble(target, preamble):
+    """文件建好（或定位了整章替换）、正文还没写进去时出错 / 停止 / 到时：适配器扣着的 ``<file>`` 引子
+    （即使超过 60 字）在终态前才放出，作者没有先读到一段回复，这一轮什么也没交付，一律退还。"""
+    assert prose_units(_LONG_PREAMBLE) >= PROSE_MIN_CHARS and len(_LONG_PREAMBLE) >= 80
     tracker = _tracker(
         _sse("tool_call", {"tool_name": "create_file", "arguments": {}}),
         target,
-        _sse("content", {"text": _PREAMBLE}),
-        _error(),
+        _sse("content", {"text": preamble}),
     )
+    assert tracker.prose_output is False
+    assert tracker.produced_output is False
+    assert _stop(tracker) == ("user_stopped_no_output", True)
+
+    tracker.observe(_error())
+    assert tracker.prose_output is False
     assert tracker.produced_output is False
     assert tracker.ended_on_reply is False
     assert _fail(tracker) == ("internal_error", True)
     assert _deadline(tracker) == ("run_deadline_exceeded", True)
+
+
+def test_long_reply_after_saved_file_body_is_still_charged_and_unsaved_replace_clears_pending():
+    """反例：正文落库之后的 ≥80 字回复照常算 prose_output 计费；被拒存（body_saved=False）的整章替换不再滞留在 unconfirmed。"""
+    after_new_file = _tracker(
+        _create_file("ch1"),
+        _sse("file_content", {"file_id": "ch1", "chunk": "雨还在下。"}),
+        _sse("file_content_end", {"file_id": "ch1"}),
+        _sse("content", {"text": _LONG_PREAMBLE}),
+    )
+    assert after_new_file.prose_output is True
+    assert _stop(after_new_file) == ("user_stopped", False)
+    assert _deadline(after_new_file) == ("run_deadline_exceeded", False)
+
+    after_saved_replace = _tracker(
+        _write_chapter_replaced("ch1"),
+        _sse(
+            "tool_result",
+            {
+                "tool_name": "write_chapter",
+                "status": "success",
+                "data": {"id": "ch1", "action": "replaced", "body_saved": True, "mutation_applied": True},
+            },
+        ),
+        _sse("content", {"text": _LONG_PREAMBLE}),
+    )
+    assert after_saved_replace.prose_output is True
+    assert _stop(after_saved_replace) == ("user_stopped", False)
+
+    settled_unsaved = _tracker(
+        _write_chapter_replaced("ch1"),
+        _sse(
+            "tool_result",
+            {
+                "tool_name": "write_chapter",
+                "status": "success",
+                "data": {"id": "ch1", "action": "replaced", "body_saved": False, "mutation_applied": False},
+            },
+        ),
+    )
+    assert settled_unsaved.unconfirmed_replacement_ids() == set()
+    assert settled_unsaved.file_body_pending() is False
+    settled_unsaved.observe(_sse("content", {"text": _LONG_PREAMBLE}))
+    assert settled_unsaved.prose_output is True
 
 
 def test_short_answer_after_the_file_body_landed_is_still_a_reply():

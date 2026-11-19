@@ -618,6 +618,7 @@ async def acreate_chat_completion(
     usage_attribution: LLMUsageAttribution | None = None,
     fail_over_on_rejection: bool = False,
     attempt_sink: dict[str, Any] | None = None,
+    max_retries: int | None = None,
     **kwargs: Any,
 ) -> tuple[Any, ModelProvider]:
     """``chat.completions.create`` on the first available provider.
@@ -642,6 +643,8 @@ async def acreate_chat_completion(
     key_cooled = False
     for index, provider in enumerate(ordered):
         client = llm_providers.get_async_client(provider)
+        if max_retries is not None and callable(getattr(client, "with_options", None)):
+            client = client.with_options(max_retries=max_retries)
         if attempt_sink is not None:
             attempt_sink["provider"] = provider.name
             attempt_sink["model"] = provider.model

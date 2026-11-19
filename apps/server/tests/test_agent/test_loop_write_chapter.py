@@ -66,6 +66,26 @@ def _ai_chapter(session, project, title: str, content: str, parent_id: str | Non
     return file
 
 
+def _ai_body_file(
+    session, project, title: str, content: str, *, file_type: str, parent_id: str | None = None
+) -> File:
+    file = File(
+        project_id=project.id,
+        title=title,
+        content=content,
+        file_type=file_type,
+        parent_id=parent_id,
+    )
+    session.add(file)
+    session.flush()
+    FileVersionService().create_version(
+        session, file.id, content, change_type="create", change_source="ai", commit=False, skip_quota=True
+    )
+    session.commit()
+    session.refresh(file)
+    return file
+
+
 def _author_saves(session, file: File, content: str) -> None:
     FileVersionService().create_version(
         session, file.id, content, change_type="edit", change_source="user", skip_quota=True
@@ -862,6 +882,82 @@ async def test_write_chapter_empty_builds_missing_chapters_and_leaves_existing_o
     assert sorted(f.title for f in _drafts(loop_tools)) == ["第1章 雨夜", "第2章", "第3章"]
 
 
+@pytest.mark.parametrize(
+    ("requested_type", "wrong_type", "wrong_title", "requested_title"),
+    [
+        ("draft", "script", "第1章 分镜", "第1章 新稿"),
+        ("script", "draft", "第1集 小说", "第1集 新稿"),
+    ],
+)
+@pytest.mark.parametrize("empty", [True, False], ids=["existence-check", "replacement-arming"])
+async def test_write_chapter_ignores_same_number_from_the_other_body_type(
+    loop_tools, requested_type, wrong_type, wrong_title, requested_title, empty
+):
+    from agent.tools.mcp_tools import write_chapter
+
+    wrong = _ai_body_file(
+        loop_tools.session,
+        loop_tools.project,
+        wrong_title,
+        "另一种正文类型的内容。",
+        file_type=wrong_type,
+    )
+
+    created = _payload(
+        await write_chapter(
+            {"chapter": 1, "title": requested_title, "file_type": requested_type, "empty": empty}
+        )
+    )
+
+    assert created["status"] == "success" and created["data"]["action"] == "created"
+    assert created["data"]["id"] != wrong.id
+    assert ToolContext.pending_chapter_replacement(wrong.id) is None
+    assert loop_tools.session.get(File, created["data"]["id"]).file_type == requested_type
+    assert _content(loop_tools, wrong.id) == "另一种正文类型的内容。"
+
+
+@pytest.mark.parametrize(
+    ("requested_type", "wrong_type", "correct_title", "wrong_title"),
+    [
+        ("draft", "script", "第1章 正文", "第2章 分镜"),
+        ("script", "draft", "第1集 分镜", "第2集 小说"),
+    ],
+)
+async def test_other_body_type_folders_do_not_make_replacement_ambiguous(
+    loop_tools, requested_type, wrong_type, correct_title, wrong_title
+):
+    from agent.tools.mcp_tools import write_chapter
+
+    session, project = loop_tools.session, loop_tools.project
+    correct_folder = File(project_id=project.id, title="目标正文", file_type="folder")
+    wrong_folder = File(project_id=project.id, title="另一类型正文", file_type="folder")
+    session.add_all([correct_folder, wrong_folder])
+    session.commit()
+    correct = _ai_body_file(
+        session,
+        project,
+        correct_title,
+        "目标正文原稿。",
+        file_type=requested_type,
+        parent_id=correct_folder.id,
+    )
+    _ai_body_file(
+        session,
+        project,
+        wrong_title,
+        "另一类型正文。",
+        file_type=wrong_type,
+        parent_id=wrong_folder.id,
+    )
+
+    armed = _payload(
+        await write_chapter({"chapter": 1, "title": correct_title, "file_type": requested_type})
+    )
+
+    assert armed["status"] == "success" and armed["data"]["action"] == "replaced"
+    assert armed["data"]["id"] == correct.id
+
+
 async def test_repeating_write_chapter_for_the_pending_chapter_hands_back_the_same_file(loop_tools):
     from agent.tools.mcp_tools import write_chapter
 
@@ -1497,3 +1593,305 @@ async def test_new_episode_without_parent_id_goes_to_the_script_folder(workspace
 
     assert created["status"] == "success" and created["data"]["action"] == "created"
     assert created["data"]["parent_id"] == f"{project.id}-script-folder"
+
+
+async def test_write_chapter_replacement_updates_title_atomically_on_save(workspace):
+    """P2-3(a)：write_chapter 替换已有章节时传入新章名，落库同一事务更新标题；只传裸章号（如「第1章」）则保留原标题。"""
+    one = _ai_chapter(workspace.session, workspace.project, "第1章 雨夜", "第一章旧正文。")
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "第三章旧正文。\n第二段。")
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 3, "title": "破晓", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n", tools=(
+            ("write_chapter", {"chapter": 1, "title": "第1章", "file_type": "draft"}),
+        )),
+        Reply(text=f"<file>\n{BODY_ONE}\n</file>\n两章都换好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "重写第三章改名破晓，并重写第一章")
+
+    armed_three = model.tool_calls[0].output
+    assert armed_three["status"] == "success"
+    assert armed_three["data"]["new_title"] == "第3章 破晓"
+    assert "diff 审阅" not in armed_three["data"]["next_step"]
+    workspace.session.expire_all()
+    refreshed_three = workspace.session.get(File, three.id)
+    refreshed_one = workspace.session.get(File, one.id)
+    assert refreshed_three.title == "第3章 破晓"
+    assert refreshed_three.content.rstrip("\n") == NEW_BODY
+    # 第一章只传了裸章号「第1章」，保留原有副标题「第1章 雨夜」。
+    assert refreshed_one.title == "第1章 雨夜"
+    assert refreshed_one.content.rstrip("\n") == BODY_ONE
+    final_three = [r["data"] for r in _results(outcome, "write_chapter") if r["data"].get("id") == three.id][-1]
+    assert final_three["body_saved"] is True and final_three["title"] == "第3章 破晓"
+
+
+async def test_replace_body_commits_a_title_change_when_the_body_is_unchanged(workspace):
+    """整章保存返回了与原稿相同的正文时，仍原子落库新章名与顺序。"""
+    from agent.tools.file_ops.edit import FileEditor
+
+    original = "第三章原文。\n第二段原文。"
+    chapter = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+
+    result = FileEditor(workspace.session, workspace.user.id).replace_body(
+        chapter.id,
+        original,
+        expected_updated_at=chapter.updated_at.isoformat() if chapter.updated_at else None,
+        title="第4章 破晓",
+        protect_author_content=False,
+    )
+
+    workspace.session.expire_all()
+    refreshed = workspace.session.get(File, chapter.id)
+    assert result["mutation_applied"] is True
+    assert result["new_content"] == original
+    assert refreshed.title == "第4章 破晓"
+    assert refreshed.order == 4
+
+
+async def test_replace_body_preserves_the_old_title_when_the_new_title_now_conflicts(workspace):
+    """定位章节后若同目录出现同名文件，落库时不覆盖原章名。"""
+    from agent.tools.file_ops.edit import FileEditor
+
+    original = "第三章原文。\n第二段原文。"
+    chapter = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", original)
+    _ai_chapter(workspace.session, workspace.project, "第3章 破晓", "同名目标。")
+
+    result = FileEditor(workspace.session, workspace.user.id).replace_body(
+        chapter.id,
+        original,
+        expected_updated_at=chapter.updated_at.isoformat() if chapter.updated_at else None,
+        title="第3章 破晓",
+        protect_author_content=False,
+    )
+
+    workspace.session.expire_all()
+    assert result["mutation_applied"] is False
+    assert workspace.session.get(File, chapter.id).title == "第3章 灯塔"
+
+
+@pytest.mark.parametrize("file_metadata", [None, "{not-json", 42])
+def test_imported_chapter_lookup_ignores_unusable_metadata(file_metadata):
+    """导入章节没有可用的结构化章号时，不把它误认为目标章节。"""
+    from agent.tools.mcp_tools import _row_chapter_number
+
+    row = SimpleNamespace(title="导入稿件", file_type="draft", file_metadata=file_metadata)
+
+    assert _row_chapter_number(row, unit="章", expected_file_type="draft") is None
+
+
+def test_prefixed_import_title_without_a_sequence_is_not_a_chapter_heading():
+    """导入标题有书名前缀但没有章号时，不把后半段当成章节标题。"""
+    from agent.tools.mcp_tools import _prefixed_chapter_heading
+
+    assert _prefixed_chapter_heading("剑来 - 序章", "章") is None
+
+
+def test_empty_chapter_title_has_no_subtitle():
+    """空章名不能被当成需要同步落库的新副标题。"""
+    from agent.tools.mcp_tools import _chapter_title_has_subtitle
+
+    assert _chapter_title_has_subtitle("\x00  ", "章") is False
+
+
+def test_imported_chapter_lookup_reads_mapping_metadata():
+    """导入器已解析成映射的 file_metadata 也能定位章号。"""
+    from agent.tools.mcp_tools import _row_chapter_number
+
+    row = SimpleNamespace(
+        title="导入稿件",
+        file_type="draft",
+        file_metadata={"source": "upload", "chapter_number": 7},
+    )
+
+    assert _row_chapter_number(row, unit="章", expected_file_type="draft") == 7
+
+
+def test_imported_chapter_lookup_rejects_the_other_body_type():
+    """导入元数据中的同号分集不能命中小说章节查找。"""
+    from agent.tools.mcp_tools import _row_chapter_number
+
+    row = SimpleNamespace(
+        title="导入稿件",
+        file_type="script",
+        file_metadata={"episode_number": 7},
+    )
+
+    assert _row_chapter_number(row, unit="章", expected_file_type="draft") is None
+
+
+@pytest.mark.parametrize("second_tool", ["rename_file", "edit_file"])
+async def test_same_reply_rename_or_edit_on_armed_write_chapter_is_refused_and_preserves_streamed_save(
+    workspace, second_tool: str
+):
+    """P2-3(b)：同一回复里对刚 write_chapter 锁定待写的章节调 rename_file 或 edit_file 时拒绝执行、不推进 updated_at，确保随后的 <file> 整章替换正常保存。"""
+    three = _ai_chapter(workspace.session, workspace.project, "第3章 灯塔", "合成第三章原文。\n第二段原文。")
+    baseline_updated_at = three.updated_at
+    second_call = (
+        ("rename_file", {"id": three.id, "title": "第3章 破晓"})
+        if second_tool == "rename_file"
+        else ("edit_file", {"id": three.id, "edits": [{"op": "replace", "old": "合成第三章原文。", "new": "局部改动。"}]})
+    )
+    model = ScriptedModel(runs=[[
+        Reply(
+            text="",
+            tools=(
+                ("write_chapter", {"chapter": 3, "title": "第3章 破晓", "file_type": "draft"}),
+                second_call,
+            ),
+        ),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n第三章已经重写好了。"),
+    ]])
+
+    outcome = await _run_loop(workspace, model, "重写第三章并改名")
+
+    refused = model.tool_calls[1].output
+    assert refused["status"] == "error"
+    assert refused["error_type"] == "chapter_replace_pending"
+    assert refused["mutation_applied"] is False
+    assert baseline_updated_at is not None
+    # 随后的 <file> 整章替换未被乐观锁拒绝，新正文与新标题正常落库。
+    assert _content(workspace, three.id).rstrip("\n") == NEW_BODY
+    workspace.session.expire_all()
+    assert workspace.session.get(File, three.id).title == "第3章 破晓"
+    final = _results(outcome, "write_chapter")[-1]["data"]
+    assert final["body_saved"] is True and final["mutation_applied"] is True
+
+
+async def test_write_chapter_recognizes_uploaded_chapter_via_file_metadata(workspace):
+    """P3-H：导入多章小说拆出的章节标题形如「书名 - 第1章 …」、章号存于 file_metadata.chapter_number，write_chapter 应识别已有章节而非重复新建。"""
+    from agent.tools.mcp_tools import write_chapter
+
+    uploaded = File(
+        project_id=workspace.project.id,
+        title="剑来 - 第1章 惊蛰",
+        content="导入的第一章正文。",
+        file_type="draft",
+        file_metadata=json.dumps({"source": "upload", "chapter_number": 1}, ensure_ascii=False),
+    )
+    workspace.session.add(uploaded)
+    workspace.session.flush()
+    FileVersionService().create_version(
+        workspace.session, uploaded.id, uploaded.content, change_type="create", change_source="ai", commit=False, skip_quota=True
+    )
+    workspace.session.commit()
+    workspace.session.refresh(uploaded)
+
+    ToolContext.set_context(
+        session=workspace.session,
+        user_id=workspace.user.id,
+        project_id=workspace.project.id,
+        session_id="loop-upload-seq",
+        author_message="重写第一章",
+    )
+    ToolContext.set_current_agent("loop")
+    try:
+        armed = _payload(await write_chapter({"chapter": 1, "title": "第1章", "file_type": "draft"}))
+    finally:
+        ToolContext.clear_context()
+
+    assert armed["status"] == "success"
+    assert armed["data"]["action"] == "replaced"
+    assert armed["data"]["id"] == uploaded.id
+    assert len(_drafts(workspace)) == 1
+
+
+async def test_write_chapter_uploaded_prefixed_title_preserves_or_updates_without_double_chapter_prefix(workspace):
+    """P2-3 × P3-H：导入章节形如「剑来 - 第1章 惊蛰」时，传同名标题保持不变，传「剑来 - 第1章 风起」在落库时更新为该标题而非拼出「第1章 剑来 - 第1章 …」，章号冲突仍报错。"""
+    from agent.tools.mcp_tools import WRITE_CHAPTER_INVALID_ERROR_TYPE, write_chapter
+
+    ch1 = File(
+        project_id=workspace.project.id,
+        title="剑来 - 第1章 惊蛰",
+        content="导入第一章旧稿。\n第二段。",
+        file_type="draft",
+        file_metadata=json.dumps({"source": "upload", "chapter_number": 1}, ensure_ascii=False),
+    )
+    ch2 = File(
+        project_id=workspace.project.id,
+        title="剑来 - 第2章 渡口",
+        content="导入第二章旧稿。\n第二段。",
+        file_type="draft",
+        file_metadata=json.dumps({"source": "upload", "chapter_number": 2}, ensure_ascii=False),
+    )
+    workspace.session.add_all([ch1, ch2])
+    workspace.session.flush()
+    for ch in (ch1, ch2):
+        FileVersionService().create_version(
+            workspace.session, ch.id, ch.content, change_type="create", change_source="ai", commit=False, skip_quota=True
+        )
+    workspace.session.commit()
+
+    ToolContext.set_context(
+        session=workspace.session,
+        user_id=workspace.user.id,
+        project_id=workspace.project.id,
+        session_id="loop-upload-mismatch",
+        author_message="检查章号冲突",
+    )
+    ToolContext.set_current_agent("loop")
+    try:
+        mismatch = _payload(await write_chapter({"chapter": 1, "title": "剑来 - 第2章 风起", "file_type": "draft"}))
+    finally:
+        ToolContext.clear_context()
+    assert mismatch["status"] == "error" and mismatch["error_type"] == WRITE_CHAPTER_INVALID_ERROR_TYPE
+
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("write_chapter", {"chapter": 1, "title": "剑来 - 第1章 惊蛰", "file_type": "draft"}),)),
+        Reply(text=f"<file>\n{BODY_ONE}\n</file>\n", tools=(
+            ("write_chapter", {"chapter": 2, "title": "剑来 - 第2章 风起", "file_type": "draft"}),
+        )),
+        Reply(text=f"<file>\n{NEW_BODY}\n</file>\n两章重写完成。"),
+    ]])
+
+    await _run_loop(workspace, model, "重写前两章，第二章改名风起")
+
+    armed_one = model.tool_calls[0].output
+    assert "new_title" not in armed_one["data"]
+    armed_two = model.tool_calls[1].output
+    assert armed_two["data"]["new_title"] == "剑来 - 第2章 风起"
+
+    workspace.session.expire_all()
+    assert workspace.session.get(File, ch1.id).title == "剑来 - 第1章 惊蛰"
+    assert workspace.session.get(File, ch2.id).title == "剑来 - 第2章 风起"
+    assert _content(workspace, ch1.id).rstrip("\n") == BODY_ONE
+    assert _content(workspace, ch2.id).rstrip("\n") == NEW_BODY
+
+
+async def test_refused_replacement_clears_pending_new_title_from_card():
+    """整章替换被拒存（如并发冲突）时，补发的卡片不保留未生效的 new_title。"""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.tools.file_ops.crud import ConcurrentFileWriteError
+
+    adapter = StreamAdapter()
+    card = {
+        "id": "chapter-3",
+        "title": "第3章 灯塔",
+        "new_title": "第3章 破晓",
+        "action": "replaced",
+        "chapter": 3,
+    }
+    adapter.set_pending_file_write(
+        "chapter-3",
+        "draft",
+        "第3章 灯塔",
+        original_content_length=40,
+        baseline_updated_at="v1",
+        replace_tool_use_id="call-refused-title",
+        replace_card=card,
+        target_title="第3章 破晓",
+    )
+
+    def _refuse(*_args, **_kwargs):
+        raise ConcurrentFileWriteError("stale")
+
+    async def _workflow():
+        yield StreamEvent(StreamEventType.TEXT, {"text": f"<file>\n{NEW_BODY}\n</file>\n"})
+        yield StreamEvent(StreamEventType.MESSAGE_END, {"stop_reason": "end_turn"})
+
+    adapter._replace_file_body_sync = _refuse
+    frames = [frame async for frame in adapter.process_workflow_events(_workflow())]
+    [tool_frame] = [f for f in frames if f.type.value == "tool_result"]
+    assert tool_frame.data["data"]["body_saved"] is False
+    assert tool_frame.data["data"]["title"] == "第3章 灯塔"
+    assert "new_title" not in tool_frame.data["data"]
+

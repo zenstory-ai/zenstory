@@ -24,6 +24,7 @@ MODEL_CALL_LIMIT_ERROR_TYPE = "ModelCallBudgetExhausted"
 _CONTEXT_TOO_LONG_MARKERS = (
     "context length",
     "context_length",
+    "context window",
     "maximum context",
     "too many tokens",
     "prompt is too long",
@@ -121,7 +122,8 @@ def classify_stream_exception(exc: BaseException) -> StreamErrorInfo:
     if _is_transport_failure(exc):
         return StreamErrorInfo(ErrorCode.AGENT_UPSTREAM_UNAVAILABLE, True, True)
     if status in {400, 413, 422} and _looks_like_context_overflow(exc):
-        return StreamErrorInfo(ErrorCode.AGENT_CONTEXT_TOO_LONG, False, True)
+        # 单循环 agent 重试会先跑轮间压缩或历史折叠（bound_history_for_provider），保留 retryable=True 作为恢复入口。
+        return StreamErrorInfo(ErrorCode.AGENT_CONTEXT_TOO_LONG, True, True)
     return StreamErrorInfo(ErrorCode.AGENT_RUN_FAILED, True, True)
 
 
@@ -148,7 +150,7 @@ def stream_error_from_event_data(data: Any) -> StreamErrorInfo:
 # 不是平台故障：不可重试、不退款。
 _DEFAULT_FLAGS: dict[str, tuple[bool, bool]] = {
     ErrorCode.AGENT_TOOL_FAILURE_LIMIT: (False, False),
-    ErrorCode.AGENT_CONTEXT_TOO_LONG: (False, True),
+    ErrorCode.AGENT_CONTEXT_TOO_LONG: (True, True),
     ErrorCode.AGENT_RUN_TIMEOUT: (False, True),
     ErrorCode.AGENT_SERVER_RESTARTING: (False, True),
     ErrorCode.AGENT_MODEL_CALL_LIMIT: (False, True),

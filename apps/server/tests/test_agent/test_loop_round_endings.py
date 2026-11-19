@@ -307,3 +307,187 @@ async def test_last_allowed_run_does_not_schedule_a_continuation():
         _ = [event async for event in run_loop_agent_streaming(_state(user_message="写第2集"), max_runs=1)]
 
     assert len(calls) == 1
+
+
+async def test_self_check_hitting_wrap_up_after_saved_body_with_summary_finishes_cleanly():
+    """正文已落库且模型已写过总结，紧接着的自查尾巴撞上收尾时间时正常完成：不发 wall_clock 暂停卡，照常收尾任务板。"""
+    from unittest.mock import AsyncMock
+
+    from agent.loop.engine import run_loop_agent_streaming
+
+    meter = AgentRunMeter(wrap_up_after_s=0)
+    calls: list[str] = []
+    task_event = StreamEvent(
+        type=StreamEventType.TOOL_RESULT,
+        data={"tool_use_id": "auto-task", "name": "update_project", "result": {"status": "success"}},
+    )
+    finalize = AsyncMock(return_value=[task_event])
+    runner = _saving_runner(
+        [[*_create_events(), _BODY, _DONE], [_DONE]],
+        [[("ep2", "第2集", "script")]],
+        calls,
+    )
+    with (
+        patch("agent.loop.engine.run_openai_agents_streaming_agent", runner),
+        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
+    ):
+        events = [event async for event in run_loop_agent_streaming(_state(user_message="写第2集", run_meter=meter))]
+
+    assert len(calls) == 1
+    assert not [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    texts = "".join(str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT)
+    assert "回复「继续」" not in texts
+    finalize.assert_awaited_once()
+    assert task_event in events
+
+
+@pytest.mark.parametrize(
+    ("english", "title", "expected_snippet", "forbidden_snippet"),
+    [
+        (False, "第2集 暗涌", "《第2集 暗涌》", "回复「继续」"),
+        (True, "Episode 2: Undertow", '"Episode 2: Undertow"', 'Reply "continue"'),
+    ],
+)
+async def test_self_check_hitting_wrap_up_right_after_file_block_emits_saved_note_without_pause_card(
+    english: bool,
+    title: str,
+    expected_snippet: str,
+    forbidden_snippet: str,
+):
+    """正文已落库、回复停在 </file> 上还没给作者写总结，自查尾巴撞上收尾时间：补一句确定性的已保存说明并正常收尾，不发暂停卡。"""
+    from unittest.mock import AsyncMock
+
+    from agent.loop.engine import run_loop_agent_streaming
+
+    meter = AgentRunMeter(wrap_up_after_s=0)
+    calls: list[str] = []
+    finalize = AsyncMock(return_value=[])
+    runner = _saving_runner(
+        [[*_create_events(), _BODY], [_DONE]],
+        [[("ep2", title, "script")]],
+        calls,
+    )
+    state = _state(user_message="写第2集", run_meter=meter, language="en" if english else "zh")
+    with (
+        patch("agent.loop.engine.run_openai_agents_streaming_agent", runner),
+        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
+    ):
+        events = [event async for event in run_loop_agent_streaming(state)]
+
+    assert len(calls) == 1
+    assert not [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    texts = "".join(str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT)
+    assert expected_snippet in texts
+    assert forbidden_snippet not in texts
+    finalize.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("english", "expected"),
+    [
+        (False, "正文已保存"),
+        (True, "The text is saved"),
+    ],
+)
+async def test_self_check_wrap_up_without_a_title_uses_the_saved_body_fallback(english: bool, expected: str):
+    """已落库的正文没有可用标题时，收尾仍明确告知作者正文已保存。"""
+    from agent.loop.run_support import wrap_up_self_check_skipped_text
+
+    assert expected in wrap_up_self_check_skipped_text(english, ["", "   "])
+
+
+async def test_cut_body_hitting_wrap_up_still_emits_wall_clock_pause_card():
+    """正文写到输出上限被中途截断（cut_body）时撞上收尾时间：章节确实没写完，照旧发 wall_clock 暂停卡。"""
+    from unittest.mock import AsyncMock
+
+    from agent.loop.engine import run_loop_agent_streaming
+    from agent.openai_agents.runner import OUTPUT_CAPPED_KEY
+
+    meter = AgentRunMeter(wrap_up_after_s=0)
+    finalize = AsyncMock(return_value=[])
+
+    async def capped_runner(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
+        ToolContext.mark_cut_body_saved("ch3", "第3章 灯塔")
+        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
+        for ev in _create_events():
+            yield ev
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n半截正文没闭合"})
+        state["native_run_holder"].update(agent_type=agent_type, items=[{"role": "user", "content": "x"}])
+        yield StreamEvent(
+            type=StreamEventType.MESSAGE_END,
+            data={"stop_reason": "end_turn", OUTPUT_CAPPED_KEY: True},
+        )
+
+    with (
+        patch("agent.loop.engine.run_openai_agents_streaming_agent", capped_runner),
+        patch("agent.loop.run_support.read_body_tail", return_value=("第3章 灯塔", "半截正文没闭合")),
+        patch("agent.loop.run_support._ai_messages_left_today", return_value=True),
+        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
+    ):
+        events = [event async for event in run_loop_agent_streaming(_state(user_message="写第3章", run_meter=meter))]
+
+    [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert card["layer"] == "collaboration"
+    assert card["limit"] == "wall_clock"
+    finalize.assert_not_awaited()
+
+
+async def test_outline_ending_on_file_block_hitting_wrap_up_still_emits_wall_clock_pause_card():
+    """资料文件（outline）落库并停在 </file> 上时撞上收尾时间：不是章节写后自查（可能刚开始搭设定还没写正文），照旧发 wall_clock 暂停卡。"""
+    from unittest.mock import AsyncMock
+
+    from agent.loop.engine import run_loop_agent_streaming
+
+    meter = AgentRunMeter(wrap_up_after_s=0)
+    calls: list[str] = []
+    finalize = AsyncMock(return_value=[])
+    runner = _saving_runner(
+        [[*_create_events(), _BODY], [_DONE]],
+        [[("o1", "分章大纲", "outline")]],
+        calls,
+    )
+    with (
+        patch("agent.loop.engine.run_openai_agents_streaming_agent", runner),
+        patch("agent.loop.run_support._ai_messages_left_today", return_value=True),
+        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
+    ):
+        events = [event async for event in run_loop_agent_streaming(_state(user_message="先建大纲再写第1章", run_meter=meter))]
+
+    assert len(calls) == 1
+    [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert card["layer"] == "collaboration"
+    assert card["limit"] == "wall_clock"
+    finalize.assert_not_awaited()
+
+
+async def test_non_output_capped_cut_body_hitting_wrap_up_still_emits_wall_clock_pause_card():
+    """cut_bodies 非空但 output_capped=False（如中途被其他机制截断补全）时撞上收尾时间：章节未完整闭合，不得误判为 self_check 正常结束。"""
+    from unittest.mock import AsyncMock
+
+    from agent.loop.engine import run_loop_agent_streaming
+
+    meter = AgentRunMeter(wrap_up_after_s=0)
+    finalize = AsyncMock(return_value=[])
+
+    async def cut_without_cap_runner(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
+        ToolContext.mark_chapter_body_saved("ch1", "第1章 起航", "draft")
+        ToolContext.mark_cut_body_saved("ch2", "第2章 暗礁")
+        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
+        for ev in _create_events():
+            yield ev
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n半截第二章"})
+        state["native_run_holder"].update(agent_type=agent_type, items=[{"role": "user", "content": "x"}])
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    with (
+        patch("agent.loop.engine.run_openai_agents_streaming_agent", cut_without_cap_runner),
+        patch("agent.loop.run_support._ai_messages_left_today", return_value=True),
+        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
+    ):
+        events = [event async for event in run_loop_agent_streaming(_state(user_message="写第1章和第2章", run_meter=meter))]
+
+    [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert card["layer"] == "collaboration"
+    assert card["limit"] == "wall_clock"
+    finalize.assert_not_awaited()
+
