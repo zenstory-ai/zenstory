@@ -144,8 +144,8 @@ agent/
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` 是唯一的工具集（顺序即请求里工具清单的顺序，前缀缓存依赖它），请求里直接从 `tool_schemas.TOOL_SCHEMAS` 按序取出（`get_exposed_tools()`；`CREATE_FILE_TOOL` 只列资料文件与文件夹，不列 draft / script）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入直接落库并保留修改卡撤销、历史版本及草稿冲突与版本并发保护（[direct-ai-edits][n-direct-edits]）；
   写作约定追加许可放开（只追加、`expected_notes` 冲突保护不变）。
   create_file 的 `empty=true` 在单循环轮次里直接生效（`ToolContext.author_wants_no_body`，由模型判断，不从原话推断）。
-- **改稿恢复**：`services/file_edit_operations.py` 在文件写锁内为已有文件的 edit_file / write_chapter(replaced) / rename_file 保存精确前后版本、标题与操作记录；仅改标题时复用既有正文版本而不重复拷贝全文，正文变更走常规增量版本；新建文件（create_file / write_chapter(created)）只记初始版本，不造假空前稿操作记录。正文来源只通过 `author_changes` 帮助模型理解手改，不决定能否改写。新卡用 `operation_id` 撤销（不受后续写入阻塞），旧卡仍兼容条件版本回滚。选择性撤销以 AI 后稿为 base、当前稿为 local、AI 前稿为 target，在前端复用三方合并，二次提交必须核对当前版本。仅正文重叠或标题冲突显示紧凑选择，排序位置不作冲突维度；标题与正文同动作原子恢复，未被该操作修改的维度保留现值。版本历史面板保持单一版本时间线。
-- **可恢复删除**：`delete_file` 单文件 id 与多文件 ids 恰一者提供；根 ID 规范化去重后最多 100 个，目录展开目标可更多。目录和大批次返回一次范围确认；同请求直接删除累计最多 5 个叶文件，不能拆调用绕过。`services/file_trash.py` 统一 REST（`DELETE /files/{id}`，`source="file_menu"`）、聊天（`source="agent_direct"` / `"agent_confirmed"`）与回收站（只读列表不锁项目），删除/恢复均锁项目树、核对精确集合与删除代次；用户在聊天卡片点击确认删除时，`POST /delete-batch` 同步通过 `record_delete_card_confirmed` 更新 `ChatMessage.tool_calls`，使后续轮次模型看到已确认删除的真实状态。恢复不遍历当前目录补旧孩子、不改上传对象。结构 writer 先取 Project gate：创建/排序 shared，父子图、标题唯一性、删除/恢复与撤销路径 exclusive（纯 `metadata` 更新不取 Project 锁），再按固定顺序取文件及 operation/batch 锁。确认接口仅供真实 UI 点击，模型没有 force 工具。停止后的空占位清理仍走既有内部条件删除，不混进作者回收站。
+- **改稿恢复**：`FileEditor._commit_ai_content` 在文件写锁内为 edit_file 与 write_chapter(replaced) 先用 `stage_pre_ai_write_backup` 备份未进历史的原稿（非空原稿拿不到历史锚点时抛 `PreWriteHistoryUnavailableError` 拒绝覆盖），在同一事务内创建 AI `FileVersion` 并返回轻量 `undo` 锚点（`before_version_number`、`expected_after_updated_at`、`expected_after_content_sha256`）。聊天修改卡复用既有的条件版本回滚（`file_version_service.rollback_to_version` + `record_edit_card_undone`），后续又有编辑时由文件版本历史面板查看或恢复任意旧稿；不再维护独立的 `FileEditOperation` 账本或三方合并撤销接口。正文来源只通过 `author_changes` 帮助模型理解手改，不决定能否改写。
+- **可恢复删除**：`delete_file(id, recursive=false)` 对目标文件（及 `recursive=true` 时的存活子树）执行软删除并统一打上同一 `deleted_at` 时间戳，结果卡返回 `id`、`title`、`file_type`、`restored=false`；作者点击聊天删除卡上的「恢复」调用 `POST /api/v1/files/{file_id}/restore`，在项目排他锁与文件写锁下校验父目录存活及同级重名，按同一 `deleted_at` 恢复该次删除的文件或目录子树（不复活更早单独删除的子项），并通过 `record_delete_card_restored` 将 `restored=true` 写回 `ChatMessage.tool_calls` 供刷新展示与后续轮次历史回放。工作台不单独设侧栏回收站。
 - **正文按章号写入**（`mcp_tools.write_chapter`）：`write_chapter(chapter, title, file_type=draft|script, parent_id?, empty?)` 在本项目未删除的
   draft / script 里按标题开头的章号（draft）或集号（script）解析目标（`utils.title_sequence.extract_sequence_number(unit=…)`，无前缀章号时按 `file_type` 回退读取 `file_metadata` 的 `chapter_number` / `episode_number` 以识别导入拆章，有界的标识符解析；
   给了 parent_id 只看那个目录，先按 `file_ops.crud.resolve_create_target` 与 create_file 同样归一父节点；正文分在多个目录而没给 parent_id 时
@@ -155,7 +155,7 @@ agent/
   `<file>` 落库前对同一文件再调 `write_chapter`、`rename_file` 或 `edit_file` 一律返回 `chapter_replace_pending` 且 `mutation_applied=false`，不推进 `updated_at`）；不止一个 → `chapter_target_ambiguous`
   列出候选，不写。作者保存过或没有来源记录的原稿同样可按本轮请求重写，不再做来源权限判断。
   `empty=true` 只建缺的空章节（已有的 `action=exists` 不动）。StreamAdapter 在 `</file>` 后把整章替换交给 `FileEditor.replace_body`
-  （与 edit_file 共用 `_commit_ai_content`：写锁内重读、版本核对、原稿备份、AI 版本「AI 整章替换」、同事务更新新标题、精确前后版本与 `FileEditOperation` 撤销记录），
+  （与 edit_file 共用 `_commit_ai_content`：写锁内重读、版本核对、原稿备份、AI 版本「AI 整章替换」、同事务更新新标题与 `FileVersion` 撤销锚点），
   然后发 `file_content_end`、`file_edit_start/applied/end`（end 带 `original_content` / `new_content`，前端直接刷新展示最新正文），
   并以同一个 tool_use_id 补发一条 write_chapter 的 tool_result（`body_saved`、`new_word_count`、`previous_word_count`、`undo`；落库卡片随之更新，
   `services/chat_tool_cards` 的撤销标记接受 write_chapter 卡）。版本变了或恢复记录无法建立时不覆盖、发「这一章的整章替换没有保存，原文保持不变」、

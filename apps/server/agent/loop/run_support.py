@@ -88,7 +88,7 @@ async def wrap_up_text(english: bool) -> str:
 BODY_WORD_COUNT_HEADER = "[本轮正文字数]"
 _BODY_WORD_COUNT_NOTE = (
     "以上是编辑器统计的实际字数；交接说明和对话里写的字数是写作时的估计，"
-    "判断篇幅、回复作者都只用这里的数。"
+    "回复作者时只报这里的真实字数，不要为了凑近近似字数调用 edit_file 反复增删。"
 )
 
 

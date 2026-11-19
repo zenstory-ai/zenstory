@@ -48,9 +48,6 @@
     "createdViaApi": "Created via Agent API",
     "updatedViaApi": "Updated via Agent API",
     "aiRunCheckpoint": "Saved automatically after AI edits",
-    "undidAiEdit": "Undid AI edit",
-    "aiChapterReplace": "AI chapter replacement",
-    "aiRename": "AI rename",
     "aiEditCount": "AI changed {{count}} places",
     "aiEditCount_one": "AI changed {{count}} place",
     "aiEditCount_other": "AI changed {{count}} places"

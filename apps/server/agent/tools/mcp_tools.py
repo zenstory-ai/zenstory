@@ -702,7 +702,6 @@ class ToolContext:
             "author_steering": author_steering,
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
             "inflight_tool_writes": inflight_tool_writes,
-            "direct_deletions": {"lock": threading.Lock(), "file_ids": set()},
         })
         _owned_session_var.set(None)
 
@@ -2672,58 +2671,58 @@ async def delete_file(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
-    """Move one exact batch to trash, or return a scope confirmation without writing."""
-    from services.file_trash import FileTrashService
-
+    """Synchronous delete_file implementation."""
     tool_name = "delete_file"
-    context = ToolContext._get_context()
-    project_id = context.get("project_id")
+    executor = ToolContext.get_executor()
+    project_id = ToolContext._get_context().get("project_id")
+
+    # 删除工具必须运行在绑定了项目的上下文中；执行器层会进一步校验目标文件
+    # 属于该项目（check_file_access_in_tool_context）。
     if project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
-    has_id, has_ids = "id" in args, "ids" in args
-    if has_id == has_ids:
-        return _make_error("delete_file 必须且只能提供 id 或 ids", tool_name=tool_name)
-    raw_ids = [args["id"]] if has_id else args["ids"]
-    if not isinstance(raw_ids, list) or not raw_ids or any(
-        not isinstance(item, str) or not item.strip() for item in raw_ids
-    ):
-        return _make_error("delete_file 需要非空文件 ID 列表", tool_name=tool_name)
-    ids = list(dict.fromkeys(item.strip() for item in raw_ids))
-    if len(ids) > 100:
-        return _make_error("一次最多指定 100 个文件 ID；删除整个文件夹时请提供文件夹 ID", tool_name=tool_name)
-    recursive = coerce_bool(args.get("recursive"))
-    state = context["direct_deletions"]
+
+    raw_id = args.get("id", "")
+    file_id = raw_id.strip() if isinstance(raw_id, str) else ""
     try:
-        service = FileTrashService(
-            ToolContext.get_session(), user_id=context.get("user_id"), project_id=project_id
+        title: str | None = None
+        file_type: str | None = None
+        session = getattr(executor, "session", None)
+        if isinstance(session, Session) and file_id:
+            from models import File
+
+            existing = session.get(File, file_id)
+            if existing is not None and not existing.is_deleted and existing.project_id == project_id:
+                title = existing.title
+                file_type = existing.file_type
+
+        # recursive 是本项目破坏性最强的布尔参数：判真会软删除整棵子树。
+        # 模型传来的 "false"/"0"/被截断修复出来的 "fals" 在朴素真值判断下全是
+        # True，历史上把"删一个文件"变成"删掉整个文件夹的所有章节"。
+        recursive = coerce_bool(args.get("recursive"))
+        result = executor.delete_file(
+            id=file_id,
+            recursive=recursive,
         )
-        # Shared across copied thread contexts; split tool calls cannot evade the per-request limit.
-        with state["lock"]:
-            preview = service.preview(ids, recursive=recursive)
-            targets = preview["targets"]
-            leaves = {item["id"] for item in targets if item["file_type"] != "folder"}
-            needs_confirmation = any(item["file_type"] == "folder" for item in targets) or len(
-                state["file_ids"] | leaves
-            ) > 5
-            if needs_confirmation:
-                data = {
-                    "confirmation_required": True,
-                    "mutation_applied": False,
-                    "preview": preview,
-                    "count": preview["count"],
-                    "result": "尚未删除。请作者在这张卡片确认删除范围；确认后可从回收站恢复。不要拆分调用绕过确认。",
-                }
-                return _make_result({"status": "success", "mutation_applied": False, "data": data}, tool_name=tool_name)
-            deleted = service.delete(
-                ids,
-                recursive=preview["recursive"],
-                source="agent_direct",
-                expected_target_hash=preview["target_hash"],
+        if result is not True:
+            return _make_result(
+                {"status": "success", "mutation_applied": False, "data": False},
+                tool_name=tool_name,
             )
-            state["file_ids"].update(leaves)
-        return _make_result({"status": "success", "mutation_applied": True, "data": deleted}, tool_name=tool_name)
-    except Exception as exc:
-        return _make_error(str(exc), tool_name=tool_name)
+        data: dict[str, Any] = {
+            "id": file_id,
+            "restored": False,
+            "mutation_applied": True,
+        }
+        if title is not None:
+            data["title"] = title
+        if file_type is not None:
+            data["file_type"] = file_type
+        return _make_result(
+            {"status": "success", "mutation_applied": True, "data": data},
+            tool_name=tool_name,
+        )
+    except Exception as e:
+        return _make_error(str(e), tool_name=tool_name)
 
 
 async def rename_file(args: dict[str, Any]) -> dict[str, Any]:
@@ -2732,7 +2731,7 @@ async def rename_file(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
-    """Synchronous rename_file implementation with an atomic recovery record."""
+    """Synchronous rename_file implementation: a title-only FileCRUD.update_file."""
     tool_name = "rename_file"
     executor = ToolContext.get_executor()
     project_id = ToolContext._get_context().get("project_id")
@@ -2763,15 +2762,50 @@ def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         )
 
     try:
-        data = executor.rename_with_undo(id=file_id, title=title)
+        from models import File
+
+        session = ToolContext.get_session()
+        current = session.get(File, file_id)
+        if current is None or current.is_deleted or current.project_id != project_id:
+            return _make_error("文件不存在或已删除", tool_name=tool_name)
+        previous_title = current.title
+        if title == previous_title:
+            data = {"id": file_id, "title": title, "previous_title": previous_title, "mutation_applied": False}
+            return _make_result(
+                {"status": "success", "mutation_applied": False, "data": data},
+                tool_name=tool_name,
+            )
+        clash = session.exec(
+            select(File.id).where(
+                File.project_id == project_id,
+                File.parent_id == current.parent_id,
+                File.title == title,
+                File.is_deleted.is_(False),
+                File.id != file_id,
+            )
+        ).first()
+        if clash is not None:
+            return _make_error(
+                f"同一文件夹里已有名为《{title}》的文件，换一个标题或先问作者",
+                tool_name=tool_name,
+            )
+
+        result = executor.update_file(id=file_id, title=title)
+        data = {
+            "id": result.get("id", file_id),
+            "title": result.get("title", title),
+            "previous_title": previous_title,
+            "file_type": result.get("file_type"),
+            "parent_id": result.get("parent_id"),
+            # SSE 的 tool_result 只转发 data：计费和前端进度从这里读是否真的改了。
+            "mutation_applied": True,
+        }
         return _make_result(
-            {"status": "success", "mutation_applied": data.get("mutation_applied") is True, "data": data},
+            {"status": "success", "mutation_applied": True, "data": data},
             tool_name=tool_name,
         )
-    except FileWriteRecoveryError as exc:
-        return _write_recovery_payload(exc, tool_name=tool_name)
-    except Exception as exc:
-        return _make_error(str(exc), tool_name=tool_name)
+    except Exception as e:
+        return _make_error(str(e), tool_name=tool_name)
 
 
 async def query_files(args: dict[str, Any]) -> dict[str, Any]:

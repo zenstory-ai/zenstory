@@ -12,20 +12,17 @@ from sqlalchemy import create_engine, text
 from sqlmodel import Session, select
 
 from agent.tools.file_ops import crud as file_crud_module
+from agent.tools.file_ops import edit as file_edit_module
 from agent.tools.file_ops.crud import FileCRUD
 from agent.tools.file_ops.edit import FileEditor
-from agent.tools.write_errors import PreWriteHistoryUnavailableError
 from api import agent_api
 from api import files as files_api
 from core.error_handler import APIException
 from models.agent_api_key import AgentApiKey
 from models.entities import Project, Snapshot, User
-from models.file_deletion_batch import FileDeletionBatch
-from models.file_edit_operation import FileEditOperation
 from models.file_model import File
 from models.file_version import FileVersion
 from models.workspace_onboarding import WorkspaceOnboarding
-from services import file_edit_operations as file_edit_operations_module
 from services.features.file_version_service import FileVersionService, before_restore_summary, get_file_version_service
 
 pytestmark = pytest.mark.skipif(
@@ -41,8 +38,6 @@ TABLES = [
     FileVersion.__table__,
     AgentApiKey.__table__,
     WorkspaceOnboarding.__table__,
-    FileEditOperation.__table__,
-    FileDeletionBatch.__table__,
 ]
 STAMP = datetime(2026, 10, 6, 8, 0, 0, 123456, tzinfo=UTC)
 
@@ -109,6 +104,7 @@ def _invoke_agent_update(
     call = agent_api.update_file(
         file_id,
         agent_api.FileUpdate(content=content, base_updated_at=STAMP),
+
         _rate_limit=0,
         context=(session, user_id, key),
     )
@@ -131,7 +127,6 @@ def stable_dependencies(monkeypatch: pytest.MonkeyPatch):
         lambda *_args, **_kwargs: (True, 0, 10),
     )
     monkeypatch.setattr(agent_api, "utcnow", lambda: STAMP)
-    monkeypatch.setattr(file_edit_operations_module, "utcnow", lambda: STAMP)
     monkeypatch.setattr(
         files_api.activation_event_service,
         "record_once",
@@ -139,12 +134,13 @@ def stable_dependencies(monkeypatch: pytest.MonkeyPatch):
     )
 
 
-def test_concurrent_agent_updates_with_same_token_commit_one_version(pg_engine, monkeypatch: pytest.MonkeyPatch):
+def test_concurrent_agent_updates_with_same_token_commit_one_version(
+    pg_engine, monkeypatch: pytest.MonkeyPatch
+):
     with Session(pg_engine) as setup:
         user_id, file_id, key_id = _seed_file(setup, "agent-race")
 
     both_preloaded = Barrier(2)
-
     def update(content: str):
         with Session(pg_engine) as session:
             cached_file = session.get(File, file_id)
@@ -172,7 +168,9 @@ def test_concurrent_agent_updates_with_same_token_commit_one_version(pg_engine, 
         assert versions[0].content == file.content
 
 
-def test_agent_rejects_old_token_after_preloaded_web_update(pg_engine, monkeypatch: pytest.MonkeyPatch):
+def test_agent_rejects_old_token_after_preloaded_web_update(
+    pg_engine, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(files_api, "utcnow", lambda: STAMP)
     with Session(pg_engine) as setup:
         user_id, file_id, key_id = _seed_file(setup, "web-agent")
@@ -192,6 +190,7 @@ def test_agent_rejects_old_token_after_preloaded_web_update(pg_engine, monkeypat
         files_api.update_file(
             file_id,
             files_api.FileUpdate(content="Web winner", base_updated_at=STAMP),
+
             current_user=current_user,
             session=web_session,
         )
@@ -215,8 +214,7 @@ def test_agent_rejects_old_token_after_preloaded_web_update(pg_engine, monkeypat
 
 
 def test_preloaded_web_writer_rejects_token_invalidated_by_agent(
-    pg_engine,
-    monkeypatch: pytest.MonkeyPatch,
+    pg_engine, monkeypatch: pytest.MonkeyPatch,
 ):
     with Session(pg_engine) as setup:
         user_id, file_id, key_id = _seed_file(setup, "web-cached")
@@ -230,8 +228,7 @@ def test_preloaded_web_writer_rejects_token_invalidated_by_agent(
             files_api.update_file(
                 file_id,
                 files_api.FileUpdate(content="Stale web overwrite", base_updated_at=STAMP),
-                owner,
-                web_session,
+                 owner, web_session,
             )
         assert conflict.value.status_code == 409
     with Session(pg_engine) as verify:
@@ -241,8 +238,11 @@ def test_preloaded_web_writer_rejects_token_invalidated_by_agent(
         assert len(versions) == 1
 
 
-def test_preloaded_file_editor_appends_to_latest_web_content(pg_engine, monkeypatch: pytest.MonkeyPatch):
+def test_preloaded_file_editor_appends_to_latest_web_content(
+    pg_engine, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(files_api, "utcnow", lambda: STAMP)
+    monkeypatch.setattr(file_edit_module, "utcnow", lambda: STAMP)
     with Session(pg_engine) as setup:
         user_id, file_id, _key_id = _seed_file(setup, "web-editor")
 
@@ -260,6 +260,7 @@ def test_preloaded_file_editor_appends_to_latest_web_content(pg_engine, monkeypa
         web_result = files_api.update_file(
             file_id,
             files_api.FileUpdate(content="Web winner", base_updated_at=STAMP),
+
             current_user=current_user,
             session=web_session,
         )
@@ -279,7 +280,9 @@ def test_preloaded_file_editor_appends_to_latest_web_content(pg_engine, monkeypa
         assert len(versions) == 2
 
 
-def test_preloaded_file_crud_title_update_returns_latest_web_content(pg_engine, monkeypatch: pytest.MonkeyPatch):
+def test_preloaded_file_crud_title_update_returns_latest_web_content(
+    pg_engine, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(files_api, "utcnow", lambda: STAMP)
     monkeypatch.setattr(file_crud_module, "utcnow", lambda: STAMP)
     with Session(pg_engine) as setup:
@@ -299,6 +302,7 @@ def test_preloaded_file_crud_title_update_returns_latest_web_content(pg_engine, 
         web_result = files_api.update_file(
             file_id,
             files_api.FileUpdate(content="Web winner", base_updated_at=STAMP),
+
             current_user=current_user,
             session=web_session,
         )
@@ -312,30 +316,17 @@ def test_preloaded_file_crud_title_update_returns_latest_web_content(pg_engine, 
     assert result["content"] == "Web winner"
     with Session(pg_engine) as verify:
         file = verify.get(File, file_id)
-        versions = verify.exec(
-            select(FileVersion).where(FileVersion.file_id == file_id).order_by(FileVersion.version_number)
-        ).all()
-        operation = verify.exec(select(FileEditOperation).where(FileEditOperation.file_id == file_id)).one()
+        versions = verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()
         assert file is not None
         assert file.title == "Renamed after web write"
         assert file.content == "Web winner"
         assert file.updated_at.replace(tzinfo=UTC) > web_token
-        assert len(versions) == 2
-        assert (operation.before_title, operation.after_title) == (
-            "Draft",
-            "Renamed after web write",
-        )
-        assert (operation.before_version_id, operation.after_version_id) == (
-            versions[0].id,
-            versions[1].id,
-        )
-        assert all(
-            get_file_version_service().get_content_at_version(verify, file_id, version.version_number) == "Web winner"
-            for version in versions
-        )
+        assert len(versions) == 1
 
 
-def test_preloaded_rollback_advances_past_latest_web_token(pg_engine, monkeypatch: pytest.MonkeyPatch):
+def test_preloaded_rollback_advances_past_latest_web_token(
+    pg_engine, monkeypatch: pytest.MonkeyPatch
+):
     from services.features import file_version_service as version_service_module
 
     monkeypatch.setattr(files_api, "utcnow", lambda: STAMP)
@@ -368,6 +359,7 @@ def test_preloaded_rollback_advances_past_latest_web_token(pg_engine, monkeypatc
         web_result = files_api.update_file(
             file_id,
             files_api.FileUpdate(content="Web winner", base_updated_at=STAMP),
+
             current_user=current_user,
             session=web_session,
         )
@@ -436,7 +428,10 @@ def test_rollback_backs_up_committed_unversioned_body_not_cached_identity(pg_eng
                 FileVersion.change_summary == before_restore_summary(1),
             )
         ).one()
-        assert service.get_content_at_version(verify, file_id, backup.version_number) == "Committed unversioned"
+        assert (
+            service.get_content_at_version(verify, file_id, backup.version_number)
+            == "Committed unversioned"
+        )
 
 
 @pytest.mark.asyncio
@@ -463,7 +458,6 @@ async def test_conditional_undo_waits_for_writer_then_rejects_its_old_token(pg_e
 
     locked, release = Event(), Event()
     reader_pid = []
-
     def request_session():
         with Session(pg_engine) as session:
             # Keep this strong reference through yield, so a missing refresh
@@ -493,12 +487,7 @@ async def test_conditional_undo_waits_for_writer_then_rejects_its_old_token(pg_e
         while time.monotonic() < deadline:
             if reader_pid:
                 with pg_engine.connect() as connection:
-                    if (
-                        connection.execute(
-                            text("select wait_event_type from pg_stat_activity where pid=:pid"), {"pid": reader_pid[0]}
-                        ).scalar()
-                        == "Lock"
-                    ):
+                    if connection.execute(text("select wait_event_type from pg_stat_activity where pid=:pid"), {"pid": reader_pid[0]}).scalar() == "Lock":
                         return
             await asyncio.sleep(0.01)
         pytest.fail("Conditional rollback never waited on the writer's real PG File lock")
@@ -509,11 +498,7 @@ async def test_conditional_undo_waits_for_writer_then_rejects_its_old_token(pg_e
         try:
             assert await asyncio.to_thread(locked.wait, 5)
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-                request = asyncio.create_task(
-                    client.post(
-                        f"/api/v1/files/{file_id}/versions/1/rollback", json={"expected_updated_at": STAMP.isoformat()}
-                    )
-                )
+                request = asyncio.create_task(client.post(f"/api/v1/files/{file_id}/versions/1/rollback", json={"expected_updated_at": STAMP.isoformat()}))
                 try:
                     await observed_lock_wait()
                 finally:
@@ -534,8 +519,13 @@ async def test_conditional_undo_waits_for_writer_then_rejects_its_old_token(pg_e
         assert len(verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()) == 2
 
 
-def test_required_anchor_query_failure_rolls_back_locked_postgres_edit(pg_engine, monkeypatch):
-    """A failed required history read refuses the edit and releases its row lock."""
+def test_undo_provenance_query_failure_does_not_poison_postgres_edit_transaction(pg_engine, monkeypatch):
+    """A failed optional history SELECT must roll back only its savepoint.
+
+    The first read is the pre-AI-write backup comparison; it fails here, the undo
+    provenance read succeeds (the original is already the history head), and the
+    content edit commits with an undo anchor.
+    """
     from sqlalchemy import text
 
     from services.features.file_version_service import FileVersionService
@@ -556,15 +546,13 @@ def test_required_anchor_query_failure_rolls_back_locked_postgres_edit(pg_engine
 
     monkeypatch.setattr(FileVersionService, "get_latest_version", fail_first_history_read)
     monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
-    with Session(pg_engine) as session, pytest.raises(PreWriteHistoryUnavailableError):
-        FileEditor(session, user_id).edit_file(file_id, [{"op": "append", "text": " + edit"}])
-    assert calls == [file_id]
+    with Session(pg_engine) as session:
+        result = FileEditor(session, user_id).edit_file(file_id, [{"op": "append", "text": " + edit"}])
+    assert result["undo"]["before_version_number"] == 1
     with Session(pg_engine) as verify:
-        verify.exec(text("SELECT id FROM file WHERE id = :id FOR UPDATE NOWAIT").bindparams(id=file_id))
         file = verify.get(File, file_id)
-        assert file.content == "Original"
-        assert len(verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()) == 1
-        assert verify.exec(select(FileEditOperation).where(FileEditOperation.file_id == file_id)).all() == []
+        assert file.content == "Original + edit"
+        assert len(verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()) == 2
 
 
 def test_unbacked_original_refuses_the_locked_postgres_edit_and_releases_the_row(pg_engine, monkeypatch):
@@ -586,7 +574,7 @@ def test_unbacked_original_refuses_the_locked_postgres_edit_and_releases_the_row
     def fail_backup(_self, session, *_args, **_kwargs):
         session.exec(text("select 1 / 0"))
 
-    monkeypatch.setattr(FileVersionService, "create_version", fail_backup)
+    monkeypatch.setattr(FileVersionService, "backup_unversioned_content", fail_backup)
     monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
     with Session(pg_engine) as session, pytest.raises(PreWriteHistoryUnavailableError):
         FileEditor(session, user_id).edit_file(
@@ -640,28 +628,19 @@ def test_concurrent_first_ai_edits_of_blank_file_share_one_baseline_and_undo_res
     service = get_file_version_service()
     with Session(pg_engine) as session, pytest.raises(APIException) as conflict:
         service.rollback_to_version(
-            session,
-            file_id,
-            1,
-            user_id=user_id,
+            session, file_id, 1, user_id=user_id,
             expected_updated_at=datetime.fromisoformat(first["undo"]["expected_after_updated_at"]),
         )
     assert conflict.value.status_code == 409
     with Session(pg_engine) as session:
-        service.rollback_to_version(
-            session,
-            file_id,
-            2,
-            user_id=user_id,
-            expected_updated_at=datetime.fromisoformat(second["undo"]["expected_after_updated_at"]),
-        )
+        service.rollback_to_version(session, file_id, 2, user_id=user_id, expected_updated_at=datetime.fromisoformat(second["undo"]["expected_after_updated_at"]))
     with Session(pg_engine) as session:
         service.rollback_to_version(session, file_id, 1, user_id=user_id)
     with Session(pg_engine) as verify:
         assert verify.get(File, file_id).content == ""
 
 
-def test_blank_baseline_failure_rolls_back_the_content_transaction(pg_engine, monkeypatch):
+def test_blank_baseline_failure_does_not_poison_the_content_transaction(pg_engine, monkeypatch):
     monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
     with Session(pg_engine) as setup:
         user_id, file_id = _seed_blank_file(setup, "blank-fail")
@@ -673,11 +652,13 @@ def test_blank_baseline_failure_rolls_back_the_content_transaction(pg_engine, mo
         return original(self, session, *args, **kwargs)
 
     monkeypatch.setattr(FileVersionService, "create_version", fail_baseline)
-    with Session(pg_engine) as session, pytest.raises(PreWriteHistoryUnavailableError):
-        FileEditor(session, user_id).edit_file(file_id, [{"op": "append", "text": "AI\n"}])
+    with Session(pg_engine) as session:
+        result = FileEditor(session, user_id).edit_file(file_id, [{"op": "append", "text": "AI\n"}])
+    assert result.get("undo") is None
     with Session(pg_engine) as verify:
-        assert verify.get(File, file_id).content == ""
-        assert verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all() == []
+        assert verify.get(File, file_id).content == "AI\n"
+        rows = verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()
+        assert [(row.version_number, row.change_source) for row in rows] == [(1, "ai")]
 
 
 def test_recursive_delete_of_unversioned_child_is_recoverable(pg_engine):
@@ -696,13 +677,8 @@ def test_recursive_delete_of_unversioned_child_is_recoverable(pg_engine):
     with Session(pg_engine) as session:
         assert FileCRUD(session, user_id).delete_file(folder_id, recursive=True) is True
     with Session(pg_engine) as verify:
-        from models.file_deletion_batch import FileDeletionBatch
-        from services.file_trash import FileTrashService
-
-        batch = verify.exec(
-            select(FileDeletionBatch).where(FileDeletionBatch.project_id == verify.get(File, child_id).project_id)
-        ).one()
-        FileTrashService(verify, user_id=user_id, project_id=batch.project_id).restore(batch.id)
+        owner = verify.get(User, user_id)
+        files_api.restore_file(folder_id, request=None, current_user=owner, session=verify)
         assert verify.get(File, folder_id).is_deleted is False
         kept = verify.get(File, child_id)
         assert (kept.is_deleted, kept.content, kept.parent_id) == (False, "Original", folder_id)
@@ -726,6 +702,7 @@ async def test_undo_token_belongs_to_edit_even_when_web_write_commits_before_ref
         owner = setup.get(User, user_id)
         setup.expunge(owner)
 
+    monkeypatch.setattr(file_edit_module, "utcnow", lambda: STAMP)
     monkeypatch.setattr(files_api, "utcnow", lambda: STAMP)
     monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
     own_token = STAMP + timedelta(microseconds=1)
@@ -745,6 +722,7 @@ async def test_undo_token_belongs_to_edit_even_when_web_write_commits_before_ref
                     updated = files_api.update_file(
                         file_id,
                         files_api.FileUpdate(content="Later Web work", base_updated_at=own_token),
+
                         current_user=owner,
                         session=web_session,
                     )
@@ -755,7 +733,6 @@ async def test_undo_token_belongs_to_edit_even_when_web_write_commits_before_ref
         result = FileEditor(editor_session, user_id).edit_file(file_id, [{"op": "append", "text": " + AI edit"}])
 
     assert interposed == [later_token]
-
     # Invoke actual HTTP rollback/body parsing before asserting the token, so RED proves
     # the unsafe overwrite rather than merely a wrong response field.
     def request_session():

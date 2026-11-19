@@ -86,13 +86,9 @@ export function isWriteToolResult(
   result?: Record<string, unknown>,
 ): boolean {
   if (status !== 'success') return false;
-  const payload = (result?.data ?? result) as Record<string, unknown> | boolean | undefined;
+  const payload = (result?.data ?? result) as Record<string, unknown> | undefined;
 
-  if (toolName === 'write_chapter') return typeof payload === 'object' && payload?.mutation_applied === true;
-
-  if (typeof payload !== 'object') {
-    return toolName === 'delete_file' && payload === true;
-  }
+  if (toolName === 'write_chapter') return payload?.mutation_applied === true;
 
   if (toolName === 'create_file') {
     const content = typeof payload?.content === 'string' ? payload.content : '';
@@ -103,10 +99,7 @@ export function isWriteToolResult(
     if (typeof payload?.edits_applied === 'number') return payload.edits_applied > 0;
     return true;
   }
-  if (toolName === 'delete_file') {
-    if (typeof payload?.mutation_applied === 'boolean') return payload.mutation_applied;
-    return true;
-  }
+  if (toolName === 'delete_file') return true;
   if (toolName === 'rename_file') return payload?.mutation_applied === true;
   if (toolName === 'update_project') {
     const fields = Array.isArray(payload?.updated_fields) ? (payload.updated_fields as unknown[]) : [];
@@ -157,36 +150,16 @@ export interface BodyWriteProgress {
 export function createBodyWriteProgress(): BodyWriteProgress {
   const titles = new Map<string, string>();
   let current: { fileId: string; title: string; text: string } | null = null;
-  // Legacy delete_file returns only `true`, so retain call ids as a fallback. New batch
-  // results name the exact targets the server actually deleted.
+  // delete_file returns only `true`, so the deleted id comes from the call's arguments.
   const pendingDeletes = new Set<string>();
   return {
     toolCall(toolName, args) {
-      if (toolName === 'delete_file') {
-        if (typeof args?.id === 'string' && args.id) pendingDeletes.add(args.id);
-        if (Array.isArray(args?.ids)) {
-          for (const id of args.ids) if (typeof id === 'string' && id) pendingDeletes.add(id);
-        }
-      }
+      if (toolName === 'delete_file' && typeof args?.id === 'string' && args.id) pendingDeletes.add(args.id);
     },
     toolResult(toolName, status, result) {
       if (toolName === 'delete_file') {
-        const payload = (result?.data ?? result) as Record<string, unknown> | boolean | undefined;
-        const mutationApplied = typeof payload === 'boolean'
-          ? payload
-          : payload?.mutation_applied !== false;
-        if (status === 'success' && !mutationApplied) return;
-        const targets = typeof payload === 'object' && Array.isArray(payload?.targets)
-          ? payload.targets
-          : [];
-        const deletedIds = new Set(
-          targets.flatMap((target) => target && typeof target === 'object' && typeof (target as Record<string, unknown>).id === 'string'
-            ? [(target as Record<string, unknown>).id as string]
-            : []),
-        );
-        if (deletedIds.size === 0) pendingDeletes.forEach((id) => deletedIds.add(id));
         // Deleting the waiting file is the allowed way out of an overdue empty file: stop naming it.
-        if (status === 'success' && current && deletedIds.has(current.fileId)) current = null;
+        if (status === 'success' && current && pendingDeletes.has(current.fileId)) current = null;
         if (status === 'success' || pendingDeletes.size <= 1) pendingDeletes.clear();
         return;
       }

@@ -80,10 +80,6 @@ vi.mock('../../lib/api', () => ({
     create: vi.fn(),
     delete: (...args: unknown[]) => mockDelete(...args),
   },
-  fileTrashApi: {
-    list: vi.fn(async () => ({ batches: [], total: 0, limit: 50, offset: 0, next_offset: null })),
-    restore: vi.fn(),
-  },
 }));
 
 vi.mock('../SearchResultsDropdown', () => ({
@@ -244,7 +240,7 @@ describe('MobileFileTree', () => {
     let dialog = await screen.findByRole('dialog');
     expect(nativeConfirm).not.toHaveBeenCalled();
     expect(within(dialog).getByText('common:confirmDelete')).toBeInTheDocument();
-    expect(dialog).toHaveTextContent('第一章');
+    expect(within(dialog).getByText('第一章')).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'common:cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

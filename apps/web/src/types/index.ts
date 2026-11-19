@@ -515,70 +515,11 @@ export interface FileEditUndoTarget {
   fileId: string;
   beforeVersionNumber: number;
   expectedAfterUpdatedAt: string;
-  /** Durable edit operation. New cards prefer this over the legacy body-only rollback. */
-  operationId?: string;
   /** SHA-256 (hex) of the text this edit wrote; absent on older cards and servers. */
   expectedAfterContentSha256?: string;
   /** The saved assistant message and tool call of the card, so the server can mark that card undone. */
   chatMessageId?: string;
   toolUseId?: string;
-}
-
-export interface FileEditOperationSnapshot {
-  content: string;
-  title: string;
-  updated_at?: string;
-  content_sha256?: string;
-}
-
-export interface FileEditOperationUndoResponse {
-  status: 'undone' | 'needs_merge';
-  file_id: string;
-  operation_id: string;
-  updated_at?: string;
-  undo_recorded?: boolean;
-  already_undone?: boolean;
-  before?: FileEditOperationSnapshot;
-  after?: FileEditOperationSnapshot;
-  current?: FileEditOperationSnapshot;
-  content_conflict?: boolean;
-  metadata_conflict?: boolean;
-}
-
-export interface FileDeletionTarget {
-  id: string;
-  title: string;
-  file_type: string;
-  parent_id: string | null;
-  order: number;
-  updated_at?: string;
-}
-
-export interface FileDeletionPreview {
-  root_ids: string[];
-  recursive: boolean;
-  targets: FileDeletionTarget[];
-  count: number;
-  target_hash: string;
-}
-
-export interface FileDeletionBatchSummary {
-  batch_id: string;
-  root_ids: string[];
-  titles?: string[];
-  count: number;
-  source?: string;
-  created_at: string;
-  restored: boolean;
-}
-
-export interface FileDeletionResult {
-  batch_id: string;
-  root_ids: string[];
-  targets: FileDeletionTarget[];
-  count: number;
-  restored: boolean;
-  mutation_applied: boolean;
 }
 
 // ==================== Text Quote ====================

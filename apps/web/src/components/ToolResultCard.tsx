@@ -41,8 +41,7 @@ import {
   Settings,
   Layers,
 } from 'lucide-react';
-import type { FileDeletionPreview, FileDeletionResult, FileEditUndoTarget } from '../types';
-import { DeletionTargetList } from './DeletionTargetList';
+import type { FileEditUndoTarget } from '../types';
 import { UndoBlockedContext, UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
 import { isPersistedUndoTarget, readFileEditUndoTarget, readWriteChapterOutcome, type WriteChapterOutcome } from '../lib/aiWriteCards';
 import { countWords } from '../lib/documentChunker';
@@ -108,13 +107,11 @@ interface ToolResultCardProps {
    * Only shown for successful edit_file results.
    */
   onUndo?: (target: FileEditUndoTarget) => void;
-  /** Restore one recoverable deletion batch. */
-  onRestoreDeletion?: (batchId: string) => void | Promise<void>;
-  /** Confirm the exact server-previewed deletion target set. */
-  onConfirmDeletion?: (
-    preview: FileDeletionPreview,
+  /** Restore a soft-deleted file from its chat card. */
+  onRestoreDeletion?: (
+    fileId: string,
     card?: { chatMessageId?: string; toolUseId?: string },
-  ) => Promise<FileDeletionResult>;
+  ) => void | Promise<void>;
 
   /** The tool call of this card and its saved assistant message: an undo names them so the server marks this card undone. */
   toolUseId?: string;
@@ -510,7 +507,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   interrupted,
   onUndo,
   onRestoreDeletion,
-  onConfirmDeletion,
   toolUseId,
   chatMessageId,
   onOpenFile,
@@ -519,8 +515,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   const { t } = useTranslation(['chat', 'common']);
   const undoneEdits = useContext(UndoneEditsContext);
   const undoBlocked = useContext(UndoBlockedContext);
-  const [confirmedDeletion, setConfirmedDeletion] = useState<FileDeletionResult | null>(null);
-  const [confirmingDeletion, setConfirmingDeletion] = useState(false);
   const [restoringDeletion, setRestoringDeletion] = useState(false);
   const [deletionRestored, setDeletionRestored] = useState(false);
 
@@ -770,25 +764,13 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const renamed = data as Record<string, unknown>;
       const from = typeof renamed.previous_title === 'string' ? renamed.previous_title : '';
       const to = typeof renamed.title === 'string' ? renamed.title : '';
-      const undoTarget = readFileEditUndoTarget(renamed, chatMessageId, toolUseId);
-      const undone = undoTarget !== null && isFileEditUndone(renamed, undoTarget, undoneEdits);
       return (
         <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
             <span className="text-sm font-medium text-[hsl(var(--text-primary))] break-words">
               {t('chat:tool.renamed', { from, to })}
             </span>
-            {undone ? (
-              <span className="ml-auto text-xs text-[hsl(var(--text-secondary))]">{t('chat:tool.edit_undone')}</span>
-            ) : onUndo && isPersistedUndoTarget(undoTarget) ? (
-              <CardUndoControl
-                target={undoTarget}
-                blocked={undoBlocked.has(undoneEditKey(undoTarget))}
-                onUndo={handleUndo}
-                className="ml-auto"
-              />
-            ) : null}
           </div>
         </div>
       );
@@ -796,65 +778,28 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 
     // delete_file success
     if (toolName === 'delete_file') {
-      const deleted = (confirmedDeletion ?? (data && typeof data === 'object' ? data : {})) as Record<string, unknown>;
-      const batchId = typeof deleted.batch_id === 'string' ? deleted.batch_id : '';
-      const restored = deleted.restored === true;
-      const isRestored = restored || deletionRestored;
-      const count = typeof deleted.count === 'number' ? deleted.count : null;
-      const preview = deleted.preview && typeof deleted.preview === 'object'
-        ? deleted.preview as Record<string, unknown>
-        : null;
-      if (deleted.confirmation_required === true && preview) {
-        const deletionPreview = preview as unknown as FileDeletionPreview;
-        return (
-          <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
-            <div className="flex flex-wrap items-center gap-2">
-              <Info className="h-4 w-4 shrink-0 text-[hsl(var(--text-secondary))]" />
-              <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
-                {t('chat:tool.deleteNeedsConfirmation', {
-                  count: typeof preview.count === 'number' ? preview.count : 0,
-                })}
-              </span>
-              {onConfirmDeletion && (
-                <button
-                  type="button"
-                  className={`${CHAT_CARD_INLINE_ACTION} ml-auto min-h-11`}
-                  disabled={confirmingDeletion}
-                  onClick={() => {
-                    setConfirmingDeletion(true);
-                    void onConfirmDeletion(deletionPreview, { chatMessageId, toolUseId })
-                      .then(setConfirmedDeletion)
-                      .catch(() => undefined)
-                      .finally(() => setConfirmingDeletion(false));
-                  }}
-                >
-                  {confirmingDeletion ? t('common:saving') : t('common:delete')}
-                </button>
-              )}
-            </div>
-            <div className="mt-2">
-              <DeletionTargetList targets={deletionPreview.targets} />
-            </div>
-          </div>
-        );
-      }
+      const deleted = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+      const fileId = typeof deleted.id === 'string' ? deleted.id : '';
+      const deletedTitle = typeof deleted.title === 'string' ? deleted.title.trim() : '';
+      const isRestored = deleted.restored === true || deletionRestored;
       return (
         <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
           <div className="flex flex-wrap items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
-            <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
-              {count !== null ? t('chat:tool.deletedCount', { count }) : t('chat:tool.deleted')}
+            <span className="text-sm font-medium text-[hsl(var(--text-primary))] break-words">
+              {deletedTitle ? `${t('chat:tool.deleted')} ${quote(deletedTitle)}` : t('chat:tool.deleted')}
             </span>
             {isRestored ? (
               <span className="ml-auto text-xs text-[hsl(var(--text-secondary))]">{t('chat:tool.deletionRestored')}</span>
-            ) : batchId && onRestoreDeletion ? (
+            ) : fileId && onRestoreDeletion ? (
               <button
                 type="button"
                 className={`${CHAT_CARD_INLINE_ACTION} ml-auto`}
                 disabled={restoringDeletion}
                 onClick={() => {
+                  if (restoringDeletion) return;
                   setRestoringDeletion(true);
-                  void Promise.resolve(onRestoreDeletion(batchId))
+                  void Promise.resolve(onRestoreDeletion(fileId, { chatMessageId, toolUseId }))
                     .then(() => setDeletionRestored(true))
                     .catch(() => undefined)
                     .finally(() => setRestoringDeletion(false));

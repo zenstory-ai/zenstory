@@ -38,17 +38,6 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
     expect(isWriteToolResult('rename_file', 'success', { id: 'ch1', title: '旧名', mutation_applied: false })).toBe(false)
   })
 
-  it('does not count a deletion preview as a write, but counts applied and legacy deletion results', () => {
-    expect(isWriteToolResult('delete_file', 'success', {
-      confirmation_required: true,
-      mutation_applied: false,
-      preview: { root_ids: ['ch1'], targets: [{ id: 'ch1' }], count: 1, target_hash: 'hash' },
-    })).toBe(false)
-    expect(isWriteToolResult('delete_file', 'success', { mutation_applied: true, batch_id: 'batch-1' })).toBe(true)
-    expect(isWriteToolResult('delete_file', 'success', { data: true })).toBe(true)
-    expect(isWriteToolResult('delete_file', 'success', { data: false })).toBe(false)
-  })
-
   it('counts update_project only when the project info an author sees changed', () => {
     expect(isWriteToolResult('update_project', 'success', { updated_fields: ['summary'] })).toBe(true)
     expect(isWriteToolResult('update_project', 'success', { updated_fields: [], project_name_updated: true })).toBe(true)
@@ -134,31 +123,6 @@ describe('createBodyWriteProgress (the chat waiting line while a file gets its t
 
     progress.toolCall('delete_file', { id: 'ch-3' })
     progress.toolResult('delete_file', 'success', { data: true })
-    expect(progress.snapshot()).toBeNull()
-  })
-
-  it('keeps the waiting file through preview and clears only an actually deleted batch target', () => {
-    const progress = createBodyWriteProgress()
-    progress.toolResult('create_file', 'success', awaiting('ch-3', '第三章'))
-    progress.toolCall('delete_file', { ids: ['notes', 'ch-3'] })
-    progress.toolResult('delete_file', 'success', {
-      mutation_applied: false,
-      confirmation_required: true,
-      preview: { targets: [{ id: 'notes' }, { id: 'ch-3' }] },
-    })
-    expect(progress.snapshot()).toEqual({ title: '第三章', words: 0 })
-
-    progress.toolResult('delete_file', 'success', {
-      mutation_applied: true,
-      targets: [{ id: 'notes' }],
-    })
-    expect(progress.snapshot()).toEqual({ title: '第三章', words: 0 })
-
-    progress.toolCall('delete_file', { ids: ['ch-3'] })
-    progress.toolResult('delete_file', 'success', {
-      mutation_applied: true,
-      targets: [{ id: 'ch-3' }],
-    })
     expect(progress.snapshot()).toBeNull()
   })
 

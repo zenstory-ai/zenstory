@@ -118,10 +118,8 @@ test.describe('Accessibility - Keyboard Navigation', () => {
     const first = rows.first();
     await expect(first).toBeVisible();
 
-    // Tab from search visits Trash before the tree; arrows then move between rows.
+    // Tab from the file search reaches the first row; arrows then move between rows.
     await page.locator('input[placeholder*="搜索文件"], input[placeholder*="Search files"], [role="searchbox"]').first().focus();
-    await page.keyboard.press('Tab');
-    await expect(page.getByRole('button', { name: /^(回收站|Trash)$/ })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(first).toBeFocused();
     await page.keyboard.press('ArrowDown');

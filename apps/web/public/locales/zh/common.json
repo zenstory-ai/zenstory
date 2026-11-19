@@ -46,7 +46,6 @@
     "script": "剧本",
     "scene": "场景"
   },
-  "deleteScope": "将删除的内容",
   "projectTypes": {
     "novel": "长篇小说",
     "short": "短篇小说",

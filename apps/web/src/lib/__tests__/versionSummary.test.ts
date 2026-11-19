@@ -52,16 +52,10 @@ const CASES: Array<[string, string]> = [
   ['AI 编辑：前置、删除', 'AI 改了 2 处'],
   ['AI 编辑: 替换、替换、替换', 'AI 改了 3 处'],
   ['AI 编辑: 替换, 追加, 插入 等 5 处修改', 'AI 改了 5 处'],
-  ['Before undoing AI edit', '恢复前自动备份'],
-  ['Undid AI edit_file', '已撤销 AI 修改'],
-  ['Undid AI write_chapter', '已撤销 AI 修改'],
-  ['Undid AI rename_file', '已撤销 AI 修改'],
-  ['AI 整章替换', 'AI 整章替换'],
-  ['AI 重命名文件', 'AI 重命名'],
 ]
 
 /** System summaries that only repeat the type badge (创建 / 编辑 / AI 编辑). */
-const REDUNDANT = ['File updated', 'Initial version', '创建文件', 'AI 创建文件正文', 'AI 更新文件内容', 'AI 编辑']
+const REDUNDANT = ['File updated', 'Initial version', '创建文件', 'AI 更新文件内容', 'AI 编辑']
 
 describe('describeVersionSummary', () => {
   it.each(CASES)('maps %j to the Chinese label', (summary, expected) => {

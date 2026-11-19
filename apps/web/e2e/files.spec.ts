@@ -183,42 +183,22 @@ test.describe('Files', () => {
     expect((await readFile(page, project!, file.id)).content).toBe(content)
   })
 
-  test('user can delete and restore a file with its original content and identity', async ({ page }) => {
-    const file = await prepareFile(page, project!, '待删除文件', '恢复后这段作者正文必须完整保留。')
+  test('user can delete a file', async ({ page }) => {
+    const file = await prepareFile(page, project!, '待删除文件')
     const node = treeNode(page, file.title)
     await node.hover()
     await node.getByTitle(/删除|delete/i).click()
     const responsePromise = page.waitForResponse(response =>
-      response.url().includes(`/api/v1/files/${file.id}`)
+      response.url().endsWith(`/api/v1/files/${file.id}`)
         && response.request().method() === 'DELETE',
     )
     await page.getByRole('dialog').getByRole('button', { name: /删除|delete/i }).click()
-    const deleted = await responsePromise
-    expect(deleted.ok()).toBeTruthy()
-    const batch = await deleted.json() as { batch_id: string }
+    expect((await responsePromise).ok()).toBeTruthy()
     await expect(treeNode(page, file.title)).toHaveCount(0)
     const getResponse = await page.request.get(`${config.apiBaseUrl}/api/v1/files/${file.id}`, {
       headers: project!.headers,
     })
     expect(getResponse.status()).toBe(404)
-
-    await page.getByRole('button', { name: /回收站|trash/i }).first().click()
-    const trash = page.getByRole('dialog', { name: /回收站|trash/i })
-    await expect(trash.getByText(file.title, { exact: true })).toBeVisible()
-    const restoredResponse = page.waitForResponse(response =>
-      response.url().endsWith(`/api/v1/projects/${project!.id}/files/trash/${batch.batch_id}/restore`)
-        && response.request().method() === 'POST',
-    )
-    await trash.getByRole('button', { name: /恢复这批文件|restore.*files/i }).click()
-    expect((await restoredResponse).ok()).toBeTruthy()
-    await page.keyboard.press('Escape')
-    await expect(treeNode(page, file.title)).toBeVisible()
-    const restored = await readFile(page, project!, file.id)
-    expect(restored).toMatchObject({ id: file.id, title: file.title, content: file.content, parent_id: file.parent_id })
-    await treeNode(page, file.title).click()
-    await expect(editor(page)).toHaveValue(file.content)
-    await page.reload()
-    await expect(treeNode(page, file.title)).toBeVisible()
   })
 
   test('user can expand and collapse folders', async ({ page }) => {

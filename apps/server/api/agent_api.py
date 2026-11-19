@@ -850,9 +850,6 @@ def update_file(
 
     # Serialize with web/editor/tool writes and refresh after taking the lock.
     # This sync endpoint keeps DB IO and SQLite lock waits off the event loop.
-    if file_data.title is not None or file_data.order is not None:
-        target = _load_accessible_file(session, user_id, api_key, file_id)
-        lock_project_for_files(session, target.project_id, exclusive=file_data.title is not None)
     lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
     with lock_ctx:
         file = _load_accessible_file(session, user_id, api_key, file_id, for_write=True)
@@ -942,17 +939,20 @@ def delete_file(
     session, user_id, api_key = context
 
     file = _load_accessible_file(session, user_id, api_key, file_id)
-    project_id = file.project_id
-    from services.file_trash import FileTrashError, FileTrashService
+    lock_project_for_files(session, file.project_id, exclusive=True)
+    from agent.tools.file_ops.edit import file_write_lock
+    from database import is_postgres
 
-    try:
-        FileTrashService(session, user_id=user_id, project_id=project_id).delete(
-            [file_id], recursive=file.file_type == "folder", source="agent_api"
-        )
-    except FileTrashError as exc:
-        raise APIException(
-            error_code=ErrorCode.RESOURCE_CONFLICT, status_code=409, detail=str(exc)
-        ) from exc
+    lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
+    with lock_ctx:
+        file = _load_accessible_file(session, user_id, api_key, file_id, for_write=True)
+
+        # Soft delete
+        file.is_deleted = True
+        file.deleted_at = utcnow()
+        file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+
+        session.commit()
 
     log_with_context(
         logger,
@@ -961,7 +961,7 @@ def delete_file(
         user_id=user_id,
         api_key_id=api_key.id,
         file_id=file_id,
-        project_id=project_id,
+        project_id=file.project_id,
     )
 
 

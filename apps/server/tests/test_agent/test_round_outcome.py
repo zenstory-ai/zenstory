@@ -436,30 +436,6 @@ def test_partial_delivery_keeps_placeholder_when_delete_did_not_apply():
     assert files.delivery(final_word_counts={}) == {"unwritten_files": [{"id": "empty", "title": "周念"}]}
 
 
-@pytest.mark.parametrize("applied", [False, True])
-def test_deletion_batch_only_removes_confirmed_targets_from_delivery(applied):
-    from agent.core.stream_billing import StreamBillingTracker
-
-    files = RoundWrittenFiles()
-    files.observe(_created("one", "稿件一"))
-    files.observe(_created("two", "稿件二"))
-    frame = _frame("tool_result", {
-        "tool_name": "delete_file", "status": "success", "tool_use_id": "batch-delete",
-        "data": {
-            "mutation_applied": applied, "confirmation_required": not applied,
-            "targets": [{"id": "one"}, {"id": "two"}],
-        },
-    })
-    files.observe(frame)
-    tracker = StreamBillingTracker()
-    tracker.observe(frame)
-    assert tracker.write_succeeded is applied
-    if applied:
-        assert files.delivery(final_word_counts={}) == {}
-    else:
-        assert {item["id"] for item in files.delivery(final_word_counts={})["unwritten_files"]} == {"one", "two"}
-
-
 def test_written_files_list_a_chapter_created_with_its_body_and_its_word_count():
     """create_file 直接带正文（U088 那种「第2章写进去了、回复只剩一句开场白」）：列出标题与编辑器口径的字数。"""
     assert _written(_created("ch-2", "第2章 入宅", "雨还在下。Rain 落在窗上。")) == [

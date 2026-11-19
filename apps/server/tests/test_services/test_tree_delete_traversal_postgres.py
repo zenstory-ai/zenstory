@@ -8,8 +8,9 @@ import pytest
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
 
+from agent.tools.file_ops import crud as crud_module
+from api import files as files_api
 from models import File
-from services import file_trash as file_trash_module
 from tests.test_api.test_tree_delete_traversal import (
     _bulk_seed_chain,
     _delete,
@@ -27,8 +28,7 @@ from tests.test_api.test_tree_delete_traversal import (
 from tests.test_services.test_tree_writers_postgres import pg_engine as pg_engine
 
 pytestmark = pytest.mark.skipif(
-    not os.getenv("ZENSTORY_TEST_POSTGRES_URL"),
-    reason="isolated PostgreSQL URL not configured",
+    not os.getenv("ZENSTORY_TEST_POSTGRES_URL"), reason="isolated PostgreSQL URL not configured",
 )
 
 
@@ -48,12 +48,7 @@ def test_postgres_deletes_fk_valid_1200_depth_tree(pg_engine, monkeypatch, entry
         cached_leaf = session.get(File, ids[-1])
         assert not cached_leaf.is_deleted
         _delete(
-            session,
-            monkeypatch,
-            entrypoint=entrypoint,
-            user=user,
-            file_id=ids[0],
-            recursive=True,
+            session, monkeypatch, entrypoint=entrypoint, user=user, file_id=ids[0], recursive=True,
         )
         assert cached_leaf.is_deleted
         rows = session.exec(select(File).where(File.project_id == project.id).order_by(File.id)).all()
@@ -83,7 +78,8 @@ def test_delete_loader_locks_descendant_only_before_mutation(pg_engine, monkeypa
         unrelated_id = unrelated.id
 
     loaded, release = Event(), Event()
-    original = file_trash_module.load_live_subtree_postorder
+    module = files_api if entrypoint == "web" else crud_module
+    original = module.load_live_subtree_postorder
 
     def pause_loaded(session, root):
         rows = original(session, root)
@@ -94,19 +90,15 @@ def test_delete_loader_locks_descendant_only_before_mutation(pg_engine, monkeypa
         assert release.wait(8), "loader lock proof was not released"
         return rows
 
-    monkeypatch.setattr(file_trash_module, "load_live_subtree_postorder", pause_loaded)
+    monkeypatch.setattr(module, "load_live_subtree_postorder", pause_loaded)
 
     def delete():
         from models import User
 
         with Session(pg_engine, autoflush=False, expire_on_commit=False) as session:
             return _delete(
-                session,
-                monkeypatch,
-                entrypoint=entrypoint,
-                user=session.get(User, user_id),
-                file_id=ids[0],
-                recursive=True,
+                session, monkeypatch, entrypoint=entrypoint,
+                user=session.get(User, user_id), file_id=ids[0], recursive=True,
             )
 
     with ThreadPoolExecutor(max_workers=1) as pool:
@@ -115,44 +107,23 @@ def test_delete_loader_locks_descendant_only_before_mutation(pg_engine, monkeypa
             assert loaded.wait(5), "delete never finished loading its subtree"
             with Session(pg_engine) as contender:
                 with pytest.raises(OperationalError) as rejected:
-                    contender.exec(
-                        select(File)
-                        .where(File.id == ids[-1])
-                        .with_for_update(
-                            key_share=True,
-                            nowait=True,
-                        )
-                    ).one()
+                    contender.exec(select(File).where(File.id == ids[-1]).with_for_update(
+                        key_share=True, nowait=True,
+                    )).one()
                 assert rejected.value.orig.pgcode == "55P03"  # lock_not_available
                 contender.rollback()
             with Session(pg_engine) as independent:
-                row = independent.exec(
-                    select(File)
-                    .where(File.id == unrelated_id)
-                    .with_for_update(
-                        key_share=True,
-                        nowait=True,
-                    )
-                ).one()
+                row = independent.exec(select(File).where(File.id == unrelated_id).with_for_update(
+                    key_share=True, nowait=True,
+                )).one()
                 row.content = "Independent committed body"
                 independent.add(row)
                 independent.commit()  # Completes while the exclusive Project gate is held.
             # Versions' FK KEY SHARE remains compatible with NO KEY UPDATE.
             with Session(pg_engine) as version_reader:
-                assert (
-                    version_reader.exec(
-                        select(File)
-                        .where(File.id == ids[-1])
-                        .with_for_update(
-                            read=True,
-                            key_share=True,
-                            nowait=True,
-                        )
-                    )
-                    .one()
-                    .id
-                    == ids[-1]
-                )
+                assert version_reader.exec(select(File).where(File.id == ids[-1]).with_for_update(
+                    read=True, key_share=True, nowait=True,
+                )).one().id == ids[-1]
             assert not future.done()
         finally:
             release.set()
@@ -179,7 +150,8 @@ def test_shared_tree_gate_waits_for_recursive_delete_commit(pg_engine, monkeypat
 
     loaded, release, reader_started = Event(), Event(), Event()
     reader_pid = []
-    original = file_trash_module.load_live_subtree_postorder
+    module = files_api if entrypoint == "web" else crud_module
+    original = module.load_live_subtree_postorder
 
     def pause_loaded(session, root):
         rows = original(session, root)
@@ -187,17 +159,13 @@ def test_shared_tree_gate_waits_for_recursive_delete_commit(pg_engine, monkeypat
         assert release.wait(8), "shared gate/delete proof was not released"
         return rows
 
-    monkeypatch.setattr(file_trash_module, "load_live_subtree_postorder", pause_loaded)
+    monkeypatch.setattr(module, "load_live_subtree_postorder", pause_loaded)
 
     def delete():
         with Session(pg_engine, autoflush=False, expire_on_commit=False) as session:
             return _delete(
-                session,
-                monkeypatch,
-                entrypoint=entrypoint,
-                user=session.get(User, user_id),
-                file_id=ids[0],
-                recursive=True,
+                session, monkeypatch, entrypoint=entrypoint,
+                user=session.get(User, user_id), file_id=ids[0], recursive=True,
             )
 
     def read_live_files():
@@ -208,8 +176,7 @@ def test_shared_tree_gate_waits_for_recursive_delete_commit(pg_engine, monkeypat
             reader_started.set()
             lock_project_for_files(session, project_id)
             live = session.exec(
-                select(File)
-                .where(File.project_id == project_id, File.is_deleted.is_(False))
+                select(File).where(File.project_id == project_id, File.is_deleted.is_(False))
                 .execution_options(populate_existing=True)
             ).all()
             assert cached_leaf is not None  # Keep the stale reference through the gate wait.
@@ -231,14 +198,11 @@ def test_shared_tree_gate_waits_for_recursive_delete_commit(pg_engine, monkeypat
 @pytest.mark.parametrize("entrypoint", ["web", "tool"])
 def test_postgres_default_expiration_delete_query_budget(pg_engine, monkeypatch, entrypoint):
     from tests.test_api.test_tree_delete_traversal import (
-        test_default_expiration_recoverable_delete_uses_constant_selects,
+        test_default_expiration_delete_uses_three_selects,
     )
 
     calls = []
     with Session(pg_engine, autoflush=False, expire_on_commit=False) as seed_session:
-        test_default_expiration_recoverable_delete_uses_constant_selects(
-            seed_session,
-            calls,
-            entrypoint,
-            count=50,
+        test_default_expiration_delete_uses_three_selects(
+            seed_session, calls, entrypoint, count=50,
         )

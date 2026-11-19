@@ -1,8 +1,8 @@
-"""聊天恢复卡的显示状态与确认回写。
+"""聊天里 AI 修改卡与删除卡的当前状态回写。
 
-新卡从持久 operation/deletion batch 校准状态，聊天 JSON 不作为唯一恢复事实；
-作者在聊天确认范围删除后一并回写对应卡片，使下一轮历史回放与模型输入保持一致。
-没有 operation_id 的历史卡仍保留原条件回滚与 JSON 撤销标记兼容。
+状态写回原助手消息 tool_calls 里那一张卡（``result.undo.undone`` 或 ``result.restored``），
+不改助手原话，不新建表或第二份变更账本；版本撤销本身仍是既有的条件回滚
+（file_version_service.rollback_to_version），删除恢复走文件软删除恢复接口。
 """
 
 import contextlib
@@ -19,12 +19,12 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 
-# 带撤销锚点的 AI 修改卡：edit_file、write_chapter（整章替换）与 rename_file。
-_UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter", "rename_file"})
+# 带撤销锚点的 AI 修改卡：edit_file，以及单循环 agent 的整章替换（write_chapter）。
+_UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter"})
 
 
 def _card_undo(call: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    """一张修改卡的结果数据与撤销锚点（结果可能带一层 data）。"""
+    """一张 edit_file 卡的结果数据与撤销锚点（结果可能带一层 data）。"""
     result = call.get("result")
     data = result.get("data") if isinstance(result, dict) and isinstance(result.get("data"), dict) else result
     if not isinstance(data, dict):
@@ -43,124 +43,16 @@ def _same_token(stored: Any, expected: datetime) -> bool:
     return normalize_datetime_to_utc(parsed) == normalize_datetime_to_utc(expected)
 
 
-def hydrate_recovery_card_states(
-    session: Session,
-    calls: list[dict[str, Any]],
-    *,
-    user_id: str,
-    project_id: str,
-) -> list[dict[str, Any]]:
-    """Overlay durable edit/deletion state onto decoded chat cards in place."""
-    from models.file_deletion_batch import FileDeletionBatch
-    from models.file_edit_operation import FileEditOperation
-
-    operation_ids: set[str] = set()
-    batch_ids: set[str] = set()
-    preview_hashes: set[str] = set()
-    for call in calls:
-        if not isinstance(call, dict):
-            continue
-        _data, undo = _card_undo(call)
-        operation_id = undo.get("operation_id") if isinstance(undo, dict) else None
-        if isinstance(operation_id, str) and operation_id:
-            operation_ids.add(operation_id)
-        batch_id = _data.get("batch_id") if isinstance(_data, dict) else None
-        if isinstance(batch_id, str) and batch_id:
-            batch_ids.add(batch_id)
-        elif isinstance(_data, dict) and _data.get("confirmation_required") is True:
-            preview = _data.get("preview")
-            target_hash = preview.get("target_hash") if isinstance(preview, dict) else None
-            if isinstance(target_hash, str) and target_hash:
-                preview_hashes.add(target_hash)
-    states = (
-        {
-            row.id: row.undone_at is not None
-            for row in session.exec(
-                select(FileEditOperation).where(
-                    FileEditOperation.id.in_(operation_ids),  # type: ignore[attr-defined]
-                    FileEditOperation.user_id == user_id,
-                    FileEditOperation.project_id == project_id,
-                )
-            ).all()
-        }
-        if operation_ids
-        else {}
-    )
-    restored_states = (
-        {
-            row.id: row.restored_at is not None
-            for row in session.exec(
-                select(FileDeletionBatch).where(
-                    FileDeletionBatch.id.in_(batch_ids),  # type: ignore[attr-defined]
-                    FileDeletionBatch.user_id == user_id,
-                    FileDeletionBatch.project_id == project_id,
-                )
-            ).all()
-        }
-        if batch_ids
-        else {}
-    )
-    # Ascending order ensures the latest batch wins when building the dict.
-    confirmed_by_hash = (
-        {
-            row.target_hash: row
-            for row in session.exec(
-                select(FileDeletionBatch)
-                .where(
-                    FileDeletionBatch.target_hash.in_(preview_hashes),  # type: ignore[attr-defined]
-                    FileDeletionBatch.user_id == user_id,
-                    FileDeletionBatch.project_id == project_id,
-                    FileDeletionBatch.source == "agent_confirmed",
-                )
-                .order_by(FileDeletionBatch.created_at.asc(), FileDeletionBatch.id.asc())  # type: ignore[attr-defined]
-            ).all()
-        }
-        if preview_hashes
-        else {}
-    )
-    for call in calls:
-        if not isinstance(call, dict):
-            continue
-        _data, undo = _card_undo(call)
-        operation_id = undo.get("operation_id") if isinstance(undo, dict) else None
-        if isinstance(operation_id, str) and operation_id in states:
-            undo["undone"] = states[operation_id]
-        batch_id = _data.get("batch_id") if isinstance(_data, dict) else None
-        if isinstance(batch_id, str) and batch_id in restored_states:
-            _data["restored"] = restored_states[batch_id]
-        elif isinstance(_data, dict) and _data.get("confirmation_required") is True:
-            preview = _data.get("preview")
-            target_hash = preview.get("target_hash") if isinstance(preview, dict) else None
-            confirmed = confirmed_by_hash.get(target_hash) if isinstance(target_hash, str) else None
-            if confirmed is not None:
-                items = json.loads(confirmed.items_json)
-                _data.update(
-                    {
-                        "batch_id": confirmed.id,
-                        "targets": [
-                            {key: item.get(key) for key in ("id", "title", "file_type", "parent_id", "order")}
-                            for item in items
-                        ],
-                        "count": confirmed.item_count,
-                        "restored": confirmed.restored_at is not None,
-                        "confirmation_required": False,
-                        "mutation_applied": True,
-                    }
-                )
-    return calls
-
-
-def record_delete_card_confirmed(
+def record_delete_card_restored(
     session: Session,
     *,
     user_id: str,
     project_id: str,
+    file_id: str,
     message_id: str,
     tool_use_id: str,
-    expected_target_hash: str,
-    deleted_result: dict[str, Any],
 ) -> bool:
-    """Persist confirmed batch receipt onto the originating delete_file chat card."""
+    """一次删除恢复成功之后，把它对应的 delete_file 卡标成已恢复；返回是否标上。"""
     from agent.tools.file_ops.edit import acquire_file_write_lock
     from database import is_postgres
 
@@ -189,37 +81,26 @@ def record_delete_card_confirmed(
             for call in calls:
                 if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") != "delete_file":
                     continue
-                data, _ = _card_undo(call)
-                preview = data.get("preview") if isinstance(data, dict) else None
-                if (
-                    data is None
-                    or data.get("confirmation_required") is not True
-                    or not isinstance(preview, dict)
-                    or preview.get("target_hash") != expected_target_hash
-                ):
-                    break
-                data.update(
-                    {
-                        "batch_id": deleted_result["batch_id"],
-                        "root_ids": deleted_result["root_ids"],
-                        "targets": deleted_result["targets"],
-                        "count": deleted_result["count"],
-                        "restored": False,
-                        "confirmation_required": False,
-                        "mutation_applied": True,
-                    }
-                )
-                data.pop("result", None)
+                args = call.get("input") if isinstance(call.get("input"), dict) else {}
+                result = call.get("result")
+                if result is True and args.get("id") == file_id:
+                    call["result"] = {"id": file_id, "restored": True, "mutation_applied": True}
+                else:
+                    data, _ = _card_undo(call)
+                    card_id = data.get("id") if isinstance(data, dict) else None
+                    if not isinstance(data, dict) or (card_id or args.get("id")) != file_id:
+                        break
+                    data["restored"] = True
                 locked.tool_calls = json.dumps(calls, ensure_ascii=False)
                 session.add(locked)
                 session.commit()
                 return True
             session.rollback()
             return False
-    except Exception as exc:  # noqa: BLE001 - deletion already committed
+    except Exception as exc:  # noqa: BLE001 - the restore itself already committed
         session.rollback()
         log_with_context(
-            logger, 30, "Failed to record confirmed delete card", project_id=project_id, error_type=type(exc).__name__
+            logger, 30, "Failed to record a restored delete card", file_id=file_id, error_type=type(exc).__name__
         )
         return False
 

@@ -7,7 +7,6 @@ Provides FastAPI router for chat session management:
 - DELETE /api/v1/chat/session/{project_id} - Clear session
 """
 
-import json
 from datetime import datetime
 from typing import Annotated, Literal
 
@@ -264,40 +263,13 @@ def get_recent_messages(
     stmt = stmt.order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id)).limit(limit)
     messages = list(reversed(session.exec(stmt).all()))
 
-    # Recovery state outlives chat JSON; hydrate the page in one scoped read.
-    from services.chat_tool_cards import hydrate_recovery_card_states
-
-    decoded_calls: dict[str, list] = {}
-    original_calls: dict[str, str] = {}
-    for message in messages:
-        if message.role != "assistant" or not message.tool_calls:
-            continue
-        try:
-            calls = json.loads(message.tool_calls)
-        except (TypeError, ValueError):
-            continue
-        if isinstance(calls, list):
-            decoded_calls[message.id] = calls
-            original_calls[message.id] = json.dumps(calls, ensure_ascii=False)
-    hydrate_recovery_card_states(
-        session,
-        [call for calls in decoded_calls.values() for call in calls],
-        user_id=user_id,
-        project_id=project_id,
-    )
-    updated_calls = {
-        message_id: serialized
-        for message_id, calls in decoded_calls.items()
-        if (serialized := json.dumps(calls, ensure_ascii=False)) != original_calls[message_id]
-    }
-
     return [
         MessageResponse(
             id=msg.id,
             session_id=msg.session_id,
             role=msg.role,
             content=msg.content,
-            tool_calls=updated_calls.get(msg.id, msg.tool_calls),
+            tool_calls=msg.tool_calls,
             metadata=client_message_metadata(msg.message_metadata),
             created_at=msg.created_at,
         )

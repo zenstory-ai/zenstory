@@ -17,7 +17,6 @@ from sqlmodel import Session, select
 
 from agent.tools.file_ops import FileCRUD, FileEditor
 from models import File, Project, User
-from models.file_edit_operation import FileEditOperation
 from models.file_version import FileVersion
 
 
@@ -32,90 +31,13 @@ def _history_failure(*_args, **_kwargs):
     raise RuntimeError("Optional AI history failure")
 
 
-def test_ai_create_persists_content_when_optional_history_fails(
-    db_session, test_user, test_project, local_history_sideeffects, monkeypatch
-):
+def test_ai_create_persists_content_when_optional_history_fails(db_session, test_user, test_project, local_history_sideeffects, monkeypatch):
     crud = FileCRUD(db_session, test_user.id)
     monkeypatch.setattr(crud, "_create_version", _history_failure)
     result = crud.create_file(test_project.id, "New chapter", "draft", content="Created body")
     db_session.expire_all()
     assert db_session.get(File, result["id"]).content == "Created body"
     assert db_session.exec(select(FileVersion).where(FileVersion.file_id == result["id"])).all() == []
-
-
-def test_ai_create_with_body_records_single_initial_version_without_edit_operation(
-    db_session, test_user, test_project, local_history_sideeffects
-):
-    crud = FileCRUD(db_session, test_user.id)
-    result = crud.create_file(test_project.id, "New chapter", "draft", content="Created body")
-    assert "undo" not in result
-    assert (
-        db_session.exec(
-            select(FileEditOperation).where(FileEditOperation.file_id == result["id"])
-        ).all()
-        == []
-    )
-    version = db_session.exec(
-        select(FileVersion).where(FileVersion.file_id == result["id"])
-    ).one()
-    assert version.version_number == 1
-    assert version.is_base_version is True
-    assert version.change_source == "ai"
-    assert FileVersionService().get_content_at_version(db_session, result["id"], 1) == "Created body"
-
-
-def test_update_structural_gate_skips_metadata_uses_shared_for_order_and_exclusive_for_title(
-    db_session, test_user, test_project, local_history_sideeffects, monkeypatch
-):
-    from agent.tools.file_ops import crud as crud_module
-    from api import files as files_api
-
-    file = File(
-        project_id=test_project.id,
-        title="Structure",
-        content="",
-        file_type="draft",
-    )
-    db_session.add(file)
-    db_session.commit()
-    calls: list[tuple[str, bool]] = []
-
-    def recorder(_session, project_id, *, exclusive=False):
-        calls.append((project_id, exclusive))
-
-    monkeypatch.setattr(crud_module, "lock_project_for_files", recorder)
-    monkeypatch.setattr(files_api, "lock_project_for_files", recorder)
-    crud = FileCRUD(db_session, test_user.id)
-
-    crud.update_file(file.id, metadata={"status": "draft"})
-    crud.update_file(file.id, order=3)
-    crud.update_file(file.id, title="Renamed")
-
-    files_api.update_file(
-        file.id,
-        files_api.FileUpdate(metadata={"status": "revised"}),
-        current_user=test_user,
-        session=db_session,
-    )
-    files_api.update_file(
-        file.id,
-        files_api.FileUpdate(order=4),
-        current_user=test_user,
-        session=db_session,
-    )
-    files_api.update_file(
-        file.id,
-        files_api.FileUpdate(title="Renamed via REST"),
-        current_user=test_user,
-        session=db_session,
-    )
-
-    assert calls == [
-        (test_project.id, False),
-        (test_project.id, True),
-        (test_project.id, False),
-        (test_project.id, True),
-    ]
 
 
 def test_ai_empty_create_gets_first_history_when_content_is_filled(db_session, test_user, test_project, local_history_sideeffects):
@@ -125,12 +47,6 @@ def test_ai_empty_create_gets_first_history_when_content_is_filled(db_session, t
     crud.update_file(result["id"], content="Streamed body")
     db_session.expire_all()
     assert db_session.get(File, result["id"]).content == "Streamed body"
-    assert (
-        db_session.exec(
-            select(FileEditOperation).where(FileEditOperation.file_id == result["id"])
-        ).all()
-        == []
-    )
     version = db_session.exec(select(FileVersion).where(FileVersion.file_id == result["id"])).one()
     assert version.version_number == 1
     assert version.is_base_version is True
@@ -138,30 +54,16 @@ def test_ai_empty_create_gets_first_history_when_content_is_filled(db_session, t
     assert version.content == "Streamed body"
 
 
-def test_ai_update_rolls_back_when_required_after_history_fails(db_session, test_user, test_project, local_history_sideeffects, monkeypatch):
-    from agent.tools.write_errors import FileWriteRecoveryError
-
+def test_ai_update_persists_content_without_extra_row_when_history_fails(db_session, test_user, test_project, local_history_sideeffects, monkeypatch):
     crud = FileCRUD(db_session, test_user.id)
     result = crud.create_file(test_project.id, "Existing chapter", "draft", content="Original body")
-    original_create = FileVersionService.create_version
-
-    def fail_ai_after(self, *args, **kwargs):
-        if kwargs.get("change_source") == "ai":
-            raise RuntimeError("required AI history failure")
-        return original_create(self, *args, **kwargs)
-
-    monkeypatch.setattr(FileVersionService, "create_version", fail_ai_after)
-    with pytest.raises(FileWriteRecoveryError):
-        crud.update_file(result["id"], content="Changed body")
+    monkeypatch.setattr(crud, "_create_version", _history_failure)
+    crud.update_file(result["id"], content="Changed body")
     db_session.expire_all()
-    assert db_session.get(File, result["id"]).content == "Original body"
-    versions = db_session.exec(
-        select(FileVersion)
-        .where(FileVersion.file_id == result["id"])
-        .order_by(FileVersion.version_number)
-    ).all()
-    assert [version.version_number for version in versions] == [1]
-    assert FileVersionService().get_content_at_version(db_session, result["id"], 1) == "Original body"
+    assert db_session.get(File, result["id"]).content == "Changed body"
+    version = db_session.exec(select(FileVersion).where(FileVersion.file_id == result["id"])).one()
+    assert version.version_number == 1
+    assert version.content == "Original body"
 
 # ========== Fixtures ==========
 
@@ -311,19 +213,17 @@ def test_concurrent_edit_file_head_version_matches_content(
 
     a_in_version = threading.Event()
     b_finished = threading.Event()
-    from services import file_edit_operations
+    orig_create = FileEditor._create_edit_version
 
-    orig_stage = file_edit_operations.stage_recoverable_file_mutation
-
-    def paced_stage(*args, **kwargs):
+    def paced_version(self, fid, content, applied_edits):
         if threading.current_thread().name == "editor-a":
             a_in_version.set()
             # 给并发编辑留出插队窗口：若该点位于内容 commit 之后且无互斥，
             # 另一个编辑会先提交内容并先写版本，导致版本链头指向旧内容
             b_finished.wait(timeout=2.0)
-        return orig_stage(*args, **kwargs)
+        orig_create(self, fid, content, applied_edits)
 
-    monkeypatch.setattr(file_edit_operations, "stage_recoverable_file_mutation", paced_stage)
+    monkeypatch.setattr(FileEditor, "_create_edit_version", paced_version)
 
     errors: list[Exception] = []
 

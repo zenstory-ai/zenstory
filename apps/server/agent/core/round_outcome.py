@@ -374,10 +374,10 @@ class RoundWrittenFiles:
             if payload.get("status") == "success":
                 if data is True and file_id:
                     self._forget_file(file_id)
-                elif isinstance(data, dict) and data.get("mutation_applied") is True:
-                    for target in data.get("targets", []):
-                        if isinstance(target, dict) and isinstance(target.get("id"), str):
-                            self._forget_file(target["id"])
+                elif isinstance(data, dict) and data.get("mutation_applied") is not False:
+                    target_id = data.get("id") if isinstance(data.get("id"), str) else file_id
+                    if target_id:
+                        self._forget_file(target_id)
             return
         if payload.get("status") != "success":
             return

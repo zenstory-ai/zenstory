@@ -27,16 +27,13 @@ import { fileApi } from "../lib/api";
 import { FOLDER_TYPE_MAP, MATERIAL_FOLDER_NAMES } from "../lib/folderTypeMap";
 import { toast } from "../lib/toast";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { DeletionTargetList } from "./DeletionTargetList";
-import { FileTrashModal, FileTrashTrigger } from "./FileTrashModal";
-import { collectSubtreeTargets, useProjectTrash } from "../hooks/useProjectTrash";
 import { Button } from "./ui/Button";
 import { findAncestorFolderIds } from "../lib/lastOpenedFile";
 import { notifyFileRemoved } from "../lib/fileRemovalEvents";
 import { FileSearchInput } from "./FileSearchInput";
 import { useFileSearch, type FileSearchResult } from "../hooks/useFileSearch";
 import SearchResultsDropdown from "./SearchResultsDropdown";
-import type { FileDeletionTarget, FileTreeNode, TreeNodeType } from "../types";
+import type { FileTreeNode, TreeNodeType } from "../types";
 import { logger } from "../lib/logger";
 import {
   ChevronDown,
@@ -124,13 +121,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
   const [isCreating, setIsCreating] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState("");
   const [newItemType, setNewItemType] = useState<string>("draft");
-  const [pendingDelete, setPendingDelete] = useState<{
-    id: string;
-    title: string;
-    isFolder: boolean;
-    projectId: string | null;
-    targets: FileDeletionTarget[];
-  } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; projectId: string | null } | null>(null);
   const [deletingFile, setDeletingFile] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -416,21 +407,16 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     }
   }, [currentProjectId, newItemName, newItemType, loadData, cancelCreate, t]);
 
-  const trash = useProjectTrash(currentProjectId, () => loadData(false));
-
   /**
    * Asks for confirmation (in-app dialog) before deleting a file.
+   *
+   * @param e - The click event (used to stop propagation)
+   * @param fileId - The ID of the file to delete
+   * @param fileTitle - Shown in the dialog so the author knows which file goes
    */
-  const handleDelete = useCallback((e: React.MouseEvent, node: FileTreeNode) => {
+  const handleDelete = useCallback((e: React.MouseEvent, fileId: string, fileTitle: string) => {
     e.stopPropagation();
-    if (!currentProjectId) return;
-    setPendingDelete({
-      id: node.id,
-      title: node.title,
-      isFolder: node.file_type === "folder",
-      projectId: currentProjectId,
-      targets: collectSubtreeTargets(node),
-    });
+    setPendingDelete({ id: fileId, title: fileTitle, projectId: currentProjectId });
   }, [currentProjectId]);
 
   /**
@@ -439,17 +425,14 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
    */
   const handleConfirmDelete = useCallback(async () => {
     if (!currentProjectId || !pendingDelete || pendingDelete.projectId !== currentProjectId || deletingFile) return;
-    const { id: fileId, isFolder, targets } = pendingDelete;
+    const fileId = pendingDelete.id;
     setDeletingFile(true);
 
     try {
-      const result = isFolder
-        ? await fileApi.delete(fileId, true)
-        : await fileApi.delete(fileId);
+      await fileApi.delete(fileId);
 
       if (currentProjectId !== activeProjectIdRef.current) return;
-      const removedIds = result?.targets?.map((target) => target.id) ?? targets.map((target) => target.id);
-      removedIds.forEach((id) => notifyFileRemoved(currentProjectId, id));
+      notifyFileRemoved(currentProjectId, fileId);
       // A selected descendant is corrected by the successful tree refresh.
       if (selectedItemRef.current?.id === fileId) {
         setSelectedItem(null);
@@ -700,14 +683,16 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
             </button>
           )}
 
-          {(!isFolder || node.parent_id !== null) && <button
-            onClick={(e) => handleDelete(e, node)}
-            className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
-            title={t('common:delete')}
-            aria-label={t('common:delete')}
-          >
-            <Trash2 size={18} />
-          </button>}
+          {/* Delete button */}
+          {!isFolder && (
+            <button
+              onClick={(e) => handleDelete(e, node.id, node.title)}
+              className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
+              title={t('common:delete')}
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
         </div>
 
         {/* Create input row */}
@@ -813,38 +798,28 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
   // Empty state
   if (tree.length === 0) {
     return (
-      <>
-        <div className={`flex flex-col h-full ${className || ''}`}>
-          {/* Search input disabled when no files */}
-          <div className="p-3 border-b border-[hsl(var(--border-color))]">
-            <FileSearchInput
-              value=""
-              onChange={() => {}}
-              onClear={() => {}}
-              placeholder={t('editor:fileTree.searchPlaceholder')}
-              className="w-full opacity-50 pointer-events-none"
-              disabled
-            />
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center text-[hsl(var(--text-secondary))] p-4">
-            {loadErrorNotice || <>
-              <Folder size={48} className="mb-4 opacity-30" />
-              <p className="text-sm">{t('editor:fileTree.folderEmpty')}</p>
-              <p className="text-xs mt-1">{t('editor:fileTree.createWithAI')}</p>
-              {currentProjectId && (
-                <FileTrashTrigger onClick={() => { void trash.openTrash(); }} className="mt-3" />
-              )}
-            </>}
-          </div>
+      <div className={`flex flex-col h-full ${className || ''}`}>
+        {/* Search input disabled when no files */}
+        <div className="p-3 border-b border-[hsl(var(--border-color))]">
+          <FileSearchInput
+            value=""
+            onChange={() => {}}
+            onClear={() => {}}
+            placeholder={t('editor:fileTree.searchPlaceholder')}
+            className="w-full opacity-50 pointer-events-none"
+            disabled
+          />
         </div>
-        <FileTrashModal trash={trash} />
-      </>
+        <div className="flex-1 flex flex-col items-center justify-center text-[hsl(var(--text-secondary))] p-4">
+          {loadErrorNotice || <>
+            <Folder size={48} className="mb-4 opacity-30" />
+            <p className="text-sm">{t('editor:fileTree.folderEmpty')}</p>
+            <p className="text-xs mt-1">{t('editor:fileTree.createWithAI')}</p>
+          </>}
+        </div>
+      </div>
     );
   }
-
-  const showDeleteScope = Boolean(
-    pendingDelete && (pendingDelete.isFolder || pendingDelete.targets.length > 1),
-  );
 
   return (
     <div data-testid="file-tree" className={`flex flex-col h-full overflow-hidden ${className || ''}`}>
@@ -910,12 +885,6 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         )}
       </div>
 
-      {currentProjectId && (
-        <div className="shrink-0 border-t border-[hsl(var(--border-color))] px-3 py-1.5">
-          <FileTrashTrigger onClick={() => { void trash.openTrash(); }} />
-        </div>
-      )}
-
       <ConfirmDialog
         open={pendingDelete !== null && pendingDelete.projectId === currentProjectId}
         onClose={() => {
@@ -923,18 +892,12 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         }}
         onConfirm={handleConfirmDelete}
         title={t('common:confirmDelete')}
-        message={pendingDelete
-          ? showDeleteScope
-            ? `${pendingDelete.title} · ${pendingDelete.targets.length} ${t('editor:sidebar.files')}`
-            : pendingDelete.title
-          : ''}
-        details={pendingDelete && showDeleteScope ? <DeletionTargetList targets={pendingDelete.targets} /> : undefined}
+        message={pendingDelete?.title ?? ''}
         variant="danger"
         loading={deletingFile}
         confirmLabel={t('common:delete')}
         cancelLabel={t('common:cancel')}
       />
-      <FileTrashModal trash={trash} />
     </div>
   );
 };

@@ -48,9 +48,6 @@
     "createdViaApi": "通过 Agent API 创建",
     "updatedViaApi": "通过 Agent API 更新",
     "aiRunCheckpoint": "AI 修改后自动存档",
-    "undidAiEdit": "已撤销 AI 修改",
-    "aiChapterReplace": "AI 整章替换",
-    "aiRename": "AI 重命名",
     "aiEditCount": "AI 改了 {{count}} 处",
     "aiEditCount_one": "AI 改了 {{count}} 处",
     "aiEditCount_other": "AI 改了 {{count}} 处"

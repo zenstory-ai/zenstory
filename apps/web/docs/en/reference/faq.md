@@ -40,7 +40,7 @@ Edit the title in the editor and save. There is no direct type-conversion interf
 
 ### Is there a trash for deleted work?
 
-Open **Trash** in the project file panel to restore files or whole deletion batches created after this feature became available. Chat deletion cards also offer recovery. Earlier deletions and deleted projects are not included. Use [history](../user-guide/version-history.md) to recover older manuscript text.
+There is no separate file or project trash panel. Files deleted through AI chat offer a one-click **Restore** button directly on that chat deletion card; older manuscript drafts from edits or chapter rewrites can be recovered via **Undo** on the chat edit card or from file [history](../user-guide/version-history.md). Do not test recovery by deleting work.
 
 ### Does export include the whole project?
 

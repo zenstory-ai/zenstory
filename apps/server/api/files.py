@@ -12,7 +12,7 @@ from collections.abc import Iterator
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Form, Query, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, Form, Query, Response, UploadFile
 from fastapi import File as FastAPIFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core import PydanticCustomError
@@ -48,6 +48,7 @@ from services.file_tree_rules import (
     MAX_FILE_ORDER,
     ParentNotFoundError,
     begin_file_creation_savepoint,
+    load_live_subtree_postorder,
     lock_project_for_files,
     resolve_new_file_order,
     validate_parent_assignment,
@@ -824,17 +825,13 @@ def update_file(
     content_changed = False
     version_quota_exceeded = False
 
-    if file_data.model_fields_set & {"parent_id", "title", "order"}:
+    if "parent_id" in file_data.model_fields_set:
         # Structural writers lock Project before File.
         target = session.get(File, file_id)
         if not target or target.is_deleted:
             raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
         verify_project_ownership(target.project_id, current_user, session)
-        lock_project_for_files(
-            session,
-            target.project_id,
-            exclusive=bool(file_data.model_fields_set & {"parent_id", "title"}),
-        )
+        lock_project_for_files(session, target.project_id, exclusive=True)
 
     with lock_ctx:
         file = _load_file_for_write(session, file_id)
@@ -1066,7 +1063,7 @@ def delete_file(
     )
 
     file = session.get(File, file_id)
-    if not file or file.is_deleted:
+    if not file:
         log_with_context(
             logger,
             logging.WARNING,
@@ -1079,35 +1076,171 @@ def delete_file(
     # Check project ownership
     verify_project_ownership(file.project_id, current_user, session)
 
-    from services.file_trash import FileTrashError, FileTrashService
+    lock_project_for_files(session, file.project_id, exclusive=True)
+    from agent.tools.file_ops.edit import file_write_lock
+    from database import is_postgres
 
-    try:
-        result = FileTrashService(
-            session, user_id=current_user.id, project_id=file.project_id
-        ).delete(
-            [file_id],
-            recursive=recursive or file.file_type == "folder",
-            source="file_menu",
-        )
-    except FileTrashError as exc:
-        raise APIException(
-            error_code=ErrorCode.RESOURCE_CONFLICT,
-            status_code=409,
-            detail=str(exc),
-        ) from exc
+    lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
+    with lock_ctx:
+        file = _load_file_for_write(session, file_id)
+        if not file:
+            raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
+        verify_project_ownership(file.project_id, current_user, session)
+
+        deleted_files: list[File] = []
+
+        if recursive:
+            # Delete all children recursively
+            deleted_files = _delete_recursive(session, file)
+        else:
+            now = utcnow()
+            deleted_files = [file]
+            # Soft delete: mark as deleted instead of removing from database
+            file.is_deleted = True
+            file.deleted_at = now
+            file.updated_at = advance_timestamp(file.updated_at, now=now)
+
+        # Commit expires ORM rows in the production Session. Capture index data
+        # while loaded; enqueue only after commit succeeds.
+        deleted_count = len(deleted_files)
+        user_id = current_user.id
+        session.commit()
 
     log_with_context(
         logger,
         logging.INFO,
         "File deleted successfully",
-        user_id=current_user.id,
+        user_id=user_id,
         file_id=file_id,
-        deleted_count=result["count"],
-        recursive=result["count"] > 1,
+        deleted_count=deleted_count,
+        recursive=recursive,
     )
 
+    return {"message": "File deleted successfully"}
 
-    return {"message": "File deleted successfully", **result}
+
+class RestoreFileRequest(BaseModel):
+    chat_message_id: str | None = Field(default=None, max_length=128)
+    tool_use_id: str | None = Field(default=None, max_length=128)
+
+
+@router.post("/files/{file_id}/restore")
+def restore_file(
+    file_id: str,
+    request: RestoreFileRequest | None = Body(default=None),
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Restore a soft-deleted file (and descendants deleted in the same folder action)."""
+    file = session.get(File, file_id)
+    if not file:
+        raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
+    verify_project_ownership(file.project_id, current_user, session)
+    project_id = file.project_id
+
+    lock_project_for_files(session, project_id, exclusive=True)
+    from agent.tools.file_ops.edit import file_write_lock
+    from database import is_postgres
+
+    lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
+    with lock_ctx:
+        file = _load_file_for_write(session, file_id)
+        if not file:
+            raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
+        verify_project_ownership(file.project_id, current_user, session)
+
+        if not file.is_deleted:
+            restored_title = file.title
+            already_restored = True
+            restored_count = 0
+        else:
+            if file.parent_id is not None:
+                parent = session.get(File, file.parent_id, populate_existing=True)
+                if not parent or parent.is_deleted or parent.project_id != project_id or parent.file_type != "folder":
+                    raise APIException(
+                        error_code=ErrorCode.RESOURCE_CONFLICT,
+                        status_code=409,
+                        detail="上级文件夹不存在或已删除，无法恢复到原位置",
+                    )
+
+            targets: list[File] = [file]
+            if file.file_type == "folder" and file.deleted_at is not None:
+                target_stamp = normalize_datetime_to_utc(file.deleted_at)
+                frontier = [file.id]
+                seen = {file.id}
+                while frontier:
+                    query = select(File).where(
+                        File.project_id == project_id,
+                        col(File.parent_id).in_(frontier),
+                        File.is_deleted.is_(True),
+                    )
+                    if is_postgres:
+                        query = query.with_for_update(key_share=True)
+                    rows = session.exec(query.execution_options(populate_existing=True)).all()
+                    frontier = []
+                    for row in rows:
+                        if (
+                            row.id not in seen
+                            and row.deleted_at is not None
+                            and normalize_datetime_to_utc(row.deleted_at) == target_stamp
+                        ):
+                            seen.add(row.id)
+                            targets.append(row)
+                            if row.file_type == "folder":
+                                frontier.append(row.id)
+
+            for item in targets:
+                parent_clause = (
+                    File.parent_id.is_(None)
+                    if item.parent_id is None
+                    else File.parent_id == item.parent_id
+                )
+                clash = session.exec(
+                    select(File.id).where(
+                        File.project_id == project_id,
+                        parent_clause,
+                        File.title == item.title,
+                        File.is_deleted.is_(False),
+                        File.id != item.id,
+                    )
+                ).first()
+                if clash is not None:
+                    raise APIException(
+                        error_code=ErrorCode.RESOURCE_CONFLICT,
+                        status_code=409,
+                        detail=f"原位置已存在同名文件《{item.title}》，请先改名后再恢复",
+                    )
+
+            now = utcnow()
+            for item in targets:
+                item.is_deleted = False
+                item.deleted_at = None
+                item.updated_at = advance_timestamp(item.updated_at, now=now)
+                session.add(item)
+            restored_title = file.title
+            already_restored = False
+            restored_count = len(targets)
+            session.commit()
+
+    if request and request.chat_message_id and request.tool_use_id:
+        from services.chat_tool_cards import record_delete_card_restored
+
+        record_delete_card_restored(
+            session,
+            user_id=current_user.id,
+            project_id=project_id,
+            file_id=file_id,
+            message_id=request.chat_message_id,
+            tool_use_id=request.tool_use_id,
+        )
+
+    return {
+        "id": file_id,
+        "title": restored_title,
+        "restored": True,
+        "already_restored": already_restored,
+        "restored_count": restored_count,
+    }
 
 
 @router.post("/files/{file_id}/move", response_model=FileResponse)
@@ -1273,6 +1406,17 @@ def reorder_files(
     )
 
     return {"message": "Files reordered successfully", "count": len(files_to_update)}
+
+
+def _delete_recursive(session: Session, file: File) -> list[File]:
+    """Soft-delete the loaded subtree once each, children before parents."""
+    now = utcnow()
+    deleted = load_live_subtree_postorder(session, file)
+    for item in deleted:
+        item.is_deleted = True
+        item.deleted_at = now
+        item.updated_at = advance_timestamp(item.updated_at, now=now)
+    return deleted
 
 
 # 成环检测原先在这里另写了一份 `_is_descendant`，与 agent 侧的实现同语义不同代码。

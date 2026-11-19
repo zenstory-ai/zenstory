@@ -18,10 +18,6 @@
 
 import type {
   File,
-  FileDeletionBatchSummary,
-  FileDeletionPreview,
-  FileDeletionResult,
-  FileEditOperationUndoResponse,
   FileTreeNode,
   FileVersionListResponse,
   PatchProjectRequest,
@@ -552,51 +548,6 @@ export const fileVersionApi = {
   },
 };
 
-export const fileEditOperationApi = {
-  undo: (
-    fileId: string,
-    operationId: string,
-    resolution?: {
-      expected_updated_at: string;
-      expected_after_content_sha256?: string;
-      resolved_content?: string;
-      metadata_resolution?: 'preserve' | 'restore';
-    },
-  ) => api.post<FileEditOperationUndoResponse>(
-    `/api/v1/files/${fileId}/edit-operations/${operationId}/undo`,
-    resolution,
-  ),
-};
-
-export const fileTrashApi = {
-  deleteBatch: (
-    projectId: string,
-    preview: Pick<FileDeletionPreview, 'root_ids' | 'recursive' | 'target_hash'>,
-    card?: { chatMessageId?: string; toolUseId?: string },
-  ) =>
-    api.post<FileDeletionResult>(`/api/v1/projects/${projectId}/files/delete-batch`, {
-      ids: preview.root_ids,
-      recursive: preview.recursive,
-      target_hash: preview.target_hash,
-      ...(card?.chatMessageId && card.toolUseId
-        ? { chat_message_id: card.chatMessageId, tool_use_id: card.toolUseId }
-        : {}),
-    }),
-  list: (projectId: string, options?: { limit?: number; offset?: number }) => {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    if (options?.offset) params.set('offset', String(options.offset));
-    const query = params.size ? `?${params}` : '';
-    return api.get<{ batches: FileDeletionBatchSummary[]; total: number; limit: number; offset: number; next_offset: number | null }>(
-      `/api/v1/projects/${projectId}/files/trash${query}`,
-    );
-  },
-  restore: (projectId: string, batchId: string) =>
-    api.post<{ batch_id: string; file_ids: string[]; restored: boolean; already_restored?: boolean }>(
-      `/api/v1/projects/${projectId}/files/trash/${batchId}/restore`,
-    ),
-};
-
 export type FileChangeType = "create" | "edit" | "ai_edit" | "restore" | "auto_save";
 export type FileChangeSource = "user" | "ai" | "system";
 
@@ -758,8 +709,23 @@ export const fileApi = {
    */
   delete: (fileId: string, recursive = false) => {
     const params = recursive ? "?recursive=true" : "";
-    return api.delete<{ message: string } & Partial<FileDeletionResult>>(`/api/v1/files/${fileId}${params}`);
+    return api.delete(`/api/v1/files/${fileId}${params}`);
   },
+
+  restore: (
+    fileId: string,
+    options?: { chatMessageId?: string; toolUseId?: string },
+  ) =>
+    api.post<{
+      id: string;
+      title: string;
+      restored: boolean;
+      already_restored: boolean;
+      restored_count: number;
+    }>(`/api/v1/files/${fileId}/restore`, {
+      chat_message_id: options?.chatMessageId,
+      tool_use_id: options?.toolUseId,
+    }),
 
   /**
    * Get the complete file tree for a project.

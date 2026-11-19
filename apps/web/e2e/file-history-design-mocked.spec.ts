@@ -7,7 +7,6 @@ async function openHistory(page: Page, language: 'zh' | 'en', theme: 'light' | '
   await page.addInitScript(theme => localStorage.setItem('zenstory-theme', theme), theme);
   const file = { id: 'draft-0', project_id: 'responsive-project-0', title: '第二章 雨夜接印：一个很长的章节名称与人物的选择', content: '雨水沿着屋檐落下来。', file_type: 'draft', parent_id: 'folder-drafts', order: 0, metadata: null, created_at: '2026-10-23T02:53:00Z', updated_at: '2026-10-23T02:53:00Z' };
   await page.route('**/api/v1/files/draft-0', route => route.fulfill({ json: file }));
-  await page.route('**/api/v1/files/draft-0/edit-operations*', route => route.fulfill({ json: { operations: [], total: 0 } }));
   await page.route('**/api/v1/files/draft-0/versions*', route => route.fulfill({ json: {
     total: count,
     current_version_number: count,

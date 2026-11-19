@@ -8,7 +8,6 @@ import { MobileFileTree } from '../MobileFileTree';
 
 const mocks = vi.hoisted(() => ({
   getTree: vi.fn(), create: vi.fn(), delete: vi.fn(), upload: vi.fn(), uploadDraft: vi.fn(),
-  trashList: vi.fn(), trashRestore: vi.fn(),
   select: vi.fn(), switchToEditor: vi.fn(), error: vi.fn(), success: vi.fn(), info: vi.fn(),
   loggerError: vi.fn(), addMaterial: vi.fn(() => true), removeMaterial: vi.fn(),
   attached: false, atLimit: false,
@@ -31,13 +30,7 @@ vi.mock('../../contexts/MaterialAttachmentContext', () => ({
     isMaterialAttached: () => mocks.attached, isAtLimit: mocks.atLimit,
   }),
 }));
-vi.mock('../../lib/api', () => ({
-  fileApi: mocks,
-  fileTrashApi: {
-    list: mocks.trashList,
-    restore: mocks.trashRestore,
-  },
-}));
+vi.mock('../../lib/api', () => ({ fileApi: mocks }));
 vi.mock('../../lib/toast', () => ({ toast: { error: mocks.error, success: mocks.success, info: mocks.info } }));
 vi.mock('../../lib/logger', () => ({ logger: { error: mocks.loggerError, warn: vi.fn() } }));
 
@@ -50,11 +43,9 @@ function deferred<T>() {
   const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
   return { promise, resolve, reject };
 }
-async function answerDeleteDialog(confirm = true) {
-  const dialog = await screen.findByRole('dialog');
-  const button = within(dialog).getByRole('button', { name: confirm ? 'common:delete' : 'common:cancel' });
-  await waitFor(() => expect(button).toBeEnabled());
-  fireEvent.click(button);
+function answerDeleteDialog(confirm = true) {
+  const dialog = screen.getByRole('dialog');
+  fireEvent.click(within(dialog).getByRole('button', { name: confirm ? 'common:delete' : 'common:cancel' }));
 }
 function mountTree(mobile: boolean, strict = false, fileTreeVersion = 0) {
   let project = {
@@ -78,7 +69,6 @@ beforeEach(() => {
   mocks.attached = false;
   mocks.atLimit = false;
   mocks.addMaterial.mockReturnValue(true);
-  mocks.trashList.mockResolvedValue({ batches: [], total: 0, limit: 50, offset: 0, next_offset: null });
   mocks.getTree.mockResolvedValue({ tree: [node('root', '角色', 'folder', [node('file', 'Author', 'character')])] });
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -108,7 +98,7 @@ for (const mobile of [false, true]) {
           view.update({ selectedItem: sharedSelection });
           mocks.delete.mockReturnValue(pending.promise);
           fireEvent.click(screen.getByTitle('common:delete'));
-          await answerDeleteDialog();
+          answerDeleteDialog();
           expect(mocks.delete).toHaveBeenCalledTimes(1);
         } else {
           mocks.upload.mockReturnValue(pending.promise);
@@ -227,7 +217,7 @@ for (const mobile of [false, true]) {
       } else if (mutation === 'delete') {
         mocks.delete.mockReturnValue(pending.promise);
         fireEvent.click(await screen.findByTitle('common:delete'));
-        await answerDeleteDialog();
+        answerDeleteDialog();
         expect(mocks.delete).toHaveBeenCalledTimes(1);
       } else {
         if (mutation === 'draft') mocks.uploadDraft.mockReturnValue(pending.promise);
@@ -251,7 +241,7 @@ for (const mobile of [false, true]) {
       await screen.findByText('Author');
       view.update({ selectedItem: { id: 'file', title: 'Author', type: 'character' } });
       fireEvent.click(screen.getByTitle('common:delete'));
-      await answerDeleteDialog();
+      answerDeleteDialog();
       expect(mocks.delete).toHaveBeenCalledTimes(1);
       mocks.getTree.mockResolvedValueOnce({ tree: [node('new', 'New project file')] });
       view.update({ currentProjectId: 'project-2', selectedItem: { id: 'new', title: 'New project file', type: 'draft' } });
@@ -388,7 +378,7 @@ for (const mobile of [false, true]) {
       view.update({ selectedItem: { id: 'file', type: 'character', title: 'Author' } });
       fireEvent.click(screen.getByTitle('common:delete'));
       expect(mocks.delete).not.toHaveBeenCalled();
-      await answerDeleteDialog(confirmed);
+      answerDeleteDialog(confirmed);
       expect(nativeConfirm).not.toHaveBeenCalled();
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
       if (confirmed) {
@@ -408,7 +398,7 @@ for (const mobile of [false, true]) {
       await screen.findByText('Author');
       view.update({ selectedItem: { id: 'file', type: 'character', title: 'Author' } });
       fireEvent.click(screen.getByTitle('common:delete'));
-      await answerDeleteDialog();
+      answerDeleteDialog();
       await waitFor(() => expect(mocks.error).toHaveBeenCalledWith('editor:fileTree.deleteFailed'));
       expect(screen.getByText('Author')).toBeInTheDocument();
       expect(mocks.select).not.toHaveBeenCalled();

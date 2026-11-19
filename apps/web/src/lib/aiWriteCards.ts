@@ -74,7 +74,6 @@ export const readFileEditUndoTarget = (
     return null;
   }
   const contentSha256 = undo?.expected_after_content_sha256;
-  const operationId = typeof undo?.operation_id === 'string' ? undo.operation_id.trim() : '';
   return {
     fileId,
     beforeVersionNumber,
@@ -82,7 +81,6 @@ export const readFileEditUndoTarget = (
     ...(typeof contentSha256 === 'string' && SHA256_HEX.test(contentSha256)
       ? { expectedAfterContentSha256: contentSha256 }
       : {}),
-    ...(operationId ? { operationId } : {}),
     ...(chatMessageId && toolUseId ? { chatMessageId, toolUseId } : {}),
   };
 };
@@ -92,7 +90,7 @@ export const readFileEditUndoTarget = (
  * ids the server cannot record the undo on the card, so it would come back as not undone after a reload.
  */
 export const isPersistedUndoTarget = (target: FileEditUndoTarget | null): target is FileEditUndoTarget =>
-  Boolean(target?.operationId || (target?.chatMessageId && target.toolUseId));
+  Boolean(target?.chatMessageId && target.toolUseId);
 
 /** What a write_chapter result did to its chapter, from the server's `action` and saved-body fields. */
 export type WriteChapterOutcome = 'created' | 'exists' | 'replacing' | 'replaced' | 'unchanged' | 'not_saved';
@@ -122,7 +120,6 @@ export const readAiWriteUndoTarget = (call: ToolCall): FileEditUndoTarget | null
   const data = cardData(call.result);
   if (!data) return null;
   if (call.tool_name === 'edit_file') return readFileEditUndoTarget(data, undefined, undefined);
-  if (call.tool_name === 'rename_file') return readFileEditUndoTarget(data, undefined, undefined);
   if (call.tool_name === 'write_chapter' && readWriteChapterOutcome(data) === 'replaced') {
     return readFileEditUndoTarget(data, undefined, undefined);
   }
@@ -142,7 +139,6 @@ export interface UndoCardRef {
   fileId: string;
   expectedAfterUpdatedAt: string;
   undone: boolean;
-  hasOperation?: boolean;
 }
 
 /**
@@ -160,14 +156,7 @@ export const collectUndoCardRefs = (
     const key = undoneEditKey(target);
     const recorded = (cardData(call.result)?.undo as Record<string, unknown> | undefined)?.undone === true;
     const undone = recorded || undoneEdits.has(key) || refs.get(key)?.undone === true;
-    const hasOperation = Boolean(target.operationId || refs.get(key)?.hasOperation);
-    refs.set(key, {
-      key,
-      fileId: target.fileId,
-      expectedAfterUpdatedAt: target.expectedAfterUpdatedAt,
-      undone,
-      hasOperation,
-    });
+    refs.set(key, { key, fileId: target.fileId, expectedAfterUpdatedAt: target.expectedAfterUpdatedAt, undone });
   };
   for (const source of sources) {
     source.toolCalls?.forEach(visit);
@@ -180,9 +169,10 @@ export const collectUndoCardRefs = (
 };
 
 /**
- * Keys of legacy AI write cards whose file has a later AI write card (by post-edit token) that is
- * not undone. Legacy conditional rollback refuses stale writes until later changes are undone;
- * operation-backed cards support selective 3-way merge out of order and are never blocked here.
+ * Keys of AI write cards whose file has a later AI write card (by post-edit token) that is not
+ * undone. Undoing such a card first would restore the file over the later change, so the server
+ * refuses it as stale; it becomes possible once every later change to that file is undone.
+ * A later write without an undo anchor is not listed, so it never asks for an impossible undo.
  */
 export const undoBlockedByLaterWrite = (cards: ReadonlyArray<UndoCardRef>): ReadonlySet<string> => {
   const latestLiveByFile = new Map<string, number>();
@@ -194,7 +184,7 @@ export const undoBlockedByLaterWrite = (cards: ReadonlyArray<UndoCardRef>): Read
   }
   const blocked = new Set<string>();
   for (const card of cards) {
-    if (card.undone || card.hasOperation) continue;
+    if (card.undone) continue;
     const latest = latestLiveByFile.get(card.fileId);
     if (latest !== undefined && latest > undoTimestampMicros(card.expectedAfterUpdatedAt)) blocked.add(card.key);
   }

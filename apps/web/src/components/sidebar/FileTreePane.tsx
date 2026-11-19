@@ -7,14 +7,11 @@ import { useMaterialAttachment, MAX_ATTACHED_MATERIALS } from "../../contexts/Ma
 import { fileApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { DeletionTargetList } from "../DeletionTargetList";
-import { FileTrashModal, FileTrashTrigger } from "../FileTrashModal";
-import { collectSubtreeTargets, useProjectTrash } from "../../hooks/useProjectTrash";
 import { Button } from "../ui/Button";
 import { findAncestorFolderIds } from "../../lib/lastOpenedFile";
 import { notifyFileRemoved } from "../../lib/fileRemovalEvents";
 import { FOLDER_TYPE_MAP } from "../../lib/folderTypeMap";
-import type { FileDeletionTarget, FileTreeNode, TreeNodeType } from "../../types";
+import type { FileTreeNode, TreeNodeType } from "../../types";
 import { useFileSearch } from "../../hooks/useFileSearch";
 import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../../hooks/useDraftImport";
 import { useFileSearchContext } from "../../contexts/FileSearchContext";
@@ -95,13 +92,7 @@ export const FileTreePane: React.FC = () => {
   const [isCreating, setIsCreating] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState("");
   const [newItemType, setNewItemType] = useState<string>("draft");
-  const [pendingDelete, setPendingDelete] = useState<{
-    id: string;
-    title: string;
-    isFolder: boolean;
-    projectId: string | null;
-    targets: FileDeletionTarget[];
-  } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; projectId: string | null } | null>(null);
   const [deletingFile, setDeletingFile] = useState(false);
 
   // Upload state
@@ -401,34 +392,22 @@ export const FileTreePane: React.FC = () => {
     }
   };
 
-  const trash = useProjectTrash(currentProjectId, () => loadData(false));
-
   // Delete item: ask in an in-app dialog first.
-  const handleDelete = (e: React.MouseEvent, node: FileTreeNode) => {
+  const handleDelete = (e: React.MouseEvent, fileId: string, fileTitle: string) => {
     e.stopPropagation();
-    if (!currentProjectId) return;
-    setPendingDelete({
-      id: node.id,
-      title: node.title,
-      isFolder: node.file_type === "folder",
-      projectId: currentProjectId,
-      targets: collectSubtreeTargets(node),
-    });
+    setPendingDelete({ id: fileId, title: fileTitle, projectId: currentProjectId });
   };
 
   const handleConfirmDelete = async () => {
     if (!currentProjectId || !pendingDelete || pendingDelete.projectId !== currentProjectId || deletingFile) return;
-    const { id: fileId, isFolder, targets } = pendingDelete;
+    const fileId = pendingDelete.id;
     setDeletingFile(true);
 
     try {
-      const result = isFolder
-        ? await fileApi.delete(fileId, true)
-        : await fileApi.delete(fileId);
+      await fileApi.delete(fileId);
 
       if (currentProjectId !== activeProjectIdRef.current) return;
-      const removedIds = result?.targets?.map((target) => target.id) ?? targets.map((target) => target.id);
-      removedIds.forEach((id) => notifyFileRemoved(currentProjectId, id));
+      notifyFileRemoved(currentProjectId, fileId);
       // A folder's selected descendant is corrected by the successful tree refresh.
       if (selectedItemRef.current?.id === fileId) {
         setSelectedItem(null);
@@ -677,14 +656,17 @@ export const FileTreePane: React.FC = () => {
               </button>
             )}
 
-            {(!isFolder || node.parent_id !== null) && <button
-              onClick={(e) => handleDelete(e, node)}
-              className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))]"
-              title={t('common:delete')}
-              aria-label={t('common:delete')}
-            >
-              <Trash2 size={12} />
-            </button>}
+            {/* Delete button (not for root folders) */}
+            {!isFolder && (
+              <button
+                onClick={(e) => handleDelete(e, node.id, node.title)}
+                className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))]"
+                title={t('common:delete')}
+                aria-label={t('common:delete')}
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -758,25 +740,15 @@ export const FileTreePane: React.FC = () => {
 
   if (tree.length === 0) {
     return (
-      <>
-        <div className="w-full h-full flex flex-col items-center justify-center text-[hsl(var(--text-secondary))] p-4">
-          {loadErrorNotice || <>
-            <Folder size={48} className="mb-4 opacity-30" />
-            <p className="text-sm">{t('editor:fileTree.folderEmpty')}</p>
-            <p className="text-xs mt-1">{t('editor:fileTree.createWithAI')}</p>
-            {currentProjectId && (
-              <FileTrashTrigger onClick={() => { void trash.openTrash(); }} className="mt-3" />
-            )}
-          </>}
-        </div>
-        <FileTrashModal trash={trash} />
-      </>
+      <div className="w-full h-full flex flex-col items-center justify-center text-[hsl(var(--text-secondary))] p-4">
+        {loadErrorNotice || <>
+          <Folder size={48} className="mb-4 opacity-30" />
+          <p className="text-sm">{t('editor:fileTree.folderEmpty')}</p>
+          <p className="text-xs mt-1">{t('editor:fileTree.createWithAI')}</p>
+        </>}
+      </div>
     );
   }
-
-  const showDeleteScope = Boolean(
-    pendingDelete && (pendingDelete.isFolder || pendingDelete.targets.length > 1),
-  );
 
   return (
     <div className="w-full h-full text-sm overflow-auto p-2">
@@ -840,12 +812,6 @@ export const FileTreePane: React.FC = () => {
         {tree.map((node) => renderNode(node, 0))}
       </div>
 
-      {currentProjectId && (
-        <div className="mt-2 border-t border-[hsl(var(--border-color))] px-1 pt-1">
-          <FileTrashTrigger onClick={() => { void trash.openTrash(); }} />
-        </div>
-      )}
-
       <ConfirmDialog
         open={pendingDelete !== null && pendingDelete.projectId === currentProjectId}
         onClose={() => {
@@ -853,18 +819,12 @@ export const FileTreePane: React.FC = () => {
         }}
         onConfirm={handleConfirmDelete}
         title={t('common:confirmDelete')}
-        message={pendingDelete
-          ? showDeleteScope
-            ? `${pendingDelete.title} · ${pendingDelete.targets.length} ${t('editor:sidebar.files')}`
-            : pendingDelete.title
-          : ''}
-        details={pendingDelete && showDeleteScope ? <DeletionTargetList targets={pendingDelete.targets} /> : undefined}
+        message={pendingDelete?.title ?? ''}
         variant="danger"
         loading={deletingFile}
         confirmLabel={t('common:delete')}
         cancelLabel={t('common:cancel')}
       />
-      <FileTrashModal trash={trash} />
     </div>
   );
 };

@@ -59,8 +59,6 @@ from api.subscription import router as subscription_router
 from api.search import router as file_search_router
 from api.verification import router as verification_router
 from api.versions import router as versions_router
-from api.file_edit_operations import router as file_edit_operations_router
-from api.file_trash import router as file_trash_router
 from api.voice import router as voice_router
 from sqlalchemy.exc import IntegrityError
 
@@ -179,8 +177,6 @@ app.include_router(oauth_router)
 app.include_router(projects_router)
 app.include_router(files_router)
 app.include_router(versions_router)
-app.include_router(file_edit_operations_router)
-app.include_router(file_trash_router)
 app.include_router(export_router)
 app.include_router(agent_router)
 app.include_router(editor_router)

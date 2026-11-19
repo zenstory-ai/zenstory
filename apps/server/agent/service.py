@@ -215,8 +215,8 @@ def _stamp_body_receipts(
         stamped = {**result, "body_saved": saved}
         if replaced:
             stamped["mutation_applied"] = saved
-        if saved:
-            stamped["new_word_count"] = receipt
+            if saved:
+                stamped["new_word_count"] = receipt
         call["result"] = stamped
 
 

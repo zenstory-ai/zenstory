@@ -14,8 +14,6 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   createFile: vi.fn(),
   deleteFile: vi.fn(),
-  listTrash: vi.fn(),
-  restoreTrash: vi.fn(),
   toastError: vi.fn(),
   toastInfo: vi.fn(),
   addMaterial: vi.fn(() => true),
@@ -40,10 +38,6 @@ vi.mock('../../../contexts/MaterialAttachmentContext', () => ({
 }));
 vi.mock('../../../lib/api', () => ({
   fileApi: { getTree: mocks.getTree, create: mocks.createFile, delete: mocks.deleteFile, uploadDraft: mocks.uploadDraft },
-  fileTrashApi: {
-    list: mocks.listTrash,
-    restore: mocks.restoreTrash,
-  },
 }));
 vi.mock('../../../lib/toast', () => ({ toast: { error: mocks.toastError, success: vi.fn(), info: mocks.toastInfo } }));
 vi.mock('../../../lib/logger', () => ({ logger: { error: mocks.loggerError } }));
@@ -271,15 +265,6 @@ describe('FileTreePane create/delete failures', () => {
     vi.clearAllMocks();
     mocks.projectId = 'project-1';
     mocks.getTree.mockResolvedValue({ tree });
-    mocks.deleteFile.mockResolvedValue({
-      message: 'File deleted successfully',
-      batch_id: 'batch-1',
-      root_ids: ['char-1'],
-      targets: [],
-      count: 1,
-      restored: false,
-      mutation_applied: true,
-    });
   });
 
   afterEach(() => {
@@ -324,13 +309,13 @@ describe('FileTreePane create/delete failures', () => {
     mocks.deleteFile.mockRejectedValue(new Error('server error'));
     render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
     expect(await screen.findByText('Lin Feng')).toBeInTheDocument();
-    fireEvent.click(within(screen.getByText('Lin Feng').closest('[data-testid="file-tree-node"]') as HTMLElement).getByTitle('common:delete'));
+    fireEvent.click(screen.getByTitle('common:delete'));
 
     const dialog = await screen.findByRole('dialog');
     expect(nativeConfirm).not.toHaveBeenCalled();
     expect(within(dialog).getByText('common:confirmDelete')).toBeInTheDocument();
     // The dialog names the file that is about to go.
-    expect(within(dialog).getAllByText(/Lin Feng/)).not.toHaveLength(0);
+    expect(within(dialog).getByText('Lin Feng')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'common:delete' }));
 
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('editor:fileTree.deleteFailed'));
@@ -341,93 +326,20 @@ describe('FileTreePane create/delete failures', () => {
   });
 
   it('deletes only after the dialog is confirmed and keeps the file when cancelled', async () => {
+    mocks.deleteFile.mockResolvedValue(undefined);
     render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
     expect(await screen.findByText('Lin Feng')).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByText('Lin Feng').closest('[data-testid="file-tree-node"]') as HTMLElement).getByTitle('common:delete'));
+    fireEvent.click(screen.getByTitle('common:delete'));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'common:cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(mocks.deleteFile).not.toHaveBeenCalled();
 
-    fireEvent.click(within(screen.getByText('Lin Feng').closest('[data-testid="file-tree-node"]') as HTMLElement).getByTitle('common:delete'));
+    fireEvent.click(screen.getByTitle('common:delete'));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'common:delete' }));
     await waitFor(() => expect(mocks.deleteFile).toHaveBeenCalledWith('char-1'));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await waitFor(() => expect(mocks.getTree).toHaveBeenCalledTimes(2));
-  });
-
-  it('shows the exact multi-file deletion range before confirming a folder delete', async () => {
-    mocks.getTree.mockResolvedValueOnce({
-      tree: [{
-        id: 'folder-drafts',
-        title: '正文',
-        file_type: 'folder',
-        parent_id: null,
-        children: [{
-          id: 'folder-arc',
-          title: '第一卷',
-          file_type: 'folder',
-          parent_id: 'folder-drafts',
-          children: [{ id: 'draft-1', title: '第一章', file_type: 'draft', parent_id: 'folder-arc', children: [] }],
-        }],
-      }],
-    });
-    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
-    fireEvent.click(await screen.findByText('第一卷'));
-    fireEvent.click(within(screen.getByText('第一卷').closest('[data-testid="file-tree-node"]') as HTMLElement).getByTitle('common:delete'));
-
-    const dialog = await screen.findByRole('dialog');
-    const scope = within(dialog).getByRole('list', { name: 'deleteScope' });
-    expect(within(scope).getByText('第一卷 / 第一章')).toBeInTheDocument();
-    expect(within(scope).getByText('fileTypes.draft')).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'common:delete' }));
-    await waitFor(() => expect(mocks.deleteFile).toHaveBeenCalledWith('folder-arc', true));
-  });
-
-  it('loads older recoverable deletion batches from the persistent trash', async () => {
-    mocks.listTrash
-      .mockResolvedValueOnce({
-        batches: [{ batch_id: 'batch-1', root_ids: ['char-1'], titles: ['Recent deletion'], count: 1, created_at: '2026-11-19T04:00:00Z', restored: false }],
-        total: 2, limit: 50, offset: 0, next_offset: 1,
-      })
-      .mockResolvedValueOnce({
-        batches: [{ batch_id: 'batch-2', root_ids: ['char-2'], titles: ['Older deletion'], count: 1, created_at: '2026-11-18T04:00:00Z', restored: false }],
-        total: 2, limit: 50, offset: 1, next_offset: null,
-      });
-    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'editor:fileTree.trash' }));
-    expect(await screen.findByText('Recent deletion')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'editor:fileTree.loadMoreTrash' }));
-
-    expect(await screen.findByText('Older deletion')).toBeInTheDocument();
-    expect(mocks.listTrash).toHaveBeenLastCalledWith('project-1', { limit: 50, offset: 1 });
-  });
-
-  it('shows trash loading failures in the modal and retries', async () => {
-    mocks.listTrash.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ batches: [], total: 0, limit: 50, offset: 0, next_offset: null });
-    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
-    fireEvent.click(await screen.findByRole('button', { name: 'editor:fileTree.trash' }));
-
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('editor:fileTree.trashLoadFailed');
-    fireEvent.click(within(alert).getByRole('button', { name: 'common:retry' }));
-    await waitFor(() => expect(mocks.listTrash).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText('editor:fileTree.trashEmpty')).toBeInTheDocument();
-  });
-
-  it('reloads the first trash page after restore so shifted older batches are not skipped', async () => {
-    mocks.listTrash
-      .mockResolvedValueOnce({ batches: [{ batch_id: 'batch-1', root_ids: ['char-1'], titles: ['Recent deletion'], count: 1, created_at: '2026-11-19T04:00:00Z', restored: false }], total: 51, limit: 50, offset: 0, next_offset: 50 })
-      .mockResolvedValueOnce({ batches: [{ batch_id: 'batch-51', root_ids: ['char-51'], titles: ['Shifted older deletion'], count: 1, created_at: '2026-11-01T04:00:00Z', restored: false }], total: 50, limit: 50, offset: 0, next_offset: null });
-    mocks.restoreTrash.mockResolvedValue({ restored: true });
-    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
-    fireEvent.click(await screen.findByRole('button', { name: 'editor:fileTree.trash' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'editor:fileTree.restoreBatch' }));
-
-    expect(await screen.findByText('Shifted older deletion')).toBeInTheDocument();
-    expect(mocks.listTrash).toHaveBeenLastCalledWith('project-1', { limit: 50, offset: 0 });
-    expect(screen.queryByRole('button', { name: 'editor:fileTree.loadMoreTrash' })).not.toBeInTheDocument();
   });
 });
 

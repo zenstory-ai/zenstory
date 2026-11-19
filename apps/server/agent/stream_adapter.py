@@ -676,24 +676,21 @@ class StreamAdapter:
             )
 
             if tool_name == "delete_file":
-                legacy_id = self._delete_targets.pop(tool_use_id, None)
-                deleted_ids = {legacy_id} if result_data is True and legacy_id else set()
-                if isinstance(result_data, dict) and result_data.get("mutation_applied") is True:
-                    deleted_ids.update(
-                        target["id"] for target in result_data.get("targets", [])
-                        if isinstance(target, dict) and isinstance(target.get("id"), str)
-                    )
+                deleted_id = self._delete_targets.pop(tool_use_id, None)
+                if deleted_id is None and isinstance(result_data, dict) and isinstance(result_data.get("id"), str):
+                    deleted_id = result_data["id"]
                 pending = self._pending_file_write
                 if (
-                    pending is not None
-                    and pending.file_id in deleted_ids
+                    deleted_id is not None
+                    and pending is not None
+                    and pending.file_id == deleted_id
                     and status == "success"
                     and isinstance(parsed_result, dict)
                     and parsed_result.get("mutation_applied") is True
                 ):
                     # 模型取消了在等正文的那份文件：同一 run 里之后的 <file> 不能再落进已删文件。
                     # 等待中的缓冲按既有语义回到对话；待写守卫由 tools_adapter 按同一删除结果清除。
-                    if self._stream_processor.file_id == pending.file_id:
+                    if self._stream_processor.file_id == deleted_id:
                         async for event in self._flush_active_capture():
                             yield event
                     self._pending_file_write = None

@@ -20,7 +20,6 @@ const REDUNDANT_SUMMARIES = new Set([
   'File updated', // api/files.py default
   'Initial version', // file_version_service first version
   '创建文件', // agent create_file
-  'AI 创建文件正文', // legacy agent create_file operation
   'AI 更新文件内容', // agent writes file content
   'AI 编辑', // agent edit_file without listed operations
 ]);
@@ -28,8 +27,7 @@ const REDUNDANT_SUMMARIES = new Set([
 const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const RESTORED_TO_VERSION = /^Restored to version (\d+)$/;
 // Snapshot markers carry an internal snapshot id (UUID or otherwise); writers never see it.
-const BEFORE_RESTORE = /^(?:Before restoring version \d+|Before rollback to snapshot(?:\s+\S+)?|Before undoing AI edit)$/;
-const UNDID_AI_OPERATION = /^Undid AI (?:edit_file|write_chapter|rename_file)$/;
+const BEFORE_RESTORE = /^(?:Before restoring version \d+|Before rollback to snapshot(?:\s+\S+)?)$/;
 const RESTORED_FROM_SNAPSHOT = /^Restored from snapshot(?:\s+\S+)?$/;
 const AI_RUN_CHECKPOINT =
   /^(?:AI 对话完成 - 文件已修改|AI (?:chat|conversation) (?:finished|completed?) - files? (?:modified|changed))$/i;
@@ -64,15 +62,6 @@ export function describeVersionSummary(summary: string | null | undefined, t: Tr
   }
   if (BEFORE_RESTORE.test(text)) {
     return t('versions:summary.beforeRestore', { defaultValue: '恢复前自动备份' });
-  }
-  if (UNDID_AI_OPERATION.test(text)) {
-    return t('versions:summary.undidAiEdit', { defaultValue: '已撤销 AI 修改' });
-  }
-  if (text === 'AI 整章替换') {
-    return t('versions:summary.aiChapterReplace', { defaultValue: 'AI 整章替换' });
-  }
-  if (text === 'AI 重命名文件') {
-    return t('versions:summary.aiRename', { defaultValue: 'AI 重命名' });
   }
   if (RESTORED_FROM_SNAPSHOT.test(text)) {
     return t('versions:summary.restoredFromSnapshot', { defaultValue: '从项目快照恢复' });
