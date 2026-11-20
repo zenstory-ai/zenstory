@@ -1709,5 +1709,25 @@ describe('Editor', () => {
       content: 'Server content',
       base_updated_at: 'server-v2',
     }))
+
+    // Regression: handleFinishReview must advance SimpleEditor's server baseline
+    // so subsequent edits send the newly committed token ('server-v3'), not the stale one.
+    mockProjectContext = { ...mockProjectContext, diffReviewState: null }
+    rerender(<UnmemoizedEditor />)
+    vi.mocked(api.fileApi.update).mockResolvedValueOnce({
+      ...mockFile,
+      content: 'Server content plus author edit',
+      updated_at: 'server-v4',
+    })
+    fireEvent.change(screen.getByTestId('content-input'), {
+      target: { value: 'Server content plus author edit' },
+    })
+    fireEvent.click(screen.getByTestId('save-button'))
+
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalledTimes(3))
+    expect(api.fileApi.update).toHaveBeenLastCalledWith('file-1', expect.objectContaining({
+      content: 'Server content plus author edit',
+      base_updated_at: 'server-v3',
+    }))
   })
 })
