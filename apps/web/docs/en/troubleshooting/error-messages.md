@@ -21,7 +21,7 @@ See [Using the editor](../user-guide/editor.md) and [Version history](../user-gu
 | Session expired or invalid login state | Copy any unsaved text in the editor first, then sign in again |
 | Incorrect email/username or password | Verify your login identifier and password case, or click **Forgot password?** to reset via email |
 | Email address not verified yet | Enter the 6-digit verification code sent to your registration email |
-| Verification code incorrect or expired | Check the newest email in your inbox (codes expire after 10 minutes) or wait for the countdown to request a fresh code |
+| Verification code incorrect or expired | Check the newest email in your inbox (codes expire after 5 minutes for registration, or 10 minutes for password reset) or wait for the countdown to request a fresh code |
 | Invite or redemption code invalid, expired, or used up | Double-check every character of the code, or confirm with the sender whether a new code is needed |
 | Daily free AI messages used up | Save your work and continue after **00:00 Beijing time (UTC+8)**, or upgrade to Pro for unlimited daily messages |
 | Active project or custom-skill limit reached | Check **Plans & Benefits**; delete only unused test items to free a slot, or upgrade to Pro |

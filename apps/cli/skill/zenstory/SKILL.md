@@ -11,7 +11,7 @@ metadata:
 
 # ZenStory
 
-ZenStory is an AI-assisted novel writing workbench. Projects hold outlines, draft
+ZenStory is an AI-assisted novel and short-drama writing workbench. Projects hold outlines, draft
 chapters, characters, lore and materials as **files** in a folder tree. Use this skill
 to read and update those files through the `zenstory` CLI and public Agent API.
 
@@ -33,7 +33,7 @@ zenstory whoami --json
 - Exit `0`: note `scopes.read` / `scopes.write`. Without `write`, you can only read — tell
   the user before planning edits.
 - Exit `3` ("Not logged in" / key rejected): ask the user to create an Agent API key in
-  **ZenStory → Settings → Agent** (enable the `write` scope if they want you to edit), then
+  **ZenStory → Settings → API Keys** (enable the `write` scope if they want you to edit), then
   run this **themselves** in their own terminal and paste the key when prompted (input is
   hidden, so the key stays out of shell history):
 
@@ -44,7 +44,7 @@ zenstory whoami --json
   Self-hosted ZenStory: add `--api-base https://<their-server>/api/v1`.
 - Never ask the user to paste the key into the chat, and never put a key on a command line.
   If they already pasted a key into the chat, treat it as exposed: recommend they
-  **regenerate it in Settings → Agent** and log in again with the new key as above. Never
+  **regenerate it in Settings → API Keys** and log in again with the new key as above. Never
   echo, log or repeat a key.
 
 ## Orient in a project

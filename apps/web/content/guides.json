@@ -19,8 +19,8 @@
       ],
       "zh": [
         "小说文件、目录或链接，以及明确的改编与素材使用边界。能读到文本仅满足技术读取条件，改编权仍需另行确认授权。",
-        "已配置的 Agent 宿主。安装表区分 Claude Code 的 `/novel-to-game`、Codex 的 `$novel-to-game` 与 Kimi Code 的 `/skill:novel-to-game`，请选择对应适配器。",
-        "可用的引擎和目标运行环境，或明确的准备计划。模型、媒体与工具服务可能需要另行配置或费用授权。"
+        "已配置的 Agent 工具。安装表区分 Claude Code 的 `/novel-to-game`、Codex 的 `$novel-to-game` 与 Kimi Code 的 `/skill:novel-to-game`，请选择对应适配器。",
+        "可用的引擎和选定运行平台，或明确的准备计划。模型、媒体与工具服务可能需要另行配置或费用授权。"
       ]
     },
     "steps": {
@@ -69,7 +69,7 @@
         ],
         [
           "确定产品简报",
-          "要求建立 `PRODUCT_BRIEF.md`，明确范围、语言、体验类型、平台、引擎、目标运行环境、实际测试环境、输入与显示要求、内容尺度及版权与素材使用边界。一般性的默认假设可以先记下；凡是会改变游戏方向，或涉及版权、内容尺度与平台风险的决定，都必须先确认清楚。"
+          "要求建立 `PRODUCT_BRIEF.md`，明确范围、语言、体验类型、平台、引擎、运行环境、实际测试环境、输入与显示要求、内容尺度及版权与素材使用边界。一般性的默认假设可以先记下；凡是会改变游戏方向，或涉及版权、内容尺度与平台风险的决定，都必须先确认清楚。"
         ],
         [
           "先说清来源范围，再挑试玩片段",
@@ -396,7 +396,7 @@
       ],
       "zh": [
         "一项具体写作任务，以及你自己的或有使用权的材料。一个故事点子、一章待修改的正文，或一部未完成的小说，都可以作为起点。",
-        "使用 Oh Story 需要先配置受支持的 Agent 宿主，并准备写作项目目录。下面的写作任务不用写代码，你要做的是打开正确的目录、按说明安装，并判断是否允许文件与工具操作。不想管理这套环境，可以了解独立的 [ZenStory 工作台](https://zenstory.ai/workbench)。"
+        "使用 Oh Story 需要先配置受支持的 Agent 工具，并准备写作项目目录。下面的写作任务不用写代码，你要做的是打开正确的目录、按说明安装，并判断是否允许文件与工具操作。不想管理这套环境，可以了解独立的 [ZenStory 工作台](https://zenstory.ai/workbench)。"
       ]
     },
     "steps": {
@@ -555,7 +555,7 @@
     },
     "answer": {
       "en": "To write a novel with DeepSeek, choose by where the writing lives: ordinary DeepSeek chat for one-off tasks, a local DSH workspace for a whole manuscript. Use an ordinary DeepSeek model chat for a disposable brainstorm, outline critique or scene rewrite that you will copy into your own manuscript. Use DeepSeek Harness (DSH) plus the community Oh Story DSH plugin when you want a local writing folder, persistent sessions, creation skills and a file/editor/Chat workbench. Use the separate ZenStory Workbench at app.zenstory.ai when you want an account-based browser project with nothing to run locally. These sit on different layers: DeepSeek is the model/provider choice, DSH is the agent host, `@oh-story/dsh` is a community plugin for that host, and ZenStory Workbench is a separate application. The plugin runs inside DSH; an ordinary DeepSeek chat does not load it. For the broader difference between chat, skills and agents, see [AI agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers); for a field-by-field comparison of the three ZenStory AI writing environments, see [the workflow comparison](https://zenstory.ai/compare/writing-workflows). Already have a draft? Start by naming the latest accepted manuscript, the last complete chapter and any unfinished section, then ask for the next step. The worked archive mystery below shows how to turn those materials into a next-scene choice before importing or changing files, and the last step gives a paste-ready prompt that makes the agent continue from the project's state files.",
-      "zh": "用 DeepSeek 写小说，按作品要存放在哪里选：一次性小任务用普通 DeepSeek 聊天，整部稿件放进本地 DSH 工作区。只想临时脑暴、点评大纲或改一段文字，再自己复制回稿件，用普通 DeepSeek 模型聊天即可；要围绕本地写作目录持续创作，由会话、Skills 和文件/编辑器/Chat 工作台一起管理项目，选 DeepSeek Harness（DSH）加社区插件 Oh Story DSH；想用账户化的浏览器项目、不在本地运行 DSH，选独立的 ZenStory 工作台 app.zenstory.ai。四者分属不同层：DeepSeek 是模型/Provider 选择，DSH 是 Agent 宿主，`@oh-story/dsh` 是装进该宿主的社区插件，ZenStory 工作台是另一套应用；插件装在 DSH 里，普通 DeepSeek 聊天用不到它。聊天、Skills 与 Agents 的通用差异见[写作者的 AI Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)；三种写作环境的逐项比较见[工作流对比](https://zenstory.ai/compare/writing-workflows)。已有稿件时，先交代目前认定的版本、最后一个完整章节和还没写完的部分，再提出下一步。下方的档案悬疑示例用这些材料列出下一场戏的几种走向及各自代价，再决定是否导入或改文件；长篇续写让 Agent 以项目里的状态文件为准，最后一步附一段可直接粘贴的续写指令。"
+      "zh": "用 DeepSeek 写小说，按作品要存放在哪里选：一次性小任务用普通 DeepSeek 聊天，整部稿件放进本地 DSH 工作区。只想临时脑暴、点评大纲或改一段文字，再自己复制回稿件，用普通 DeepSeek 模型聊天即可；要围绕本地写作目录持续创作，由会话、Skills 和文件/编辑器/Chat 工作台一起管理项目，选 DeepSeek Harness（DSH）加社区插件 Oh Story DSH；想用账户化的浏览器项目、不在本地运行 DSH，选独立的 ZenStory 工作台 app.zenstory.ai。四者分属不同层：DeepSeek 是模型/Provider 选择，DSH 是 Agent 运行工具，`@oh-story/dsh` 是装进 DSH 的社区插件，ZenStory 工作台是另一套应用；插件装在 DSH 里，普通 DeepSeek 聊天用不到它。聊天、Skills 与 Agents 的通用差异见[写作者的 AI Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)；三种写作环境的逐项比较见[工作流对比](https://zenstory.ai/compare/writing-workflows)。已有稿件时，先交代目前认定的版本、最后一个完整章节和还没写完的部分，再提出下一步。下方的档案悬疑示例用这些材料列出下一场戏的几种走向及各自代价，再决定是否导入或改文件；长篇续写让 Agent 以项目里的状态文件为准，最后一步附一段可直接粘贴的续写指令。"
     },
     "prerequisites": {
       "en": [
@@ -756,7 +756,7 @@
           "en": "Can DeepSeek generate video for a short drama?"
         },
         "a": {
-          "zh": "不能。DeepSeek 负责写剧本、分镜和提示词；生图、生视频、生音乐由 `short-drama-produce` 调用 GPT Image 2、Seedance、MiniMax H3 或 MiniMax Music 完成，Key 在启动 DSH 前写入宿主机环境变量，每次调用前先预览、经你确认才执行。没有视频 Key 也能写每集所需的核心创作文档，配好图片 Key 还能生成关键帧图片；分集与分镜的做法见[小说改编短剧](https://zenstory.ai/drama-skills/novel-to-short-drama)。",
+          "zh": "不能。DeepSeek 负责写剧本、分镜和提示词；生图、生视频、生音乐由 `short-drama-produce` 调用 GPT Image 2、Seedance、MiniMax H3 或 MiniMax Music 完成，Key 在启动 DSH 前写入本机环境变量，每次调用前先预览、经你确认才执行。没有视频 Key 也能写每集所需的核心创作文档，配好图片 Key 还能生成关键帧图片；分集与分镜的做法见[小说改编短剧](https://zenstory.ai/drama-skills/novel-to-short-drama)。",
           "en": "No. DeepSeek writes the screenplay, storyboard and prompts; images, video and music come from `short-drama-produce` calling GPT Image 2, Seedance, MiniMax H3 or MiniMax Music, with keys set as host environment variables before DSH starts, and every call is previewed and runs only after you confirm it. Without a video key you can still prepare the core creative documents each episode needs, and with an image key you can generate keyframe images; for episodes and storyboards, see [novel to short drama](https://zenstory.ai/drama-skills/novel-to-short-drama)."
         }
       }
@@ -783,7 +783,7 @@
       ],
       "zh": [
         "先备份你自己的或有使用权的书稿。流程明确支持的直接输入是单个 .txt/.md、章节文件目录或直接粘贴文本；.docx、EPUB 或 PDF 书稿先转成 .txt 或 .md。",
-        "在写作工作区打开受支持的 Agent 宿主。若还分不清 skill 与宿主，先看[写作者的 Agent Skill 入门](https://zenstory.ai/oh-story/agent-skills-for-writers)。下文按 Claude Code 的 npx skills 路径书写；换用其他宿主或 marketplace 插件时，按对应文档的命令写法。",
+        "在写作工作区打开受支持的 Agent 工具。若还分不清 skill 与 Agent 工具，先看[写作者的 Agent Skill 入门](https://zenstory.ai/oh-story/agent-skills-for-writers)。下文按 Claude Code 的 npx skills 路径书写；换用其他工具或 marketplace 插件时，按对应文档的命令写法。",
         "确认最后一个完整章号。把只写一半的末章明确标成残稿，避免其中尚未完成的动作被登记为事实。未采纳的另一版开头放在导入源之外，明确是保留还是不用；本例选择排除它。"
       ]
     },
@@ -940,7 +940,7 @@
       "zh": [
         "准备你拥有版权或已获改编授权、且宿主能够读取的源材料。首次选一段相对完整的故事，说明哪些角色、事实、主题与结局承诺不能改。",
         "给出目标形态和范围可控的首次交付，例如先规划三集，只写第一集剧本。单集时长、受众以及实拍短剧或漫剧形态，都按你的项目自行选定。",
-        "准备已配置的受支持 Agent 宿主与项目目录。按文档中的 Claude Code 路径，可先请求“Install this skill suite: https://github.com/zenstory-ai/drama-skills”，审阅安装方案后使用 /short-drama。[项目页](https://zenstory.ai/drama-skills)介绍技能合集；不熟悉宿主等概念，可先读[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。"
+        "准备已配置的受支持 Agent 工具与项目目录。按文档中的 Claude Code 路径，可先请求“Install this skill suite: https://github.com/zenstory-ai/drama-skills”，审阅安装方案后使用 /short-drama。[项目页](https://zenstory.ai/drama-skills)介绍技能合集；不熟悉这些概念，可先读[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。"
       ]
     },
     "steps": {
@@ -1104,7 +1104,7 @@
         "A Xiaomi MiMo API key for remote ASR, VLM and default TTS. Fish Audio can replace TTS with its own key, or you can explicitly select a self-hosted IndexTTS endpoint; ASR/VLM still use MiMo. MiMo and Fish Audio are external services; the chosen self-hosted endpoint determines where IndexTTS requests go. Check the relevant services’ privacy, region and billing terms before sending authorized material."
       ],
       "zh": [
-        "先在受支持的 Agent 宿主中安装并配置 Video Recap Skills；按[项目页](https://zenstory.ai/video-recap)选择当前宿主的安装方式，再用该宿主打开待处理视频所在工作区。下文手工命令中的 /ABS/video-recap-skills，指你安装的 skill 仓库的绝对路径。",
+        "先在受支持的 Agent 工具中安装并配置 Video Recap Skills；按[项目页](https://zenstory.ai/video-recap)选择当前工具的安装方式，再用它打开待处理视频所在工作区。下文手工命令中的 /ABS/video-recap-skills，指你安装的 skill 仓库的绝对路径。",
         "一个你拥有或有权处理的本地 .mp4、.mov、.mkv 或 .webm，以及 Python 3.10+、PATH 中的 ffmpeg 和足够的中间文件空间。烧录字幕需要 ffmpeg 的 libass/subtitles filter。",
         "远程 ASR、VLM 与默认 TTS 需要 Xiaomi MiMo API key。可用独立 key 选择 Fish Audio，或显式选择自托管 IndexTTS 端点替换 TTS；ASR/VLM 仍用 MiMo。MiMo 和 Fish Audio 是外部服务，IndexTTS 请求的数据流向取决于所选自托管端点。发送获准素材前，先查看相应服务的隐私、地区与计费条款。"
       ]
@@ -1357,7 +1357,7 @@
         "When you later request a build, use the [complete quick start](https://zenstory.ai/novel-to-game/quick-start). Trace each intended ending separately."
       ],
       "zh": [
-        "`PRODUCT_BRIEF.md`：玩家身份、范围、叙事主导意图、语言与后续目标运行环境；这一步交付的是设计交接。",
+        "`PRODUCT_BRIEF.md`：玩家身份、范围、叙事主导意图、语言与后续运行平台；这一步交付的是设计交接。",
         "`analysis/SOURCE_BIBLE.md` 与 `concepts/CONCEPT.md`：带出处的原文事实、经确认的改编改动，以及选定体验。",
         "`design/GAME_DESIGN.md`：小范围路线图、条件与后果、事前信息、动作标签、确认对白和各路线收束文案，以及结局规则与试玩片段范围。把这些写作内容放进已有交接文件即可。",
         "后续需要构建时，回到[完整入门流程](https://zenstory.ai/novel-to-game/quick-start)。每个计划中的结局都要分别走一遍。"
@@ -1420,7 +1420,7 @@
       "zh": [
         "准备已接受的场次或单集剧本，写清谁出现、哪些可见状态重要、每镜发生什么变化。知识、目标和关系属于编剧环节，在剧本里写定；外观提示词只写看得见的内容。",
         "准备创作者确认过的身份事实与本场造型。年龄、族裔、五官、品牌服装等细节只写创作者已决定的，其余继续标为待定。",
-        "如要使用文档中的技能，还需已配置的受支持 Agent 宿主和项目目录。本指南只处理文字：设定、提示词和分镜记录；图片与视频生成另行进行，示例也全部是文字。"
+        "如要使用文档中的技能，还需已配置的受支持 Agent 工具和项目目录。本指南只处理文字：设定、提示词和分镜记录；图片与视频生成另行进行，示例也全部是文字。"
       ]
     },
     "steps": {
@@ -2328,7 +2328,7 @@
       "zh": [
         "一个梗，以及你有权使用的材料。写清希望交付的情绪、视角、篇幅范围和不能发生的事。“说清边界后松了一口气，却仍有一点不自在”比“写得感人”更能指导取舍。",
         "分开已确认事实与尚待选择的设计。新人物、隐藏动机或特殊规则都是要由你拍板的设计选择。如果接续已有故事，把相关事实一并带上，让写作从已有内容接着往下走。",
-        "使用示例命令时，需要在受支持的 Agent 宿主中安装 Oh Story，并打开目标写作目录。示例采用 Claude Code slash 语法，在装好 Oh Story 的 Agent 宿主里运行，和 ZenStory 工作台、DSH 安装属于不同层次；分不清时可先看[写作者的 Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。"
+        "使用示例命令时，需要在受支持的 Agent 工具中安装 Oh Story，并打开目标写作目录。示例采用 Claude Code slash 语法，在装好 Oh Story 的 Agent 工具里运行，和 ZenStory 工作台、DSH 安装属于不同层次；分不清时可先看[写作者的 Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。"
       ]
     },
     "steps": {

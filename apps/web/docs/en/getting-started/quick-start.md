@@ -28,7 +28,7 @@ You can either let the AI draft an opening or write directly in the editor:
 
 ## Step 4: Revise passages and export a backup
 
-1. **Revise a selected passage**: Highlight text in the editor and click **Quote** (`Ctrl/Cmd + Shift + Q`) to attach those lines above the chat input with your instructions, or click **Humanize** (`Ctrl/Cmd + Shift + R`) in the bottom status bar, review the split diff, and click **Finish Review**.
+1. **Revise a selected passage**: Highlight text in the editor and click **Quote** (`Ctrl/Cmd + Shift + Q`) to attach those lines above the chat input with your instructions, or click **Humanize** (`Ctrl/Cmd + Shift + R`) in the bottom status bar to preview the rewrite alongside the original and click **Use changes** (or **Discard** to keep the original).
 2. **Export to `.txt`**: Click **Export whole work (TXT)** (or **Export whole script (TXT)**) in the top bar to download all chapters merged in order as a UTF-8 `.txt` file, or open **More Actions → Download current file (TXT)** to download only the active file.
 
 ## Next steps

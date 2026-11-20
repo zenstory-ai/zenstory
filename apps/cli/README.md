@@ -15,7 +15,7 @@ npm install -g zenstory      # or run any command with: npx -y zenstory <command
 
 ## Log in
 
-Create an Agent API key in **ZenStory → Settings → Agent** (keys start with `eg_`; enable
+Create an Agent API key in **ZenStory → Settings → API Keys** (keys start with `eg_`; enable
 the `write` scope if you want the CLI or an agent to edit files). Then:
 
 ```bash
@@ -27,7 +27,7 @@ zenstory logout
 ```
 
 Don't pass the key itself as `--key eg_...`: it would end up in your shell history. If a
-key was ever pasted into an AI chat, regenerate it in Settings → Agent.
+key was ever pasted into an AI chat, regenerate it in Settings → API Keys.
 
 ## Commands
 
@@ -139,7 +139,7 @@ Rate limits are per key, per hour: read 2000, write 1000, search 500, writing-co
   directory. The CLI never prints the full key (`eg_1a2b…9f0e`).
 - Use the narrowest scopes you need: `read` for browsing and search, `write` only when
   edits are expected. Keys can also be limited to specific projects, and revoked or
-  regenerated at any time in Settings → Agent.
+  regenerated at any time in Settings → API Keys.
 - API bases must use https (plain http only for localhost / 127.0.0.1 / ::1).
 - Deletes and rollbacks require `--yes`; `files put` refuses to write empty content without
   `--allow-empty`, and `files get -o` never follows symlinks.

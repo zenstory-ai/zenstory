@@ -31,7 +31,7 @@ Opening a project brings up the top toolbar and the left, center, and right work
 
 The left sidebar has three tabs at the top:
 
-- **Files**: Manages your project's **Outlines**, **Characters**, **Worldbuilding**, **Drafts** (or **Scripts** in screenplay projects), and **Materials** folders, with full-text and title search via `Ctrl/Cmd + K`.
+- **Files**: Manages your project's **Outlines**, **Characters**, **World Building**, **Drafts** (or **Scripts** in screenplay projects), and **Materials** folders, with full-text and title search via `Ctrl/Cmd + K`.
 - **Skills**: Lists built-in and enabled skills. Click a skill to read its details, or click `+` to attach it to your next AI chat message (up to 3 skills per message).
 - **Materials**: Browses reference novels analyzed in your account's Reference Library by category (Characters, Worldbuilding, Special Powers, Storylines, Plotlines), letting you preview entries, **Add to chat**, or **Add to project** (single or batch).
 
@@ -40,7 +40,7 @@ The left sidebar has three tabs at the top:
 The center pane is where you write and review documents:
 
 - **When no file is selected**: Displays the **Start from a single line** empty state with a primary **Let AI write the opening** button, **New Chapter** (or **New Script**) and **New Outline** cards, a collapsible **More options** row (**New Character** and **New Worldbuilding**), and **Import draft files (txt / md)**.
-- **When a file is open**: Shows the editable document title at the top, the plain-text body editor in the middle (with pinch-to-zoom from 50% to 250% on touch screens), and the bottom status bar with **Words**, **Paragraphs**, **History**, **Humanize**, save status, and **Save**. During Humanize or a concurrent-edit conflict, the editor switches to a side-by-side diff review split view.
+- **When a file is open**: Shows the editable document title at the top, the plain-text body editor in the middle (with pinch-to-zoom from 50% to 250% on touch screens), and the bottom status bar with **Words**, **Paragraphs**, **History**, **Humanize**, save status, and **Save**. Running Humanize shows the **Humanize result** preview (where you can toggle the original and choose **Use changes** or **Discard**); on a concurrent-edit conflict, the editor switches to a side-by-side diff review split view.
 
 ### 4. Right pane: AI assistant
 
