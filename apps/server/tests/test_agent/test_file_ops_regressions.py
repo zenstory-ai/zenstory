@@ -12,12 +12,12 @@
 import threading
 
 import pytest
-from services.file_version import FileVersionService
 from sqlmodel import Session, select
 
 from agent.tools.file_ops import FileCRUD, FileEditor
 from models import File, Project, User
 from models.file_version import FileVersion
+from services.features.file_version_service import FileVersionService
 
 
 @pytest.fixture

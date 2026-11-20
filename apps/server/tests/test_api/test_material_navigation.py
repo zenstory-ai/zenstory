@@ -5,7 +5,6 @@ from datetime import datetime
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from services.auth import get_current_active_user
 from sqlalchemy import create_engine, event
 from sqlmodel import Session, SQLModel
 
@@ -22,6 +21,7 @@ from models.material_models import (
     StoryLine,
     WorldView,
 )
+from services.core.auth_service import get_current_active_user
 from services.quota_service import quota_service
 
 pytestmark = pytest.mark.unit

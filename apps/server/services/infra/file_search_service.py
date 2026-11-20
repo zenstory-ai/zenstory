@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 import threading
 import time
@@ -14,6 +13,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import InstrumentedAttribute, load_only
 from sqlmodel import Session, col, select
 
+from config.env import get_int_env
 from models import File
 from utils.logger import get_logger, log_with_context
 
@@ -47,54 +47,45 @@ def serialize_datetime(obj: Any) -> Any:
     else:
         return obj
 
-def _get_int_env(name: str, default: int, *, min_value: int | None = None) -> int:
-    raw = os.getenv(name)
-    if raw is None:
-        value = default
-    else:
-        try:
-            value = int(raw)
-        except ValueError:
-            value = default
-
-    if min_value is not None and value < min_value:
-        return min_value
-    return value
-
 LEXICAL_MAX_QUERY_TOKENS = 8
 
 LEXICAL_MAX_TOKEN_CHARS = 32
 
 LEXICAL_MAX_PHRASE_CHARS = 64
 
-FILE_SEARCH_DB_CANDIDATE_MULTIPLIER = _get_int_env(
+FILE_SEARCH_DB_CANDIDATE_MULTIPLIER = get_int_env(
     "FILE_SEARCH_DB_CANDIDATE_MULTIPLIER",
     3,  # previously 6x in _lexical_search
-    min_value=1,
+    minimum=1,
+    clamp=True,
 )
 
-FILE_SEARCH_DB_CANDIDATE_CAP = _get_int_env(
+FILE_SEARCH_DB_CANDIDATE_CAP = get_int_env(
     "FILE_SEARCH_DB_CANDIDATE_CAP",
     200,
-    min_value=1,
+    minimum=1,
+    clamp=True,
 )
 
-FILE_SEARCH_TIME_BUDGET_MS = _get_int_env(
+FILE_SEARCH_TIME_BUDGET_MS = get_int_env(
     "FILE_SEARCH_TIME_BUDGET_MS",
     80,
-    min_value=0,
+    minimum=0,
+    clamp=True,
 )
 
-FILE_SEARCH_TIME_BUDGET_MIN_CANDIDATES = _get_int_env(
+FILE_SEARCH_TIME_BUDGET_MIN_CANDIDATES = get_int_env(
     "FILE_SEARCH_TIME_BUDGET_MIN_CANDIDATES",
     60,
-    min_value=1,
+    minimum=1,
+    clamp=True,
 )
 
-FILE_SEARCH_CASE_INSENSITIVE_CONTENT_MAX_CHARS = _get_int_env(
+FILE_SEARCH_CASE_INSENSITIVE_CONTENT_MAX_CHARS = get_int_env(
     "FILE_SEARCH_CASE_INSENSITIVE_CONTENT_MAX_CHARS",
     200_000,
-    min_value=1,
+    minimum=1,
+    clamp=True,
 )
 
 @dataclass

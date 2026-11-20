@@ -44,6 +44,7 @@ from agent.tools.file_ops.serialization import (
 from agent.tools.permissions import ForbiddenError, NotFoundError
 from config.project_notes import merge_project_notes
 from services.file_tree_rules import has_sibling_title_conflict
+from services.usage.cost_budget import set_context_user_id
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import (
     chapter_title_has_subtitle as _chapter_title_has_subtitle,
@@ -720,6 +721,7 @@ class ToolContext:
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
             "inflight_tool_writes": inflight_tool_writes,
         })
+        set_context_user_id(user_id)
         _owned_session_var.set(None)
 
     @classmethod
@@ -976,6 +978,7 @@ class ToolContext:
         if state is not None:
             state.clear_all()
         _tool_context_var.set(None)
+        set_context_user_id(None)
 
     @classmethod
     def get_skill_content_budget(cls) -> SkillContentBudget:

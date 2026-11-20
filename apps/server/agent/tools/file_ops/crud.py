@@ -12,7 +12,6 @@ import contextlib
 import json
 from typing import Any, cast
 
-from services.file_version import FileVersionService
 from sqlalchemy import case, func, literal
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import defer
@@ -35,6 +34,7 @@ from models.file_version import (
     CHANGE_TYPE_CREATE,
 )
 from services.features.activation_event_service import activation_event_service
+from services.features.file_version_service import FileVersionService
 from services.file_tree_rules import (
     # 文件树结构不变量的唯一实现放在 services/file_tree_rules.py：
     # REST 层 api/files.py 与本模块共用同一份，避免两边各写一遍再慢慢漂移

@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 
 from agent.core import llm_providers
 from agent.core.llm_providers import ModelProvider
+from config.env import get_int_env
 from utils.logger import get_logger, log_with_context
 
 if TYPE_CHECKING:
@@ -45,20 +46,11 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-
-def _env_int(name: str, default: int) -> int:
-    try:
-        value = int(os.getenv(name) or default)
-    except ValueError:
-        return default
-    return value if value > 0 else default
-
-
-LLM_SESSION_PIN_TTL_S = _env_int("LLM_SESSION_PIN_TTL_S", 1800)
-LLM_CIRCUIT_FAILURE_THRESHOLD = _env_int("LLM_CIRCUIT_FAILURE_THRESHOLD", 3)
-LLM_CIRCUIT_FAILURE_WINDOW_S = _env_int("LLM_CIRCUIT_FAILURE_WINDOW_S", 60)
-LLM_CIRCUIT_OPEN_S = _env_int("LLM_CIRCUIT_OPEN_S", 120)
-LLM_KEY_COOLDOWN_S = _env_int("LLM_KEY_COOLDOWN_S", 300)
+LLM_SESSION_PIN_TTL_S = get_int_env("LLM_SESSION_PIN_TTL_S", 1800)
+LLM_CIRCUIT_FAILURE_THRESHOLD = get_int_env("LLM_CIRCUIT_FAILURE_THRESHOLD", 3)
+LLM_CIRCUIT_FAILURE_WINDOW_S = get_int_env("LLM_CIRCUIT_FAILURE_WINDOW_S", 60)
+LLM_CIRCUIT_OPEN_S = get_int_env("LLM_CIRCUIT_OPEN_S", 120)
+LLM_KEY_COOLDOWN_S = get_int_env("LLM_KEY_COOLDOWN_S", 300)
 
 # A model that cannot turn reasoning off spends part of a short budget on it.
 THINKING_HEADROOM_TOKENS = 2048
