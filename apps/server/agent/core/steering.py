@@ -106,9 +106,9 @@ class SteeringQueue:
 
     async def add(self, content: str) -> SteeringMessage:
         """Add a steering message to the queue with sanitization."""
-        # Sanitize content before adding
-        sanitized_content = sanitize_steering_content(content)
+        return await self._add_sanitized(sanitize_steering_content(content))
 
+    async def _add_sanitized(self, sanitized_content: str) -> SteeringMessage:
         async with self._lock:
             msg = SteeringMessage(
                 id=f"steer-{datetime.now().timestamp()}",
@@ -291,9 +291,11 @@ class SteeringQueueManager:
     ) -> SteeringMessage:
         """入队与「仍有未封口的存活 run」在 manager 锁内一起判定。
 
+        ValueError：内容为空；
         KeyError：没有会消费它的 run（从未登记、已释放、只剩僵尸或都已封口）；
         PermissionError：session 属于别人。
         """
+        sanitized = sanitize_steering_content(content)
         async with self._lock:
             entry = self._queues.get(session_id)
             if entry is None:
@@ -309,7 +311,7 @@ class SteeringQueueManager:
                 )
             if not any(rid not in entry.sealed_runs for rid in entry.active_runs):
                 raise KeyError(session_id)
-            return await entry.queue.add(content)
+            return await entry.queue._add_sanitized(sanitized)
 
     async def drain_and_seal(self, session_id: str, run_id: str) -> list[SteeringMessage]:
         """本 run 最后一次取出引导，同时封口：此后的 enqueue 不再确认给它。"""
@@ -898,9 +900,7 @@ async def enqueue_steering_for_user_async(
             session_id=session_id, message_id=message.id,
         )
         return message
-    return await _queue_manager.enqueue_for_user(
-        session_id, user_id, sanitize_steering_content(content)
-    )
+    return await _queue_manager.enqueue_for_user(session_id, user_id, content)
 
 
 async def drain_and_seal_steering_async(session_id: str, run_id: str) -> list[SteeringMessage]:

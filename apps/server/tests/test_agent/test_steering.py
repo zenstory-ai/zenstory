@@ -16,6 +16,7 @@ from agent.core.steering import (
     SteeringSessionBusyError,
     cleanup_steering_queue_async,
     create_steering_queue_async,
+    enqueue_steering_for_user_async,
     get_steering_queue_for_user_async,
     sanitize_steering_content,
 )
@@ -398,5 +399,24 @@ class TestSteeringRunOwnership:
 
             queue = await get_steering_queue_for_user_async(session_id, "user-1")
             assert isinstance(queue, SteeringQueue)
+        finally:
+            await cleanup_steering_queue_async(session_id)
+
+    async def test_enqueue_for_user_sanitizes_once(self, caplog):
+        """enqueue_steering_for_user_async sanitizes content once (single truncation warning)."""
+        session_id = "single-sanitize-session"
+        await cleanup_steering_queue_async(session_id)
+        await create_steering_queue_async(session_id, "user-1", run_id="run-a")
+
+        try:
+            with caplog.at_level("WARNING", logger="agent.core.steering"):
+                msg = await enqueue_steering_for_user_async(
+                    session_id, "user-1", "a" * (MAX_STEERING_MESSAGE_LENGTH + 50)
+                )
+            assert len(msg.content) == MAX_STEERING_MESSAGE_LENGTH
+            truncation_warnings = [
+                r for r in caplog.records if "Steering message truncated" in r.getMessage()
+            ]
+            assert len(truncation_warnings) == 1
         finally:
             await cleanup_steering_queue_async(session_id)

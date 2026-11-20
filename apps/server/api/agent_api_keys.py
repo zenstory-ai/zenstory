@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from services.auth import get_current_active_user
 from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import utcnow
@@ -20,6 +19,7 @@ from database import get_session
 from models import User
 from models.agent_api_key import DEFAULT_SCOPES, AgentApiKey
 from services.agent_auth_service import generate_api_key, hash_api_key
+from services.core.auth_service import get_current_active_user
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)

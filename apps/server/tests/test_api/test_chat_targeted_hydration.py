@@ -6,13 +6,13 @@ from datetime import datetime, timedelta
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from services.auth import get_current_active_user
 from sqlalchemy import create_engine
 from sqlmodel import Session, SQLModel
 
 from api.chat import router
 from database import get_session
 from models import ChatMessage, ChatSession, Project, User
+from services.core.auth_service import get_current_active_user
 
 pytestmark = pytest.mark.unit
 

@@ -6,46 +6,22 @@ from typing import Any
 
 import redis
 
+from config.env import get_int_env, get_positive_float_env
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
-
-def _get_positive_float_env(name: str, default: float) -> float:
-    """Parse positive float env var with safe fallback."""
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        value = float(raw)
-    except ValueError:
-        return default
-    return value if value > 0 else default
-
-
-def _get_positive_int_env(name: str, default: int) -> int:
-    """Parse positive integer env var with safe fallback."""
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        value = int(raw)
-    except ValueError:
-        return default
-    return value if value > 0 else default
-
-
 # Redis configuration
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-REDIS_SOCKET_CONNECT_TIMEOUT = _get_positive_float_env(
+REDIS_SOCKET_CONNECT_TIMEOUT = get_positive_float_env(
     "REDIS_SOCKET_CONNECT_TIMEOUT_S",
     2.0,
 )
-REDIS_SOCKET_TIMEOUT = _get_positive_float_env(
+REDIS_SOCKET_TIMEOUT = get_positive_float_env(
     "REDIS_SOCKET_TIMEOUT_S",
     2.0,
 )
-REDIS_HEALTH_CHECK_INTERVAL = _get_positive_int_env(
+REDIS_HEALTH_CHECK_INTERVAL = get_int_env(
     "REDIS_HEALTH_CHECK_INTERVAL_S",
     30,
 )

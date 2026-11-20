@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 from services.usage.cost_budget import reserve_model_call, settle_model_call
+from utils.sanitize import sanitize_chat_messages
 
 
 class _BudgetedAsyncStream:
@@ -66,8 +67,6 @@ def install_async_cost_guard(client: Any) -> Any:
     original_with_options = getattr(client, "with_options", None)
 
     async def create(*args, **kwargs):
-        from agent.core.llm_providers import sanitize_chat_messages
-
         if "messages" in kwargs:
             kwargs["messages"] = sanitize_chat_messages(kwargs["messages"])
         # Reservation is committed before touching the provider. Cancellation of

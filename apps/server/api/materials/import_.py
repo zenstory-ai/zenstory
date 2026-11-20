@@ -9,7 +9,6 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header
-from services.auth import get_current_active_user
 from sqlmodel import Session, select
 
 from core.error_codes import ErrorCode
@@ -17,6 +16,7 @@ from core.error_handler import APIException
 from database import get_session
 from models import User
 from models.file_model import MAX_FILE_TITLE_LENGTH
+from services.core.auth_service import get_current_active_user
 from services.features.file_version_service import get_file_version_service
 from services.file_tree_rules import lock_project_for_files
 from utils.logger import get_logger

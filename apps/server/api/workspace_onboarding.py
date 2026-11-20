@@ -1,11 +1,11 @@
 """Model-free first-work initialization; only the normal workspace calls POST."""
 from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel
-from services.auth import get_current_active_user
 from sqlmodel import Session
 
 from database import get_session
 from models import User
+from services.core.auth_service import get_current_active_user
 from services.first_work_service import (
     FirstWorkState,
     get_first_work_state,

@@ -65,6 +65,38 @@ class OwnedSkill:
 # ==================== Helpers ====================
 
 
+def parse_skill_json_array(
+    value: str | None, *, field_name: str, record_id: str
+) -> list[str]:
+    """Parse JSON array payload safely and return [] on malformed data."""
+    if not value:
+        return []
+
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        log_with_context(
+            logger,
+            30,
+            "Invalid JSON field in skill record",
+            field=field_name,
+            record_id=record_id,
+        )
+        return []
+
+    if not isinstance(parsed, list):
+        log_with_context(
+            logger,
+            30,
+            "JSON field is not an array in skill record",
+            field=field_name,
+            record_id=record_id,
+        )
+        return []
+
+    return [str(item) for item in parsed if item is not None]
+
+
 def package_error_to_api(exc: SkillPackageError) -> APIException:
     """SkillPackageError -> APIException（error_detail 携带给用户看的原因）。"""
     if exc.kind == "too_large":

@@ -26,6 +26,5 @@ def test_stream_event_type_values_stay_stable():
     assert StreamEventType.MESSAGE_END.value == "message_end"
     assert StreamEventType.ERROR.value == "error"
     assert StreamEventType.ITERATION_EXHAUSTED.value == "iteration_exhausted"
-    assert StreamEventType.WORKFLOW_STOPPED.value == "workflow_stopped"
     assert StreamEventType.STEERING_RECEIVED.value == "steering_received"
     assert StreamEventType.FILE_BODY_RESUME.value == "file_body_resume"

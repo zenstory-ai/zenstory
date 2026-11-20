@@ -16,6 +16,7 @@ from sqlmodel import Session
 from agent.constants import CONTENT_FILE_TYPES
 from agent.skills.content_budget import SkillContentBudget
 from agent.tools.file_ops import FileToolExecutor
+from services.usage.cost_budget import set_context_user_id
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -568,6 +569,7 @@ class ToolContext:
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
             "inflight_tool_writes": inflight_tool_writes,
         })
+        set_context_user_id(user_id)
         _owned_session_var.set(None)
 
     @classmethod
@@ -824,6 +826,7 @@ class ToolContext:
         if state is not None:
             state.clear_all()
         _tool_context_var.set(None)
+        set_context_user_id(None)
 
     @classmethod
     def get_skill_content_budget(cls) -> SkillContentBudget:

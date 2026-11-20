@@ -17,7 +17,6 @@ from typing import cast
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from services.auth import get_current_active_user
 from sqlalchemy.orm import InstrumentedAttribute, defer
 from sqlmodel import Session, col, func, select
 
@@ -29,6 +28,7 @@ from core.permissions import QuotaExceededException
 from core.project_access import verify_project_ownership
 from database import get_session
 from models import File, Inspiration, User
+from services.core.auth_service import get_current_active_user
 from services.inspiration_service import (
     copy_inspiration_to_project,
     create_inspiration_from_project,
