@@ -22,7 +22,6 @@ class StreamEventType(Enum):
     MESSAGE_END = "message_end"
     ERROR = "error"
     ITERATION_EXHAUSTED = "iteration_exhausted"
-    WORKFLOW_STOPPED = "workflow_stopped"
     STEERING_RECEIVED = "steering_received"
     # 单循环 agent → StreamAdapter 的内部控制事件，不发给前端：空文件纠偏轮开始前，请适配器为同一个
     # 文件重新等待 <file> 正文。data["request"] 是 FileBodyResume，适配器把结果写回它，

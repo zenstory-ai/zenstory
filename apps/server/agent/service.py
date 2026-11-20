@@ -1354,10 +1354,7 @@ class AgentService:
                         # content_end) delimit separately rendered text segments.
                         display_text_run_type = None
 
-                    if event_type in {
-                        "iteration_exhausted",
-                        "workflow_stopped",
-                    }:
+                    if event_type == "iteration_exhausted":
                         assistant_display_events.append(
                             {
                                 "type": event_type,
@@ -1371,9 +1368,7 @@ class AgentService:
                     elif event_type in {
                         "tool_call",
                         "thinking_content",
-                        "file_content_start",
                         "iteration_exhausted",
-                        "workflow_stopped",
                         "error",
                     }:
                         post_file_whitespace_pending = False
@@ -1454,20 +1449,6 @@ class AgentService:
                             target_call["status"] = event.data.get("status", "success")
                             target_call["result"] = event.data.get("data")
                             target_call["error"] = event.data.get("error")
-                    elif event_type == "workflow_stopped":
-                        assistant_status_cards.append(
-                            {
-                                "type": "workflow_stopped",
-                                "reason": event.data.get("reason"),
-                                "agentType": event.data.get("agent_type"),
-                                "message": event.data.get("message"),
-                                "question": event.data.get("question"),
-                                "context": event.data.get("context"),
-                                "details": event.data.get("details"),
-                                "confidence": event.data.get("confidence"),
-                                "evaluation": event.data.get("evaluation"),
-                            }
-                        )
                     elif event_type == "iteration_exhausted":
                         assistant_status_cards.append(iteration_exhausted_status_card(event.data))
                     elif event_type == "error":
