@@ -197,9 +197,6 @@ class FailoverChatModel:
         # (reasoning characters, milliseconds or None when it never answered), taken
         # once by the usage hook and logged with that call's reasoning tokens.
         self._thinking_before_answer: tuple[int, int | None] | None = None
-        # Serialized character count of the latest successful call's input items,
-        # paired with usage.input_tokens to calibrate session token density.
-        self._prompt_chars: int | None = None
 
     def take_call_timing(self) -> CallTiming | None:
         timing, self._call_timing = self._call_timing, None
@@ -209,17 +206,11 @@ class FailoverChatModel:
         thinking, self._thinking_before_answer = self._thinking_before_answer, None
         return thinking
 
-    def take_prompt_chars(self) -> int | None:
-        chars, self._prompt_chars = self._prompt_chars, None
-        return chars
-
-    def _succeeded(self, started: float, ttft_ms: int | None = None, *, input_items: Any = None) -> None:
-        from agent.loop.history import items_char_length
+    def _succeeded(self, started: float, ttft_ms: int | None = None) -> None:
         from models.llm_usage import CALL_OUTCOME_SUCCESS
         from services.usage.llm_usage_service import CallTiming, elapsed_ms
 
         self._call_timing = CallTiming(CALL_OUTCOME_SUCCESS, elapsed_ms(started), ttft_ms)
-        self._prompt_chars = items_char_length(input_items) if input_items is not None else None
 
     def _record_failed_attempt(
         self, provider: ModelProvider, started: float, exc: BaseException, ttft_ms: int | None = None
@@ -259,7 +250,6 @@ class FailoverChatModel:
         ordered = await llm_failover.aordered_providers(self._session_id)
         key_cooled = False
         self._call_timing = None
-        self._prompt_chars = None
         for index, provider in enumerate(ordered):
             attempt_started = time.monotonic()
             try:
@@ -282,7 +272,7 @@ class FailoverChatModel:
                     raise
                 llm_failover.log_failover(provider, ordered[index + 1], call_site="agent")
                 continue
-            self._succeeded(attempt_started, input_items=input)
+            self._succeeded(attempt_started)
             self._served(provider)
             if not key_cooled:
                 await llm_failover.arecord_success(provider, self._session_id, ordered)
@@ -297,7 +287,6 @@ class FailoverChatModel:
         key_cooled = False
         self._call_timing = None
         self._thinking_before_answer = None
-        self._prompt_chars = None
         for index, provider in enumerate(ordered):
             # Events before the first output or completion (``response.created``,
             # ``output_item.added``) are held back: until output reaches the runner,
@@ -338,7 +327,7 @@ class FailoverChatModel:
                     if event_type == _COMPLETED_EVENT_TYPE:
                         # Timed when the provider finished, before the SDK consumes the event.
                         completed = True
-                        self._succeeded(attempt_started, ttft_ms, input_items=input)
+                        self._succeeded(attempt_started, ttft_ms)
                         self._thinking_before_answer = (thinking_chars, first_answer_ms)
                     if not started:
                         if ttft_ms is None and not completed:
@@ -404,7 +393,7 @@ class FailoverChatModel:
                 for held in preamble:
                     yield held
             if not completed:
-                self._succeeded(attempt_started, ttft_ms, input_items=input)
+                self._succeeded(attempt_started, ttft_ms)
                 self._thinking_before_answer = (thinking_chars, first_answer_ms)
             if not key_cooled:
                 await llm_failover.arecord_success(provider, self._session_id, ordered)
