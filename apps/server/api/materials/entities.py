@@ -14,7 +14,6 @@ Handles all entity-related operations:
 import json
 
 from fastapi import APIRouter, Depends
-from services.auth import get_current_active_user
 from sqlalchemy.orm import aliased
 from sqlmodel import Session, func, select
 
@@ -32,6 +31,7 @@ from models.material_models import (
     StoryLine,
     WorldView,
 )
+from services.core.auth_service import get_current_active_user
 from services.material.stories_service import story_in_novel
 from utils.logger import get_logger
 

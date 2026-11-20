@@ -7,11 +7,11 @@ Reuses StreamProcessor for handling <file> markers in text content.
 
 import asyncio
 import contextlib
-import os
 from collections.abc import AsyncIterator, Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from config.env import get_positive_float_env
 from core.error_codes import ErrorCode
 from models.file_model import FILE_TYPE_DRAFT, FILE_TYPE_FOLDER, FILE_TYPE_SCRIPT
 from utils.logger import get_logger, log_with_context
@@ -81,20 +81,7 @@ def _with_sync_session[T](fn: Callable[[Any], T]) -> T:
 # 工具结果无法解析时发给前端的 error_type（前端据此显示通用的「这一步没做成」）。
 MALFORMED_TOOL_RESULT_ERROR_TYPE = "malformed_tool_result"
 
-
-def _get_positive_float_env(name: str, default: float) -> float:
-    """Read a positive float env var with safe fallback."""
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        value = float(raw)
-    except ValueError:
-        return default
-    return value if value > 0 else default
-
-
-STREAM_FILE_SAVE_TIMEOUT_S = _get_positive_float_env(
+STREAM_FILE_SAVE_TIMEOUT_S = get_positive_float_env(
     "AGENT_STREAM_FILE_SAVE_TIMEOUT_S",
     15.0,
 )

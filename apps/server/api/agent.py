@@ -24,7 +24,6 @@ from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from pydantic_core import PydanticCustomError
-from services.auth import get_current_active_user
 from sqlmodel import Session
 
 from agent.constants import should_offload_session_work
@@ -81,6 +80,7 @@ from models import (
     ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
     User,
 )
+from services.core.auth_service import get_current_active_user
 from services.features.activation_event_service import activation_event_service
 from services.quota_service import quota_service
 from services.usage.cost_budget import bind_model_transport_start, reset_model_transport_start

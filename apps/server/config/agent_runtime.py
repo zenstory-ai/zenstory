@@ -7,18 +7,7 @@ service entrypoints use the same thresholds and iteration budgets.
 
 import os
 
-
-def _get_int_env(name: str, default: int, minimum: int = 1) -> int:
-    """Read an integer environment variable with safe fallback."""
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        value = int(raw)
-    except ValueError:
-        return default
-    return value if value >= minimum else default
-
+from config.env import get_int_env
 
 # Iteration budgets. These caps ARE cost controls: one request is charged one quota unit
 # no matter how many model calls it makes, and every extra turn re-sends the whole growing
@@ -30,21 +19,21 @@ def _get_int_env(name: str, default: int, minimum: int = 1) -> int:
 # How many times the single loop agent may run within one turn (re-runs for an
 # empty-file correction, a file-stream continuation or mid-turn steering). The
 # variable name predates the loop agent and stays unchanged for deployed overrides.
-AGENT_COLLABORATION_MAX_ITERATIONS = _get_int_env(
+AGENT_COLLABORATION_MAX_ITERATIONS = get_int_env(
     "AGENT_COLLABORATION_MAX_ITERATIONS",
     12,
 )
 
 # Single-agent tool-calling loop budget (SDK max_turns per agent run). The last
 # runner.SOFT_LANDING_TURNS calls carry a "stop calling tools and summarize" reminder.
-AGENT_TOOL_CALL_MAX_ITERATIONS = _get_int_env(
+AGENT_TOOL_CALL_MAX_ITERATIONS = get_int_env(
     "AGENT_TOOL_CALL_MAX_ITERATIONS",
     60,
 )
 
 # Max output tokens for the OpenAI Agents SDK Chat Completions calls.
 # This is intentionally independent from the tool-turn budget above.
-AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS = _get_int_env(
+AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS = get_int_env(
     "AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS",
     64000,
 )
@@ -64,7 +53,7 @@ AGENT_REASONING_EFFORT: str | None = (
 # M3.1-Flash 是 1/10，后者每多带一段上下文的成本明显更高。
 
 # 每次请求组装的项目上下文（焦点文件 / 附加文件 / 角色 / 设定 / 文件清单）token 预算
-AGENT_CONTEXT_TOKEN_BUDGET = _get_int_env(
+AGENT_CONTEXT_TOKEN_BUDGET = get_int_env(
     "AGENT_CONTEXT_TOKEN_BUDGET",
     32000,
 )
@@ -78,17 +67,17 @@ AGENT_CONTEXT_TOKEN_BUDGET = _get_int_env(
 # Total provider calls per request (SDK turns across all agent runs plus the
 # history-compaction summary calls before the first run): two full per-agent
 # runs, enough for a long multi-chapter turn with review rounds.
-AGENT_RUN_MAX_MODEL_CALLS = _get_int_env("AGENT_RUN_MAX_MODEL_CALLS", 120)
+AGENT_RUN_MAX_MODEL_CALLS = get_int_env("AGENT_RUN_MAX_MODEL_CALLS", 120)
 
 # Wall-clock budget for the whole streaming request, in seconds. Railway closes a
 # public HTTP connection after 15 minutes even while bytes (heartbeats) flow, so
 # the run must end well before that: the remaining margin covers cancelling the
 # producer, the timeout frame, refund settlement and the trailing quota frame.
 RAILWAY_HTTP_CONNECTION_LIMIT_S = 900
-AGENT_RUN_WALL_CLOCK_TIMEOUT_S = _get_int_env("AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 780)
+AGENT_RUN_WALL_CLOCK_TIMEOUT_S = get_int_env("AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 780)
 # From here on the agent is told to wrap up and the workflow starts no new agent runs,
 # so a long request ends with a phase summary instead of being cut at the deadline.
-AGENT_RUN_WRAP_UP_AFTER_S = _get_int_env(
+AGENT_RUN_WRAP_UP_AFTER_S = get_int_env(
     "AGENT_RUN_WRAP_UP_AFTER_S", max(60, AGENT_RUN_WALL_CLOCK_TIMEOUT_S - 180)
 )
 
@@ -97,34 +86,34 @@ AGENT_RUN_WRAP_UP_AFTER_S = _get_int_env(
 # drainingSeconds (300 s). Generations still running this long after SIGTERM end
 # with a "server restarting" terminal frame, leaving time for partial-history
 # saving, billing settlement and the round outcome before the hard stop.
-AGENT_DRAIN_STOP_AFTER_S = _get_int_env("AGENT_DRAIN_STOP_AFTER_S", 240)
+AGENT_DRAIN_STOP_AFTER_S = get_int_env("AGENT_DRAIN_STOP_AFTER_S", 240)
 # Seconds after SIGTERM by which shutdown cleanup must be done (Railway kills at 300).
-AGENT_DRAIN_SHUTDOWN_BUDGET_S = _get_int_env("AGENT_DRAIN_SHUTDOWN_BUDGET_S", 290)
+AGENT_DRAIN_SHUTDOWN_BUDGET_S = get_int_env("AGENT_DRAIN_SHUTDOWN_BUDGET_S", 290)
 
 # Interval between SSE keep-alive comment frames (": ping") while streaming.
-AGENT_SSE_HEARTBEAT_INTERVAL_S = _get_int_env("AGENT_SSE_HEARTBEAT_INTERVAL_S", 15)
+AGENT_SSE_HEARTBEAT_INTERVAL_S = get_int_env("AGENT_SSE_HEARTBEAT_INTERVAL_S", 15)
 
 # Loop history compaction (agent/loop/compaction.py), between turns only. When the prompt of
 # the last model call of the previous turn (measured, cached tokens included) exceeds this,
 # the next turn first writes a handoff summary with the same model; the history loader then
 # replays recent author messages + the summary instead of everything before it.
-AGENT_LOOP_COMPACT_AT_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_AT_TOKENS", 300_000)
+AGENT_LOOP_COMPACT_AT_TOKENS = get_int_env("AGENT_LOOP_COMPACT_AT_TOKENS", 300_000)
 # Token budget for the most recent original author messages kept verbatim after compaction.
-AGENT_LOOP_COMPACT_KEEP_USER_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_KEEP_USER_TOKENS", 20_000)
+AGENT_LOOP_COMPACT_KEEP_USER_TOKENS = get_int_env("AGENT_LOOP_COMPACT_KEEP_USER_TOKENS", 20_000)
 # Output cap of the summary call (reasoning tokens count against it).
-AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS", 24_000)
+AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS = get_int_env("AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS", 24_000)
 # Upper bound of the history sent to the summary call: older rows are left out beyond it,
 # leaving safe headroom below the 1M provider context window for system prompt, tool schemas,
 # max_tokens, and tokenizer variance.
-AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS", 700_000)
+AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS = get_int_env("AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS", 700_000)
 # After a skipped compaction (unusable summary or provider error), wait until the measured
 # prompt has grown by this much before trying again.
-AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS = _get_int_env("AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS", 100_000)
+AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS = get_int_env("AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS", 100_000)
 # Hard bound on the replayed history of a loop run (provider tokens): when compaction keeps
 # failing, the oldest items are left out so the session degrades instead of exceeding the
 # provider's 1M context window mid-turn.
-AGENT_LOOP_RUN_HISTORY_MAX_TOKENS = _get_int_env("AGENT_LOOP_RUN_HISTORY_MAX_TOKENS", 750_000)
+AGENT_LOOP_RUN_HISTORY_MAX_TOKENS = get_int_env("AGENT_LOOP_RUN_HISTORY_MAX_TOKENS", 750_000)
 # Single-turn <turn_context> bound (provider tokens, ~185k Chinese chars): keeps ordinary
 # multi-chapter attachments verbatim while preventing 500k-char uploaded drafts from blowing
 # past the 1M provider window on turn 1.
-AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS = _get_int_env("AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS", 120_000)
+AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS = get_int_env("AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS", 120_000)

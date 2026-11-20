@@ -42,7 +42,7 @@ def test_auth_import_does_not_load_vector_stack():
     result = _run_isolated_import(
         """
 import sys
-import services.auth
+import services.core.auth_service
 
 unexpected = [
     name

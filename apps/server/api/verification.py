@@ -4,19 +4,6 @@ import logging
 
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, EmailStr
-from services.auth import (
-    access_token_claims,
-    create_access_token,
-    create_refresh_token,
-    generate_token_jti,
-    get_refresh_token_expires_at,
-)
-from services.verification_service import (
-    get_code_ttl,
-    get_remaining_cooldown,
-    send_verification_code,
-    verify_code,
-)
 from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
@@ -26,9 +13,22 @@ from core.i18n import get_accept_language
 from core.messages import get_message
 from database import get_session
 from models import RefreshTokenRecord, User
+from services.core.auth_service import (
+    access_token_claims,
+    create_access_token,
+    create_refresh_token,
+    generate_token_jti,
+    get_refresh_token_expires_at,
+)
 from services.core.registration_email_policy import ensure_registration_email_allowed
 from services.features.referral_service import complete_pending_referral_for_invitee
 from services.features.user_preference_service import get_ui_language
+from services.features.verification_service import (
+    get_code_ttl,
+    get_remaining_cooldown,
+    send_verification_code,
+    verify_code,
+)
 from services.infra.email_client import InvalidRecipientError
 from utils.email_identity import email_identity_matches, normalize_email_identity
 from utils.logger import get_logger, log_with_context

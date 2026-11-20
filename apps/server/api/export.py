@@ -7,14 +7,14 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
-from services.auth import get_current_active_user
-from services.export_service import export_drafts_to_txt
 from sqlmodel import Session
 
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from models import Project, User
+from services.core.auth_service import get_current_active_user
+from services.features.export_service import export_drafts_to_txt
 from services.quota_service import quota_service
 from services.subscription.defaults import SUPPORTED_EXPORT_FORMATS, normalize_export_formats
 from utils.logger import get_logger, log_with_context

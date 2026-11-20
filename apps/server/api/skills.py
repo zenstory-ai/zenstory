@@ -22,7 +22,6 @@ from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import Response
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, BeforeValidator, Field
-from services.auth import get_current_active_user
 from sqlalchemy import case, delete, update
 from sqlmodel import Session, col, select
 
@@ -44,6 +43,7 @@ from core.permissions import require_custom_skill_slot
 from database import get_session
 from models import PublicSkill, User, UserAddedSkill, UserSkill
 from services import skill_package_service
+from services.core.auth_service import get_current_active_user
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)

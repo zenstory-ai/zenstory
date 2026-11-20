@@ -14,7 +14,6 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from services.auth import get_current_active_user
 from sqlalchemy import case, delete, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, and_, col, func, select
@@ -25,6 +24,7 @@ from core.error_handler import APIException
 from core.i18n import get_accept_language
 from database import get_session
 from models import PublicSkill, User, UserAddedSkill
+from services.core.auth_service import get_current_active_user
 from services.skill_package_service import instructions_hidden_from_users
 from utils.logger import get_logger, log_with_context
 

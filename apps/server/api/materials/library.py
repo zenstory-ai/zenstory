@@ -14,7 +14,6 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import Response
-from services.auth import get_current_active_user
 from sqlalchemy import select as sa_select
 from sqlmodel import Session, col, func, select
 
@@ -35,6 +34,7 @@ from models.material_models import (
     StoryLine,
     WorldView,
 )
+from services.core.auth_service import get_current_active_user
 from services.material.export_service import (
     build_material_export_filename,
     export_material_breakdown_to_txt,

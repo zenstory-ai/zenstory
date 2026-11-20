@@ -252,3 +252,32 @@ def sanitize_query_params(items: Iterable[tuple[str, str]]) -> str:
         else:
             sanitized.append((key, mask_email(value)))
     return urlencode(sanitized, safe="[]*@")
+
+
+def _is_empty_assistant_message(message: object) -> bool:
+    """True for an assistant message carrying no content, tool_calls, or other payload.
+
+    The openai-agents Chat Completions converter (0.17.x) can emit a spurious empty
+    assistant message between a ``tool_calls`` assistant message and its ``tool`` results
+    when the model returns a tool-call turn with empty text. DeepSeek then rejects the
+    request with HTTP 400 ("an assistant message with 'tool_calls' must be followed by
+    tool messages responding to each 'tool_call_id'"). Such empty assistant messages are
+    pure no-ops, so dropping them keeps the tool-call/tool-result sequence well-formed.
+    """
+    if not isinstance(message, dict) or message.get("role") != "assistant":
+        return False
+    if message.get("tool_calls") or message.get("function_call") or message.get("refusal"):
+        return False
+    content = message.get("content")
+    if isinstance(content, str):
+        return not content.strip()
+    return not content  # None or empty list/sequence
+
+
+def sanitize_chat_messages(messages: object) -> object:
+    """Drop empty assistant no-op messages that providers reject."""
+    if not isinstance(messages, list):
+        return messages
+    if not any(_is_empty_assistant_message(m) for m in messages):
+        return messages
+    return [m for m in messages if not _is_empty_assistant_message(m)]
