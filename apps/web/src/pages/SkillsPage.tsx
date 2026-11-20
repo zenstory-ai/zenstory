@@ -19,7 +19,7 @@ import { Button } from "../components/ui/Button";
 import { IconButton } from "../components/ui/IconButton";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { UpgradePromptModal } from "../components/subscription/UpgradePromptModal";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
+import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { logger } from "../lib/logger";
 import { toast } from "../lib/toast";
 
@@ -811,32 +811,14 @@ export default function SkillsPage() {
       <UpgradePromptModal
         open={showSkillCreateUpgradeModal}
         onClose={() => setShowSkillCreateUpgradeModal(false)}
-        source={skillCreateUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
+        promptId="skill_create_quota_blocked"
         title={t("skills:quota.createTitle", { defaultValue: "自定义技能数量已达上限" })}
         description={t("skills:quota.createDescription", {
           defaultValue: "删掉不用的技能就能腾出名额，或开通 Pro 建更多技能。",
         })}
         paidDescription={t("skills:quota.createPaidDescription", { defaultValue: "删掉不用的技能就能腾出名额。" })}
         primaryLabel={t("skills:quota.upgradePrimary", { defaultValue: "开通 Pro" })}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(
-              skillCreateUpgradePrompt.billingPath,
-              skillCreateUpgradePrompt.source
-            )
-          );
-        }}
         secondaryLabel={t("skills:quota.upgradeSecondary", { defaultValue: "查看套餐对比" })}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(
-              skillCreateUpgradePrompt.pricingPath,
-              skillCreateUpgradePrompt.source
-            )
-          );
-        }}
       />
     </div>
   );

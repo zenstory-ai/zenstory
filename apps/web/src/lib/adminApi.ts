@@ -16,11 +16,8 @@
 
 import {
   api,
-  apiErrorFromPayload,
-  getAccessToken,
-  getApiBase,
-  resolveOwnedAuthSession,
-  tryRefreshToken,
+  authenticatedFetch,
+  readApiError,
 } from "./apiClient";
 import type {
   AcquisitionStats,
@@ -667,43 +664,14 @@ async function updateFeedbackStatus(
 }
 
 async function getFeedbackScreenshotBlob(feedbackId: string): Promise<Blob> {
-  const entryAccess = getAccessToken();
-  const entryRefresh = localStorage.getItem("refresh_token");
-  const endpoint = `${ADMIN_BASE}/feedback/${feedbackId}/screenshot`;
-  const language = localStorage.getItem("zenstory-language") || "zh";
-
-  const fetchOnce = async (accessToken: string | null): Promise<Response> => {
-    return fetch(`${getApiBase()}${endpoint}`, {
-      method: "GET",
-      headers: {
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        "Accept-Language": language,
-      },
-    });
-  };
-
-  let response = await fetchOnce(entryAccess);
-  if (response.status === 401 && entryAccess && entryRefresh) {
-    let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
-    if (ownedSession?.accessToken && ownedSession.refreshToken) {
-      if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-        const refreshed = await tryRefreshToken();
-        ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-      }
-      if (ownedSession?.accessToken && ownedSession.refreshToken) {
-        response = await fetchOnce(ownedSession.accessToken);
-      }
-    }
-  }
+  const response = await authenticatedFetch(
+    `${ADMIN_BASE}/feedback/${feedbackId}/screenshot`,
+    { method: "GET" },
+    { includeLanguage: true },
+  );
 
   if (!response.ok) {
-    let errorData: unknown;
-    try {
-      errorData = await response.json();
-    } catch {
-      errorData = undefined;
-    }
-    throw apiErrorFromPayload(response.status, errorData);
+    throw await readApiError(response);
   }
 
   return response.blob();

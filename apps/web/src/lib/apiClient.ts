@@ -527,6 +527,145 @@ export function apiErrorFromPayload(status: number, errorData: unknown): ApiErro
 }
 
 /**
+ * Parse a failed HTTP response body (when valid JSON) into a structured ApiError.
+ */
+export async function readApiError(response: Response): Promise<ApiError> {
+  let errorData: unknown = null;
+  try {
+    errorData = await response.json();
+  } catch {
+    // Non-JSON gateway or proxy error body; fall back to status-based ApiError
+  }
+  return apiErrorFromPayload(response.status, errorData);
+}
+
+export interface AuthenticatedFetchOptions {
+  /**
+   * Inject `Accept-Language` from `localStorage.getItem('zenstory-language') || 'zh'`
+   * unless already provided by the caller's headers.
+   */
+  includeLanguage?: boolean;
+  /**
+   * Clear auth storage when a 401 cannot be recovered because entry tokens are missing
+   * or the post-refresh retry still returns 401 while the caller owns the session.
+   */
+  clearOnUnrecoverable401?: boolean;
+  /**
+   * If set and a 401 cannot be recovered via token refresh while the caller still owns
+   * the session, clear auth storage with this reason (e.g. `'agent_auth_failed'`).
+   */
+  clearOnRefreshFailureReason?: string;
+  /**
+   * Observer invoked on each HTTP response (attempt 0 = initial, attempt 1 = post-refresh retry).
+   */
+  onResponse?: (response: Response, attempt: number) => void;
+}
+
+/**
+ * Execute an authenticated `fetch` against the API base URL with single-flight,
+ * session-owned 401 token refresh and one retry.
+ *
+ * Preserves multi-tab `resolveOwnedAuthSession` lineage so a late 401 from an
+ * obsolete session can never refresh, replay under, or clear a replacement session.
+ */
+export async function authenticatedFetch(
+  endpoint: string,
+  init: RequestInit = {},
+  options: AuthenticatedFetchOptions = {},
+): Promise<Response> {
+  const entryAccess = getAccessToken();
+  const entryRefresh = localStorage.getItem('refresh_token');
+
+  const baseHeaders: Record<string, string> = {};
+  if (options.includeLanguage) {
+    baseHeaders['Accept-Language'] = localStorage.getItem('zenstory-language') || 'zh';
+  }
+  if (init.headers) {
+    if (init.headers instanceof Headers) {
+      init.headers.forEach((value, key) => {
+        baseHeaders[key] = value;
+      });
+    } else if (Array.isArray(init.headers)) {
+      for (const [key, value] of init.headers) {
+        baseHeaders[key] = value;
+      }
+    } else {
+      Object.assign(baseHeaders, init.headers);
+    }
+  }
+
+  const fetchOnce = async (accessToken: string | null): Promise<Response> => {
+    const headers: Record<string, string> = {
+      ...baseHeaders,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    };
+    return fetch(`${getApiBase()}${endpoint}`, {
+      ...init,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+    });
+  };
+
+  let response = await fetchOnce(entryAccess);
+  options.onResponse?.(response, 0);
+
+  if (response.status === 401) {
+    const currentAccessToken = localStorage.getItem('access_token');
+    const currentRefreshToken = localStorage.getItem('refresh_token');
+    const stillOwnsRequestSession =
+      currentAccessToken === entryAccess &&
+      currentRefreshToken === entryRefresh;
+    const initialOwnedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
+
+    if (!stillOwnsRequestSession && !initialOwnedSession) {
+      return response;
+    }
+
+    if (!entryAccess || !entryRefresh) {
+      if (options.clearOnUnrecoverable401 && stillOwnsRequestSession) {
+        clearAuthStorage('missing_token');
+      } else if (options.clearOnRefreshFailureReason && initialOwnedSession) {
+        clearAuthStorage(options.clearOnRefreshFailureReason);
+      }
+      return response;
+    }
+
+    let ownedSession = initialOwnedSession;
+    if (ownedSession?.accessToken && ownedSession.refreshToken) {
+      if (
+        ownedSession.accessToken === entryAccess &&
+        ownedSession.refreshToken === entryRefresh
+      ) {
+        const refreshed = await tryRefreshToken();
+        ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+      }
+      if (ownedSession?.accessToken && ownedSession.refreshToken) {
+        const { accessToken: retryAccess, refreshToken: retryRefresh } = ownedSession;
+        response = await fetchOnce(retryAccess);
+        options.onResponse?.(response, 1);
+        if (
+          response.status === 401 &&
+          options.clearOnUnrecoverable401 &&
+          localStorage.getItem('access_token') === retryAccess &&
+          localStorage.getItem('refresh_token') === retryRefresh
+        ) {
+          clearAuthStorage('retry_still_unauthorized');
+        }
+        return response;
+      }
+    }
+
+    if (
+      options.clearOnRefreshFailureReason &&
+      resolveOwnedAuthSession(entryAccess, entryRefresh)
+    ) {
+      clearAuthStorage(options.clearOnRefreshFailureReason);
+    }
+  }
+
+  return response;
+}
+
+/**
  * Make an authenticated API call with automatic token handling.
  *
  * This is the core HTTP client function that:
@@ -559,83 +698,27 @@ export async function apiCall<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const accessToken = localStorage.getItem('access_token');
-  const refreshTokenAtRequest = localStorage.getItem('refresh_token');
-
-  // Get current language from i18n
-  const language = localStorage.getItem('zenstory-language') || 'zh';
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept-Language': language,
-    ...(options.headers as Record<string, string>),
-  };
-
-  // Add Authorization header if token exists
-  if (accessToken) {
-    headers['Authorization'] = `Bearer ${accessToken}`;
-  }
-
-  let response = await fetch(`${getApiBase()}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  // Handle 401 Unauthorized - try to refresh token
-  if (response.status === 401) {
-    const currentAccessToken = localStorage.getItem('access_token');
-    const currentRefreshToken = localStorage.getItem('refresh_token');
-    const stillOwnsRequestSession = (
-      currentAccessToken === accessToken &&
-      currentRefreshToken === refreshTokenAtRequest
-    );
-    const belongsToRotatedSession = resolveOwnedAuthSession(accessToken, refreshTokenAtRequest) !== null;
-    if (!stillOwnsRequestSession && !belongsToRotatedSession) {
-      throw new ApiError(401, 'Not authenticated');
-    }
-
-    if (!accessToken || !refreshTokenAtRequest) {
-      if (stillOwnsRequestSession) clearAuthStorage('missing_token');
-      throw new ApiError(401, 'Not authenticated');
-    }
-
-    if (stillOwnsRequestSession) {
-      if (!await tryRefreshToken()) {
-        throw new ApiError(401, 'Not authenticated');
-      }
-    }
-
-    const ownedSession = resolveOwnedAuthSession(accessToken, refreshTokenAtRequest);
-    const newAccessToken = ownedSession?.accessToken;
-    const newRefreshToken = ownedSession?.refreshToken;
-    if (!newAccessToken || !newRefreshToken) {
-      throw new ApiError(401, 'Not authenticated');
-    }
-    headers['Authorization'] = `Bearer ${newAccessToken}`;
-    response = await fetch(`${getApiBase()}${endpoint}`, {
+  const response = await authenticatedFetch(
+    endpoint,
+    {
       ...options,
-      headers,
-    });
-    if (response.status === 401) {
-      if (
-        localStorage.getItem('access_token') === newAccessToken &&
-        localStorage.getItem('refresh_token') === newRefreshToken
-      ) {
-        clearAuthStorage('retry_still_unauthorized');
-      }
-      throw new ApiError(401, 'Not authenticated');
-    }
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string>),
+      },
+    },
+    {
+      includeLanguage: true,
+      clearOnUnrecoverable401: true,
+    },
+  );
+
+  if (response.status === 401) {
+    throw new ApiError(401, 'Not authenticated');
   }
 
-  // Handle other errors
   if (!response.ok) {
-    let errorData: unknown = null;
-    try {
-      errorData = await response.json();
-    } catch {
-      // Could not parse error response
-    }
-    throw apiErrorFromPayload(response.status, errorData);
+    throw await readApiError(response);
   }
 
   return response.json();

@@ -29,7 +29,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { logger } from "../lib/logger";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { useIsMobile } from "../hooks/useMediaQuery";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
+import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 
 const VERSION_PAGE_SIZE = 50;
 
@@ -613,26 +613,14 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       <UpgradePromptModal
         open={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
-        source={fileVersionUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
+        promptId="file_version_quota_blocked"
         title={t("quota.limitTitle")}
         description={t("quota.limitDescription")}
         paidDescription={t("quota.paidLimitDescription", {
           defaultValue: "正文照常保存，只是这个文件不再生成新版本。",
         })}
         primaryLabel={t("quota.upgradePrimary")}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(fileVersionUpgradePrompt.billingPath, fileVersionUpgradePrompt.source)
-          );
-        }}
         secondaryLabel={t("quota.upgradeSecondary")}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(fileVersionUpgradePrompt.pricingPath, fileVersionUpgradePrompt.source)
-          );
-        }}
       />
     </>
   );

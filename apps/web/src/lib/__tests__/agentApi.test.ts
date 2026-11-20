@@ -17,14 +17,13 @@ import enErrors from '../../../public/locales/en/errors.json'
 import zhErrors from '../../../public/locales/zh/errors.json'
 
 // Mock dependencies
-vi.mock('../apiClient', async importOriginal => ({
-  resolveOwnedAuthSession: (await importOriginal<typeof import('../apiClient')>()).resolveOwnedAuthSession,
-  tryRefreshToken: vi.fn(),
-  getAccessToken: vi.fn(() => 'test-access-token'),
-  clearAuthStorage: vi.fn(),
-  getApiBase: vi.fn(() => 'http://localhost:8000'),
-  api: { post: vi.fn() },
-}))
+vi.mock('../apiClient', async importOriginal => {
+  const actual = await importOriginal<typeof import('../apiClient')>()
+  return {
+    ...actual,
+    api: { post: vi.fn() },
+  }
+})
 
 vi.mock('../errorHandler', () => ({
   translateError: vi.fn((msg: string) => `Translated: ${msg}`),
@@ -746,22 +745,27 @@ describe('agentApi', () => {
     })
 
     it('handles 401 with token refresh retry', async () => {
-      const { tryRefreshToken, getAccessToken } = await import('../apiClient')
-      const mockTryRefresh = tryRefreshToken as ReturnType<typeof vi.fn>
-      const mockGetToken = getAccessToken as ReturnType<typeof vi.fn>
-
-      mockGetToken.mockReturnValue('old-token')
       localStorage.setItem('access_token', 'old-token')
-      mockTryRefresh.mockResolvedValue(true)
+      localStorage.setItem('refresh_token', 'old-refresh-token')
 
       const mockStream = createMockStream([
         'event: content\ndata: {"text":"Success"}\n\n',
       ])
 
-      let callCount = 0
-      const mockFetch = vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
+      const mockFetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/api/auth/refresh')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              access_token: 'rotated-token',
+              refresh_token: 'rotated-refresh-token',
+              user: { id: 'user-1' },
+            }),
+          })
+        }
+        if (mockFetch.mock.calls.length === 1) {
           return Promise.resolve({
             ok: false,
             status: 401,
@@ -784,21 +788,32 @@ describe('agentApi', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      expect(mockTryRefresh).toHaveBeenCalled()
-      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenCalledTimes(3)
+      expect(String(mockFetch.mock.calls[1]?.[0])).toContain('/api/auth/refresh')
       expect(onContent).toHaveBeenCalledWith('Success', undefined)
     })
 
     it('calls onError when token refresh fails', async () => {
-      const { tryRefreshToken, clearAuthStorage } = await import('../apiClient')
-      const mockTryRefresh = tryRefreshToken as ReturnType<typeof vi.fn>
+      localStorage.setItem('refresh_token', 'failing-stream-refresh-token')
+      const logoutReasons: string[] = []
+      const onLogout = (event: Event) => {
+        logoutReasons.push((event as CustomEvent<{ reason: string }>).detail.reason)
+      }
+      window.addEventListener('auth:logout', onLogout)
 
-      mockTryRefresh.mockResolvedValue(false)
-
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401,
-        json: async () => ({ detail: 'Unauthorized' }),
+      const mockFetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        if (String(input).includes('/api/auth/refresh')) {
+          return Promise.resolve({
+            ok: false,
+            status: 503,
+            json: async () => ({ detail: 'Unavailable' }),
+          })
+        }
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+          json: async () => ({ detail: 'Unauthorized' }),
+        })
       })
       vi.stubGlobal('fetch', mockFetch)
 
@@ -809,8 +824,9 @@ describe('agentApi', () => {
       )
 
       await new Promise(resolve => setTimeout(resolve, 100))
+      window.removeEventListener('auth:logout', onLogout)
 
-      expect(clearAuthStorage).toHaveBeenCalledWith('agent_auth_failed')
+      expect(logoutReasons).toContain('agent_auth_failed')
       expect(onError).toHaveBeenCalledWith(
         'Translated: ERR_AUTH_TOKEN_INVALID',
         'AUTH_ERROR',
@@ -1416,14 +1432,20 @@ describe('agentApi', () => {
     })
 
     it('handles 401 with token refresh', async () => {
-      const { tryRefreshToken } = await import('../apiClient')
-      const mockTryRefresh = tryRefreshToken as ReturnType<typeof vi.fn>
-      mockTryRefresh.mockResolvedValue(true)
-
-      let callCount = 0
-      const mockFetch = vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
+      localStorage.setItem('refresh_token', 'suggest-refresh-token')
+      const mockFetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        if (String(input).includes('/api/auth/refresh')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              access_token: 'rotated-suggest-token',
+              refresh_token: 'rotated-suggest-refresh',
+              user: { id: 'user-1' },
+            }),
+          })
+        }
+        if (mockFetch.mock.calls.length === 1) {
           return Promise.resolve({ ok: false, status: 401 })
         }
         return Promise.resolve({
@@ -1435,8 +1457,8 @@ describe('agentApi', () => {
 
       const result = await fetchSuggestions('test-project')
 
-      expect(mockTryRefresh).toHaveBeenCalled()
-      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenCalledTimes(3)
+      expect(String(mockFetch.mock.calls[1]?.[0])).toContain('/api/auth/refresh')
       expect(result).toEqual(['test'])
     })
 
@@ -1463,57 +1485,22 @@ describe('agentApi', () => {
   })
 
   describe('sendSteeringRequest', () => {
-    it('posts steering message with auth and base URL', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ message_id: 'steer-1', queued: true }),
-      })
-      vi.stubGlobal('fetch', mockFetch)
+    it('delegates to api.post with session_id and message', async () => {
+      vi.mocked(api.post).mockResolvedValue({ message_id: 'steer-1', queued: true })
 
       const result = await sendSteeringRequest('session-1', 'focus chapter 2')
 
       expect(result).toEqual({ message_id: 'steer-1', queued: true })
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/agent/steer',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer test-access-token',
-          }),
-          body: JSON.stringify({
-            session_id: 'session-1',
-            message: 'focus chapter 2',
-          }),
-        })
-      )
+      expect(api.post).toHaveBeenCalledWith('/api/v1/agent/steer', {
+        session_id: 'session-1',
+        message: 'focus chapter 2',
+      })
     })
 
-    it('retries once after 401 when refresh succeeds', async () => {
-      const { tryRefreshToken } = await import('../apiClient')
-      const mockTryRefresh = tryRefreshToken as ReturnType<typeof vi.fn>
-      mockTryRefresh.mockResolvedValue(true)
+    it('propagates errors from api.post', async () => {
+      vi.mocked(api.post).mockRejectedValue(new Error('Not Found'))
 
-      let callCount = 0
-      const mockFetch = vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          return Promise.resolve({ ok: false, status: 401 })
-        }
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: async () => ({ message_id: 'steer-2', queued: true }),
-        })
-      })
-      vi.stubGlobal('fetch', mockFetch)
-
-      const result = await sendSteeringRequest('session-2', 'revise ending')
-
-      expect(result).toEqual({ message_id: 'steer-2', queued: true })
-      expect(mockTryRefresh).toHaveBeenCalledTimes(1)
-      expect(mockFetch).toHaveBeenCalledTimes(2)
+      await expect(sendSteeringRequest('session-2', 'revise ending')).rejects.toThrow('Not Found')
     })
   })
 })

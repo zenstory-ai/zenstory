@@ -10,7 +10,8 @@ vi.mock("../analytics", () => ({
   captureException: captureExceptionMock,
 }));
 
-vi.mock("../apiClient", () => ({
+vi.mock("../apiClient", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../apiClient")>()),
   tryRefreshToken: vi.fn(),
   getAccessToken: vi.fn(() => "test-access-token"),
   clearAuthStorage: vi.fn(),

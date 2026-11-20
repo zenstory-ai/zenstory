@@ -94,7 +94,7 @@ import { appendDraftForProject, useDraftPersistence } from "../hooks/useDraftPer
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ChatQuotaCard } from "./subscription/ChatQuotaCard";
 import { nextAiQuotaResetMs, aiQuotaPeriodKey } from "../hooks/useAiMessageQuota";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
+import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
 import { reportActivationEvent } from "../lib/activationEvents";
 import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
@@ -3095,48 +3095,24 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       <UpgradePromptModal
         open={showQuotaUpgradeModal}
         onClose={() => setShowQuotaUpgradeModal(false)}
-        source={chatQuotaUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
+        promptId="chat_quota_blocked"
         title={isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededTitle') : t('chat:panel.quotaExceededTitle')}
         description={isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededHint') : t('chat:panel.quotaExceededHint')}
         primaryLabel={t('dashboard:billing.ctaUpgradePro')}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(chatQuotaUpgradePrompt.billingPath, chatQuotaUpgradePrompt.source)
-          );
-        }}
         secondaryLabel={t('home:pricingTeaser.viewPricing')}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(chatQuotaUpgradePrompt.pricingPath, chatQuotaUpgradePrompt.source)
-          );
-        }}
       />
 
       <UpgradePromptModal
         open={showFileVersionUpgradeModal}
         onClose={() => setShowFileVersionUpgradeModal(false)}
-        source={fileVersionUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
+        promptId="file_version_quota_blocked"
         title={t('editor:versionHistory.fileVersionLimitTitle')}
         description={t('editor:versionHistory.fileVersionLimitUpgrade')}
         paidDescription={t('editor:versionHistory.fileVersionLimitPaid', {
           defaultValue: '正文照常保存，只是这个文件不再生成新版本。',
         })}
         primaryLabel={t('common:viewUpgrade')}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(fileVersionUpgradePrompt.billingPath, fileVersionUpgradePrompt.source)
-          );
-        }}
         secondaryLabel={t('common:viewPlans')}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(fileVersionUpgradePrompt.pricingPath, fileVersionUpgradePrompt.source)
-          );
-        }}
       />
 
       {/* Undo an AI edit: the copy is the file-level undo message owned by the editor

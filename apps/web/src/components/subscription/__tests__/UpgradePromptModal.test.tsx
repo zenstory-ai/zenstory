@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { UpgradePromptModal } from '../UpgradePromptModal'
 import { subscriptionApi, subscriptionQueryKeys } from '../../../lib/subscriptionApi'
-import { trackUpgradeExpose } from '../../../lib/upgradeAnalytics'
+import { trackUpgradeClick, trackUpgradeExpose } from '../../../lib/upgradeAnalytics'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -86,5 +86,100 @@ describe('UpgradePromptModal', () => {
     expect(screen.getByTestId('upgrade-prompt-pending')).toBeInTheDocument()
     expect(await screen.findByText('开通 Pro')).toBeInTheDocument()
     expect(screen.queryByTestId('upgrade-prompt-pending')).not.toBeInTheDocument()
+  })
+
+  it('resolves promptId into source, tracking destinations, and default billing/pricing navigation', async () => {
+    const assignMock = vi.fn()
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      value: { ...originalLocation, assign: assignMock },
+      writable: true,
+      configurable: true,
+    })
+
+    try {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      client.setQueryData(subscriptionQueryKeys.status(), { tier: 'free' })
+      const onClose = vi.fn()
+
+      render(
+        <QueryClientProvider client={client}>
+          <UpgradePromptModal
+            open
+            onClose={onClose}
+            promptId="project_quota_blocked"
+            title="项目上限"
+            description="升级 Pro"
+            primaryLabel="开通 Pro"
+            secondaryLabel="查看套餐"
+          />
+        </QueryClientProvider>,
+      )
+
+      expect(trackUpgradeExpose).toHaveBeenCalledWith('project_quota_blocked', 'modal', { placement: 'limit-dialog' })
+
+      fireEvent.click(await screen.findByRole('button', { name: '开通 Pro' }))
+      expect(trackUpgradeClick).toHaveBeenCalledWith('project_quota_blocked', 'primary', 'billing', 'modal')
+      expect(assignMock).toHaveBeenCalledWith('/dashboard/billing?source=project_quota_blocked')
+      expect(onClose).toHaveBeenCalledTimes(1)
+
+      fireEvent.click(screen.getByRole('button', { name: '查看套餐' }))
+      expect(trackUpgradeClick).toHaveBeenCalledWith('project_quota_blocked', 'secondary', 'pricing', 'modal')
+      expect(assignMock).toHaveBeenCalledWith('/pricing?source=project_quota_blocked')
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      })
+    }
+  })
+
+  it('lets callers override source and onPrimary while keeping promptId default secondary navigation', async () => {
+    const assignMock = vi.fn()
+    const onPrimary = vi.fn()
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      value: { ...originalLocation, assign: assignMock },
+      writable: true,
+      configurable: true,
+    })
+
+    try {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      client.setQueryData(subscriptionQueryKeys.status(), { tier: 'free' })
+
+      render(
+        <QueryClientProvider client={client}>
+          <UpgradePromptModal
+            open
+            onClose={vi.fn()}
+            promptId="material_upload_quota_blocked"
+            source="custom_materials_source"
+            primaryDestination="redeem"
+            title="素材库"
+            description="兑换码开通"
+            primaryLabel="兑换码开通"
+            onPrimary={onPrimary}
+            secondaryLabel="查看套餐对比"
+          />
+        </QueryClientProvider>,
+      )
+
+      fireEvent.click(await screen.findByRole('button', { name: '兑换码开通' }))
+      expect(trackUpgradeClick).toHaveBeenCalledWith('custom_materials_source', 'primary', 'redeem', 'modal')
+      expect(onPrimary).toHaveBeenCalledTimes(1)
+      expect(assignMock).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: '查看套餐对比' }))
+      expect(trackUpgradeClick).toHaveBeenCalledWith('custom_materials_source', 'secondary', 'pricing', 'modal')
+      expect(assignMock).toHaveBeenCalledWith('/pricing?source=custom_materials_source')
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      })
+    }
   })
 })

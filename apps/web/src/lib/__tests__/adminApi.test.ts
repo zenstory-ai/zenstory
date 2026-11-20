@@ -5,9 +5,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const mockApiCall = vi.fn()
-const mockGetAccessToken = vi.fn()
-const mockGetApiBase = vi.fn()
-const mockTryRefreshToken = vi.fn()
 const fetchMock = vi.fn()
 
 const mockApi = {
@@ -24,13 +21,6 @@ vi.mock('../apiClient', async (importOriginal) => {
     ...actual,
     api: mockApi,
     apiCall: mockApiCall,
-    getAccessToken: mockGetAccessToken,
-    getApiBase: mockGetApiBase,
-    resolveOwnedAuthSession: () => ({
-      accessToken: mockGetAccessToken(),
-      refreshToken: localStorage.getItem('refresh_token'),
-    }),
-    tryRefreshToken: mockTryRefreshToken,
   }
 })
 
@@ -38,9 +28,6 @@ describe('adminApi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', fetchMock)
-    mockGetAccessToken.mockReturnValue('mock-access-token')
-    mockGetApiBase.mockReturnValue('https://api.example.com')
-    mockTryRefreshToken.mockResolvedValue(false)
     localStorage.clear()
     localStorage.setItem('access_token', 'mock-access-token')
     localStorage.setItem('refresh_token', 'mock-refresh-token')
@@ -396,6 +383,7 @@ describe('adminApi', () => {
 
     it('downloads feedback screenshot blob with auth and locale headers', async () => {
       const { adminApi } = await import('../adminApi')
+      const { getApiBase } = await import('../apiClient')
       localStorage.setItem('zenstory-language', 'en')
 
       const screenshotBlob = new Blob(['binary-image'], { type: 'image/png' })
@@ -408,7 +396,7 @@ describe('adminApi', () => {
       const result = await adminApi.getFeedbackScreenshotBlob('fb-1')
 
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example.com/api/admin/feedback/fb-1/screenshot',
+        `${getApiBase()}/api/admin/feedback/fb-1/screenshot`,
         {
           method: 'GET',
           headers: {
@@ -424,12 +412,6 @@ describe('adminApi', () => {
       const { adminApi } = await import('../adminApi')
       const screenshotBlob = new Blob(['retry-image'], { type: 'image/png' })
 
-      mockTryRefreshToken.mockImplementation(async () => {
-        mockGetAccessToken.mockReturnValue('rotated-access-token')
-        localStorage.setItem('access_token', 'rotated-access-token')
-        localStorage.setItem('refresh_token', 'rotated-refresh-token')
-        return true
-      })
       fetchMock
         .mockResolvedValueOnce({
           ok: false,
@@ -439,13 +421,25 @@ describe('adminApi', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
+          json: vi.fn().mockResolvedValue({
+            access_token: 'rotated-access-token',
+            refresh_token: 'rotated-refresh-token',
+            user: { id: 'admin-1' },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
           blob: vi.fn().mockResolvedValue(screenshotBlob),
         })
 
       const result = await adminApi.getFeedbackScreenshotBlob('fb-2')
 
-      expect(mockTryRefreshToken).toHaveBeenCalledTimes(1)
-      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(fetchMock.mock.calls[1]?.[0]).toContain('/api/auth/refresh')
+      expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({
+        headers: expect.objectContaining({ Authorization: 'Bearer rotated-access-token' }),
+      })
       expect(result).toBe(screenshotBlob)
     })
 
