@@ -39,7 +39,9 @@ __all__ = [
     "FileRestoreNotFoundError",
     "MAX_FILE_ORDER",
     "ParentNotFoundError",
+    "apply_file_title_and_order",
     "begin_file_creation_savepoint",
+    "has_sibling_title_conflict",
     "is_descendant_of",
     "load_file_for_write",
     "load_live_subtree_postorder",
@@ -256,6 +258,37 @@ def resolve_new_file_order(
     ).one()
     resolved_order = validate_persisted_file_order(0 if max_order is None else int(max_order) + 1)
     return resolved_order
+
+
+def has_sibling_title_conflict(
+    session: Session,
+    *,
+    project_id: str,
+    parent_id: str | None,
+    title: str,
+    exclude_file_id: str | None = None,
+) -> bool:
+    """检查同一目录下是否存在同名的未删除兄弟文件。"""
+    query = select(File.id).where(
+        File.project_id == project_id,
+        File.parent_id == parent_id,
+        File.title == title,
+        File.is_deleted.is_(False),
+    )
+    if exclude_file_id is not None:
+        query = query.where(File.id != exclude_file_id)
+    return session.exec(query).first() is not None
+
+
+def apply_file_title_and_order(file: File, new_title: str) -> None:
+    """更新文件标题并按既有规则同步序号排序。"""
+    file.title = new_title
+    file.order = resolve_persisted_sequence_order(
+        file.order,
+        title=new_title,
+        metadata=file.get_metadata(),
+        file_type=file.file_type,
+    )
 
 
 class FileRestoreNotFoundError(LookupError):

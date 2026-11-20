@@ -27,6 +27,7 @@ from models.file_version import (
 )
 from services.features.activation_event_service import activation_event_service
 from services.features.file_version_service import BEFORE_AI_EDIT_SUMMARY, content_sha256
+from services.file_tree_rules import apply_file_title_and_order, has_sibling_title_conflict
 from utils.cjk_quotes import (
     QUOTE_STYLE_CURLY,
     detect_quote_style,
@@ -1017,15 +1018,7 @@ class FileEditor:
             raise PreWriteHistoryUnavailableError(file_id, action=tool)
 
         if new_title is not None and new_title != file.title:
-            from utils.title_sequence import resolve_persisted_sequence_order
-
-            file.title = new_title
-            file.order = resolve_persisted_sequence_order(
-                file.order,
-                title=new_title,
-                metadata=file.get_metadata(),
-                file_type=file.file_type,
-            )
+            apply_file_title_and_order(file, new_title)
         file.content = content
         file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
         # Commit releases the PostgreSQL lock; a subsequent refresh may
@@ -1127,18 +1120,14 @@ class FileEditor:
         old_content = file.content or ""
         previous_title = file.title or ""
         prospective_title = title if title is not None else previous_title
-        if prospective_title != previous_title:
-            clash = self.session.exec(
-                select(File.id).where(
-                    File.project_id == file.project_id,
-                    File.parent_id == file.parent_id,
-                    File.title == prospective_title,
-                    File.is_deleted.is_(False),
-                    File.id != file.id,
-                )
-            ).first()
-            if clash is not None:
-                prospective_title = previous_title
+        if prospective_title != previous_title and has_sibling_title_conflict(
+            self.session,
+            project_id=file.project_id,
+            parent_id=file.parent_id,
+            title=prospective_title,
+            exclude_file_id=file.id,
+        ):
+            prospective_title = previous_title
         title_changed = prospective_title != previous_title
         if normalize_quotes and content and file.file_type in NORMALIZED_QUOTE_FILE_TYPES:
             from utils.cjk_quotes import normalize_double_quotes
@@ -1173,15 +1162,7 @@ class FileEditor:
             if title_changed and previous_title and undo is not None:
                 undo["before_title"] = previous_title
         elif title_changed:
-            from utils.title_sequence import resolve_persisted_sequence_order
-
-            file.title = prospective_title
-            file.order = resolve_persisted_sequence_order(
-                file.order,
-                title=prospective_title,
-                metadata=file.get_metadata(),
-                file_type=file.file_type,
-            )
+            apply_file_title_and_order(file, prospective_title)
             file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
             with written_snapshot_for_commit(file.id, content, full=True):
                 self.session.commit()

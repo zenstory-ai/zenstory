@@ -308,3 +308,44 @@ def extract_chapter_like_sequence_number(title: str | None) -> int | None:
         return parsed if parsed > 0 else None
 
     return None
+
+
+def split_prefixed_chapter_title(raw_title: str, unit: str) -> tuple[str, int, str] | None:
+    """识别导入拆章形如「{书名} - 第N章 …」的标题：返回 (书名前缀, 章/集号, 章号所在半段 heading)，不匹配返回 None。"""
+    text = raw_title.replace("\x00", "").strip()
+    if " - " not in text:
+        return None
+    parts = text.split(" - ")
+    for idx in range(1, len(parts)):
+        prefix = " - ".join(parts[:idx]).strip()
+        heading = " - ".join(parts[idx:]).strip()
+        if not prefix or not heading:
+            continue
+        seq = extract_sequence_number(heading, unit=unit)
+        if seq is not None:
+            return prefix, seq, heading
+    return None
+
+
+def prefixed_chapter_heading(raw_title: str, unit: str) -> tuple[int, str] | None:
+    """识别导入拆章形如「{书名} - 第N章 …」的标题：返回 (标题里的章/集号, 章号所在半段 heading)，不匹配返回 None。"""
+    parsed = split_prefixed_chapter_title(raw_title, unit)
+    return (parsed[1], parsed[2]) if parsed is not None else None
+
+
+def chapter_title_has_subtitle(raw_title: str, unit: str) -> bool:
+    """判断传入的章节标题是否带有章名（而非仅传入空串或「第N章 / Chapter N」这类裸编号）。"""
+    text = raw_title.replace("\x00", "").strip()
+    if not text:
+        return False
+    prefixed = prefixed_chapter_heading(text, unit)
+    if prefixed is not None:
+        text = prefixed[1]
+    if extract_sequence_number(text, unit=unit) is None:
+        return True
+    for pattern in (_RE_CN_SEQ, _RE_ARABIC_SEQ, _RE_EN_CHAPTER):
+        match = pattern.match(text)
+        if match:
+            remainder = text[match.end() :].lstrip(" \t\u3000:：·—-–")
+            return bool(remainder)
+    return True

@@ -963,7 +963,7 @@ async def test_loop_finalizes_the_task_board_on_normal_completion(loop_tool_cont
     seen: list[dict] = []
     state = {"user_message": "写第1章", "messages": [], "system_prompt": "系统"}
     board_event = StreamEvent(type=StreamEventType.TOOL_RESULT, data={"tool_use_id": "workflow_auto_completion"})
-    finalize = AsyncMock(return_value=[board_event])
+    finalize = AsyncMock(return_value=([board_event], False))
     with (
         patch(
             "agent.loop.engine.run_openai_agents_streaming_agent",

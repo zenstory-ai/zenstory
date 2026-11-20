@@ -321,7 +321,7 @@ async def test_self_check_hitting_wrap_up_after_saved_body_with_summary_finishes
         type=StreamEventType.TOOL_RESULT,
         data={"tool_use_id": "auto-task", "name": "update_project", "result": {"status": "success"}},
     )
-    finalize = AsyncMock(return_value=[task_event])
+    finalize = AsyncMock(return_value=([task_event], False))
     runner = _saving_runner(
         [[*_create_events(), _BODY, _DONE], [_DONE]],
         [[("ep2", "第2集", "script")]],
@@ -361,7 +361,7 @@ async def test_self_check_hitting_wrap_up_right_after_file_block_emits_saved_not
 
     meter = AgentRunMeter(wrap_up_after_s=0)
     calls: list[str] = []
-    finalize = AsyncMock(return_value=[])
+    finalize = AsyncMock(return_value=([], False))
     runner = _saving_runner(
         [[*_create_events(), _BODY], [_DONE]],
         [[("ep2", title, "script")]],
@@ -404,7 +404,7 @@ async def test_cut_body_hitting_wrap_up_still_emits_wall_clock_pause_card():
     from agent.openai_agents.runner import OUTPUT_CAPPED_KEY
 
     meter = AgentRunMeter(wrap_up_after_s=0)
-    finalize = AsyncMock(return_value=[])
+    finalize = AsyncMock(return_value=([], False))
 
     async def capped_runner(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
         ToolContext.mark_cut_body_saved("ch3", "第3章 灯塔")
@@ -440,7 +440,7 @@ async def test_outline_ending_on_file_block_hitting_wrap_up_still_emits_wall_clo
 
     meter = AgentRunMeter(wrap_up_after_s=0)
     calls: list[str] = []
-    finalize = AsyncMock(return_value=[])
+    finalize = AsyncMock(return_value=([], False))
     runner = _saving_runner(
         [[*_create_events(), _BODY], [_DONE]],
         [[("o1", "分章大纲", "outline")]],
@@ -467,7 +467,7 @@ async def test_non_output_capped_cut_body_hitting_wrap_up_still_emits_wall_clock
     from agent.loop.engine import run_loop_agent_streaming
 
     meter = AgentRunMeter(wrap_up_after_s=0)
-    finalize = AsyncMock(return_value=[])
+    finalize = AsyncMock(return_value=([], False))
 
     async def cut_without_cap_runner(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
         ToolContext.mark_chapter_body_saved("ch1", "第1章 起航", "draft")
@@ -505,8 +505,7 @@ async def test_self_check_run_soft_landing_on_wall_clock_finishes_cleanly_withou
         type=StreamEventType.TOOL_RESULT,
         data={"tool_use_id": "workflow_auto_completion", "name": "update_project", "result": {"status": "success"}},
     )
-    finalize = AsyncMock(return_value=[task_event])
-    has_incomplete = AsyncMock(return_value=False)
+    finalize = AsyncMock(return_value=([task_event], False))
     run_count = 0
 
     async def two_runs(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
@@ -534,7 +533,6 @@ async def test_self_check_run_soft_landing_on_wall_clock_finishes_cleanly_withou
     with (
         patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs),
         patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
-        patch("agent.core.task_board_completion.has_incomplete_task_board_items", has_incomplete),
     ):
         events = [event async for event in run_loop_agent_streaming(_state(user_message="写第4章", run_meter=meter))]
 
@@ -547,15 +545,14 @@ async def test_self_check_run_soft_landing_on_wall_clock_finishes_cleanly_withou
 
 
 async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_task_board_incomplete():
-    """多章任务板仍有未完成章节（has_incomplete_task_board_items=True）时，自查软着陆保留 wall_clock 暂停卡供继续。"""
+    """多章任务板仍有未完成章节（auto_finalize 返回 has_incomplete=True）时，自查软着陆保留 wall_clock 暂停卡供继续。"""
     from unittest.mock import AsyncMock
 
     from agent.loop.engine import run_loop_agent_streaming
     from agent.openai_agents.runner import RUN_DEADLINE_STOP_REASON
 
     meter = AgentRunMeter(wrap_up_after_s=600)
-    finalize = AsyncMock(return_value=[])
-    has_incomplete = AsyncMock(return_value=True)
+    finalize = AsyncMock(return_value=([], True))
     run_count = 0
 
     async def two_runs(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
@@ -580,7 +577,6 @@ async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_task_boa
     with (
         patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs),
         patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
-        patch("agent.core.task_board_completion.has_incomplete_task_board_items", has_incomplete),
     ):
         events = [event async for event in run_loop_agent_streaming(_state(user_message="写第1章和第2章", run_meter=meter))]
 
@@ -626,8 +622,7 @@ async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_new_file
     from agent.openai_agents.runner import OUTPUT_CAPPED_KEY, RUN_DEADLINE_STOP_REASON
 
     meter = AgentRunMeter(wrap_up_after_s=600)
-    finalize = AsyncMock(return_value=[])
-    has_incomplete = AsyncMock(return_value=False)
+    finalize = AsyncMock(return_value=([], False))
     run_count = 0
 
     async def two_runs(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
@@ -660,7 +655,6 @@ async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_new_file
     with (
         patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs),
         patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
-        patch("agent.core.task_board_completion.has_incomplete_task_board_items", has_incomplete),
     ):
         events = [event async for event in run_loop_agent_streaming(_state(user_message="写第1章和第2章", run_meter=meter))]
 

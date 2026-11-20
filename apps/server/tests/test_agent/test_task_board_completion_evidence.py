@@ -456,8 +456,8 @@ async def test_finalize_without_any_write_does_not_read_or_update_the_board():
             ),
             patch("agent.core.task_board_completion.update_project", update),
         ):
-            assert await auto_finalize_task_board_on_completion(RepeatReadGuard()) == []
-            assert await auto_finalize_task_board_on_completion(None) == []
+            assert await auto_finalize_task_board_on_completion(RepeatReadGuard()) == ([], False)
+            assert await auto_finalize_task_board_on_completion(None) == ([], False)
     finally:
         ToolContext.clear_context()
 
@@ -482,7 +482,7 @@ async def test_finalize_records_partial_progress_from_typed_written_artifacts():
             ) as existing,
             patch("agent.core.task_board_completion.update_project", update),
         ):
-            events = await auto_finalize_task_board_on_completion(_guard_with_write())
+            events, has_incomplete = await auto_finalize_task_board_on_completion(_guard_with_write())
     finally:
         ToolContext.clear_context()
 
@@ -496,6 +496,7 @@ async def test_finalize_records_partial_progress_from_typed_written_artifacts():
         written_artifact_ids=["s2"],
     )
     assert events[0].data["input"]["tasks"] == sent
+    assert has_incomplete is True
 
 
 @pytest.mark.asyncio
@@ -911,7 +912,7 @@ async def test_noop_write_leaves_the_task_open():
             ),
             patch("agent.core.task_board_completion.update_project", update),
         ):
-            assert await auto_finalize_task_board_on_completion(guard) == []
+            assert await auto_finalize_task_board_on_completion(guard) == ([], False)
     finally:
         ToolContext.clear_context()
 
@@ -946,3 +947,30 @@ async def test_replaced_chapter_with_a_confirmed_body_save_counts_as_written():
 
     existing.assert_called_once_with(["c2"])
     update.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_finalize_reports_incomplete_when_update_project_mcp_envelope_fails():
+    """update_project 返回 MCP 错误信封时，即使 completion_tasks 已标记 done 也必须回报 has_incomplete=True。"""
+    failed_envelope = {
+        "content": [{"type": "text", "text": json.dumps({"status": "error", "error_type": "plan_rejected"})}],
+        "is_error": True,
+    }
+    update = AsyncMock(return_value=failed_envelope)
+    task = {"task": "写第1章", "status": "in_progress", "artifact": "第1章", "artifact_file_type": "draft"}
+    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    try:
+        with (
+            patch("services.infra.task_board_service.task_board_service.get_tasks", return_value=[task]),
+            patch(
+                "agent.core.task_board_completion._existing_written_artifacts",
+                return_value=[_artifact("c1", "第1章", "draft", {"chapter_number": 1})],
+            ),
+            patch("agent.core.task_board_completion.update_project", update),
+        ):
+            events, has_incomplete = await auto_finalize_task_board_on_completion(_guard_with_write("c1", "第1章"))
+    finally:
+        ToolContext.clear_context()
+
+    assert len(events) == 2
+    assert has_incomplete is True
