@@ -19,7 +19,6 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
-from services.auth import get_current_active_user
 from sqlalchemy import update
 from sqlmodel import Session, select
 from starlette.datastructures import UploadFile as StarletteUploadFile
@@ -37,6 +36,7 @@ from database import get_session
 from middleware.rate_limit import get_client_ip, require_user_rate_limit
 from models import User
 from models.material_models import IngestionJob, Novel
+from services.core.auth_service import get_current_active_user
 from services.infra.upload_storage import (
     LocalUploadStorage,
     S3UploadStorage,

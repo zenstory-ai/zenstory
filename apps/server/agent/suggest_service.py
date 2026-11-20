@@ -8,12 +8,12 @@ context-aware suggestions based on project state and conversation history.
 import asyncio
 import json
 import logging
-import os
 from typing import Any
 
 from sqlalchemy import desc
 from sqlmodel import Session, select
 
+from config.env import get_positive_float_env
 from core.error_handler import APIException
 from database import create_session
 from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST
@@ -40,20 +40,7 @@ CHAT_HISTORY_LIMIT = 5
 MESSAGE_TRUNCATE_LENGTH = 200
 MIN_SUGGESTION_LENGTH = 3
 
-
-def _get_positive_float_env(name: str, default: float) -> float:
-    """Read a positive float env var with safe fallback."""
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        value = float(raw)
-    except ValueError:
-        return default
-    return value if value > 0 else default
-
-
-SUGGEST_LLM_TIMEOUT_S = _get_positive_float_env("SUGGEST_LLM_TIMEOUT_S", 25.0)
+SUGGEST_LLM_TIMEOUT_S = get_positive_float_env("SUGGEST_LLM_TIMEOUT_S", 25.0)
 
 # Fallback suggestions for different languages
 FALLBACK_SUGGESTIONS_ZH = [

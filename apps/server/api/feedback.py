@@ -12,13 +12,13 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Form, UploadFile
 from fastapi import File as FastAPIFile
 from pydantic import BaseModel
-from services.auth import get_current_active_user
 from sqlmodel import Session
 
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from models import User, UserFeedback
+from services.core.auth_service import get_current_active_user
 from services.infra.upload_storage import UploadStorageError, get_upload_storage_or_503
 from utils.logger import get_logger, log_with_context
 

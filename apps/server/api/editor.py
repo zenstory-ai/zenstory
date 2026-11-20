@@ -8,7 +8,6 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field
-from services.auth import get_current_active_user
 from sqlmodel import Session
 
 from core.error_codes import ErrorCode
@@ -16,6 +15,7 @@ from core.error_handler import APIException
 from database import get_session
 from middleware.rate_limit import get_client_ip, require_user_rate_limit
 from models import User
+from services.core.auth_service import get_current_active_user
 from services.features.natural_polish_service import (
     NaturalPolishFailure,
     is_noop_rewrite,

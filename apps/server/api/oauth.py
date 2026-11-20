@@ -11,14 +11,6 @@ from typing import Literal
 import httpx
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
-from services.auth import (
-    access_token_claims,
-    create_access_token,
-    create_refresh_token,
-    generate_token_jti,
-    get_refresh_token_expires_at,
-    unique_username,
-)
 from sqlmodel import Session, select
 
 from api.auth import (
@@ -32,6 +24,14 @@ from database import get_session
 from middleware.rate_limit import get_client_ip
 from models import ACTIVATION_EVENT_SIGNUP_SUCCESS, RefreshTokenRecord, User
 from models.referral import InviteCode
+from services.core.auth_service import (
+    access_token_claims,
+    create_access_token,
+    create_refresh_token,
+    generate_token_jti,
+    get_refresh_token_expires_at,
+    unique_username,
+)
 from services.core.registration_email_policy import is_registration_email_blocked
 from services.features.activation_event_service import activation_event_service
 from services.features.referral_service import create_referral as create_referral_service

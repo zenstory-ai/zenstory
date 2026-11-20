@@ -3,7 +3,6 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel, ConfigDict
-from services.auth import get_current_active_user
 from sqlmodel import Session, select
 
 from core.error_codes import ErrorCode
@@ -16,6 +15,7 @@ from models.referral import (
     InviteCode,
     UserReward,
 )
+from services.core.auth_service import get_current_active_user
 from services.features.referral_service import (
     create_invite_code as create_invite_code_service,
 )
