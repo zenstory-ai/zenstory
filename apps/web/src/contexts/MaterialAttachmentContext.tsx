@@ -23,8 +23,6 @@ export const MAX_ATTACHED_MATERIALS = 5;
 export interface MaterialAttachmentContextType {
   /** List of attached material items */
   attachedMaterials: AttachedMaterial[];
-  /** List of attached material IDs (for sending to backend) */
-  attachedIds: string[];
   /** Project file IDs only (for backward compatibility) */
   attachedFileIds: string[];
   /** Library material references */
@@ -66,9 +64,6 @@ export const MaterialAttachmentProvider: React.FC<{ children: ReactNode }> = ({ 
   useEffect(() => {
     attachedMaterialsRef.current = attachedMaterials;
   }, [attachedMaterials]);
-
-  // Get list of IDs
-  const attachedIds = attachedMaterials.map(m => m.id);
 
   // Project file IDs only (for backward compatibility)
   const attachedFileIds = attachedMaterials.filter(m => !m.librarySource).map(m => m.id);
@@ -120,7 +115,6 @@ export const MaterialAttachmentProvider: React.FC<{ children: ReactNode }> = ({ 
 
   const value: MaterialAttachmentContextType = {
     attachedMaterials,
-    attachedIds,
     attachedFileIds,
     attachedLibraryMaterials,
     addMaterial,

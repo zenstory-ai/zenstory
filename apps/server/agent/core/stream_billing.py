@@ -36,7 +36,6 @@ from core.error_codes import ErrorCode
 
 # 会改动用户文件的工具；是否算「写出了东西」见 StreamBillingTracker._write_effect。
 WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file", "delete_file", "rename_file"})
-_INFLIGHT_TRACKED_WRITE_TOOLS: frozenset[str] = WRITE_TOOL_NAMES | frozenset({"update_project"})
 # 同一段回复正文累计到这么多可见字符才算「真正的回复」：工具调用前的一句过渡旁白
 # （「我先看一遍全书大纲。」「正在查看已有的全书大纲，确认现有设定后再梳理主线。」）
 # 通常 10～30 字，到不了这里。前端 lib/agentRoundProgress.ts 用同一个值。
@@ -158,8 +157,6 @@ class StreamBillingTracker:
     # 一个单词拆开，所以按累计原文重算 prose_units），以及是否已经到达。
     _segment_text: str = field(default="", repr=False)
     _segment_reached: bool = field(default=False, repr=False)
-    # 发出了 tool_call、还没有 tool_result 的写工具调用（tool_use_id）：截停时它们的线程可能仍在提交。
-    _unanswered_write_calls: set[str] = field(default_factory=set, repr=False)
     # 非流式工具（create_file 带正文、edit_file、delete_file、rename_file、write_chapter 替换落库等）已确认的文件写入。
     _confirmed_tool_file_write: bool = field(default=False, repr=False)
     # update_project 改动了可见项目信息（简介、文风、备注、项目名）。
@@ -208,7 +205,6 @@ class StreamBillingTracker:
             if payload.get("code") == ErrorCode.AGENT_FILE_SAVE_FAILED and isinstance(payload.get("file_id"), str):
                 self._mark_file_save_failed(payload["file_id"])
 
-        self._track_write_calls(event_type, payload)
         self._observe_effects(event_type, payload)
         prose = self._prose_reached(event_type, payload)
         if prose and not self.file_body_pending():
@@ -229,21 +225,6 @@ class StreamBillingTracker:
                 self._confirmed_tool_file_write = True
         self._recompute_output_flags()
         return wrote
-
-    def _track_write_calls(self, event_type: str, payload: dict[str, Any]) -> None:
-        if event_type not in ("tool_call", "tool_result") or payload.get("tool_name") not in _INFLIGHT_TRACKED_WRITE_TOOLS:
-            return
-        tool_use_id = payload.get("tool_use_id")
-        if not isinstance(tool_use_id, str) or not tool_use_id:
-            return
-        if event_type == "tool_call":
-            self._unanswered_write_calls.add(tool_use_id)
-        else:
-            self._unanswered_write_calls.discard(tool_use_id)
-
-    def write_tool_unanswered(self) -> bool:
-        """有写工具调用发出了却没有结果帧：截停时它的线程可能还在提交（见 note_committed_tool_results）。"""
-        return bool(self._unanswered_write_calls)
 
     def note_committed_tool_results(self, results: list[dict[str, Any]]) -> None:
         """截停后才在线程里完成的写工具结果（service 等到的结构化结果，帧格式：tool_name / status / data）。

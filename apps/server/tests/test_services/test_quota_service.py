@@ -684,13 +684,13 @@ class TestCheckFeatureQuota:
 
 
 @pytest.mark.unit
-class TestConsumeFeatureQuota:
-    """Tests for consume_feature_quota method."""
+class TestReserveFeatureQuota:
+    """Tests for reserve_feature_quota method."""
 
-    def test_consume_feature_within_limit(
+    def test_reserve_feature_within_limit(
         self, db_session: Session, test_user, pro_plan
     ):
-        """Test consuming feature quota when within limit."""
+        """Test reserving feature quota when within limit."""
         now = datetime.utcnow()
         db_session.add(
             UserSubscription(
@@ -713,20 +713,20 @@ class TestConsumeFeatureQuota:
         db_session.add(quota)
         db_session.commit()
 
-        result = quota_service.consume_feature_quota(
+        result = quota_service.reserve_feature_quota(
             db_session, test_user.id, "material_decompose"
         )
 
-        assert result is True
+        assert result is not None
 
         # Verify increment
         db_session.refresh(quota)
         assert quota.material_decompositions_used == 3
 
-    def test_consume_feature_at_limit(
+    def test_reserve_feature_at_limit(
         self, db_session: Session, test_user, pro_plan
     ):
-        """Test consuming feature quota when at limit."""
+        """Test reserving feature quota when at limit."""
         now = datetime.utcnow()
         db_session.add(
             UserSubscription(
@@ -749,22 +749,22 @@ class TestConsumeFeatureQuota:
         db_session.add(quota)
         db_session.commit()
 
-        result = quota_service.consume_feature_quota(
+        result = quota_service.reserve_feature_quota(
             db_session, test_user.id, "material_decompose"
         )
 
-        assert result is False
+        assert result is None
 
         # Verify no increment
         db_session.refresh(quota)
         assert quota.material_decompositions_used == 5
 
-    def test_consume_feature_invalid_type(
+    def test_reserve_feature_invalid_type(
         self, db_session: Session, test_user, free_plan
     ):
-        """Test consuming feature quota with invalid type."""
+        """Test reserving feature quota with invalid type."""
         with pytest.raises(ValueError):
-            quota_service.consume_feature_quota(
+            quota_service.reserve_feature_quota(
                 db_session, test_user.id, "invalid_feature"
             )
 
@@ -1165,7 +1165,7 @@ class TestBeijingMonthlyQuota:
 
         with Session(db_session.get_bind(), expire_on_commit=False) as other_session:
             stale_quota = quota_service.get_user_quota(other_session, test_user.id)
-            assert quota_service.consume_feature_quota(db_session, test_user.id, feature) is True
+            assert quota_service.reserve_feature_quota(db_session, test_user.id, feature) is not None
             assert quota_service._reset_monthly_quota_if_needed(other_session, stale_quota) is False
             _, used_field = FEATURE_QUOTA_MAP[feature]
             assert getattr(stale_quota, used_field) == 1

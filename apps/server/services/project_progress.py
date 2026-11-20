@@ -13,9 +13,8 @@ from typing import Any
 from sqlalchemy.orm import load_only
 from sqlmodel import Session, col, func, select, update
 
-from agent.constants import CONTENT_FILE_TYPES
 from models import File, Project
-from models.file_model import WORD_COUNT_REV, cached_word_count
+from models.file_model import CONTENT_FILE_TYPES, WORD_COUNT_REV, cached_word_count
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 

@@ -250,3 +250,20 @@ async def test_start_flow_deployment_returns_accepted_id_when_correlation_write_
     )
 
     assert str(result) == "accepted-even-with-db-failure"
+
+
+def test_parse_json_list_returns_list_and_warns_on_malformed_or_non_list(caplog):
+    from api.materials.entities import _parse_json_list
+
+    assert _parse_json_list(None, field="character.aliases", entity_id=1) is None
+    assert _parse_json_list("", field="character.aliases", entity_id=1) is None
+    assert _parse_json_list('["a", "b"]', field="character.aliases", entity_id=1) == ["a", "b"]
+
+    with caplog.at_level("WARNING", logger="api.materials.entities"):
+        assert _parse_json_list("{not-json", field="character.aliases", entity_id=42) is None
+        assert _parse_json_list('{"k": "v"}', field="plot.characters", entity_id=99) is None
+
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 2
+    assert "Malformed JSON list" in warnings[0].getMessage()
+    assert "Expected JSON list" in warnings[1].getMessage()

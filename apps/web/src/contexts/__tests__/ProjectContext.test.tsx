@@ -51,7 +51,6 @@ function createWrapper(user = null) {
     verifyEmail: vi.fn(),
     resendVerification: vi.fn(),
     googleLogin: vi.fn(),
-    appleLogin: vi.fn(),
   })
 
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -106,7 +105,7 @@ describe('ProjectContext', () => {
       user: mockUser, loading: false,
       login: vi.fn(), register: vi.fn(), logout: vi.fn(),
       handleOAuthCallback: vi.fn(), verifyEmail: vi.fn(), resendVerification: vi.fn(),
-      googleLogin: vi.fn(), appleLogin: vi.fn(),
+      googleLogin: vi.fn(),
     })
     const wrapper = ({ children }: { children: ReactNode }) => <ProjectProvider>{children}</ProjectProvider>
     const { result, rerender } = renderHook(() => useProject(), { wrapper })
@@ -116,7 +115,7 @@ describe('ProjectContext', () => {
       user: userB, loading: false,
       login: vi.fn(), register: vi.fn(), logout: vi.fn(),
       handleOAuthCallback: vi.fn(), verifyEmail: vi.fn(), resendVerification: vi.fn(),
-      googleLogin: vi.fn(), appleLogin: vi.fn(),
+      googleLogin: vi.fn(),
     })
     rerender()
 
@@ -240,7 +239,6 @@ describe('ProjectContext', () => {
         verifyEmail: vi.fn(),
         resendVerification: vi.fn(),
         googleLogin: vi.fn(),
-        appleLogin: vi.fn(),
       })
 
       rerender()
@@ -1432,7 +1430,6 @@ describe('ProjectContext', () => {
         verifyEmail: vi.fn(),
         resendVerification: vi.fn(),
         googleLogin: vi.fn(),
-        appleLogin: vi.fn(),
       })
 
       const wrapper = ({ children }: { children: ReactNode }) => <ProjectProvider>{children}</ProjectProvider>
@@ -1457,7 +1454,6 @@ describe('ProjectContext', () => {
         verifyEmail: vi.fn(),
         resendVerification: vi.fn(),
         googleLogin: vi.fn(),
-        appleLogin: vi.fn(),
       })
       rerender()
       await waitFor(() => expect(result.current.projects.map((p) => p.id)).toEqual(['project-b']))

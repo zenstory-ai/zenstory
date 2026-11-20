@@ -1,12 +1,12 @@
 """Materials-library entitlement access helpers."""
 
 from fastapi import Depends
-from services.auth import get_current_active_user
 from sqlmodel import Session
 
 from core.permissions import FeatureNotIncludedException
 from database import get_session
 from models import User
+from services.core.auth_service import get_current_active_user
 from services.quota_service import quota_service
 
 

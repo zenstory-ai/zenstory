@@ -11,12 +11,6 @@ from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field
-from services.auth import get_current_active_user
-from services.file_version import (
-    FileLookupNotFoundError,
-    VersionNotFoundError,
-    get_file_version_service,
-)
 from sqlalchemy.orm import InstrumentedAttribute, defer
 from sqlmodel import Session
 
@@ -25,6 +19,12 @@ from core.error_handler import APIException
 from database import get_session
 from models import File, Project, User
 from models.file_version import CHANGE_SOURCE_USER
+from services.core.auth_service import get_current_active_user
+from services.features.file_version_service import (
+    FileLookupNotFoundError,
+    VersionNotFoundError,
+    get_file_version_service,
+)
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)

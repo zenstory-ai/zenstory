@@ -36,7 +36,9 @@ from typing import Any
 
 from openai import AsyncOpenAI, OpenAI, Timeout
 
+from config.env import get_int_env, get_positive_float_env
 from utils.logger import get_logger, log_with_context
+from utils.sanitize import sanitize_chat_messages  # noqa: F401 - re-exported for callers
 
 logger = get_logger(__name__)
 
@@ -50,36 +52,13 @@ _MINIMAX_ROTATION_STEP = 37
 # How many running agent runs remember their credential route (one process serves a whole run).
 _KEY_ROUTE_MEMORY_RUNS = 4096
 
-
-def _get_positive_float_env(name: str, default: float) -> float:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        value = float(raw)
-    except ValueError:
-        return default
-    return value if value > 0 else default
-
-
-def _get_non_negative_int_env(name: str, default: int) -> int:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        value = int(raw)
-    except ValueError:
-        return default
-    return value if value >= 0 else default
-
-
 # Shared by every provider's request-path client (the names predate the backup).
 # The read timeout (longest silence between bytes) is per provider: ProviderKind.read_timeout_s.
-LLM_CLIENT_CONNECT_TIMEOUT_S = _get_positive_float_env("DEEPSEEK_CLIENT_CONNECT_TIMEOUT_S", 5.0)
-LLM_CLIENT_MAX_RETRIES = _get_non_negative_int_env("DEEPSEEK_CLIENT_MAX_RETRIES", 2)
+LLM_CLIENT_CONNECT_TIMEOUT_S = get_positive_float_env("DEEPSEEK_CLIENT_CONNECT_TIMEOUT_S", 5.0)
+LLM_CLIENT_MAX_RETRIES = get_int_env("DEEPSEEK_CLIENT_MAX_RETRIES", 2, minimum=0)
 # MiniMax's prefix cache looks per-key and lasts about 10-15 minutes, so a longer stay on
 # one key gains little, while a re-draw keeps a heavy session from sitting on one key's quota.
-LLM_KEY_ROUTING_WINDOW_S = _get_positive_float_env("LLM_KEY_ROUTING_WINDOW_S", 1800.0)
+LLM_KEY_ROUTING_WINDOW_S = get_positive_float_env("LLM_KEY_ROUTING_WINDOW_S", 1800.0)
 
 
 @dataclass(frozen=True)
@@ -107,7 +86,7 @@ class ProviderKind:
     default_read_timeout_s: float = 45.0
 
     def read_timeout_s(self) -> float:
-        return _get_positive_float_env(self.read_timeout_env, self.default_read_timeout_s)
+        return get_positive_float_env(self.read_timeout_env, self.default_read_timeout_s)
 
 
 DEEPSEEK = ProviderKind(
@@ -369,35 +348,6 @@ def primary_model_name() -> str:
     except ValueError:
         return ""
     return (os.getenv("LLM_PRIMARY_MODEL") or "").strip() or kind.default_model
-
-
-def _is_empty_assistant_message(message: object) -> bool:
-    """True for an assistant message carrying no content, tool_calls, or other payload.
-
-    The openai-agents Chat Completions converter (0.17.x) can emit a spurious empty
-    assistant message between a ``tool_calls`` assistant message and its ``tool`` results
-    when the model returns a tool-call turn with empty text. DeepSeek then rejects the
-    request with HTTP 400 ("an assistant message with 'tool_calls' must be followed by
-    tool messages responding to each 'tool_call_id'"). Such empty assistant messages are
-    pure no-ops, so dropping them keeps the tool-call/tool-result sequence well-formed.
-    """
-    if not isinstance(message, dict) or message.get("role") != "assistant":
-        return False
-    if message.get("tool_calls") or message.get("function_call") or message.get("refusal"):
-        return False
-    content = message.get("content")
-    if isinstance(content, str):
-        return not content.strip()
-    return not content  # None or empty list/sequence
-
-
-def sanitize_chat_messages(messages: object) -> object:
-    """Drop empty assistant no-op messages that providers reject."""
-    if not isinstance(messages, list):
-        return messages
-    if not any(_is_empty_assistant_message(m) for m in messages):
-        return messages
-    return [m for m in messages if not _is_empty_assistant_message(m)]
 
 
 def _running_loop() -> asyncio.AbstractEventLoop | None:

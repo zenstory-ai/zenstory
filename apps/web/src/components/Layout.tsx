@@ -68,127 +68,61 @@ const isEditableActiveElement = (element: Element | null): boolean => {
   return !nonTextTypes.has(inputType);
 };
 
+type SplitLayoutVariant = "desktop" | "tablet";
+
+interface SplitLayoutPreset {
+  containerClassName: string;
+  sidebar: { defaultSize: string; minSize: number | string };
+  editor: { defaultSize: string; minSize: string };
+  chat: { defaultSize: string; minSize: number };
+}
+
+const SPLIT_LAYOUT_PRESETS: Record<SplitLayoutVariant, SplitLayoutPreset> = {
+  desktop: {
+    containerClassName:
+      "h-dvh overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] flex flex-col fixed inset-0",
+    sidebar: { defaultSize: "20%", minSize: 180 },
+    editor: { defaultSize: "48%", minSize: "30%" },
+    chat: { defaultSize: "32%", minSize: 300 },
+  },
+  tablet: {
+    containerClassName:
+      "viewport-shell h-dvh overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] flex flex-col fixed inset-0",
+    sidebar: { defaultSize: "25%", minSize: "20%" },
+    editor: { defaultSize: "40%", minSize: "30%" },
+    chat: { defaultSize: "35%", minSize: 280 },
+  },
+};
+
+const SEPARATOR_CLASS =
+  "w-px bg-[hsl(var(--separator-color))] hover:bg-[hsl(var(--accent-primary)/0.5)] transition-all hover:w-1";
+
 /**
- * Desktop three-panel layout component.
- *
- * Renders a fixed three-column layout with resizable panels:
- * - Left: Sidebar (20% default, 180px minimum)
- * - Middle: Editor panel (48% default, 30% minimum)
- * - Right: Chat panel (32% default, 300px minimum)
- *
- * Features:
- * - Draggable panel separators for resizing
- * - Global Cmd/Ctrl+K keyboard shortcut for file search
- * - Header at the top of the viewport
- *
- * @param props - Component props
- * @param props.middle - Editor content to display in the center panel
- * @param props.right - Chat content to display in the right panel
- * @returns The desktop layout JSX element
- *
- * @example
- * <DesktopLayout
- *   middle={<Editor />}
- *   right={<ChatPanel />}
- * />
+ * Three-panel resizable workbench layout for desktop (>= 1024px) and tablet (768px-1023px).
  */
-const DesktopLayout: React.FC<LayoutProps> = ({ middle, right }) => {
-  const { openSearch } = useFileSearchContext();
-
-  // Global keyboard shortcut for file search
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+K on Mac, Ctrl+K on Windows/Linux
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        openSearch();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openSearch]);
+const SplitWorkbenchLayout: React.FC<LayoutProps & { variant: SplitLayoutVariant }> = ({
+  variant,
+  middle,
+  right,
+}) => {
+  const preset = SPLIT_LAYOUT_PRESETS[variant];
 
   return (
-    <div className="h-dvh overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] flex flex-col fixed inset-0" data-testid="app-layout">
+    <div className={preset.containerClassName} data-testid="app-layout">
       <Header />
       <main className="flex-1 overflow-hidden min-h-0">
-        <Group orientation="horizontal" className="h-full">
-          <Panel defaultSize="20%" minSize={180}>
+        <Group key={variant} orientation="horizontal" className="h-full">
+          <Panel defaultSize={preset.sidebar.defaultSize} minSize={preset.sidebar.minSize}>
             <Sidebar />
           </Panel>
-          <Separator className="w-px bg-[hsl(var(--separator-color))] hover:bg-[hsl(var(--accent-primary)/0.5)] transition-all hover:w-1" />
-          <Panel defaultSize="48%" minSize="30%">
+          <Separator className={SEPARATOR_CLASS} />
+          <Panel defaultSize={preset.editor.defaultSize} minSize={preset.editor.minSize}>
             {/* data-testid: editor-panel - Editor panel for content editing tests */}
             <div className="h-full overflow-hidden" data-testid="editor-panel">{middle}</div>
           </Panel>
-          <Separator className="w-px bg-[hsl(var(--separator-color))] hover:bg-[hsl(var(--accent-primary)/0.5)] transition-all hover:w-1" />
-          <Panel defaultSize="32%" minSize={300}>
+          <Separator className={SEPARATOR_CLASS} />
+          <Panel defaultSize={preset.chat.defaultSize} minSize={preset.chat.minSize}>
             {/* data-testid: chat-panel - Chat panel for AI interaction tests */}
-            <div className="h-full overflow-hidden p-2" data-testid="chat-panel">{right}</div>
-          </Panel>
-        </Group>
-      </main>
-    </div>
-  );
-};
-
-/**
- * Tablet three-panel layout with optimized proportions.
- *
- * Renders a three-column layout optimized for tablet screens (768px-1024px):
- * - Left: Sidebar (25% default, 20% minimum) - larger for touch interaction
- * - Middle: Editor panel (40% default, 30% minimum)
- * - Right: Chat panel (35% default, 280px minimum)
- *
- * Features:
- * - Adjusted panel proportions for better touch interaction
- * - Reduced padding to maximize screen real estate
- * - Same keyboard shortcuts and functionality as desktop
- * - Draggable panel separators for resizing
- *
- * @param props - Component props
- * @param props.middle - Editor content to display in the center panel
- * @param props.right - Chat content to display in the right panel
- * @returns The tablet layout JSX element
- *
- * @example
- * <TabletLayout
- *   middle={<Editor />}
- *   right={<ChatPanel />}
- * />
- */
-const TabletLayout: React.FC<LayoutProps> = ({ middle, right }) => {
-  const { openSearch } = useFileSearchContext();
-
-  // Global keyboard shortcut for file search
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+K on Mac, Ctrl+K on Windows/Linux
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        openSearch();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openSearch]);
-
-  return (
-    <div className="viewport-shell h-dvh overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] flex flex-col fixed inset-0" data-testid="app-layout">
-      <Header />
-      <main className="flex-1 overflow-hidden min-h-0">
-        <Group orientation="horizontal" className="h-full">
-          <Panel defaultSize="25%" minSize="20%">
-            <Sidebar />
-          </Panel>
-          <Separator className="w-px bg-[hsl(var(--separator-color))] hover:bg-[hsl(var(--accent-primary)/0.5)] transition-all hover:w-1" />
-          <Panel defaultSize="40%" minSize="30%">
-            <div className="h-full overflow-hidden" data-testid="editor-panel">{middle}</div>
-          </Panel>
-          <Separator className="w-px bg-[hsl(var(--separator-color))] hover:bg-[hsl(var(--accent-primary)/0.5)] transition-all hover:w-1" />
-          <Panel defaultSize="35%" minSize={280}>
             <div className="h-full overflow-hidden p-2" data-testid="chat-panel">{right}</div>
           </Panel>
         </Group>
@@ -225,7 +159,6 @@ const TabletLayout: React.FC<LayoutProps> = ({ middle, right }) => {
  */
 const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
   const { activePanel, setActivePanel } = useMobileLayout();
-  const { openSearch } = useFileSearchContext();
   const { currentProjectId } = useProject();
   const { saveScrollPosition, restoreScrollPosition } = useScrollMemory(currentProjectId || 'default');
   const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false);
@@ -267,20 +200,6 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
     swipeVelocity: 0.2,
     preventDefaultTouch: false, // Allow scrolling to work normally
   });
-
-  // Global keyboard shortcut for file search (mobile)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+K on Mac, Ctrl+K on Windows/Linux
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        openSearch();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openSearch]);
 
   // Track visual viewport changes on mobile to avoid keyboard/input overlap.
   useEffect(() => {
@@ -434,7 +353,6 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
  * @param props - Component props
  * @param props.middle - Editor content (required)
  * @param props.right - Chat panel content (required)
- * @param props.left - Legacy left panel content (optional, deprecated)
  * @returns The appropriate layout JSX element based on screen size
  *
  * @example
@@ -447,6 +365,20 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
 export const Layout: React.FC<LayoutProps> = ({ middle, right }) => {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
+  const { openSearch } = useFileSearchContext();
+
+  // Global keyboard shortcut for file search (Cmd+K on Mac, Ctrl+K on Windows/Linux)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        openSearch();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [openSearch]);
 
   if (isMobile) {
     return (
@@ -456,17 +388,13 @@ export const Layout: React.FC<LayoutProps> = ({ middle, right }) => {
     );
   }
 
-  if (isTablet) {
-    return (
-      <MobileLayoutProvider isMobile={false}>
-        <TabletLayout middle={middle} right={right} />
-      </MobileLayoutProvider>
-    );
-  }
-
   return (
     <MobileLayoutProvider isMobile={false}>
-      <DesktopLayout middle={middle} right={right} />
+      <SplitWorkbenchLayout
+        variant={isTablet ? "tablet" : "desktop"}
+        middle={middle}
+        right={right}
+      />
     </MobileLayoutProvider>
   );
 };

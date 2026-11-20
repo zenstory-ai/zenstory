@@ -12,7 +12,6 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from services.auth import get_current_active_user
 from sqlalchemy import delete, desc
 from sqlalchemy.orm import load_only
 from sqlmodel import Session, func, select
@@ -25,6 +24,7 @@ from database import create_session, get_session
 from models import ChatMessage, ChatSession, Project, User
 from services.chat_feedback_service import chat_feedback_service
 from services.chat_session_service import latest_active_chat_session, lock_active_chat_session
+from services.core.auth_service import get_current_active_user
 from utils.logger import get_logger, log_with_context
 from utils.permission import verify_project_access_sync
 

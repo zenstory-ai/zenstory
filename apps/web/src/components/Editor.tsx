@@ -1195,6 +1195,149 @@ const EditorComponent: React.FC<EditorProps> = () => {
     [enterDiffReview],
   );
 
+  const commitReviewedFile = useCallback(async (params: {
+    opened: File;
+    review: NonNullable<typeof diffReviewState>;
+    content: string;
+    conflictBase: string;
+    updateMeta: {
+      change_type: "ai_edit" | "edit";
+      change_summary?: string;
+      change_source?: "user";
+    };
+    errorLogMessage: string;
+    errorAction: string;
+    onSuccess?: () => void;
+    onStaleWrite?: (latest: File, outcome: ConflictReviewOutcome) => void;
+  }) => {
+    const {
+      opened,
+      review,
+      content,
+      conflictBase,
+      updateMeta,
+      errorLogMessage,
+      errorAction,
+      onSuccess,
+      onStaleWrite,
+    } = params;
+    const fileId = opened.id;
+    const projectId = opened.project_id;
+    // 审阅期间标题输入框是禁用的，但进入审阅前作者可能改了标题还没保存。
+    // 完成审阅后编辑器会被标记为已保存，所以标题必须随这次写回一起保存。
+    const reviewedTitle = editTitleRef.current;
+    const titleChanged = reviewedTitle !== opened.title;
+    const isStillCurrent = () =>
+      activeProjectIdRef.current === currentProjectId &&
+      selectedIdRef.current === fileId &&
+      currentFileRef.current?.id === fileId &&
+      currentReviewRef.current === review;
+
+    if (!isStillCurrent()) return;
+
+    try {
+      // 与 handleSaveFile 对齐的乐观并发令牌。这是一次整篇覆盖写，
+      // 不带令牌就会无声盖掉审阅期间落库的其它改动。
+      const updated = await fileApi.update(fileId, {
+        content,
+        ...(titleChanged ? { title: reviewedTitle } : {}),
+        ...updateMeta,
+        base_updated_at: opened.updated_at,
+      });
+      if (!isStillCurrent()) return;
+
+      // 必须把返回的 updated_at 一并回填并同步 SimpleEditor 基线：
+      // 这次 PUT 已经把服务端的 updated_at 推进了，本地若还停在审阅前的值，
+      // 用户接着敲一个字触发的 3 秒防抖自动保存就会带着陈旧令牌命中 409。
+      const base = currentFileRef.current ?? opened;
+      const saved: File = {
+        ...base,
+        content,
+        ...(titleChanged ? { title: reviewedTitle } : {}),
+        updated_at: updated?.updated_at ?? base.updated_at,
+      };
+      currentFileRef.current = saved;
+      setFile(saved);
+      setEditContent(content);
+      markServerBaseline(saved);
+      if (titleChanged && selectedItem?.id === fileId) {
+        setSelectedItem({ ...selectedItem, title: reviewedTitle });
+      }
+      // A copy kept locally while this comparison was open (or an applied
+      // recovered draft) is superseded by this save. An unanswered recovery
+      // banner keeps its draft; storage failures must not falsely clear state.
+      if (currentUserId && currentProjectId) {
+        if (draftRecovery?.snapshot.fileId === fileId && draftRecovery.applied) {
+          const cleared = clearEditorDraftSnapshot(localStorage, {
+            userId: currentUserId,
+            projectId: currentProjectId,
+            fileId,
+          });
+          if (cleared) setDraftRecovery(null);
+        } else if (draftRecovery?.snapshot.fileId !== fileId) {
+          clearEditorDraftSnapshot(localStorage, {
+            userId: currentUserId,
+            projectId: currentProjectId,
+            fileId,
+          });
+        }
+      }
+      onSuccess?.();
+      exitDiffReview();
+      triggerFileTreeRefresh();
+      notifyEditorContentSaved(projectId);
+    } catch (err) {
+      if (!isStillCurrent()) return;
+      if (err instanceof ApiError && err.status === 409 && err.details?.reason === "stale_write") {
+        // 审阅结果绝不能因为并发写而丢：把服务端最新正文当作新基线，
+        // 连同本次审阅得到的定稿重新进入审阅通道，由用户决定最终版本。
+        const current = currentFileRef.current;
+        if (!current) return;
+        const serverContent =
+          typeof err.details.current_content === "string" ? err.details.current_content : "";
+        const serverUpdatedAt =
+          typeof err.details.current_updated_at === "string"
+            ? err.details.current_updated_at
+            : current.updated_at;
+        const latest: File = { ...current, content: serverContent, updated_at: serverUpdatedAt };
+        currentFileRef.current = latest;
+        setFile(latest);
+        const outcome = openConflictReview(fileId, conflictBase, serverContent, content);
+        onStaleWrite?.(latest, outcome);
+        if (outcome === "server") {
+          exitDiffReview();
+          adoptServerCopy(latest, reviewedTitle);
+        } else if (outcome === "local") {
+          // The newer copy adds nothing to the reviewed text: keep this review
+          // open so retrying saves on top of the fresh server token.
+          toast.error(t("editor:saveStaleWrite"));
+        } else {
+          toast.error(t("editor:saveStaleWriteConflict"));
+        }
+        return;
+      }
+      logger.error(errorLogMessage, err);
+      toast.error(handleApiError(err));
+      captureException(err, {
+        feature_area: "editor",
+        action: errorAction,
+        file_id: fileId,
+      });
+    }
+  }, [
+    currentProjectId,
+    currentUserId,
+    adoptServerCopy,
+    draftRecovery,
+    exitDiffReview,
+    markServerBaseline,
+    openConflictReview,
+    selectedItem,
+    setSelectedItem,
+    t,
+    triggerFileTreeRefresh,
+  ]);
+
   const resolveNaturalPolish = useCallback(async (decision: 'accept' | 'discard') => {
     const review = currentReviewRef.current;
     const polish = naturalPolishReviewRef.current;
@@ -1236,110 +1379,45 @@ const EditorComponent: React.FC<EditorProps> = () => {
       return;
     }
 
-    const projectId = opened.project_id;
-    const reviewedTitle = editTitleRef.current;
-    const titleChanged = reviewedTitle !== opened.title;
-    const isStillCurrent = () =>
-      activeProjectIdRef.current === currentProjectId &&
-      selectedIdRef.current === fileId &&
-      currentFileRef.current?.id === fileId &&
-      currentReviewRef.current === review;
-
-    try {
-      const updated = await fileApi.update(fileId, {
-        content: review.modifiedContent,
-        ...(titleChanged ? { title: reviewedTitle } : {}),
+    // The candidate may include text the author had not saved before opening
+    // polish. Rebase both that text and the polish from the saved copy; using
+    // review.originalContent here would misread the absent dirty text as a
+    // server deletion and could discard it.
+    await commitReviewedFile({
+      opened,
+      review,
+      content: review.modifiedContent,
+      conflictBase: polish.baseContent,
+      updateMeta: {
         change_type: 'ai_edit',
         change_summary: 'AI polish (reviewed)',
-        base_updated_at: opened.updated_at,
-      });
-      if (!isStillCurrent()) return;
-
-      const saved: File = {
-        ...opened,
-        content: review.modifiedContent,
-        ...(titleChanged ? { title: reviewedTitle } : {}),
-        updated_at: updated?.updated_at ?? opened.updated_at,
-      };
-      currentFileRef.current = saved;
-      setFile(saved);
-      setEditContent(review.modifiedContent);
-      markServerBaseline(saved);
-      if (titleChanged && selectedItem?.id === fileId) {
-        setSelectedItem({ ...selectedItem, title: reviewedTitle });
-      }
-      if (currentUserId && currentProjectId) {
-        if (draftRecovery?.snapshot.fileId === fileId && draftRecovery.applied) {
-          const cleared = clearEditorDraftSnapshot(localStorage, {
-            userId: currentUserId,
-            projectId: currentProjectId,
-            fileId,
-          });
-          if (cleared) setDraftRecovery(null);
-        } else if (draftRecovery?.snapshot.fileId !== fileId) {
-          clearEditorDraftSnapshot(localStorage, { userId: currentUserId, projectId: currentProjectId, fileId });
-        }
-      }
-      naturalPolishReviewRef.current = null;
-      naturalPolishServerCopyRef.current = null;
-      exitDiffReview();
-      triggerFileTreeRefresh();
-      notifyEditorContentSaved(projectId);
-      trackEvent('natural_polish_candidate_applied', { project_id: projectId, file_id: fileId });
-    } catch (err) {
-      if (!isStillCurrent()) return;
-      if (err instanceof ApiError && err.status === 409 && err.details?.reason === 'stale_write') {
-        const serverContent = typeof err.details.current_content === 'string' ? err.details.current_content : '';
-        const serverUpdatedAt = typeof err.details.current_updated_at === 'string'
-          ? err.details.current_updated_at
-          : opened.updated_at;
-        const latest = { ...opened, content: serverContent, updated_at: serverUpdatedAt };
-        currentFileRef.current = latest;
-        setFile(latest);
-        naturalPolishServerCopyRef.current = latest;
-        // The candidate may include text the author had not saved before opening
-        // polish. Rebase both that text and the polish from the saved copy; using
-        // review.originalContent here would misread the absent dirty text as a
-        // server deletion and could discard it.
-        const outcome = openConflictReview(fileId, polish.baseContent, serverContent, review.modifiedContent);
-        if (outcome === 'server') {
-          naturalPolishReviewRef.current = null;
-          naturalPolishServerCopyRef.current = null;
-          exitDiffReview();
-          setEditContent(serverContent);
-          markServerBaseline(latest);
-        } else if (outcome === 'review') {
-          naturalPolishReviewRef.current = null;
-          naturalPolishServerCopyRef.current = null;
-          toast.error(t('editor:saveStaleWriteConflict'));
+      },
+      errorLogMessage: 'Failed to save natural-polish candidate:',
+      errorAction: 'natural_polish_candidate_apply',
+      onSuccess: () => {
+        naturalPolishReviewRef.current = null;
+        naturalPolishServerCopyRef.current = null;
+        trackEvent('natural_polish_candidate_applied', {
+          project_id: opened.project_id,
+          file_id: fileId,
+        });
+      },
+      onStaleWrite: (latest, outcome) => {
+        if (outcome === 'local') {
+          naturalPolishServerCopyRef.current = latest;
         } else {
-          // The candidate already contains the newer copy. Keep it open and retry with
-          // the fresh token if the author chooses “use” again.
-          toast.error(t('editor:saveStaleWrite'));
+          naturalPolishReviewRef.current = null;
+          naturalPolishServerCopyRef.current = null;
         }
-        return;
-      }
-      logger.error('Failed to save natural-polish candidate:', err);
-      toast.error(handleApiError(err));
-      captureException(err, {
-        feature_area: 'editor',
-        action: 'natural_polish_candidate_apply',
-        file_id: fileId,
-      });
-    }
+      },
+    });
   }, [
-    currentProjectId,
-    currentUserId,
     adoptServerCopy,
-    draftRecovery,
+    commitReviewedFile,
     exitDiffReview,
-    markServerBaseline,
     keepLocalOnServerCopy,
     openConflictReview,
-    selectedItem,
-    setSelectedItem,
     t,
-    triggerFileTreeRefresh,
   ]);
 
   /**
@@ -1350,12 +1428,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
    */
   const handleFinishReview = useCallback(async () => {
     if (!diffReviewState || !file?.id || diffReviewState.fileId !== file.id) return;
-    const canCompleteReview = () =>
-      activeProjectIdRef.current === currentProjectId &&
-      selectedIdRef.current === file.id &&
-      currentFileRef.current?.id === file.id &&
-      currentReviewRef.current === diffReviewState;
-    if (!canCompleteReview()) return;
+    if (
+      activeProjectIdRef.current !== currentProjectId ||
+      selectedIdRef.current !== file.id ||
+      currentFileRef.current?.id !== file.id ||
+      currentReviewRef.current !== diffReviewState
+    ) return;
 
     // Get the final content based on accept/reject decisions
     const finalContent = applyDiffReviewChanges();
@@ -1364,140 +1442,43 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const conflictReview = isSameReview(diffReviewState, conflictReviewRef.current)
       ? conflictReviewRef.current
       : null;
+    // The reviewed text was built on this review's server copy; replay
+    // only what the review changed on top of the newer one.
+    const reviewBase = conflictReview ? conflictReview.serverContent : diffReviewState.originalContent;
 
-    // 审阅期间标题输入框是禁用的，但进入审阅前作者可能改了标题还没保存。
-    // 完成审阅后编辑器会被标记为已保存，所以标题必须随这次写回一起保存。
-    const reviewedTitle = editTitleRef.current;
-    const titleChanged = reviewedTitle !== file.title;
-
-    // Update the file with the final content
-    try {
-      const updated = await fileApi.update(file.id, {
-        content: finalContent,
-        ...(titleChanged ? { title: reviewedTitle } : {}),
+    await commitReviewedFile({
+      opened: file,
+      review: diffReviewState,
+      content: finalContent,
+      conflictBase: reviewBase,
+      updateMeta: {
         // Paragraph diff review is used exclusively for unsaved-draft / stale-write
         // conflict resolution: record it as the author's edit so the server's
         // author-edit guard keeps protecting the author's words.
         change_type: "edit",
         change_source: "user",
-        // 与 handleSaveFile 对齐的乐观并发令牌。这同样是一次整篇覆盖写，
-        // 不带令牌就会无声盖掉审阅期间落库的其它改动。
-        base_updated_at: file.updated_at,
-      });
-
-      if (!canCompleteReview()) return;
-
-      // Update local state。必须把返回的 updated_at 一并回填：
-      // 这次 PUT 已经把服务端的 updated_at 推进了，本地若还停在审阅前的值，
-      // 用户接着敲一个字触发的 3 秒防抖自动保存就会带着陈旧令牌命中 409，
-      // 这一轮输入随即被 409 分支处理掉——「防丢 AI 的更新」换成「稳定丢用户的更新」。
-      setEditContent(finalContent);
-      const reviewedFile = (prev: File): File => ({
-        ...prev,
-        content: finalContent,
-        ...(titleChanged ? { title: reviewedTitle } : {}),
-        updated_at: updated?.updated_at ?? prev.updated_at,
-      });
-      if (currentFileRef.current) currentFileRef.current = reviewedFile(currentFileRef.current);
-      setFile((prev) => (prev ? reviewedFile(prev) : null));
-      if (titleChanged && selectedItem?.id === file.id) {
-        setSelectedItem({ ...selectedItem, title: reviewedTitle });
-      }
-
-      // A copy kept locally while this comparison was open (the editor was
-      // hidden mid-review) is superseded by this save. A recovery banner the
-      // author has not answered yet keeps its draft.
-      if (currentUserId && currentProjectId && draftRecovery?.snapshot.fileId !== file.id) {
-        clearEditorDraftSnapshot(localStorage, {
-          userId: currentUserId,
-          projectId: currentProjectId,
-          fileId: file.id,
+      },
+      errorLogMessage: "Failed to save reviewed changes:",
+      errorAction: "ai_edit_review_apply",
+      onSuccess: () => {
+        trackEvent("ai_edit_review_applied", {
+          project_id: file.project_id,
+          file_id: file.id,
+          accepted_edit_count: diffReviewState.pendingEdits.filter(
+            (edit) => edit.status !== "rejected"
+          ).length,
+          rejected_edit_count: diffReviewState.pendingEdits.filter(
+            (edit) => edit.status === "rejected"
+          ).length,
         });
-      }
-
-      // Exit diff review mode
-      exitDiffReview();
-
-      trackEvent("ai_edit_review_applied", {
-        project_id: file.project_id,
-        file_id: file.id,
-        accepted_edit_count: diffReviewState.pendingEdits.filter(
-          (edit) => edit.status !== "rejected"
-        ).length,
-        rejected_edit_count: diffReviewState.pendingEdits.filter(
-          (edit) => edit.status === "rejected"
-        ).length,
-      });
-      
-      // Refresh file tree
-      triggerFileTreeRefresh();
-      notifyEditorContentSaved(file.project_id);
-    } catch (err) {
-      if (!canCompleteReview()) return;
-      if (
-        err instanceof ApiError &&
-        err.status === 409 &&
-        err.details?.reason === "stale_write"
-      ) {
-        // 审阅结果绝不能因为并发写而丢：把服务端最新正文当作新基线，
-        // 连同本次审阅得到的定稿重新进入审阅通道，由用户决定最终版本。
-        const serverContent =
-          typeof err.details.current_content === "string" ? err.details.current_content : "";
-        const serverUpdatedAt = err.details.current_updated_at;
-        const conflictFile = (prev: File): File => ({
-          ...prev,
-          content: serverContent,
-          updated_at:
-            typeof serverUpdatedAt === "string" ? serverUpdatedAt : prev.updated_at,
-        });
-        const opened = currentFileRef.current;
-        if (!opened) return;
-        const nextServerFile = conflictFile(opened);
-        currentFileRef.current = nextServerFile;
-        setFile((prev) => (prev ? conflictFile(prev) : null));
-        // The reviewed text was built on this review's server copy; replay
-        // only what the review changed on top of the newer one.
-        const reviewBase = conflictReview ? conflictReview.serverContent : diffReviewState.originalContent;
-        const outcome = openConflictReview(file.id, reviewBase, serverContent, finalContent);
-        if (outcome === "server") {
-          exitDiffReview();
-          adoptServerCopy(nextServerFile, reviewedTitle);
-          return;
-        }
-        if (outcome === "local") {
-          // The newer copy adds nothing to the reviewed text: keep this
-          // review and its choices open; finishing again saves on the newer token.
-          toast.error(t('editor:saveStaleWrite'));
-          return;
-        }
-        toast.error(t('editor:saveStaleWriteConflict'));
-        return;
-      }
-      logger.error("Failed to save reviewed changes:", err);
-      toast.error(handleApiError(err));
-      captureException(err, {
-        feature_area: "editor",
-        action: "ai_edit_review_apply",
-        file_id: file.id,
-      });
-    }
+      },
+    });
   }, [
     diffReviewState,
     currentProjectId,
-    currentUserId,
-    draftRecovery,
-    file?.id,
-    file?.project_id,
-    file?.updated_at,
-    file?.title,
-    selectedItem,
-    setSelectedItem,
+    file,
     applyDiffReviewChanges,
-    adoptServerCopy,
-    openConflictReview,
-    exitDiffReview,
-    triggerFileTreeRefresh,
-    t,
+    commitReviewedFile,
   ]);
 
   /**

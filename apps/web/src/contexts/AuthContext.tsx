@@ -46,7 +46,6 @@ export interface AuthContextType {
   verifyEmail: (email: string, code: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   googleLogin: (options?: { inviteCode?: string; redirectUrl?: string; planIntent?: PlanIntent | null }) => void;
-  appleLogin: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -480,20 +479,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     window.location.href = url.toString();
   };
 
-  /**
-   * Apple OAuth login - pending backend implementation.
-   *
-   * @feature_request Sign in with Apple support
-   * @backend_needed Add /api/v1/auth/apple endpoint with Apple ID integration
-   * @see https://developer.apple.com/sign-in-with-apple/
-   * @see apps/server/api/auth.py for OAuth implementation reference
-   */
-  const appleLogin = () => {
-    logger.log('Apple OAuth coming soon');
-  };
-
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, handleOAuthCallback, verifyEmail, resendVerification, googleLogin, appleLogin }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, handleOAuthCallback, verifyEmail, resendVerification, googleLogin }}>
       {children}
     </AuthContext.Provider>
   );

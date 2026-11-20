@@ -1244,24 +1244,26 @@ class TestAgentServiceProcessStream:
         project = test_user_with_project["project"]
         user = test_user_with_project["user"]
 
-        async def mock_stream_with_clarification_stop():
+        async def mock_stream_with_status_card():
             yield StreamEvent(
-                type=StreamEventType.WORKFLOW_STOPPED,
+                type=StreamEventType.ITERATION_EXHAUSTED,
                 data={
-                    "reason": "clarification_needed",
-                    "question": "请确认主角姓名",
+                    "layer": "collaboration",
+                    "iterations_used": 12,
+                    "max_iterations": 12,
+                    "reason": "达到最大协作轮次",
                 },
             )
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
         with patch("agent.service.run_loop_agent_streaming") as mock_workflow:
-            mock_workflow.return_value = mock_stream_with_clarification_stop()
+            mock_workflow.return_value = mock_stream_with_status_card()
 
             events: list[str] = []
             async for event in service.process_stream(
                 project_id=str(project.id),
                 user_id=str(user.id),
-                message="需要澄清",
+                message="继续写",
                 session=db_session,
             ):
                 events.append(event)
@@ -1275,11 +1277,18 @@ class TestAgentServiceProcessStream:
         assert saved_assistant is not None
         assert saved_assistant.message_metadata is not None
         metadata = json.loads(saved_assistant.message_metadata)
-        assert metadata["status_cards"][0]["reason"] == "clarification_needed"
+        assert metadata["status_cards"][0]["type"] == "iteration_exhausted"
+        assert metadata["status_cards"][0]["reason"] == "达到最大协作轮次"
         assert metadata["display_events"] == [
             {
-                "type": "workflow_stopped",
-                "data": {"reason": "clarification_needed", "question": "请确认主角姓名"},
+                "type": "iteration_exhausted",
+                "data": {
+                    "layer": "collaboration",
+                    "iterations_used": 12,
+                    "max_iterations": 12,
+                    "reason": "达到最大协作轮次",
+                    "last_agent": None,
+                },
             }
         ]
 

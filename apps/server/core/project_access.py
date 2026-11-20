@@ -13,7 +13,9 @@ from models import Project, User
 def verify_project_ownership(
     project_id: str,
     current_user: User,
-    session: Session
+    session: Session,
+    *,
+    forbidden_error_code: str = ErrorCode.NOT_AUTHORIZED,
 ) -> Project:
     """
     Verify user owns the project.
@@ -27,6 +29,7 @@ def verify_project_ownership(
         project_id: The project ID to verify
         current_user: The current authenticated user
         session: Database session
+        forbidden_error_code: Error code raised on 403 ownership mismatch
 
     Raises:
         APIException: 404 if project not found or soft-deleted
@@ -41,7 +44,7 @@ def verify_project_ownership(
 
     # Admin/superuser can access all projects for support/debugging.
     if project.owner_id != current_user.id and not current_user.is_superuser:
-        raise APIException(error_code=ErrorCode.NOT_AUTHORIZED, status_code=403)
+        raise APIException(error_code=forbidden_error_code, status_code=403)
 
     if project.is_deleted:
         raise APIException(error_code=ErrorCode.PROJECT_NOT_FOUND, status_code=404)

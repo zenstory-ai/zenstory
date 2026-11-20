@@ -17,7 +17,6 @@ import pytest
 
 from agent.core.events import (
     EventType,
-    session_started_event,
     steering_received_event,
 )
 from agent.core.stream_processor import StreamState, normalize_file_markers
@@ -662,19 +661,6 @@ class TestProcessEventPassthrough:
         assert len(events) == 1
         assert events[0].type == EventType.STEERING_RECEIVED
         assert events[0].data["message_id"] == "steer-1"
-
-    @pytest.mark.asyncio
-    async def test_core_session_started_event_passthrough(self, adapter):
-        """Test core session_started event is passed through by value."""
-        event = session_started_event("session-123")
-
-        events = []
-        async for sse_event in adapter._process_workflow_event(event):
-            events.append(sse_event)
-
-        assert len(events) == 1
-        assert events[0].type == EventType.SESSION_STARTED
-        assert events[0].data["session_id"] == "session-123"
 
 
 class TestProcessEventError:

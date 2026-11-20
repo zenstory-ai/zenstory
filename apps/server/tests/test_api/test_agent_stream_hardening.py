@@ -3241,6 +3241,7 @@ async def test_sync_file_save_failure_removes_empty_placeholder_on_refund(
 
     class _SyncSaveFailService:
         async def process_stream(self, *, run_outcome=None, **_kwargs):
+            adapter.config.run_outcome = run_outcome
             try:
                 yield _sse("session_started", {"session_id": "s1"})
                 yield _create_file_result(placeholder)
@@ -3248,7 +3249,6 @@ async def test_sync_file_save_failure_removes_empty_placeholder_on_refund(
                     yield _sse(getattr(frame.type, "value", frame.type), frame.data)
             finally:
                 run_outcome.saved_file_word_counts.update(adapter.get_saved_file_word_counts())
-                run_outcome.uncertain_save_file_ids.update(adapter.get_timed_out_save_file_ids())
                 run_outcome.resolve_message_id(message_id)
 
     with (

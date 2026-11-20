@@ -4,7 +4,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// Mock apiClient BEFORE importing adminApi
 const mockApiCall = vi.fn()
 const fetchMock = vi.fn()
 
@@ -40,904 +39,199 @@ describe('adminApi', () => {
     localStorage.clear()
   })
 
-  // ==================== User Management Tests ====================
+  // ==================== User Management ====================
 
-  describe('getUsers', () => {
-    it('returns the page items and the filtered total', async () => {
+  describe('users', () => {
+    it('maps backend items/total to users/total and builds pagination/search query', async () => {
       const { adminApi } = await import('../adminApi')
-      const mockUsers = [
+      const items = [
         { id: '1', username: 'user1', email: 'user1@example.com' },
         { id: '2', username: 'user2', email: 'user2@example.com' },
       ]
-      mockApi.get.mockResolvedValue({ items: mockUsers, total: 92 })
+      mockApi.get.mockResolvedValueOnce({ items, total: 92 })
 
-      const result = await adminApi.getUsers()
-
+      const defaultPage = await adminApi.getUsers()
       expect(mockApi.get).toHaveBeenCalledWith('/api/admin/users?skip=0&limit=20')
-      expect(result.total).toBe(92)
-      expect(result.users).toHaveLength(2)
-      expect(result.users[0]).toMatchObject(mockUsers[0])
-      expect(result.users[1]).toMatchObject(mockUsers[1])
+      expect(defaultPage).toEqual({ users: items, total: 92 })
+
+      mockApi.get.mockResolvedValueOnce({ items: [items[0]], total: 1 })
+      const searched = await adminApi.getUsers(10, 50, 'alice@')
+      expect(mockApi.get).toHaveBeenLastCalledWith('/api/admin/users?skip=10&limit=50&search=alice%40')
+      expect(searched).toEqual({ users: [items[0]], total: 1 })
     })
 
-    it('fetches users with custom skip and limit', async () => {
+    it('fetches, updates, and deletes a user and propagates API errors', async () => {
       const { adminApi } = await import('../adminApi')
-      const mockUsers = [{ id: '1', username: 'user1' }]
-      mockApi.get.mockResolvedValue({ items: mockUsers, total: 11 })
+      const user = { id: 'u/1', username: 'alice', email: 'alice@example.com' }
+      mockApi.get.mockResolvedValueOnce(user)
+      mockApi.put.mockResolvedValueOnce({ ...user, is_superuser: true })
+      mockApi.delete.mockResolvedValueOnce({ message: 'User deleted' })
 
-      const result = await adminApi.getUsers(10, 50)
+      expect(await adminApi.getUser('u/1')).toBe(user)
+      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/users/u%2F1')
 
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/users?skip=10&limit=50')
-      expect(result.users).toHaveLength(1)
-      expect(result.users[0]).toMatchObject(mockUsers[0])
-      expect(result.total).toBe(11)
-    })
+      expect(await adminApi.updateUser('123', { is_superuser: true })).toEqual({ ...user, is_superuser: true })
+      expect(mockApi.put).toHaveBeenCalledWith('/api/admin/users/123', { is_superuser: true })
 
-    it('fetches users with search parameter', async () => {
-      const { adminApi } = await import('../adminApi')
-      const mockUsers = [{ id: '1', username: 'testuser' }]
-      mockApi.get.mockResolvedValue({ items: mockUsers, total: 1 })
+      expect(await adminApi.deleteUser('123')).toEqual({ message: 'User deleted' })
+      expect(mockApi.delete).toHaveBeenCalledWith('/api/admin/users/123')
 
-      const result = await adminApi.getUsers(0, 20, 'testuser')
-
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/users?skip=0&limit=20&search=testuser')
-      expect(result.users).toHaveLength(1)
-      expect(result.users[0]).toMatchObject(mockUsers[0])
-      expect(result.total).toBe(1)
-    })
-
-    it('rejects malformed users list responses missing items or total', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValueOnce([{ id: '1', username: 'user1' }])
-      await expect(adminApi.getUsers()).rejects.toThrow('Invalid users list response')
-
-      mockApi.get.mockResolvedValueOnce({ users: [{ id: '1' }], total: 1 })
-      await expect(adminApi.getUsers()).rejects.toThrow('Invalid users list response')
-    })
-
-    it('handles empty users list', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValue({ items: [], total: 0 })
-
-      const result = await adminApi.getUsers()
-
-      expect(result).toEqual({ users: [], total: 0 })
-    })
-
-    it('propagates API errors', async () => {
-      const { adminApi } = await import('../adminApi')
-      const error = new Error('API Error')
-      mockApi.get.mockRejectedValue(error)
-
-      await expect(adminApi.getUsers()).rejects.toThrow('API Error')
-    })
-  })
-
-  describe('getUser', () => {
-    it('fetches single user by ID', async () => {
-      const { adminApi } = await import('../adminApi')
-      const mockUser = { id: '123', username: 'testuser', email: 'test@example.com' }
-      mockApi.get.mockResolvedValue(mockUser)
-
-      const result = await adminApi.getUser('123')
-
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/users/123')
-      expect(result).toMatchObject(mockUser)
-    })
-
-    it('handles user not found error', async () => {
-      const { adminApi } = await import('../adminApi')
-      const error = new Error('User not found')
-      mockApi.get.mockRejectedValue(error)
-
-      await expect(adminApi.getUser('999')).rejects.toThrow('User not found')
-    })
-
-    it('propagates API errors', async () => {
-      const { adminApi } = await import('../adminApi')
-      const error = new Error('Network error')
-      mockApi.get.mockRejectedValue(error)
-
+      mockApi.get.mockRejectedValueOnce(new Error('Network error'))
       await expect(adminApi.getUser('123')).rejects.toThrow('Network error')
     })
   })
 
-  describe('updateUser', () => {
-    it('updates user with partial data', async () => {
+  // ==================== Prompt Management ====================
+
+  describe('prompts', () => {
+    it('encodes project types and forwards CRUD + reload payloads', async () => {
       const { adminApi } = await import('../adminApi')
-      const mockUser = { id: '123', username: 'updateduser', email: 'updated@example.com' }
-      const updateData = { username: 'updateduser' }
-      mockApi.put.mockResolvedValue(mockUser)
-
-      const result = await adminApi.updateUser('123', updateData)
-
-      expect(mockApi.put).toHaveBeenCalledWith('/api/admin/users/123', updateData)
-      expect(result).toEqual(mockUser)
-    })
-
-    it('updates user role', async () => {
-      const { adminApi } = await import('../adminApi')
-      const mockUser = { id: '123', username: 'user', is_superuser: true }
-      const updateData = { is_superuser: true }
-      mockApi.put.mockResolvedValue(mockUser)
-
-      const result = await adminApi.updateUser('123', updateData)
-
-      expect(mockApi.put).toHaveBeenCalledWith('/api/admin/users/123', updateData)
-      expect(result).toEqual(mockUser)
-    })
-
-    it('updates user active status', async () => {
-      const { adminApi } = await import('../adminApi')
-      const mockUser = { id: '123', username: 'user', is_active: false }
-      const updateData = { is_active: false }
-      mockApi.put.mockResolvedValue(mockUser)
-
-      const result = await adminApi.updateUser('123', updateData)
-
-      expect(mockApi.put).toHaveBeenCalledWith('/api/admin/users/123', updateData)
-      expect(result).toEqual(mockUser)
-    })
-
-    it('handles update error', async () => {
-      const { adminApi } = await import('../adminApi')
-      const error = new Error('Update failed')
-      mockApi.put.mockRejectedValue(error)
-
-      await expect(adminApi.updateUser('123', { username: 'new' })).rejects.toThrow('Update failed')
-    })
-  })
-
-  describe('deleteUser', () => {
-    it('deletes user by ID', async () => {
-      const { adminApi } = await import('../adminApi')
-      const response = { message: 'User deleted successfully' }
-      mockApi.delete.mockResolvedValue(response)
-
-      const result = await adminApi.deleteUser('123')
-
-      expect(mockApi.delete).toHaveBeenCalledWith('/api/admin/users/123')
-      expect(result).toEqual(response)
-    })
-
-    it('handles delete error', async () => {
-      const { adminApi } = await import('../adminApi')
-      const error = new Error('Delete failed')
-      mockApi.delete.mockRejectedValue(error)
-
-      await expect(adminApi.deleteUser('123')).rejects.toThrow('Delete failed')
-    })
-  })
-
-  // ==================== Prompt Management Tests ====================
-
-  describe('getPrompts', () => {
-    it('fetches all prompts from bare array response', async () => {
-      const { adminApi } = await import('../adminApi')
-      const mockPrompts = [
-        {
-          id: '1',
-          project_type: 'novel',
-          role_definition: 'Novel writer',
-          capabilities: 'Writing',
-          is_active: true,
-        },
-        {
-          id: '2',
-          project_type: 'thesis',
-          role_definition: 'Thesis writer',
-          capabilities: 'Academic writing',
-          is_active: false,
-        },
-      ]
-      mockApi.get.mockResolvedValue(mockPrompts)
-
-      const result = await adminApi.getPrompts()
-
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/prompts')
-      expect(result).toHaveLength(2)
-      expect(result[0]).toMatchObject(mockPrompts[0])
-      expect(result[1]).toMatchObject(mockPrompts[1])
-    })
-
-    it('handles empty prompts list', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValue([])
-
-      const result = await adminApi.getPrompts()
-
-      expect(result).toEqual([])
-    })
-  })
-
-  describe('getPrompt', () => {
-    it('fetches prompt by project type', async () => {
-      const { adminApi } = await import('../adminApi')
-      const mockPrompt = {
-        id: '1',
-        project_type: 'novel',
-        role_definition: 'Novel writer',
-        capabilities: 'Writing',
-        directory_structure: 'Standard',
-        content_structure: 'Chapters',
-        file_types: 'txt,md',
-        writing_guidelines: 'Style guide',
-        include_dialogue_guidelines: true,
-        primary_content_type: 'novel',
-        is_active: true,
-        version: 1,
-      }
-      mockApi.get.mockResolvedValue(mockPrompt)
-
-      const result = await adminApi.getPrompt('novel')
-
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/prompts/novel')
-      expect(result).toEqual(mockPrompt)
-    })
-
-    it('encodes project type for special characters', async () => {
-      const { adminApi } = await import('../adminApi')
-      const mockPrompt = { id: '1', project_type: 'sci-fi novel' }
-      mockApi.get.mockResolvedValue(mockPrompt)
-
-      await adminApi.getPrompt('sci-fi novel')
-
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/prompts/sci-fi%20novel')
-    })
-
-    it('handles prompt not found', async () => {
-      const { adminApi } = await import('../adminApi')
-      const error = new Error('Prompt not found')
-      mockApi.get.mockRejectedValue(error)
-
-      await expect(adminApi.getPrompt('unknown')).rejects.toThrow('Prompt not found')
-    })
-  })
-
-  describe('upsertPrompt', () => {
-    it('creates new prompt', async () => {
-      const { adminApi } = await import('../adminApi')
-      const mockPrompt = {
-        id: '1',
-        project_type: 'novel',
-        role_definition: 'Novel writer',
-        is_active: true,
-      }
-      const promptData = {
-        role_definition: 'Novel writer',
-        capabilities: 'Writing',
-        directory_structure: 'Standard',
-        content_structure: 'Chapters',
-        file_types: 'txt,md',
-        writing_guidelines: 'Style guide',
-        include_dialogue_guidelines: true,
-        is_active: true,
-      }
-      mockApi.put.mockResolvedValue(mockPrompt)
-
-      const result = await adminApi.upsertPrompt('novel', promptData)
-
-      expect(mockApi.put).toHaveBeenCalledWith('/api/admin/prompts/novel', promptData)
-      expect(result).toEqual(mockPrompt)
-    })
-
-    it('encodes project type for special characters', async () => {
-      const { adminApi } = await import('../adminApi')
-      const mockPrompt = { id: '1', project_type: 'sci-fi novel' }
-      const promptData = {
-        role_definition: 'Sci-fi writer',
-        capabilities: 'Writing',
-        directory_structure: 'Standard',
-        content_structure: 'Chapters',
-        file_types: 'txt,md',
-        writing_guidelines: 'Style guide',
-        include_dialogue_guidelines: true,
-        is_active: true,
-      }
-      mockApi.put.mockResolvedValue(mockPrompt)
-
-      await adminApi.upsertPrompt('sci-fi novel', promptData)
-
-      expect(mockApi.put).toHaveBeenCalledWith('/api/admin/prompts/sci-fi%20novel', promptData)
-    })
-
-    it('handles upsert error', async () => {
-      const { adminApi } = await import('../adminApi')
-      const error = new Error('Upsert failed')
-      const promptData = {
+      const prompt = { id: '1', project_type: 'sci-fi novel', role_definition: 'Writer' }
+      const requestBody = {
         role_definition: 'Writer',
-        capabilities: 'Writing',
+        capabilities: 'Drafting',
         directory_structure: 'Standard',
         content_structure: 'Chapters',
-        file_types: 'txt,md',
-        writing_guidelines: 'Style guide',
+        file_types: 'md',
+        writing_guidelines: 'Clear prose',
         include_dialogue_guidelines: true,
         is_active: true,
       }
-      mockApi.put.mockRejectedValue(error)
+      mockApi.get.mockResolvedValueOnce([prompt]).mockResolvedValueOnce(prompt)
+      mockApi.put.mockResolvedValueOnce(prompt)
+      mockApi.delete.mockResolvedValueOnce({ message: 'deleted' })
+      mockApi.post.mockResolvedValueOnce({ message: 'reloaded', count: 1 })
 
-      await expect(adminApi.upsertPrompt('novel', promptData)).rejects.toThrow('Upsert failed')
-    })
-  })
+      expect(await adminApi.getPrompts()).toEqual([prompt])
+      expect(mockApi.get).toHaveBeenNthCalledWith(1, '/api/admin/prompts')
 
-  describe('deletePrompt', () => {
-    it('deletes prompt by project type', async () => {
-      const { adminApi } = await import('../adminApi')
-      const response = { message: 'Prompt deleted successfully' }
-      mockApi.delete.mockResolvedValue(response)
+      expect(await adminApi.getPrompt('sci-fi novel')).toBe(prompt)
+      expect(mockApi.get).toHaveBeenNthCalledWith(2, '/api/admin/prompts/sci-fi%20novel')
 
-      const result = await adminApi.deletePrompt('novel')
+      expect(await adminApi.upsertPrompt('sci-fi novel', requestBody)).toBe(prompt)
+      expect(mockApi.put).toHaveBeenCalledWith('/api/admin/prompts/sci-fi%20novel', requestBody)
 
-      expect(mockApi.delete).toHaveBeenCalledWith('/api/admin/prompts/novel')
-      expect(result).toEqual(response)
-    })
-
-    it('encodes project type for special characters', async () => {
-      const { adminApi } = await import('../adminApi')
-      const response = { message: 'Prompt deleted' }
-      mockApi.delete.mockResolvedValue(response)
-
-      await adminApi.deletePrompt('sci-fi novel')
-
+      expect(await adminApi.deletePrompt('sci-fi novel')).toEqual({ message: 'deleted' })
       expect(mockApi.delete).toHaveBeenCalledWith('/api/admin/prompts/sci-fi%20novel')
-    })
-  })
 
-  describe('reloadPrompts', () => {
-    it('reloads prompts configuration', async () => {
-      const { adminApi } = await import('../adminApi')
-      const response = { message: 'Prompts reloaded successfully' }
-      mockApi.post.mockResolvedValue(response)
-
-      const result = await adminApi.reloadPrompts()
-
+      expect(await adminApi.reloadPrompts()).toEqual({ message: 'reloaded', count: 1 })
       expect(mockApi.post).toHaveBeenCalledWith('/api/admin/prompts/reload')
-      expect(result).toEqual(response)
     })
   })
 
-  // ==================== Skill Approval Tests ====================
+  // ==================== Skill Review ====================
 
-  describe('getPendingSkills', () => {
-    it('fetches pending skills from bare array response', async () => {
+  describe('skills', () => {
+    it('queries review statuses, forwards moderation decisions, and unwraps resources', async () => {
       const { adminApi } = await import('../adminApi')
-      const mockSkills = [
-        {
-          id: '1',
-          name: 'Skill 1',
-          description: 'Description 1',
-          instructions: 'Instructions 1',
-          category: 'writing',
-          tags: ['hook'],
-          skill_metadata: { license: 'MIT' },
-          resource_count: 2,
-          source: 'community',
-          author_id: 'author1',
-          author_name: 'Author 1',
-          status: 'pending',
-          reviewed_by: null,
-          reviewer_name: null,
-          reviewed_at: null,
-          rejection_reason: null,
-          created_at: '2024-01-01T00:00:00Z',
-        },
-        {
-          id: '2',
-          name: 'Skill 2',
-          description: null,
-          instructions: 'Instructions 2',
-          category: 'editing',
-          author_id: null,
-          author_name: null,
-          status: 'pending',
-          reviewed_by: null,
-          reviewer_name: null,
-          reviewed_at: null,
-          rejection_reason: null,
-          created_at: '2024-01-02T00:00:00Z',
-        },
-      ]
-      mockApi.get.mockResolvedValue(mockSkills)
+      const skills = [{ id: 's1', name: 'Hook Skill', status: 'pending' }]
+      const resources = [{ path: 'references/a.md', size: 3, content: 'abc' }]
 
-      const result = await adminApi.getPendingSkills()
+      mockApi.get
+        .mockResolvedValueOnce(skills)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce({ resources })
+        .mockResolvedValueOnce({})
+      mockApi.post
+        .mockResolvedValueOnce({ message: 'approved', skill_id: 's1' })
+        .mockResolvedValueOnce({ message: 'rejected', skill_id: 's1' })
+        .mockResolvedValueOnce({ message: 'unpublished', skill_id: 's1' })
 
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/skills/pending?status=pending')
-      expect(result).toEqual([
-        mockSkills[0],
-        { ...mockSkills[1], tags: [], skill_metadata: {}, resource_count: 0, source: 'community' },
-      ])
-    })
+      expect(await adminApi.getPendingSkills()).toBe(skills)
+      expect(mockApi.get).toHaveBeenNthCalledWith(1, '/api/admin/skills/pending?status=pending')
 
-    it('handles empty pending skills list', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValue([])
+      expect(await adminApi.getPendingSkills('approved')).toEqual([])
+      expect(mockApi.get).toHaveBeenNthCalledWith(2, '/api/admin/skills/pending?status=approved')
 
-      const result = await adminApi.getPendingSkills()
+      expect(await adminApi.approveSkill('s1')).toEqual({ message: 'approved', skill_id: 's1' })
+      expect(mockApi.post).toHaveBeenNthCalledWith(1, '/api/admin/skills/s1/approve')
 
-      expect(result).toEqual([])
-    })
-  })
-
-  describe('approveSkill / rejectSkill / unpublishSkill / getSkillReviewResources', () => {
-    it('approves skill by ID', async () => {
-      const { adminApi } = await import('../adminApi')
-      const response = { message: 'Skill approved successfully', skill_id: '123' }
-      mockApi.post.mockResolvedValue(response)
-
-      const result = await adminApi.approveSkill('123')
-
-      expect(mockApi.post).toHaveBeenCalledWith('/api/admin/skills/123/approve')
-      expect(result).toEqual(response)
-    })
-
-    it('rejects skill with and without reason', async () => {
-      const { adminApi } = await import('../adminApi')
-      const response = { message: 'Skill rejected', skill_id: '123' }
-      mockApi.post.mockResolvedValue(response)
-
-      await expect(adminApi.rejectSkill('123', 'Quality issues')).resolves.toEqual(response)
-      expect(mockApi.post).toHaveBeenCalledWith('/api/admin/skills/123/reject', {
+      expect(await adminApi.rejectSkill('s1', 'Quality issues')).toEqual({ message: 'rejected', skill_id: 's1' })
+      expect(mockApi.post).toHaveBeenNthCalledWith(2, '/api/admin/skills/s1/reject', {
         rejection_reason: 'Quality issues',
       })
 
-      await expect(adminApi.rejectSkill('123')).resolves.toEqual(response)
-      expect(mockApi.post).toHaveBeenCalledWith('/api/admin/skills/123/reject', {
-        rejection_reason: undefined,
-      })
-    })
-
-    it('posts the reason to the unpublish endpoint', async () => {
-      const { adminApi } = await import('../adminApi')
-      const response = { message: 'Skill unpublished', skill_id: '123' }
-      mockApi.post.mockResolvedValue(response)
-
-      const result = await adminApi.unpublishSkill('123', 'Infringement')
-
-      expect(mockApi.post).toHaveBeenCalledWith('/api/admin/skills/123/unpublish', {
+      expect(await adminApi.unpublishSkill('s1', 'Infringement')).toEqual({ message: 'unpublished', skill_id: 's1' })
+      expect(mockApi.post).toHaveBeenNthCalledWith(3, '/api/admin/skills/s1/unpublish', {
         rejection_reason: 'Infringement',
       })
-      expect(result).toEqual(response)
-    })
 
-    it('returns the raw resource files of a skill under review', async () => {
-      const { adminApi } = await import('../adminApi')
-      const resources = [{ path: 'references/a.md', size: 3, content: 'abc' }]
-      mockApi.get.mockResolvedValue({ resources })
-
-      const result = await adminApi.getSkillReviewResources('123')
-
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/skills/123/resources')
-      expect(result).toEqual(resources)
+      expect(await adminApi.getSkillReviewResources('s1')).toEqual(resources)
+      expect(mockApi.get).toHaveBeenNthCalledWith(3, '/api/admin/skills/s1/resources')
+      expect(await adminApi.getSkillReviewResources('s1')).toEqual([])
     })
   })
 
-  // ==================== Points / Check-in / Referral / Quota Tests ====================
+  // ==================== Codes, Subscriptions, Payment Orders, Plans ====================
 
-  describe('points, stats, and quota APIs', () => {
-    it('parses full dashboard stats payload', async () => {
+  describe('codes, subscriptions, payment orders, and plans', () => {
+    it('builds query strings and posts code payloads including multi-use max_uses', async () => {
       const { adminApi } = await import('../adminApi')
-      const statsPayload = {
-        total_users: 10,
-        active_users: 8,
-        new_users_today: 2,
-        total_projects: 4,
-        author_created_projects: 3,
-        auto_initialized_projects: 1,
-        total_inspirations: 0,
-        pending_inspirations: 0,
-        active_subscriptions: 2,
-        pro_users: 2,
-        total_points_in_circulation: 150,
-        today_check_ins: 3,
-        active_invite_codes: 5,
-        week_referrals: 1,
-      }
-      mockApi.get.mockResolvedValue(statsPayload)
+      const codesResp = { items: [], total: 0, page: 2, page_size: 10 }
+      mockApi.get.mockResolvedValueOnce(codesResp)
+      mockApi.post
+        .mockResolvedValueOnce({ id: 'c1', code: 'PRO-1' })
+        .mockResolvedValueOnce({ codes: ['A'], count: 1, max_uses: 5 })
+      mockApi.put.mockResolvedValueOnce({ id: 'c1', is_active: false })
 
-      const result = await adminApi.getDashboardStats()
+      expect(await adminApi.getCodes({ page: 2, page_size: 10, tier: 'pro', is_active: false })).toBe(codesResp)
+      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/codes?page=2&page_size=10&tier=pro&is_active=false')
 
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/dashboard/stats')
-      expect(result).toEqual(statsPayload)
-    })
+      await adminApi.createCode({ tier: 'pro', duration_days: 30 })
+      expect(mockApi.post).toHaveBeenNthCalledWith(1, '/api/admin/codes', { tier: 'pro', duration_days: 30 })
 
-    it('parses activation funnel payload', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValue({
-        window_days: 7,
-        period_start: '2026-10-01T00:00:00Z',
-        period_end: '2026-10-08T00:00:00Z',
-        activation_rate: 0.5,
-        steps: [
-          {
-            event_name: 'signup_success',
-            label: 'Signup',
-            users: 20,
-            conversion_from_previous: null,
-            drop_off_from_previous: null,
-          },
-          {
-            event_name: 'project_created',
-            label: 'Project',
-            users: 10,
-            conversion_from_previous: 0.5,
-            drop_off_from_previous: 10,
-          },
-        ],
+      const batch = await adminApi.createCodesBatch({
+        tier: 'pro',
+        duration_days: 30,
+        count: 1,
+        code_type: 'multi_use',
+        max_uses: 5,
       })
-
-      const result = await adminApi.getActivationFunnel(7)
-
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/dashboard/activation-funnel?days=7')
-      expect(result.window_days).toBe(7)
-      expect(result.activation_rate).toBe(0.5)
-      expect(result.steps).toHaveLength(2)
-    })
-
-    it('parses upgrade conversion stats payload', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValue({
-        window_days: 30,
-        period_start: '2026-09-08T00:00:00Z',
-        period_end: '2026-10-08T00:00:00Z',
-        total_conversions: 20,
-        paid_conversions: 12,
-        unattributed_conversions: 5,
-        after_ai_quota_wall_conversions: 9,
-        paid_after_ai_quota_wall_conversions: 6,
-        channels: [
-          { channel: 'zpay', conversions: 12, paid: true },
-          { channel: 'admin_update', conversions: 8, paid: 'yes' },
-        ],
-        sources: [
-          { source: 'chat_quota_blocked', conversions: 8, share: 0.4 },
-          { source: 'settings_subscription_upgrade', conversions: 7, share: 0.35 },
-        ],
+      expect(mockApi.post).toHaveBeenNthCalledWith(2, '/api/admin/codes/batch', {
+        tier: 'pro',
+        duration_days: 30,
+        count: 1,
+        code_type: 'multi_use',
+        max_uses: 5,
       })
+      expect(batch.max_uses).toBe(5)
 
-      const result = await adminApi.getUpgradeConversionStats(30)
-
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/dashboard/upgrade-conversion?days=30')
-      expect(result.channels).toEqual([
-        { channel: 'zpay', conversions: 12, paid: true },
-        { channel: 'admin_update', conversions: 8, paid: false },
-      ])
-      expect(result.sources).toHaveLength(2)
+      await adminApi.updateCode('c1', { is_active: false })
+      expect(mockApi.put).toHaveBeenCalledWith('/api/admin/codes/c1', { is_active: false })
     })
 
-    it('parses upgrade funnel stats payload', async () => {
+    it('sends subscription, payment-order, and plan queries directly', async () => {
       const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValue({
-        window_days: 7,
-        period_start: '2026-10-01T00:00:00Z',
-        period_end: '2026-10-08T00:00:00Z',
-        totals: { expose: 20, click: 8, conversion: 3 },
-        surfaces: [
-          {
-            source: 'chat_quota_blocked',
-            surface: 'card',
-            exposes: 12,
-            exposed_users: 4,
-            clicks: 6,
-            clicking_users: 3,
-            page_arrivals: 2,
-          },
-        ],
-        sources: [
-          {
-            source: 'chat_quota_blocked',
-            exposes: 12,
-            clicks: 6,
-            conversions: 3,
-            click_through_rate: 0.5,
-            conversion_rate_from_click: 0.5,
-            conversion_rate_from_expose: 0.25,
-          },
-        ],
-      })
+      const subsResp = { items: [], total: 0, page: 2, page_size: 20 }
+      const ordersResp = { items: [], total: 0, page: 1, page_size: 10 }
+      const plansResp = [{ id: 'free', name: 'free', effective_features: { ai_conversations_per_day: 3 } }]
 
-      const result = await adminApi.getUpgradeFunnelStats(7)
+      mockApi.get
+        .mockResolvedValueOnce(subsResp)
+        .mockResolvedValueOnce(ordersResp)
+        .mockResolvedValueOnce(plansResp)
+      mockApi.put.mockResolvedValueOnce({ id: 'pro', price_monthly_cents: 3900 })
 
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/dashboard/upgrade-funnel?days=7')
-      expect(result.totals).toEqual({ expose: 20, click: 8, conversion: 3 })
-      expect(result.surfaces).toHaveLength(1)
-      expect(result.sources).toHaveLength(1)
+      expect(await adminApi.getSubscriptions({ page: 2, status: 'active', search: 'alice@' })).toBe(subsResp)
+      expect(mockApi.get).toHaveBeenNthCalledWith(1, '/api/admin/subscriptions?page=2&status=active&search=alice%40')
+
+      expect(await adminApi.getPaymentOrders({ user_id: 'user-1', page_size: 10 })).toBe(ordersResp)
+      expect(mockApi.get).toHaveBeenNthCalledWith(2, '/api/admin/payment-orders?page_size=10&user_id=user-1')
+
+      expect(await adminApi.getPlans()).toBe(plansResp)
+      expect(mockApi.get).toHaveBeenNthCalledWith(3, '/api/admin/plans')
+
+      await adminApi.updatePlan('pro', { price_monthly_cents: 3900 })
+      expect(mockApi.put).toHaveBeenCalledWith('/api/admin/plans/pro', { price_monthly_cents: 3900 })
     })
+  })
 
-    it('rejects malformed empty or wrapped stats and quota payloads instead of fabricating zeros', async () => {
+  // ==================== Audit Logs ====================
+
+  describe('audit logs', () => {
+    it('passes filter query params and falls back null admin_name to "-"', async () => {
       const { adminApi } = await import('../adminApi')
-
-      mockApi.get.mockResolvedValue({})
-      await expect(adminApi.getDashboardStats()).rejects.toThrow('Invalid dashboard stats response')
-      await expect(adminApi.getActivationFunnel()).rejects.toThrow(
-        'Invalid activation funnel response',
-      )
-      await expect(adminApi.getUpgradeConversionStats()).rejects.toThrow(
-        'Invalid upgrade conversion stats response',
-      )
-      await expect(adminApi.getUpgradeFunnelStats()).rejects.toThrow(
-        'Invalid upgrade funnel stats response',
-      )
-      await expect(adminApi.getPointsStats()).rejects.toThrow('Invalid points stats response')
-      await expect(adminApi.getUserPoints('u-1')).rejects.toThrow('Invalid user points response')
-      await expect(adminApi.getCheckInStats()).rejects.toThrow('Invalid check-in stats response')
-      await expect(adminApi.getReferralStats()).rejects.toThrow('Invalid referral stats response')
-      await expect(adminApi.getQuotaUsageStats()).rejects.toThrow(
-        'Invalid quota usage stats response',
-      )
-      await expect(adminApi.getUserQuota('u-1')).rejects.toThrow('Invalid user quota response')
-
-      // Fictional { data: ... } wrapper is rejected as well
       mockApi.get.mockResolvedValueOnce({
-        data: {
-          total_points_issued: 20,
-          total_points_spent: 5,
-          total_points_expired: 0,
-          active_users_with_points: 3,
-        },
-      })
-      await expect(adminApi.getPointsStats()).rejects.toThrow('Invalid points stats response')
-    })
-
-    it('parses points stats, user points, and transactions from real backend schemas', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get
-        .mockResolvedValueOnce({
-          total_points_issued: 20,
-          total_points_spent: 5,
-          total_points_expired: 2,
-          active_users_with_points: 3,
-        })
-        .mockResolvedValueOnce({
-          user_id: 'u-1',
-          username: 'alice',
-          email: 'alice@example.com',
-          available: 100,
-          pending_expiration: 10,
-          total_earned: 120,
-          total_spent: 20,
-        })
-        .mockResolvedValueOnce({
-          items: [
-            {
-              id: 'tx-1',
-              user_id: 'u-1',
-              username: 'alice',
-              amount: 12,
-              balance_after: 88,
-              transaction_type: 'admin_adjust',
-              created_at: '2025-01-01T00:00:00Z',
-            },
-          ],
-          total: 9,
-          page: 2,
-          page_size: 20,
-        })
-
-      await expect(adminApi.getPointsStats()).resolves.toEqual({
-        total_points_issued: 20,
-        total_points_spent: 5,
-        total_points_expired: 2,
-        active_users_with_points: 3,
-      })
-      await expect(adminApi.getUserPoints('u-1')).resolves.toEqual({
-        user_id: 'u-1',
-        username: 'alice',
-        email: 'alice@example.com',
-        available: 100,
-        pending_expiration: 10,
-        total_earned: 120,
-        total_spent: 20,
-      })
-      const txResult = await adminApi.getUserPointsTransactions('u-1', { page: 2, page_size: 20 })
-      expect(mockApi.get).toHaveBeenLastCalledWith(
-        '/api/admin/points/u-1/transactions?page=2&page_size=20',
-      )
-      expect(txResult.total).toBe(9)
-      expect(txResult.items[0]).toMatchObject({
-        id: 'tx-1',
-        amount: 12,
-        balance_after: 88,
-        source_id: null,
-        description: null,
-        expires_at: null,
-        is_expired: false,
-      })
-    })
-
-    it('parses check-in stats and records from real backend schemas', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get
-        .mockResolvedValueOnce({
-          today_count: 4,
-          yesterday_count: 6,
-          week_total: 25,
-          streak_distribution: {
-            '7': 3,
-            '14': 1,
-            invalid: 99,
-          },
-        })
-        .mockResolvedValueOnce({
-          items: [
-            {
-              id: 'r1',
-              user_id: 'u1',
-              username: 'alice',
-              check_in_date: '2025-01-01',
-              streak_days: 6,
-              points_earned: 2,
-              created_at: '2025-01-01T10:00:00Z',
-            },
-          ],
-          total: 22,
-          page: 1,
-          page_size: 20,
-        })
-
-      await expect(adminApi.getCheckInStats()).resolves.toEqual({
-        today_count: 4,
-        yesterday_count: 6,
-        week_total: 25,
-        streak_distribution: { 7: 3, 14: 1 },
-      })
-
-      const records = await adminApi.getCheckInRecords({ page: 1, page_size: 20 })
-      expect(records.total).toBe(22)
-      expect(records.items[0]).toMatchObject({
-        id: 'r1',
-        streak_days: 6,
-        points_earned: 2,
-      })
-    })
-
-    it('parses referral and quota payloads from real backend schemas', async () => {
-      const { adminApi } = await import('../adminApi')
-
-      mockApi.get
-        .mockResolvedValueOnce({
-          total_codes: 8,
-          active_codes: 3,
-          total_referrals: 5,
-          successful_referrals: 4,
-          pending_rewards: 1,
-          total_points_awarded: 40,
-        })
-        .mockResolvedValueOnce({
-          items: [
-            {
-              id: 'c1',
-              code: 'ABCD',
-              owner_id: 'u1',
-              owner_name: 'alice',
-              max_uses: 10,
-              current_uses: 2,
-              is_active: true,
-              created_at: '2025-01-01T00:00:00Z',
-            },
-          ],
-          total: 1,
-          page: 1,
-          page_size: 20,
-        })
-        .mockResolvedValueOnce({
-          items: [
-            {
-              id: 'rw1',
-              user_id: 'u1',
-              username: 'alice',
-              reward_type: 'points',
-              amount: 10,
-              source: 'referral',
-              is_used: false,
-              created_at: '2025-01-01T00:00:00Z',
-            },
-          ],
-          total: 1,
-          page: 1,
-          page_size: 20,
-        })
-        .mockResolvedValueOnce({
-          period_start: '2026-10-01T00:00:00+00:00',
-          period_end: '2026-11-01T00:00:00+00:00',
-          material_decompositions: 4,
-          inspiration_copies: 2,
-          skills_created: 1,
-        })
-        .mockResolvedValueOnce({
-          user_id: 'u1',
-          username: 'alice',
-          email: 'alice@example.com',
-          plan_name: 'pro',
-          plan_display_name: '专业版',
-          plan_display_name_en: 'Pro',
-          ai_conversations: { used: 9, limit: 50, reset_at: '2026-10-06T08:00:00+00:00' },
-          material_decompositions: { used: 1, limit: 5, reset_at: null },
-          inspiration_copies: { used: 0, limit: 20, reset_at: null },
-          custom_skills: { used: 2, limit: -1, reset_at: null },
-        })
-      mockApi.post.mockResolvedValueOnce({
-        id: 'c2',
-        code: 'WXYZ-5678',
-        owner_id: 'u1',
-        owner_name: 'alice',
-        max_uses: 3,
-        current_uses: 0,
-        is_active: true,
-        created_at: '2025-01-01T00:00:00Z',
-      })
-
-      const referralStats = await adminApi.getReferralStats()
-      const createdCode = await adminApi.createAdminInviteCode()
-      const inviteCodes = await adminApi.getInviteCodes({ page: 1, page_size: 20 })
-      const rewards = await adminApi.getReferralRewards({ page: 1, page_size: 20 })
-      const quotaStats = await adminApi.getQuotaUsageStats()
-      const userQuota = await adminApi.getUserQuota('u1')
-
-      expect(referralStats.total_points_awarded).toBe(40)
-      expect(inviteCodes.items[0]).toMatchObject({ code: 'ABCD', max_uses: 10, current_uses: 2 })
-      expect(createdCode).toMatchObject({ code: 'WXYZ-5678', max_uses: 3, current_uses: 0 })
-      expect(rewards.items[0]).toMatchObject({ reward_type: 'points', amount: 10, is_used: false })
-      expect(quotaStats).toEqual({
-        period_start: '2026-10-01T00:00:00+00:00',
-        period_end: '2026-11-01T00:00:00+00:00',
-        material_decompositions: 4,
-        inspiration_copies: 2,
-        skills_created: 1,
-      })
-      expect(userQuota.custom_skills).toEqual({ used: 2, limit: -1, reset_at: null })
-      expect(mockApi.post).toHaveBeenCalledWith('/api/admin/invites')
-    })
-
-    it('adjusts user points with explicit payload', async () => {
-      const { adminApi } = await import('../adminApi')
-      const apiPayload = {
-        message: 'ok',
-        new_balance: 80,
-      }
-      mockApi.post.mockResolvedValue(apiPayload)
-
-      const result = await adminApi.adjustUserPoints('u1', {
-        amount: -20,
-        reason: 'manual correction',
-      })
-
-      expect(mockApi.post).toHaveBeenCalledWith('/api/admin/points/u1/adjust', {
-        amount: -20,
-        reason: 'manual correction',
-      })
-      expect(result).toEqual(apiPayload)
-    })
-
-    it('rejects an audit payload missing its required total or using legacy logs key', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValueOnce({ items: [], page: 1, page_size: 20 })
-      await expect(adminApi.getAuditLogs()).rejects.toThrow('Invalid audit log response')
-
-      mockApi.get.mockResolvedValueOnce({ logs: [], total: 0, page: 1, page_size: 20 })
-      await expect(adminApi.getAuditLogs()).rejects.toThrow('Invalid audit log response')
-    })
-
-    it('rejects an audit row missing actor identity rather than hiding it as an empty string', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValue({
-        items: [
-          {
-            id: 'log-1',
-            action: 'update_user',
-            resource_type: 'user',
-            created_at: '2026-10-04T00:00:00Z',
-          },
-        ],
-        total: 1,
-        page: 1,
-        page_size: 20,
-      })
-      await expect(adminApi.getAuditLogs()).rejects.toThrow('Invalid audit log response')
-    })
-
-    it('normalizes audit query response and pagination from items schema', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValue({
         items: [
           {
             id: 'log-1',
@@ -951,6 +245,19 @@ describe('adminApi', () => {
             ip_address: '127.0.0.1',
             user_agent: 'playwright',
             created_at: '2026-03-08T00:00:00Z',
+          },
+          {
+            id: 'log-2',
+            admin_id: 'deleted-admin',
+            admin_name: null,
+            action: 'delete_user',
+            resource_type: 'user',
+            resource_id: 'u-2',
+            old_value: null,
+            new_value: null,
+            ip_address: null,
+            user_agent: null,
+            created_at: '2026-03-09T00:00:00Z',
           },
         ],
         total: 22,
@@ -968,239 +275,108 @@ describe('adminApi', () => {
       expect(mockApi.get).toHaveBeenCalledWith(
         '/api/admin/audit-logs?page=2&page_size=20&resource_type=subscription&action=update',
       )
-      expect(result).toEqual({
-        items: [
-          {
-            id: 'log-1',
-            admin_id: 'admin-1',
-            admin_name: 'super-admin',
-            action: 'update',
-            resource_type: 'subscription',
-            resource_id: 'sub-1',
-            old_value: { plan_name: 'free' },
-            new_value: { plan_name: 'pro' },
-            ip_address: '127.0.0.1',
-            user_agent: 'playwright',
-            created_at: '2026-03-08T00:00:00Z',
-          },
-        ],
-        total: 22,
-        page: 2,
-        page_size: 20,
-      })
+      expect(result.items[0].admin_name).toBe('super-admin')
+      expect(result.items[1].admin_name).toBe('-')
+      expect(result.total).toBe(22)
     })
+  })
 
-    it('parses plans bare array preserving effective_features and updates plan by id', async () => {
+  // ==================== Dashboard, Funnels, Growth ====================
+
+  describe('dashboard and funnels', () => {
+    it('fetches stats and growth endpoints and clamps funnel window days to [1, 90]', async () => {
       const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValue([
-        {
-          id: 'free',
-          name: 'free',
-          display_name: '免费版',
-          display_name_en: 'Free',
-          price_monthly_cents: 0,
-          price_yearly_cents: 0,
-          features: { ai_conversations_per_day: 5 },
-          effective_features: { ai_conversations_per_day: 3 },
-          is_active: true,
-          created_at: '2026-03-01T00:00:00Z',
-        },
-      ])
-      mockApi.put.mockResolvedValue({
-        id: 'pro',
-        name: 'pro',
-        display_name: '专业版',
-        price_monthly_cents: 3900,
-      })
-
-      const plans = await adminApi.getPlans()
-      const updated = await adminApi.updatePlan('pro', {
-        display_name: '专业版',
-        display_name_en: 'Pro',
-        price_monthly_cents: 3900,
-      })
-
-      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/plans')
-      expect(plans).toEqual([
-        {
-          id: 'free',
-          name: 'free',
-          display_name: '免费版',
-          display_name_en: 'Free',
-          price_monthly_cents: 0,
-          price_yearly_cents: 0,
-          features: { ai_conversations_per_day: 5 },
-          effective_features: { ai_conversations_per_day: 3 },
-          is_active: true,
-          created_at: '2026-03-01T00:00:00Z',
-          updated_at: undefined,
-        },
-      ])
-      expect(mockApi.put).toHaveBeenCalledWith('/api/admin/plans/pro', {
-        display_name: '专业版',
-        display_name_en: 'Pro',
-        price_monthly_cents: 3900,
-      })
-      expect(updated).toEqual({
-        id: 'pro',
-        name: 'pro',
-        display_name: '专业版',
-        price_monthly_cents: 3900,
-      })
-    })
-
-    it('normalizes subscriptions payload including virtual rows', async () => {
-      const { adminApi } = await import('../adminApi')
-      mockApi.get.mockResolvedValue({
-        items: [
-          {
-            id: 'sub-1',
-            user_id: 'u1',
-            username: 'alice',
-            email: 'alice@example.com',
-            plan_name: 'pro',
-            plan_display_name: '专业版',
-            status: 'active',
-            current_period_start: '2025-01-01T00:00:00Z',
-            current_period_end: '2126-01-01T00:00:00Z',
-            created_at: '2025-01-01T00:00:00Z',
-            updated_at: '2025-01-02T00:00:00Z',
-            has_subscription_record: true,
-            is_test_account: false,
-          },
-          {
-            id: 'virtual-u2',
-            user_id: 'u2',
-            username: 'test_user_2',
-            email: 'qa@example.com',
-            plan_name: 'free',
-            status: 'active',
-            current_period_start: null,
-            current_period_end: null,
-            created_at: '2025-01-03T00:00:00Z',
-            updated_at: '2025-01-03T00:00:00Z',
-            has_subscription_record: false,
-            is_test_account: true,
-          },
-        ],
-        total: 2,
-        page: 1,
-        page_size: 20,
-      })
-
-      const result = await adminApi.getSubscriptions({ page: 1, page_size: 20 })
-
-      expect(result.items[0]).toMatchObject({
-        plan_display_name: '专业版',
-        current_period_end: '2126-01-01T00:00:00Z',
-        has_subscription_record: true,
-      })
-      expect(result.items[1]).toMatchObject({
-        user_id: 'u2',
-        current_period_start: null,
-        current_period_end: null,
-        has_subscription_record: false,
-        is_test_account: true,
-      })
-    })
-
-    it.each(['contest_writer', 'qasim', 'democracy_writer', 'smoke_reader'])(
-      'does not infer a test account from incidental tokens in %s',
-      async (username) => {
-        const { adminApi } = await import('../adminApi')
-        mockApi.get.mockResolvedValue({
-          items: [{ id: 'sub-real', user_id: 'real', username, email: `${username}@personal.test` }],
-          total: 1,
-        })
-
-        const result = await adminApi.getSubscriptions()
-
-        expect(result.items[0].is_test_account).toBe(false)
-      },
-    )
-
-    it('covers inspiration and feedback admin APIs', async () => {
-      const { adminApi } = await import('../adminApi')
+      const stats = { total_users: 10 }
+      const growth = { days: 14, current: { metrics: { cohort_activation_rate: null, revenue_cents: 19900 } } }
+      const funnel = { window_days: 7, steps: [] }
+      const conversion = { window_days: 90, channels: [], sources: [] }
+      const upgradeFunnel = { window_days: 1, totals: { expose: 0, click: 0, conversion: 0 }, sources: [] }
 
       mockApi.get
-        .mockResolvedValueOnce({
-          items: [
-            {
-              id: 'ins-1',
-              name: 'Hook',
-              description: 'desc',
-              tags: ['tag-a'],
-              source: 'community',
-              status: 'pending',
-              copy_count: 5,
-              created_at: '2025-01-01T00:00:00Z',
-              updated_at: '2025-01-02T00:00:00Z',
-            },
-          ],
-          total: 1,
-        })
-        .mockResolvedValueOnce({
-          items: [
-            {
-              id: 'fb-1',
-              user_id: 'u-1',
-              username: 'alice',
-              email: 'alice@example.com',
-              source_page: 'editor',
-              issue_text: 'bug report',
-              has_screenshot: true,
-              screenshot_size_bytes: 1024,
-              status: 'open',
-              created_at: '2025-01-01T00:00:00Z',
-              updated_at: '2025-01-02T00:00:00Z',
-            },
-          ],
-          total: 1,
-        })
+        .mockResolvedValueOnce(stats)
+        .mockResolvedValueOnce(growth)
+        .mockResolvedValueOnce(funnel)
+        .mockResolvedValueOnce(conversion)
+        .mockResolvedValueOnce(upgradeFunnel)
 
+      expect(await adminApi.getDashboardStats()).toBe(stats)
+      expect(mockApi.get).toHaveBeenNthCalledWith(1, '/api/admin/dashboard/stats')
+
+      expect(await adminApi.getGrowthDashboard(14)).toBe(growth)
+      expect(mockApi.get).toHaveBeenNthCalledWith(2, '/api/admin/dashboard/growth?days=14')
+
+      expect(await adminApi.getActivationFunnel(Number.NaN)).toBe(funnel)
+      expect(mockApi.get).toHaveBeenNthCalledWith(3, '/api/admin/dashboard/activation-funnel?days=7')
+
+      expect(await adminApi.getUpgradeConversionStats(120)).toBe(conversion)
+      expect(mockApi.get).toHaveBeenNthCalledWith(4, '/api/admin/dashboard/upgrade-conversion?days=90')
+
+      expect(await adminApi.getUpgradeFunnelStats(0)).toBe(upgradeFunnel)
+      expect(mockApi.get).toHaveBeenNthCalledWith(5, '/api/admin/dashboard/upgrade-funnel?days=1')
+    })
+  })
+
+  // ==================== Inspirations & Feedback ====================
+
+  describe('inspirations and feedback', () => {
+    it('builds optional query strings and forwards review/status mutations', async () => {
+      const { adminApi } = await import('../adminApi')
+      mockApi.get
+        .mockResolvedValueOnce({ items: [], total: 0 })
+        .mockResolvedValueOnce({ items: [], total: 1 })
+        .mockResolvedValueOnce({ items: [], total: 0 })
+        .mockResolvedValueOnce({ items: [], total: 1 })
       mockApi.post.mockResolvedValueOnce({ message: 'ok' })
       mockApi.patch
         .mockResolvedValueOnce({ id: 'ins-1', name: 'Hook updated' })
-        .mockResolvedValueOnce({
-          id: 'fb-1',
-          user_id: 'u-1',
-          username: 'alice',
-          email: 'alice@example.com',
-          source_page: 'editor',
-          issue_text: 'bug report',
-          has_screenshot: false,
-          status: 'processing',
-          created_at: '2025-01-01T00:00:00Z',
-          updated_at: '2025-01-03T00:00:00Z',
-        })
+        .mockResolvedValueOnce({ id: 'fb-1', status: 'processing' })
       mockApi.delete.mockResolvedValueOnce({ message: 'deleted' })
 
-      const inspirations = await adminApi.getInspirations({
-        status: 'pending',
-        source: 'community',
-        skip: 20,
-        limit: 20,
+      await adminApi.getInspirations()
+      expect(mockApi.get).toHaveBeenNthCalledWith(1, '/api/admin/inspirations')
+
+      await adminApi.getInspirations({ status: 'pending', source: 'community', skip: 20, limit: 20 })
+      expect(mockApi.get).toHaveBeenNthCalledWith(
+        2,
+        '/api/admin/inspirations?status=pending&source=community&skip=20&limit=20',
+      )
+
+      expect(await adminApi.reviewInspiration('ins-1', false, 'needs refinement')).toEqual({ message: 'ok' })
+      expect(mockApi.post).toHaveBeenCalledWith('/api/admin/inspirations/ins-1/review', {
+        approve: false,
+        rejection_reason: 'needs refinement',
       })
-      const reviewed = await adminApi.reviewInspiration('ins-1', false, 'needs refinement')
-      const updated = await adminApi.updateInspiration('ins-1', { name: 'Hook updated' })
-      const deleted = await adminApi.deleteInspiration('ins-1')
-      const feedback = await adminApi.getFeedbackList({
+
+      expect(await adminApi.updateInspiration('ins-1', { name: 'Hook updated' })).toEqual({
+        id: 'ins-1',
+        name: 'Hook updated',
+      })
+      expect(mockApi.patch).toHaveBeenNthCalledWith(1, '/api/admin/inspirations/ins-1', { name: 'Hook updated' })
+
+      expect(await adminApi.deleteInspiration('ins-1')).toEqual({ message: 'deleted' })
+      expect(mockApi.delete).toHaveBeenCalledWith('/api/admin/inspirations/ins-1')
+
+      await adminApi.getFeedbackList()
+      expect(mockApi.get).toHaveBeenNthCalledWith(3, '/api/admin/feedback')
+
+      await adminApi.getFeedbackList({
         status: 'open',
         source_page: 'editor',
-        has_screenshot: true,
+        has_screenshot: false,
         search: 'alice',
-        skip: 20,
+        skip: 0,
         limit: 20,
       })
-      const updatedFeedback = await adminApi.updateFeedbackStatus('fb-1', 'processing')
+      expect(mockApi.get).toHaveBeenNthCalledWith(
+        4,
+        '/api/admin/feedback?status=open&source_page=editor&has_screenshot=false&search=alice&skip=0&limit=20',
+      )
 
-      expect(inspirations.total).toBe(1)
-      expect(reviewed).toEqual({ message: 'ok' })
-      expect(updated).toEqual({ id: 'ins-1', name: 'Hook updated' })
-      expect(deleted).toEqual({ message: 'deleted' })
-      expect(feedback.total).toBe(1)
-      expect(updatedFeedback).toMatchObject({
+      expect(await adminApi.updateFeedbackStatus('fb-1', 'processing')).toEqual({
         id: 'fb-1',
+        status: 'processing',
+      })
+      expect(mockApi.patch).toHaveBeenNthCalledWith(2, '/api/admin/feedback/fb-1/status', {
         status: 'processing',
       })
     })
@@ -1302,7 +478,77 @@ describe('adminApi', () => {
     })
   })
 
-  // ==================== Admin API Object Tests ====================
+  // ==================== Points, Check-in, Referrals, Quotas ====================
+
+  describe('points, check-in, referrals, and quotas', () => {
+    it('routes points, check-in, referral, and quota endpoints with expected query params', async () => {
+      const { adminApi } = await import('../adminApi')
+      const pointsStats = { total_points_issued: 20 }
+      const userPoints = { user_id: 'u-1', available: 100 }
+      const txResp = { items: [], total: 9, page: 2, page_size: 20 }
+      const checkInStats = { today_count: 4, streak_distribution: { 7: 3 } }
+      const checkInRecords = { items: [], total: 22, page: 1, page_size: 20 }
+      const referralStats = { total_codes: 8, total_points_awarded: 40 }
+      const inviteCodes = { items: [], total: 1, page: 1, page_size: 20 }
+      const rewards = { items: [], total: 1, page: 1, page_size: 20 }
+      const quotaStats = { material_decompositions: 4, inspiration_copies: 2, skills_created: 1 }
+      const userQuota = { user_id: 'u-1', custom_skills: { used: 2, limit: -1, reset_at: null } }
+
+      mockApi.get
+        .mockResolvedValueOnce(pointsStats)
+        .mockResolvedValueOnce(userPoints)
+        .mockResolvedValueOnce(txResp)
+        .mockResolvedValueOnce(checkInStats)
+        .mockResolvedValueOnce(checkInRecords)
+        .mockResolvedValueOnce(referralStats)
+        .mockResolvedValueOnce(inviteCodes)
+        .mockResolvedValueOnce(rewards)
+        .mockResolvedValueOnce(quotaStats)
+        .mockResolvedValueOnce(userQuota)
+      mockApi.post
+        .mockResolvedValueOnce({ message: 'ok', new_balance: 80 })
+        .mockResolvedValueOnce({ id: 'c2', code: 'WXYZ-5678' })
+
+      expect(await adminApi.getPointsStats()).toBe(pointsStats)
+      expect(await adminApi.getUserPoints('u-1')).toBe(userPoints)
+      expect(await adminApi.getUserPointsTransactions('u-1', { page: 2, page_size: 20 })).toBe(txResp)
+      expect(await adminApi.adjustUserPoints('u-1', { amount: -20, reason: 'manual correction' })).toEqual({
+        message: 'ok',
+        new_balance: 80,
+      })
+
+      expect(await adminApi.getCheckInStats()).toBe(checkInStats)
+      expect(await adminApi.getCheckInRecords({ page: 1, page_size: 20, user_id: 'u-1' })).toBe(checkInRecords)
+
+      expect(await adminApi.getReferralStats()).toBe(referralStats)
+      expect(await adminApi.createAdminInviteCode()).toEqual({ id: 'c2', code: 'WXYZ-5678' })
+      expect(await adminApi.getInviteCodes({ page: 1, page_size: 20, is_active: true })).toBe(inviteCodes)
+      expect(await adminApi.getReferralRewards({ page: 1, page_size: 20 })).toBe(rewards)
+
+      expect(await adminApi.getQuotaUsageStats()).toBe(quotaStats)
+      expect(await adminApi.getUserQuota('u-1')).toBe(userQuota)
+
+      expect(mockApi.get.mock.calls.map(([url]) => url)).toEqual([
+        '/api/admin/points/stats',
+        '/api/admin/points/u-1',
+        '/api/admin/points/u-1/transactions?page=2&page_size=20',
+        '/api/admin/check-in/stats',
+        '/api/admin/check-in/records?page=1&page_size=20&user_id=u-1',
+        '/api/admin/referrals/stats',
+        '/api/admin/invites?page=1&page_size=20&is_active=true',
+        '/api/admin/referrals/rewards?page=1&page_size=20',
+        '/api/admin/quota/usage',
+        '/api/admin/quota/u-1',
+      ])
+      expect(mockApi.post).toHaveBeenNthCalledWith(1, '/api/admin/points/u-1/adjust', {
+        amount: -20,
+        reason: 'manual correction',
+      })
+      expect(mockApi.post).toHaveBeenNthCalledWith(2, '/api/admin/invites')
+    })
+  })
+
+  // ==================== Export Surface ====================
 
   describe('adminApi export', () => {
     it('exports adminApi without removed getCode or top-level function duplicates', async () => {
@@ -1315,63 +561,5 @@ describe('adminApi', () => {
       expect('getCode' in adminModule.adminApi).toBe(false)
       expect('getUsers' in adminModule).toBe(false)
     })
-  })
-})
-
-describe('admin cleanup query params', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('sends the subscription search and the payment-order user filter', async () => {
-    const { adminApi } = await import('../adminApi')
-    mockApi.get.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
-
-    await adminApi.getSubscriptions({ page: 2, search: 'alice@' })
-    await adminApi.getPaymentOrders({ user_id: 'user-1', page_size: 10 })
-
-    expect(mockApi.get).toHaveBeenNthCalledWith(1, '/api/admin/subscriptions?page=2&search=alice%40')
-    expect(mockApi.get).toHaveBeenNthCalledWith(2, '/api/admin/payment-orders?page_size=10&user_id=user-1')
-  })
-
-  it('posts max_uses with a multi-use batch', async () => {
-    const { adminApi } = await import('../adminApi')
-    mockApi.post.mockResolvedValue({ codes: ['A'], count: 1, max_uses: 5 })
-
-    const result = await adminApi.createCodesBatch({
-      tier: 'pro',
-      duration_days: 30,
-      count: 1,
-      code_type: 'multi_use',
-      max_uses: 5,
-    })
-
-    expect(mockApi.post).toHaveBeenCalledWith('/api/admin/codes/batch', {
-      tier: 'pro',
-      duration_days: 30,
-      count: 1,
-      code_type: 'multi_use',
-      max_uses: 5,
-    })
-    expect(result.max_uses).toBe(5)
-  })
-})
-
-describe('growth dashboard', () => {
-  it('requests the selected Beijing window and preserves an empty cohort rate', async () => {
-    const { adminApi } = await import('../adminApi')
-    const payload = {
-      days: 14,
-      current: {
-        metrics: {
-          cohort_activation_rate: null,
-          signup_to_paid_rate: null,
-          revenue_cents: 19900,
-        },
-      },
-    }
-    mockApi.get.mockResolvedValue(payload)
-    expect(await adminApi.getGrowthDashboard(14)).toBe(payload)
-    expect(mockApi.get).toHaveBeenLastCalledWith('/api/admin/dashboard/growth?days=14')
   })
 })

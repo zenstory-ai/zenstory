@@ -706,7 +706,7 @@ async def test_version_unexpected_value_error_returns_500_without_leaking_messag
         )
     ).json()["id"]
 
-    from services.file_version import get_file_version_service
+    from services.features.file_version_service import get_file_version_service
 
     svc = get_file_version_service()
     monkeypatch.setattr(

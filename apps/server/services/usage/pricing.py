@@ -10,8 +10,10 @@ DeepSeek bills them off-peak all day.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from models.llm_usage import PRICE_BAND_OFFPEAK, PRICE_BAND_PEAK
@@ -187,6 +189,28 @@ def beijing_day_start_utc(day: date) -> datetime:
 def beijing_range_utc(first_day: date, last_day: date) -> tuple[datetime, datetime]:
     """Half-open naive-UTC bounds covering Beijing days first_day..last_day."""
     return beijing_day_start_utc(first_day), beijing_day_start_utc(last_day + timedelta(days=1))
+
+
+def beijing_day_bucket_case(
+    column: Any,
+    days: Iterable[date],
+    *,
+    end_utc: datetime | None = None,
+) -> Any:
+    """Portable SQL CASE expression labelling each naive-UTC row with its Beijing date (ISO string)."""
+    from sqlalchemy import String, case, cast, literal
+
+    cap = naive_utc(end_utc) if end_utc is not None else None
+    whens = []
+    for day in days:
+        start = beijing_day_start_utc(day)
+        if cap is not None and start >= cap:
+            break
+        end = beijing_day_start_utc(day + timedelta(days=1))
+        if cap is not None and end > cap:
+            end = cap
+        whens.append(((column >= start) & (column < end), literal(day.isoformat())))
+    return cast(case(*whens, else_=literal("")), String)
 
 
 def price_table() -> dict[str, dict[str, str]]:

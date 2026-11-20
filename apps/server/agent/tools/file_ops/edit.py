@@ -12,7 +12,6 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from services.file_version import FileVersionService
 from sqlmodel import Session, select
 
 from agent.constants import coerce_bool
@@ -26,7 +25,7 @@ from models.file_version import (
     CHANGE_TYPE_EDIT,
 )
 from services.features.activation_event_service import activation_event_service
-from services.features.file_version_service import BEFORE_AI_EDIT_SUMMARY, content_sha256
+from services.features.file_version_service import BEFORE_AI_EDIT_SUMMARY, FileVersionService, content_sha256
 from services.file_tree_rules import apply_file_title_and_order, has_sibling_title_conflict
 from utils.cjk_quotes import (
     QUOTE_STYLE_CURLY,
