@@ -1074,7 +1074,7 @@ class StreamAdapter:
     ) -> tuple[str, dict[str, Any] | None]:
         """("saved", 结果) / ("refused", None)：版本冲突或恢复记录建立失败 / ("failed", None)：其他失败。"""
         from agent.tools.file_ops.crud import ConcurrentFileWriteError
-        from agent.tools.write_errors import PreWriteHistoryUnavailableError
+        from agent.tools.file_ops.edit import PreWriteHistoryUnavailableError
 
         run_meter = self.config.run_meter
         timing = run_meter.measure_stage("file_save") if run_meter is not None else contextlib.nullcontext()

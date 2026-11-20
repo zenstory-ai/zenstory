@@ -95,12 +95,12 @@ def _query_call(file_id: str, title: str) -> dict:
 class TestSessionLoaderMessageFormatting:
     """Tests for historical ChatMessage row formatting used by loop replay."""
 
-    def test_format_chat_message_includes_usage_and_stop_reason_from_metadata(
+    def test_format_chat_message_includes_stop_reason_from_metadata(
         self,
         db_session: Session,
         session_loader_test_data,
     ):
-        """Assistant metadata should be hydrated into formatted history messages."""
+        """Assistant stop_reason should be hydrated into formatted history messages."""
         chat_session_id = session_loader_test_data["chat_session"].id
         msg = ChatMessage(
             session_id=chat_session_id,
@@ -108,11 +108,6 @@ class TestSessionLoaderMessageFormatting:
             content="world",
             message_metadata=json.dumps({
                 "stop_reason": "end_turn",
-                "usage": {
-                    "input_tokens": 321,
-                    "output_tokens": 123,
-                    "total_tokens": 444,
-                },
             }),
         )
         db_session.add(msg)
@@ -127,7 +122,6 @@ class TestSessionLoaderMessageFormatting:
 
         assert assistant_msg["role"] == "assistant"
         assert assistant_msg["stop_reason"] == "end_turn"
-        assert assistant_msg["usage"]["total_tokens"] == 444
 
     def test_format_chat_message_synthesizes_status_only_assistant_turns_into_history_content(
         self,
@@ -166,12 +160,8 @@ class TestSessionLoaderMessageFormatting:
         assert assistant_msg["content"]
         assert "clarification_needed" in assistant_msg["content"]
         assert "请确认主角姓名" in assistant_msg["content"]
-        assert assistant_msg["clarification_pending"] is True
-        assert assistant_msg["pending_clarification"] == {
-            "question": "请确认主角姓名",
-            "context": "姓名会影响后续称呼",
-            "details": ["主角姓名", "时代背景"],
-        }
+        assert "姓名会影响后续称呼" in assistant_msg["content"]
+        assert "主角姓名; 时代背景" in assistant_msg["content"]
 
     def test_tool_call_turn_replays_as_text_breadcrumb(
         self,
@@ -581,25 +571,34 @@ class TestClarificationCardReplay:
             "details": [f"选项{i}" + "长" * 500 for i in range(10)],
         }
 
-    def test_prose_turn_replays_the_same_option_text_the_router_sees(self):
-        """有正文时追加的补问卡与路由器的 pending_clarification 用同一上限，选项文本一致。"""
+    def test_prose_turn_replays_bounded_clarification_options(self):
+        """有正文时追加的补问卡按固定上限截断问题与选项。"""
+        from agent.core.session_loader import (
+            _CLARIFICATION_DETAIL_MAX_CHARS,
+            _CLARIFICATION_MAX_DETAILS,
+            _CLARIFICATION_TEXT_MAX_CHARS,
+        )
+
         card = self._long_card()
         message = SessionLoader("p", "u")._format_chat_message_for_history(
             self._row("请选一个方向。", card)
         )
 
         text = self._text(message["content"])
-        pending = message["pending_clarification"]
-        assert f"question: {pending['question']}\n" in text
-        assert "details: " + "; ".join(pending["details"]) in text
-        assert "问" * (len(pending["question"]) + 1) not in text
+        expected_question = "问" * _CLARIFICATION_TEXT_MAX_CHARS
+        expected_details = [
+            (f"选项{i}" + "长" * 500)[:_CLARIFICATION_DETAIL_MAX_CHARS]
+            for i in range(_CLARIFICATION_MAX_DETAILS)
+        ]
+        assert f"question: {expected_question}\n" in text
+        assert "details: " + "; ".join(expected_details) in text
+        assert "问" * (_CLARIFICATION_TEXT_MAX_CHARS + 1) not in text
 
     def test_card_only_turn_keeps_the_full_card_text(self):
-        """没有正文的轮次只有卡片可看：回放与 status_card_text 仍是完整文本，不截断。"""
+        """没有正文的轮次只有卡片可看：回放仍是完整文本，不截断。"""
         card = self._long_card()
         message = SessionLoader("p", "u")._format_chat_message_for_history(self._row("", card))
 
         text = self._text(message["content"])
         assert "问" * 1000 in text
         assert "选项9" + "长" * 500 in text
-        assert message["status_card_text"] == text.strip()

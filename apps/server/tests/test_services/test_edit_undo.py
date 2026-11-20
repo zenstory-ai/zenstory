@@ -221,7 +221,7 @@ def test_blank_baseline_survives_a_failed_ai_version_and_still_anchors_undo(db_s
 
 
 def test_unanchored_edit_of_a_non_blank_original_is_refused(db_session, undo_file, monkeypatch):
-    from agent.tools.write_errors import PreWriteHistoryUnavailableError
+    from agent.tools.file_ops.edit import PreWriteHistoryUnavailableError
 
     user, _, file, *_ = undo_file
     original = FileVersionService._get_contents_for_versions

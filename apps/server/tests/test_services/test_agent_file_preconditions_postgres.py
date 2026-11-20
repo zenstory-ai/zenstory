@@ -557,7 +557,7 @@ def test_undo_provenance_query_failure_does_not_poison_postgres_edit_transaction
 
 def test_unbacked_original_refuses_the_locked_postgres_edit_and_releases_the_row(pg_engine, monkeypatch):
     """Unversioned author text whose backup fails is not overwritten; the row lock is released."""
-    from agent.tools.write_errors import PreWriteHistoryUnavailableError
+    from agent.tools.file_ops.edit import PreWriteHistoryUnavailableError
     from services.features.file_version_service import FileVersionService
 
     service = get_file_version_service()
