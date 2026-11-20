@@ -1559,7 +1559,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     ? [
         t('chat:panel.userStopped', { defaultValue: '已停止' }),
         // Names the files like the end-of-round line after a refresh (RoundEndNote) does.
-        userStop.writtenFiles.length > 0
+        userStop.writtenFiles.length > 0 || (userStop.unwrittenFiles?.length ?? 0) > 0
           ? formatRoundDelivery(t, userStop.writtenFiles, userStop.unwrittenFiles ?? [], i18n?.language)
           : userStop.wroteFiles ? t('chat:panel.userStoppedSaved', { defaultValue: '已写入的内容已保存' }) : null,
         // Counted once the server entered model execution (done.charged); Pro has no daily count to mention.

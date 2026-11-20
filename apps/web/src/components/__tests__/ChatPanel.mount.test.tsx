@@ -1572,6 +1572,15 @@ describe('ChatPanel mount smoke', () => {
       expect(screen.getAllByTestId('chat-user-stop-note')).toHaveLength(1)
     })
 
+    it('names unwritten empty files right after the stop even when no file body was saved', async () => {
+      const note = await runRoundThenStop((options) => {
+        options.onSessionStarted('session-stop')
+        options.onToolResult('create_file', 'success', { data: { id: 'f-1', title: '世界观设定', content: '' } })
+      }, { charged: true, producedOutput: false, unwrittenFiles: [{ title: '世界观设定', words: null }] })
+      expect(note).toHaveTextContent(/^已停止 · 未确认保存《世界观设定》 · 本条计入今日 AI 消息$/)
+      expect(note).not.toHaveTextContent('已写入')
+    })
+
     it('never claims a file write when only lookups and an empty chapter happened, while still counting the started round', async () => {
       const note = await runRoundThenStop((options) => {
         options.onSessionStarted('session-stop')
