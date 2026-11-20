@@ -315,6 +315,33 @@ describe('agentApi', () => {
       expect(onHistoryCompacted).toHaveBeenCalledWith('交接摘要')
     })
 
+    it('passes done.charged (true and false) through onDone without inventing a refund frame', async () => {
+      for (const charged of [true, false]) {
+        const onDone = vi.fn()
+        const onQuotaRefunded = vi.fn()
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          body: createMockStream([
+            `event: done\ndata: ${JSON.stringify({ stop_reason: 'user_stopped', charged, produced_output: false, assistant_message_id: 'm-stop' })}\n\n`,
+          ]),
+        }))
+
+        streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onDone, onQuotaRefunded })
+        await new Promise(resolve => setTimeout(resolve, 50))
+
+        expect(onDone).toHaveBeenCalledWith(
+          expect.objectContaining({
+            stop_reason: 'user_stopped',
+            charged,
+            produced_output: false,
+            assistant_message_id: 'm-stop',
+          }),
+        )
+        expect(onQuotaRefunded).not.toHaveBeenCalled()
+      }
+    })
+
     it('reports a refund only when the backend sends quota_refunded after the terminal frame', async () => {
       const onError = vi.fn()
       const onQuotaRefunded = vi.fn()

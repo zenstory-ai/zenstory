@@ -76,7 +76,7 @@ async def test_repeat_classification_uses_prior_assistant_metadata(
     assert error["code"] == expected
     assert error["output_truncation_count"] == count
     assert error["retryable"] is False
-    assert error["refundable"] is True
+    assert error["refundable"] is False
     if repeated:
         assert "一章" in error["error"]
 

@@ -14,7 +14,7 @@ Open **Plans & Benefits** in the top dashboard navigation (or click the **Manage
 | **TXT manuscript export & file download** | Included | Included |
 
 **Quota and reset rules**:
-- **Daily AI messages**: Free accounts reset to 3 messages at **00:00 Beijing time (UTC+8)** each day (free accounts on the same network also share a daily free network allowance). When the system determines that a turn produced no substantive output and refunds the message, the interface notes that the turn was not counted toward today's allowance. When your daily messages are used up, save your current draft and either continue after 00:00 Beijing time or upgrade to Pro.
+- **Daily AI messages**: Free accounts reset to 3 messages at **00:00 Beijing time (UTC+8)** each day (free accounts on the same network also share a daily free network allowance). Only when a request ends before model processing begins, or an unrecovered model service error terminates the turn, and the message allowance is actually refunded does the interface note that the turn was not counted toward today's allowance; read-only checks, manual stops, or timeouts after model processing has begun all count toward today's messages. When your daily messages are used up, save your current draft and either continue after 00:00 Beijing time or upgrade to Pro.
 - **Reference novel breakdowns**: Pro's 5 monthly breakdowns reset at **00:00 Beijing time on the 1st of each month**. Free accounts get 1 one-time trial (**Try the first 3 chapters free**, up to 15,000 characters), which is separate from the Pro monthly allowance.
 - **Projects and custom skills**: Counted by the active projects and custom skills you currently own; deleting an unused project or custom skill frees a slot.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import functools
 import inspect
 import time
@@ -819,12 +820,15 @@ async def run_openai_agents_streaming_agent(
     )
 
     result: Any = None
+    sdk_agent: Any = None
     sdk_stream_exhausted = False
     run_hooks: Any = None
     timing_outcome: TimingOutcome = "completed"
     try:
         from agents import RunConfig, Runner, ToolExecutionConfig
         from agents.exceptions import MaxTurnsExceeded
+
+        from services.usage.cost_budget import on_model_transport_start
 
         from .intra_run_trimmer import IntraRunToolOutputTrimmer
         from .usage_hooks import build_agent_run_hooks
@@ -844,44 +848,52 @@ async def run_openai_agents_streaming_agent(
             max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
         )
         run_hooks = build_agent_run_hooks(start_model, run_meter=run_meter)
-        result = Runner.run_streamed(
-            sdk_agent,
-            input=(
-                _continued_run_input(continued, state, agent_directive, initial_steering)
-                if continued is not None
-                else build_run_input(_with_history_items(state, api_messages), agent_directive)
-            ),
-            max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
-            # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；
-            # 之后 run 报错/取消也不会丢掉已完成调用的用量。同一钩子在执行本轮工具前
-            # 告诉空文件守卫"上一份正文已在本条回复里写完"（见 usage_hooks）。
-            hooks=run_hooks,
-            # When DeepSeek emits multiple tool_calls in one turn, the SDK would run them
-            # concurrently (asyncio.create_task). Project tools share a single SQLAlchemy
-            # Session via ToolContext, which is NOT safe for concurrent use. Serialize tool
-            # execution to preserve the previous sequential contract and avoid Session races.
-            run_config=RunConfig(
-                # 不向 OpenAI 的 trace 后端导出任何内容（作者的稿件与对话）。模型客户端在第一次
-                # 模型调用时才建，那时 SDK 已经为这次 run 开了 trace，所以这里按 run 关掉。
-                tracing_disabled=True,
-                trace_include_sensitive_data=False,
-                tool_execution=ToolExecutionConfig(max_function_tool_concurrency=1),
-                # IntraRunToolOutputTrimmer 只是上下文安全阀：输入未超 max_input_chars 时原样
-                # 返回、不改写任何历史（保住前缀缓存，也不让模型「忘掉」读过的文件而重读）；
-                # 超限才从最旧的读/写载荷开始折叠。见 intra_run_trimmer。
-                # 计数 + 软着陆见上方 turn_filter。
-                call_model_input_filter=turn_filter,
-                # 模型调用了工具集里没有的工具（例如照着旧会话历史调已删除的工具、
-                # 或幻觉出的工具名）：SDK 默认抛 ModelBehaviorError，整轮
-                # 以致命 ERROR 结束、原始异常文本直接展示给用户。改为把结构化错误
-                # 交还模型让它自行纠正；这类错误同样经熔断器记账（见
-                # _format_tool_error），乱试有上限。
-                tool_not_found_behavior="return_error_to_model",
-                tool_error_formatter=functools.partial(
-                    _format_tool_error, failure_breaker=failure_breaker
-                ),
-            ),
+        run_outcome = state.get("run_outcome")
+        mark_attempted = getattr(run_outcome, "mark_provider_attempted", None)
+        transport_scope = (
+            on_model_transport_start(mark_attempted)
+            if callable(mark_attempted)
+            else contextlib.nullcontext()
         )
+        with transport_scope:
+            result = Runner.run_streamed(
+                sdk_agent,
+                input=(
+                    _continued_run_input(continued, state, agent_directive, initial_steering)
+                    if continued is not None
+                    else build_run_input(_with_history_items(state, api_messages), agent_directive)
+                ),
+                max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
+                # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；
+                # 之后 run 报错/取消也不会丢掉已完成调用的用量。同一钩子在执行本轮工具前
+                # 告诉空文件守卫"上一份正文已在本条回复里写完"（见 usage_hooks）。
+                hooks=run_hooks,
+                # When DeepSeek emits multiple tool_calls in one turn, the SDK would run them
+                # concurrently (asyncio.create_task). Project tools share a single SQLAlchemy
+                # Session via ToolContext, which is NOT safe for concurrent use. Serialize tool
+                # execution to preserve the previous sequential contract and avoid Session races.
+                run_config=RunConfig(
+                    # 不向 OpenAI 的 trace 后端导出任何内容（作者的稿件与对话）。模型客户端在第一次
+                    # 模型调用时才建，那时 SDK 已经为这次 run 开了 trace，所以这里按 run 关掉。
+                    tracing_disabled=True,
+                    trace_include_sensitive_data=False,
+                    tool_execution=ToolExecutionConfig(max_function_tool_concurrency=1),
+                    # IntraRunToolOutputTrimmer 只是上下文安全阀：输入未超 max_input_chars 时原样
+                    # 返回、不改写任何历史（保住前缀缓存，也不让模型「忘掉」读过的文件而重读）；
+                    # 超限才从最旧的读/写载荷开始折叠。见 intra_run_trimmer。
+                    # 计数 + 软着陆见上方 turn_filter。
+                    call_model_input_filter=turn_filter,
+                    # 模型调用了工具集里没有的工具（例如照着旧会话历史调已删除的工具、
+                    # 或幻觉出的工具名）：SDK 默认抛 ModelBehaviorError，整轮
+                    # 以致命 ERROR 结束、原始异常文本直接展示给用户。改为把结构化错误
+                    # 交还模型让它自行纠正；这类错误同样经熔断器记账（见
+                    # _format_tool_error），乱试有上限。
+                    tool_not_found_behavior="return_error_to_model",
+                    tool_error_formatter=functools.partial(
+                        _format_tool_error, failure_breaker=failure_breaker
+                    ),
+                ),
+            )
 
         sdk_events = result.stream_events()
         try:
@@ -1097,9 +1109,7 @@ async def run_openai_agents_streaming_agent(
             )
             yield StreamEvent(
                 type=StreamEventType.ERROR,
-                data=no_progress_trip.as_event_data(
-                    agent_type, wrote_files=read_guard.write_succeeded
-                ),
+                data=no_progress_trip.as_event_data(agent_type),
             )
             return
 
@@ -1321,7 +1331,15 @@ async def run_openai_agents_streaming_agent(
         raise
     except Exception as exc:
         timing_outcome = "error"
+        model_error = getattr(getattr(sdk_agent, "model", None), "unrecovered_provider_error", None)
+        is_model_error = model_error is not None and (exc is model_error or exc.__cause__ is model_error)
         error_info = classify_stream_exception(exc)
+        run_outcome = state.get("run_outcome")
+        provider_attempted = bool(getattr(run_outcome, "provider_attempted", False))
+        error_info = dataclasses.replace(
+            error_info,
+            refundable=is_model_error or not provider_attempted,
+        )
         log_stream_exception(
             logger,
             "OpenAI Agents streaming run failed",
@@ -1333,7 +1351,10 @@ async def run_openai_agents_streaming_agent(
         )
         yield StreamEvent(
             type=StreamEventType.ERROR,
-            data=error_info.as_event_data(error_type=type(exc).__name__),
+            data=error_info.as_event_data(
+                error_type=type(exc).__name__,
+                **({"error_source": "model"} if is_model_error else {}),
+            ),
         )
     finally:
         if (

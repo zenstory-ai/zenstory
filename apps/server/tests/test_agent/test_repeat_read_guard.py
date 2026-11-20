@@ -395,7 +395,7 @@ async def test_sdk_run_stops_as_no_progress_when_model_keeps_rereading(monkeypat
     assert error["reason"] == NO_PROGRESS_STOP_REASON
     assert error["code"] == "ERR_AGENT_NO_PROGRESS"
     assert error["error"] == NO_PROGRESS_USER_MESSAGE
-    assert error["refundable"] is True, "没有任何写入：可以退还额度"
+    assert error["refundable"] is False, "已进入模型执行的无进展护栏停止照常计费"
     assert error["blocked_reads"] == MAX_BLOCKED_READS_PER_REQUEST
 
 
@@ -574,24 +574,31 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def _decide(frames: list[str]) -> tuple[str, bool]:
+def _decide(
+    frames: list[str], *, provider_attempted: bool = True, terminal_model_failure: bool = False
+) -> tuple[str, bool]:
     from agent.core.stream_billing import StreamBillingTracker
 
     tracker = StreamBillingTracker()
     for frame in frames:
         tracker.observe(frame)
-    return tracker.decide(client_disconnected=False, unexpected_exception=False)
+    return tracker.decide(
+        client_disconnected=False,
+        unexpected_exception=False,
+        provider_attempted=provider_attempted,
+        terminal_model_failure=terminal_model_failure,
+    )
 
 
 @pytest.mark.unit
-def test_tool_call_cap_without_writes_is_refunded_even_with_streamed_text():
+def test_tool_call_cap_without_writes_is_charged_after_model_start():
     frames = [
         _sse("content", {"text": "让我再读一下第一章……"}),
         _sse("tool_result", {"tool_name": "query_files", "status": "success"}),
         _sse("iteration_exhausted", {"layer": "tool_call", "iterations_used": 60, "max_iterations": 60}),
         _sse("done", {}),
     ]
-    assert _decide(frames) == ("runaway_no_progress", True)
+    assert _decide(frames) == ("completed", False)
 
 
 @pytest.mark.unit
@@ -605,25 +612,25 @@ def test_tool_call_cap_after_a_write_is_charged():
 
 
 @pytest.mark.unit
-def test_no_progress_and_model_call_limit_errors_refund_without_writes():
+def test_no_progress_and_model_call_limit_errors_are_charged_after_model_start():
     no_progress = [
         _sse("content", {"text": "我再看看"}),
         _sse(
             "error",
-            {"message": "x", "code": "ERR_AGENT_NO_PROGRESS", "refundable": True, "reason": "no_progress"},
+            {"message": "x", "code": "ERR_AGENT_NO_PROGRESS", "refundable": False, "reason": "no_progress"},
         ),
     ]
-    assert _decide(no_progress) == ("runaway_no_progress", True)
+    assert _decide(no_progress) == ("non_model_error", False)
 
     model_limit = [
         _sse("content", {"text": "继续分析"}),
-        _sse("error", {"message": "x", "code": "ERR_AGENT_MODEL_CALL_LIMIT", "refundable": True}),
+        _sse("error", {"message": "x", "code": "ERR_AGENT_MODEL_CALL_LIMIT", "refundable": False}),
     ]
-    assert _decide(model_limit) == ("runaway_no_progress", True)
+    assert _decide(model_limit) == ("non_model_error", False)
 
-    # 熔断（不是失控）仍然不退款；协作轮数耗尽也不算失控
+    # 熔断同样不退款；协作轮数耗尽以 done 结束照常计费
     breaker = [_sse("error", {"message": "x", "code": "ERR_AGENT_TOOL_FAILURE_LIMIT", "refundable": False})]
-    assert _decide(breaker) == ("non_refundable_error", False)
+    assert _decide(breaker) == ("non_model_error", False)
     collaboration = [_sse("iteration_exhausted", {"layer": "collaboration"}), _sse("done", {})]
     assert _decide(collaboration) == ("completed", False)
 
@@ -646,7 +653,7 @@ def test_stream_adapter_passes_error_reason_to_sse_frame():
             async for event in adapter._process_workflow_event(
                 StreamEvent(
                     type=StreamEventType.ERROR,
-                    data=guard.trip.as_event_data("writer", wrote_files=False),
+                    data=guard.trip.as_event_data("writer"),
                 )
             )
         ]
@@ -657,7 +664,7 @@ def test_stream_adapter_passes_error_reason_to_sse_frame():
     assert frame["code"] == "ERR_AGENT_NO_PROGRESS", "不是「工具失败」，用专用错误码"
     assert frame["message"] == NO_PROGRESS_USER_MESSAGE
     assert frame["reason"] == NO_PROGRESS_STOP_REASON
-    assert frame["refundable"] is True
+    assert frame["refundable"] is False
 
 
 # --------------------------------------------------------- 陈旧内容与按范围读取

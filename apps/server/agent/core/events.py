@@ -128,9 +128,8 @@ class ErrorEventData(BaseModel):
     refundable: bool | None = Field(
         default=None,
         description=(
-            "Whether this failure is a platform-side fault eligible for a quota refund; "
-            "None means unspecified (treated as refundable). The API layer still keeps "
-            "the charge when the turn already produced output."
+            "Whether this failure is eligible for a quota refund (unrecovered upstream "
+            "model service error or a failure before model execution started)."
         ),
     )
     reason: str | None = Field(
@@ -165,6 +164,10 @@ class DoneEventData(BaseModel):
     stop_reason: str | None = Field(
         default=None,
         description="Set when the author stopped this round (user_stopped)",
+    )
+    charged: bool | None = Field(
+        default=None,
+        description="Stopped rounds only: whether the server charged an AI message for this round",
     )
     produced_output: bool | None = Field(
         default=None,
@@ -351,6 +354,7 @@ def done_event(
     session_id: str | None = None,
     file_mutated: bool = False,
     stop_reason: str | None = None,
+    charged: bool | None = None,
     produced_output: bool | None = None,
     written_files: list[dict[str, Any]] | None = None,
     unwritten_files: list[dict[str, Any]] | None = None,
@@ -361,12 +365,13 @@ def done_event(
         assistant_message_id=assistant_message_id,
         session_id=session_id,
         stop_reason=stop_reason,
+        charged=charged,
         produced_output=produced_output,
         written_files=written_files or None,
         unwritten_files=unwritten_files or None,
     ).model_dump()
     # 只有提供这些可选回执时才带字段，其余 done 帧保持原样。
-    for key in ("stop_reason", "produced_output", "written_files", "unwritten_files"):
+    for key in ("stop_reason", "charged", "produced_output", "written_files", "unwritten_files"):
         if data.get(key) is None:
             data.pop(key, None)
     return StreamEvent(type=EventType.DONE, data=data)
