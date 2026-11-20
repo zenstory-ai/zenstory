@@ -71,7 +71,7 @@ export function RoundEndNote({ outcome, showDailyCount, nextStepsBlocked = false
     !outcome.charged && dailyCount
       ? t('chat:panel.roundNotCounted', { defaultValue: '未计入今日 AI 消息' })
       : null,
-    (outcome.charged && outcome.savedOutput) || outcome.unwrittenFiles?.length
+    outcome.savedOutput || outcome.unwrittenFiles?.length
       || (outcome.reason === 'completed' && outcome.writtenFiles.length > 0)
       || (outcome.reason === 'incomplete' && listsSavedFiles) ? savedText : null,
     // The file receipt replaces the plain unfinished line, so keep saying the round is unfinished

@@ -44,6 +44,19 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
       true,
       '已中断 · 已保存《林舟》120 字 · 未确认保存《周念》 · 本条计入今日 AI 消息',
     ],
+    // Unrecovered upstream model error after a file was saved: refunded (charged=false), yet saved receipt stays visible on reload.
+    [
+      { reason: 'error', charged: false, saved_output: true,
+        written_files: [{ id: 'ch-1', title: '第1章', words: 2100 }] },
+      true,
+      '已中断 · 未计入今日 AI 消息 · 已保存《第1章》2,100 字',
+    ],
+    [
+      { reason: 'error', charged: false, saved_output: true,
+        written_files: [{ id: 'ch-1', title: '第1章', words: 2100 }] },
+      false,
+      '已中断 · 已保存《第1章》2,100 字',
+    ],
     [{ reason: 'user_stopped', charged: false, saved_output: false }, true, '已停止 · 未计入今日 AI 消息'],
     // A stop / disconnect whose body save was never confirmed (F-03): counted, but never 「已写入的内容已保存」.
     [

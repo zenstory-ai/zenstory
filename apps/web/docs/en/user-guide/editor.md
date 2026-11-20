@@ -54,7 +54,7 @@ To smooth out stiff, repetitive, or overly formal phrasing in a passage without 
 
 1. Select the passage you want to polish (up to **6,000 characters** at a time; split longer sections into smaller selections).
 2. Click **Humanize** in the bottom status bar or press `Ctrl/Cmd + Shift + R`.
-   - **Quota rule**: On the Free plan, the button notes **(uses 1 AI message)**; when the system determines that the run produced no substantive output and refunds the message, it is not counted toward today's allowance. Pro includes unlimited daily AI messages.
+   - **Quota rule**: On the Free plan, the button notes **(uses 1 AI message)**; if the run fails due to a model error or makes no meaningful change to the passage and the message is refunded, it is not counted toward today's allowance. Pro includes unlimited daily AI messages.
 3. Once the rewrite finishes, the editor opens the **Humanize result** preview (unsaved until you accept it): click **View original** to toggle back and forth, then click **Use changes** to save the rewrite or **Discard** to leave your original text untouched without adding a new version.
 4. If a temporary model or matching failure occurs, your original text stays untouched and a banner appears above the status bar—click **Try again** on the banner to re-run Humanize on the same selection.
 
