@@ -5,8 +5,21 @@ const adminUser = {
   username: 'admin',
   email: 'admin@example.com',
   email_verified: true,
+  avatar_url: null,
   is_active: true,
   is_superuser: true,
+  created_at: '2026-03-01T00:00:00Z',
+  updated_at: '2026-03-01T00:00:00Z',
+};
+
+const detailUser = {
+  id: 'user-1',
+  username: 'writer',
+  email: 'writer@example.com',
+  email_verified: true,
+  avatar_url: null,
+  is_active: true,
+  is_superuser: false,
   created_at: '2026-03-01T00:00:00Z',
   updated_at: '2026-03-01T00:00:00Z',
 };
@@ -251,10 +264,370 @@ async function bootstrapAdminSession(page: Page) {
       return;
     }
 
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/dashboard/stats')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          total_users: 43,
+          active_users: 31,
+          new_users_today: 4,
+          total_projects: 20,
+          author_created_projects: 14,
+          auto_initialized_projects: 6,
+          total_inspirations: 5,
+          pending_inspirations: 1,
+          active_subscriptions: 8,
+          pro_users: 8,
+          total_points_in_circulation: 1200,
+          today_check_ins: 10,
+          active_invite_codes: 3,
+          week_referrals: 2,
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/dashboard/activation-funnel')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          window_days: 7,
+          period_start: '2026-03-01T00:00:00Z',
+          period_end: '2026-03-08T00:00:00Z',
+          steps: [],
+          activation_rate: 0,
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/dashboard/upgrade-conversion')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          window_days: 7,
+          period_start: '2026-03-01T00:00:00Z',
+          period_end: '2026-03-08T00:00:00Z',
+          total_conversions: 0,
+          paid_conversions: 0,
+          unattributed_conversions: 0,
+          sources: [],
+          channels: [],
+          after_ai_quota_wall_conversions: 0,
+          paid_after_ai_quota_wall_conversions: 0,
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/dashboard/upgrade-funnel')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          window_days: 7,
+          period_start: '2026-03-01T00:00:00Z',
+          period_end: '2026-03-08T00:00:00Z',
+          totals: { expose: 0, click: 0, conversion: 0 },
+          sources: [],
+          surfaces: [],
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/dashboard/acquisition')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          window_days: 30,
+          period_start: '2026-02-07T00:00:00Z',
+          period_end: '2026-03-08T00:00:00Z',
+          total_signups: 0,
+          attributed_signups: 0,
+          channels: [],
+          sources: [],
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/audit-logs')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/users')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [detailUser], total: 1 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && /\/api\/admin\/users\/[^/]+$/.test(pathname)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(detailUser),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/subscriptions')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && /\/api\/admin\/subscriptions\/[^/]+$/.test(pathname)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          subscription: {
+            id: 'sub-1',
+            user_id: detailUser.id,
+            plan_id: 'plan-pro',
+            status: 'active',
+            current_period_start: '2026-03-01T00:00:00Z',
+            current_period_end: '2099-01-01T00:00:00Z',
+            cancel_at_period_end: false,
+            stripe_subscription_id: null,
+            stripe_customer_id: null,
+            created_at: '2026-03-01T00:00:00Z',
+            updated_at: '2026-03-01T00:00:00Z',
+          },
+          plan: {
+            id: 'plan-pro',
+            name: 'pro',
+            display_name: '专业版',
+            display_name_en: 'Pro',
+            price_monthly_cents: 2900,
+            price_yearly_cents: 29000,
+            stripe_price_id_monthly: null,
+            stripe_price_id_yearly: null,
+            features: {},
+            is_active: true,
+            created_at: '2026-03-01T00:00:00Z',
+            updated_at: '2026-03-01T00:00:00Z',
+          },
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/quota/usage')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          period_start: '2026-03-01T00:00:00Z',
+          period_end: '2026-04-01T00:00:00Z',
+          material_decompositions: 0,
+          inspiration_copies: 0,
+          skills_created: 0,
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && /\/api\/admin\/quota\/[^/]+$/.test(pathname)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user_id: detailUser.id,
+          username: detailUser.username,
+          email: detailUser.email,
+          plan_name: 'pro',
+          plan_display_name: '专业版',
+          plan_display_name_en: 'Pro',
+          ai_conversations: { used: 3, limit: -1, reset_at: null },
+          material_decompositions: { used: 1, limit: 5, reset_at: '2026-04-01T00:00:00Z' },
+          inspiration_copies: { used: 0, limit: -1, reset_at: null },
+          custom_skills: { used: 2, limit: 20, reset_at: null },
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/points/stats')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          total_points_issued: 0,
+          total_points_spent: 0,
+          total_points_expired: 0,
+          active_users_with_points: 0,
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && /\/api\/admin\/points\/[^/]+\/transactions$/.test(pathname)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 10 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && /\/api\/admin\/points\/[^/]+$/.test(pathname)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user_id: detailUser.id,
+          username: detailUser.username,
+          email: detailUser.email,
+          available: 120,
+          pending_expiration: 0,
+          total_earned: 150,
+          total_spent: 30,
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/payment-orders')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 20, needs_attention_total: 0 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/skills/pending')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/codes')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/inspirations')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/feedback')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/check-in/stats')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          today_count: 0,
+          yesterday_count: 0,
+          week_total: 0,
+          streak_distribution: {},
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/check-in/records')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/referrals/stats')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          total_codes: 0,
+          active_codes: 0,
+          total_referrals: 0,
+          successful_referrals: 0,
+          pending_rewards: 0,
+          total_points_awarded: 0,
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/invites')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/referrals/rewards')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/announcements/current')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          exists: false,
+          enabled: false,
+          title: '',
+          description: '',
+          action_label: null,
+          action_url: null,
+          version: 0,
+          updated_at: null,
+        }),
+      });
+      return;
+    }
+
     await route.fulfill({
-      status: 200,
+      status: 404,
       contentType: 'application/json',
-      body: JSON.stringify({}),
+      body: JSON.stringify({ detail: `Unmocked admin route: ${request.method()} ${pathname}` }),
     });
   });
 
