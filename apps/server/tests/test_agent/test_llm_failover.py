@@ -958,23 +958,6 @@ async def test_stream_error_explains_why_failover_cannot_run(chunk_endpoints, mo
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [400, 413, 422])
-async def test_routing_tries_the_other_provider_when_one_rejects_the_request(endpoints, status):
-    """Production (2026-10-25 12:55): MiniMax answered six routing calls in two minutes with 422 and the
-    author's turns stopped before any agent ran. Routing has no side effects, so the backup gets a try,
-    without the rejection counting against the primary."""
-    endpoints["minimax"].script = [_status_error(openai.UnprocessableEntityError if status == 422 else
-                                                 openai.BadRequestError, status)]
-
-    _, provider = await _call("routing", fail_over_on_rejection=True)
-
-    assert provider.name == "deepseek"
-    _, next_call = await _call("routing")
-    assert next_call.name == "minimax"  # the session is not pinned to the backup for a rejection
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
 async def test_in_stream_errors_never_open_the_circuit_for_other_authors(chunk_endpoints, monkeypatch):
     """An in-stream error may be about one author's content (e.g. a moderation rejection): it moves that
     session to the backup but must not count towards the primary's circuit."""

@@ -886,13 +886,17 @@ def test_billing_tracker_treats_empty_replaced_chapter_as_pending_body_on_failur
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_stream_adapter_tracks_timeout_separately_from_sync_save_failure(monkeypatch):
-    """StreamAdapter 仅在 TimeoutError 时将 file_id 记入 get_timed_out_save_file_ids，后续成功保存后清除。"""
+    """StreamAdapter 仅在 TimeoutError 时将 file_id 记入 run_outcome.uncertain_save_file_ids，后续成功保存后清除。"""
+    from agent.core.round_outcome import RunOutcome
     from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 
-    adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u", process_file_markers=True))
+    outcome = RunOutcome()
+    adapter = StreamAdapter(
+        StreamAdapterConfig(project_id="p", user_id="u", process_file_markers=True, run_outcome=outcome)
+    )
     monkeypatch.setattr(adapter, "_save_file_content_sync", lambda _id, _c: (False, False))
     assert await adapter._save_file_content("sync-fail", "正文") is False
-    assert adapter.get_timed_out_save_file_ids() == set()
+    assert outcome.uncertain_save_file_ids == set()
 
     async def fake_wait_for(coro, timeout):
         coro.close()
@@ -900,26 +904,30 @@ async def test_stream_adapter_tracks_timeout_separately_from_sync_save_failure(m
 
     monkeypatch.setattr("agent.stream_adapter.asyncio.wait_for", fake_wait_for)
     assert await adapter._save_file_content("slow-file", "正文") is False
-    assert adapter.get_timed_out_save_file_ids() == {"slow-file"}
+    assert outcome.uncertain_save_file_ids == {"slow-file"}
 
     adapter._note_body_saved("slow-file", 2)
-    assert adapter.get_timed_out_save_file_ids() == set()
+    assert outcome.uncertain_save_file_ids == set()
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_aborted_chapter_replacement_timeout_remains_uncertain():
     """A timed-out replacement may still commit in its worker, so settlement must not classify it as a safe failure."""
+    from agent.core.round_outcome import RunOutcome
     from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 
-    adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u", process_file_markers=True))
+    outcome = RunOutcome()
+    adapter = StreamAdapter(
+        StreamAdapterConfig(project_id="p", user_id="u", process_file_markers=True, run_outcome=outcome)
+    )
     save = asyncio.get_running_loop().create_future()
     save.set_exception(TimeoutError())
     adapter._replacement_in_flight = ("chapter-1", "replacement", save, "call-1")
 
     await adapter._settle_replacement_in_flight()
 
-    assert adapter.get_timed_out_save_file_ids() == {"chapter-1"}
+    assert outcome.uncertain_save_file_ids == {"chapter-1"}
     assert adapter.get_replacement_receipts() == {"call-1": None}
 
 

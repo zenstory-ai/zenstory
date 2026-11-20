@@ -6,8 +6,6 @@ Prefers tiktoken when available; falls back to a language-aware ratio
 (~2 chars/token for predominantly-Chinese text, ~4 for Latin).
 """
 
-from typing import Any
-
 # Approximate characters per token for Latin text
 CHARS_PER_TOKEN = 4
 
@@ -95,75 +93,3 @@ def estimate_text_tokens(text: str) -> int:
     # Language-aware fallback
     cpt = _chars_per_token_for(text)
     return max(1, int(len(text) / cpt))
-
-
-def estimate_message_tokens(message: dict[str, Any]) -> int:
-    """
-    Estimate token count for a message dict.
-
-    Handles various message formats including:
-    - Simple string content
-    - List of content blocks (text, tool_use, image)
-    - Tool result messages
-
-    Accounting matches what is actually replayed to the model: thinking
-    blocks are persisted for UI/history display only and are dropped before
-    replay (see openai_agents/runner.extract_text_from_message_content),
-    so they contribute 0 tokens here.
-
-    Args:
-        message: Message dict with role and content
-
-    Returns:
-        Estimated token count
-    """
-    role = message.get("role", "")
-    content = message.get("content", "")
-
-    if role == "user":
-        if isinstance(content, str):
-            return estimate_text_tokens(content)
-        elif isinstance(content, list):
-            total = 0
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    total += estimate_text_tokens(block.get("text", ""))
-            return max(1, total)
-        return 0
-
-    elif role == "assistant":
-        if isinstance(content, list):
-            total = 0
-            for block in content:
-                if isinstance(block, dict):
-                    block_type = block.get("type", "")
-                    if block_type == "text":
-                        total += estimate_text_tokens(block.get("text", ""))
-                    elif block_type == "tool_use":
-                        name = block.get("name", "")
-                        args = block.get("input", {})
-                        total += estimate_text_tokens(name + str(args))
-            return max(1, total)
-        elif isinstance(content, str):
-            return estimate_text_tokens(content)
-        return 0
-
-    elif role in ("tool_result", "custom"):
-        if isinstance(content, str):
-            return estimate_text_tokens(content)
-        elif isinstance(content, list):
-            total = 0
-            for block in content:
-                if isinstance(block, dict):
-                    if block.get("type") == "text":
-                        total += estimate_text_tokens(block.get("text", ""))
-                    elif block.get("type") == "image":
-                        total += 1200  # ~1200 tokens per image
-            return max(1, total)
-        return 0
-
-    # Default case
-    if isinstance(content, str):
-        return estimate_text_tokens(content)
-
-    return 0
