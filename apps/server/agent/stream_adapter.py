@@ -559,6 +559,12 @@ class StreamAdapter:
             already_failed = self._fatal_stream_error
             self._fatal_stream_error = True
             if not already_failed:
+                if (
+                    isinstance(data, dict)
+                    and data.get("error_source") == "model"
+                    and self.config.run_outcome is not None
+                ):
+                    self.config.run_outcome.terminal_model_failure = True
                 info = stream_error_from_event_data(data)
                 # 熔断的 error 文案本身就是给用户看的具体说明（已去掉 SQL 细节）；
                 # 其余一律用固定文案，原始异常只在日志里。

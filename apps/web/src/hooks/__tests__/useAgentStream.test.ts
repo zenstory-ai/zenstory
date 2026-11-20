@@ -1601,6 +1601,58 @@ describe('useAgentStream', () => {
 
       expect(onIterationExhausted).toHaveBeenCalledWith('tool_call', 10, 10, 'Max iterations reached', 'writer', 'wall_clock')
     })
+
+    it('forwards done.charged on user_stopped completionMeta', () => {
+      const onComplete = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onComplete })
+      )
+      const controller = createMockStreamController()
+
+      act(() => {
+        result.current.startStream({ message: 'test' })
+      })
+      let callbacks = controller.getCallbacks()!
+      act(() => {
+        callbacks.onDone?.({
+          stop_reason: 'user_stopped',
+          charged: true,
+          produced_output: false,
+          assistant_message_id: 'msg-charged',
+        })
+      })
+      expect(onComplete).toHaveBeenLastCalledWith(
+        [],
+        expect.objectContaining({
+          stoppedByAuthor: true,
+          charged: true,
+          producedOutput: false,
+          assistantMessageId: 'msg-charged',
+        }),
+      )
+
+      act(() => {
+        result.current.startStream({ message: 'test 2' })
+      })
+      callbacks = controller.getCallbacks()!
+      act(() => {
+        callbacks.onDone?.({
+          stop_reason: 'user_stopped',
+          charged: false,
+          produced_output: false,
+          assistant_message_id: 'msg-refunded',
+        })
+      })
+      expect(onComplete).toHaveBeenLastCalledWith(
+        [],
+        expect.objectContaining({
+          stoppedByAuthor: true,
+          charged: false,
+          producedOutput: false,
+          assistantMessageId: 'msg-refunded',
+        }),
+      )
+    })
   })
 
   describe('skill events', () => {

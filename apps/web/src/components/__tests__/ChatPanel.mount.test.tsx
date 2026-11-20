@@ -77,7 +77,7 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:panel.networkQuotaExceededHint': '请明天再试（北京时间 00:00 恢复），或开通 Pro 接着写。',
   'chat:panel.notCharged': '这一轮没有改动文件，不计入今日 AI 消息。',
   'chat:panel.notChargedError': '这次出错不计入今日 AI 消息。',
-  'chat:panel.notChargedStopped': '已停止，这一轮还没有写出内容，不计入今日 AI 消息。',
+  'chat:panel.notChargedStopped': '已停止，AI 还没开始生成，不计入今日 AI 消息。',
   'chat:panel.resend': '重新发送',
   'chat:panel.unanswered': '这条消息没有收到回复。',
   'chat:nextStep.novel.message': '按大纲写第一章正文',
@@ -970,7 +970,7 @@ describe('ChatPanel mount smoke', () => {
 
     await act(async () => { await lastMessageInputProps().onSend('写第五章', ['skill-suspense']) })
     act(() => roundOptions().onQuotaRefunded('stopped'))
-    expect(await screen.findByText(/已停止，这一轮还没有写出内容/)).toBeInTheDocument()
+    expect(await screen.findByText(/已停止，AI 还没开始生成，不计入今日 AI 消息/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('chat-resend-after-stop'))
     await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(2))
@@ -1011,7 +1011,7 @@ describe('ChatPanel mount smoke', () => {
     act(() => roundOptions().onQuotaRefunded('stopped', [{ id: 'ch-1', title: '第1章 最后一页' }]))
 
     const note = await screen.findByTestId('chat-quota-refund-note')
-    expect(note).toHaveTextContent('已停止，这一轮还没有写出内容，不计入今日 AI 消息。')
+    expect(note).toHaveTextContent('已停止，AI 还没开始生成，不计入今日 AI 消息。')
     expect(note).not.toHaveTextContent('第1章 最后一页')
     expect(mockProjectState.triggerFileTreeRefresh).toHaveBeenCalled()
   })
@@ -1572,16 +1572,16 @@ describe('ChatPanel mount smoke', () => {
       expect(screen.getAllByTestId('chat-user-stop-note')).toHaveLength(1)
     })
 
-    it('neither claims a write nor a charge when only lookups and an empty chapter happened', async () => {
+    it('never claims a file write when only lookups and an empty chapter happened, while still counting the started round', async () => {
       const note = await runRoundThenStop((options) => {
         options.onSessionStarted('session-stop')
         options.onToolResult('query_files', 'success', {})
         options.onToolResult('edit_file', 'error', {})
         options.onToolResult('create_file', 'success', { id: 'ch-1', title: '第1章', content: '' })
         options.onToolResult('rename_file', 'success', { id: 'ch-1', mutation_applied: false })
-      })
-      // Nothing was written, so the server refunds the round; never say "计入" up front.
-      expect(note).toHaveTextContent(/^已停止$/)
+      }, { charged: true, producedOutput: false })
+      expect(note).toHaveTextContent(/^已停止 · 本条计入今日 AI 消息$/)
+      expect(note).not.toHaveTextContent('已写入')
     })
 
     it('does not mention today\'s count before the server started the round', async () => {
@@ -1730,7 +1730,7 @@ describe('ChatPanel mount smoke', () => {
 
       refund('stopped', [{ id: 'ch-1', title: '第1章' }])
       const note = await screen.findByTestId('chat-quota-refund-note')
-      expect(note).toHaveTextContent('已停止，这一轮还没有写出内容。')
+      expect(note).toHaveTextContent('已停止，这一轮还没有开始生成。')
       expect(note).not.toHaveTextContent('第1章')
       expect(note).not.toHaveTextContent('今日 AI 消息')
 
@@ -1747,11 +1747,11 @@ describe('ChatPanel mount smoke', () => {
     })
 
     it('shows only the refund note when the server refunds the stop, never "计入" next to "不计入"', async () => {
-      await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
+      await runRoundThenStop((options) => options.onSessionStarted('session-stop'), { charged: false })
       act(() => (capturedUseAgentStream.options as {
         onQuotaRefunded: (kind: 'no_progress' | 'error' | 'stopped') => void
       }).onQuotaRefunded('stopped'))
-      expect(await screen.findByText(/已停止，这一轮还没有写出内容/)).toBeInTheDocument()
+      expect(await screen.findByText(/已停止，AI 还没开始生成，不计入今日 AI 消息/)).toBeInTheDocument()
       expect(screen.queryByTestId('chat-user-stop-note')).not.toBeInTheDocument()
       expect(screen.queryByText(/本条计入/)).not.toBeInTheDocument()
     })
@@ -1779,15 +1779,16 @@ describe('ChatPanel mount smoke', () => {
       expect(screen.queryByText(/已停止/)).not.toBeInTheDocument()
     })
 
-    it('counts prose like the server: a tool call starts a new segment', async () => {
-      // 40 visible characters before a later tool call, 30 after it in the same segment id.
+    it('still counts a stopped round after model start when short narration segments are split by a tool call', async () => {
+      // 40 visible characters before a later tool call, 30 after it: not substantial prose, yet model started so round counts.
       const note = await runRoundThenStop((options) => {
         options.onSessionStarted('session-stop')
         options.onSegmentUpdate('seg-1', '甲'.repeat(40))
         options.onToolCall('query_files', {})
         options.onSegmentUpdate('seg-1', '甲'.repeat(40) + '乙'.repeat(30))
-      })
-      expect(note).toHaveTextContent(/^已停止$/)
+      }, { charged: true, producedOutput: false })
+      expect(note).toHaveTextContent(/^已停止 · 本条计入今日 AI 消息$/)
+      expect(note).not.toHaveTextContent('已写入')
     })
 
     it('counts one uninterrupted segment of 60 visible characters as real prose', async () => {
@@ -1799,13 +1800,27 @@ describe('ChatPanel mount smoke', () => {
       expect(note).toHaveTextContent('已停止 · 本条计入今日 AI 消息')
     })
 
-    it("follows the server's verdict on whether the stopped round produced output", async () => {
-      const note = await runRoundThenStop((options) => {
-        options.onSessionStarted('session-stop')
-        options.onSegmentUpdate('seg-1', '甲'.repeat(80))
-      }, { producedOutput: false })
-      expect(note).toHaveTextContent(/^已停止$/)
-    })
+    it.each([
+      // New server receipt: charged=true counts even with no output.
+      [{ charged: true, producedOutput: false }, false, '已停止 · 本条计入今日 AI 消息'],
+      // New server receipt: charged=false does not count even if local prose arrived.
+      [{ charged: false, producedOutput: false }, true, '已停止'],
+      // Legacy server without done.charged: no output falls back to not counted.
+      [{ producedOutput: false }, false, '已停止'],
+      // Legacy server without done.charged: substantial output falls back to counted.
+      [{ producedOutput: true }, true, '已停止 · 本条计入今日 AI 消息'],
+    ])(
+      "prioritizes done.charged over legacy output fallback (%j, streamProse=%s -> %s)",
+      async (doneMeta, streamProse, expectedText) => {
+        const note = await runRoundThenStop((options) => {
+          options.onSessionStarted('session-stop')
+          if (streamProse) {
+            options.onSegmentUpdate('seg-1', '甲'.repeat(70))
+          }
+        }, doneMeta)
+        expect(note).toHaveTextContent(new RegExp(`^${expectedText}$`))
+      },
+    )
   })
 
   describe('新对话 pressed while the AI is writing', () => {

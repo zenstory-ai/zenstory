@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Callable
 from contextlib import contextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -50,6 +51,9 @@ _attribution: ContextVar[Any] = ContextVar("ai_cost_attribution", default=None)
 _call_started_at: ContextVar[datetime | None] = ContextVar("ai_cost_call_started_at", default=None)
 _call_user_id: ContextVar[str | None] = ContextVar("ai_cost_call_user_id", default=None)
 _trial_output_limit: ContextVar[int | None] = ContextVar("ai_cost_trial_output_limit", default=None)
+_transport_start_hook: ContextVar[Callable[[], None] | None] = ContextVar(
+    "ai_cost_transport_start_hook", default=None
+)
 
 
 def call_started_at(user_id: str | None = None) -> datetime | None:
@@ -59,6 +63,35 @@ def call_started_at(user_id: str | None = None) -> datetime | None:
 def bind_call_start(reservation: Reservation | None) -> None:
     _call_started_at.set(reservation.started_at if reservation else None)
     _call_user_id.set(current_user_id() if reservation else None)
+
+
+def bind_model_transport_start(callback: Callable[[], None] | None) -> Token[Callable[[], None] | None]:
+    """Bind a per-request hook invoked right before a real provider transport call starts."""
+    return _transport_start_hook.set(callback)
+
+
+def reset_model_transport_start(token: Token[Callable[[], None] | None]) -> None:
+    try:
+        _transport_start_hook.reset(token)
+    except ValueError:
+        _transport_start_hook.set(None)
+
+
+@contextmanager
+def on_model_transport_start(callback: Callable[[], None] | None):
+    """Scoped hook invoked right after cost reservation succeeds and before provider transport starts."""
+    token = bind_model_transport_start(callback)
+    try:
+        yield
+    finally:
+        reset_model_transport_start(token)
+
+
+def notify_model_transport_start() -> None:
+    """Invoke the active transport-start hook, if any."""
+    callback = _transport_start_hook.get()
+    if callback is not None:
+        callback()
 
 
 @contextmanager

@@ -1176,13 +1176,14 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     stopRequestedProjectRef.current = null;
     if (stoppedThisRound && currentProjectId) {
       const { wroteFiles, charged } = roundProgressRef.current;
-      // The server's own verdict when the done carries it; otherwise the same rule locally.
       const producedOutput = completionMeta?.producedOutput ?? roundProgressRef.current.producedOutput;
       const writtenFiles = completionMeta?.writtenFiles ?? [];
       setUserStop({
         projectId: currentProjectId,
         wroteFiles: wroteFiles || writtenFiles.length > 0,
-        counted: charged && producedOutput,
+        // Prefer the server's post-settlement done.charged receipt; fall back to the legacy
+        // output-based estimate only when talking to an older server that omits done.charged.
+        counted: completionMeta?.charged ?? (charged && producedOutput),
         writtenFiles,
         unwrittenFiles: completionMeta?.unwrittenFiles,
       });
@@ -1539,11 +1540,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               : 'chat:panel.notChargedError',
         )
         : quotaRefund.kind === 'stopped'
-          ? t('chat:panel.stoppedNothingWritten', { defaultValue: '已停止，这一轮还没有写出内容。' })
+          ? t('chat:panel.stoppedNothingWritten', { defaultValue: '已停止，这一轮还没有开始生成。' })
           : null,
     ].filter(Boolean).join('').trim() || null
     : null;
-  // Stopped before anything was written: offer to send the same round again (same skills,
+  // Stopped before the AI started generating: offer to send the same round again (same skills,
   // attachments and quotes as the original request).
   const resendAfterStop = Boolean(
     quotaRefundNote
@@ -1561,7 +1562,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         userStop.writtenFiles.length > 0
           ? formatRoundDelivery(t, userStop.writtenFiles, userStop.unwrittenFiles ?? [], i18n?.language)
           : userStop.wroteFiles ? t('chat:panel.userStoppedSaved', { defaultValue: '已写入的内容已保存' }) : null,
-        // Counts only with real output (server rule); Pro has no daily count to mention.
+        // Counted once the server entered model execution (done.charged); Pro has no daily count to mention.
         userStop.counted && showDailyCount
           ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' })
           : null,

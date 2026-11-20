@@ -107,14 +107,16 @@ async def test_sdk_run_stops_as_soon_as_the_model_repeats_a_long_passage(monkeyp
 
 
 @pytest.mark.unit
-def test_a_loop_that_wrote_nothing_is_refunded_and_one_that_saved_a_body_is_charged():
+def test_a_repetition_loop_is_charged_after_model_start_whether_or_not_it_wrote():
+    from agent.core.stream_errors import repetition_loop_error
     from tests.test_agent.test_repeat_read_guard import _decide, _sse
 
-    error = _sse("error", {"message": "x", "code": "ERR_AGENT_REPETITION_LOOP", "refundable": True,
+    assert repetition_loop_error().refundable is False
+    error = _sse("error", {"message": "x", "code": "ERR_AGENT_REPETITION_LOOP", "refundable": False,
                            "reason": REPETITION_LOOP_STOP_REASON})
     chat_only = [_sse("content", {"text": _prose(1600, 7)}), error]
-    assert _decide(chat_only) == ("runaway_no_progress", True)
+    assert _decide(chat_only, provider_attempted=True) == ("non_model_error", False)
 
     saved = [_sse("file_content", {"file_id": "story", "chunk": "正文"}),
              _sse("file_content_end", {"file_id": "story"}), error]
-    assert _decide(saved)[1] is False
+    assert _decide(saved, provider_attempted=True) == ("non_model_error", False)
