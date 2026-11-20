@@ -167,7 +167,7 @@ class ReadSnapshotPromotionMixin:
             ToolContext.promote_pending_reads()
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Read snapshot promotion before model call failed: {exc}")
-        # 各自兜底：回复序号是待写正文守卫和 tool_choice 的依据，不能因读快照提升失败而不推进。
+        # 各自兜底：回复序号是待写正文守卫的依据，不能因读快照提升失败而不推进。
         try:
             ToolContext.begin_model_reply()
         except Exception as exc:  # noqa: BLE001

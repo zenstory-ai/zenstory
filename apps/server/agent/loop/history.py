@@ -117,16 +117,31 @@ def estimate_provider_text_tokens(text: str) -> int:
     return max(1, int(cjk * 0.65 + other * 0.30))
 
 
+def _provider_content_tokens(value: Any) -> int:
+    """估算字符串或 SDK 结构化内容块列表（output_text / input_text / summary_text / reasoning_text）的供应商 token 数。"""
+    if isinstance(value, str):
+        return estimate_provider_text_tokens(value) if value else 0
+    if not isinstance(value, list):
+        return 0
+    total = 0
+    for part in value:
+        if isinstance(part, str) and part:
+            total += estimate_provider_text_tokens(part)
+        elif isinstance(part, dict):
+            text = part.get("text")
+            if isinstance(text, str) and text:
+                total += estimate_provider_text_tokens(text)
+    return total
+
+
 def estimate_provider_items_tokens(items: list[dict[str, Any]]) -> int:
-    """按供应商分词量纲粗估输入项 token 数。"""
+    """按供应商分词量纲粗估输入项 token 数（兼容 DB 重建项与 SDK wire-format 项）。"""
     total = 0
     for item in items:
         if not isinstance(item, dict):
             continue
-        for key in ("content", "arguments", "output"):
-            value = item.get(key)
-            if isinstance(value, str) and value:
-                total += estimate_provider_text_tokens(value)
+        for key in ("content", "summary", "arguments", "output"):
+            total += _provider_content_tokens(item.get(key))
         total += 4
     return total
 

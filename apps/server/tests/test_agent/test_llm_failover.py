@@ -1182,88 +1182,6 @@ def _settings(tool_choice=None):
     return ModelSettings(tool_choice=tool_choice)
 
 
-@pytest.mark.unit
-def test_the_reply_after_the_file_was_created_offers_no_tool_calls(request_tools):
-    request_tools.begin_model_reply()
-    request_tools.set_pending_empty_file("f1", "第一章", "v1")  # reply 1 ends with write_chapter
-    original = _settings("auto")
-    assert sdk_model._body_reply_settings(original) is original  # still the creating reply
-
-    request_tools.begin_model_reply()  # on_llm_start of reply 2
-    assert sdk_model._body_reply_settings(original).tool_choice == "none"
-    assert original.tool_choice == "auto"
-
-
-@pytest.mark.unit
-def test_an_armed_whole_chapter_replacement_and_a_resumed_body_offer_no_tool_calls(request_tools):
-    request_tools.begin_model_reply()
-    assert request_tools.try_reserve_pending_empty_file("t1", "第一章")[0]
-    request_tools.bind_pending_empty_file("t1", "f1", "第一章", None, replacement={"chapter": 1})
-    request_tools.begin_model_reply()
-    assert sdk_model._body_reply_settings(_settings()).tool_choice == "none"
-
-    # The reply streamed something taken for the body, but the run ended; the correction run re-arms it.
-    request_tools.mark_latest_pending_body_streamed()
-    assert sdk_model._body_reply_settings(_settings()).tool_choice is None
-    assert request_tools.rearm_pending_file_body("f1") is True
-    request_tools.begin_model_reply()  # first call of the FILE_BODY_RESUME run
-    assert sdk_model._body_reply_settings(_settings()).tool_choice == "none"
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize("finish", ["streamed", "saved"])
-def test_once_the_body_is_written_the_next_call_keeps_its_tool_choice(request_tools, finish):
-    request_tools.begin_model_reply()
-    request_tools.set_pending_empty_file("f1", "第一章", "v1")
-    request_tools.begin_model_reply()
-    if finish == "streamed":
-        request_tools.mark_latest_pending_body_streamed()  # on_llm_end saw the closed <file> block
-    else:
-        request_tools.clear_pending_empty_file("f1")  # StreamAdapter saved the body
-    request_tools.begin_model_reply()  # self-check continuation / next write_chapter
-
-    original = _settings("auto")
-    assert sdk_model._body_reply_settings(original) is original
-
-
-@pytest.mark.unit
-def test_no_request_context_or_already_none_keeps_the_settings(request_tools):
-    request_tools.clear_context()
-    original = _settings()
-    assert sdk_model._body_reply_settings(original) is original
-
-    request_tools.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    request_tools.begin_model_reply()
-    request_tools.set_pending_empty_file("f1", "第一章", "v1")
-    request_tools.begin_model_reply()
-    already = _settings("none")
-    assert sdk_model._body_reply_settings(already) is already
-
-
-@pytest.mark.unit
-def test_author_steering_after_the_file_was_armed_keeps_tools_for_the_body_call(request_tools):
-    """An interjection after the file was armed reaches the correction run's input; the model must
-    still be able to cancel the file (guard's delete exception) instead of being forced to write it."""
-    steering: list[str] = ["先写第一章"]  # the service's consumed_steering list, appended in place
-    request_tools.set_context(session=None, user_id="u", project_id="p", session_id="s", author_steering=steering)
-    request_tools.begin_model_reply()
-    request_tools.set_pending_empty_file("f1", "第一章", "v1")
-    request_tools.begin_model_reply()
-    assert sdk_model._body_reply_settings(_settings("auto")).tool_choice == "none"  # earlier steering only
-
-    steering.append("这章不要了")  # consumed at a tool boundary after the file was armed
-    request_tools.rearm_pending_file_body("f1")
-    request_tools.begin_model_reply()  # first call of the FILE_BODY_RESUME run
-    original = _settings("auto")
-    assert sdk_model._body_reply_settings(original) is original
-
-    # A later file armed after that steering is restricted again.
-    request_tools.clear_pending_empty_file("f1")
-    request_tools.set_pending_empty_file("f2", "第二章", "v2")
-    request_tools.begin_model_reply()
-    assert sdk_model._body_reply_settings(_settings("auto")).tool_choice == "none"
-
-
 def _tool():
     from agents import FunctionTool
 
@@ -1317,10 +1235,10 @@ def recorded_requests(endpoints, monkeypatch):
     sdk_model._models.clear()
 
 
-async def _model_call(model, *, stream: bool):
+async def _model_call(model, *, stream: bool, tool_choice=None):
     from agents.models.interface import ModelTracing
 
-    args = ("sys", "写第一章", _settings("auto"), [_tool()], None, [], ModelTracing.DISABLED)
+    args = ("sys", "写第一章", _settings(tool_choice), [_tool()], None, [], ModelTracing.DISABLED)
     if stream:
         return [event async for event in model.stream_response(*args)]
     return await model.get_response(*args, previous_response_id=None, conversation_id=None, prompt=None)
@@ -1329,72 +1247,120 @@ async def _model_call(model, *, stream: bool):
 @pytest.mark.unit
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stream", [True, False])
-async def test_only_the_body_reply_reaches_the_provider_with_tool_choice_none(
+async def test_pending_file_body_reply_keeps_default_tool_choice_for_prompt_cache(
     request_tools, recorded_requests, stream
 ):
+    """MiniMax strips its ~4.3k tools block on tool_choice='none', breaking the cached prefix.
+
+    Pending file-body replies (created file, whole-chapter replacement, and FILE_BODY_RESUME)
+    must keep the exact same tools and default tool_choice as normal steps.
+    """
     requests, _, _ = recorded_requests
-    model = sdk_model.build_failover_chat_model("body-reply")
+    served_providers: list[str] = []
+    model = sdk_model.build_failover_chat_model(
+        "body-reply",
+        on_served_provider=lambda p: served_providers.append(f"{p.name}:{p.model}:{p.key_slot}"),
+    )
 
     request_tools.begin_model_reply()  # reply 1 creates the file
     request_tools.set_pending_empty_file("f1", "第一章", "v1")
-    request_tools.begin_model_reply()  # reply 2: the body
+    request_tools.begin_model_reply()  # reply 2: pending <file> body
+    await _model_call(model, stream=stream)
+    request_tools.mark_latest_pending_body_streamed()
+    assert request_tools.rearm_pending_file_body("f1") is True
+    request_tools.begin_model_reply()  # FILE_BODY_RESUME correction call
     await _model_call(model, stream=stream)
     request_tools.clear_pending_empty_file("f1")  # body saved
     request_tools.begin_model_reply()  # reply 3: self-check / next write_chapter
     await _model_call(model, stream=stream)
 
-    assert [kwargs["tool_choice"] for _, kwargs in requests] == ["none", "auto"]
-    # The tool list is the same on both calls (cached prompt prefix).
-    assert requests[0][1]["tools"] == requests[1][1]["tools"] and requests[0][1]["tools"]
+    assert len(requests) == 3
+    for _name, kwargs in requests:
+        assert kwargs.get("tool_choice") != "none"
+    assert requests[0][1]["tools"] == requests[1][1]["tools"] == requests[2][1]["tools"]
+    assert requests[0][1]["tools"]
+    assert served_providers == [
+        "minimax:MiniMax-M3.1-Flash:primary",
+        "minimax:MiniMax-M3.1-Flash:primary",
+        "minimax:MiniMax-M3.1-Flash:primary",
+    ]
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stream", [True, False])
-async def test_the_backup_provider_also_gets_tool_choice_none_for_the_body_reply(
+async def test_failover_during_body_reply_keeps_tool_choice_and_reports_backup_provider(
     request_tools, recorded_requests, stream
 ):
     requests, failures, _ = recorded_requests
     failures["minimax"] = _status_error(openai.InternalServerError, 503)
+    served_providers: list[str] = []
 
     request_tools.begin_model_reply()
     request_tools.set_pending_empty_file("f1", "第一章", "v1")
     request_tools.begin_model_reply()
-    await _model_call(sdk_model.build_failover_chat_model("body-reply-failover"), stream=stream)
+    await _model_call(
+        sdk_model.build_failover_chat_model(
+            "body-reply-failover",
+            on_served_provider=lambda p: served_providers.append(f"{p.name}:{p.model}:{p.key_slot}"),
+        ),
+        stream=stream,
+        tool_choice="auto",
+    )
 
-    assert [(name, kwargs["tool_choice"]) for name, kwargs in requests] == [("minimax", "none"), ("deepseek", "none")]
+    assert [(name, kwargs["tool_choice"]) for name, kwargs in requests] == [
+        ("minimax", "auto"),
+        ("deepseek", "auto"),
+    ]
+    assert served_providers == ["deepseek:deepseek-flash:primary"]
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_in_a_real_run_only_the_call_after_write_chapter_is_restricted(request_tools, recorded_requests):
-    """on_llm_start advances the reply counter before the SDK calls the model."""
-    from agents import Agent, FunctionTool, ModelSettings, Runner
+async def test_pending_body_guard_and_stop_hook_enforce_two_reply_protocol_without_tool_choice_none(
+    request_tools, recorded_requests
+):
+    """Without tool_choice='none', if the model attempts a tool call while a file body is pending,
+    the synchronous file_body_pending guard rejects it and _stop_run_after_tools ends the run."""
+    from agents import Agent, ModelSettings, Runner
 
+    from agent.openai_agents.runner import _stop_run_after_tools
+    from agent.openai_agents.tools_adapter import build_agent_function_tools
     from agent.openai_agents.usage_hooks import build_agent_run_hooks
 
     requests, _, replies = recorded_requests
 
-    async def write_chapter(_ctx, _args):
-        request_tools.set_pending_empty_file("f1", "第一章", "v1")
-        return '{"status": "success"}'
+    request_tools.begin_model_reply()  # reply 1 created f1
+    request_tools.set_pending_empty_file("f1", "第一章", "v1")
 
     agent = Agent(
-        name="writer",
+        name="loop",
         instructions="sys",
-        model=sdk_model.build_failover_chat_model("real-run"),
-        model_settings=ModelSettings(tool_choice="auto"),
-        tools=[FunctionTool(
-            name="write_chapter", description="d",
-            params_json_schema={"type": "object", "properties": {}, "additionalProperties": False},
-            on_invoke_tool=write_chapter,
-        )],
+        model=sdk_model.build_failover_chat_model("guard-enforcement"),
+        model_settings=ModelSettings(),
+        tools=build_agent_function_tools(),
+        tool_use_behavior=_stop_run_after_tools,
     )
-    replies.append({"role": "assistant", "content": None, "tool_calls": [
-        {"id": "c1", "type": "function", "function": {"name": "write_chapter", "arguments": "{}"}},
-    ]})
+    # Model ignores prompt and tries to call query_files instead of writing <file> body.
+    replies.append({
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {"id": "call_rogue", "type": "function", "function": {"name": "query_files", "arguments": "{}"}},
+        ],
+    })
     hooks = build_agent_run_hooks("MiniMax-M3.1-Flash")
-    await Runner.run(agent, "写第一章", hooks=hooks)  # write_chapter, then the <file> body
-    await Runner.run(agent, "继续", hooks=hooks)  # the continuation after the body
+    result = await Runner.run(agent, "写第一章正文", hooks=hooks)
 
-    assert [kwargs["tool_choice"] for _, kwargs in requests] == ["auto", "none", "auto"]
+    # Only 1 model call happened: _stop_run_after_tools synchronously ended the run after rejection.
+    assert len(requests) == 1
+    assert requests[0][1].get("tool_choice") != "none"
+    # Tool output carried file_body_pending rejection and f1 remains pending for FILE_BODY_RESUME.
+    outputs = [
+        item["output"]
+        for item in result.to_input_list()
+        if isinstance(item, dict) and item.get("type") == "function_call_output"
+    ]
+    assert len(outputs) == 1
+    assert '"file_body_pending"' in outputs[0]
+    assert request_tools.has_pending_empty_file() is True

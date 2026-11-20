@@ -653,6 +653,7 @@ def _build_agent(
         model=build_failover_chat_model(
             ToolContext.get_session_id(),
             on_served=run_meter.record_served_model if run_meter is not None else None,
+            on_served_provider=run_meter.record_served_provider if run_meter is not None else None,
             # Failed and cancelled attempts get a zero-token ledger row (admin model metrics).
             usage_attribution=agent_usage_attribution(),
         ),

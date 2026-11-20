@@ -59,6 +59,7 @@ agent/
 ├── loop/                   # 单循环 agent
 │   ├── engine.py           # run_loop_agent_streaming：一轮的运行循环（纠偏 / 续写 / 插话再跑）
 │   ├── history.py          # 按会话消息行重建只追加的历史（工具调用成对回放、压缩点、旧行折叠）
+│   ├── wire_prefix_cache.py # 活跃会话短 TTL Redis wire-prefix 缓存（跨轮逐字节前缀复用，fail-open）
 │   ├── compaction.py       # 轮与轮之间的交接摘要压缩
 │   ├── turn_context.py     # 每轮附在作者消息前的结构化上下文
 │   ├── prompts.py          # 工作方式、输入布局、压缩提示
@@ -104,14 +105,14 @@ agent/
   项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、本轮回复语言（沿用 ContextAssembler 的解析器与渲染，不做
   优先级裁剪、检索和文件清单；超出 `AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS` 120000 供应商 token 时按 `TokenBudget` 优先保留引用与焦点文件全文、截断超大附加稿并标注 `query_files`），以及 `<author_edits>`：焦点、附加文件和本会话 AI 写过的正文文件（`SessionLoader.session_written_file_ids`，
   按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改（`SessionLoader.author_edits_for_files`）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件作为 edit_file 陈旧检查的起点。
-- **历史**（`loop/history.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
+- **历史**（`loop/history.py`、`loop/wire_prefix_cache.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
   assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file / write_chapter 结果去掉
   `awaiting_body` / `next_step`，带 `body_saved`（write_chapter 的整章替换只认落库后补发的结果，只有定位结果时 `body_saved=false` 并说明没保存；
   新建写入看 service 落库前按保存回执写进卡片的 `body_saved`（`service._stamp_body_receipts`），为 false 时附说明，修复前没有这个键的行照旧当作已保存）。成功的历史文件写入回执另带 `write_target_active=false`：不恢复上一轮捕获目标，本轮仍需按作者要求重新定位，改为只读时不恢复写入；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、
-  需要时重新调用。思考只在一次 run 内回放。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
+  需要时重新调用。活跃会话在 `AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS`（默认 900s，匹配 MiniMax 缓存窗口；`<=0` 关闭）与 `AGENT_WIRE_PREFIX_CACHE_MAX_BYTES`（默认 2 MiB）内额外将干净结束的一轮的 SDK `completed_items` 缓存到 Redis（`agent:wire_prefix:{session_id}`），下一轮按数据库最新消息 id、归属、`system_prompt` SHA-256 与 `provider:model:key_slot` 严格校验命中后直接复用（含轮前压缩，不记录原始内容；任何不匹配、会话清空/新建、卡片撤销/恢复、迟到插话或 Redis 异常均 fail-open 回退到 `load_loop_history`）[prompt-cache-stability][n-cache-stability]。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
   的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用供应商同量纲估算 `estimate_provider_items_tokens`）
-  超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，工具清单经 `Converter.tool_to_openai(build_agent_function_tools())` 生成以保持 `strict=false` 前缀缓存一致、`tool_choice=none`、`max_retries=0`），
+  超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，工具清单经 `Converter.tool_to_openai(build_agent_function_tools())` 生成并保持默认 `tool_choice` 以保住前缀缓存、`should_replay_reasoning_content` 与主循环一致、`max_retries=0`），
   空、被截断或混入未执行的工具调用机器协议（结构化 `tool_calls` 或代码外泄漏 `<tool_call>` / `<invoke>` / `<parameter>` 标签）时保持默认思考强度附带精炼重试说明再试一次（不降低 `reasoning_effort`），仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
   （`summary`、`covers_through_message_id`、`kept_author_messages`、`created_at`），之后的历史 = 压缩点之前最近的作者原话（`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`
   预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。保留的作者原话按 `kept_author_messages`（压缩那一轮实际发出的文字，含截断后缀）原样回放，
@@ -248,10 +249,9 @@ agent/
 （handoff_to_agent / request_clarification / parallel_execute）时，SDK 按 `tool_not_found_behavior="return_error_to_model"` 把错误交还模型。
 create_file 录入本轮作者资料时可传 `source_text`：只接受原始作者消息中的非空连续原文（兼容 CRLF、行尾多余空白与连续空行个数差异，唯一命中时截取对应原始切片保存，禁止改写、跳段拼接或补字段），直接沿用创建路径保存；不与 content/empty 混用、不建正文或文件夹，不覆盖同名旧文件。原文复制不进入待写正文状态；模型仍负责选择资料范围，程序不从自然语言判断意图。
 普通 create_file 建好空文件后返回 `awaiting_body` 与 `next_step`（同条模型回复里并列发出的后续流式 `create_file` 以 `pending_empty_file_unwritten` 顺序化挡回，不计入请求级失败熔断上限）；下一次回复没先以 <file> 写完正文就调用的工具
-（按精确 id 非递归删除本请求新建的这份待写文件除外，删成功后守卫随之清除；下面的 `tool_choice="none"` 之后，这个例外只在文件定为待写后作者又插话、或供应商不遵守 `none` 时用得上）以 `file_body_pending` 拒绝（`tools_adapter`，按 on_llm_start 记的回复序号判断），
+（按精确 id 非递归删除本请求新建的这份待写文件除外，删成功后守卫随之清除）以 `file_body_pending` 拒绝（`tools_adapter`，按 on_llm_start 记的回复序号判断），
 拒绝后 runner 同步结束当前 run，由单循环 agent 核验并经 `FILE_BODY_RESUME` 安排纠偏轮；这类拒绝不参与同参数熔断，仍计入请求累计上限。
-这次回复（与守卫同一状态，含整章替换与纠偏轮的第一次调用）由 `FailoverChatModel` 以 `tool_choice="none"` 发出（工具清单不变，主备供应商都带上），
-守卫留作供应商不遵守时的兜底；正文保存后的下一次调用照常带工具；文件定为待写之后又收到作者插话（按条数）时这次调用也照常带工具，以便按上面的例外删掉待写文件。[loop-body-reply-without-tools][n-body-no-tools]。SDK tracing 每次 run 都关掉（`RunConfig(tracing_disabled=True)`），不向 OpenAI 导出内容。
+这次回复保持与普通步骤相同的工具清单与默认 `tool_choice`（不设为 `"none"`）：生产实测 MiniMax 在 `tool_choice="none"` 时会剥离 ~4.3k 工具段、击穿前缀缓存并在轮内反复切换两棵缓存树，因此改由同步 `file_body_pending` 守卫 + `_stop_run_after_tools` + `FILE_BODY_RESUME` 兜底 [prompt-cache-stability][n-cache-stability]（反转 [loop-body-reply-without-tools][n-body-no-tools]）。SDK tracing 每次 run 都关掉（`RunConfig(tracing_disabled=True)`），不向 OpenAI 导出内容。
 [fast-mode-summary-and-file-body-turn][n-body-turn]、[pending-refusal-returns-to-correction][n-pending-refusal]
 
 | 工具 | 用途 |
@@ -332,5 +332,6 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-direct-edits]: ../../../.agents/notes/implemented/feature/2026-11-18-direct-ai-edits.md
 [n-prod-review]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-prod-review-followups.md
 [n-prod-audit2]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-loop-prod-audit-round2-fixes.md
+[n-cache-stability]: ../../../.agents/notes/implemented/architecture/2026-11-20-agent-prompt-cache-stability.md
 [n-issue-413]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-issue-413-blank-display-and-write-chapter-guard.md
 [n-model-error-refund]: ../../../.agents/notes/implemented/bug-fix/2026-11-20-round-billing-model-error-only-refund.md

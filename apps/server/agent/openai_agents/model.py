@@ -136,39 +136,6 @@ def _settings_for(provider: ModelProvider, model_settings: Any) -> Any:
     return dataclasses.replace(model_settings, reasoning=Reasoning(effort=effort) if effort else None)  # type: ignore[arg-type]
 
 
-def _body_reply_settings(model_settings: Any) -> Any:
-    """The reply that must be a pending file's ``<file>`` body is sent without tool calls.
-
-    Same structured state as the ``file_body_pending`` tool guard
-    (``ToolContext.overdue_file_bodies``: a file created or a whole-chapter replacement
-    armed in an earlier reply, or re-armed for a FILE_BODY_RESUME correction run, whose
-    body has not streamed yet), read after ``on_llm_start`` advanced the reply counter.
-    Only ``tool_choice`` changes; the tool list stays the same (whether a provider's
-    cached prefix survives "none" is still to be measured). Author steering received
-    after the file was armed keeps the original setting, so the guard's delete exception
-    can cancel the file. The guard stays as the backstop for a provider that ignores it.
-    """
-    if getattr(model_settings, "tool_choice", None) == "none" or not dataclasses.is_dataclass(model_settings):
-        return model_settings
-    from agent.tools.mcp_tools import ToolContext
-
-    overdue = ToolContext.overdue_file_bodies()
-    if not overdue:
-        return model_settings
-    if ToolContext.steering_since_file_bodies_armed([entry["id"] for entry in overdue]):
-        # 文件定为待写之后作者又插话了（结构化计数）：这次调用（纠偏轮的输入里带着插话）照常带工具，
-        # 让模型能按守卫的例外删掉这份待写文件；没删就写别的工具时守卫照旧拒绝。
-        log_with_context(
-            logger, 20, "Model call for a pending file body keeps tools after author steering",
-            file_id=overdue[0]["id"],
-        )
-        return model_settings
-    log_with_context(
-        logger, 20, "Model call for a pending file body: tool calls disabled", file_id=overdue[0]["id"]
-    )
-    return dataclasses.replace(model_settings, tool_choice="none")
-
-
 def _base_model_class() -> type:
     from agents.models.interface import Model
 
@@ -176,19 +143,30 @@ def _base_model_class() -> type:
 
 
 class FailoverChatModel:
-    """SDK ``Model`` that serves each call from the first available provider."""
+    """SDK ``Model`` that serves each call from the first available provider.
+
+    Pending file-body replies keep the exact same ``tools`` and default ``tool_choice``
+    (unset / ``"auto"``) as normal tool steps: MiniMax strips the ~4.3k tools block from
+    its server-side template whenever ``tool_choice="none"``, shattering the cached prompt
+    prefix and splitting writing rounds into two ping-ponging cache trees. The two-reply
+    protocol is enforced by the synchronous ``file_body_pending`` guard in
+    ``tools_adapter.py`` + ``_stop_run_after_tools`` in ``runner.py`` + ``FILE_BODY_RESUME``.
+    """
 
     def __init__(
         self,
         session_id: str | None,
         *,
         on_served: Callable[[str], None] | None = None,
+        on_served_provider: Callable[[ModelProvider], None] | None = None,
         usage_attribution: LLMUsageAttribution | None = None,
     ) -> None:
         self._session_id = session_id
         self._on_served = on_served
+        self._on_served_provider = on_served_provider
         self._usage_attribution = usage_attribution
-        # Model name that served the latest call (usage ledger, logs).
+        # Provider/model identity that served the latest call (usage ledger, logs, cache key).
+        self.served_provider_name: str | None = None
         self.served_model: str | None = None
         self.served_key_slot: str | None = None
         # Timing of the latest successful call, taken once by the usage hook.
@@ -247,13 +225,15 @@ class FailoverChatModel:
         )
 
     def _served(self, provider: ModelProvider) -> None:
+        self.served_provider_name = provider.name
         self.served_model = provider.model
         self.served_key_slot = provider.key_slot
         if self._on_served is not None:
             self._on_served(provider.model)
+        if self._on_served_provider is not None:
+            self._on_served_provider(provider)
 
     async def get_response(self, system_instructions: Any, input: Any, model_settings: Any, *args: Any, **kwargs: Any) -> Any:
-        model_settings = _body_reply_settings(model_settings)
         ordered = await llm_failover.aordered_providers(self._session_id)
         key_cooled = False
         self._call_timing = None
@@ -292,7 +272,6 @@ class FailoverChatModel:
     async def stream_response(
         self, system_instructions: Any, input: Any, model_settings: Any, *args: Any, **kwargs: Any
     ) -> AsyncIterator[Any]:
-        model_settings = _body_reply_settings(model_settings)
         ordered = await llm_failover.aordered_providers(self._session_id)
         key_cooled = False
         self._call_timing = None
@@ -456,6 +435,7 @@ def build_failover_chat_model(
     session_id: str | None,
     *,
     on_served: Callable[[str], None] | None = None,
+    on_served_provider: Callable[[ModelProvider], None] | None = None,
     usage_attribution: LLMUsageAttribution | None = None,
 ) -> Any:
     """A ``FailoverChatModel`` that is also an instance of the SDK's ``Model``."""
@@ -464,7 +444,12 @@ def build_failover_chat_model(
     if cls is None:
         cls = type("FailoverChatModel", (FailoverChatModel, base), {})
         _failover_classes[base] = cls
-    return cls(session_id, on_served=on_served, usage_attribution=usage_attribution)
+    return cls(
+        session_id,
+        on_served=on_served,
+        on_served_provider=on_served_provider,
+        usage_attribution=usage_attribution,
+    )
 
 
 def reset_sdk_model_cache() -> None:

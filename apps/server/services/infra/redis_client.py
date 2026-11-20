@@ -451,3 +451,34 @@ def clear_password_reset_state(email: str) -> bool:
             error_type=type(error).__name__,
         )
         return False
+
+
+# ==================== Agent wire-prefix cache ====================
+# Short-TTL active-session wire-prefix key shared between agent/loop/wire_prefix_cache.py
+# and session/card mutation invalidators (api/chat.py, services/chat_tool_cards.py) without
+# introducing services -> agent reverse imports.
+
+AGENT_WIRE_PREFIX_CACHE_KEY_PREFIX = "agent:wire_prefix:"
+
+
+def agent_wire_prefix_cache_key(session_id: str) -> str:
+    """Redis key for a chat session's cached SDK wire-format history prefix."""
+    return f"{AGENT_WIRE_PREFIX_CACHE_KEY_PREFIX}{session_id}"
+
+
+def delete_agent_wire_prefix_cache(session_id: str | None) -> bool:
+    """Fail-open invalidation of a chat session's cached wire prefix."""
+    if not session_id or not os.getenv("REDIS_URL"):
+        return False
+    try:
+        get_redis_client().delete(agent_wire_prefix_cache_key(session_id))
+        return True
+    except Exception as error:  # noqa: BLE001 - cache invalidation is best effort
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Error invalidating agent wire prefix cache",
+            session_id=session_id,
+            error_type=type(error).__name__,
+        )
+        return False

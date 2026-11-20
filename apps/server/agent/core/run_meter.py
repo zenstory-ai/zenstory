@@ -13,7 +13,7 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 from config.agent_runtime import AGENT_RUN_MAX_MODEL_CALLS, AGENT_RUN_WRAP_UP_AFTER_S
 
@@ -56,6 +56,8 @@ class AgentRunMeter:
     budget_stopped: bool = False
     # 最近一次模型调用实际用的模型（主备切换后可能是备用供应商的模型）。
     last_served_model: str | None = None
+    # 最近一次模型调用的 provider:model:key_slot 标识，用于校验跨轮 wire-prefix 缓存归属。
+    last_served_provider_key: str | None = None
     # 请求开始的时刻（monotonic）：到 wrap_up_after_s 就提醒收尾、不再开新的 agent run。
     started_at: float = field(default_factory=time.monotonic)
     wrap_up_after_s: float = AGENT_RUN_WRAP_UP_AFTER_S
@@ -86,6 +88,13 @@ class AgentRunMeter:
 
     def record_served_model(self, model: str) -> None:
         self.last_served_model = model
+
+    def record_served_provider(self, provider: Any) -> None:
+        from agent.loop.wire_prefix_cache import provider_cache_key
+
+        key = provider_cache_key(provider)
+        if key is not None:
+            self.last_served_provider_key = key
 
     def record_agent_run(
         self,

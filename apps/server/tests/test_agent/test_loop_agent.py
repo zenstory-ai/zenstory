@@ -453,13 +453,47 @@ async def test_compaction_returns_record_and_compacted_items():
         {"role": "user", "content": f"{SUMMARY_PREFIX}合成交接摘要"},
     ]
     kwargs = create.await_args.kwargs
-    assert kwargs["tool_choice"] == "none"
+    # Do not pass tool_choice="none": MiniMax strips the tools block from its cached prefix on "none".
+    assert kwargs.get("tool_choice") != "none"
+    assert "tool_choice" not in kwargs
+    assert kwargs["tools"]
     assert kwargs["session_id"] == "s"
     assert kwargs["messages"][0] == {"role": "system", "content": "系统"}
     assert kwargs["messages"][-1] == {"role": "user", "content": COMPACT_PROMPT}
     # 历史里的工具调用成对转成 chat 消息。
     assert any(m.get("role") == "tool" for m in kwargs["messages"])
     assert outcome.usage["output_tokens"] == 60
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_compaction_retries_and_succeeds_after_tool_call_response():
+    from agent.loop.compaction import _COMPACT_RETRY_NOTE, compact_history
+
+    tool_call_resp = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content="", tool_calls=[{"id": "call_1"}]),
+                finish_reason="tool_calls",
+            )
+        ],
+        usage=SimpleNamespace(prompt_tokens=900, completion_tokens=30, total_tokens=930, prompt_tokens_details=None),
+    )
+    create = AsyncMock(
+        side_effect=[
+            (tool_call_resp, SimpleNamespace(name="p", model="m")),
+            (_completion("重试后的纯文本交接摘要"), SimpleNamespace(name="p", model="m")),
+        ]
+    )
+    with patch("agent.core.llm_failover.acreate_chat_completion", create):
+        outcome = await compact_history(_history(last_prompt_tokens=700_000), system_prompt="系统", session_id="s")
+
+    assert create.await_count == 2
+    assert outcome.record is not None
+    assert outcome.record["summary"] == "重试后的纯文本交接摘要"
+    for call in create.await_args_list:
+        assert call.kwargs.get("tool_choice") != "none"
+    assert _COMPACT_RETRY_NOTE in create.await_args_list[1].kwargs["messages"][-1]["content"]
 
 
 @pytest.mark.asyncio
