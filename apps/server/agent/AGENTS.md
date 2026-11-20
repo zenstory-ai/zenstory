@@ -87,7 +87,6 @@ agent/
 │   ├── registry.py         # schema / handler / 单循环 agent 工具集的唯一接线处
 │   ├── file_ops/           # 文件 CRUD、编辑、项目操作（FileToolExecutor 组合三者）
 │   ├── author_changes.py   # 作者在 AI 写过之后的净改动
-│   ├── write_errors.py     # 写入恢复记录失败的独立错误域
 │   ├── task_progress.py    # 任务板编号范围与实际文件对照
 │   └── permissions.py
 └── utils/                  # token_utils

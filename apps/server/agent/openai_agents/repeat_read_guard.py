@@ -169,7 +169,7 @@ class ReadPlan:
 
     arguments: str
     blocked_output: str | None = None
-    read_keys: dict[int, ReadKey] = field(default_factory=dict)
+    read_key: ReadKey | None = None
 
 
 @dataclass(frozen=True)
@@ -267,7 +267,7 @@ class RepeatReadGuard:
                     tool_name=READ_TOOL_NAME,
                 ),
             )
-        return ReadPlan(arguments=raw_arguments, read_keys={0: key})
+        return ReadPlan(arguments=raw_arguments, read_key=key)
 
     def _register_blocked(self, key: ReadKey) -> str:
         self.blocked_reads += 1
@@ -303,11 +303,14 @@ class RepeatReadGuard:
         if tool_name in WRITE_TOOL_NAMES:
             self._observe_direct_write(tool_name, plan.arguments, output_text)
             return output_text
-        if tool_name == READ_TOOL_NAME and plan.read_keys:
+        if tool_name == READ_TOOL_NAME and plan.read_key is not None:
             return self._observe_direct_read(plan, output_text)
         return output_text
 
     def _observe_direct_read(self, plan: ReadPlan, output_text: str) -> str:
+        key = plan.read_key
+        if key is None:
+            return output_text
         payload = _load_json(output_text)
         if payload is None or payload.get("status") != "success":
             return output_text
@@ -315,7 +318,6 @@ class RepeatReadGuard:
         if title is None:
             # 文件不存在 / 结果被截断成最小占位：模型没真正拿到内容，不算读过。
             return output_text
-        key = plan.read_keys[0]
         count = self._record_read(key, title, complete=not _is_partial(payload.get("data")))
         hint = self._hint_for(key, count)
         if hint is None:

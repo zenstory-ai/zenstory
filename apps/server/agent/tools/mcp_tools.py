@@ -31,6 +31,7 @@ from agent.tools.file_ops.edit import (
     EDIT_ERROR_PERMISSION_DENIED,
     EditFileError,
     FileWriteBusyError,
+    PreWriteHistoryUnavailableError,
     StaleContentError,
     edit_error_user_message,
 )
@@ -41,7 +42,6 @@ from agent.tools.file_ops.serialization import (
     serialize_file,
 )
 from agent.tools.permissions import ForbiddenError, NotFoundError
-from agent.tools.write_errors import PreWriteHistoryUnavailableError
 from config.project_notes import merge_project_notes
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import extract_chapter_like_sequence_number, parse_chinese_number

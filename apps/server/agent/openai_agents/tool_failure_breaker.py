@@ -155,12 +155,11 @@ def _error_fingerprint(payload: dict[str, Any]) -> str:
     return text
 
 
-def _parse_error_payload(output_text: str, tool_name: str = "") -> dict[str, Any] | None:
+def _parse_error_payload(output_text: str) -> dict[str, Any] | None:
     """工具输出是否是失败结果；是则返回解析后的 payload。
 
     项目工具统一以 {"status": "error", "error": ...} 报错（mcp_tools、tool_error_text）；其余 status 都不算失败。
     """
-    del tool_name
     if not output_text:
         return None
     try:
@@ -256,7 +255,7 @@ class ToolFailureBreaker:
     def observe(self, tool_name: str, raw_arguments: str, output_text: str) -> str:
         """记录一次工具结果，返回交给模型的输出（重复失败时附带不要原样重试的提示）。"""
         key = (tool_name, _normalize_arguments(raw_arguments))
-        payload = _parse_error_payload(output_text, tool_name)
+        payload = _parse_error_payload(output_text)
         if payload is not None and payload.get("error_type") in (
             GUARD_ERROR_TYPES | _PARALLEL_BATCH_ORDERING_ERROR_TYPES
         ):
