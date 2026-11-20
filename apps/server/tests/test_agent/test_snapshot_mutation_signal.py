@@ -106,7 +106,12 @@ def test_update_exposes_exact_locked_content_change(db_session, mutation_project
 async def test_direct_tool_envelopes_keep_explicit_mutation(monkeypatch, tool_name, changed):
     executor = MagicMock()
     result = {"id": "file", "content": "Body", "mutation_applied": changed}
-    getattr(executor, tool_name).return_value = True if tool_name == "delete_file" else result
+    if tool_name == "delete_file":
+        executor.delete_file_with_meta.return_value = (
+            {"id": "file", "title": "Title", "file_type": "draft"} if changed else None
+        )
+    else:
+        getattr(executor, tool_name).return_value = result
     monkeypatch.setattr(mcp_tools.ToolContext, "get_executor", lambda: executor)
     monkeypatch.setattr(mcp_tools.ToolContext, "_get_context", lambda: {"project_id": "project"})
     payload = _payload(await getattr(mcp_tools, tool_name)({"id": "file", "title": "Title", "content": "Body", "edits": []}))
