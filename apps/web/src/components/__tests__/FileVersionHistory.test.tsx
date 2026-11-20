@@ -519,4 +519,18 @@ describe('FileVersionHistory current-text marker and restore confirmation', () =
     expect(await screen.findByText('versions:summary.beforeRestore')).toBeInTheDocument()
     expect(screen.queryByText('Before restoring version 2')).not.toBeInTheDocument()
   })
+
+  it('preserves row DOM identity and keyboard focus when selecting a version', async () => {
+    getVersions.mockResolvedValue({ total: 2, versions: [version(3), version(2)] })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    const row = (await screen.findByText('v3')).closest('[tabindex="0"]') as HTMLElement
+    row.focus()
+    expect(document.activeElement).toBe(row)
+
+    fireEvent.keyDown(row, { key: 'Enter' })
+
+    expect(await screen.findByText('selectedVersions')).toBeInTheDocument()
+    expect(row.isConnected).toBe(true)
+    expect(document.activeElement).toBe(row)
+  })
 })

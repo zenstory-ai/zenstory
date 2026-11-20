@@ -247,7 +247,7 @@
 }
 
 /* ========================================
-   Focus-Visible Polyfill Styles
+   Focus-Visible Styles
    Ensures keyboard-only focus indication across all browsers
    ======================================== */
 
@@ -259,17 +259,6 @@
 
 /* Show focus ring for keyboard navigation */
 :focus-visible {
-    outline: 2px solid hsl(var(--accent-primary));
-    outline-offset: 2px;
-}
-
-/* Fallback for browsers without :focus-visible support (uses focus-visible polyfill) */
-/* When JS adds .js-focus-visible class to body, use .focus-visible class instead */
-.js-focus-visible :focus:not(.focus-visible) {
-    outline: none;
-}
-
-.js-focus-visible .focus-visible {
     outline: 2px solid hsl(var(--accent-primary));
     outline-offset: 2px;
 }
@@ -288,24 +277,6 @@ textarea:focus-visible,
 [role="option"]:focus-visible,
 [role="checkbox"]:focus-visible,
 [role="radio"]:focus-visible {
-    outline: 2px solid hsl(var(--accent-primary));
-    outline-offset: 2px;
-}
-
-/* Polyfill fallback for interactive elements */
-.js-focus-visible button.focus-visible,
-.js-focus-visible a.focus-visible,
-.js-focus-visible input.focus-visible,
-.js-focus-visible select.focus-visible,
-.js-focus-visible textarea.focus-visible,
-.js-focus-visible [tabindex].focus-visible,
-.js-focus-visible [role="button"].focus-visible,
-.js-focus-visible [role="link"].focus-visible,
-.js-focus-visible [role="tab"].focus-visible,
-.js-focus-visible [role="menuitem"].focus-visible,
-.js-focus-visible [role="option"].focus-visible,
-.js-focus-visible [role="checkbox"].focus-visible,
-.js-focus-visible [role="radio"].focus-visible {
     outline: 2px solid hsl(var(--accent-primary));
     outline-offset: 2px;
 }
@@ -512,7 +483,6 @@ code, pre, .font-mono {
     .btn,
     .btn-primary,
     .btn-secondary,
-    .btn-success,
     .btn-danger,
     .btn-ghost {
         @apply px-3 py-1.5 rounded-md text-sm cursor-pointer transition-all inline-flex items-center justify-center gap-1.5 font-medium disabled:opacity-50 disabled:cursor-not-allowed;
@@ -533,14 +503,6 @@ code, pre, .font-mono {
     }
     .btn-secondary:hover:not(:disabled) {
         background-color: hsl(var(--bg-tertiary));
-    }
-
-    .btn-success {
-        background-color: hsl(var(--success-solid));
-        color: hsl(var(--primary-foreground));
-    }
-    .btn-success:hover:not(:disabled) {
-        background-color: color-mix(in srgb, hsl(var(--success-solid)) 85%, #000);
     }
 
     .btn-danger {
@@ -573,10 +535,6 @@ code, pre, .font-mono {
     .btn-secondary:focus-visible,
     .btn-ghost:focus-visible {
         box-shadow: 0 0 0 2px hsl(var(--bg-primary)), 0 0 0 4px hsl(var(--accent-primary) / 0.6);
-    }
-
-    .btn-success:focus-visible {
-        box-shadow: 0 0 0 2px hsl(var(--bg-primary)), 0 0 0 4px hsl(var(--success-light));
     }
 
     .btn-danger:focus-visible {
@@ -763,51 +721,6 @@ code, pre, .font-mono {
         background-color: hsl(var(--bg-secondary));
         @apply rounded-2xl p-6;
         box-shadow: 0 25px 50px -12px hsl(0 0% 0% / 0.4), 0 0 0 1px hsl(var(--border-color));
-    }
-
-    /* Result card (AI generated content) */
-    .result-card {
-        background-color: hsl(var(--result-bg));
-        @apply rounded-xl p-3;
-        box-shadow: 0 1px 3px hsl(0 0% 0% / 0.1);
-    }
-
-    /* Message bubbles */
-    .message {
-        @apply max-w-[88%] px-3.5 py-2.5 rounded-xl text-sm;
-    }
-    .message-user {
-        background-color: hsl(var(--user-message));
-    }
-    .message-assistant {
-        background-color: hsl(var(--background-hover));
-    }
-
-    /* Reference tag */
-    .ref-tag {
-        background-color: hsl(var(--ref-tag-bg));
-        color: hsl(var(--ref-tag-text));
-        @apply px-2 py-0.5 rounded text-xs;
-    }
-
-    /* Tree item */
-    .tree-item {
-        @apply px-2 py-1.5 rounded text-sm cursor-pointer;
-        transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-        border-left: 2px solid transparent;
-    }
-    .tree-item:hover {
-        background-color: hsl(var(--background-hover));
-        transform: translateX(2px);
-        border-left-color: hsl(var(--accent-primary) / 0.5);
-    }
-    .tree-item.active {
-        background-color: hsl(var(--background-active));
-    }
-    .tree-item:focus-visible {
-        outline: none;
-        background-color: hsl(var(--background-hover));
-        box-shadow: 0 0 0 2px hsl(var(--bg-primary)), 0 0 0 4px hsl(var(--accent-primary) / 0.6);
     }
 
     /* Diff styles */
@@ -1219,10 +1132,6 @@ code, pre, .font-mono {
     padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-.safe-area-top {
-    padding-top: env(safe-area-inset-top, 0px);
-}
-
 /* Safe area padding with fallback - used for mobile chat panel bottom padding */
 .pb-safe-or-2 {
     padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
@@ -1230,8 +1139,11 @@ code, pre, .font-mono {
 
 /* Touch-friendly tap target size */
 .touch-target {
-    min-height: 44px;
     min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Prevent text selection on interactive elements (mobile) */
@@ -1239,12 +1151,6 @@ code, pre, .font-mono {
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
-}
-
-/* Smooth scrolling on mobile */
-.scroll-smooth {
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
 }
 
 /* ========================================
@@ -1286,32 +1192,12 @@ code, pre, .font-mono {
     animation: shimmer 1.5s ease-in-out infinite;
 }
 
-@keyframes slide-in-right {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
 @keyframes fade-in {
     from {
         opacity: 0;
     }
     to {
         opacity: 1;
-    }
-}
-
-@keyframes fade-out {
-    from {
-        opacity: 1;
-    }
-    to {
-        opacity: 0;
     }
 }
 
@@ -1326,49 +1212,6 @@ code, pre, .font-mono {
     }
 }
 
-.animate-slide-in-right {
-    animation: slide-in-right 0.3s ease-out;
-    will-change: transform, opacity;
-}
-
-.animate-fade-in {
-    animation: fade-in 0.2s ease-out;
-    will-change: opacity;
-}
-
-.animate-fade-out {
-    animation: fade-out 0.2s ease-in forwards;
-    will-change: opacity;
-}
-
-.animate-scale-in {
-    animation: scale-in 0.2s ease-out;
-    will-change: transform, opacity;
-}
-
-/* Mobile Drawer Animations */
-@keyframes slide-in-left {
-    from {
-        transform: translateX(-100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-@keyframes slide-out-left {
-    from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateX(-100%);
-        opacity: 0;
-    }
-}
-
 @keyframes slide-in-bottom {
     from {
         transform: translateY(100%);
@@ -1380,34 +1223,18 @@ code, pre, .font-mono {
     }
 }
 
-@keyframes slide-out-bottom {
-    from {
-        transform: translateY(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateY(100%);
-        opacity: 0;
-    }
+.animate-fade-in {
+    animation: fade-in 0.2s ease-out;
+    will-change: opacity;
 }
 
-.animate-slide-in-left {
-    animation: slide-in-left 0.25s ease-out;
-    will-change: transform, opacity;
-}
-
-.animate-slide-out-left {
-    animation: slide-out-left 0.2s ease-in forwards;
+.animate-scale-in {
+    animation: scale-in 0.2s ease-out;
     will-change: transform, opacity;
 }
 
 .animate-slide-in-bottom {
     animation: slide-in-bottom 0.25s ease-out;
-    will-change: transform, opacity;
-}
-
-.animate-slide-out-bottom {
-    animation: slide-out-bottom 0.2s ease-in forwards;
     will-change: transform, opacity;
 }
 
@@ -1458,8 +1285,7 @@ code, pre, .font-mono {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    html:focus-within,
-    .scroll-smooth {
+    html:focus-within {
         scroll-behavior: auto;
     }
 
@@ -1468,14 +1294,9 @@ code, pre, .font-mono {
     .animate-pulse,
     .animate-ping,
     .animate-bounce,
-    .animate-slide-in-right,
     .animate-fade-in,
-    .animate-fade-out,
     .animate-scale-in,
-    .animate-slide-in-left,
-    .animate-slide-out-left,
     .animate-slide-in-bottom,
-    .animate-slide-out-bottom,
     .animate-celebration-pop,
     .celebration-piece {
         animation: none !important;
@@ -1486,85 +1307,6 @@ code, pre, .font-mono {
 /* ========================================
    Mobile Navigation Styles
    ======================================== */
-
-/* Mobile bottom navigation bar */
-.mobile-bottom-nav {
-    @apply fixed bottom-0 left-0 right-0 z-40;
-    display: flex;
-    flex-direction: row;
-    background-color: hsl(var(--bg-secondary));
-    border-top: 1px solid hsl(var(--border-color));
-    box-shadow: 0 -2px 8px hsl(0 0% 0% / 0.1);
-}
-
-/* Mobile sidebar drawer */
-.mobile-drawer {
-    @apply fixed top-0 left-0 bottom-0 z-50;
-    width: 280px;
-    max-width: 85vw;
-    background-color: hsl(var(--bg-secondary));
-    border-right: 1px solid hsl(var(--border-color));
-    box-shadow: 2px 0 16px hsl(0 0% 0% / 0.2);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
-.mobile-drawer-overlay {
-    @apply fixed inset-0 z-40;
-    background-color: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px);
-}
-
-/* Mobile-optimized scrolling container */
-.mobile-scroll-container {
-    @apply w-full h-full overflow-y-auto overflow-x-hidden;
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
-}
-
-/* Hide scrollbar on mobile but keep functionality */
-@media (max-width: 767px) {
-    .mobile-scroll-container::-webkit-scrollbar {
-        width: 0;
-        height: 0;
-    }
-
-    .mobile-scroll-container {
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-    }
-}
-
-/* Mobile navigation item */
-.mobile-nav-item {
-    @apply flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors;
-    min-height: 44px;
-    color: hsl(var(--foreground-muted));
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-}
-
-.mobile-nav-item:hover {
-    background-color: hsl(var(--bg-tertiary));
-    color: hsl(var(--foreground));
-}
-
-.mobile-nav-item:active {
-    background-color: hsl(var(--bg-hover));
-    transform: scale(0.98);
-}
-
-.mobile-nav-item.active {
-    background-color: hsl(var(--background-active));
-    color: hsl(var(--accent-primary));
-}
-
-.mobile-nav-item:focus-visible {
-    outline: none;
-    background-color: hsl(var(--bg-tertiary));
-    box-shadow: inset 0 0 0 2px hsl(var(--accent-primary) / 0.6);
-}
 
 /* Mobile bottom tab */
 .mobile-bottom-tab {
@@ -1590,18 +1332,6 @@ code, pre, .font-mono {
     outline: none;
     background-color: hsl(var(--bg-tertiary));
     box-shadow: inset 0 2px 0 0 hsl(var(--accent-primary) / 0.6);
-}
-
-/* Mobile separator */
-.mobile-separator {
-    @apply mx-4 my-2;
-    height: 1px;
-    background-color: hsl(var(--border-color));
-}
-
-/* Mobile safe area padding for bottom nav */
-.mobile-safe-bottom {
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
 /* Mobile button touch feedback */
@@ -1632,66 +1362,12 @@ code, pre, .font-mono {
     }
 }
 
-/* Touch target utility class */
-.touch-target {
-    min-width: 44px;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Enhanced touch target on mobile */
-@media (max-width: 767px) {
-    .touch-target {
-        min-width: 44px;
-        min-height: 44px;
-    }
-}
-
-/* Mobile card styling */
-@media (max-width: 767px) {
-    .mobile-card {
-        padding: 1rem;
-        border-radius: 0.75rem;
-    }
-}
-
 /* ========================================
    320px Viewport Compatibility
    For iPhone SE and small Android devices
    ======================================== */
 
 @media (max-width: 320px) {
-    /* Mobile file tree optimizations */
-    .mobile-file-tree {
-        font-size: 14px;
-    }
-
-    .mobile-file-tree-item {
-        padding-left: 8px !important;
-        padding-right: 8px !important;
-        gap: 8px !important;
-    }
-
-    /* Reduce icon sizes slightly */
-    .mobile-file-tree-icon {
-        width: 18px;
-        height: 18px;
-    }
-
-    /* Ensure search bar fits */
-    .mobile-search-input {
-        font-size: 14px !important;
-        padding: 8px 12px !important;
-    }
-
-    /* Reduce padding in navigation items */
-    .mobile-nav-item {
-        padding-left: 12px;
-        padding-right: 12px;
-    }
-
     /* Smaller bottom tab labels */
     .mobile-bottom-tab span {
         font-size: 10px;
@@ -1706,114 +1382,6 @@ code, pre, .font-mono {
     .bottom-tab-label {
         font-size: 10px;
         line-height: 1.2;
-    }
-
-    /* MobileChatInput 320px optimizations */
-    .mobile-chat-input-container {
-        padding-left: 8px;
-        padding-right: 8px;
-        gap: 8px;
-    }
-
-    .mobile-voice-button {
-        width: 48px !important;
-        height: 48px !important;
-        min-width: 48px;
-    }
-
-    .mobile-voice-button svg {
-        width: 20px;
-        height: 20px;
-    }
-
-    .mobile-chat-textarea {
-        padding: 10px 12px;
-        font-size: 15px;
-    }
-
-    .mobile-send-button {
-        width: 44px !important;
-        height: 44px !important;
-    }
-
-    /* Material/quote chips - more compact at 320px */
-    .mobile-attachment-chip {
-        max-width: 70px;
-        font-size: 10px;
-        padding: 2px 6px;
-    }
-
-    /* Voice hint text */
-    .mobile-voice-hint {
-        font-size: 10px;
-    }
-
-    /* Header mobile menu dropdown at 320px */
-    .mobile-header-menu {
-        padding: 4px;
-    }
-
-    .mobile-header-menu-item {
-        padding: 8px 10px;
-        font-size: 13px;
-        gap: 10px;
-    }
-
-    /* Message bubbles 320px optimizations */
-    .message-bubble {
-        padding: 8px 10px;
-        font-size: 13px;
-        max-width: 90%;
-    }
-
-    .message-avatar-mobile {
-        width: 24px;
-        height: 24px;
-    }
-
-    /* Search input 320px optimizations */
-    .mobile-search-container {
-        padding: 8px;
-    }
-
-    .mobile-search-input {
-        font-size: 14px !important;
-        padding: 8px 10px 8px 32px;
-    }
-
-    /* File tree item text at 320px */
-    .mobile-file-item-text {
-        font-size: 14px;
-    }
-
-    /* Editor status bar at 320px */
-    .editor-status-bar-mobile {
-        font-size: 10px;
-        padding: 4px 6px;
-    }
-
-    /* Reduce modal padding at 320px */
-    .modal-mobile {
-        padding: 16px;
-        margin: 8px;
-        max-width: calc(100vw - 16px);
-    }
-
-    /* Safe area padding for very small screens */
-    .safe-area-compact {
-        padding-bottom: max(8px, env(safe-area-inset-bottom));
-        padding-top: max(4px, env(safe-area-inset-top));
-    }
-
-    /* Bottom nav compact mode */
-    .mobile-bottom-nav-compact {
-        min-height: 48px;
-    }
-
-    /* Reduce gaps and paddings globally at 320px */
-    .compact-320 {
-        gap: 4px;
-        padding: 8px;
     }
 }
 
@@ -1849,21 +1417,6 @@ code, pre, .font-mono {
     border: 1px solid hsl(var(--border-subtle));
 }
 
-/* Avatar ring for user messages */
-.chat-avatar-user {
-    box-shadow: 0 0 0 2px hsl(var(--message-user-gradient-end));
-}
-
-/* Avatar ring for AI messages */
-.chat-avatar-ai {
-    box-shadow: 0 0 0 2px hsl(var(--accent-primary) / 0.3);
-    background: linear-gradient(
-        135deg,
-        hsl(var(--accent-primary)) 0%,
-        hsl(var(--accent-dark)) 100%
-    );
-}
-
 /* Timestamp styling */
 .chat-timestamp {
     font-size: 0.75rem;
@@ -1875,34 +1428,4 @@ code, pre, .font-mono {
     .chat-message-bubble {
         border-radius: 0.875rem;
     }
-}
-
-/* ========================================
-   Secondary Accent Color Utilities
-   琥珀金辅助色工具类
-   ======================================== */
-
-.text-accent-secondary {
-    color: hsl(var(--accent-secondary));
-}
-
-.bg-accent-secondary {
-    background-color: hsl(var(--accent-secondary));
-}
-
-.border-accent-secondary {
-    border-color: hsl(var(--accent-secondary));
-}
-
-/* Hover states */
-.text-accent-secondary:hover {
-    color: hsl(var(--accent-secondary-dark));
-}
-
-.bg-accent-secondary:hover {
-    background-color: hsl(var(--accent-secondary-dark));
-}
-
-.border-accent-secondary:hover {
-    border-color: hsl(var(--accent-secondary-dark));
 }
