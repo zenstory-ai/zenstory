@@ -5,7 +5,6 @@ Provides issue feedback submission with optional screenshot uploads.
 """
 
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -20,7 +19,7 @@ from core.error_handler import APIException
 from database import get_session
 from models import User, UserFeedback
 from services.core.auth_service import get_current_active_user
-from services.infra.upload_storage import UploadStorageError, get_upload_storage
+from services.infra.upload_storage import UploadStorageError, get_upload_storage_or_503
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -33,7 +32,6 @@ MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024  # 5MB
 ALLOWED_SOURCE_PAGES = {"dashboard", "editor"}
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 ALLOWED_CONTENT_TYPES = {"image/png", "image/jpeg", "image/webp"}
-DEFAULT_UPLOAD_DIR = "uploads/feedback"
 IMAGE_CONTENT_TYPE_BY_FORMAT = {
     "png": "image/png",
     "jpeg": "image/jpeg",
@@ -47,23 +45,6 @@ class FeedbackSubmitResponse(BaseModel):
     id: str
     message: str
     created_at: datetime
-
-
-def _resolve_upload_dir() -> Path:
-    configured_dir = os.getenv("FEEDBACK_UPLOAD_DIR", DEFAULT_UPLOAD_DIR).strip() or DEFAULT_UPLOAD_DIR
-    upload_dir = Path(configured_dir)
-    if not upload_dir.is_absolute():
-        upload_dir = Path.cwd() / upload_dir
-    return upload_dir.resolve()
-
-
-def _storage():
-    from config.material_settings import material_settings
-
-    return get_upload_storage(
-        material_root=material_settings.UPLOAD_FOLDER,
-        feedback_root=_resolve_upload_dir(),
-    )
 
 
 def _safe_extension(filename: str) -> str:
@@ -203,7 +184,7 @@ def submit_feedback(
 
         filename = _build_screenshot_filename(detected_format)
         try:
-            screenshot_storage = _storage()
+            screenshot_storage = get_upload_storage_or_503()
             stored = screenshot_storage.put_feedback(
                 suffix=Path(filename).suffix,
                 object_name=filename,

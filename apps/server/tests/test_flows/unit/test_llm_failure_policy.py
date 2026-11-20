@@ -205,13 +205,13 @@ def _patch_stage1(monkeypatch, *, summaries: bool, mentions: bool):
     ],
 )
 def test_llm_fatal_stop_aborts_extraction_preserving_original_error(monkeypatch, fatal_code):
-    from flows.utils.helpers.exceptions import is_llm_account_failure
+    from flows.utils.helpers.exceptions import is_llm_fatal_stop
 
     _patch_stage1(monkeypatch, summaries=True, mentions=False)
     fatal_error = LLMNonRetryableError("fatal stop", fatal_code)
-    assert is_llm_account_failure(fatal_error) is True
-    assert is_llm_account_failure(LLMNonRetryableError("400 bad request", None)) is False
-    assert is_llm_account_failure(LLMOutputError("bad json")) is False
+    assert is_llm_fatal_stop(fatal_error) is True
+    assert is_llm_fatal_stop(LLMNonRetryableError("400 bad request", None)) is False
+    assert is_llm_fatal_stop(LLMOutputError("bad json")) is False
 
     monkeypatch.setattr(chapter_mod, "generate_chapter_summary_task", FakeTask(error=fatal_error))
     writes = FakeTask({})
