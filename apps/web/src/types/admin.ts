@@ -34,16 +34,16 @@ export interface SystemPromptConfig {
   project_type: string;
   role_definition: string;
   capabilities: string;
-  directory_structure: string;
-  content_structure: string;
-  file_types: string;
-  writing_guidelines: string;
+  directory_structure: string | null;
+  content_structure: string | null;
+  file_types: string | null;
+  writing_guidelines: string | null;
   include_dialogue_guidelines: boolean;
-  primary_content_type: string;
+  primary_content_type: string | null;
   is_active: boolean;
   version: number;
-  created_by?: string;
-  updated_by?: string;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -337,7 +337,7 @@ export interface PointsStats {
 export interface PointsTransactionRecord {
   id: string;
   user_id: string;
-  username: string;
+  username?: string;
   amount: number;
   balance_after: number;
   transaction_type: string;
@@ -345,6 +345,7 @@ export interface PointsTransactionRecord {
   description: string | null;
   expires_at: string | null;
   is_expired: boolean;
+  expired_at?: string | null;
   created_at: string;
 }
 
@@ -555,7 +556,7 @@ export interface RedemptionCode {
   is_active: boolean;
   notes: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 /** Represents an admin action audit log entry. */
@@ -565,7 +566,7 @@ export interface AuditLog {
   admin_name: string;
   action: string;
   resource_type: string;
-  resource_id: string;
+  resource_id: string | null;
   old_value: Record<string, unknown> | null;
   new_value: Record<string, unknown> | null;
   ip_address: string | null;

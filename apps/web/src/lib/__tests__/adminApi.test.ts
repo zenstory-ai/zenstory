@@ -548,6 +548,148 @@ describe('adminApi', () => {
     })
   })
 
+  // ==================== Backend Pydantic Contract Shapes ====================
+
+  describe('backend schema contract regressions', () => {
+    it('accepts exact FastAPI response shapes including nullable and omitted fields', async () => {
+      const { adminApi } = await import('../adminApi')
+
+      const subscriptionDetail = {
+        subscription: {
+          id: 'sub-1',
+          user_id: 'user-1',
+          plan_id: 'plan-pro',
+          status: 'active',
+          current_period_start: '2026-03-01T00:00:00Z',
+          current_period_end: '2099-01-01T00:00:00Z',
+          cancel_at_period_end: false,
+          stripe_subscription_id: null,
+          stripe_customer_id: null,
+          created_at: '2026-03-01T00:00:00Z',
+          updated_at: '2026-03-01T00:00:00Z',
+        },
+        plan: {
+          id: 'plan-pro',
+          name: 'pro' as const,
+          display_name: '专业版',
+          display_name_en: 'Pro',
+          price_monthly_cents: 2900,
+          price_yearly_cents: 29000,
+          features: { ai_conversations_per_day: -1 },
+          is_active: true,
+          created_at: '2026-03-01T00:00:00Z',
+          updated_at: '2026-03-01T00:00:00Z',
+        },
+      }
+      const promptWithNulls = {
+        id: 'prompt-1',
+        project_type: 'novel',
+        role_definition: 'Writer',
+        capabilities: 'Drafting',
+        directory_structure: null,
+        content_structure: null,
+        file_types: null,
+        writing_guidelines: null,
+        include_dialogue_guidelines: false,
+        primary_content_type: null,
+        is_active: true,
+        version: 1,
+        created_by: null,
+        updated_by: null,
+        created_at: '2026-03-01T00:00:00Z',
+        updated_at: '2026-03-01T00:00:00Z',
+      }
+      const pointsTxWithoutUsername = {
+        items: [{
+          id: 'tx-1',
+          user_id: 'user-1',
+          amount: 10,
+          balance_after: 120,
+          transaction_type: 'check_in',
+          source_id: null,
+          description: null,
+          expires_at: null,
+          is_expired: false,
+          expired_at: null,
+          created_at: '2026-03-01T00:00:00Z',
+        }],
+        total: 1,
+        page: 1,
+        page_size: 10,
+      }
+      const codeWithoutUpdatedAt = {
+        items: [{
+          id: 'code-1',
+          code: 'PRO-30D-ABCD',
+          tier: 'pro',
+          duration_days: 30,
+          code_type: 'single_use',
+          max_uses: 1,
+          current_uses: 0,
+          is_active: true,
+          notes: null,
+          created_at: '2026-03-01T00:00:00Z',
+        }],
+        total: 1,
+        page: 1,
+        page_size: 20,
+      }
+      const batchAuditLog = {
+        items: [{
+          id: 'log-batch',
+          admin_id: 'admin-1',
+          admin_name: null,
+          action: 'create_codes_batch',
+          resource_type: 'code',
+          resource_id: null,
+          old_value: null,
+          new_value: { count: 10 },
+          ip_address: null,
+          user_agent: null,
+          created_at: '2026-03-01T00:00:00Z',
+        }],
+        total: 1,
+        page: 1,
+        page_size: 20,
+      }
+      const adjustResponse = {
+        success: true,
+        transaction: pointsTxWithoutUsername.items[0],
+        old_balance: 110,
+        new_balance: 120,
+      }
+
+      mockApi.get
+        .mockResolvedValueOnce(subscriptionDetail)
+        .mockResolvedValueOnce(promptWithNulls)
+        .mockResolvedValueOnce(pointsTxWithoutUsername)
+        .mockResolvedValueOnce(codeWithoutUpdatedAt)
+        .mockResolvedValueOnce(batchAuditLog)
+      mockApi.post.mockResolvedValueOnce(adjustResponse)
+
+      const subResult = await adminApi.getUserSubscription('user-1')
+      expect(subResult.plan?.name).toBe('pro')
+      expect(subResult.quota).toBeUndefined()
+
+      const promptResult = await adminApi.getPrompt('novel')
+      expect(promptResult.directory_structure).toBeNull()
+
+      const txResult = await adminApi.getUserPointsTransactions('user-1', { page: 1, page_size: 10 })
+      expect(txResult.items[0].username).toBeUndefined()
+
+      const codesResult = await adminApi.getCodes()
+      expect(codesResult.items[0].updated_at).toBeUndefined()
+
+      const auditResult = await adminApi.getAuditLogs()
+      expect(auditResult.items[0].admin_name).toBe('-')
+      expect(auditResult.items[0].resource_id).toBeNull()
+
+      const adjustResult = await adminApi.adjustUserPoints('user-1', { amount: 10, reason: 'bonus' })
+      expect(adjustResult.success).toBe(true)
+      expect(adjustResult.new_balance).toBe(120)
+    })
+  })
+
   // ==================== Export Surface ====================
 
   describe('adminApi export', () => {

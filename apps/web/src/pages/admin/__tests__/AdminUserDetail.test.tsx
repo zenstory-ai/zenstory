@@ -245,6 +245,80 @@ describe("AdminUserDetail", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("subscriptions.updateSuccess"));
   });
 
+  it("renders all five sections cleanly from exact FastAPI Pydantic response shapes", async () => {
+    api.getUser.mockResolvedValue({
+      id: "user-1",
+      username: "writer",
+      email: "writer@example.com",
+      email_verified: true,
+      avatar_url: null,
+      is_active: true,
+      is_superuser: false,
+      created_at: "2026-10-01T08:00:00Z",
+      updated_at: "2026-10-01T08:00:00Z",
+    });
+    api.getUserSubscription.mockResolvedValue({
+      subscription: {
+        id: "sub-1",
+        user_id: "user-1",
+        plan_id: "plan-pro",
+        status: "active",
+        current_period_start: "2026-10-01T08:00:00Z",
+        current_period_end: "2099-01-01T00:00:00Z",
+        created_at: "2026-10-01T08:00:00Z",
+        updated_at: "2026-10-01T08:00:00Z",
+      },
+      plan: {
+        id: "plan-pro",
+        name: "pro",
+        display_name: "专业版",
+        display_name_en: "Pro",
+        price_monthly_cents: 2900,
+        price_yearly_cents: 29000,
+        features: { ai_conversations_per_day: -1 },
+        is_active: true,
+      },
+    });
+    api.getUserPointsTransactions.mockResolvedValue({
+      items: [{
+        id: "tx-raw-1",
+        user_id: "user-1",
+        amount: 25,
+        balance_after: 120,
+        transaction_type: "check_in",
+        source_id: null,
+        description: null,
+        expires_at: null,
+        is_expired: false,
+        expired_at: null,
+        created_at: "2026-10-02T00:00:00Z",
+      }],
+      total: 1,
+      page: 1,
+      page_size: 10,
+    });
+    api.adjustUserPoints.mockResolvedValue({
+      success: true,
+      old_balance: 120,
+      new_balance: 145,
+    });
+
+    renderPage();
+
+    for (const heading of [
+      "userDetail.account",
+      "userDetail.subscription",
+      "userDetail.quota",
+      "userDetail.points",
+      "userDetail.payments",
+    ]) {
+      expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+    }
+    expect(await screen.findByText("writer@example.com")).toBeInTheDocument();
+    expect(await screen.findByText("1 / 5")).toBeInTheDocument();
+    expect(await screen.findByText("+25")).toBeInTheDocument();
+  });
+
   it("reports failed subscription and points updates", async () => {
     const { toast } = await import("../../../lib/toast");
     api.updateUserSubscription.mockRejectedValue(new Error("nope"));

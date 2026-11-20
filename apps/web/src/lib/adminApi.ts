@@ -263,9 +263,18 @@ export interface Subscription {
 }
 
 export interface UserSubscriptionDetailResponse {
-  subscription: Subscription;
+  subscription: Partial<Subscription> & {
+    id: string;
+    user_id: string;
+    plan_id?: string;
+    status: string;
+    current_period_start: string | null;
+    current_period_end: string | null;
+    created_at: string;
+    updated_at: string;
+  };
   plan: SubscriptionPlan | null;
-  quota: Record<string, unknown> | null;
+  quota?: Record<string, unknown> | null;
 }
 
 export interface UpdateSubscriptionResponse {
@@ -699,11 +708,19 @@ async function getUserPointsTransactions(
   );
 }
 
+export interface AdjustUserPointsResponse {
+  success?: boolean;
+  message?: string;
+  old_balance?: number;
+  new_balance: number;
+  transaction?: PointsTransactionsResponse["items"][number];
+}
+
 async function adjustUserPoints(
   userId: string,
   data: PointsAdjustRequest
-): Promise<{ message: string; new_balance: number }> {
-  return api.post<{ message: string; new_balance: number }>(
+): Promise<AdjustUserPointsResponse> {
+  return api.post<AdjustUserPointsResponse>(
     `${ADMIN_BASE}/points/${userId}/adjust`,
     data
   );
