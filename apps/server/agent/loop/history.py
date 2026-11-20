@@ -26,7 +26,6 @@ from sqlalchemy import desc, or_
 from sqlmodel import Session, and_, select
 
 from agent.core.output_truncation import OUTPUT_TRUNCATED_REASON
-from agent.utils.token_utils import estimate_text_tokens
 from config.agent_runtime import AGENT_LOOP_COMPACT_KEEP_USER_TOKENS
 from utils.logger import get_logger, log_with_context
 
@@ -69,9 +68,8 @@ class LoopHistory:
     """重建好的跨轮历史与压缩所需的事实。"""
 
     items: list[dict[str, Any]] = field(default_factory=list)
-    # 上一条单循环 assistant 行记下的最后一次模型调用输入 token（含缓存）与对应输入字符数；没有时为 0。
+    # 上一条单循环 assistant 行记下的最后一次模型调用输入 token（含缓存）；没有时为 0。
     last_prompt_tokens: int = 0
-    last_prompt_chars: int = 0
     # 会话里最新一行的 id：本轮若压缩，压缩覆盖到这一行为止。
     last_message_id: str | None = None
     # 是否用到了已有的压缩点。
@@ -83,14 +81,10 @@ class LoopHistory:
     # 会话末尾连续几轮停在输出上限（stop_reason=output_truncated）。
     trailing_output_truncations: int = 0
 
-    @property
-    def estimated_tokens(self) -> int:
-        return estimate_items_tokens(self.items)
-
 
 def bounded_items(items: list[dict[str, Any]], max_tokens: int) -> list[dict[str, Any]]:
-    """输入项的上限：从最旧的项开始丢，丢完后开头不留没有调用的工具输出或悬空助手轮。"""
-    sizes = [estimate_items_tokens([item]) for item in items]
+    """输入项的上限：按供应商同量纲估算从最旧的项开始丢，丢完后开头不留没有调用的工具输出或悬空助手轮。"""
+    sizes = [estimate_provider_items_tokens([item]) for item in items]
     total = sum(sizes)
     start = 0
     while len(items) - start > 1 and total > max_tokens:
@@ -107,20 +101,6 @@ def bounded_items(items: list[dict[str, Any]], max_tokens: int) -> list[dict[str
             return []
         start = first_user
     return list(items[start:])
-
-
-def estimate_items_tokens(items: list[dict[str, Any]]) -> int:
-    """输入项的 cl100k_base 粗估 token 数。"""
-    total = 0
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        for key in ("content", "arguments", "output"):
-            value = item.get(key)
-            if isinstance(value, str) and value:
-                total += estimate_text_tokens(value)
-        total += 4
-    return total
 
 
 def estimate_provider_text_tokens(text: str) -> int:
@@ -151,64 +131,20 @@ def estimate_provider_items_tokens(items: list[dict[str, Any]]) -> int:
     return total
 
 
-# 单次请求除 items 外的固定协议开销字符量（system_prompt 约 10.2k + 9 个暴露工具 JSON schema 约 11.3k）。
-# 用于从 (last_prompt_tokens, last_prompt_chars) 标定本会话的真实 token/char 密度，消除短会话工具头虚高。
-_WIRE_OVERHEAD_CHARS = 21_500
-_MIN_CALIBRATED_PROMPT_CHARS = 10_000
-
-
-def items_char_length(items: Any) -> int:
-    """计算输入项序列化后的字符总量（逐项累加，避免对百万字符列表分配整块连续内存）。"""
-    if not items:
-        return 0
-    if isinstance(items, str):
-        return len(items)
-    if not isinstance(items, list):
-        return len(str(items))
-    total = 2
-    for item in items:
-        try:
-            total += len(json.dumps(item, ensure_ascii=False, default=str)) + 2
-        except (TypeError, ValueError):
-            total += len(str(item)) + 2
-    return total
-
-
-def calibrated_tokens_per_char(history: LoopHistory) -> float | None:
-    """利用上一轮供应商真实返回的 ``prompt_tokens`` 与当时实际发出的 ``prompt_chars`` 自校准字词比。
-
-    同一会话内语言结构与当前绑定的供应商模型恒定（若发生 MiniMax/DeepSeek 故障切换，下一轮起自动按新供应商实测更新）。
-    没有 ``last_prompt_chars``（旧历史行或首轮）时返回 ``None``，由静态同量纲估算兜底。
-    """
-    if history.last_prompt_tokens <= 0 or history.last_prompt_chars < _MIN_CALIBRATED_PROMPT_CHARS:
-        return None
-    raw = history.last_prompt_tokens / (history.last_prompt_chars + _WIRE_OVERHEAD_CHARS)
-    return max(0.30, min(1.05, raw))
-
-
 def effective_history_provider_tokens(
     history: LoopHistory,
     items: list[dict[str, Any]] | None = None,
 ) -> int:
-    """评估当前输入项对应的供应商真实 token 量级。
+    """评估当前输入项对应的供应商 token 量级。
 
-    1. 已有 ``(last_prompt_tokens, last_prompt_chars)`` 实测锚点对时：
-       按 ``last_prompt_tokens + (curr_chars - last_prompt_chars) * ratio`` 增量校准——
-       常态未折叠时存量前缀误差为 0，仅对本轮增量乘真实字词比；发生内存折叠或评估裁剪副本时，
-       自动按本会话真实密度反推完整未折叠体积或折叠后体积。
-    2. 无 ``last_prompt_chars`` 的旧会话行：对未改动的原始历史取 ``max(last_prompt_tokens, 同量纲估算)``，
-       对已折叠副本取该副本的同量纲估算。
+    对未改动的原始历史取 ``max(last_prompt_tokens, 同量纲估算)``，
+    对已折叠或裁剪后的副本直接取该副本的同量纲估算。
     """
     target_items = history.items if items is None else items
     if not target_items:
         return 0
-    ratio = calibrated_tokens_per_char(history)
-    if ratio is not None:
-        curr_chars = items_char_length(target_items)
-        calibrated = history.last_prompt_tokens + round((curr_chars - history.last_prompt_chars) * ratio)
-        return max(1, calibrated)
     estimated = estimate_provider_items_tokens(target_items)
-    if items is not None and target_items != history.items:
+    if items is not None and target_items is not history.items:
         return estimated
     return max(history.last_prompt_tokens, estimated)
 
@@ -218,21 +154,21 @@ def bound_history_for_provider(
     items: list[dict[str, Any]],
     max_provider_tokens: int,
 ) -> list[dict[str, Any]]:
-    """仅当供应商实测或未折叠历史同量纲估算超过硬上限时，按比例滑窗丢弃最旧项。
+    """仅当供应商实测或同量纲估算超过硬上限时，按供应商 token 比例滑窗丢弃最旧项。
 
     常态由轮间压缩控制上下文长度，绝不在真实窗口以下因 cl100k_base 虚高而提前砍旧消息；
     当存量老会话未折叠历史或压缩连续失败后的体积逼近供应商 1M 窗口时，作为最后防线降级。
     """
     if len(items) <= 1:
         return list(items)
-    provider_tokens = effective_history_provider_tokens(history, items)
-    if provider_tokens <= max_provider_tokens:
+    estimated = estimate_provider_items_tokens(items)
+    provider_tokens = (
+        estimated if items is not history.items else max(history.last_prompt_tokens, estimated)
+    )
+    if provider_tokens <= max_provider_tokens or estimated <= 0:
         return list(items)
-    cl100k_total = estimate_items_tokens(items)
-    if cl100k_total <= 0:
-        return list(items)
-    scaled_max_tokens = max(1, int(cl100k_total * (max_provider_tokens / provider_tokens)))
-    return bounded_items(items, scaled_max_tokens)
+    target_tokens = max(1, int(estimated * (max_provider_tokens / provider_tokens)))
+    return bounded_items(items, target_tokens)
 
 
 def _parse_json(value: Any) -> Any:
@@ -515,7 +451,6 @@ def load_loop_history(
     measured_seen = False
     # 比最近一次实测读数更新的行（停在第一次模型调用之前的轮次）的估算：读数里不含它们，要加上。
     unmeasured_tokens = 0
-    unmeasured_chars = 0
     skip_seen = False
     truncation_streak_open = True
     cursor: tuple[Any, Any] | None = None
@@ -592,16 +527,11 @@ def load_loop_history(
                     if isinstance(tokens, int) and tokens > 0:
                         measured_seen = True
                         result.last_prompt_tokens = tokens + unmeasured_tokens
-                        chars = metadata.get("prompt_chars")
-                        if isinstance(chars, int) and chars > 0:
-                            result.last_prompt_chars = chars + unmeasured_chars
             if not measured_seen and valid_compaction(metadata) is not None:
                 # 压缩点之前的读数是压缩前的上下文大小，不再往前取。
                 measured_seen = True
             if not measured_seen:
-                row_text = str(row.content or "")
-                unmeasured_tokens += estimate_provider_text_tokens(row_text)
-                unmeasured_chars += len(row_text)
+                unmeasured_tokens += estimate_provider_text_tokens(str(row.content or ""))
             # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
             note_compaction(metadata)
         if stop:

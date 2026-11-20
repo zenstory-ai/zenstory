@@ -50,7 +50,7 @@ def project_metadata_write_lock(project_id: str) -> Iterator[None]:
     if is_postgres:
         yield
     else:
-        from agent.tools.file_ops.edit import acquire_file_write_lock
+        from utils.file_write_lock import acquire_file_write_lock
 
         with acquire_file_write_lock(f"project:{project_id}"):
             yield

@@ -767,11 +767,10 @@ class AgentService:
         retry_carried_compaction: dict[str, Any] = {}
 
         def _loop_extra_metadata() -> dict[str, Any] | None:
-            """单循环 agent 的 assistant 行：引擎标记、最后一次模型调用的输入 token/字符锚点、压缩点。"""
+            """单循环 agent 的 assistant 行：引擎标记、最后一次模型调用的输入 token、压缩点。"""
             return {
                 "engine": LOOP_ENGINE_METADATA_VALUE,
                 "prompt_tokens": run_meter.last_prompt_tokens or None,
-                "prompt_chars": run_meter.last_prompt_chars or None,
                 "compaction": loop_compaction_record,
                 "compaction_skipped": loop_compaction_skipped,
             }
@@ -1310,7 +1309,7 @@ class AgentService:
                 # 兜底上限：压缩一直不成、实测（或供应商同量纲估算）逼近 1M 窗口时才丢掉最旧项；
                 # 本轮刚完成压缩时 items 已是摘要结果，不再按压缩前读数裁剪。
                 if loop_compaction_record is None:
-                    run_history = list(writing_state.get("history_items") or [])
+                    run_history = writing_state.get("history_items") or []
                     turn_user_text = str(writing_state.get("user_message") or "")
                     turn_extra_tokens = max(0, estimate_provider_text_tokens(turn_user_text) - 50_000)
                     history_max_tokens = max(100_000, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS - turn_extra_tokens)
@@ -1320,22 +1319,22 @@ class AgentService:
                         folded_history = IntraRunToolOutputTrimmer().trim_items(
                             run_history, instructions_chars=len(system_prompt)
                         )
-                        if folded_history != run_history:
+                        if folded_history is not run_history:
                             writing_state["history_items"] = folded_history
                             run_history = folded_history
-                    bounded_history = bound_history_for_provider(
-                        loop_history, run_history, history_max_tokens
-                    )
-                    if len(bounded_history) < len(run_history):
-                        log_with_context(
-                            logger,
-                            30,  # WARNING
-                            "Loop history exceeded the run bound; oldest items left out",
-                            session_id=session_id,
-                            dropped_items=len(run_history) - len(bounded_history),
-                            kept_tokens=estimate_provider_items_tokens(bounded_history),
+                        bounded_history = bound_history_for_provider(
+                            loop_history, run_history, history_max_tokens
                         )
-                        writing_state["history_items"] = bounded_history
+                        if len(bounded_history) < len(run_history):
+                            log_with_context(
+                                logger,
+                                30,  # WARNING
+                                "Loop history exceeded the run bound; oldest items left out",
+                                session_id=session_id,
+                                dropped_items=len(run_history) - len(bounded_history),
+                                kept_tokens=estimate_provider_items_tokens(bounded_history),
+                            )
+                            writing_state["history_items"] = bounded_history
                 workflow_events = self._loop_events(
                     writing_state,
                     get_steering_messages=get_steering_messages,

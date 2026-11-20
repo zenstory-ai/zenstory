@@ -210,7 +210,6 @@ class FileCRUD:
         """
         self.session = session
         self.user_id = user_id
-        self._last_deleted_meta: dict[str, Any] | None = None
 
     def create_file(
         self,
@@ -925,25 +924,12 @@ class FileCRUD:
         result["content_changed"] = content_changed
         return result
 
-    def delete_file(
+    def delete_file_with_meta(
         self,
         id: str,
         recursive: bool = False,
-    ) -> bool:
-        """
-        Delete a file.
-
-        Args:
-            id: File ID to delete
-            recursive: If True, also delete all children
-
-        Returns:
-            True if deleted successfully
-
-        Raises:
-            PermissionError: If user doesn't have permission
-            ValueError: If file not found
-        """
+    ) -> dict[str, Any]:
+        """Soft-delete a file (and optionally its live subtree) and return deletion metadata."""
         # recursive 直接来自 LLM 的工具参数。工具调用走 strict_json_schema=False，
         # schema 里的 "type": "boolean" 在运行时没有约束力，模型完全可能发来
         # 字符串 "false"/"0"，而朴素的 `if recursive:` 会把它判成真——
@@ -1005,10 +991,10 @@ class FileCRUD:
                 deleted = [file]
                 self.session.add(file)
 
-            # Keep postcommit logging independent of expired rows.
+            # Keep postcommit logging and returned metadata independent of expired rows.
             project_id = file.project_id
             deleted_count = len(deleted)
-            self._last_deleted_meta = {
+            deleted_meta = {
                 "id": file.id,
                 "title": file.title,
                 "file_type": file.file_type,
@@ -1027,6 +1013,15 @@ class FileCRUD:
             recursive=recursive,
         )
 
+        return deleted_meta
+
+    def delete_file(
+        self,
+        id: str,
+        recursive: bool = False,
+    ) -> bool:
+        """Delete a file (soft delete); returns True on success."""
+        self.delete_file_with_meta(id=id, recursive=recursive)
         return True
 
     def query_files(

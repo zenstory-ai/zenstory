@@ -12,15 +12,19 @@ REST 层捕获后转成带 error_code 的 APIException，Agent 工具层转成�
 错误文本。规则本身只有这一份。
 """
 
-from collections.abc import Mapping
+import contextlib
+from collections.abc import Callable, Mapping
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import SessionTransaction
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
+from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
 from models import File, Project
 from models.file_model import FILE_TYPE_FOLDER
+from utils.file_write_lock import file_write_lock
 from utils.title_sequence import (
     MAX_FILE_ORDER as MAX_FILE_ORDER,
 )
@@ -31,13 +35,17 @@ from utils.title_sequence import (
 )
 
 __all__ = [
+    "FileRestoreConflictError",
+    "FileRestoreNotFoundError",
     "MAX_FILE_ORDER",
     "ParentNotFoundError",
     "begin_file_creation_savepoint",
     "is_descendant_of",
+    "load_file_for_write",
     "load_live_subtree_postorder",
     "lock_project_for_files",
     "resolve_new_file_order",
+    "restore_deleted_file",
     "validate_parent_assignment",
 ]
 
@@ -248,3 +256,191 @@ def resolve_new_file_order(
     ).one()
     resolved_order = validate_persisted_file_order(0 if max_order is None else int(max_order) + 1)
     return resolved_order
+
+
+class FileRestoreNotFoundError(LookupError):
+    """Target file for restore does not exist."""
+
+
+class FileRestoreConflictError(ValueError):
+    """Restore cannot complete due to missing live parent or sibling title conflict."""
+
+
+def load_file_for_write(session: Session, file_id: str) -> File | None:
+    """读取待写入的文件行（PG 用 FOR NO KEY UPDATE 行锁，SQLite 强制重新 SELECT）。"""
+    from database import is_postgres
+
+    if is_postgres:
+        return session.exec(
+            select(File)
+            .where(File.id == file_id)
+            .with_for_update(key_share=True)
+            .execution_options(populate_existing=True)
+        ).first()
+    return session.get(File, file_id, populate_existing=True)
+
+
+def _collect_deleted_descendants(
+    session: Session,
+    project_id: str,
+    root_id: str,
+    target_stamp: datetime,
+    *,
+    is_postgres: bool,
+) -> list[File]:
+    descendants: list[File] = []
+    frontier = [root_id]
+    seen = {root_id}
+    while frontier:
+        query = select(File).where(
+            File.project_id == project_id,
+            col(File.parent_id).in_(frontier),
+            File.is_deleted.is_(True),
+        )
+        if is_postgres:
+            query = query.with_for_update(key_share=True)
+        rows = session.exec(query.execution_options(populate_existing=True)).all()
+        frontier = []
+        for row in rows:
+            if (
+                row.id not in seen
+                and row.deleted_at is not None
+                and normalize_datetime_to_utc(row.deleted_at) == target_stamp
+            ):
+                seen.add(row.id)
+                descendants.append(row)
+                if row.file_type == FILE_TYPE_FOLDER:
+                    frontier.append(row.id)
+    return descendants
+
+
+def _ensure_no_live_title_conflicts(session: Session, project_id: str, items: list[File]) -> None:
+    for item in items:
+        parent_clause = (
+            File.parent_id.is_(None)
+            if item.parent_id is None
+            else File.parent_id == item.parent_id
+        )
+        clash = session.exec(
+            select(File.id).where(
+                File.project_id == project_id,
+                parent_clause,
+                File.title == item.title,
+                File.is_deleted.is_(False),
+                File.id != item.id,
+            )
+        ).first()
+        if clash is not None:
+            raise FileRestoreConflictError(
+                f"原位置已存在同名文件《{item.title}》，请先改名后再恢复"
+            )
+
+
+def restore_deleted_file(
+    session: Session,
+    *,
+    file_id: str,
+    user_id: str,
+    verify_ownership: Callable[[str], None],
+    chat_message_id: str | None = None,
+    tool_use_id: str | None = None,
+) -> dict[str, Any]:
+    """Restore a soft-deleted file (and descendants stamped with the same deletion timestamp)."""
+    from database import is_postgres
+    from services.chat_tool_cards import read_delete_card_deleted_at, record_delete_card_restored
+
+    file = session.get(File, file_id)
+    if not file:
+        raise FileRestoreNotFoundError(file_id)
+    verify_ownership(file.project_id)
+    project_id = file.project_id
+
+    card_deleted_at = (
+        read_delete_card_deleted_at(
+            session,
+            user_id=user_id,
+            project_id=project_id,
+            file_id=file_id,
+            message_id=chat_message_id,
+            tool_use_id=tool_use_id,
+        )
+        if chat_message_id and tool_use_id
+        else None
+    )
+
+    lock_project_for_files(session, project_id, exclusive=True)
+    lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
+    with lock_ctx:
+        file = load_file_for_write(session, file_id)
+        if not file:
+            raise FileRestoreNotFoundError(file_id)
+        verify_ownership(file.project_id)
+
+        if not file.is_deleted:
+            # Canonical root folders (e.g. `{project_id}-draft-folder`) may be auto-repaired live
+            # before the user clicks Restore on the folder's delete card; still recover descendants
+            # stamped with that card's exact `deleted_at`.
+            restored_stamp = card_deleted_at
+            targets = (
+                _collect_deleted_descendants(
+                    session, project_id, file.id, card_deleted_at, is_postgres=is_postgres
+                )
+                if file.file_type == FILE_TYPE_FOLDER and card_deleted_at is not None
+                else []
+            )
+        else:
+            if file.parent_id is not None:
+                parent = session.get(File, file.parent_id, populate_existing=True)
+                if (
+                    not parent
+                    or parent.is_deleted
+                    or parent.project_id != project_id
+                    or parent.file_type != FILE_TYPE_FOLDER
+                ):
+                    raise FileRestoreConflictError("上级文件夹不存在或已删除，无法恢复到原位置")
+            restored_stamp = (
+                normalize_datetime_to_utc(file.deleted_at) if file.deleted_at is not None else None
+            )
+            targets = [file]
+            if file.file_type == FILE_TYPE_FOLDER and restored_stamp is not None:
+                targets.extend(
+                    _collect_deleted_descendants(
+                        session, project_id, file.id, restored_stamp, is_postgres=is_postgres
+                    )
+                )
+
+        restored_title = file.title
+        if targets:
+            _ensure_no_live_title_conflicts(session, project_id, targets)
+            now = utcnow()
+            for item in targets:
+                item.is_deleted = False
+                item.deleted_at = None
+                item.updated_at = advance_timestamp(item.updated_at, now=now)
+                session.add(item)
+            restored_ids = [item.id for item in targets]
+            already_restored = False
+            session.commit()
+        else:
+            restored_ids = []
+            already_restored = True
+
+    if chat_message_id and tool_use_id:
+        record_delete_card_restored(
+            session,
+            user_id=user_id,
+            project_id=project_id,
+            file_id=file_id,
+            message_id=chat_message_id,
+            tool_use_id=tool_use_id,
+            restored_deleted_at=restored_stamp,
+        )
+
+    return {
+        "id": file_id,
+        "title": restored_title,
+        "restored": True,
+        "already_restored": already_restored,
+        "restored_count": len(restored_ids),
+        "file_ids": restored_ids,
+    }

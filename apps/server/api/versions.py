@@ -283,8 +283,8 @@ def create_file_version(
         # 绕过配额闸门（闸门只拦 user）和配额计数（计数只数 user 行），
         # file_versions_per_file 会彻底失效。change_source 与 quota_source
         # 一起钉死成 user，闸门与计数口径才是同一个集合。
-        from agent.tools.file_ops.edit import file_write_lock
         from database import is_postgres
+        from utils.file_write_lock import file_write_lock
 
         lock_ctx = (
             contextlib.nullcontext() if is_postgres else file_write_lock(file_id)

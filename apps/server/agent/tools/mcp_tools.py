@@ -2793,24 +2793,23 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         # recursive 是本项目破坏性最强的布尔参数：判真会软删除整棵子树。
         # 模型传来的 "false"/"0"/被截断修复出来的 "fals" 在朴素真值判断下全是
         # True，历史上把"删一个文件"变成"删掉整个文件夹的所有章节"。
-        result = executor.delete_file(
+        meta = executor.delete_file_with_meta(
             id=file_id,
             recursive=recursive,
         )
-        if result is not True:
+        if not isinstance(meta, dict):
             return _make_result(
                 {"status": "success", "mutation_applied": False, "data": False},
                 tool_name=tool_name,
             )
         if pending is not None:
             ToolContext.clear_pending_empty_file(file_id)
-        meta = getattr(executor, "_last_deleted_meta", None)
         data: dict[str, Any] = {
             "id": file_id,
             "restored": False,
             "mutation_applied": True,
         }
-        if isinstance(meta, dict) and meta.get("id") == file_id:
+        if meta.get("id") == file_id:
             for key in ("title", "file_type", "deleted_at"):
                 if isinstance(meta.get(key), str):
                     data[key] = meta[key]

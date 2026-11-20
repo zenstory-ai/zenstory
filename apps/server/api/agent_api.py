@@ -845,8 +845,8 @@ def update_file(
     """
     session, user_id, api_key = context
 
-    from agent.tools.file_ops.edit import file_write_lock
     from database import is_postgres
+    from utils.file_write_lock import file_write_lock
 
     # Serialize with web/editor/tool writes and refresh after taking the lock.
     # This sync endpoint keeps DB IO and SQLite lock waits off the event loop.
@@ -940,8 +940,8 @@ def delete_file(
 
     file = _load_accessible_file(session, user_id, api_key, file_id)
     lock_project_for_files(session, file.project_id, exclusive=True)
-    from agent.tools.file_ops.edit import file_write_lock
     from database import is_postgres
+    from utils.file_write_lock import file_write_lock
 
     lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
     with lock_ctx:
@@ -988,8 +988,8 @@ def move_file(
 
     file = _load_accessible_file(session, user_id, api_key, file_id)
     lock_project_for_files(session, file.project_id, exclusive=True)
-    from agent.tools.file_ops.edit import file_write_lock
     from database import is_postgres
+    from utils.file_write_lock import file_write_lock
 
     lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
     with lock_ctx:
