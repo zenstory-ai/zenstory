@@ -5,10 +5,10 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
-from services.export_service import export_drafts_to_txt
 
 from models import File, Project, User
 from services.core.auth_service import hash_password
+from services.features.export_service import export_drafts_to_txt
 
 
 async def _drama(client: AsyncClient, db_session) -> tuple[dict[str, str], Project]:

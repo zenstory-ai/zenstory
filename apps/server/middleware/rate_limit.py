@@ -406,9 +406,10 @@ def require_user_rate_limit(key: str, max_requests: int, window_seconds: int):
     所有会触发真实远端 LLM 调用的已登录端点都应该挂这个依赖
     （/agent/stream、/agent/suggest、/agent/steer、/editor/natural-polish）。
     """
-    # 延迟 import：services.auth 会反向依赖 middleware，模块级 import 会成环
+    # 延迟 import：services.core.auth_service 会反向依赖 middleware，模块级 import 会成环
     from fastapi import Depends
-    from services.auth import get_current_active_user
+
+    from services.core.auth_service import get_current_active_user
 
     def check(
         request: Request,
@@ -451,8 +452,8 @@ def require_user_beijing_daily_rate_limit(key: str, max_requests: int):
     新 bucket；Redis TTL 和 429 的 Retry-After 都精确到下一次北京时间零点。
     小时、分钟等滚动窗口继续使用 :func:`require_user_rate_limit`。
     """
-    # 延迟 import，避免 services.auth 与 middleware 形成模块级循环依赖。
-    from services.auth import get_current_active_user
+    # 延迟 import，避免 services.core.auth_service 与 middleware 形成模块级循环依赖。
+    from services.core.auth_service import get_current_active_user
 
     def check(
         _request: Request,

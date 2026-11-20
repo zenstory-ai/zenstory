@@ -3,10 +3,21 @@ import pytest
 from utils.title_sequence import (
     build_sequence_sort_key,
     extract_chapter_like_sequence_number,
+    extract_chapter_sequence_in_text,
     extract_sequence_number,
     extract_sequence_number_from_metadata,
     resolve_persisted_sequence_order,
 )
+
+
+@pytest.mark.unit
+def test_extract_chapter_sequence_in_text_parses_phase_strings():
+    assert extract_chapter_sequence_in_text("已写至第3章") == 3
+    assert extract_chapter_sequence_in_text("已写至第12集") == 12
+    assert extract_chapter_sequence_in_text("正在写第十章") == 10
+    assert extract_chapter_sequence_in_text("Writing Chapter 7 draft") == 7
+    assert extract_chapter_sequence_in_text("大纲筹备中") is None
+    assert extract_chapter_sequence_in_text("") is None
 
 
 @pytest.mark.unit

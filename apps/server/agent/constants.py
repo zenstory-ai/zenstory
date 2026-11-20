@@ -13,6 +13,7 @@ mcp_tools.py / stream_adapter.py 等多处，各处集合互不一致（有的�
 from typing import Any
 
 from models.file_model import (
+    CONTENT_FILE_TYPES,
     FILE_TYPE_CHARACTER,
     FILE_TYPE_DOCUMENT,
     FILE_TYPE_DRAFT,
@@ -28,16 +29,6 @@ __all__ = [
     "coerce_bool",
     "should_offload_session_work",
 ]
-
-
-# 承载"正文"的文件类型：这些文件的 content 是要写给读者看的成稿正文，
-# 因此适用整篇流式写入、覆盖保护等针对正文的规则。
-# 注意 folder 不承载任何内容；outline/character/lore/snippet 是辅助资料而非正文；
-# document 是默认兜底类型、语义不确定，同样不按正文对待。
-CONTENT_FILE_TYPES: tuple[str, ...] = (
-    FILE_TYPE_DRAFT,
-    FILE_TYPE_SCRIPT,
-)
 
 
 # 应出现在"项目文件清单"（喂给 LLM 的 inventory 上下文）里的文件类型：

@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import String, case, cast, literal
 from sqlmodel import Session, func, select
 
 from config.datetime_utils import (
@@ -24,6 +23,7 @@ from models.entities import User
 from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST, LLMUsageEvent, has_usage_tokens
 from models.payment import PaymentOrder
 from models.subscription import SubscriptionHistory
+from services.usage.pricing import beijing_day_bucket_case
 
 GROWTH_DAYS = (7, 14, 30)
 GRANT_ACTIONS = ("created", "upgraded", "renewed")
@@ -203,19 +203,8 @@ def _metrics(
 def _day_bucket(column: Any, current: GrowthPeriod, *, days: int) -> Any:
     """Portable CASE bucket for Beijing days within ``current``."""
     first_day = normalize_datetime_to_utc(current.start).astimezone(BEIJING_TIMEZONE).date()
-    whens = []
-    for offset in range(days):
-        day_start = (current.start + timedelta(days=offset)).replace(tzinfo=None)
-        day_end = min(current.start + timedelta(days=offset + 1), current.end).replace(tzinfo=None)
-        if day_start >= current.end.replace(tzinfo=None):
-            break
-        whens.append(
-            (
-                (column >= day_start) & (column < day_end),
-                literal((first_day + timedelta(days=offset)).isoformat()),
-            )
-        )
-    return cast(case(*whens, else_=literal("")), String)
+    day_list = [first_day + timedelta(days=offset) for offset in range(days)]
+    return beijing_day_bucket_case(column, day_list, end_utc=current.end)
 
 
 def _empty_daily(day: date) -> dict[str, Any]:

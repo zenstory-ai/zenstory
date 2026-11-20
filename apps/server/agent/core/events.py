@@ -5,11 +5,19 @@ Defines the event structure for Server-Sent Events (SSE) used
 to stream agent responses to the frontend.
 """
 
+import json
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+def _json_default(obj: Any) -> str:
+    """Custom JSON serializer for SSE payloads (handles datetime objects)."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 class EventType(StrEnum):
@@ -74,182 +82,8 @@ class StreamEvent(BaseModel):
 
     def to_sse(self) -> str:
         """Convert to SSE format string with datetime handling."""
-        import json
-
-        class DateTimeEncoder(json.JSONEncoder):
-            """Custom JSON encoder that handles datetime objects."""
-
-            def default(self, obj):
-                if isinstance(obj, datetime):
-                    return obj.isoformat()
-                return super().default(obj)
-
-        data_json = json.dumps(self.data, ensure_ascii=False, cls=DateTimeEncoder)
+        data_json = json.dumps(self.data, ensure_ascii=False, default=_json_default)
         return f"event: {self.type.value}\ndata: {data_json}\n\n"
-
-
-# ========== Convenience Event Builders ==========
-
-class ThinkingEventData(BaseModel):
-    """Data for thinking events."""
-    message: str = Field(..., description="Status message")
-    step: str | None = Field(default=None, description="Current step identifier")
-
-
-class ThinkingContentEventData(BaseModel):
-    """Data for thinking_content events."""
-    content: str = Field(..., description="Reasoning content chunk")
-    is_complete: bool = Field(default=False, description="Whether this is the final chunk")
-
-
-class ContextEventData(BaseModel):
-    """Data for context events."""
-    items: list[dict[str, Any]] = Field(
-        default_factory=list,
-        description="Context items used"
-    )
-    token_count: int | None = Field(
-        default=None,
-        description="Estimated token count"
-    )
-
-
-class ContentEventData(BaseModel):
-    """Data for content events."""
-    text: str = Field(..., description="Content chunk")
-    index: int | None = Field(default=None, description="Chunk index")
-
-
-class ErrorEventData(BaseModel):
-    """Data for error events."""
-    message: str = Field(..., description="Error message")
-    code: str | None = Field(default=None, description="Error code")
-    retryable: bool = Field(default=False, description="Whether the error is retryable")
-    refundable: bool | None = Field(
-        default=None,
-        description=(
-            "Whether this failure is eligible for a quota refund (unrecovered upstream "
-            "model service error or a failure before model execution started)."
-        ),
-    )
-    reason: str | None = Field(
-        default=None,
-        description=(
-            "Machine-readable stop reason (e.g. 'no_progress' for the repeat-read guard); "
-            "the billing tracker uses it to recognise runaway stops."
-        ),
-    )
-    file_id: str | None = Field(
-        default=None,
-        description="Target file ID when a streamed file write failed to persist",
-    )
-    written_files: list[dict[str, Any]] | None = None
-    unwritten_files: list[dict[str, Any]] | None = None
-
-
-class DoneEventData(BaseModel):
-    """Data for done events."""
-    file_mutated: bool = Field(
-        default=False,
-        description="This normally completed turn confirmed a committed file mutation",
-    )
-    assistant_message_id: str | None = Field(
-        default=None,
-        description="Persisted assistant chat message ID for this turn",
-    )
-    session_id: str | None = Field(
-        default=None,
-        description="Chat session ID associated with this completed turn",
-    )
-    stop_reason: str | None = Field(
-        default=None,
-        description="Set when the author stopped this round (user_stopped)",
-    )
-    charged: bool | None = Field(
-        default=None,
-        description="Stopped rounds only: whether the server charged an AI message for this round",
-    )
-    produced_output: bool | None = Field(
-        default=None,
-        description="Stopped rounds only: whether the round produced real output (prose or a write)",
-    )
-    written_files: list[dict[str, Any]] | None = Field(
-        default=None,
-        description=(
-            "When non-empty: files this round confirmed writing text into "
-            "([{id, title, words?, partial?}], same as message_metadata.stop_outcome.written_files). "
-            "Built from tool results and save receipts only, never from the reply text."
-        ),
-    )
-    unwritten_files: list[dict[str, Any]] | None = None
-
-
-class ToolCallEventData(BaseModel):
-    """Data for tool call events."""
-    tool_use_id: str | None = Field(
-        default=None,
-        description="Tool use id from model/tool lifecycle",
-    )
-    tool_name: str = Field(..., description="Name of the tool being called")
-    arguments: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Tool arguments"
-    )
-
-
-class ToolResultEventData(BaseModel):
-    """Data for tool result events."""
-    tool_use_id: str | None = Field(
-        default=None,
-        description="Tool use id from model/tool lifecycle",
-    )
-    tool_name: str = Field(..., description="Name of the tool that was executed")
-    status: str = Field(..., description="Execution status: success/error")
-    data: Any | None = Field(
-        default=None,
-        description="Tool execution result (if successful) - can be dict or list"
-    )
-    error: str | None = Field(
-        default=None,
-        description="Error message (if failed)"
-    )
-
-
-class FileCreatedEventData(BaseModel):
-    """Data for file_created events."""
-    file_id: str = Field(..., description="ID of the created file")
-    file_type: str = Field(..., description="Type of the file (outline, draft, character, etc.)")
-    title: str = Field(..., description="Title of the file")
-
-
-class FileContentEventData(BaseModel):
-    """Data for file_content events."""
-    file_id: str = Field(..., description="ID of the file being streamed")
-    chunk: str = Field(..., description="Content chunk")
-
-
-class FileContentEndEventData(BaseModel):
-    """Data for file_content_end events."""
-    file_id: str = Field(..., description="ID of the file that finished streaming")
-
-
-class FileEditStartEventData(BaseModel):
-    """Data for file_edit_start events."""
-    file_id: str = Field(..., description="ID of the file being edited")
-    title: str = Field(..., description="Title of the file")
-    total_edits: int = Field(..., description="Total number of edits to apply")
-    file_type: str | None = Field(default=None, description="Type of the file")
-
-
-class FileEditAppliedEventData(BaseModel):
-    """Data for file_edit_applied events."""
-    file_id: str = Field(..., description="ID of the file being edited")
-    edit_index: int = Field(..., description="Index of the edit (0-based)")
-    op: str = Field(..., description="Operation type (replace/insert_after/etc.)")
-    old_preview: str | None = Field(default=None, description="Preview of old text (first 50 chars)")
-    new_preview: str | None = Field(default=None, description="Preview of new text (first 50 chars)")
-    success: bool = Field(default=True, description="Whether the edit succeeded")
-    error: str | None = Field(default=None, description="Error message if failed")
 
 
 class FileEditEndEventData(BaseModel):
@@ -279,7 +113,7 @@ def thinking_event(message: str, step: str | None = None) -> StreamEvent:
     """Create a thinking event."""
     return StreamEvent(
         type=EventType.THINKING,
-        data=ThinkingEventData(message=message, step=step).model_dump()
+        data={"message": message, "step": step},
     )
 
 
@@ -297,7 +131,7 @@ def thinking_content_event(content: str, is_complete: bool = False) -> StreamEve
     """Create a thinking_content event."""
     return StreamEvent(
         type=EventType.THINKING_CONTENT,
-        data=ThinkingContentEventData(content=content, is_complete=is_complete).model_dump()
+        data={"content": content, "is_complete": is_complete},
     )
 
 
@@ -305,7 +139,7 @@ def context_event(items: list[dict], token_count: int | None = None) -> StreamEv
     """Create a context event."""
     return StreamEvent(
         type=EventType.CONTEXT,
-        data=ContextEventData(items=items, token_count=token_count).model_dump()
+        data={"items": items, "token_count": token_count},
     )
 
 
@@ -313,7 +147,7 @@ def content_event(text: str, index: int | None = None) -> StreamEvent:
     """Create a content event."""
     return StreamEvent(
         type=EventType.CONTENT,
-        data=ContentEventData(text=text, index=index).model_dump()
+        data={"text": text, "index": index},
     )
 
 
@@ -336,16 +170,15 @@ def error_event(
     file_id: str | None = None,
 ) -> StreamEvent:
     """Create an error event."""
-    data = ErrorEventData(
-        message=message,
-        code=code,
-        retryable=retryable,
-        refundable=refundable,
-        reason=reason,
-        file_id=file_id,
-    ).model_dump(exclude={"written_files", "unwritten_files"})
-    if data.get("file_id") is None:
-        data.pop("file_id", None)
+    data: dict[str, Any] = {
+        "message": message,
+        "code": code,
+        "retryable": retryable,
+        "refundable": refundable,
+        "reason": reason,
+    }
+    if file_id is not None:
+        data["file_id"] = file_id
     return StreamEvent(type=EventType.ERROR, data=data)
 
 
@@ -360,20 +193,22 @@ def done_event(
     unwritten_files: list[dict[str, Any]] | None = None,
 ) -> StreamEvent:
     """Create a done event."""
-    data = DoneEventData(
-        file_mutated=file_mutated,
-        assistant_message_id=assistant_message_id,
-        session_id=session_id,
-        stop_reason=stop_reason,
-        charged=charged,
-        produced_output=produced_output,
-        written_files=written_files or None,
-        unwritten_files=unwritten_files or None,
-    ).model_dump()
+    data: dict[str, Any] = {
+        "file_mutated": file_mutated,
+        "assistant_message_id": assistant_message_id,
+        "session_id": session_id,
+    }
     # 只有提供这些可选回执时才带字段，其余 done 帧保持原样。
-    for key in ("stop_reason", "charged", "produced_output", "written_files", "unwritten_files"):
-        if data.get(key) is None:
-            data.pop(key, None)
+    if stop_reason is not None:
+        data["stop_reason"] = stop_reason
+    if charged is not None:
+        data["charged"] = charged
+    if produced_output is not None:
+        data["produced_output"] = produced_output
+    if written_files:
+        data["written_files"] = written_files
+    if unwritten_files:
+        data["unwritten_files"] = unwritten_files
     return StreamEvent(type=EventType.DONE, data=data)
 
 
@@ -385,11 +220,11 @@ def tool_call_event(
     """Create a tool call event."""
     return StreamEvent(
         type=EventType.TOOL_CALL,
-        data=ToolCallEventData(
-            tool_use_id=tool_use_id,
-            tool_name=tool_name,
-            arguments=arguments,
-        ).model_dump()
+        data={
+            "tool_use_id": tool_use_id,
+            "tool_name": tool_name,
+            "arguments": arguments,
+        },
     )
 
 
@@ -403,13 +238,13 @@ def tool_result_event(
     """Create a tool result event."""
     return StreamEvent(
         type=EventType.TOOL_RESULT,
-        data=ToolResultEventData(
-            tool_use_id=tool_use_id,
-            tool_name=tool_name,
-            status=status,
-            data=data,
-            error=error,
-        ).model_dump()
+        data={
+            "tool_use_id": tool_use_id,
+            "tool_name": tool_name,
+            "status": status,
+            "data": data,
+            "error": error,
+        },
     )
 
 
@@ -421,11 +256,11 @@ def file_created_event(
     """Create a file_created event for auto-selecting new files."""
     return StreamEvent(
         type=EventType.FILE_CREATED,
-        data=FileCreatedEventData(
-            file_id=file_id,
-            file_type=file_type,
-            title=title,
-        ).model_dump()
+        data={
+            "file_id": file_id,
+            "file_type": file_type,
+            "title": title,
+        },
     )
 
 
@@ -436,10 +271,7 @@ def file_content_event(
     """Create a file_content event for streaming file content."""
     return StreamEvent(
         type=EventType.FILE_CONTENT,
-        data=FileContentEventData(
-            file_id=file_id,
-            chunk=chunk,
-        ).model_dump()
+        data={"file_id": file_id, "chunk": chunk},
     )
 
 
@@ -449,9 +281,7 @@ def file_content_end_event(
     """Create a file_content_end event when streaming is complete."""
     return StreamEvent(
         type=EventType.FILE_CONTENT_END,
-        data=FileContentEndEventData(
-            file_id=file_id,
-        ).model_dump()
+        data={"file_id": file_id},
     )
 
 
@@ -464,12 +294,12 @@ def file_edit_start_event(
     """Create a file_edit_start event when starting file edits."""
     return StreamEvent(
         type=EventType.FILE_EDIT_START,
-        data=FileEditStartEventData(
-            file_id=file_id,
-            title=title,
-            total_edits=total_edits,
-            file_type=file_type,
-        ).model_dump()
+        data={
+            "file_id": file_id,
+            "title": title,
+            "total_edits": total_edits,
+            "file_type": file_type,
+        },
     )
 
 
@@ -485,15 +315,15 @@ def file_edit_applied_event(
     """Create a file_edit_applied event when a single edit is completed."""
     return StreamEvent(
         type=EventType.FILE_EDIT_APPLIED,
-        data=FileEditAppliedEventData(
-            file_id=file_id,
-            edit_index=edit_index,
-            op=op,
-            old_preview=old_preview,
-            new_preview=new_preview,
-            success=success,
-            error=error,
-        ).model_dump()
+        data={
+            "file_id": file_id,
+            "edit_index": edit_index,
+            "op": op,
+            "old_preview": old_preview,
+            "new_preview": new_preview,
+            "success": success,
+            "error": error,
+        },
     )
 
 
@@ -525,15 +355,8 @@ def file_edit_end_event(
             partial_success=partial_success,
             all_failed=all_failed,
             warnings=[str(w) for w in (warnings or []) if w],
-        ).model_dump()
+        ).model_dump(),
     )
-
-
-class SkillMatchedEventData(BaseModel):
-    """Data for skill_matched events."""
-    skill_id: str = Field(..., description="ID of the matched skill")
-    skill_name: str = Field(..., description="Name of the matched skill")
-    matched_trigger: str = Field(..., description="The trigger that matched")
 
 
 def skill_matched_event(
@@ -544,11 +367,11 @@ def skill_matched_event(
     """Create a skill_matched event when a skill is loaded."""
     return StreamEvent(
         type=EventType.SKILL_MATCHED,
-        data=SkillMatchedEventData(
-            skill_id=skill_id,
-            skill_name=skill_name,
-            matched_trigger=matched_trigger,
-        ).model_dump()
+        data={
+            "skill_id": skill_id,
+            "skill_name": skill_name,
+            "matched_trigger": matched_trigger,
+        },
     )
 
 
@@ -560,47 +383,9 @@ WALL_CLOCK_LIMIT = "wall_clock"
 UNEXECUTED_TOOL_TEXT_LAYER = "unexecuted_tool_text"
 
 
-class IterationExhaustedFile(BaseModel):
-    """A file named on an iteration_exhausted card: id and title only, never its text."""
-    id: str
-    title: str
-
-
-class IterationExhaustedEventData(BaseModel):
-    """Data for iteration_exhausted events."""
-    layer: str = Field(
-        ...,
-        description=(
-            "Which layer stopped the round: 'collaboration', 'tool_call', 'empty_file_correction' "
-            "(a created file never got its body: it was rolled back or is left unfinished), or "
-            "'unexecuted_tool_text' (the reply wrote a complete tool call as text; it did not run)"
-        ),
-    )
-    iterations_used: int = Field(..., description="Total iterations used")
-    max_iterations: int = Field(..., description="Maximum allowed")
-    reason: str = Field(..., description="Human-readable explanation")
-    last_agent: str | None = Field(default=None, description="Last active agent")
-    limit: str | None = Field(
-        default=None,
-        description="What ended the run: 'wall_clock' (time wrap-up), 'model_call_budget' or 'max_turns'",
-    )
-    unfinished_files: list[IterationExhaustedFile] | None = Field(
-        default=None, description="empty_file_correction: files left without a body (kept, could not be rolled back)",
-    )
-    rolled_back_files: list[IterationExhaustedFile] | None = Field(
-        default=None, description="empty_file_correction: empty files this round created and removed again",
-    )
-
-
-class SessionStartedEventData(BaseModel):
-    """Data for session_started events."""
-    session_id: str = Field(..., description="ID of the started session")
-
-
-class SteeringReceivedEventData(BaseModel):
-    """Data for steering_received events."""
-    message_id: str = Field(..., description="ID of the steering message")
-    preview: str = Field(..., description="Preview of the steering message content")
+def _exhausted_file_items(files: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Keep only id and title on iteration_exhausted file entries, never body text."""
+    return [{"id": str(item["id"]), "title": str(item["title"])} for item in files]
 
 
 def iteration_exhausted_event(
@@ -614,20 +399,20 @@ def iteration_exhausted_event(
     rolled_back_files: list[dict[str, str]] | None = None,
 ) -> StreamEvent:
     """Create an iteration_exhausted event when iteration limit is reached."""
-    data = IterationExhaustedEventData(
-        layer=layer,
-        iterations_used=iterations_used,
-        max_iterations=max_iterations,
-        reason=reason,
-        last_agent=last_agent,
-        limit=limit,
-        unfinished_files=unfinished_files,
-        rolled_back_files=rolled_back_files,
-    ).model_dump()
+    data: dict[str, Any] = {
+        "layer": layer,
+        "iterations_used": iterations_used,
+        "max_iterations": max_iterations,
+        "reason": reason,
+        "last_agent": last_agent,
+    }
     # Only the stops that carry them keep these keys; other events' stored shape is unchanged.
-    for key, value in (("limit", limit), ("unfinished_files", unfinished_files), ("rolled_back_files", rolled_back_files)):
-        if value is None:
-            data.pop(key)
+    if limit is not None:
+        data["limit"] = limit
+    if unfinished_files is not None:
+        data["unfinished_files"] = _exhausted_file_items(unfinished_files)
+    if rolled_back_files is not None:
+        data["rolled_back_files"] = _exhausted_file_items(rolled_back_files)
     return StreamEvent(type=EventType.ITERATION_EXHAUSTED, data=data)
 
 
@@ -657,7 +442,7 @@ def session_started_event(session_id: str) -> StreamEvent:
     """Create a session_started event when an agent session begins."""
     return StreamEvent(
         type=EventType.SESSION_STARTED,
-        data=SessionStartedEventData(session_id=session_id).model_dump()
+        data={"session_id": session_id},
     )
 
 
@@ -668,8 +453,5 @@ def steering_received_event(
     """Create a steering_received event when a steering message is received."""
     return StreamEvent(
         type=EventType.STEERING_RECEIVED,
-        data=SteeringReceivedEventData(
-            message_id=message_id,
-            preview=preview,
-        ).model_dump()
+        data={"message_id": message_id, "preview": preview},
     )

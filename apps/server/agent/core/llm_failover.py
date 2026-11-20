@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 
 from agent.core import llm_providers
 from agent.core.llm_providers import ModelProvider
+from config.env import get_int_env
 from utils.logger import get_logger, log_with_context
 
 if TYPE_CHECKING:
@@ -45,26 +46,16 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-
-def _env_int(name: str, default: int) -> int:
-    try:
-        value = int(os.getenv(name) or default)
-    except ValueError:
-        return default
-    return value if value > 0 else default
-
-
-LLM_SESSION_PIN_TTL_S = _env_int("LLM_SESSION_PIN_TTL_S", 1800)
-LLM_CIRCUIT_FAILURE_THRESHOLD = _env_int("LLM_CIRCUIT_FAILURE_THRESHOLD", 3)
-LLM_CIRCUIT_FAILURE_WINDOW_S = _env_int("LLM_CIRCUIT_FAILURE_WINDOW_S", 60)
-LLM_CIRCUIT_OPEN_S = _env_int("LLM_CIRCUIT_OPEN_S", 120)
-LLM_KEY_COOLDOWN_S = _env_int("LLM_KEY_COOLDOWN_S", 300)
+LLM_SESSION_PIN_TTL_S = get_int_env("LLM_SESSION_PIN_TTL_S", 1800)
+LLM_CIRCUIT_FAILURE_THRESHOLD = get_int_env("LLM_CIRCUIT_FAILURE_THRESHOLD", 3)
+LLM_CIRCUIT_FAILURE_WINDOW_S = get_int_env("LLM_CIRCUIT_FAILURE_WINDOW_S", 60)
+LLM_CIRCUIT_OPEN_S = get_int_env("LLM_CIRCUIT_OPEN_S", 120)
+LLM_KEY_COOLDOWN_S = get_int_env("LLM_KEY_COOLDOWN_S", 300)
 
 # A model that cannot turn reasoning off spends part of a short budget on it.
 THINKING_HEADROOM_TOKENS = 2048
 
 _ACCOUNT_FAILURE_STATUSES = frozenset({401, 402, 403, 404})
-_REQUEST_REJECTION_STATUSES = frozenset({400, 413, 422})
 _KEY_SCOPED_FAILURE_STATUSES = frozenset({401, 402, 403, 429})
 _DOCUMENTED_JSON_OBJECT_MODELS = frozenset({("deepseek", "deepseek-flash")})
 
@@ -664,17 +655,11 @@ async def acreate_chat_completion(
     thinking_enabled: bool = True,
     reasoning_effort: str | None = None,
     usage_attribution: LLMUsageAttribution | None = None,
-    fail_over_on_rejection: bool = False,
     attempt_sink: dict[str, Any] | None = None,
     max_retries: int | None = None,
     **kwargs: Any,
 ) -> tuple[Any, ModelProvider]:
     """``chat.completions.create`` on the first available provider.
-
-    With ``fail_over_on_rejection`` a request the provider rejects (400/413/422) is
-    also sent to the other provider, without counting against the rejecting one or
-    pinning the session: for side-effect-free calls such as routing, where one
-    provider refusing a request should not stop the author's turn.
 
     ``kwargs`` are the request without ``model``. Returns the response and the
     provider that served it. Streaming responses fail over only when opening
@@ -687,7 +672,6 @@ async def acreate_chat_completion(
     if kwargs.get("stream"):
         usage_attribution = None
     ordered = await aordered_providers(session_id, thinking_enabled=thinking_enabled)
-    rejected = False
     key_cooled = False
     for index, provider in enumerate(ordered):
         client = llm_providers.get_async_client(provider)
@@ -708,14 +692,6 @@ async def acreate_chat_completion(
             _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
             log_provider_failure(provider, exc, call_site=call_site)
             if not is_provider_unavailable(exc):
-                if (
-                    fail_over_on_rejection
-                    and _status_code_of(exc) in _REQUEST_REJECTION_STATUSES
-                    and index + 1 < len(ordered)
-                ):
-                    log_failover(provider, ordered[index + 1], call_site=call_site, reason="request_rejected")
-                    rejected = True
-                    continue
                 raise
             key_cooled = await arecord_failure(provider, session_id, exc) or key_cooled
             if index + 1 >= len(ordered):
@@ -723,8 +699,7 @@ async def acreate_chat_completion(
             log_failover(provider, ordered[index + 1], call_site=call_site)
             continue
         _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
-        # A rejected request says nothing about the provider: the session keeps its order.
-        if not rejected and not key_cooled:
+        if not key_cooled:
             await arecord_success(provider, session_id, ordered)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")

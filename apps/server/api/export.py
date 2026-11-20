@@ -7,14 +7,15 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
-from services.auth import get_current_active_user
-from services.export_service import export_drafts_to_txt
 from sqlmodel import Session
 
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
+from core.project_access import verify_project_ownership
 from database import get_session
-from models import Project, User
+from models import User
+from services.core.auth_service import get_current_active_user
+from services.features.export_service import export_drafts_to_txt
 from services.quota_service import quota_service
 from services.subscription.defaults import SUPPORTED_EXPORT_FORMATS, normalize_export_formats
 from utils.logger import get_logger, log_with_context
@@ -54,36 +55,13 @@ def export_project_drafts(
         user_id=current_user.id,
     )
 
-    # 1. Check project exists
-    project = session.get(Project, project_id)
-    if not project:
-        log_with_context(
-            logger,
-            40,  # ERROR
-            "export_project_drafts: Project not found",
-            project_id=project_id,
-            user_id=current_user.id,
-        )
-        raise APIException(error_code=ErrorCode.PROJECT_NOT_FOUND, status_code=404)
-
-    # 2. Check ownership - user must own the project
-    # Admin/superuser can export any project for support/debugging.
-    if project.owner_id != current_user.id and not current_user.is_superuser:
-        raise APIException(
-            error_code=ErrorCode.NOT_AUTHORIZED_TO_EXPORT,
-            status_code=403
-        )
-
-    # Check if project is soft-deleted
-    if project.is_deleted:
-        log_with_context(
-            logger,
-            40,  # ERROR
-            "export_project_drafts: Project soft-deleted",
-            project_id=project_id,
-            user_id=current_user.id,
-        )
-        raise APIException(error_code=ErrorCode.PROJECT_NOT_FOUND, status_code=404)
+    # 1. Verify project exists, is owned by current_user (or superuser), and is not soft-deleted
+    project = verify_project_ownership(
+        project_id,
+        current_user,
+        session,
+        forbidden_error_code=ErrorCode.NOT_AUTHORIZED_TO_EXPORT,
+    )
 
     # Check export format restriction
     requested_format = "txt"

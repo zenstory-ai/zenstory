@@ -474,6 +474,28 @@ def _tool_output_payload(item: Any) -> tuple[str, str]:
     return str(call_id or ""), output if isinstance(output, str) else str(output)
 
 
+def _emit_terminal_error(
+    result: Any,
+    *,
+    stop_reason: str,
+    error_data: dict[str, Any],
+) -> tuple[StreamEvent, StreamEvent]:
+    """Build the ordered terminal MESSAGE_END + ERROR pair so usage is always recorded before stopping."""
+    return (
+        StreamEvent(
+            type=StreamEventType.MESSAGE_END,
+            data={
+                "stop_reason": stop_reason,
+                "usage": _usage_dict_from_result(result),
+            },
+        ),
+        StreamEvent(
+            type=StreamEventType.ERROR,
+            data=error_data,
+        ),
+    )
+
+
 def _int_attr(source: Any, name: str) -> int:
     """读取 usage 上的整数字段，缺失/None/非法一律按 0 处理。"""
     value = getattr(source, name, 0)
@@ -1038,19 +1060,14 @@ async def run_openai_agents_streaming_agent(
             # 与无进展停止同一个收尾：先让 usage 入账，再以 ERROR 结束整条工作流。StreamAdapter 收到
             # stop_reason=repetition_loop 时把正在写的正文截到重复开始之前再落库；stream_billing 按
             # 失控停止结算（本轮没有写入成功就退还），回复「继续」从这里接着做。
-            yield StreamEvent(
-                type=StreamEventType.MESSAGE_END,
-                data={
-                    "stop_reason": REPETITION_LOOP_STOP_REASON,
-                    "usage": _usage_dict_from_result(result),
-                },
-            )
-            yield StreamEvent(
-                type=StreamEventType.ERROR,
-                data=repetition_loop_error().as_event_data(
+            for event in _emit_terminal_error(
+                result,
+                stop_reason=REPETITION_LOOP_STOP_REASON,
+                error_data=repetition_loop_error().as_event_data(
                     reason=REPETITION_LOOP_STOP_REASON, agent_type=agent_type
                 ),
-            )
+            ):
+                yield event
             return
 
         failure_trip = failure_breaker.trip
@@ -1070,17 +1087,12 @@ async def run_openai_agents_streaming_agent(
                 total_failures=failure_breaker.total_failures,
                 last_error=failure_trip.last_error,
             )
-            yield StreamEvent(
-                type=StreamEventType.MESSAGE_END,
-                data={
-                    "stop_reason": TOOL_FAILURE_STOP_REASON,
-                    "usage": _usage_dict_from_result(result),
-                },
-            )
-            yield StreamEvent(
-                type=StreamEventType.ERROR,
-                data=failure_trip.as_event_data(agent_type),
-            )
+            for event in _emit_terminal_error(
+                result,
+                stop_reason=TOOL_FAILURE_STOP_REASON,
+                error_data=failure_trip.as_event_data(agent_type),
+            ):
+                yield event
             return
 
         no_progress_trip = read_guard.trip
@@ -1100,17 +1112,12 @@ async def run_openai_agents_streaming_agent(
                 write_succeeded=read_guard.write_succeeded,
                 model_turns=turn_filter.calls if turn_filter is not None else 0,
             )
-            yield StreamEvent(
-                type=StreamEventType.MESSAGE_END,
-                data={
-                    "stop_reason": NO_PROGRESS_STOP,
-                    "usage": _usage_dict_from_result(result),
-                },
-            )
-            yield StreamEvent(
-                type=StreamEventType.ERROR,
-                data=no_progress_trip.as_event_data(agent_type),
-            )
+            for event in _emit_terminal_error(
+                result,
+                stop_reason=NO_PROGRESS_STOP,
+                error_data=no_progress_trip.as_event_data(agent_type),
+            ):
+                yield event
             return
 
         if run_meter.budget_stopped:
@@ -1124,19 +1131,14 @@ async def run_openai_agents_streaming_agent(
                 model_calls=run_meter.model_calls,
                 max_model_calls=run_meter.max_model_calls,
             )
-            yield StreamEvent(
-                type=StreamEventType.MESSAGE_END,
-                data={
-                    "stop_reason": MODEL_CALL_BUDGET_STOP_REASON,
-                    "usage": _usage_dict_from_result(result),
-                },
-            )
-            yield StreamEvent(
-                type=StreamEventType.ERROR,
-                data=model_call_limit_error().as_event_data(
+            for event in _emit_terminal_error(
+                result,
+                stop_reason=MODEL_CALL_BUDGET_STOP_REASON,
+                error_data=model_call_limit_error().as_event_data(
                     error_type=MODEL_CALL_LIMIT_ERROR_TYPE, agent_type=agent_type
                 ),
-            )
+            ):
+                yield event
             return
 
         last_output_tokens = _last_response_output_tokens(result)
@@ -1162,20 +1164,15 @@ async def run_openai_agents_streaming_agent(
                 stop_basis="usage_output_tokens_at_cap",
                 model_turns=len(getattr(result, "raw_responses", None) or []),
             )
-            yield StreamEvent(
-                type=StreamEventType.MESSAGE_END,
-                data={
-                    "stop_reason": OUTPUT_TRUNCATED_STOP_REASON,
-                    "usage": _usage_dict_from_result(result),
-                },
-            )
             truncation_count = state["previous_output_truncations"] + 1
-            yield StreamEvent(
-                type=StreamEventType.ERROR,
-                data=output_truncated_error(repeated=truncation_count > 1).as_event_data(
+            for event in _emit_terminal_error(
+                result,
+                stop_reason=OUTPUT_TRUNCATED_STOP_REASON,
+                error_data=output_truncated_error(repeated=truncation_count > 1).as_event_data(
                     agent_type=agent_type, output_truncation_count=truncation_count
                 ),
-            )
+            ):
+                yield event
             return
 
         model_turns = turn_filter.calls if turn_filter is not None else 0

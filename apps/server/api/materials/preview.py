@@ -5,7 +5,6 @@ Handles material preview operations:
 - Get formatted markdown preview for material entities
 """
 from fastapi import APIRouter, Depends, Header
-from services.auth import get_current_active_user
 from sqlmodel import Session, select
 
 from core.error_codes import ErrorCode
@@ -20,6 +19,7 @@ from models.material_models import (
     StoryLine,
     WorldView,
 )
+from services.core.auth_service import get_current_active_user
 from services.material.stories_service import story_in_novel
 from utils.logger import get_logger
 
