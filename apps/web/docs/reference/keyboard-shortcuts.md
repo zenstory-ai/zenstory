@@ -11,7 +11,7 @@ macOS 使用 `Command`（`⌘`），Windows 和 Linux 使用 `Ctrl`。快捷键�
 | 搜索中的 `Enter` / `Esc` | 打开所选文件 / 关闭搜索面板 |
 | `Command/Ctrl + S` | 立即保存当前文件 |
 | `Command/Ctrl + Shift + Q` | 将选中的正文片段引用到 AI 对话 |
-| `Command/Ctrl + Shift + R` | 对选中段落执行去AI味，并进入差异审阅 |
+| `Command/Ctrl + Shift + R` | 对选中段落执行去AI味，并打开结果预览 |
 
 常规撤销与重做直接沿用浏览器的文本输入快捷键（`Command/Ctrl + Z` 等）。注意：每次保存都会更新云端正文，但短时间内连续保存可能会合并到同一条历史版本中。
 

@@ -11,7 +11,7 @@ Shortcuts use `Command` (`⌘`) on macOS and `Ctrl` on Windows or Linux, and app
 | `Enter` / `Esc` in search | Open the selected result / close search |
 | `Command/Ctrl + S` | Save the open file immediately |
 | `Command/Ctrl + Shift + Q` | Quote the selected editor text into the AI chat input |
-| `Command/Ctrl + Shift + R` | Smooth AI phrasing on the selection and open diff review |
+| `Command/Ctrl + Shift + R` | Smooth AI phrasing on the selection and open the Humanize result preview |
 
 Undo (`Command/Ctrl + Z`) and redo follow your browser's standard text-editing shortcuts. Saving your text does not create a separate version-history entry every single time—consecutive manual saves within a short window merge automatically.
 

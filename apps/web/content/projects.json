@@ -108,7 +108,7 @@
         ],
         [
           "Claude Code 装好后，怎么开始写小说？",
-          "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 工作台。“不写正文”仍会建立规划文件；明确请求写新书首章时才初始化追踪状态。建立项目前的第一轮，可以用[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)比较两个具体调查开端，再把选定方向带入单独的规划请求。如果人设写得很细、人物进了场景却推不动剧情，[人物动机指南](https://zenstory.ai/oh-story/character-motivation)演示了怎样从一张接力送件计划表，写出主角主动争取、顶住阻力并与同伴分担功劳的原创场景，而且不会把“谈妥合作”直接当成“已经送到”。"
+          "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是在本地 Agent 工具里运行的流程，不是登录另一个产品 ZenStory 工作台。“不写正文”仍会建立规划文件；明确请求写新书首章时才初始化追踪状态。建立项目前的第一轮，可以用[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)比较两个具体调查开端，再把选定方向带入单独的规划请求。如果人设写得很细、人物进了场景却推不动剧情，[人物动机指南](https://zenstory.ai/oh-story/character-motivation)演示了怎样从一张接力送件计划表，写出主角主动争取、顶住阻力并与同伴分担功劳的原创场景，而且不会把“谈妥合作”直接当成“已经送到”。"
         ],
         [
           "黄金三章怎么写，前三章怎样让人想接着看？",
@@ -140,7 +140,7 @@
         ],
         [
           "有细纲，为什么写出来仍像剧情复述？",
-          "细纲只写了这一章要发生什么变化，正文得把人物怎么权衡、怎么交手写出来。[原创搬书库示例](https://zenstory.ai/oh-story/outline-to-chapter)先对比流水账与场面化写法，再从签下借用单一路写到有条件配合与第一趟搬运结束，示范哪里该放慢写细、哪里一笔带过即可。如果想提前收尾，必须先改章节切分点，不要靠硬塞反转凑章末钩子，也不要把聊天里的试写片段当成已经落盘的正式章节。"
+          "细纲只写了这一章要发生什么变化，正文得把人物怎么权衡、怎么交手写出来。[原创搬书库示例](https://zenstory.ai/oh-story/outline-to-chapter)先对比流水账与场面化写法，再从签下借用单一路写到有条件配合与第一趟搬运结束，示范哪里该放慢写细、哪里一笔带过即可。如果想提前收尾，必须先改章节切分点，不要靠硬塞反转凑章末钩子，也不要把聊天里的试写片段当成已经保存到文件的正式章节。"
         ],
         [
           "怎么改掉正文的套话和解释腔？",
@@ -424,7 +424,7 @@
       },
       "description": {
         "en": "Seven skills for Claude Code, Codex and Kimi Code: cited source bible, concept comparison, gameplay and art design, then a built and tested candidate.",
-        "zh": "7 个 Claude Code / Codex / Kimi Code skill：建立带引用的原著设定集，比较改编概念，设计玩法与美术，再在目标运行环境构建并验证可玩版本。附三个可玩示例。"
+        "zh": "7 个 Claude Code / Codex / Kimi Code skill：建立带引用的原著设定集，比较改编概念，设计玩法与美术，再在选定平台上构建并验证可玩版本。附三个可玩示例。"
       }
     },
     "audience": {
@@ -830,8 +830,8 @@
       "zh": "在浏览器里和 AI 一起写小说：大纲、人设、章节和版本都放在同一个项目里。"
     },
     "definition": {
-      "en": "ZenStory Workbench is the browser member of the family: a three-panel workspace (file tree, editor, AI chat) where outlines, manuscripts, characters and settings are files, and a multi-agent backend drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable under AGPL-3.0, and is available as a service at app.zenstory.ai with free and paid plans.",
-      "zh": "ZenStory 工作台在浏览器里用：左边文件树、中间编辑器、右边 AI 对话。大纲、正文、角色卡和设定都是文件，后台的多个 AI 角色围绕这些文件起草、提建议和修改。它自带 skill，也提供给 Claude Code / OpenClaw 用的 Agent API；代码按 AGPL-3.0 许可开源，可以自己部署，也提供 app.zenstory.ai 的在线服务（有免费和付费方案）。"
+      "en": "ZenStory Workbench is the browser member of the family: a three-panel workspace (file tree, editor, AI chat) where outlines, manuscripts, characters and settings are files, and a writing agent drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable under AGPL-3.0, and is available as a service at app.zenstory.ai with free and paid plans.",
+      "zh": "ZenStory 工作台在浏览器里用：左边文件树、中间编辑器、右边 AI 对话。大纲、正文、角色卡和设定都是文件，写作 Agent 直接围绕这些文件起草、提建议和修改。它自带 skill，也提供给 Claude Code / OpenClaw 用的 Agent API；代码按 AGPL-3.0 许可开源，可以自己部署，也提供 app.zenstory.ai 的在线服务（有免费和付费方案）。"
     },
     "seo": {
       "title": {
@@ -903,7 +903,7 @@
         ],
         [
           "AI 记忆能保证长篇不崩人设吗？",
-          "AI 记忆是一份包含四个字段的项目摘要；每轮对话只按需读取相关上下文，长篇连贯仍需配合章节核对。填写时要把已确定的设定、已落盘的正文进度和还在构思的想法分开。[记忆填写与更正示例](https://zenstory.ai/docs/advanced/ai-memory)演示了该往记忆里存什么、为什么上下文有长度限制，以及发现摘要记错时怎样手动更正而不重改已写好的正文。"
+          "AI 记忆是一份包含四个字段的项目摘要；每轮对话只按需读取相关上下文，长篇连贯仍需配合章节核对。填写时要把已确定的设定、已保存的正文进度和还在构思的想法分开。[记忆填写与更正示例](https://zenstory.ai/docs/advanced/ai-memory)演示了该往记忆里存什么、为什么上下文有长度限制，以及发现摘要记错时怎样手动更正而不重改已写好的正文。"
         ],
         [
           "写一章必须拆成很多轮提示词吗？",

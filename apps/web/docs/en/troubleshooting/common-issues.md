@@ -5,7 +5,7 @@ Whenever something goes wrong in the editor, **copy any unsaved prose to a safe 
 ## Unsaved edits or save conflicts
 
 1. Copy unsaved text from the editor into a local note or document right away.
-2. Check your network connection and the status indicator in the editor header, then press `Command/Ctrl + S` to retry saving.
+2. Check your network connection and the status indicator in the editor status bar, then press `Command/Ctrl + S` to retry saving.
 3. If a **save conflict** dialog appears, compare the newer cloud version against your local draft, merge the lines you want to keep, and save.
 4. If the editor offers a **local draft recovery** banner when you reopen a file, inspect both versions carefully before choosing whether to restore the local copy or keep the cloud text.
 

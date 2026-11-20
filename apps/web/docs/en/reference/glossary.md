@@ -8,7 +8,7 @@ Quick definitions for common terms you will see across the ZenStory workbench an
 | --- | --- |
 | Project | A self-contained workspace holding one work's files, AI chat threads, and AI Memory |
 | File tree | The folder-and-file sidebar on the left side of a project |
-| Draft / Script | Manuscript file types (`draft` / `script`) included when you click **Export manuscript** |
+| Draft / Script | Manuscript file types (`draft` / `script`) included when you click **Export whole work / script (TXT)** |
 | Outline | Story direction, arc plans, and chapter or episode beat sheets (`outline`) |
 | Character / Lore | Character sheets (`character`) and worldbuilding rules (`lore`) |
 | Project material | Reference notes (`snippet`) stored inside a project's **Materials** folder that you can attach to chat |

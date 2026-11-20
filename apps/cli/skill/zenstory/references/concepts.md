@@ -123,7 +123,7 @@ is busy or unavailable; fall back to `files list` + `files get`.
 ## API keys and scopes
 
 Keys look like `eg_` + 64 hex characters and are created in ZenStory
-**Settings → Agent**. Scopes: `read` (list/get/search/context) and `write`
+**Settings → API Keys**. Scopes: `read` (list/get/search/context) and `write`
 (create/update/move/rollback/delete). New keys default to `read` only. A key can optionally be limited
 to specific projects; other projects then return 403 (or are hidden from
 `projects list`). Deletes are soft deletes, but deleted files are not reachable through

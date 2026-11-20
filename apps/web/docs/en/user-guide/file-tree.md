@@ -20,7 +20,7 @@ In a brand-new project with no files yet, empty folders stay clean without repea
 
 ### 1. Create an outline, character, worldbuilding, or script file
 
-- **From the file tree**: Hover over **Outlines**, **Characters**, **Worldbuilding**, or **Scripts** (always visible on touch screens), click `+`, type a file name (up to 255 characters), and press `Enter` to create (`Esc` or clicking outside cancels).
+- **From the file tree**: Hover over **Outlines**, **Characters**, **World Building**, or **Scripts** (always visible on touch screens), click `+`, type a file name (up to 255 characters), and press `Enter` to create (`Esc` or clicking outside cancels).
 - **From the empty editor**: When no file is open, click **New Chapter** (or **New Script** in screenplay projects), **New Outline**, or expand **More options** and click **New Character** or **New Worldbuilding** to create the file in its matching folder and open it immediately.
 
 ### 2. Import `.txt` or `.md` chapters into Drafts

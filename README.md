@@ -41,10 +41,10 @@
 ZenStory 工作台是在浏览器里写**长篇小说、短篇小说和短剧剧本**的创作空间。大纲、正文、角色卡、世界观设定和参考素材都是项目里的文件；你在右侧和 AI 对话，AI 直接新建或改写这些文件，无需在聊天窗口和文档软件之间来回复制粘贴。可在 [app.zenstory.ai](https://app.zenstory.ai) 在线使用，也可按 AGPL-3.0 许可自行部署。
 
 - **对话直接改稿，也认得你的手改**：在右侧提要求，Agent 直接新建角色卡、大纲或续写章节，边写边流式写入编辑器，对话卡片可一键撤销。你在编辑器里的手改内容会同步给 AI，续写时顺着改稿往下接，不会从对话里误删或整篇覆盖已保存的稿件。
-- **一个 Agent 从头接到尾**：同一个写作 Agent 读项目、做规划、写正文、查连贯，只做当前这一轮要求的事——只要细纲就停在大纲，要求写正文才动笔；章节按章号落盘，写第几章就只改第几章，回复里的字数取自实际保存结果。
-- **懂网文与短剧节奏**：开篇直接进冲突，爽点当场兑现，对白推着剧情走，章末留钩子；选中正文点「去AI味」，可按段落对比改写前后，逐段选择采用或保留原稿。
+- **一个 Agent 从头接到尾**：同一个写作 Agent 读项目、做规划、写正文、查连贯，只做当前这一轮要求的事——只要细纲就停在大纲，要求写正文才动笔；章节按章号保存到文件，写第几章就只改第几章，回复里的字数取自实际保存结果。
+- **懂网文与短剧节奏**：开篇直接进冲突，爽点当场兑现，对白推着剧情走，章末留钩子；选中正文点「去AI味」，可切换查看改写结果与原文，确认采用或放弃。
 - **长篇连载不断片**：每轮自动带上「AI 记忆」、刚读写过的章节全文、上一章以及相关的角色卡和世界观设定，不靠翻长聊天记录记设定。
-- **自带 14 个技能，也能接外部 Agent**：内置续写、钩子设计、短篇写作、短剧分集和去 AI 味等 14 个技能，支持导入导出 `SKILL.md` 技能包；通过 `npx zenstory` 命令行，Claude Code、Codex、OpenClaw 等外部工具也能直接读写你的项目。
+- **自带 14 个技能，也能接外部 Agent**：内置续写、钩子设计、短篇写作、短剧分集和去AI味等 14 个技能，支持导入导出 `SKILL.md` 技能包；通过 `npx zenstory` 命令行，Claude Code、Codex、OpenClaw 等外部工具也能直接读写你的项目。
 
 ## 开始使用
 
@@ -54,7 +54,7 @@ ZenStory 工作台是在浏览器里写**长篇小说、短篇小说和短剧剧
 
 > 我想写一本玄幻爽文，先规划黄金三章细纲，暂不写正文。男主萧无涯是诸天万界最大的商会之主，十年来倾尽灵石、极品丹药和护山大阵把青云女帝洛清寒捧上神坛。开篇女帝证道大典，她为了刚入门的剑道白月光叶尘，当众嘲讽萧无涯满身铜臭、不配与她并肩，直接将他逐出宗门。萧无涯当场笑纳，一键切断宗门所有灵石、丹药和阵法供应。请按黄金三章给出每章的核心冲突、打脸爽点和章末卡点钩子。
 
-细纲敲定后，再指定文件名让 AI 落盘并写正文（第三行的「钩子设计：」需先在「技能 → 发现技能」里启用）：
+细纲敲定后，再指定文件名让 AI 保存细纲并写正文（第三行的「钩子设计：」需先在「技能 → 发现技能」里启用）：
 
 ```text
 把刚才的黄金三章细纲存进「大纲」文件夹，命名为「黄金三章细纲」。
@@ -108,7 +108,7 @@ pnpm dev
 
 ### 接入外部 Agent（Claude Code / Codex / OpenClaw）
 
-在工作台「设置 → Agent」里创建 API Key，然后在终端运行（需要 Node.js 20+）：
+在工作台「设置 → API 密钥」里创建 API 密钥，然后在终端运行（需要 Node.js 20+）：
 
 ```bash
 npx zenstory login           # 按提示粘贴 Key；自托管加 --api-base https://你的服务器/api/v1
@@ -142,7 +142,7 @@ flowchart LR
 ```
 
 - **一个模型、一份对话**：每一轮由同一个 Agent 跑完，没有路由和角色交接；对话历史按时间顺序保留，过长时会先压缩成交接摘要再继续。
-- **按章号写章节**：写正文按「第几章」对号落盘——没有就新建，已有就只替换这一章，卡片会标明新建字数或替换前的字数，并支持一键撤销；局部编辑工具禁止整章覆盖或插入重复段落。
+- **按章号写章节**：写正文按「第几章」对应写入——没有就新建，已有就只替换这一章，卡片会标明新建字数或替换前的字数，并支持一键撤销；局部编辑工具禁止整章覆盖或插入重复段落。
 - **大纲既是上限也是下限**：后续章节才出场的人物、事件和揭示不会提前写；本章大纲里的关键事件一定落实；作者改了大纲就按新方向推进，并同步更新大纲文件。
 - **中途追加要求、长任务接着写**：AI 生成时可继续在输入框发补充要求，写完手头这一步就会按新要求调整，不打断正在写的正文；接近单次运行上限时会自动收尾并给出「继续」卡片，一键从断点接着写，回复末尾的改稿建议也会变成输入框上方的快捷按钮。
 
@@ -181,9 +181,9 @@ ZenStory 工作台由 [ZenStory AI](https://zenstory.ai/zh) 维护——一套�
 
 | 项目 | 用途 |
 | --- | --- |
-| [oh-story-claudecode](https://github.com/zenstory-ai/oh-story-claudecode) | 网文写作 skill 包：扫榜、拆文、写作、去AI味、封面图 |
-| [drama-skills](https://github.com/zenstory-ai/drama-skills) | AI 短剧 / 漫剧创作 skill 合集：剧本、资产、分镜、图片/视频提示词、独立审查 |
-| [novel-to-game](https://github.com/zenstory-ai/novel-to-game) | 小说改编游戏 skill 合集：原著拆解、目标运行环境构建与实机运行验收 |
-| [video-recap-skills](https://github.com/zenstory-ai/video-recap-skills) | 将支持的视频文件制作成中文解说，可选导出可编辑的剪映/CapCut 草稿 |
-| [oh-story-dsh](https://github.com/zenstory-ai/oh-story-dsh) | DeepSeek Harness 社区插件，提供小说、短剧、游戏和视频解说工作台 |
-| [zenstory](https://github.com/zenstory-ai/zenstory) | 对话即创作的 AI 小说写作工作台，在线版 [app.zenstory.ai](https://app.zenstory.ai)（本仓库） |
+| [oh-story-claudecode](https://github.com/zenstory-ai/oh-story-claudecode) | 网文写作技能包：扫榜、拆文、大纲细纲、长短篇写作、伏笔追踪、去 AI 味与封面生成 |
+| [drama-skills](https://github.com/zenstory-ai/drama-skills) | AI 短剧与漫剧制作技能包：原著与对标拆解、剧本、视觉设定、分镜、生图/生视频提示词、确认后生产与剪辑成片 |
+| [novel-to-game](https://github.com/zenstory-ai/novel-to-game) | 小说改游戏技能包：通读拆书、玩法与美术设计、代码构建与盲玩验收，支持网页、互动影游与微信/抖音/TapTap 小游戏 |
+| [video-recap-skills](https://github.com/zenstory-ai/video-recap-skills) | AI 视频解说技能包：自动切镜、看画面写解说词、配音混音合成硬字幕成片，并可导出剪映 / CapCut 草稿 |
+| [oh-story-dsh](https://github.com/zenstory-ai/oh-story-dsh) | DeepSeek Harness 社区插件：集成网文写作、短剧漫剧、小说改游戏与视频解说四个可视化工作台 |
+| [zenstory](https://github.com/zenstory-ai/zenstory) | 对话即创作的 AI 小说与短剧网页工作台（[app.zenstory.ai](https://app.zenstory.ai)，本仓库） |

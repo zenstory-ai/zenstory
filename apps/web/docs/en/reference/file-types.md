@@ -7,11 +7,11 @@ Every file in a ZenStory project has a file type that tells the workbench—and 
 | Type | Typical contents and export behavior |
 | --- | --- |
 | Outline `outline` | Story premise, volume arcs, chapter beats, and scene plans. Excluded from whole-manuscript export; can be downloaded individually. |
-| Draft `draft` | Novel or short-story chapters. Included in **Export manuscript**. |
+| Draft `draft` | Novel or short-story chapters. Included in **Export whole work (TXT)**. |
 | Character `character` | Goals, relationships, backstory, and what each character knows. Excluded from whole-manuscript export. |
 | Lore `lore` | Locations, world rules, timelines, and power limits. Excluded from whole-manuscript export. |
 | Material `snippet` | Project reference excerpts and reading notes. Excluded from whole-manuscript export. |
-| Script `script` | Episodic scenes, action lines, and dialogue. Included in **Export manuscript**. |
+| Script `script` | Episodic scenes, action lines, and dialogue. Included in **Export whole script (TXT)**. |
 | Folder `folder` | Project directory container. Not exported. |
 
 All content files open in the same plain-text editor—file types do not lock you into rigid form fields.

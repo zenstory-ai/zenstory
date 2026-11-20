@@ -20,7 +20,7 @@ Wait a moment after returning from checkout and refresh **Plans & Benefits** to 
 
 ### Does the editor save automatically?
 
-Yes. The editor auto-saves to the cloud roughly 3 seconds after you pause typing, and you can press `Command/Ctrl + S` anytime to save immediately. Check the status indicator in the editor header to confirm **Saved**. Note that consecutive manual saves within a short window merge into one history entry. For offline draft caching and conflict handling, see [Using the editor](../user-guide/editor.md).
+Yes. The editor auto-saves to the cloud roughly 3 seconds after you pause typing, and you can press `Command/Ctrl + S` anytime to save immediately. Check the status indicator in the editor status bar to confirm **Saved**. Note that consecutive manual saves within a short window merge into one history entry. For offline draft caching and conflict handling, see [Using the editor](../user-guide/editor.md).
 
 ### Does the AI read every file in my project automatically?
 
@@ -42,9 +42,9 @@ To rename a file, edit the title bar at the top of the editor and let it save. F
 
 ZenStory does not have a standalone trash panel for manual deletions. However, if a file was deleted by the AI during chat, its deletion card in chat provides a one-click **Restore** button; and if a chapter was overwritten by an edit, you can roll back via **Undo** on the chat card or from **History** ([Version history](../user-guide/version-history.md)). Avoid deleting real work just to test recovery.
 
-### Does Export manuscript back up my entire project?
+### Does whole-work export back up my entire project?
 
-**Export manuscript** merges and downloads saved `draft` and `script` files only. Outlines, character sheets, worldbuilding notes, materials, chat threads, AI Memory, and version history are not included in manuscript export—open important planning files and click **Download current file** to keep local copies separately. See [Export your manuscript](../user-guide/export.md).
+**Export whole work (TXT)** (or **Export whole script (TXT)**) merges and downloads saved `draft` and `script` files only. Outlines, character sheets, worldbuilding notes, materials, chat threads, AI Memory, and version history are not included in whole-work export—open important planning files and click **More Actions → Download current file (TXT)** to keep local copies separately. See [Export your manuscript](../user-guide/export.md).
 
 ### Can I write offline?
 

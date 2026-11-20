@@ -44,7 +44,7 @@ ZenStory Workbench is a browser workspace for writing **long-form novels, short 
 
 - **Direct file edits that respect your own revisions**: ask for a new character sheet, outline or chapter in chat and the agent streams it straight into the editor, with one-click undo on the chat card. Anything you edit by hand is synced back to the AI so continuations build on your changes, and saved manuscripts cannot be deleted or overwritten wholesale from chat.
 - **One agent, start to finish**: a single writing agent reads your project, plans, writes and checks continuity, doing only what this turn asks for — ask for an outline and it stops at the outline; ask for prose and it writes the chapter. Chapters are written by number, so writing chapter 3 changes only chapter 3, and word counts in replies come from what was actually saved.
-- **Paced for web fiction and short dramas**: openings start inside the conflict, payoffs land on screen, dialogue drives the stakes, and chapters end on a hook. Select any passage in the editor and click **Humanize** to review paragraph-by-paragraph rewrites and accept only the lines you want.
+- **Paced for web fiction and short dramas**: openings start inside the conflict, payoffs land on screen, dialogue drives the stakes, and chapters end on a hook. Select any passage in the editor and click **Humanize** to inspect the revised passage alongside the original, then choose **Use changes** or **Discard**.
 - **Long-form continuity without digging through chat history**: each turn automatically brings in AI Memory, the full text of chapters you just read or edited, the previous chapter, and relevant character and lore sheets.
 - **14 built-in skills, plus external agent support**: ships with 14 skills for continuation, hooks, short stories, short-drama episodes and prose polishing, and imports or exports standard `SKILL.md` packages. With the `npx zenstory` CLI, external agents like Claude Code, Codex and OpenClaw can also read and write your project files.
 
@@ -110,7 +110,7 @@ Create the first admin account from `apps/server` by running `python scripts/cre
 
 ### Connect external agents (Claude Code / Codex / OpenClaw)
 
-Create an API key under **Settings → Agent**, then run in your terminal (Node.js 20+):
+Create an API key under **Settings → API Keys**, then run in your terminal (Node.js 20+):
 
 ```bash
 npx zenstory login           # paste the key when prompted; add --api-base https://your-server/api/v1 if self-hosted
@@ -185,9 +185,9 @@ ZenStory Workbench is maintained by [ZenStory AI](https://zenstory.ai) — open-
 
 | Project | What it does |
 | --- | --- |
-| [oh-story-claudecode](https://github.com/zenstory-ai/oh-story-claudecode) | Web-fiction writing skill pack: chart scanning, deconstruction, drafting, de-AI-flavor, covers |
-| [drama-skills](https://github.com/zenstory-ai/drama-skills) | AI short-drama / motion-comic suite: scripts, assets, storyboards, image & video prompts, review |
-| [novel-to-game](https://github.com/zenstory-ai/novel-to-game) | Agent skills for source-grounded novel adaptation, target-runtime builds, and evidence-based QA |
-| [video-recap-skills](https://github.com/zenstory-ai/video-recap-skills) | Create Chinese-narration recaps from supported video files, with optional editable JianYing/CapCut draft export |
-| [oh-story-dsh](https://github.com/zenstory-ai/oh-story-dsh) | Community DeepSeek Harness plugin with novel, short-drama, game and video-recap workbenches |
-| [zenstory](https://github.com/zenstory-ai/zenstory) | Chat-to-create AI novel-writing workbench, hosted at [app.zenstory.ai](https://app.zenstory.ai) (this repo) |
+| [oh-story-claudecode](https://github.com/zenstory-ai/oh-story-claudecode) | Web-fiction skill pack: chart scanning, deconstruction, outlining, long/short drafting, continuity tracking, de-AI-flavor polish, and covers |
+| [drama-skills](https://github.com/zenstory-ai/drama-skills) | AI short-drama & motion-comic skill suite: source/benchmark breakdown, scripts, visual settings, storyboards, image/video prompts, confirmed production, and final cuts |
+| [novel-to-game](https://github.com/zenstory-ai/novel-to-game) | Novel-to-game skill pack: source analysis, gameplay & art design, builds, and blind-playtest QA for web games, interactive films, and WeChat/Douyin/TapTap mini-games |
+| [video-recap-skills](https://github.com/zenstory-ai/video-recap-skills) | AI video-recap skill pack: auto shot-cutting, visual narration scripting, voiceover/mix with burned-in subtitles, and editable JianYing / CapCut draft export |
+| [oh-story-dsh](https://github.com/zenstory-ai/oh-story-dsh) | Community DeepSeek Harness plugin bundling visual workbenches for novels, short dramas, games, and video recaps |
+| [zenstory](https://github.com/zenstory-ai/zenstory) | Chat-to-create AI web workbench for novels and short dramas ([app.zenstory.ai](https://app.zenstory.ai), this repo) |
