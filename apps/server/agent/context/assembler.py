@@ -180,28 +180,28 @@ class ContextAssembler:
         items: list[ContextItem] = []
 
         # 0. Get project status info (for AI context awareness)
-        project_status = self._get_project_status(session, project_id)
+        project_status = self.get_project_status(session, project_id)
         # 0.1 Get project file inventory (outlines and drafts list)
         # This helps the agent know what chapters/outlines already exist
         file_inventory = self._get_file_inventory(session, project_id)
 
         # 0.2 Get attached files (manually selected by user, CRITICAL priority)
         if attached_file_ids:
-            items.extend(self._get_attached_files(session, project_id, attached_file_ids))
+            items.extend(self.get_attached_files(session, project_id, attached_file_ids))
 
         # 0.25 Get attached library materials (manually selected by user, CRITICAL priority)
         if attached_library_materials:
-            items.extend(self._get_attached_library_materials(session, user_id, attached_library_materials))
+            items.extend(self.get_attached_library_materials(session, user_id, attached_library_materials))
 
         # 0.3 Get text quotes (user-selected text, CRITICAL priority)
         if text_quotes:
-            items.extend(self._get_text_quotes(text_quotes))
+            items.extend(self.get_text_quotes(text_quotes))
 
         # 1. Get focus file (outline or draft)
         if focus_file_id:
             focus_file = session.get(File, focus_file_id)
             if focus_file and not focus_file.is_deleted and focus_file.project_id == project_id:
-                items.append(self._file_to_context_item(focus_file, is_focus=True))
+                items.append(self.file_to_context_item(focus_file, is_focus=True))
 
                 # Get related outlines/drafts
                 items.extend(self._get_related_files(
@@ -223,7 +223,7 @@ class ContextAssembler:
                 ))
 
         # 4. Deduplicate items by ID (prefer higher priority / is_focus)
-        items = self._deduplicate_items(items)
+        items = self.deduplicate_items(items)
 
         # 5. Query-aware recall ranking
         items = self._apply_query_recall_ranking(items, query)
@@ -245,14 +245,14 @@ class ContextAssembler:
             max_tokens=int(max_tokens * PROJECT_STATUS_TOKEN_RATIO),
         )
         status_tokens = estimate_text_tokens(
-            self._format_context([], None, project_status)
+            self.format_context([], None, project_status)
         )
         inventory_token_budget = max(
             0, max_tokens - reserved_for_items - status_tokens
         )
 
         header_tokens = estimate_text_tokens(
-            self._format_context(
+            self.format_context(
                 [],
                 file_inventory,
                 project_status,
@@ -289,7 +289,7 @@ class ContextAssembler:
         )
         if snippets:
             snippets = self._apply_query_recall_ranking(snippets, query)
-            items = self._deduplicate_items([*items, *snippets])
+            items = self.deduplicate_items([*items, *snippets])
             selected, budget = self._select_within_budget(items, item_token_budget)
 
         budget_used = dict(budget.used)
@@ -303,7 +303,7 @@ class ContextAssembler:
             )
 
         # 7. Format context with project status
-        formatted = self._format_context(
+        formatted = self.format_context(
             selected,
             file_inventory,
             project_status,
@@ -331,7 +331,7 @@ class ContextAssembler:
         """按优先级在条目预算内选出条目，返回 (入选条目, 用过的 TokenBudget)。"""
         budget = TokenBudget(
             max_tokens=item_token_budget,
-            item_overhead=self._item_render_overhead_tokens,
+            item_overhead=self.item_render_overhead_tokens,
         )
         prioritized = self.prioritizer.prioritize(items)
         groups = self.prioritizer.group_by_priority(prioritized)
@@ -364,7 +364,7 @@ class ContextAssembler:
 
         return {file.id: file for file in files}
 
-    def _file_to_context_item(
+    def file_to_context_item(
         self,
         file: Any,
         is_focus: bool = False,
@@ -492,7 +492,7 @@ class ContextAssembler:
         # Note: session.get() uses primary key lookup which is O(1), so this is already optimal
         parent = session.get(File, focus.parent_id)
         if parent and not parent.is_deleted and parent.project_id == project_id and parent.file_type == "outline":
-            items.append(self._file_to_context_item(parent, relation="parent"))
+            items.append(self.file_to_context_item(parent, relation="parent"))
 
         # 2. 查找前一章节（order 小于当前 focus.order 的最大值）
         prev_chapter: Any | None = None
@@ -521,7 +521,7 @@ class ContextAssembler:
             prev_chapter = session.exec(prev_stmt).first()
 
         if prev_chapter:
-            items.append(self._file_to_context_item(prev_chapter, relation="previous"))
+            items.append(self.file_to_context_item(prev_chapter, relation="previous"))
 
         # 3. 获取其他同级文件：按最近修改排序，取前 3 个（同时间戳时按 id 稳定排序）
         exclude_ids = {str(focus.id)}
@@ -546,11 +546,11 @@ class ContextAssembler:
         other_siblings = session.exec(siblings_stmt).all()
 
         for sibling in other_siblings:
-            items.append(self._file_to_context_item(sibling, relation="sibling"))
+            items.append(self.file_to_context_item(sibling, relation="sibling"))
 
         return items
 
-    def _get_attached_files(
+    def get_attached_files(
         self,
         session: Session,
         project_id: str,
@@ -579,7 +579,7 @@ class ContextAssembler:
         for file_id in file_ids:
             file = files_map.get(file_id)
             if file and not file.is_deleted and file.project_id == project_id:
-                item = self._file_to_context_item(file, relation="attached")
+                item = self.file_to_context_item(file, relation="attached")
                 # Override priority to CRITICAL for attached files
                 item.priority = ContextPriority.CRITICAL
                 item.metadata["attached"] = True
@@ -587,7 +587,7 @@ class ContextAssembler:
 
         return items
 
-    def _get_attached_library_materials(
+    def get_attached_library_materials(
         self,
         session: Session,
         user_id: str | None,
@@ -807,7 +807,7 @@ class ContextAssembler:
 
         return items
 
-    def _get_text_quotes(
+    def get_text_quotes(
         self,
         text_quotes: list[dict[str, str]],
     ) -> list[ContextItem]:
@@ -1042,7 +1042,7 @@ class ContextAssembler:
         items = []
         for file_type in file_types:
             for file in files_by_type[file_type]:
-                items.append(self._file_to_context_item(file))
+                items.append(self.file_to_context_item(file))
 
         # Sort lores by importance if applicable
         if "lore" in file_types:
@@ -1135,7 +1135,7 @@ class ContextAssembler:
         files = self._batch_get_files(session, picks)
         return [files[file_id] for file_id in picks if file_id in files]
 
-    def _get_project_status(
+    def get_project_status(
         self,
         session: Session,
         project_id: str,
@@ -1261,7 +1261,7 @@ class ContextAssembler:
 
         return inventory
 
-    def _deduplicate_items(self, items: list[ContextItem]) -> list[ContextItem]:
+    def deduplicate_items(self, items: list[ContextItem]) -> list[ContextItem]:
         """
         Remove duplicate items by ID, keeping the one with higher priority or is_focus.
 
@@ -1351,7 +1351,7 @@ class ContextAssembler:
             return project_status
 
         max_tokens = max(0, int(max_tokens or 0))
-        if estimate_text_tokens(self._format_context([], None, project_status)) <= max_tokens:
+        if estimate_text_tokens(self.format_context([], None, project_status)) <= max_tokens:
             return project_status
 
         bounded = dict(project_status)
@@ -1365,7 +1365,7 @@ class ContextAssembler:
 
         # 先扣掉框架与短字段的固定开销，剩下的额度在长字段之间平分
         fixed_tokens = estimate_text_tokens(
-            self._format_context(
+            self.format_context(
                 [],
                 None,
                 {**bounded, **dict.fromkeys(long_fields, "")},
@@ -1771,7 +1771,7 @@ class ContextAssembler:
         return hints
 
     @staticmethod
-    def _item_file_id(item: ContextItem) -> str | None:
+    def item_file_id(item: ContextItem) -> str | None:
         """条目对应的项目文件 id（可直接传给 query_files）；非项目文件返回 None。"""
         metadata = item.metadata or {}
         if metadata.get("library_material"):
@@ -1794,7 +1794,7 @@ class ContextAssembler:
         现在每条都显式标注 [全文] 或 [已截断：显示 x/y 字；全文用 query_files(id=…)]。
         """
         metadata = item.metadata or {}
-        file_id = cls._item_file_id(item)
+        file_id = cls.item_file_id(item)
         if metadata.get("retrieved"):
             if file_id:
                 return f'[检索片段，非全文；全文用 query_files(id="{file_id}")]'
@@ -1815,7 +1815,7 @@ class ContextAssembler:
         return "[全文]"
 
     @staticmethod
-    def _item_render_overhead_tokens(item: ContextItem) -> int:
+    def item_render_overhead_tokens(item: ContextItem) -> int:
         """单个条目标题行在「标题 + 正文」之外的渲染开销（按最长的「已截断」标注计，宁多勿少）。"""
         n = max(len(item.content or ""), int((item.metadata or {}).get("original_chars") or 0))
         return estimate_text_tokens(
@@ -1826,14 +1826,14 @@ class ContextAssembler:
     @classmethod
     def _item_heading(cls, item: ContextItem, prefix: str = "") -> str:
         """条目标题行：`[关系] 标题 (id=…) ← 当前焦点 [全文]`。"""
-        file_id = cls._item_file_id(item)
+        file_id = cls.item_file_id(item)
         id_part = f" (id={file_id})" if file_id else ""
         focus_mark = " ← 当前焦点" if item.is_focus else ""
         tag = cls._completeness_tag(item)
         tag_part = f" {tag}" if tag else ""
         return f"{prefix}{item.title}{id_part}{focus_mark}{tag_part}"
 
-    def _format_context(
+    def format_context(
         self,
         items: list[ContextItem],
         file_inventory: dict[str, list[dict[str, Any]]] | None = None,
@@ -2013,6 +2013,17 @@ class ContextAssembler:
                 parts.append("")
 
         return "\n".join(parts)
+
+    # Backward-compatible private aliases for existing unit tests.
+    _file_to_context_item = file_to_context_item
+    _get_attached_files = get_attached_files
+    _get_attached_library_materials = get_attached_library_materials
+    _get_text_quotes = get_text_quotes
+    _get_project_status = get_project_status
+    _deduplicate_items = deduplicate_items
+    _item_file_id = item_file_id
+    _item_render_overhead_tokens = item_render_overhead_tokens
+    _format_context = format_context
 
 
 # Singleton

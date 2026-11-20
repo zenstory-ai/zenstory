@@ -15,7 +15,7 @@ Provides FastAPI router for agent endpoints:
 import asyncio
 import contextlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
@@ -350,6 +350,582 @@ def _session_busy_exception() -> APIException:
             "This chat session already has an active generation. Stop it or wait for it to finish before sending again."
         ),
     )
+
+
+@dataclass
+class _AgentStreamSettlement:
+    """Per-request SSE observation, billing settlement, and round-outcome lifecycle for ``/agent/stream``.
+
+    Extracted from ``stream_request`` so the route handler stays readable while keeping
+    every module-level hook in ``api.agent`` (quota refund, placeholder removal, drain
+    timers, and monkeypatch targets in tests) unchanged.
+    """
+
+    session: Session
+    user_id: str
+    project_id: str
+    agent_run_id: str
+    charged_period_start: datetime
+    lang: str
+    knows_stop_contract: bool
+    activation_entry: str
+    run_outcome: RunOutcome
+    tracker: StreamBillingTracker = field(default_factory=StreamBillingTracker)
+    written_files: RoundWrittenFiles = field(default_factory=RoundWrittenFiles)
+    pump: SSEStreamPump | None = None
+    client_disconnected: bool = False
+    user_stopped: bool = False
+    unexpected_exception: bool = False
+    deadline_exceeded: bool = False
+    refund_scheduled: bool = False
+    refund_task: asyncio.Task[bool] | None = None
+    # 作者停止、这一轮被退还时移除的空白占位文件（停止路径当场移除并告诉前端）。
+    removed_files: list[dict[str, str]] = field(default_factory=list)
+    # (billing_reason, should_refund, refund_applied)；整个请求只结算一次。
+    settlement: tuple[str, bool, bool] | None = None
+    error_delivery: dict[str, Any] = field(default_factory=dict)
+    partial_delivery: dict[str, Any] = field(default_factory=dict)
+    completed_delivery: dict[str, Any] = field(default_factory=dict)
+    known_incomplete: bool = False
+    source_done: bool = False
+    # 墙钟硬超时时本轮已经写进文件：按「未完成」收尾（暂停卡 + done，不是通用超时错误卡）。
+    deadline_paused: bool = False
+    # 这一轮已经流出过墙钟暂停卡（图层 / runner 的时限收尾）：硬超时不再补第二张。
+    wall_clock_card_seen: bool = False
+    # 硬超时补发的暂停卡事件数据；已经流出过墙钟暂停卡时为 None（历史里不再追加）。
+    deadline_pause_card: dict[str, Any] | None = None
+    # 随暂停卡一起发出的 done：它由时限本身产生，不交给计费记账（计费仍按墙钟超时判定）。
+    deadline_pause_done: str | None = None
+    _stop_wait_timed_out: bool = False
+    _committed_seen: int = 0
+
+    def attach_pump(self, pump: SSEStreamPump) -> None:
+        self.pump = pump
+
+    @property
+    def _deadline_moved_up(self) -> bool:
+        return bool(self.pump is not None and self.pump.deadline_moved_up)
+
+    def observe_frame(self, frame: Any) -> None:
+        if self.deadline_pause_done is not None and frame is self.deadline_pause_done:
+            return
+        self.tracker.observe(frame)
+        self.written_files.observe(frame)
+        if isinstance(frame, str) and frame.startswith("event: done\n"):
+            self.source_done = True
+        elif isinstance(frame, str) and frame.startswith("event: iteration_exhausted\n"):
+            _, card_data = _parse_sse(frame)
+            if isinstance(card_data, dict) and card_data.get("limit") == WALL_CLOCK_LIMIT:
+                self.wall_clock_card_seen = True
+
+    def saved_output(self, delivery: dict[str, Any]) -> bool:
+        return self.written_files.saved_output(
+            delivery,
+            final_word_counts=self.run_outcome.saved_file_word_counts,
+            any_write_succeeded=self.tracker.write_succeeded,
+        )
+
+    def confirmed_file_mutation(
+        self, delivery: dict[str, Any], *, original: bool = False
+    ) -> bool:
+        # Preserve a mutation already confirmed by StreamAdapter. Late
+        # cancellation saves can additionally prove one through the same
+        # delivery receipt used by stop/disconnect/timeout outcomes. Project
+        # metadata writes are saved output, but are not file mutations.
+        return original or self.written_files.saved_output(
+            delivery,
+            final_word_counts=self.run_outcome.saved_file_word_counts,
+            any_write_succeeded=self.tracker.file_written,
+        )
+
+    def with_delivery(self, frame: str) -> str:
+        if self.deadline_exceeded or not frame.startswith(("event: error\n", "event: done\n")):
+            return frame
+        event, data = _parse_sse(frame)
+        # A deadline must be delivered before asynchronous capture cleanup.
+        # Never classify its still-pending file writes as unfinished here.
+        if not isinstance(data, dict):
+            return frame
+        delivery = self.written_files.delivery(final_word_counts=self.run_outcome.saved_file_word_counts)
+        if event == "done":
+            data["file_mutated"] = self.confirmed_file_mutation(
+                delivery, original=data.get("file_mutated") is True
+            )
+            self.known_incomplete = (
+                self.known_incomplete
+                or self.written_files.known_incomplete
+                or bool(delivery.get("unwritten_files"))
+            )
+            if self.known_incomplete:
+                self.partial_delivery = delivery
+                return StreamEvent(
+                    type=EventType.DONE,
+                    data={
+                        **data,
+                        **delivery,
+                        "delivery_incomplete": True,
+                        "saved_output": self.saved_output(delivery),
+                        **({"unexecuted_tool_text": True} if self.written_files.unexecuted_tool_text else {}),
+                    },
+                ).to_sse()
+            # 正常收尾也带写入回执：作者对照它核对回复里说的「已修改」。
+            receipt = self.written_files.completion_receipt(
+                final_word_counts=self.run_outcome.saved_file_word_counts,
+            )
+            if not receipt:
+                return frame
+            self.completed_delivery = receipt
+            return StreamEvent(type=EventType.DONE, data={**data, **receipt}).to_sse()
+        self.error_delivery = delivery
+        return StreamEvent(type=EventType.ERROR, data={**data, **delivery}).to_sse()
+
+    def deadline_error(self) -> Any:
+        return server_restarting_error() if self._deadline_moved_up else run_timeout_error()
+
+    def deadline_terminal_frame(self) -> str | list[str] | None:
+        self.deadline_exceeded = True
+        # 泵已请求取消、取消还没送达生成器：先交给 process_stream 真实原因，残稿补存
+        # 落库可「继续」的 stop_reason（发布交接提前的时限也一样）。
+        self.run_outcome.deadline_stop_reason = RUN_DEADLINE_STOP_REASON
+        if self.tracker.delivered_terminal_event:
+            return None
+        if not self._deadline_moved_up and self.tracker.file_written:
+            # 墙钟时限、本轮已经写进文件：不是失败，是没做完。发与时限收尾同一张暂停卡，紧跟 done，
+            # 都在等收尾之前（收尾可能越过平台断连）。done 只列已确认写入的文件：残稿补存还没落定，
+            # 不在这里把它们说成未保存；刷新后的 stop_outcome 按最终保存回执列出。
+            # 计费照旧按墙钟超时判定：暂停卡不是终止帧，这条 done 也不交给计费记账。
+            # 图层 / runner 的时限收尾已经流出过暂停卡（卡发出后、done 之前撞上硬超时）时只补 done，
+            # 不再发第二张卡，历史里也不追加。消费方按 limit=wall_clock 认这张卡，layer 沿用图层收尾的
+            # collaboration（计费不把它当失控停止），iterations 是本轮已开始的 agent run 数。
+            self.deadline_paused = True
+            frames: list[str] = []
+            if not self.wall_clock_card_seen:
+                english = self.lang == "en"
+                card = iteration_exhausted_event(
+                    layer="collaboration",
+                    iterations_used=max(1, self.run_outcome.runs_started),
+                    max_iterations=AGENT_COLLABORATION_MAX_ITERATIONS,
+                    reason=DEADLINE_PAUSE_REASON_EN if english else DEADLINE_PAUSE_REASON,
+                    last_agent=None,
+                    limit=WALL_CLOCK_LIMIT,
+                )
+                self.deadline_pause_card = dict(card.data)
+                frames.append(card.to_sse())
+            delivery = self.written_files.delivery(final_word_counts=self.run_outcome.saved_file_word_counts)
+            delivery.pop("unwritten_files", None)
+            self.deadline_pause_done = StreamEvent(
+                type=EventType.DONE,
+                data={
+                    **done_event(
+                        session_id=self.tracker.session_id,
+                        file_mutated=self.confirmed_file_mutation(delivery),
+                        **delivery,
+                    ).data,
+                    "delivery_incomplete": True,
+                    "saved_output": self.saved_output(delivery),
+                },
+            ).to_sse()
+            return [*frames, self.deadline_pause_done]
+        info = self.deadline_error()
+        return error_event(
+            info.message,
+            code=info.code,
+            retryable=info.retryable,
+            refundable=not self.run_outcome.provider_attempted,
+        ).to_sse()
+
+    async def wait_stop_message_id(self) -> str | None:
+        # 截停后等这一轮的助手消息 id（service 写好保存回执、落库之后交回），上限 STOP_MESSAGE_ID_WAIT_S。
+        # 一个请求里等过一次没等到就不再等：停止卡、结算、移除占位不叠加等待（断线路径的后台等待不走这里）。
+        if self._stop_wait_timed_out:
+            return await self.run_outcome.wait_message_id(0)
+        message_id = await self.run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
+        if message_id is None and not self.run_outcome.message_id_settled():
+            self._stop_wait_timed_out = True
+        return message_id
+
+    def sync_late_write_receipts(self) -> None:
+        self.tracker.note_saved_receipts(self.run_outcome.saved_file_word_counts)
+        if self._committed_seen < len(self.run_outcome.committed_tool_results):
+            new_results = self.run_outcome.committed_tool_results[self._committed_seen:]
+            self._committed_seen = len(self.run_outcome.committed_tool_results)
+            self.tracker.note_committed_tool_results(new_results)
+            self.written_files.note_committed_tool_results(new_results)
+
+    async def settle_billing(self, *, detached: bool = False) -> tuple[str, bool, bool]:
+        # 结算规则见 stream_billing；这里只负责「只结算一次」。断线路径
+        # （detached）不能挂起：要退还时交给后台任务，refund_applied 记为 False。
+        if self.settlement is None:
+            self.sync_late_write_receipts()
+            billing_reason, should_refund = self.tracker.decide(
+                # 暂停卡和 done 已经送到之后的断开（例如点「继续完成」中止旧连接）不是中断：按时限结算。
+                client_disconnected=self.client_disconnected and not self.deadline_paused,
+                unexpected_exception=self.unexpected_exception,
+                deadline_exceeded=self.deadline_exceeded,
+                user_stopped=self.user_stopped,
+                server_restarting=self._deadline_moved_up,
+                provider_attempted=self.run_outcome.provider_attempted,
+                terminal_model_failure=self.run_outcome.terminal_model_failure,
+            )
+            refund_applied = False
+            refund_fields = {
+                "project_id": self.project_id,
+                "agent_run_id": self.agent_run_id,
+                "billing_reason": billing_reason,
+            }
+            if should_refund:
+                # 退还一律放进后台任务：断线路径不能挂起；连接还开着时用 shield 等它，
+                # 等待途中请求被取消也不会把排队中的退还一起取消。
+                self.refund_task = _schedule_detached_refund(
+                    self.session,
+                    self.user_id,
+                    self.charged_period_start,
+                    self.agent_run_id,
+                    **refund_fields,
+                )
+                self.refund_scheduled = self.refund_task is not None
+                if self.refund_task is not None and not detached:
+                    # 先记下「已结算」：等待途中被取消时，finally 不会再退第二次；
+                    # 停止 / 断线的终态由 _finalize_stopped_round 等这个任务的真实结果。
+                    self.settlement = (billing_reason, should_refund, False)
+                    refund_applied = await asyncio.shield(self.refund_task)
+                    self.refund_scheduled = False
+                elif self.refund_task is None and not detached:
+                    refund_applied = await _refund_quota(
+                        self.session,
+                        self.user_id,
+                        self.charged_period_start,
+                        self.agent_run_id,
+                        **refund_fields,
+                    )
+            self.settlement = (billing_reason, should_refund, refund_applied)
+        return self.settlement
+
+    async def _offload(self, fn: Any, *args: Any, **kwargs: Any) -> Any:
+        if should_offload_session_work(self.session):
+            return await asyncio.to_thread(fn, *args, **kwargs)
+        return fn(*args, **kwargs)
+
+    async def _finalize_stopped_round(
+        self,
+        stop_kind: str,
+        charged_now: bool,
+        pending_refund: asyncio.Task[bool] | None,
+        removed: list[dict[str, str]],
+        delivery: dict[str, Any] | None = None,
+        pause_card: dict[str, Any] | None = None,
+    ) -> None:
+        # 停止 / 断线一轮的收尾：断线时等后台退还落定，退还了才移除空白占位文件；
+        # 然后把终态写回这一轮的助手消息，刷新、重进项目后作者看得到。
+        charged = charged_now
+        remove_placeholders = False
+        if pending_refund is not None:
+            refunded = bool(await pending_refund)
+            charged = not refunded
+            remove_placeholders = refunded
+        # service 补存完残稿（解析器尾缓冲、未闭合围栏里的整章）才交回消息 id：移除空白
+        # 占位前先等它。等不到（超时 / 不会落库）就是补存结果未知，保留占位——宁可留一个
+        # 空章节，也不让补存撞上已删除的文件而丢稿。
+        message_id = await self.run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
+        self.sync_late_write_receipts()
+        if remove_placeholders and message_id:
+            removed = await self._offload(
+                remove_empty_placeholders,
+                self.project_id,
+                self.run_outcome.removable(self.tracker.removable_placeholders()),
+            )
+        if not message_id:
+            return
+        receipts = self.run_outcome.saved_file_word_counts
+        removed_ids = {item.get("id", "") for item in removed}
+        if delivery is None:
+            delivery = self.written_files.stopped_delivery(
+                final_word_counts=receipts, removed_ids=removed_ids
+            )
+        elif removed_ids and delivery.get("unwritten_files"):
+            # 当场帧（error 等）的回执是移除之前取的：已移除的文件不再列为「未确认保存」。
+            unwritten = [item for item in delivery["unwritten_files"] if item.get("id") not in removed_ids]
+            delivery = {key: value for key, value in delivery.items() if key != "unwritten_files"}
+            if unwritten:
+                delivery["unwritten_files"] = unwritten
+        await self._offload(
+            record_round_outcome,
+            message_id,
+            stop_kind=stop_kind,
+            outcome=build_stop_outcome(
+                stop_kind=stop_kind,
+                charged=charged,
+                # 作者看到的「已保存」只认确认的保存回执；计费仍按 tracker 的帧口径。
+                saved_output=self.saved_output(delivery),
+                removed_files=removed,
+                unexecuted_tool_text=self.written_files.unexecuted_tool_text,
+                **delivery,
+            ),
+            pause_card=pause_card,
+        )
+
+    def schedule_round_outcome(
+        self,
+        refund_applied: bool,
+        *,
+        stop_kind: str | None = None,
+        delivery: dict[str, Any] | None = None,
+        pause_card: dict[str, Any] | None = None,
+    ) -> None:
+        # 不能挂起（断线路径在 GeneratorExit 里调用）：只排后台任务。
+        resolved_stop_kind = stop_kind or (
+            STOP_KIND_USER_STOPPED if self.user_stopped else STOP_KIND_CLIENT_DISCONNECTED
+        )
+        charged_now = not refund_applied
+        # 退还已在连接上落定时不再等它（也不再移除一次占位文件）；还没落定的
+        # （断线、或等待途中被取消）由收尾任务等真实结果。
+        pending_refund = None if refund_applied else self.refund_task
+        try:
+            task = asyncio.get_running_loop().create_task(
+                self._finalize_stopped_round(
+                    resolved_stop_kind,
+                    charged_now,
+                    pending_refund,
+                    list(self.removed_files),
+                    delivery,
+                    pause_card,
+                )
+            )
+        except RuntimeError:
+            return
+        _round_outcome_tasks.add(task)
+        task.add_done_callback(_round_outcome_tasks.discard)
+
+    async def remove_refunded_placeholders(self) -> list[dict[str, str]]:
+        # 出错 / 失控 / 时限被退还、连接还开着的一轮同停止路径：这一轮建好还空着的文件一并移除
+        # （残稿补存落定、交回消息 id 之后才删；等不到就保留）。旧标签页收不到 removed_files，不移除。
+        candidates = self.run_outcome.removable(self.tracker.removable_placeholders())
+        if (
+            candidates
+            and self.knows_stop_contract
+            and await self.wait_stop_message_id()
+        ):
+            return await self._offload(remove_empty_placeholders, self.project_id, candidates)
+        return []
+
+    def mark_user_stopped(self) -> None:
+        self.user_stopped = True
+        self.run_outcome.stop_kind = STOP_KIND_USER_STOPPED
+        log_with_context(
+            logger,
+            20,  # INFO
+            "Agent stream stopped by author",
+            user_id=self.user_id,
+            project_id=self.project_id,
+            agent_run_id=self.agent_run_id,
+        )
+
+    def make_user_stop_frame(self) -> str:
+        stop_frame = StreamEvent(
+            type=EventType.WORKFLOW_STOPPED,
+            data={"reason": USER_STOPPED_REASON, "message": USER_STOPPED_MESSAGE},
+        ).to_sse()
+        self.tracker.observe(stop_frame)
+        self.tracker.observe_delivery(stop_frame)
+        return stop_frame
+
+    async def settle_user_stop(self) -> tuple[str, str | None]:
+        """Settle billing before building ``done(charged=...)`` for ``StreamStoppedByUser``."""
+        assistant_message_id = await self.wait_stop_message_id()
+        self.sync_late_write_receipts()
+        billing_reason, _, refund_applied = await self.settle_billing()
+        if refund_applied and assistant_message_id:
+            # 消息 id 已交回说明残稿补存已落定，可以当场移除。当场等不到就是补存结果未知：
+            # 保留占位，也不留给收尾任务在后台删（作者当场收到的说明不会提到它）。
+            try:
+                self.removed_files = await self._offload(
+                    remove_empty_placeholders,
+                    self.project_id,
+                    self.run_outcome.removable(self.tracker.removable_placeholders()),
+                )
+            except Exception as exc:
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Failed to remove empty placeholder files after a refunded stop",
+                    project_id=self.project_id,
+                    agent_run_id=self.agent_run_id,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                self.removed_files = []
+        removed_ids = {item.get("id", "") for item in self.removed_files}
+        delivery = self.written_files.stopped_delivery(
+            final_word_counts=self.run_outcome.saved_file_word_counts,
+            removed_ids=removed_ids,
+        )
+        if not assistant_message_id:
+            for item in delivery.get("written_files", []):
+                item.pop("words", None)
+        done_frame = done_event(
+            assistant_message_id=assistant_message_id,
+            session_id=self.tracker.session_id,
+            stop_reason=USER_STOPPED_REASON,
+            charged=not refund_applied,
+            produced_output=self.tracker.produced_output,
+            file_mutated=self.confirmed_file_mutation(delivery),
+            # 与之后落库的 stop_outcome.written_files 同一份：停止当场的说明
+            # 就能写明保存了哪些文件，不必等刷新。
+            **delivery,
+        ).to_sse()
+        self.tracker.observe(done_frame)
+        self.tracker.observe_delivery(done_frame)
+        refund_frame = quota_refunded_frame(billing_reason, self.removed_files) if refund_applied else None
+        return done_frame, refund_frame
+
+    def make_fallback_error_frame(self, info: Any, *, refundable: bool) -> str | None:
+        if self.tracker.delivered_terminal_event:
+            return None
+        frame = error_event(
+            info.message,
+            code=info.code,
+            retryable=info.retryable,
+            refundable=refundable,
+        ).to_sse()
+        self.tracker.observe(frame)
+        self.tracker.observe_delivery(frame)
+        return self.with_delivery(frame)
+
+    async def finish(self, run_key: tuple[str, str], run_report: dict[str, Any]) -> None:
+        """Run ``finally`` settlement, round-outcome scheduling, activation, and billing summary log."""
+        running = _running_streams.get(run_key)
+        if running is not None and running.pump is self.pump:
+            del _running_streams[run_key]
+        # SSEStreamPump 在入队前观察源帧；客户端可能在 done 已产生、但尚未出队时断开。
+        # 用源端正常终态重新核对请求级未完成事实和最新保存回执，不能依赖消费端
+        # _with_delivery 是否运行过。停止 / 错误 / 时限分支仍在下方优先处理。
+        if self.source_done:
+            source_delivery = self.written_files.delivery(
+                final_word_counts=self.run_outcome.saved_file_word_counts
+            )
+            source_known_incomplete = (
+                self.written_files.known_incomplete
+                or bool(source_delivery.get("unwritten_files"))
+            )
+            if source_known_incomplete:
+                self.known_incomplete = True
+                self.partial_delivery = source_delivery
+        # done 等正常终止帧已经产生之后才到的时限没有截断这一轮（与 tracker.decide 同一口径）：
+        # 按结束方式结算、记终态，不当成截停。
+        deadline_cut = self.deadline_exceeded and not (
+            self.tracker.saw_terminal_event and not self.tracker.saw_error_event
+        )
+        settlement_pending = (
+            deadline_cut
+            and self.client_disconnected
+            and self.pump is not None
+            and not self.pump.producer_stopped
+        )
+        if settlement_pending:
+            assert self.pump is not None
+            pump = self.pump
+
+            # The timeout already reached the author. Keep cancellation/lease
+            # cleanup alive; settle from its final output rather than refund early.
+            async def _settle_after_deadline_cleanup() -> None:
+                await pump.wait_stopped()
+                reason, should, applied = await self.settle_billing(detached=True)
+                log_with_context(
+                    logger,
+                    20,
+                    "Agent deadline billing settled after disconnect",
+                    agent_run_id=self.agent_run_id,
+                    billing_reason=reason,
+                    charged=not should,
+                    refunded=applied,
+                    refund_scheduled=self.refund_scheduled,
+                )
+                if self.deadline_paused and self.knows_stop_contract:
+                    # 暂停卡已经送到、收尾中才断开：同样记「未完成」并把暂停卡补进历史。
+                    self.schedule_round_outcome(
+                        applied, stop_kind="incomplete", pause_card=self.deadline_pause_card
+                    )
+
+            task = asyncio.create_task(_settle_after_deadline_cleanup())
+            _detached_refund_tasks.add(task)
+            task.add_done_callback(_detached_refund_tasks.discard)
+            billing_reason, refund_applied = (
+                "server_restarting" if self._deadline_moved_up else "run_deadline_exceeded"
+            ), False
+        else:
+            billing_reason, _, refund_applied = await self.settle_billing(
+                detached=self.client_disconnected
+            )
+        # 终止帧（done 等）之后才断开的一轮已经正常结束：不写「已中断」终态。
+        # 旧前端（不带停止约定头）断线：照旧只补存部分历史，不写终态、不移除文件。
+        if self.user_stopped or (
+            self.client_disconnected
+            and not self.tracker.saw_terminal_event
+            and not self.deadline_paused
+            and self.knows_stop_contract
+        ):
+            self.schedule_round_outcome(refund_applied)
+        elif self.error_delivery and self.knows_stop_contract:
+            self.schedule_round_outcome(refund_applied, stop_kind="error", delivery=self.error_delivery)
+        elif deadline_cut and not settlement_pending and self.knows_stop_contract:
+            # 时限截停（含审稿后返修被打断）：超时终态已先发出，这里等残稿补存交回消息 id 后
+            # 再按保存回执记「已中断」，刷新后不会像正常结束一样。stop_reason 保留原值，「继续」照常恢复。
+            # 已经写进文件、发的是暂停卡时记「未完成」，并把暂停卡补进历史（刷新后同一张卡与继续按钮）。
+            if self.deadline_paused:
+                self.schedule_round_outcome(
+                    refund_applied, stop_kind="incomplete", pause_card=self.deadline_pause_card
+                )
+            else:
+                self.schedule_round_outcome(refund_applied, stop_kind="error")
+        elif self.known_incomplete and self.knows_stop_contract:
+            self.schedule_round_outcome(
+                refund_applied, stop_kind="incomplete", delivery=self.partial_delivery
+            )
+        elif self.completed_delivery and self.knows_stop_contract:
+            self.schedule_round_outcome(
+                refund_applied, stop_kind=ROUND_KIND_COMPLETED, delivery=self.completed_delivery
+            )
+
+        if billing_reason == "completed":
+            # 新用户漏斗：第一次有一轮 AI 回复正常结束（计费）。
+            _record_activation(
+                self.session,
+                self.user_id,
+                self.project_id,
+                ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
+                self.activation_entry,
+            )
+
+        # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。
+        # 取消/时限路径上 process_stream 的收尾在后台进行，摘要字段可能不全。
+        log_with_context(
+            logger,
+            20,
+            "Agent stream billing evaluated",
+            user_id=self.user_id,
+            project_id=self.project_id,
+            agent_run_id=self.agent_run_id,
+            charged=None if (settlement_pending or self.refund_scheduled) else not refund_applied,
+            settlement_pending=settlement_pending,
+            refunded=refund_applied,
+            refund_scheduled=self.refund_scheduled,
+            billing_reason=billing_reason,
+            provider_attempted=self.run_outcome.provider_attempted,
+            terminal_model_failure=self.run_outcome.terminal_model_failure,
+            saw_any_event=self.tracker.saw_any_event,
+            saw_terminal_event=self.tracker.saw_terminal_event,
+            delivered_terminal_event=self.tracker.delivered_terminal_event,
+            saw_internal_error_event=self.tracker.saw_error_event,
+            produced_output=self.tracker.produced_output,
+            write_succeeded=self.tracker.write_succeeded,
+            user_stopped=self.user_stopped,
+            client_disconnected=self.client_disconnected,
+            client_stop_contract=self.knows_stop_contract,
+            first_output_ms=self.tracker.first_output_ms,
+            unexpected_exception=self.unexpected_exception,
+            deadline_exceeded=self.deadline_exceeded,
+            **{f"run_{key}": value for key, value in run_report.items()},
+        )
 
 
 async def _acquire_account_slot(user_id: str, project_id: str):
@@ -720,436 +1296,78 @@ async def stream_request(
     async def event_generator():
         agent_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
         transport_hook_token = bind_model_transport_start(run_outcome.mark_provider_attempted)
-        tracker = StreamBillingTracker()
-        client_disconnected = False
-        user_stopped = False
-        unexpected_exception = False
-        deadline_exceeded = False
-        refund_scheduled = False
-        refund_task: asyncio.Task[bool] | None = None
-        # 作者停止、这一轮被退还时移除的空白占位文件（停止路径当场移除并告诉前端）。
-        removed_files: list[dict[str, str]] = []
-        # (billing_reason, should_refund, refund_applied)；整个请求只结算一次。
-        settlement: tuple[str, bool, bool] | None = None
-        # 本轮写进了正文的文件：停止 / 断线的终态列给作者（见 round_outcome.RoundWrittenFiles）。
-        written_files = RoundWrittenFiles()
-        error_delivery: dict[str, Any] = {}
-        partial_delivery: dict[str, Any] = {}
-        completed_delivery: dict[str, Any] = {}
-        known_incomplete = False
-        source_done = False
-        # 墙钟硬超时时本轮已经写进文件：按「未完成」收尾（暂停卡 + done，不是通用超时错误卡）。
-        deadline_paused = False
-        # 这一轮已经流出过墙钟暂停卡（图层 / runner 的时限收尾）：硬超时不再补第二张。
-        wall_clock_card_seen = False
-        # 硬超时补发的暂停卡事件数据；已经流出过墙钟暂停卡时为 None（历史里不再追加）。
-        deadline_pause_card: dict[str, Any] | None = None
-        # 随暂停卡一起发出的 done：它由时限本身产生，不交给计费记账（计费仍按墙钟超时判定）。
-        deadline_pause_done: str | None = None
-
-        def _observe_frame(frame: Any) -> None:
-            nonlocal source_done, wall_clock_card_seen
-            if deadline_pause_done is not None and frame is deadline_pause_done:
-                return
-            tracker.observe(frame)
-            written_files.observe(frame)
-            if isinstance(frame, str) and frame.startswith("event: done\n"):
-                source_done = True
-            elif isinstance(frame, str) and frame.startswith("event: iteration_exhausted\n"):
-                _, card_data = _parse_sse(frame)
-                if isinstance(card_data, dict) and card_data.get("limit") == WALL_CLOCK_LIMIT:
-                    wall_clock_card_seen = True
-
-        def _saved_output(delivery: dict[str, Any]) -> bool:
-            return written_files.saved_output(
-                delivery,
-                final_word_counts=run_outcome.saved_file_word_counts,
-                any_write_succeeded=tracker.write_succeeded,
-            )
-
-        def _confirmed_file_mutation(
-            delivery: dict[str, Any], *, original: bool = False
-        ) -> bool:
-            # Preserve a mutation already confirmed by StreamAdapter. Late
-            # cancellation saves can additionally prove one through the same
-            # delivery receipt used by stop/disconnect/timeout outcomes. Project
-            # metadata writes are saved output, but are not file mutations.
-            return original or written_files.saved_output(
-                delivery,
-                final_word_counts=run_outcome.saved_file_word_counts,
-                any_write_succeeded=tracker.file_written,
-            )
-
-        def _with_delivery(frame: str) -> str:
-            nonlocal error_delivery, partial_delivery, completed_delivery, known_incomplete
-            if deadline_exceeded or not frame.startswith(("event: error\n", "event: done\n")):
-                return frame
-            event, data = _parse_sse(frame)
-            # A deadline must be delivered before asynchronous capture cleanup.
-            # Never classify its still-pending file writes as unfinished here.
-            if not isinstance(data, dict):
-                return frame
-            delivery = written_files.delivery(final_word_counts=run_outcome.saved_file_word_counts)
-            if event == "done":
-                data["file_mutated"] = _confirmed_file_mutation(
-                    delivery, original=data.get("file_mutated") is True
-                )
-                known_incomplete = (
-                    known_incomplete
-                    or written_files.known_incomplete
-                    or bool(delivery.get("unwritten_files"))
-                )
-                if known_incomplete:
-                    partial_delivery = delivery
-                    return StreamEvent(
-                        type=EventType.DONE,
-                        data={
-                            **data,
-                            **delivery,
-                            "delivery_incomplete": True,
-                            "saved_output": _saved_output(delivery),
-                            **({"unexecuted_tool_text": True} if written_files.unexecuted_tool_text else {}),
-                        },
-                    ).to_sse()
-                # 正常收尾也带写入回执：作者对照它核对回复里说的「已修改」。
-                receipt = written_files.completion_receipt(
-                    final_word_counts=run_outcome.saved_file_word_counts,
-                )
-                if not receipt:
-                    return frame
-                completed_delivery = receipt
-                return StreamEvent(type=EventType.DONE, data={**data, **receipt}).to_sse()
-            error_delivery = delivery
-            return StreamEvent(type=EventType.ERROR, data={**data, **delivery}).to_sse()
-
-        def _deadline_error():
-            return server_restarting_error() if pump.deadline_moved_up else run_timeout_error()
-
-        def _deadline_terminal_frame() -> str | list[str] | None:
-            nonlocal deadline_exceeded, deadline_paused, deadline_pause_card, deadline_pause_done
-            deadline_exceeded = True
-            # 泵已请求取消、取消还没送达生成器：先交给 process_stream 真实原因，残稿补存
-            # 落库可「继续」的 stop_reason（发布交接提前的时限也一样）。
-            run_outcome.deadline_stop_reason = RUN_DEADLINE_STOP_REASON
-            if tracker.delivered_terminal_event:
-                return None
-            if not pump.deadline_moved_up and tracker.file_written:
-                # 墙钟时限、本轮已经写进文件：不是失败，是没做完。发与时限收尾同一张暂停卡，紧跟 done，
-                # 都在等收尾之前（收尾可能越过平台断连）。done 只列已确认写入的文件：残稿补存还没落定，
-                # 不在这里把它们说成未保存；刷新后的 stop_outcome 按最终保存回执列出。
-                # 计费照旧按墙钟超时判定：暂停卡不是终止帧，这条 done 也不交给计费记账。
-                # 图层 / runner 的时限收尾已经流出过暂停卡（卡发出后、done 之前撞上硬超时）时只补 done，
-                # 不再发第二张卡，历史里也不追加。消费方按 limit=wall_clock 认这张卡，layer 沿用图层收尾的
-                # collaboration（计费不把它当失控停止），iterations 是本轮已开始的 agent run 数。
-                deadline_paused = True
-                frames: list[str] = []
-                if not wall_clock_card_seen:
-                    english = lang == "en"
-                    card = iteration_exhausted_event(
-                        layer="collaboration",
-                        iterations_used=max(1, run_outcome.runs_started),
-                        max_iterations=AGENT_COLLABORATION_MAX_ITERATIONS,
-                        reason=DEADLINE_PAUSE_REASON_EN if english else DEADLINE_PAUSE_REASON,
-                        last_agent=None,
-                        limit=WALL_CLOCK_LIMIT,
-                    )
-                    deadline_pause_card = dict(card.data)
-                    frames.append(card.to_sse())
-                delivery = written_files.delivery(final_word_counts=run_outcome.saved_file_word_counts)
-                delivery.pop("unwritten_files", None)
-                deadline_pause_done = StreamEvent(
-                    type=EventType.DONE,
-                    data={
-                        **done_event(
-                            session_id=tracker.session_id,
-                            file_mutated=_confirmed_file_mutation(delivery),
-                            **delivery,
-                        ).data,
-                        "delivery_incomplete": True,
-                        "saved_output": _saved_output(delivery),
-                    },
-                ).to_sse()
-                return [*frames, deadline_pause_done]
-            info = _deadline_error()
-            return error_event(
-                info.message,
-                code=info.code,
-                retryable=info.retryable,
-                refundable=not run_outcome.provider_attempted,
-            ).to_sse()
-
+        stream_state = _AgentStreamSettlement(
+            session=session,
+            user_id=user_id,
+            project_id=body.project_id,
+            agent_run_id=agent_run_id,
+            charged_period_start=charged_period_start,
+            lang=lang,
+            knows_stop_contract=knows_stop_contract,
+            activation_entry=activation_entry,
+            run_outcome=run_outcome,
+        )
         # 计费看这次运行实际产出了什么：源生成器的每一帧都在入队前记账，
         # 断线时还没送到客户端的帧也算数。
         pump = SSEStreamPump(
             _primed_stream(),
             heartbeat_interval_s=AGENT_SSE_HEARTBEAT_INTERVAL_S,
             deadline_s=AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
-            on_item=_observe_frame,
-            on_deadline=_deadline_terminal_frame,
+            on_item=stream_state.observe_frame,
+            on_deadline=stream_state.deadline_terminal_frame,
         )
+        stream_state.attach_pump(pump)
         run_key = (user_id, agent_run_id)
 
-        stop_wait_timed_out = False
-
-        async def _wait_stop_message_id() -> str | None:
-            # 截停后等这一轮的助手消息 id（service 写好保存回执、落库之后交回），上限 STOP_MESSAGE_ID_WAIT_S。
-            # 一个请求里等过一次没等到就不再等：停止卡、结算、移除占位不叠加等待（断线路径的后台等待不走这里）。
-            nonlocal stop_wait_timed_out
-            if stop_wait_timed_out:
-                return await run_outcome.wait_message_id(0)
-            message_id = await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
-            if message_id is None and not run_outcome.message_id_settled():
-                stop_wait_timed_out = True
-            return message_id
-
-        committed_seen = 0
-
-        def _sync_late_write_receipts() -> None:
-            nonlocal committed_seen
-            tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
-            if committed_seen < len(run_outcome.committed_tool_results):
-                new_results = run_outcome.committed_tool_results[committed_seen:]
-                committed_seen = len(run_outcome.committed_tool_results)
-                tracker.note_committed_tool_results(new_results)
-                written_files.note_committed_tool_results(new_results)
-
-        async def _settle_billing(*, detached: bool = False) -> tuple[str, bool, bool]:
-            # 结算规则见 stream_billing；这里只负责「只结算一次」。断线路径
-            # （detached）不能挂起：要退还时交给后台任务，refund_applied 记为 False。
-            nonlocal settlement, refund_scheduled, refund_task
-            if settlement is None:
-                _sync_late_write_receipts()
-                billing_reason, should_refund = tracker.decide(
-                    # 暂停卡和 done 已经送到之后的断开（例如点「继续完成」中止旧连接）不是中断：按时限结算。
-                    client_disconnected=client_disconnected and not deadline_paused,
-                    unexpected_exception=unexpected_exception,
-                    deadline_exceeded=deadline_exceeded,
-                    user_stopped=user_stopped,
-                    server_restarting=pump.deadline_moved_up,
-                    provider_attempted=run_outcome.provider_attempted,
-                    terminal_model_failure=run_outcome.terminal_model_failure,
-                )
-                refund_applied = False
-                refund_fields = {
-                    "project_id": body.project_id,
-                    "agent_run_id": agent_run_id,
-                    "billing_reason": billing_reason,
-                }
-                if should_refund:
-                    # 退还一律放进后台任务：断线路径不能挂起；连接还开着时用 shield 等它，
-                    # 等待途中请求被取消也不会把排队中的退还一起取消。
-                    refund_task = _schedule_detached_refund(
-                        session, user_id, charged_period_start, agent_run_id, **refund_fields
-                    )
-                    refund_scheduled = refund_task is not None
-                    if refund_task is not None and not detached:
-                        # 先记下「已结算」：等待途中被取消时，finally 不会再退第二次；
-                        # 停止 / 断线的终态由 _finalize_stopped_round 等这个任务的真实结果。
-                        settlement = (billing_reason, should_refund, False)
-                        refund_applied = await asyncio.shield(refund_task)
-                        refund_scheduled = False
-                    elif refund_task is None and not detached:
-                        refund_applied = await _refund_quota(
-                            session, user_id, charged_period_start, agent_run_id, **refund_fields
-                        )
-                settlement = (billing_reason, should_refund, refund_applied)
-            return settlement
-
-        async def _offload(fn: Any, *args: Any, **kwargs: Any) -> Any:
-            if should_offload_session_work(session):
-                return await asyncio.to_thread(fn, *args, **kwargs)
-            return fn(*args, **kwargs)
-
-        async def _finalize_stopped_round(
-            stop_kind: str,
-            charged_now: bool,
-            pending_refund: asyncio.Task[bool] | None,
-            removed: list[dict[str, str]],
-            delivery: dict[str, Any] | None = None,
-            pause_card: dict[str, Any] | None = None,
-        ) -> None:
-            # 停止 / 断线一轮的收尾：断线时等后台退还落定，退还了才移除空白占位文件；
-            # 然后把终态写回这一轮的助手消息，刷新、重进项目后作者看得到。
-            charged = charged_now
-            remove_placeholders = False
-            if pending_refund is not None:
-                refunded = bool(await pending_refund)
-                charged = not refunded
-                remove_placeholders = refunded
-            # service 补存完残稿（解析器尾缓冲、未闭合围栏里的整章）才交回消息 id：移除空白
-            # 占位前先等它。等不到（超时 / 不会落库）就是补存结果未知，保留占位——宁可留一个
-            # 空章节，也不让补存撞上已删除的文件而丢稿。
-            message_id = await run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
-            _sync_late_write_receipts()
-            if remove_placeholders and message_id:
-                removed = await _offload(
-                    remove_empty_placeholders,
-                    body.project_id,
-                    run_outcome.removable(tracker.removable_placeholders()),
-                )
-            if not message_id:
-                return
-            receipts = run_outcome.saved_file_word_counts
-            removed_ids = {item.get("id", "") for item in removed}
-            if delivery is None:
-                delivery = written_files.stopped_delivery(final_word_counts=receipts, removed_ids=removed_ids)
-            elif removed_ids and delivery.get("unwritten_files"):
-                # 当场帧（error 等）的回执是移除之前取的：已移除的文件不再列为「未确认保存」。
-                unwritten = [item for item in delivery["unwritten_files"] if item.get("id") not in removed_ids]
-                delivery = {key: value for key, value in delivery.items() if key != "unwritten_files"}
-                if unwritten:
-                    delivery["unwritten_files"] = unwritten
-            await _offload(
-                record_round_outcome,
-                message_id,
-                stop_kind=stop_kind,
-                outcome=build_stop_outcome(
-                    stop_kind=stop_kind,
-                    charged=charged,
-                    # 作者看到的「已保存」只认确认的保存回执；计费仍按 tracker 的帧口径。
-                    saved_output=_saved_output(delivery),
-                    removed_files=removed,
-                    unexecuted_tool_text=written_files.unexecuted_tool_text,
-                    **delivery,
-                ),
-                pause_card=pause_card,
-            )
-
-        def _schedule_round_outcome(refund_applied: bool, *, stop_kind: str | None = None,
-                                    delivery: dict[str, Any] | None = None,
-                                    pause_card: dict[str, Any] | None = None) -> None:
-            # 不能挂起（断线路径在 GeneratorExit 里调用）：只排后台任务。
-            stop_kind = stop_kind or (STOP_KIND_USER_STOPPED if user_stopped else STOP_KIND_CLIENT_DISCONNECTED)
-            charged_now = not refund_applied
-            # 退还已在连接上落定时不再等它（也不再移除一次占位文件）；还没落定的
-            # （断线、或等待途中被取消）由收尾任务等真实结果。
-            pending_refund = None if refund_applied else refund_task
-            try:
-                task = asyncio.get_running_loop().create_task(
-                    _finalize_stopped_round(
-                        stop_kind, charged_now, pending_refund, list(removed_files), delivery,
-                        pause_card,
-                    )
-                )
-            except RuntimeError:
-                return
-            _round_outcome_tasks.add(task)
-            task.add_done_callback(_round_outcome_tasks.discard)
-
-        async def _remove_refunded_placeholders() -> list[dict[str, str]]:
-            # 出错 / 失控 / 时限被退还、连接还开着的一轮同停止路径：这一轮建好还空着的文件一并移除
-            # （残稿补存落定、交回消息 id 之后才删；等不到就保留）。旧标签页收不到 removed_files，不移除。
-            candidates = run_outcome.removable(tracker.removable_placeholders())
-            if (
-                candidates
-                and knows_stop_contract
-                and await _wait_stop_message_id()
-            ):
-                return await _offload(remove_empty_placeholders, body.project_id, candidates)
-            return []
-
-        _running_streams[run_key] = _RunningStream(pump=pump, outcome=run_outcome, tracker=tracker)
+        _running_streams[run_key] = _RunningStream(
+            pump=pump, outcome=run_outcome, tracker=stream_state.tracker
+        )
         if is_draining():
             pump.end_within(AGENT_DRAIN_STOP_AFTER_S)
         try:
             async for event in pump:
-                event = _with_delivery(event)
-                tracker.observe_delivery(event)
+                event = stream_state.with_delivery(event)
+                stream_state.tracker.observe_delivery(event)
                 yield event
             # 正常收尾：先结算，退还真正落库后才告诉前端「不计入」。
-            billing_reason, _, refund_applied = await _settle_billing()
+            billing_reason, _, refund_applied = await stream_state.settle_billing()
             if refund_applied:
-                removed_files = await _remove_refunded_placeholders()
-                yield quota_refunded_frame(billing_reason, removed_files)
+                stream_state.removed_files = await stream_state.remove_refunded_placeholders()
+                yield quota_refunded_frame(billing_reason, stream_state.removed_files)
         except StreamStoppedByUser:
             # 作者点了「停止生成」：运行已按取消路径收尾（后台落库部分历史）。
             # 连接还开着，补发停止卡片与 done（带这一轮助手消息的 id），结算后
             # 再告诉前端是否计入、移除了哪些空白文件。
-            user_stopped = True
-            run_outcome.stop_kind = STOP_KIND_USER_STOPPED
-            log_with_context(
-                logger,
-                20,  # INFO
-                "Agent stream stopped by author",
-                user_id=user_id,
-                project_id=body.project_id,
-                agent_run_id=agent_run_id,
-            )
+            stream_state.mark_user_stopped()
             try:
-                stop_frame = StreamEvent(
-                    type=EventType.WORKFLOW_STOPPED,
-                    data={"reason": USER_STOPPED_REASON, "message": USER_STOPPED_MESSAGE},
-                ).to_sse()
-                tracker.observe(stop_frame)
-                tracker.observe_delivery(stop_frame)
-                yield stop_frame
-                assistant_message_id = await _wait_stop_message_id()
-                _sync_late_write_receipts()
-                billing_reason, _, refund_applied = await _settle_billing()
-                if refund_applied and assistant_message_id:
-                    # 消息 id 已交回说明残稿补存已落定，可以当场移除。当场等不到就是补存结果未知：
-                    # 保留占位，也不留给收尾任务在后台删（作者当场收到的说明不会提到它）。
-                    try:
-                        removed_files = await _offload(
-                            remove_empty_placeholders,
-                            body.project_id,
-                            run_outcome.removable(tracker.removable_placeholders()),
-                        )
-                    except Exception as exc:
-                        log_with_context(
-                            logger,
-                            30,  # WARNING
-                            "Failed to remove empty placeholder files after a refunded stop",
-                            project_id=body.project_id,
-                            agent_run_id=agent_run_id,
-                            error=str(exc),
-                            error_type=type(exc).__name__,
-                        )
-                        removed_files = []
-                removed_ids = {item.get("id", "") for item in removed_files}
-                delivery = written_files.stopped_delivery(
-                    final_word_counts=run_outcome.saved_file_word_counts,
-                    removed_ids=removed_ids,
-                )
-                if not assistant_message_id:
-                    for item in delivery.get("written_files", []):
-                        item.pop("words", None)
-                done_frame = done_event(
-                    assistant_message_id=assistant_message_id,
-                    session_id=tracker.session_id,
-                    stop_reason=USER_STOPPED_REASON,
-                    charged=not refund_applied,
-                    produced_output=tracker.produced_output,
-                    file_mutated=_confirmed_file_mutation(delivery),
-                    # 与之后落库的 stop_outcome.written_files 同一份：停止当场的说明
-                    # 就能写明保存了哪些文件，不必等刷新。
-                    **delivery,
-                ).to_sse()
-                tracker.observe(done_frame)
-                tracker.observe_delivery(done_frame)
+                yield stream_state.make_user_stop_frame()
+                done_frame, refund_frame = await stream_state.settle_user_stop()
                 yield done_frame
-                if refund_applied:
-                    yield quota_refunded_frame(billing_reason, removed_files)
+                if refund_frame is not None:
+                    yield refund_frame
             except (asyncio.CancelledError, GeneratorExit):
                 # 收尾途中客户端断开：照断线路径结算（不能再挂起）。
-                client_disconnected = True
+                stream_state.client_disconnected = True
                 raise
         except (asyncio.CancelledError, GeneratorExit):
             # 客户端断线有两种到达方式：任务被取消（CancelledError）与生成器被
             # aclose（GeneratorExit）。GeneratorExit 路径上不能 yield，也不做任何
             # 会挂起的 await。作者先点了停止、前端等不到收尾才断开时仍算主动停止。
-            client_disconnected = True
-            user_stopped = pump.stop_requested and not deadline_exceeded
-            if user_stopped:
+            stream_state.client_disconnected = True
+            stream_state.user_stopped = pump.stop_requested and not stream_state.deadline_exceeded
+            if stream_state.user_stopped:
                 run_outcome.stop_kind = STOP_KIND_USER_STOPPED
-            elif not (tracker.saw_terminal_event or deadline_paused) and knows_stop_contract:
+            elif (
+                not (stream_state.tracker.saw_terminal_event or stream_state.deadline_paused)
+                and knows_stop_contract
+            ):
                 # 暂停卡和 done 已经送到：残稿补存保留可「继续」的时限原因，不记成断线。
                 run_outcome.stop_kind = STOP_KIND_CLIENT_DISCONNECTED
             pump.cancel()
             raise
         except StreamDeadlineExceeded:
-            deadline_exceeded = True
-            info = _deadline_error()
+            stream_state.deadline_exceeded = True
+            info = stream_state.deadline_error()
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -1160,30 +1378,25 @@ async def stream_request(
                 project_id=body.project_id,
                 agent_run_id=agent_run_id,
                 timeout_s=AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
-                paused_with_saved_output=deadline_paused,
+                paused_with_saved_output=stream_state.deadline_paused,
             )
-            if not tracker.delivered_terminal_event:
-                frame = error_event(
-                    info.message,
-                    code=info.code,
-                    retryable=info.retryable,
-                    refundable=not run_outcome.provider_attempted,
-                ).to_sse()
-                tracker.observe(frame)
-                tracker.observe_delivery(frame)
+            fallback_frame = stream_state.make_fallback_error_frame(
+                info, refundable=not run_outcome.provider_attempted
+            )
+            if fallback_frame is not None:
                 with contextlib.suppress(Exception):
-                    yield _with_delivery(frame)
+                    yield fallback_frame
             try:
-                billing_reason, _, refund_applied = await _settle_billing()
+                billing_reason, _, refund_applied = await stream_state.settle_billing()
                 if refund_applied:
-                    removed_files = await _remove_refunded_placeholders()
+                    stream_state.removed_files = await stream_state.remove_refunded_placeholders()
                     with contextlib.suppress(Exception):
-                        yield quota_refunded_frame(billing_reason, removed_files)
+                        yield quota_refunded_frame(billing_reason, stream_state.removed_files)
             except (asyncio.CancelledError, GeneratorExit):
-                client_disconnected = True
+                stream_state.client_disconnected = True
                 raise
         except Exception as exc:
-            unexpected_exception = True
+            stream_state.unexpected_exception = True
             # An exception escaping process_stream (e.g. a pre-stream setup
             # failure resolving the chat session or a Redis/DB outage) would
             # otherwise tear down the SSE connection with no terminal frame,
@@ -1199,143 +1412,20 @@ async def stream_request(
                 user_id=user_id,
                 project_id=body.project_id,
             )
-            if not tracker.delivered_terminal_event:
-                frame = error_event(
-                    info.message,
-                    code=info.code,
-                    retryable=info.retryable,
-                    refundable=run_outcome.terminal_model_failure or not run_outcome.provider_attempted,
-                ).to_sse()
-                tracker.observe(frame)
-                tracker.observe_delivery(frame)
+            fallback_frame = stream_state.make_fallback_error_frame(
+                info,
+                refundable=run_outcome.terminal_model_failure or not run_outcome.provider_attempted,
+            )
+            if fallback_frame is not None:
                 with contextlib.suppress(Exception):
-                    yield _with_delivery(frame)
-            billing_reason, _, refund_applied = await _settle_billing()
+                    yield fallback_frame
+            billing_reason, _, refund_applied = await stream_state.settle_billing()
             if refund_applied:
                 with contextlib.suppress(Exception):
                     yield quota_refunded_frame(billing_reason)
             raise
         finally:
-            running = _running_streams.get(run_key)
-            if running is not None and running.pump is pump:
-                del _running_streams[run_key]
-            # SSEStreamPump 在入队前观察源帧；客户端可能在 done 已产生、但尚未出队时断开。
-            # 用源端正常终态重新核对请求级未完成事实和最新保存回执，不能依赖消费端
-            # _with_delivery 是否运行过。停止 / 错误 / 时限分支仍在下方优先处理。
-            if source_done:
-                source_delivery = written_files.delivery(
-                    final_word_counts=run_outcome.saved_file_word_counts
-                )
-                source_known_incomplete = (
-                    written_files.known_incomplete
-                    or bool(source_delivery.get("unwritten_files"))
-                )
-                if source_known_incomplete:
-                    known_incomplete = True
-                    partial_delivery = source_delivery
-            # done 等正常终止帧已经产生之后才到的时限没有截断这一轮（与 tracker.decide 同一口径）：
-            # 按结束方式结算、记终态，不当成截停。
-            deadline_cut = deadline_exceeded and not (
-                tracker.saw_terminal_event and not tracker.saw_error_event
-            )
-            settlement_pending = (
-                deadline_cut and client_disconnected and not pump.producer_stopped
-            )
-            if settlement_pending:
-                # The timeout already reached the author. Keep cancellation/lease
-                # cleanup alive; settle from its final output rather than refund early.
-                async def _settle_after_deadline_cleanup() -> None:
-                    await pump.wait_stopped()
-                    reason, should, applied = await _settle_billing(detached=True)
-                    log_with_context(
-                        logger, 20, "Agent deadline billing settled after disconnect",
-                        agent_run_id=agent_run_id, billing_reason=reason,
-                        charged=not should, refunded=applied, refund_scheduled=refund_scheduled,
-                    )
-                    if deadline_paused and knows_stop_contract:
-                        # 暂停卡已经送到、收尾中才断开：同样记「未完成」并把暂停卡补进历史。
-                        _schedule_round_outcome(
-                            applied, stop_kind="incomplete", pause_card=deadline_pause_card
-                        )
-
-                task = asyncio.create_task(_settle_after_deadline_cleanup())
-                _detached_refund_tasks.add(task)
-                task.add_done_callback(_detached_refund_tasks.discard)
-                billing_reason, should_refund, refund_applied = (
-                    "server_restarting" if pump.deadline_moved_up else "run_deadline_exceeded"
-                ), None, False
-            else:
-                billing_reason, should_refund, refund_applied = await _settle_billing(
-                    detached=client_disconnected
-                )
-            # 终止帧（done 等）之后才断开的一轮已经正常结束：不写「已中断」终态。
-            # 旧前端（不带停止约定头）断线：照旧只补存部分历史，不写终态、不移除文件。
-            if user_stopped or (
-                client_disconnected
-                and not tracker.saw_terminal_event
-                and not deadline_paused
-                and knows_stop_contract
-            ):
-                _schedule_round_outcome(refund_applied)
-            elif error_delivery and knows_stop_contract:
-                _schedule_round_outcome(refund_applied, stop_kind="error", delivery=error_delivery)
-            elif deadline_cut and not settlement_pending and knows_stop_contract:
-                # 时限截停（含审稿后返修被打断）：超时终态已先发出，这里等残稿补存交回消息 id 后
-                # 再按保存回执记「已中断」，刷新后不会像正常结束一样。stop_reason 保留原值，「继续」照常恢复。
-                # 已经写进文件、发的是暂停卡时记「未完成」，并把暂停卡补进历史（刷新后同一张卡与继续按钮）。
-                if deadline_paused:
-                    _schedule_round_outcome(
-                        refund_applied, stop_kind="incomplete", pause_card=deadline_pause_card
-                    )
-                else:
-                    _schedule_round_outcome(refund_applied, stop_kind="error")
-            elif known_incomplete and knows_stop_contract:
-                _schedule_round_outcome(refund_applied, stop_kind="incomplete", delivery=partial_delivery)
-            elif completed_delivery and knows_stop_contract:
-                _schedule_round_outcome(
-                    refund_applied, stop_kind=ROUND_KIND_COMPLETED, delivery=completed_delivery
-                )
-
-            if billing_reason == "completed":
-                # 新用户漏斗：第一次有一轮 AI 回复正常结束（计费）。
-                _record_activation(
-                    session,
-                    user_id,
-                    body.project_id,
-                    ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
-                    activation_entry,
-                )
-
-            # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。
-            # 取消/时限路径上 process_stream 的收尾在后台进行，摘要字段可能不全。
-            log_with_context(
-                logger,
-                20,
-                "Agent stream billing evaluated",
-                user_id=user_id,
-                project_id=body.project_id,
-                agent_run_id=agent_run_id,
-                charged=None if (settlement_pending or refund_scheduled) else not refund_applied,
-                settlement_pending=settlement_pending,
-                refunded=refund_applied,
-                refund_scheduled=refund_scheduled,
-                billing_reason=billing_reason,
-                provider_attempted=run_outcome.provider_attempted,
-                terminal_model_failure=run_outcome.terminal_model_failure,
-                saw_any_event=tracker.saw_any_event,
-                saw_terminal_event=tracker.saw_terminal_event,
-                delivered_terminal_event=tracker.delivered_terminal_event,
-                saw_internal_error_event=tracker.saw_error_event,
-                produced_output=tracker.produced_output,
-                write_succeeded=tracker.write_succeeded,
-                user_stopped=user_stopped,
-                client_disconnected=client_disconnected,
-                client_stop_contract=knows_stop_contract,
-                first_output_ms=tracker.first_output_ms,
-                unexpected_exception=unexpected_exception,
-                deadline_exceeded=deadline_exceeded,
-                **{f"run_{key}": value for key, value in run_report.items()},
-            )
+            await stream_state.finish(run_key, run_report)
             reset_model_transport_start(transport_hook_token)
             reset_request_context(agent_ctx_tokens)
 
