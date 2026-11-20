@@ -323,16 +323,22 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
         yield 'event: thinking\ndata: {"message":"正在思考..."}\n\n'
 
     class MockAgentService:
-        def __init__(self, source):
+        def __init__(self, source, *, provider_attempted: bool = False):
             self._source = source
+            self._provider_attempted = provider_attempted
 
-        async def process_stream(self, **_kwargs):
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            if run_outcome is not None and self._provider_attempted:
+                run_outcome.provider_attempted = True
             async for item in self._source():
                 yield item
 
-    # 已经串流过正文：用户拿到了产出，按「本轮已有实质产出」计费，不退款。
+    # 已进入模型执行后流异常中断：不退款。
     with (
-        patch("api.agent.get_agent_service", return_value=MockAgentService(non_terminal_stream)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=MockAgentService(non_terminal_stream, provider_attempted=True),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as mock_consume,
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
     ):
@@ -349,11 +355,11 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
     mock_consume.assert_called_once()
     mock_refund.assert_not_called()
 
-    # 没有任何产出就断掉：按内部错误退款。
+    # 尚未进入模型执行就断掉：退还额度。
     with (
         patch(
             "api.agent.get_agent_service",
-            return_value=MockAgentService(non_terminal_stream_without_output),
+            return_value=MockAgentService(non_terminal_stream_without_output, provider_attempted=False),
         ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,

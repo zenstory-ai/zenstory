@@ -31,8 +31,8 @@
     "userStoppedCounted": "本条计入今日 AI 消息",
     "fileVersionLimitTitle": "文件版本额度已达上限",
     "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。",
-    "notChargedStopped": "已停止，这一轮还没有写出内容，不计入今日 AI 消息。",
-    "stoppedNothingWritten": "已停止，这一轮还没有写出内容。",
+    "notChargedStopped": "已停止，AI 还没开始生成，不计入今日 AI 消息。",
+    "stoppedNothingWritten": "已停止，这一轮还没有开始生成。",
     "resend": "重新发送",
     "roundInterrupted": "已中断",
     "roundNotCounted": "未计入今日 AI 消息",
@@ -374,7 +374,7 @@
   },
   "leaveWhileGenerating": {
     "title": "AI 还在写",
-    "message": "离开这个页面会中断这一轮。还没写出内容的话，这一轮不计入今日 AI 消息。",
+    "message": "离开这个页面会中断这一轮；AI 已开始处理时，这一轮仍计入今日 AI 消息。",
     "leave": "离开",
     "stay": "继续等",
     "messageWithOutput": "离开这个页面会中断这一轮。已经写出的内容会保存，这一轮计入今日 AI 消息。",
@@ -385,7 +385,7 @@
     "stayEnded": "留在这里"
   },
   "newChatWhileGenerating": {
-    "message": "开始新对话会先停止这一轮。还没写出内容的话，这一轮不计入今日 AI 消息。",
+    "message": "开始新对话会先停止这一轮；AI 已开始处理时，这一轮仍计入今日 AI 消息。",
     "messageWithOutput": "开始新对话会先停止这一轮。已经写出的内容会保存，这一轮计入今日 AI 消息。",
     "messageWithOutputUnlimited": "开始新对话会先停止这一轮，已经写出的内容会保存。",
     "messageUnlimited": "开始新对话会先停止这一轮。",

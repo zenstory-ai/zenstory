@@ -5,8 +5,10 @@
 异常归类成固定的错误码，前端按错误码显示 i18n 文案；完整异常只写服务器日志。
 
 - retryable：暂时性故障（上游限流、5xx、超时、连接失败）为 True，前端显示重试。
-- refundable：本次失败是否属于「平台侧故障」、可以退还对话额度。api/agent.py
-  另外还会看本轮是否已有实质产出（已串流正文 / 已写入文件），有产出一律不退。
+- refundable：本次错误本身是否属于可退还的错误类型（未恢复的上游模型服务错误，或尚未
+  进入模型执行前的预检 / 平台错误）。护栏、时限与发布交接等已进入模型执行后的停止均为
+  False；最终是否退还由 ``stream_billing.StreamBillingTracker.decide`` 依据结构化执行
+  事实（``provider_attempted`` / ``terminal_model_failure``）统一结算。
 """
 
 from __future__ import annotations
@@ -146,14 +148,18 @@ def stream_error_from_event_data(data: Any) -> StreamErrorInfo:
     )
 
 
-# code -> (retryable, refundable) 的默认值。熔断是模型/用户行为造成的停止，
-# 不是平台故障：不可重试、不退款。
+# code -> (retryable, refundable) 的默认值。护栏、时限与发布交接均在进入模型后触发，
+# 默认不退款；仅上游模型报错与进入模型前的预检失败退还。
 _DEFAULT_FLAGS: dict[str, tuple[bool, bool]] = {
     ErrorCode.AGENT_TOOL_FAILURE_LIMIT: (False, False),
+    ErrorCode.AGENT_NO_PROGRESS: (False, False),
+    ErrorCode.AGENT_REPETITION_LOOP: (False, False),
+    ErrorCode.AGENT_OUTPUT_TRUNCATED: (False, False),
+    ErrorCode.AGENT_OUTPUT_REPEATEDLY_TRUNCATED: (False, False),
     ErrorCode.AGENT_CONTEXT_TOO_LONG: (True, True),
-    ErrorCode.AGENT_RUN_TIMEOUT: (False, True),
-    ErrorCode.AGENT_SERVER_RESTARTING: (False, True),
-    ErrorCode.AGENT_MODEL_CALL_LIMIT: (False, True),
+    ErrorCode.AGENT_RUN_TIMEOUT: (False, False),
+    ErrorCode.AGENT_SERVER_RESTARTING: (False, False),
+    ErrorCode.AGENT_MODEL_CALL_LIMIT: (False, False),
 }
 
 
@@ -161,9 +167,8 @@ REPETITION_LOOP_STOP_REASON = "repetition_loop"
 
 
 def repetition_loop_error() -> StreamErrorInfo:
-    """模型把一大段原样再写一遍、被截停：不给重试按钮（重发原请求只会从头再来），回复「继续」接着写。
-    stream_billing 按失控停止结算（reason=repetition_loop）：本轮没有写入成功就退还。"""
-    return StreamErrorInfo(ErrorCode.AGENT_REPETITION_LOOP, False, True)
+    """模型把一大段原样再写一遍、被截停：不给重试按钮（重发原请求只会从头再来），回复「继续」接着写。"""
+    return StreamErrorInfo(ErrorCode.AGENT_REPETITION_LOOP, False, False)
 
 
 def tool_failure_error() -> StreamErrorInfo:
@@ -171,27 +176,24 @@ def tool_failure_error() -> StreamErrorInfo:
 
 
 def model_call_limit_error() -> StreamErrorInfo:
-    return StreamErrorInfo(ErrorCode.AGENT_MODEL_CALL_LIMIT, False, True)
+    return StreamErrorInfo(ErrorCode.AGENT_MODEL_CALL_LIMIT, False, False)
 
 
 def output_truncated_error(*, repeated: bool = False) -> StreamErrorInfo:
-    """最后一次响应只有思考就撞上输出上限：与同类「回复继续」的停止一样不给重试按钮
-    （重试会重发原请求、从头再做一遍）；是否退还交给 stream_billing 的既有规则
-    （本轮无产出退还，有产出照常计费）。"""
+    """最后一次响应只有思考就撞上输出上限：不给重试按钮，回复「继续」接着做；已进入模型执行照常计费。"""
     code = (
         ErrorCode.AGENT_OUTPUT_REPEATEDLY_TRUNCATED if repeated else ErrorCode.AGENT_OUTPUT_TRUNCATED
     )
-    return StreamErrorInfo(code, False, True)
+    return StreamErrorInfo(code, False, False)
 
 
 def run_timeout_error() -> StreamErrorInfo:
-    return StreamErrorInfo(ErrorCode.AGENT_RUN_TIMEOUT, False, True)
+    return StreamErrorInfo(ErrorCode.AGENT_RUN_TIMEOUT, False, False)
 
 
 def server_restarting_error() -> StreamErrorInfo:
-    """发布交接时旧进程结束仍在运行的一轮（见 agent.core.server_drain）：与墙钟超时同一条
-    收尾与计费规则，作者回复「继续」接着做。"""
-    return StreamErrorInfo(ErrorCode.AGENT_SERVER_RESTARTING, False, True)
+    """发布交接时旧进程结束仍在运行的一轮（见 agent.core.server_drain）：已进入模型执行照常计费，作者回复「继续」接着做。"""
+    return StreamErrorInfo(ErrorCode.AGENT_SERVER_RESTARTING, False, False)
 
 
 def log_stream_exception(

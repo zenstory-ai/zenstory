@@ -341,24 +341,23 @@ async def test_loop_author_stop_settles_billing_and_records_the_stop_outcome(
     events = _parse_sse("".join(received))
     done = [payload for name, payload in events if name == "done"][-1]
     assert done["stop_reason"] == "user_stopped"
+    assert done["charged"] is True
+    assert done["produced_output"] is wrote_body
     row = _assistant_row(db_session, project)
     metadata = json.loads(row.message_metadata)
     assert metadata["engine"] == "loop" and metadata["stop_reason"] == "user_stopped"
     outcome = metadata["stop_outcome"]
     assert outcome["reason"] == "user_stopped"
+    release.assert_not_called()
+    assert [payload for name, payload in events if name == "quota_refunded"] == []
+    assert outcome["charged"] is True and outcome["saved_output"] is wrote_body
     if wrote_body:
-        release.assert_not_called()
-        assert outcome["charged"] is True and outcome["saved_output"] is True
         [written] = outcome["written_files"]
         assert written["title"] == "第1章 雨夜" and written["words"] > 0
-    else:
-        release.assert_called_once()
-        assert outcome["charged"] is False
-        assert [payload for name, payload in events if name == "quota_refunded"] == [{"refunded": True, "kind": "stopped"}]
 
 
 @pytest.mark.asyncio
-async def test_loop_wall_clock_deadline_without_output_ends_with_timeout_and_refund(
+async def test_loop_wall_clock_deadline_after_model_start_is_charged(
     client: AsyncClient, db_session: Session, shell_db, scripted, monkeypatch
 ):
     from services.quota_service import quota_service
@@ -378,12 +377,12 @@ async def test_loop_wall_clock_deadline_without_output_ends_with_timeout_and_ref
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
     assert "ERR_AGENT_RUN_TIMEOUT" in text
-    release.assert_called_once()
-    assert '"kind": "error"' in text.split("event: quota_refunded", 1)[1]
+    release.assert_not_called()
+    assert "event: quota_refunded" not in text
 
 
 @pytest.mark.asyncio
-async def test_loop_tool_turn_exhaustion_without_writes_is_refunded_as_runaway(
+async def test_loop_tool_turn_exhaustion_without_writes_is_charged_after_model_start(
     client: AsyncClient, db_session: Session, shell_db, scripted
 ):
     from services.quota_service import quota_service
@@ -404,8 +403,8 @@ async def test_loop_tool_turn_exhaustion_without_writes_is_refunded_as_runaway(
     events = _parse_sse(response.text)
     [card] = [payload for name, payload in events if name == "iteration_exhausted"]
     assert card["layer"] == "tool_call" and card.get("last_agent") in (None, "")
-    release.assert_called_once()
-    assert [payload for name, payload in events if name == "quota_refunded"] == [{"refunded": True, "kind": "no_progress"}]
+    release.assert_not_called()
+    assert [payload for name, payload in events if name == "quota_refunded"] == []
 
 
 @pytest.mark.asyncio
@@ -448,10 +447,10 @@ async def test_loop_steering_during_a_run_is_taken_up_in_the_same_turn(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("ending", ["user_stopped", "client_disconnected", "deadline"])
-async def test_loop_replacement_cut_off_mid_body_leaves_the_chapter_and_is_refunded(
+async def test_loop_replacement_cut_off_mid_body_leaves_the_chapter_and_is_charged(
     client: AsyncClient, db_session: Session, shell_db, scripted, monkeypatch, ending
 ):
-    """整章替换的正文流到一半就停止 / 断线 / 到时：原文不变，流过的正文不算产出，这一轮退还。"""
+    """整章替换的正文流到一半就停止 / 断线 / 到时：原文不变（覆盖保护），但已进入模型执行仍照常计费。"""
     from services.quota_service import quota_service
 
     user, _token, project = await _login(client, db_session)
@@ -490,15 +489,18 @@ async def test_loop_replacement_cut_off_mid_body_leaves_the_chapter_and_is_refun
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
     assert _content(db_session, three.id) == "合成第三章原文。"
-    release.assert_called_once()
+    release.assert_not_called()
     text = "".join(received)
     if ending == "deadline":
         assert "ERR_AGENT_RUN_TIMEOUT" in text
-    if ending != "client_disconnected":
-        assert "event: quota_refunded" in text
+    assert "event: quota_refunded" not in text
     if ending == "user_stopped":
+        events = _parse_sse(text)
+        done = [payload for name, payload in events if name == "done"][-1]
+        assert done["charged"] is True and done["produced_output"] is False
         metadata = json.loads(_assistant_row(db_session, project).message_metadata)
-        assert metadata["stop_outcome"]["charged"] is False
+        assert metadata["stop_outcome"]["charged"] is True
+        assert metadata["stop_outcome"]["saved_output"] is False
 
 
 @pytest.mark.asyncio
@@ -598,7 +600,11 @@ async def test_loop_replacement_committed_while_the_round_is_cut_off_is_charged(
         else:
             await iterator.aclose()
             allow_save.set()
-            await asyncio.gather(*agent_api._detached_refund_tasks)
+            for _ in range(50):
+                if _content(db_session, three.id).rstrip("\n") == NEW_BODY:
+                    break
+                await asyncio.sleep(0.02)
+            await agent_api.wait_for_stream_cleanup(5.0)
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
     assert _content(db_session, three.id).rstrip("\n") == NEW_BODY
@@ -607,3 +613,102 @@ async def test_loop_replacement_committed_while_the_round_is_cut_off_is_charged(
     if ending == "user_stopped":
         metadata = json.loads(_assistant_row(db_session, project).message_metadata)
         assert metadata["stop_outcome"]["charged"] is True
+
+
+@pytest.mark.asyncio
+async def test_loop_stop_after_empty_create_file_reports_charged_and_unwritten_files(
+    client: AsyncClient, db_session: Session, shell_db, scripted
+):
+    """新建空文件后在正文开始前停止：已进入模型执行照常计费，空壳保留并在 done 与 stop_outcome 如实列为 unwritten_files。"""
+    from services.quota_service import quota_service
+
+    user, _token, project = await _login(client, db_session)
+    hang = asyncio.Event()
+    model = ScriptedModel(runs=[[
+        Reply(text="", tools=(("create_file", {"title": "世界观设定", "file_type": "outline"}),)),
+        Reply(text="", hang=hang),
+    ]])
+
+    real_release = quota_service.release_ai_conversation
+    patches = scripted(model)
+    received: list[str] = []
+    with patches[0], patches[1], patches[2], patches[3], patch.object(
+        quota_service, "release_ai_conversation", side_effect=real_release
+    ) as release:
+        response = await _start(db_session, user, project, "新建世界观设定")
+        iterator = response.body_iterator
+        await _read_until(iterator, "file_created", received)
+        stopped = await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+        assert stopped.stop_requested is True
+        received.extend([frame async for frame in iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    events = _parse_sse("".join(received))
+    done = [payload for name, payload in events if name == "done"][-1]
+    assert done["charged"] is True
+    assert done["produced_output"] is False
+    assert [item["title"] for item in done["unwritten_files"]] == ["世界观设定"]
+    release.assert_not_called()
+    assert [payload for name, payload in events if name == "quota_refunded"] == []
+    outcome = json.loads(_assistant_row(db_session, project).message_metadata)["stop_outcome"]
+    assert outcome["charged"] is True
+    assert outcome["saved_output"] is False
+    assert [item["title"] for item in outcome["unwritten_files"]] == ["世界观设定"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error_kind", ["mid_stream_503", "context_400"])
+async def test_loop_unrecovered_upstream_model_error_is_refunded_even_after_text(
+    client: AsyncClient, db_session: Session, shell_db, monkeypatch, error_kind
+):
+    """主备均挂或 4xx 上游模型报错终止整轮（即使已流出正文）：退还额度并补发 quota_refunded(kind=error)。"""
+    from types import SimpleNamespace
+
+    import httpx
+    import openai
+
+    from agent.core import llm_failover
+    from agent.openai_agents import model as sdk_model
+    from services.quota_service import quota_service
+    from services.usage.cost_budget import notify_model_transport_start
+
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("MINIMAX_API_KEY", "synthetic-minimax")
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    llm_failover.reset_failover_state()
+
+    req = httpx.Request("POST", "https://llm.test")
+    exc = (
+        openai.InternalServerError("503", response=httpx.Response(503, request=req), body=None)
+        if error_kind == "mid_stream_503"
+        else openai.BadRequestError("context length exceeded", response=httpx.Response(400, request=req), body=None)
+    )
+
+    class _FailingSdkModel:
+        async def stream_response(self, *_a, **_kw):
+            notify_model_transport_start()
+            if error_kind == "mid_stream_503":
+                yield SimpleNamespace(type="response.output_text.delta", delta="已经流出的正文" * 20)
+            raise exc
+
+    _user, token, project = await _login(client, db_session)
+    real_release = quota_service.release_ai_conversation
+    with (
+        patch.object(sdk_model, "_sdk_model_for", return_value=_FailingSdkModel()),
+        patch.object(sdk_model, "_settings_for", side_effect=lambda _p, s: s),
+        patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record"),
+        patch.object(quota_service, "release_ai_conversation", side_effect=real_release) as release,
+    ):
+        response = await _post(client, token, project, "写第一章")
+    llm_failover.reset_failover_state()
+
+    events = _parse_sse(response.text)
+    [err_frame] = [payload for name, payload in events if name == "error"]
+    assert err_frame["refundable"] is True
+    assert [payload for name, payload in events if name == "quota_refunded"] == [{"refunded": True, "kind": "error"}]
+    release.assert_called_once()

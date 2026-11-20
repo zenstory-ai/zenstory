@@ -110,8 +110,8 @@ type StreamErrorEventData = {
 };
 
 /**
- * quota_refunded 帧的三种说法：失控停止且没改文件 / 平台出错且没有产出 /
- * 作者点了停止且这一轮还没有任何产出。
+ * quota_refunded 帧的三种说法：失控停止未扣额（历史兼容） / 模型服务或预检出错未扣额 /
+ * 模型开始处理前作者点了停止未扣额。
  */
 export type QuotaRefundKind = "no_progress" | "error" | "stopped";
 
@@ -129,7 +129,7 @@ export interface RemovedPlaceholderFile {
 }
 
 /**
- * done 帧。作者停止的一轮额外带 stop_reason / produced_output（是否已有实质产出），
+ * done 帧。作者停止的一轮额外带 stop_reason / charged（真实结算后是否计入今日额度） / produced_output，
  * 写进了正文的文件不为空时还带 written_files（与刷新后 stop_outcome.written_files 同一份）。
  */
 export interface StreamDoneData {
@@ -137,6 +137,7 @@ export interface StreamDoneData {
   session_id?: string;
   file_mutated?: boolean;
   stop_reason?: string;
+  charged?: boolean;
   produced_output?: boolean;
   written_files?: { id?: string; title?: string; words?: number; partial?: boolean }[];
   unwritten_files?: { id?: string; title?: string }[];

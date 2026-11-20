@@ -758,10 +758,9 @@ async def test_sdk_run_stops_changed_invalid_ids_with_non_refundable_recovery_er
 
     tracker = StreamBillingTracker()
     tracker.observe(f"event: error\ndata: {json.dumps(error, ensure_ascii=False)}\n\n")
-    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == (
-        "non_refundable_error",
-        False,
-    )
+    assert tracker.decide(
+        client_disconnected=False, unexpected_exception=False, provider_attempted=True
+    ) == ("non_model_error", False)
 
 
 @pytest.mark.asyncio
