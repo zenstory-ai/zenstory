@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { UpgradePromptModal } from "./UpgradePromptModal";
 import { RedeemCodeModal } from "./RedeemCodeModal";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../../config/upgradeExperience";
+import { getUpgradePromptDefinition } from "../../config/upgradeExperience";
 import { useProMaterialDecompositionsLimit } from "../../hooks/useProMaterialDecompositionsLimit";
 import { useMaterialsCheckoutUnavailableText, useMaterialsProEntry } from "../../hooks/useMaterialsProEntry";
 import { subscriptionApi, subscriptionQueryKeys } from "../../lib/subscriptionApi";
@@ -74,9 +74,9 @@ export function MaterialsUpgradePromptModal({
       <UpgradePromptModal
         open={open}
         onClose={onClose}
+        promptId="material_upload_quota_blocked"
         source={source}
         primaryDestination={checkoutOff ? "redeem" : "billing"}
-        secondaryDestination="pricing"
         title={t("materials:quota.uploadTitle", { defaultValue: "素材库是 Pro 功能" })}
         description={
           checkoutOff
@@ -86,17 +86,8 @@ export function MaterialsUpgradePromptModal({
         }
         paidDescription={paidDescription}
         primaryLabel={label}
-        onPrimary={() => {
-          if (checkoutOff) {
-            setRedeemOpen(true);
-            return;
-          }
-          window.location.assign(buildUpgradeUrl(materialUploadUpgradePrompt.billingPath, source));
-        }}
+        onPrimary={checkoutOff ? () => setRedeemOpen(true) : undefined}
         secondaryLabel={t("materials:quota.upgradeSecondary", { defaultValue: "查看套餐对比" })}
-        onSecondary={() => {
-          window.location.assign(buildUpgradeUrl(materialUploadUpgradePrompt.pricingPath, source));
-        }}
       />
       <RedeemCodeModal isOpen={redeemOpen} onClose={() => setRedeemOpen(false)} source={source} />
     </>

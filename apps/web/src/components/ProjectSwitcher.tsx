@@ -30,7 +30,7 @@ import { useIsMobile } from "../hooks/useMediaQuery";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { IconButton } from "./ui/IconButton";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
+import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 
 /**
  * Props for the ProjectSwitcher component.
@@ -521,9 +521,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       <UpgradePromptModal
         open={showProjectQuotaUpgradeModal}
         onClose={() => setShowProjectQuotaUpgradeModal(false)}
-        source={projectQuotaUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
+        promptId="project_quota_blocked"
         title={t('editor:projectSwitcher.projectQuotaExceededTitle', {
           defaultValue: '项目数量已达上限',
         })}
@@ -531,17 +529,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
           defaultValue: '可以先删除不再需要的项目，或开通 Pro，项目不限。',
         })}
         primaryLabel={t('dashboard:billing.ctaUpgradePro', '开通 Pro')}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(projectQuotaUpgradePrompt.billingPath, projectQuotaUpgradePrompt.source)
-          );
-        }}
         secondaryLabel={t('home:pricingTeaser.viewPricing', '查看套餐权益')}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(projectQuotaUpgradePrompt.pricingPath, projectQuotaUpgradePrompt.source)
-          );
-        }}
       />
     </>
   );

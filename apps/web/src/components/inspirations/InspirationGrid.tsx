@@ -8,7 +8,7 @@ import { ApiError } from "../../lib/apiClient";
 import { toast } from "../../lib/toast";
 import { Skeleton } from "../ui/Skeleton";
 import { UpgradePromptModal } from "../subscription/UpgradePromptModal";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../../config/upgradeExperience";
+import { getUpgradePromptDefinition } from "../../config/upgradeExperience";
 
 interface InspirationGridProps {
   /** Filter by project type */
@@ -327,8 +327,10 @@ export function InspirationGrid({
       />
 
       {(() => {
-        const prompt =
-          upgradeModalVariant === "project_quota" ? projectQuotaUpgradePrompt : inspirationUpgradePrompt;
+        const promptId =
+          upgradeModalVariant === "project_quota"
+            ? "project_quota_blocked"
+            : "inspiration_copy_quota_blocked";
 
         const modalCopy =
           upgradeModalVariant === "project_quota"
@@ -343,28 +345,16 @@ export function InspirationGrid({
               };
 
         return (
-      <UpgradePromptModal
-        open={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        source={prompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
-        title={modalCopy.title}
-        description={modalCopy.description}
-        paidDescription={"paidDescription" in modalCopy ? modalCopy.paidDescription : undefined}
-        primaryLabel={t("copyQuotaUpgradePrimary")}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(prompt.billingPath, prompt.source)
-          );
-        }}
-        secondaryLabel={t("copyQuotaUpgradeSecondary")}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(prompt.pricingPath, prompt.source)
-          );
-        }}
-      />
+          <UpgradePromptModal
+            open={showUpgradeModal}
+            onClose={() => setShowUpgradeModal(false)}
+            promptId={promptId}
+            title={modalCopy.title}
+            description={modalCopy.description}
+            paidDescription={"paidDescription" in modalCopy ? modalCopy.paidDescription : undefined}
+            primaryLabel={t("copyQuotaUpgradePrimary")}
+            secondaryLabel={t("copyQuotaUpgradeSecondary")}
+          />
         );
       })()}
     </div>

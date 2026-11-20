@@ -1,43 +1,10 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
-const mockGetAccessToken = vi.fn()
-const mockGetApiBase = vi.fn(() => 'http://localhost:8000')
-const mockTryRefreshToken = vi.fn()
-const mockClearAuthStorage = vi.fn()
 const mockResolveApiErrorMessage = vi.fn()
-
-vi.mock('../apiClient', () => {
-  class MockApiError extends Error {
-    status: number
-    details?: Record<string, unknown>
-    detailText?: string
-
-    constructor(status: number, message: string, details?: Record<string, unknown>, detailText?: string) {
-      super(message)
-      this.status = status
-      this.name = 'ApiError'
-      this.details = details
-      this.detailText = detailText
-    }
-  }
-  return {
-    ApiError: MockApiError,
-    apiErrorFromPayload: (status: number, errorData: unknown) => {
-      const errorMessage = mockResolveApiErrorMessage(errorData, `API error: ${status}`)
-      return new MockApiError(status, errorMessage)
-    },
-    clearAuthStorage: (...args: unknown[]) => mockClearAuthStorage(...args),
-    getAccessToken: () => mockGetAccessToken(),
-    getApiBase: () => mockGetApiBase(),
-    resolveOwnedAuthSession: () => ({
-      accessToken: mockGetAccessToken(), refreshToken: localStorage.getItem('refresh_token'),
-    }),
-    tryRefreshToken: () => mockTryRefreshToken(),
-  }
-})
 
 vi.mock('../errorHandler', () => ({
   resolveApiErrorMessage: (...args: unknown[]) => mockResolveApiErrorMessage(...args),
+  toUserErrorMessage: (message: string) => message,
 }))
 
 import { feedbackApi } from '../feedbackApi'
@@ -48,11 +15,9 @@ describe('feedbackApi.submit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', fetchMock)
-    mockGetAccessToken.mockReturnValue('test-access-token')
+    localStorage.clear()
     localStorage.setItem('access_token', 'test-access-token')
     localStorage.setItem('refresh_token', 'test-refresh-token')
-    mockGetApiBase.mockReturnValue('http://localhost:8000')
-    mockTryRefreshToken.mockResolvedValue(false)
     mockResolveApiErrorMessage.mockImplementation(
       (_errorData: unknown, fallbackMessage: string) => fallbackMessage
     )
@@ -109,17 +74,20 @@ describe('feedbackApi.submit', () => {
       message: 'Feedback submitted successfully.',
       created_at: '2026-03-07T12:00:00Z',
     }
-    mockTryRefreshToken.mockImplementation(async () => {
-      mockGetAccessToken.mockReturnValue('rotated-access-token')
-      localStorage.setItem('access_token', 'rotated-access-token')
-      localStorage.setItem('refresh_token', 'rotated-refresh-token')
-      return true
-    })
 
     fetchMock
       .mockResolvedValueOnce({
         ok: false,
         status: 401,
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          access_token: 'rotated-access-token',
+          refresh_token: 'rotated-refresh-token',
+          user: { id: 'user-1' },
+        }),
       } as unknown as Response)
       .mockResolvedValueOnce({
         ok: true,
@@ -133,8 +101,11 @@ describe('feedbackApi.submit', () => {
     })
 
     expect(result).toEqual(mockResponse)
-    expect(mockTryRefreshToken).toHaveBeenCalledTimes(1)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('http://localhost:8000/api/auth/refresh')
+    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({
+      headers: expect.objectContaining({ Authorization: 'Bearer rotated-access-token' }),
+    })
   })
 
   it('throws ApiError with resolved backend message', async () => {
@@ -183,12 +154,11 @@ describe('feedbackApi.submit', () => {
   })
 
   it('clears expired auth storage when replayed request after refresh still returns 401', async () => {
-    mockTryRefreshToken.mockImplementation(async () => {
-      mockGetAccessToken.mockReturnValue('rotated-access-token')
-      localStorage.setItem('access_token', 'rotated-access-token')
-      localStorage.setItem('refresh_token', 'rotated-refresh-token')
-      return true
-    })
+    const logoutReasons: string[] = []
+    const onLogout = (event: Event) => {
+      logoutReasons.push((event as CustomEvent<{ reason: string }>).detail.reason)
+    }
+    window.addEventListener('auth:logout', onLogout)
 
     fetchMock
       .mockResolvedValueOnce({
@@ -197,21 +167,35 @@ describe('feedbackApi.submit', () => {
         json: vi.fn().mockResolvedValue({ detail: 'Unauthorized' }),
       } as unknown as Response)
       .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          access_token: 'rotated-access-token',
+          refresh_token: 'rotated-refresh-token',
+          user: { id: 'user-1' },
+        }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
         ok: false,
         status: 401,
         json: vi.fn().mockResolvedValue({ detail: 'Unauthorized' }),
       } as unknown as Response)
 
-    await expect(
-      feedbackApi.submit({
-        issueText: 'Session expired',
-        sourcePage: 'dashboard',
+    try {
+      await expect(
+        feedbackApi.submit({
+          issueText: 'Session expired',
+          sourcePage: 'dashboard',
+        })
+      ).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 401,
       })
-    ).rejects.toMatchObject({
-      name: 'ApiError',
-      status: 401,
-    })
 
-    expect(mockClearAuthStorage).toHaveBeenCalledWith('retry_still_unauthorized')
+      expect(logoutReasons).toEqual(['retry_still_unauthorized'])
+      expect(localStorage.getItem('access_token')).toBeNull()
+    } finally {
+      window.removeEventListener('auth:logout', onLogout)
+    }
   })
 })

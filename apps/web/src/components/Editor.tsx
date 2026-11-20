@@ -34,7 +34,7 @@ import { FOLDER_TYPE_MAP } from "../lib/folderTypeMap";
 import { FileText, Users, BookOpen, Sparkles, Folder, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
+import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { claimAutoUpgradePrompt } from "../lib/upgradeTriggerStrategy";
 import { captureException, trackEvent } from "../lib/analytics";
 import { rearmAiFileOpened, reportActivationEvent } from "../lib/activationEvents";
@@ -942,26 +942,14 @@ const EditorComponent: React.FC<EditorProps> = () => {
       <UpgradePromptModal
         open={showFileVersionUpgradeModal}
         onClose={() => setShowFileVersionUpgradeModal(false)}
-        source={fileVersionUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
+        promptId="file_version_quota_blocked"
         title={t("editor:versionHistory.fileVersionLimitTitle")}
         description={t("editor:versionHistory.fileVersionLimitUpgrade")}
         paidDescription={t("editor:versionHistory.fileVersionLimitPaid", {
           defaultValue: "正文照常保存，只是这个文件不再生成新版本。",
         })}
         primaryLabel={t("common:viewUpgrade")}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(fileVersionUpgradePrompt.billingPath, fileVersionUpgradePrompt.source)
-          );
-        }}
         secondaryLabel={t("common:viewPlans")}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(fileVersionUpgradePrompt.pricingPath, fileVersionUpgradePrompt.source)
-          );
-        }}
       />
     </>
   );

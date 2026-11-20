@@ -4,20 +4,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// Mock the api client from apiClient
-const mockGetAccessToken = vi.fn<() => string | null>(() => 'test-token')
-const mockTryRefreshToken = vi.fn(() => Promise.resolve(true))
-
 vi.mock('../apiClient', async importOriginal => {
   const actual = await importOriginal<typeof import('../apiClient')>()
   return {
-    resolveOwnedAuthSession: actual.resolveOwnedAuthSession,
-    apiErrorFromPayload: actual.apiErrorFromPayload,
-    ApiError: actual.ApiError,
+    ...actual,
     api: {},
-    getApiBase: vi.fn(() => 'http://localhost:8000'),
-    getAccessToken: () => mockGetAccessToken(),
-    tryRefreshToken: () => mockTryRefreshToken(),
   }
 })
 
@@ -27,7 +18,7 @@ global.fetch = vi.fn()
 describe('fileApi.uploadDraft', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetAccessToken.mockReturnValue('test-token')
+    localStorage.clear()
     localStorage.setItem('access_token', 'test-token')
     localStorage.setItem('refresh_token', 'test-refresh-token')
   })
@@ -140,16 +131,26 @@ describe('fileApi.uploadDraft', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: 'rotated-token',
+          refresh_token: 'rotated-refresh-token',
+          user: { id: 'user-1' },
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
         json: async () => mockSuccessResponse,
       } as Response)
-
-    mockTryRefreshToken.mockResolvedValue(true)
 
     const result = await uploadDraft('project-1', mockFile)
 
     expect(result.total).toBe(1)
-    expect(mockTryRefreshToken).toHaveBeenCalled()
-    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(global.fetch).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(global.fetch).mock.calls[1]?.[0]).toContain('/api/auth/refresh')
+    expect(vi.mocked(global.fetch).mock.calls[2]?.[1]).toMatchObject({
+      headers: { Authorization: 'Bearer rotated-token' },
+    })
   })
 
   it('throws ApiError on server error response', async () => {
@@ -178,7 +179,7 @@ describe('fileApi.uploadDraft', () => {
     const uploadDraft = await getUploadDraft()
     const mockFile = new File(['content'], 'draft.txt', { type: 'text/plain' })
 
-    mockGetAccessToken.mockReturnValue(null)
+    localStorage.removeItem('access_token')
 
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,

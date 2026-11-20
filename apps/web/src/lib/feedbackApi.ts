@@ -1,4 +1,4 @@
-import { apiErrorFromPayload, clearAuthStorage, getAccessToken, getApiBase, resolveOwnedAuthSession, tryRefreshToken } from "./apiClient";
+import { authenticatedFetch, readApiError } from "./apiClient";
 
 export type FeedbackSourcePage = "dashboard" | "editor";
 
@@ -24,8 +24,6 @@ export interface FeedbackSubmitResponse {
 
 export const feedbackApi = {
   submit: async (payload: SubmitFeedbackPayload): Promise<FeedbackSubmitResponse> => {
-    const entryAccess = getAccessToken();
-    const entryRefresh = localStorage.getItem("refresh_token");
     const formData = new FormData();
     formData.append("issue_text", payload.issueText);
     formData.append("source_page", payload.sourcePage);
@@ -44,64 +42,20 @@ export const feedbackApi = {
       formData.append("screenshot", payload.screenshot);
     }
 
-    const fetchOnce = async (accessToken: string | null): Promise<Response> => {
-      const language = localStorage.getItem("zenstory-language") || "zh";
-      return fetch(`${getApiBase()}/api/v1/feedback`, {
+    const response = await authenticatedFetch(
+      "/api/v1/feedback",
+      {
         method: "POST",
-        headers: {
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-          "Accept-Language": language,
-        },
         body: formData,
-      });
-    };
-
-    let response = await fetchOnce(entryAccess);
-    if (response.status === 401) {
-      const currentAccessToken = localStorage.getItem("access_token");
-      const currentRefreshToken = localStorage.getItem("refresh_token");
-      const stillOwnsRequestSession =
-        currentAccessToken === entryAccess &&
-        currentRefreshToken === entryRefresh;
-      const belongsToRotatedSession =
-        resolveOwnedAuthSession(entryAccess, entryRefresh) !== null;
-
-      if (stillOwnsRequestSession || belongsToRotatedSession) {
-        if (!entryAccess || !entryRefresh) {
-          if (stillOwnsRequestSession) {
-            clearAuthStorage("missing_token");
-          }
-        } else {
-          let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
-          if (ownedSession?.accessToken && ownedSession.refreshToken) {
-            if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-              const refreshed = await tryRefreshToken();
-              ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-            }
-            if (ownedSession?.accessToken && ownedSession.refreshToken) {
-              const { accessToken: retryAccess, refreshToken: retryRefresh } = ownedSession;
-              response = await fetchOnce(retryAccess);
-              if (
-                response.status === 401 &&
-                localStorage.getItem("access_token") === retryAccess &&
-                localStorage.getItem("refresh_token") === retryRefresh
-              ) {
-                clearAuthStorage("retry_still_unauthorized");
-              }
-            }
-          }
-        }
-      }
-    }
+      },
+      {
+        includeLanguage: true,
+        clearOnUnrecoverable401: true,
+      },
+    );
 
     if (!response.ok) {
-      let errorData: unknown = null;
-      try {
-        errorData = await response.json();
-      } catch {
-        // Non-JSON gateway or proxy error body; fall back to status-based ApiError
-      }
-      throw apiErrorFromPayload(response.status, errorData);
+      throw await readApiError(response);
     }
 
     return response.json();

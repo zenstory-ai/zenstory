@@ -27,7 +27,8 @@ import type {
   VersionComparison,
   VersionContentResponse,
 } from "../types";
-import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { api, ApiError, authenticatedFetch, getApiBase, readApiError } from "./apiClient";
+import { downloadBlob } from "./downloadBlob";
 import { getLocale } from "./i18n-helpers";
 import { parseContentDispositionFilename } from "./contentDisposition";
 import type { Acquisition } from "./acquisition";
@@ -47,54 +48,6 @@ function shouldTrackFileSaved(fileId: string, now: number = Date.now()): boolean
   if (last !== undefined && now - last < FILE_SAVED_TRACK_INTERVAL_MS) return false;
   fileSavedTrackedAt.set(fileId, now);
   return true;
-}
-
-/**
- * Authenticated raw fetch for non-JSON-body endpoints (multipart uploads, binary downloads).
- * Retries once after a token refresh on 401 while preserving session ownership.
- */
-async function fetchWithSessionRetry(
-  endpoint: string,
-  init: RequestInit = {},
-  extraHeaders?: Record<string, string>,
-): Promise<Response> {
-  const entryAccess = getAccessToken();
-  const entryRefresh = localStorage.getItem("refresh_token");
-  const fetchOnce = async (accessToken: string | null): Promise<Response> => {
-    const mergedHeaders: Record<string, string> = {
-      ...(extraHeaders ?? {}),
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    };
-    return fetch(`${getApiBase()}${endpoint}`, {
-      ...init,
-      headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined,
-    });
-  };
-
-  let response = await fetchOnce(entryAccess);
-  if (response.status === 401 && entryAccess && entryRefresh) {
-    let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
-    if (ownedSession?.accessToken && ownedSession.refreshToken) {
-      if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-        const refreshed = await tryRefreshToken();
-        ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-      }
-      if (ownedSession?.accessToken && ownedSession.refreshToken) {
-        response = await fetchOnce(ownedSession.accessToken);
-      }
-    }
-  }
-  return response;
-}
-
-async function readFailedResponseError(response: Response): Promise<ApiError> {
-  let errorData: unknown = null;
-  try {
-    errorData = await response.json();
-  } catch {
-    // Non-JSON gateway or proxy error body; fall back to status-based ApiError
-  }
-  return apiErrorFromPayload(response.status, errorData);
 }
 
 /**
@@ -121,7 +74,7 @@ export const authApi = {
       { method: "GET" }
     );
     if (!response.ok) {
-      throw await readFailedResponseError(response);
+      throw await readApiError(response);
     }
     return response.json() as Promise<{
       invite_code_optional: boolean;
@@ -135,7 +88,7 @@ export const authApi = {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
     });
     if (!response.ok) {
-      throw await readFailedResponseError(response);
+      throw await readApiError(response);
     }
     return response.json() as Promise<{ email: string; verification_sent: boolean }>;
   },
@@ -147,7 +100,7 @@ export const authApi = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      throw await readFailedResponseError(response);
+      throw await readApiError(response);
     }
     return response.json();
   },
@@ -161,7 +114,7 @@ export const authApi = {
       body: formData,
     });
     if (!response.ok) {
-      throw await readFailedResponseError(response);
+      throw await readApiError(response);
     }
     return response.json();
   },
@@ -173,7 +126,7 @@ export const authApi = {
       body: JSON.stringify({ email, code }),
     });
     if (!response.ok) {
-      throw await readFailedResponseError(response);
+      throw await readApiError(response);
     }
     return response.json();
   },
@@ -185,7 +138,7 @@ export const authApi = {
       body: JSON.stringify({ email }),
     });
     if (!response.ok) {
-      throw await readFailedResponseError(response);
+      throw await readApiError(response);
     }
     return response.json();
   },
@@ -193,7 +146,7 @@ export const authApi = {
   checkVerification: async (email: string) => {
     const response = await fetch(`${getApiBase()}/api/auth/check-verification?email=${encodeURIComponent(email)}`);
     if (!response.ok) {
-      throw await readFailedResponseError(response);
+      throw await readApiError(response);
     }
     return response.json();
   },
@@ -234,13 +187,13 @@ export const exportApi = {
    * ```
    */
   exportDrafts: async (projectId: string): Promise<DraftExportResult> => {
-    const response = await fetchWithSessionRetry(
+    const response = await authenticatedFetch(
       `/api/v1/projects/${projectId}/export/drafts`,
       { method: "GET" },
     );
 
     if (!response.ok) {
-      throw await readFailedResponseError(response);
+      throw await readApiError(response);
     }
 
     // Extract filename from Content-Disposition header
@@ -253,15 +206,7 @@ export const exportApi = {
     const filename = serverFilename ?? `${exportFilename}.txt`;
 
     // Trigger browser download
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(await response.blob(), filename);
 
     return {
       filename: serverFilename,
@@ -794,13 +739,13 @@ export const fileApi = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetchWithSessionRetry(
+    const response = await authenticatedFetch(
       `/api/v1/projects/${projectId}/files/upload`,
       { method: "POST", body: formData },
     );
 
     if (!response.ok) {
-      const uploadError = await readFailedResponseError(response);
+      const uploadError = await readApiError(response);
       trackEvent("material_upload_failed", {
         project_id: projectId,
         reason: "request_failed",
@@ -842,13 +787,13 @@ export const fileApi = {
       formData.append("parent_id", parentId);
     }
 
-    const response = await fetchWithSessionRetry(
+    const response = await authenticatedFetch(
       `/api/v1/projects/${projectId}/files/upload-drafts`,
       { method: "POST", body: formData },
     );
 
     if (!response.ok) {
-      throw await readFailedResponseError(response);
+      throw await readApiError(response);
     }
 
     return (await response.json()) as {
@@ -865,11 +810,9 @@ export const fileApi = {
  * Retries once after a token refresh on 401 and throws ApiError on failure.
  */
 async function fetchSkillPackage(endpoint: string, init: RequestInit = {}): Promise<Response> {
-  const response = await fetchWithSessionRetry(endpoint, init, {
-    "Accept-Language": localStorage.getItem("zenstory-language") || "zh",
-  });
+  const response = await authenticatedFetch(endpoint, init, { includeLanguage: true });
   if (!response.ok) {
-    throw await readFailedResponseError(response);
+    throw await readApiError(response);
   }
   return response;
 }
@@ -1077,15 +1020,7 @@ export const skillsApi = {
     const filename =
       parseContentDispositionFilename(response.headers.get("Content-Disposition")) ?? `${skillName}.zip`;
 
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(await response.blob(), filename);
   },
 
   /**

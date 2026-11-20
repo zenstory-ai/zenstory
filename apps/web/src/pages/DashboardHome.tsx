@@ -32,7 +32,7 @@ import { IdeaQuotaWallModal } from "../components/subscription/IdeaQuotaWallModa
 import { reportActivationEvent } from "../lib/activationEvents";
 import { useAiMessageQuota } from "../hooks/useAiMessageQuota";
 import { readHeldDashboardIdea, useHeldDashboardIdea } from "../hooks/useHeldDashboardIdea";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
+import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { inspirationsConfig } from "../config/inspirations";
 import { FirstWorkEntry } from "../components/dashboard/FirstWorkEntry";
 import { untouchedFirstWork, useFirstWork } from "../hooks/useFirstWork";
@@ -600,9 +600,7 @@ export default function DashboardHome() {
       <UpgradePromptModal
         open={showProjectQuotaUpgradeModal}
         onClose={() => setShowProjectQuotaUpgradeModal(false)}
-        source={projectQuotaUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
+        promptId="project_quota_blocked"
         title={t('projects.quotaExceededTitle', {
           defaultValue: '项目数已达上限',
         })}
@@ -610,17 +608,7 @@ export default function DashboardHome() {
           defaultValue: '当前套餐的项目数已用完。升级 Pro 可以建更多项目，也可以先删除不再需要的项目。',
         })}
         primaryLabel={t('dashboard:billing.ctaUpgradePro', '开通 Pro')}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(projectQuotaUpgradePrompt.billingPath, projectQuotaUpgradePrompt.source)
-          );
-        }}
         secondaryLabel={t('home:pricingTeaser.viewPricing', '查看套餐权益')}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(projectQuotaUpgradePrompt.pricingPath, projectQuotaUpgradePrompt.source)
-          );
-        }}
       />
     </>
   );

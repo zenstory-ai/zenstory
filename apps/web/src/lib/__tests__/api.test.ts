@@ -28,6 +28,12 @@ vi.mock('../apiClient', async importOriginal => {
       this.details = details
     }
   }
+  const apiErrorFromPayload = vi.fn((status: number, payload: unknown) => {
+    const message = resolveApiErrorMessage(payload, `API error: ${status}`)
+    return new MockApiError(status, message, actual.errorDetailObject(payload))
+  })
+  const getAccessToken = vi.fn(() => 'test-token')
+  const getApiBase = vi.fn(() => '')
   return {
     resolveOwnedAuthSession: actual.resolveOwnedAuthSession,
     errorDetailObject: actual.errorDetailObject,
@@ -38,14 +44,36 @@ vi.mock('../apiClient', async importOriginal => {
       patch: vi.fn(),
       delete: vi.fn(),
     },
-    getAccessToken: vi.fn(() => 'test-token'),
-    getApiBase: vi.fn(() => ''),
+    getAccessToken,
+    getApiBase,
     tryRefreshToken: vi.fn(),
     ApiError: MockApiError,
-    apiErrorFromPayload: vi.fn((status: number, payload: unknown) => {
-      const message = resolveApiErrorMessage(payload, `API error: ${status}`)
-      return new MockApiError(status, message, actual.errorDetailObject(payload))
-    }),
+    apiErrorFromPayload,
+    readApiError: async (response: Response) => {
+      let errorData: unknown = null
+      try {
+        errorData = await response.json()
+      } catch {
+        // Non-JSON body
+      }
+      return apiErrorFromPayload(response.status, errorData)
+    },
+    authenticatedFetch: async (
+      endpoint: string,
+      init: RequestInit = {},
+      options?: { includeLanguage?: boolean },
+    ) => {
+      const token = getAccessToken()
+      const headers: Record<string, string> = {
+        ...(options?.includeLanguage ? { 'Accept-Language': localStorage.getItem('zenstory-language') || 'zh' } : {}),
+        ...((init.headers as Record<string, string> | undefined) ?? {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      }
+      return fetch(`${getApiBase()}${endpoint}`, {
+        ...init,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
+      })
+    },
   }
 })
 
