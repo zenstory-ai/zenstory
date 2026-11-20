@@ -140,6 +140,20 @@ describe('persisted chat display sequence', () => {
     expect(dropProgressOnlyItems(items).map(item => item.id)).toEqual(['c', 'd']);
   });
 
+  it('accepts pre-parsed metadata objects identically to JSON strings', () => {
+    const metadataObj = {
+      display_events: [
+        { type: 'history_compacted', data: {} },
+        { type: 'content', content: '继续写下一章。' },
+      ],
+      compaction: { summary: '前文摘要' },
+    };
+    const fromObject = parseChatDisplayEvents(metadataObj, tools, timestamp, t);
+    const fromString = parseChatDisplayEvents(JSON.stringify(metadataObj), tools, timestamp, t);
+    expect(fromObject).toEqual(fromString);
+    expect(parseChatDisplayEvents({}, tools, timestamp, t)).toBeUndefined();
+  });
+
   it.each([
     null, '{', '{}', 'null', '{"display_events":[null]}', '{"display_events":[{"type":"agent_selected"}]}', '{"display_events":[]}',
     JSON.stringify({ display_events: [{ type: 'tool_call', tool_call_index: 9 }] }),
