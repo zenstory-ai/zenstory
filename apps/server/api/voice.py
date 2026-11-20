@@ -16,12 +16,12 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
-from services.auth import get_current_active_user
 
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from middleware.rate_limit import require_user_rate_limit
 from models import User
+from services.core.auth_service import get_current_active_user
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)

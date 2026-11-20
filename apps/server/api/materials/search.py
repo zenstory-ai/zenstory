@@ -6,7 +6,6 @@ Handles search and summary operations across material libraries:
 - Cross-library search for entities (characters, golden fingers, etc.)
 """
 from fastapi import APIRouter, Depends, Query
-from services.auth import get_current_active_user
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import aliased
 from sqlmodel import Session, select
@@ -23,6 +22,7 @@ from models.material_models import (
     StoryLine,
     WorldView,
 )
+from services.core.auth_service import get_current_active_user
 from services.material.ingestion_jobs_service import IngestionJobsService
 from utils.logger import get_logger
 

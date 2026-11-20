@@ -7,7 +7,6 @@ const {
   mockNavigate,
   mockRegister,
   mockGoogleLogin,
-  mockAppleLogin,
   mockGetRegistrationPolicy,
   mockToastError,
   mockToastSuccess,
@@ -17,7 +16,6 @@ const {
   mockNavigate: vi.fn(),
   mockRegister: vi.fn(),
   mockGoogleLogin: vi.fn(),
-  mockAppleLogin: vi.fn(),
   mockGetRegistrationPolicy: vi.fn(),
   mockToastError: vi.fn(),
   mockToastSuccess: vi.fn(),
@@ -25,7 +23,6 @@ const {
     registrationEnabled: true,
     oauthProviders: {
       google: { enabled: false, clientId: undefined },
-      apple: { enabled: false, clientId: undefined },
     },
     forgotPasswordEnabled: false,
     inviteCodeOptional: false,
@@ -56,7 +53,6 @@ vi.mock("../../contexts/AuthContext", () => ({
   useAuth: () => ({
     register: mockRegister,
     googleLogin: mockGoogleLogin,
-    appleLogin: mockAppleLogin,
   }),
 }));
 
@@ -101,7 +97,7 @@ vi.mock("../../lib/toast", () => ({
 
 vi.mock("../../config/auth", () => ({
   authConfig: mockAuthConfig,
-  hasOAuthProviders: () => mockAuthConfig.oauthProviders.google.enabled || mockAuthConfig.oauthProviders.apple.enabled,
+  hasOAuthProviders: () => mockAuthConfig.oauthProviders.google.enabled,
 }));
 
 const referralFlag = vi.hoisted(() => ({ enabled: true }));
@@ -119,7 +115,6 @@ describe("Register", () => {
     mockAuthConfig.inviteCodeOptional = false;
     referralFlag.enabled = true;
     mockAuthConfig.oauthProviders.google.enabled = false;
-    mockAuthConfig.oauthProviders.apple.enabled = false;
     mockGetRegistrationPolicy.mockResolvedValue({
       invite_code_optional: false,
       variant: "control_required",

@@ -20,10 +20,6 @@ export interface AuthConfig {
       enabled: boolean;
       clientId?: string;
     };
-    apple: {
-      enabled: boolean;
-      clientId?: string;
-    };
   };
   
   /**
@@ -54,10 +50,6 @@ export const authConfig: AuthConfig = {
       enabled: import.meta.env.VITE_GOOGLE_OAUTH_ENABLED === 'true',
       clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
     },
-    apple: {
-      enabled: import.meta.env.VITE_APPLE_OAUTH_ENABLED === 'true',
-      clientId: import.meta.env.VITE_APPLE_CLIENT_ID,
-    },
   },
   
   // Forgot password (self-service email code) - on unless explicitly disabled
@@ -71,6 +63,5 @@ export const authConfig: AuthConfig = {
  * Check if any OAuth provider is enabled
  */
 export function hasOAuthProviders(): boolean {
-  return authConfig.oauthProviders.google.enabled || 
-         authConfig.oauthProviders.apple.enabled;
+  return authConfig.oauthProviders.google.enabled;
 }

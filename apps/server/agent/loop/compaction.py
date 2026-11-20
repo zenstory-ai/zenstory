@@ -219,7 +219,6 @@ async def compact_history(
             )
             break
         messages = _request_messages(system_prompt, bounded, retry_prompt=retry_after_invalid_output)
-        sink: dict[str, Any] = {}
         if run_meter is not None:
             run_meter.record_model_call()
         try:
@@ -229,7 +228,6 @@ async def compact_history(
                     session_id=session_id,
                     reasoning_effort=None,
                     usage_attribution=attribution,
-                    attempt_sink=sink,
                     max_retries=0,
                     messages=messages,
                     tools=_chat_tools(),

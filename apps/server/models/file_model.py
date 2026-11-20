@@ -122,6 +122,15 @@ FILE_TYPE_SCRIPT = "script"  # Script content (for screenplay)
 FILE_TYPE_DOCUMENT = "document"
 FILE_TYPE_FOLDER = "folder"
 
+# 承载"正文"的文件类型：这些文件的 content 是要写给读者看的成稿正文，
+# 因此适用整篇流式写入、覆盖保护、字数统计等针对正文的规则。
+# 注意 folder 不承载任何内容；outline/character/lore/snippet 是辅助资料而非正文；
+# document 是默认兜底类型、语义不确定，同样不按正文对待。
+CONTENT_FILE_TYPES: tuple[str, ...] = (
+    FILE_TYPE_DRAFT,
+    FILE_TYPE_SCRIPT,
+)
+
 
 # ---------------------------------------------------------------------------
 # 正文字数缓存
@@ -161,7 +170,7 @@ def cached_word_count(raw_metadata: str | None) -> int | None:
 
 
 # 只管正文类文件；新建的文件没有当前口径的缓存，读取时按需重算即可。
-_WORD_COUNTED_FILE_TYPES = frozenset({FILE_TYPE_DRAFT, FILE_TYPE_SCRIPT})
+_WORD_COUNTED_FILE_TYPES = frozenset(CONTENT_FILE_TYPES)
 
 
 @event.listens_for(File, "before_update")

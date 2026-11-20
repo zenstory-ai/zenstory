@@ -22,7 +22,6 @@ from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import Response
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, BeforeValidator, Field
-from services.auth import get_current_active_user
 from sqlalchemy import case, delete, update
 from sqlmodel import Session, col, select
 
@@ -44,6 +43,7 @@ from core.permissions import require_custom_skill_slot
 from database import get_session
 from models import PublicSkill, User, UserAddedSkill, UserSkill
 from services import skill_package_service
+from services.core.auth_service import get_current_active_user
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -52,36 +52,6 @@ router = APIRouter(prefix="/api/v1/skills", tags=["Skills"])
 
 
 # ==================== Request/Response Models ====================
-
-
-def _safe_json_array(value: str | None, *, field_name: str, record_id: str) -> list[str]:
-    """Parse JSON array payload safely and return [] on malformed data."""
-    if not value:
-        return []
-
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError:
-        log_with_context(
-            logger,
-            30,
-            "Invalid JSON field in skill record",
-            field=field_name,
-            record_id=record_id,
-        )
-        return []
-
-    if not isinstance(parsed, list):
-        log_with_context(
-            logger,
-            30,
-            "JSON field is not an array in skill record",
-            field=field_name,
-            record_id=record_id,
-        )
-        return []
-
-    return [str(item) for item in parsed if item is not None]
 
 
 class SkillResponse(BaseModel):
@@ -199,7 +169,7 @@ async def list_skills(
     share_statuses = skill_package_service.get_share_statuses(session, user_skills)
 
     for db_skill in user_skills:
-        triggers = _safe_json_array(
+        triggers = skill_package_service.parse_skill_json_array(
             db_skill.triggers,
             field_name="user_skill.triggers",
             record_id=db_skill.id,
@@ -220,7 +190,7 @@ async def list_skills(
 
     for added, public in added_results:
         # Parse tags as triggers
-        triggers = _safe_json_array(
+        triggers = skill_package_service.parse_skill_json_array(
             public.tags,
             field_name="public_skill.tags",
             record_id=public.id,
@@ -317,7 +287,7 @@ async def update_skill(
     session.commit()
     session.refresh(db_skill)
 
-    triggers = _safe_json_array(
+    triggers = skill_package_service.parse_skill_json_array(
         db_skill.triggers,
         field_name="user_skill.triggers",
         record_id=db_skill.id,
@@ -422,7 +392,7 @@ async def get_my_skills(
 
     user_skills = []
     for db_skill in user_skills_db:
-        triggers = _safe_json_array(
+        triggers = skill_package_service.parse_skill_json_array(
             db_skill.triggers,
             field_name="user_skill.triggers",
             record_id=db_skill.id,
@@ -549,7 +519,7 @@ async def share_skill(
         description=user_skill.description,
         instructions=user_skill.instructions,
         category=request.category,
-        tags=json.dumps(_safe_json_array(
+        tags=json.dumps(skill_package_service.parse_skill_json_array(
             user_skill.triggers,
             field_name="user_skill.triggers",
             record_id=user_skill.id,
@@ -810,7 +780,7 @@ async def import_skill(
             id=db_skill.id,
             name=db_skill.name,
             description=db_skill.description,
-            triggers=_safe_json_array(
+            triggers=skill_package_service.parse_skill_json_array(
                 db_skill.triggers,
                 field_name="user_skill.triggers",
                 record_id=db_skill.id,

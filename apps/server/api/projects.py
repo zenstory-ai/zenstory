@@ -7,7 +7,6 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from services.auth import get_current_active_user
 from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
@@ -35,6 +34,7 @@ from models import (
     Project,
     User,
 )
+from services.core.auth_service import get_current_active_user
 from services.project_progress import get_projects_progress
 from services.project_service import (
     create_project_with_default_folders,

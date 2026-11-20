@@ -1,13 +1,6 @@
 // Subscription tier type
 export type SubscriptionTier = "free" | "pro";
 export type SubscriptionStatus = "active" | "expired" | "cancelled" | "none";
-export type SubscriptionAction =
-  | "created"
-  | "upgraded"
-  | "renewed"
-  | "expired"
-  | "cancelled"
-  | "migrated";
 
 // Subscription plan features
 export interface SubscriptionFeatures {
@@ -109,18 +102,6 @@ export interface UsageQuota {
   last_reset_at: string;
   created_at: string;
   updated_at: string;
-}
-
-// Subscription history
-export interface SubscriptionHistory {
-  id: string;
-  user_id: string;
-  action: SubscriptionAction;
-  plan_name: string;
-  start_date: string;
-  end_date: string | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
 }
 
 // API Response types

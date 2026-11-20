@@ -7,6 +7,13 @@ import { RecentActivityList } from "../RecentActivityList";
 
 let timestamp = "";
 
+vi.mock("i18next", () => ({
+  default: {
+    language: "en",
+    t: (key: string, options?: { count?: number }) =>
+      options?.count === undefined ? key : `${key}:${options.count}`,
+  },
+}));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ i18n: { language: "en" }, t: (key: string, options?: { count?: number }) =>
     options?.count === undefined ? key : `${key}:${options.count}` }),
@@ -41,7 +48,7 @@ it.each(["2026-04-08T08:55:00", "2026-04-08T08:55:00Z", "2026-04-08T16:55:00+08:
   "recent activity interprets %s as the same UTC instant", (value) => {
     timestamp = value;
     render(<RecentActivityList />);
-    expect(screen.getByText("dashboard:time.minutesAgo:5")).toBeInTheDocument();
+    expect(screen.getByText("relativeTime.minutesAgo:5")).toBeInTheDocument();
   },
 );
 

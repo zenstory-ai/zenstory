@@ -38,7 +38,7 @@ async def test_s3_feedback_does_not_create_unwritable_legacy_root(monkeypatch):
             return None
 
     monkeypatch.setenv("FEEDBACK_UPLOAD_DIR", "/root-owned-volume/feedback")
-    monkeypatch.setattr("api.feedback.get_upload_storage", lambda **_kwargs: _MemoryStorage())
+    monkeypatch.setattr("services.infra.upload_storage.get_upload_storage", lambda **_kwargs: _MemoryStorage())
     session = SimpleNamespace(
         add=lambda _feedback: None,
         flush=lambda: None,

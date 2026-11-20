@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from services.auth import get_current_active_user
 from sqlmodel import Session, select
 
 from config.datetime_utils import utcnow
@@ -17,6 +16,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from models import User, UserPersonaProfile, WorkspaceOnboarding
+from services.core.auth_service import get_current_active_user
 
 router = APIRouter(prefix="/api/v1/persona", tags=["persona"])
 

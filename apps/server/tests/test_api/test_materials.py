@@ -316,7 +316,7 @@ async def test_upload_pre_job_failure_does_not_refund_a_new_month_charge(
         def put_material(self, **_kwargs):
             raise OSError("file write crossed month")
 
-    monkeypatch.setattr(materials_upload_api, "_storage", _FailingStorage)
+    monkeypatch.setattr(materials_upload_api, "get_upload_storage_or_503", _FailingStorage)
 
     with pytest.raises(APIException) as exc_info:
         await materials_upload_api.process_material_upload(
@@ -345,7 +345,7 @@ async def test_upload_pre_job_failure_rolls_back_without_refund_io(client, db_se
     def unexpected_refund(*args, **kwargs):
         pytest.fail("No durable job exists; a rolled-back reservation must not be refunded")
 
-    monkeypatch.setattr(materials_upload_api, "_storage", _FailingStorage)
+    monkeypatch.setattr(materials_upload_api, "get_upload_storage_or_503", _FailingStorage)
     monkeypatch.setattr(materials_upload_api.quota_service, "release_feature_quota", unexpected_refund)
     with pytest.raises(APIException) as exc_info:
         await materials_upload_api.process_material_upload(
@@ -1242,7 +1242,7 @@ async def test_s3_mode_opaque_material_still_reads_private_object(
         settings,
         client=httpx.Client(transport=httpx.MockTransport(handle)),
     )
-    monkeypatch.setattr(materials_upload_api, "_storage", lambda: storage)
+    monkeypatch.setattr(materials_upload_api, "get_upload_storage_or_503", lambda: storage)
 
     response = await client.get(
         f"/api/v1/materials/internal/system/files/{object_name}",

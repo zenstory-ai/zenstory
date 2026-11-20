@@ -661,12 +661,6 @@ class QuotaService:
         allowed = used < limit
         return (allowed, used, limit)
 
-    def consume_feature_quota(
-        self, session: Session, user_id: str, feature_type: str
-    ) -> bool:
-        """Consume a monthly unit; use reserve_feature_quota when it may be refunded."""
-        return self.reserve_feature_quota(session, user_id, feature_type) is not None
-
     def reserve_feature_quota(
         self, session: Session, user_id: str, feature_type: str, *, commit: bool = True
     ) -> datetime | None:

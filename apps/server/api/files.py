@@ -16,7 +16,6 @@ from fastapi import APIRouter, Body, Depends, Form, Query, Response, UploadFile
 from fastapi import File as FastAPIFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core import PydanticCustomError
-from services.auth import get_current_active_user
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import load_only
@@ -42,6 +41,7 @@ from models.file_version import (
     CHANGE_TYPE_EDIT,
     CHANGE_TYPE_RESTORE,
 )
+from services.core.auth_service import get_current_active_user
 from services.features.activation_event_service import activation_event_service
 from services.features.file_version_service import get_file_version_service
 from services.file_tree_rules import (

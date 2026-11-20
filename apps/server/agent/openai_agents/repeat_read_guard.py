@@ -426,10 +426,6 @@ class RepeatReadGuard:
         title = self._titles.get(file_id)
         return f"《{title}》(id={file_id})" if title else f"(id={file_id})"
 
-    def file_label(self, file_id: str) -> str:
-        """「《标题》(id=…)」；本请求没读写过、不知道标题时只有 id。"""
-        return self._file_label(file_id)
-
     def short_circuit_text(self, tool_name: str) -> str:
         """无进展停止后同一轮里剩下的工具调用：不执行，直接返回说明。"""
         return tool_error_text(
