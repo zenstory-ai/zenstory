@@ -132,37 +132,27 @@ def _bound_turn_context_items(
     from config.agent_runtime import AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS
 
     limit = AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS if max_provider_tokens is None else max_provider_tokens
-    provider_total = sum(
-        estimate_provider_text_tokens(f"{item.title}\n{item.content}") + 32 for item in items
+    budget = TokenBudget(
+        max_tokens=limit,
+        item_overhead=assembler._item_render_overhead_tokens,
+        token_estimator=estimate_provider_text_tokens,
     )
-    if provider_total <= limit:
+    if sum(budget.estimate_item_tokens(item) for item in items) <= limit:
         return items
 
-    budget_calc = TokenBudget(max_tokens=1, item_overhead=assembler._item_render_overhead_tokens)
-    local_total = sum(budget_calc.estimate_item_tokens(item) for item in items)
-    scaled_max = max(1_000, int(local_total * limit / max(provider_total, 1)))
-
     # 优先保住引用与当前打开的焦点文件全文（使 edit_file 快照可用），超大附加参考稿在剩余额度内截断。
-    indexed = sorted(
-        enumerate(items),
-        key=lambda pair: (0 if pair[1].type == "quote" else 1 if pair[1].is_focus else 2, pair[0]),
+    orig_order = {(str(item.type), str(item.id)): idx for idx, item in enumerate(items)}
+    prioritized = sorted(
+        items,
+        key=lambda item: (
+            0 if item.type == "quote" else 1 if item.is_focus else 2,
+            orig_order[(str(item.type), str(item.id))],
+        ),
     )
-    selected, _ = TokenBudget(
-        max_tokens=scaled_max,
-        item_overhead=assembler._item_render_overhead_tokens,
-    ).select_items([item for _, item in indexed])
-
+    selected, _ = budget.select_items(prioritized)
     # TokenBudget 对 CRITICAL 条目只截断不静默丢弃；按原进入顺序排回以便渲染稳定。
-    by_id_pos: dict[tuple[str, str], list[int]] = {}
-    for orig_idx, item in indexed:
-        by_id_pos.setdefault((str(item.type), str(item.id)), []).append(orig_idx)
-    restored: list[tuple[int, Any]] = []
-    for pos, sel in enumerate(selected):
-        candidates = by_id_pos.get((str(sel.type), str(sel.id)))
-        orig_idx = candidates.pop(0) if candidates else pos
-        restored.append((orig_idx, sel))
-    restored.sort(key=lambda pair: pair[0])
-    return [item for _, item in restored]
+    selected.sort(key=lambda item: orig_order.get((str(item.type), str(item.id)), len(items)))
+    return selected
 
 
 def _author_edits_block(

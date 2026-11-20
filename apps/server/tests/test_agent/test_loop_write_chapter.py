@@ -868,13 +868,19 @@ async def test_created_chapter_without_a_body_is_refunded_and_removable(loop_too
         )
         assert tracker.write_succeeded is False and tracker.produced_output is False
         if stop == "user_stopped":
-            assert tracker.decide(client_disconnected=False, unexpected_exception=False, user_stopped=True) == (
-                "user_stopped_no_output",
-                True,
-            )
+            assert tracker.decide(
+                client_disconnected=False, unexpected_exception=False, user_stopped=True, provider_attempted=True
+            ) == ("user_stopped", False)
+            assert tracker.decide(
+                client_disconnected=False, unexpected_exception=False, user_stopped=True, provider_attempted=False
+            ) == ("user_stopped_before_model", True)
         else:
-            reason, refundable = tracker.decide(client_disconnected=False, unexpected_exception=True)
-            assert refundable is True and reason != "error_after_output"
+            assert tracker.decide(
+                client_disconnected=False, unexpected_exception=True, provider_attempted=True, terminal_model_failure=True
+            ) == ("upstream_model_error", True)
+            assert tracker.decide(
+                client_disconnected=False, unexpected_exception=True, provider_attempted=True, terminal_model_failure=False
+            ) == ("non_model_error", False)
         assert [entry["id"] for entry in tracker.removable_placeholders()] == [created["data"]["id"]]
 
 

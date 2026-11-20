@@ -113,9 +113,9 @@ async def test_reasoning_only_run_at_output_cap_ends_with_continue_error(monkeyp
 
     error = events[-1].data
     assert error["code"] == ErrorCode.AGENT_OUTPUT_TRUNCATED
-    # 与同类「回复继续」的停止一致：不给重试按钮（重试会重发原请求、从头再做）。
+    # 与同类「回复继续」的停止一致：不给重试按钮（重试会重发原请求、从头再做），且已进入模型执行照常计费。
     assert error["retryable"] is False
-    assert error["refundable"] is True
+    assert error["refundable"] is False
     assert error["error"] == get_error_message(ErrorCode.AGENT_OUTPUT_TRUNCATED, "zh")
     # 思考原文不进 ERROR 事件。
     assert THINKING.strip() not in json.dumps(error, ensure_ascii=False)
@@ -227,25 +227,24 @@ def _truncated_error_frame() -> str:
             "message": get_error_message(ErrorCode.AGENT_OUTPUT_TRUNCATED, "zh"),
             "code": ErrorCode.AGENT_OUTPUT_TRUNCATED,
             "retryable": False,
-            "refundable": True,
+            "refundable": False,
         },
     )
 
 
 @pytest.mark.unit
-def test_truncated_round_without_output_is_refunded_by_existing_rule():
+def test_truncated_round_without_output_is_charged_after_model_start():
     tracker = StreamBillingTracker()
     tracker.observe(_sse("thinking", {"message": THINKING}))
     tracker.observe(_truncated_error_frame())
 
-    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == (
-        "internal_error",
-        True,
-    )
+    assert tracker.decide(
+        client_disconnected=False, unexpected_exception=False, provider_attempted=True
+    ) == ("non_model_error", False)
 
 
 @pytest.mark.unit
-def test_truncated_round_after_output_is_billed_by_existing_rule():
+def test_truncated_round_after_output_is_billed():
     tracker = StreamBillingTracker()
     # 同一请求里前一个 agent 已经写进了正文（writer → 审稿人 → writer 第二次截断）。
     tracker.observe(
@@ -262,7 +261,6 @@ def test_truncated_round_after_output_is_billed_by_existing_rule():
     tracker.observe(_sse("thinking", {"message": THINKING}))
     tracker.observe(_truncated_error_frame())
 
-    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == (
-        "error_after_output",
-        False,
-    )
+    assert tracker.decide(
+        client_disconnected=False, unexpected_exception=False, provider_attempted=True
+    ) == ("non_model_error", False)

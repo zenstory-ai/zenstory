@@ -240,9 +240,10 @@ describe('LeaveWhileGeneratingDialog', () => {
     return { onStay, onLeave }
   }
 
-  it('promises "not counted" only while nothing has been written', () => {
+  it('warns that leaving counts once the AI has started working, even before text is written', () => {
     renderDialog()
-    expect(screen.getByText('离开这个页面会中断这一轮。还没写出内容的话，这一轮不计入今日 AI 消息。')).toBeInTheDocument()
+    expect(screen.getByText('离开这个页面会中断这一轮；AI 已开始处理时，这一轮仍计入今日 AI 消息。')).toBeInTheDocument()
+    expect(screen.queryByText(/不计入/)).not.toBeInTheDocument()
   })
 
   it('says what really happens once something was written: kept, and counted', () => {
@@ -301,10 +302,10 @@ describe('LeaveWhileGeneratingDialog before a new chat', () => {
     return { onStay, onLeave }
   }
 
-  it('says a new chat stops this round first, and what that costs', () => {
+  it('says a new chat stops this round first and counts once the AI has started working', () => {
     renderDialog()
     expect(screen.getByText('AI 还在写')).toBeInTheDocument()
-    expect(screen.getByText('开始新对话会先停止这一轮。还没写出内容的话，这一轮不计入今日 AI 消息。')).toBeInTheDocument()
+    expect(screen.getByText('开始新对话会先停止这一轮；AI 已开始处理时，这一轮仍计入今日 AI 消息。')).toBeInTheDocument()
     expect(screen.getByTestId('new-chat-dialog-confirm')).toHaveTextContent('停止并开始新对话')
     expect(screen.getByTestId('new-chat-dialog-stay')).toHaveTextContent('继续等')
     expect(document.activeElement).toBe(screen.getByTestId('new-chat-dialog-stay'))

@@ -24,10 +24,8 @@ from config.datetime_utils import utcnow
 from utils.logger import get_logger, log_with_context
 
 from .history import (
-    _WIRE_OVERHEAD_CHARS,
     LoopHistory,
     bound_history_for_provider,
-    calibrated_tokens_per_char,
     contains_leaked_tool_protocol,
     effective_history_provider_tokens,
     kept_author_messages,
@@ -190,25 +188,17 @@ async def compact_history(
     发生在这一轮开始前，所以这里不看预算是否用完。
     """
     from agent.core import llm_failover
-    from agent.openai_agents.intra_run_trimmer import DEFAULT_MAX_INPUT_CHARS, IntraRunToolOutputTrimmer
+    from agent.openai_agents.intra_run_trimmer import IntraRunToolOutputTrimmer
     from agent.openai_agents.usage_hooks import agent_usage_attribution
     from core.error_handler import APIException
     from services.usage.cost_budget import budget_attribution
 
     attribution = agent_usage_attribution()
     input_budget = AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS
-    ratio = calibrated_tokens_per_char(history)
 
     def _trim_for_budget(budget_tokens: int) -> list[dict[str, Any]]:
-        # 优先用本会话实测 (prompt_tokens, prompt_chars) 反推精确字符上限；无实测锚点时退回 1.5 倍同量纲估算，
-        # 折叠超预算旧工具载荷而尽量保住全部轮次的起止脉络与文件 id 摘要。
-        if ratio is not None:
-            trimmer_max_chars = max(
-                200_000,
-                min(DEFAULT_MAX_INPUT_CHARS, int(budget_tokens / ratio) - _WIRE_OVERHEAD_CHARS),
-            )
-        else:
-            trimmer_max_chars = max(200_000, int(budget_tokens * 1.5))
+        # 按 1.5 倍供应商 token 量纲折算字符上限，折叠超预算旧工具载荷以尽量保住全部轮次的起止脉络与文件 id 摘要。
+        trimmer_max_chars = max(200_000, int(budget_tokens * 1.5))
         return IntraRunToolOutputTrimmer(max_input_chars=trimmer_max_chars).trim_items(
             history.items, instructions_chars=len(system_prompt)
         )

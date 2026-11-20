@@ -68,13 +68,8 @@ class UsageMeteringMixin:
         usage = getattr(response, "usage", None)
         schedule_llm_usage_record(self._attribution, model=model, usage=usage, timing=timing)
         prompt_tokens = getattr(usage, "input_tokens", None)
-        take_prompt_chars = getattr(sdk_model, "take_prompt_chars", None)
-        prompt_chars = take_prompt_chars() if callable(take_prompt_chars) else None
         if self._run_meter is not None and isinstance(prompt_tokens, int) and prompt_tokens > 0:
             self._run_meter.last_prompt_tokens = prompt_tokens
-            self._run_meter.last_prompt_chars = (
-                prompt_chars if isinstance(prompt_chars, int) and prompt_chars > 0 else 0
-            )
         # Observation only: an exception in on_llm_end would fail the whole SDK run.
         try:
             take_thinking = getattr(sdk_model, "take_thinking_before_answer", None)

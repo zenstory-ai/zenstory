@@ -1720,7 +1720,7 @@ def test_oversized_tool_result_is_bounded_without_opening_a_session(session_fact
 async def test_successful_writes_do_not_open_a_ledger_session(session_factory_spy):
     mock_executor = MagicMock()
     mock_executor.create_file.return_value = {"id": "f-1", "title": "第一章", "file_type": "draft", "content": "正文"}
-    mock_executor.delete_file.return_value = True
+    mock_executor.delete_file_with_meta.return_value = {"id": "f-1", "title": "第一章", "file_type": "draft"}
     mock_executor.update_project_status.return_value = {
         "project_id": "proj-1",
         "updated_fields": ["summary"],

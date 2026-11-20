@@ -100,6 +100,7 @@ class TokenBudget:
         max_tokens: int = 4000,
         allocation: dict[ContextPriority, float] | None = None,
         item_overhead: Callable[[ContextItem], int] | None = None,
+        token_estimator: Callable[[str], int] | None = None,
     ):
         """
         Initialize budget manager.
@@ -109,10 +110,12 @@ class TokenBudget:
             allocation: Custom priority allocation percentages
             item_overhead: 条目渲染时「标题 + 正文」之外的额外 token（如标题行的
                 id / [全文] 标注）；提供时计入每个条目的占用与截断预算
+            token_estimator: 自定义文本 token 估算函数；不传时默认使用 ``estimate_text_tokens``
         """
         self.max_tokens = max_tokens
         self.allocation = allocation or self.DEFAULT_ALLOCATION
         self.item_overhead = item_overhead
+        self._token_estimator = token_estimator or estimate_text_tokens
         self.used: dict[ContextPriority, int] = dict.fromkeys(ContextPriority, 0)
         # 本次 select_items 因截断后只剩残片而丢弃的条目（原条目，未截断）
         self.dropped_stubs: list[ContextItem] = []
@@ -130,7 +133,7 @@ class TokenBudget:
         Returns:
             Estimated token count
         """
-        return estimate_text_tokens(text)
+        return self._token_estimator(text)
 
     def estimate_item_tokens(self, item: ContextItem) -> int:
         """

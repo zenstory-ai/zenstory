@@ -28,8 +28,9 @@ from agent.core.stream_processor import (
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.loop.compaction import compact_history, should_compact
 from agent.loop.completion_evidence import unexecuted_tool_protocol
-from agent.loop.history import LoopHistory, estimate_items_tokens
+from agent.loop.history import LoopHistory
 from agent.openai_agents.intra_run_trimmer import COMPACTION_REASON, IntraRunToolOutputTrimmer
+from agent.utils.token_utils import estimate_text_tokens
 from core.error_codes import ErrorCode
 from models import ChatMessage, ChatSession, File, Project, User
 from services.core.auth_service import hash_password
@@ -95,7 +96,7 @@ async def test_compaction_summary_call_receives_full_chinese_history_at_400k_mea
     chunk = "这是一段用于测试中文编码膨胀系数的合成设定与章节回执内容。" * 550
     items = [{"role": "user", "content": f"第{i}轮：{chunk}"} for i in range(60)]
     # 确认 cl100k_base 口径已经显著超过旧的 900k 估算上限，而真实实测只有 395,917。
-    assert estimate_items_tokens(items) > 950_000
+    assert sum(estimate_text_tokens(str(item.get("content") or "")) for item in items) > 950_000
 
     history = LoopHistory(
         items=items,
@@ -199,7 +200,7 @@ async def test_process_stream_never_drops_chinese_history_below_real_provider_wi
     assert chunks
     assert len(captured_histories) == 1
     # 55 轮 user + 55 轮 assistant = 110 项全部原样保留，第 0 条仍在（cl100k_base 已超 850k）。
-    assert estimate_items_tokens(captured_histories[0]) > 850_000
+    assert sum(estimate_text_tokens(str(item.get("content") or "")) for item in captured_histories[0]) > 850_000
     assert len(captured_histories[0]) == 110
     assert captured_histories[0][0]["content"].startswith("用户第0条：")
 
@@ -349,7 +350,7 @@ def test_failed_streamed_file_save_refunds_and_keeps_placeholder_removable():
             },
         )
     )
-    # <file> 之前的短引子不算完整回复：落库失败回滚后 ended_on_reply 仍为 False
+    # <file> 之前的短引子不算正文产出
     tracker.observe(_sse("content", {"text": "总纲如下：\n"}))
     tracker.observe(_sse("file_content", {"file_id": "outline-1", "chunk": "流式了一半的大纲正文"}))
     tracker.observe(
@@ -359,7 +360,7 @@ def test_failed_streamed_file_save_refunds_and_keeps_placeholder_removable():
                 "message": "文件保存失败，请重试",
                 "code": ErrorCode.AGENT_FILE_SAVE_FAILED,
                 "retryable": True,
-                "refundable": True,
+                "refundable": False,
                 "file_id": "outline-1",
             },
         )
@@ -369,7 +370,10 @@ def test_failed_streamed_file_save_refunds_and_keeps_placeholder_removable():
     assert tracker.file_written is False
     assert tracker.write_succeeded is False
     assert tracker.produced_output is False
-    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == ("internal_error", True)
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False, provider_attempted=True) == (
+        "non_model_error",
+        False,
+    )
     assert tracker.removable_placeholders() == [
         {"id": "outline-1", "title": "总纲", "updated_at": "2026-11-18T01:20:00"}
     ]
@@ -603,99 +607,6 @@ async def test_compaction_halves_input_budget_and_succeeds_after_400_context_ove
     assert "[重试提醒]" not in second_msgs[-1]["content"]
 
 
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_session_calibrated_prompt_chars_anchor_and_trimmer_budget(db_session):
-    """方案一回归：落库 (prompt_tokens, prompt_chars) 后，常态增量与折叠后估算均按本会话真实密度自校准。"""
-    from agent.loop.history import (
-        LOOP_ENGINE_METADATA_VALUE,
-        calibrated_tokens_per_char,
-        effective_history_provider_tokens,
-        items_char_length,
-        load_loop_history,
-    )
-    from models import ChatMessage, ChatSession, Project, User
-
-    user = User(username="calib_u", email="calib_u@example.test", hashed_password="x", email_verified=True)
-    db_session.add(user)
-    db_session.flush()
-    project = Project(name="校准测试项目", owner_id=user.id)
-    db_session.add(project)
-    db_session.flush()
-    chat = ChatSession(user_id=user.id, project_id=project.id, title="校准会话")
-    db_session.add(chat)
-    db_session.flush()
-
-    # 1) 常态未折叠路径：上一轮实测 450,000 字符 -> 321,014 prompt_tokens，本轮仅多一条短回复，锚点误差趋近 0
-    normal_chunk = "雾港钟楼第三层的樟木书架上整齐排列着往年航道水文志与潮汐观测簿。" * 500  # ~16,000 字
-    normal_items = [{"role": "user", "content": normal_chunk} for _ in range(28)]
-    prev_chars = items_char_length(normal_items)
-    normal_items_after_reply = [*normal_items, {"role": "assistant", "content": "已核对完毕。" * 100}]
-    normal_history = LoopHistory(
-        items=normal_items_after_reply,
-        last_message_id="m-normal",
-        last_prompt_tokens=321_014,
-        last_prompt_chars=prev_chars,
-    )
-    ratio = calibrated_tokens_per_char(normal_history)
-    assert ratio is not None and 0.60 < ratio < 0.75
-    eff_normal = effective_history_provider_tokens(normal_history)
-    # 增量仅 ~600 字（约 +400 token），不会像静态粗估那样偏离数万 token
-    assert 321_100 <= eff_normal <= 322_000
-
-    # 2) 库内持久化往返 + JSON 工具高密度会话（实测 0.82 token/字）：compact_history 按实测密度收紧折叠上限，不超 700k
-    big_json_read = {
-        "name": "query_files",
-        "status": "success",
-        "arguments": {"id": "f-1", "response_mode": "full"},
-        "result": {"id": "f-1", "content": "漕帮盐引账册与水路图志片段" * 2600},
-    }
-    for idx in range(40):
-        db_session.add(ChatMessage(session_id=chat.id, role="user", content=f"第{idx}轮核对"))
-        meta: dict[str, Any] = {
-            "engine": LOOP_ENGINE_METADATA_VALUE,
-            "display_events": [
-                {"type": "tool_call", "tool_call_index": 0},
-                {"type": "content", "content": f"第{idx}轮已核对"},
-            ],
-        }
-        if idx == 39:
-            # 模拟上一轮折叠到 500,000 字符时供应商实测返回 427,630 prompt_tokens（真实密度 ~0.82）
-            meta["prompt_tokens"] = 427_630
-            meta["prompt_chars"] = 500_000
-        db_session.add(
-            ChatMessage(
-                session_id=chat.id,
-                role="assistant",
-                content=f"第{idx}轮已核对",
-                tool_calls=json.dumps([big_json_read], ensure_ascii=False),
-                message_metadata=json.dumps(meta, ensure_ascii=False),
-            )
-        )
-    db_session.commit()
-
-    loaded = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
-    assert loaded.last_prompt_tokens == 427_630
-    assert loaded.last_prompt_chars == 500_000
-    loaded_ratio = calibrated_tokens_per_char(loaded)
-    assert loaded_ratio is not None and 0.80 <= loaded_ratio <= 0.84
-    # 库内未折叠原始体积 ~138 万字 -> 按本会话 0.82 密度反推 >110 万 token，不会误信 42.7 万
-    assert effective_history_provider_tokens(loaded) > 1_100_000
-
-    completion = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content="按实测密度校准后的摘要"), finish_reason="stop")],
-        usage=SimpleNamespace(prompt_tokens=640_000, completion_tokens=800, total_tokens=640_800, prompt_tokens_details=None),
-    )
-    mock_call = AsyncMock(return_value=(completion, SimpleNamespace(name="minimax", model="MiniMax-M3.1-Flash")))
-    with patch("agent.core.llm_failover.acreate_chat_completion", mock_call):
-        outcome = await compact_history(loaded, system_prompt="系统提示", session_id=chat.id)
-    assert outcome.record is not None
-    sent_msgs = mock_call.await_args.kwargs["messages"]
-    sent_chars = sum(len(json.dumps(m, ensure_ascii=False)) for m in sent_msgs)
-    # 若未校准（默认 1.05M 字符上限），0.82 密度下会发 ~860k token；校准后折叠上限收紧到 ~83 万字符以内！
-    assert sent_chars <= 860_000
-
-
 @pytest.mark.unit
 def test_kept_author_messages_20k_budget_preserves_30k_chinese_chars_and_db_paging(db_session):
     """kept_author_messages 与旧压缩点数据库分页统一按供应商 token 量纲计预算，20k 预算完整保留 ~3 万中文字。"""
@@ -779,57 +690,14 @@ def test_compact_prompt_has_no_cramped_2500_char_hard_cap():
     assert "不要调用工具" in COMPACT_PROMPT
 
 
-@pytest.mark.asyncio
 @pytest.mark.unit
-async def test_failover_model_and_usage_hooks_record_prompt_chars_on_run_meter():
-    """FailoverChatModel 成功调用后由 UsageMeteringMixin.on_llm_end 将实发字符数写入 run_meter.last_prompt_chars。"""
-    from agent.core.run_meter import AgentRunMeter
-    from agent.loop.history import items_char_length
-    from agent.openai_agents.model import FailoverChatModel
-    from agent.openai_agents.usage_hooks import UsageMeteringMixin
-
-    assert items_char_length([]) == 0
-    assert items_char_length("纯字符串输入") == len("纯字符串输入")
-    assert items_char_length(12345) == 5
-
-    meter = AgentRunMeter()
-    model = FailoverChatModel(session_id="sess-hook")
-    sample_items = [{"role": "user", "content": "测试提示词长度计量" * 200}]
-
-    fake_provider = SimpleNamespace(name="minimax", model="MiniMax-M3.1-Flash", key_slot="primary", reasoning_effort_for=lambda e: e)
-    fake_sdk_model = SimpleNamespace(get_response=AsyncMock(return_value="ok"))
-    with (
-        patch("agent.openai_agents.model.llm_failover.aordered_providers", AsyncMock(return_value=[fake_provider])),
-        patch("agent.openai_agents.model.llm_failover.arecord_success", AsyncMock()),
-        patch("agent.openai_agents.model._sdk_model_for", return_value=fake_sdk_model),
-    ):
-        await model.get_response("系统提示", sample_items, None)
-
-    hooks = UsageMeteringMixin(attribution=None, model="MiniMax-M3.1-Flash", run_meter=meter)
-    fake_agent = SimpleNamespace(model=model)
-    fake_response = SimpleNamespace(usage=SimpleNamespace(input_tokens=1888, output_tokens=42, output_tokens_details=None))
-
-    with patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record"):
-        await hooks.on_llm_end(None, fake_agent, fake_response)
-
-    assert meter.last_prompt_tokens == 1888
-    assert meter.last_prompt_chars == items_char_length(sample_items) > 1500
-    assert model.take_prompt_chars() is None
-
-
-@pytest.mark.unit
-def test_shallow_copied_history_retains_measured_prompt_tokens_on_legacy_rows():
-    """service.py 传 list(history.items) 浅拷贝时，无 prompt_chars 的旧会话行仍保留实测 last_prompt_tokens 保护。"""
+def test_effective_history_provider_tokens_uses_measured_anchor_only_for_unmodified_items():
+    """未改动的原始历史保留实测 last_prompt_tokens 保护；折叠/裁剪副本按供应商同量纲估算。"""
     from agent.loop.history import (
         LoopHistory,
         bound_history_for_provider,
         effective_history_provider_tokens,
-        items_char_length,
     )
-
-    cyc: list[object] = []
-    cyc.append(cyc)
-    assert items_char_length([cyc]) > 2
 
     empty_h = LoopHistory(items=[], last_prompt_tokens=12_000)
     assert effective_history_provider_tokens(empty_h) == 0
@@ -841,12 +709,11 @@ def test_shallow_copied_history_retains_measured_prompt_tokens_on_legacy_rows():
         {"role": "user", "content": "第2轮推进：" + ("天地玄黄宇宙洪荒" * 6_000)},
         {"role": "assistant", "content": "收到第2轮"},
     ]
-    h = LoopHistory(items=items, last_prompt_tokens=920_000, last_prompt_chars=0)
-    shallow = list(h.items)
-    assert shallow is not h.items
-    assert effective_history_provider_tokens(h, shallow) == 920_000
-    bounded = bound_history_for_provider(h, shallow, 750_000)
-    assert len(bounded) < len(shallow)
+    h = LoopHistory(items=items, last_prompt_tokens=920_000)
+    assert effective_history_provider_tokens(h, h.items) == 920_000
+    bounded = bound_history_for_provider(h, h.items, 750_000)
+    assert len(bounded) < len(h.items)
+    assert effective_history_provider_tokens(h, bounded) < 920_000
 
 
 @pytest.mark.asyncio
@@ -984,8 +851,10 @@ def test_billing_tracker_treats_empty_replaced_chapter_as_pending_body_on_failur
         )
     )
     assert tracker.produced_output is False
-    assert tracker.ended_on_reply is False
-    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == ("internal_error", True)
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False, provider_attempted=True) == (
+        "non_model_error",
+        False,
+    )
 
     # 整章替换因并发修改被拒（补发 body_saved=False）时同样回滚此前流过的 file_content 记账
     tracker2 = StreamBillingTracker()

@@ -74,13 +74,14 @@ def install_async_cost_guard(client: Any) -> Any:
         # the DB worker may leave a reservation, which is safe (never free spend).
         reservation = await asyncio.to_thread(reserve_model_call, kwargs)
         # to_thread does not propagate ContextVar changes back to the async task.
-        from services.usage.cost_budget import bind_call_start
+        from services.usage.cost_budget import bind_call_start, notify_model_transport_start
 
         bind_call_start(reservation)
         transport = original
         if reservation is not None and callable(original_with_options):
             # Automatic transport retries can incur unknown duplicate billing.
             transport = original_with_options(max_retries=0).chat.completions.create
+        notify_model_transport_start()
         response = await transport(*args, **kwargs)
         if kwargs.get("stream"):
             return _BudgetedAsyncStream(response, reservation)

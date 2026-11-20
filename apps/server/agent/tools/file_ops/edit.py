@@ -8,8 +8,6 @@ Supports fuzzy and approximate text matching for robust editing even when
 the LLM provides slightly different text.
 """
 
-import asyncio
-import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -36,6 +34,12 @@ from utils.cjk_quotes import (
     has_style_quote_marks,
     normalize_inserted_spans,
     resolve_quote_style,
+)
+from utils.file_write_lock import (
+    EVENT_LOOP_LOCK_WAIT_SECONDS,
+    FileWriteBusyError,
+    acquire_file_write_lock,
+    file_write_lock,
 )
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
@@ -72,24 +76,16 @@ logger = get_logger(__name__)
 # actually hit.
 REPLACE_ALL_MAX_FUZZY_MATCHES = 1000
 
-# SQLite has no row-level locks, so same-file read-modify-write sections are
-# serialized with in-process striped locks instead (the default SQLite
-# deployment runs a single server process; cross-process SQLite writers are
-# not covered). Striping keeps memory bounded; distinct files may share a
-# stripe, which only costs some extra serialization.
-_FILE_WRITE_LOCK_STRIPES = 64
-_file_write_locks = [threading.Lock() for _ in range(_FILE_WRITE_LOCK_STRIPES)]
 
-# 事件循环线程上等待写锁的硬上限。持锁方可能是工作线程里的 commit + 版本快照
-# （_create_version 会重放 diff 链并对整章正文跑 difflib），SQLite 写冲突时
-# 还会撞上 PRAGMA busy_timeout=30000。在事件循环线程上同步等这么久等于整个
-# 进程停摆：该 worker 的所有 SSE 流与 HTTP 请求一起卡住。因此事件循环线程上
-# 只做有界等待，超时抛可重试错误，绝不把不确定时长的等待压在事件循环上。
-EVENT_LOOP_LOCK_WAIT_SECONDS = 0.5
+class PreWriteHistoryUnavailableError(RuntimeError):
+    """提交 AI 修改前没能先建立原稿历史锚点，已回滚、原文保持不变。"""
 
+    error_type = "pre_write_history_unavailable"
 
-class FileWriteBusyError(RuntimeError):
-    """写锁在有界等待内没拿到（文件正被另一个写入任务占用），可安全重试。"""
+    def __init__(self, file_id: str, *, action: str) -> None:
+        self.file_id = file_id
+        self.action = action
+        super().__init__("原文没能先存进历史版本，这次改动没有写入，原文保持不变；可以稍后重试。")
 
 
 # --- edit_file 的稳定错误类型 ---------------------------------------------
@@ -304,44 +300,6 @@ def _no_change_error(edit_index: int, edit: dict[str, Any], quote_style: str | N
         f"没有计入已应用。请核对 old/new；要换引号写法时，new 里直接写出目标引号。",
         error_type=EDIT_ERROR_NO_CHANGE,
     )
-
-
-def file_write_lock(file_id: str) -> threading.Lock:
-    """Return the in-process write lock striped by ``file_id``."""
-    return _file_write_locks[hash(file_id) % _FILE_WRITE_LOCK_STRIPES]
-
-
-def _running_on_event_loop_thread() -> bool:
-    """当前线程是否正在跑 asyncio 事件循环。"""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return False
-    return True
-
-
-@contextmanager
-def acquire_file_write_lock(file_id: str) -> Iterator[None]:
-    """获取按 ``file_id`` 分条带的进程内写锁，且不阻塞事件循环。
-
-    - 工作线程（asyncio.to_thread / 线程池）：照常阻塞式获取，语义不变。
-    - 事件循环线程：只等 ``EVENT_LOOP_LOCK_WAIT_SECONDS``，超时抛
-      :class:`FileWriteBusyError`。写工具本应被 offload 到线程池执行，
-      走到这里说明调用方仍在事件循环上同步调用；此时宁可让这一次编辑失败
-      并提示重试，也不能让整个进程陪着等（最坏可达 SQLite busy_timeout 的 30 秒）。
-    """
-    lock = file_write_lock(file_id)
-    if _running_on_event_loop_thread():
-        if not lock.acquire(timeout=EVENT_LOOP_LOCK_WAIT_SECONDS):
-            raise FileWriteBusyError(
-                "该文件正被另一个写入任务占用，本次编辑未做任何修改，请稍后重试。"
-            )
-    else:
-        lock.acquire()
-    try:
-        yield
-    finally:
-        lock.release()
 
 
 def _exact_spans(content: str, sub: str, limit: int = 3) -> list[tuple[int, int]]:
@@ -1057,8 +1015,6 @@ class FileEditor:
                 "Refused AI write: original body is not in history",
                 extra={"file_id": file_id, "tool": tool},
             )
-            from agent.tools.write_errors import PreWriteHistoryUnavailableError
-
             raise PreWriteHistoryUnavailableError(file_id, action=tool)
 
         if new_title is not None and new_title != file.title:
@@ -2188,10 +2144,12 @@ __all__ = [
     "EDIT_ERROR_INVALID_EDIT",
     "EDIT_ERROR_NO_CHANGE",
     "EDIT_ERROR_PERMISSION_DENIED",
+    "EVENT_LOOP_LOCK_WAIT_SECONDS",
     "EditBatchError",
     "EditFileError",
     "FileEditor",
     "FileWriteBusyError",
+    "PreWriteHistoryUnavailableError",
     "edit_error_user_message",
     "acquire_file_write_lock",
     "file_write_lock",

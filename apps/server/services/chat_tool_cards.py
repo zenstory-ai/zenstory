@@ -7,6 +7,7 @@
 
 import contextlib
 import json
+from collections.abc import Callable, Collection
 from datetime import datetime
 from typing import Any
 
@@ -14,6 +15,7 @@ from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc
 from models import ChatMessage, ChatSession
+from utils.file_write_lock import acquire_file_write_lock
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -21,6 +23,7 @@ logger = get_logger(__name__)
 
 # 带撤销锚点的 AI 修改卡：edit_file，以及单循环 agent 的整章替换（write_chapter）。
 _UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter"})
+_DELETE_CARD_TOOLS = frozenset({"delete_file"})
 _FAILED_CARD_STATUSES = frozenset({"error", "failed", "pending"})
 
 
@@ -64,93 +67,74 @@ def _same_token(stored: Any, expected: datetime) -> bool:
     return parsed is not None and parsed == normalize_datetime_to_utc(expected)
 
 
-def read_delete_card_deleted_at(
+def _verify_assistant_message(
     session: Session,
     *,
     user_id: str,
     project_id: str,
-    file_id: str,
     message_id: str,
-    tool_use_id: str,
-) -> datetime | None:
-    """读取指定 delete_file 卡片上记录的 deleted_at 时间戳（用于根目录已自愈时的子树恢复核对）。"""
+) -> ChatMessage | None:
     message = session.get(ChatMessage, message_id)
     if message is None or message.role != "assistant" or not message.tool_calls:
         return None
     chat = session.get(ChatSession, message.session_id)
     if chat is None or chat.user_id != user_id or chat.project_id != project_id:
         return None
+    return message
+
+
+def _load_verified_calls(
+    session: Session,
+    *,
+    user_id: str,
+    project_id: str,
+    message_id: str,
+) -> list[Any] | None:
+    message = _verify_assistant_message(
+        session, user_id=user_id, project_id=project_id, message_id=message_id
+    )
+    if message is None or not message.tool_calls:
+        return None
     try:
         calls = json.loads(message.tool_calls)
     except ValueError:
         return None
-    if not isinstance(calls, list):
-        return None
+    return calls if isinstance(calls, list) else None
+
+
+def _find_card(
+    calls: list[Any],
+    *,
+    tool_use_id: str,
+    tool_names: Collection[str],
+) -> dict[str, Any] | None:
     for call in calls:
-        if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") != "delete_file":
-            continue
-        if str(call.get("status") or "").strip().lower() in _FAILED_CARD_STATUSES:
-            return None
-        data, _ = _card_undo(call)
-        args = _parse_card_args(call)
-        card_id = data.get("id") if isinstance(data, dict) else None
-        if not isinstance(data, dict) or data.get("mutation_applied") is not True or (card_id or args.get("id")) != file_id:
-            return None
-        return _parse_iso_utc(data.get("deleted_at"))
+        if isinstance(call, dict) and call.get("id") == tool_use_id and call.get("name") in tool_names:
+            return call
     return None
 
 
-def read_edit_card_before_title(
-    session: Session,
+def _match_edit_anchor(
+    call: dict[str, Any],
     *,
-    user_id: str,
-    project_id: str,
     file_id: str,
-    message_id: str,
-    tool_use_id: str,
     before_version_number: int,
     expected_after_updated_at: datetime,
-) -> tuple[str | None, str | None]:
-    """读取指定修改卡（write_chapter 整章替换）上记录的改名前标题与替换后标题。"""
-    message = session.get(ChatMessage, message_id)
-    if message is None or message.role != "assistant" or not message.tool_calls:
-        return None, None
-    chat = session.get(ChatSession, message.session_id)
-    if chat is None or chat.user_id != user_id or chat.project_id != project_id:
-        return None, None
-    try:
-        calls = json.loads(message.tool_calls)
-    except ValueError:
-        return None, None
-    if not isinstance(calls, list):
-        return None, None
-    for call in calls:
-        if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") not in _UNDOABLE_CARD_TOOLS:
-            continue
-        if str(call.get("status") or "").strip().lower() in _FAILED_CARD_STATUSES:
-            return None, None
-        data, undo = _card_undo(call)
-        if (
-            data is None
-            or undo is None
-            or undo.get("undone") is True
-            or data.get("id") != file_id
-            or type(undo.get("before_version_number")) is not int
-            or undo["before_version_number"] != before_version_number
-            or not _same_token(undo.get("expected_after_updated_at"), expected_after_updated_at)
-        ):
-            return None, None
-        before_title = undo.get("before_title")
-        if not isinstance(before_title, str) or not before_title.strip():
-            return None, None
-        after_title = data.get("title")
-        return before_title.strip(), (
-            after_title.strip() if isinstance(after_title, str) and after_title.strip() else None
-        )
-    return None, None
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    data, undo = _card_undo(call)
+    if (
+        data is None
+        or undo is None
+        or data.get("id") != file_id
+        or type(undo.get("before_version_number")) is not int
+        or undo["before_version_number"] != before_version_number
+        or not _same_token(undo.get("expected_after_updated_at"), expected_after_updated_at)
+    ):
+        return None
+    return data, undo
 
 
-def record_delete_card_restored(
+def _mutate_locked_card(
     session: Session,
     *,
     user_id: str,
@@ -158,18 +142,17 @@ def record_delete_card_restored(
     file_id: str,
     message_id: str,
     tool_use_id: str,
-    restored_deleted_at: datetime | None = None,
+    tool_names: Collection[str],
+    log_message: str,
+    mutate: Callable[[dict[str, Any]], bool],
 ) -> bool:
-    """一次删除恢复成功之后，把它对应的 delete_file 卡标成已恢复；返回是否标上。"""
-    from agent.tools.file_ops.edit import acquire_file_write_lock
+    """锁住消息行后从最新值改写匹配的工具卡（populate_existing：不用身份映射里的旧对象）。"""
     from database import is_postgres
 
     try:
-        message = session.get(ChatMessage, message_id)
-        if message is None or message.role != "assistant" or not message.tool_calls:
-            return False
-        chat = session.get(ChatSession, message.session_id)
-        if chat is None or chat.user_id != user_id or chat.project_id != project_id:
+        if _verify_assistant_message(
+            session, user_id=user_id, project_id=project_id, message_id=message_id
+        ) is None:
             return False
         lock_ctx = contextlib.nullcontext() if is_postgres else acquire_file_write_lock(message_id)
         with lock_ctx:
@@ -186,44 +169,140 @@ def record_delete_card_restored(
             if not isinstance(calls, list):
                 session.rollback()
                 return False
-            for call in calls:
-                if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") != "delete_file":
-                    continue
-                if str(call.get("status") or "").strip().lower() in _FAILED_CARD_STATUSES or call.get("error"):
-                    break
-                args = _parse_card_args(call)
-                result = call.get("result")
-                if result is True and args.get("id") == file_id:
-                    call["result"] = {"id": file_id, "restored": True, "mutation_applied": True}
-                else:
-                    data, _ = _card_undo(call)
-                    card_id = data.get("id") if isinstance(data, dict) else None
-                    if (
-                        not isinstance(data, dict)
-                        or "error" in data
-                        or data.get("mutation_applied") is not True
-                        or (card_id or args.get("id")) != file_id
-                    ):
-                        break
-                    if (
-                        restored_deleted_at is not None
-                        and isinstance(data.get("deleted_at"), str)
-                        and not _same_token(data.get("deleted_at"), restored_deleted_at)
-                    ):
-                        break
-                    data["restored"] = True
+            card = _find_card(calls, tool_use_id=tool_use_id, tool_names=tool_names)
+            if card is not None and mutate(card):
                 locked.tool_calls = json.dumps(calls, ensure_ascii=False)
                 session.add(locked)
                 session.commit()
                 return True
-            session.rollback()
+            session.rollback()  # 没有可标的卡：释放行锁
             return False
-    except Exception as exc:  # noqa: BLE001 - the restore itself already committed
+    except Exception as exc:  # noqa: BLE001 - the file mutation itself already committed
         session.rollback()
         log_with_context(
-            logger, 30, "Failed to record a restored delete card", file_id=file_id, error_type=type(exc).__name__
+            logger, 30, log_message, file_id=file_id, error_type=type(exc).__name__
         )
         return False
+
+
+def read_delete_card_deleted_at(
+    session: Session,
+    *,
+    user_id: str,
+    project_id: str,
+    file_id: str,
+    message_id: str,
+    tool_use_id: str,
+) -> datetime | None:
+    """读取指定 delete_file 卡片上记录的 deleted_at 时间戳（用于根目录已自愈时的子树恢复核对）。"""
+    calls = _load_verified_calls(
+        session, user_id=user_id, project_id=project_id, message_id=message_id
+    )
+    if calls is None:
+        return None
+    card = _find_card(calls, tool_use_id=tool_use_id, tool_names=_DELETE_CARD_TOOLS)
+    if card is None or str(card.get("status") or "").strip().lower() in _FAILED_CARD_STATUSES:
+        return None
+    data, _ = _card_undo(card)
+    args = _parse_card_args(card)
+    card_id = data.get("id") if isinstance(data, dict) else None
+    if (
+        not isinstance(data, dict)
+        or data.get("mutation_applied") is not True
+        or (card_id or args.get("id")) != file_id
+    ):
+        return None
+    return _parse_iso_utc(data.get("deleted_at"))
+
+
+def read_edit_card_before_title(
+    session: Session,
+    *,
+    user_id: str,
+    project_id: str,
+    file_id: str,
+    message_id: str,
+    tool_use_id: str,
+    before_version_number: int,
+    expected_after_updated_at: datetime,
+) -> tuple[str | None, str | None]:
+    """读取指定修改卡（write_chapter 整章替换）上记录的改名前标题与替换后标题。"""
+    calls = _load_verified_calls(
+        session, user_id=user_id, project_id=project_id, message_id=message_id
+    )
+    if calls is None:
+        return None, None
+    card = _find_card(calls, tool_use_id=tool_use_id, tool_names=_UNDOABLE_CARD_TOOLS)
+    if card is None or str(card.get("status") or "").strip().lower() in _FAILED_CARD_STATUSES:
+        return None, None
+    matched = _match_edit_anchor(
+        card,
+        file_id=file_id,
+        before_version_number=before_version_number,
+        expected_after_updated_at=expected_after_updated_at,
+    )
+    if matched is None:
+        return None, None
+    data, undo = matched
+    if undo.get("undone") is True:
+        return None, None
+    before_title = undo.get("before_title")
+    if not isinstance(before_title, str) or not before_title.strip():
+        return None, None
+    after_title = data.get("title")
+    return before_title.strip(), (
+        after_title.strip() if isinstance(after_title, str) and after_title.strip() else None
+    )
+
+
+def record_delete_card_restored(
+    session: Session,
+    *,
+    user_id: str,
+    project_id: str,
+    file_id: str,
+    message_id: str,
+    tool_use_id: str,
+    restored_deleted_at: datetime | None = None,
+) -> bool:
+    """一次删除恢复成功之后，把它对应的 delete_file 卡标成已恢复；返回是否标上。"""
+
+    def _mark_restored(call: dict[str, Any]) -> bool:
+        if str(call.get("status") or "").strip().lower() in _FAILED_CARD_STATUSES or call.get("error"):
+            return False
+        args = _parse_card_args(call)
+        if call.get("result") is True and args.get("id") == file_id:
+            call["result"] = {"id": file_id, "restored": True, "mutation_applied": True}
+            return True
+        data, _ = _card_undo(call)
+        card_id = data.get("id") if isinstance(data, dict) else None
+        if (
+            not isinstance(data, dict)
+            or "error" in data
+            or data.get("mutation_applied") is not True
+            or (card_id or args.get("id")) != file_id
+        ):
+            return False
+        if (
+            restored_deleted_at is not None
+            and isinstance(data.get("deleted_at"), str)
+            and not _same_token(data.get("deleted_at"), restored_deleted_at)
+        ):
+            return False
+        data["restored"] = True
+        return True
+
+    return _mutate_locked_card(
+        session,
+        user_id=user_id,
+        project_id=project_id,
+        file_id=file_id,
+        message_id=message_id,
+        tool_use_id=tool_use_id,
+        tool_names=_DELETE_CARD_TOOLS,
+        log_message="Failed to record a restored delete card",
+        mutate=_mark_restored,
+    )
 
 
 def record_edit_card_undone(
@@ -246,68 +325,28 @@ def record_edit_card_undone(
     同一条消息里的几张卡可能同时撤销：读改写整份 tool_calls 时先锁住这一行（PostgreSQL 行锁；
     SQLite 用与文件写入同一套进程内条带锁），在锁下重新读最新内容，后提交的不会覆盖先提交的标记。
     """
-    from agent.tools.file_ops.edit import acquire_file_write_lock
-    from database import is_postgres
 
-    try:
-        message = session.get(ChatMessage, message_id)
-        if message is None or message.role != "assistant" or not message.tool_calls:
-            return False
-        chat = session.get(ChatSession, message.session_id)
-        if chat is None or chat.user_id != user_id or chat.project_id != project_id:
-            return False
-        lock_ctx = contextlib.nullcontext() if is_postgres else acquire_file_write_lock(message_id)
-        with lock_ctx:
-            return _mark_locked_card(
-                session, message_id, file_id, tool_use_id, before_version_number, expected_after_updated_at
-            )
-    except Exception as exc:  # noqa: BLE001 - the undo itself already committed
-        session.rollback()
-        log_with_context(
-            logger, 30, "Failed to record an undone edit card", file_id=file_id, error_type=type(exc).__name__
+    def _mark_undone(call: dict[str, Any]) -> bool:
+        matched = _match_edit_anchor(
+            call,
+            file_id=file_id,
+            before_version_number=before_version_number,
+            expected_after_updated_at=expected_after_updated_at,
         )
-        return False
-
-
-def _mark_locked_card(
-    session: Session,
-    message_id: str,
-    file_id: str,
-    tool_use_id: str,
-    before_version_number: int,
-    expected_after_updated_at: datetime,
-) -> bool:
-    """锁住消息行后从最新值改写那一张卡（populate_existing：不用身份映射里的旧对象）。"""
-    message = session.exec(
-        select(ChatMessage)
-        .where(ChatMessage.id == message_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    ).first()
-    if message is None or not message.tool_calls:
-        session.rollback()
-        return False
-    calls = json.loads(message.tool_calls)
-    if not isinstance(calls, list):
-        session.rollback()
-        return False
-    for call in calls:
-        if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") not in _UNDOABLE_CARD_TOOLS:
-            continue
-        data, undo = _card_undo(call)
-        if (
-            data is None
-            or undo is None
-            or data.get("id") != file_id
-            or type(undo.get("before_version_number")) is not int
-            or undo["before_version_number"] != before_version_number
-            or not _same_token(undo.get("expected_after_updated_at"), expected_after_updated_at)
-        ):
-            break
+        if matched is None:
+            return False
+        _, undo = matched
         undo["undone"] = True
-        message.tool_calls = json.dumps(calls, ensure_ascii=False)
-        session.add(message)
-        session.commit()
         return True
-    session.rollback()  # 没有可标的卡：释放行锁
-    return False
+
+    return _mutate_locked_card(
+        session,
+        user_id=user_id,
+        project_id=project_id,
+        file_id=file_id,
+        message_id=message_id,
+        tool_use_id=tool_use_id,
+        tool_names=_UNDOABLE_CARD_TOOLS,
+        log_message="Failed to record an undone edit card",
+        mutate=_mark_undone,
+    )

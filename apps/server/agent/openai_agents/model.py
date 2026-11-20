@@ -197,9 +197,13 @@ class FailoverChatModel:
         # (reasoning characters, milliseconds or None when it never answered), taken
         # once by the usage hook and logged with that call's reasoning tokens.
         self._thinking_before_answer: tuple[int, int | None] | None = None
-        # Serialized character count of the latest successful call's input items,
-        # paired with usage.input_tokens to calibrate session token density.
-        self._prompt_chars: int | None = None
+        # Upstream provider exception that escaped the latest call after failover was
+        # exhausted or disallowed; read by runner.py to classify terminal model failures.
+        self._unrecovered_provider_error: BaseException | None = None
+
+    @property
+    def unrecovered_provider_error(self) -> BaseException | None:
+        return self._unrecovered_provider_error
 
     def take_call_timing(self) -> CallTiming | None:
         timing, self._call_timing = self._call_timing, None
@@ -209,17 +213,11 @@ class FailoverChatModel:
         thinking, self._thinking_before_answer = self._thinking_before_answer, None
         return thinking
 
-    def take_prompt_chars(self) -> int | None:
-        chars, self._prompt_chars = self._prompt_chars, None
-        return chars
-
-    def _succeeded(self, started: float, ttft_ms: int | None = None, *, input_items: Any = None) -> None:
-        from agent.loop.history import items_char_length
+    def _succeeded(self, started: float, ttft_ms: int | None = None) -> None:
         from models.llm_usage import CALL_OUTCOME_SUCCESS
         from services.usage.llm_usage_service import CallTiming, elapsed_ms
 
         self._call_timing = CallTiming(CALL_OUTCOME_SUCCESS, elapsed_ms(started), ttft_ms)
-        self._prompt_chars = items_char_length(input_items) if input_items is not None else None
 
     def _record_failed_attempt(
         self, provider: ModelProvider, started: float, exc: BaseException, ttft_ms: int | None = None
@@ -259,7 +257,7 @@ class FailoverChatModel:
         ordered = await llm_failover.aordered_providers(self._session_id)
         key_cooled = False
         self._call_timing = None
-        self._prompt_chars = None
+        self._unrecovered_provider_error = None
         for index, provider in enumerate(ordered):
             attempt_started = time.monotonic()
             try:
@@ -272,17 +270,19 @@ class FailoverChatModel:
             except Exception as exc:
                 self._record_failed_attempt(provider, attempt_started, exc)
                 llm_failover.log_provider_failure(provider, exc, call_site="agent")
-                if not llm_failover.is_provider_unavailable(exc):
-                    raise
-                key_cooled = await llm_failover.arecord_failure(provider, self._session_id, exc) or key_cooled
-                if index + 1 >= len(ordered):
-                    raise
-                if _rejects_missing_tool_turn_reasoning(ordered[index + 1], input):
-                    llm_failover.log_failover_skipped(provider, ordered[index + 1], call_site="agent")
-                    raise
-                llm_failover.log_failover(provider, ordered[index + 1], call_site="agent")
-                continue
-            self._succeeded(attempt_started, input_items=input)
+                can_failover = llm_failover.is_provider_unavailable(exc)
+                if can_failover:
+                    key_cooled = await llm_failover.arecord_failure(provider, self._session_id, exc) or key_cooled
+                if can_failover and index + 1 < len(ordered):
+                    if _rejects_missing_tool_turn_reasoning(ordered[index + 1], input):
+                        llm_failover.log_failover_skipped(provider, ordered[index + 1], call_site="agent")
+                    else:
+                        llm_failover.log_failover(provider, ordered[index + 1], call_site="agent")
+                        continue
+                if llm_failover.is_upstream_provider_error(exc):
+                    self._unrecovered_provider_error = exc
+                raise
+            self._succeeded(attempt_started)
             self._served(provider)
             if not key_cooled:
                 await llm_failover.arecord_success(provider, self._session_id, ordered)
@@ -297,7 +297,7 @@ class FailoverChatModel:
         key_cooled = False
         self._call_timing = None
         self._thinking_before_answer = None
-        self._prompt_chars = None
+        self._unrecovered_provider_error = None
         for index, provider in enumerate(ordered):
             # Events before the first output or completion (``response.created``,
             # ``output_item.added``) are held back: until output reaches the runner,
@@ -338,7 +338,7 @@ class FailoverChatModel:
                     if event_type == _COMPLETED_EVENT_TYPE:
                         # Timed when the provider finished, before the SDK consumes the event.
                         completed = True
-                        self._succeeded(attempt_started, ttft_ms, input_items=input)
+                        self._succeeded(attempt_started, ttft_ms)
                         self._thinking_before_answer = (thinking_chars, first_answer_ms)
                     if not started:
                         if ttft_ms is None and not completed:
@@ -364,47 +364,51 @@ class FailoverChatModel:
                         provider.model, outcome="failed", thinking_chars=thinking_chars,
                         first_answer_ms=first_answer_ms, started=attempt_started, key_slot=provider.key_slot,
                     )
+                can_failover = False
                 if llm_failover.is_provider_unavailable(exc):
                     # Pins the session to the other provider even mid-stream, so the
                     # author's retry goes there, and counts towards the provider's circuit.
                     key_cooled = await llm_failover.arecord_failure(provider, self._session_id, exc) or key_cooled
+                    can_failover = True
                 elif llm_failover.is_in_stream_error(exc):
                     # Possibly about this request's content: this session moves to the
                     # other provider, other authors stay where they are (no circuit count).
                     await llm_failover.apin_session_to_other(provider, self._session_id)
-                else:
-                    raise
-                # A call that streamed only reasoning fails over now (nothing it produced
-                # would be repeated); after answer output the error propagates.
-                if answered or completed or index + 1 >= len(ordered):
-                    log_with_context(
-                        logger, 30, "LLM stream failover not attempted",
-                        provider=provider.name,
-                        provider_count=len(ordered),
-                        provider_index=index,
-                        answer_started=answered,
-                        response_completed=completed,
-                        reason=(
-                            "response_completed" if completed else "answer_started" if answered
-                            else "single_provider" if len(ordered) == 1 else "providers_exhausted"
-                        ),
-                    )
-                    raise
-                # The backup would answer this input with HTTP 400: end with the original error
-                # (retryable; the session pin above sends the author's retry to the backup).
-                if _rejects_missing_tool_turn_reasoning(ordered[index + 1], input):
-                    llm_failover.log_failover_skipped(provider, ordered[index + 1], call_site="agent")
-                    raise
-                llm_failover.log_failover(
-                    provider, ordered[index + 1], call_site="agent", after_reasoning=started
-                )
-                continue
+                    can_failover = True
+                if can_failover:
+                    # A call that streamed only reasoning fails over now (nothing it produced
+                    # would be repeated); after answer output the error propagates.
+                    if answered or completed or index + 1 >= len(ordered):
+                        log_with_context(
+                            logger, 30, "LLM stream failover not attempted",
+                            provider=provider.name,
+                            provider_count=len(ordered),
+                            provider_index=index,
+                            answer_started=answered,
+                            response_completed=completed,
+                            reason=(
+                                "response_completed" if completed else "answer_started" if answered
+                                else "single_provider" if len(ordered) == 1 else "providers_exhausted"
+                            ),
+                        )
+                    elif _rejects_missing_tool_turn_reasoning(ordered[index + 1], input):
+                        # The backup would answer this input with HTTP 400: end with the original error
+                        # (retryable; the session pin above sends the author's retry to the backup).
+                        llm_failover.log_failover_skipped(provider, ordered[index + 1], call_site="agent")
+                    else:
+                        llm_failover.log_failover(
+                            provider, ordered[index + 1], call_site="agent", after_reasoning=started
+                        )
+                        continue
+                if llm_failover.is_upstream_provider_error(exc):
+                    self._unrecovered_provider_error = exc
+                raise
             if not started:
                 self._served(provider)
                 for held in preamble:
                     yield held
             if not completed:
-                self._succeeded(attempt_started, ttft_ms, input_items=input)
+                self._succeeded(attempt_started, ttft_ms)
                 self._thinking_before_answer = (thinking_chars, first_answer_ms)
             if not key_cooled:
                 await llm_failover.arecord_success(provider, self._session_id, ordered)

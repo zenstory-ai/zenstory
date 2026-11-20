@@ -42,7 +42,7 @@ agent/
 │   ├── task_board_completion.py # 正常结束时按实际写出的文件补记任务板
 │   ├── sse_pump.py         # SSEStreamPump：心跳、请求墙钟时限、作者停止
 │   ├── account_run_limit.py# 账号任务名额（每账号最多 2 个）：原子获取、续租、失效回收
-│   ├── stream_billing.py   # StreamBillingTracker：按发出的帧判定计费 / 退还
+│   ├── stream_billing.py   # StreamBillingTracker：按结构化执行事实判定计费 / 退还与产出回执标记
 │   ├── stream_errors.py    # 错误码、固定文案、retryable / refundable
 │   ├── round_outcome.py    # 停止 / 断线的一轮怎样收尾（终态落库、空白占位文件）
 │   ├── run_meter.py        # 请求级模型调用计数与耗时
@@ -88,7 +88,6 @@ agent/
 │   ├── registry.py         # schema / handler / 单循环 agent 工具集的唯一接线处
 │   ├── file_ops/           # 文件 CRUD、编辑、项目操作（FileToolExecutor 组合三者）
 │   ├── author_changes.py   # 作者在 AI 写过之后的净改动
-│   ├── write_errors.py     # 写入恢复记录失败的独立错误域
 │   ├── task_progress.py    # 任务板编号范围与实际文件对照
 │   └── permissions.py
 └── utils/                  # token_utils
@@ -122,7 +121,7 @@ agent/
   重试（`retry_unanswered`）删掉这条没得到回复的作者行前接过它上面的记录，本轮历史照它重建，本轮没有新记录时随本轮的行落库，不重付摘要。
   作者看得到这一步：摘要调用前发 `thinking`（`step=history_compaction`，「正在压缩对话…」）；成功后发 `history_compacted`（`data.summary`），
   并在本轮 `display_events` 开头记 `{"type": "history_compacted", "data": {}}`，刷新后前端在同一位置回放「对话已压缩」标记，摘要读本行的
-  `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件（退避目标封顶 950k，避免逼近 1M 窗口的存量老会话死锁；平台 `APIException` 如免费成本上限原样上抛、不记退避）。模型调用成功时随 `prompt_tokens` 一并记录输入项字符数 `prompt_chars`，`effective_history_provider_tokens` 与 `compact_history` 优先按 `(prompt_tokens, prompt_chars)` 标定本会话真实字词比做锚点增量与折叠上限计算（无 `prompt_chars` 的旧行退回同量纲估算，浅拷贝保留实测上限）；`kept_author_messages` 与旧压缩点分页统一用 `estimate_provider_text_tokens` 计 20k 预算，`COMPACT_PROMPT` 不设硬字数上限（由 `AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS` 兜底）；若摘要首次请求仍遇 400/413/422 超窗则自动减半输入预算并重折旧工具载荷重试一次，裁剪后为空则直接跳过不落空摘要（`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS` 750000 / `AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS` 700000，`bound_history_for_provider`），常态绝不因 `cl100k_base` 虚高而提前砍掉旧消息。[loop-post-launch-fixes][n-loop-fixes]、[cross-review-fixes][n-xreview]
+  `compaction.summary`；没压缩成时只发 `thinking`（`step=history_compaction_skipped`）收起进度，不落库任何显示事件（退避目标封顶 950k，避免逼近 1M 窗口的存量老会话死锁；平台 `APIException` 如免费成本上限原样上抛、不记退避）。`kept_author_messages` 与旧压缩点分页统一用 `estimate_provider_text_tokens` 计 20k 预算，`COMPACT_PROMPT` 不设硬字数上限（由 `AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS` 兜底）；若摘要首次请求仍遇 400/413/422 超窗则自动减半输入预算并重折旧工具载荷重试一次，裁剪后为空则直接跳过不落空摘要（`AGENT_LOOP_RUN_HISTORY_MAX_TOKENS` 750000 / `AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS` 700000，`bound_history_for_provider`），常态绝不因 `cl100k_base` 虚高而提前砍掉旧消息。[loop-post-launch-fixes][n-loop-fixes]、[cross-review-fixes][n-xreview]
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
   （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时也经 `FILE_BODY_RESUME` 恢复捕获、
   补不成就作废定位，原文不动）、
@@ -161,12 +160,11 @@ agent/
   并以同一个 tool_use_id 补发一条 write_chapter 的 tool_result（`body_saved`、`new_word_count`、`previous_word_count`、`undo`；落库卡片随之更新，
   `services/chat_tool_cards` 的撤销标记接受 write_chapter 卡）。版本变了或恢复记录无法建立时不覆盖、发「这一章的整章替换没有保存，原文保持不变」、
   补发 `body_saved=false`，然后结束这一轮（`_stop_after_refused_replace`：之后的模型文字不放出，正常 done；`ToolContext.close_pending_body_files`
-  撤销模型跑在前面建好的空文件，之后才建好的由 `_create_file_sync` 自己撤销）。计费（`StreamBillingTracker._write_effect`）：write_chapter
+  撤销模型跑在前面建好的空文件，之后才建好的由 `_create_file_sync` 自己撤销）。产出与保存回执记录（`StreamBillingTracker._write_effect`，供 `stop_outcome.saved_output`、暂停卡与前端建议门槛使用；消息额度计费见下节 [model-error-only-refund][n-model-error-refund]）：write_chapter
   新建同 create_file 只看 content，替换只认 `body_saved` 且 `mutation_applied` 的补发结果（替换目标即结果 `action=replaced` 且原文非空的 id 记进
-  `replace_target_ids`，它的流式 file_content 不算写入：正文流到一半停止 / 断线 / 到时，原文不变，照常退还；
-  原文为空的章节没有覆盖保护，中途停下的正文照常落库并计费；写到 `</file>` 后提交还在途中时被截停，
-  StreamAdapter 不随取消丢掉提交，`settle_aborted_capture` 等它的结果写进保存回执，结算前按回执 `note_saved_receipts` 补记写入，
-  断线路径在后台等回执后再决定是否退还）；本轮新建文件的回执同样补记（短正文只在解析器尾缓冲里、截停时才补存，没有 file_content 帧），
+  `replace_target_ids`，它的流式 file_content 不算已保存写入：正文流到一半停止 / 断线 / 到时，原文保持不变，但因本轮已进入模型执行仍照常计费；
+  原文为空的章节没有覆盖保护，中途停下的正文照常落库；写到 `</file>` 后提交还在途中时被截停，
+  StreamAdapter 不随取消丢掉提交，`settle_aborted_capture` 等它的结果写进保存回执，收尾按回执 `note_saved_receipts` 补记已保存写入）；本轮新建文件的回执同样补记（短正文只在解析器尾缓冲里、截停时才补存，没有 file_content 帧），
   API 在本轮还有等正文的文件（`tracker.file_body_pending()`）时都先等回执（有上限）。`</file>` 已解析、还没开始保存就被截停的正文
   （例如 SSE 队列满时停在 yield 上）在发帧前登记为 `_completed_unsaved`，`settle_aborted_capture` 按正常完成的规则补存；正常路径的新正文保存
   在 shield 的任务里跑、版本令牌在任务创建前定下，取消落在保存中途时由 settle 等它的结果；没写完的 `<file>`（截断补全、中途停止）按既有覆盖保护不覆盖原文；run 边界的截断补全被拒时
@@ -177,13 +175,13 @@ agent/
   一处 replace 的 old 就是整份原文、或只有一处 replace 且原文两段以上而改完一段都没留下 → `whole_body_replace`（几处各自定位的小改动不算）；改完后有一段（≥ 80 字）逐字出现两次以上而改之前没有
   重复 → `duplicated_paragraph`。整批不落库。资料文件不受影响。
 - **落库**：assistant 行 `routing` 为空，`display_events` 只有 content / thinking_content / tool_call / iteration_exhausted / workflow_stopped / history_compacted（`file_content_end` 邻接纯空白协议换行丢弃、移除孤立纯空白文本段并仅裁去首个非空 `content` 段首部换行，普通内部文本段逐字保留，纯空白文本段不触发空 assistant 行落库；本轮已保存正文的章节在自查中重调 `write_chapter` 返回的 `chapter_written_this_turn` 属内部防重守卫，前端 `INTERNAL_ORDERING_ERROR_TYPES` 不渲染为失败卡，见 [issue-413][n-issue-413]），额外 metadata
-  `engine`、`prompt_tokens`、`prompt_chars`、`compaction`（`MessageManager.save_messages(assistant_extra_metadata=…)`，取消 / 失败补存也带）。
+  `engine`、`prompt_tokens`、`compaction`（`MessageManager.save_messages(assistant_extra_metadata=…)`，取消 / 失败补存也带）。
 - **测试**：AgentService 外壳用例（test_service、test_round3_service、test_user_message_sent_at、test_steering_live_run_enqueue、
   test_agent_service_session_id、test_first_message_hint、test_prompt_cache_prefix、e2e/test_agent_stream_e2e 与 test_api/test_agent、
   test_account_run_limit 里走 AgentService 的用例）替换 `agent.service.run_loop_agent_streaming` 产出工作流事件，外壳照常跑单循环的输入准备
   与落库；`shell_engine` 夹具让替身 ContextAssembler 不往本轮上下文传。引擎本身见 `tests/test_agent/test_loop_agent.py`、
   `test_loop_write_chapter.py`、`test_loop_round_endings.py`、`test_file_body_resume.py`、`tests/e2e/test_loop_agent_e2e.py`、
-  `tests/e2e/test_loop_agent_shell_e2e.py`（真实工具 + 脚本模型跑整章替换与撤销、edit_file 撤销元数据、停止回执与计费、时限、失控退还、插话）；
+  `tests/e2e/test_loop_agent_shell_e2e.py`（真实工具 + 脚本模型跑整章替换与撤销、edit_file 撤销元数据、停止回执与计费、时限、轮数耗尽、插话）；
   图写下的旧行的回放见 `test_loop_legacy_graph_rows.py`。
 
 ## 请求与流
@@ -216,14 +214,12 @@ agent/
 
 - 每个 `/agent/stream` 恰好以一个终止帧结束（`done` / `workflow_stopped` / `error`）；逃逸异常先补发 error 帧。
   错误码与固定文案在 `core/stream_errors.py`。[terminal-frame][n-terminal]、[error-and-refund][n-refund]
-- 计费规则以 `core/stream_billing.py` 模块 docstring 为准：作者停止 / 断线时本轮没有实质产出则退还；墙钟超时（含发布重启）只认写进
-  文件的正文、真正的回复或结束时正在写回复，只改了项目信息（AI 记忆）照样退还；失控停止（no_progress / 模型调用上限 / 工具轮数耗尽）且没有任何写入成功则退还；正常结束计费；出错时 error 帧
-  `refundable: false`（如工具失败熔断）、已有产出或正在写回复则计费，其余退还。「实质产出」只有写入留下正文，或一段回复正文达到
-  `PROSE_MIN_CHARS` 个单位（`prose_units`：拉丁字母单词算 1.5，其余非空白字符算 1，英文过渡句与中文同口径）；思考、读文件、只建空文件、过渡旁白都不算。退还落库后补发 `quota_refunded`，结算只做一次。
-  [error-and-refund][n-refund]、[stop-output-definition][n-output]
-- 作者停止走 `POST /agent/stop` → `SSEStreamPump.request_stop()`，连接上补发 `workflow_stopped(user_stopped)` 与 `done`；停止 / 断线 / 超时
-  的取消路径会把进行中的 `<file>` 捕获补存，并由 `core/round_outcome.py` 写终态、退还时移除本轮空白占位文件。
-  [graceful-stop][n-stop]、[abort-flushes-capture][n-flush]、[stop-output-definition][n-output]
+- 计费规则以 `core/stream_billing.py` 与 [model-error-only-refund][n-model-error-refund] 为准（已推翻早期“无 60 字回复或无文件写入即退还”的规则）：
+  唯一计费边界是请求是否真正进入供应商模型调用（`services/usage/model_call_guard.py` 在 `reserve_model_call` 通过后、紧贴 `await transport` 之前通过 `services/usage/cost_budget.py` 回调置 `RunOutcome.provider_attempted=True`，含轮前压缩与主循环调用，零反向依赖）以及是否因未恢复的上游模型服务错误终止整轮（`core/llm_failover.py:is_upstream_provider_error` 统一判据 + `FailoverChatModel.unrecovered_provider_error` 单一终态出口 → `runner` `error_source="model"` → `StreamAdapter` 致命终止置 `RunOutcome.terminal_model_failure=True`）。
+  正常完成（`done` 且无 error）直接计费；仅 `provider_attempted == False`（进入模型前停止、断线、超时、预检或首次调用成本预检拦截）或 `terminal_model_failure == True`（即使此前已流出部分正文）时退还本轮 AI 消息额度；一旦 `provider_attempted == True` 且非上述上游模型错误终止，纯读取核对、只思考、主动停止、客户端断线、600s 软着陆、780s 墙钟硬超时、发布交接、工具熔断 / `no_progress` / 重复循环 / 模型调用上限 / 输出截断、第 2 次及以后调用撞成本兜底、SDK/本地异常均计 1 轮 AI 消息额度。`produced_output` / `write_succeeded` 仍保留用于 `stop_outcome.saved_output`、时限暂停卡与前端建议门槛。退还实际落库后才发 `quota_refunded`，单轮至多结算一次。
+  历史背景见 [error-and-refund][n-refund]、[stop-output-definition][n-output]。
+- 作者停止走 `POST /agent/stop` → `SSEStreamPump.request_stop()`，连接上先发 `workflow_stopped(user_stopped)`、等保存回执与迟到写工具结果补齐后真实结算计费（若实际退还额度且满足版本/作者保留安全条件则清理本轮空白占位文件，异常记日志不阻塞 `done`），再以实际 `charged=not refund_applied` 与真实移除集过滤后的回执发出 `done`（退还生效时随后发 `quota_refunded`）；未移除的新建空白占位保留在库并在 `done.unwritten_files` 与 `stop_outcome.unwritten_files` 如实列出。停止 / 断线 / 超时的取消路径会把进行中的 `<file>` 捕获补存，并由 `core/round_outcome.py` 写终态。
+  [graceful-stop][n-stop]、[abort-flushes-capture][n-flush]、[stop-output-definition][n-output]、[model-error-only-refund][n-model-error-refund]
 - 墙钟时限由 `SSEStreamPump` 执行：到点先发真实超时终态再等生产者收尾。[platform-deadline][n-deadline]、[deadline-terminal][n-deadline2]
 - 发布交接：SIGTERM 后 `core/server_drain.py` 让所有运行立即按时限收尾提醒，`api/agent.py` 把进行中的泵的时限提前到 `AGENT_DRAIN_STOP_AFTER_S`（240 秒），到点以 `ERR_AGENT_SERVER_RESTARTING` 收尾、计费同墙钟超时（`billing_reason=server_restarting`）；lifespan 关闭前等后台退还与终态任务。[deploy-drain][n-drain]
 - 运行中插话：`/agent/steer` 写入 `core/steering.py` 的队列，runner 在边界处消费。入队与「存在未封口的存活 run」原子判定；工作流结束后、保存历史前的那次 drain 起就封口（本 run 不再把引导喂给模型），释放前的兜底 drain 再封一次；之后的 steer 回 404，前端改为下一条普通消息发送。[steering-busy-409][n-steer]
@@ -290,7 +286,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 1. schema 加进 `tools/tool_schemas.py` 的 `TOOL_SCHEMAS`。
 2. 实现加进 `tools/mcp_tools.py` 的 `MCP_TOOL_HANDLERS`（`registry.TOOL_FUNCTIONS` 由它生成）。
 3. 在 `tools/registry.py` 把它加进 `LOOP_TOOL_NAMES`（加在末尾：顺序变了会让请求的前缀缓存失效）。
-4. 会产生作者可见产出的工具：在 `core/stream_billing.py` 里定义它怎样算产出（`WRITE_TOOL_NAMES` 等），否则停止 / 出错时会被退还。
+4. 会产生作者可见产出的工具：在 `core/stream_billing.py` 里定义它怎样算产出（`WRITE_TOOL_NAMES` 等），供 `done.produced_output`、`stop_outcome.saved_output` 与时限暂停卡准确记录。
 5. 前端：`apps/web/src/components/ToolResultCard.tsx` 的卡片、`apps/web/public/locales/{zh,en}/chat.json` 的 `chat:tool.<name>` 文案、
    `apps/web/src/lib/thinkingDisplay.ts` 的 `UNDERSCORE_IDENTIFIER_KEYS`。
 6. 测试：`apps/server/tests/test_agent/test_tool_registry.py`（`validate_registry_alignment`）加上工具自己的用例。
@@ -298,7 +294,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 ## 调试
 
 - 日志：`apps/server/utils/logger.py` 的 `log_with_context`（自动带 `apps/server/utils/request_context.py` 里的 `request_id` / `agent_run_id`）。每个请求结束时 `apps/server/api/agent.py`
-  写一条 `Agent stream billing evaluated`，含 `billing_reason`、`produced_output` 和 `run_*` 运行摘要（模型调用数等，来自 `core/run_meter.py`）。
+  写一条 `Agent stream billing evaluated`，含真实 `charged`、`billing_reason`、`provider_attempted`、`terminal_model_failure`、`produced_output` 和 `run_*` 运行摘要（模型调用数等，来自 `core/run_meter.py`）。
 - 工具执行看 `tools/mcp_tools.py` 的返回结构（`status` / `error_type`）；事件转换看 `stream_adapter.py`；一轮里为什么再跑看 `loop/engine.py` 的日志。
 - 测试在 `apps/server/tests/test_agent/` 与 `apps/server/tests/test_api/`（如 `apps/server/tests/test_api/test_agent.py`、`apps/server/tests/test_api/test_agent_stream_hardening.py`）。
 
@@ -337,3 +333,4 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-prod-review]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-prod-review-followups.md
 [n-prod-audit2]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-loop-prod-audit-round2-fixes.md
 [n-issue-413]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-issue-413-blank-display-and-write-chapter-guard.md
+[n-model-error-refund]: ../../../.agents/notes/implemented/bug-fix/2026-11-20-round-billing-model-error-only-refund.md

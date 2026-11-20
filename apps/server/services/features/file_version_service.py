@@ -653,9 +653,8 @@ class FileVersionService:
         # 回滚同样是「读旧内容 -> 整篇覆盖 File.content」的用户侧写入，必须和
         # agent 的 edit_file 走同一条串行化通道；否则 agent 的写入会插在读版本
         # 与提交之间，版本链和正文对不上。
-        # 延迟 import：agent.tools.file_ops.edit 反过来依赖本模块。
-        from agent.tools.file_ops.edit import file_write_lock
         from database import is_postgres
+        from utils.file_write_lock import file_write_lock
 
         lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
 

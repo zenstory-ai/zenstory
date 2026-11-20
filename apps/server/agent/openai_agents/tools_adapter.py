@@ -84,7 +84,7 @@ def _is_partial_result(text: str) -> bool:
 def _record_business_failure(run_meter: AgentRunMeter, tool_name: str, args: dict[str, Any], text: str) -> None:
     """Count an executed tool's status=error / partial result in the run summary (never affects the result)."""
     try:
-        payload = _parse_error_payload(text, tool_name)
+        payload = _parse_error_payload(text)
         if payload is not None:
             edits = args.get("edits")
             run_meter.record_tool_failure(
