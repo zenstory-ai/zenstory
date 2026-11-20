@@ -71,7 +71,7 @@ class _PendingEmptyFileState:
     __slots__ = (
         "_lock", "_entries", "_reservations", "_streamed", "_reply_seq", "_created_in", "_versions",
         "_prebody_reply", "_waiting_at_reply_start", "_replacements", "_closed", "_replacement_saved",
-        "_chapter_bodies_saved", "_saved_body_types", "_steering_at_arm", "_cut_bodies_saved",
+        "_chapter_bodies_saved", "_saved_body_types", "_cut_bodies_saved",
     )
 
     def __init__(self) -> None:
@@ -109,9 +109,6 @@ class _PendingEmptyFileState:
         self._chapter_bodies_saved: dict[str, str] = {}
         # 同一批文件的类型（保存点知道时记下；空串表示不知道）：保存后自查只针对正文类文件。
         self._saved_body_types: dict[str, str] = {}
-        # 文件定为待写时本请求已收到几条作者插话（ToolContext.author_steering_count）：
-        # 之后又有插话，正文那次调用的输入里可能带着它，tool_choice 不再限为 none（见 steering_since_armed）。
-        self._steering_at_arm: dict[str, int] = {}
         # 没等到 </file>、按流结束补全保存下来的新正文：id -> 标题（StreamAdapter 保存成功后记下）。
         # loop 引擎在 run 边界取走（take_cut_bodies），结合 runner 的 output_capped 判断正文是否被输出上限截断。
         self._cut_bodies_saved: dict[str, str] = {}
@@ -167,15 +164,9 @@ class _PendingEmptyFileState:
                 if file_id not in self._streamed and self._created_in.get(file_id, self._reply_seq) < self._reply_seq
             ]
 
-    def steering_since_armed(self, file_ids: list[str], steering_count: int) -> bool:
-        """这些待写文件里有没有定为待写之后又收到作者插话的。"""
-        with self._lock:
-            return any(steering_count > self._steering_at_arm.get(file_id, steering_count) for file_id in file_ids)
-
-    def add(self, file_id: str, title: str, version: str | None = None, steering_count: int = 0) -> None:
+    def add(self, file_id: str, title: str, version: str | None = None) -> None:
         with self._lock:
             self._created_in[file_id] = self._reply_seq
-            self._steering_at_arm[file_id] = steering_count
             self._entries[file_id] = title
             self._set_version(file_id, version)
             self._replacements.pop(file_id, None)
@@ -382,7 +373,6 @@ class _PendingEmptyFileState:
         title: str,
         version: str | None = None,
         replacement: dict[str, Any] | None = None,
-        steering_count: int = 0,
     ) -> None:
         """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。
 
@@ -393,7 +383,6 @@ class _PendingEmptyFileState:
             if file_id:
                 self._entries[file_id] = title
                 self._created_in[file_id] = self._reply_seq
-                self._steering_at_arm[file_id] = steering_count
                 self._set_version(file_id, version)
                 if replacement is not None:
                     self._replacements[file_id] = dict(replacement)
@@ -865,7 +854,7 @@ class ToolContext:
         """
         state = cls._get_pending_empty_file_state(create=True)
         assert state is not None
-        state.add(file_id, title, version, cls.author_steering_count())
+        state.add(file_id, title, version)
 
     @classmethod
     def clear_pending_empty_file(cls, file_id: str | None = None) -> None:
@@ -908,18 +897,6 @@ class ToolContext:
         """上一次回复建好、这次回复还没写正文的文件（两次回复协议被跳过）：见 overdue_unwritten_files；没有请求上下文时为空。"""
         state = cls._get_pending_empty_file_state()
         return state.overdue_unwritten_files() if state is not None else []
-
-    @classmethod
-    def author_steering_count(cls) -> int:
-        """本请求到目前为止收到（已从队列取出）的作者插话条数；没有请求上下文时为 0。"""
-        steering = cls._get_context().get("author_steering")
-        return len(steering) if isinstance(steering, list) else 0
-
-    @classmethod
-    def steering_since_file_bodies_armed(cls, file_ids: list[str]) -> bool:
-        """这些待写文件定为待写之后，本请求又收到过作者插话（结构化计数，不看插话内容）。"""
-        state = cls._get_pending_empty_file_state()
-        return state.steering_since_armed(file_ids, cls.author_steering_count()) if state is not None else False
 
     @classmethod
     def mark_pending_body_streamed(cls, file_id: str) -> None:
@@ -997,7 +974,7 @@ class ToolContext:
         """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本（或整章替换的定位结果）。"""
         state = cls._get_pending_empty_file_state(create=True)
         assert state is not None
-        state.bind(ticket, file_id, title, version, replacement, cls.author_steering_count())
+        state.bind(ticket, file_id, title, version, replacement)
 
     @classmethod
     def close_pending_body_files(cls) -> list[dict[str, str]]:

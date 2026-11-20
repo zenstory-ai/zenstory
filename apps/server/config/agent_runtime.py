@@ -117,3 +117,18 @@ AGENT_LOOP_RUN_HISTORY_MAX_TOKENS = get_int_env("AGENT_LOOP_RUN_HISTORY_MAX_TOKE
 # multi-chapter attachments verbatim while preventing 500k-char uploaded drafts from blowing
 # past the 1M provider window on turn 1.
 AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS = get_int_env("AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS", 120_000)
+
+# Short-TTL Redis cache of the exact SDK wire-format input items at the end of a clean loop
+# turn (agent/loop/wire_prefix_cache.py). Matches MiniMax's ~15m KV-cache window so active
+# multi-turn sessions reuse an identical wire prefix across turns (including pre-run compaction).
+# Set <= 0 to disable.
+AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS = get_int_env(
+    "AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS",
+    900,
+    minimum=None,
+)
+AGENT_WIRE_PREFIX_CACHE_MAX_BYTES = get_int_env(
+    "AGENT_WIRE_PREFIX_CACHE_MAX_BYTES",
+    2 * 1024 * 1024,
+    minimum=1,
+)

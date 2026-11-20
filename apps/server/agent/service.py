@@ -32,6 +32,7 @@ from utils.logger import get_logger, log_with_context
 
 from .constants import should_offload_session_work
 from .context import ContextAssembler, get_context_assembler
+from .core import llm_failover
 from .core.account_run_limit import AccountRunSlot
 from .core.events import (
     HISTORY_COMPACTION_SKIPPED_STEP,
@@ -77,6 +78,13 @@ from .loop.history import (
     valid_compaction,
 )
 from .loop.turn_context import LoopTurnContext, build_loop_turn_context
+from .loop.wire_prefix_cache import (
+    ainvalidate_wire_prefix,
+    aload_wire_prefix,
+    astore_wire_prefix,
+    invalidate_wire_prefix,
+    provider_cache_key,
+)
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .skills.content_budget import split_selected_budget
@@ -991,6 +999,8 @@ class AgentService:
                 chat_session.updated_at = utcnow()
                 retry_session.commit()
                 retry_carried_compaction.update(carried)
+                if carried:
+                    invalidate_wire_prefix(session_id)
                 return True
 
         async def _drain_late_steering(*, failure_message: str) -> list[str]:
@@ -1148,6 +1158,25 @@ class AgentService:
                 loop_history, loop_turn, selected_skills, system_prompt = self._prepare_loop_turn(
                     session, **loop_kwargs
                 )
+            if user_id and session_id and loop_history.last_message_id and not retry_carried_compaction:
+                expected_provider_key: str | None = None
+                try:
+                    ordered_providers = await llm_failover.aordered_providers(session_id)
+                    if ordered_providers:
+                        expected_provider_key = provider_cache_key(ordered_providers[0])
+                except Exception:  # noqa: BLE001 - fail open to DB history
+                    expected_provider_key = None
+                if expected_provider_key:
+                    cached_items = await aload_wire_prefix(
+                        session_id=session_id,
+                        project_id=project_id,
+                        user_id=user_id,
+                        last_message_id=loop_history.last_message_id,
+                        system_prompt=system_prompt,
+                        provider_key=expected_provider_key,
+                    )
+                    if cached_items is not None:
+                        loop_history.items = cached_items
             if loop_turn.items:
                 yield context_event(items=loop_turn.items, token_count=0).to_sse()
             for selected in selected_skills:
@@ -1482,10 +1511,13 @@ class AgentService:
                 # 这里同时封口：本 run 之后不会再把引导喂给模型，保存历史期间再到的引导回 404，
                 # 由前端作为下一条消息发出，而不是回 200「下一步会用上」再挂在已结束的一轮上。
                 # 封口幂等，finally 里那次 drain 照旧兜底取出封口前刚入队的消息。
-                await _drain_late_steering(
+                late_steering_before_save = await _drain_late_steering(
                     failure_message=(
                         "Failed to drain remaining steering messages before history save"
                     )
+                )
+                has_pending_file_state = ToolContext.has_pending_empty_file() or bool(
+                    ToolContext.unsaved_chapter_replacement_ids()
                 )
 
                 # Save to history。落库放进独立任务并 shield：PG 下
@@ -1543,6 +1575,32 @@ class AgentService:
                 assistant_message_id = await asyncio.shield(history_save_task)
                 if run_outcome is not None:
                     run_outcome.resolve_message_id(assistant_message_id)
+                completed_wire_items = writing_state.get("native_run_holder", {}).get("items")
+                if (
+                    user_id
+                    and session_id
+                    and assistant_message_id
+                    and not had_stream_error
+                    and not request_failed
+                    and not stream_cancelled
+                    and assistant_stop_reason == "end_turn"
+                    and not assistant_status_cards
+                    and not late_steering_before_save
+                    and not has_pending_file_state
+                    and not run_meter.past_wrap_up
+                    and isinstance(completed_wire_items, list)
+                    and completed_wire_items
+                    and run_meter.last_served_provider_key
+                ):
+                    await astore_wire_prefix(
+                        session_id=session_id,
+                        project_id=project_id,
+                        user_id=user_id,
+                        last_assistant_message_id=assistant_message_id,
+                        system_prompt=system_prompt,
+                        provider_key=run_meter.last_served_provider_key,
+                        items=completed_wire_items,
+                    )
                 if pending_done_payload is not None:
                     yield done_event(
                         assistant_message_id=assistant_message_id,
@@ -1619,6 +1677,7 @@ class AgentService:
                             await _finish_history_write(
                                 _append_user_messages_sync, late_steering
                             )
+                            await ainvalidate_wire_prefix(session_id)
                         return
                     # 作者停止 / 断线（路由层在取消前写入 stop_kind）：落库真实的停止
                     # 原因，并且即使没有任何产出也写一条助手消息，刷新后看得到终态。
@@ -1755,6 +1814,7 @@ class AgentService:
                             await _finish_history_write(
                                 _append_user_messages_sync, late_steering
                             )
+                            await ainvalidate_wire_prefix(session_id)
                         except Exception as exc:
                             log_with_context(
                                 logger,

@@ -25,6 +25,7 @@ from models import ChatMessage, ChatSession, Project, User
 from services.chat_feedback_service import chat_feedback_service
 from services.chat_session_service import latest_active_chat_session, lock_active_chat_session
 from services.core.auth_service import get_current_active_user
+from services.infra.redis_client import delete_agent_wire_prefix_cache
 from utils.logger import get_logger, log_with_context
 from utils.permission import verify_project_access_sync
 
@@ -107,6 +108,7 @@ def _deactivate_and_create_session(
 ) -> ChatSession:
     lock_active_chat_session(session, user_id=user_id, project_id=project_id)
     current_sessions = _list_active_sessions(session, project_id, user_id)
+    deactivated_ids = [existing.id for existing in current_sessions]
     if current_sessions:
         for existing in current_sessions:
             existing.is_active = False
@@ -131,6 +133,8 @@ def _deactivate_and_create_session(
     )
     session.add(new_session)
     session.commit()
+    for deactivated_id in deactivated_ids:
+        delete_agent_wire_prefix_cache(deactivated_id)
     session.refresh(new_session)
     return new_session
 
@@ -360,7 +364,9 @@ def clear_session(
 
     chat_session.message_count = 0
     chat_session.updated_at = utcnow()
+    cleared_session_id = chat_session.id
     session.commit()
+    delete_agent_wire_prefix_cache(cleared_session_id)
 
     log_with_context(
         logger,

@@ -15,6 +15,7 @@ from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc
 from models import ChatMessage, ChatSession
+from services.infra.redis_client import delete_agent_wire_prefix_cache
 from utils.file_write_lock import acquire_file_write_lock
 from utils.logger import get_logger, log_with_context
 
@@ -171,9 +172,11 @@ def _mutate_locked_card(
                 return False
             card = _find_card(calls, tool_use_id=tool_use_id, tool_names=tool_names)
             if card is not None and mutate(card):
+                chat_session_id = locked.session_id
                 locked.tool_calls = json.dumps(calls, ensure_ascii=False)
                 session.add(locked)
                 session.commit()
+                delete_agent_wire_prefix_cache(chat_session_id)
                 return True
             session.rollback()  # 没有可标的卡：释放行锁
             return False

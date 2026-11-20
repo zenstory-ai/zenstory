@@ -68,9 +68,9 @@ _REJECTED_FINISH_REASONS = frozenset({"length", "tool_calls", "function_call", "
 def _extract_valid_summary(choice: Any) -> tuple[str, bool]:
     """提取合法的纯文本交接摘要（有界机器协议结构校验，不判断自然语言语义）。
 
-    供应商偶发无视 ``tool_choice="none"`` 输出结构化 ``tool_calls`` 或将内部
-    ``]<]minimax[>[<tool_call>…`` / ``<invoke>`` 协议标签直接吐进正文并中断生成；
-    此类响应不是完整摘要，返回 ``("", True)`` 触发带提示重试或安全跳过压缩。
+    压缩请求保留与主循环一致的工具清单和默认 ``tool_choice`` 以复用前缀缓存，依靠提示词约束纯文本输出；
+    若模型仍返回结构化 ``tool_calls`` 或将内部 ``]<]minimax[>[<tool_call>…`` / ``<invoke>``
+    协议标签吐进正文并中断生成，此类响应不是完整摘要，返回 ``("", True)`` 触发带提示重试或安全跳过压缩。
     代码块与行内反引号内引用的字面标签原样保留。
     """
     if choice is None:
@@ -129,7 +129,7 @@ def skipped_record(history: LoopHistory, reason: str) -> dict[str, Any]:
 
 
 def _chat_tools() -> list[dict[str, Any]]:
-    """压缩请求带上与 SDK 完全一致的工具清单（tool_choice=none）：历史里的工具调用合法，且不打断前缀缓存。"""
+    """压缩请求带上与 SDK 完全一致的工具清单与默认 tool_choice：历史里的工具调用合法，且保持前缀缓存一致。"""
     from agents.models.chatcmpl_converter import Converter
 
     from agent.openai_agents.tools_adapter import build_agent_function_tools
@@ -137,12 +137,29 @@ def _chat_tools() -> list[dict[str, Any]]:
     return [dict(Converter.tool_to_openai(tool)) for tool in build_agent_function_tools()]
 
 
-def _request_messages(system_prompt: str, items: list[dict[str, Any]], *, retry_prompt: bool = False) -> list[dict[str, Any]]:
+def _request_messages(
+    system_prompt: str,
+    items: list[dict[str, Any]],
+    *,
+    retry_prompt: bool = False,
+    model: str | None = None,
+) -> list[dict[str, Any]]:
     from agents.models.chatcmpl_converter import Converter
+
+    from agent.core.llm_providers import primary_model_name
+    from agent.openai_agents.model import _replay_reasoning_content
 
     prompt = f"{COMPACT_PROMPT}{_COMPACT_RETRY_NOTE}" if retry_prompt else COMPACT_PROMPT
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
-    messages.extend(Converter.items_to_messages(items))  # type: ignore[arg-type]
+    # Converter.items_to_messages only invokes should_replay_reasoning_content when ``model`` is non-None.
+    effective_model = model or primary_model_name() or "agent"
+    messages.extend(
+        Converter.items_to_messages(
+            items,  # type: ignore[arg-type]
+            model=effective_model,
+            should_replay_reasoning_content=_replay_reasoning_content,
+        )
+    )
     messages.append({"role": "user", "content": prompt})
     return messages
 
@@ -203,6 +220,14 @@ async def compact_history(
             history.items, instructions_chars=len(system_prompt)
         )
 
+    target_model: str | None = None
+    try:
+        ordered_providers = await llm_failover.aordered_providers(session_id)
+        if ordered_providers:
+            target_model = ordered_providers[0].model
+    except Exception:  # noqa: BLE001 - fall back to primary_model_name() in _request_messages
+        target_model = None
+
     trimmed_items = _trim_for_budget(input_budget)
     usage: dict[str, int] = {}
     summary = ""
@@ -218,7 +243,12 @@ async def compact_history(
                 input_budget=input_budget,
             )
             break
-        messages = _request_messages(system_prompt, bounded, retry_prompt=retry_after_invalid_output)
+        messages = _request_messages(
+            system_prompt,
+            bounded,
+            retry_prompt=retry_after_invalid_output,
+            model=target_model,
+        )
         if run_meter is not None:
             run_meter.record_model_call()
         try:
@@ -231,7 +261,6 @@ async def compact_history(
                     max_retries=0,
                     messages=messages,
                     tools=_chat_tools(),
-                    tool_choice="none",
                     max_tokens=AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS,
                     temperature=1.0,
                     top_p=0.95,
