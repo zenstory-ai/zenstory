@@ -21,9 +21,11 @@ _CHARGED_PERIOD = datetime(2026, 10, 5, 16, tzinfo=UTC)
 # Test helper: create mock workflow stream events
 def create_mock_workflow_events():
     """Create mock workflow StreamEvent objects."""
+    from agent.core.round_outcome import note_provider_attempt_started
     from agent.core.workflow_events import StreamEvent, StreamEventType
 
     async def mock_stream():
+        note_provider_attempt_started()
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Hello"})
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "! How can I help?"})
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
@@ -289,11 +291,11 @@ async def test_agent_stream_success_consumes_quota(client: AsyncClient, db_sessi
 
 
 @pytest.mark.integration
-async def test_agent_stream_missing_terminal_event_refunds_quota(
+async def test_agent_stream_missing_terminal_event_charges_after_model_and_refunds_before_model(
     client: AsyncClient,
     db_session: Session,
 ):
-    """Non-terminal stream end with output is charged; without output it is refunded."""
+    """Non-terminal stream end charges once model execution started (prose or thinking), and refunds only pre-model."""
     user = User(
         username="agent_user4c_terminal",
         email="agent_user4c_terminal@example.com",
@@ -316,23 +318,28 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
     db_session.commit()
 
     async def non_terminal_stream():
-        # 真正的回复正文（不是工具调用前的一句过渡旁白）才算产出。
         yield 'event: content\ndata: {"text":"第三章的节奏偏慢：前两节都在交代旧书店的来历，主角直到第三节才第一次碰到那本没有书名的旧账本，读者等得太久，建议把账本提前到开头。"}\n\n'
 
     async def non_terminal_stream_without_output():
         yield 'event: thinking\ndata: {"message":"正在思考..."}\n\n'
 
-    class MockAgentService:
-        def __init__(self, source):
-            self._source = source
+    async def pre_model_non_terminal_stream():
+        yield 'event: session_started\ndata: {"session_id":"s1"}\n\n'
 
-        async def process_stream(self, **_kwargs):
+    class MockAgentService:
+        def __init__(self, source, *, provider_attempted: bool = True):
+            self._source = source
+            self._provider_attempted = provider_attempted
+
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            if run_outcome is not None and self._provider_attempted:
+                run_outcome.provider_attempted = True
             async for item in self._source():
                 yield item
 
-    # 已经串流过正文：用户拿到了产出，按「本轮已有实质产出」计费，不退款。
+    # 已进入模型执行并串流正文：计费，不退款。
     with (
-        patch("api.agent.get_agent_service", return_value=MockAgentService(non_terminal_stream)),
+        patch("api.agent.get_agent_service", return_value=MockAgentService(non_terminal_stream, provider_attempted=True)),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as mock_consume,
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
     ):
@@ -349,11 +356,11 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
     mock_consume.assert_called_once()
     mock_refund.assert_not_called()
 
-    # 没有任何产出就断掉：按内部错误退款。
+    # 已进入模型执行（仅思考无正文）就非正常结束：非上游模型故障，照常计费不退款。
     with (
         patch(
             "api.agent.get_agent_service",
-            return_value=MockAgentService(non_terminal_stream_without_output),
+            return_value=MockAgentService(non_terminal_stream_without_output, provider_attempted=True),
         ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
@@ -363,6 +370,27 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
             json={
                 "project_id": str(project.id),
                 "message": "Hello again",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    mock_refund.assert_not_called()
+
+    # 模型尚未启动便非正常断流：按预模型内部异常退还。
+    with (
+        patch(
+            "api.agent.get_agent_service",
+            return_value=MockAgentService(pre_model_non_terminal_stream, provider_attempted=False),
+        ),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
+    ):
+        response = await client.post(
+            "/api/v1/agent/stream",
+            json={
+                "project_id": str(project.id),
+                "message": "Hello pre-model",
             },
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -1003,6 +1031,8 @@ async def test_agent_stream_releases_request_transaction_before_streaming(
 
     class MockAgentService:
         async def process_stream(self, **kwargs):
+            if kwargs.get("run_outcome") is not None:
+                kwargs["run_outcome"].provider_attempted = True
             in_transaction_at_stream_start.append(kwargs["session"].in_transaction())
             yield "event: done\ndata: {}\n\n"
 

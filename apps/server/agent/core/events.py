@@ -166,6 +166,10 @@ class DoneEventData(BaseModel):
         default=None,
         description="Set when the author stopped this round (user_stopped)",
     )
+    charged: bool | None = Field(
+        default=None,
+        description="Stopped rounds only: whether the server charged an AI message for this round",
+    )
     produced_output: bool | None = Field(
         default=None,
         description="Stopped rounds only: whether the round produced real output (prose or a write)",
@@ -351,6 +355,7 @@ def done_event(
     session_id: str | None = None,
     file_mutated: bool = False,
     stop_reason: str | None = None,
+    charged: bool | None = None,
     produced_output: bool | None = None,
     written_files: list[dict[str, Any]] | None = None,
     unwritten_files: list[dict[str, Any]] | None = None,
@@ -361,12 +366,13 @@ def done_event(
         assistant_message_id=assistant_message_id,
         session_id=session_id,
         stop_reason=stop_reason,
+        charged=charged,
         produced_output=produced_output,
         written_files=written_files or None,
         unwritten_files=unwritten_files or None,
     ).model_dump()
     # 只有提供这些可选回执时才带字段，其余 done 帧保持原样。
-    for key in ("stop_reason", "produced_output", "written_files", "unwritten_files"):
+    for key in ("stop_reason", "charged", "produced_output", "written_files", "unwritten_files"):
         if data.get(key) is None:
             data.pop(key, None)
     return StreamEvent(type=EventType.DONE, data=data)

@@ -17,6 +17,7 @@ from typing import Any
 _request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
 _trace_id: ContextVar[str | None] = ContextVar("trace_id", default=None)
 _agent_run_id: ContextVar[str | None] = ContextVar("agent_run_id", default=None)
+_run_outcome: ContextVar[Any | None] = ContextVar("run_outcome", default=None)
 
 
 def bind_request_context(
@@ -24,6 +25,7 @@ def bind_request_context(
     request_id: str | None = None,
     trace_id: str | None = None,
     agent_run_id: str | None = None,
+    run_outcome: Any | None = None,
 ) -> dict[str, Token[Any]]:
     """Bind request-scoped values into the current context.
 
@@ -39,6 +41,9 @@ def bind_request_context(
 
     if agent_run_id is not None:
         tokens["agent_run_id"] = _agent_run_id.set(agent_run_id)
+
+    if run_outcome is not None:
+        tokens["run_outcome"] = _run_outcome.set(run_outcome)
 
     return tokens
 
@@ -58,6 +63,11 @@ def reset_request_context(tokens: dict[str, Token[Any]]) -> None:
     # We treat this as a best-effort cleanup operation for logging context:
     # if the token can't be reset, we clear the value in the *current* context
     # to avoid leaking request identifiers into unrelated logs.
+    if token := tokens.get("run_outcome"):
+        try:
+            _run_outcome.reset(token)
+        except ValueError:
+            _run_outcome.set(None)
     if token := tokens.get("agent_run_id"):
         try:
             _agent_run_id.reset(token)
@@ -78,6 +88,11 @@ def reset_request_context(tokens: dict[str, Token[Any]]) -> None:
 def get_agent_run_id() -> str | None:
     """Return the agent run id bound to the current context, if any."""
     return _agent_run_id.get()
+
+
+def get_run_outcome() -> Any | None:
+    """Return the mutable round-scoped ``RunOutcome`` bound to the current context, if any."""
+    return _run_outcome.get()
 
 
 def get_log_context() -> dict[str, str]:

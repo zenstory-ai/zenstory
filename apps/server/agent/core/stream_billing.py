@@ -1,49 +1,24 @@
-"""/agent/stream 的计费判定：观察发给前端的 SSE 帧，决定本次预扣的对话额度是否退还。
+"""/agent/stream 的计费判定：按本轮是否真正进入供应商模型调用与是否因上游模型错误终止决定是否退还。
 
-规则（按优先级）：
+规则（见 ``.agents/notes/implemented/architecture/2026-11-20-round-billing-model-error-only-refund.md``）：
 
-1. 作者主动停止（``POST /agent/stop``，见 agent.core.run_stop）或这一轮结束前客户端
-   断线（CancelledError / GeneratorExit）：本轮已有实质产出则计费，否则退还
-   （``user_stopped_no_output`` / ``client_disconnected_no_output``）。只想过、读过
-   文件、只说了一句过渡旁白、只建了空文件的一轮，不该占作者一条额度；见
-   ``architecture/2026-10-09-agent-graceful-stop-and-no-output-refund.md`` 与
-   ``architecture/2026-10-09-stop-output-definition-and-round-outcome.md``。
-   终止帧（done 等）已经产生之后才断线的，这一轮已经结束，按下面的规则结算，
-   不算中断。
-2. 请求级墙钟时限到期：本轮已有实质产出、或结束时模型正在给作者写回复
-   （``ended_on_reply``）则计费，否则退还。
-3. 失控停止（重复读取无进展 error 帧 reason=no_progress、大段原样重复 reason=repetition_loop、请求级模型调用预算
-   ERR_AGENT_MODEL_CALL_LIMIT、单 agent 工具调用轮数耗尽 iteration_exhausted
-   layer=tool_call）且本轮没有任何写入成功：退还（runaway_no_progress）。
-   模型自己原地打转、什么也没改，用户不该为此付一次额度；只看「有没有写入」，
-   不看有没有串流文字——打转时模型照样会边读边念叨。
-4. 正常结束（done / workflow_complete / 终止性 workflow_stopped，且没有 error 帧）：计费。
-5. 失败：error 帧明确 ``refundable: false``（例如工具失败熔断）→ 计费；
-   本轮已有实质产出、或出错时模型正在给作者写回复（``ended_on_reply``，例如一句
-   不到 60 字的完整回答之后出错）→ 计费；其余才是真正没有产出的平台侧故障 → 退还。
-   本轮开始写的文件还在等正文时出错，最后那段文字是 ``<file>`` 之前的引子（适配器扣在
-   捕获缓冲里、出错时才放出），不算回复：照样退还。
+1. 终止帧（``done`` / 终止性 ``workflow_stopped`` / ``error``）产生之后才发生的断线，
+   或正常终止帧产生之后才到点的墙钟时限，不改写这一轮原本的结束方式。
+2. 尚未进入任何真实供应商 transport 调用（``provider_attempted == False``，例如上下文组装期间
+   作者停止 / 断线 / 到时，或首个模型调用与历史压缩在进入 transport 前被成本预检 ``APIException``
+   拒绝）：退还本次预扣的 AI 消息额度。
+3. 已经进入真实供应商 transport 调用（``provider_attempted == True``，含历史压缩与主循环调用）：
+   - 仅当未恢复的上游供应商服务/网络/响应流错误最终导致整轮以致命模型错误终止
+     （``terminal_model_failure == True``）时，退还本次预扣的 AI 消息额度（``upstream_model_error``）。
+     已被备援切换恢复、或历史压缩捕获跳过的供应商异常不构成整轮终止错误。
+   - 其余所有情况——正常完成、纯读取/核对、只思考或过渡旁白、无文件改动、作者停止、客户端断线、
+     600s 软着陆、780s 墙钟硬超时、发布交接提前时限、SDK ``ModelBehaviorError``、工具失败熔断、
+     重复读取无进展、大段重复、模型调用预算上限、输出截断、工具/数据库/文件保存异常——一律计 1 轮，
+     不再用 ``produced_output`` / 字数 / 文件保存决定是否退还。
 
-「实质产出」（``produced_output``）只有两种：
-
-- 写入留下了正文（``write_succeeded``）：流式文件正文非空（``write_chapter`` 整章替换的
-  目标除外：它的流式正文在 ``</file>`` 之前没有落库，中途停止 / 断线 / 到时都不覆盖原文，
-  只认落库后补发的 ``body_saved`` 且 ``mutation_applied`` 结果）；截停时才补存的正文
-  （整章替换或本轮新建的文件）按 StreamAdapter 的保存回执补记（``note_saved_receipts``）；``create_file`` 带着非空
-  正文新建（复用已有文件不算）；``edit_file`` 真的改动了文字（``mutation_applied``）；
-  ``delete_file`` 成功；``rename_file`` 成功改名；``update_project`` 改了
-  作品名、简介、文风或备注（只更新任务板 / 当前进度不算）。只建了一个空文件（后面的
-  正文还没写进去）不算。
-- 真正的回复正文：同一段正文（两次工具调用之间）累计到 ``PROSE_MIN_CHARS`` 个单位
-  （见 :func:`prose_units`：汉字、数字、标点各算 1，一个拉丁字母单词算 1.5，英文的一句
-  过渡旁白和中文一样到不了）。工具调用前那句「我先看一遍全书大纲。」这类过渡旁白不算。
-
-墙钟时限到期时，只改了项目信息（简介 / 文风 / 备注）不算产出：作者要的东西还没写出来，
-记忆里改一句简介不值一条额度（``file_written`` 与 ``prose_output`` 才算）。
-
-退还真正落库（``_refund_quota`` 返回 True）之后，api/agent.py 在终止帧之后再补发
-一帧 ``quota_refunded``（见 :func:`quota_refunded_frame`），前端据此告诉作者「这一轮
-不计入今日 AI 消息」。判定发生在终止帧已经发出之后，所以不能把承诺写进终止帧本身。
+``StreamBillingTracker`` 仍继续追踪 ``produced_output``、``write_succeeded``、``file_written``、
+``removable_placeholders`` 等结构化产物事实，供保存回执、墙钟暂停卡判定、退还轮空白占位文件清理、
+停止后是否自动请求输入建议与运行观测日志使用。
 """
 
 from __future__ import annotations
@@ -92,6 +67,7 @@ REFUND_KIND_ERROR = "error"
 REFUND_KIND_STOPPED = "stopped"
 
 USER_STOPPED_NO_OUTPUT_BILLING_REASON = "user_stopped_no_output"
+USER_STOPPED_BEFORE_MODEL_BILLING_REASON = "user_stopped_before_model"
 
 
 def quota_refunded_frame(
@@ -105,7 +81,10 @@ def quota_refunded_frame(
     """
     if billing_reason == RUNAWAY_BILLING_REASON:
         kind = REFUND_KIND_NO_PROGRESS
-    elif billing_reason == USER_STOPPED_NO_OUTPUT_BILLING_REASON:
+    elif billing_reason in (
+        USER_STOPPED_NO_OUTPUT_BILLING_REASON,
+        USER_STOPPED_BEFORE_MODEL_BILLING_REASON,
+    ):
         kind = REFUND_KIND_STOPPED
     else:
         kind = REFUND_KIND_ERROR
@@ -501,11 +480,15 @@ class StreamBillingTracker:
         deadline_exceeded: bool = False,
         user_stopped: bool = False,
         server_restarting: bool = False,
+        provider_attempted: bool = False,
+        terminal_model_failure: bool = False,
     ) -> tuple[str, bool]:
-        """返回 (billing_reason, should_refund)。
+        """返回 ``(billing_reason, should_refund)``。
 
-        ``server_restarting``：时限是发布交接提前的（agent.core.server_drain），规则同墙钟超时，
-        只换原因标签。"""
+        仅依据显式的结构化状态 ``provider_attempted``（是否已进入真实供应商 transport）与
+        ``terminal_model_failure``（是否因未恢复的上游供应商服务/网络/流错误最终终止整轮）决定退还，
+        绝不根据 SSE 正文字数或文件保存与否猜测。
+        """
         if client_disconnected and not user_stopped and self.saw_terminal_event:
             # 这一轮已经结束（done / 终止性停止 / error 帧已产生）之后才断开：
             # 不是中断，按结束方式结算。
@@ -514,22 +497,24 @@ class StreamBillingTracker:
             # 时限（或发布交接）在 done 等正常终止帧产生之后才到：这一轮已经结束，
             # 和完成后才断线一样按结束方式结算。
             deadline_exceeded = False
+        if not provider_attempted:
+            if user_stopped:
+                return USER_STOPPED_BEFORE_MODEL_BILLING_REASON, True
+            if client_disconnected:
+                return "client_disconnected_before_model", True
+            if deadline_exceeded:
+                return ("server_restarting" if server_restarting else "run_deadline_exceeded"), True
+            return "pre_model_error", True
+        if terminal_model_failure:
+            return "upstream_model_error", True
         if user_stopped or client_disconnected:
-            reason = "user_stopped" if user_stopped else "client_disconnected"
-            if self.produced_output:
-                return reason, False
-            return f"{reason}_no_output", True
+            return ("user_stopped" if user_stopped else "client_disconnected"), False
         if deadline_exceeded:
-            reason = "server_restarting" if server_restarting else "run_deadline_exceeded"
-            return reason, not (self.file_written or self.prose_output or self.ended_on_reply)
-        if self.runaway_stop and not self.write_succeeded and not unexpected_exception:
-            return RUNAWAY_BILLING_REASON, True
+            return ("server_restarting" if server_restarting else "run_deadline_exceeded"), False
         if self.saw_terminal_event and not self.saw_error_event and not unexpected_exception:
             return "completed", False
         if self.error_refundable is False:
             return "non_refundable_error", False
-        if self.produced_output or self.ended_on_reply:
-            return "error_after_output", False
-        if self.saw_any_event and not self.saw_terminal_event and not unexpected_exception:
-            return "internal_error_no_terminal", True
-        return "internal_error", True
+        if self.runaway_stop and not unexpected_exception:
+            return "non_model_stop", False
+        return "non_model_error", False

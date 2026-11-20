@@ -10,6 +10,7 @@ the LLM provides slightly different text.
 
 import asyncio
 import threading
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -269,7 +270,8 @@ def _approximate_not_found_advice(stats: dict[str, int], *, label: str) -> str:
     return (
         f"{reason}请先用 query_files 按准确 id 重读当前段落"
         f"（长文件可传 query=关键词 取逐字命中片段，或传 start_char + max_chars 分段读取），再从结果复制较短、逐字、"
-        f"唯一的{label}；改动多时拆成几次 edit_file 调用、每次只改少量几处，不要在一次调用里堆很多条；不要放宽匹配或整篇覆盖。"
+        f"唯一的{label}；互不重叠的独立修改可放在同一次调用里批量提交，只有前后依赖或锚点范围重叠的修改才拆成多次 edit_file 调用，"
+        f"不需要改的原文不要放进 edits；不要放宽匹配或整篇覆盖。"
     )
 
 
@@ -719,10 +721,14 @@ class FileEditor:
         # 回放版本链较慢，放在加锁之前，不拖长同一文件上其它写入的等待；锁内正文变了再重算。
         author_blame = None
         blamed_content: str | None = None
+        author_blame_ms = 0.0
+        commit_ms = 0.0
         if report_author_edits:
+            replay_started = time.perf_counter()
             blamed_content = self.session.exec(select(File.content).where(File.id == id)).first()
             if blamed_content is not None:
                 author_blame = self._author_blame(id, blamed_content)
+            author_blame_ms += (time.perf_counter() - replay_started) * 1000
 
         if is_postgres:
             file = self.session.exec(
@@ -765,7 +771,9 @@ class FileEditor:
         if read_snapshot is not None and read_snapshot != old_content:
             raise StaleContentError(read_snapshot, old_content)
         if report_author_edits and blamed_content != old_content:
+            replay_started = time.perf_counter()
             author_blame = self._author_blame(file.id, old_content)
+            author_blame_ms += (time.perf_counter() - replay_started) * 1000
         content = old_content
         applied_edits = []
         failed_edits: list[dict[str, Any]] = []
@@ -958,6 +966,7 @@ class FileEditor:
 
         undo: dict[str, Any] | None = None
         if content != old_content:
+            commit_started = time.perf_counter()
             undo = self._commit_ai_content(
                 file,
                 old_content,
@@ -965,6 +974,7 @@ class FileEditor:
                 create_version=lambda: self._create_edit_version(id, content, applied_edits),
                 tool="edit_file",
             )
+            commit_ms += (time.perf_counter() - commit_started) * 1000
 
         # 统一补齐 new_preview：replace 类操作的 detail 里叫 new_preview，
         # append/prepend/insert_* 只有 text_preview，前端与 SSE 适配器要两处兼容
@@ -994,6 +1004,16 @@ class FileEditor:
             touched = touched_author_text(author_blame, old_content, content)
             if touched:
                 result["author_edits_touched"] = touched
+        log_with_context(
+            logger,
+            20,  # INFO
+            "edit_file timing recorded",
+            file_id=file.id,
+            edits_total=len(edits),
+            edits_applied=len(applied_edits),
+            author_blame_ms=round(author_blame_ms, 1),
+            commit_ms=round(commit_ms, 1),
+        )
         return result
 
     def _commit_ai_content(
@@ -1699,8 +1719,13 @@ class FileEditor:
                 applied_edits.append(detail)
         else:
             if match_mode == "exact":
+                suggestions = suggest_similar_lines(
+                    content,
+                    old_text,
+                    ignore_punct_whitespace=ignore_punct_whitespace,
+                )
                 raise _not_found(
-                    f"Edit {edit_index}: old text not found in content (exact match)"
+                    f"Edit {edit_index}: old text not found in content (exact match). 候选片段: {suggestions}"
                 )
 
             # 2) Fuzzy match (ignore punctuation/whitespace)
@@ -1933,8 +1958,13 @@ class FileEditor:
             return place(pos, {"match_mode": exact_mode, "match_count": match_count}, exact_anchor=True)
 
         if match_mode == "exact":
+            suggestions = suggest_similar_lines(
+                content,
+                anchor,
+                ignore_punct_whitespace=ignore_punct_whitespace,
+            )
             raise _not_found(
-                f"Edit {edit_index}: anchor text not found in content (exact match)"
+                f"Edit {edit_index}: anchor text not found in content (exact match). 候选片段: {suggestions}"
             )
 
         fuzzy_stats: dict[str, int] = {}
@@ -2086,8 +2116,13 @@ class FileEditor:
             applied_edits.append(detail)
         else:
             if match_mode == "exact":
+                suggestions = suggest_similar_lines(
+                    content,
+                    old_text,
+                    ignore_punct_whitespace=ignore_punct_whitespace,
+                )
                 raise _not_found(
-                    f"Edit {edit_index}: text to delete not found in content (exact match)"
+                    f"Edit {edit_index}: text to delete not found in content (exact match). 候选片段: {suggestions}"
                 )
 
             fuzzy_stats: dict[str, int] = {}

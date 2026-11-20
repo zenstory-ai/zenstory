@@ -375,3 +375,69 @@ def test_tool_failure_error_types_stay_bounded():
     error_types = meter.timing_report()["tool_failures"]["edit_file"]["error_types"]
     assert len(error_types) == 9  # eight distinct ids plus "other"
     assert error_types["other"] == 12
+
+
+@pytest.mark.unit
+def test_a4_substage_timings_split_cleanly_and_never_log_author_prose(
+    db_session, writing_prompt_configs, caplog
+):
+    """A-4：上下文准备拆分 skill_catalog_ms / system_prompt_ms，edit_file 拆分 author_blame_ms / commit_ms，且均为纯数值不含原稿。"""
+    from agent.service import AgentService
+    from agent.tools.file_ops.edit import FileEditor
+    from models import File, Project, User
+    from services.core.auth_service import hash_password
+
+    user = User(
+        username="a4_timing_u",
+        email="a4_timing_u@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    project = Project(name="A4 Project", owner_id=user.id)
+    db_session.add(project)
+    db_session.commit()
+
+    secret_manuscript = "绝密手稿段落_A4_不得出现在任何耗时日志中。"
+    chapter = File(
+        project_id=project.id,
+        title="第一章",
+        file_type="draft",
+        content=f"{secret_manuscript}\n第二段原文。",
+        order=1,
+    )
+    db_session.add(chapter)
+    db_session.commit()
+
+    caplog.set_level("INFO")
+    svc = AgentService()
+    svc._prepare_loop_turn(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=None,
+        selected_skill_ids=None,
+        message=secret_manuscript,
+        metadata=None,
+        language="zh",
+    )
+
+    editor = FileEditor(db_session, user_id=user.id)
+    editor.edit_file(
+        chapter.id,
+        [{"op": "replace", "old": "第二段原文。", "new": "第二段改后。"}],
+        report_author_edits=True,
+    )
+
+    prep_rec = next(r for r in caplog.records if r.message == "Loop turn context prepared")
+    edit_rec = next(r for r in caplog.records if r.message == "edit_file timing recorded")
+
+    for key in ("history_load_ms", "turn_context_ms", "author_edits_ms", "skill_catalog_ms", "system_prompt_ms"):
+        assert isinstance(prep_rec.custom_fields[key], int | float)
+    for key in ("author_blame_ms", "commit_ms"):
+        assert isinstance(edit_rec.custom_fields[key], int | float)
+    assert "version_replay_ms" not in edit_rec.custom_fields
+    assert secret_manuscript not in json.dumps(prep_rec.custom_fields, ensure_ascii=False)
+    assert secret_manuscript not in json.dumps(edit_rec.custom_fields, ensure_ascii=False)

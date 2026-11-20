@@ -31,12 +31,33 @@ def _tracker(*frames: str) -> StreamBillingTracker:
     return tracker
 
 
-def _stop(tracker: StreamBillingTracker) -> tuple[str, bool]:
-    return tracker.decide(client_disconnected=False, unexpected_exception=False, user_stopped=True)
+def _stop(
+    tracker: StreamBillingTracker,
+    *,
+    provider_attempted: bool = True,
+    terminal_model_failure: bool = False,
+) -> tuple[str, bool]:
+    return tracker.decide(
+        client_disconnected=False,
+        unexpected_exception=False,
+        user_stopped=True,
+        provider_attempted=provider_attempted,
+        terminal_model_failure=terminal_model_failure,
+    )
 
 
-def _disconnect(tracker: StreamBillingTracker) -> tuple[str, bool]:
-    return tracker.decide(client_disconnected=True, unexpected_exception=False)
+def _disconnect(
+    tracker: StreamBillingTracker,
+    *,
+    provider_attempted: bool = True,
+    terminal_model_failure: bool = False,
+) -> tuple[str, bool]:
+    return tracker.decide(
+        client_disconnected=True,
+        unexpected_exception=False,
+        provider_attempted=provider_attempted,
+        terminal_model_failure=terminal_model_failure,
+    )
 
 
 def test_prose_threshold_sits_above_transitional_narration():
@@ -54,8 +75,10 @@ def test_narration_before_a_tool_call_is_not_output():
         _sse("tool_call", {"tool_name": "query_files", "arguments": {}}),
     )
     assert tracker.produced_output is False
-    assert _stop(tracker) == ("user_stopped_no_output", True)
-    assert _disconnect(tracker) == ("client_disconnected_no_output", True)
+    assert _stop(tracker) == ("user_stopped", False)
+    assert _disconnect(tracker) == ("client_disconnected", False)
+    assert _stop(tracker, provider_attempted=False) == ("user_stopped_before_model", True)
+    assert _disconnect(tracker, provider_attempted=False) == ("client_disconnected_before_model", True)
 
 
 def test_short_narration_segments_do_not_add_up_across_tool_calls():
@@ -80,7 +103,7 @@ def test_empty_create_file_is_not_output_and_is_a_placeholder_candidate():
     assert tracker.produced_output is False
     assert tracker.write_succeeded is False
     assert tracker.removable_placeholders() == [{"id": "ch1", "title": "《ch1》"}]
-    assert _stop(tracker) == ("user_stopped_no_output", True)
+    assert _stop(tracker) == ("user_stopped", False)
 
 
 def test_body_streamed_into_the_new_chapter_is_output_and_keeps_it():
@@ -150,7 +173,8 @@ def test_disconnect_after_a_terminal_error_follows_the_error_rules():
     no_output = _tracker(
         _sse("error", {"message": "x", "code": "ERR_AGENT_UPSTREAM_UNAVAILABLE", "refundable": True})
     )
-    assert _disconnect(no_output) == ("internal_error", True)
+    assert _disconnect(no_output, terminal_model_failure=True) == ("upstream_model_error", True)
+    assert _disconnect(no_output, terminal_model_failure=False) == ("non_model_error", False)
 
     circuit = _tracker(
         _sse("tool_result", {"tool_name": "query_files", "status": "success"}),
@@ -161,13 +185,17 @@ def test_disconnect_after_a_terminal_error_follows_the_error_rules():
 
 def test_disconnect_before_the_round_ends_still_uses_the_stop_rules():
     tracker = _tracker(_sse("content", {"text": _SHORT_ANSWER}))
-    assert _disconnect(tracker) == ("client_disconnected_no_output", True)
+    assert _disconnect(tracker) == ("client_disconnected", False)
+    assert _disconnect(tracker, provider_attempted=False) == ("client_disconnected_before_model", True)
 
 
 def test_author_stop_after_done_still_uses_the_stop_rules():
     tracker = _tracker(_sse("content", {"text": _PROSE}), _sse("done", {}))
     assert tracker.decide(
-        client_disconnected=True, unexpected_exception=False, user_stopped=True
+        client_disconnected=True,
+        unexpected_exception=False,
+        user_stopped=True,
+        provider_attempted=True,
     ) == ("user_stopped", False)
 
 
@@ -181,23 +209,45 @@ def _error(refundable: bool = True) -> str:
     )
 
 
-def _fail(tracker: StreamBillingTracker) -> tuple[str, bool]:
-    return tracker.decide(client_disconnected=False, unexpected_exception=False)
+def _fail(
+    tracker: StreamBillingTracker,
+    *,
+    provider_attempted: bool = True,
+    terminal_model_failure: bool = False,
+) -> tuple[str, bool]:
+    return tracker.decide(
+        client_disconnected=False,
+        unexpected_exception=False,
+        provider_attempted=provider_attempted,
+        terminal_model_failure=terminal_model_failure,
+    )
 
 
-def _deadline(tracker: StreamBillingTracker) -> tuple[str, bool]:
-    return tracker.decide(client_disconnected=False, unexpected_exception=False, deadline_exceeded=True)
+def _deadline(
+    tracker: StreamBillingTracker,
+    *,
+    provider_attempted: bool = True,
+    terminal_model_failure: bool = False,
+) -> tuple[str, bool]:
+    return tracker.decide(
+        client_disconnected=False,
+        unexpected_exception=False,
+        deadline_exceeded=True,
+        provider_attempted=provider_attempted,
+        terminal_model_failure=terminal_model_failure,
+    )
 
 
-def test_error_right_after_a_short_complete_answer_is_charged_as_before():
-    """作者已经读到了一句完整的短回答，之后才出错：照旧计费（不到 60 字也算）。"""
+def test_error_right_after_a_short_complete_answer_charges_internal_and_refunds_upstream():
+    """短回答之后出错：非模型内部异常计费；最终上游模型服务故障仍退还。"""
     tracker = _tracker(_sse("content", {"text": _SHORT_ANSWER}), _error())
     assert tracker.ended_on_reply is True
-    assert _fail(tracker) == ("error_after_output", False)
+    assert _fail(tracker) == ("non_model_error", False)
+    assert _fail(tracker, terminal_model_failure=True) == ("upstream_model_error", True)
 
 
-def test_error_after_narration_and_reads_is_refunded():
-    """旁白之后去读文件、然后平台出错：作者什么也没拿到，退还。"""
+def test_error_after_narration_and_reads_refunds_only_on_upstream_failure():
+    """旁白之后去读文件、然后出错：仅最终上游供应商故障退还，非模型异常按已执行轮次计费。"""
     tracker = _tracker(
         _sse("content", {"text": "我先看一遍全书大纲。"}),
         _sse("tool_call", {"tool_name": "query_files"}),
@@ -205,7 +255,8 @@ def test_error_after_narration_and_reads_is_refunded():
         _error(),
     )
     assert tracker.ended_on_reply is False
-    assert _fail(tracker) == ("internal_error", True)
+    assert _fail(tracker) == ("non_model_error", False)
+    assert _fail(tracker, terminal_model_failure=True) == ("upstream_model_error", True)
 
 
 _PREAMBLE = "好的，我来为这个设定写下完整的内容，先从世界观的"
@@ -226,9 +277,9 @@ def _write_chapter_replaced(file_id: str) -> str:
     [_create_file("lore"), _write_chapter_replaced("ch1")],
     ids=["new_empty_file", "whole_chapter_replacement"],
 )
-def test_error_while_a_file_body_is_pending_is_refunded_even_after_its_preamble(target, preamble):
-    """文件建好（或定位了整章替换）、正文还没写进去时出错 / 停止 / 到时：适配器扣着的 ``<file>`` 引子
-    （即使超过 60 字）在终态前才放出，作者没有先读到一段回复，这一轮什么也没交付，一律退还。"""
+def test_file_body_pending_preamble_keeps_output_flags_false_and_refunds_only_upstream_error(target, preamble):
+    """文件建好（或定位了整章替换）、正文还没写进去：适配器扣着的 ``<file>`` 引子不算 prose_output / produced_output；
+    已进入模型执行后停止、时限与内部异常照常计费，仅最终上游模型故障退还。"""
     assert prose_units(_LONG_PREAMBLE) >= PROSE_MIN_CHARS and len(_LONG_PREAMBLE) >= 80
     tracker = _tracker(
         _sse("tool_call", {"tool_name": "create_file", "arguments": {}}),
@@ -237,14 +288,15 @@ def test_error_while_a_file_body_is_pending_is_refunded_even_after_its_preamble(
     )
     assert tracker.prose_output is False
     assert tracker.produced_output is False
-    assert _stop(tracker) == ("user_stopped_no_output", True)
+    assert _stop(tracker) == ("user_stopped", False)
 
     tracker.observe(_error())
     assert tracker.prose_output is False
     assert tracker.produced_output is False
     assert tracker.ended_on_reply is False
-    assert _fail(tracker) == ("internal_error", True)
-    assert _deadline(tracker) == ("run_deadline_exceeded", True)
+    assert _fail(tracker) == ("non_model_error", False)
+    assert _fail(tracker, terminal_model_failure=True) == ("upstream_model_error", True)
+    assert _deadline(tracker) == ("run_deadline_exceeded", False)
 
 
 def test_long_reply_after_saved_file_body_is_still_charged_and_unsaved_replace_clears_pending():
@@ -292,7 +344,7 @@ def test_long_reply_after_saved_file_body_is_still_charged_and_unsaved_replace_c
 
 
 def test_short_answer_after_the_file_body_landed_is_still_a_reply():
-    """正文已经写进新文件之后再给作者一句短回答、然后出错：照旧按回复计费。"""
+    """正文已经写进新文件之后再给作者一句短回答、然后出错：内部异常计费，最终上游供应商故障仍退还。"""
     tracker = _tracker(
         _create_file("ch1"),
         _sse("file_content", {"file_id": "ch1", "chunk": "雨还在下。"}),
@@ -301,16 +353,21 @@ def test_short_answer_after_the_file_body_landed_is_still_a_reply():
         _error(),
     )
     assert tracker.ended_on_reply is True
-    assert _fail(tracker) == ("error_after_output", False)
+    assert _fail(tracker) == ("non_model_error", False)
+    assert _fail(tracker, terminal_model_failure=True) == ("upstream_model_error", True)
 
 
-def test_deadline_after_only_reads_is_refunded_but_after_a_reply_is_charged():
+def test_deadline_charges_once_model_attempted_and_refunds_only_before_model():
+    before_model = StreamBillingTracker()
+    before_model.observe(_sse("session_started", {"session_id": "s1"}))
+    assert _deadline(before_model, provider_attempted=False) == ("run_deadline_exceeded", True)
+
     reads = _tracker(
         _sse("tool_call", {"tool_name": "query_files"}),
         _sse("tool_result", {"tool_name": "query_files", "status": "success"}),
         _error(),
     )
-    assert _deadline(reads) == ("run_deadline_exceeded", True)
+    assert _deadline(reads) == ("run_deadline_exceeded", False)
 
     replied = _tracker(_sse("content", {"text": _SHORT_ANSWER}), _error())
     assert _deadline(replied) == ("run_deadline_exceeded", False)
@@ -326,13 +383,15 @@ def test_deadline_that_fires_after_done_settles_as_completed(server_restarting):
         unexpected_exception=False,
         deadline_exceeded=True,
         server_restarting=server_restarting,
+        provider_attempted=True,
     ) == ("completed", False)
 
 
 def test_deadline_after_a_terminal_error_still_follows_the_deadline_rules():
     tracker = _tracker(_error())
 
-    assert _deadline(tracker) == ("run_deadline_exceeded", True)
+    assert _deadline(tracker, provider_attempted=True) == ("run_deadline_exceeded", False)
+    assert _deadline(tracker, provider_attempted=False) == ("run_deadline_exceeded", True)
 
 
 def test_english_narration_is_not_prose_but_an_english_answer_is():
@@ -352,8 +411,8 @@ def test_english_narration_is_not_prose_but_an_english_answer_is():
     assert split.produced_output is False
 
 
-def test_deadline_after_only_a_memory_update_and_narration_is_refunded():
-    """时限到期前只改了 AI 记忆、说了一句过渡旁白（正文还在思考里）：作者要的东西没写出来，退还。"""
+def test_deadline_after_only_a_memory_update_and_narration_is_charged_once_attempted():
+    """改了项目信息算 produced_output；已进入模型调用后的墙钟时限一律按已执行计费。"""
     tracker = _tracker(
         _sse("content", {"text": "Locking the design now, then handing the manuscript to the writer."}),
         _sse(
@@ -363,20 +422,22 @@ def test_deadline_after_only_a_memory_update_and_narration_is_refunded():
         _sse("tool_call", {"tool_name": "query_files"}),
         _error(),
     )
-    assert tracker.produced_output is True  # 停止 / 断线口径不变：改了项目信息算产出
-    assert _deadline(tracker) == ("run_deadline_exceeded", True)
+    assert tracker.produced_output is True
+    assert _deadline(tracker) == ("run_deadline_exceeded", False)
 
     wrote = _tracker(_create_file("c1", content="The bottle was green."), _error())
     assert _deadline(wrote) == ("run_deadline_exceeded", False)
 
 
-def test_short_reply_does_not_make_a_stop_charged():
-    """作者停止 / 断线仍只看实质产出（P1-2）：不到 60 字的回复照样退还。"""
+def test_short_reply_is_not_produced_output_but_post_model_stop_is_charged():
+    """不到 60 字的回复不算 produced_output，但模型已开始后的停止照常计费；模型前停止退还。"""
     tracker = _tracker(
         _sse("content", {"text": _SHORT_ANSWER}),
         _sse("workflow_stopped", {"reason": "user_stopped"}),
     )
-    assert _stop(tracker) == ("user_stopped_no_output", True)
+    assert tracker.produced_output is False
+    assert _stop(tracker) == ("user_stopped", False)
+    assert _stop(tracker, provider_attempted=False) == ("user_stopped_before_model", True)
 
 
 # ------------------------------------------------------- update_project 改了项目信息（stop.nb[11]）
@@ -402,7 +463,8 @@ def test_update_project_counts_only_when_project_info_changed(data, is_output):
     tracker = _tracker(_update_project(data))
     assert tracker.produced_output is is_output
     assert tracker.write_succeeded is is_output
-    assert (_stop(tracker) == ("user_stopped", False)) is is_output
+    # is_output 只控制产物标记，模型已执行后的停止一律计费
+    assert _stop(tracker) == ("user_stopped", False)
 
 
 def test_failed_update_project_is_not_output():
@@ -428,15 +490,18 @@ def test_saved_receipt_for_a_created_file_counts_as_output():
 
     tracker.note_saved_receipts({"ch1": 3})
 
+    assert tracker.produced_output is True
     assert _stop(tracker) == ("user_stopped", False)
     assert tracker.file_body_pending() is False
     assert tracker.removable_placeholders() == []
 
 
-def test_failed_receipt_for_a_created_file_is_still_refunded():
+def test_failed_receipt_for_a_created_file_keeps_placeholder_candidate_and_charges_post_model_stop():
     tracker = _tracker(_write_chapter_created("ch1"))
 
     tracker.note_saved_receipts({"ch1": None})
 
-    assert _stop(tracker) == ("user_stopped_no_output", True)
+    assert tracker.produced_output is False
+    assert _stop(tracker) == ("user_stopped", False)
+    assert _fail(tracker, terminal_model_failure=True) == ("upstream_model_error", True)
     assert [item["id"] for item in tracker.removable_placeholders()] == ["ch1"]

@@ -67,15 +67,25 @@ class _FakeService:
         message_id: str | None = _FAKE_ASSISTANT_MESSAGE_ID,
         saved_file_word_counts=None,
         runs_started: int = 0,
+        *,
+        provider_attempted: bool = True,
+        terminal_model_failure: bool = False,
     ):
         self._frames_factory = frames_factory
         self._message_id = message_id
         self._saved_file_word_counts = saved_file_word_counts
         self._runs_started = runs_started
+        self._provider_attempted = provider_attempted
+        self._terminal_model_failure = terminal_model_failure
 
     async def process_stream(self, *, run_outcome=None, **_kwargs):
-        if run_outcome is not None and self._runs_started:
-            run_outcome.runs_started = self._runs_started
+        if run_outcome is not None:
+            if self._provider_attempted:
+                run_outcome.provider_attempted = True
+            if self._terminal_model_failure:
+                run_outcome.terminal_model_failure = True
+            if self._runs_started:
+                run_outcome.runs_started = self._runs_started
         try:
             async for frame in self._frames_factory():
                 yield frame
@@ -151,7 +161,10 @@ async def test_stream_sends_heartbeat_comment_frames_while_idle(client: AsyncCli
 
 
 @pytest.mark.integration
-async def test_stream_wall_clock_deadline_ends_with_timeout_error(client: AsyncClient, db_session, monkeypatch):
+@pytest.mark.parametrize("provider_attempted", [False, True])
+async def test_stream_wall_clock_deadline_ends_with_timeout_error(
+    client: AsyncClient, db_session, monkeypatch, provider_attempted
+):
     token, project, _ = await _login_with_project(client, db_session)
     monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.3)
     monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.1)
@@ -167,7 +180,10 @@ async def test_stream_wall_clock_deadline_ends_with_timeout_error(client: AsyncC
         yield _sse("done", {})
 
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, provider_attempted=provider_attempted),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
@@ -177,10 +193,14 @@ async def test_stream_wall_clock_deadline_ends_with_timeout_error(client: AsyncC
     assert "event: error" in response.text
     assert "ERR_AGENT_RUN_TIMEOUT" in response.text
     assert cancelled.is_set()
-    # 没有任何产出：退还额度，并在 error 帧之后告诉前端这一轮不计入。
-    assert refund.call_args.kwargs["period_start"] == _CHARGED_PERIOD
-    assert _frame_data(response.text, "quota_refunded") == {"refunded": True, "kind": "error"}
-    assert response.text.index("event: error") < response.text.index("event: quota_refunded")
+    if provider_attempted:
+        refund.assert_not_called()
+        assert "quota_refunded" not in response.text
+    else:
+        # 尚未进入模型调用前超时：退还额度，并在 error 帧之后告诉前端这一轮不计入。
+        assert refund.call_args.kwargs["period_start"] == _CHARGED_PERIOD
+        assert _frame_data(response.text, "quota_refunded") == {"refunded": True, "kind": "error"}
+        assert response.text.index("event: error") < response.text.index("event: quota_refunded")
 
 
 @pytest.mark.integration
@@ -212,7 +232,10 @@ async def test_tool_failure_circuit_is_not_refunded(client: AsyncClient, db_sess
 
 
 @pytest.mark.integration
-async def test_error_after_streamed_body_is_not_refunded(client: AsyncClient, db_session):
+@pytest.mark.parametrize("terminal_model_failure", [True, False])
+async def test_error_after_streamed_body_refunds_only_terminal_model_failure(
+    client: AsyncClient, db_session, terminal_model_failure
+):
     token, project, _ = await _login_with_project(client, db_session)
 
     async def frames():
@@ -223,17 +246,28 @@ async def test_error_after_streamed_body_is_not_refunded(client: AsyncClient, db
         )
 
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, terminal_model_failure=terminal_model_failure),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
-        await _post_stream(client, token, project)
+        response = await _post_stream(client, token, project)
 
-    refund.assert_not_called()
+    if terminal_model_failure:
+        refund.assert_called_once()
+        assert _frame_data(response.text, "quota_refunded") == {"refunded": True, "kind": "error"}
+    else:
+        refund.assert_not_called()
+        assert "quota_refunded" not in response.text
 
 
 @pytest.mark.integration
-async def test_real_internal_error_without_output_is_still_refunded(client: AsyncClient, db_session):
+@pytest.mark.parametrize("terminal_model_failure", [True, False])
+async def test_upstream_model_error_without_output_is_refunded_while_internal_error_is_charged(
+    client: AsyncClient, db_session, terminal_model_failure
+):
     token, project, _ = await _login_with_project(client, db_session)
 
     async def frames():
@@ -244,18 +278,25 @@ async def test_real_internal_error_without_output_is_still_refunded(client: Asyn
         )
 
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, terminal_model_failure=terminal_model_failure),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
         response = await _post_stream(client, token, project)
 
-    refund.assert_called_once()
-    assert _frame_data(response.text, "quota_refunded") == {"refunded": True, "kind": "error"}
+    if terminal_model_failure:
+        refund.assert_called_once()
+        assert _frame_data(response.text, "quota_refunded") == {"refunded": True, "kind": "error"}
+    else:
+        refund.assert_not_called()
+        assert "quota_refunded" not in response.text
 
 
 @pytest.mark.integration
-async def test_runaway_stop_without_writes_tells_client_it_was_not_charged(client: AsyncClient, db_session):
+async def test_runaway_stop_without_writes_is_charged_once_model_started(client: AsyncClient, db_session):
     token, project, _ = await _login_with_project(client, db_session)
 
     async def frames():
@@ -279,10 +320,8 @@ async def test_runaway_stop_without_writes_tells_client_it_was_not_charged(clien
     ):
         response = await _post_stream(client, token, project)
 
-    refund.assert_called_once()
-    assert _frame_data(response.text, "quota_refunded") == {"refunded": True, "kind": "no_progress"}
-    # 退还在终止帧之后才结算，所以说明帧必须排在 error 帧后面。
-    assert response.text.index("event: error") < response.text.index("event: quota_refunded")
+    refund.assert_not_called()
+    assert "quota_refunded" not in response.text
 
 
 @pytest.mark.integration
@@ -298,7 +337,7 @@ async def test_refund_that_did_not_apply_is_not_announced(client: AsyncClient, d
         )
 
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, terminal_model_failure=True)),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=False) as refund,
     ):
@@ -319,16 +358,17 @@ def _billing_log(log_spy) -> dict:
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    ("output_frames", "billing_reason", "refunded"),
+    ("provider_attempted", "output_frames", "billing_reason", "refunded"),
     [
-        ([], "client_disconnected_no_output", True),
-        ([_sse("content", {"text": _PROSE})], "client_disconnected", False),
+        (False, [], "client_disconnected_before_model", True),
+        (True, [], "client_disconnected", False),
+        (True, [_sse("content", {"text": _PROSE})], "client_disconnected", False),
     ],
 )
-async def test_generator_exit_disconnect_refunds_only_rounds_without_output(
-    client: AsyncClient, db_session, output_frames, billing_reason, refunded
+async def test_generator_exit_disconnect_refunds_only_before_model_attempt(
+    client: AsyncClient, db_session, provider_attempted, output_frames, billing_reason, refunded
 ):
-    """以 aclose（GeneratorExit）方式断线：没有任何产出就在后台退还，已有产出照常计费。"""
+    """以 aclose（GeneratorExit）方式断线：仅模型尚未启动时在后台退还；已进入模型执行一律计费。"""
     _token, project, user = await _login_with_project(client, db_session)
 
     async def frames():
@@ -340,7 +380,10 @@ async def test_generator_exit_disconnect_refunds_only_rounds_without_output(
 
     body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, provider_attempted=provider_attempted),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
         patch("api.agent.log_with_context") as log_spy,
@@ -368,16 +411,23 @@ async def test_generator_exit_disconnect_refunds_only_rounds_without_output(
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    ("output_frames", "billing_reason", "refund_kind"),
+    ("provider_attempted", "output_frames", "produced_output", "billing_reason", "refund_kind"),
     [
-        ([_sse("thinking_content", {"content": "先读大纲"})], "user_stopped_no_output", "stopped"),
-        ([_sse("content", {"text": _PROSE})], "user_stopped", None),
+        (False, [], False, "user_stopped_before_model", "stopped"),
+        (True, [_sse("thinking_content", {"content": "先读大纲"})], False, "user_stopped", None),
+        (True, [_sse("content", {"text": _PROSE})], True, "user_stopped", None),
     ],
 )
 async def test_author_stop_ends_run_on_open_stream_and_settles_billing(
-    client: AsyncClient, db_session, output_frames, billing_reason, refund_kind
+    client: AsyncClient,
+    db_session,
+    provider_attempted,
+    output_frames,
+    produced_output,
+    billing_reason,
+    refund_kind,
 ):
-    """作者点停止：运行在原连接上收尾（停止卡片 + done），没有产出时退还并告诉前端。"""
+    """作者点停止：运行在原连接上收尾（停止卡片 + done），仅模型尚未启动时退还。"""
     _token, project, user = await _login_with_project(client, db_session)
     source_closed = asyncio.Event()
 
@@ -393,7 +443,10 @@ async def test_author_stop_ends_run_on_open_stream_and_settles_billing(
 
     body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, provider_attempted=provider_attempted),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
         patch("api.agent.log_with_context") as log_spy,
@@ -429,7 +482,8 @@ async def test_author_stop_ends_run_on_open_stream_and_settles_billing(
     assert done["assistant_message_id"] == _FAKE_ASSISTANT_MESSAGE_ID
     assert done["session_id"] == "s1"
     assert done["stop_reason"] == "user_stopped"
-    assert done["produced_output"] is (refund_kind is None)
+    assert done["charged"] is (refund_kind is None)
+    assert done["produced_output"] is produced_output
     refund_frame = _frame_data(rest, "quota_refunded")
     if refund_kind is None:
         assert refund_frame is None
@@ -439,6 +493,7 @@ async def test_author_stop_ends_run_on_open_stream_and_settles_billing(
         refund.assert_called_once()
     log = _billing_log(log_spy)
     assert log["billing_reason"] == billing_reason
+    assert log["charged"] is (refund_kind is None)
     assert log["user_stopped"] is True
     assert log["client_disconnected"] is False
 
@@ -490,7 +545,9 @@ async def test_billing_log_line_carries_run_summary(client: AsyncClient, db_sess
     _token, project, user = await _login_with_project(client, db_session)
 
     class ReportingService:
-        async def process_stream(self, *, run_report, **_kwargs):
+        async def process_stream(self, *, run_report, run_outcome=None, **_kwargs):
+            if run_outcome is not None:
+                run_outcome.provider_attempted = True
             yield _sse("content", {"text": "好的"})
             run_report.update(
                 {
@@ -601,10 +658,10 @@ async def _stream(
 
 
 @pytest.mark.integration
-async def test_stop_after_only_narration_and_an_empty_chapter_refunds_and_removes_the_placeholder(
+async def test_stop_after_only_narration_and_an_empty_chapter_is_charged_and_lists_unwritten_file(
     client: AsyncClient, db_session
 ):
-    """一句过渡旁白 + create_file 建了空章节就停：不计入，空章节移除并告诉作者，终态写回助手消息。"""
+    """一句过渡旁白 + create_file 建了空章节就停：已进入模型执行照常计费，空章节作为未写入文件如实报告，终态写回助手消息。"""
     from models import ChatMessage, File
 
     _token, project, user = await _login_with_project(client, db_session)
@@ -635,27 +692,24 @@ async def test_stop_after_only_narration_and_an_empty_chapter_refunds_and_remove
         rest = "".join([frame async for frame in iterator])
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
-    refund.assert_called_once()
-    assert _frame_data(rest, "done")["assistant_message_id"] == message_id
-    assert _frame_data(rest, "done")["produced_output"] is False
-    # 没有写进正文的文件：done 不带 written_files（与旧服务端的帧一样）。
-    assert "written_files" not in _frame_data(rest, "done")
-    assert _frame_data(rest, "quota_refunded") == {
-        "refunded": True,
-        "kind": "stopped",
-        "removed_files": [{"id": placeholder.id, "title": "第1章 最后一页"}],
-    }
+    refund.assert_not_called()
+    done = _frame_data(rest, "done")
+    assert done["assistant_message_id"] == message_id
+    assert done["charged"] is True
+    assert done["produced_output"] is False
+    assert "written_files" not in done
+    assert done["unwritten_files"] == [{"id": placeholder.id, "title": "第1章 最后一页"}]
+    assert _frame_data(rest, "quota_refunded") is None
     db_session.expire_all()
-    assert db_session.get(File, placeholder.id).is_deleted is True
-    # 不是这一轮建的空文件不动。
+    assert db_session.get(File, placeholder.id).is_deleted is False
     assert db_session.get(File, older_empty.id).is_deleted is False
     metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
     assert metadata["stop_reason"] == "user_stopped"
     assert metadata["stop_outcome"] == {
         "reason": "user_stopped",
-        "charged": False,
+        "charged": True,
         "saved_output": False,
-        "removed_files": ["第1章 最后一页"],
+        "unwritten_files": [{"id": placeholder.id, "title": "第1章 最后一页"}],
     }
 
 
@@ -664,8 +718,8 @@ async def test_stop_after_only_narration_and_an_empty_chapter_refunds_and_remove
 async def test_refunded_stop_keeps_a_blank_chapter_the_author_has_unsaved_text_in(
     client: AsyncClient, db_session, then_disconnect
 ):
-    """停止前编辑器没存下作者在空章节里打的字（保存失败 / 超时）：停止请求带上这个文件，
-    这一轮照样退还，但这一章不被当作空白占位文件移除；离开页面（停止后马上断线）也一样。"""
+    """退还轮停止前编辑器没存下作者在空章节里打的字（保存失败 / 超时）：停止请求带上这个文件，
+    这一章不被当作空白占位文件移除；离开页面（停止后马上断线）也一样。"""
     from models import File
 
     _token, project, user = await _login_with_project(client, db_session)
@@ -678,7 +732,10 @@ async def test_refunded_stop_keeps_a_blank_chapter_the_author_has_unsaved_text_i
         await asyncio.sleep(30)
 
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, message_id, provider_attempted=False),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
@@ -714,7 +771,7 @@ async def test_refunded_stop_keeps_a_blank_chapter_the_author_has_unsaved_text_i
 async def test_refunded_stop_keeps_a_new_blank_chapter_the_author_renamed_meanwhile(
     client: AsyncClient, db_session
 ):
-    """这一轮新建的空章节，作者在生成期间给它改了标题（版本前进，正文仍空）：照样退还，
+    """退还轮新建的空章节，作者在生成期间给它改了标题（版本前进，正文仍空）：照样退还，
     但它不再是这一轮原样留下的占位文件，不删；终态不说移除了它。"""
     from config.datetime_utils import advance_timestamp, utcnow
     from models import ChatMessage, File
@@ -728,7 +785,10 @@ async def test_refunded_stop_keeps_a_new_blank_chapter_the_author_renamed_meanwh
         await asyncio.sleep(30)
 
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, message_id, provider_attempted=False),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
@@ -749,12 +809,19 @@ async def test_refunded_stop_keeps_a_new_blank_chapter_the_author_renamed_meanwh
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
     refund.assert_called_once()
+    done = _frame_data(rest, "done")
+    assert done["unwritten_files"] == [{"id": placeholder.id, "title": "第1章 最后一页"}]
     assert _frame_data(rest, "quota_refunded") == {"refunded": True, "kind": "stopped"}
     db_session.expire_all()
     kept = db_session.get(File, placeholder.id)
     assert kept.is_deleted is False and kept.title == "作者改的标题"
     metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
-    assert metadata["stop_outcome"] == {"reason": "user_stopped", "charged": False, "saved_output": False}
+    assert metadata["stop_outcome"] == {
+        "reason": "user_stopped",
+        "charged": False,
+        "saved_output": False,
+        "unwritten_files": [{"id": placeholder.id, "title": "第1章 最后一页"}],
+    }
 
 
 @pytest.mark.integration
@@ -1084,10 +1151,12 @@ async def test_completed_project_metadata_update_does_not_report_a_file_mutation
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    ("output_frames", "charged"),
+    ("provider_attempted", "output_frames", "charged", "saved_output"),
     [
-        ([_sse("content", {"text": "正在查看已有的全书大纲，确认现有设定后再梳理主线。"})], False),
+        (False, [], False, False),
+        (True, [_sse("content", {"text": "正在查看已有的全书大纲，确认现有设定后再梳理主线。"})], True, False),
         (
+            True,
             [
                 _sse(
                     "tool_result",
@@ -1099,13 +1168,14 @@ async def test_completed_project_metadata_update_does_not_report_a_file_mutation
                 )
             ],
             True,
+            True,
         ),
     ],
 )
 async def test_disconnect_settles_in_background_and_records_the_outcome(
-    client: AsyncClient, db_session, output_frames, charged
+    client: AsyncClient, db_session, provider_attempted, output_frames, charged, saved_output
 ):
-    """离开 / 后退断线：旁白不算产出（退还并移除空章节）；并行写章已完成算产出（计费）。"""
+    """离开 / 后退断线：仅模型尚未启动时退还并移除空白占位；已进入模型执行后旁白或写工具完成均计费。"""
     from models import ChatMessage, File
 
     _token, project, user = await _login_with_project(client, db_session)
@@ -1119,7 +1189,10 @@ async def test_disconnect_settles_in_background_and_records_the_outcome(
         await asyncio.sleep(30)
 
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, message_id, provider_attempted=provider_attempted),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
@@ -1138,15 +1211,16 @@ async def test_disconnect_settles_in_background_and_records_the_outcome(
     assert metadata["stop_reason"] == "client_disconnected"
     assert metadata["stop_outcome"]["reason"] == "client_disconnected"
     assert metadata["stop_outcome"]["charged"] is charged
+    assert metadata["stop_outcome"]["saved_output"] is saved_output
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("provider_attempted", [False, True])
 async def test_disconnect_from_a_tab_without_the_stop_contract_keeps_files_and_writes_no_stop_row(
-    client: AsyncClient, db_session
+    client: AsyncClient, db_session, provider_attempted
 ):
-    """发布前打开的旧标签页（没有 /stop、不带停止约定头）断线：照旧退还没产出的一轮，
-    但不移除这一轮建的空章节、不让 service 写空的「已中断」助手消息、不写终态——
-    旧前端收不到 removed_files，文件树里还列着那一章。"""
+    """发布前打开的旧标签页（没有 /stop、不带停止约定头）断线：模型前断线照旧退还、模型后断线计费，
+    但均不移除这一轮建的空章节、不让 service 写空的「已中断」助手消息、不写终态。"""
     from models import ChatMessage, File
 
     _token, project, user = await _login_with_project(client, db_session)
@@ -1167,7 +1241,10 @@ async def test_disconnect_from_a_tab_without_the_stop_contract_keeps_files_and_w
         await asyncio.sleep(30)
 
     with (
-        patch("api.agent.get_agent_service", return_value=_RecordingService(frames, message_id)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_RecordingService(frames, message_id, provider_attempted=provider_attempted),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
@@ -1175,11 +1252,13 @@ async def test_disconnect_from_a_tab_without_the_stop_contract_keeps_files_and_w
         iterator = response.body_iterator
         for _ in range(2):
             await iterator.__anext__()
+        running = agent_api._running_streams[(user.id, response.headers["X-Agent-Run-ID"])]
         await iterator.aclose()
+        await running.pump.wait_stopped()
         await asyncio.gather(*agent_api._detached_refund_tasks)
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
-    refund.assert_called_once()
+    assert refund.called is (not provider_attempted)
     # service 拿不到 stop_kind：按原来的取消原因补存，没有产出就不写助手消息。
     assert seen_stop_kind == [None]
     db_session.expire_all()
@@ -1331,7 +1410,10 @@ async def test_stop_refund_survives_the_request_being_cancelled_while_it_is_queu
         await asyncio.sleep(30)
 
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, message_id, provider_attempted=False),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent._refund_quota", side_effect=slow_refund),
         patch("api.agent.log_with_context") as log_spy,
@@ -1360,7 +1442,7 @@ async def test_stop_refund_survives_the_request_being_cancelled_while_it_is_queu
 
     assert finished == [True]
     log = _billing_log(log_spy)
-    assert log["billing_reason"] == "user_stopped_no_output"
+    assert log["billing_reason"] == "user_stopped_before_model"
     assert log["refund_scheduled"] is True
     db_session.expire_all()
     assert db_session.get(File, placeholder.id).is_deleted is True
@@ -1417,7 +1499,7 @@ async def test_stop_done_uses_confirmed_save_count_or_omits_pending_count(client
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("mode", ["refund", "save_later", "save_fails", "disconnect"])
+@pytest.mark.parametrize("mode", ["refund", "post_model_no_body", "save_later", "save_fails", "disconnect"])
 async def test_deadline_terminal_precedes_edge_even_when_cleanup_is_pending(client, db_session, monkeypatch, mode):
     """Controlled cleanup crosses the simulated edge; terminal must already be delivered."""
     from agent.core import steering
@@ -1437,6 +1519,7 @@ async def test_deadline_terminal_precedes_edge_even_when_cleanup_is_pending(clie
     db_session.add(placeholder)
     db_session.commit()
     has_body = mode in {"save_later", "save_fails"}
+    provider_attempted = mode not in {"refund", "disconnect"}
 
     async def frames():
         await steering.create_steering_queue_async(chat_id, user.id, run_id=lease_id)
@@ -1474,7 +1557,10 @@ async def test_deadline_terminal_precedes_edge_even_when_cleanup_is_pending(clie
         return original_log(logger, level, message, **fields)
 
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id=None)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, message_id=None, provider_attempted=provider_attempted),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent._refund_quota", new=AsyncMock(side_effect=refund)) as refund_call,
         patch("api.agent.log_with_context", new=capture_log),
@@ -1529,6 +1615,9 @@ async def test_deadline_terminal_precedes_edge_even_when_cleanup_is_pending(clie
         if has_body:
             refund_call.assert_not_called()
             assert db_session.get(File, placeholder.id).content == (_PROSE if mode == "save_later" else "")
+        elif provider_attempted:
+            refund_call.assert_not_called()
+            assert "event: quota_refunded" not in text
         elif mode != "disconnect":
             refund_call.assert_awaited_once()
             assert text.index("event: error") < text.index("event: quota_refunded")
@@ -1568,7 +1657,7 @@ async def test_timeout_terminal_precedes_slow_refund_and_keeps_its_final_result(
                 terminal.set()
 
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, provider_attempted=False)),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent._refund_quota", new=AsyncMock(side_effect=refund)) as refund_call,
         patch("api.agent.log_with_context", new=capture_log),
@@ -1650,7 +1739,7 @@ async def test_queued_terminal_cannot_suppress_delivered_deadline_terminal(clien
         assert _frame_data(text, "done") is None
         assert _frame_data(text, "workflow_complete") is None
         assert _frame_data(text, "workflow_stopped") is None
-        refund.assert_awaited_once()
+        refund.assert_not_called()
 
 
 @pytest.mark.integration
@@ -1926,16 +2015,17 @@ async def test_unexecuted_tool_text_marks_the_round_incomplete_without_changing_
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    ("output_frames", "refunded"),
+    ("provider_attempted", "output_frames", "refunded"),
     [
-        ([], True),
-        ([_sse("content", {"text": _PROSE})], False),
+        (False, [], True),
+        (True, [], False),
+        (True, [_sse("content", {"text": _PROSE})], False),
     ],
 )
 async def test_server_drain_ends_a_running_stream_with_a_restart_terminal(
-    client: AsyncClient, db_session, monkeypatch, output_frames, refunded
+    client: AsyncClient, db_session, monkeypatch, provider_attempted, output_frames, refunded
 ):
-    """发布交接：旧进程收到 SIGTERM 后，仍在运行的一轮在关机宽限内以「服务正在更新」收尾并照超时规则结算。"""
+    """发布交接：旧进程收到 SIGTERM 后，仍在运行的一轮在关机宽限内以「服务正在更新」收尾，模型前退还、模型后计费。"""
     from agent.core import server_drain
 
     _token, project, user = await _login_with_project(client, db_session)
@@ -1957,7 +2047,10 @@ async def test_server_drain_ends_a_running_stream_with_a_restart_terminal(
 
     body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
     with (
-        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, provider_attempted=provider_attempted),
+        ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
         patch("api.agent.log_with_context") as log_spy,
@@ -2004,6 +2097,8 @@ async def test_deadline_hands_the_resumable_stop_reason_to_the_cancelled_run(
 
     class _RecordingService(_FakeService):
         async def process_stream(self, *, run_outcome=None, **_kwargs):
+            if run_outcome is not None:
+                run_outcome.provider_attempted = True
             try:
                 yield _sse("session_started", {"session_id": "s1"})
                 await asyncio.sleep(30)
@@ -2086,9 +2181,9 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
     metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
     assert metadata["stop_reason"] == "run_deadline_exceeded"
     outcome = metadata["stop_outcome"]
-    assert outcome["charged"] is with_body
-    assert refund.called is not with_body
-    # 计费判定不因暂停卡改变：仍按墙钟超时结算。
+    assert outcome["charged"] is True
+    refund.assert_not_called()
+    # 计费判定不因暂停卡改变：已进入模型执行后仍按墙钟超时计费结算。
     assert _billing_log(log_spy)["billing_reason"] == "run_deadline_exceeded"
     if with_body:
         assert "ERR_AGENT_RUN_TIMEOUT" not in text
@@ -2228,6 +2323,8 @@ async def test_disconnect_during_deadline_pause_cleanup_keeps_the_resumable_paus
 
     class _CleanupHeldService:
         async def process_stream(self, *, run_outcome=None, **_kwargs):
+            if run_outcome is not None:
+                run_outcome.provider_attempted = True
             try:
                 yield _sse("session_started", {"session_id": "s1"})
                 yield _sse("file_created", {"file_id": filled.id, "title": filled.title})
@@ -2373,14 +2470,25 @@ class _CaptureSettlingService:
     """像 AgentService 的取消路径：真实 StreamAdapter 的 ``<file>`` 捕获还在尾缓冲里（没发出
     file_content 帧），取消后在后台补存残稿，补存落定后才交回助手消息 id。"""
 
-    def __init__(self, adapter, placeholder, text: str, message_id: str | None):
+    def __init__(
+        self,
+        adapter,
+        placeholder,
+        text: str,
+        message_id: str | None,
+        *,
+        provider_attempted: bool = True,
+    ):
         self._adapter = adapter
         self._placeholder = placeholder
         self._text = text
         self._message_id = message_id
+        self._provider_attempted = provider_attempted
         self.settle_tasks: list[asyncio.Task] = []
 
     async def process_stream(self, *, run_outcome=None, **_kwargs):
+        if run_outcome is not None and self._provider_attempted:
+            run_outcome.provider_attempted = True
         try:
             yield _sse("session_started", {"session_id": "s1"})
             yield _create_file_result(self._placeholder)
@@ -2439,10 +2547,8 @@ def _adapter_saves_on_test_db(monkeypatch):
 async def test_refunded_round_waits_for_the_capture_save_before_removing_its_placeholder(
     client, db_session, monkeypatch, ending, text
 ):
-    """正文还在解析器尾缓冲里（≤32 字，或未闭合围栏到 EOF 才认出的整章）时作者停止 / 断线：
-    没有 file_content 帧，残稿补存还在进行，空白占位不能先被移除，否则补存被已删除的文件拒绝，
-    正文丢失。停止路径当场只等很短的时间，等不到保存回执就按「没有产出」退还；断线路径在后台
-    等回执，补存提交了就撤回退还（按保存回执计费）。"""
+    """退还轮若在正文还在解析器尾缓冲里（≤32 字，或未闭合围栏到 EOF 才认出的整章）时停止 / 断线：
+    没有 file_content 帧，残稿补存还在进行，空白占位不能先被移除，否则补存被已删除的文件拒绝，正文丢失。"""
     from agent.tools.mcp_tools import ToolContext
     from models import ChatMessage, File
     from tests.conftest import TestSessionLocal
@@ -2456,7 +2562,13 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
         create_session_func=TestSessionLocal, author_message="写第一章", read_snapshots={},
     )
     gate = asyncio.Event()
-    service = _CaptureSettlingService(_gated_capture_adapter(project, user, placeholder, gate), placeholder, text, message_id)
+    service = _CaptureSettlingService(
+        _gated_capture_adapter(project, user, placeholder, gate),
+        placeholder,
+        text,
+        message_id,
+        provider_attempted=False,
+    )
     try:
         with (
             patch("api.agent.get_agent_service", return_value=service),
@@ -2487,10 +2599,7 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
     finally:
         ToolContext.clear_context()
 
-    if ending == "stop":
-        refund.assert_called_once()
-    else:
-        refund.assert_not_called()
+    refund.assert_called_once()
     db_session.expire_all()
     kept = db_session.get(File, placeholder.id)
     assert kept.is_deleted is False
@@ -2729,7 +2838,11 @@ async def test_upstream_error_before_a_new_file_body_refunds_and_removes_the_bla
     with (
         patch(
             "api.agent.get_agent_service",
-            return_value=_FakeService(_empty_file_then_upstream_error(placeholder), message_id),
+            return_value=_FakeService(
+                _empty_file_then_upstream_error(placeholder),
+                message_id,
+                terminal_model_failure=True,
+            ),
         ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
@@ -2756,10 +2869,10 @@ async def test_upstream_error_before_a_new_file_body_refunds_and_removes_the_bla
 
 
 @pytest.mark.integration
-async def test_deadline_before_a_new_file_body_refunds_and_removes_the_blank_file(
+async def test_deadline_before_a_new_file_body_is_charged_and_preserves_unwritten_placeholder(
     client: AsyncClient, db_session, monkeypatch
 ):
-    """建好文件、正文还没写进去就撞上时限：退还，空白文件同样移除，终态不再列它为未确认保存。"""
+    """建好文件、正文还没写进去就撞上墙钟时限：已进入模型执行照常计费，不删文件，终态记 error + charged。"""
     from models import ChatMessage, File
 
     monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
@@ -2783,19 +2896,14 @@ async def test_deadline_before_a_new_file_body_refunds_and_removes_the_blank_fil
         text = "".join([frame async for frame in response.body_iterator])
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
-    refund.assert_called_once()
-    assert _frame_data(text, "quota_refunded") == {
-        "refunded": True,
-        "kind": "error",
-        "removed_files": [{"id": placeholder.id, "title": "第1章 最后一页"}],
-    }
+    refund.assert_not_called()
+    assert _frame_data(text, "quota_refunded") is None
     db_session.expire_all()
-    assert db_session.get(File, placeholder.id).is_deleted is True
+    assert db_session.get(File, placeholder.id).is_deleted is False
     assert db_session.get(File, older_empty.id).is_deleted is False
     outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
-    assert outcome["charged"] is False
-    assert outcome["removed_files"] == ["第1章 最后一页"]
-    assert "unwritten_files" not in outcome
+    assert outcome["reason"] == "error"
+    assert outcome["charged"] is True
 
 
 @pytest.mark.integration
@@ -2811,7 +2919,11 @@ async def test_refunded_error_round_keeps_the_blank_file_for_a_tab_without_the_s
     with (
         patch(
             "api.agent.get_agent_service",
-            return_value=_FakeService(_empty_file_then_upstream_error(placeholder), message_id),
+            return_value=_FakeService(
+                _empty_file_then_upstream_error(placeholder),
+                message_id,
+                terminal_model_failure=True,
+            ),
         ),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
@@ -2839,7 +2951,10 @@ async def test_refunded_error_round_keeps_the_blank_file_when_the_message_id_nev
     _message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
 
     class _NoIdService:
-        async def process_stream(self, **_kwargs):
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            if run_outcome is not None:
+                run_outcome.provider_attempted = True
+                run_outcome.terminal_model_failure = True
             async for frame in _empty_file_then_upstream_error(placeholder)():
                 yield frame
 
@@ -2975,6 +3090,8 @@ class _InflightWriteService:
         from agent.tools import mcp_tools
         from tests.conftest import TestSessionLocal
 
+        if run_outcome is not None:
+            run_outcome.provider_attempted = True
         mcp_tools.ToolContext.set_context(
             session=None, user_id=self._user.id, project_id=self._project.id, session_id="s1",
             create_session_func=TestSessionLocal, author_message="写第一章", read_snapshots={},
@@ -3057,22 +3174,23 @@ async def test_edit_committed_by_its_thread_after_a_stop_is_charged(client, db_s
         rest = await _stop_while_a_write_tool_thread_runs(db_session, user, project, service, release)
 
     db_session.expire_all()
+    refund.assert_not_called()
+    assert _frame_data(rest, "quota_refunded") is None
+    done = _frame_data(rest, "done")
+    assert done["charged"] is True
     if thread_fails:
-        refund.assert_called_once()
-        assert _frame_data(rest, "quota_refunded") is not None
+        assert done["produced_output"] is False
         assert db_session.get(File, placeholder.id).content == ""
     else:
-        refund.assert_not_called()
-        assert _frame_data(rest, "quota_refunded") is None
-        assert _frame_data(rest, "done")["produced_output"] is True
+        assert done["produced_output"] is True
         assert db_session.get(File, placeholder.id).content == "线程在停止后写下的正文。"
 
 
 @pytest.mark.integration
-async def test_empty_file_created_by_its_thread_after_a_stop_is_removed_with_the_refund(
+async def test_empty_file_created_by_its_thread_after_a_stop_settles_and_is_charged(
     client, db_session, monkeypatch
 ):
-    """create_file 的线程在停止之后才建好空文件：这一轮没有产出照常退还，这个空文件按空白占位移除。"""
+    """create_file 的线程在停止之后才建好空文件：收尾等到线程完成，已进入模型执行照常计费，空文件列为未写入。"""
     import threading
 
     from agent.tools import mcp_tools
@@ -3107,18 +3225,83 @@ async def test_empty_file_created_by_its_thread_after_a_stop_is_removed_with_the
     ):
         rest = await _stop_while_a_write_tool_thread_runs(db_session, user, project, service, release)
 
-    refund.assert_called_once()
+    refund.assert_not_called()
+    assert _frame_data(rest, "quota_refunded") is None
     [file_id] = created
-    assert _frame_data(rest, "quota_refunded")["removed_files"] == [{"id": file_id, "title": "第3章 迟到的空白"}]
+    done = _frame_data(rest, "done")
+    assert done["charged"] is True
+    assert done["unwritten_files"] == [{"id": file_id, "title": "第3章 迟到的空白"}]
     db_session.expire_all()
-    assert db_session.get(File, file_id).is_deleted is True
+    assert db_session.get(File, file_id).is_deleted is False
+    from models import ChatMessage
+
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome["unwritten_files"] == [{"id": file_id, "title": "第3章 迟到的空白"}]
 
 
 @pytest.mark.integration
-async def test_sync_file_save_failure_removes_empty_placeholder_on_refund(
+async def test_nonempty_file_created_by_its_thread_after_a_stop_reports_single_word_count(
     client, db_session, monkeypatch
 ):
-    """新建空章后流式保存同步抛错回滚（ERR_AGENT_FILE_SAVE_FAILED）：退费时软删空白占位章并返回 removed_files。"""
+    """create_file 带正文在停止后才完成：当场 done 与后台 _finalize_stopped_round 共享游标，字数不翻倍。"""
+    import threading
+
+    from agent.tools import mcp_tools
+    from models import ChatMessage, File
+    from tests.conftest import TestSessionLocal
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, _filled, _older = _seed_round(db_session, project, user)
+    release = threading.Event()
+    created: list[str] = []
+    body_text = "雨还在下。旧书店的门没有锁。"
+
+    def slow_create(args):
+        release.wait(5)
+        with TestSessionLocal() as session:
+            row = File(project_id=project.id, title=args["title"], content=body_text, file_type="draft")
+            session.add(row)
+            session.commit()
+            session.refresh(row)
+            created.append(row.id)
+            data = {
+                "id": row.id,
+                "title": row.title,
+                "content": body_text,
+                "file_type": "draft",
+                "updated_at": row.updated_at.isoformat(),
+            }
+        return mcp_tools._make_result({"status": "success", "mutation_applied": True, "data": data}, tool_name="create_file")
+
+    monkeypatch.setattr(mcp_tools, "_create_file_sync", slow_create)
+    service = _InflightWriteService(
+        project, user, "create_file", {"title": "第3章 迟到的正文", "content": body_text, "file_type": "draft"}, message_id
+    )
+    with (
+        patch("api.agent.get_agent_service", return_value=service),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        rest = await _stop_while_a_write_tool_thread_runs(db_session, user, project, service, release)
+
+    refund.assert_not_called()
+    [file_id] = created
+    expected_written = [{"id": file_id, "title": "第3章 迟到的正文", "words": 12}]
+    done = _frame_data(rest, "done")
+    assert done["written_files"] == expected_written
+    assert "unwritten_files" not in done
+    db_session.expire_all()
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome["saved_output"] is True
+    assert outcome["written_files"] == expected_written
+    assert "unwritten_files" not in outcome
+
+
+@pytest.mark.integration
+async def test_sync_file_save_failure_is_charged_as_non_model_error_and_reports_unwritten_file(
+    client, db_session, monkeypatch
+):
+    """新建空章后流式保存同步抛错回滚（ERR_AGENT_FILE_SAVE_FAILED）：非模型服务异常照常计费，如实报告 unwritten_files。"""
     from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
     from models import File
 
@@ -3137,6 +3320,8 @@ async def test_sync_file_save_failure_removes_empty_placeholder_on_refund(
 
     class _SyncSaveFailService:
         async def process_stream(self, *, run_outcome=None, **_kwargs):
+            if run_outcome is not None:
+                run_outcome.provider_attempted = True
             try:
                 yield _sse("session_started", {"session_id": "s1"})
                 yield _create_file_result(placeholder)
@@ -3156,12 +3341,13 @@ async def test_sync_file_save_failure_removes_empty_placeholder_on_refund(
         body = "".join([frame async for frame in response.body_iterator])
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
-    refund.assert_called_once()
-    refunded = _frame_data(body, "quota_refunded")
-    assert refunded is not None
-    assert refunded["removed_files"] == [{"id": placeholder.id, "title": placeholder.title}]
+    refund.assert_not_called()
+    assert _frame_data(body, "quota_refunded") is None
+    err = _frame_data(body, "error")
+    assert err["code"] == "ERR_AGENT_FILE_SAVE_FAILED"
+    assert err["unwritten_files"] == [{"id": placeholder.id, "title": placeholder.title}]
     db_session.expire_all()
-    assert db_session.get(File, placeholder.id).is_deleted is True
+    assert db_session.get(File, placeholder.id).is_deleted is False
 
 
 @pytest.mark.integration
@@ -3175,6 +3361,8 @@ async def test_stop_after_terminal_non_refundable_error_does_not_preempt_or_refu
 
     class _SlowFinallyAfterErrorService:
         async def process_stream(self, *, run_outcome=None, **_kwargs):
+            if run_outcome is not None:
+                run_outcome.provider_attempted = True
             try:
                 yield _sse("session_started", {"session_id": "s1"})
                 yield _sse(

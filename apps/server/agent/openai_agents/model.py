@@ -175,6 +175,17 @@ def _base_model_class() -> type:
     return Model
 
 
+def _mark_escaped_provider_error(exc: BaseException) -> None:
+    """Tag an unrecovered upstream provider/transport error escaping ``FailoverChatModel``."""
+    import contextlib
+
+    from services.usage.model_call_guard import is_upstream_provider_error_type
+
+    if getattr(exc, "_zenstory_provider_transport_error", False) is True and is_upstream_provider_error_type(exc):
+        with contextlib.suppress(Exception):
+            exc._zenstory_escaped_failover_model = True  # type: ignore[attr-defined]
+
+
 class FailoverChatModel:
     """SDK ``Model`` that serves each call from the first available provider."""
 
@@ -273,12 +284,15 @@ class FailoverChatModel:
                 self._record_failed_attempt(provider, attempt_started, exc)
                 llm_failover.log_provider_failure(provider, exc, call_site="agent")
                 if not llm_failover.is_provider_unavailable(exc):
+                    _mark_escaped_provider_error(exc)
                     raise
                 key_cooled = await llm_failover.arecord_failure(provider, self._session_id, exc) or key_cooled
                 if index + 1 >= len(ordered):
+                    _mark_escaped_provider_error(exc)
                     raise
                 if _rejects_missing_tool_turn_reasoning(ordered[index + 1], input):
                     llm_failover.log_failover_skipped(provider, ordered[index + 1], call_site="agent")
+                    _mark_escaped_provider_error(exc)
                     raise
                 llm_failover.log_failover(provider, ordered[index + 1], call_site="agent")
                 continue
@@ -373,6 +387,7 @@ class FailoverChatModel:
                     # other provider, other authors stay where they are (no circuit count).
                     await llm_failover.apin_session_to_other(provider, self._session_id)
                 else:
+                    _mark_escaped_provider_error(exc)
                     raise
                 # A call that streamed only reasoning fails over now (nothing it produced
                 # would be repeated); after answer output the error propagates.
@@ -389,11 +404,13 @@ class FailoverChatModel:
                             else "single_provider" if len(ordered) == 1 else "providers_exhausted"
                         ),
                     )
+                    _mark_escaped_provider_error(exc)
                     raise
                 # The backup would answer this input with HTTP 400: end with the original error
                 # (retryable; the session pin above sends the author's retry to the backup).
                 if _rejects_missing_tool_turn_reasoning(ordered[index + 1], input):
                     llm_failover.log_failover_skipped(provider, ordered[index + 1], call_site="agent")
+                    _mark_escaped_provider_error(exc)
                     raise
                 llm_failover.log_failover(
                     provider, ordered[index + 1], call_site="agent", after_reasoning=started

@@ -28,6 +28,7 @@ from config.datetime_utils import utcnow
 from database import create_session
 from services.chat_session_service import latest_active_chat_session
 from utils.logger import get_logger, log_with_context
+from utils.request_context import bind_request_context, get_run_outcome, reset_request_context
 
 from .constants import should_offload_session_work
 from .context import ContextAssembler, get_context_assembler
@@ -50,7 +51,7 @@ from .core.message_manager import (
     has_substantive_display_events,
     normalize_assistant_display_events,
 )
-from .core.round_outcome import RunOutcome
+from .core.round_outcome import RUN_DEADLINE_STOP_REASON, RunOutcome
 from .core.run_meter import AgentRunMeter
 from .core.session_loader import SessionLoader
 from .core.steering import (
@@ -590,6 +591,7 @@ class AgentService:
 
         history = LoopHistory()
         owned_session_id: str | None = None
+        history_started = time.perf_counter()
         if user_id and chat_session_id:
             chat_session = session.get(ChatSession, chat_session_id)
             if chat_session is not None and chat_session.user_id == user_id and chat_session.project_id == project_id:
@@ -601,9 +603,11 @@ class AgentService:
                     chat_session_id=chat_session_id,
                     carried_metadata=carried_compaction,
                 )
+        history_load_ms = round((time.perf_counter() - history_started) * 1000, 1)
         selected_skills = self._resolve_selected_skills(
             session, user_id=user_id, selected_skill_ids=selected_skill_ids
         )
+        turn_started = time.perf_counter()
         turn = build_loop_turn_context(
             session,
             project_id=project_id,
@@ -615,9 +619,25 @@ class AgentService:
             context_assembler=self.context_assembler,
             chat_session_id=owned_session_id,
         )
+        turn_context_ms = round((time.perf_counter() - turn_started) * 1000, 1)
+        catalog_started = time.perf_counter()
         skill_catalog = get_skill_context_injector().build_skill_catalog(session, user_id)
+        skill_catalog_ms = round((time.perf_counter() - catalog_started) * 1000, 1)
+        prompt_started = time.perf_counter()
         system_prompt = MessageManager(project_id=project_id, user_id=user_id).build_system_prompt(
             session=session, language=language, skill_catalog=skill_catalog
+        )
+        system_prompt_ms = round((time.perf_counter() - prompt_started) * 1000, 1)
+        log_with_context(
+            logger,
+            20,  # INFO
+            "Loop turn context prepared",
+            project_id=project_id,
+            history_load_ms=history_load_ms,
+            turn_context_ms=turn_context_ms,
+            author_edits_ms=turn.author_edits_ms,
+            skill_catalog_ms=skill_catalog_ms,
+            system_prompt_ms=system_prompt_ms,
         )
         return history, turn, selected_skills, system_prompt
 
@@ -766,14 +786,24 @@ class AgentService:
         retry_carried_compaction: dict[str, Any] = {}
 
         def _loop_extra_metadata() -> dict[str, Any] | None:
-            """单循环 agent 的 assistant 行：引擎标记、最后一次模型调用的输入 token/字符锚点、压缩点。"""
-            return {
+            """单循环 agent 的 assistant 行：引擎标记、最后一次模型调用的输入 token/字符锚点、压缩点、时限收尾方式。"""
+            wall_clock_landing: str | None = None
+            if stream_cancelled and run_outcome is not None and run_outcome.deadline_stop_reason == RUN_DEADLINE_STOP_REASON:
+                wall_clock_landing = "hard"
+            elif not stream_cancelled and assistant_stop_reason == RUN_DEADLINE_STOP_REASON:
+                adapter = usage_source.get("adapter")
+                if adapter is not None and adapter.get_last_message_metadata().get("wall_clock_landing") == "soft":
+                    wall_clock_landing = "soft"
+            extra: dict[str, Any] = {
                 "engine": LOOP_ENGINE_METADATA_VALUE,
                 "prompt_tokens": run_meter.last_prompt_tokens or None,
                 "prompt_chars": run_meter.last_prompt_chars or None,
                 "compaction": loop_compaction_record,
                 "compaction_skipped": loop_compaction_skipped,
             }
+            if wall_clock_landing is not None:
+                extra["wall_clock_landing"] = wall_clock_landing
+            return extra
 
         def _loop_user_row_metadata() -> dict[str, Any] | None:
             """这一轮没有 assistant 行时，压缩点 / 没压缩成的记录写在作者那条消息上（history 两处都读）。"""
@@ -1102,6 +1132,11 @@ class AgentService:
 
         if account_run_slot is not None:
             account_run_slot.adopt()
+        local_outcome_tokens = (
+            bind_request_context(run_outcome=run_outcome)
+            if run_outcome is not None and get_run_outcome() is None
+            else None
+        )
 
         try:
             lang = (language or "").strip().lower() or "zh"
@@ -1829,6 +1864,8 @@ class AgentService:
                 stream_error=had_stream_error,
                 stream_cancelled=stream_cancelled,
             )
+            if local_outcome_tokens is not None:
+                reset_request_context(local_outcome_tokens)
 
     @staticmethod
     async def _loop_events(

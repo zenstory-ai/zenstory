@@ -16,7 +16,7 @@ export interface LeaveWhileGeneratingDialogProps {
   intent?: 'leave' | 'newChat';
   /** The round finished while the dialog was open: leaving no longer cuts anything off. */
   roundEnded: boolean;
-  /** This round already wrote something (prose or a file): leaving keeps it and is charged. */
+  /** This round already wrote something (prose or a file): leaving keeps what was already saved. */
   producedOutput: boolean;
   /** Free plan: mention whether the round counts toward today's AI messages (Pro: never). */
   showDailyCount: boolean;
@@ -75,7 +75,7 @@ export function LeaveWhileGeneratingDialog({
   } else {
     message = showDailyCount
       ? t('chat:leaveWhileGenerating.message', {
-        defaultValue: '离开这个页面会中断这一轮。还没写出内容的话，这一轮不计入今日 AI 消息。',
+        defaultValue: '离开这个页面会中断这一轮；AI 已开始处理时，这一轮仍计入今日 AI 消息。',
       })
       : t('chat:leaveWhileGenerating.messageUnlimited', { defaultValue: '离开这个页面会中断这一轮。' });
   }
@@ -143,7 +143,7 @@ export function LeaveWhileGeneratingDialog({
 
 type Translate = ReturnType<typeof useTranslation>['t'];
 
-/** A new chat stops this round first (author stop: refunded when nothing was written yet). */
+/** A new chat stops this round first (charged once the AI has started working; refunded only before model start). */
 function newChatMessage(
   t: Translate,
   { roundEnded, producedOutput, showDailyCount }: { roundEnded: boolean; producedOutput: boolean; showDailyCount: boolean },
@@ -162,7 +162,7 @@ function newChatMessage(
   }
   return showDailyCount
     ? t('chat:newChatWhileGenerating.message', {
-      defaultValue: '开始新对话会先停止这一轮。还没写出内容的话，这一轮不计入今日 AI 消息。',
+      defaultValue: '开始新对话会先停止这一轮；AI 已开始处理时，这一轮仍计入今日 AI 消息。',
     })
     : t('chat:newChatWhileGenerating.messageUnlimited', { defaultValue: '开始新对话会先停止这一轮。' });
 }

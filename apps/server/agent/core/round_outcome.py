@@ -55,6 +55,10 @@ class RunOutcome:
     deadline_stop_reason: str | None = None
     # 本轮单循环引擎已启动的 run 次数（墙钟硬超时暂停卡据此写 iterations_used）。
     runs_started: int = 0
+    # 本轮是否已通过成本预检并真正进入供应商 transport（含历史压缩与主循环模型调用）。
+    provider_attempted: bool = False
+    # 本轮是否因未恢复的上游供应商 transport 错误最终终止（仅在 StreamAdapter 致命错误收尾处写入）。
+    terminal_model_failure: bool = False
     # 作者停止时编辑器里还有没存下的字的文件（前端停止前的保存失败或超时，随 /stop 送来）：
     # 这一轮被退还时不当作空白占位文件移除，见 :meth:`removable`。
     keep_file_ids: set[str] = field(default_factory=set)
@@ -67,14 +71,14 @@ class RunOutcome:
     # 写工具在线程里执行、还没把结果交回 SDK 的调用：(tool_name, future)。ToolContext 拿着同一个
     # list（比 clear_context() 活得长），工具正常返回时自己移除；截停后留下的由 settle_inflight_tool_writes 等。
     inflight_tool_writes: list[tuple[str, asyncio.Future[Any]]] = field(default_factory=list)
-    # 截停后才完成的写工具结果，按 tool_result 帧的格式（tool_name / status / data），交给计费 tracker。
+    # 截停后才完成的写工具结果，按 tool_result 帧的格式（tool_name / status / data），补记进产物 tracker 与 RoundWrittenFiles。
     committed_tool_results: list[dict[str, Any]] = field(default_factory=list)
     _message_id: asyncio.Future[str | None] | None = field(default=None, repr=False)
 
     async def settle_inflight_tool_writes(self, timeout_s: float) -> None:
         """截停后等还在线程里的写工具（上限 timeout_s），把完成的结构化结果记进 committed_tool_results。
 
-        线程出错、超时或结果解析不了的不记：计费照旧按没有写入处理（偏向作者）。
+        线程出错、超时或结果解析不了的不记：只记录已确认完成的工具结果（产出/保存事实，与消息额度是否计入无关）。
         """
         pending = list(self.inflight_tool_writes)
         self.inflight_tool_writes.clear()
@@ -128,6 +132,15 @@ class RunOutcome:
             return await asyncio.wait_for(asyncio.shield(self._future()), timeout=timeout_s)
         except TimeoutError:
             return None
+
+
+def note_provider_attempt_started() -> None:
+    """Record on the bound ``RunOutcome`` that a real provider call is starting after cost pre-checks."""
+    from utils.request_context import get_run_outcome
+
+    outcome = get_run_outcome()
+    if isinstance(outcome, RunOutcome):
+        outcome.provider_attempted = True
 
 
 def tool_result_status(tool_name: str, parsed: Any) -> tuple[str, Any]:
@@ -213,6 +226,12 @@ class RoundWrittenFiles:
     _unexecuted_tool_text: bool = False
     # 单次 agent run / 一轮里多次 run 的结构化耗尽事实，直到终态都如实记为 incomplete。
     _pending_run_exhaustion: bool = False
+
+    def note_committed_tool_results(self, results: list[dict[str, Any]]) -> None:
+        """补记截停后在线程里完成的写工具结果（帧格式：tool_name / status / data）。"""
+        for payload in results:
+            if isinstance(payload, dict):
+                self._observe_tool_result(payload)
 
     @property
     def unexecuted_tool_text(self) -> bool:
@@ -306,16 +325,14 @@ class RoundWrittenFiles:
     ) -> dict[str, Any]:
         """停止 / 断线（实时 ``done`` 与落库的 ``stop_outcome`` 同一份）的写入回执。
 
-        与 :meth:`delivery` 同一口径，只少两类空壳：退还时真正移除了的；以及一份都没写成时，
-        这一轮没往里写过正文（没有流式正文、也没有补存）的空壳——刚建好就停下，不算漏写。
-        写过正文却没有确认保存回执的新建文件照样列为未确认保存。
+        与 :meth:`delivery` 同一口径，只排除退还时真正移除了的空壳（``removed_ids``）；
+        保留在项目里的新建空白文件与无确认保存回执的新建文件均如实列为 ``unwritten_files``。
         """
         delivery = self.delivery(final_word_counts=final_word_counts)
         written = delivery.get("written_files")
         unwritten = [
             item for item in delivery.get("unwritten_files", [])
             if item["id"] not in removed_ids
-            and (written or self._body_attempted(item["id"], final_word_counts))
         ]
         return {**({"written_files": written} if written else {}),
                 **({"unwritten_files": unwritten} if unwritten else {})}
@@ -329,17 +346,13 @@ class RoundWrittenFiles:
     ) -> bool:
         """作者看到的「写入的内容已保存」：只由确认的写入推出，不看流式正文帧。
 
-        有确认写入的文件就是 True。列不出文件的写入（批次中途截停的并行子任务、删除）沿用计费口径
+        有确认写入的文件就是 True。列不出文件的写入（批次中途截停的并行子任务、删除）沿用产物 tracker 的
         ``any_write_succeeded``，但这一轮只要有流式正文没拿到确认保存回执就不这么说。
-        计费仍按 ``StreamBillingTracker.write_succeeded``，与这里无关。
+        它与 ``StreamBillingTracker.write_succeeded`` 均表示产出 / 保存事实，不作为消息额度的计费或退还条件。
         """
         if delivery.get("written_files"):
             return True
         return any_write_succeeded and not self._has_unconfirmed_body(final_word_counts)
-
-    def _body_attempted(self, file_id: str, final_word_counts: dict[str, int | None]) -> bool:
-        entry = self._files.get(file_id)
-        return file_id in final_word_counts or bool(entry and entry.body.strip())
 
     def _has_unconfirmed_body(self, final_word_counts: dict[str, int | None]) -> bool:
         if any(count is None for count in final_word_counts.values()):

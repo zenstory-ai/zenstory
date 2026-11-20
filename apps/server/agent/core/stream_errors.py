@@ -5,8 +5,8 @@
 异常归类成固定的错误码，前端按错误码显示 i18n 文案；完整异常只写服务器日志。
 
 - retryable：暂时性故障（上游限流、5xx、超时、连接失败）为 True，前端显示重试。
-- refundable：本次失败是否属于「平台侧故障」、可以退还对话额度。api/agent.py
-  另外还会看本轮是否已有实质产出（已串流正文 / 已写入文件），有产出一律不退。
+- refundable：对外错误载荷的兼容字段；实际是否退还对话额度由 api/agent.py 按结构化
+  RunOutcome（provider_attempted / terminal_model_failure）统一裁决，不凭本字段猜测。
 """
 
 from __future__ import annotations
@@ -162,7 +162,7 @@ REPETITION_LOOP_STOP_REASON = "repetition_loop"
 
 def repetition_loop_error() -> StreamErrorInfo:
     """模型把一大段原样再写一遍、被截停：不给重试按钮（重发原请求只会从头再来），回复「继续」接着写。
-    stream_billing 按失控停止结算（reason=repetition_loop）：本轮没有写入成功就退还。"""
+    已进入模型调用后并非上游服务故障，stream_billing 按已执行非模型停止计费（non_model_stop）。"""
     return StreamErrorInfo(ErrorCode.AGENT_REPETITION_LOOP, False, True)
 
 
@@ -176,8 +176,7 @@ def model_call_limit_error() -> StreamErrorInfo:
 
 def output_truncated_error(*, repeated: bool = False) -> StreamErrorInfo:
     """最后一次响应只有思考就撞上输出上限：与同类「回复继续」的停止一样不给重试按钮
-    （重试会重发原请求、从头再做一遍）；是否退还交给 stream_billing 的既有规则
-    （本轮无产出退还，有产出照常计费）。"""
+    （重试会重发原请求、从头再做一遍）；已进入模型调用后并非上游服务故障，按已执行轮次计费。"""
     code = (
         ErrorCode.AGENT_OUTPUT_REPEATEDLY_TRUNCATED if repeated else ErrorCode.AGENT_OUTPUT_TRUNCATED
     )

@@ -439,6 +439,7 @@ class _ClockedStreamingModel:
 @pytest.fixture
 def attempts(monkeypatch):
     """Ledger rows the model would schedule, as (model, outcome, duration_ms, ttft_ms, tokens)."""
+    from agent.openai_agents import usage_hooks
     from services.usage import llm_usage_service
 
     rows: list[tuple] = []
@@ -448,6 +449,7 @@ def attempts(monkeypatch):
         rows.append((model, timing.outcome, timing.duration_ms, timing.ttft_ms, counted.total))
 
     monkeypatch.setattr(llm_usage_service, "schedule_llm_usage_record", schedule)
+    monkeypatch.setattr(usage_hooks, "schedule_llm_usage_record", schedule)
     return rows
 
 
@@ -1384,7 +1386,9 @@ async def test_the_backup_provider_also_gets_tool_choice_none_for_the_body_reply
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_in_a_real_run_only_the_call_after_write_chapter_is_restricted(request_tools, recorded_requests):
+async def test_in_a_real_run_only_the_call_after_write_chapter_is_restricted(
+    request_tools, recorded_requests, attempts
+):
     """on_llm_start advances the reply counter before the SDK calls the model."""
     from agents import Agent, FunctionTool, ModelSettings, Runner
 
@@ -1415,3 +1419,4 @@ async def test_in_a_real_run_only_the_call_after_write_chapter_is_restricted(req
     await Runner.run(agent, "继续", hooks=hooks)  # the continuation after the body
 
     assert [kwargs["tool_choice"] for _, kwargs in requests] == ["auto", "none", "auto"]
+    assert [row[1] for row in attempts] == ["success", "success", "success"]

@@ -2993,6 +2993,36 @@ QUERY_MATCHES_PER_FILE = 8
 QUERY_MATCH_CONTEXT_CHARS = 30
 
 
+def _snap_query_match_bounds(content: str, pos: int, keyword_len: int) -> tuple[int, int]:
+    """在既有前后 QUERY_MATCH_CONTEXT_CHARS 预算内优先对齐换行或句末边界，不扩大单处输出预算。"""
+    raw_start = max(0, pos - QUERY_MATCH_CONTEXT_CHARS)
+    raw_end = min(len(content), pos + keyword_len + QUERY_MATCH_CONTEXT_CHARS)
+    start = raw_start
+    end = raw_end
+
+    nl_before = content.rfind("\n", raw_start, pos)
+    if nl_before >= 0:
+        start = nl_before + 1
+    elif raw_start > 0:
+        search_limit = max(raw_start, pos - 12)
+        for idx in range(raw_start, search_limit):
+            if content[idx] in "。！？；.!?;":
+                start = idx + 1
+                break
+
+    nl_after = content.find("\n", pos + keyword_len, raw_end)
+    if nl_after >= 0:
+        end = nl_after
+    elif raw_end < len(content):
+        search_from = min(raw_end, pos + keyword_len + 12)
+        for idx in range(raw_end - 1, search_from - 1, -1):
+            if content[idx] in "。！？；.!?;":
+                end = idx + 1
+                break
+
+    return start, end
+
+
 def _attach_query_matches(session: Session, rows: list[Any], keyword: str) -> None:
     """给关键词查询的每个文件附上正文里的命中数和命中处原文（逐字，可直接作 edit_file 的 old/anchor）。
 
@@ -3014,10 +3044,15 @@ def _attach_query_matches(session: Session, rows: list[Any], keyword: str) -> No
             positions.append(start)
             start = content.find(keyword, start + len(keyword))
         row["match_count"] = len(positions)
-        row["matches"] = [
-            content[max(0, pos - QUERY_MATCH_CONTEXT_CHARS) : pos + len(keyword) + QUERY_MATCH_CONTEXT_CHARS]
-            for pos in positions[:QUERY_MATCHES_PER_FILE]
-        ]
+        matches: list[str] = []
+        for pos in positions[:QUERY_MATCHES_PER_FILE]:
+            left, right = _snap_query_match_bounds(content, pos, len(keyword))
+            matches.append(content[left:right])
+        row["matches"] = matches
+        if matches:
+            row["matches_note"] = (
+                "关键词查询不代表已读全文；直接对本文件调用 edit_file 时 old/anchor 须逐字匹配（跨段须照抄换行）。"
+            )
 
 
 def _note_file_read(result: Any, *, ticket: int | None = None) -> None:

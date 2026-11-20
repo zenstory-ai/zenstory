@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import contextlib
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -37,6 +38,8 @@ class LoopTurnContext:
     read_snapshots: dict[str, str] = field(default_factory=dict)
     # 前端 context 事件的条目（与图同一个形状）。
     items: list[dict[str, Any]] = field(default_factory=list)
+    # 构建 <author_edits> 子步骤纯数字毫秒耗时（仅观测日志使用）。
+    author_edits_ms: float = 0.0
 
 
 def build_loop_turn_context(
@@ -91,6 +94,7 @@ def build_loop_turn_context(
 
     manager = MessageManager(project_id=project_id, user_id=user_id)
     parts: list[str] = [TURN_CONTEXT_OPEN, _PREAMBLE_EN if force_en else _PREAMBLE, "", rendered.strip()]
+    author_edits_started = time.perf_counter()
     author_edits = _author_edits_block(
         session,
         project_id=project_id,
@@ -98,6 +102,7 @@ def build_loop_turn_context(
         chat_session_id=chat_session_id,
         primary_ids=[fid for fid in (assembler._item_file_id(item) for item in items) if fid],
     )
+    result.author_edits_ms = round((time.perf_counter() - author_edits_started) * 1000, 1)
     if author_edits:
         parts.extend(["", author_edits])
     parts.extend(manager._build_metadata_section(metadata, force_en))

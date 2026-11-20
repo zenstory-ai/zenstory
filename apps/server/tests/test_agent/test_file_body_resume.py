@@ -95,10 +95,13 @@ class _ScriptedResult:
         return []
 
     async def stream_events(self):
+        from agent.core.round_outcome import note_provider_attempt_started
+
         tools = {tool.name: tool for tool in self._agent.tools}
         for reply in self._replies:
             if reply.before is not None:
                 reply.before()
+            note_provider_attempt_started()
             await self._hooks.on_llm_start(None, self._agent, "", [])
             for start in range(0, len(reply.text), 17):
                 yield SimpleNamespace(
@@ -173,7 +176,11 @@ class Outcome:
         tracker = StreamBillingTracker()
         for frame in self.frames:
             tracker.observe(frame.to_sse())
-        return tracker.decide(client_disconnected=False, unexpected_exception=False)
+        return tracker.decide(
+            client_disconnected=False,
+            unexpected_exception=False,
+            provider_attempted=True,
+        )
 
     def delivery(self) -> dict[str, Any]:
         written = RoundWrittenFiles()
@@ -916,7 +923,7 @@ async def test_tool_turn_cap_with_an_untouched_new_empty_file_rolls_it_back_on_t
     assert card.get("unfinished_files") in (None, [])
     _assert_round_stops_without_completion(outcome)
     assert outcome.delivery() == {}, "已撤销的空文件不再列为「未确认保存」"
-    assert outcome.billing() == ("runaway_no_progress", True), "失控且没写成：照旧退还"
+    assert outcome.billing() == ("completed", False), "已进入模型调用后轮数耗尽：按已执行轮次计费"
     # 真实的 tool_result 帧带着建好时的版本：停止退还的占位候选拿得到它。
     tracker = StreamBillingTracker()
     for frame in outcome.frames:
@@ -940,7 +947,7 @@ async def test_tool_turn_cap_keeps_a_new_empty_file_the_author_renamed_and_names
     assert card.get("rolled_back_files") in (None, [])
     _assert_round_stops_without_completion(outcome)
     assert outcome.delivery() == {"unwritten_files": [{"id": file_id, "title": CHAPTER}]}
-    assert outcome.billing() == ("runaway_no_progress", True)
+    assert outcome.billing() == ("completed", False)
 
 
 # ---------------------------------------------------------------------------

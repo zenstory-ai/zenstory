@@ -147,3 +147,38 @@ async def test_range_read_allows_an_exact_edit_but_is_not_a_full_read(db_session
         assert mcp_tools.ToolContext.read_snapshot(file.id) is not None
     finally:
         mcp_tools.ToolContext.clear_context()
+
+
+async def test_a3_keyword_query_returns_verbatim_bounded_boundary_snapped_matches_and_partial_read_note(
+    db_session, owner_project
+):
+    """A-3：query_files(query=keyword) 关键词列表返回原文逐字片段、含关键词、不超过预算并优先贴齐句读/换行边界，且附带 matches_note 逐字匹配提示。"""
+    from agent.tools.mcp_tools import QUERY_MATCH_CONTEXT_CHARS
+
+    user, project = owner_project
+    long_body = (
+        "序章铺垫。" * 400
+        + "\n第一段结尾句。\n　　林舟推开旧书店木门，看见柜台上那本缺页账本。随后转身合上门。\n第三段接续。"
+        + "尾声延展。" * 400
+    )
+    _file(db_session, project, long_body)
+    keyword = "缺页账本"
+
+    [payload] = await _calls(
+        db_session,
+        user,
+        project,
+        [(mcp_tools.query_files, {"query": keyword})],
+    )
+    [row] = payload["data"]
+    matches = row["matches"]
+    assert matches, "Expected keyword match snippet"
+    snippet = matches[0]
+    assert keyword in snippet
+    assert snippet in long_body  # 必须是真实原文逐字子串，可直接复制进 edit_file
+    assert len(snippet) <= len(keyword) + 2 * QUERY_MATCH_CONTEXT_CHARS
+    # 预算内存在换行与句号边界：首尾不卡在相邻段落半截字上
+    assert "第一段结尾" not in snippet
+    assert "第三段接续" not in snippet
+    assert "edit_file" in row.get("matches_note", "")
+    assert "逐字匹配" in row.get("matches_note", "")

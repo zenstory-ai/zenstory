@@ -404,3 +404,96 @@ async def test_stream_exception_cancels_incomplete_sdk_result_and_closes_stream(
     assert stream_closed is True
     assert cancel_modes == ["immediate"]
     assert events[-1].type == StreamEventType.ERROR
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_a1_malformed_file_tool_name_strips_prose_preserves_valid_unknown_and_call_pairing(
+    monkeypatch, db_session
+):
+    """A-1：含 <file> 正文的超长非法工具名不回显原稿、保持 call_id 配对；合法未知名原样保留。"""
+    from agent.core.workflow_events import StreamEventType
+    from services.usage.llm_usage_service import drain_pending_usage_records
+
+    secret_prose = "绝密原稿句子不得外泄。" * 18
+    malformed_name = f"<file>\n{secret_prose}"
+    assert len(malformed_name) > 170
+
+    stub = _ChatCompletionsStub(
+        turns=[
+            _tool_turn("call-malformed-1", malformed_name, {}),
+            _tool_turn("call-unknown-num", "9-tool", {}),
+            _tool_turn("call-unknown-kebab", "vendor-tool-v2", {}),
+            _text_turn("RECOVERED_AFTER_INVALID_NAME"),
+        ],
+        fallback=_text_turn("UNEXPECTED_EXTRA"),
+    )
+    with stub:
+        _point_sdk_at_stub(monkeypatch, stub.port)
+        state, events = await _run_agent()
+
+    assert stub.errors == []
+    serialized_events = json.dumps([e.data for e in events], ensure_ascii=False)
+    serialized_requests = json.dumps(stub.requests, ensure_ascii=False)
+    serialized_state = json.dumps(state.get("messages") or [], ensure_ascii=False)
+    assert "绝密原稿句子不得外泄" not in serialized_events
+    assert "绝密原稿句子不得外泄" not in serialized_requests
+    assert "绝密原稿句子不得外泄" not in serialized_state
+
+    tool_uses = [e.data for e in events if e.type == StreamEventType.TOOL_USE]
+    tool_results = [e.data for e in events if e.type == StreamEventType.TOOL_RESULT]
+    assert [u["id"] for u in tool_uses] == ["call-malformed-1", "call-unknown-num", "call-unknown-kebab"]
+    assert [r["tool_use_id"] for r in tool_results] == ["call-malformed-1", "call-unknown-num", "call-unknown-kebab"]
+    assert tool_uses[0]["name"].startswith("invalid_tool_name_")
+    assert len(tool_uses[0]["name"]) == len("invalid_tool_name_") + 12
+    assert tool_uses[1]["name"] == "9-tool"
+    assert tool_uses[2]["name"] == "vendor-tool-v2"
+    assert "<file>…</file> 正文必须直接作为回复文本输出" in str(tool_results[0]["result"])
+    assert "RECOVERED_AFTER_INVALID_NAME" in _joined_text(events)
+    await drain_pending_usage_records()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_a1_distinct_malformed_tool_names_do_not_merge_while_identical_malformed_name_trips(
+    monkeypatch, db_session
+):
+    """A-1：不同非法工具名各失败 2 次不会因统一占位名合并而提前熔断；同一非法名第 3 次照常熔断。"""
+    from agent.core.workflow_events import StreamEventType
+    from agent.openai_agents.tool_failure_breaker import TRIP_REASON_TOOL_NOT_FOUND
+    from services.usage.llm_usage_service import drain_pending_usage_records
+
+    # Case 1: 两个不同非法名各 2 次 -> 不触发同名连续 3 次熔断，第 5 轮正常恢复
+    stub_distinct = _ChatCompletionsStub(
+        turns=[
+            _tool_turn("c1", "<file>\n片段甲", {}),
+            _tool_turn("c2", "<file>\n片段甲", {}),
+            _tool_turn("c3", "<file>\n片段乙", {}),
+            _tool_turn("c4", "<file>\n片段乙", {}),
+            _text_turn("DISTINCT_RECOVERED"),
+        ],
+        fallback=_text_turn("EXTRA"),
+    )
+    with stub_distinct:
+        _point_sdk_at_stub(monkeypatch, stub_distinct.port)
+        _, events_distinct = await _run_agent()
+    assert "DISTINCT_RECOVERED" in _joined_text(events_distinct)
+    assert StreamEventType.ERROR not in [e.type for e in events_distinct]
+
+    # Case 2: 同一非法名连续 3 次 -> 第 3 次触发 TRIP_REASON_TOOL_NOT_FOUND 熔断
+    stub_same = _ChatCompletionsStub(
+        turns=[
+            _tool_turn("s1", "<file>\n同一片段", {}),
+            _tool_turn("s2", "<file>\n同一片段", {}),
+            _tool_turn("s3", "<file>\n同一片段", {}),
+            _text_turn("SHOULD_NOT_REACH"),
+        ],
+        fallback=_text_turn("EXTRA"),
+    )
+    with stub_same:
+        _point_sdk_at_stub(monkeypatch, stub_same.port)
+        _, events_same = await _run_agent()
+    assert events_same[-1].type == StreamEventType.ERROR
+    assert events_same[-1].data["reason"] == TRIP_REASON_TOOL_NOT_FOUND
+    assert "同一片段" not in json.dumps([e.data for e in events_same], ensure_ascii=False)
+    await drain_pending_usage_records()

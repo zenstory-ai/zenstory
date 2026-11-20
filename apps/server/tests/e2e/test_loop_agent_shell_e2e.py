@@ -288,7 +288,13 @@ async def test_loop_edit_file_round_persists_undo_metadata(
 async def _start(db_session: Session, user: User, project: Project, message: str):
     body = agent_api.AgentRequest(project_id=str(project.id), message=message)
     return await agent_api.stream_request(
-        _SYNTHETIC_REQUEST, body=body, session=db_session, current_user=user, accept_language=None, _rate_limit=0
+        _SYNTHETIC_REQUEST,
+        body=body,
+        session=db_session,
+        current_user=user,
+        accept_language=None,
+        client_stop_contract="1",
+        _rate_limit=0,
     )
 
 
@@ -341,24 +347,25 @@ async def test_loop_author_stop_settles_billing_and_records_the_stop_outcome(
     events = _parse_sse("".join(received))
     done = [payload for name, payload in events if name == "done"][-1]
     assert done["stop_reason"] == "user_stopped"
+    assert done["charged"] is True
     row = _assistant_row(db_session, project)
     metadata = json.loads(row.message_metadata)
     assert metadata["engine"] == "loop" and metadata["stop_reason"] == "user_stopped"
     outcome = metadata["stop_outcome"]
     assert outcome["reason"] == "user_stopped"
+    release.assert_not_called()
+    assert outcome["charged"] is True
+    assert [payload for name, payload in events if name == "quota_refunded"] == []
     if wrote_body:
-        release.assert_not_called()
-        assert outcome["charged"] is True and outcome["saved_output"] is True
+        assert outcome["saved_output"] is True
         [written] = outcome["written_files"]
         assert written["title"] == "第1章 雨夜" and written["words"] > 0
     else:
-        release.assert_called_once()
-        assert outcome["charged"] is False
-        assert [payload for name, payload in events if name == "quota_refunded"] == [{"refunded": True, "kind": "stopped"}]
+        assert outcome["saved_output"] is False
 
 
 @pytest.mark.asyncio
-async def test_loop_wall_clock_deadline_without_output_ends_with_timeout_and_refund(
+async def test_loop_wall_clock_deadline_without_output_ends_with_timeout_and_charges_once_model_started(
     client: AsyncClient, db_session: Session, shell_db, scripted, monkeypatch
 ):
     from services.quota_service import quota_service
@@ -378,12 +385,12 @@ async def test_loop_wall_clock_deadline_without_output_ends_with_timeout_and_ref
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
     assert "ERR_AGENT_RUN_TIMEOUT" in text
-    release.assert_called_once()
-    assert '"kind": "error"' in text.split("event: quota_refunded", 1)[1]
+    release.assert_not_called()
+    assert "event: quota_refunded" not in text
 
 
 @pytest.mark.asyncio
-async def test_loop_tool_turn_exhaustion_without_writes_is_refunded_as_runaway(
+async def test_loop_tool_turn_exhaustion_without_writes_is_charged_once_model_started(
     client: AsyncClient, db_session: Session, shell_db, scripted
 ):
     from services.quota_service import quota_service
@@ -404,8 +411,8 @@ async def test_loop_tool_turn_exhaustion_without_writes_is_refunded_as_runaway(
     events = _parse_sse(response.text)
     [card] = [payload for name, payload in events if name == "iteration_exhausted"]
     assert card["layer"] == "tool_call" and card.get("last_agent") in (None, "")
-    release.assert_called_once()
-    assert [payload for name, payload in events if name == "quota_refunded"] == [{"refunded": True, "kind": "no_progress"}]
+    release.assert_not_called()
+    assert [payload for name, payload in events if name == "quota_refunded"] == []
 
 
 @pytest.mark.asyncio
@@ -448,10 +455,10 @@ async def test_loop_steering_during_a_run_is_taken_up_in_the_same_turn(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("ending", ["user_stopped", "client_disconnected", "deadline"])
-async def test_loop_replacement_cut_off_mid_body_leaves_the_chapter_and_is_refunded(
+async def test_loop_replacement_cut_off_mid_body_leaves_the_chapter_and_is_charged(
     client: AsyncClient, db_session: Session, shell_db, scripted, monkeypatch, ending
 ):
-    """整章替换的正文流到一半就停止 / 断线 / 到时：原文不变，流过的正文不算产出，这一轮退还。"""
+    """整章替换的正文流到一半就停止 / 断线 / 到时：原文不变，但本轮已进入模型执行，照常计费不退还。"""
     from services.quota_service import quota_service
 
     user, _token, project = await _login(client, db_session)
@@ -490,15 +497,15 @@ async def test_loop_replacement_cut_off_mid_body_leaves_the_chapter_and_is_refun
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
     assert _content(db_session, three.id) == "合成第三章原文。"
-    release.assert_called_once()
+    release.assert_not_called()
     text = "".join(received)
     if ending == "deadline":
         assert "ERR_AGENT_RUN_TIMEOUT" in text
-    if ending != "client_disconnected":
-        assert "event: quota_refunded" in text
+    assert "event: quota_refunded" not in text
     if ending == "user_stopped":
         metadata = json.loads(_assistant_row(db_session, project).message_metadata)
-        assert metadata["stop_outcome"]["charged"] is False
+        assert metadata["stop_outcome"]["charged"] is True
+        assert metadata["stop_outcome"]["saved_output"] is False
 
 
 @pytest.mark.asyncio
@@ -600,10 +607,9 @@ async def test_loop_replacement_committed_while_the_round_is_cut_off_is_charged(
             allow_save.set()
             await asyncio.gather(*agent_api._detached_refund_tasks)
         await asyncio.gather(*agent_api._round_outcome_tasks)
-
-    assert _content(db_session, three.id).rstrip("\n") == NEW_BODY
-    release.assert_not_called()
-    assert "event: quota_refunded" not in "".join(received)
-    if ending == "user_stopped":
+        assert _content(db_session, three.id).rstrip("\n") == NEW_BODY
+        release.assert_not_called()
+        assert "event: quota_refunded" not in "".join(received)
         metadata = json.loads(_assistant_row(db_session, project).message_metadata)
         assert metadata["stop_outcome"]["charged"] is True
+        assert metadata["stop_outcome"]["saved_output"] is True

@@ -228,7 +228,8 @@ def test_changed_missing_anchors_for_same_file_hint_but_do_not_trip_early():
         if attempt >= 1:
             hint = json.loads(output)["retry_hint"]
             assert "按准确 id 重读当前段落" in hint
-            assert "拆成几次 edit_file 调用" in hint
+            assert "互不重叠的独立修改可放在同一次调用里批量提交" in hint
+            assert "只有前后依赖或锚点范围重叠的修改才拆成多次 edit_file 调用" in hint
             assert "不要放宽匹配或整篇覆盖" in hint
             assert "自动终止" not in hint
 
@@ -758,7 +759,7 @@ async def test_sdk_run_stops_changed_invalid_ids_with_non_refundable_recovery_er
 
     tracker = StreamBillingTracker()
     tracker.observe(f"event: error\ndata: {json.dumps(error, ensure_ascii=False)}\n\n")
-    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == (
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False, provider_attempted=True) == (
         "non_refundable_error",
         False,
     )

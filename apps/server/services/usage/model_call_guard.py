@@ -1,9 +1,50 @@
 """Model transport guard shared by SDK, router and sync/async LLM clients."""
 
 import asyncio
+import contextlib
 from typing import Any
 
 from services.usage.cost_budget import reserve_model_call, settle_model_call
+
+
+def is_upstream_provider_error_type(exc: BaseException) -> bool:
+    """Whether ``exc`` has a positively confirmed upstream provider/network/stream error type."""
+    from core.error_handler import APIException
+
+    if isinstance(exc, asyncio.CancelledError | GeneratorExit | APIException):
+        return False
+    if isinstance(exc, TimeoutError | ConnectionError):
+        return True
+    try:
+        import openai
+
+        if isinstance(exc, openai.APIError):
+            return True
+    except ImportError:  # pragma: no cover - openai is a hard dependency
+        pass
+    try:
+        import httpx
+
+        if isinstance(exc, httpx.HTTPError):
+            return True
+    except ImportError:  # pragma: no cover
+        pass
+    try:
+        import httpx2
+
+        if isinstance(exc, httpx2.HTTPError):
+            return True
+    except ImportError:  # pragma: no cover
+        pass
+    return False
+
+
+def _mark_provider_transport_error(exc: BaseException) -> None:
+    """Tag a positively confirmed upstream provider/network/stream error raised at transport."""
+    if not is_upstream_provider_error_type(exc):
+        return
+    with contextlib.suppress(Exception):
+        exc._zenstory_provider_transport_error = True  # type: ignore[attr-defined]
 
 
 class _BudgetedAsyncStream:
@@ -16,7 +57,15 @@ class _BudgetedAsyncStream:
 
     def __aiter__(self):
         async def chunks():
-            async for chunk in self._stream:
+            iterator = self._stream.__aiter__()
+            while True:
+                try:
+                    chunk = await iterator.__anext__()
+                except StopAsyncIteration:
+                    break
+                except BaseException as exc:
+                    _mark_provider_transport_error(exc)
+                    raise
                 usage = getattr(chunk, "usage", None)
                 if usage is not None:
                     await asyncio.to_thread(settle_model_call, self._reservation, usage)
@@ -74,6 +123,7 @@ def install_async_cost_guard(client: Any) -> Any:
         # the DB worker may leave a reservation, which is safe (never free spend).
         reservation = await asyncio.to_thread(reserve_model_call, kwargs)
         # to_thread does not propagate ContextVar changes back to the async task.
+        from agent.core.round_outcome import note_provider_attempt_started
         from services.usage.cost_budget import bind_call_start
 
         bind_call_start(reservation)
@@ -81,7 +131,12 @@ def install_async_cost_guard(client: Any) -> Any:
         if reservation is not None and callable(original_with_options):
             # Automatic transport retries can incur unknown duplicate billing.
             transport = original_with_options(max_retries=0).chat.completions.create
-        response = await transport(*args, **kwargs)
+        note_provider_attempt_started()
+        try:
+            response = await transport(*args, **kwargs)
+        except BaseException as exc:
+            _mark_provider_transport_error(exc)
+            raise
         if kwargs.get("stream"):
             return _BudgetedAsyncStream(response, reservation)
         await asyncio.to_thread(settle_model_call, reservation, getattr(response, "usage", None))

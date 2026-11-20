@@ -233,14 +233,17 @@ def _truncated_error_frame() -> str:
 
 
 @pytest.mark.unit
-def test_truncated_round_without_output_is_refunded_by_existing_rule():
+def test_truncated_round_without_output_is_charged_once_model_attempted():
     tracker = StreamBillingTracker()
     tracker.observe(_sse("thinking", {"message": THINKING}))
     tracker.observe(_truncated_error_frame())
 
-    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == (
-        "internal_error",
-        True,
+    assert tracker.produced_output is False
+    assert tracker.decide(
+        client_disconnected=False, unexpected_exception=False, provider_attempted=True
+    ) == (
+        "non_model_error",
+        False,
     )
 
 
@@ -262,7 +265,10 @@ def test_truncated_round_after_output_is_billed_by_existing_rule():
     tracker.observe(_sse("thinking", {"message": THINKING}))
     tracker.observe(_truncated_error_frame())
 
-    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == (
-        "error_after_output",
+    assert tracker.produced_output is True
+    assert tracker.decide(
+        client_disconnected=False, unexpected_exception=False, provider_attempted=True
+    ) == (
+        "non_model_error",
         False,
     )

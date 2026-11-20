@@ -42,10 +42,16 @@ _INTERRUPTED_ROUND_NOTES = {
     "user_stopped": "（这一轮没做完：作者停止了生成。）",
     "client_disconnected": "（这一轮没做完：连接中断了。）",
     "cancelled": "（这一轮没做完：连接中断了。）",
-    "run_deadline_exceeded": "（这一轮没做完：时间用完了。）",
     "max_turns_exceeded": "（这一轮没做完：工具调用轮数到了上限。）",
     "model_call_budget_exhausted": "（这一轮没做完：模型调用次数到了上限。）",
 }
+_DEADLINE_HARD_CUT_NOTE = "（这一轮没做完：时间用完了。）"
+_DEADLINE_SOFT_LANDED_NOTE = (
+    "（这一轮因接近单次处理时长上限而按提醒收尾结束；是否还有未完成部分以作者原要求与已保存结果为准。）"
+)
+_DEADLINE_UNMARKED_NEUTRAL_NOTE = (
+    "（这一轮因时间限制结束；是否还有未完成部分以作者原要求与已保存结果为准。）"
+)
 # create_file 的结果里只对当时那一步有意义、回放时会误导模型的字段。
 _CREATE_FILE_TRANSIENT_KEYS = ("awaiting_body", "next_step", "content", "body_in_reply")
 _REPLACE_NOT_SAVED_NOTE = (
@@ -318,10 +324,18 @@ def summary_message(summary: str) -> dict[str, Any]:
 
 def _tool_output_text(call: dict[str, Any]) -> str:
     """持久化的工具结果（前端卡片口径）还原成交给模型的结果文字。"""
+    from agent.openai_agents.events import is_valid_openai_tool_name
+
     status = str(call.get("status") or "")
-    name = str(call.get("name") or "")
+    raw_name = call.get("name")
+    name = str(raw_name or "")
+    valid_name = is_valid_openai_tool_name(raw_name)
     result = call.get("result")
     error = call.get("error")
+    if not valid_name:
+        result = None
+        if error or status == "error":
+            error = "工具调用名称格式无效，调用未执行"
     if status == "pending" and result is None and error is None:
         return json.dumps({"status": "unknown", "note": "这次调用的结果没有记录下来"}, ensure_ascii=False)
     if name in ("create_file", "write_chapter") and status == "success" and isinstance(result, dict):
@@ -376,13 +390,15 @@ def _loop_row_items(row: Any, metadata: dict[str, Any]) -> list[dict[str, Any]]:
         used.add(index)
         call = calls[index]
         call_id = f"h{row.id}_{index}"
+        from agent.openai_agents.events import normalize_tool_call_name
+
         arguments = call.get("arguments")
         if not isinstance(arguments, str):
             arguments = json.dumps(arguments if arguments is not None else {}, ensure_ascii=False)
         items.append({
             "type": "function_call",
             "call_id": call_id,
-            "name": str(call.get("name") or ""),
+            "name": normalize_tool_call_name(call.get("name")),
             "arguments": arguments,
         })
         items.append({"type": "function_call_output", "call_id": call_id, "output": _tool_output_text(call)})
@@ -434,6 +450,28 @@ def _status_cards_to_replay(status_cards: list[Any], stop_reason: Any, *, has_te
     ]
 
 
+def _has_explicit_unfinished_file_facts(metadata: dict[str, Any]) -> bool:
+    status_cards = metadata.get("status_cards")
+    if isinstance(status_cards, list):
+        for card in status_cards:
+            if isinstance(card, dict) and (card.get("unfinished_files") or card.get("rolled_back_files")):
+                return True
+    stop_outcome = metadata.get("stop_outcome")
+    return bool(isinstance(stop_outcome, dict) and stop_outcome.get("unwritten_files"))
+
+
+def _deadline_round_note(metadata: dict[str, Any]) -> str:
+    """区分明确软着陆、明确硬截断/未完文件与缺少标记的存量行，不按缺少未完清单推定软着陆。"""
+    stop_outcome = metadata.get("stop_outcome")
+    outcome_reason = stop_outcome.get("reason") if isinstance(stop_outcome, dict) else None
+    landing = metadata.get("wall_clock_landing")
+    if landing == "hard" or outcome_reason == "error" or _has_explicit_unfinished_file_facts(metadata):
+        return _DEADLINE_HARD_CUT_NOTE
+    if landing == "soft" or metadata.get("time_landed") is True:
+        return _DEADLINE_SOFT_LANDED_NOTE
+    return _DEADLINE_UNMARKED_NEUTRAL_NOTE
+
+
 def _row_items(loader: Any, row: Any, *, latest_assistant: bool = False) -> list[dict[str, Any]]:
     content = str(getattr(row, "content", "") or "")
     if row.role == "user":
@@ -457,6 +495,8 @@ def _row_items(loader: Any, row: Any, *, latest_assistant: bool = False) -> list
         from agent.core.output_truncation import OUTPUT_TRUNCATED_HISTORY
 
         items.append({"role": "assistant", "content": OUTPUT_TRUNCATED_HISTORY})
+    elif stop_reason == "run_deadline_exceeded":
+        items.append({"role": "assistant", "content": _deadline_round_note(metadata)})
     elif isinstance(stop_reason, str) and stop_reason in _INTERRUPTED_ROUND_NOTES:
         items.append({"role": "assistant", "content": _INTERRUPTED_ROUND_NOTES[stop_reason]})
     return items

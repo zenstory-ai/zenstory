@@ -81,6 +81,9 @@ class _FakeRun:
         return []
 
     async def stream_events(self):
+        from agent.core.round_outcome import note_provider_attempt_started
+
+        note_provider_attempt_started()
         if self.hooks is not None:
             # 与真实 SDK 一样：每次模型调用结束先经 on_llm_end（这里只关心实测输入 token）。
             await self.hooks.on_llm_end(
@@ -224,17 +227,34 @@ async def test_loop_round_persists_loop_shaped_row_injects_attachments_and_charg
 
 
 @pytest.mark.asyncio
-async def test_loop_round_without_output_is_refunded(
-    client: AsyncClient, db_session: Session, writing_prompt_configs, loop_db
+@pytest.mark.parametrize("is_upstream_model_failure", [True, False])
+async def test_loop_round_refunds_upstream_model_failure_and_charges_local_runtime_error(
+    client: AsyncClient,
+    db_session: Session,
+    writing_prompt_configs,
+    loop_db,
+    is_upstream_model_failure: bool,
 ):
-    """模型调用直接失败、什么都没产出：error 帧可退还，额度退回（计费规则与图相同）。"""
+    """模型已启动后：最终上游供应商故障退还额度；普通本地 RuntimeError 按已执行非服务错误计费。"""
+    import httpx
+    import openai
+
+    from agent.core.round_outcome import note_provider_attempt_started
     from services.quota_service import quota_service
 
-    _user, token, project = await _user_project(client, db_session, "loop_refund_synthetic")
+    suffix = "up" if is_upstream_model_failure else "rt"
+    _user, token, project = await _user_project(client, db_session, f"loop_refund_{suffix}")
 
     class _FailingRun(_FakeRun):
         async def stream_events(self):
-            raise RuntimeError("synthetic provider failure")
+            note_provider_attempt_started()
+            if is_upstream_model_failure:
+                exc = openai.APIConnectionError(
+                    request=httpx.Request("POST", "https://api.deepseek.com/v1/chat/completions")
+                )
+                exc._zenstory_escaped_failover_model = True  # type: ignore[attr-defined]
+                raise exc
+            raise RuntimeError("synthetic local runtime failure")
             yield  # pragma: no cover
 
     captured: list[dict] = []
@@ -251,39 +271,51 @@ async def test_loop_round_without_output_is_refunded(
     events = _parse_sse(response.text)
     names = [name for name, _ in events]
     assert "error" in names and "done" not in names
-    [error] = [payload for name, payload in events if name == "error"]
-    assert error["refundable"] is True
-    release.assert_called_once()
-    assert names.count("quota_refunded") == 1
+    if is_upstream_model_failure:
+        release.assert_called_once()
+        assert names.count("quota_refunded") == 1
+    else:
+        release.assert_not_called()
+        assert names.count("quota_refunded") == 0
 
 
 @pytest.mark.asyncio
-async def test_loop_tool_turn_exhaustion_card_has_no_agent_and_bills_as_runaway(
+async def test_loop_tool_turn_exhaustion_card_has_no_agent_and_is_charged(
     client: AsyncClient, db_session: Session, writing_prompt_configs, loop_db
 ):
-    """工具轮数耗尽：沿用 tool_call 层的暂停卡（失控停止，没有写入就退还），last_agent 为空。"""
+    """工具轮数耗尽：沿用 tool_call 层的暂停卡，last_agent 为空；已进入模型调用照常计费不退还。"""
     from agents.exceptions import MaxTurnsExceeded
+
+    from agent.core.round_outcome import note_provider_attempt_started
+    from services.quota_service import quota_service
 
     _user, token, project = await _user_project(client, db_session, "loop_turns_synthetic")
 
     class _ExhaustedRun(_FakeRun):
         async def stream_events(self):
+            note_provider_attempt_started()
             yield _raw_text("还在查资料。")
             raise MaxTurnsExceeded("synthetic max turns")
 
     captured: list[dict] = []
     build_agent, run_streamed = _patched_runs([_ExhaustedRun([])], captured)
-    with build_agent, run_streamed:
+    real_release = quota_service.release_ai_conversation
+    with build_agent, run_streamed, patch.object(
+        quota_service, "release_ai_conversation", side_effect=real_release
+    ) as release:
         response = await client.post(
             "/api/v1/agent/stream",
             json={"project_id": project.id, "message": "把所有章节都检查一遍"},
             headers={"Authorization": f"Bearer {token}"},
         )
     events = _parse_sse(response.text)
+    names = [name for name, _ in events]
     [card] = [payload for name, payload in events if name == "iteration_exhausted"]
     assert card["layer"] == "tool_call"
     assert card.get("last_agent") in (None, "")
     assert "Agent" not in card["reason"]
+    release.assert_not_called()
+    assert "quota_refunded" not in names
     row = db_session.exec(
         select(ChatMessage).where(ChatMessage.role == "assistant", ChatMessage.content.contains("还在查资料"))
     ).one()

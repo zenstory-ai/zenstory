@@ -505,3 +505,50 @@ def test_a_read_taken_before_an_own_write_does_not_override_it():
         assert mcp_tools.ToolContext.read_snapshot("f") == "written after the read"
     finally:
         mcp_tools.ToolContext.clear_context()
+
+
+@pytest.mark.parametrize("op", ["replace", "insert_after", "delete"])
+async def test_a3_exact_miss_returns_bounded_verbatim_candidates_never_auto_fuzzy_and_rolls_back_batch(
+    db_session, owner_project, request_ctx, op
+):
+    """A-3：exact / 未读 exact_only 下 replace/insert/delete 失配仍失败（不自动模糊改），返回有界逐字候选，且原子批第 2 项失败时正文与版本全回滚。"""
+    from sqlmodel import select
+
+    from models.file_version import FileVersion
+
+    _, project = owner_project
+    chapter = _chapter(db_session, project)
+    versions_before = len(db_session.exec(select(FileVersion).where(FileVersion.file_id == chapter.id)).all())
+
+    # 未读状态（seen={}）触发 exact_only；标点改用英文逗号使逐字失配、但模糊本可命中
+    req = request_ctx(seen={})
+    near_miss = "温梨把伞收了, 靠在摊子边上, 看那些旧书一本一本被雨打湿."
+    if op == "replace":
+        second_edit = {"op": "replace", "old": near_miss, "new": "温梨收起油纸伞。"}
+    elif op == "insert_after":
+        second_edit = {"op": "insert_after", "anchor": near_miss, "text": "雨声更密了。"}
+    else:
+        second_edit = {"op": "delete", "old": near_miss}
+
+    res = await req.call(
+        mcp_tools.edit_file,
+        {
+            "id": chapter.id,
+            "edits": [
+                {"op": "replace", "old": "数到第七条船", "new": "数到第八条船"},
+                second_edit,
+            ],
+        },
+    )
+    assert res["status"] == "error"
+    err_text = res["error"]
+    assert "候选片段:" in err_text
+    # 候选必须来自真实原文的逐字子串且长度受控
+    assert "温梨把伞收了，靠在摊子边上，看那些旧书一本一本被雨打湿。" in err_text
+    assert len(err_text) < 2000
+
+    # 第 1 项本来可精确命中，但第 2 项失败必须使整批正文与版本计数完全回滚
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).content == CHAPTER
+    versions_after = len(db_session.exec(select(FileVersion).where(FileVersion.file_id == chapter.id)).all())
+    assert versions_after == versions_before

@@ -30,12 +30,15 @@ def _sse(event: str, data: dict) -> str:
 
 
 class _Service:
-    def __init__(self, *, ends_without_done: bool = False):
+    def __init__(self, *, ends_without_done: bool = False, provider_attempted: bool = True):
         self.started = 0
         self._ends_without_done = ends_without_done
+        self._provider_attempted = provider_attempted
 
-    async def process_stream(self, **_kwargs):
+    async def process_stream(self, *, run_outcome=None, **_kwargs):
         self.started += 1
+        if run_outcome is not None and self._provider_attempted:
+            run_outcome.provider_attempted = True
         yield _sse("session_started", {"session_id": "synthetic-session"})
         if self._ends_without_done:
             return
@@ -187,7 +190,10 @@ async def test_trusted_address_change_is_a_different_network(client: AsyncClient
 @pytest.mark.integration
 async def test_failed_stream_refunds_message_and_seat_exactly_once(client: AsyncClient, db_session):
     token, user, project = await _member(client, db_session)
-    with patch("api.agent.get_agent_service", return_value=_Service(ends_without_done=True)):
+    with patch(
+        "api.agent.get_agent_service",
+        return_value=_Service(ends_without_done=True, provider_attempted=False),
+    ):
         response = await _stream(client, token, project)
     assert response.status_code == 200
     assert "quota_refunded" in response.text

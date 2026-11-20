@@ -574,24 +574,28 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def _decide(frames: list[str]) -> tuple[str, bool]:
+def _decide(frames: list[str], *, provider_attempted: bool = True) -> tuple[str, bool]:
     from agent.core.stream_billing import StreamBillingTracker
 
     tracker = StreamBillingTracker()
     for frame in frames:
         tracker.observe(frame)
-    return tracker.decide(client_disconnected=False, unexpected_exception=False)
+    return tracker.decide(
+        client_disconnected=False,
+        unexpected_exception=False,
+        provider_attempted=provider_attempted,
+    )
 
 
 @pytest.mark.unit
-def test_tool_call_cap_without_writes_is_refunded_even_with_streamed_text():
+def test_tool_call_cap_without_writes_is_charged_once_model_attempted():
     frames = [
         _sse("content", {"text": "让我再读一下第一章……"}),
         _sse("tool_result", {"tool_name": "query_files", "status": "success"}),
         _sse("iteration_exhausted", {"layer": "tool_call", "iterations_used": 60, "max_iterations": 60}),
         _sse("done", {}),
     ]
-    assert _decide(frames) == ("runaway_no_progress", True)
+    assert _decide(frames) == ("completed", False)
 
 
 @pytest.mark.unit
@@ -605,7 +609,7 @@ def test_tool_call_cap_after_a_write_is_charged():
 
 
 @pytest.mark.unit
-def test_no_progress_and_model_call_limit_errors_refund_without_writes():
+def test_no_progress_and_model_call_limit_errors_charge_as_non_model_stop():
     no_progress = [
         _sse("content", {"text": "我再看看"}),
         _sse(
@@ -613,15 +617,15 @@ def test_no_progress_and_model_call_limit_errors_refund_without_writes():
             {"message": "x", "code": "ERR_AGENT_NO_PROGRESS", "refundable": True, "reason": "no_progress"},
         ),
     ]
-    assert _decide(no_progress) == ("runaway_no_progress", True)
+    assert _decide(no_progress) == ("non_model_stop", False)
 
     model_limit = [
         _sse("content", {"text": "继续分析"}),
         _sse("error", {"message": "x", "code": "ERR_AGENT_MODEL_CALL_LIMIT", "refundable": True}),
     ]
-    assert _decide(model_limit) == ("runaway_no_progress", True)
+    assert _decide(model_limit) == ("non_model_stop", False)
 
-    # 熔断（不是失控）仍然不退款；协作轮数耗尽也不算失控
+    # 熔断与协作轮数耗尽同样不退款
     breaker = [_sse("error", {"message": "x", "code": "ERR_AGENT_TOOL_FAILURE_LIMIT", "refundable": False})]
     assert _decide(breaker) == ("non_refundable_error", False)
     collaboration = [_sse("iteration_exhausted", {"layer": "collaboration"}), _sse("done", {})]

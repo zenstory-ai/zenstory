@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import functools
 import inspect
 import time
@@ -27,7 +28,9 @@ from agent.core.stream_processor import find_repetition_start
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.core.writing_state import WritingState
 from agent.openai_agents.events import (
+    is_valid_openai_tool_name,
     mcp_text_result,
+    normalize_tool_call_name,
     parse_json_object,
     tool_error_text,
 )
@@ -159,6 +162,52 @@ def _is_file_body_pending(tool_result: Any) -> bool:
     return payload is not None and payload.get("error_type") == "file_body_pending"
 
 
+def _sanitize_function_call_item(item: Any) -> Any:
+    """对输入列表里 type=function_call 的非法工具名做确定性归一化，保留 call_id/arguments 与合法未知名。"""
+    if isinstance(item, dict):
+        if item.get("type") != "function_call":
+            return item
+        raw_name = item.get("name")
+        if is_valid_openai_tool_name(raw_name):
+            return item
+        return {**item, "name": normalize_tool_call_name(raw_name)}
+    if getattr(item, "type", None) != "function_call":
+        return item
+    raw_name = getattr(item, "name", None)
+    if is_valid_openai_tool_name(raw_name):
+        return item
+    normalized = normalize_tool_call_name(raw_name)
+    model_copy = getattr(item, "model_copy", None)
+    if callable(model_copy):
+        return model_copy(update={"name": normalized})
+    if dataclasses.is_dataclass(item) and not isinstance(item, type):
+        return dataclasses.replace(item, name=normalized)
+    return item
+
+
+def _sanitize_function_call_items(items: list[Any]) -> list[Any]:
+    sanitized: list[Any] | None = None
+    for idx, item in enumerate(items):
+        updated = _sanitize_function_call_item(item)
+        if updated is not item:
+            if sanitized is None:
+                sanitized = list(items)
+            sanitized[idx] = updated
+    return sanitized if sanitized is not None else items
+
+
+def _sanitize_model_input_tool_names(model_data: Any) -> Any:
+    items = getattr(model_data, "input", None)
+    if not isinstance(items, list) or not items:
+        return model_data
+    sanitized = _sanitize_function_call_items(items)
+    if sanitized is items:
+        return model_data
+    from agents.run_config import ModelInputData
+
+    return ModelInputData(input=sanitized, instructions=model_data.instructions)
+
+
 class _ModelCallCountingFilter:
     """call_model_input_filter：每次模型调用前计数，再交给内层过滤器处理输入。
 
@@ -212,6 +261,7 @@ class _ModelCallCountingFilter:
         return max(remaining, 0)
 
     def _with_landing(self, model_data: Any) -> Any:
+        model_data = _sanitize_model_input_tool_names(model_data)
         remaining = self._landing_remaining()
         if remaining is None and not self._run_meter.past_wrap_up:
             return model_data
@@ -232,6 +282,10 @@ class _ModelCallCountingFilter:
     def __call__(self, data: Any) -> Any:
         self._run_meter.record_model_call()
         self.calls += 1
+        if dataclasses.is_dataclass(data) and not isinstance(data, type) and hasattr(data, "model_data"):
+            sanitized_md = _sanitize_model_input_tool_names(data.model_data)
+            if sanitized_md is not data.model_data:
+                data = dataclasses.replace(data, model_data=sanitized_md)
         result = self._inner(data)
         if inspect.isawaitable(result):
 
@@ -456,15 +510,16 @@ def _raw_item_value(raw_item: Any, key: str, default: Any = None) -> Any:
 
 
 def _tool_call_payload(item: Any) -> tuple[str, str, dict[str, Any]]:
-    tool_name = getattr(item, "tool_name", None) or _raw_item_value(getattr(item, "raw_item", None), "name", "")
+    raw_tool_name = getattr(item, "tool_name", None) or _raw_item_value(getattr(item, "raw_item", None), "name", "")
+    tool_name = normalize_tool_call_name(raw_tool_name)
     call_id = getattr(item, "call_id", None) or _raw_item_value(getattr(item, "raw_item", None), "call_id", "")
     raw_arguments = _raw_item_value(getattr(item, "raw_item", None), "arguments", "")
     if raw_arguments is None:
         raw_arguments = ""
-    parsed, parse_error, _metadata = parse_json_object(str(raw_arguments), tool_name=str(tool_name or ""))
+    parsed, parse_error, _metadata = parse_json_object(str(raw_arguments), tool_name=tool_name)
     if parse_error is not None:
         parsed = {}
-    return str(tool_name or ""), str(call_id or ""), parsed
+    return tool_name, str(call_id or ""), parsed
 
 
 def _tool_output_payload(item: Any) -> tuple[str, str]:
@@ -562,13 +617,29 @@ def _format_tool_error(args: Any, *, failure_breaker: ToolFailureBreaker | None 
     """
     if getattr(args, "kind", None) != "tool_not_found":
         return None
-    tool_name = str(getattr(args, "tool_name", "") or "")
-    text = tool_error_text(
-        f"工具 {tool_name} 不在你本轮可用的工具集里，调用未执行。"
-        "请只使用已提供的工具；需要改文件但没有写工具时，直接在回答里说明。",
-        error_type="tool_not_found",
-        tool_name=tool_name,
-    )
+    raw_name = str(getattr(args, "tool_name", "") or "")
+    if is_valid_openai_tool_name(raw_name):
+        tool_name = raw_name
+        text = tool_error_text(
+            f"工具 {tool_name} 不在你本轮可用的工具集里，调用未执行。"
+            "请只使用已提供的工具；需要改文件但没有写工具时，直接在回答里说明。",
+            error_type="tool_not_found",
+            tool_name=tool_name,
+        )
+    else:
+        tool_name = normalize_tool_call_name(raw_name)
+        protocol_hint = (
+            "<file>…</file> 正文必须直接作为回复文本输出，不能放进工具名；"
+            if raw_name.lstrip().startswith("<file>")
+            else ""
+        )
+        text = tool_error_text(
+            f"工具调用名称格式无效，调用未执行。{protocol_hint}"
+            "请只使用已提供的工具；需要改文件但没有写工具时，直接在回答里说明。",
+            error_type="tool_not_found",
+            tool_name=tool_name,
+            user_message="这一步没做成，AI 会换个方式继续。",
+        )
     if failure_breaker is not None:
         text = failure_breaker.observe(tool_name, "", text)
     return text
@@ -1045,8 +1116,7 @@ async def run_openai_agents_streaming_agent(
         if failure_trip is not None:
             # 工具重复失败熔断：先发 MESSAGE_END 让本 run 已消耗的 usage 照常入账，
             # 再以 ERROR 结束——StreamAdapter 把 ERROR 当作致命错误：中断并关闭整个
-            # 工作流生成器（不会再续跑），并以 error 帧作为 SSE
-            # 终止帧；api/agent.py 据此按 internal_error 退还本次对话额度。
+            # 工作流生成器（不会再续跑），并以 error 帧作为 SSE 终止帧；非模型故障按已执行轮次计费。
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -1074,8 +1144,7 @@ async def run_openai_agents_streaming_agent(
         no_progress_trip = read_guard.trip
         if no_progress_trip is not None:
             # 重复读取无进展：与熔断同一个收尾——先让 usage 入账，再以 ERROR 结束整条
-            # 工作流（不再交接/送审）。本请求没有任何写入成功时 refundable=True，
-            # stream_billing 据 reason=no_progress 退还额度（billing_reason=runaway_no_progress）。
+            # 工作流（不再交接/送审）；已进入模型执行后非上游服务故障，按已执行轮次计费（non_model_stop）。
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -1139,8 +1208,8 @@ async def run_openai_agents_streaming_agent(
             # 最后一次响应只有思考（没有正文、没有工具调用），又撞上了输出上限，本 run
             # 也没有交接/澄清——这是被截断，不是正常结束。之前按 end_turn 收尾，最后这
             # 一步什么都没交付，工作流静默结束，作者只看到一段思考、没有任何结果或提示。
-            # 先让 usage 入账，再以不可重试、可回复「继续」的 ERROR 结束；是否退还额度由 stream_billing 的
-            # 既有规则决定（本轮无产出退还，已有产出照常计费）。只修状态，不限制思考。
+            # 先让 usage 入账，再以不可重试、可回复「继续」的 ERROR 结束；进入供应商模型调用后，
+            # 思考撞上输出上限并非上游服务故障，按已执行轮次计费。只修状态，不限制思考。
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -1273,6 +1342,8 @@ async def run_openai_agents_streaming_agent(
         usage = _usage_dict_from_result(result)
         run_stop_reason = exhausted_stop_reason if turns_exhausted else "end_turn"
         message_end: dict[str, Any] = {"stop_reason": run_stop_reason, "usage": usage}
+        if time_landed:
+            message_end["wall_clock_landing"] = "soft"
         if (
             (not turns_exhausted or time_landed)
             and AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS > 0
@@ -1312,7 +1383,7 @@ async def run_openai_agents_streaming_agent(
         )
         if not turns_exhausted:
             with contextlib.suppress(Exception):
-                completed_items = list(result.to_input_list())
+                completed_items = _sanitize_function_call_items(list(result.to_input_list()))
 
     except (asyncio.CancelledError, GeneratorExit):
         timing_outcome = "interrupted"
@@ -1322,6 +1393,7 @@ async def run_openai_agents_streaming_agent(
     except Exception as exc:
         timing_outcome = "error"
         error_info = classify_stream_exception(exc)
+        error_source = "model" if getattr(exc, "_zenstory_escaped_failover_model", False) is True else "internal"
         log_stream_exception(
             logger,
             "OpenAI Agents streaming run failed",
@@ -1333,7 +1405,7 @@ async def run_openai_agents_streaming_agent(
         )
         yield StreamEvent(
             type=StreamEventType.ERROR,
-            data=error_info.as_event_data(error_type=type(exc).__name__),
+            data=error_info.as_event_data(error_type=type(exc).__name__, error_source=error_source),
         )
     finally:
         if (

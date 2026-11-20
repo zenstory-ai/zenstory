@@ -199,6 +199,7 @@ class StreamAdapter:
         # Track latest model message metadata (for persistence accuracy)
         self._last_message_stop_reason: str | None = None
         self._last_message_usage: dict[str, Any] | None = None
+        self._last_wall_clock_landing: str | None = None
 
         # 本次流里已发过 skill_matched 的技能（load_skill 重复调用只发一次）
         self._matched_skill_ids: set[str] = set(self.config.matched_skill_ids)
@@ -301,6 +302,7 @@ class StreamAdapter:
         return {
             "stop_reason": self._last_message_stop_reason,
             "usage": self._last_message_usage,
+            "wall_clock_landing": self._last_wall_clock_landing,
         }
 
     def set_pending_file_write(
@@ -513,6 +515,10 @@ class StreamAdapter:
         elif event_type == StreamEventType.MESSAGE_END:
             # Message completed - capture metadata for downstream persistence
             self._last_message_stop_reason = data.get("stop_reason")
+            if data.get("stop_reason") == "end_turn":
+                self._last_wall_clock_landing = None
+            elif data.get("wall_clock_landing") in ("soft", "hard"):
+                self._last_wall_clock_landing = data.get("wall_clock_landing")
             # 多 agent 协作时每个 agent 各发一次 MESSAGE_END：usage 必须**累加**，
             # 用后来的覆盖先前的会让整轮统计只剩最后一个 agent 的消耗（计费/
             # 配额都基于它）。非字典的 usage 不清空已累计的值。
@@ -559,6 +565,12 @@ class StreamAdapter:
             already_failed = self._fatal_stream_error
             self._fatal_stream_error = True
             if not already_failed:
+                if (
+                    isinstance(data, dict)
+                    and data.get("error_source") == "model"
+                    and self.config.run_outcome is not None
+                ):
+                    self.config.run_outcome.terminal_model_failure = True
                 info = stream_error_from_event_data(data)
                 # 熔断的 error 文案本身就是给用户看的具体说明（已去掉 SQL 细节）；
                 # 其余一律用固定文案，原始异常只在日志里。
@@ -578,6 +590,7 @@ class StreamAdapter:
             if data.get("limit") == WALL_CLOCK_LIMIT:
                 # 时限暂停卡（runner 的时限收尾或循环收尾）：这一轮落可「继续」的时限原因。
                 self._last_message_stop_reason = RUN_DEADLINE_STOP_REASON
+                self._last_wall_clock_landing = "soft"
             yield iteration_exhausted_event(
                 layer=data.get("layer", ""),
                 iterations_used=data.get("iterations_used", 0),

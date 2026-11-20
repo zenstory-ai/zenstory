@@ -54,6 +54,8 @@ export interface StreamCompletionMeta {
   partial?: boolean;
   /** The author stopped this round and the server wrapped it up (done with stop_reason). */
   stoppedByAuthor?: boolean;
+  /** Stopped rounds only: whether the server settled this round as charged (false: refunded). */
+  charged?: boolean;
   /**
    * Stopped rounds only: whether the server saw real output (prose or a write). False means
    * nothing was written, so follow-ups must not assume prose exists.
@@ -1042,6 +1044,9 @@ export function useAgentStream(
                 };
                 if (data.stop_reason === "user_stopped") {
                   completionMeta.stoppedByAuthor = true;
+                  if (typeof data.charged === "boolean") {
+                    completionMeta.charged = data.charged;
+                  }
                   if (typeof data.produced_output === "boolean") {
                     completionMeta.producedOutput = data.produced_output;
                   }

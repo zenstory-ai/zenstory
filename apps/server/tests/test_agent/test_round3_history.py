@@ -16,7 +16,9 @@ import pytest
 from sqlmodel import Session
 
 from agent.core.message_manager import MessageManager
+from agent.core.run_meter import AgentRunMeter
 from agent.core.session_loader import SessionLoader
+from agent.loop.history import load_loop_history
 from agent.openai_agents.runner import (
     extract_text_from_message_content,
     normalize_messages_for_openai_agents,
@@ -482,3 +484,225 @@ def test_folder_ids_prefer_actively_used_folder_when_both_are_canonical(
     )
 
     assert folder_ids["character"] == legacy_id
+
+
+# ---------------------------------------------------------------------------
+# A-1 & A-2: 历史回放工具名清洗与墙钟时限软/硬/旧记录附注
+# ---------------------------------------------------------------------------
+
+
+def test_a1_history_replay_sanitizes_malformed_tool_name_and_preserves_valid_unknown_and_call_id(
+    db_session: Session,
+    round3_user: User,
+):
+    project = _make_project(db_session, round3_user.id, "novel")
+    chat_session = ChatSession(user_id=round3_user.id, project_id=project.id, title="A1Hist", is_active=True)
+    db_session.add(chat_session)
+    db_session.commit()
+
+    leaked = "历史旧行里的长正文不能重放回模型输入。" * 10
+    tool_calls = json.dumps(
+        [
+            {
+                "name": f"<file>\n{leaked}",
+                "arguments": {},
+                "status": "error",
+                "error": f"未知工具 '<file>\n{leaked}'。请只调用当前已声明的工具。",
+            },
+            {
+                "name": "9-tool",
+                "arguments": {"q": 1},
+                "status": "error",
+                "error": "未知工具 '9-tool'。请只调用当前已声明的工具。",
+            },
+        ],
+        ensure_ascii=False,
+    )
+    user_msg = ChatMessage(session_id=chat_session.id, role="user", content="继续写")
+    assistant_msg = ChatMessage(
+        session_id=chat_session.id,
+        role="assistant",
+        content="好的。",
+        tool_calls=tool_calls,
+        message_metadata=json.dumps({"engine": "loop"}),
+    )
+    db_session.add_all([user_msg, assistant_msg])
+    db_session.commit()
+    db_session.refresh(assistant_msg)
+
+    loaded = load_loop_history(
+        db_session, project_id=project.id, user_id=round3_user.id, chat_session_id=chat_session.id
+    )
+    serialized = json.dumps(loaded.items, ensure_ascii=False)
+    assert "历史旧行里的长正文不能重放回模型输入" not in serialized
+
+    expected_ids = [f"h{assistant_msg.id}_0", f"h{assistant_msg.id}_1"]
+    fn_calls = [item for item in loaded.items if item.get("type") == "function_call"]
+    fn_outputs = [item for item in loaded.items if item.get("type") == "function_call_output"]
+    assert [c["call_id"] for c in fn_calls] == expected_ids
+    assert [o["call_id"] for o in fn_outputs] == expected_ids
+    assert fn_calls[0]["name"].startswith("invalid_tool_name_")
+    assert len(fn_calls[0]["name"]) == len("invalid_tool_name_") + 12
+    assert fn_calls[1]["name"] == "9-tool"
+    out0 = json.loads(fn_outputs[0]["output"])
+    out1 = json.loads(fn_outputs[1]["output"])
+    assert out0["error"] == "工具调用名称格式无效，调用未执行"
+    assert out1["error"] == "未知工具 '9-tool'。请只调用当前已声明的工具。"
+
+
+@pytest.mark.parametrize(
+    ("metadata", "expected_substring", "forbidden_substrings"),
+    [
+        # 显式软着陆且无未完成文件 -> 客观说明按提醒收尾结束，不推断已完成或没做完
+        (
+            {"engine": "loop", "stop_reason": "run_deadline_exceeded", "wall_clock_landing": "soft"},
+            "（这一轮因接近单次处理时长上限而按提醒收尾结束；是否还有未完成部分以作者原要求与已保存结果为准。）",
+            ["这一轮没做完：时间用完了", "已完成内容"],
+        ),
+        # 显式硬截断 -> 保持未做完提示
+        (
+            {"engine": "loop", "stop_reason": "run_deadline_exceeded", "wall_clock_landing": "hard"},
+            "（这一轮没做完：时间用完了。）",
+            ["按提醒收尾结束"],
+        ),
+        # 即使带 soft 标记，但卡片显式记录了 unfinished_files -> 仍按没做完处理
+        (
+            {
+                "engine": "loop",
+                "stop_reason": "run_deadline_exceeded",
+                "wall_clock_landing": "soft",
+                "status_cards": [
+                    {
+                        "type": "iteration_exhausted",
+                        "limit": "wall_clock",
+                        "unfinished_files": [{"id": "f1", "title": "第二章"}],
+                    }
+                ],
+            },
+            "（这一轮没做完：时间用完了。）",
+            ["按提醒收尾结束"],
+        ),
+        # 没有任何软/硬标记的历史旧记录（即便带 wall_clock 卡且无 unfinished_files） -> 只能中性描述，不推断已完成或没做完
+        (
+            {
+                "engine": "loop",
+                "stop_reason": "run_deadline_exceeded",
+                "status_cards": [{"type": "iteration_exhausted", "limit": "wall_clock", "reason": "单次时长接近上限"}],
+            },
+            "（这一轮因时间限制结束；是否还有未完成部分以作者原要求与已保存结果为准。）",
+            ["这一轮没做完：时间用完了", "按提醒收尾结束"],
+        ),
+    ],
+)
+def test_a2_deadline_round_replay_note_distinguishes_soft_hard_and_unmarked_legacy(
+    db_session: Session,
+    round3_user: User,
+    metadata: dict,
+    expected_substring: str,
+    forbidden_substrings: list[str],
+):
+    project = _make_project(db_session, round3_user.id, "novel")
+    chat_session = ChatSession(user_id=round3_user.id, project_id=project.id, title="A2Hist", is_active=True)
+    db_session.add(chat_session)
+    db_session.commit()
+
+    db_session.add_all(
+        [
+            ChatMessage(session_id=chat_session.id, role="user", content="写前两章"),
+            ChatMessage(
+                session_id=chat_session.id,
+                role="assistant",
+                content="前两章已写好。",
+                message_metadata=json.dumps(metadata, ensure_ascii=False),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    loaded = load_loop_history(
+        db_session, project_id=project.id, user_id=round3_user.id, chat_session_id=chat_session.id
+    )
+    content = loaded.items[-1]["content"]
+    assert expected_substring in content
+    for forbidden in forbidden_substrings:
+        assert forbidden not in content
+
+
+@pytest.mark.asyncio
+async def test_a2_runner_soft_landing_persists_wall_clock_landing_marker_through_stream_adapter(
+    db_session: Session,
+    round3_user: User,
+    monkeypatch,
+):
+    """A-2 端到端接线：runner 软着陆 -> StreamAdapter.get_last_message_metadata() -> MessageManager 落库 -> 历史回放识别 soft。"""
+    from agent.core.events import EventType
+    from agent.openai_agents import runner as runner_mod
+    from agent.openai_agents.model import reset_sdk_model_cache
+    from agent.stream_adapter import create_stream_adapter
+    from agent.tools.mcp_tools import ToolContext
+    from services.usage.llm_usage_service import drain_pending_usage_records
+    from tests.test_agent.test_round3_runner import _ChatCompletionsStub, _point_sdk_at_stub, _text_turn, _tool_turn
+
+    project = _make_project(db_session, round3_user.id, "novel")
+    chat_session = ChatSession(user_id=round3_user.id, project_id=project.id, title="SoftWire", is_active=True)
+    db_session.add(chat_session)
+    db_session.commit()
+
+    # 将请求级 wrap_up_after_s 设为 0s，使工具调用后的下一步进入真实 time_landed 软着陆分支
+    run_meter = AgentRunMeter(wrap_up_after_s=0.0)
+    expected_reply = "已整理并保存当前进度。"
+    stub = _ChatCompletionsStub(
+        turns=[
+            _tool_turn("call-q1", "query_files", {}),
+            _text_turn(expected_reply),
+        ],
+        fallback=_text_turn("EXTRA"),
+    )
+    adapter = create_stream_adapter(project_id=project.id, user_id=round3_user.id)
+    state = {"user_message": "整理设定", "messages": [], "system_prompt": "base", "run_meter": run_meter}
+    ToolContext.set_context(
+        session=db_session,
+        user_id=round3_user.id,
+        project_id=project.id,
+        session_id=chat_session.id,
+    )
+    try:
+        with stub:
+            _point_sdk_at_stub(monkeypatch, stub.port)
+            raw_stream = runner_mod.run_openai_agents_streaming_agent(
+                state=state, agent_type="loop", system_prompt="你是测试助手"
+            )
+            frames = [frame async for frame in adapter.process_workflow_events(raw_stream)]
+    finally:
+        ToolContext.clear_context()
+        reset_sdk_model_cache()
+        await drain_pending_usage_records()
+
+    extra_meta = {"engine": "loop", **adapter.get_last_message_metadata()}
+    assert extra_meta["stop_reason"] == "run_deadline_exceeded"
+    assert extra_meta["wall_clock_landing"] == "soft"
+
+    collected_text = "".join(
+        frame.data["text"] for frame in frames if frame.type == EventType.CONTENT
+    )
+    assert collected_text == expected_reply
+
+    mm = MessageManager(project_id=project.id, user_id=round3_user.id)
+    saved_id = await mm.save_messages(
+        session=db_session,
+        session_id=chat_session.id,
+        user_message="整理设定",
+        assistant_message=collected_text,
+        assistant_stop_reason=extra_meta["stop_reason"],
+        assistant_extra_metadata={"engine": "loop", "wall_clock_landing": extra_meta["wall_clock_landing"]},
+    )
+    assert saved_id is not None
+
+    loaded = load_loop_history(
+        db_session, project_id=project.id, user_id=round3_user.id, chat_session_id=chat_session.id
+    )
+    assert loaded.items[-2]["content"] == expected_reply
+    assert (
+        loaded.items[-1]["content"]
+        == "（这一轮因接近单次处理时长上限而按提醒收尾结束；是否还有未完成部分以作者原要求与已保存结果为准。）"
+    )

@@ -850,7 +850,7 @@ async def test_loop_create_file_cannot_make_an_episode_out_of_a_document(screenp
     assert ToolContext.has_pending_empty_file() is False
 
 
-async def test_created_chapter_without_a_body_is_refunded_and_removable(loop_tools):
+async def test_created_chapter_without_a_body_keeps_removable_candidate_and_charges_post_model_stop(loop_tools):
     from agent.core.events import tool_result_event
     from agent.core.stream_billing import StreamBillingTracker
     from agent.tools.mcp_tools import write_chapter
@@ -858,20 +858,32 @@ async def test_created_chapter_without_a_body_is_refunded_and_removable(loop_too
     created = _payload(await write_chapter({"chapter": 5, "title": "雨夜", "file_type": "draft"}))
     assert created["data"]["action"] == "created"
 
-    for stop in ("user_stopped", "error"):
+    for stop in ("user_stopped", "error", "upstream_error"):
         tracker = StreamBillingTracker()
         tracker.observe(
             tool_result_event(tool_name="write_chapter", status="success", data=created["data"], tool_use_id="c1").to_sse()
         )
         assert tracker.write_succeeded is False and tracker.produced_output is False
         if stop == "user_stopped":
-            assert tracker.decide(client_disconnected=False, unexpected_exception=False, user_stopped=True) == (
-                "user_stopped_no_output",
-                True,
-            )
+            assert tracker.decide(
+                client_disconnected=False,
+                unexpected_exception=False,
+                user_stopped=True,
+                provider_attempted=True,
+            ) == ("user_stopped", False)
+        elif stop == "error":
+            assert tracker.decide(
+                client_disconnected=False,
+                unexpected_exception=True,
+                provider_attempted=True,
+            ) == ("non_model_error", False)
         else:
-            reason, refundable = tracker.decide(client_disconnected=False, unexpected_exception=True)
-            assert refundable is True and reason != "error_after_output"
+            assert tracker.decide(
+                client_disconnected=False,
+                unexpected_exception=True,
+                provider_attempted=True,
+                terminal_model_failure=True,
+            ) == ("upstream_model_error", True)
         assert [entry["id"] for entry in tracker.removable_placeholders()] == [created["data"]["id"]]
 
 

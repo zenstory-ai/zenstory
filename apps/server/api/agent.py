@@ -673,7 +673,7 @@ async def stream_request(
         # 的额度；其余预启动异常保持原行为，由 event_generator 发终止帧并退款。
         first_event: str | None = None
         prestart_error: Exception | None = None
-        prime_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
+        prime_ctx_tokens = bind_request_context(agent_run_id=agent_run_id, run_outcome=run_outcome)
         try:
             first_event = await stream.__anext__()
         except StopAsyncIteration:
@@ -717,7 +717,7 @@ async def stream_request(
                 await account_slot.release()
 
     async def event_generator():
-        agent_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
+        agent_ctx_tokens = bind_request_context(agent_run_id=agent_run_id, run_outcome=run_outcome)
         tracker = StreamBillingTracker()
         client_disconnected = False
         user_stopped = False
@@ -744,6 +744,16 @@ async def stream_request(
         deadline_pause_card: dict[str, Any] | None = None
         # 随暂停卡一起发出的 done：它由时限本身产生，不交给计费记账（计费仍按墙钟超时判定）。
         deadline_pause_done: str | None = None
+        committed_seen = 0
+
+        def _replay_committed_tool_results() -> None:
+            nonlocal committed_seen
+            new = run_outcome.committed_tool_results[committed_seen:]
+            if not new:
+                return
+            committed_seen += len(new)
+            tracker.note_committed_tool_results(new)
+            written_files.note_committed_tool_results(new)
 
         def _observe_frame(frame: Any) -> None:
             nonlocal source_done, wall_clock_card_seen
@@ -911,7 +921,7 @@ async def stream_request(
                     # 按回执补记写入。
                     await _wait_stop_message_id()
                 tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
-                tracker.note_committed_tool_results(run_outcome.committed_tool_results)
+                _replay_committed_tool_results()
 
                 def _decide() -> tuple[str, bool]:
                     return tracker.decide(
@@ -921,6 +931,8 @@ async def stream_request(
                         deadline_exceeded=deadline_exceeded,
                         user_stopped=user_stopped,
                         server_restarting=pump.deadline_moved_up,
+                        provider_attempted=run_outcome.provider_attempted,
+                        terminal_model_failure=run_outcome.terminal_model_failure,
                     )
 
                 billing_reason, should_refund = _decide()
@@ -935,7 +947,7 @@ async def stream_request(
                     async def _refund_after_body_settles() -> bool:
                         await run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
                         tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
-                        tracker.note_committed_tool_results(run_outcome.committed_tool_results)
+                        _replay_committed_tool_results()
                         reason, still_refund = _decide()
                         if not still_refund:
                             log_with_context(
@@ -996,6 +1008,8 @@ async def stream_request(
             # 占位前先等它。等不到（超时 / 不会落库）就是补存结果未知，保留占位——宁可留一个
             # 空章节，也不让补存撞上已删除的文件而丢稿。
             message_id = await run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
+            tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
+            _replay_committed_tool_results()
             if remove_placeholders and message_id:
                 removed = await _offload(
                     remove_empty_placeholders,
@@ -1021,7 +1035,7 @@ async def stream_request(
                 outcome=build_stop_outcome(
                     stop_kind=stop_kind,
                     charged=charged,
-                    # 作者看到的「已保存」只认确认的保存回执；计费仍按 tracker 的帧口径。
+                    # 作者看到的「已保存」只认确认的保存回执，与消息额度是否计入相互独立。
                     saved_output=_saved_output(delivery),
                     removed_files=removed,
                     unexecuted_tool_text=written_files.unexecuted_tool_text,
@@ -1099,10 +1113,25 @@ async def stream_request(
                 tracker.observe_delivery(stop_frame)
                 yield stop_frame
                 assistant_message_id = await _wait_stop_message_id()
-                # done 帧在结算之前发出：先按等到的保存回执补记写入（停止时才落定的补存或整章替换）。
+                # 连接仍开着：先按等到的保存回执与迟到工具结果补齐状态并完成真实结算；
+                # 若真退还额度则按原安全条件清理空白占位，再用实际 removed_ids 构造 done 回执，
+                # 让当场 done、quota_refunded 与落库 stop_outcome 三者一致。
                 tracker.note_saved_receipts(run_outcome.saved_file_word_counts)
-                tracker.note_committed_tool_results(run_outcome.committed_tool_results)
-                delivery = written_files.stopped_delivery(final_word_counts=run_outcome.saved_file_word_counts)
+                _replay_committed_tool_results()
+                billing_reason, _, refund_applied = await _settle_billing()
+                if refund_applied and assistant_message_id:
+                    # 消息 id 已交回说明残稿补存已落定，可以当场移除。当场等不到就是补存结果未知：
+                    # 保留占位，也不留给收尾任务在后台删（作者当场收到的说明不会提到它）。
+                    removed_files = await _offload(
+                        remove_empty_placeholders,
+                        body.project_id,
+                        run_outcome.removable(tracker.removable_placeholders()),
+                    )
+                removed_ids = {item.get("id", "") for item in removed_files}
+                delivery = written_files.stopped_delivery(
+                    final_word_counts=run_outcome.saved_file_word_counts,
+                    removed_ids=removed_ids,
+                )
                 if not assistant_message_id:
                     for item in delivery.get("written_files", []):
                         item.pop("words", None)
@@ -1110,25 +1139,17 @@ async def stream_request(
                     assistant_message_id=assistant_message_id,
                     session_id=tracker.session_id,
                     stop_reason=USER_STOPPED_REASON,
+                    charged=not refund_applied,
                     produced_output=tracker.produced_output,
                     file_mutated=_confirmed_file_mutation(delivery),
-                    # 与之后落库的 stop_outcome.written_files 同一份：停止当场的说明
-                    # 就能写明保存了哪些文件，不必等刷新。
+                    # 与之后落库的 stop_outcome 同一份：停止当场的说明就能写明保存了哪些文件、
+                    # 哪些新建空壳尚未写入正文，不必等刷新。
                     **delivery,
                 ).to_sse()
                 tracker.observe(done_frame)
                 tracker.observe_delivery(done_frame)
                 yield done_frame
-                billing_reason, _, refund_applied = await _settle_billing()
                 if refund_applied:
-                    # 消息 id 已交回说明残稿补存已落定，可以当场移除。当场等不到就是补存结果未知：
-                    # 保留占位，也不留给收尾任务在后台删（作者当场收到的说明不会提到它）。
-                    if assistant_message_id:
-                        removed_files = await _offload(
-                            remove_empty_placeholders,
-                            body.project_id,
-                            run_outcome.removable(tracker.removable_placeholders()),
-                        )
                     yield quota_refunded_frame(billing_reason, removed_files)
             except (asyncio.CancelledError, GeneratorExit):
                 # 收尾途中客户端断开：照断线路径结算（不能再挂起）。
@@ -1250,7 +1271,9 @@ async def stream_request(
                     log_with_context(
                         logger, 20, "Agent deadline billing settled after disconnect",
                         agent_run_id=agent_run_id, billing_reason=reason,
-                        charged=not should, refunded=applied, refund_scheduled=refund_scheduled,
+                        charged=None if refund_scheduled else not applied,
+                        should_refund=should,
+                        refunded=applied, refund_scheduled=refund_scheduled,
                     )
                     if deadline_paused and knows_stop_contract:
                         # 暂停卡已经送到、收尾中才断开：同样记「未完成」并把暂停卡补进历史。
@@ -1315,7 +1338,8 @@ async def stream_request(
                 user_id=user_id,
                 project_id=body.project_id,
                 agent_run_id=agent_run_id,
-                charged=None if should_refund is None else not should_refund,
+                charged=None if (settlement_pending or refund_scheduled) else not refund_applied,
+                should_refund=should_refund,
                 settlement_pending=settlement_pending,
                 refunded=refund_applied,
                 refund_scheduled=refund_scheduled,
@@ -1325,6 +1349,8 @@ async def stream_request(
                 delivered_terminal_event=tracker.delivered_terminal_event,
                 saw_internal_error_event=tracker.saw_error_event,
                 error_refundable=tracker.error_refundable,
+                provider_attempted=run_outcome.provider_attempted,
+                terminal_model_failure=run_outcome.terminal_model_failure,
                 produced_output=tracker.produced_output,
                 write_succeeded=tracker.write_succeeded,
                 runaway_stop=tracker.runaway_stop,
@@ -1512,7 +1538,7 @@ async def stop_stream(
     作者点了「停止生成」：运行在自己的 /stream 连接上收尾。
 
     找到时前端继续读流，收到 workflow_stopped(reason=user_stopped) + done，以及
-    （本轮没有任何产出时）quota_refunded(kind=stopped)；找不到（已结束、别的进程、
+    （模型尚未开始处理而实际退还时）quota_refunded(kind=stopped)；找不到（已结束、别的进程、
     别人的运行）返回 stop_requested=false，前端直接断开连接。
     """
     running = _running_streams.get((current_user.id, body.agent_run_id))

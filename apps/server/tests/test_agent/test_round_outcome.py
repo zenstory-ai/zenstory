@@ -363,7 +363,7 @@ def test_file_the_author_asked_to_keep_empty_is_neither_written_nor_unwritten():
     assert files.delivery(final_word_counts={}) == {"unwritten_files": [{"id": "ch-11", "title": "第11章"}]}
 
 
-def test_stopped_delivery_keeps_unconfirmed_bodies_and_drops_untouched_or_removed_shells():
+def test_stopped_delivery_keeps_retained_shells_and_drops_removed_shells():
     files = RoundWrittenFiles()
     files.observe(_created("blank", "刚建好"))
     files.observe(_created("tail", "尾缓冲"))  # 正文只在补存里，没有正文帧
@@ -371,10 +371,16 @@ def test_stopped_delivery_keeps_unconfirmed_bodies_and_drops_untouched_or_remove
     files.observe(_frame("file_content", {"file_id": "streamed", "chunk": "林舟推开门。"}))
 
     delivery = files.stopped_delivery(final_word_counts={"tail": None})
-    assert delivery == {"unwritten_files": [{"id": "tail", "title": "尾缓冲"}, {"id": "streamed", "title": "流式"}]}
+    assert delivery == {
+        "unwritten_files": [
+            {"id": "blank", "title": "刚建好"},
+            {"id": "tail", "title": "尾缓冲"},
+            {"id": "streamed", "title": "流式"},
+        ]
+    }
     assert files.saved_output(delivery, final_word_counts={"tail": None}, any_write_succeeded=True) is False
 
-    # 有确认写入时照旧列出没写成的空壳，退还时真正移除了的除外。
+    # 退还时真正移除了的空壳不再列为未写入，其余未确认写入的新建文件照实列出。
     receipts = {"tail": None, "streamed": 5}
     delivery = files.stopped_delivery(final_word_counts=receipts, removed_ids={"blank"})
     assert delivery == {

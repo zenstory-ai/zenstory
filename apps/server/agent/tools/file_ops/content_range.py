@@ -156,6 +156,7 @@ def apply_content_range(row: dict[str, Any], args: dict[str, Any]) -> dict[str, 
         sliced["note"] = (
             f"只包含正文第 {start}–{end} 个字符（全文 {total} 字符）；范围外的内容没有读到，"
             "不要当成全文。word_count 是整个文件的字数，range_word_count 是这一段的字数。"
+            "分段读取不代表已读全文，直接调用 edit_file 时 old/anchor 须逐字匹配（含真实换行）。"
         )
     return sliced
 

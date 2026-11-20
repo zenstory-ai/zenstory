@@ -2,8 +2,33 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from typing import Any
+
+# Official OpenAI FunctionDefinition.name contract (openai.types.shared_params.function_definition):
+# a-z, A-Z, 0-9, underscores, or dashes, maximum length 64.
+_OPENAI_TOOL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+
+
+def is_valid_openai_tool_name(name: Any) -> bool:
+    """Return True when ``name`` satisfies the OpenAI Chat Completions tool name syntax."""
+    return isinstance(name, str) and _OPENAI_TOOL_NAME_RE.fullmatch(name) is not None
+
+
+def normalize_tool_call_name(raw_name: Any) -> str:
+    """Preserve valid tool names verbatim; map malformed names to a deterministic per-input ID.
+
+    Using a hash suffix keeps distinct malformed inputs in distinct failure-breaker buckets
+    while preventing raw manuscript prose or XML tags from leaking into errors, DB rows, or
+    replayed ``function_call.name`` history.
+    """
+    if is_valid_openai_tool_name(raw_name):
+        return raw_name
+    text = str(raw_name or "")
+    digest = hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:12]
+    return f"invalid_tool_name_{digest}"
 
 
 def extract_tool_result_text(raw_result: Any) -> str:
@@ -57,13 +82,21 @@ def mcp_text_result(text: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": text}]}
 
 
-def tool_error_text(error: str, *, error_type: str | None = None, tool_name: str | None = None) -> str:
+def tool_error_text(
+    error: str,
+    *,
+    error_type: str | None = None,
+    tool_name: str | None = None,
+    user_message: str | None = None,
+) -> str:
     """Build the JSON text payload used for tool execution errors."""
     payload: dict[str, Any] = {"status": "error", "error": error}
     if error_type:
         payload["error_type"] = error_type
     if tool_name:
         payload["tool_name"] = tool_name
+    if user_message:
+        payload["user_message"] = user_message
     return json.dumps(payload, ensure_ascii=False)
 
 
