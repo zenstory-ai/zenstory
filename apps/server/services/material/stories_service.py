@@ -4,22 +4,12 @@ Handles Story, StoryLine, and StoryPlotLink operations.
 """
 from __future__ import annotations
 
-import json
-from typing import Any
-
 from sqlalchemy import and_, or_
 from sqlmodel import Session, select
 
 from models.material_models import Chapter, Plot, Story, StoryLine, StoryPlotLink
 
-
-def _serialize_json(value: Any) -> str | None:
-    """Serialize value to JSON string if it's a dict/list."""
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    return json.dumps(value)
+from .serialization import serialize_optional_json
 
 
 def story_in_novel(novel_id: int):
@@ -58,7 +48,7 @@ class StoriesService:
             existing.core_conflict = story_data.get("core_conflict") or existing.core_conflict
             existing.story_type = story_data.get("story_type") or existing.story_type
             existing.chapter_range = story_data.get("chapter_range") or existing.chapter_range
-            existing.themes = _serialize_json(story_data.get("themes")) or existing.themes
+            existing.themes = serialize_optional_json(story_data.get("themes")) or existing.themes
             session.add(existing)
             session.flush()
             return existing.id
@@ -72,7 +62,7 @@ class StoriesService:
             core_conflict=story_data.get("core_conflict"),
             story_type=story_data.get("story_type"),
             chapter_range=story_data.get("chapter_range"),
-            themes=_serialize_json(story_data.get("themes")),
+            themes=serialize_optional_json(story_data.get("themes")),
         )
         session.add(new_story)
         session.flush()
@@ -128,8 +118,8 @@ class StoriesService:
             novel_id=novel_id,
             title=data.get("title"),
             description=data.get("description"),
-            main_characters=_serialize_json(data.get("main_characters")),
-            themes=_serialize_json(data.get("themes")),
+            main_characters=serialize_optional_json(data.get("main_characters")),
+            themes=serialize_optional_json(data.get("themes")),
         )
         session.add(storyline)
         session.flush()

@@ -548,3 +548,26 @@ def get_upload_storage(
         material_root=Path(material_root),
         feedback_root=Path(feedback_root),
     )
+
+
+def resolve_feedback_upload_root() -> Path:
+    configured_dir = os.getenv("FEEDBACK_UPLOAD_DIR", "uploads/feedback").strip() or "uploads/feedback"
+    upload_dir = Path(configured_dir)
+    if not upload_dir.is_absolute():
+        upload_dir = Path.cwd() / upload_dir
+    return upload_dir.resolve()
+
+
+def get_upload_storage_or_503() -> LocalUploadStorage | S3UploadStorage:
+    """Resolve the configured private upload storage, mapping config errors to HTTP 503."""
+    from config.material_settings import material_settings
+    from core.error_codes import ErrorCode
+    from core.error_handler import APIException
+
+    try:
+        return get_upload_storage(
+            material_root=material_settings.UPLOAD_FOLDER,
+            feedback_root=resolve_feedback_upload_root(),
+        )
+    except ValueError as exc:
+        raise APIException(error_code=ErrorCode.SERVICE_UNAVAILABLE, status_code=503) from exc

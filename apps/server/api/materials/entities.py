@@ -33,7 +33,7 @@ from models.material_models import (
     WorldView,
 )
 from services.material.stories_service import story_in_novel
-from utils.logger import get_logger
+from utils.logger import get_logger, log_with_context
 
 from .helpers import _get_novel_or_404
 from .schemas import (
@@ -51,6 +51,35 @@ logger = get_logger(__name__)
 
 # Router without prefix/tags - will be set by parent router
 router = APIRouter()
+
+
+def _parse_json_list(raw: str | None, *, field: str, entity_id: int | None) -> list | None:
+    """Parse a stored JSON list column; log a structured warning and return None if malformed."""
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, json.JSONDecodeError) as exc:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Malformed JSON list in material entity field",
+            field=field,
+            entity_id=entity_id,
+            error_type=type(exc).__name__,
+        )
+        return None
+    if not isinstance(parsed, list):
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Expected JSON list in material entity field",
+            field=field,
+            entity_id=entity_id,
+            actual_type=type(parsed).__name__,
+        )
+        return None
+    return parsed
 
 
 # ==================== Chapter Endpoints ====================
@@ -149,16 +178,9 @@ def get_characters(
 
     result = []
     for character in characters:
-        # Parse aliases
-        aliases = None
-        if character.aliases:
-            try:
-                parsed = json.loads(character.aliases)
-                # Ensure it's a list, not a dict
-                if isinstance(parsed, list):
-                    aliases = parsed
-            except Exception:
-                pass
+        aliases = _parse_json_list(
+            character.aliases, field="character.aliases", entity_id=character.id
+        )
 
         result.append(CharacterListItem(
             id=character.id,
@@ -309,17 +331,15 @@ def get_world_view(
     if not world_view:
         return None
 
-    # Parse key_factions JSON
-    key_factions = None
-    if world_view.key_factions:
-        try:
-            parsed = json.loads(world_view.key_factions)
-            # Handle both list[str] and list[dict] formats
-            if isinstance(parsed, list):
-                # Convert string list to dict list or use as-is
-                key_factions = [{"name": f} for f in parsed] if parsed and isinstance(parsed[0], str) else parsed
-        except Exception:
-            pass
+    # Parse key_factions JSON (handle both list[str] and list[dict] formats)
+    parsed_factions = _parse_json_list(
+        world_view.key_factions, field="world_view.key_factions", entity_id=world_view.id
+    )
+    key_factions = (
+        [{"name": f} for f in parsed_factions]
+        if parsed_factions and isinstance(parsed_factions[0], str)
+        else parsed_factions
+    )
 
     return WorldViewResponse(
         id=world_view.id,
@@ -367,16 +387,9 @@ def get_plots(
 
     result = []
     for plot in plots:
-        # Parse characters JSON
-        characters = None
-        if plot.characters:
-            try:
-                parsed = json.loads(plot.characters)
-                # Ensure it's a list, not a dict
-                if isinstance(parsed, list):
-                    characters = parsed
-            except Exception:
-                pass
+        characters = _parse_json_list(
+            plot.characters, field="plot.characters", entity_id=plot.id
+        )
 
         result.append(PlotListItem(
             id=plot.id,
@@ -434,24 +447,12 @@ def get_storylines(
 
     result = []
     for sl in storylines:
-        # Parse JSON fields
-        main_characters = None
-        if sl.main_characters:
-            try:
-                parsed = json.loads(sl.main_characters)
-                if isinstance(parsed, list):
-                    main_characters = parsed
-            except Exception:
-                pass
-
-        themes = None
-        if sl.themes:
-            try:
-                parsed = json.loads(sl.themes)
-                if isinstance(parsed, list):
-                    themes = parsed
-            except Exception:
-                pass
+        main_characters = _parse_json_list(
+            sl.main_characters, field="story_line.main_characters", entity_id=sl.id
+        )
+        themes = _parse_json_list(
+            sl.themes, field="story_line.themes", entity_id=sl.id
+        )
 
         result.append(StoryLineListItem(
             id=sl.id,
@@ -499,15 +500,9 @@ def get_golden_fingers(
 
     result = []
     for gf in golden_fingers:
-        # Parse evolution_history JSON
-        evolution_history = None
-        if gf.evolution_history:
-            try:
-                parsed = json.loads(gf.evolution_history)
-                if isinstance(parsed, list):
-                    evolution_history = parsed
-            except Exception:
-                pass
+        evolution_history = _parse_json_list(
+            gf.evolution_history, field="golden_finger.evolution_history", entity_id=gf.id
+        )
 
         result.append(GoldenFingerListItem(
             id=gf.id,

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
-from sqlalchemy import BigInteger, String, and_, case, cast, func, literal, or_
+from sqlalchemy import BigInteger, and_, case, cast, func, or_
 from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
@@ -35,6 +35,7 @@ from services.usage.pricing import (
     COST_WEIGHTS,
     COST_WEIGHTS_BY_VERSION,
     PRICING_VERSION,
+    beijing_day_bucket_case,
     beijing_day_start_utc,
     beijing_range_utc,
     beijing_today,
@@ -190,17 +191,7 @@ def _in_period(period: Period) -> list[Any]:
 
 def _day_bucket(period: Period) -> Any:
     """CASE expression labelling each row with its Beijing date (ISO string)."""
-    whens = []
-    for day in period.days:
-        start = beijing_day_start_utc(day)
-        end = beijing_day_start_utc(day + timedelta(days=1))
-        whens.append(
-            (
-                (EVENTS.occurred_at >= start) & (EVENTS.occurred_at < end),
-                literal(day.isoformat()),
-            )
-        )
-    return cast(case(*whens, else_=literal("")), String)
+    return beijing_day_bucket_case(EVENTS.occurred_at, period.days)
 
 
 def _metrics(row: Any) -> dict[str, Any]:

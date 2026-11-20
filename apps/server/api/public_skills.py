@@ -9,7 +9,6 @@ Provides FastAPI router for public skill discovery:
 - DELETE /public-skills/{id}/remove - Remove from user's collection
 """
 
-import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
@@ -25,7 +24,7 @@ from core.error_handler import APIException
 from core.i18n import get_accept_language
 from database import get_session
 from models import PublicSkill, User, UserAddedSkill
-from services.skill_package_service import instructions_hidden_from_users
+from services.skill_package_service import instructions_hidden_from_users, parse_skill_json_array
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -91,36 +90,6 @@ class AddSkillResponse(BaseModel):
 # ==================== Helper Functions ====================
 
 
-def _safe_json_array(value: str | None, *, field_name: str, record_id: str) -> list[str]:
-    """Parse JSON array payload safely and return [] on malformed data."""
-    if not value:
-        return []
-
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError:
-        log_with_context(
-            logger,
-            30,
-            "Invalid JSON field in public skill record",
-            field=field_name,
-            record_id=record_id,
-        )
-        return []
-
-    if not isinstance(parsed, list):
-        log_with_context(
-            logger,
-            30,
-            "JSON field is not an array in public skill record",
-            field=field_name,
-            record_id=record_id,
-        )
-        return []
-
-    return [str(item) for item in parsed if item is not None]
-
-
 def _skill_to_response(
     skill: PublicSkill,
     is_added: bool = False,
@@ -129,7 +98,7 @@ def _skill_to_response(
     language: str | None = None,
 ) -> PublicSkillResponse:
     """Convert PublicSkill model to response (preview_chars: 只回传正文开头这么多字符)."""
-    tags = _safe_json_array(
+    tags = parse_skill_json_array(
         skill.tags,
         field_name="public_skill.tags",
         record_id=skill.id,

@@ -43,7 +43,7 @@ from services.infra.upload_storage import (
     UploadNotFoundError,
     UploadReferenceError,
     UploadStorageError,
-    get_upload_storage,
+    get_upload_storage_or_503,
 )
 from services.material.ingestion_jobs_service import IngestionJobsService, is_trial_job
 from services.material.job_errors import REFUNDABLE_JOB_ERROR_CODES
@@ -80,15 +80,6 @@ router = APIRouter()
 
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 DISPATCH_FAILURE_MESSAGE = "Failed to dispatch ingestion flow"
-
-
-def _storage():
-    from config.material_settings import material_settings
-
-    return get_upload_storage(
-        material_root=material_settings.UPLOAD_FOLDER,
-        feedback_root=os.getenv("FEEDBACK_UPLOAD_DIR", "uploads/feedback"),
-    )
 
 
 def _read_legacy_local_material(filename: str, user_id: str) -> bytes:
@@ -132,7 +123,7 @@ def _read_legacy_local_material(filename: str, user_id: str) -> bytes:
 def _download_material_object(filename: str, user_id: str) -> Response:
     storage = None
     try:
-        storage = _storage()
+        storage = get_upload_storage_or_503()
         if isinstance(storage, S3UploadStorage) and filename.startswith(f"{user_id}_"):
             content = _read_legacy_local_material(filename, user_id)
         else:
@@ -472,7 +463,7 @@ async def process_material_upload(
         # 3. Save the source before quota reservation or database writes.
         timestamp = utcnow().strftime("%Y%m%d_%H%M%S")
         try:
-            upload_storage = _storage()
+            upload_storage = get_upload_storage_or_503()
             stored = await run_in_threadpool(
                 upload_storage.put_material,
                 owner_id=current_user.id,
