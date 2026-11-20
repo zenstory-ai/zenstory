@@ -7,7 +7,6 @@ const {
   mockNavigate,
   mockLogin,
   mockGoogleLogin,
-  mockAppleLogin,
   mockGetAllProjects,
   mockOAuthEnabled,
   mockHandleSsoRedirect,
@@ -15,7 +14,6 @@ const {
   mockNavigate: vi.fn(),
   mockLogin: vi.fn(),
   mockGoogleLogin: vi.fn(),
-  mockAppleLogin: vi.fn(),
   mockGetAllProjects: vi.fn(),
   mockOAuthEnabled: { google: false },
   mockHandleSsoRedirect: vi.fn(),
@@ -58,7 +56,6 @@ vi.mock("../../contexts/AuthContext", () => ({
       localStorage.setItem('refresh_token', 'offline-login-refresh');
     },
     googleLogin: mockGoogleLogin,
-    appleLogin: mockAppleLogin,
     user: null,
     loading: false,
   }),
@@ -79,7 +76,6 @@ vi.mock("../../config/auth", async () => {
       forgotPasswordEnabled: actual.authConfig.forgotPasswordEnabled,
       oauthProviders: {
         google: { get enabled() { return mockOAuthEnabled.google; } },
-        apple: { enabled: false },
       },
     },
     hasOAuthProviders: () => mockOAuthEnabled.google,

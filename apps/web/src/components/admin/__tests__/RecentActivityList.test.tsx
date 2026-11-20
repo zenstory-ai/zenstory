@@ -4,6 +4,14 @@ import { RecentActivityList } from '../RecentActivityList'
 
 let queryState: Record<string, unknown> = {}
 
+vi.mock('i18next', () => ({
+  default: {
+    language: 'en',
+    t: (key: string, options?: { count?: number }) =>
+      options?.count !== undefined ? `${key}:${options.count}` : key,
+  },
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) =>
@@ -15,9 +23,6 @@ vi.mock('react-i18next', () => ({
           'auditLogs.resourceLabels.user': 'User',
         } as Record<string, string>
       )[key] ?? (options?.defaultValue as string) ?? key,
-    i18n: {
-      language: 'en',
-    },
   }),
 }))
 
@@ -98,6 +103,6 @@ describe('RecentActivityList', () => {
     // Unknown values fall back to a readable form instead of a raw key.
     expect(screen.getByText('Future action name')).toBeInTheDocument()
     expect(screen.getByText('Future resource')).toBeInTheDocument()
-    expect(screen.getByText('dashboard:time.hoursAgo')).toBeInTheDocument()
+    expect(screen.getByText('relativeTime.hoursAgo:2')).toBeInTheDocument()
   })
 })

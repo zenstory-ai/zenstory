@@ -572,5 +572,3 @@ export interface AuditLog {
   user_agent: string | null;
   created_at: string;
 }
-
-export type AdminAuditLog = AuditLog;

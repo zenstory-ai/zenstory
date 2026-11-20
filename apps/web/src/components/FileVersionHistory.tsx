@@ -42,18 +42,142 @@ interface FileVersionHistoryProps {
   onViewContent?: (content: string, versionNumber: number) => void;
 }
 
-interface VersionRowWrapperProps {
-  index: number;
-  versions: FileVersion[];
-  currentVersionNumber: number | null;
-  selectedVersions: number[];
+interface VersionRowProps {
+  version: FileVersion;
+  isCurrent: boolean;
+  isSelected: boolean;
+  isRollingBack: boolean;
   t: (key: string, params?: Record<string, unknown>) => string;
   onSelectVersion: (versionNumber: number) => void;
   onViewContent: (versionNumber: number) => void;
   onRollback: (versionNumber: number) => void;
-  getChangeTypeIcon: (changeType: string, changeSource: string) => React.ReactNode;
-  getChangeTypeLabel: (changeType: string, changeSource: string) => string;
 }
+
+function getChangeTypeIcon(_changeType: string, changeSource: string) {
+  if (changeSource === "ai") {
+    return <Bot size={14} className="text-[hsl(var(--text-secondary))]" />;
+  }
+  if (changeSource === "system") {
+    return <Settings size={14} className="text-[hsl(var(--text-secondary))]" />;
+  }
+  return <User size={14} className="text-[hsl(var(--accent-primary))]" />;
+}
+
+function getChangeTypeLabel(
+  changeType: string,
+  changeSource: string,
+  t: (key: string, params?: Record<string, unknown>) => string
+) {
+  // The author saved after reviewing AI changes (accept/reject per paragraph):
+  // the text is theirs, so the badge must not read "AI 编辑".
+  if (changeType === 'ai_edit' && changeSource === 'user') return t('types.reviewed');
+  const typeMap: Record<string, string> = {
+    create: 'types.created',
+    edit: 'types.edited',
+    ai_edit: 'types.aiEdited',
+    restore: 'types.rolledBack',
+    auto_save: 'types.autoSave',
+  };
+  // 未知类型不露出内部取值，按普通编辑显示。
+  return t(typeMap[changeType] ?? 'types.edited');
+}
+
+const VersionRow: React.FC<VersionRowProps> = ({
+  version,
+  isCurrent,
+  isSelected,
+  isRollingBack,
+  t,
+  onSelectVersion,
+  onViewContent,
+  onRollback,
+}) => {
+  const summaryText = describeVersionSummary(version.change_summary, t);
+
+  return (
+    <div
+      tabIndex={0}
+      className={`px-4 py-3 border-l-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
+        isSelected
+          ? "bg-[hsl(var(--accent-primary)/0.1)] border-l-[hsl(var(--accent-primary))]"
+          : "border-l-transparent hover:bg-[hsl(var(--bg-tertiary))]"
+      }`}
+      onClick={() => onSelectVersion(version.version_number)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelectVersion(version.version_number);
+        }
+      }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 py-1">
+          <span className="text-sm font-semibold text-[hsl(var(--text-primary))]">
+            v{version.version_number}
+          </span>
+          <Badge icon={getChangeTypeIcon(version.change_type, version.change_source)} className="whitespace-nowrap">
+            {getChangeTypeLabel(version.change_type, version.change_source, t)}
+          </Badge>
+          {isCurrent && (
+            <Badge variant="success" className="whitespace-nowrap">
+              {t('currentText')}
+            </Badge>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <IconButton
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewContent(version.version_number);
+            }}
+            label={t('viewContent')}
+            icon={<FileText size={16} />}
+          />
+          <IconButton
+            onClick={(e) => {
+              e.stopPropagation();
+              onRollback(version.version_number);
+            }}
+            label={t('rollback')}
+            icon={<RotateCcw size={16} />}
+            disabled={isRollingBack}
+          />
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[hsl(var(--text-secondary))]">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+          <Clock size={12} className="shrink-0" />
+          {formatRelativeTime(version.created_at)}
+        </span>
+        <span className="whitespace-nowrap">{t('wordCount', { count: version.word_count })}</span>
+        {(version.lines_added > 0 ||
+          version.lines_removed > 0) && (
+          <span className="inline-flex flex-wrap items-center gap-2">
+            {version.lines_added > 0 && (
+              <span className="text-[hsl(var(--success-text))] inline-flex items-center whitespace-nowrap">
+                <Plus size={12} />
+                {t('linesAdded', { count: version.lines_added })}
+              </span>
+            )}
+            {version.lines_removed > 0 && (
+              <span className="text-[hsl(var(--error-text))] inline-flex items-center whitespace-nowrap">
+                <Minus size={12} />
+                {t('linesRemoved', { count: version.lines_removed })}
+              </span>
+            )}
+          </span>
+        )}
+      </div>
+
+      {summaryText && (
+        <div className="mt-2 break-words text-xs text-[hsl(var(--text-secondary))]">
+          {summaryText}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   fileId,
@@ -302,133 +426,6 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     }
   };
 
-
-  const getChangeTypeIcon = (_changeType: string, changeSource: string) => {
-    if (changeSource === "ai") {
-      return <Bot size={14} className="text-[hsl(var(--text-secondary))]" />;
-    }
-    if (changeSource === "system") {
-      return <Settings size={14} className="text-[hsl(var(--text-secondary))]" />;
-    }
-    return <User size={14} className="text-[hsl(var(--accent-primary))]" />;
-  };
-
-  const getChangeTypeLabel = (changeType: string, changeSource: string) => {
-    // The author saved after reviewing AI changes (accept/reject per paragraph):
-    // the text is theirs, so the badge must not read "AI 编辑".
-    if (changeType === 'ai_edit' && changeSource === 'user') return t('types.reviewed');
-    const typeMap: Record<string, string> = {
-      create: 'types.created',
-      edit: 'types.edited',
-      ai_edit: 'types.aiEdited',
-      restore: 'types.rolledBack',
-      auto_save: 'types.autoSave',
-    };
-    // 未知类型不露出内部取值，按普通编辑显示。
-    return t(typeMap[changeType] ?? 'types.edited');
-  };
-
-  // VersionRow component for rendering version items
-  const VersionRowWrapper: React.FC<VersionRowWrapperProps> = ({
-    index,
-    versions,
-    currentVersionNumber,
-    selectedVersions,
-    t,
-    onSelectVersion,
-    onViewContent,
-    onRollback,
-    getChangeTypeIcon,
-    getChangeTypeLabel,
-  }) => {
-    const version = versions[index];
-    const summaryText = describeVersionSummary(version.change_summary, t);
-
-    return (
-      <div
-        tabIndex={0}
-        className={`px-4 py-3 border-l-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
-          selectedVersions.includes(version.version_number)
-            ? "bg-[hsl(var(--accent-primary)/0.1)] border-l-[hsl(var(--accent-primary))]"
-            : "border-l-transparent hover:bg-[hsl(var(--bg-tertiary))]"
-        }`}
-        onClick={() => onSelectVersion(version.version_number)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onSelectVersion(version.version_number);
-          }
-        }}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 py-1">
-            <span className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-              v{version.version_number}
-            </span>
-            <Badge icon={getChangeTypeIcon(version.change_type, version.change_source)} className="whitespace-nowrap">
-              {getChangeTypeLabel(version.change_type, version.change_source)}
-            </Badge>
-            {currentVersionNumber !== null && version.version_number === currentVersionNumber && (
-              <Badge variant="success" className="whitespace-nowrap">
-                {t('currentText')}
-              </Badge>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <IconButton
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewContent(version.version_number);
-              }}
-              label={t('viewContent')}
-              icon={<FileText size={16} />}
-            />
-            <IconButton
-              onClick={(e) => {
-                e.stopPropagation();
-                onRollback(version.version_number);
-              }}
-              label={t('rollback')}
-              icon={<RotateCcw size={16} />}
-              disabled={isRollingBack}
-            />
-          </div>
-        </div>
-
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[hsl(var(--text-secondary))]">
-          <span className="inline-flex items-center gap-1 whitespace-nowrap">
-            <Clock size={12} className="shrink-0" />
-            {formatRelativeTime(version.created_at)}
-          </span>
-          <span className="whitespace-nowrap">{t('wordCount', { count: version.word_count })}</span>
-          {(version.lines_added > 0 ||
-            version.lines_removed > 0) && (
-            <span className="inline-flex flex-wrap items-center gap-2">
-              {version.lines_added > 0 && (
-                <span className="text-[hsl(var(--success-text))] inline-flex items-center whitespace-nowrap">
-                  <Plus size={12} />
-                  {t('linesAdded', { count: version.lines_added })}
-                </span>
-              )}
-              {version.lines_removed > 0 && (
-                <span className="text-[hsl(var(--error-text))] inline-flex items-center whitespace-nowrap">
-                  <Minus size={12} />
-                  {t('linesRemoved', { count: version.lines_removed })}
-                </span>
-              )}
-            </span>
-          )}
-        </div>
-
-        {summaryText && (
-          <div className="mt-2 break-words text-xs text-[hsl(var(--text-secondary))]">
-            {summaryText}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
     <>
       <Modal
@@ -517,19 +514,17 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
               data-testid="version-list-rows"
               className="divide-y divide-[hsl(var(--border-color))]"
             >
-              {versions.map((version, index) => (
-                <VersionRowWrapper
+              {versions.map((version) => (
+                <VersionRow
                   key={version.version_number}
-                  index={index}
-                  versions={versions}
-                  currentVersionNumber={currentVersionNumber}
-                  selectedVersions={selectedVersions}
+                  version={version}
+                  isCurrent={currentVersionNumber !== null && version.version_number === currentVersionNumber}
+                  isSelected={selectedVersions.includes(version.version_number)}
+                  isRollingBack={isRollingBack}
                   t={t}
                   onSelectVersion={handleSelectVersion}
                   onViewContent={handleViewContent}
                   onRollback={handleRollback}
-                  getChangeTypeIcon={getChangeTypeIcon}
-                  getChangeTypeLabel={getChangeTypeLabel}
                 />
               ))}
               {versions.length < total && (

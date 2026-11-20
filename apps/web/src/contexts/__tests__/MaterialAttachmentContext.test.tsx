@@ -8,7 +8,6 @@ import {
 function MaterialAttachmentConsumer() {
   const {
     attachedMaterials,
-    attachedIds,
     attachedFileIds,
     attachedLibraryMaterials,
     addMaterial,
@@ -20,7 +19,6 @@ function MaterialAttachmentConsumer() {
   return (
     <div>
       <div data-testid="attached-count">{attachedMaterials.length}</div>
-      <div data-testid="attached-ids">{attachedIds.join(',')}</div>
       <div data-testid="attached-file-ids">{attachedFileIds.join(',')}</div>
       <div data-testid="attached-library-count">{attachedLibraryMaterials.length}</div>
       <div data-testid="is-at-limit">{String(isAtLimit)}</div>
@@ -61,7 +59,6 @@ describe('MaterialAttachmentContext', () => {
     fireEvent.click(screen.getByRole('button', { name: 'add-library' }))
 
     expect(screen.getByTestId('attached-count')).toHaveTextContent('2')
-    expect(screen.getByTestId('attached-ids')).toHaveTextContent('file-1,library-1')
     expect(screen.getByTestId('attached-file-ids')).toHaveTextContent('file-1')
     expect(screen.getByTestId('attached-library-count')).toHaveTextContent('1')
   })
