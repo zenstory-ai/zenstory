@@ -12,8 +12,9 @@
  * - Importing materials as project files
  */
 
-import { api, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { api, authenticatedFetch, readApiError } from "./apiClient";
 import { parseContentDispositionFilename } from "./contentDisposition";
+import { downloadBlob } from "./downloadBlob";
 import { getLocale } from "./i18n-helpers";
 
 // eslint-disable-next-line no-control-regex
@@ -26,27 +27,6 @@ function fallbackMaterialExportFilename(title: string | undefined, locale: "zh" 
     .replace(/^[.\s]+|[.\s]+$/g, "");
   const stem = cleaned || (locale === "en" ? "material" : "素材");
   return `${stem}_${locale === "en" ? "breakdown" : "拆解"}.txt`;
-}
-
-async function fetchWithOwnedSessionRetry(
-  fetchOnce: (accessToken: string | null) => Promise<Response>,
-): Promise<Response> {
-  const entryAccess = getAccessToken();
-  const entryRefresh = localStorage.getItem("refresh_token");
-  let response = await fetchOnce(entryAccess);
-  if (response.status === 401 && entryAccess && entryRefresh) {
-    let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
-    if (ownedSession?.accessToken && ownedSession.refreshToken) {
-      if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-        const refreshed = await tryRefreshToken();
-        ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-      }
-      if (ownedSession?.accessToken && ownedSession.refreshToken) {
-        response = await fetchOnce(ownedSession.accessToken);
-      }
-    }
-  }
-  return response;
 }
 
 // ==================== Type Definitions ====================
@@ -578,24 +558,15 @@ export const materialsApi = {
     if (title) {
       query.set("title", title);
     }
-    const uploadUrl = `${getApiBase()}/api/v1/materials/upload${query.toString() ? `?${query.toString()}` : ""}`;
+    const uploadEndpoint = `/api/v1/materials/upload${query.toString() ? `?${query.toString()}` : ""}`;
 
-    const response = await fetchWithOwnedSessionRetry((accessToken) =>
-      fetch(uploadUrl, {
-        method: "POST",
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-        body: formData,
-      }),
-    );
+    const response = await authenticatedFetch(uploadEndpoint, {
+      method: "POST",
+      body: formData,
+    });
 
     if (!response.ok) {
-      let errorData: unknown = null;
-      try {
-        errorData = await response.json();
-      } catch {
-        // Non-JSON proxy/gateway response falls through to apiErrorFromPayload status default.
-      }
-      throw apiErrorFromPayload(response.status, errorData);
+      throw await readApiError(response);
     }
 
     return response.json();
@@ -606,40 +577,25 @@ export const materialsApi = {
    */
   exportBreakdown: async (novelId: string, fallbackTitle?: string): Promise<{ filename: string }> => {
     const locale = getLocale();
-    const exportUrl = `${getApiBase()}/api/v1/materials/${encodeURIComponent(novelId)}/export`;
-    const response = await fetchWithOwnedSessionRetry((accessToken) =>
-      fetch(exportUrl, {
+    const response = await authenticatedFetch(
+      `/api/v1/materials/${encodeURIComponent(novelId)}/export`,
+      {
         method: "GET",
         headers: {
           "Accept-Language": locale,
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-      }),
+      },
     );
 
     if (!response.ok) {
-      let errorData: unknown = null;
-      try {
-        errorData = await response.json();
-      } catch {
-        // Non-JSON proxy/gateway response falls through to apiErrorFromPayload status default.
-      }
-      throw apiErrorFromPayload(response.status, errorData);
+      throw await readApiError(response);
     }
 
     const filename =
       parseContentDispositionFilename(response.headers.get("Content-Disposition")) ??
       fallbackMaterialExportFilename(fallbackTitle, locale);
 
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = objectUrl;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(objectUrl);
+    downloadBlob(await response.blob(), filename);
 
     return { filename };
   },

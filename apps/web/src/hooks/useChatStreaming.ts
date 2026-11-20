@@ -674,6 +674,37 @@ export function useChatStreaming(): UseChatStreamingReturn {
         triggerFileTreeRefresh();
       };
 
+      const cleanupStreamFileState = ({
+        missingEndReason,
+        forceRefreshOpenFile,
+      }: {
+        missingEndReason: string;
+        forceRefreshOpenFile: boolean;
+      }) => {
+        setEditProgress(null);
+        // 流结束兜底：file_edit_end 可能因取消/报错永远不到，
+        // 不清掉标记会让编辑器的自动保存被永久挂起。
+        setAiEditingFileId?.(null);
+
+        const latestStreamingFileId = getCurrentStreamingFileId?.() ?? null;
+        if (latestStreamingFileId) {
+          if (!fileContentEndByFileIdRef.current.has(latestStreamingFileId)) {
+            logger.warn(
+              `[Stream] Missing file_content_end for ${latestStreamingFileId}, forcing final refresh ${missingEndReason}`
+            );
+            pendingFileTreeRefreshRef.current = true;
+          }
+          finishFileStreaming(latestStreamingFileId);
+          fileContentEndByFileIdRef.current.delete(latestStreamingFileId);
+        }
+        flushFileTreeRefresh();
+        // 收尾兜底：本轮写过文件（或服务端确认有改动）时，让打开着的文件再对一次
+        // 服务端版本，保证编辑器停在本轮最后一次写入之后。
+        if (roundWroteFilesRef.current || forceRefreshOpenFile) {
+          refreshOpenFileFromServer();
+        }
+      };
+
       return {
         // ========================================
         // Lifecycle callbacks
@@ -1228,62 +1259,26 @@ export function useChatStreaming(): UseChatStreamingReturn {
           _segments: MessageSegment[],
           completionMeta?: StreamCompletionMeta,
         ) => {
-          setEditProgress(null);
-
           // Clear stream render items (both ref and state).
           //
           // Terminal workflow signals (e.g. clarification_needed) are persisted into the final
           // assistant message as "status cards" so they should not remain as standalone
           // streamed items after completion.
           clearStreamItems();
-
-          // 流结束兜底：file_edit_end 可能因取消/报错永远不到，
-          // 不清掉标记会让编辑器的自动保存被永久挂起。
-          setAiEditingFileId?.(null);
-
-          // Clear any remaining file streaming state
-          const latestStreamingFileId = getCurrentStreamingFileId?.() ?? null;
-          if (latestStreamingFileId) {
-            if (!fileContentEndByFileIdRef.current.has(latestStreamingFileId)) {
-              logger.warn(
-                `[Stream] Missing file_content_end for ${latestStreamingFileId}, forcing final refresh on completion`
-              );
-              pendingFileTreeRefreshRef.current = true;
-            }
-            finishFileStreaming(latestStreamingFileId);
-            fileContentEndByFileIdRef.current.delete(latestStreamingFileId);
-          }
-          flushFileTreeRefresh();
-          // 收尾兜底：本轮写过文件（或服务端确认有改动）时，让打开着的文件再对一次
-          // 服务端版本，保证编辑器停在本轮最后一次写入之后。
-          if (roundWroteFilesRef.current || completionMeta?.confirmedFileMutation === true) {
-            refreshOpenFileFromServer();
-          }
+          cleanupStreamFileState({
+            missingEndReason: "on completion",
+            forceRefreshOpenFile: completionMeta?.confirmedFileMutation === true,
+          });
         },
 
         /**
          * Called when an error occurs during streaming
          */
         onError: (_message?: string, _code?: string, _retryable?: boolean) => {
-          setEditProgress(null);
-          setAiEditingFileId?.(null);
-
-          // Clear any remaining file streaming state on error
-          const latestStreamingFileId = getCurrentStreamingFileId?.() ?? null;
-          if (latestStreamingFileId) {
-            if (!fileContentEndByFileIdRef.current.has(latestStreamingFileId)) {
-              logger.warn(
-                `[Stream] Missing file_content_end for ${latestStreamingFileId} after error, forcing final refresh`
-              );
-              pendingFileTreeRefreshRef.current = true;
-            }
-            finishFileStreaming(latestStreamingFileId);
-            fileContentEndByFileIdRef.current.delete(latestStreamingFileId);
-          }
-          flushFileTreeRefresh();
-          if (roundWroteFilesRef.current) {
-            refreshOpenFileFromServer();
-          }
+          cleanupStreamFileState({
+            missingEndReason: "after error",
+            forceRefreshOpenFile: false,
+          });
         },
       };
     },

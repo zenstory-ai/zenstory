@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Activity, User, Code, CreditCard, Lightbulb, Package, Coins, Gift, Zap, Bug, FileText, Receipt } from 'lucide-react';
 import { adminApi } from '@/lib/adminApi';
-import { parseUTCDate } from '@/lib/dateUtils';
+import { formatRelativeTime } from '@/lib/dateUtils';
 import { auditActionLabel, auditActionTone, auditResourceLabel } from '@/lib/adminAuditLabels';
 import { Skeleton } from '../ui/Skeleton';
 import { IconWrapper } from '../ui/IconWrapper';
@@ -28,25 +28,8 @@ const toneColors = {
   neutral: 'text-[hsl(var(--text-secondary))]',
 } as const;
 
-// Simple relative time formatting without date-fns
-function formatRelativeTime(dateString: string, locale: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const date = parseUTCDate(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-
-  if (diffMin < 1) return t('dashboard:time.justNow');
-  if (diffMin < 60) return t('dashboard:time.minutesAgo', { count: diffMin });
-  if (diffHour < 24) return t('dashboard:time.hoursAgo', { count: diffHour });
-  if (diffDay < 7) return t('dashboard:time.daysAgo', { count: diffDay });
-  return date.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US');
-}
-
 export function RecentActivityList() {
-  const { t, i18n } = useTranslation(['admin', 'common', 'dashboard']);
+  const { t } = useTranslation(['admin', 'common']);
 
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['admin', 'audit-logs', 'recent'],
@@ -112,7 +95,7 @@ export function RecentActivityList() {
             </p>
           </div>
           <span className="text-xs text-[hsl(var(--text-tertiary))] whitespace-nowrap">
-            {formatRelativeTime(item.created_at, i18n.language, t)}
+            {formatRelativeTime(item.created_at)}
           </span>
         </div>
         );

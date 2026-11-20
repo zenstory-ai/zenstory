@@ -1,10 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../../config/upgradeExperience";
 import { formatAiQuotaResetDay, formatAiQuotaResetLocal } from "../../hooks/useAiMessageQuota";
 import { UpgradePromptModal } from "./UpgradePromptModal";
-
-// Same wall as in the chat: today's free AI messages are used up.
-const chatQuotaPrompt = getUpgradePromptDefinition("chat_quota_blocked");
 
 interface IdeaQuotaWallModalProps {
   open: boolean;
@@ -26,9 +22,7 @@ export function IdeaQuotaWallModal({ open, onClose, resetAt }: IdeaQuotaWallModa
     <UpgradePromptModal
       open={open}
       onClose={onClose}
-      source={chatQuotaPrompt.source}
-      primaryDestination="billing"
-      secondaryDestination="pricing"
+      promptId="chat_quota_blocked"
       title={t("chat:panel.quotaExceededTitle", { defaultValue: "今天的免费 AI 消息用完了" })}
       description={
         resetDay && resetLocal
@@ -50,13 +44,7 @@ export function IdeaQuotaWallModal({ open, onClose, resetAt }: IdeaQuotaWallModa
             })
       }
       primaryLabel={t("dashboard:billing.ctaUpgradePro", { defaultValue: "开通 Pro" })}
-      onPrimary={() => {
-        window.location.assign(buildUpgradeUrl(chatQuotaPrompt.billingPath, chatQuotaPrompt.source));
-      }}
       secondaryLabel={t("home:pricingTeaser.viewPricing")}
-      onSecondary={() => {
-        window.location.assign(buildUpgradeUrl(chatQuotaPrompt.pricingPath, chatQuotaPrompt.source));
-      }}
     />
   );
 }

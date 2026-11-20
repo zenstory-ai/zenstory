@@ -94,7 +94,7 @@ import { appendDraftForProject, useDraftPersistence } from "../hooks/useDraftPer
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ChatQuotaCard } from "./subscription/ChatQuotaCard";
 import { nextAiQuotaResetMs, aiQuotaPeriodKey } from "../hooks/useAiMessageQuota";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
+import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
 import { reportActivationEvent } from "../lib/activationEvents";
 import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
@@ -105,72 +105,86 @@ import { useQuotaRefreshAfterLeave } from "../hooks/useQuotaRefreshAfterLeave";
 import { exhaustionLeftFilesUnfinished, formatRoundDelivery, hasSubstantiveDisplayItems, parseIterationExhaustedFiles, parseRoundStopOutcome, type RoundWrittenFile } from "../lib/chatRoundEnd";
 import type { QuotaResponse } from "../types/subscription";
 
-const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Message["statusCards"] | undefined => {
-  if (!metadataRaw) return undefined;
+const clampNumber = (value: number, min: number, max: number): number => {
+  return Math.min(max, Math.max(min, value));
+};
+
+const parseMessageMetadataObject = (metadataRaw?: string | null): Record<string, unknown> | null => {
+  if (!metadataRaw) return null;
 
   try {
-    const parsed = JSON.parse(metadataRaw) as { status_cards?: unknown };
-    const statusCards = parsed.status_cards;
-    if (!Array.isArray(statusCards)) return undefined;
-
-    const normalized = statusCards
-      .map((card): NonNullable<Message["statusCards"]>[number] | null => {
-        if (!card || typeof card !== "object") return null;
-
-        const cardType = (card as { type?: unknown }).type;
-        if (cardType === "workflow_stopped") {
-          const reason = (card as { reason?: unknown }).reason;
-          const agentType = (card as { agentType?: unknown }).agentType;
-          const message = (card as { message?: unknown }).message;
-          const question = (card as { question?: unknown }).question;
-          const context = (card as { context?: unknown }).context;
-          const details = (card as { details?: unknown }).details;
-
-          return {
-            type: "workflow_stopped",
-            reason: typeof reason === "string" ? reason : undefined,
-            agentType: typeof agentType === "string" ? agentType : undefined,
-            message: typeof message === "string" ? message : undefined,
-            question: typeof question === "string" ? question : undefined,
-            context: typeof context === "string" ? context : undefined,
-            details: Array.isArray(details)
-              ? details.filter((detail): detail is string => typeof detail === "string")
-              : undefined,
-          };
-        }
-
-        if (cardType === "iteration_exhausted") {
-          const layer = (card as { layer?: unknown }).layer;
-          const iterationsUsed = (card as { iterationsUsed?: unknown }).iterationsUsed;
-          const maxIterations = (card as { maxIterations?: unknown }).maxIterations;
-          const reason = (card as { reason?: unknown }).reason;
-          const lastAgent = (card as { lastAgent?: unknown }).lastAgent;
-          const limit = (card as { limit?: unknown }).limit;
-          const unfinished = parseIterationExhaustedFiles(
-            (card as { unfinishedFiles?: unknown }).unfinishedFiles,
-            (card as { rolledBackFiles?: unknown }).rolledBackFiles,
-          );
-
-          return {
-            type: "iteration_exhausted",
-            layer: layer === "collaboration" || layer === "tool_call" || layer === "empty_file_correction" || layer === "unexecuted_tool_text" ? layer : undefined,
-            ...unfinished,
-            iterationsUsed: typeof iterationsUsed === "number" ? iterationsUsed : undefined,
-            maxIterations: typeof maxIterations === "number" ? maxIterations : undefined,
-            reason: typeof reason === "string" ? reason : undefined,
-            lastAgent: typeof lastAgent === "string" ? lastAgent : undefined,
-            limit: typeof limit === "string" ? limit : undefined,
-          };
-        }
-
-        return null;
-      })
-      .filter((card): card is NonNullable<Message["statusCards"]>[number] => card !== null);
-
-    return normalized.length > 0 ? normalized : undefined;
+    const parsed: unknown = JSON.parse(metadataRaw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
-    return undefined;
+    return null;
   }
+};
+
+const parseMessageStatusCardsFromMetadata = (
+  metadata: Record<string, unknown> | null,
+): Message["statusCards"] | undefined => {
+  if (!metadata) return undefined;
+
+  const statusCards = metadata.status_cards;
+  if (!Array.isArray(statusCards)) return undefined;
+
+  const normalized = statusCards
+    .map((card): NonNullable<Message["statusCards"]>[number] | null => {
+      if (!card || typeof card !== "object") return null;
+
+      const cardType = (card as { type?: unknown }).type;
+      if (cardType === "workflow_stopped") {
+        const reason = (card as { reason?: unknown }).reason;
+        const agentType = (card as { agentType?: unknown }).agentType;
+        const message = (card as { message?: unknown }).message;
+        const question = (card as { question?: unknown }).question;
+        const context = (card as { context?: unknown }).context;
+        const details = (card as { details?: unknown }).details;
+
+        return {
+          type: "workflow_stopped",
+          reason: typeof reason === "string" ? reason : undefined,
+          agentType: typeof agentType === "string" ? agentType : undefined,
+          message: typeof message === "string" ? message : undefined,
+          question: typeof question === "string" ? question : undefined,
+          context: typeof context === "string" ? context : undefined,
+          details: Array.isArray(details)
+            ? details.filter((detail): detail is string => typeof detail === "string")
+            : undefined,
+        };
+      }
+
+      if (cardType === "iteration_exhausted") {
+        const layer = (card as { layer?: unknown }).layer;
+        const iterationsUsed = (card as { iterationsUsed?: unknown }).iterationsUsed;
+        const maxIterations = (card as { maxIterations?: unknown }).maxIterations;
+        const reason = (card as { reason?: unknown }).reason;
+        const lastAgent = (card as { lastAgent?: unknown }).lastAgent;
+        const limit = (card as { limit?: unknown }).limit;
+        const unfinished = parseIterationExhaustedFiles(
+          (card as { unfinishedFiles?: unknown }).unfinishedFiles,
+          (card as { rolledBackFiles?: unknown }).rolledBackFiles,
+        );
+
+        return {
+          type: "iteration_exhausted",
+          layer: layer === "collaboration" || layer === "tool_call" || layer === "empty_file_correction" || layer === "unexecuted_tool_text" ? layer : undefined,
+          ...unfinished,
+          iterationsUsed: typeof iterationsUsed === "number" ? iterationsUsed : undefined,
+          maxIterations: typeof maxIterations === "number" ? maxIterations : undefined,
+          reason: typeof reason === "string" ? reason : undefined,
+          lastAgent: typeof lastAgent === "string" ? lastAgent : undefined,
+          limit: typeof limit === "string" ? limit : undefined,
+        };
+      }
+
+      return null;
+    })
+    .filter((card): card is NonNullable<Message["statusCards"]>[number] => card !== null);
+
+  return normalized.length > 0 ? normalized : undefined;
 };
 
 /**
@@ -323,30 +337,27 @@ const extractCompletedToolResults = (segments: MessageSegment[]): Message["toolR
   return completedToolResults.length > 0 ? completedToolResults : undefined;
 };
 
-const parseMessageFeedbackFromMetadata = (metadataRaw?: string | null): Message["feedback"] | undefined => {
-  if (!metadataRaw) return undefined;
+const parseMessageFeedbackFromMetadata = (
+  metadata: Record<string, unknown> | null,
+): Message["feedback"] | undefined => {
+  if (!metadata) return undefined;
 
-  try {
-    const parsed = JSON.parse(metadataRaw) as { feedback?: unknown };
-    const feedback = parsed.feedback;
-    if (!feedback || typeof feedback !== "object") return undefined;
+  const feedback = metadata.feedback;
+  if (!feedback || typeof feedback !== "object") return undefined;
 
-    const vote = (feedback as { vote?: unknown }).vote;
-    if (vote !== "up" && vote !== "down") return undefined;
+  const vote = (feedback as { vote?: unknown }).vote;
+  if (vote !== "up" && vote !== "down") return undefined;
 
-    const preset = (feedback as { preset?: unknown }).preset;
-    const comment = (feedback as { comment?: unknown }).comment;
-    const updatedAt = (feedback as { updated_at?: unknown }).updated_at;
+  const preset = (feedback as { preset?: unknown }).preset;
+  const comment = (feedback as { comment?: unknown }).comment;
+  const updatedAt = (feedback as { updated_at?: unknown }).updated_at;
 
-    return {
-      vote,
-      preset: typeof preset === "string" ? preset : null,
-      comment: typeof comment === "string" ? comment : null,
-      updated_at: typeof updatedAt === "string" ? updatedAt : null,
-    };
-  } catch {
-    return undefined;
-  }
+  return {
+    vote,
+    preset: typeof preset === "string" ? preset : null,
+    comment: typeof comment === "string" ? comment : null,
+    updated_at: typeof updatedAt === "string" ? updatedAt : null,
+  };
 };
 
 const normalizeFeedbackFromResponse = (
@@ -424,10 +435,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const chatQuotaUpgradePrompt = getUpgradePromptDefinition("chat_quota_blocked");
   const fileVersionUpgradePrompt = getUpgradePromptDefinition("file_version_quota_blocked");
 
-  // Clamp utility function
-  const clampNumber = useMemo(() => (value: number, min: number, max: number): number => {
-    return Math.min(max, Math.max(min, value));
-  }, []);
   const {
     currentProjectId,
     currentProject,
@@ -1084,7 +1091,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           return prev;
         }
 
-        const matchedFeedback = parseMessageFeedbackFromMetadata(matchedMessage.metadata);
+        const matchedFeedback = parseMessageFeedbackFromMetadata(
+          parseMessageMetadataObject(matchedMessage.metadata),
+        );
 
         return prev.map((item) =>
           item.id === localMessageId
@@ -1610,8 +1619,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
       // Convert to Message format
       const loadedMessages: Message[] = historyMessages.map((msg) => {
-        const feedback = parseMessageFeedbackFromMetadata(msg.metadata);
-        const statusCards = parseMessageStatusCardsFromMetadata(msg.metadata);
+        const parsedMetadata = parseMessageMetadataObject(msg.metadata);
+        const createdAt = parseUTCDate(msg.created_at);
+        const feedback = parseMessageFeedbackFromMetadata(parsedMetadata);
+        const statusCards = parseMessageStatusCardsFromMetadata(parsedMetadata);
         const { toolCalls, toolResults, orderedToolCalls } = parseToolCallsFromHistory(msg.tool_calls);
 
         return {
@@ -1619,13 +1630,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           backendMessageId: msg.id,
           role: msg.role as "user" | "assistant",
           content: msg.content,
-          timestamp: parseUTCDate(msg.created_at),
+          timestamp: createdAt,
           feedback,
           statusCards,
           toolCalls,
           toolResults,
-          displayItems: parseChatDisplayEvents(msg.metadata, orderedToolCalls ?? [], parseUTCDate(msg.created_at), t),
-          stopOutcome: msg.role === "assistant" ? parseRoundStopOutcome(msg.metadata) ?? undefined : undefined,
+          displayItems: parseChatDisplayEvents(parsedMetadata, orderedToolCalls ?? [], createdAt, t),
+          stopOutcome: msg.role === "assistant" ? parseRoundStopOutcome(parsedMetadata) ?? undefined : undefined,
         };
       });
 
@@ -2604,7 +2615,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const safeMax = Math.max(max, CHAT_INPUT_PANEL_MIN_HEIGHT_PX);
 
     return clampNumber(safeMax, CHAT_INPUT_PANEL_MIN_HEIGHT_PX, CHAT_INPUT_PANEL_MAX_HEIGHT_PX);
-  }, [clampNumber]);
+  }, []);
 
   const handleInputPanelResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
     const panelEl = inputPanelRef.current;
@@ -3084,48 +3095,24 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       <UpgradePromptModal
         open={showQuotaUpgradeModal}
         onClose={() => setShowQuotaUpgradeModal(false)}
-        source={chatQuotaUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
+        promptId="chat_quota_blocked"
         title={isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededTitle') : t('chat:panel.quotaExceededTitle')}
         description={isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededHint') : t('chat:panel.quotaExceededHint')}
         primaryLabel={t('dashboard:billing.ctaUpgradePro')}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(chatQuotaUpgradePrompt.billingPath, chatQuotaUpgradePrompt.source)
-          );
-        }}
         secondaryLabel={t('home:pricingTeaser.viewPricing')}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(chatQuotaUpgradePrompt.pricingPath, chatQuotaUpgradePrompt.source)
-          );
-        }}
       />
 
       <UpgradePromptModal
         open={showFileVersionUpgradeModal}
         onClose={() => setShowFileVersionUpgradeModal(false)}
-        source={fileVersionUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
+        promptId="file_version_quota_blocked"
         title={t('editor:versionHistory.fileVersionLimitTitle')}
         description={t('editor:versionHistory.fileVersionLimitUpgrade')}
         paidDescription={t('editor:versionHistory.fileVersionLimitPaid', {
           defaultValue: '正文照常保存，只是这个文件不再生成新版本。',
         })}
         primaryLabel={t('common:viewUpgrade')}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(fileVersionUpgradePrompt.billingPath, fileVersionUpgradePrompt.source)
-          );
-        }}
         secondaryLabel={t('common:viewPlans')}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(fileVersionUpgradePrompt.pricingPath, fileVersionUpgradePrompt.source)
-          );
-        }}
       />
 
       {/* Undo an AI edit: the copy is the file-level undo message owned by the editor

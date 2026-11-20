@@ -36,28 +36,17 @@ const mockApiGet = vi.fn()
 const mockApiPost = vi.fn()
 const mockApiDelete = vi.fn()
 
-vi.mock('../apiClient', async (importOriginal) => ({
-  apiErrorFromPayload: (await importOriginal<typeof import('../apiClient')>()).apiErrorFromPayload,
-  api: {
-    get: (...args: unknown[]) => mockApiGet(...args),
-    post: (...args: unknown[]) => mockApiPost(...args),
-    delete: (...args: unknown[]) => mockApiDelete(...args),
-  },
-  getApiBase: vi.fn(() => 'http://localhost:8000'),
-  getAccessToken: vi.fn(() => 'test-token'),
-  tryRefreshToken: vi.fn(() => Promise.resolve(true)),
-  resolveOwnedAuthSession: vi.fn(() => ({ accessToken: localStorage.getItem('access_token'), refreshToken: localStorage.getItem('refresh_token') })),
-  ApiError: class ApiError extends Error {
-    constructor(
-      public status: number,
-      message: string,
-      public details?: Record<string, unknown>,
-    ) {
-      super(message)
-      this.name = 'ApiError'
-    }
-  },
-}))
+vi.mock('../apiClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../apiClient')>()
+  return {
+    ...actual,
+    api: {
+      get: (...args: unknown[]) => mockApiGet(...args),
+      post: (...args: unknown[]) => mockApiPost(...args),
+      delete: (...args: unknown[]) => mockApiDelete(...args),
+    },
+  }
+})
 
 // Mock fetch for upload function
 global.fetch = vi.fn()
@@ -203,9 +192,6 @@ describe('materialsApi', () => {
     })
 
     it('handles 401 with token refresh', async () => {
-      const { tryRefreshToken } = await import('../apiClient')
-      const mockTryRefreshToken = tryRefreshToken as ReturnType<typeof vi.fn>
-
       const mockResponse: MaterialUploadResponse = {
         novel_id: 'novel-1',
         message: 'Upload successful',
@@ -220,20 +206,26 @@ describe('materialsApi', () => {
         } as Response)
         .mockResolvedValueOnce({
           ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: 'rotated-test-token',
+            refresh_token: 'rotated-test-refresh',
+            user: { id: 'user-1' },
+          }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
           json: async () => mockResponse,
         } as Response)
-
-      mockTryRefreshToken.mockImplementation(async () => {
-        localStorage.setItem('access_token', 'rotated-test-token')
-        localStorage.setItem('refresh_token', 'rotated-test-refresh')
-        return true
-      })
 
       const result = await materialsApi.upload(mockFile)
 
       expect(result).toEqual(mockResponse)
-      expect(mockTryRefreshToken).toHaveBeenCalled()
-      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(global.fetch).toHaveBeenCalledTimes(3)
+      expect(vi.mocked(global.fetch).mock.calls[1]?.[0]).toContain('/api/auth/refresh')
+      expect(vi.mocked(global.fetch).mock.calls[2]?.[1]).toMatchObject({
+        headers: { Authorization: 'Bearer rotated-test-token' },
+      })
     })
 
     it('throws ApiError on upload failure', async () => {
@@ -359,17 +351,9 @@ describe('materialsApi', () => {
     })
 
     it('falls back to sanitized title when Content-Disposition is absent and retries once on 401', async () => {
-      const { tryRefreshToken } = await import('../apiClient')
-      const mockTryRefreshToken = tryRefreshToken as ReturnType<typeof vi.fn>
       vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fallback-export')
       vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
       vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-
-      mockTryRefreshToken.mockImplementation(async () => {
-        localStorage.setItem('access_token', 'rotated-export-token')
-        localStorage.setItem('refresh_token', 'rotated-export-refresh')
-        return true
-      })
 
       vi.mocked(global.fetch)
         .mockResolvedValueOnce({
@@ -381,6 +365,15 @@ describe('materialsApi', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
+          json: async () => ({
+            access_token: 'rotated-export-token',
+            refresh_token: 'rotated-export-refresh',
+            user: { id: 'user-1' },
+          }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
           headers: new Headers(),
           blob: async () => new Blob(['# 九天斩神诀'], { type: 'text/plain;charset=utf-8' }),
         } as Response)
@@ -388,7 +381,8 @@ describe('materialsApi', () => {
       const result = await materialsApi.exportBreakdown('novel-9', '九天/斩神诀: 卷一')
 
       expect(result).toEqual({ filename: '九天 斩神诀 卷一_拆解.txt' })
-      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(global.fetch).toHaveBeenCalledTimes(3)
+      expect(vi.mocked(global.fetch).mock.calls[1]?.[0]).toContain('/api/auth/refresh')
     })
 
     it('throws structured ApiError without downloading on 404 or non-JSON 502', async () => {

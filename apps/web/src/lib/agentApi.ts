@@ -27,7 +27,7 @@ import type {
   SSEIterationExhaustedData,
   SSEWorkflowStoppedData,
 } from "../types";
-import { ApiError, api, tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { api, authenticatedFetch } from "./apiClient";
 import { debugContext } from "./debugContext";
 import { resolveApiErrorMessage, toUserErrorMessage, translateError } from "./errorHandler";
 import { logger } from "./logger";
@@ -308,8 +308,6 @@ export function streamAgentRequest(
     onClosed?: () => void;
   },
 ): AbortController {
-  const entryAccess = getAccessToken();
-  const entryRefresh = localStorage.getItem("refresh_token");
   const abortController = new AbortController();
   const traceId = generateTraceId();
   const entry = request.metadata?.entry;
@@ -320,73 +318,67 @@ export function streamAgentRequest(
   );
   const callbacks = withOutcomeTelemetry(rawCallbacks, telemetry);
 
-  const fetchStream = async (accessToken: string | null = entryAccess, isRetry = false) => {
+  const fetchStream = async () => {
     let failurePhase: import("./agentStreamTelemetry").AgentStreamFailurePhase = "fetch";
     // Track whether we received a terminal SSE event ("done" or "error").
     // If the server/proxy closes the connection without a terminal event,
     // the frontend would otherwise remain stuck in "processing" state.
     let receivedTerminalEvent = false;
+    let lastAttempt = 0;
+    let responseRequestId: string | undefined;
+    let responseTraceId = traceId;
+    let responseAgentRunId: string | undefined;
     try {
-      const language = localStorage.getItem("zenstory-language") || "zh";
-
-      const response = await fetch(`${getApiBase()}/api/v1/agent/stream`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept-Language": language,
-          Accept: "text/event-stream",
-          [TRACE_ID_HEADER]: traceId,
-          [CLIENT_STOP_CONTRACT_HEADER]: "1",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      const response = await authenticatedFetch(
+        "/api/v1/agent/stream",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
+            [TRACE_ID_HEADER]: traceId,
+            [CLIENT_STOP_CONTRACT_HEADER]: "1",
+          },
+          body: JSON.stringify({
+            project_id: request.project_id,
+            message: request.message,
+            session_id: request.session_id,
+            selected_text: request.selected_text,
+            metadata: request.metadata || {},
+            selected_skill_ids: request.selected_skill_ids?.length
+              ? request.selected_skill_ids
+              : undefined,
+          }),
+          signal: abortController.signal,
         },
-        body: JSON.stringify({
-          project_id: request.project_id,
-          message: request.message,
-          session_id: request.session_id,
-          selected_text: request.selected_text,
-          metadata: request.metadata || {},
-          selected_skill_ids: request.selected_skill_ids?.length
-            ? request.selected_skill_ids
-            : undefined,
-        }),
-        signal: abortController.signal,
-      });
+        {
+          includeLanguage: true,
+          clearOnRefreshFailureReason: "agent_auth_failed",
+          onResponse: (res, attempt) => {
+            lastAttempt = attempt;
+            failurePhase = "response";
+            responseRequestId = res.headers?.get?.("X-Request-ID") ?? undefined;
+            responseTraceId = res.headers?.get?.(TRACE_ID_HEADER) ?? traceId;
+            responseAgentRunId = res.headers?.get?.("X-Agent-Run-ID") ?? undefined;
+            telemetry.noteResponse(res.status, {
+              requestId: responseRequestId,
+              agentRunId: responseAgentRunId,
+            });
+            debugContext.set({
+              trace_id: responseTraceId,
+              request_id: responseRequestId,
+              agent_run_id: responseAgentRunId,
+              project_id: request.project_id,
+              agent_session_id: request.session_id ?? null,
+              route: window.location.href,
+              created_at: new Date().toISOString(),
+            });
+          },
+        },
+      );
 
-      failurePhase = "response";
-      const responseRequestId = response.headers?.get?.("X-Request-ID") ?? undefined;
-      const responseTraceId = response.headers?.get?.(TRACE_ID_HEADER) ?? traceId;
-      const responseAgentRunId = response.headers?.get?.("X-Agent-Run-ID") ?? undefined;
-      telemetry.noteResponse(response.status, {
-        requestId: responseRequestId,
-        agentRunId: responseAgentRunId,
-      });
-
-      debugContext.set({
-        trace_id: responseTraceId,
-        request_id: responseRequestId,
-        agent_run_id: responseAgentRunId,
-        project_id: request.project_id,
-        agent_session_id: request.session_id ?? null,
-        route: window.location.href,
-        created_at: new Date().toISOString(),
-      });
-
-      // Handle 401 - try to refresh token and retry once
-      if (response.status === 401 && !isRetry) {
-        logger.log("[AgentAPI] Got 401, attempting token refresh...");
-        let ownedSession = entryAccess && entryRefresh
-          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-        if (ownedSession?.accessToken && ownedSession.refreshToken) {
-          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-            const refreshed = await tryRefreshToken();
-            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-          }
-          if (ownedSession?.accessToken && ownedSession.refreshToken) {
-            logger.log("[AgentAPI] Token refreshed, retrying request...");
-            return fetchStream(ownedSession.accessToken, true);
-          }
-        }
-        if (resolveOwnedAuthSession(entryAccess, entryRefresh)) clearAuthStorage("agent_auth_failed");
+      // Initial 401 that could not be recovered via token refresh
+      if (response.status === 401 && lastAttempt === 0) {
         callbacks.onError?.(
           translateError("ERR_AUTH_TOKEN_INVALID"),
           "AUTH_ERROR",
@@ -784,72 +776,57 @@ export async function fetchSuggestions(
   recentMessages?: Array<{ role: string; content: string }>,
   count: number = 3,
 ): Promise<string[] | null> {
-  const entryAccess = getAccessToken();
   const entryRefresh = localStorage.getItem("refresh_token");
   if (suggestionsBlocked(entryRefresh)) return null;
-  const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<string[] | null> => {
-    try {
-      const language = localStorage.getItem("zenstory-language") || "zh";
 
-      const response = await fetch(`${getApiBase()}/api/v1/agent/suggest`, {
+  try {
+    const response = await authenticatedFetch(
+      "/api/v1/agent/suggest",
+      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept-Language": language,
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({
           project_id: projectId,
           recent_messages: recentMessages?.slice(-5),
           count: Math.min(count, 5),
         }),
-      });
+      },
+      { includeLanguage: true },
+    );
 
-      // Handle 401 - try to refresh token and retry once
-      if (response.status === 401 && !isRetry) {
-        let ownedSession = entryAccess && entryRefresh
-          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-        if (ownedSession?.accessToken && ownedSession.refreshToken) {
-          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-            const refreshed = await tryRefreshToken();
-            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-          }
-          if (ownedSession?.accessToken && ownedSession.refreshToken) {
-            return doFetch(ownedSession.accessToken, true);
-          }
-        }
-        return null;
-      }
-
-      // 429：小时限流或每日上限已满。建议只是锦上添花，静默退回失败标记，
-      // 不记错误、不打扰用户（调用方会显示本地兜底建议）；到 Retry-After 之前不再请求。
-      if (response.status === 429) {
-        blockSuggestions(response.headers?.get?.("Retry-After"), entryRefresh);
-        return null;
-      }
-
-      if (!response.ok) {
-        logger.error("Failed to fetch suggestions:", response.status);
-        return null;
-      }
-
-      const data = await response.json();
-      return Array.isArray(data.suggestions) && data.suggestions.every((s: unknown) => typeof s === "string")
-        ? data.suggestions.slice(0, 3)
-        : null;
-    } catch (error) {
-      logger.error("Failed to fetch suggestions:", error);
+    if (response.status === 401) {
       return null;
     }
-  };
 
-  return doFetch();
+    // 429：小时限流或每日上限已满。建议只是锦上添花，静默退回失败标记，
+    // 不记错误、不打扰用户（调用方会显示本地兜底建议）；到 Retry-After 之前不再请求。
+    if (response.status === 429) {
+      blockSuggestions(response.headers?.get?.("Retry-After"), entryRefresh);
+      return null;
+    }
+
+    if (!response.ok) {
+      logger.error("Failed to fetch suggestions:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    return Array.isArray(data.suggestions) && data.suggestions.every((s: unknown) => typeof s === "string")
+      ? data.suggestions.slice(0, 3)
+      : null;
+  } catch (error) {
+    logger.error("Failed to fetch suggestions:", error);
+    return null;
+  }
 }
 
 /**
  * Send a steering message to an active agent session.
  *
- * Uses the same API base/auth token/refresh flow as other agent APIs.
+ * Uses the shared `api.post` client so auth/refresh and HTTP error status
+ * (e.g. 404 when a round already ended) are preserved consistently.
  *
  * @param sessionId - Active agent session ID
  * @param message - Steering content
@@ -859,57 +836,10 @@ export async function sendSteeringRequest(
   sessionId: string,
   message: string,
 ): Promise<{ message_id: string; queued: boolean }> {
-  const entryAccess = getAccessToken();
-  const entryRefresh = localStorage.getItem("refresh_token");
-  const doSend = async (
-    accessToken: string | null = entryAccess,
-    isRetry = false,
-  ): Promise<{ message_id: string; queued: boolean }> => {
-    const language = localStorage.getItem("zenstory-language") || "zh";
-
-    const response = await fetch(`${getApiBase()}/api/v1/agent/steer`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept-Language": language,
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({
-        session_id: sessionId,
-        message,
-      }),
-    });
-
-    if (response.status === 401 && !isRetry) {
-      let ownedSession = entryAccess && entryRefresh
-        ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-      if (ownedSession?.accessToken && ownedSession.refreshToken) {
-        if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-          const refreshed = await tryRefreshToken();
-          ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-        }
-        if (ownedSession?.accessToken && ownedSession.refreshToken) {
-          return doSend(ownedSession.accessToken, true);
-        }
-      }
-      if (resolveOwnedAuthSession(entryAccess, entryRefresh)) clearAuthStorage("agent_auth_failed");
-      throw new Error(translateError("ERR_AUTH_TOKEN_INVALID"));
-    }
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ detail: `HTTP ${response.status}` }));
-      const errorMessage = resolveApiErrorMessage(error, `HTTP ${response.status}`);
-      // Keep the status: 404 means no run will read this follow-up (the round has
-      // already wrapped up), so the caller sends it as the next message instead.
-      throw new ApiError(response.status, errorMessage);
-    }
-
-    return response.json();
-  };
-
-  return doSend();
+  return api.post<{ message_id: string; queued: boolean }>("/api/v1/agent/steer", {
+    session_id: sessionId,
+    message,
+  });
 }
 
 /**

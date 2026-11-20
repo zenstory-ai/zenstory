@@ -111,7 +111,6 @@ function assertDenied(result: Outcome, surface: Surface) {
   if (surface === 'stream') expect(result).toEqual({ ok: false, code: 'AUTH_ERROR', retryable: false })
   // Unavailable suggestions stay distinct from a valid empty success (issue #180).
   else if (surface === 'suggestions') expect(result).toEqual({ ok: true, value: null })
-  else if (surface === 'steer') expect(result).toEqual({ ok: false, status: undefined })
   else expect(result).toEqual({ ok: false, status: 401 })
   expect(downloads).toEqual([])
 }
@@ -301,7 +300,7 @@ describe.each(['stream', 'suggestions', 'steer', 'export', 'material', 'draft'] 
   it.each([503, 403])('current refresh failure%s retains existing failure contract', async status => {
     const before = storage(); route = async r => r.path === '/api/auth/refresh' ? json({ detail: 'refresh failed' }, status) : denied()
     assertDenied(await start(surface), surface); expect(records).toHaveLength(2)
-    const clearsOnTransient = surface === 'stream' || surface === 'steer'
+    const clearsOnTransient = surface === 'stream'
     expect(storage()).toEqual(status === 403 || clearsOnTransient
       ? { access: null, refresh: null, user: null, validated: null } : before)
   })
@@ -309,9 +308,9 @@ describe.each(['stream', 'suggestions', 'steer', 'export', 'material', 'draft'] 
     route = async r => r.path === '/api/auth/refresh' ? rotation('a', 1) : denied()
     const result = await start(surface)
     if (surface === 'stream') expect(result).toEqual({ ok: false, code: 'HTTP_ERROR', retryable: false })
-    // A steer's HTTP failure keeps its status (a 404 is sent as the next message instead).
-    else if (surface === 'steer') expect(result).toEqual({ ok: false, status: 401 })
     else assertDenied(result, surface)
-    expect(records).toHaveLength(3); expect(storage().refresh).toBe(pair('a', 1).refreshToken)
+    expect(records).toHaveLength(3)
+    // steer delegates to api.post which clears unrecoverable retry 401s like all JSON endpoints.
+    expect(storage().refresh).toBe(surface === 'steer' ? null : pair('a', 1).refreshToken)
   })
 })

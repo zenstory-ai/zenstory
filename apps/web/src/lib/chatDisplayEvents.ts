@@ -13,15 +13,17 @@ export function dropProgressOnlyItems(items: StreamRenderItem[]): StreamRenderIt
 
 /** Replay the sequence recorded by the server, not a guessed category order. */
 export function parseChatDisplayEvents(
-  metadata: string | null | undefined,
+  metadata: string | Record<string, unknown> | null | undefined,
   tools: ToolCall[],
   timestamp: Date,
   t: (key: string, options?: Record<string, unknown>) => string,
 ): StreamRenderItem[] | undefined {
   if (!metadata) return undefined;
   try {
-    const parsed = JSON.parse(metadata);
-    const events: unknown = parsed?.display_events;
+    const parsed: unknown = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    if (!parsed || typeof parsed !== 'object') return undefined;
+    const record = parsed as { display_events?: unknown; compaction?: { summary?: unknown } };
+    const events = record.display_events;
     if (!Array.isArray(events) || events.length === 0) return undefined;
     const items: StreamRenderItem[] = [];
     for (const [index, event] of events.entries()) {
@@ -59,7 +61,7 @@ export function parseChatDisplayEvents(
           break;
         case 'history_compacted': {
           // The summary lives once on the row's compaction record, not in the event.
-          const summary = parsed?.compaction?.summary;
+          const summary = record.compaction?.summary;
           items.push({ ...base, type: 'history_compaction', compactionState: 'done', content: typeof summary === 'string' ? summary : undefined });
           break;
         }

@@ -3,12 +3,26 @@ import { useUpgradeExposure } from "../../hooks/useUpgradeExposure";
 import { useTranslation } from "react-i18next";
 import { usePaidPlanWhenOpen } from "../../hooks/usePaidPlanWhenOpen";
 import { trackUpgradeClick, type UpgradeFunnelSurface } from "../../lib/upgradeAnalytics";
+import {
+  buildUpgradeUrl,
+  getUpgradePromptDefinition,
+  type UpgradePromptScenario,
+} from "../../config/upgradeExperience";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
+
+export type UpgradePromptId = UpgradePromptScenario;
 
 interface UpgradePromptModalProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * Optional prompt scenario from `config/upgradeExperience.ts`.
+   * Supplies default `source`, `surface`, `primaryDestination` ("billing"),
+   * `secondaryDestination` ("pricing"), and `onPrimary`/`onSecondary` navigation.
+   * Any explicitly provided prop overrides the scenario default.
+   */
+  promptId?: UpgradePromptId;
   title: string;
   description: string;
   /**
@@ -17,7 +31,7 @@ interface UpgradePromptModalProps {
    */
   paidDescription?: string;
   primaryLabel: string;
-  onPrimary: () => void;
+  onPrimary?: () => void;
   secondaryLabel?: string;
   onSecondary?: () => void;
   source?: string;
@@ -29,6 +43,7 @@ interface UpgradePromptModalProps {
 export function UpgradePromptModal({
   open,
   onClose,
+  promptId,
   title,
   description,
   paidDescription,
@@ -37,16 +52,47 @@ export function UpgradePromptModal({
   secondaryLabel,
   onSecondary,
   source,
-  surface = "modal",
+  surface,
   primaryDestination,
   secondaryDestination,
 }: UpgradePromptModalProps) {
   const { t } = useTranslation(["dashboard"]);
+  const promptDefinition = promptId ? getUpgradePromptDefinition(promptId) : undefined;
+  const resolvedSource = source ?? promptDefinition?.source;
+  const resolvedSurface = surface ?? promptDefinition?.surface ?? "modal";
+  const resolvedPrimaryDestination = primaryDestination ?? (promptDefinition ? "billing" : undefined);
+  const resolvedSecondaryDestination = secondaryDestination ?? (promptDefinition ? "pricing" : undefined);
+
+  const handlePrimary =
+    onPrimary ??
+    (promptDefinition
+      ? () => {
+          window.location.assign(
+            buildUpgradeUrl(promptDefinition.billingPath, resolvedSource ?? promptDefinition.source),
+          );
+        }
+      : undefined);
+
+  const handleSecondary =
+    onSecondary ??
+    (promptDefinition && secondaryLabel
+      ? () => {
+          window.location.assign(
+            buildUpgradeUrl(promptDefinition.pricingPath, resolvedSource ?? promptDefinition.source),
+          );
+        }
+      : undefined);
+
   // A paid author hitting a paid-plan limit has nothing to upgrade to: say the limit is
   // reached instead of offering "开通 Pro", and keep it out of the upgrade funnel.
   const { isPaid, resolved } = usePaidPlanWhenOpen(open);
 
-  const exposureRef = useUpgradeExposure({ enabled: open && resolved && !isPaid, source, surface, placement: "limit-dialog" });
+  const exposureRef = useUpgradeExposure({
+    enabled: open && resolved && !isPaid,
+    source: resolvedSource,
+    surface: resolvedSurface,
+    placement: "limit-dialog",
+  });
 
   if (open && !resolved) {
     // Plan not known yet: never flash "开通 Pro" at someone who may already have it.
@@ -109,25 +155,25 @@ export function UpgradePromptModal({
           <Button
             className="w-full"
             onClick={() => {
-              if (source) {
-                trackUpgradeClick(source, "primary", primaryDestination, surface);
+              if (resolvedSource) {
+                trackUpgradeClick(resolvedSource, "primary", resolvedPrimaryDestination, resolvedSurface);
               }
-              onPrimary();
+              handlePrimary?.();
               onClose();
             }}
           >
             {primaryLabel}
           </Button>
 
-          {secondaryLabel && onSecondary && (
+          {secondaryLabel && handleSecondary && (
             <Button
               variant="secondary"
               className="w-full"
               onClick={() => {
-                if (source) {
-                  trackUpgradeClick(source, "secondary", secondaryDestination, surface);
+                if (resolvedSource) {
+                  trackUpgradeClick(resolvedSource, "secondary", resolvedSecondaryDestination, resolvedSurface);
                 }
-                onSecondary();
+                handleSecondary();
                 onClose();
               }}
             >

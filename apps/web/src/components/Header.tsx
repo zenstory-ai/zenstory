@@ -33,7 +33,7 @@ import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { logger } from "../lib/logger";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
+import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { LoadingSpinner } from "./LoadingSpinner";
 
 /**
@@ -418,23 +418,11 @@ export const Header: React.FC<HeaderProps> = () => {
       <UpgradePromptModal
         open={showExportUpgradeModal}
         onClose={() => setShowExportUpgradeModal(false)}
-        source={exportUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
+        promptId="export_format_quota_blocked"
         title={t('editor:header.exportQuotaBlockedTitle')}
         description={t('editor:header.exportQuotaBlockedDesc')}
         primaryLabel={t('dashboard:billing.ctaUpgradePro')}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(exportUpgradePrompt.billingPath, exportUpgradePrompt.source)
-          );
-        }}
         secondaryLabel={t('home:pricingTeaser.viewPricing')}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(exportUpgradePrompt.pricingPath, exportUpgradePrompt.source)
-          );
-        }}
       />
     </>
   );

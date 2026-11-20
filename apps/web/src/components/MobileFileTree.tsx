@@ -1,4 +1,3 @@
-import { isFileTitleTooLong } from "../lib/fileTitle";
 /**
  * @fileoverview MobileFileTree component - Touch-optimized file tree navigation for mobile devices.
  *
@@ -12,29 +11,24 @@ import { isFileTitleTooLong } from "../lib/fileTitle";
  * - i18n support for Chinese and English folder names
  *
  * The component integrates with:
- * - ProjectContext for project/file state management
+ * - useFileTree hook for shared tree state, abort/race guards, and file CRUD
  * - MobileLayoutContext for panel navigation
  * - useFileSearch hook for debounced fuzzy search
  *
  * @module components/MobileFileTree
  */
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useProject } from "../contexts/ProjectContext";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import { useMaterialAttachment, MAX_ATTACHED_MATERIALS } from "../contexts/MaterialAttachmentContext";
-import { fileApi } from "../lib/api";
-import { FOLDER_TYPE_MAP, MATERIAL_FOLDER_NAMES } from "../lib/folderTypeMap";
 import { toast } from "../lib/toast";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Button } from "./ui/Button";
-import { findAncestorFolderIds } from "../lib/lastOpenedFile";
-import { clearLiveTreeRemoved, notifyFileRemoved } from "../lib/fileRemovalEvents";
 import { FileSearchInput } from "./FileSearchInput";
 import { useFileSearch, type FileSearchResult } from "../hooks/useFileSearch";
+import { getCreateFileType, isMaterialFolder, useFileTree } from "../hooks/useFileTree";
 import SearchResultsDropdown from "./SearchResultsDropdown";
-import type { FileTreeNode, TreeNodeType } from "../types";
-import { logger } from "../lib/logger";
+import type { FileTreeNode } from "../types";
 import {
   ChevronDown,
   ChevronRight,
@@ -106,48 +100,52 @@ const FILE_TYPE_ICONS: Record<string, React.ReactNode> = {
  */
 const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) => {
   const { t } = useTranslation(['editor', 'common']);
-  const { currentProjectId, selectedItem, setSelectedItem, fileTreeVersion } = useProject();
   const { switchToEditor } = useMobileLayout();
   const { addMaterial, removeMaterial, isMaterialAttached, isAtLimit } = useMaterialAttachment();
 
-  // Data state
-  const [tree, setTree] = useState<FileTreeNode[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-
-  // UI states
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-  const [isCreating, setIsCreating] = useState<string | null>(null);
-  const [newItemName, setNewItemName] = useState("");
-  const [newItemType, setNewItemType] = useState<string>("draft");
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; projectId: string | null } | null>(null);
-  const [deletingFile, setDeletingFile] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const {
+    currentProjectId,
+    selectedItem,
+    tree,
+    loading,
+    isInitialLoad,
+    loadError,
+    expandedFolders,
+    isCreating,
+    newItemName,
+    setNewItemName,
+    newItemType,
+    pendingDelete,
+    setPendingDelete,
+    deletingFile,
+    isUploading,
+    uploadError,
+    fileInputRef,
+    loadData,
+    toggleFolder,
+    handleSelect,
+    startCreate,
+    cancelCreate,
+    handleCreate,
+    handleDelete,
+    handleConfirmDelete,
+    getPlaceholder,
+    triggerUpload,
+    handleFileUpload,
+  } = useFileTree({
+    uploadErrorMode: "inline",
+    onSelectItem: (_id, fileType) => {
+      // On mobile, automatically switch to editor panel after selecting a file
+      if (fileType !== "folder") {
+        switchToEditor();
+      }
+    },
+  });
 
   // Search state - prominent mobile file search
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
-  const loadRequestIdRef = useRef(0);
-  const loadAbortControllerRef = useRef<AbortController | null>(null);
-  const activeProjectIdRef = useRef(currentProjectId);
-  const selectedItemRef = useRef(selectedItem);
-  const treeRef = useRef(tree);
-  selectedItemRef.current = selectedItem;
-  treeRef.current = tree;
-
-  const isAbortError = useCallback((error: unknown): boolean => {
-    return (
-      (error instanceof DOMException && error.name === "AbortError")
-      || (typeof error === "object"
-        && error !== null
-        && "name" in error
-        && (error as { name?: unknown }).name === "AbortError")
-    );
-  }, []);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // Use the file search hook for debounced search with fuzzy matching
@@ -160,313 +158,6 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
 
   // Show dropdown when search is focused and has query
   const showSearchDropdown = isSearchFocused && searchQuery.trim().length > 0;
-
-  /**
-   * Loads file tree data from the API and auto-expands root folders.
-   *
-   * @param showLoading - Whether to show the loading spinner (true for initial load)
-   */
-  const loadData = useCallback(async (showLoading = false) => {
-    // A mutation started in a previous project may finish after navigation.
-    if (!currentProjectId || currentProjectId !== activeProjectIdRef.current) return;
-    const selectedAtRequest = selectedItemRef.current;
-    const previousTree = treeRef.current;
-    const requestId = ++loadRequestIdRef.current;
-    loadAbortControllerRef.current?.abort();
-    const abortController = new AbortController();
-    loadAbortControllerRef.current = abortController;
-
-    setLoading(showLoading);
-    try {
-      const response = await fileApi.getTree(currentProjectId, {
-        signal: abortController.signal,
-      });
-      if (abortController.signal.aborted || requestId !== loadRequestIdRef.current) {
-        return;
-      }
-      const nextTree = response.tree || [];
-      clearLiveTreeRemoved(currentProjectId, nextTree);
-      setTree(nextTree);
-      setLoadError(false);
-      if (selectedAtRequest && selectedItemRef.current?.id === selectedAtRequest.id
-        && findAncestorFolderIds(previousTree, selectedAtRequest.id) !== null
-        && findAncestorFolderIds(response.tree || [], selectedAtRequest.id) === null) {
-        notifyFileRemoved(currentProjectId, selectedAtRequest.id);
-        if (selectedItemRef.current?.id === selectedAtRequest.id) setSelectedItem(null);
-      }
-
-      // Auto-expand root folders
-      const rootFolderIds = (response.tree || [])
-        .filter((node) => node.file_type === "folder")
-        .map((node) => node.id);
-      setExpandedFolders((prev) => new Set([...prev, ...rootFolderIds]));
-    } catch (error: unknown) {
-      if (abortController.signal.aborted || isAbortError(error) || requestId !== loadRequestIdRef.current) {
-        return;
-      }
-      logger.error("Failed to load file tree:", error);
-      setLoadError(true);
-    } finally {
-      if (requestId === loadRequestIdRef.current) {
-        setLoading(false);
-        setIsInitialLoad(false);
-      }
-    }
-  }, [currentProjectId, isAbortError, setSelectedItem]);
-
-  // Expand the folders around a selected file once (e.g. the file restored on
-  // reopening the project), without re-opening folders the author collapses later.
-  const selectedItemId = selectedItem?.id ?? null;
-  const revealedSelectionRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!selectedItemId || revealedSelectionRef.current === selectedItemId) return;
-    const ancestors = findAncestorFolderIds(tree, selectedItemId);
-    if (!ancestors) return;
-    revealedSelectionRef.current = selectedItemId;
-    if (ancestors.length === 0) return;
-    setExpandedFolders((prev) =>
-      ancestors.every((id) => prev.has(id)) ? prev : new Set([...prev, ...ancestors]),
-    );
-  }, [selectedItemId, tree]);
-
-  useEffect(() => {
-    return () => {
-      loadAbortControllerRef.current?.abort();
-    };
-  }, []);
-
-  // Reload when fileTreeVersion changes
-  useEffect(() => {
-    if (fileTreeVersion > 0) {
-      loadData(false);
-    }
-  }, [fileTreeVersion, loadData]);
-
-  // Initial load
-  useEffect(() => {
-    // Files from the previous project must not remain selectable while loading.
-    activeProjectIdRef.current = currentProjectId;
-    setTree([]);
-    setLoadError(false);
-    if (currentProjectId) {
-      setIsInitialLoad(true);
-      loadData(true);
-    } else {
-      setLoading(false);
-      setIsInitialLoad(false);
-    }
-    return () => {
-      // Fence pending mutation completions as well as existing requests when
-      // the project changes or this tree unmounts.
-      activeProjectIdRef.current = null;
-      loadAbortControllerRef.current?.abort();
-    };
-  }, [currentProjectId, loadData]);
-
-  /**
-   * Toggles the expansion state of a folder.
-   *
-   * @param folderId - The ID of the folder to toggle
-   */
-  const toggleFolder = useCallback((folderId: string) => {
-    setExpandedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(folderId)) {
-        next.delete(folderId);
-      } else {
-        next.add(folderId);
-      }
-      return next;
-    });
-  }, []);
-
-  /**
-   * Handles selection of a file or folder item.
-   * Updates the selected item in context and switches to editor panel for files.
-   *
-   * @param id - The file/folder ID
-   * @param fileType - The type of the item (outline, draft, character, lore, snippet, folder)
-   * @param title - The display title of the item
-   */
-  const handleSelect = useCallback((id: string, fileType: string, title: string) => {
-    const typeMap: Record<string, TreeNodeType> = {
-      outline: "outline",
-      draft: "draft",
-      character: "character",
-      lore: "lore",
-      snippet: "material",
-      folder: "folder",
-    };
-    setSelectedItem({
-      id,
-      type: typeMap[fileType] || "draft",
-      title,
-    });
-
-    // On mobile, automatically switch to editor panel after selecting a file
-    if (fileType !== "folder") {
-      switchToEditor();
-    }
-  }, [setSelectedItem, switchToEditor]);
-
-  /**
-   * Initiates the inline file creation UI for a folder.
-   *
-   * @param parentId - The parent folder ID where the new file will be created
-   * @param fileType - The type of file to create
-   */
-  const startCreate = useCallback((parentId: string, fileType: string) => {
-    setIsCreating(parentId);
-    setNewItemType(fileType);
-    setNewItemName("");
-    // Make sure parent folder is expanded
-    setExpandedFolders((prev) => new Set([...prev, parentId]));
-  }, []);
-
-  /**
-   * Cancels the file creation flow and resets creation state.
-   */
-  const cancelCreate = useCallback(() => {
-    setIsCreating(null);
-    setNewItemName("");
-  }, []);
-
-  /**
-   * Determines the appropriate file type to create based on folder title.
-   * Uses FOLDER_TYPE_MAP for contextual file type detection.
-   *
-   * @param folderTitle - The title of the parent folder
-   * @returns The file type to create, defaults to "draft"
-   */
-  const getCreateFileType = useCallback((folderTitle: string): string => {
-    return FOLDER_TYPE_MAP[folderTitle] || "draft";
-  }, []);
-
-  const isMaterialFolder = useCallback((node: FileTreeNode): boolean => {
-    return node.file_type === "folder" && MATERIAL_FOLDER_NAMES.some((name) => name === node.title);
-  }, []);
-
-  const triggerUpload = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isUploading) return;
-    fileInputRef.current?.click();
-  }, [isUploading]);
-
-  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !currentProjectId) return;
-
-    setUploadError(null);
-    setIsUploading(true);
-
-    try {
-      await fileApi.upload(currentProjectId, file);
-      await loadData(false);
-      toast.success(t('editor:fileTree.uploadSuccess', { name: file.name }));
-    } catch (error) {
-      logger.error("Failed to upload file:", error);
-      const message = error instanceof Error ? error.message : t('editor:fileTree.uploadFailed');
-      setUploadError(message);
-      setTimeout(() => setUploadError(null), 5000);
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  }, [currentProjectId, loadData, t]);
-
-  /**
-   * Creates a new file via the API and refreshes the tree.
-   *
-   * @param parentId - The parent folder ID for the new file
-   */
-  const handleCreate = useCallback(async (parentId: string) => {
-    if (!currentProjectId || !newItemName.trim()) {
-      cancelCreate();
-      return;
-    }
-
-    if (isFileTitleTooLong(newItemName.trim())) {
-      toast.error(t('editor:fileTree.titleTooLong'));
-      return;
-    }
-
-    try {
-      await fileApi.create(currentProjectId, {
-        title: newItemName.trim(),
-        file_type: newItemType,
-        parent_id: parentId,
-        content: "",
-      });
-
-      if (currentProjectId !== activeProjectIdRef.current) return;
-      await loadData(false);
-      cancelCreate();
-    } catch (error) {
-      logger.error("Failed to create item:", error);
-      toast.error(t('editor:fileTree.createFailed'));
-    }
-  }, [currentProjectId, newItemName, newItemType, loadData, cancelCreate, t]);
-
-  /**
-   * Asks for confirmation (in-app dialog) before deleting a file.
-   *
-   * @param e - The click event (used to stop propagation)
-   * @param fileId - The ID of the file to delete
-   * @param fileTitle - Shown in the dialog so the author knows which file goes
-   */
-  const handleDelete = useCallback((e: React.MouseEvent, fileId: string, fileTitle: string) => {
-    e.stopPropagation();
-    setPendingDelete({ id: fileId, title: fileTitle, projectId: currentProjectId });
-  }, [currentProjectId]);
-
-  /**
-   * Deletes the confirmed file.
-   * Clears selection if the deleted file was selected.
-   */
-  const handleConfirmDelete = useCallback(async () => {
-    if (!currentProjectId || !pendingDelete || pendingDelete.projectId !== currentProjectId || deletingFile) return;
-    const fileId = pendingDelete.id;
-    setDeletingFile(true);
-
-    try {
-      await fileApi.delete(fileId);
-
-      if (currentProjectId !== activeProjectIdRef.current) return;
-      notifyFileRemoved(currentProjectId, fileId);
-      // A selected descendant is corrected by the successful tree refresh.
-      if (selectedItemRef.current?.id === fileId) {
-        setSelectedItem(null);
-      }
-
-      await loadData(false);
-    } catch (error) {
-      logger.error("Failed to delete item:", error);
-      toast.error(t('editor:fileTree.deleteFailed'));
-    } finally {
-      setDeletingFile(false);
-      setPendingDelete(null);
-    }
-  }, [pendingDelete, deletingFile, currentProjectId, setSelectedItem, loadData, t]);
-
-  /**
-   * Returns localized placeholder text for the file creation input.
-   *
-   * @param fileType - The type of file being created
-   * @returns Translated placeholder text
-   */
-  const getPlaceholder = useCallback((fileType: string): string => {
-    const placeholderMap: Record<string, string> = {
-      outline: t('editor:fileTree.newOutline'),
-      draft: t('editor:fileTree.newDraft'),
-      character: t('editor:fileTree.newCharacter'),
-      lore: t('editor:fileTree.newLore'),
-      snippet: t('editor:fileTree.newSnippet'),
-      script: t('editor:fileTree.newScript'),
-    };
-    return placeholderMap[fileType] || t('editor:fileTree.newFileName');
-  }, [t]);
 
   /**
    * Handles selection of a search result from the dropdown.
@@ -576,7 +267,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
    * @param depth - Current nesting depth for indentation (default: 0)
    * @returns React element for the node and its children
    */
-  const renderNode = useCallback((node: FileTreeNode, depth: number = 0): React.ReactNode => {
+  const renderNode = (node: FileTreeNode, depth: number = 0): React.ReactNode => {
     const isFolder = node.file_type === "folder";
     const isExpanded = expandedFolders.has(node.id);
     const isSelected = selectedItem?.id === node.id;
@@ -742,29 +433,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         )}
       </div>
     );
-  }, [
-    expandedFolders,
-    selectedItem,
-    isCreating,
-    newItemName,
-    newItemType,
-    toggleFolder,
-    handleSelect,
-    startCreate,
-    cancelCreate,
-    handleCreate,
-    handleDelete,
-    getCreateFileType,
-    isMaterialFolder,
-    isMaterialAttached,
-    removeMaterial,
-    addMaterial,
-    isAtLimit,
-    isUploading,
-    triggerUpload,
-    getPlaceholder,
-    t,
-  ]);
+  };
 
   const loadErrorNotice = loadError ? (
     <div role="alert" className="p-3 text-sm text-[hsl(var(--text-secondary))]">

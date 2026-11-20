@@ -819,27 +819,6 @@ describe('AuthContext', () => {
     })
   })
 
-  describe('appleLogin', () => {
-    it('logs Apple OAuth coming soon message', async () => {
-      const consoleSpy = vi.spyOn(console, 'log')
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
-
-      act(() => {
-        result.current.appleLogin()
-      })
-
-      expect(consoleSpy).toHaveBeenCalledWith('Apple OAuth coming soon')
-      consoleSpy.mockRestore()
-    })
-  })
-
   describe('auth:logout event', () => {
     it('listens for auth:logout event and clears user state', async () => {
       const mockResponse = createMockAuthResponse()
@@ -898,7 +877,6 @@ describe('AuthContext', () => {
       expect(result.current).toHaveProperty('verifyEmail')
       expect(result.current).toHaveProperty('resendVerification')
       expect(result.current).toHaveProperty('googleLogin')
-      expect(result.current).toHaveProperty('appleLogin')
 
       expect(typeof result.current.login).toBe('function')
       expect(typeof result.current.register).toBe('function')
