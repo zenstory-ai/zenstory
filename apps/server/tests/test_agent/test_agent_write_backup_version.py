@@ -198,7 +198,7 @@ def _fail_backup_with_real_db_error(_self, session, *_args, **_kwargs):
 
 def test_edit_refuses_when_unversioned_original_cannot_reach_history(db_session, chapter, monkeypatch):
     """备份失败、原稿不在任何历史版本里：AI 修改不能提交，否则被删的作者文字无处恢复。"""
-    from agent.tools.write_errors import PreWriteHistoryUnavailableError
+    from agent.tools.file_ops.edit import PreWriteHistoryUnavailableError
 
     user, _, file = chapter
     author_bytes = "作者新加、还没进历史的一段。\n"
@@ -225,7 +225,7 @@ def test_edit_refuses_when_unversioned_original_cannot_reach_history(db_session,
 
 
 def test_replace_body_refuses_when_unversioned_original_cannot_reach_history(db_session, chapter, monkeypatch):
-    from agent.tools.write_errors import PreWriteHistoryUnavailableError
+    from agent.tools.file_ops.edit import PreWriteHistoryUnavailableError
 
     user, _, file = chapter
     _manual_save_without_version(db_session, user, file, "作者手改、没进历史的原稿。\n")

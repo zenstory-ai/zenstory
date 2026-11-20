@@ -31,8 +31,8 @@
     "userStoppedCounted": "This counts toward today's AI messages",
     "fileVersionLimitTitle": "File version limit reached",
     "fileVersionLimitDesc": "Upgrade your plan to keep more versions.",
-    "notChargedStopped": "Stopped before anything was written, so this round does not count toward today's AI messages.",
-    "stoppedNothingWritten": "Stopped before anything was written.",
+    "notChargedStopped": "Stopped before the AI started generating, so this round does not count toward today's AI messages.",
+    "stoppedNothingWritten": "Stopped before the AI started generating.",
     "resend": "Send again",
     "roundInterrupted": "Interrupted",
     "roundNotCounted": "Not counted toward today's AI messages",
@@ -374,7 +374,7 @@
   },
   "leaveWhileGenerating": {
     "title": "The AI is still writing",
-    "message": "Leaving this page ends this round. If nothing has been written yet, it will not count toward today's AI messages.",
+    "message": "Leaving this page ends this round. Once the AI has started working, this round still counts toward today's AI messages.",
     "leave": "Leave",
     "stay": "Keep waiting",
     "messageWithOutput": "Leaving this page ends this round. What's already written is saved, and this round counts toward today's AI messages.",
@@ -385,7 +385,7 @@
     "stayEnded": "Stay here"
   },
   "newChatWhileGenerating": {
-    "message": "Starting a new chat stops this round first. If nothing has been written yet, it will not count toward today's AI messages.",
+    "message": "Starting a new chat stops this round first. Once the AI has started working, this round still counts toward today's AI messages.",
     "messageWithOutput": "Starting a new chat stops this round first. What's already written is saved, and this round counts toward today's AI messages.",
     "messageWithOutputUnlimited": "Starting a new chat stops this round first. What's already written is saved.",
     "messageUnlimited": "Starting a new chat stops this round first.",

@@ -76,6 +76,17 @@ logger = get_logger(__name__)
 REPLACE_ALL_MAX_FUZZY_MATCHES = 1000
 
 
+class PreWriteHistoryUnavailableError(RuntimeError):
+    """提交 AI 修改前没能先建立原稿历史锚点，已回滚、原文保持不变。"""
+
+    error_type = "pre_write_history_unavailable"
+
+    def __init__(self, file_id: str, *, action: str) -> None:
+        self.file_id = file_id
+        self.action = action
+        super().__init__("原文没能先存进历史版本，这次改动没有写入，原文保持不变；可以稍后重试。")
+
+
 # --- edit_file 的稳定错误类型 ---------------------------------------------
 # error 字段是写给模型看的（带候选片段、occurrence 提示，模型靠它重新定位）；
 # error_type 是稳定的机器可读分类，user_message 是给作者看的一句短话，前端
@@ -1003,8 +1014,6 @@ class FileEditor:
                 "Refused AI write: original body is not in history",
                 extra={"file_id": file_id, "tool": tool},
             )
-            from agent.tools.write_errors import PreWriteHistoryUnavailableError
-
             raise PreWriteHistoryUnavailableError(file_id, action=tool)
 
         if new_title is not None and new_title != file.title:
@@ -2159,6 +2168,7 @@ __all__ = [
     "EditFileError",
     "FileEditor",
     "FileWriteBusyError",
+    "PreWriteHistoryUnavailableError",
     "edit_error_user_message",
     "acquire_file_write_lock",
     "file_write_lock",

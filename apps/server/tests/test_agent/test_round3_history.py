@@ -100,7 +100,7 @@ def _loader() -> SessionLoader:
 
 @pytest.mark.unit
 def test_status_cards_survive_reasoning_content():
-    """有 reasoning_content 时，状态卡摘要仍必须进入会被回放的 text 块。"""
+    """有 reasoning_content 时，状态卡摘要仍必须进入会被回放的正文，且不混入思考内容。"""
     msg = _assistant_message(
         content="",
         reasoning_content="模型的一大段思考",
@@ -110,10 +110,9 @@ def test_status_cards_survive_reasoning_content():
     msg_data = _loader()._format_chat_message_for_history(msg)  # noqa: SLF001
 
     content = msg_data["content"]
-    assert isinstance(content, list)
-    assert content[0] == {"type": "thinking", "thinking": "模型的一大段思考"}
+    assert isinstance(content, str)
+    assert "模型的一大段思考" not in content
 
-    # 回放侧只取 text 块，因此状态卡摘要必须以 text 块形式存在
     replayed = extract_text_from_message_content(content)
     assert "clarification_needed" in replayed
     assert "主角视角用第一人称还是第三人称？" in replayed
@@ -223,30 +222,6 @@ def test_load_loop_history_replays_status_only_turn_with_reasoning(
     )
     assert [m["role"] for m in loaded.items] == ["user", "assistant"]
     assert "主角视角用第一人称还是第三人称？" in loaded.items[-1]["content"]
-
-
-@pytest.mark.unit
-def test_extract_content_text_ignores_thinking_blocks():
-    """判空辅助函数必须与回放侧规则一致：thinking 块不算正文。"""
-    loader = _loader()
-
-    assert loader._extract_content_text("hello") == "hello"  # noqa: SLF001
-    assert loader._extract_content_text(None) == ""  # noqa: SLF001
-    assert (
-        loader._extract_content_text(  # noqa: SLF001
-            [{"type": "thinking", "thinking": "一大段推理"}]
-        )
-        == ""
-    )
-    assert (
-        loader._extract_content_text(  # noqa: SLF001
-            [
-                {"type": "thinking", "thinking": "推理"},
-                {"type": "text", "text": "正文"},
-            ]
-        )
-        == "正文"
-    )
 
 
 # ---------------------------------------------------------------------------

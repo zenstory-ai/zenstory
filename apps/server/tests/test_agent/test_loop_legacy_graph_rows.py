@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -212,7 +211,7 @@ def test_graph_rows_replay_unchanged_in_loop_history(db_session: Session):
 
 EXPECTED_ITEMS = [
     {"role": "user", "content": "帮我规划第一卷"},
-    {"role": "assistant", "content": "卷纲写好了，交给内容创作者写第一章。\n[此前的工具操作]\n- 已创建文件 《卷纲》"},
+    {"role": "assistant", "content": "卷纲写好了，交给内容创作者写第一章。\n\n[此前的工具操作]\n- 已创建文件 《卷纲》"},
     {"role": "user", "content": "改第一章，再看看人设"},
     {"role": "assistant", "content": "[iteration_exhausted]\nlayer: collaboration\niterations: 12/12\nreason: 协作轮数用完了\nlast_agent: quality_reviewer\n\n[此前的工具操作]\n- 已读取文件 （未命名） (id=legacy-character)\n- 已编辑文件 （未命名） (id=legacy-chapter)"},
     {"role": "user", "content": "主角叫什么好"},
@@ -220,50 +219,7 @@ EXPECTED_ITEMS = [
 ]
 
 
-# ----------------------------------------- SessionLoader：图写下的路由信号与 parallel_execute 面包屑
-
-
-def _history_row(content: str, metadata: dict | None = None, tool_calls=None):
-    return SimpleNamespace(
-        id="m1",
-        role="assistant",
-        content=content,
-        message_metadata=json.dumps(metadata) if metadata is not None else None,
-        reasoning_content=None,
-        tool_calls=json.dumps(tool_calls) if tool_calls is not None else None,
-    )
-
-
-
-@pytest.mark.unit
-def test_history_dict_exposes_routing_last_agent_and_clarification():
-    from agent.core.session_loader import SessionLoader
-
-    loader = SessionLoader("p", "u")
-    routing = {"initial_agent": "quality_reviewer", "read_only": True}
-    exhausted = loader._format_chat_message_for_history(
-        _history_row(
-            "阶段总结",
-            {
-                "stop_reason": "max_turns_exceeded",
-                "routing": routing,
-                "status_cards": [{"type": "iteration_exhausted", "layer": "tool_call", "lastAgent": "quality_reviewer"}],
-            },
-        )
-    )
-    assert exhausted["routing"] == routing
-    assert exhausted["last_agent"] == "quality_reviewer"
-    assert exhausted["clarification_pending"] is False
-
-    clarification = loader._format_chat_message_for_history(
-        _history_row(
-            "",
-            {"status_cards": [{"type": "workflow_stopped", "reason": "clarification_needed", "question": "主角叫什么？"}]},
-        )
-    )
-    assert clarification["clarification_pending"] is True
-    assert "routing" not in clarification
-
+# ----------------------------------------- SessionLoader：parallel_execute 面包屑
 
 
 @pytest.mark.unit

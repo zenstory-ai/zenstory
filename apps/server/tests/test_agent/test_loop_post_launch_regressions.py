@@ -350,7 +350,7 @@ def test_failed_streamed_file_save_refunds_and_keeps_placeholder_removable():
             },
         )
     )
-    # <file> 之前的短引子不算完整回复：落库失败回滚后 ended_on_reply 仍为 False
+    # <file> 之前的短引子不算正文产出
     tracker.observe(_sse("content", {"text": "总纲如下：\n"}))
     tracker.observe(_sse("file_content", {"file_id": "outline-1", "chunk": "流式了一半的大纲正文"}))
     tracker.observe(
@@ -360,7 +360,7 @@ def test_failed_streamed_file_save_refunds_and_keeps_placeholder_removable():
                 "message": "文件保存失败，请重试",
                 "code": ErrorCode.AGENT_FILE_SAVE_FAILED,
                 "retryable": True,
-                "refundable": True,
+                "refundable": False,
                 "file_id": "outline-1",
             },
         )
@@ -370,7 +370,10 @@ def test_failed_streamed_file_save_refunds_and_keeps_placeholder_removable():
     assert tracker.file_written is False
     assert tracker.write_succeeded is False
     assert tracker.produced_output is False
-    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == ("internal_error", True)
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False, provider_attempted=True) == (
+        "non_model_error",
+        False,
+    )
     assert tracker.removable_placeholders() == [
         {"id": "outline-1", "title": "总纲", "updated_at": "2026-11-18T01:20:00"}
     ]
@@ -848,8 +851,10 @@ def test_billing_tracker_treats_empty_replaced_chapter_as_pending_body_on_failur
         )
     )
     assert tracker.produced_output is False
-    assert tracker.ended_on_reply is False
-    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == ("internal_error", True)
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False, provider_attempted=True) == (
+        "non_model_error",
+        False,
+    )
 
     # 整章替换因并发修改被拒（补发 body_saved=False）时同样回滚此前流过的 file_content 记账
     tracker2 = StreamBillingTracker()

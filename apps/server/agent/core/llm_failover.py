@@ -196,6 +196,54 @@ def _status_code_of(exc: BaseException) -> int | None:
     return status if isinstance(status, int) else None
 
 
+def is_upstream_provider_error(exc: BaseException) -> bool:
+    """Whether ``exc`` is an upstream model/HTTP/transport failure (not our own refusal or cancellation).
+
+    Covers ``openai.APIError`` (including 4xx request rejections such as context-too-long
+    ``BadRequestError``, 429, 5xx, validation, connection/timeout, and in-stream errors),
+    ``httpx`` / ``httpx2`` / ``httpcore`` transport and protocol errors, and stdlib
+    ``TimeoutError`` / ``ConnectionError``. Excludes platform ``APIException`` (such as
+    the hidden daily cost backstop) and cancellation.
+    """
+    from core.error_handler import APIException
+
+    if isinstance(exc, APIException | asyncio.CancelledError | GeneratorExit):
+        return False
+    if isinstance(exc, TimeoutError | ConnectionError):
+        return True
+    try:
+        import openai
+
+        if isinstance(exc, openai.APIError):
+            return True
+    except ImportError:  # pragma: no cover - openai is a hard dependency
+        pass
+    for mod_name in ("httpx", "httpx2"):
+        try:
+            mod = __import__(mod_name)
+        except ImportError:  # pragma: no cover
+            continue
+        http_error = getattr(mod, "HTTPError", None)
+        if isinstance(http_error, type) and isinstance(exc, http_error):
+            return True
+    try:
+        import httpcore
+
+        if isinstance(
+            exc,
+            httpcore.NetworkError
+            | httpcore.ProtocolError
+            | httpcore.TimeoutException
+            | httpcore.ProxyError
+            | httpcore.UnsupportedProtocol
+            | httpcore.ConnectionNotAvailable,
+        ):
+            return True
+    except ImportError:  # pragma: no cover
+        pass
+    return False
+
+
 def is_provider_unavailable(exc: BaseException) -> bool:
     """Whether ``exc`` says the provider, not the request, is the problem."""
     from core.error_handler import APIException

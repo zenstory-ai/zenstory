@@ -13,6 +13,7 @@ Built on the single loop agent (agent/loop) and openai-agents-python.
 """
 
 import asyncio
+import contextlib
 import json
 import time
 import uuid
@@ -1268,7 +1269,14 @@ class AgentService:
                         "Compacting conversation…" if force_en else "正在压缩对话…",
                         step=HISTORY_COMPACTION_STEP,
                     ).to_sse()
-                    with run_meter.measure_stage("compaction"):
+                    from services.usage.cost_budget import on_model_transport_start
+
+                    transport_scope = (
+                        on_model_transport_start(run_outcome.mark_provider_attempted)
+                        if run_outcome is not None
+                        else contextlib.nullcontext()
+                    )
+                    with run_meter.measure_stage("compaction"), transport_scope:
                         outcome = await compact_history(
                             loop_history, system_prompt=system_prompt, session_id=session_id, run_meter=run_meter
                         )
@@ -1681,7 +1689,11 @@ class AgentService:
                 error_info.message,
                 code=error_info.code,
                 retryable=error_info.retryable,
-                refundable=error_info.refundable,
+                refundable=(
+                    run_outcome.terminal_model_failure or not run_outcome.provider_attempted
+                    if run_outcome is not None
+                    else error_info.refundable
+                ),
             ).to_sse()
 
         finally:
