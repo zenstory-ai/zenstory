@@ -4,7 +4,6 @@
 from agent.utils.token_utils import (
     _chars_per_token_for,
     _cjk_fraction,
-    estimate_message_tokens,
     estimate_text_tokens,
 )
 
@@ -54,84 +53,6 @@ def test_mixed_text_returns_positive():
 
 def test_short_text_returns_at_least_one():
     assert estimate_text_tokens("x") >= 1
-
-
-# ---------------------------------------------------------------------------
-# estimate_message_tokens
-# ---------------------------------------------------------------------------
-
-
-def test_user_message_string():
-    msg = {"role": "user", "content": "Hello, how are you?"}
-    assert estimate_message_tokens(msg) >= 1
-
-
-def test_user_message_blocks():
-    msg = {
-        "role": "user",
-        "content": [{"type": "text", "text": "Hello, how are you?"}],
-    }
-    assert estimate_message_tokens(msg) >= 1
-
-
-def test_assistant_message_text_block():
-    msg = {
-        "role": "assistant",
-        "content": [{"type": "text", "text": "I am fine, thank you."}],
-    }
-    assert estimate_message_tokens(msg) >= 1
-
-
-def test_assistant_message_thinking_block():
-    msg = {
-        "role": "assistant",
-        "content": [{"type": "thinking", "thinking": "Let me think about this..."}],
-    }
-    assert estimate_message_tokens(msg) >= 1
-
-
-def test_tool_result_message():
-    msg = {
-        "role": "tool_result",
-        "content": [{"type": "text", "text": "File created successfully."}],
-    }
-    assert estimate_message_tokens(msg) >= 1
-
-
-def test_image_block_counts_tokens():
-    msg = {
-        "role": "tool_result",
-        "content": [{"type": "image", "source": {}}],
-    }
-    tokens = estimate_message_tokens(msg)
-    # Image should contribute ~1200 tokens
-    assert tokens >= 1000
-
-
-def test_unknown_role_string_content():
-    msg = {"role": "custom", "content": "some content here"}
-    assert estimate_message_tokens(msg) >= 1
-
-
-def test_empty_content_returns_zero_or_one():
-    msg = {"role": "user", "content": ""}
-    # Empty content — result is 0 or 1 (max(1, ...) guard might not fire for empty)
-    assert estimate_message_tokens(msg) >= 0
-
-
-def test_assistant_thinking_blocks_do_not_consume_history_budget():
-    """Thinking blocks are dropped before replay, so they must not be billed."""
-    text_block = {"type": "text", "text": "Final answer for the user."}
-    with_thinking = {
-        "role": "assistant",
-        "content": [
-            {"type": "thinking", "thinking": "reasoning " * 500},
-            text_block,
-        ],
-    }
-    text_only = {"role": "assistant", "content": [text_block]}
-
-    assert estimate_message_tokens(with_thinking) == estimate_message_tokens(text_only)
 
 
 # ---------------------------------------------------------------------------

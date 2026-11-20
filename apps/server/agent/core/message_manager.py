@@ -328,14 +328,6 @@ class MessageManager:
             rows_added += steering_saved
 
             # Save assistant message
-            tool_calls_json = self._serialize_tool_calls(tool_calls)
-            assistant_metadata_json = self._serialize_message_metadata(
-                stop_reason=assistant_stop_reason,
-                usage=assistant_usage,
-                status_cards=assistant_status_cards,
-                display_events=assistant_display_events,
-            )
-
             # 本轮没有任何 assistant 产出时不写空行：这条消息前端永远渲染不出来，
             # 却会占掉"最近消息"窗口的一格，把更早的真实消息挤出上下文。
             # 判据与 service.py::_has_assistant_payload 一致——正文、工具调用、
@@ -349,6 +341,14 @@ class MessageManager:
                 or has_substantive_display_events(assistant_display_events)
                 or (reasoning_content or "").strip()
             ):
+                tool_calls_json = self._serialize_tool_calls(tool_calls)
+                assistant_metadata_json = self._serialize_message_metadata(
+                    stop_reason=assistant_stop_reason,
+                    usage=assistant_usage,
+                    status_cards=assistant_status_cards,
+                    display_events=assistant_display_events,
+                    extra_metadata=assistant_extra_metadata,
+                )
                 assistant_chat_message = ChatMessage(
                     session_id=chat_session.id,
                     role="assistant",
@@ -357,10 +357,6 @@ class MessageManager:
                     reasoning_content=reasoning_content,
                     message_metadata=assistant_metadata_json,
                 )
-                if assistant_extra_metadata:
-                    assistant_chat_message.message_metadata = self._merge_extra_metadata(
-                        assistant_metadata_json, assistant_extra_metadata
-                    )
                 session.add(assistant_chat_message)
                 rows_added += 1
 
@@ -401,20 +397,6 @@ class MessageManager:
             )
             raise
 
-    @staticmethod
-    def _merge_extra_metadata(metadata_json: str | None, extra: dict[str, Any]) -> str | None:
-        """Add the loop engine's keys to a serialized metadata payload (existing keys win)."""
-        try:
-            payload = json_module.loads(metadata_json) if metadata_json else {}
-        except (TypeError, ValueError):
-            payload = {}
-        if not isinstance(payload, dict):
-            payload = {}
-        for key, value in extra.items():
-            if key not in payload and value is not None:
-                payload[key] = value
-        return json_module.dumps(payload) if payload else None
-
     def _serialize_tool_calls(self, tool_calls: list | None) -> str | None:
         """
         Serialize tool calls to JSON string.
@@ -448,6 +430,7 @@ class MessageManager:
         usage: dict[str, Any] | None = None,
         status_cards: list[dict[str, Any]] | None = None,
         display_events: list[dict[str, Any]] | None = None,
+        extra_metadata: dict[str, Any] | None = None,
     ) -> str | None:
         """Serialize assistant metadata payload to JSON."""
         payload: dict[str, Any] = {}
@@ -459,6 +442,10 @@ class MessageManager:
             payload["status_cards"] = status_cards
         if display_events and isinstance(display_events, list):
             payload["display_events"] = display_events
+        if extra_metadata and isinstance(extra_metadata, dict):
+            for key, value in extra_metadata.items():
+                if key not in payload and value is not None:
+                    payload[key] = value
 
         if not payload:
             return None
