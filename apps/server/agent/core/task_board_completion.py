@@ -8,6 +8,7 @@ import asyncio
 from typing import Any
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
+from agent.openai_agents.events import parse_mcp_tool_payload
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.tools.mcp_tools import ToolContext, update_project
 from agent.tools.task_progress import (
@@ -131,18 +132,33 @@ def _live_project_artifacts(project_id: str) -> list[ArtifactEvidence] | None:
         return None
 
 
+def _has_incomplete_tasks(tasks: list[dict[str, Any]]) -> bool:
+    return any(isinstance(task, dict) and task.get("status") in ("in_progress", "pending") for task in tasks)
+
+
+def _update_project_failed(tool_result: Any) -> bool:
+    """Return True if an ``update_project`` MCP envelope or flat mock dict indicates failure."""
+    if not isinstance(tool_result, dict):
+        return False
+    if tool_result.get("is_error") is True or tool_result.get("status") in {"error", "partial"}:
+        return True
+    payload = parse_mcp_tool_payload(tool_result)
+    return isinstance(payload, dict) and payload.get("status") not in (None, "success")
+
+
 async def auto_finalize_task_board_on_completion(
     guard: RepeatReadGuard | None = None,
-) -> list[StreamEvent]:
+) -> tuple[list[StreamEvent], bool]:
     """
     在 workflow 完成时按实际产物补一次 update_project(tasks=[...])。
 
-    只有本请求确实写出对应文件的任务改为 done（规则见 _build_completion_task_payload；
-    pending 任务只认编号或产出物对上的文件），什么都没写时不补。
+    返回 ``(events, has_incomplete)``：``has_incomplete`` 直接基于本次已读取/更新后的任务列表，
+    避免调用方再重读一次任务板。只有本请求确实写出对应文件的任务改为 done（规则见
+    _build_completion_task_payload；pending 任务只认编号或产出物对上的文件），什么都没写时不读也不补。
     """
     session_id = ToolContext.get_session_id()
     if not session_id:
-        return []
+        return [], False
 
     user_id = ToolContext.get_user_id()
     project_id = ToolContext.get_project_id()
@@ -155,7 +171,7 @@ async def auto_finalize_task_board_on_completion(
             )
         )
         if not written_ids:
-            return []
+            return [], False
 
         from services.infra.task_board_service import task_board_service
 
@@ -164,10 +180,8 @@ async def auto_finalize_task_board_on_completion(
             user_id=user_id,
             project_id=project_id,
         ) or []
-        if not any(
-            isinstance(task, dict) and task.get("status") in ("in_progress", "pending") for task in current_tasks
-        ):
-            return []
+        if not _has_incomplete_tasks(current_tasks):
+            return [], False
         written_artifacts = await asyncio.to_thread(_existing_written_artifacts, written_ids)
         live_artifacts: list[ArtifactEvidence] | None = None
         if project_id and any(
@@ -179,9 +193,10 @@ async def auto_finalize_task_board_on_completion(
             current_tasks, written_artifacts, live_artifacts
         )
         if not completion_tasks:
-            return []
+            return [], True
 
         tool_result = await update_project({"tasks": completion_tasks}, written_artifact_ids=written_ids)
+        still_incomplete = True if _update_project_failed(tool_result) else _has_incomplete_tasks(completion_tasks)
         tool_use_id = "workflow_auto_completion"
         return [
             StreamEvent(
@@ -201,7 +216,7 @@ async def auto_finalize_task_board_on_completion(
                     "result": tool_result,
                 },
             ),
-        ]
+        ], still_incomplete
     except Exception as e:
         log_with_context(
             logger,
@@ -213,36 +228,5 @@ async def auto_finalize_task_board_on_completion(
             user_id=user_id,
             project_id=project_id,
         )
-        return []
-
-
-async def has_incomplete_task_board_items() -> bool:
-    """会话任务板里是否还有尚未完成的任务（in_progress / pending）。"""
-    session_id = ToolContext.get_session_id()
-    if not session_id:
-        return False
-    user_id = ToolContext.get_user_id()
-    project_id = ToolContext.get_project_id()
-    try:
-        from services.infra.task_board_service import task_board_service
-
-        current_tasks = await asyncio.to_thread(
-            task_board_service.get_tasks,
-            session_id,
-            user_id=user_id,
-            project_id=project_id,
-        )
-    except Exception as exc:  # noqa: BLE001
-        log_with_context(
-            logger,
-            30,  # WARNING
-            "Task board read for wrap-up check failed",
-            error_type=type(exc).__name__,
-            session_id=session_id,
-        )
-        return False
-    return any(
-        isinstance(task, dict) and task.get("status") in ("in_progress", "pending")
-        for task in (current_tasks or [])
-    )
+        return [], False
 

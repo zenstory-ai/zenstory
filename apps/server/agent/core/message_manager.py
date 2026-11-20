@@ -100,14 +100,9 @@ def has_substantive_display_events(display_events: list[dict[str, Any]] | None) 
         if event_type == "history_compacted":
             continue
         if event_type in {"content", "thinking_content"}:
-            if isinstance(event.get("content"), str):
-                if event["content"].strip():
-                    return True
-                continue
-            if isinstance(event.get("text"), str):
-                if event["text"].strip():
-                    return True
-                continue
+            content = event.get("content")
+            if isinstance(content, str) and content.strip():
+                return True
             continue
         return True
     return False

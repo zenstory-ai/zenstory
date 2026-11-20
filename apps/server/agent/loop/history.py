@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -26,6 +25,7 @@ from sqlalchemy import desc, or_
 from sqlmodel import Session, and_, select
 
 from agent.core.output_truncation import OUTPUT_TRUNCATED_REASON
+from agent.core.protocol_filter import contains_leaked_tool_protocol
 from agent.utils.token_utils import estimate_text_tokens
 from config.agent_runtime import AGENT_LOOP_COMPACT_KEEP_USER_TOKENS
 from utils.logger import get_logger, log_with_context
@@ -247,28 +247,6 @@ def _parse_json(value: Any) -> Any:
 def row_metadata(row: Any) -> dict[str, Any]:
     payload = _parse_json(getattr(row, "message_metadata", None))
     return payload if isinstance(payload, dict) else {}
-
-
-_COMPACTION_CODE_SPAN_OR_FENCE_RE = re.compile(
-    r"(^[ \t]*(```|~~~)[^\r\n]*\r?\n.*?(?:^[ \t]*\2[ \t]*\r?$|\Z)|(`+)(?:(?!\3)[^\r\n])+\3)",
-    re.DOTALL | re.MULTILINE,
-)
-_COMPACTION_LEAKED_TOOL_PROTOCOL_RE = re.compile(
-    r"(?:\]<\]minimax\[>\[|</\s*tool_call\s*>|<tool_call\b[^><\r\n]{0,512}>\s*(?:<|\Z)|</?(?:invoke|parameter)\b[^><\r\n]{0,512}>)",
-    re.IGNORECASE,
-)
-
-
-def contains_leaked_tool_protocol(text: str) -> bool:
-    """检查摘要文本在代码围栏与行内反引号之外是否混入未执行的工具调用机器协议。"""
-    if not text:
-        return False
-    pos = 0
-    for match in _COMPACTION_CODE_SPAN_OR_FENCE_RE.finditer(text):
-        if _COMPACTION_LEAKED_TOOL_PROTOCOL_RE.search(text[pos : match.start()]) is not None:
-            return True
-        pos = match.end()
-    return _COMPACTION_LEAKED_TOOL_PROTOCOL_RE.search(text[pos:]) is not None
 
 
 def valid_compaction(metadata: dict[str, Any]) -> dict[str, Any] | None:

@@ -43,8 +43,21 @@ from agent.tools.file_ops.serialization import (
 from agent.tools.permissions import ForbiddenError, NotFoundError
 from agent.tools.write_errors import PreWriteHistoryUnavailableError
 from config.project_notes import merge_project_notes
+from services.file_tree_rules import has_sibling_title_conflict
 from utils.logger import get_logger, log_with_context
-from utils.title_sequence import extract_chapter_like_sequence_number, parse_chinese_number
+from utils.title_sequence import (
+    chapter_title_has_subtitle as _chapter_title_has_subtitle,
+)
+from utils.title_sequence import (
+    extract_chapter_like_sequence_number,
+    parse_chinese_number,
+)
+from utils.title_sequence import (
+    prefixed_chapter_heading as _prefixed_chapter_heading,
+)
+from utils.title_sequence import (
+    split_prefixed_chapter_title as _split_prefixed_chapter_title,
+)
 
 logger = get_logger(__name__)
 
@@ -1718,79 +1731,24 @@ def _loop_agent_type() -> str:
     return LOOP_AGENT_TYPE
 
 
-def _canonicalize_source_span(text: str) -> tuple[str, list[int], list[int]]:
-    """有界空白归一化：仅消除 CRLF/CR、行尾空格/Tab 与连续空行个数差异，保留原文字节偏移。"""
-    line_tokens: list[tuple[str, int, int]] = []
-    pending_hspace: list[tuple[str, int, int]] = []
-    idx = 0
-    length = len(text)
-    while idx < length:
-        ch = text[idx]
-        if ch == "\r":
-            end = idx + 2 if idx + 1 < length and text[idx + 1] == "\n" else idx + 1
-            pending_hspace.clear()
-            line_tokens.append(("\n", idx, end))
-            idx = end
-        elif ch == "\n":
-            pending_hspace.clear()
-            line_tokens.append(("\n", idx, idx + 1))
-            idx += 1
-        elif ch in (" ", "\t"):
-            pending_hspace.append((ch, idx, idx + 1))
-            idx += 1
-        else:
-            if pending_hspace:
-                line_tokens.extend(pending_hspace)
-                pending_hspace.clear()
-            line_tokens.append((ch, idx, idx + 1))
-            idx += 1
-
-    start_pos = 0
-    end_pos = len(line_tokens)
-    while start_pos < end_pos and line_tokens[start_pos][0] == "\n":
-        start_pos += 1
-    while end_pos > start_pos and line_tokens[end_pos - 1][0] == "\n":
-        end_pos -= 1
-
-    collapsed: list[tuple[str, int, int]] = []
-    for ch, start, end in line_tokens[start_pos:end_pos]:
-        if ch == "\n" and collapsed and collapsed[-1][0] == "\n":
-            collapsed[-1] = ("\n", collapsed[-1][1], end)
-            continue
-        collapsed.append((ch, start, end))
-
-    return (
-        "".join(tok[0] for tok in collapsed),
-        [tok[1] for tok in collapsed],
-        [tok[2] for tok in collapsed],
-    )
+_LINE_BREAK_RE = re.compile(r"\r\n|\r|\n")
+_CANONICAL_LINE_SEP = r"[ \t]*(?:\r\n|\r|\n)(?:[ \t]*(?:\r\n|\r|\n))*"
 
 
-def _find_unique_canonical_slice(
-    author_message: str,
-    canon_author: str,
-    starts: list[int],
-    ends: list[int],
-    candidate: str,
-) -> str | None:
-    canon_source, _, _ = _canonicalize_source_span(candidate)
-    if not canon_source or not canon_author:
+def _find_unique_line_match(author_message: str, candidate: str) -> str | None:
+    """在作者原文中按行精确查找唯一片段（仅兼容 CRLF/CR、行尾空白与连续空行个数差异）。"""
+    lines = [line.rstrip(" \t") for line in _LINE_BREAK_RE.split(candidate) if line.strip(" \t")]
+    if not lines:
         return None
-    span_len = len(canon_source)
-    matched_slices: list[str] = []
-    search_from = 0
-    while True:
-        pos = canon_author.find(canon_source, search_from)
-        if pos < 0:
-            break
-        raw_slice = author_message[starts[pos] : ends[pos + span_len - 1]]
-        normalized_slice = raw_slice.replace("\r\n", "\n").replace("\r", "\n")
-        if normalized_slice not in matched_slices:
-            matched_slices.append(normalized_slice)
-            if len(matched_slices) > 1:
-                return None
-        search_from = pos + 1
-    return matched_slices[0] if len(matched_slices) == 1 else None
+    pattern = re.compile(_CANONICAL_LINE_SEP.join(re.escape(line) for line in lines))
+    matched_slices: set[str] = set()
+    pos = 0
+    while (match := pattern.search(author_message, pos)) is not None:
+        matched_slices.add(match.group(0).replace("\r\n", "\n").replace("\r", "\n"))
+        if len(matched_slices) > 1:
+            return None
+        pos = match.start() + 1
+    return next(iter(matched_slices)) if len(matched_slices) == 1 else None
 
 
 def _match_verbatim_author_span(author_message: str, source_text: str) -> str | None:
@@ -1801,17 +1759,14 @@ def _match_verbatim_author_span(author_message: str, source_text: str) -> str | 
     if not stripped:
         return None
 
-    canon_author, starts, ends = _canonicalize_source_span(author_message)
     # 先用保留首行缩进（含中文全角「　　」或列表前导空格）的 source_text 匹配，避免 strip() 吞掉第一段段首缩进。
-    preserved_indent_match = _find_unique_canonical_slice(
-        author_message, canon_author, starts, ends, source_text
-    )
+    preserved_indent_match = _find_unique_line_match(author_message, source_text)
     if preserved_indent_match is not None:
         return preserved_indent_match
 
     if stripped in author_message:
         return stripped
-    return _find_unique_canonical_slice(author_message, canon_author, starts, ends, stripped)
+    return _find_unique_line_match(author_message, stripped)
 
 
 def _source_copy_content(args: dict[str, Any]) -> tuple[str | None, dict[str, Any] | None]:
@@ -1964,51 +1919,6 @@ def _chapter_title(title: str, number: int, unit: str) -> str:
         return f"第{number}{unit} {text}".strip()
     label = "Chapter" if unit == "章" else "Episode"
     return f"{label} {number}: {text}"
-
-
-def _split_prefixed_chapter_title(raw_title: str, unit: str) -> tuple[str, int, str] | None:
-    """识别导入拆章形如「{书名} - 第N章 …」的标题：返回 (书名前缀, 章/集号, 章号所在半段 heading)，不匹配返回 None。"""
-    from utils.title_sequence import extract_sequence_number
-
-    text = raw_title.replace("\x00", "").strip()
-    if " - " not in text:
-        return None
-    parts = text.split(" - ")
-    for idx in range(1, len(parts)):
-        prefix = " - ".join(parts[:idx]).strip()
-        heading = " - ".join(parts[idx:]).strip()
-        if not prefix or not heading:
-            continue
-        seq = extract_sequence_number(heading, unit=unit)
-        if seq is not None:
-            return prefix, seq, heading
-    return None
-
-
-def _prefixed_chapter_heading(raw_title: str, unit: str) -> tuple[int, str] | None:
-    """识别导入拆章形如「{书名} - 第N章 …」的标题：返回 (标题里的章/集号, 章号所在半段 heading)，不匹配返回 None。"""
-    parsed = _split_prefixed_chapter_title(raw_title, unit)
-    return (parsed[1], parsed[2]) if parsed is not None else None
-
-
-def _chapter_title_has_subtitle(raw_title: str, unit: str) -> bool:
-    """判断传入的章节标题是否带有章名（而非仅传入空串或「第N章 / Chapter N」这类裸编号）。"""
-    from utils.title_sequence import _RE_ARABIC_SEQ, _RE_CN_SEQ, _RE_EN_CHAPTER, extract_sequence_number
-
-    text = raw_title.replace("\x00", "").strip()
-    if not text:
-        return False
-    prefixed = _prefixed_chapter_heading(text, unit)
-    if prefixed is not None:
-        text = prefixed[1]
-    if extract_sequence_number(text, unit=unit) is None:
-        return True
-    for pattern in (_RE_CN_SEQ, _RE_ARABIC_SEQ, _RE_EN_CHAPTER):
-        match = pattern.match(text)
-        if match:
-            remainder = text[match.end() :].lstrip(" \t\u3000:：·—-–")
-            return bool(remainder)
-    return True
 
 
 def _row_chapter_number(row: Any, *, unit: str, expected_file_type: str) -> int | None:
@@ -2336,17 +2246,15 @@ def _write_chapter_replace(
                 return _write_chapter_error(str(e), error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE, id=file_id)
             clash = _run_session_probe(
                 session,
-                lambda s: s.exec(
-                    select(File.id).where(
-                        File.project_id == project_id,
-                        File.parent_id == row.parent_id,
-                        File.title == cleaned_title,
-                        File.is_deleted.is_(False),
-                        File.id != file_id,
-                    )
-                ).first(),
+                lambda s: has_sibling_title_conflict(
+                    s,
+                    project_id=project_id,
+                    parent_id=row.parent_id,
+                    title=cleaned_title,
+                    exclude_file_id=file_id,
+                ),
             )
-            if clash is not None:
+            if clash:
                 return _write_chapter_error(
                     f"同一文件夹里已有名为《{cleaned_title}》的文件，没有写入；请换一个标题或先向作者确认。",
                     error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,

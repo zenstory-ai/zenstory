@@ -246,7 +246,7 @@ async def _run(workspace, model: ScriptedModel, *, meter: AgentRunMeter | None =
             patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record"),
             patch(
                 "agent.core.task_board_completion.auto_finalize_task_board_on_completion",
-                AsyncMock(return_value=[]),
+                AsyncMock(return_value=([], False)),
             ),
         ):
             frames = [
