@@ -188,7 +188,7 @@ def test_retrieval_excludes_only_selected_items():
         return []
 
     with (
-        patch.object(assembler, "_get_project_status", return_value={}),
+        patch.object(assembler, "get_project_status", return_value={}),
         patch.object(assembler, "_get_file_inventory", return_value={}),
         patch.object(assembler, "_get_files_by_types", return_value=characters),
         patch.object(assembler, "_get_retrieved_snippets", side_effect=fake_snippets),

@@ -109,8 +109,8 @@ async def test_private_object_feedback_roundtrip_requires_admin_and_listing_does
             return self.objects[reference]
 
     storage = _MemoryStorage()
-    monkeypatch.setattr("api.feedback._storage", lambda: storage)
-    monkeypatch.setattr("api.admin.feedback._storage", lambda: storage)
+    monkeypatch.setattr("api.feedback.get_upload_storage_or_503", lambda: storage)
+    monkeypatch.setattr("api.admin.feedback.get_upload_storage_or_503", lambda: storage)
     admin = await create_user(
         db_session, "admin_s3_feedback", "admin_s3_feedback@example.com", is_superuser=True
     )
@@ -653,7 +653,10 @@ async def test_admin_feedback_update_status_closes_storage_and_returns_503_on_st
     )
     token = await login_user(client, admin.username)
 
-    monkeypatch.setattr("api.admin.feedback._storage", lambda: (_ for _ in ()).throw(ValueError("bad s3 config")))
+    monkeypatch.setattr(
+        "services.infra.upload_storage.get_upload_storage",
+        lambda **_kwargs: (_ for _ in ()).throw(ValueError("bad s3 config")),
+    )
     failed = await client.patch(
         f"/api/admin/feedback/{feedback.id}/status",
         headers=auth_headers(token),
@@ -670,7 +673,7 @@ async def test_admin_feedback_update_status_closes_storage_and_returns_503_on_st
         def close(self):
             closed["count"] += 1
 
-    monkeypatch.setattr("api.admin.feedback._storage", _ClosableStorage)
+    monkeypatch.setattr("api.admin.feedback.get_upload_storage_or_503", _ClosableStorage)
     succeeded = await client.patch(
         f"/api/admin/feedback/{feedback.id}/status",
         headers=auth_headers(token),

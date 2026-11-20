@@ -235,7 +235,7 @@ class _CapturingStorage:
 @pytest.fixture
 def capturing_storage(monkeypatch):
     storage = _CapturingStorage()
-    monkeypatch.setattr(materials_upload_api, "_storage", lambda: storage)
+    monkeypatch.setattr(materials_upload_api, "get_upload_storage_or_503", lambda: storage)
     return storage
 
 

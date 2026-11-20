@@ -48,6 +48,7 @@ MATERIAL_TRIAL_BUDGET_UNITS = 100_000_000  # 1 CNY, per account, for life.
 COST_LIMIT_CODE = "ERR_QUOTA_AI_DAILY_COST_EXCEEDED"
 UNAVAILABLE_CODE = "ERR_AI_COST_BUDGET_UNAVAILABLE"
 _attribution: ContextVar[Any] = ContextVar("ai_cost_attribution", default=None)
+_context_user_id: ContextVar[str | None] = ContextVar("ai_cost_context_user_id", default=None)
 _call_started_at: ContextVar[datetime | None] = ContextVar("ai_cost_call_started_at", default=None)
 _call_user_id: ContextVar[str | None] = ContextVar("ai_cost_call_user_id", default=None)
 _trial_output_limit: ContextVar[int | None] = ContextVar("ai_cost_trial_output_limit", default=None)
@@ -113,13 +114,16 @@ def material_trial_call(*, output_limit: int | None):
         _trial_output_limit.reset(token)
 
 
+def set_context_user_id(user_id: str | None) -> None:
+    """Bind the ambient user id for the current execution context (e.g. ToolContext)."""
+    _context_user_id.set(user_id if isinstance(user_id, str) and user_id else None)
+
+
 def current_user_id() -> str | None:
     explicit = _attribution.get()
     if explicit is not None:
         return explicit.user_id
-    from agent.tools.mcp_tools import ToolContext
-
-    return ToolContext.get_user_id()
+    return _context_user_id.get()
 
 
 def _default_session_factory():

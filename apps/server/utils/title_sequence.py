@@ -59,6 +59,13 @@ _RE_EN_CHAPTER: Final[re.Pattern[str]] = re.compile(
     r"^\s*(chapter|episode|ep\.?)\s+(\d+)\b(?!\s*[-–—~～]\s*\d)",
     re.IGNORECASE,
 )
+_RE_EMBEDDED_CN_CHAPTER: Final[re.Pattern[str]] = re.compile(
+    r"第\s*([零一二三四五六七八九十百千\d]+)\s*[章集]"
+)
+_RE_EMBEDDED_EN_CHAPTER: Final[re.Pattern[str]] = re.compile(
+    r"\bchapter\s+(\d+)\b",
+    re.IGNORECASE,
+)
 _RE_LEADING_NUM: Final[re.Pattern[str]] = re.compile(r"^\s*(\d+)\b")
 _SEQUENCE_METADATA_KEYS: Final[tuple[str, ...]] = (
     "chapter_number",
@@ -303,6 +310,36 @@ def extract_chapter_like_sequence_number(title: str | None) -> int | None:
     if match:
         try:
             parsed = int(match.group(2))
+        except ValueError:
+            parsed = 0
+        return parsed if parsed > 0 else None
+
+    return None
+
+
+def extract_chapter_sequence_in_text(text: str | None) -> int | None:
+    """Extract a chapter/episode sequence number embedded in free-form phase text.
+
+    Matches Chinese ``第N章`` / ``第N集`` (Arabic or Chinese numerals) and English
+    ``Chapter N`` anywhere in ``text`` (e.g. ``已写至第3集``, ``Writing Chapter 5``).
+    """
+    normalized = (text or "").strip()
+    if not normalized:
+        return None
+
+    cn_match = _RE_EMBEDDED_CN_CHAPTER.search(normalized)
+    if cn_match:
+        token = cn_match.group(1).strip()
+        if token.isdigit():
+            parsed = int(token)
+            return parsed if parsed > 0 else None
+        parsed = parse_chinese_number(token)
+        return parsed if parsed and parsed > 0 else None
+
+    en_match = _RE_EMBEDDED_EN_CHAPTER.search(normalized)
+    if en_match:
+        try:
+            parsed = int(en_match.group(1))
         except ValueError:
             parsed = 0
         return parsed if parsed > 0 else None

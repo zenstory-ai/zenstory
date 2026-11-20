@@ -23,7 +23,8 @@ from services.infra.upload_storage import (
     UploadNotFoundError,
     UploadReferenceError,
     UploadStorageError,
-    get_upload_storage,
+    get_upload_storage_or_503,
+    resolve_feedback_upload_root,
 )
 from utils.logger import get_logger, log_with_context
 
@@ -35,24 +36,6 @@ router = APIRouter(tags=["admin-feedback"])
 
 ALLOWED_FEEDBACK_STATUS = {"open", "processing", "resolved"}
 ALLOWED_SOURCE_PAGES = {"dashboard", "editor"}
-DEFAULT_FEEDBACK_UPLOAD_DIR = "uploads/feedback"
-
-
-def _resolve_feedback_upload_root() -> Path:
-    configured_dir = os.getenv("FEEDBACK_UPLOAD_DIR", DEFAULT_FEEDBACK_UPLOAD_DIR).strip() or DEFAULT_FEEDBACK_UPLOAD_DIR
-    upload_dir = Path(configured_dir)
-    if not upload_dir.is_absolute():
-        upload_dir = Path.cwd() / upload_dir
-    return upload_dir.resolve()
-
-
-def _storage():
-    from config.material_settings import material_settings
-
-    return get_upload_storage(
-        material_root=material_settings.UPLOAD_FOLDER,
-        feedback_root=_resolve_feedback_upload_root(),
-    )
 
 
 def _is_within_upload_root(path: Path, upload_root: Path) -> bool:
@@ -73,7 +56,7 @@ def _resolve_existing_feedback_screenshot(raw_path: str | None) -> tuple[Path | 
     if not raw_path:
         return None, False
 
-    upload_root = _resolve_feedback_upload_root()
+    upload_root = resolve_feedback_upload_root()
     original = Path(raw_path).expanduser()
     candidates: list[Path] = []
     seen: set[Path] = set()
@@ -199,13 +182,7 @@ def list_feedback_admin(
             )
         )
 
-    try:
-        storage = _storage()
-    except ValueError as exc:
-        raise APIException(
-            error_code=ErrorCode.SERVICE_UNAVAILABLE,
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        ) from exc
+    storage = get_upload_storage_or_503()
     try:
         if has_screenshot is None:
             total = session.exec(select(func.count()).select_from(query.subquery())).one()
@@ -267,13 +244,7 @@ def update_feedback_status_admin(
             detail="Feedback owner not found.",
         )
 
-    try:
-        storage = _storage()
-    except ValueError as exc:
-        raise APIException(
-            error_code=ErrorCode.SERVICE_UNAVAILABLE,
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        ) from exc
+    storage = get_upload_storage_or_503()
 
     try:
         old_status = feedback.status
@@ -327,7 +298,7 @@ def get_feedback_screenshot_admin(
     if feedback.screenshot_path.startswith("s3://"):
         storage = None
         try:
-            storage = _storage()
+            storage = get_upload_storage_or_503()
             content = storage.read_feedback(feedback.screenshot_path)
         except UploadReferenceError as exc:
             raise APIException(

@@ -7,11 +7,11 @@ Reuses StreamProcessor for handling <file> markers in text content.
 
 import asyncio
 import contextlib
-import os
 from collections.abc import AsyncIterator, Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from config.env import get_positive_float_env
 from core.error_codes import ErrorCode
 from models.file_model import FILE_TYPE_DRAFT, FILE_TYPE_FOLDER, FILE_TYPE_SCRIPT
 from utils.logger import get_logger, log_with_context
@@ -81,20 +81,7 @@ def _with_sync_session[T](fn: Callable[[Any], T]) -> T:
 # 工具结果无法解析时发给前端的 error_type（前端据此显示通用的「这一步没做成」）。
 MALFORMED_TOOL_RESULT_ERROR_TYPE = "malformed_tool_result"
 
-
-def _get_positive_float_env(name: str, default: float) -> float:
-    """Read a positive float env var with safe fallback."""
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        value = float(raw)
-    except ValueError:
-        return default
-    return value if value > 0 else default
-
-
-STREAM_FILE_SAVE_TIMEOUT_S = _get_positive_float_env(
+STREAM_FILE_SAVE_TIMEOUT_S = get_positive_float_env(
     "AGENT_STREAM_FILE_SAVE_TIMEOUT_S",
     15.0,
 )
@@ -212,7 +199,6 @@ class StreamAdapter:
         # 停止 / 断线时还在提交的整章替换（线程里的提交不会随取消中止）：收尾时等它的真实结果。
         self._replacement_in_flight: tuple[str, str, asyncio.Future[dict[str, Any]], str | None] | None = None
         self._saved_file_word_counts: dict[str, int | None] = {}
-        self._timed_out_save_file_ids: set[str] = set()
         # 整章替换的保存回执，按 write_chapter 的 tool_use_id 记：同一章在一轮里可能先后替换多次，
         # 文件级回执只说「这个文件存过」，不能拿来证明后一次替换也存了。
         self._replacement_receipts: dict[str, int | None] = {}
@@ -595,12 +581,8 @@ class StreamAdapter:
                 rolled_back_files=_card_files(data.get("rolled_back_files")),
             )
 
-        elif event_type_value in (
-            StreamEventType.WORKFLOW_STOPPED.value,
-            StreamEventType.STEERING_RECEIVED.value,
-            "session_started",
-        ):
-            # Pass through these events directly
+        elif event_type_value == StreamEventType.STEERING_RECEIVED.value:
+            # Pass through steering_received events directly
             yield SSEEvent(type=event_type_value, data=data)
 
     async def _handle_workflow_tool_result(
@@ -1387,10 +1369,6 @@ class StreamAdapter:
         """保存回执；收到结束标记或正文 chunk 本身不代表落库成功。"""
         return dict(self._saved_file_word_counts)
 
-    def get_timed_out_save_file_ids(self) -> set[str]:
-        """发生过保存超时、后台线程可能仍在提交的文件 id。"""
-        return set(self._timed_out_save_file_ids)
-
     def _note_replacement_receipt(self, replace_tool_use_id: str | None, words: int | None) -> None:
         if replace_tool_use_id:
             self._replacement_receipts[replace_tool_use_id] = words
@@ -1706,7 +1684,6 @@ class StreamAdapter:
         这是一份完整（非截断补全）的正文，同时记进本请求的已保存正文（续跑、任务板、write_chapter 守卫读它）。
         file_type 是保存目标的类型（知道时传），续跑只对正文类文件要求自查。"""
         self._saved_file_word_counts[file_id] = words
-        self._timed_out_save_file_ids.discard(file_id)
         if self.config.run_outcome is not None:
             self.config.run_outcome.saved_file_word_counts[file_id] = words
             self.config.run_outcome.uncertain_save_file_ids.discard(file_id)
@@ -1718,8 +1695,6 @@ class StreamAdapter:
     def _note_save_unconfirmed(self, file_id: str, *, timed_out: bool = False) -> None:
         """保存未确认或超时：写回执（不覆盖之前成功的字数），超时一并记入不确定集合。"""
         self._saved_file_word_counts.setdefault(file_id, None)
-        if timed_out:
-            self._timed_out_save_file_ids.add(file_id)
         if self.config.run_outcome is not None:
             self.config.run_outcome.saved_file_word_counts.setdefault(file_id, None)
             if timed_out:

@@ -11,24 +11,6 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator
-from services.auth import (
-    ALLOW_LEGACY_REFRESH_WITHOUT_JTI,
-    TOKEN_TYPE_REFRESH,
-    access_token_claims,
-    create_access_token,
-    create_refresh_token,
-    generate_token_jti,
-    get_current_active_user,
-    get_refresh_token_expires_at,
-    hash_password,
-    unique_username,
-    verify_password,
-    verify_token,
-)
-from services.auth import (
-    revoke_active_refresh_tokens_for_user as _revoke_active_refresh_tokens_for_user,
-)
-from services.verification_service import send_verification_code
 from sqlalchemy import delete, or_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -46,13 +28,30 @@ from models import (
     User,
 )
 from models.referral import InviteCode
+from services.core.auth_service import (
+    ALLOW_LEGACY_REFRESH_WITHOUT_JTI,
+    TOKEN_TYPE_REFRESH,
+    access_token_claims,
+    create_access_token,
+    create_refresh_token,
+    generate_token_jti,
+    get_current_active_user,
+    get_refresh_token_expires_at,
+    hash_password,
+    unique_username,
+    verify_password,
+    verify_token,
+)
+from services.core.auth_service import (
+    revoke_active_refresh_tokens_for_user as _revoke_active_refresh_tokens_for_user,
+)
 from services.core.registration_email_policy import ensure_registration_email_allowed
 from services.features import password_reset_service
 from services.features.activation_event_service import activation_event_service
 from services.features.referral_service import create_referral as create_referral_service
 from services.features.registration_recovery_service import correct_registration_email
 from services.features.user_preference_service import get_ui_language, normalize_ui_language, set_ui_language
-from services.features.verification_service import clear_registration_verification
+from services.features.verification_service import clear_registration_verification, send_verification_code
 from services.infra.email_client import InvalidRecipientError
 from services.subscription.subscription_service import subscription_service
 from services.usage.acquisition_service import normalize_acquisition

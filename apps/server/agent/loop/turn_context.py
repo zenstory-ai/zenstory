@@ -71,23 +71,23 @@ def build_loop_turn_context(
     items: list[Any] = []
     attached_file_ids = metadata.get("attached_file_ids")
     if isinstance(attached_file_ids, list) and attached_file_ids:
-        items.extend(assembler._get_attached_files(session, project_id, [str(i) for i in attached_file_ids]))
+        items.extend(assembler.get_attached_files(session, project_id, [str(i) for i in attached_file_ids]))
     materials = metadata.get("attached_library_materials")
     if isinstance(materials, list) and materials:
-        items.extend(assembler._get_attached_library_materials(session, user_id, materials))
+        items.extend(assembler.get_attached_library_materials(session, user_id, materials))
     quotes = metadata.get("text_quotes")
     if isinstance(quotes, list) and quotes:
-        items.extend(assembler._get_text_quotes([q for q in quotes if isinstance(q, dict)]))
+        items.extend(assembler.get_text_quotes([q for q in quotes if isinstance(q, dict)]))
     focus_file_id = metadata.get("current_file_id")
     if isinstance(focus_file_id, str) and focus_file_id:
         focus = session.get(File, focus_file_id)
         if focus is not None and not focus.is_deleted and focus.project_id == project_id and focus.file_type != "folder":
-            items.append(assembler._file_to_context_item(focus, is_focus=True))
-    items = assembler._deduplicate_items(items)
+            items.append(assembler.file_to_context_item(focus, is_focus=True))
+    items = assembler.deduplicate_items(items)
     items = _bound_turn_context_items(items, assembler)
 
-    project_status = assembler._get_project_status(session, project_id)
-    rendered = assembler._format_context(items, None, project_status)
+    project_status = assembler.get_project_status(session, project_id)
+    rendered = assembler.format_context(items, None, project_status)
 
     manager = MessageManager(project_id=project_id, user_id=user_id)
     parts: list[str] = [TURN_CONTEXT_OPEN, _PREAMBLE_EN if force_en else _PREAMBLE, "", rendered.strip()]
@@ -96,7 +96,7 @@ def build_loop_turn_context(
         project_id=project_id,
         user_id=user_id,
         chat_session_id=chat_session_id,
-        primary_ids=[fid for fid in (assembler._item_file_id(item) for item in items) if fid],
+        primary_ids=[fid for fid in (assembler.item_file_id(item) for item in items) if fid],
     )
     if author_edits:
         parts.extend(["", author_edits])
@@ -108,7 +108,7 @@ def build_loop_turn_context(
     result.text = "\n".join(parts)
 
     for item in items:
-        file_id = assembler._item_file_id(item)
+        file_id = assembler.item_file_id(item)
         if file_id and not item.is_truncated and isinstance(item.content, str):
             result.read_snapshots[file_id] = item.content
     result.items = [item.to_dict() for item in items]
@@ -134,7 +134,7 @@ def _bound_turn_context_items(
     limit = AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS if max_provider_tokens is None else max_provider_tokens
     budget = TokenBudget(
         max_tokens=limit,
-        item_overhead=assembler._item_render_overhead_tokens,
+        item_overhead=assembler.item_render_overhead_tokens,
         token_estimator=estimate_provider_text_tokens,
     )
     if sum(budget.estimate_item_tokens(item) for item in items) <= limit:
