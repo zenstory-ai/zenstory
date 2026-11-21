@@ -2,21 +2,25 @@ import { useTranslation } from "react-i18next";
 import type { ComponentType } from "react";
 import { InspirationGrid } from "../components/inspirations";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
+import { Button } from "../components/ui/Button";
+import { useIsMobile } from "../hooks/useMediaQuery";
 import { useMyInspirationSubmissions } from "../hooks/useInspirations";
 import { getLocaleCode } from "../lib/i18n-helpers";
 import { CheckCircle, Clock, Copy, X } from "../components/icons";
 
 export default function InspirationsPage() {
   const { t } = useTranslation("inspirations");
+  const isMobile = useIsMobile();
   const { items, total, isLoading, isFetching, error, refetch } = useMyInspirationSubmissions({ pageSize: 5 });
   const isSubmissionsLoading = isLoading || (isFetching && items.length === 0);
 
   const statusClassMap: Record<string, string> = {
     pending:
-      "border border-yellow-500/30 bg-yellow-500/10 text-yellow-500 dark:text-yellow-400",
+      "border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]",
     approved:
       "border border-[hsl(var(--success)/0.35)] bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))]",
-    rejected: "border border-red-500/30 bg-red-500/10 text-red-500 dark:text-red-400",
+    rejected:
+      "border border-[hsl(var(--error)/0.35)] bg-[hsl(var(--error)/0.12)] text-[hsl(var(--error-text))]",
   };
 
   const statusIconMap: Record<string, ComponentType<{ className?: string }>> = {
@@ -47,11 +51,11 @@ export default function InspirationsPage() {
         {isSubmissionsLoading ? (
           <p className="text-sm text-[hsl(var(--text-secondary))]">{t("mySubmissions.loading")}</p>
         ) : error ? (
-          <div className="rounded-xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] px-4 py-4 text-sm text-[hsl(var(--text-secondary))]">
+          <div role="alert" className="rounded-xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] px-4 py-4 text-sm text-[hsl(var(--text-secondary))]">
             <p>{t("mySubmissions.loadError")}</p>
-            <button className="btn-secondary mt-3 h-9 px-3" onClick={() => void refetch()}>
+            <Button variant="secondary" size={isMobile ? "touch" : "md"} className="mt-3" onClick={() => void refetch()}>
               {t("retry")}
-            </button>
+            </Button>
           </div>
         ) : items.length === 0 ? (
           <p className="rounded-xl border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary)/0.35)] px-4 py-6 text-sm text-[hsl(var(--text-secondary))]">
@@ -74,7 +78,7 @@ export default function InspirationsPage() {
                     })}
                   </p>
                   {item.status === "rejected" && item.rejection_reason && (
-                    <p className="mt-1 line-clamp-2 text-xs text-red-500">
+                    <p className="mt-1 line-clamp-2 text-xs text-[hsl(var(--error-text))]">
                       {t("mySubmissions.rejectionReason", { reason: item.rejection_reason })}
                     </p>
                   )}

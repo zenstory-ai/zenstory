@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { LogoMark } from "../components/Logo";
 import { useAuth } from "../contexts/AuthContext";
 import { PublicHeader } from "../components/PublicHeader";
+import { Button } from "../components/ui/Button";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { isValidRedirectUrl } from "../lib/ssoRedirect";
 import { AUTH_CALLBACK_PATH, takeAuthCallbackParams } from "../lib/authCallbackParams";
@@ -167,15 +168,15 @@ export default function OAuthCallback() {
   return (
     <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex flex-col">
       {/* Header */}
-      <PublicHeader variant="auth" />
+      <PublicHeader variant="auth" maxWidth="max-w-6xl" />
 
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="text-center mb-10">
             <div className="inline-flex items-center gap-2.5 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-[hsl(var(--accent-primary))] flex items-center justify-center shadow-lg">
-                <LogoMark className="w-7 h-7 text-white" />
+              <div className="w-12 h-12 rounded-xl bg-[hsl(var(--primary))] flex items-center justify-center shadow-lg">
+                <LogoMark className="w-7 h-7 text-[hsl(var(--primary-foreground))]" />
               </div>
             </div>
             <h1 className="text-2xl font-bold text-[hsl(var(--text-primary))] mb-2">
@@ -219,12 +220,14 @@ export default function OAuthCallback() {
                     {t('auth:errors.oauthErrorHint')}
                   </p>
                 </div>
-                <button
+                <Button
+                  type="button"
+                  size="lg"
                   onClick={() => navigate("/login", { replace: true })}
-                  className="btn-primary w-full py-3"
+                  className="w-full"
                 >
                   {t('auth:login.backToLogin')}
-                </button>
+                </Button>
               </div>
             )}
           </div>

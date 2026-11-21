@@ -44,6 +44,8 @@
   "collapseDetails": "收起说明",
   "instructionsHidden": "官方技能的具体指令不公开；添加后，AI 会在合适的时候使用它。",
   "batch": {
+    "select": "选择技能「{{name}}」",
+    "deselect": "取消选择技能「{{name}}」",
     "selectAll": "全选",
     "selected": "已选择 {{count}} 项",
     "selected_one": "已选择 {{count}} 项",

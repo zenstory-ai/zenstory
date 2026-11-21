@@ -8,6 +8,8 @@ import { pointsApi } from '../../lib/pointsApi';
 import { useTranslation } from 'react-i18next';
 import type { PointsTransaction } from '../../types/points';
 import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 
 interface PointsHistoryProps {
   className?: string;
@@ -70,10 +72,12 @@ function formatTransactionDate(
 
 export function PointsHistory({ className = '', pageSize = 10 }: PointsHistoryProps) {
   const { t, i18n } = useTranslation(['points', 'common']);
+  const isMobile = useIsMobile();
+  const actionSize = isMobile ? 'touch' : 'md';
   const [page, setPage] = useState(1);
   const localeCode = i18n.language === 'zh' ? 'zh-CN' : 'en-US';
 
-  const { data, isLoading, isFetching, isError } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ['points-transactions', page, pageSize],
     queryFn: () => pointsApi.getTransactions(page, pageSize),
   });
@@ -84,8 +88,13 @@ export function PointsHistory({ className = '', pageSize = 10 }: PointsHistoryPr
   if (isError || (!isHistoryLoading && !data)) {
     return (
       <Card className={className}>
-        <div className="p-4 text-center text-[hsl(var(--text-secondary))]">
-          {t('historyError')}
+        <div className="p-4 text-center space-y-3">
+          <p role="alert" className="text-sm text-[hsl(var(--error-text))]">
+            {t('historyError')}
+          </p>
+          <Button variant="secondary" size={actionSize} onClick={() => void refetch()}>
+            {t('common:retry', '重试')}
+          </Button>
         </div>
       </Card>
     );
@@ -121,7 +130,7 @@ export function PointsHistory({ className = '', pageSize = 10 }: PointsHistoryPr
             <div className="flex items-center gap-3">
               <div className={`p-2 rounded-full ${
                 tx.amount > 0
-                  ? 'bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-light))]'
+                  ? 'bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))]'
                   : 'bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error-text))]'
               }`}>
                 {TRANSACTION_TYPE_ICONS[tx.transaction_type] || TRANSACTION_TYPE_ICONS.default}
@@ -141,7 +150,7 @@ export function PointsHistory({ className = '', pageSize = 10 }: PointsHistoryPr
             <div className="text-right">
               <p className={`text-sm font-medium ${
                 tx.amount > 0
-                  ? 'text-[hsl(var(--success-light))]'
+                  ? 'text-[hsl(var(--success-text))]'
                   : 'text-[hsl(var(--error-text))]'
               }`}>
                 {tx.amount > 0 ? '+' : ''}{tx.amount}
@@ -159,23 +168,27 @@ export function PointsHistory({ className = '', pageSize = 10 }: PointsHistoryPr
       {/* Pagination */}
       {total_pages > 1 && (
         <div className="p-3 border-t border-[hsl(var(--border-color))] flex items-center justify-between">
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size={isMobile ? 'touch' : 'sm'}
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="px-3 py-1 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {t('common:previous')}
-          </button>
+          </Button>
           <span className="text-sm text-[hsl(var(--text-secondary))]">
             {page} / {total_pages}
           </span>
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size={isMobile ? 'touch' : 'sm'}
             onClick={() => setPage(p => Math.min(total_pages, p + 1))}
             disabled={page === total_pages}
-            className="px-3 py-1 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {t('common:next')}
-          </button>
+          </Button>
         </div>
       )}
     </Card>

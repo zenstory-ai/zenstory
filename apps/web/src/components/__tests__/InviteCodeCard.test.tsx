@@ -401,5 +401,10 @@ describe('InviteCodeCard', () => {
 
       expect(screen.getByText('已用完')).toBeInTheDocument()
     })
+
+    it('does not expose cursor-pointer on the non-interactive outer card', () => {
+      const { container } = render(<InviteCodeCard inviteCode={mockInviteCode} />)
+      expect(container.firstChild).not.toHaveClass('cursor-pointer')
+    })
   })
 })

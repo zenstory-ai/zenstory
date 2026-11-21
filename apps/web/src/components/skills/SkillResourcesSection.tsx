@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileText, Plus, Trash2, X } from "../icons";
+import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
 import { skillsApi } from "../../lib/api";
 import { logger } from "../../lib/logger";
 import type { SkillResource } from "../../types";
@@ -244,7 +246,7 @@ export function SkillResourcesSection({
           <div className="text-xs text-[hsl(var(--text-tertiary))]">{t("resources.empty")}</div>
         )
       ) : (
-        <ul className="divide-y divide-[hsl(var(--border-color))] rounded-lg border border-[hsl(var(--border-color))]">
+        <ul className="divide-y divide-[hsl(var(--border-color))] rounded-xl border border-[hsl(var(--border-color))]">
           {resources.map((resource) => (
             <li key={resource.path} className="flex items-center gap-2 px-3 py-2">
               <button
@@ -265,28 +267,26 @@ export function SkillResourcesSection({
                     <button
                       type="button"
                       onClick={() => handleDelete(resource.path)}
-                      className="text-xs px-2 py-1 rounded bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.2)]"
+                      className="min-h-11 md:min-h-0 text-xs px-2.5 py-1 rounded-lg bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.2)]"
                     >
                       {t("resources.confirmDelete")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setConfirmDeletePath(null)}
-                      className="text-xs px-2 py-1 rounded text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]"
+                      className="min-h-11 md:min-h-0 text-xs px-2.5 py-1 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]"
                     >
                       {t("common:cancel")}
                     </button>
                   </span>
                 ) : (
-                  <button
-                    type="button"
+                  <IconButton
+                    size="auto"
+                    tone="danger"
                     onClick={() => setConfirmDeletePath(resource.path)}
-                    className={`shrink-0 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--error)/0.1)] hover:text-[hsl(var(--error-text))] transition-colors ${isMobile ? "p-1.5" : "p-1"}`}
-                    aria-label={t("resources.delete", { path: resource.path })}
-                    title={t("resources.delete", { path: resource.path })}
-                  >
-                    <Trash2 className={iconSize} />
-                  </button>
+                    label={t("resources.delete", { path: resource.path })}
+                    icon={<Trash2 className={iconSize} />}
+                  />
                 ))}
             </li>
           ))}
@@ -294,7 +294,7 @@ export function SkillResourcesSection({
       )}
 
       {editor && (
-        <div className="space-y-2 rounded-lg border border-[hsl(var(--border-color))] p-3">
+        <div className="space-y-2 rounded-xl border border-[hsl(var(--border-color))] p-3">
           <div className="flex items-center gap-2">
             {editor.isNew ? (
               <input
@@ -310,19 +310,16 @@ export function SkillResourcesSection({
                 {editor.path}
               </span>
             )}
-            <button
-              type="button"
+            <IconButton
+              size="auto"
               onClick={() => {
                 contentRequestRef.current += 1;
                 setEditor(null);
                 setError(null);
               }}
-              className="shrink-0 p-1 rounded text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
-              aria-label={t("resources.close")}
-              title={t("resources.close")}
-            >
-              <X className="w-4 h-4" />
-            </button>
+              label={t("resources.close")}
+              icon={<X className="w-4 h-4" />}
+            />
           </div>
           {editor.loading ? (
             <div className="text-xs italic text-[hsl(var(--text-tertiary))]">{t("common:loading")}</div>
@@ -337,14 +334,16 @@ export function SkillResourcesSection({
           )}
           {!readOnly && (
             <div className="flex justify-end">
-              <button
+              <Button
                 type="button"
+                size={isMobile ? "touch" : "md"}
                 onClick={handleSave}
                 disabled={saving || editor.loading}
-                className="btn-primary h-9 px-4 text-sm disabled:opacity-50"
+                isLoading={saving}
+                loadingText={t("resources.saving")}
               >
-                {saving ? t("resources.saving") : t("resources.saveFile")}
-              </button>
+                {t("resources.saveFile")}
+              </Button>
             </div>
           )}
         </div>
