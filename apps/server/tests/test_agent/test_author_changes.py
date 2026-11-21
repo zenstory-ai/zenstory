@@ -768,3 +768,225 @@ def test_a_paragraph_the_author_put_back_is_no_longer_a_deletion(db_session, own
     assert changes is None or all(hunk.before != _A for hunk in changes.hunks)
     blame = line_blame(db_session, chapter.id, chapter.content)
     assert blame.deletions == []
+
+
+def test_line_blame_fast_path_parity_and_zero_matcher_calls_for_ai_only_and_pre_author_chains(
+    db_session, owner_project, monkeypatch
+):
+    """AI-only / pure-original chains and pre-first-AUTHOR prefixes skip unnecessary SequenceMatcher calls
+    while preserving exact (lines, labels, origins, has_ai, complete, latest_ai_content, deletions) semantics."""
+    import agent.tools.author_changes as module
+
+    _, project = owner_project
+    real_matcher = module._matcher
+    matcher_calls = 0
+
+    def counting_matcher(old_lines, new_lines):
+        nonlocal matcher_calls
+        matcher_calls += 1
+        return real_matcher(old_lines, new_lines)
+
+    monkeypatch.setattr(module, "_matcher", counting_matcher)
+
+    # 1. Pure AI multi-version chain (current_content == latest): 0 SequenceMatcher calls across all entrypoints.
+    ai_only = _file(db_session, project, "第一段。\n第二段。\n第三段。", title="AI纯稿", file_type="draft")
+    _version(db_session, ai_only, "第一段。\n第二段。\n第三段。", "create", "ai")
+    for idx in range(5):
+        _version(db_session, ai_only, f"第一段。\n第二段AI第{idx}版。\n第三段。", "ai_edit", "ai")
+
+    matcher_calls = 0
+    blame = line_blame(db_session, ai_only.id, ai_only.content)
+    assert blame is not None
+    assert matcher_calls == 0
+    assert blame.lines == ["第一段。", "第二段AI第4版。", "第三段。"]
+    assert blame.labels == [AI, AI, AI]
+    assert blame.has_ai is True
+    assert blame.complete is True
+    assert blame.latest_ai_content == ai_only.content
+    assert blame.deletions == []
+    assert author_changes(db_session, ai_only) is None
+    assert touched_author_text(blame, ai_only.content, ai_only.content + "\n第四段。") == []
+    assert matcher_calls == 0
+
+    # 2. Pure original/user chain (no AI), even with unsaved current_content divergence: 0 SequenceMatcher calls.
+    orig = _file(db_session, project, "原稿第一段。\n原稿第二段。", title="纯原稿", file_type="draft")
+    _version(db_session, orig, "原稿第一段。\n原稿第二段。", "create", "system", "Initial version")
+    _version(db_session, orig, "原稿第一段。\n原稿第二段改。", "edit", "user")
+    orig.content = "原稿第一段。\n原稿第二段未进版本。"
+    db_session.add(orig)
+    db_session.commit()
+
+    matcher_calls = 0
+    orig_blame = line_blame(db_session, orig.id, orig.content)
+    assert orig_blame is not None
+    assert matcher_calls == 0
+    assert orig_blame.labels == [ORIGINAL, ORIGINAL]
+    assert orig_blame.has_ai is False
+    assert author_changes(db_session, orig) is None
+
+    # 3. Pre-first-AUTHOR AI chain (v1..v5 AI, v6 AUTHOR, v7 AI): only 2 SequenceMatcher calls (v5->v6, v6->v7).
+    mixed = _file(db_session, project, "第一段。\n第二段AI。\n第三段。", title="混合链", file_type="draft")
+    _version(db_session, mixed, "第一段。\n第二段AI。\n第三段。", "create", "ai")
+    for idx in range(4):
+        _version(db_session, mixed, f"第一段。\n第二段AI_{idx}。\n第三段。", "ai_edit", "ai")
+    _version(db_session, mixed, "第一段。\n第二段作者改。\n第三段。", "edit", "user")
+    _version(db_session, mixed, "第一段。\n第二段作者改。\n第三段AI润色。", "ai_edit", "ai")
+
+    matcher_calls = 0
+    mixed_blame = line_blame(db_session, mixed.id, mixed.content)
+    assert mixed_blame is not None
+    assert matcher_calls == 2
+    assert mixed_blame.labels == [AI, AUTHOR, AI]
+    assert mixed_blame.has_ai is True
+    assert [(h.before, h.after) for h in module.author_hunks(mixed_blame)] == [("第二段AI_3。", "第二段作者改。")]
+
+    # 4. AI chain (v1..v5 AI) + unsaved unversioned author edit (current_content != latest): only 1 call.
+    unsaved = _file(db_session, project, "第一段。\n第二段。\n第三段。", title="未进版本手改", file_type="draft")
+    _version(db_session, unsaved, "第一段。\n第二段。\n第三段。", "create", "ai")
+    for idx in range(4):
+        _version(db_session, unsaved, f"第一段。\n第二段AI_{idx}。\n第三段。", "ai_edit", "ai")
+    unsaved.content = "第一段。\n第二段未进版本手改。\n第三段。"
+    db_session.add(unsaved)
+    db_session.commit()
+
+    matcher_calls = 0
+    unsaved_blame = line_blame(db_session, unsaved.id, unsaved.content)
+    assert unsaved_blame is not None
+    assert matcher_calls == 1
+    assert unsaved_blame.labels == [AI, AUTHOR, AI]
+    assert unsaved_blame.has_ai is True
+    assert [(h.before, h.after) for h in module.author_hunks(unsaved_blame)] == [
+        ("第二段AI_3。", "第二段未进版本手改。")
+    ]
+
+    # 5. Empty files (AI and original): 0 SequenceMatcher calls.
+    empty_ai = _file(db_session, project, "", title="空AI稿", file_type="draft")
+    _version(db_session, empty_ai, "", "create", "ai")
+    empty_orig = _file(db_session, project, "", title="空原稿", file_type="draft")
+    _version(db_session, empty_orig, "", "create", "system", "Initial version")
+
+    matcher_calls = 0
+    ea_blame = line_blame(db_session, empty_ai.id, "")
+    eo_blame = line_blame(db_session, empty_orig.id, "")
+    assert matcher_calls == 0
+    assert ea_blame is not None and ea_blame.lines == [""] and ea_blame.labels == [AI] and ea_blame.has_ai is True
+    assert (
+        eo_blame is not None and eo_blame.lines == [""] and eo_blame.labels == [ORIGINAL] and eo_blame.has_ai is False
+    )
+
+    # 6. Non-empty ORIGINAL v1 -> AI v2..v5 -> AUTHOR v6: preserves ORIGINAL on untouched v1 lines.
+    orig_then_ai = _file(db_session, project, "原稿第一段。\n原稿第二段。", title="原稿后AI", file_type="draft")
+    _version(db_session, orig_then_ai, "原稿第一段。\n原稿第二段。", "create", "system", "Initial version")
+    for idx in range(4):
+        _version(db_session, orig_then_ai, f"原稿第一段。\n原稿第二段。\nAI续写第{idx}版。", "ai_edit", "ai")
+    _version(db_session, orig_then_ai, "原稿第一段。\n原稿第二段。\n作者改写第三段。", "edit", "user")
+
+    ota_blame = line_blame(db_session, orig_then_ai.id, orig_then_ai.content)
+    assert ota_blame is not None
+    assert ota_blame.labels == [ORIGINAL, ORIGINAL, AUTHOR]
+    assert ota_blame.has_ai is True
+    assert [(h.before, h.after) for h in module.author_hunks(ota_blame)] == [("AI续写第3版。", "作者改写第三段。")]
+
+    # 7. Empty ORIGINAL v1 -> AI v2..v10: fast path with 0 SequenceMatcher calls & exact AI labels.
+    empty_then_ai = _file(db_session, project, "", title="空稿后AI", file_type="draft")
+    _version(db_session, empty_then_ai, "", "create", "system", "Initial version")
+    for idx in range(9):
+        _version(db_session, empty_then_ai, f"AI第一段。\nAI第二段第{idx}版。", "ai_edit", "ai")
+
+    matcher_calls = 0
+    eta_blame = line_blame(db_session, empty_then_ai.id, empty_then_ai.content)
+    assert eta_blame is not None
+    assert matcher_calls == 0
+    assert eta_blame.labels == [AI, AI]
+    assert eta_blame.has_ai is True
+    assert author_changes(db_session, empty_then_ai) is None
+    assert matcher_calls == 0
+
+    # 8. AI v1 -> ORIGINAL v2 (restore/system): preserves [AI, ORIGINAL] on untouched vs restored lines.
+    ai_then_restore = _file(db_session, project, "AI第一段。\nAI第二段。", title="系统恢复", file_type="draft")
+    _version(db_session, ai_then_restore, "AI第一段。\nAI第二段。", "create", "ai")
+    _version(db_session, ai_then_restore, "AI第一段。\n系统快照第二段。", "restore", "system")
+
+    atr_blame = line_blame(db_session, ai_then_restore.id, ai_then_restore.content)
+    assert atr_blame is not None
+    assert atr_blame.labels == [AI, ORIGINAL]
+    assert atr_blame.has_ai is True
+
+    # 9. Window start > 1 (complete=False): v_start seeded ORIGINAL -> v_{start+1} AI preserves ORIGINAL
+    # on lines untouched since v_start and marks lines written after v_start as AI.
+    windowed = _file(db_session, project, "固定开头。\n可变结尾0。", title="截断窗口", file_type="draft")
+    _version(db_session, windowed, "固定开头。\n可变结尾0。", "create", "ai")
+    for idx in range(1, MAX_VERSION_WINDOW + 2):
+        _version(db_session, windowed, f"固定开头。\n可变结尾{idx}。", "ai_edit", "ai")
+
+    win_blame = line_blame(db_session, windowed.id, windowed.content)
+    assert win_blame is not None
+    assert win_blame.complete is False
+    assert win_blame.has_ai is True
+    assert win_blame.labels == [ORIGINAL, AI]
+
+
+def test_long_file_with_repeated_short_lines_replays_fast_for_ai_only_and_author_edit(
+    db_session, owner_project, monkeypatch
+):
+    """Regression for quadratic difflib blowup: 3,000-line file with 600 repeated 2-char lines
+    across 12 versions must finish well under 1s for both AI-only and AUTHOR-edited chains."""
+    import time
+
+    import agent.tools.author_changes as module
+
+    _, project = owner_project
+    # 1,500 non-blank lines (600 repeated 2-char lines + 900 unique narrative lines) interleaved with 1,500 blanks.
+    base_lines: list[str] = []
+    for idx in range(1500):
+        base_lines.append("——" if idx % 5 < 2 else f"第{idx}段：夜雨顺着檐角滴落。")
+        base_lines.append("")
+    assert len(base_lines) == 3000
+    assert base_lines.count("——") == 600
+
+    chapter = _file(db_session, project, "\n".join(base_lines), title="长卷重复行", file_type="draft")
+    _version(db_session, chapter, "\n".join(base_lines), "create", "ai")
+    latest_lines = list(base_lines)
+    for version_idx in range(1, 12):
+        # Touch a unique narrative line each version to mirror real multi-revision AI drafts.
+        target = (version_idx * 10 + 4) * 2
+        latest_lines[target] = f"第{version_idx}次AI润色：檐角雨声渐急。"
+        _version(db_session, chapter, "\n".join(latest_lines), "ai_edit", "ai")
+
+    real_matcher = module._matcher
+    matcher_calls = 0
+
+    def counting_matcher(old_lines, new_lines):
+        nonlocal matcher_calls
+        matcher_calls += 1
+        return real_matcher(old_lines, new_lines)
+
+    monkeypatch.setattr(module, "_matcher", counting_matcher)
+
+    # Case A: 12 AI-only versions -> 0 SequenceMatcher calls, well under 1s.
+    t0 = time.perf_counter()
+    ai_only_result = author_changes(db_session, chapter)
+    ai_only_elapsed = time.perf_counter() - t0
+    assert ai_only_result is None
+    assert matcher_calls == 0
+    assert ai_only_elapsed < 1.0
+
+    # Case B: Author edits one narrative line on top of 12 AI versions -> fast with autojunk=True + pre-author skip.
+    author_lines = list(latest_lines)
+    edit_idx = 452 * 2  # 452 % 5 == 2 -> unique narrative line
+    old_line = author_lines[edit_idx]
+    new_line = "第452段：作者亲手改写的台词。"
+    author_lines[edit_idx] = new_line
+    _version(db_session, chapter, "\n".join(author_lines), "edit", "user")
+
+    matcher_calls = 0
+    t1 = time.perf_counter()
+    edited_result = author_changes(db_session, chapter)
+    edited_elapsed = time.perf_counter() - t1
+    assert edited_result is not None
+    assert [(h.before, h.after) for h in edited_result.hunks] == [(old_line, new_line)]
+    assert matcher_calls == 1
+    assert edited_elapsed < 1.0
+    # Verify autojunk=True marks the 600x repeated 2-char line as popular (preventing quadratic blowup
+    # even when edits span the full file without a shared prefix/suffix).
+    assert "——" in real_matcher(author_lines, author_lines).bpopular

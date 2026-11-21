@@ -418,6 +418,152 @@ class TestAuthorEditsAndWorkingSetHelpers:
         assert "第3章 三十年" in author_edits_context
         assert FAILED_LINE in author_edits_context
 
+    def test_author_edits_for_files_time_budget_moves_remaining_files_to_unchecked_titles(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+        monkeypatch,
+    ):
+        """超过总墙钟预算后停止继续算，剩余文件体面落入 unchecked_titles 明说未核对。"""
+        from agent.tools import author_changes as author_changes_mod
+        from agent.tools.author_changes import AuthorChanges, AuthorHunk
+
+        project = session_loader_test_data["project"]
+        f1 = self._make_file(db_session, project.id, "第1章", "内容1")
+        f2 = self._make_file(db_session, project.id, "第2章", "内容2")
+        f3 = self._make_file(db_session, project.id, "第3章", "内容3")
+
+        checked_ids: list[str] = []
+        clock = {"now": 100.0}
+
+        def fake_monotonic() -> float:
+            return clock["now"]
+
+        def fake_author_changes(_session, file):
+            checked_ids.append(file.id)
+            clock["now"] += 0.5
+            return AuthorChanges(hunks=[AuthorHunk("旧句", f"新句_{file.title}")])
+
+        monkeypatch.setattr("agent.core.session_loader.time.monotonic", fake_monotonic)
+        monkeypatch.setattr(author_changes_mod, "author_changes", fake_author_changes)
+
+        loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
+        block, edited_ids, by_id = loader.author_edits_for_files(
+            db_session, [f1.id, f2.id, f3.id], {}, time_budget_s=0.25
+        )
+
+        assert checked_ids == [f1.id]
+        assert edited_ids == {f1.id}
+        assert by_id is not None and set(by_id) == {f1.id, f2.id, f3.id}
+        assert "《第1章》" in block
+        assert "另有 2 个文件没有核对手改（不完整）：《第2章》、《第3章》" in block
+
+    def test_author_edits_for_files_cancel_event_stops_between_files(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+        monkeypatch,
+    ):
+        """协同取消信号置位后在文件边界立即停下，不继续消耗线程 CPU。"""
+        import threading
+
+        from agent.tools import author_changes as author_changes_mod
+        from agent.tools.author_changes import AuthorChanges, AuthorHunk
+
+        project = session_loader_test_data["project"]
+        f1 = self._make_file(db_session, project.id, "第1章", "内容1")
+        f2 = self._make_file(db_session, project.id, "第2章", "内容2")
+        f3 = self._make_file(db_session, project.id, "第3章", "内容3")
+
+        loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
+        cancel_event = threading.Event()
+        checked_ids: list[str] = []
+
+        def fake_author_changes(_session, file):
+            checked_ids.append(file.id)
+            cancel_event.set()
+            return AuthorChanges(hunks=[AuthorHunk("旧", "新")])
+
+        monkeypatch.setattr(author_changes_mod, "author_changes", fake_author_changes)
+
+        block, edited_ids, _by_id = loader.author_edits_for_files(
+            db_session, [f1.id, f2.id, f3.id], {}, cancel_event=cancel_event
+        )
+        assert checked_ids == [f1.id]
+        assert edited_ids == {f1.id}
+        assert "另有 2 个文件没有核对手改（不完整）：《第2章》、《第3章》" in block
+
+        # Pre-set cancel_event stops before checking even the first file.
+        checked_ids.clear()
+        block_pre, edited_pre, _ = loader.author_edits_for_files(
+            db_session, [f1.id, f2.id], {}, cancel_event=cancel_event
+        )
+        assert checked_ids == []
+        assert edited_pre == set()
+        assert "另有 2 个文件没有核对手改（不完整）：《第1章》、《第2章》" in block_pre
+
+    @pytest.mark.asyncio
+    async def test_process_stream_cancellation_sets_prepare_cancel_event(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+        monkeypatch,
+    ):
+        """流在 _prepare_loop_turn_sync 执行期间被取消时，必须置位传入的 cancel_event。"""
+        import asyncio
+        import threading
+
+        from agent.loop.history import LoopHistory
+        from agent.loop.turn_context import LoopTurnContext
+        from agent.service import AgentService
+
+        project = session_loader_test_data["project"]
+        user = session_loader_test_data["user"]
+        chat = session_loader_test_data["chat_session"]
+        entered = threading.Event()
+        observed: dict[str, threading.Event | None] = {"event": None}
+        exited_early = threading.Event()
+
+        def blocking_prepare_sync(**kwargs):
+            ev = kwargs.get("cancel_event")
+            observed["event"] = ev
+            entered.set()
+            if ev is not None and ev.wait(timeout=2.0):
+                exited_early.set()
+            return LoopHistory(), LoopTurnContext(), [], "sys"
+
+        service = AgentService()
+        monkeypatch.setattr("agent.service.should_offload_session_work", lambda _s: True)
+        monkeypatch.setattr(service, "_resolve_or_create_chat_session_id_sync", lambda **_kw: chat.id)
+        monkeypatch.setattr(service, "_prepare_loop_turn_sync", blocking_prepare_sync)
+
+        async def _consume():
+            async for _frame in service.process_stream(
+                project_id=str(project.id),
+                user_id=str(user.id),
+                message="继续",
+                session=db_session,
+                session_id=chat.id,
+            ):
+                pass
+
+        task = asyncio.create_task(_consume())
+        # Wait until the worker thread enters _prepare_loop_turn_sync.
+        for _ in range(100):
+            if entered.is_set():
+                break
+            await asyncio.sleep(0.01)
+        assert entered.is_set()
+        assert isinstance(observed["event"], threading.Event)
+        assert not observed["event"].is_set()
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert observed["event"].is_set()
+        assert exited_early.wait(timeout=1.0)
+
 
 @pytest.mark.unit
 def test_history_with_removed_proposal_tool_results_still_loads(

@@ -15,6 +15,7 @@ Built on the single loop agent (agent/loop) and openai-agents-python.
 import asyncio
 import contextlib
 import json
+import threading
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -121,9 +122,13 @@ def _has_blocking_wire_prefix_status_cards(status_cards: list[dict[str, Any]]) -
             return True
         if card.get("type") != "iteration_exhausted":
             return True
-        if card.get("layer") not in _WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LAYERS:
+        layer = card.get("layer")
+        if layer not in _WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LAYERS:
             return True
-        if card.get("limit") not in _WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LIMITS:
+        limit = card.get("limit")
+        if limit not in _WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LIMITS and not (
+            layer == "collaboration" and limit is None
+        ):
             return True
         if card.get("unfinishedFiles") or card.get("rolledBackFiles"):
             return True
@@ -621,12 +626,15 @@ class AgentService:
         metadata: dict[str, Any] | None,
         language: str,
         carried_compaction: dict[str, Any] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> tuple[LoopHistory, LoopTurnContext, list[dict[str, Any]], str]:
         """单循环 agent 这一轮的输入：跨轮历史、本轮上下文、作者选的技能、系统提示。"""
         from models import ChatSession
 
         history = LoopHistory()
         owned_session_id: str | None = None
+        if cancel_event is not None and cancel_event.is_set():
+            return history, LoopTurnContext(), [], ""
         if user_id and chat_session_id:
             chat_session = session.get(ChatSession, chat_session_id)
             if chat_session is not None and chat_session.user_id == user_id and chat_session.project_id == project_id:
@@ -638,6 +646,8 @@ class AgentService:
                     chat_session_id=chat_session_id,
                     carried_metadata=carried_compaction,
                 )
+        if cancel_event is not None and cancel_event.is_set():
+            return history, LoopTurnContext(), [], ""
         selected_skills = self._resolve_selected_skills(
             session, user_id=user_id, selected_skill_ids=selected_skill_ids
         )
@@ -651,7 +661,10 @@ class AgentService:
             selected_skills=selected_skills or None,
             context_assembler=self.context_assembler,
             chat_session_id=owned_session_id,
+            cancel_event=cancel_event,
         )
+        if cancel_event is not None and cancel_event.is_set():
+            return history, turn, selected_skills, ""
         skill_catalog = get_skill_context_injector().build_skill_catalog(session, user_id)
         system_prompt = MessageManager(project_id=project_id, user_id=user_id).build_system_prompt(
             session=session, language=language, skill_catalog=skill_catalog
@@ -830,6 +843,7 @@ class AgentService:
         stream_cancelled = False
         history_saved = False
         stored_wire_prefix = False
+        prepare_cancel_event = threading.Event()
         history_save_task: asyncio.Task | None = None
         cancellation_save_task: asyncio.Task | None = None
 
@@ -1178,6 +1192,7 @@ class AgentService:
                 "metadata": metadata,
                 "language": lang,
                 "carried_compaction": retry_carried_compaction or None,
+                "cancel_event": prepare_cancel_event,
             }
             if should_offload_session_work(session):
                 loop_history, loop_turn, selected_skills, system_prompt = await asyncio.to_thread(
@@ -1611,31 +1626,53 @@ class AgentService:
                     and len(writing_state.get("messages") or [])
                     > int(native_holder.get("messages_len") or 0)
                 )
+                wire_prefix_skip_reason: str | None = None
                 if (
                     user_id
                     and session_id
-                    and assistant_message_id
+                    and history_saved
                     and not had_stream_error
                     and not request_failed
                     and not stream_cancelled
-                    and not (run_outcome is not None and run_outcome.stop_kind)
-                    and assistant_stop_reason in _WIRE_PREFIX_CACHEABLE_STOP_REASONS
-                    and not _has_blocking_wire_prefix_status_cards(assistant_status_cards)
-                    and not late_steering_before_save
-                    and not has_unconsumed_steering
-                    and not has_pending_file_state
-                    and is_well_formed_wire_prefix(completed_wire_items)
-                    and run_meter.last_served_provider_key
                 ):
-                    stored_wire_prefix = await astore_wire_prefix(
-                        session_id=session_id,
-                        project_id=project_id,
-                        user_id=user_id,
-                        last_assistant_message_id=assistant_message_id,
-                        system_prompt=system_prompt,
-                        provider_key=run_meter.last_served_provider_key,
-                        items=completed_wire_items,
-                    )
+                    if not assistant_message_id:
+                        wire_prefix_skip_reason = "no_assistant_message"
+                    elif run_outcome is not None and run_outcome.stop_kind:
+                        wire_prefix_skip_reason = "stop_kind"
+                    elif assistant_stop_reason not in _WIRE_PREFIX_CACHEABLE_STOP_REASONS:
+                        wire_prefix_skip_reason = "stop_reason"
+                    elif _has_blocking_wire_prefix_status_cards(assistant_status_cards):
+                        wire_prefix_skip_reason = "blocking_status_card"
+                    elif late_steering_before_save:
+                        wire_prefix_skip_reason = "late_steering"
+                    elif has_unconsumed_steering:
+                        wire_prefix_skip_reason = "unconsumed_steering"
+                    elif has_pending_file_state:
+                        wire_prefix_skip_reason = "pending_file_state"
+                    elif not is_well_formed_wire_prefix(completed_wire_items):
+                        wire_prefix_skip_reason = "malformed_items"
+                    elif not run_meter.last_served_provider_key:
+                        wire_prefix_skip_reason = "no_provider_key"
+
+                    if wire_prefix_skip_reason is None:
+                        stored_wire_prefix = await astore_wire_prefix(
+                            session_id=session_id,
+                            project_id=project_id,
+                            user_id=user_id,
+                            last_assistant_message_id=assistant_message_id,
+                            system_prompt=system_prompt,
+                            provider_key=run_meter.last_served_provider_key,
+                            items=completed_wire_items,
+                        )
+                    else:
+                        log_with_context(
+                            logger,
+                            20,  # INFO
+                            "Agent wire prefix cache store skipped",
+                            session_id=session_id,
+                            skip_reason=wire_prefix_skip_reason,
+                            stop_reason=assistant_stop_reason,
+                        )
                 if user_id and session_id and history_saved and not stored_wire_prefix:
                     await ainvalidate_wire_prefix(session_id)
                 if pending_done_payload is not None:
@@ -1650,6 +1687,7 @@ class AgentService:
 
         except (asyncio.CancelledError, GeneratorExit):
             stream_cancelled = True
+            prepare_cancel_event.set()
             # 客户端断连有两种到达方式：任务被取消（CancelledError）与生成器被
             # aclose（GeneratorExit，Starlette 关闭 StreamingResponse 时触发）。
             # GeneratorExit 期间一旦在 finally 里 await 挂起，解释器会抛
@@ -1780,6 +1818,7 @@ class AgentService:
             ).to_sse()
 
         finally:
+            prepare_cancel_event.set()
             if not context_timing_recorded:
                 run_meter.record_stage(
                     "prepare_context", (time.monotonic() - run_started_monotonic) * 1000,

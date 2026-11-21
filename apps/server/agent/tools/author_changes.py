@@ -112,8 +112,9 @@ def _split(content: str) -> list[str]:
 
 
 def _matcher(old_lines: list[str], new_lines: list[str]) -> difflib.SequenceMatcher:
-    # 空行（段落分隔）当作 junk：它们到处都是，不用来对齐，免得比对开销接近平方。
-    return difflib.SequenceMatcher(lambda line: not line.strip(), old_lines, new_lines, autojunk=False)
+    # 空行（段落分隔）当作 junk，并启用 autojunk（len(b) >= 200 时自动忽略 >1% 高频短行），
+    # 防止长文里大量重复短行让 SequenceMatcher 退化到接近平方甚至立方复杂度。
+    return difflib.SequenceMatcher(lambda line: not line.strip(), old_lines, new_lines, autojunk=True)
 
 
 _PADDING = " \t\u3000"
@@ -148,10 +149,33 @@ def _advance(
     non_author：作者把段落改回原文时，那一段回到的来源（有 AI 写过时为 AI，否则为原稿）。
     作者整段删掉 AI 写的或原稿的段落时记进 blame.deletions；任何人把同一段文字放回来，这条删除就不再列出。
     """
-    matcher = _matcher(blame.lines, new_lines)
-    labels: list[str] = []
-    origins: list[str] = []
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+    old_lines = blame.lines
+    old_len = len(old_lines)
+    new_len = len(new_lines)
+    prefix = 0
+    limit = min(old_len, new_len)
+    while prefix < limit and old_lines[prefix] == new_lines[prefix]:
+        prefix += 1
+    suffix = 0
+    rem = limit - prefix
+    while suffix < rem and old_lines[old_len - 1 - suffix] == new_lines[new_len - 1 - suffix]:
+        suffix += 1
+    if prefix == old_len == new_len:
+        return
+    # 空行属于 junk，不把紧贴改动区的纯空行算作已对齐前后缀，保持与全量 SequenceMatcher 完全一致。
+    while prefix > 0 and not old_lines[prefix - 1].strip():
+        prefix -= 1
+    while suffix > 0 and not old_lines[old_len - suffix].strip():
+        suffix -= 1
+
+    old_end = old_len - suffix
+    new_end = new_len - suffix
+    labels: list[str] = list(blame.labels[:prefix])
+    origins: list[str] = list(blame.origins[:prefix])
+    matcher = _matcher(old_lines[prefix:old_end], new_lines[prefix:new_end])
+    for tag, mi1, mi2, mj1, mj2 in matcher.get_opcodes():
+        i1, i2 = prefix + mi1, prefix + mi2
+        j1, j2 = prefix + mj1, prefix + mj2
         if tag == "equal":
             labels.extend(blame.labels[i1:i2])
             origins.extend(blame.origins[i1:i2])
@@ -195,6 +219,9 @@ def _advance(
             else:
                 labels.append(actor)
                 origins.append(replaced if offset == anchor else "")
+    if suffix:
+        labels.extend(blame.labels[old_end:])
+        origins.extend(blame.origins[old_end:])
     present = {line.strip() for line in new_lines if line.strip()}
     blame.deletions = [item for item in blame.deletions if item.text not in present]
     blame.lines = list(new_lines)
@@ -259,11 +286,18 @@ def line_blame(session: Session, file_id: str, current_content: str) -> LineBlam
 
     service = FileVersionService()
     complete = start == 1
-    if len(_split(current_content or "")) > MAX_BLAME_LINES:
+    current_text = current_content or ""
+    if len(_split(current_text)) > MAX_BLAME_LINES:
         raise BlameReplayError("content too long to replay")
     seen_ai = False if complete else _ai_versions_before(session, file_id, start)
     content = ""
     blame: LineBlame | None = None
+    # 首次遇到有效作者手改或非作者基线标签变化之前，连续同标签（或从空稿起步）的非作者版本
+    # 不会产生混合标签、AUTHOR 标注或 AuthorDeletion；直接用低开销 _apply_diff 推进基线，
+    # 跳过冗余 SequenceMatcher 比对，同时保持与全量回放 100% 一致的 labels 语义。
+    baseline_version_number: int | None = None
+    baseline_content = ""
+    baseline_label = ORIGINAL
     latest_ai_content: str | None = None
     previous_actor: str | None = None
     try:
@@ -281,10 +315,34 @@ def line_blame(session: Session, file_id: str, current_content: str) -> LineBlam
             # 第一次有 AI 写入之前作者写的字是作者的原稿，不是「AI 写过之后改的」。
             effective = ORIGINAL if actor == AUTHOR and not seen_ai else actor
             if blame is None:
-                lines = _split(content)
-                # 窗口不从第 1 版开始时，起点上的段落来源不明，按原稿算（不当作者手改）。
-                first = effective if version.version_number == 1 else ORIGINAL
-                blame = LineBlame(lines, [first] * len(lines), [""] * len(lines), False, complete)
+                if baseline_version_number is None:
+                    # 窗口不从第 1 版开始时，起点上的段落来源不明，按原稿算（不当作者手改）。
+                    baseline_version_number = version.version_number
+                    baseline_content = content
+                    baseline_label = effective if version.version_number == 1 else ORIGINAL
+                elif effective == baseline_label:
+                    baseline_version_number = version.version_number
+                    baseline_content = content
+                elif not baseline_content and effective != AUTHOR:
+                    baseline_version_number = version.version_number
+                    baseline_content = content
+                    baseline_label = effective
+                else:
+                    base_lines = _split(baseline_content)
+                    blame = LineBlame(
+                        base_lines,
+                        [baseline_label] * len(base_lines),
+                        [""] * len(base_lines),
+                        False,
+                        complete,
+                    )
+                    _advance(
+                        blame,
+                        _split(content),
+                        effective,
+                        non_author=AI if seen_ai else ORIGINAL,
+                        version_number=version.version_number,
+                    )
             else:
                 _advance(
                     blame,
@@ -299,11 +357,17 @@ def line_blame(session: Session, file_id: str, current_content: str) -> LineBlam
     except Exception as exc:
         raise BlameReplayError(str(exc)) from exc
     if blame is None:
-        return None
-    if (current_content or "") != content:
+        if baseline_version_number is None:
+            return None
+        if not seen_ai:
+            lines = _split(current_text)
+            return LineBlame(lines, [ORIGINAL] * len(lines), [""] * len(lines), False, complete, latest_ai_content)
+        base_lines = _split(baseline_content)
+        blame = LineBlame(base_lines, [baseline_label] * len(base_lines), [""] * len(base_lines), False, complete)
+    if current_text != content:
         _advance(
             blame,
-            _split(current_content or ""),
+            _split(current_text),
             AUTHOR if seen_ai else ORIGINAL,
             non_author=AI if seen_ai else ORIGINAL,
         )
@@ -354,17 +418,21 @@ def author_hunks(blame: LineBlame) -> list[AuthorHunk]:
             if part.strip()
         }
         baseline = _split(blame.latest_ai_content)
-        matcher = _matcher(baseline, blame.lines)
-        for tag, i1, i2, _j1, _j2 in matcher.get_opcodes():
-            if tag not in ("delete", "replace"):
-                continue
-            removed = [
-                line
-                for line in baseline[i1:i2]
-                if line.strip() and current_counts[line.strip()] == 0 and line.strip() not in replaced_lines
-            ]
-            if removed:
-                hunks.append(AuthorHunk("\n".join(removed), "", _deleted_in(blame, removed)))
+        if baseline != blame.lines and any(
+            (stripped := line.strip()) and current_counts[stripped] == 0 and stripped not in replaced_lines
+            for line in baseline
+        ):
+            matcher = _matcher(baseline, blame.lines)
+            for tag, i1, i2, _j1, _j2 in matcher.get_opcodes():
+                if tag not in ("delete", "replace"):
+                    continue
+                removed = [
+                    line
+                    for line in baseline[i1:i2]
+                    if line.strip() and current_counts[line.strip()] == 0 and line.strip() not in replaced_lines
+                ]
+                if removed:
+                    hunks.append(AuthorHunk("\n".join(removed), "", _deleted_in(blame, removed)))
 
     # 删在更早的版本、之后 AI 只改了别处的段落：最近 AI 版本里已经没有它，上面比不出来，
     # 按回放记下的删除补上（#268）。
@@ -562,6 +630,8 @@ def touched_author_text(blame: LineBlame | None, old_content: str, new_content: 
         return []
     old_lines = blame.lines
     new_lines = _split(new_content)
+    if AUTHOR not in blame.labels:
+        return _restored_deletions(blame, old_lines, new_lines)[:MAX_HUNKS_PER_FILE]
     opcodes = _matcher(old_lines, new_lines).get_opcodes()
     # 新正文里不在「相同」块中的段落：整段挪过去的作者段落会出现在这里。
     unmatched_new = Counter(

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import contextlib
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -50,6 +51,7 @@ def build_loop_turn_context(
     selected_skills: list[dict[str, Any]] | None = None,
     context_assembler: Any = None,
     chat_session_id: str | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> LoopTurnContext:
     from agent.context import get_context_assembler
     from agent.tools.permissions import ForbiddenError, NotFoundError, check_project_ownership
@@ -59,6 +61,9 @@ def build_loop_turn_context(
     force_en = language.startswith("en")
     metadata = metadata if isinstance(metadata, dict) else {}
     result = LoopTurnContext()
+
+    if cancel_event is not None and cancel_event.is_set():
+        return result
 
     if user_id is not None:
         try:
@@ -97,6 +102,7 @@ def build_loop_turn_context(
         user_id=user_id,
         chat_session_id=chat_session_id,
         primary_ids=[fid for fid in (assembler.item_file_id(item) for item in items) if fid],
+        cancel_event=cancel_event,
     )
     if author_edits:
         parts.extend(["", author_edits])
@@ -162,6 +168,7 @@ def _author_edits_block(
     user_id: str | None,
     chat_session_id: str | None,
     primary_ids: list[str],
+    cancel_event: threading.Event | None = None,
 ) -> str:
     """焦点 / 附加文件在前，再是本会话 AI 写过的正文文件：作者在 AI 写过之后亲手改了哪几处。
 
@@ -169,7 +176,7 @@ def _author_edits_block(
     """
     from agent.core.session_loader import AUTHOR_EDITS_MAX_FILES, SessionLoader
 
-    if not user_id:
+    if not user_id or (cancel_event is not None and cancel_event.is_set()):
         return ""
     loader = SessionLoader(project_id=project_id, user_id=user_id)
     try:
@@ -177,12 +184,20 @@ def _author_edits_block(
         if chat_session_id:
             # 先按本项目、未删除的正文文件筛，再计名额：大纲、设定等文件不挤掉 AI 写过的章节。
             written = loader.session_written_file_ids(
-                session, chat_session_id=chat_session_id, limit=AUTHOR_EDITS_MAX_FILES, file_types=_BODY_FILE_TYPES
+                session,
+                chat_session_id=chat_session_id,
+                limit=AUTHOR_EDITS_MAX_FILES,
+                file_types=_BODY_FILE_TYPES,
+                cancel_event=cancel_event,
             )
+        if cancel_event is not None and cancel_event.is_set():
+            return ""
         ordered = list(dict.fromkeys([*primary_ids, *written]))
         if not ordered:
             return ""
-        block, _edited, _files = loader.author_edits_for_files(session, ordered, {})
+        block, _edited, _files = loader.author_edits_for_files(
+            session, ordered, {}, cancel_event=cancel_event
+        )
         return block
     except Exception as exc:  # noqa: BLE001 - 增益信息，失败不影响本轮
         with contextlib.suppress(Exception):

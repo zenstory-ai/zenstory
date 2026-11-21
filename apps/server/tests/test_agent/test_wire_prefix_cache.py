@@ -1079,13 +1079,14 @@ async def test_soft_landed_wall_clock_run_stores_wire_prefix_and_turn_n_plus_1_h
     [
         ("max_turns_exceeded", "tool_call", "max_turns"),
         ("run_deadline_exceeded", "collaboration", "wall_clock"),
+        ("end_turn", "collaboration", None),
     ],
 )
 async def test_clean_max_turns_and_between_runs_wrap_up_store_wire_prefix(
-    db_session: Session, fake_redis, monkeypatch, stop_reason: str, card_layer: str, card_limit: str
+    db_session: Session, fake_redis, monkeypatch, stop_reason: str, card_layer: str, card_limit: str | None
 ):
-    """Clean max_turns_exceeded soft-land and between-runs wall_clock wrap-up both store
-    wire_prefix_cache and hit on Turn N+1."""
+    """Clean max_turns_exceeded soft-land, between-runs wall_clock wrap-up, and clean
+    collaboration max-runs pause cards (limit=None) all store wire_prefix_cache and hit on Turn N+1."""
     from agent.core.workflow_events import StreamEvent, StreamEventType
     from agent.service import AgentService
 
@@ -1097,9 +1098,10 @@ async def test_clean_max_turns_and_between_runs_wrap_up_store_wire_prefix(
     llm_failover.reset_failover_state()
     llm_providers.reset_key_routing_state()
 
+    limit_slug = card_limit or "none"
     user = User(
-        email=f"wire_{stop_reason}_{card_layer}@example.com",
-        username=f"wire_{card_layer}",
+        email=f"wire_{stop_reason}_{card_layer}_{limit_slug}@example.com",
+        username=f"wire_{card_layer}_{limit_slug}"[:20],
         hashed_password=hash_password("password123"),
         email_verified=True,
         is_active=True,
@@ -1131,15 +1133,17 @@ async def test_clean_max_turns_and_between_runs_wrap_up_store_wire_prefix(
 
         async def _stream():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "阶段总结"})
+            card_data: dict = {
+                "layer": card_layer,
+                "iterations_used": 10,
+                "max_iterations": 60,
+                "reason": "先停在这里",
+            }
+            if card_limit is not None:
+                card_data["limit"] = card_limit
             yield StreamEvent(
                 type=StreamEventType.ITERATION_EXHAUSTED,
-                data={
-                    "layer": card_layer,
-                    "iterations_used": 10,
-                    "max_iterations": 60,
-                    "reason": "先停在这里",
-                    "limit": card_limit,
-                },
+                data=card_data,
             )
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": stop_reason})
 
@@ -1180,6 +1184,8 @@ async def test_clean_max_turns_and_between_runs_wrap_up_store_wire_prefix(
         "pending_empty_file",
         "empty_file_correction_card",
         "wall_clock_with_rolled_back_files",
+        "collaboration_limit_none_with_unfinished_files",
+        "collaboration_limit_none_with_rolled_back_files",
         "unexecuted_tool_text_card",
         "late_steering_before_save",
     ],
@@ -1195,7 +1201,7 @@ async def test_unclean_or_skipped_turns_skip_store_and_invalidate_stale_cache(
 
     user = User(
         email=f"wire_skip_{case}@example.com",
-        username=f"wireskip_{case[:12]}",
+        username=f"ws_{case[:15]}",
         hashed_password=hash_password("password123"),
         email_verified=True,
         is_active=True,
@@ -1260,6 +1266,28 @@ async def test_unclean_or_skipped_turns_skip_store_and_invalidate_stale_cache(
                         "max_iterations": 60,
                         "reason": "时限收尾但回滚了空文件",
                         "limit": "wall_clock",
+                        "rolled_back_files": [{"id": "f1", "title": "第一章"}],
+                    },
+                )
+            elif case == "collaboration_limit_none_with_unfinished_files":
+                yield StreamEvent(
+                    type=StreamEventType.ITERATION_EXHAUSTED,
+                    data={
+                        "layer": "collaboration",
+                        "iterations_used": 12,
+                        "max_iterations": 12,
+                        "reason": "达到上限且有未写完空文件",
+                        "unfinished_files": [{"id": "f1", "title": "第一章"}],
+                    },
+                )
+            elif case == "collaboration_limit_none_with_rolled_back_files":
+                yield StreamEvent(
+                    type=StreamEventType.ITERATION_EXHAUSTED,
+                    data={
+                        "layer": "collaboration",
+                        "iterations_used": 12,
+                        "max_iterations": 12,
+                        "reason": "达到上限且回滚了空文件",
                         "rolled_back_files": [{"id": "f1", "title": "第一章"}],
                     },
                 )
@@ -1606,3 +1634,111 @@ async def test_cancellation_during_history_save_task_invalidates_stale_wire_pref
 
     assert key not in fake_redis.store
     assert key in fake_redis.deleted_keys
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+@pytest.mark.parametrize(
+    ("case", "expected_skip_reason"),
+    [
+        ("pending_file_state", "pending_file_state"),
+        ("unconsumed_steering", "unconsumed_steering"),
+        ("blocking_status_card", "blocking_status_card"),
+        ("oversized_payload_in_store", None),
+    ],
+)
+async def test_skipped_clean_turns_emit_single_info_log_with_skip_reason(
+    db_session: Session,
+    fake_redis,
+    monkeypatch,
+    caplog,
+    case: str,
+    expected_skip_reason: str | None,
+):
+    """Completed non-error turns that skip calling astore_wire_prefix emit one concise INFO log
+    with skip_reason; when astore_wire_prefix itself rejects a payload (e.g. size cap), service
+    must NOT double-log."""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.service import AgentService
+    from agent.tools.mcp_tools import ToolContext
+    from config import agent_runtime
+
+    user = User(
+        email=f"wire_log_{case}@example.com",
+        username=f"wl_{case[:15]}",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="跳过日志测试", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    if case == "oversized_payload_in_store":
+        monkeypatch.setattr(agent_runtime, "AGENT_WIRE_PREFIX_CACHE_MAX_BYTES", 50)
+
+    def fake_loop(state, **_kwargs):
+        state["messages"] = [{"role": "user", "content": "写第一章"}, {"role": "assistant", "content": "完成"}]
+        state["native_run_holder"] = {
+            "agent_type": "loop",
+            "items": _sample_wire_items(),
+            "messages_len": len(state["messages"]),
+        }
+        if case == "unconsumed_steering":
+            state["messages"].append({"role": "user", "content": "未消费插话"})
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+
+        async def _stream():
+            if case == "pending_file_state":
+                ToolContext.set_pending_empty_file("f-pending", "空章", "v1")
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "阶段回复"})
+            if case == "blocking_status_card":
+                yield StreamEvent(
+                    type=StreamEventType.ITERATION_EXHAUSTED,
+                    data={
+                        "layer": "unexecuted_tool_text",
+                        "iterations_used": 1,
+                        "max_iterations": 12,
+                        "reason": "未执行协议",
+                    },
+                )
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return _stream()
+
+    with caplog.at_level(logging.INFO), patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop):
+        async for _frame in AgentService().process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="测试跳过日志",
+            session=db_session,
+            session_id=chat.id,
+        ):
+            pass
+
+    skip_records = [
+        rec
+        for rec in caplog.records
+        if rec.levelno == logging.INFO and "Agent wire prefix cache store skipped" in rec.getMessage()
+    ]
+    if expected_skip_reason is None:
+        assert skip_records == []
+        assert any(
+            "Agent wire prefix cache skipped: payload exceeds max bytes" in rec.getMessage()
+            for rec in caplog.records
+        )
+    else:
+        assert len(skip_records) == 1
+        fields = getattr(skip_records[0], "custom_fields", {})
+        assert fields.get("skip_reason") == expected_skip_reason
+        assert fields.get("session_id") == chat.id
+        assert fields.get("stop_reason") == "end_turn"
