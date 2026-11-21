@@ -344,6 +344,23 @@ class SessionLoader:
             return False
         return normalize_datetime_to_utc(db_dt) == normalize_datetime_to_utc(parsed)
 
+    @staticmethod
+    def _extract_undo_proof(undo: Any) -> tuple[str | None, str | None]:
+        """从 edit_file / write_chapter(replaced) 的 undo 锚点提取内容哈希与时间戳凭证。
+
+        必须包含 expected_after_content_sha256（仅时间戳无内容哈希不放行）；已撤销卡片
+        （undo.undone is True）一律返回 (None, None) 以 fail closed。
+        """
+        if not isinstance(undo, dict) or undo.get("undone") is True:
+            return None, None
+        raw_sha = undo.get("expected_after_content_sha256")
+        exp_sha = raw_sha.strip() if isinstance(raw_sha, str) and raw_sha.strip() else None
+        if exp_sha is None:
+            return None, None
+        raw_ts = undo.get("expected_after_updated_at")
+        exp_ts = raw_ts.strip() if isinstance(raw_ts, str) and raw_ts.strip() else None
+        return exp_sha, exp_ts
+
     def session_read_snapshots(
         self,
         session: Session,
@@ -362,14 +379,16 @@ class SessionLoader:
         安全不变量（绝不绕过 StaleContentError）：
         - 只有当前 DB 状态与本会话最近一次工具触达时的精确凭证一致，才结转进 read_snapshots["initial"]：
           - query_files 全文读 / create_file 直接写入：正文逐字一致且（若有）updated_at 一致；
-          - edit_file / write_chapter(replaced)：undo.expected_after_content_sha256 与 expected_after_updated_at 一致；
+          - edit_file / write_chapter(replaced)：必须有 undo.expected_after_content_sha256 且未被撤销
+            （undo.undone != True），并与当前正文哈希及（若有）expected_after_updated_at 一致；
           - write_chapter(created) / create_file(<file> 落库)：file.updated_at <= 该轮 assistant 行创建时间，
             且最新 FileVersion 为 AI 写入且正文与当前 file.content 逐字一致；
         - 只要作者在轮间改过文件（哪怕未推进 updated_at 或未建版本），一律不结转。
-        - 遇到有效压缩点后停止往前扫描（压缩前的工具结果已不在模型上下文中）。
+        - 仅扫描单循环（engine == "loop"）assistant 行（旧多角色图行只回放单行面包屑、无原文），
+          同时检查 user 与 assistant 行的有效压缩点（遇到即止，压缩前工具结果已不在模型上下文中）。
         - 最多扫 SESSION_SNAPSHOT_MAX_PAGES 页、最多取 limit 个文件，单次批量 SELECT File。
         """
-        from agent.loop.history import valid_compaction
+        from agent.loop.history import LOOP_ENGINE_METADATA_VALUE, valid_compaction
         from agent.tools.author_changes import AI, version_actor
         from models import ChatMessage, File
         from models.file_version import FileVersion
@@ -380,16 +399,23 @@ class SessionLoader:
 
         excluded = set(exclude_ids or ())
         deleted: set[str] = set()
-        # 较新的写工具若没有可验证凭证，也占位阻止更早的读记录盖过它。
+        # 较新的写工具若没有可验证凭证（或已撤销），也占位阻止更早的读记录盖过它。
         unverifiable: set[str] = set()
         candidates: dict[str, dict[str, Any]] = {}
 
+        # 每轮包含 user + assistant 两行：按双倍行宽分页以维持相同轮次覆盖深度。
+        page_rows = SESSION_WRITTEN_FILES_PAGE_ROWS * 2
         query = (
-            select(ChatMessage.tool_calls, ChatMessage.created_at, ChatMessage.message_metadata)
+            select(
+                ChatMessage.role,
+                ChatMessage.tool_calls,
+                ChatMessage.created_at,
+                ChatMessage.message_metadata,
+            )
             .where(
                 and_(
                     ChatMessage.session_id == chat_session_id,
-                    ChatMessage.role == "assistant",
+                    ChatMessage.role.in_(("user", "assistant")),
                 )
             )
             .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
@@ -399,16 +425,28 @@ class SessionLoader:
         for page_index in range(SESSION_SNAPSHOT_MAX_PAGES):
             if cancel_event is not None and cancel_event.is_set():
                 return {}
-            rows = session.exec(
-                query.offset(page_index * SESSION_WRITTEN_FILES_PAGE_ROWS).limit(SESSION_WRITTEN_FILES_PAGE_ROWS)
-            ).all()
+            rows = session.exec(query.offset(page_index * page_rows).limit(page_rows)).all()
             if not rows:
                 break
-            for tool_calls_raw, row_created_at, metadata_raw in rows:
+            for role, tool_calls_raw, row_created_at, metadata_raw in rows:
                 meta = self._parse_json_value(metadata_raw)
-                if isinstance(meta, dict) and valid_compaction(meta) is not None:
+                has_compaction = isinstance(meta, dict) and valid_compaction(meta) is not None
+                if role == "user":
+                    if has_compaction:
+                        # 压缩发生在这一条未得到助手回复的轮次开始前：更早的轮次已被折叠进摘要。
+                        hit_compaction = True
+                        break
+                    continue
+
+                if has_compaction:
                     # 压缩发生在本轮开始前：本行的工具调用仍在压缩后历史里，更早的行不再扫描。
                     hit_compaction = True
+
+                # 旧多角色图写下的 assistant 行只回放单行文本面包屑、不回放工具正文，绝不结转。
+                if not isinstance(meta, dict) or meta.get("engine") != LOOP_ENGINE_METADATA_VALUE:
+                    if hit_compaction:
+                        break
+                    continue
 
                 tool_calls = self._parse_json_value(tool_calls_raw)
                 if isinstance(tool_calls, list):
@@ -487,22 +525,8 @@ class SessionLoader:
                             fid = self._extract_breadcrumb_file_id(tc)
                             if not fid or fid in excluded or fid in deleted or fid in unverifiable or fid in candidates:
                                 continue
-                            undo = result.get("undo")
-                            exp_ts = (
-                                undo.get("expected_after_updated_at").strip()
-                                if isinstance(undo, dict)
-                                and isinstance(undo.get("expected_after_updated_at"), str)
-                                and undo.get("expected_after_updated_at").strip()
-                                else None
-                            )
-                            exp_sha = (
-                                undo.get("expected_after_content_sha256").strip()
-                                if isinstance(undo, dict)
-                                and isinstance(undo.get("expected_after_content_sha256"), str)
-                                and undo.get("expected_after_content_sha256").strip()
-                                else None
-                            )
-                            if exp_ts or exp_sha:
+                            exp_sha, exp_ts = self._extract_undo_proof(result.get("undo"))
+                            if exp_sha is not None:
                                 candidates[fid] = {
                                     "kind": "undo_write",
                                     "updated_at": exp_ts,
@@ -523,22 +547,8 @@ class SessionLoader:
                             if name == "write_chapter" and result.get("action") == "replaced":
                                 if result.get("body_saved") is not True:
                                     continue
-                                undo = result.get("undo")
-                                exp_ts = (
-                                    undo.get("expected_after_updated_at").strip()
-                                    if isinstance(undo, dict)
-                                    and isinstance(undo.get("expected_after_updated_at"), str)
-                                    and undo.get("expected_after_updated_at").strip()
-                                    else None
-                                )
-                                exp_sha = (
-                                    undo.get("expected_after_content_sha256").strip()
-                                    if isinstance(undo, dict)
-                                    and isinstance(undo.get("expected_after_content_sha256"), str)
-                                    and undo.get("expected_after_content_sha256").strip()
-                                    else None
-                                )
-                                if exp_ts or exp_sha:
+                                exp_sha, exp_ts = self._extract_undo_proof(result.get("undo"))
+                                if exp_sha is not None:
                                     candidates[fid] = {
                                         "kind": "undo_write",
                                         "updated_at": exp_ts,
@@ -571,7 +581,7 @@ class SessionLoader:
                                 break
                 if len(candidates) >= limit or hit_compaction:
                     break
-            if len(candidates) >= limit or hit_compaction or len(rows) < SESSION_WRITTEN_FILES_PAGE_ROWS:
+            if len(candidates) >= limit or hit_compaction or len(rows) < page_rows:
                 break
 
         if not candidates or (cancel_event is not None and cancel_event.is_set()):
@@ -606,7 +616,7 @@ class SessionLoader:
                     continue
                 snapshots[fid] = current_content
             elif kind == "undo_write":
-                if spec["sha256"] is not None and content_sha256(current_content) != spec["sha256"]:
+                if content_sha256(current_content) != spec["sha256"]:
                     continue
                 if spec["updated_at"] is not None and not self._same_utc_timestamp(
                     file.updated_at, spec["updated_at"]

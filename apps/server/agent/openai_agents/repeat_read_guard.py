@@ -131,28 +131,33 @@ def _read_mode(params: dict[str, Any], *, file_ids: list[str] | None = None) -> 
     return f"summary:{preview_chars if preview_chars is not None else 'default'}"
 
 
-def _read_keys(params: Any) -> list[ReadKey]:
-    """提取 query_files(id / ids) 对应的全部 ReadKey（去重、上限 5，保持请求顺序）。"""
+def _read_keys_and_truncated(params: Any) -> tuple[list[ReadKey], tuple[str, ...]]:
+    """提取 query_files(id / ids) 对应的全部 ReadKey（去重、上限 5，保持请求顺序）及超限被截断的 id。"""
     if not isinstance(params, dict):
-        return []
+        return [], ()
     try:
-        target_ids, _ = normalize_query_file_ids(
+        target_ids, truncated_ids = normalize_query_file_ids(
             file_id=params.get("id"),
             file_ids=params.get("ids"),
             max_ids=QUERY_FILES_MAX_BATCH_IDS,
         )
     except ValueError:
-        return []
+        return [], ()
     if not target_ids:
-        return []
+        return [], ()
     range_mode = _range_mode(params)
     if range_mode is not None:
         if len(target_ids) > 1:
             # 批量多 id 不支持范围参数：交给工具返回校验错误，不记读取。
-            return []
-        return [(READ_TOOL_NAME, target_ids[0], f"full:{range_mode}")]
+            return [], ()
+        return [(READ_TOOL_NAME, target_ids[0], f"full:{range_mode}")], tuple(truncated_ids)
     mode = _read_mode(params, file_ids=target_ids)
-    return [(READ_TOOL_NAME, fid, mode) for fid in target_ids]
+    return [(READ_TOOL_NAME, fid, mode) for fid in target_ids], tuple(truncated_ids)
+
+
+def _read_keys(params: Any) -> list[ReadKey]:
+    """提取 query_files(id / ids) 对应的全部 ReadKey（去重、上限 5，保持请求顺序）。"""
+    return _read_keys_and_truncated(params)[0]
 
 
 def _read_key(params: Any) -> ReadKey | None:
@@ -193,6 +198,7 @@ class ReadPlan:
     read_key: ReadKey | None = None
     read_keys: tuple[ReadKey, ...] = ()
     blocked_keys: tuple[ReadKey, ...] = ()
+    truncated_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -277,7 +283,7 @@ class RepeatReadGuard:
         args, parse_error, _ = parse_json_object(raw_arguments or "")
         if parse_error is not None or not isinstance(args, dict):
             return ReadPlan(arguments=raw_arguments)
-        keys = _read_keys(args)
+        keys, truncated_ids = _read_keys_and_truncated(args)
         if not keys:
             return ReadPlan(arguments=raw_arguments)
         allowed = [key for key in keys if self._read_counts.get(key, 0) + 1 < READ_BLOCK_AT]
@@ -290,16 +296,27 @@ class RepeatReadGuard:
                 labels = [self._file_label(key[1]) for key in blocked]
                 label = self._register_blocked(blocked[0], display_label="、".join(labels))
                 model_msg = self._blocked_message(label, blocked[0])
+            extra: dict[str, Any] | None = None
+            if truncated_ids:
+                extra = {
+                    "truncated_ids": list(truncated_ids),
+                    "note": (
+                        f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件；"
+                        f"超出上限的 {len(truncated_ids)} 个未读文件请另起调用读取。"
+                    ),
+                }
             return ReadPlan(
                 arguments=raw_arguments,
                 blocked_output=_blocked_error_text(
                     model_msg,
                     user_message=_blocked_user_message([self._titles.get(key[1], "") for key in blocked]),
                     tool_name=READ_TOOL_NAME,
+                    extra=extra,
                 ),
             )
         if blocked and allowed:
-            # 批量读取里只有部分文件被拦：只查询剩余允许的文件，跳过已重复的 id（单次调用只记一次拦截）。
+            # 批量读取里只有部分文件被拦：只查询剩余允许的文件，跳过已重复的 id（单次调用只记一次拦截），
+            # 同时在 plan 上保留超限被截断的 truncated_ids，observe 时完整回传不丢未读 id。
             labels = [self._file_label(key[1]) for key in blocked]
             self._register_blocked(blocked[0], display_label="、".join(labels))
             rewritten = dict(args)
@@ -310,11 +327,13 @@ class RepeatReadGuard:
                 read_key=allowed[0] if len(allowed) == 1 else None,
                 read_keys=tuple(allowed),
                 blocked_keys=tuple(blocked),
+                truncated_ids=truncated_ids,
             )
         return ReadPlan(
             arguments=raw_arguments,
             read_key=allowed[0] if len(allowed) == 1 else None,
             read_keys=tuple(allowed),
+            truncated_ids=truncated_ids,
         )
 
     def _register_blocked(self, key: ReadKey, *, display_label: str | None = None) -> str:
@@ -360,12 +379,51 @@ class RepeatReadGuard:
         if not keys:
             return output_text
         payload = _load_json(output_text)
-        if payload is None or payload.get("status") != "success":
+        if payload is None:
             return output_text
+
+        blocked_ids = [key[1] for key in plan.blocked_keys]
+        truncated_ids = list(plan.truncated_ids) if plan.blocked_keys and plan.truncated_ids else []
+
+        if payload.get("status") != "success":
+            if not blocked_ids and not truncated_ids:
+                return output_text
+            hinted = dict(payload)
+            if blocked_ids:
+                hinted["blocked_ids"] = blocked_ids
+                skipped_labels = "、".join(self._file_label(fid) for fid in blocked_ids)
+                hinted["read_hint"] = (
+                    f"以下文件本次运行已达重复读取上限，未重复读取，请直接用之前的结果：{skipped_labels}。"
+                )
+            if truncated_ids and "truncated_ids" not in hinted:
+                hinted["truncated_ids"] = truncated_ids
+                hinted.setdefault(
+                    "note",
+                    f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已处理前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
+                    f"其余 {len(truncated_ids)} 个请另起调用读取。",
+                )
+            return json.dumps(hinted, ensure_ascii=False)
+
         data = payload.get("data")
         if not isinstance(data, list) or not data:
             # 文件不存在 / 结果被截断成最小占位：模型没真正拿到内容，不算读过。
-            return output_text
+            if not blocked_ids and not truncated_ids:
+                return output_text
+            hinted = dict(payload)
+            if blocked_ids:
+                hinted["blocked_ids"] = blocked_ids
+                skipped_labels = "、".join(self._file_label(fid) for fid in blocked_ids)
+                hinted["read_hint"] = (
+                    f"以下文件本次运行已达重复读取上限，未重复读取，请直接用之前的结果：{skipped_labels}。"
+                )
+            if truncated_ids and "truncated_ids" not in hinted:
+                hinted["truncated_ids"] = truncated_ids
+                hinted.setdefault(
+                    "note",
+                    f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已处理前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
+                    f"其余 {len(truncated_ids)} 个请另起调用读取。",
+                )
+            return json.dumps(hinted, ensure_ascii=False)
 
         key_by_id = {key[1]: key for key in keys}
         max_count = 0
@@ -393,11 +451,10 @@ class RepeatReadGuard:
             if hint is not None:
                 hints.append(f"{self._file_label(key[1])}：{hint}" if len(keys) > 1 else hint)
 
-        if not recorded_any and not plan.blocked_keys:
+        if not recorded_any and not blocked_ids and not truncated_ids:
             return output_text
 
-        blocked_ids = [key[1] for key in plan.blocked_keys]
-        if not hints and not blocked_ids:
+        if not hints and not blocked_ids and not truncated_ids:
             return output_text
         hinted = dict(payload)
         if max_count >= READ_HINT_AT:
@@ -407,6 +464,13 @@ class RepeatReadGuard:
             skipped_labels = "、".join(self._file_label(fid) for fid in blocked_ids)
             hints.append(
                 f"以下文件本次运行已达重复读取上限，未重复读取，请直接用之前的结果：{skipped_labels}。"
+            )
+        if truncated_ids and "truncated_ids" not in hinted:
+            hinted["truncated_ids"] = truncated_ids
+            hinted.setdefault(
+                "note",
+                f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已处理前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
+                f"其余 {len(truncated_ids)} 个请另起调用读取。",
             )
         if hints:
             hinted["read_hint"] = " ".join(hints)
@@ -531,12 +595,20 @@ def _blocked_user_message(titles: list[str]) -> str:
     return f"{'、'.join(named)}刚才已经读过，AI 直接用已读内容继续。"
 
 
-def _blocked_error_text(model_text: str, *, user_message: str, tool_name: str) -> str:
+def _blocked_error_text(
+    model_text: str,
+    *,
+    user_message: str,
+    tool_name: str,
+    extra: dict[str, Any] | None = None,
+) -> str:
     """被拦下的读取的工具结果：error 写给模型（精确），user_message 写给作者（简短）。"""
     payload = json.loads(
         tool_error_text(model_text, error_type=REPEATED_READ_ERROR_TYPE, tool_name=tool_name)
     )
     payload["user_message"] = user_message
+    if extra:
+        payload.update(extra)
     return json.dumps(payload, ensure_ascii=False)
 
 

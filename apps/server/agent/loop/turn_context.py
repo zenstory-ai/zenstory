@@ -53,6 +53,7 @@ def build_loop_turn_context(
     selected_skills: list[dict[str, Any]] | None = None,
     context_assembler: Any = None,
     chat_session_id: str | None = None,
+    carried_compaction: dict[str, Any] | None = None,
     cancel_event: threading.Event | None = None,
 ) -> LoopTurnContext:
     from agent.context import get_context_assembler
@@ -115,11 +116,14 @@ def build_loop_turn_context(
     parts.append(TURN_CONTEXT_CLOSE)
     result.text = "\n".join(parts)
 
+    from agent.loop.history import valid_compaction
+
     for item in items:
         file_id = assembler.item_file_id(item)
         if file_id and not item.is_truncated and isinstance(item.content, str):
             result.read_snapshots[file_id] = item.content
-    if chat_session_id and not (cancel_event is not None and cancel_event.is_set()):
+    has_carried_compaction = isinstance(carried_compaction, dict) and valid_compaction(carried_compaction) is not None
+    if chat_session_id and not has_carried_compaction and not (cancel_event is not None and cancel_event.is_set()):
         carried = _session_read_snapshots(
             session,
             project_id=project_id,

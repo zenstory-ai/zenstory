@@ -798,3 +798,262 @@ def test_batch_edit_and_start_char_guidance_and_ids_schema():
     assert "id" in q_props
     assert "query_files(ids=[...])" in UNIFIED_EXECUTION_PROTOCOL
     assert "query_files(ids=[...])" in LOOP_TOOL_USAGE_PROTOCOL
+
+
+# =====================================================================
+# Verifier regression tests (#345)
+# =====================================================================
+
+
+def test_repeat_read_guard_partial_block_preserves_truncated_ids_and_blocked_ids_on_not_found():
+    guard = RepeatReadGuard()
+
+    def _ok_rows(*items: tuple[str, str]) -> str:
+        return json.dumps(
+            {"status": "success", "data": [{"id": fid, "title": title, "content": "正文"} for fid, title in items]},
+            ensure_ascii=False,
+        )
+
+    # 先把 f1 读满 3 次，使第 4 次被拦
+    for _ in range(3):
+        p = guard.plan("query_files", json.dumps({"id": "f1"}))
+        guard.observe("query_files", p, _ok_rows(("f1", "第一章")))
+
+    # 1) 传 6 个 id 且 f1 被拦：改写后只查 f2..f5，observe 必须保留 truncated_ids=["f6"] 与 blocked_ids=["f1"]
+    plan_partial = guard.plan("query_files", json.dumps({"ids": ["f1", "f2", "f3", "f4", "f5", "f6"]}))
+    assert plan_partial.blocked_output is None
+    assert json.loads(plan_partial.arguments)["ids"] == ["f2", "f3", "f4", "f5"]
+    out_partial = json.loads(
+        guard.observe(
+            "query_files",
+            plan_partial,
+            _ok_rows(("f2", "二"), ("f3", "三"), ("f4", "四"), ("f5", "五")),
+        )
+    )
+    assert out_partial["blocked_ids"] == ["f1"]
+    assert out_partial["truncated_ids"] == ["f6"]
+    assert "note" in out_partial
+    assert "read_hint" in out_partial
+
+    # 2) 部分拦截后剩余允许的 id 全部 files_not_found：仍保留 blocked_ids 与 truncated_ids
+    plan_missing = guard.plan("query_files", json.dumps({"ids": ["f1", "missing-a", "missing-b", "missing-c", "missing-d", "f7"]}))
+    assert plan_missing.blocked_output is None
+    not_found_output = json.dumps(
+        {
+            "status": "error",
+            "error_type": "files_not_found",
+            "error": "未找到请求的任意文件",
+            "missing_ids": ["missing-a", "missing-b", "missing-c", "missing-d"],
+        },
+        ensure_ascii=False,
+    )
+    out_missing = json.loads(guard.observe("query_files", plan_missing, not_found_output))
+    assert out_missing["status"] == "error"
+    assert out_missing["blocked_ids"] == ["f1"]
+    assert out_missing["truncated_ids"] == ["f7"]
+    assert "read_hint" in out_missing
+    assert "note" in out_missing
+
+    # 3) 前 5 个全部被拦且第 6 个被截断：blocked_output 同样保留 truncated_ids
+    guard2 = RepeatReadGuard()
+    for fid in ("a1", "a2", "a3", "a4", "a5"):
+        for _ in range(3):
+            p = guard2.plan("query_files", json.dumps({"id": fid}))
+            guard2.observe("query_files", p, _ok_rows((fid, fid)))
+    plan_all_blocked = guard2.plan("query_files", json.dumps({"ids": ["a1", "a2", "a3", "a4", "a5", "a6"]}))
+    assert plan_all_blocked.blocked_output is not None
+    blocked_payload = json.loads(plan_all_blocked.blocked_output)
+    assert blocked_payload["error_type"] == "repeated_read"
+    assert blocked_payload["truncated_ids"] == ["a6"]
+
+
+def test_session_carryover_respects_user_row_compaction_carried_compaction_and_skips_legacy_rows(db_session, env):
+    user, project, _, chat_session = env
+    pre_user_compaction = _make_file(db_session, project, title="用户行压缩前文件")
+    legacy_file = _make_file(db_session, project, title="旧图引擎文件")
+    focus_file = _make_file(db_session, project, title="当前焦点文件")
+
+    t0 = normalize_datetime_to_utc(focus_file.updated_at).replace(tzinfo=None) + timedelta(seconds=1)
+    # 1) 旧图引擎（非 engine="loop"）的 assistant 行：只回放面包屑无原文，不能结转
+    _add_assistant_turn(
+        db_session,
+        chat_session,
+        [
+            {
+                "id": "tc-legacy",
+                "name": "query_files",
+                "arguments": {"id": legacy_file.id},
+                "status": "success",
+                "result": [
+                    {
+                        "id": legacy_file.id,
+                        "content": legacy_file.content,
+                        "updated_at": legacy_file.updated_at.isoformat(),
+                    }
+                ],
+            }
+        ],
+        created_at=t0,
+        metadata={"stop_reason": "end_turn"},
+    )
+    loader = SessionLoader(project_id=project.id, user_id=user.id)
+    assert loader.session_read_snapshots(db_session, chat_session_id=chat_session.id) == {}
+
+    # 2) 单循环 assistant 行之后出现一条带有效 compaction 的 user 行（无助手回复的取消/失败轮）：
+    #    必须在该 user 行处停下，绝不结转其之前的单循环文件。
+    loop_msg = _add_assistant_turn(
+        db_session,
+        chat_session,
+        [
+            {
+                "id": "tc-loop",
+                "name": "query_files",
+                "arguments": {"id": pre_user_compaction.id},
+                "status": "success",
+                "result": [
+                    {
+                        "id": pre_user_compaction.id,
+                        "content": pre_user_compaction.content,
+                        "updated_at": pre_user_compaction.updated_at.isoformat(),
+                    }
+                ],
+            }
+        ],
+        created_at=t0 + timedelta(seconds=5),
+        metadata={"engine": "loop"},
+    )
+    assert pre_user_compaction.id in loader.session_read_snapshots(db_session, chat_session_id=chat_session.id)
+
+    # 2a) retry_unanswered 传入 carried_compaction 时，build_loop_turn_context 直接跳过会话结转（仍保留焦点文件）
+    turn_with_carried = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": focus_file.id},
+        language="zh",
+        author_message="重试一下",
+        chat_session_id=chat_session.id,
+        carried_compaction={
+            "compaction": {
+                "summary": "已压缩摘要。",
+                "covers_through_message_id": loop_msg.id,
+            }
+        },
+    )
+    assert focus_file.id in turn_with_carried.read_snapshots
+    assert pre_user_compaction.id not in turn_with_carried.read_snapshots
+    assert turn_with_carried.session_carried_snapshot_ids == set()
+
+    # 2b) 压缩记录落在 user 行上时，session_read_snapshots 遇到该 user 行立即停止
+    compacted_user_row = ChatMessage(
+        session_id=chat_session.id,
+        role="user",
+        content="继续",
+        message_metadata=json.dumps(
+            {
+                "compaction": {
+                    "summary": "已压缩摘要。",
+                    "covers_through_message_id": loop_msg.id,
+                }
+            },
+            ensure_ascii=False,
+        ),
+        created_at=t0 + timedelta(seconds=10),
+    )
+    db_session.add(compacted_user_row)
+    db_session.commit()
+    assert loader.session_read_snapshots(db_session, chat_session_id=chat_session.id) == {}
+
+
+def test_session_carryover_undo_write_requires_sha256_and_rejects_undone_cards(db_session, env):
+    user, project, _, chat_session = env
+    ts_only_file = _make_file(db_session, project, title="仅时间戳卡片")
+    undone_file = _make_file(db_session, project, title="已撤销卡片")
+    replaced_undone_file = _make_file(db_session, project, title="已撤销整章替换")
+
+    _add_assistant_turn(
+        db_session,
+        chat_session,
+        [
+            # 更早的 query_files：应被后面较新的不可验证/已撤销写卡片挡住，不能退回旧读记录
+            {
+                "id": "tc-old-read-1",
+                "name": "query_files",
+                "arguments": {"ids": [ts_only_file.id, undone_file.id, replaced_undone_file.id]},
+                "status": "success",
+                "result": [
+                    {
+                        "id": ts_only_file.id,
+                        "content": ts_only_file.content,
+                        "updated_at": ts_only_file.updated_at.isoformat(),
+                    },
+                    {
+                        "id": undone_file.id,
+                        "content": undone_file.content,
+                        "updated_at": undone_file.updated_at.isoformat(),
+                    },
+                    {
+                        "id": replaced_undone_file.id,
+                        "content": replaced_undone_file.content,
+                        "updated_at": replaced_undone_file.updated_at.isoformat(),
+                    },
+                ],
+            },
+            # 1) 仅有 expected_after_updated_at、缺少 expected_after_content_sha256 → fail closed
+            {
+                "id": "tc-ts-only",
+                "name": "edit_file",
+                "arguments": {"id": ts_only_file.id, "edits": []},
+                "status": "success",
+                "result": {
+                    "id": ts_only_file.id,
+                    "mutation_applied": True,
+                    "undo": {
+                        "before_version_number": 1,
+                        "expected_after_updated_at": normalize_datetime_to_utc(ts_only_file.updated_at).isoformat(),
+                    },
+                },
+            },
+            # 2) undo.undone=True 的 edit_file → 即使哈希匹配也必须 fail closed
+            {
+                "id": "tc-undone-edit",
+                "name": "edit_file",
+                "arguments": {"id": undone_file.id, "edits": []},
+                "status": "success",
+                "result": {
+                    "id": undone_file.id,
+                    "mutation_applied": True,
+                    "undo": {
+                        "before_version_number": 1,
+                        "expected_after_updated_at": normalize_datetime_to_utc(undone_file.updated_at).isoformat(),
+                        "expected_after_content_sha256": content_sha256(undone_file.content),
+                        "undone": True,
+                    },
+                },
+            },
+            # 3) undo.undone=True 的 write_chapter(replaced) → fail closed
+            {
+                "id": "tc-undone-replace",
+                "name": "write_chapter",
+                "arguments": {"chapter": 3, "title": "第三章", "file_type": "draft"},
+                "status": "success",
+                "result": {
+                    "id": replaced_undone_file.id,
+                    "action": "replaced",
+                    "body_saved": True,
+                    "undo": {
+                        "before_version_number": 1,
+                        "expected_after_updated_at": normalize_datetime_to_utc(replaced_undone_file.updated_at).isoformat(),
+                        "expected_after_content_sha256": content_sha256(replaced_undone_file.content),
+                        "undone": True,
+                    },
+                },
+            },
+        ],
+    )
+
+    carried = SessionLoader(project_id=project.id, user_id=user.id).session_read_snapshots(
+        db_session, chat_session_id=chat_session.id
+    )
+    assert carried == {}
+

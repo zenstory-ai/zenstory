@@ -661,6 +661,7 @@ class AgentService:
             selected_skills=selected_skills or None,
             context_assembler=self.context_assembler,
             chat_session_id=owned_session_id,
+            carried_compaction=carried_compaction,
             cancel_event=cancel_event,
         )
         if cancel_event is not None and cancel_event.is_set():
