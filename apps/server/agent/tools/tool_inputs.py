@@ -63,6 +63,8 @@ def _coerce_bool_false(value: Any) -> bool:
 
 
 def _coerce_bool_true(value: Any) -> bool:
+    if value is None:
+        return True
     return coerce_bool(value, default=True)
 
 
@@ -360,6 +362,19 @@ class WriteChapterInput(_ToolInputModel):
     # Internal pass-through for _write_chapter_create; hidden from LLM schema
     metadata: dict[str, Any] | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _default_missing_fields(cls, data: Any) -> Any:
+        if not isinstance(data, Mapping):
+            return data
+        normalized = dict(data)
+        raw_ft = normalized.get("file_type")
+        if raw_ft is None or (isinstance(raw_ft, str) and not raw_ft.strip()):
+            normalized["file_type"] = "draft"
+        if normalized.get("title") is None:
+            normalized["title"] = ""
+        return normalized
+
     @field_validator("chapter", mode="before")
     @classmethod
     def _validate_chapter(cls, value: Any) -> int:
@@ -512,9 +527,9 @@ class EditFileInput(_ToolInputModel):
             if isinstance(item, dict) and ("replace_all" in item or "ignore_punct_whitespace" in item):
                 updated = dict(item)
                 if "replace_all" in updated:
-                    updated["replace_all"] = coerce_bool(updated["replace_all"], default=False)
+                    updated["replace_all"] = _coerce_bool_false(updated["replace_all"])
                 if "ignore_punct_whitespace" in updated:
-                    updated["ignore_punct_whitespace"] = coerce_bool(updated["ignore_punct_whitespace"], default=True)
+                    updated["ignore_punct_whitespace"] = _coerce_bool_true(updated["ignore_punct_whitespace"])
                 coerced.append(updated)
             else:
                 coerced.append(item)
@@ -682,6 +697,16 @@ class QueryFilesInput(_ToolInputModel):
     @classmethod
     def _normalize_aliases(cls, data: Any) -> Any:
         return _resolve_id_aliases(data)
+
+    @field_validator("file_type", mode="before")
+    @classmethod
+    def _normalize_file_type(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            cleaned = value.strip().lower()
+            return cleaned or None
+        return value
 
     @field_validator("ids", mode="before")
     @classmethod
@@ -912,13 +937,25 @@ def _format_single_error(err: Mapping[str, Any]) -> tuple[str, bool]:
     if err_type == "less_than_equal":
         le = ctx.get("le")
         return f"参数 {loc} 不能大于 {le}" if loc else f"参数不能大于 {le}", False
+    if err_type == "string_too_short":
+        min_len = ctx.get("min_length")
+        return f"参数 {loc} 长度不能少于 {min_len} 个字符" if loc else f"参数长度不能少于 {min_len} 个字符", False
     if err_type == "string_too_long":
         max_len = ctx.get("max_length")
-        return f"参数 {loc} 长度不能超过 {max_len} 个字符" if loc else f"参数长度不能超过 {max_len}", False
+        return f"参数 {loc} 长度不能超过 {max_len} 个字符" if loc else f"参数长度不能超过 {max_len} 个字符", False
+    if err_type == "too_short":
+        min_len = ctx.get("min_length")
+        return f"参数 {loc} 元素数量不能少于 {min_len} 个" if loc else f"参数元素数量不能少于 {min_len} 个", False
+    if err_type == "too_long":
+        max_len = ctx.get("max_length")
+        return f"参数 {loc} 元素数量不能超过 {max_len} 个" if loc else f"参数元素数量不能超过 {max_len} 个", False
+    if err_type == "extra_forbidden":
+        return f"参数 {loc} 不被支持（多余字段）" if loc else "包含不支持的多余字段", False
     if err_type == "literal_error":
         expected = ctx.get("expected")
         if expected:
-            return f"参数 {loc} 取值无效（允许值：{expected}）" if loc else f"参数取值无效（允许值：{expected}）", False
+            expected_cn = str(expected).replace(", or ", " 或 ").replace(" or ", " 或 ").replace(", ", "、")
+            return f"参数 {loc} 取值无效（允许值：{expected_cn}）" if loc else f"参数取值无效（允许值：{expected_cn}）", False
         return f"参数 {loc} 取值无效" if loc else "参数取值无效", False
 
     cleaned = _clean_pydantic_value_error(raw_msg)

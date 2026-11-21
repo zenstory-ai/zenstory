@@ -471,3 +471,181 @@ def test_load_skill_and_read_skill_resource_validation():
         tool_name="read_skill_resource",
     )
     assert parsed is None and err is not None and "不小于 0" in err["message"]
+
+
+# ---------------------------------------------------------------------------
+# 5. Verifier regression tests (null-bool, blank file_type, fallback defaults, Chinese errors)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_ignore_punct_whitespace_none_preserves_default_true():
+    """Passing null for ignore_punct_whitespace must stay True (matching FileEditor default)."""
+    op_in, err = validate_tool_input(
+        EditOperationInput,
+        {"op": "replace", "old": "a", "new": "b", "ignore_punct_whitespace": None},
+        tool_name="edit_file",
+    )
+    assert err is None and op_in is not None and op_in.ignore_punct_whitespace is True
+
+    edit_in, err = validate_tool_input(
+        EditFileInput,
+        {
+            "id": "f-1",
+            "edits": [
+                {"op": "replace", "old": "a", "new": "b", "ignore_punct_whitespace": None},
+                {"op": "replace", "old": "c", "new": "d", "ignore_punct_whitespace": "false"},
+                {"op": "replace", "old": "e", "new": "f", "ignore_punct_whitespace": "true"},
+            ],
+        },
+        tool_name="edit_file",
+    )
+    assert err is None and edit_in is not None
+    assert [item["ignore_punct_whitespace"] for item in edit_in.edits] == [True, False, True]
+
+
+@pytest.mark.unit
+def test_query_files_blank_file_type_normalizes_to_none_and_whitespace_case_folded():
+    for blank in ("", "   ", None):
+        parsed, err = validate_tool_input(QueryFilesInput, {"file_type": blank}, tool_name="query_files")
+        assert err is None and parsed is not None and parsed.file_type is None
+
+    parsed, err = validate_tool_input(QueryFilesInput, {"file_type": "  DRAFT  "}, tool_name="query_files")
+    assert err is None and parsed is not None and parsed.file_type == "draft"
+
+    parsed, err = validate_tool_input(QueryFilesInput, {"file_type": 123}, tool_name="query_files")
+    assert parsed is None and err is not None and "允许值" in err["message"]
+    assert " or " not in err["message"]
+
+
+@pytest.mark.unit
+def test_write_chapter_restores_fallback_defaults_for_omitted_file_type_and_title():
+    parsed, err = validate_tool_input(WriteChapterInput, {"chapter": 3}, tool_name="write_chapter")
+    assert err is None and parsed is not None
+    assert parsed.chapter == 3
+    assert parsed.file_type == "draft"
+    assert parsed.title == ""
+
+    parsed, err = validate_tool_input(
+        WriteChapterInput,
+        {"chapter": "2", "title": None, "file_type": ""},
+        tool_name="write_chapter",
+    )
+    assert err is None and parsed is not None
+    assert parsed.chapter == 2 and parsed.file_type == "draft" and parsed.title == ""
+
+    # Whole float accepted; fractional float / <=0 / non-body file_type rejected
+    parsed, err = validate_tool_input(WriteChapterInput, {"chapter": 4.0}, tool_name="write_chapter")
+    assert err is None and parsed is not None and parsed.chapter == 4
+
+    for bad_ch in (0, -2, 1.5, "abc", "", []):
+        parsed, err = validate_tool_input(WriteChapterInput, {"chapter": bad_ch}, tool_name="write_chapter")
+        assert parsed is None and err is not None and "正整数" in err["message"]
+
+    parsed, err = validate_tool_input(
+        WriteChapterInput,
+        {"chapter": 1, "title": "大纲", "file_type": "outline"},
+        tool_name="write_chapter",
+    )
+    assert parsed is None and err is not None and "draft" in err["message"]
+
+
+@pytest.mark.unit
+def test_chinese_error_formatting_covers_all_pydantic_error_types_without_english_leakage():
+    from agent.tools.tool_inputs import UpdateProjectTaskInput, _format_single_error
+
+    # Non-mapping raw_args & None raw_args
+    parsed, err = validate_tool_input(QueryFilesInput, ["not-a-dict"], tool_name="query_files")
+    assert parsed is None and err is not None and "JSON 对象" in err["message"]
+    parsed, err = validate_tool_input(QueryFilesInput, None, tool_name="query_files")
+    assert err is None and parsed is not None
+
+    # literal_error: no English " or "
+    parsed, err = validate_tool_input(QueryFilesInput, {"file_type": "bogus"}, tool_name="query_files")
+    assert parsed is None and err is not None
+    assert " 或 " in err["message"] and " or " not in err["message"]
+
+    # extra_forbidden on strict sub-model
+    parsed, err = validate_tool_input(
+        UpdateProjectTaskInput,
+        {"task": "写第一章", "status": "pending", "unknown_field": 1},
+        tool_name="update_project",
+    )
+    assert parsed is None and err is not None and "多余字段" in err["message"]
+
+    # too_short / too_long / string_too_short on UnitSpecInput & UpdateProjectTaskInput
+    parsed, err = validate_tool_input(UnitSpecInput, {"unit": "章", "numbers": []}, tool_name="update_project")
+    assert parsed is None and err is not None and "不能少于 1 个" in err["message"]
+
+    parsed, err = validate_tool_input(
+        UnitSpecInput,
+        {"unit": "章", "numbers": list(range(1, 2003))},
+        tool_name="update_project",
+    )
+    assert parsed is None and err is not None and "不能超过 2001 个" in err["message"]
+
+    parsed, err = validate_tool_input(
+        UpdateProjectTaskInput,
+        {"task": "写第一章", "status": "done", "artifact_refs": [""]},
+        tool_name="update_project",
+    )
+    assert parsed is None and err is not None and "不能少于 1 个字符" in err["message"]
+
+    # dict_type, list_type, string_type, non-int string/empty, non-string ids items, non-list edits
+    parsed, err = validate_tool_input(
+        CreateFileInput,
+        {"title": "大纲", "file_type": "outline", "metadata": "not-a-dict", "order": "bad"},
+        tool_name="create_file",
+    )
+    assert parsed is None and err is not None and "JSON 对象" in err["message"]
+
+    parsed, err = validate_tool_input(
+        CreateFileInput,
+        {"title": "大纲", "file_type": 123},
+        tool_name="create_file",
+    )
+    assert parsed is None and err is not None and "字符串" in err["message"]
+
+    parsed, err = validate_tool_input(
+        CreateFileInput,
+        {"title": "大纲", "file_type": "   "},
+        tool_name="create_file",
+    )
+    assert parsed is None and err is not None and "不能为空" in err["message"]
+
+    parsed, err = validate_tool_input(
+        CreateFileInput,
+        {"title": "大纲", "file_type": "outline", "parent_id": 123, "order": "abc"},
+        tool_name="create_file",
+    )
+    assert parsed is None and err is not None and "字符串" in err["message"]
+
+    parsed, err = validate_tool_input(
+        EditFileInput,
+        {"id": "f-1", "edits": "not-a-list"},
+        tool_name="edit_file",
+    )
+    assert parsed is None and err is not None and "数组" in err["message"]
+
+    parsed, err = validate_tool_input(QueryFilesInput, {"ids": "not-a-list"}, tool_name="query_files")
+    assert parsed is None and err is not None and "ID 列表" in err["message"]
+
+    parsed, err = validate_tool_input(QueryFilesInput, {"ids": [123]}, tool_name="query_files")
+    assert parsed is None and err is not None and "字符串文件 ID" in err["message"]
+
+    parsed, err = validate_tool_input(QueryFilesInput, {"start_char": ""}, tool_name="query_files")
+    assert err is None and parsed is not None and parsed.start_char is None
+
+    parsed, err = validate_tool_input(ReadSkillResourceInput, {"name": "", "path": ""}, tool_name="read_skill_resource")
+    assert parsed is None and err is not None and "name" in err["message"] and "path" in err["message"]
+
+    # Direct unit checks for remaining _format_single_error mappings
+    assert "整数" in _format_single_error({"loc": ("x",), "type": "int_type", "msg": ""})[0]
+    assert "布尔值" in _format_single_error({"loc": ("x",), "type": "bool_type", "msg": ""})[0]
+    assert "字符串" in _format_single_error({"loc": ("x",), "type": "string_type", "msg": ""})[0]
+    assert "数组" in _format_single_error({"loc": ("x",), "type": "list_type", "msg": ""})[0]
+    assert "不能大于 10" in _format_single_error({"loc": ("x",), "type": "less_than_equal", "ctx": {"le": 10}, "msg": ""})[0]
+    assert "超过 30" in _format_single_error({"loc": ("x",), "type": "string_too_long", "ctx": {"max_length": 30}, "msg": ""})[0]
+    assert "取值无效" in _format_single_error({"loc": ("x",), "type": "literal_error", "msg": ""})[0]
+    assert "无效" in _format_single_error({"loc": ("x",), "type": "custom_unknown", "msg": "Assertion failed, bad"})[0]
+
