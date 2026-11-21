@@ -42,7 +42,8 @@ async def test_update_project_supports_empty_string_and_returns_compat_fields():
     assert payload["data"]["project_status"]["updated_fields"] == ["summary"]
     assert payload["data"]["updated_fields"] == ["summary"]
     assert payload["data"]["project_id"] == "proj-1"
-    assert payload["data"]["current_status"]["summary"] == ""
+    assert "current_status" not in payload["data"]
+    assert payload["data"]["project_status"]["current_status"]["summary"] == ""
 
     mock_executor.update_project_status.assert_called_once_with(
         project_id="proj-1",
@@ -72,7 +73,8 @@ async def test_update_project_accepts_current_phase_camel_case_alias():
     payload = _parse_payload(result)
     assert payload["status"] == "success"
     assert payload["data"]["updated_fields"] == ["current_phase"]
-    assert payload["data"]["current_status"]["current_phase"] == "已写至第5章"
+    assert "current_status" not in payload["data"]
+    assert payload["data"]["project_status"]["current_status"]["current_phase"] == "已写至第5章"
 
     mock_executor.update_project_status.assert_called_once_with(
         project_id="proj-1",
@@ -160,7 +162,8 @@ async def test_update_project_tasks_only_can_auto_sync_current_phase():
     assert payload["status"] == "success"
     assert payload["data"]["plan"]["tasks"] == [{"task": "写第5章", "status": "done"}]
     assert payload["data"]["updated_fields"] == ["current_phase"]
-    assert payload["data"]["current_status"]["current_phase"] == "已写至第5章"
+    assert "current_status" not in payload["data"]
+    assert payload["data"]["project_status"]["current_status"]["current_phase"] == "已写至第5章"
 
     mock_executor.execute_update_plan.assert_called_once_with(
         session_id="sess-1",
@@ -1429,7 +1432,8 @@ async def test_update_project_appends_remembered_notes_and_reports_them(db_sessi
         assert data["updated_fields"] == ["summary", "notes"]
         stored = _stored_notes(db_session, project)
         assert stored == f"{existing}\n{UNLABELED_HEADER}\n女主要到第五章才出场\n主角左手有旧伤，阴天会疼"
-        assert data["current_status"]["notes"] == stored
+        assert "current_status" not in data
+        assert data["project_status"]["current_status"]["notes"] == stored
 
         # Copying the notes back (or passing nothing new) writes nothing: no fake output.
         copied = _parse_payload(await update_project({"notes": "女主要到第五章才出场"}))
@@ -1530,7 +1534,8 @@ async def test_update_project_removes_legacy_proposal_block_on_write(db_session)
     _set_author_round(db_session, user, project, "记住本轮的新约定", notes_append_allowed=True)
     try:
         status_only = _parse_payload(await update_project({"current_phase": "第1章"}))
-        assert status_only["data"]["current_status"]["notes"] == author_part
+        assert "current_status" not in status_only["data"]
+        assert status_only["data"]["project_status"]["current_status"]["notes"] == author_part
 
         # The model copies the notes back with the legacy block: nothing is added or written
         # (no billable output just for a cleanup that reads already apply).
@@ -1539,7 +1544,8 @@ async def test_update_project_removes_legacy_proposal_block_on_write(db_session)
         )
         assert "notes_added" not in copied["data"]
         assert copied["data"]["updated_fields"] == []
-        assert copied["data"]["current_status"]["notes"] == author_part
+        assert "current_status" not in copied["data"]
+        assert copied["data"]["project_status"]["current_status"]["notes"] == author_part
         assert _stored_notes(db_session, project) == legacy_stored
 
         # The next real append writes the author part, the new entry, and no legacy block.

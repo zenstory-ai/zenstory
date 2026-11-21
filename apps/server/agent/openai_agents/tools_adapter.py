@@ -35,7 +35,7 @@ def _normalize_tool_result_text(result: Any) -> str:
         return text
 
     if isinstance(result, dict):
-        return json.dumps(result, ensure_ascii=False)
+        return json.dumps(result, ensure_ascii=False, separators=(",", ":"))
     return str(result)
 
 
@@ -104,6 +104,7 @@ async def invoke_project_tool(
     raw_arguments: str,
     *,
     run_meter: AgentRunMeter | None = None,
+    tool_call_id: str | None = None,
 ) -> str:
     """Invoke a project tool from an SDK FunctionTool callback."""
     parsed_args, parse_error_text = _parse_tool_arguments(raw_arguments, tool_name=tool_name)
@@ -118,7 +119,7 @@ async def invoke_project_tool(
         if run_meter is not None:
             run_meter.mark_first_tool_started()
         timing = run_meter.measure_stage("tool") if run_meter is not None else nullcontext()
-        with timing:
+        with timing, ToolContext.tool_call_scope(tool_call_id):
             result = tool_func(parsed_args or {})
             if inspect.isawaitable(result):
                 result = await result
@@ -210,14 +211,16 @@ def build_agent_function_tools(
             *,
             _tool_name: str = name,
         ) -> str:
+            raw_call_id = getattr(_ctx, "tool_call_id", None)
+            call_id = raw_call_id if isinstance(raw_call_id, str) and raw_call_id else None
+
             async def invoke_allowed(arguments: str) -> str:
-                if run_meter is None:
-                    return await invoke_project_tool(_tool_name, arguments)
-                return await invoke_project_tool(
-                    _tool_name,
-                    arguments,
-                    run_meter=run_meter,
-                )
+                kwargs: dict[str, Any] = {}
+                if run_meter is not None:
+                    kwargs["run_meter"] = run_meter
+                if call_id is not None:
+                    kwargs["tool_call_id"] = call_id
+                return await invoke_project_tool(_tool_name, arguments, **kwargs)
 
             if failure_breaker is not None and failure_breaker.is_open:
                 return failure_breaker.short_circuit_text(_tool_name)

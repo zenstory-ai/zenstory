@@ -29,11 +29,16 @@ from agent.tools.file_ops.edit import (
     PreWriteHistoryUnavailableError,
     StaleContentError,
     edit_error_user_message,
+    extract_edit_file_ui_payload,
+    slim_edit_file_result_for_llm,
 )
 from agent.tools.file_ops.serialization import (
     QUERY_FILES_DEFAULT_LIMIT,
     QUERY_FILES_FULL_MODE_DEFAULT_LIMIT,
+    QUERY_FILES_MAX_BATCH_IDS,
     QUERY_FILES_RESPONSE_MODE_FULL,
+    WRITE_FILE_OMITTED_FIELDS,
+    normalize_query_file_ids,
     serialize_file,
 )
 from agent.tools.permissions import ForbiddenError, NotFoundError
@@ -291,8 +296,19 @@ TOOL_RESULT_OVERSIZE_NOTE = (
 )
 
 
+def _dumps_compact(value: Any, *, default: Any = None) -> str:
+    if default is not None:
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=default)
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _slim_write_file_data(data: dict[str, Any]) -> dict[str, Any]:
+    """去掉 create_file / write_chapter 返回里模型与前端都不读的 4 个库字段（保留 updated_at）。"""
+    return {k: v for k, v in data.items() if k not in WRITE_FILE_OMITTED_FIELDS}
+
+
 def _json_chars(value: Any) -> int:
-    return len(json.dumps(value, ensure_ascii=False, default=str))
+    return len(_dumps_compact(value, default=str))
 
 
 def _collect_long_string_leaves(
@@ -395,7 +411,7 @@ def _compact_oversized_payload(
     compact["note"] = TOOL_RESULT_OVERSIZE_NOTE
     for min_keep in (_BOUND_MIN_KEEP_CHARS, 0):
         bounded, _ = bound_payload_strings(compact, TOOL_RESULT_MAX_CHARS, min_keep=min_keep)
-        encoded = json.dumps(bounded, ensure_ascii=False)
+        encoded = _dumps_compact(bounded)
         if len(encoded) <= TOOL_RESULT_MAX_CHARS:
             return encoded
     return None
@@ -403,7 +419,7 @@ def _compact_oversized_payload(
 
 def _serialize_tool_payload(payload: Any) -> str:
     """Serialize tool payload and truncate oversized results safely."""
-    serialized = json.dumps(payload, ensure_ascii=False)
+    serialized = _dumps_compact(payload)
     if len(serialized) <= TOOL_RESULT_MAX_CHARS:
         return serialized
 
@@ -439,19 +455,19 @@ def _serialize_tool_payload(payload: Any) -> str:
             "original_length": original_length,
         }
 
-    encoded_truncated = json.dumps(truncated_payload, ensure_ascii=False)
+    encoded_truncated = _dumps_compact(truncated_payload)
     if len(encoded_truncated) <= TOOL_RESULT_MAX_CHARS:
         return encoded_truncated
 
     if status == "error" and "error" in truncated_payload:
         compact_payload = dict(truncated_payload)
         compact_payload["error"] = str(compact_payload["error"])
-        encoded_truncated = json.dumps(compact_payload, ensure_ascii=False)
+        encoded_truncated = _dumps_compact(compact_payload)
         while len(encoded_truncated) > TOOL_RESULT_MAX_CHARS and compact_payload["error"]:
             overflow = len(encoded_truncated) - TOOL_RESULT_MAX_CHARS
             trim_count = max(1, overflow)
             compact_payload["error"] = compact_payload["error"][:-trim_count]
-            encoded_truncated = json.dumps(compact_payload, ensure_ascii=False)
+            encoded_truncated = _dumps_compact(compact_payload)
         if len(encoded_truncated) <= TOOL_RESULT_MAX_CHARS:
             return encoded_truncated
 
@@ -468,7 +484,7 @@ def _serialize_tool_payload(payload: Any) -> str:
         minimal_payload["data"] = {"truncated": True}
     else:
         minimal_payload["error"] = "Tool result truncated"
-    return json.dumps(minimal_payload, ensure_ascii=False)
+    return _dumps_compact(minimal_payload)
 
 
 def _is_folder_file_type(result: dict[str, Any], args: dict[str, Any]) -> bool:
@@ -645,7 +661,7 @@ def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict
         title=title,
         file_type=row_type,
     )
-    data = serialize_file(row)
+    data = serialize_file(row, omit_fields=WRITE_FILE_OMITTED_FIELDS)
     data["content"] = ""
     data = _awaiting_body_data(data, title)
     data["next_step"] = "不要再调用 create_file。" + data["next_step"]
@@ -1130,7 +1146,7 @@ def _write_chapter_replace(
             f"第{number}{unit}的文件已不存在，没有写入。", error_type=EDIT_ERROR_FILE_NOT_FOUND
         )
     content = row.content or ""
-    data = serialize_file(row)
+    data = serialize_file(row, omit_fields=WRITE_FILE_OMITTED_FIELDS)
     data.pop("content", None)
     data["chapter"] = number
     if file_id in pending_ids:
@@ -1370,7 +1386,7 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
                     tool_name=tool_name,
                 )
             result = {**result, "source_copied": True, "body_saved": True}
-        data = _elide_reused_file_content(result)
+        data = _slim_write_file_data(_elide_reused_file_content(result))
         if body_in_reply:
             data = {**data, "body_in_reply": True, "next_step": _body_in_reply_next_step(title, tool_name)}
         elif awaiting_body:
@@ -1474,33 +1490,48 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         # 不拿可能过时的记忆去模糊匹配作者刚改过的字。有快照（看过或自己写过）就做陈旧检查。
         has_snapshot = ToolContext.read_snapshot(file_id) is not None
         has_seen = ToolContext.has_seen_file(file_id)
+        seen_spans = None if has_seen else ToolContext.seen_file_spans(file_id)
         read_ticket = ToolContext.read_ticket()
 
-        result = executor.edit_file(
-            id=file_id,
-            edits=edits,
+        edit_kwargs: dict[str, Any] = {
+            "id": file_id,
+            "edits": edits,
             # 必须走 coerce_bool：strict_json_schema=False 让 schema 里的
             # "type": "boolean" 在运行时毫无约束力，模型常把它序列化成
             # "false"/"0"，而 bool("false") is True——一次编辑失败后本该中止的
             # 批量编辑会继续往下做，且整体仍被报成 success。
-            continue_on_error=coerce_bool(args.get("continue_on_error")),
+            "continue_on_error": coerce_bool(args.get("continue_on_error")),
             # 只规范化各 edit 的新文本，未编辑的段落不动。
-            normalize_quotes=True,
+            "normalize_quotes": True,
             # 在锁内取快照：同一请求里先写的那一步已经把快照更新为它写下的正文。
-            read_snapshot_fn=(lambda: ToolContext.read_snapshot(file_id)) if has_snapshot else None,
-            exact_only=not has_seen,
-            report_author_edits=True,
+            "read_snapshot_fn": (lambda: ToolContext.read_snapshot(file_id)) if has_snapshot else None,
+            "exact_only": not has_seen,
+            "report_author_edits": True,
             # 单循环 agent 改正文：不整份替换（走 write_chapter）、不新添逐字重复的段落。
-            body_guards=ToolContext.get_current_agent() == _loop_agent_type(),
-        )
+            "body_guards": ToolContext.get_current_agent() == _loop_agent_type(),
+        }
+        if seen_spans:
+            edit_kwargs["seen_spans"] = seen_spans
+        result = executor.edit_file(**edit_kwargs)
         # status 必须按实际结果降级：continue_on_error 下部分/全部 edit 失败时，
         # 恒返回 "success" 会让模型以为改动已经落地、继续往下写，
         # 失败的 edit 只藏在 data.failed_edits 里没人看。
         status = _derive_edit_status(result)
+        if isinstance(result, dict):
+            ui_overlay = extract_edit_file_ui_payload(result)
+            if ui_overlay:
+                ToolContext.record_tool_ui_payload(
+                    ToolContext.current_tool_call_id(),
+                    ui_overlay,
+                    fallback_key=(tool_name, str(result.get("id") or file_id)),
+                )
+            llm_data: Any = slim_edit_file_result_for_llm(result)
+        else:
+            llm_data = result
         payload: dict[str, Any] = {
             "status": status,
             "mutation_applied": result.get("mutation_applied") is True,
-            "data": result,
+            "data": llm_data,
         }
         if status == "error":
             # 全部失败（continue_on_error=true）：与整批回滚一样带上稳定分类和给作者的短句。
@@ -1741,16 +1772,31 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
         return _make_error("project_id not set", tool_name=tool_name)
 
     try:
-        # 不按 id、却要全文时（列表 × 全文），未显式给 limit 就收紧到 10 条：
-        # 默认 50 条全文很容易顶到 TOOL_RESULT_MAX_CHARS，被截断后模型只能再读一遍。
+        # 校验、去重并按上限（最多 5 个）截断 id / ids；单 id 保持 100% 兼容。
         raw_id = args.get("id")
-        has_id = isinstance(raw_id, str) and bool(raw_id.strip())
+        raw_ids = args.get("ids")
+        is_batch = raw_ids is not None
+        requested_ids, truncated_ids = normalize_query_file_ids(
+            file_id=raw_id,
+            file_ids=raw_ids,
+            max_ids=QUERY_FILES_MAX_BATCH_IDS,
+        )
+        has_exact_ids = bool(requested_ids)
+        if len(requested_ids) > 1 and wants_range(args):
+            return _make_error(
+                "批量读取多个文件（ids）不支持 section / tail_chars / start_char 范围参数；"
+                "需要按范围读取某个超长文件时请用单个 id。",
+                tool_name=tool_name,
+            )
+
+        # 不按 id/ids、却要全文时（列表 × 全文），未显式给 limit 就收紧到 10 条：
+        # 默认 50 条全文很容易顶到 TOOL_RESULT_MAX_CHARS，被截断后模型只能再读一遍。
         raw_include = args.get("include_content")
         wants_full = str(args.get("response_mode") or "").strip().lower() == QUERY_FILES_RESPONSE_MODE_FULL or (
             raw_include is not None and coerce_bool(raw_include)
         )
         default_limit = (
-            QUERY_FILES_FULL_MODE_DEFAULT_LIMIT if wants_full and not has_id else QUERY_FILES_DEFAULT_LIMIT
+            QUERY_FILES_FULL_MODE_DEFAULT_LIMIT if wants_full and not has_exact_ids else QUERY_FILES_DEFAULT_LIMIT
         )
         query_kwargs: dict[str, Any] = {
             "project_id": project_id,
@@ -1762,7 +1808,7 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
             "offset": args.get("offset", 0),
         }
 
-        optional_keys = ("id", "response_mode", "content_preview_chars", "include_content")
+        optional_keys = ("response_mode", "content_preview_chars", "include_content")
         for key in optional_keys:
             if key in args:
                 value = args.get(key)
@@ -1773,18 +1819,29 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
                     value = coerce_bool(value)
                 query_kwargs[key] = value
 
-        range_read = has_id and wants_range(args)
+        if is_batch:
+            query_kwargs["ids"] = requested_ids
+        elif "id" in args:
+            query_kwargs["id"] = requested_ids[0] if requested_ids else raw_id
+
+        range_read = len(requested_ids) == 1 and wants_range(args)
         if range_read:
             # 范围读取先取全文再在这里切：切之前的整份正文用作陈旧检查的快照。
             query_kwargs["response_mode"] = QUERY_FILES_RESPONSE_MODE_FULL
             query_kwargs.pop("include_content", None)
             query_kwargs.pop("content_preview_chars", None)
 
-        read_ticket = ToolContext.read_ticket() if has_id else None
+        read_ticket = ToolContext.read_ticket() if has_exact_ids else None
         result = executor.query_files(**query_kwargs)
         keyword = args.get("query")
-        if not has_id and isinstance(keyword, str) and keyword.strip() and isinstance(result, list):
-            _attach_query_matches(executor.session, result, keyword)
+        if (
+            not range_read
+            and not wants_full
+            and isinstance(keyword, str)
+            and keyword.strip()
+            and isinstance(result, list)
+        ):
+            _attach_query_matches(executor.session, result, keyword.strip())
 
         if range_read:
             rows = result if isinstance(result, list) else []
@@ -1793,13 +1850,49 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
                 sliced = apply_content_range(full_row, args)
                 result = [sliced]
                 if sliced.get("content_partial"):
+                    content_range = sliced.get("content_range")
+                    span = (
+                        (int(content_range["start"]), int(content_range["end"]))
+                        if isinstance(content_range, dict)
+                        and isinstance(content_range.get("start"), int)
+                        and isinstance(content_range.get("end"), int)
+                        else None
+                    )
                     ToolContext.record_range_read_snapshot(
-                        str(full_row.get("id") or ""), full_row["content"], ticket=read_ticket
+                        str(full_row.get("id") or ""),
+                        full_row["content"],
+                        span=span,
+                        ticket=read_ticket,
                     )
                     return _make_result({"status": "success", "data": result}, tool_name=tool_name)
 
-        payload = {"status": "success", "data": result}
-        if has_id and len(json.dumps(payload, ensure_ascii=False)) <= TOOL_RESULT_MAX_CHARS:
+        rows = result if isinstance(result, list) else []
+        missing_ids: list[str] = []
+        is_query_filter = not wants_full and isinstance(keyword, str) and bool(keyword.strip())
+        if is_batch and not is_query_filter:
+            returned_ids = {str(row.get("id") or "") for row in rows if isinstance(row, dict)}
+            missing_ids = [fid for fid in requested_ids if fid not in returned_ids]
+            if not rows:
+                extra: dict[str, Any] = {"missing_ids": missing_ids}
+                if truncated_ids:
+                    extra["truncated_ids"] = truncated_ids
+                return _make_structured_error(
+                    "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。",
+                    error_type="files_not_found",
+                    tool_name=tool_name,
+                    **extra,
+                )
+
+        payload: dict[str, Any] = {"status": "success", "data": result}
+        if missing_ids:
+            payload["missing_ids"] = missing_ids
+        if truncated_ids:
+            payload["truncated_ids"] = truncated_ids
+            payload["note"] = (
+                f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已返回前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
+                f"其余 {len(truncated_ids)} 个请另起调用读取。"
+            )
+        if has_exact_ids and len(_dumps_compact(payload)) <= TOOL_RESULT_MAX_CHARS:
             # 结果超过上限会被截断，模型拿不到全文：那时不记快照。
             _note_file_read(result, ticket=read_ticket)
         return _make_result(payload, tool_name=tool_name)
@@ -1837,18 +1930,22 @@ def _attach_query_matches(session: Session, rows: list[Any], keyword: str) -> No
             content[max(0, pos - QUERY_MATCH_CONTEXT_CHARS) : pos + len(keyword) + QUERY_MATCH_CONTEXT_CHARS]
             for pos in positions[:QUERY_MATCHES_PER_FILE]
         ]
+        # summary 搜索行已有 matches[] 命中上下文，省略开头 200 字的 content_preview；
+        # 仅标题命中（match_count == 0）仍保留 content_preview 帮助判断。
+        if positions and "content" not in row:
+            row.pop("content_preview", None)
 
 
 def _note_file_read(result: Any, *, ticket: int | None = None) -> None:
-    """按 id 读到全文时记下模型看到的正文（edit_file 的陈旧检查）。作者手改差异由 crud 附在同一行里。"""
+    """按 id / ids 读到全文时记下模型看到的正文（edit_file 的陈旧检查）。作者手改差异由 crud 附在同一行里。"""
     rows = result if isinstance(result, list) else []
-    if len(rows) != 1 or not isinstance(rows[0], dict):
-        return
-    row = rows[0]
-    file_id = str(row.get("id") or "")
-    content = row.get("content")
-    if file_id and isinstance(content, str) and not row.get("content_truncated"):
-        ToolContext.record_read_snapshot(file_id, content, ticket=ticket)
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        file_id = str(row.get("id") or "")
+        content = row.get("content")
+        if file_id and isinstance(content, str) and not row.get("content_truncated") and not row.get("content_partial"):
+            ToolContext.record_read_snapshot(file_id, content, ticket=ticket)
 
 
 def _normalize_update_project_args(args: dict[str, Any]) -> dict[str, Any]:
@@ -2034,10 +2131,10 @@ def _update_project_sync(
                     over_limit=notes_over_limit,
                 )
             result["project_status"] = status_result
-            # Backward compatibility: keep common fields at top level for older clients.
+            # Backward compatibility: keep lightweight summary fields at top level;
+            # current_status already lives inside project_status and is not duplicated.
             result["project_id"] = status_result.get("project_id")
             result["updated_fields"] = status_result.get("updated_fields", [])
-            result["current_status"] = status_result.get("current_status", {})
             # Also on a partial plan rejection: the other fields were still saved.
             if notes_added and "notes" in result["updated_fields"]:
                 result["notes_added"] = notes_added
@@ -2101,7 +2198,6 @@ def _update_project_sync(
                     result["project_status"] = status_result
                     result["project_id"] = status_result.get("project_id")
                     result["updated_fields"] = status_result.get("updated_fields", [])
-                    result["current_status"] = status_result.get("current_status", {})
                     log_with_context(
                         logger,
                         20,  # INFO

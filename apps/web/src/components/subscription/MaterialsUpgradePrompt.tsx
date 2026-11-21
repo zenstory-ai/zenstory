@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { UpgradePromptModal } from "./UpgradePromptModal";
 import { RedeemCodeModal } from "./RedeemCodeModal";
+import { Button } from "../ui/Button";
+import { useIsMobile } from "../../hooks/useMediaQuery";
 import { getUpgradePromptDefinition } from "../../config/upgradeExperience";
 import { useProMaterialDecompositionsLimit } from "../../hooks/useProMaterialDecompositionsLimit";
 import { useMaterialsCheckoutUnavailableText, useMaterialsProEntry } from "../../hooks/useMaterialsProEntry";
@@ -106,6 +108,7 @@ interface MaterialsUpgradeNoticeProps {
  */
 export function MaterialsUpgradeNotice({ source, className = "" }: MaterialsUpgradeNoticeProps) {
   const { t } = useTranslation(["materials"]);
+  const actionSize = useIsMobile() ? "touch" : "md";
   const [open, setOpen] = useState(false);
   const description = useMaterialsUploadDescription();
   const { label } = useMaterialsProEntry();
@@ -116,9 +119,9 @@ export function MaterialsUpgradeNotice({ source, className = "" }: MaterialsUpgr
         {t("materials:quota.uploadTitle", { defaultValue: "素材库是 Pro 功能" })}
       </p>
       <p className="text-xs leading-5 text-[hsl(var(--text-secondary))]">{description}</p>
-      <button type="button" className="btn-primary h-11 px-3 text-xs" onClick={() => setOpen(true)}>
+      <Button type="button" size={actionSize} onClick={() => setOpen(true)}>
         {label}
-      </button>
+      </Button>
       <MaterialsUpgradePromptModal open={open} onClose={() => setOpen(false)} source={source} />
     </div>
   );

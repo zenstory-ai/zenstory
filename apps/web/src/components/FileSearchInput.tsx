@@ -184,7 +184,7 @@ export const FileSearchInput: React.FC<FileSearchInputProps> = ({
         role="searchbox"
         aria-label={placeholder || "Search"}
         data-testid="file-search-input"
-        className="w-full min-h-[44px] sm:h-9 pl-9 pr-8 text-sm rounded-lg border border-[hsl(var(--border-primary))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full min-h-[44px] sm:h-9 pl-9 pr-11 sm:pr-8 text-sm rounded-xl border border-[hsl(var(--border-primary))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
       />
 
       {/* Clear button - larger touch target on mobile */}
@@ -193,7 +193,7 @@ export const FileSearchInput: React.FC<FileSearchInputProps> = ({
           type="button"
           onClick={onClear}
           data-testid="file-search-clear-button"
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors touch-manipulation"
+          className="absolute right-0 sm:right-2 top-1/2 -translate-y-1/2 min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 sm:p-1.5 flex items-center justify-center rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors touch-manipulation"
           aria-label={t("common:clearSearch", "清空搜索")}
         >
           <X className="w-4 h-4" />

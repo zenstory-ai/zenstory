@@ -3,15 +3,15 @@ import { mkdir } from 'node:fs/promises';
 import { bootstrapAdminSession, longText, users } from './fixtures/admin-responsive';
 
 const routes = [
-  ['dashboard', '/admin', '1,289'], ['users', '/admin/users', users[0].username],
+  ['dashboard', '/admin', '1,289'], ['acquisition', '/admin/acquisition', 'www.google.com'],
+  ['users', '/admin/users', users[0].username],
   ['user-detail', '/admin/users/user-1', users[0].email], ['usage', '/admin/usage', users[0].email],
   ['prompts', '/admin/prompts', 'novel'], ['prompt-new', '/admin/prompts/new', null],
   ['prompt-edit', '/admin/prompts/novel', null], ['skills', '/admin/skills', 'Long-form narrative continuity reviewer'],
   ['codes', '/admin/codes', 'RESPONSIVE-AUDIT-LONG-CODE-2026'], ['subscriptions', '/admin/subscriptions', users[0].email],
   ['payments', '/admin/payment-orders', users[0].email], ['plans', '/admin/plans', 'Professional Writer Plan'],
   ['audit', '/admin/audit-logs', 'super-administrator-with-long-name'], ['feedback', '/admin/feedback', users[0].email],
-  ['points', '/admin/points', '9,999,999'], ['check-in', '/admin/check-in', '611'],
-  ['referrals', '/admin/referrals', 'INVITE-RESPONSIVE-AUDIT-2026'], ['quota', '/admin/quota', '48,321'],
+  ['announcements', '/admin/announcements', 'Maintenance notice'],
 ] as const;
 
 const viewports = [
@@ -59,37 +59,6 @@ async function assertLocalContent(page: Page, label: string) {
 
 test.describe('Admin detailed responsive layout', () => {
   test.setTimeout(180_000);
-  for (const language of ['zh', 'en']) {
-    test(`${language}: referral statistics contain complete numbers with wider system fonts`, async ({ page }) => {
-      await page.addInitScript(lang => localStorage.setItem('zenstory-language', lang), language);
-      await bootstrapAdminSession(page);
-      for (const width of [390, 768, 1024, 1280, 1536, 1920]) {
-        await page.setViewportSize({ width, height: 1024 });
-        await page.goto('/admin/referrals');
-        await expect(page.getByText('89,200', { exact: true })).toBeVisible();
-        // Arial reproduces the wider numeral metrics found on the Linux runner.
-        await page.addStyleTag({ content: '.admin-page .tabular-nums { font-family: Arial, sans-serif; }' });
-        const escaped = await page.locator('.admin-page .tabular-nums').evaluateAll(values => values.flatMap(value => {
-          const card = value.closest('[class~="rounded-xl"]')!;
-          const bounds = card.getBoundingClientRect();
-          const style = getComputedStyle(card);
-          const rect = value.getBoundingClientRect();
-          const left = bounds.left + parseFloat(style.paddingLeft);
-          const right = bounds.right - parseFloat(style.paddingRight);
-          return rect.left < left - 1 || rect.right > right + 1
-            ? [{ text: value.textContent?.trim(), left: rect.left, right: rect.right, cardLeft: left, cardRight: right }]
-            : [];
-        }));
-        expect(escaped, `${language} ${width}px referral statistic values`).toEqual([]);
-        await assertLocalContent(page, `${language} ${width}px referral statistics`);
-        const artifactDir = process.env.ADMIN_DETAIL_ARTIFACT_DIR;
-        if (artifactDir) {
-          await mkdir(artifactDir, { recursive: true });
-          await page.screenshot({ path: `${artifactDir}/${language}-${width}-referral-statistics.png` });
-        }
-      }
-    });
-  }
   for (const language of ['zh', 'en']) {
     for (const width of [390, 768]) {
       test(`${language} ${width}px: feedback status remains fully readable next to a long identity`, async ({ page }) => {
@@ -139,6 +108,7 @@ test.describe('Admin detailed responsive layout', () => {
         await expect(page.locator('.admin-page')).toBeVisible();
         if (name === 'prompt-new') await expect(page.locator('textarea').first()).toBeVisible();
         else if (name === 'prompt-edit') await expect(page.locator('textarea').first()).toHaveValue(longText);
+        else if (name === 'announcements') await expect(page.locator('input').first()).toHaveValue(readyText!);
         else await expect(page.getByText(readyText!, { exact: false }).filter({ visible: true }).first()).toBeVisible();
         await assertLocalContent(page, `${viewport.width}: ${path}`);
         const artifactDir = process.env.ADMIN_DETAIL_ARTIFACT_DIR;
@@ -202,8 +172,7 @@ test.describe('Admin detailed responsive layout', () => {
 
       await page.goto('/admin/users/user-1');
       await expect(page.getByText(users[0].email).first()).toBeVisible();
-      const reason = page.locator('form input[type="text"]');
-      expect((await reason.boundingBox())!.width).toBeGreaterThan(150);
+      await expect(page.getByRole('link', { name: /查看用量|View usage/ })).toBeVisible();
       await assertLocalContent(page, 'user detail');
     });
 

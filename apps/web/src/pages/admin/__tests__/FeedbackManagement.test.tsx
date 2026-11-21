@@ -149,6 +149,23 @@ describe("FeedbackManagement", () => {
     expect(mutateMock).toHaveBeenCalledWith({ id: "fb-1", status: "resolved" });
   });
 
+  it("paginates forward and backward with button controls", () => {
+    useQueryMock.mockReturnValue({
+      data: { items: [], total: 45 },
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<FeedbackManagement />, { wrapper: MemoryRouter });
+    fireEvent.click(screen.getByRole("button", { name: "common:next" }));
+    expect(useQueryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "feedback", 1, "", "", "all", ""]);
+    fireEvent.click(screen.getByRole("button", { name: "common:previous" }));
+    expect(useQueryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "feedback", 0, "", "", "all", ""]);
+  });
+
   it("does not create or commit a screenshot URL after the preview closes", async () => {
     let resolveBlob!: (value: Blob) => void;
     getScreenshotBlobMock.mockReturnValueOnce(new Promise((resolve) => { resolveBlob = resolve; }));

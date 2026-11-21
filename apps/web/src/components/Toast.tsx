@@ -110,12 +110,12 @@ export function ToastContainer() {
           role={t.type === 'error' ? 'alert' : 'status'}
           aria-live={t.type === 'error' ? 'assertive' : 'polite'}
           aria-atomic="true"
-          className={`pointer-events-auto max-w-[calc(100vw-2rem)] px-4 py-2 rounded-lg shadow-lg text-sm text-white animate-slide-in-bottom ${
+          className={`pointer-events-auto max-w-[calc(100vw-2rem)] px-4 py-2 rounded-xl shadow-lg text-sm text-[hsl(var(--primary-foreground))] animate-slide-in-bottom ${
             t.type === 'error'
-              ? 'bg-[hsl(var(--error))]'
+              ? 'bg-[hsl(var(--danger-solid))]'
               : t.type === 'success'
-                ? 'bg-[hsl(var(--success))]'
-                : 'bg-[hsl(var(--accent-primary))]'
+                ? 'bg-[hsl(var(--success-solid))]'
+                : 'bg-[hsl(var(--primary))]'
           }`}
         >
           {t.message}

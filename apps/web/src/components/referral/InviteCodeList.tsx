@@ -15,14 +15,15 @@ const DEFAULT_MAX_INVITE_CODES = 3;
  * List of user's invite codes with creation button
  */
 export const InviteCodeList: React.FC = () => {
-  const { t } = useTranslation('referral');
+  const { t } = useTranslation(['referral', 'common']);
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isSuperuser = Boolean(user?.is_superuser);
   const isMobile = useIsMobile();
+  const actionSize = isMobile ? 'touch' : 'md';
 
   // Fetch invite codes
-  const { data: codes = [], isLoading, isFetching, error } = useQuery({
+  const { data: codes = [], isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['inviteCodes'],
     queryFn: referralApi.getInviteCodes,
   });
@@ -48,22 +49,27 @@ export const InviteCodeList: React.FC = () => {
 
   if (isCodesLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 size={24} className="animate-spin text-[hsl(var(--text-secondary))]" />
+      <div role="status" className="flex items-center justify-center py-8">
+        <Loader2 aria-hidden="true" size={24} className="animate-spin text-[hsl(var(--text-secondary))]" />
+        <span className="sr-only">{t('common:loading', '加载中…')}</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-8 text-[hsl(var(--error-text))]">
-        {t('inviteCodes.loadError')}
+      <div className="text-center py-8 space-y-3">
+        <p role="alert" className="text-sm text-[hsl(var(--error-text))]">
+          {t('inviteCodes.loadError')}
+        </p>
+        <Button variant="secondary" size={actionSize} onClick={() => void refetch()}>
+          {t('common:retry', '重试')}
+        </Button>
       </div>
     );
   }
 
   const canCreateMore = isSuperuser || activeCodesCount < DEFAULT_MAX_INVITE_CODES;
-  const actionSize = isMobile ? 'touch' : 'md';
 
   return (
     <div className="space-y-4">
@@ -114,7 +120,7 @@ export const InviteCodeList: React.FC = () => {
 
       {/* Error message */}
       {createMutation.isError && (
-        <div className="text-sm text-[hsl(var(--error-text))]">
+        <div role="alert" className="text-sm text-[hsl(var(--error-text))]">
           {t('inviteCodes.createError')}
         </div>
       )}

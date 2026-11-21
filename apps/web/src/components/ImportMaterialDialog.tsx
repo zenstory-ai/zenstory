@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useId, useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProject } from '../contexts/ProjectContext';
 import { fileApi } from '../lib/api';
 import { materialsApi } from '../lib/materialsApi';
 import Modal from './ui/Modal';
+import { Button } from './ui/Button';
 import type { MaterialPreviewResponse, MaterialEntityType } from '../lib/materialsApi';
 import type { FileTreeNode } from '../types';
 import { logger } from "../lib/logger";
@@ -28,6 +29,8 @@ export const ImportMaterialDialog: React.FC<ImportMaterialDialogProps> = ({
   onSuccess,
 }) => {
   const { t } = useTranslation(['editor', 'common']);
+  const fileNameId = useId();
+  const targetFolderIdInput = useId();
   const { currentProjectId } = useProject();
   const [fileName, setFileName] = useState(preview.suggested_file_name);
   const [targetFolderId, setTargetFolderId] = useState<string | null>(null);
@@ -133,43 +136,67 @@ export const ImportMaterialDialog: React.FC<ImportMaterialDialogProps> = ({
     <Modal
       open={isOpen}
       onClose={() => { if (!isSubmitting) onClose(); }}
+      title={t('editor:fileTree.importDialog.title')}
       size="sm"
       showCloseButton={!isSubmitting}
       closeOnBackdropClick={!isSubmitting}
       closeOnEscape={!isSubmitting}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            size="touch"
+            onClick={() => { if (!isSubmitting) onClose(); }}
+            disabled={isSubmitting}
+          >
+            {t('editor:fileTree.importDialog.cancel')}
+          </Button>
+          <Button
+            type="button"
+            size="touch"
+            onClick={handleSubmit}
+            disabled={isSubmitting || !fileName.trim()}
+            isLoading={isSubmitting}
+            loadingText={t('common:loading')}
+          >
+            {t('editor:fileTree.importDialog.confirm')}
+          </Button>
+        </>
+      }
     >
-      <Modal.Header>{t('editor:fileTree.importDialog.title')}</Modal.Header>
-
       <Modal.Body className="space-y-4">
         {/* Error message */}
         {error && (
-          <div className="p-3 text-sm text-[hsl(var(--error-text))] bg-[hsl(var(--error)/0.1)] rounded border border-[hsl(var(--error)/0.3)]">
+          <div role="alert" className="p-3 text-sm text-[hsl(var(--error-text))] bg-[hsl(var(--error)/0.1)] rounded-xl border border-[hsl(var(--error)/0.3)]">
             {error}
           </div>
         )}
 
         {/* File name input */}
         <div>
-          <label className="block text-sm text-[hsl(var(--text-secondary))] mb-1">
+          <label htmlFor={fileNameId} className="block text-sm text-[hsl(var(--text-secondary))] mb-1">
             {t('editor:fileTree.importDialog.fileName')}
           </label>
           <input
+            id={fileNameId}
             type="text"
             value={fileName}
             onChange={(e) => setFileName(e.target.value)}
-            className="w-full px-3 py-2 text-sm rounded border border-[hsl(var(--border-primary))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] focus:outline-none focus:border-[hsl(var(--accent-primary))]"
+            className="input w-full"
           />
         </div>
 
         {/* Target folder select */}
         <div>
-          <label className="block text-sm text-[hsl(var(--text-secondary))] mb-1">
+          <label htmlFor={targetFolderIdInput} className="block text-sm text-[hsl(var(--text-secondary))] mb-1">
             {t('editor:fileTree.importDialog.targetFolder')}
           </label>
           <select
+            id={targetFolderIdInput}
             value={targetFolderId || ''}
             onChange={(e) => setTargetFolderId(e.target.value || null)}
-            className="w-full px-3 py-2 text-sm rounded border border-[hsl(var(--border-primary))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] focus:outline-none focus:border-[hsl(var(--accent-primary))]"
+            className="input w-full"
           >
             <option value="">
               {preview.suggested_folder_name} ({t('editor:fileTree.importDialog.recommended')})
@@ -183,32 +210,15 @@ export const ImportMaterialDialog: React.FC<ImportMaterialDialogProps> = ({
               ))}
           </select>
           {folderError && (
-            <div className="mt-2 text-xs text-[hsl(var(--error-text))]">
+            <div role="alert" className="mt-2 text-xs text-[hsl(var(--error-text))]">
               <span>{t('editor:fileTree.importDialog.folderLoadFailed', { defaultValue: '文件夹加载失败。' })}</span>{' '}
-              <button className="underline" onClick={() => void loadFolders()}>
+              <button type="button" className="underline" onClick={() => void loadFolders()}>
                 {t('common:retry', { defaultValue: '重试' })}
               </button>
             </div>
           )}
         </div>
       </Modal.Body>
-
-      <Modal.Footer>
-        <button
-          onClick={() => { if (!isSubmitting) onClose(); }}
-          disabled={isSubmitting}
-          className="px-4 py-2 text-sm rounded border border-[hsl(var(--border-primary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
-        >
-          {t('editor:fileTree.importDialog.cancel')}
-        </button>
-        <button
-          onClick={handleSubmit}
-          disabled={isSubmitting || !fileName.trim()}
-          className="px-4 py-2 text-sm rounded bg-[hsl(var(--accent-primary))] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
-          {isSubmitting ? t('common:loading') : t('editor:fileTree.importDialog.confirm')}
-        </button>
-      </Modal.Footer>
     </Modal>
   );
 };

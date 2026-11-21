@@ -6,6 +6,7 @@ into JSON-serializable dictionaries, handling special types like datetime object
 """
 
 import json
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Literal, cast
 
@@ -19,8 +20,61 @@ QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS = 200
 QUERY_FILES_DEFAULT_LIMIT = 50
 # 不按 id 的全文列表查询，未显式给 limit 时的默认条数（见 mcp_tools._query_files_sync）。
 QUERY_FILES_FULL_MODE_DEFAULT_LIMIT = 10
+# query_files(ids=[...]) 单次批量读取的最大文件数。
+QUERY_FILES_MAX_BATCH_IDS = 5
+
+# query_files 返回行省略模型与前端均不读取的 5 个数据库元字段；
+# create_file / write_chapter 保留 updated_at（StreamAdapter 用作 baseline_updated_at）。
+QUERY_FILES_OMITTED_FIELDS: frozenset[str] = frozenset(
+    {"project_id", "created_at", "updated_at", "is_deleted", "deleted_at"}
+)
+WRITE_FILE_OMITTED_FIELDS: frozenset[str] = frozenset(
+    {"project_id", "created_at", "is_deleted", "deleted_at"}
+)
+_REDUNDANT_METADATA_KEYS: frozenset[str] = frozenset({"word_count", "word_count_rev"})
 
 QueryFilesResponseMode = Literal["summary", "full"]
+
+
+def normalize_query_file_ids(
+    *,
+    file_id: Any = None,
+    file_ids: Any = None,
+    max_ids: int = QUERY_FILES_MAX_BATCH_IDS,
+) -> tuple[list[str], list[str]]:
+    """校验、去重并截断 query_files 的 id / ids 参数，返回 (待查 ids, 超出上限被截掉的 ids)。
+
+    规则：
+    - 两者都未传或为 None 时返回 ([], [])；
+    - 显式传了 ids 时必须是 list/tuple，且每个元素必须是字符串，空列表报错；
+    - 同时传 id 和 ids 时合并（id 在前）并按首次出现顺序去重；
+    - 去重后超过 max_ids（默认 5）时截断到前 max_ids 个，并在第二项返回剩余 id。
+    """
+    ordered: list[str] = []
+    if file_id is not None:
+        if not isinstance(file_id, str):
+            raise ValueError("id 必须是字符串文件 ID")
+        cleaned_single = file_id.strip()
+        if cleaned_single:
+            ordered.append(cleaned_single)
+
+    has_batch_arg = file_ids is not None
+    if has_batch_arg:
+        if isinstance(file_ids, str | bytes) or not isinstance(file_ids, Sequence):
+            raise ValueError(f"ids 必须是文件 ID 列表（最多 {max_ids} 个）")
+        batch_cleaned: list[str] = []
+        for item in file_ids:
+            if not isinstance(item, str):
+                raise ValueError("ids 里的每一项都必须是字符串文件 ID")
+            cleaned = item.strip()
+            if cleaned:
+                batch_cleaned.append(cleaned)
+        if not batch_cleaned and not ordered:
+            raise ValueError(f"ids 不能为空，请传入 1–{max_ids} 个有效文件 ID")
+        ordered.extend(batch_cleaned)
+
+    deduped = list(dict.fromkeys(ordered))
+    return deduped[:max_ids], deduped[max_ids:]
 
 
 def serialize_file(
@@ -30,6 +84,7 @@ def serialize_file(
     content_preview_chars: int | None = None,
     preloaded_content_preview: str | None = None,
     preloaded_content_length: int | None = None,
+    omit_fields: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     """Serialize a File model to a JSON-safe dict.
 
@@ -44,6 +99,7 @@ def serialize_file(
         content_preview_chars: Preview length used when `include_content=False`
         preloaded_content_preview: SQL-projected preview (summary fast path)
         preloaded_content_length: SQL-projected full content length (summary fast path)
+        omit_fields: Optional set of DB column names to exclude from the returned dict
 
     Summary mode also returns ``content_length`` (full content length in chars)
     and ``content_truncated`` (preview shorter than the content), so the model can
@@ -54,18 +110,18 @@ def serialize_file(
     summary mode only when the preview is the whole content (``content_truncated``
     is false), because a word count derived from a preview would be wrong.
     ``content_length`` stays a character count and is not what the author calls
-    「字数」. A stale ``word_count`` inside ``file_metadata`` is overwritten with
-    the computed value, or dropped when it cannot be computed (returned copy only;
-    the database row is untouched).
+    「字数」. Redundant ``word_count`` / ``word_count_rev`` keys inside
+    ``file_metadata`` are stripped (and ``file_metadata`` is omitted when null or
+    empty); the database row is untouched.
 
     Returns:
         A dictionary representation of the file with datetime fields converted
         to ISO format strings
     """
+    exclude: set[str] = set(omit_fields) if omit_fields else set()
     if not include_content and preloaded_content_preview is not None:
-        data = file.model_dump(exclude={"content"})
-    else:
-        data = file.model_dump()
+        exclude.add("content")
+    data = file.model_dump(exclude=exclude) if exclude else file.model_dump()
     # Convert datetime fields to ISO strings
     if isinstance(data.get("created_at"), datetime):
         data["created_at"] = data["created_at"].isoformat()
@@ -75,7 +131,7 @@ def serialize_file(
     if include_content:
         word_count = count_words(data.get("content") or "")
         data["word_count"] = word_count
-        _sync_metadata_word_count(data, word_count)
+        _clean_file_metadata(data)
         return data
 
     preview_length = _normalize_content_preview_chars(content_preview_chars)
@@ -91,36 +147,36 @@ def serialize_file(
     data["content_preview"] = preview
     data["content_length"] = content_length
     data["content_truncated"] = content_length > len(preview)
-    if data["content_truncated"]:
-        _sync_metadata_word_count(data, None)
-    else:
+    if not data["content_truncated"]:
         word_count = count_words(preview)
         data["word_count"] = word_count
-        _sync_metadata_word_count(data, word_count)
+    _clean_file_metadata(data)
     return data
 
 
-def _sync_metadata_word_count(data: dict[str, Any], word_count: int | None) -> None:
-    """让返回副本里 file_metadata 的 word_count 与编辑器口径一致。
+def _clean_file_metadata(data: dict[str, Any]) -> None:
+    """去掉 file_metadata 里与顶层 word_count 重复的缓存字段，并在为空 / null 时省略整个键。
 
-    file_metadata 里缓存的 word_count 可能是旧值（由写作统计按旧口径或旧正文写入），
-    原样返回会让模型把它当字数报给作者。能算出时覆盖为新值，算不出时删掉；
-    只改序列化副本，不写库。
+    file_metadata 里缓存的 word_count / word_count_rev 既可能过时，又与顶层 word_count 重复；
+    只改序列化副本，不写库。非 JSON 字符串保持原样。
     """
     raw = data.get("file_metadata")
-    if not isinstance(raw, str) or not raw:
+    if raw is None or raw == "":
+        data.pop("file_metadata", None)
+        return
+    if not isinstance(raw, str):
         return
     try:
         metadata = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
         return
-    if not isinstance(metadata, dict) or "word_count" not in metadata:
+    if not isinstance(metadata, dict):
         return
-    if word_count is None:
-        metadata.pop("word_count", None)
-    else:
-        metadata["word_count"] = word_count
-    data["file_metadata"] = json.dumps(metadata, ensure_ascii=False)
+    cleaned = {key: value for key, value in metadata.items() if key not in _REDUNDANT_METADATA_KEYS}
+    if not cleaned:
+        data.pop("file_metadata", None)
+        return
+    data["file_metadata"] = json.dumps(cleaned, ensure_ascii=False, separators=(",", ":"))
 
 
 def serialize_query_file(
@@ -153,6 +209,7 @@ def serialize_query_file(
         content_preview_chars=content_preview_chars,
         preloaded_content_preview=preloaded_content_preview,
         preloaded_content_length=preloaded_content_length,
+        omit_fields=QUERY_FILES_OMITTED_FIELDS,
     )
 
 
@@ -160,13 +217,16 @@ def resolve_query_files_response_mode(
     response_mode: str | None,
     *,
     file_id: str | None,
+    file_ids: Sequence[str] | None = None,
     include_content: bool | None,
     content_preview_chars: int | None,
+    query: str | None = None,
 ) -> str:
     """决定 query_files 未显式给 response_mode 时用哪种模式。
 
-    按 id 读取默认返回全文：模型按 id 读一个文件，几乎总是要读正文；以前默认
-    summary 只给 200 字预览，模型要么误以为文件就这么短，要么紧接着再读一次 full。
+    按 id / ids 精确读取（不带 query）默认返回全文：模型按 id 读已知文件，几乎总是要读正文；
+    同时传 id / ids 与 query 时默认走 summary 搜索（返回命中片段，不整篇灌入正文），除非显式
+    要求 response_mode="full" 或 include_content=True。
     显式参数优先：include_content=True → full；给了 response_mode → 原样使用
     （非法值留给序列化时报错，保持「空结果不报错」的既有时序）；include_content=False
     或显式给了 content_preview_chars（想要预览）→ summary。其余（列表/搜索）默认 summary。
@@ -179,7 +239,13 @@ def resolve_query_files_response_mode(
         return response_mode  # 非法类型：交给 _normalize_response_mode 报错
     if include_content is False or content_preview_chars is not None:
         return QUERY_FILES_RESPONSE_MODE_SUMMARY
-    if (file_id or "").strip():
+    if isinstance(query, str) and query.strip():
+        return QUERY_FILES_RESPONSE_MODE_SUMMARY
+    if (file_id or "").strip() or (
+        isinstance(file_ids, Sequence)
+        and not isinstance(file_ids, str | bytes)
+        and any(isinstance(item, str) and item.strip() for item in file_ids)
+    ):
         return QUERY_FILES_RESPONSE_MODE_FULL
     return QUERY_FILES_DEFAULT_RESPONSE_MODE
 
@@ -229,5 +295,9 @@ __all__ = [
     "QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS",
     "QUERY_FILES_DEFAULT_LIMIT",
     "QUERY_FILES_FULL_MODE_DEFAULT_LIMIT",
+    "QUERY_FILES_MAX_BATCH_IDS",
+    "QUERY_FILES_OMITTED_FIELDS",
+    "WRITE_FILE_OMITTED_FIELDS",
+    "normalize_query_file_ids",
     "resolve_query_files_response_mode",
 ]

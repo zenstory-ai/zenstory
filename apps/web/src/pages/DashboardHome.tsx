@@ -509,7 +509,7 @@ export default function DashboardHome() {
             {Array.from({ length: isMobile ? 2 : 3 }).map((_, index) => (
               <div
                 key={`project-skeleton-${index}`}
-                className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4"
+                className="rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4"
               >
                 <div className="h-4 w-2/3 rounded bg-[hsl(var(--bg-tertiary))] animate-pulse mb-3" />
                 <div className="h-3 w-full rounded bg-[hsl(var(--bg-tertiary))] animate-pulse mb-2" />
@@ -519,7 +519,7 @@ export default function DashboardHome() {
           </div>
         ) : projectsError ? (
           // A failed load must not read as "no projects yet" and invite a duplicate.
-          <div role="alert" className="rounded-lg border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6 text-center">
+          <div role="alert" className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6 text-center">
             <p className="mb-4 text-[hsl(var(--text-primary))]">{projectsError}</p>
             <Button variant="secondary" size={isMobile ? "touch" : "md"} onClick={() => void refreshProjects()}>
               {t('common.retry')}

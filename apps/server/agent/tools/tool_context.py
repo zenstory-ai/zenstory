@@ -7,8 +7,9 @@ handlers in ``agent.tools.mcp_tools``.
 
 import contextlib
 import contextvars
+import difflib
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
 from sqlmodel import Session
@@ -28,6 +29,9 @@ _tool_context_var: contextvars.ContextVar[dict[str, Any] | None] = contextvars.C
 )
 _owned_session_var: contextvars.ContextVar[Session | None] = contextvars.ContextVar(
     "owned_session", default=None
+)
+_current_tool_call_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "current_tool_call_id", default=None
 )
 
 # 工作线程的 session 隔离标记（见 ToolContext.get_session 与 _run_sync_tool_with_owned_session_cleanup）。
@@ -398,6 +402,221 @@ class _PendingEmptyFileState:
             self._reservations.pop(ticket, None)
 
 
+def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """合并重叠或相邻的半开字符区间 [start, end)。"""
+    cleaned = sorted((max(0, int(s)), max(0, int(e))) for s, e in spans if e > s)
+    if not cleaned:
+        return []
+    merged: list[tuple[int, int]] = [cleaned[0]]
+    for start, end in cleaned[1:]:
+        prev_start, prev_end = merged[-1]
+        if start <= prev_end:
+            merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+_SHIFT_FALLBACK_MAX_MID_LINES = 500
+
+
+def _common_prefix_suffix_len(a: str, b: str) -> tuple[int, int]:
+    """在 O(N) 内求两段文本的最长公共前后缀长度（按块比较，避免逐字 Python 循环）。"""
+    min_len = min(len(a), len(b))
+    step = 256
+    prefix = 0
+    while prefix + step <= min_len and a[prefix : prefix + step] == b[prefix : prefix + step]:
+        prefix += step
+    while prefix < min_len and a[prefix] == b[prefix]:
+        prefix += 1
+
+    max_suffix = min_len - prefix
+    suffix = 0
+    la, lb = len(a), len(b)
+    while (
+        suffix + step <= max_suffix
+        and a[la - suffix - step : la - suffix] == b[lb - suffix - step : lb - suffix]
+    ):
+        suffix += step
+    while suffix < max_suffix and a[la - 1 - suffix] == b[lb - 1 - suffix]:
+        suffix += 1
+    return prefix, suffix
+
+
+def shift_spans_for_hunks(
+    spans: Sequence[tuple[int, int]],
+    hunks: Sequence[tuple[int, int, int]],
+    *,
+    new_len: int | None = None,
+) -> list[tuple[int, int]]:
+    """按具体编辑块 ``(old_start, old_end, replacement_len)`` 平移/更新已读字符区间。
+
+    每个 hunk 均在修改前正文坐标下给出且互不重叠。从右向左依次套用，确保：
+    - 落在已读区间之前的改动只做坐标平移，绝不桥接中间的未读段落；
+    - 落在已读区间之后的改动不影响该区间；
+    - 完全落在已读区间内部的改动按该 hunk 伸缩；
+    - 跨出已读区间边界（触及未读文本）的改动只保留未被覆盖的已读部分，绝不把未读文本并入已读区间；
+    - ``new_len`` 裁剪仅在全部 hunk 应用完毕后执行一次，避免右向左处理时过早截断高坐标区间。
+    """
+    current = _merge_spans(list(spans))
+    if not current or not hunks:
+        if new_len is not None and current:
+            return _merge_spans([(min(s, new_len), min(e, new_len)) for s, e in current if min(e, new_len) > min(s, new_len)])
+        return current
+    ordered_hunks = sorted(
+        ((int(s), int(e), max(0, int(n))) for s, e, n in hunks),
+        key=lambda item: (item[0], item[1]),
+        reverse=True,
+    )
+    for h_start, h_end, repl_len in ordered_hunks:
+        delta = repl_len - (h_end - h_start)
+        updated: list[tuple[int, int]] = []
+        for start, end in current:
+            if h_start >= end:
+                # 改动完全在已读区间之后（含在区间右端点插入）
+                new_start, new_end = start, end
+            elif h_end <= start:
+                # 改动完全在已读区间之前（含在区间左端点插入）：仅平移坐标
+                new_start, new_end = start + delta, end + delta
+            elif start <= h_start and h_end <= end:
+                # 改动完全落在已读区间内部：按该 hunk 伸缩
+                new_start, new_end = start, end + delta
+            elif h_start < start and h_end > end:
+                # 改动跨越已读区间两侧并覆盖未读文本：保守丢弃，绝不向未读区域扩张
+                continue
+            elif h_start < start:
+                # 改动从左侧未读区域跨入已读区间：只保留右侧未受影响的已读后缀
+                new_start, new_end = h_start + repl_len, end + delta
+            else:
+                # 改动从已读区间内部跨出到右侧未读区域：只保留左侧未受影响的已读前缀
+                new_start, new_end = start, h_start
+            new_start = max(0, new_start)
+            new_end = max(0, new_end)
+            if new_end > new_start:
+                updated.append((new_start, new_end))
+        current = _merge_spans(updated)
+        if not current:
+            break
+    if new_len is not None and current:
+        clamped = [(min(s, new_len), min(e, new_len)) for s, e in current]
+        current = _merge_spans([(s, e) for s, e in clamped if e > s])
+    return current
+
+
+def shift_spans_for_edit(
+    old_content: str,
+    new_content: str,
+    spans: list[tuple[int, int]],
+) -> list[tuple[int, int]]:
+    """无显式 hunk 时的兜底区间投影（O(N) 前后缀裁剪 + 有界按行 diff，绝不做 O(N^2) 字符级 diff）。"""
+    merged = _merge_spans(list(spans))
+    if not merged:
+        return []
+    if old_content == new_content:
+        return merged
+
+    prefix, suffix = _common_prefix_suffix_len(old_content, new_content)
+    old_change_end = len(old_content) - suffix
+    new_change_end = len(new_content) - suffix
+    delta = len(new_content) - len(old_content)
+
+    preserved: list[tuple[int, int]] = []
+    overlapping: list[tuple[int, int]] = []
+    for start, end in merged:
+        if end <= prefix:
+            preserved.append((start, end))
+        elif start >= old_change_end:
+            shifted_s = max(0, min(start + delta, len(new_content)))
+            shifted_e = max(0, min(end + delta, len(new_content)))
+            if shifted_e > shifted_s:
+                preserved.append((shifted_s, shifted_e))
+        else:
+            overlapping.append((start, end))
+
+    if not overlapping:
+        return _merge_spans(preserved)
+
+    old_mid = old_content[prefix:old_change_end]
+    new_mid = new_content[prefix:new_change_end]
+    old_lines = old_mid.splitlines(keepends=True)
+    new_lines = new_mid.splitlines(keepends=True)
+    if len(old_lines) + len(new_lines) > _SHIFT_FALLBACK_MAX_MID_LINES:
+        # 变更窗口行数过大时保守丢弃重叠区间，不做无界 diff，绝不桥接未读区间。
+        return _merge_spans(preserved)
+
+    old_offsets = [prefix]
+    for line in old_lines:
+        old_offsets.append(old_offsets[-1] + len(line))
+    new_offsets = [0]
+    for line in new_lines:
+        new_offsets.append(new_offsets[-1] + len(line))
+
+    matcher = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False)
+    hunks = [
+        (old_offsets[i1], old_offsets[i2], new_offsets[j2] - new_offsets[j1])
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes()
+        if tag != "equal"
+    ]
+    shifted_overlapping = shift_spans_for_hunks(overlapping, hunks, new_len=len(new_content))
+    return _merge_spans([*preserved, *shifted_overlapping])
+
+
+class _ToolUiPayloadStore:
+    """请求级工具 UI 侧通道（跨子任务/线程共享）。
+
+    edit_file 返回给 LLM 的 function_call_output 省略了仅供前端卡片/撤销使用的
+    undo 锚点与精确匹配回显预览；这里按 tool_call_id 暂存这些 UI 字段，
+    由 StreamAdapter 在发 SSE tool_result 与落库前合回，请求结束时随
+    ToolContext.clear_context() 清空。
+    """
+
+    __slots__ = ("_fallback", "_lock", "_payloads")
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._payloads: dict[str, dict[str, Any]] = {}
+        # 仅用于未传 tool_call_id 的测试替身/直接调用（真实 SDK 均带 tool_call_id）。
+        self._fallback: dict[tuple[str, str], list[dict[str, Any]]] = {}
+
+    def put(
+        self,
+        call_id: str | None,
+        payload: dict[str, Any],
+        *,
+        fallback_key: tuple[str, str] | None = None,
+    ) -> None:
+        if not payload:
+            return
+        with self._lock:
+            if call_id:
+                self._payloads[call_id] = dict(payload)
+            elif fallback_key is not None:
+                self._fallback.setdefault(fallback_key, []).append(dict(payload))
+
+    def pop(
+        self,
+        call_id: str | None,
+        *,
+        fallback_key: tuple[str, str] | None = None,
+    ) -> dict[str, Any] | None:
+        with self._lock:
+            if call_id and call_id in self._payloads:
+                return self._payloads.pop(call_id)
+            if fallback_key is not None:
+                bucket = self._fallback.get(fallback_key)
+                if bucket:
+                    item = bucket.pop(0)
+                    if not bucket:
+                        self._fallback.pop(fallback_key, None)
+                    return item
+            return None
+
+    def clear(self) -> None:
+        with self._lock:
+            self._payloads.clear()
+            self._fallback.clear()
+
+
 class _ReadSnapshots:
     """本次请求里模型看到的文件正文（跨子任务/线程共享，原因同上）。
 
@@ -411,9 +630,21 @@ class _ReadSnapshots:
 
     「看过」（seen）比「有快照」窄：只用 edit_file 往一个没读过的文件里追加，模型知道自己写了什么，
     却没看到文件里原有的字；这时仍有快照做陈旧检查，但 old / anchor 只按逐字匹配。
+    范围读取（query_files 的 section / tail_chars / start_char）同时记下完整正文快照与模型实际
+    看过的字符区间（_range_spans）：陈旧检查仍按全文严格比对，edit_file 在已读区间内允许模糊/近似
+    匹配，未读区间仍只按逐字匹配。
     """
 
-    __slots__ = ("_full_writes", "_lock", "_pending", "_pending_range", "_seq", "_sources")
+    __slots__ = (
+        "_full_writes",
+        "_lock",
+        "_pending",
+        "_pending_range",
+        "_pending_range_spans",
+        "_range_spans",
+        "_seq",
+        "_sources",
+    )
 
     def __init__(self, initial: dict[str, str] | None = None) -> None:
         self._lock = threading.Lock()
@@ -424,13 +655,19 @@ class _ReadSnapshots:
             },
             "written": {},
             "read": {},
-            # 按范围读取（#274）：记下读库时的整份正文，只用于陈旧检查；模型只看到其中一段，
-            # 不算「看过」全文，old / anchor 仍只按逐字匹配。
+            # 按范围读取（#274）：记下读库时的整份正文，用于严格的陈旧检查；
+            # 实际看过的字符区间另记在 _range_spans，区间内允许模糊/近似匹配。
             "range": {},
         }
         self._pending: dict[str, tuple[int, str]] = {}
         self._pending_range: dict[str, tuple[int, str]] = {}
+        self._pending_range_spans: dict[str, tuple[int, str, list[tuple[int, int]]]] = {}
+        self._range_spans: dict[str, tuple[str, list[tuple[int, int]]]] = {}
         self._full_writes: set[str] = set()
+
+    def _latest_locked(self, file_id: str) -> str | None:
+        found = [source[file_id] for source in self._sources.values() if file_id in source]
+        return max(found)[1] if found else None
 
     def ticket(self) -> int:
         """读库之前先取的序号：读到的正文按读库的时刻排序，不按记下来的时刻。"""
@@ -439,10 +676,19 @@ class _ReadSnapshots:
             return self._seq
 
     def record(
-        self, file_id: str, content: str | None, *, kind: str, full: bool = False, seq: int | None = None
+        self,
+        file_id: str,
+        content: str | None,
+        *,
+        kind: str,
+        full: bool = False,
+        seq: int | None = None,
+        span: tuple[int, int] | None = None,
+        seen_spans: Sequence[tuple[int, int]] | None = None,
     ) -> None:
         if not file_id or kind not in ("written", "read", "range"):
             return
+        normalized = content or ""
         with self._lock:
             self._seq += 1
             if kind in ("read", "range"):
@@ -450,20 +696,51 @@ class _ReadSnapshots:
                 order = seq if seq is not None else self._seq
                 previous = pending.get(file_id)
                 if previous is None or previous[0] <= order:
-                    pending[file_id] = (order, content or "")
+                    pending[file_id] = (order, normalized)
+                if kind == "range" and span is not None and span[1] > span[0]:
+                    prev_span = self._pending_range_spans.get(file_id)
+                    if prev_span is None or prev_span[0] < order and prev_span[1] != normalized:
+                        self._pending_range_spans[file_id] = (order, normalized, _merge_spans([span]))
+                    elif prev_span[1] == normalized:
+                        self._pending_range_spans[file_id] = (
+                            max(prev_span[0], order),
+                            normalized,
+                            _merge_spans([*prev_span[2], span]),
+                        )
                 return
-            self._sources["written"][file_id] = (self._seq, content or "")
-            if full:
-                self._full_writes.add(file_id)
+            previous_content = self._latest_locked(file_id)
+            self._sources["written"][file_id] = (self._seq, normalized)
+            if full or self._is_fully_seen_locked(file_id):
+                if full:
+                    self._full_writes.add(file_id)
+                self._range_spans.pop(file_id, None)
+            elif seen_spans is not None:
+                merged = _merge_spans(list(seen_spans))
+                if merged:
+                    self._range_spans[file_id] = (normalized, merged)
+                else:
+                    self._range_spans.pop(file_id, None)
+            elif file_id in self._range_spans and previous_content is not None:
+                snap_content, spans = self._range_spans[file_id]
+                if snap_content == previous_content:
+                    shifted = shift_spans_for_edit(previous_content, normalized, spans)
+                    if shifted:
+                        self._range_spans[file_id] = (normalized, shifted)
+                    else:
+                        self._range_spans.pop(file_id, None)
 
-    def written_state(self, file_id: str) -> tuple[tuple[int, str] | None, bool]:
+    def written_state(self, file_id: str) -> tuple[tuple[int, str] | None, bool, tuple[str, list[tuple[int, int]]] | None]:
         with self._lock:
-            return self._sources["written"].get(file_id), file_id in self._full_writes
+            span_entry = self._range_spans.get(file_id)
+            saved_span = (span_entry[0], list(span_entry[1])) if span_entry is not None else None
+            return self._sources["written"].get(file_id), file_id in self._full_writes, saved_span
 
     def restore_written(self, file_id: str, state: Any) -> None:
-        if not isinstance(state, tuple) or len(state) != 2:
+        if not isinstance(state, tuple) or len(state) not in (2, 3):
             return
-        entry, full = state
+        entry = state[0]
+        full = state[1]
+        saved_span = state[2] if len(state) == 3 else None
         with self._lock:
             if entry is None:
                 self._sources["written"].pop(file_id, None)
@@ -473,17 +750,35 @@ class _ReadSnapshots:
                 self._full_writes.add(file_id)
             else:
                 self._full_writes.discard(file_id)
+            if len(state) == 3:
+                if saved_span is None:
+                    self._range_spans.pop(file_id, None)
+                else:
+                    self._range_spans[file_id] = (saved_span[0], list(saved_span[1]))
 
     def discard_pending_read(self, file_id: str) -> None:
         with self._lock:
             self._pending.pop(file_id, None)
+            self._pending_range.pop(file_id, None)
+            self._pending_range_spans.pop(file_id, None)
 
     def promote_pending_reads(self) -> None:
         with self._lock:
+            for file_id in self._pending:
+                self._range_spans.pop(file_id, None)
             self._sources["read"].update(self._pending)
             self._pending.clear()
             self._sources["range"].update(self._pending_range)
             self._pending_range.clear()
+            for file_id, (_order, content, spans) in self._pending_range_spans.items():
+                if self._is_fully_seen_locked(file_id):
+                    continue
+                existing = self._range_spans.get(file_id)
+                if existing is not None and existing[0] == content:
+                    self._range_spans[file_id] = (content, _merge_spans([*existing[1], *spans]))
+                else:
+                    self._range_spans[file_id] = (content, _merge_spans(spans))
+            self._pending_range_spans.clear()
 
     def begin_agent_run(self) -> None:
         with self._lock:
@@ -491,19 +786,44 @@ class _ReadSnapshots:
             self._pending.clear()
             self._sources["range"].clear()
             self._pending_range.clear()
+            self._range_spans.clear()
+            self._pending_range_spans.clear()
+
+    def drop_initial(self, file_ids: Any) -> None:
+        """移除指定的初始快照（例如轮间压缩完成后撤销上一轮会话文件结转）。"""
+        ids = {str(fid) for fid in (file_ids or ()) if fid}
+        if not ids:
+            return
+        with self._lock:
+            for fid in ids:
+                self._sources["initial"].pop(fid, None)
 
     def get(self, file_id: str) -> str | None:
         with self._lock:
-            found = [source[file_id] for source in self._sources.values() if file_id in source]
-        return max(found)[1] if found else None
+            return self._latest_locked(file_id)
+
+    def _is_fully_seen_locked(self, file_id: str) -> bool:
+        return (
+            file_id in self._sources["initial"]
+            or file_id in self._sources["read"]
+            or file_id in self._full_writes
+        )
 
     def seen(self, file_id: str) -> bool:
         with self._lock:
-            return (
-                file_id in self._sources["initial"]
-                or file_id in self._sources["read"]
-                or file_id in self._full_writes
-            )
+            return self._is_fully_seen_locked(file_id)
+
+    def seen_spans(self, file_id: str) -> list[tuple[int, int]]:
+        """返回模型通过范围读取看过的字符区间（仅当区间对应的正文仍是最新快照时有效）。"""
+        with self._lock:
+            entry = self._range_spans.get(file_id)
+            if entry is None:
+                return []
+            snap_content, spans = entry
+            latest = self._latest_locked(file_id)
+            if latest is None or snap_content != latest:
+                return []
+            return list(spans)
 
 
 class ToolContext:
@@ -557,9 +877,11 @@ class ToolContext:
             "author_steering": author_steering,
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
             "inflight_tool_writes": inflight_tool_writes,
+            "tool_ui_payloads": _ToolUiPayloadStore(),
         })
         set_context_user_id(user_id)
         _owned_session_var.set(None)
+        _current_tool_call_id_var.set(None)
 
     @classmethod
     def inflight_tool_writes(cls) -> list[tuple[str, Any]] | None:
@@ -728,18 +1050,85 @@ class ToolContext:
             holder.record(str(file_id or ""), content or "", kind="read", seq=ticket)
 
     @classmethod
-    def record_range_read_snapshot(cls, file_id: str, full_content: str | None, *, ticket: int | None = None) -> None:
-        """按范围读取时记下读库那一刻的整份正文：只做陈旧检查，不算模型看过全文。"""
+    def record_range_read_snapshot(
+        cls,
+        file_id: str,
+        full_content: str | None,
+        *,
+        span: tuple[int, int] | None = None,
+        ticket: int | None = None,
+    ) -> None:
+        """按范围读取时记下读库那一刻的整份正文与已读字符区间：全文用于陈旧检查，已读区间内允许模糊/近似匹配。"""
         holder = cls._get_context().get("read_snapshots")
         if isinstance(holder, _ReadSnapshots):
-            holder.record(str(file_id or ""), full_content or "", kind="range", seq=ticket)
+            holder.record(str(file_id or ""), full_content or "", kind="range", seq=ticket, span=span)
 
     @classmethod
-    def record_written_snapshot(cls, file_id: str, content: str | None, *, full: bool = False) -> None:
+    def seen_file_spans(cls, file_id: str) -> list[tuple[int, int]]:
+        """模型通过范围读取看到的字符区间列表；未范围读取或快照已变更时返回空列表。"""
+        holder = cls._get_context().get("read_snapshots")
+        if isinstance(holder, _ReadSnapshots):
+            return holder.seen_spans(str(file_id or ""))
+        return []
+
+    @classmethod
+    @contextlib.contextmanager
+    def tool_call_scope(cls, call_id: str | None) -> Iterator[None]:
+        """绑定当前正在执行的工具调用 id（供工作线程写入 UI 侧通道）。"""
+        normalized = call_id.strip() if isinstance(call_id, str) and call_id.strip() else None
+        token = _current_tool_call_id_var.set(normalized)
+        try:
+            yield
+        finally:
+            _current_tool_call_id_var.reset(token)
+
+    @classmethod
+    def current_tool_call_id(cls) -> str | None:
+        return _current_tool_call_id_var.get()
+
+    @classmethod
+    def record_tool_ui_payload(
+        cls,
+        call_id: str | None,
+        payload: dict[str, Any],
+        *,
+        fallback_key: tuple[str, str] | None = None,
+    ) -> None:
+        """按 tool_call_id 暂存仅供 SSE/UI 卡片与撤销使用的字段（不进入 LLM function_call_output）。"""
+        if not payload or (not call_id and fallback_key is None):
+            return
+        store = cls._get_context().get("tool_ui_payloads")
+        if isinstance(store, _ToolUiPayloadStore):
+            store.put(str(call_id) if call_id else None, payload, fallback_key=fallback_key)
+
+    @classmethod
+    def pop_tool_ui_payload(
+        cls,
+        call_id: str | None,
+        *,
+        fallback_key: tuple[str, str] | None = None,
+    ) -> dict[str, Any] | None:
+        """取出并删除指定 tool_call_id 的 UI 侧通道字段（供 StreamAdapter 合并）。"""
+        if not call_id and fallback_key is None:
+            return None
+        store = cls._get_context().get("tool_ui_payloads")
+        if isinstance(store, _ToolUiPayloadStore):
+            return store.pop(str(call_id) if call_id else None, fallback_key=fallback_key)
+        return None
+
+    @classmethod
+    def record_written_snapshot(
+        cls,
+        file_id: str,
+        content: str | None,
+        *,
+        full: bool = False,
+        seen_spans: Sequence[tuple[int, int]] | None = None,
+    ) -> None:
         """记下本请求自己写下的正文（立即生效）；full=整份写下（创建 / 整份覆盖），模型知道全文。"""
         holder = cls._get_context().get("read_snapshots")
         if isinstance(holder, _ReadSnapshots):
-            holder.record(str(file_id or ""), content or "", kind="written", full=full)
+            holder.record(str(file_id or ""), content or "", kind="written", full=full, seen_spans=seen_spans)
 
     @classmethod
     def written_snapshot_state(cls, file_id: str) -> Any:
@@ -761,6 +1150,13 @@ class ToolContext:
         holder = cls._get_context().get("read_snapshots")
         if isinstance(holder, _ReadSnapshots):
             holder.begin_agent_run()
+
+    @classmethod
+    def drop_initial_read_snapshots(cls, file_ids: Any) -> None:
+        """移除指定的初始快照（轮间压缩成功后撤销跨轮会话结转）。"""
+        holder = cls._get_context().get("read_snapshots")
+        if isinstance(holder, _ReadSnapshots):
+            holder.drop_initial(file_ids)
 
     @classmethod
     def get_current_agent(cls) -> str | None:
@@ -814,6 +1210,10 @@ class ToolContext:
         state = cls._get_pending_empty_file_state()
         if state is not None:
             state.clear_all()
+        ui_store = cls._get_context().get("tool_ui_payloads")
+        if isinstance(ui_store, _ToolUiPayloadStore):
+            ui_store.clear()
+        _current_tool_call_id_var.set(None)
         _tool_context_var.set(None)
         set_context_user_id(None)
 

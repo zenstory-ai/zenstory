@@ -105,7 +105,7 @@ agent/
   工作方式（含写后连贯自查、按真实字数汇报）+ 技能目录，跨轮不变。`<turn_context>`（`loop/turn_context.py`）只放这一轮请求带来的东西：
   项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、本轮回复语言（沿用 ContextAssembler 的解析器与渲染，不做
   优先级裁剪、检索和文件清单；超出 `AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS` 120000 供应商 token 时按 `TokenBudget` 优先保留引用与焦点文件全文、截断超大附加稿并标注 `query_files`），以及 `<author_edits>`：焦点、附加文件和本会话 AI 写过的正文文件（`SessionLoader.session_written_file_ids`，
-  按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改（`SessionLoader.author_edits_for_files`，受总墙钟预算 `AUTHOR_EDITS_TIME_BUDGET_S` 2.0s 与 `service.process_stream` 传入的协同 `cancel_event` 约束，超时或取消后剩余文件体面归入 `unchecked_titles`；`author_changes.line_blame` 对连续同标签非作者版本或从空基线起步的纯 AI 链直接走 `_apply_diff` 快速基线、跳过冗余 `SequenceMatcher`，`_matcher` 启用 `autojunk=True` 并裁剪 `_advance` 公共非空前后缀防长文高频短行二次退化 [author-blame-perf-and-collab-cache][n-blame-perf-collab-cache]）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件作为 edit_file 陈旧检查的起点。
+  按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改（`SessionLoader.author_edits_for_files`，受总墙钟预算 `AUTHOR_EDITS_TIME_BUDGET_S` 2.0s 与 `service.process_stream` 传入的协同 `cancel_event` 约束，超时或取消后剩余文件体面归入 `unchecked_titles`；`author_changes.line_blame` 对连续同标签非作者版本或从空基线起步的纯 AI 链直接走 `_apply_diff` 快速基线、跳过冗余 `SequenceMatcher`，`_matcher` 启用 `autojunk=True` 并裁剪 `_advance` 公共非空前后缀防长文高频短行二次退化 [author-blame-perf-and-collab-cache][n-blame-perf-collab-cache]）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件与本会话此前轮次读/写过且库内未变更的文件（`SessionLoader.session_read_snapshots`，至多 `SESSION_SNAPSHOT_MAX_FILES` 个、单次批量 `SELECT` 核验、遇压缩点停止；若本轮开始前轮间压缩成功则经 `ToolContext.drop_initial_read_snapshots` 撤销）作为 edit_file 陈旧检查的起点（[batch-tool-calls-and-session-snapshots][n-batch-snapshots]）。
 - **历史**（`loop/history.py`、`loop/wire_prefix_cache.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
   assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file / write_chapter 结果去掉
   `awaiting_body` / `next_step`，带 `body_saved`（write_chapter 的整章替换只认落库后补发的结果，只有定位结果时 `body_saved=false` 并说明没保存；
@@ -259,10 +259,10 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 |---|---|
 | `create_file` | 新建资料文件；source_text 校验并直接保存本轮作者原文，生成资料则先建空文件、随后用 `<file>` 写入；不建 draft / script |
 | `write_chapter` | 按章号 / 集号写一章正文，不存在就新建、已存在就整章替换这一章（正文同样随后用 `<file>` 写入，传入新章名时落库一并更新标题，支持撤销与历史版本恢复） |
-| `edit_file` | 精确编辑（replace / insert / append / delete）；逐字、引号等价、模糊都找不到时近似匹配兜底，长章节用种子定位（[approx-seeds][n-approx-seeds]）；同一文件找不到原文只附恢复提示、不提前熔断，无效文件 id 三次即熔断（[anchor-no-early-trip][n-anchor-no-early-trip]） |
+| `edit_file` | 精确编辑（replace / insert / append / delete）；逐字、引号等价、模糊都找不到时近似匹配兜底，长章节用种子定位（[approx-seeds][n-approx-seeds]）；范围读取后在已读区间内同样允许模糊/近似匹配、未读区间仍只逐字匹配，陈旧检查始终核对全文；LLM 输出经 `slim_edit_file_result_for_llm` 省略 UI 专用 `undo`、精确匹配回显预览与空样板字段，`StreamAdapter` 经 `ToolContext` 侧通道原样还给前端卡片与落库（[payload-slimming][n-payload-slimming]）；同一文件找不到原文只附恢复提示、不提前熔断，无效文件 id 三次即熔断（[anchor-no-early-trip][n-anchor-no-early-trip]） |
 | `delete_file` | 删除文件 |
 | `rename_file` | 只改文件标题，id 与正文不变（同文件夹重名拒绝；[rename-file][n-rename]） |
-| `query_files` | 查询和读取文件；按 id 可只读 `section` / `tail_chars` / `start_char`+`max_chars`，结果标明范围，范围读取只做陈旧检查快照、不算看过全文（[range-reads][n-range]） |
+| `query_files` | 查询和读取文件；支持单 `id` 与批量 `ids`（去重最多 5 个、单条 `IN` SQL、按传入顺序返回并逐 ID 记快照与重复读取守卫；[batch-tool-calls-and-session-snapshots][n-batch-snapshots]）；单 `id` 可只读 `section` / `tail_chars` / `start_char`+`max_chars`（`start_char` 仅用于超过 15000 字的超长文件，总长或剩余 `<= 12000` 字符直接返回全文/余下全文避免多步分页），范围读取记下全文陈旧快照与已读字符区间（[range-reads][n-range]、[payload-slimming][n-payload-slimming]）；同时传 `id` 与 `query` 时按 `query` 返回命中片段（显式 `response_mode="full"` 除外）；返回行省略 5 个死库字段、剥离 `file_metadata` 冗余字数键，并在 `match_count > 0` 的 summary 行省略 `content_preview` |
 | `update_project` | 项目信息、备注、任务板 |
 | `load_skill` / `read_skill_resource` | 技能 L2（方法与资源清单）/ L3（参考文件或 `path="SKILL.md"`，支持 `offset` 续读）；受每请求技能 token 预算限制，每请求最多读 `skills/content_budget.MAX_LOADED_SKILLS_PER_REQUEST`（3）个不同技能 |
 
@@ -338,3 +338,5 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-issue-413]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-issue-413-blank-display-and-write-chapter-guard.md
 [n-model-error-refund]: ../../../.agents/notes/implemented/bug-fix/2026-11-20-round-billing-model-error-only-refund.md
 [n-blame-perf-collab-cache]: ../../../.agents/notes/implemented/bug-fix/2026-11-21-author-blame-perf-and-collab-cache.md
+[n-payload-slimming]: ../../../.agents/notes/implemented/architecture/2026-11-21-tool-payload-and-range-slimming.md
+[n-batch-snapshots]: ../../../.agents/notes/implemented/architecture/2026-11-21-batch-tool-calls-and-session-snapshots.md

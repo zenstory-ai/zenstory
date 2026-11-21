@@ -8,7 +8,7 @@ Supports fuzzy and approximate text matching for robust editing even when
 the LLM provides slightly different text.
 """
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
@@ -263,9 +263,9 @@ def _approximate_not_found_advice(stats: dict[str, int], *, label: str) -> str:
     else:
         reason = "精确、引号等价、模糊和近似匹配都没有找到唯一位置。"
     return (
-        f"{reason}请先用 query_files 按准确 id 重读当前段落"
-        f"（长文件可传 query=关键词 取逐字命中片段，或传 start_char + max_chars 分段读取），再从结果复制较短、逐字、"
-        f"唯一的{label}；改动多时拆成几次 edit_file 调用、每次只改少量几处，不要在一次调用里堆很多条；不要放宽匹配或整篇覆盖。"
+        f"{reason}请先用 query_files 按准确 id 重读当前文件"
+        f"（仅超过 15000 字的超长文件才传 query=关键词 取逐字命中片段，或传 start_char + max_chars 分段读取），再从结果复制较短、逐字、"
+        f"唯一的{label}；同一文件的多处独立修改合并进一次 edit_file(..., continue_on_error=true) 批量提交（超过 15 处或相互依赖时再拆分）；不要放宽匹配或整篇覆盖。"
     )
 
 
@@ -450,7 +450,13 @@ def attach_author_edits_for_agent(session: Session, file: Any, row: dict[str, An
 
 
 @contextmanager
-def written_snapshot_for_commit(file_id: str, content: str | None, *, full: bool = False) -> Iterator[None]:
+def written_snapshot_for_commit(
+    file_id: str,
+    content: str | None,
+    *,
+    full: bool = False,
+    seen_spans: Sequence[tuple[int, int]] | None = None,
+) -> Iterator[None]:
     """包住本请求的提交：提交前就把快照更新成要写下的正文，提交失败再还原。
 
     PostgreSQL 上提交即放锁，同一文件的下一个并行写入立刻拿到锁、在锁内比对快照；
@@ -461,7 +467,7 @@ def written_snapshot_for_commit(file_id: str, content: str | None, *, full: bool
     state = None
     try:
         state = ToolContext.written_snapshot_state(file_id)
-        ToolContext.record_written_snapshot(file_id, content, full=full)
+        ToolContext.record_written_snapshot(file_id, content, full=full, seen_spans=seen_spans)
     except Exception as exc:  # pragma: no cover - 防御：辅助信息不能拖垮写入
         logger.debug("Failed to record written snapshot", extra={"file_id": file_id, "error": str(exc)})
     try:
@@ -535,6 +541,131 @@ def check_body_edit_guards(old_content: str, new_content: str, edits: Any) -> No
             )
 
 
+# 精确匹配（或无锚点的 append/prepend）回显给模型的冗余预览键：
+# 模型刚在上一条 function_call.arguments 里发出了同样的原文与新文，再原样回传只白占上下文；
+# 前端卡片与撤销仍经 ToolContext UI 侧通道拿到完整 details 与 undo。
+_EXACT_MATCH_MODES: frozenset[str] = frozenset({"exact", "exact_quote"})
+_EXACT_DETAIL_ECHO_KEYS: frozenset[str] = frozenset(
+    {"old_preview", "new_preview", "text_preview", "anchor_preview", "deleted_preview"}
+)
+_EMPTY_LIST_BOILERPLATE_KEYS: tuple[str, ...] = ("failed_edits", "unchanged_edits", "warnings")
+_FALSY_BOOL_BOILERPLATE_KEYS: tuple[str, ...] = ("partial_success", "all_failed")
+
+
+def _is_exact_detail_item(detail: dict[str, Any]) -> bool:
+    match_mode = detail.get("match_mode")
+    if isinstance(match_mode, str) and match_mode:
+        return match_mode in _EXACT_MATCH_MODES
+    return detail.get("op") in ("append", "prepend")
+
+
+def slim_edit_file_result_for_llm(result: dict[str, Any]) -> dict[str, Any]:
+    """为 LLM function_call_output 瘦身 edit_file 的结果字典（不修改原字典）。
+
+    - 省略仅供前端撤销使用的 ``undo``（含 64 位 sha256）。
+    - 精确匹配（exact / exact_quote）与 append / prepend 的 detail 省略与调用参数逐字重复的
+      ``old_preview`` / ``new_preview`` / ``text_preview`` / ``anchor_preview`` / ``deleted_preview``；
+      非精确匹配（fuzzy / approximate / fuzzy_paragraph）完整保留 ``matched_original``、``warning``、
+      ``layout_notes`` 与预览等全部诊断字段。
+    - 省略为空列表或 False 的样板字段（``failed_edits``、``unchanged_edits``、``warnings``、
+      ``partial_success``、``all_failed``）；非空或 True 时原样保留。
+    """
+    slimmed: dict[str, Any] = {}
+    for key, value in result.items():
+        if key == "undo":
+            continue
+        if key in _EMPTY_LIST_BOILERPLATE_KEYS and isinstance(value, list) and not value:
+            continue
+        if key in _FALSY_BOOL_BOILERPLATE_KEYS and not value:
+            continue
+        if key == "details" and isinstance(value, list):
+            slim_details: list[Any] = []
+            for item in value:
+                if isinstance(item, dict) and _is_exact_detail_item(item):
+                    slim_details.append(
+                        {k: v for k, v in item.items() if k not in _EXACT_DETAIL_ECHO_KEYS}
+                    )
+                else:
+                    slim_details.append(item)
+            slimmed[key] = slim_details
+        else:
+            slimmed[key] = value
+    return slimmed
+
+
+def extract_edit_file_ui_payload(result: dict[str, Any]) -> dict[str, Any]:
+    """提取 edit_file 结果中仅供 SSE/UI 卡片与撤销使用的字段，写入 ToolContext 侧通道。"""
+    overlay: dict[str, Any] = {}
+    if isinstance(result.get("undo"), dict):
+        overlay["undo"] = result["undo"]
+    details = result.get("details")
+    if isinstance(details, list) and details:
+        overlay["details"] = details
+    return overlay
+
+
+def _span_within_seen(start: int, end: int, seen_spans: Sequence[tuple[int, int]]) -> bool:
+    return any(seen_start <= start and end <= seen_end for seen_start, seen_end in seen_spans)
+
+
+def _find_approximate_in_spans(
+    content: str,
+    pattern: str,
+    seen_spans: Sequence[tuple[int, int]],
+    *,
+    max_error_rate: float = 0.25,
+    min_pattern_len: int = 8,
+    keep_line_breaks: bool = False,
+    stats: dict[str, int] | None = None,
+) -> tuple[int, int, float, str] | None:
+    """只在已读字符区间内做近似匹配，绝不命中未读段落。"""
+    hits: list[tuple[int, int, float, str]] = []
+    for seen_start, seen_end in seen_spans:
+        sub = content[seen_start:seen_end]
+        if not sub:
+            continue
+        local_stats: dict[str, int] = {}
+        hit = find_approximate_match(
+            sub,
+            pattern,
+            max_error_rate=max_error_rate,
+            min_pattern_len=min_pattern_len,
+            keep_line_breaks=keep_line_breaks,
+            stats=local_stats,
+        )
+        if stats is not None:
+            for k, v in local_stats.items():
+                stats[k] = stats.get(k, 0) + v
+        if hit is not None:
+            rel_start, rel_end, similarity, matched_text = hit
+            hits.append((seen_start + rel_start, seen_start + rel_end, similarity, matched_text))
+    if len(hits) == 1:
+        return hits[0]
+    return None
+
+
+def _find_unique_line_in_spans(
+    content: str,
+    anchor: str,
+    seen_spans: Sequence[tuple[int, int]],
+    *,
+    ignore_punct_whitespace: bool = True,
+) -> tuple[int, int, float] | None:
+    """只在已读字符区间内做段落兜底匹配，绝不命中未读段落。"""
+    hits: list[tuple[int, int, float]] = []
+    for seen_start, seen_end in seen_spans:
+        sub = content[seen_start:seen_end]
+        if not sub:
+            continue
+        hit = find_unique_line_span(sub, anchor, ignore_punct_whitespace=ignore_punct_whitespace)
+        if hit is not None:
+            rel_start, rel_end, score = hit
+            hits.append((seen_start + rel_start, seen_start + rel_end, score))
+    if len(hits) == 1:
+        return hits[0]
+    return None
+
+
 class FileEditor:
     """
     Editor for file content with robust text matching.
@@ -565,6 +696,7 @@ class FileEditor:
         normalize_quotes: bool = False,
         read_snapshot_fn: Callable[[], str | None] | None = None,
         exact_only: bool = False,
+        seen_spans: Sequence[tuple[int, int]] | None = None,
         report_author_edits: bool = False,
         body_guards: bool = False,
     ) -> dict[str, Any]:
@@ -639,6 +771,7 @@ class FileEditor:
         options = {
             "read_snapshot_fn": read_snapshot_fn,
             "exact_only": exact_only,
+            "seen_spans": seen_spans,
             "report_author_edits": report_author_edits,
             "body_guards": body_guards,
         }
@@ -661,6 +794,7 @@ class FileEditor:
         *,
         read_snapshot_fn: Callable[[], str | None] | None = None,
         exact_only: bool = False,
+        seen_spans: Sequence[tuple[int, int]] | None = None,
         report_author_edits: bool = False,
         body_guards: bool = False,
     ) -> dict[str, Any]:
@@ -725,6 +859,11 @@ class FileEditor:
         if report_author_edits and blamed_content != old_content:
             author_blame = self._author_blame(file.id, old_content)
         content = old_content
+        active_spans: list[tuple[int, int]] | None = (
+            [(int(s), int(e)) for s, e in seen_spans if e > s]
+            if exact_only and seen_spans
+            else None
+        )
         applied_edits = []
         failed_edits: list[dict[str, Any]] = []
         # old 与 new 一字不差、原文里确实有这段：模型要的就是原样，不算失败也不计入已应用。
@@ -806,9 +945,11 @@ class FileEditor:
 
                 # Persist normalized op for subsequent logic
                 edit["op"] = op
-                if exact_only and op in ("replace", "delete", "insert_after", "insert_before"):
+                if exact_only and active_spans is None and op in ("replace", "delete", "insert_after", "insert_before"):
                     # 本请求没读过这个文件：old / anchor 只按逐字匹配，不拿可能过时的记忆去
                     # 模糊命中作者刚改过的字（模型给了 match_mode 也一样）。
+                    # 若通过范围读取看过部分区间（active_spans 非空），区间内允许模糊/近似匹配，
+                    # 区间外仍强制逐字匹配（见下方 allowed_fuzzy_spans）。
                     edit["match_mode"] = "exact"
 
                 if op in ("append", "prepend", "insert_after", "insert_before"):
@@ -816,6 +957,7 @@ class FileEditor:
 
                 content_before_edit = content
                 applied_before_edit = len(applied_edits)
+                edit_hunks: list[tuple[int, int, int]] = []
 
                 old_field = edit.get("old")
                 if op == "replace" and isinstance(old_field, str) and old_field and self._peek_replace_new(edit) == old_field:
@@ -834,12 +976,26 @@ class FileEditor:
 
                 if op == "replace":
                     content = self._apply_replace(
-                        content, edit, i, applied_edits, warnings, quote_style=quote_style
+                        content,
+                        edit,
+                        i,
+                        applied_edits,
+                        warnings,
+                        quote_style=quote_style,
+                        allowed_fuzzy_spans=active_spans,
+                        applied_hunks=edit_hunks,
                     )
                 elif op in ("insert_after", "insert_before"):
                     content = self._apply_insert(
-                        content, edit, i, applied_edits, warnings,
-                        after=op == "insert_after", quote_style=quote_style,
+                        content,
+                        edit,
+                        i,
+                        applied_edits,
+                        warnings,
+                        after=op == "insert_after",
+                        quote_style=quote_style,
+                        allowed_fuzzy_spans=active_spans,
+                        applied_hunks=edit_hunks,
                     )
                 elif op in ("append", "prepend"):
                     notes: list[str] = []
@@ -852,6 +1008,7 @@ class FileEditor:
                         notes=notes,
                     )
                     content, text = self._place_new_text(content, pos, pos, text, quote_style)
+                    edit_hunks.append((pos, pos, len(text)))
                     detail = {
                         "op": op,
                         "text_len": len(text),
@@ -863,7 +1020,13 @@ class FileEditor:
                     applied_edits.append(detail)
                 elif op == "delete":
                     content = self._apply_delete(
-                        content, edit, i, applied_edits, warnings
+                        content,
+                        edit,
+                        i,
+                        applied_edits,
+                        warnings,
+                        allowed_fuzzy_spans=active_spans,
+                        applied_hunks=edit_hunks,
                     )
                 else:
                     raise ValueError(f"Edit {i}: unknown operation '{op}'. Valid ops: replace, insert_after, insert_before, append, prepend, delete")
@@ -872,6 +1035,10 @@ class FileEditor:
                     # 报告成功就必须真的改了：撤回这一条的 applied 记录。
                     del applied_edits[applied_before_edit:]
                     raise _no_change_error(i, edit, quote_style)
+                if active_spans is not None and edit_hunks:
+                    from agent.tools.tool_context import shift_spans_for_hunks
+
+                    active_spans = shift_spans_for_hunks(active_spans, edit_hunks, new_len=len(content))
             except Exception as e:
                 failed_op = str(edit.get("op", "")).strip() if isinstance(edit, dict) else ""
                 error_text = str(e)
@@ -891,7 +1058,10 @@ class FileEditor:
                         "不要忽略前项后强行匹配。）"
                     )
                 if exact_only and failed_op in ("replace", "delete", "insert_after", "insert_before"):
-                    error_text += "（本请求还没读过这个文件，只按逐字匹配：先用 query_files 按 id 读一次，再照现在的正文改）"
+                    if active_spans is None:
+                        error_text += "（本请求还没读过这个文件，只按逐字匹配：先用 query_files 按 id 读一次，再照现在的正文改）"
+                    elif error_type == EDIT_ERROR_ANCHOR_NOT_FOUND:
+                        error_text += "（本请求只按范围读过该文件部分内容，未读区域只按逐字匹配：请先用 query_files 读取目标区域或全文后再改）"
                 failed_edit = {
                     "index": i,
                     "error": error_text,
@@ -922,6 +1092,7 @@ class FileEditor:
                 content,
                 create_version=lambda: self._create_edit_version(id, content, applied_edits),
                 tool="edit_file",
+                seen_spans=active_spans,
             )
 
         # 统一补齐 new_preview：replace 类操作的 detail 里叫 new_preview，
@@ -964,6 +1135,7 @@ class FileEditor:
         tool: str,
         full_snapshot: bool = False,
         new_title: str | None = None,
+        seen_spans: Sequence[tuple[int, int]] | None = None,
     ) -> dict[str, Any] | None:
         """在持有这个文件写锁时提交一次 AI 写入，返回撤销锚点（拿不到时为 None）。
 
@@ -1032,7 +1204,7 @@ class FileEditor:
                 exc_info=True,
                 extra={"file_id": file_id, "error": str(exc)},
             )
-        with written_snapshot_for_commit(file_id, content, full=full_snapshot):
+        with written_snapshot_for_commit(file_id, content, full=full_snapshot, seen_spans=seen_spans):
             self.session.commit()
         self.session.refresh(file)
         activation_event_service.record_ai_write_accepted(
@@ -1540,6 +1712,8 @@ class FileEditor:
         warnings: list[str],
         *,
         quote_style: str | None = None,
+        allowed_fuzzy_spans: Sequence[tuple[int, int]] | None = None,
+        applied_hunks: list[tuple[int, int, int]] | None = None,
     ) -> str:
         """Apply a replace edit operation."""
         old_text = edit.get("old", "")
@@ -1595,6 +1769,11 @@ class FileEditor:
                     prev = end
                 parts.append(content[prev:])
                 content = self._normalize_placed_spans("".join(parts), placed, quote_style)
+                if applied_hunks is not None:
+                    applied_hunks.extend(
+                        (start, end, p_end - p_start)
+                        for (start, end), (p_start, p_end) in zip(spans, placed, strict=True)
+                    )
                 if placed:
                     new_text = content[placed[0][0] : placed[0][1]]
                 applied_edits.append({
@@ -1623,6 +1802,8 @@ class FileEditor:
                 content, new_text = self._place_new_text(
                     content, start, start + len(old_text), new_text, quote_style
                 )
+                if applied_hunks is not None:
+                    applied_hunks.append((start, start + len(old_text), len(new_text)))
                 detail = {
                     "op": "replace",
                     "match_mode": exact_mode,
@@ -1665,18 +1846,43 @@ class FileEditor:
                 # 不能再退到近似匹配去改其中一段的局部，那样会重复写入另一段的开头。
                 raise _paragraph_break_error(edit_index, "old")
 
+            unseen_fuzzy_rejected = False
+            if allowed_fuzzy_spans is not None and spans:
+                if replace_all:
+                    if not all(_span_within_seen(s, e, allowed_fuzzy_spans) for s, e in spans):
+                        spans = []
+                        unseen_fuzzy_rejected = True
+                else:
+                    spans = [sp for sp in spans if _span_within_seen(sp[0], sp[1], allowed_fuzzy_spans)]
+                    if not spans:
+                        unseen_fuzzy_rejected = True
+
             # 3) If fuzzy match fails, try approximate match (handles word errors)
+            # replace_all=True 要求替换所有命中，不能退化为只改一处的近似匹配；
+            # 若全文模糊匹配已命中但全部落在未读区间（unseen_fuzzy_rejected），也不得退化到
+            # 已读区间做近似匹配，避免误伤已读区间里的相似句。
             approx_match = None
-            if not spans:
-                approx_stats: dict[str, int] = {}
-                approx_match = find_approximate_match(
-                    content,
-                    old_text,
-                    max_error_rate=0.25,  # Allow up to 25% character difference
-                    min_pattern_len=8,
-                    keep_line_breaks=True,
-                    stats=approx_stats,
-                )
+            approx_stats: dict[str, int] = {}
+            if not spans and not replace_all and not unseen_fuzzy_rejected:
+                if allowed_fuzzy_spans is not None:
+                    approx_match = _find_approximate_in_spans(
+                        content,
+                        old_text,
+                        allowed_fuzzy_spans,
+                        max_error_rate=0.25,
+                        min_pattern_len=8,
+                        keep_line_breaks=True,
+                        stats=approx_stats,
+                    )
+                else:
+                    approx_match = find_approximate_match(
+                        content,
+                        old_text,
+                        max_error_rate=0.25,  # Allow up to 25% character difference
+                        min_pattern_len=8,
+                        keep_line_breaks=True,
+                        stats=approx_stats,
+                    )
                 if not approx_match and approx_stats.get("paragraph_rejected"):
                     raise _paragraph_break_error(edit_index, "old")
                 if approx_match:
@@ -1697,6 +1903,8 @@ class FileEditor:
                     placed_text = follow_span_indentation(content, start, end, old_text, new_text)
                     # Single approximate match - use it
                     content, written = self._place_new_text(content, start, end, placed_text, quote_style)
+                    if applied_hunks is not None:
+                        applied_hunks.append((start, end, len(written)))
                     detail = {
                         "op": "replace",
                         "match_mode": "approximate",
@@ -1728,6 +1936,7 @@ class FileEditor:
                 # non-overlapping); repeated re-slicing would be O(n·k).
                 parts: list[str] = []
                 placed: list[tuple[int, int]] = []
+                fuzzy_hunks: list[tuple[int, int, int]] = []
                 prev = out_len = 0
                 first_matched: str | None = None
                 indent_followed = False
@@ -1748,9 +1957,12 @@ class FileEditor:
                     parts.append(placed_text)
                     placed.append((out_len, out_len + len(placed_text)))
                     out_len += len(placed_text)
+                    fuzzy_hunks.append((start, end, len(placed_text)))
                     prev = end
                 parts.append(content[prev:])
                 content = self._normalize_placed_spans("".join(parts), placed, quote_style)
+                if applied_hunks is not None:
+                    applied_hunks.extend(fuzzy_hunks)
                 if placed:
                     new_text = content[placed[0][0] : placed[0][1]]
 
@@ -1795,6 +2007,8 @@ class FileEditor:
                 matched_text = content[start:end]
                 placed_text = follow_span_indentation(content, start, end, old_text, new_text)
                 content, written = self._place_new_text(content, start, end, placed_text, quote_style)
+                if applied_hunks is not None:
+                    applied_hunks.append((start, end, len(written)))
                 detail = {
                     "op": "replace",
                     "match_mode": "fuzzy",
@@ -1823,6 +2037,8 @@ class FileEditor:
         *,
         after: bool,
         quote_style: str | None = None,
+        allowed_fuzzy_spans: Sequence[tuple[int, int]] | None = None,
+        applied_hunks: list[tuple[int, int, int]] | None = None,
     ) -> str:
         """Apply an insert_after (after=True) or insert_before edit operation."""
         op = "insert_after" if after else "insert_before"
@@ -1845,6 +2061,8 @@ class FileEditor:
                 exact_anchor=exact_anchor,
             )
             placed, text = self._place_new_text(content, pos, pos, text, quote_style)
+            if applied_hunks is not None:
+                applied_hunks.append((pos, pos, len(text)))
             applied_edits.append({
                 "op": op,
                 **detail,
@@ -1884,6 +2102,11 @@ class FileEditor:
             warnings.append(
                 f"Edit {edit_index}: {fuzzy_stats['boundary_rejected']} 处候选锚点因字符归一化展开边界不对齐被跳过（如罗马数字/合字）"
             )
+        unseen_fuzzy_rejected = False
+        if allowed_fuzzy_spans is not None and spans:
+            spans = [sp for sp in spans if _span_within_seen(sp[0], sp[1], allowed_fuzzy_spans)]
+            if not spans:
+                unseen_fuzzy_rejected = True
         if spans:
             start, end = self._select_fuzzy_span(
                 content,
@@ -1910,57 +2133,77 @@ class FileEditor:
             })
 
         # Secondary fallback: approximate match (handles word errors)
+        # 若全文模糊匹配已命中但全部落在未读区间，不得退化到已读区间做近似/段落兜底匹配。
         approx_stats: dict[str, int] = {}
-        approx_match = find_approximate_match(
-            content,
-            anchor,
-            max_error_rate=0.25,
-            min_pattern_len=8,
-            stats=approx_stats,
-        )
-        if approx_match:
-            start, end, similarity, matched_text = approx_match
-            if occurrence is not None and occurrence != 1:
-                raise ValueError(
-                    f"Edit {edit_index}: 近似匹配只找到 1 处锚点，"
-                    f"occurrence out of range (1..1)"
+        if not unseen_fuzzy_rejected:
+            if allowed_fuzzy_spans is not None:
+                approx_match = _find_approximate_in_spans(
+                    content,
+                    anchor,
+                    allowed_fuzzy_spans,
+                    max_error_rate=0.25,
+                    min_pattern_len=8,
+                    stats=approx_stats,
                 )
-            if after:
-                # 锚点以句号/引号收尾时，插入点要越过原文对应的标点，不能插在「冷」和「。」之间。
-                _, pos = self._extend_fuzzy_span(content, start, end, anchor, leading=False)
             else:
-                # 锚点以引号开头时插入点要落在原文开引号之前，不能把新文本插进「“」和正文之间。
-                pos, _ = self._extend_fuzzy_span(content, start, end, anchor, trailing=False)
-            return place(pos, {
-                "match_mode": "approximate",
-                "similarity": round(similarity, 3),
-                "matched_original": matched_text[:200] + ("..." if len(matched_text) > 200 else ""),
-            })
-
-        # Tertiary fallback: locate a unique best paragraph
-        block_span = find_unique_line_span(
-            content,
-            anchor,
-            ignore_punct_whitespace=ignore_punct_whitespace,
-        )
-        if block_span:
-            start, end, block_score = block_span
-            # 段落兜底与近似匹配一样只给出唯一一处：点名第 2 处及以后就是插错位置。
-            if occurrence is not None and occurrence != 1:
-                raise ValueError(
-                    f"Edit {edit_index}: 段落兜底只找到 1 处锚点，"
-                    f"occurrence out of range (1..1)"
+                approx_match = find_approximate_match(
+                    content,
+                    anchor,
+                    max_error_rate=0.25,
+                    min_pattern_len=8,
+                    stats=approx_stats,
                 )
-            # fuzzy_paragraph 是「最像的整段」而不是逐字命中，必须把
-            # 置信度与兜底性质写进详情，否则模型只看到 match_count=1，
-            # 会误以为这是确定无疑的唯一匹配而不再复核。
-            return place(end if after else start, {
-                "match_mode": "fuzzy_paragraph",
-                "ignore_punct_whitespace": ignore_punct_whitespace,
-                "match_count": 1,
-                "confidence": round(block_score, 3),
-                "fallback": True,
-            })
+            if approx_match:
+                start, end, similarity, matched_text = approx_match
+                if occurrence is not None and occurrence != 1:
+                    raise ValueError(
+                        f"Edit {edit_index}: 近似匹配只找到 1 处锚点，"
+                        f"occurrence out of range (1..1)"
+                    )
+                if after:
+                    # 锚点以句号/引号收尾时，插入点要越过原文对应的标点，不能插在「冷」和「。」之间。
+                    _, pos = self._extend_fuzzy_span(content, start, end, anchor, leading=False)
+                else:
+                    # 锚点以引号开头时插入点要落在原文开引号之前，不能把新文本插进「“」和正文之间。
+                    pos, _ = self._extend_fuzzy_span(content, start, end, anchor, trailing=False)
+                return place(pos, {
+                    "match_mode": "approximate",
+                    "similarity": round(similarity, 3),
+                    "matched_original": matched_text[:200] + ("..." if len(matched_text) > 200 else ""),
+                })
+
+            # Tertiary fallback: locate a unique best paragraph
+            if allowed_fuzzy_spans is not None:
+                block_span = _find_unique_line_in_spans(
+                    content,
+                    anchor,
+                    allowed_fuzzy_spans,
+                    ignore_punct_whitespace=ignore_punct_whitespace,
+                )
+            else:
+                block_span = find_unique_line_span(
+                    content,
+                    anchor,
+                    ignore_punct_whitespace=ignore_punct_whitespace,
+                )
+            if block_span:
+                start, end, block_score = block_span
+                # 段落兜底与近似匹配一样只给出唯一一处：点名第 2 处及以后就是插错位置。
+                if occurrence is not None and occurrence != 1:
+                    raise ValueError(
+                        f"Edit {edit_index}: 段落兜底只找到 1 处锚点，"
+                        f"occurrence out of range (1..1)"
+                    )
+                # fuzzy_paragraph 是「最像的整段」而不是逐字命中，必须把
+                # 置信度与兜底性质写进详情，否则模型只看到 match_count=1，
+                # 会误以为这是确定无疑的唯一匹配而不再复核。
+                return place(end if after else start, {
+                    "match_mode": "fuzzy_paragraph",
+                    "ignore_punct_whitespace": ignore_punct_whitespace,
+                    "match_count": 1,
+                    "confidence": round(block_score, 3),
+                    "fallback": True,
+                })
 
         suggestions = suggest_similar_lines(
             content,
@@ -1980,6 +2223,9 @@ class FileEditor:
         edit_index: int,
         applied_edits: list[dict[str, Any]],
         warnings: list[str],
+        *,
+        allowed_fuzzy_spans: Sequence[tuple[int, int]] | None = None,
+        applied_hunks: list[tuple[int, int, int]] | None = None,
     ) -> str:
         """Apply a delete edit operation."""
         old_text = edit.get("old", "")
@@ -2011,6 +2257,8 @@ class FileEditor:
                 preview_content=content,
             )
             content = content[:start] + content[start + len(old_text):]
+            if applied_hunks is not None:
+                applied_hunks.append((start, start + len(old_text), 0))
             detail = {
                 "op": "delete",
                 "match_mode": exact_mode,
@@ -2044,6 +2292,8 @@ class FileEditor:
                 )
             if not spans and fuzzy_stats.get("paragraph_rejected"):
                 raise _paragraph_break_error(edit_index, "old")
+            if allowed_fuzzy_spans is not None and spans:
+                spans = [sp for sp in spans if _span_within_seen(sp[0], sp[1], allowed_fuzzy_spans)]
             if not spans:
                 suggestions = suggest_similar_lines(
                     content,
@@ -2072,6 +2322,8 @@ class FileEditor:
                 start, end = self._extend_fuzzy_span(content, start, end, old_text)
             matched_text = content[start:end]
             content = content[:start] + content[end:]
+            if applied_hunks is not None:
+                applied_hunks.append((start, end, 0))
             detail = {
                 "op": "delete",
                 "match_mode": "fuzzy",
@@ -2150,6 +2402,8 @@ __all__ = [
     "FileWriteBusyError",
     "PreWriteHistoryUnavailableError",
     "edit_error_user_message",
+    "extract_edit_file_ui_payload",
+    "slim_edit_file_result_for_llm",
     "acquire_file_write_lock",
     "file_write_lock",
 ]

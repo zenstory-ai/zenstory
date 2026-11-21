@@ -121,25 +121,25 @@ function getButtonStyles(status: VoiceInputStatus, disabled: boolean, isMobile: 
   // Children never receive pointer events: the press target must stay the
   // button while its icon is swapped for the waveform. touch-action/callout
   // keep a hold from scrolling the page or opening the system callout.
-  const baseStyles = 'shrink-0 flex items-center justify-center rounded-lg transition-all duration-200 select-none touch-none [-webkit-touch-callout:none] [&_*]:pointer-events-none';
+  const baseStyles = 'shrink-0 flex items-center justify-center rounded-xl transition-all duration-200 select-none touch-none [-webkit-touch-callout:none] [&_*]:pointer-events-none';
   const squareSize = isMobile ? 'w-11 h-11' : 'w-9 h-9';
   const recordingSize = isMobile ? 'min-w-[96px] h-11 px-3' : 'min-w-[80px] h-9 px-2.5';
   
   if (disabled) {
-    return `${baseStyles} ${squareSize} bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] cursor-not-allowed opacity-50`;
+    return `${baseStyles} ${squareSize} border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] cursor-not-allowed opacity-50`;
   }
   
   switch (status) {
     case 'recording':
-      return `${baseStyles} ${recordingSize} bg-[hsl(var(--error))] text-white ${isMobile ? '' : 'hover:bg-[hsl(var(--error)/0.9)]'}`;
+      return `${baseStyles} ${recordingSize} bg-[hsl(var(--danger-solid))] text-[hsl(var(--primary-foreground))] ${isMobile ? '' : 'hover:bg-[hsl(var(--danger-hover))]'}`;
     case 'requesting':
       return `${baseStyles} ${squareSize} bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]`;
     case 'processing':
-      return `${baseStyles} ${squareSize} bg-[hsl(var(--accent-primary))] text-white`;
+      return `${baseStyles} ${squareSize} bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]`;
     case 'error':
-      return `${baseStyles} ${squareSize} bg-[hsl(var(--error))] text-white`;
+      return `${baseStyles} ${squareSize} bg-[hsl(var(--danger-solid))] text-[hsl(var(--primary-foreground))]`;
     default:
-      return `${baseStyles} ${squareSize} bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary)/0.8)] hover:text-[hsl(var(--text-primary))] ${isMobile ? 'active:scale-95' : ''}`;
+      return `${baseStyles} ${squareSize} border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] ${isMobile ? 'active:scale-95' : ''}`;
   }
 }
 

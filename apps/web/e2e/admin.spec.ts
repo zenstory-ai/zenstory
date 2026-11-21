@@ -29,15 +29,16 @@ const ADMIN = {
 };
 
 const ADMIN_SIDEBAR = {
-  title: 'h2:has-text("管理后台"), h2:has-text("Admin Panel")',
-  dashboardLink: 'a[href="/admin"]',
-  usersLink: 'a[href="/admin/users"]',
-  promptsLink: 'a[href="/admin/prompts"]',
-  skillsLink: 'a[href="/admin/skills"]',
+  dashboardLink: 'aside a[href="/admin"]',
+  usersLink: 'aside a[href="/admin/users"]',
+  usageLink: 'aside a[href="/admin/usage"]',
+  billingLink: 'aside a[href="/admin/payment-orders"]',
+  operationsLink: 'aside a[href="/admin/feedback"]',
+  systemLink: 'aside a[href="/admin/prompts"]',
 };
 
 const USER_MANAGEMENT = {
-  title: 'h1:has-text("用户管理"), h1:has-text("User Management")',
+  title: 'h1:has-text("用户"), h1:has-text("Users")',
   searchInput: 'input[placeholder*="搜索"], input[placeholder*="Search"]',
   searchButton: 'button:has-text("搜索"), button:has-text("Search")',
   table: 'table',
@@ -65,14 +66,14 @@ const DEACTIVATE_DIALOG = {
 };
 
 const PROMPT_MANAGEMENT = {
-  title: 'h1:has-text("Prompt 管理"), h1:has-text("Prompt Management"), h1:has-text("Prompt")',
+  title: 'h1:has-text("Prompt 配置"), h1:has-text("Prompt configs"), h1:has-text("Prompt")',
   promptCard: '[class*="card"][class*="cursor-pointer"], .grid > div',
   createButton: 'button:has-text("新建配置"), button:has-text("New config")',
   reloadButton: 'button:has-text("重新加载"), button:has-text("Reload")',
 };
 
 const SKILL_REVIEW = {
-  title: 'h1:has-text("技能审核"), h1:has-text("Skill Review")',
+  title: 'h1:has-text("技能审核"), h1:has-text("Skill review")',
   pendingList: '.space-y-4',
   skillCard: '.space-y-4 > div',
   skillName: 'h3, [class*="font-semibold"]',
@@ -676,15 +677,13 @@ test.describe('Admin Functionality', () => {
   // ============================================
 
   test.describe('Admin Navigation', () => {
-    test('admin sidebar shows all navigation options', async ({ page }) => {
-      // Check sidebar title
-      await expect(page.locator(ADMIN_SIDEBAR.title)).toBeVisible();
-
-      // Check all navigation links
+    test('admin sidebar shows all 6 flat navigation options', async ({ page }) => {
       await expect(page.locator(ADMIN_SIDEBAR.dashboardLink)).toBeVisible();
       await expect(page.locator(ADMIN_SIDEBAR.usersLink)).toBeVisible();
-      await expect(page.locator(ADMIN_SIDEBAR.promptsLink)).toBeVisible();
-      await expect(page.locator(ADMIN_SIDEBAR.skillsLink)).toBeVisible();
+      await expect(page.locator(ADMIN_SIDEBAR.usageLink)).toBeVisible();
+      await expect(page.locator(ADMIN_SIDEBAR.billingLink)).toBeVisible();
+      await expect(page.locator(ADMIN_SIDEBAR.operationsLink)).toBeVisible();
+      await expect(page.locator(ADMIN_SIDEBAR.systemLink)).toBeVisible();
     });
 
     test('admin can navigate to dashboard', async ({ page }) => {
@@ -693,17 +692,18 @@ test.describe('Admin Functionality', () => {
       expect(page.url()).toContain('/admin');
     });
 
-    test('admin can navigate between sections', async ({ page }) => {
+    test('admin can navigate between sections and sub-tabs', async ({ page }) => {
       // Navigate to users
       await page.click(ADMIN_SIDEBAR.usersLink);
       await expect(page.locator(USER_MANAGEMENT.title)).toBeVisible({ timeout: 5000 });
 
-      // Navigate to prompts
-      await page.click(ADMIN_SIDEBAR.promptsLink);
+      // Navigate to system (Prompt configs default)
+      await page.click(ADMIN_SIDEBAR.systemLink);
       await expect(page.locator(PROMPT_MANAGEMENT.title)).toBeVisible({ timeout: 5000 });
 
-      // Navigate to skills
-      await page.click(ADMIN_SIDEBAR.skillsLink);
+      // Navigate to operations then switch to Skill review sub-tab
+      await page.click(ADMIN_SIDEBAR.operationsLink);
+      await page.locator('main nav a[href="/admin/skills"]').click();
       await expect(page.locator(SKILL_REVIEW.title)).toBeVisible({ timeout: 5000 });
     });
   });

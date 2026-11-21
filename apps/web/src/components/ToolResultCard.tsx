@@ -474,7 +474,7 @@ const CardUndoControl: React.FC<{
           type="button"
           disabled
           aria-describedby={hintId}
-          className={`inline-flex items-center gap-1 min-h-11 md:min-h-7 shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[hsl(var(--text-secondary))] cursor-not-allowed opacity-60 ${className}`}
+          className={`inline-flex items-center gap-1 min-h-11 md:min-h-7 -my-2 md:my-0 shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[hsl(var(--text-secondary))] cursor-not-allowed opacity-60 ${className}`}
         >
           <RotateCcw className="w-3 h-3" />
           {t('common:undo')}
@@ -562,7 +562,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     }
     
     return (
-      <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+      <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
         <div className="flex items-center gap-2">
           {isPending ? (
             <Loader2 className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))] animate-spin" />
@@ -602,7 +602,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         : null;
       return (
         <div className="space-y-2">
-          <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+          <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
             <div className="flex items-center gap-2">
               {intentionalSkip ? (
                 <Info className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
@@ -627,16 +627,45 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     // Handle success cases by tool type
     const data = (result?.data || result) as Record<string, unknown>;
     const fileId = typeof data?.id === 'string' ? data.id.trim() : '';
-    const canOpenFile = !!onOpenFile && !!fileId && !isPending && !interrupted;
-    const fileTitle = (title: string, fileType: string, label = title) => canOpenFile ? (
-      <button
-        type="button"
-        onClick={() => onOpenFile?.(fileId, fileType, title)}
-        className="min-h-11 md:min-h-0 min-w-0 max-w-full break-words rounded text-left underline decoration-[hsl(var(--border-color))] underline-offset-2 hover:text-[hsl(var(--accent-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
-      >
-        {label}
-      </button>
-    ) : <span className="min-w-0 break-words">{label}</span>;
+    const renderFileRow = ({
+      id,
+      title,
+      fileType,
+      label = title,
+    }: {
+      id?: unknown;
+      title: string;
+      fileType: string;
+      label?: string;
+    }) => {
+      const typeInfo = getFileTypeInfo(fileType, t);
+      const itemFileId = typeof id === 'string' ? id.trim() : '';
+      const clickable = !!onOpenFile && !!itemFileId && !isPending && !interrupted;
+      const content = (
+        <>
+          <span className="shrink-0">{typeInfo.icon}</span>
+          <span className="min-w-0 break-words">{label}</span>
+        </>
+      );
+
+      if (clickable) {
+        return (
+          <button
+            type="button"
+            onClick={() => onOpenFile(itemFileId, fileType, title)}
+            className="inline-flex items-center gap-1.5 min-h-11 md:min-h-0 -my-2 md:my-0 py-1.5 min-w-0 max-w-full rounded-md text-left text-xs font-medium text-[hsl(var(--text-primary))] hover:text-[hsl(var(--accent-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
+          >
+            {content}
+          </button>
+        );
+      }
+
+      return (
+        <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full text-xs font-medium text-[hsl(var(--text-primary))]">
+          {content}
+        </span>
+      );
+    };
     
     // create_file success
     if (toolName === 'create_file' && data) {
@@ -647,7 +676,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const typeInfo = getFileTypeInfo(fileType, t);
       
       return (
-        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
             <span className="min-w-0 flex-1 text-sm font-medium text-[hsl(var(--text-primary))]">
@@ -658,10 +687,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 {formatWordCount(wordCount, t)}
               </span>
             )}
-            <span className="flex basis-full min-w-0 items-start gap-1 pl-6 text-sm text-[hsl(var(--text-primary))]">
-              <span className="shrink-0 mt-0.5">{typeInfo.icon}</span>
-              {fileTitle(title, fileType)}
-            </span>
+          </div>
+          <div className="mt-1.5 pl-6">
+            {renderFileRow({ id: fileId, title, fileType })}
           </div>
         </div>
       );
@@ -677,7 +705,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const previousWords = readWordCount(data.previous_word_count);
       const newWords = readWordCount(data.new_word_count)
         ?? (typeof data.content === 'string' ? countWords(data.content) : null);
-      const typeInfo = getFileTypeInfo(fileType, t);
       const headlines = isEpisodeFile(fileType) ? WRITE_EPISODE_HEADLINES : WRITE_CHAPTER_HEADLINES;
       const headline = outcome === null
         ? t(isEpisodeFile(fileType) ? 'chat:tool.write_episode' : 'chat:tool.write_chapter')
@@ -691,7 +718,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const undone = undoTarget !== null && isFileEditUndone(data, undoTarget, undoneEdits);
 
       return (
-        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {succeeded ? (
               <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
@@ -717,18 +744,17 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 onUndo={handleUndo}
               />
             )}
-            <span className="flex basis-full min-w-0 items-start gap-1 pl-6 text-sm text-[hsl(var(--text-primary))]">
-              <span className="shrink-0 mt-0.5">{typeInfo.icon}</span>
-              {fileTitle(title, fileType)}
-            </span>
-            {(outcome === 'replaced' || outcome === 'replacing') && previousWords !== null && previousWords > 0 && (
-              <span className="basis-full min-w-0 pl-6 text-xs text-[hsl(var(--text-secondary))]">
-                {t(outcome === 'replaced' ? 'chat:tool.chapterReplacedPrevious' : 'chat:tool.chapterReplacingPrevious', {
-                  size: formatWordCount(previousWords, t),
-                })}
-              </span>
-            )}
           </div>
+          <div className="mt-1.5 pl-6">
+            {renderFileRow({ id: fileId, title, fileType })}
+          </div>
+          {(outcome === 'replaced' || outcome === 'replacing') && previousWords !== null && previousWords > 0 && (
+            <div className="mt-1 pl-6 text-xs text-[hsl(var(--text-secondary))]">
+              {t(outcome === 'replaced' ? 'chat:tool.chapterReplacedPrevious' : 'chat:tool.chapterReplacingPrevious', {
+                size: formatWordCount(previousWords, t),
+              })}
+            </div>
+          )}
         </div>
       );
     }
@@ -740,7 +766,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const wordCount = typeof data.content === 'string' ? countWords(data.content) : 0;
       
       return (
-        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
             <span className="min-w-0 flex-1 text-sm font-medium text-[hsl(var(--text-primary))]">
@@ -751,9 +777,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 {formatWordCount(wordCount, t)}
               </span>
             )}
-            <span className="basis-full min-w-0 pl-6 text-sm text-[hsl(var(--text-primary))]">
-              {fileTitle(title, fileType, quote(title))}
-            </span>
+          </div>
+          <div className="mt-1.5 pl-6">
+            {renderFileRow({ id: fileId, title, fileType })}
           </div>
         </div>
       );
@@ -765,7 +791,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const from = typeof renamed.previous_title === 'string' ? renamed.previous_title : '';
       const to = typeof renamed.title === 'string' ? renamed.title : '';
       return (
-        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
             <span className="text-sm font-medium text-[hsl(var(--text-primary))] break-words">
@@ -783,7 +809,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const deletedTitle = typeof deleted.title === 'string' ? deleted.title.trim() : '';
       const isRestored = deleted.restored === true || deletionRestored;
       return (
-        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
           <div className="flex flex-wrap items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
             <span className="text-sm font-medium text-[hsl(var(--text-primary))] break-words">
@@ -821,7 +847,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       
       if (count === 0) {
         return (
-          <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+          <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
             <div className="flex items-center gap-2">
               <Search className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
               <span className="text-sm text-[hsl(var(--text-secondary))]">
@@ -833,7 +859,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       }
       
       return (
-        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
             <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
@@ -841,16 +867,14 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             </span>
           </div>
           {count <= 5 && (
-            <div className="mt-1.5 ml-6 space-y-1">
+            <div className="mt-1.5 pl-6 flex flex-col items-start gap-2 md:gap-1">
               {files.map((file: Record<string, unknown>, index: number) => {
-                const fileTitle = file.title as string || t('common:untitled');
-                const fileType = file.file_type as string || '';
-                const typeInfo = getFileTypeInfo(fileType, t);
+                const itemTitle = file.title as string || t('common:untitled');
+                const itemFileType = file.file_type as string || '';
                 return (
-                  <div key={index} className="flex items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))]">
-                    {typeInfo.icon}
-                    <span>{fileTitle}</span>
-                  </div>
+                  <React.Fragment key={typeof file.id === 'string' && file.id ? file.id : index}>
+                    {renderFileRow({ id: file.id, title: itemTitle, fileType: itemFileType })}
+                  </React.Fragment>
                 );
               })}
             </div>
@@ -887,7 +911,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       // Nothing visible changed (e.g. notes copied back unchanged): no green success.
       if (!changed) {
         return (
-          <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+          <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
             <div className="flex items-center gap-2">
               <Info className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
               <span className="text-sm text-[hsl(var(--text-secondary))]">
@@ -970,9 +994,12 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         }
       };
       
+      const editTitle = typeof data.title === 'string' && data.title.trim() ? data.title.trim() : '';
+      const editFileType = typeof data.file_type === 'string' ? data.file_type : '';
+
       return (
         <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
             <span className="text-sm text-[hsl(var(--text-primary))] font-medium">
               {t('chat:tool.edit_success')}
@@ -1000,14 +1027,20 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               />
             )}
           </div>
+
+          {editTitle && (
+            <div className="mt-1.5 pl-6">
+              {renderFileRow({ id: fileId, title: editTitle, fileType: editFileType })}
+            </div>
+          )}
           
           {details && details.length > 0 && (
-            <details className="mt-2" open={authorEditsTouched || authorDeletionRestored || undefined}>
-              <summary className="cursor-pointer select-none text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] flex items-center gap-1 list-none"
+            <details className="group mt-1.5" open={authorEditsTouched || authorDeletionRestored || undefined}>
+              <summary className="cursor-pointer select-none pl-6 min-h-11 md:min-h-0 -my-1.5 md:my-0 rounded text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] flex items-center gap-1 list-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden"
                 style={{ listStyle: 'none' }}
               >
                 <svg
-                  className="w-3 h-3 transition-transform duration-200"
+                  className="w-3 h-3 shrink-0 transition-transform duration-200 group-open:rotate-90"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -1265,7 +1298,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const path = typeof data.path === 'string' ? data.path : '';
       const detail = [skillName ? quote(skillName) : '', path].filter(Boolean).join(' · ');
       return (
-        <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
             <span className="shrink-0 text-sm font-medium text-[hsl(var(--text-primary))]">
@@ -1282,7 +1315,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     // Default fallback - show minimal success message without technical details
     const { label } = getToolDisplayInfo(toolName, t);
     return (
-      <div className={`px-3 py-2 ${CHAT_CARD_SURFACE}`}>
+      <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
         <div className="flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
           <span className="text-sm font-medium text-[hsl(var(--text-primary))]">

@@ -841,4 +841,27 @@ describe("MaterialsPage", () => {
     });
     expect(mockNavigate).not.toHaveBeenCalled();
   });
+
+  it("renders keyboard-accessible upload trigger button and labeled title field in upload modal", async () => {
+    mockList.mockResolvedValueOnce([]);
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const uploadBtn = await screen.findByRole("button", { name: "materials:upload" });
+    fireEvent.click(uploadBtn);
+
+    const fileTrigger = screen.getByRole("button", { name: /materials:uploadModal\.selectFile/ });
+    expect(fileTrigger.tagName).toBe("BUTTON");
+    expect(screen.getByLabelText("materials:uploadModal.titleLabel")).toBeInTheDocument();
+  });
+
+  it("renders alert with retry button when materials access status cannot be confirmed", async () => {
+    mockGetStatus.mockResolvedValueOnce({
+      features: {},
+    } as never);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
 });

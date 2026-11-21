@@ -132,7 +132,7 @@ UNIFIED_EXECUTION_PROTOCOL = """## 统一执行协议
 
 ### 读取预算
 - 系统上下文中标注[全文]的文件（截至本请求开始；本请求内被修改过的文件除外）与本轮工具结果里已有的全文就是最新内容，直接使用；同一文件本轮最多读取一次全文。
-- 需要多份文件全文时，在同一条回复里并列发出多个 query_files(id=…) 调用。
+- 需要多份已知文件全文时，优先用一次 query_files(ids=[...]) 批量读取（单次最多 5 个），或在同一条回复里并列调用。
 - edit_file 失败时优先使用错误返回的候选片段，不整文件重读。
 - 读取 3~5 份关键资料后开始产出；资料不足时说明假设，而不是继续检索。
 """
@@ -233,9 +233,9 @@ _TOOL_USAGE_REST_COMMON = """### 文件 ID 使用规则 [非常重要]
 ### 工具失败时的重试规则 [必须遵守]
 - 工具失败时先读错误并修复原因；不可恢复、权限不足或重复失败时明确报告阻塞，不无限重试或声称成功。
 - 如果报错“找不到锚点/原文”：
-  1) 优先直接使用错误返回的候选片段；没有候选片段时才用 query_files(id=...) 读取最新内容（长章节可传 query=关键词 取命中原句，或传 start_char + max_chars 分段读取）
+  1) 优先直接使用错误返回的候选片段；没有候选片段时才用 query_files(id=...) 读取最新内容（仅超过 15000 字的超长文件才按 query=关键词 或 start_char + max_chars 分段读取，常规长度文件直接读全文）
   2) 从当前原文逐字复制较短且唯一的 anchor/old，不凭记忆重写长段落
-  3) 再次调用 edit_file；改动多时拆成几次调用，每次只改少量几处，不在一次调用里堆很多条
+  3) 再次调用 edit_file；同一文件的多处独立修改合并进一次 edit_file(..., continue_on_error=true) 批量提交（仅超过 15 处修改，或后一项依赖前一项改后的新文本时才拆分）
 
 ### update_project 使用场景 [AI 记忆]
 
@@ -312,7 +312,7 @@ _LOOP_TOOL_USAGE_HEAD = """## 工具使用规则
 - edit_file: 精确编辑文件内容（改词句、改段落、插入、删除、续写）
 - delete_file: 按本轮请求删除指定文件（软删除，作者可在该删除卡片上一键恢复；删除文件夹需传 recursive=true）；修改用 edit_file，整章重写用 write_chapter
 - rename_file: 只改文件标题（id 和正文不变）
-- query_files: 查询/读取文件（query_files(id=...) 读取该文件全文；query_files(query=...) 按标题/内容定位文件）
+- query_files: 查询/读取文件（query_files(id=...) 读取单个文件全文，query_files(ids=[...]) 一次批量读取 2–5 个已知文件全文；query_files(query=...) 按标题/内容定位文件）
 - update_project: 更新项目状态（简介、阶段、风格）；作者明确让你记住时把原话记进备注
 - update_project(tasks=[...]): 管理任务计划板；文件任务用 task_kind=file 并写明 artifact_file_type；对话里程碑用 task_kind=conversation，不能用它绕过文件验证；编号范围用 unit_spec={"unit":"章","numbers":[1,2]}，已创建产物用 artifact_refs 传 file_id；只有对应类型的实际文件存在且非空才标 done，标题不证明交付
 """
@@ -348,6 +348,7 @@ _LOOP_TOOL_USAGE_FILE_WRITES = """## 写正文：write_chapter + <file> [必须�
 
 ### 改已有文件：edit_file
 - 只改一章里的几处（改词句、改段落、在某处插入、删除）用 edit_file：old 只写要改的那几段原文，new 写替换后的文本；续写用 op=append，插入用 op=insert_after / insert_before，删除用 op=delete。
+- 同一文件有多处互不依赖的修改时，合并进一次 edit_file(..., continue_on_error=true) 调用批量提交；仅在单次超过 15 处修改，或后一项依赖前一项改后的新文本时才拆成多次调用。
 - new 完全取代 old：可以保留需要保留的原文，但不要把 old 原样留着再追加一遍。
 - edit_file 不能整份替换正文，也不能让同一段文字在章节里重复出现（工具会拒绝）；整章重写用 write_chapter。
 - 改之前的原稿会自动存进这个文件的历史版本，作者可以审阅或撤销。改写的是作者发这条消息之前就有的文件时，回复里用一句话告诉作者旧稿可以在历史版本里找回；这次请求里新写的稿子不说这句。

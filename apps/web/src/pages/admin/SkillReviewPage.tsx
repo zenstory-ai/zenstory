@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Modal } from "../../components/ui/Modal";
+import { Button } from "../../components/ui/Button";
 import { IconButton } from "../../components/ui/IconButton";
 import { useTranslation } from "react-i18next";
 import { LazyMarkdown } from "../../components/LazyMarkdown";
@@ -139,14 +140,9 @@ export default function SkillReviewPage() {
 
   return (
     <div className="admin-page">
-      <div>
-        <h1 className="admin-page-title">
-          {t("admin:skills.title", "技能审核")}
-        </h1>
-        <p className="admin-page-subtitle">
-          {t("admin:skills.description", "检查社区提交的技能，决定是否公开")}
-        </p>
-      </div>
+      <h1 className="admin-page-title">
+        {t("admin:skills.title", "技能审核")}
+      </h1>
 
       <AdminSelect
         value={statusFilter}
@@ -177,8 +173,8 @@ export default function SkillReviewPage() {
       )}
 
       {loadError && skills.length > 0 && (
-        <div className="mb-4 rounded-lg border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-4 text-sm">
-          <div className="flex items-start gap-3">
+        <div role="alert" className="mb-4 rounded-lg border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-4 text-sm">
+          <div className="flex flex-wrap items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-[hsl(var(--error-text))] mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-medium text-[hsl(var(--error-text))]">
@@ -186,13 +182,15 @@ export default function SkillReviewPage() {
               </p>
               <p className="mt-1 text-[hsl(var(--text-secondary))] break-words">{loadError}</p>
             </div>
-            <button
+            <Button
+              type="button"
+              variant="secondary"
+              size="touch"
+              leftIcon={<RefreshCw className="h-3.5 w-3.5" />}
               onClick={() => void loadPendingSkills(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[hsl(var(--separator-color))] px-3 py-1.5 text-xs text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
               {t("common:retry")}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -590,7 +588,7 @@ function ReasonModal({
       closeOnBackdropClick={!(processing)}
       showCloseButton={false}
       bodyClassName="p-6"
-      className="admin-shell rounded-xl!"
+      className="admin-shell"
       size="md"
     >
       <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))] mb-4">
@@ -613,17 +611,19 @@ function ReasonModal({
         />
       </div>
       <div className="flex gap-3">
-        <button onClick={onCancel} disabled={processing} className="btn-ghost flex-1 h-11">
+        <Button type="button" variant="secondary" size="touch" onClick={onCancel} disabled={processing} className="flex-1">
           {t("common:cancel")}
-        </button>
-        <button
+        </Button>
+        <Button
+          type="button"
+          variant="danger"
+          size="touch"
           onClick={onConfirm}
-          disabled={processing}
-          className="btn-danger flex-1 h-11 flex items-center justify-center gap-2"
+          isLoading={processing}
+          className="flex-1"
         >
-          {processing && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
           {confirmLabel}
-        </button>
+        </Button>
       </div>
     </Modal>
   );

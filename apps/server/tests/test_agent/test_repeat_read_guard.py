@@ -703,10 +703,11 @@ async def test_distinct_range_windows_all_execute_and_are_not_recorded_as_full_t
     from agent.openai_agents.tools_adapter import build_agent_function_tools
 
     executed: list[dict] = []
+    long_body = "甲" * 15000
 
     async def fake_query(args):
         executed.append(dict(args))
-        return {"content": [{"type": "text", "text": _range_read_ok(args)}]}
+        return {"content": [{"type": "text", "text": _range_read_ok(args, body=long_body)}]}
 
     windows = [{"id": "f1", "start_char": start, "max_chars": 100} for start in (0, 100, 200, 300)]
     guard = RepeatReadGuard()
@@ -728,14 +729,18 @@ def test_same_range_window_repeats_are_hinted_then_blocked():
     guard = RepeatReadGuard()
     window = {"id": "f1", "start_char": 100, "max_chars": 100}
     # 同一窗口的等价写法（字符串数字）是同一次读取
+    long_body = "甲" * 15000
     spellings = [window, {"id": "f1", "start_char": "100", "max_chars": "100"}, window]
-    outputs = [json.loads(_guarded_read(guard, json.dumps(args), _range_read_ok(window))) for args in spellings]
+    outputs = [
+        json.loads(_guarded_read(guard, json.dumps(args), _range_read_ok(window, body=long_body)))
+        for args in spellings
+    ]
     assert "read_hint" not in outputs[0]
     assert outputs[1]["repeated_reads"] == 2 and "这一段内容" in outputs[1]["read_hint"]
     assert "全文" not in outputs[1]["read_hint"]
     assert outputs[2]["repeated_reads"] == 3
 
-    blocked = json.loads(_guarded_read(guard, json.dumps(window), _range_read_ok(window)))
+    blocked = json.loads(_guarded_read(guard, json.dumps(window), _range_read_ok(window, body=long_body)))
     assert blocked["error_type"] == REPEATED_READ_ERROR_TYPE
     assert guard.blocked_reads == 1
 

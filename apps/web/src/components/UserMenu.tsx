@@ -36,15 +36,15 @@ import { getUserDisplayName } from "../lib/userDisplayName";
  * Colors are selected based on the first character of the username for consistency.
  */
 const AVATAR_COLORS = [
-  "#f87171", // red
-  "#fb923c", // orange
-  "#fbbf24", // amber
-  "#a3e635", // lime
-  "#34d399", // emerald
-  "#22d3ee", // cyan
-  "#60a5fa", // blue
-  "#94a3b8", // slate
-  "#f472b6", // pink
+  "#dc2626", // red
+  "#c2410c", // orange
+  "#b45309", // amber
+  "#4d7c0f", // lime
+  "#047857", // emerald
+  "#0e7490", // cyan
+  "#1d4ed8", // blue
+  "#475569", // slate
+  "#be185d", // pink
 ];
 
 /**

@@ -57,7 +57,7 @@ function CardLoadError({
   return (
     <div
       role="alert"
-      className={`flex items-center justify-between gap-3 rounded-lg border border-[hsl(var(--error)/0.35)] bg-[hsl(var(--error)/0.08)] p-3 ${className}`}
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[hsl(var(--error)/0.35)] bg-[hsl(var(--error)/0.08)] p-3 ${className}`}
     >
       <p className="text-sm text-[hsl(var(--error-text))]">{message}</p>
       <Button size={size} variant="secondary" className="shrink-0" onClick={onRetry}>
@@ -285,7 +285,7 @@ export default function BillingPage() {
       {isCheckoutKnownOff && isUpgradableTier && (
         <p
           data-testid="billing-checkout-unavailable"
-          className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-secondary))]"
+          className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-secondary))]"
         >
           {t("dashboard:billing.checkoutHelpNotice", "暂时不能在线付款，请稍后重试；如需帮助，可在页尾查看客服联系方式。")}
         </p>
@@ -442,7 +442,7 @@ export default function BillingPage() {
         {isUsageLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-20 animate-pulse rounded-lg bg-[hsl(var(--bg-tertiary))]" />
+              <div key={index} className="h-20 animate-pulse rounded-xl bg-[hsl(var(--bg-tertiary))]" />
             ))}
           </div>
         ) : isQuotaFailed ? (
@@ -473,7 +473,7 @@ export default function BillingPage() {
                 : "bg-[hsl(var(--accent-primary))]";
               const notIncluded = isNotIncluded(metric);
               return (
-                <div key={item.key} className="rounded-lg border border-[hsl(var(--border-color))] p-3">
+                <div key={item.key} className="rounded-xl border border-[hsl(var(--border-color))] p-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[hsl(var(--text-secondary))]">{item.label}</span>
                     <span

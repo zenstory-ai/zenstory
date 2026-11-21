@@ -10,6 +10,7 @@ This module provides Create, Read, Update, Delete operations on the File model:
 
 import contextlib
 import json
+from collections.abc import Sequence
 from typing import Any, cast
 
 from sqlalchemy import case, func, literal
@@ -65,7 +66,9 @@ from .edit import (
     written_snapshot_for_commit,
 )
 from .serialization import (
+    QUERY_FILES_MAX_BATCH_IDS,
     _summary_projection_preview_length,
+    normalize_query_file_ids,
     resolve_query_files_response_mode,
     serialize_file,
     serialize_query_file,
@@ -1028,6 +1031,7 @@ class FileCRUD:
         self,
         project_id: str,
         id: str | None = None,
+        ids: Sequence[str] | None = None,
         query: str | None = None,
         file_type: str | None = None,
         file_types: list[str] | None = None,
@@ -1041,11 +1045,12 @@ class FileCRUD:
         """
         Query and search files (unified method).
 
-        Supports keyword search, type filtering and parent filtering.
+        Supports exact single/batch ID lookup, keyword search, type filtering and parent filtering.
 
         Args:
             project_id: Project ID
             id: Exact file ID lookup (optional, overrides keyword search)
+            ids: Batch exact file ID lookup (optional, deduplicated and capped at 5, preserves order)
             query: Search keyword for title/content (optional)
             file_type: Single file type filter (optional)
             file_types: Multiple file types filter (optional, use this OR file_type)
@@ -1053,7 +1058,7 @@ class FileCRUD:
             limit: Maximum results
             offset: Offset for pagination
             response_mode: Response format mode ("summary" or "full"). None =
-                auto: full when ``id`` is given, summary otherwise (see
+                auto: full when ``id`` or ``ids`` is given, summary otherwise (see
                 ``resolve_query_files_response_mode``)
             content_preview_chars: Preview length in summary mode (None = default 200)
             include_content: Backward-compatible override; True forces full content
@@ -1070,21 +1075,33 @@ class FileCRUD:
         # 因此在入口就收敛成真 bool（None 保持 None，不丢「未指定」语义）。
         if include_content is not None:
             include_content = coerce_bool(include_content)
+        target_ids, _ = normalize_query_file_ids(
+            file_id=id,
+            file_ids=ids,
+            max_ids=QUERY_FILES_MAX_BATCH_IDS,
+        )
+        explicit_full = (
+            include_content is True
+            or (isinstance(response_mode, str) and response_mode.strip().lower() == "full")
+        )
+        normalized_query = query.strip() if isinstance(query, str) and query.strip() else None
         response_mode = resolve_query_files_response_mode(
             response_mode,
             file_id=id,
+            file_ids=target_ids or None,
             include_content=include_content,
             content_preview_chars=content_preview_chars,
+            query=normalized_query,
         )
 
         # Check project permission
         check_project_ownership(self.session, project_id, self.user_id)
 
-        # Fast path: exact ID lookup (avoids same-title ambiguity and extra tool calls).
-        normalized_id = (id or "").strip()
-        if normalized_id:
+        # Fast path: exact single/batch ID lookup (single SQL IN query scoped to project_id + is_deleted=False).
+        if target_ids:
+            id_filter = File.id == target_ids[0] if len(target_ids) == 1 else File.id.in_(target_ids)
             stmt = select(File).where(
-                File.id == normalized_id,
+                id_filter,
                 File.project_id == project_id,
                 File.is_deleted.is_(False),
             )
@@ -1094,6 +1111,11 @@ class FileCRUD:
                 stmt = stmt.where(File.file_type == file_type)
             if parent_id is not None:
                 stmt = stmt.where(File.parent_id == parent_id)
+            if normalized_query and not explicit_full:
+                stmt = stmt.where(
+                    (File.title.contains(normalized_query, autoescape=True))  # type: ignore[attr-defined]
+                    | (File.content.contains(normalized_query, autoescape=True))  # type: ignore[attr-defined]
+                )
         else:
             # limit/offset apply to the MERGED type set, as on the full path.
             target_types = file_types or ([file_type] if file_type else None)
@@ -1110,6 +1132,9 @@ class FileCRUD:
             response_mode, content_preview_chars, include_content
         )
         rows = self._execute_query_files(stmt, preview_length)
+        if len(target_ids) > 1 and rows:
+            order_index = {fid: idx for idx, fid in enumerate(target_ids)}
+            rows.sort(key=lambda row: order_index.get(str(row[0].id), len(target_ids)))
         files = [file for file, _, _ in rows]
         previews = {file.id: preview for file, preview, _ in rows}
         content_lengths = {file.id: content_length for file, _, content_length in rows}
@@ -1125,8 +1150,10 @@ class FileCRUD:
             )
             for file in files
         ]
-        if id and len(files) == 1 and isinstance(serialized[0].get("content"), str):
-            attach_author_edits_for_agent(self.session, files[0], serialized[0])
+        if target_ids:
+            for file, item in zip(files, serialized, strict=True):
+                if isinstance(item.get("content"), str):
+                    attach_author_edits_for_agent(self.session, file, item)
         return serialized
 
     def _execute_query_files(

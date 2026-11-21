@@ -203,6 +203,23 @@ export function PaymentCheckoutModal({
     onClose()
   }
 
+  const footer = (
+    <>
+      <Button size="touch" variant="secondary" onClick={handleClose} disabled={isBusy}>
+        {t('common:cancel', '取消')}
+      </Button>
+      <Button size="touch" onClick={handlePay} disabled={!alipayEnabled || !hasSelectedPrice || isBusy || optionsQuery.isLoading}>
+        {redirecting
+          ? t('dashboard:billing.paymentRedirecting', "正在前往支付宝…")
+          : createOrder.isPending
+          ? t('dashboard:billing.paymentCreating', "正在创建订单…")
+          : hasSelectedPrice
+          ? t('dashboard:billing.goToPayAmount', '去支付 {{price}}', { price: formatYuan(selectedPrice, i18n.language) })
+          : t('dashboard:billing.goToPay', '去支付')}
+      </Button>
+    </>
+  )
+
   return (
     <Modal
       open={isOpen}
@@ -211,8 +228,10 @@ export function PaymentCheckoutModal({
         ? t('dashboard:billing.paymentTitleRenew', '续费 Pro')
         : t('dashboard:billing.paymentTitle', '开通 Pro')}
       size="md"
+      showCloseButton={!isBusy}
       closeOnBackdropClick={!isBusy}
       closeOnEscape={!isBusy}
+      footer={footer}
     >
       <Modal.Body>
         <div className="space-y-4">
@@ -230,7 +249,7 @@ export function PaymentCheckoutModal({
                   key={item}
                   onClick={() => setCycle(item)}
                   disabled={isBusy}
-                  className={`flex min-w-0 flex-col items-stretch rounded-lg border p-3 text-left transition-colors ${
+                  className={`flex min-w-0 flex-col items-stretch rounded-xl border p-3 text-left transition-colors ${
                     selected
                       ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)] ring-1 ring-[hsl(var(--accent-primary))]'
                       : savings
@@ -271,7 +290,7 @@ export function PaymentCheckoutModal({
             })}
           </div>
 
-          <div className="rounded-lg border border-[hsl(var(--border-color))] p-3">
+          <div className="rounded-xl border border-[hsl(var(--border-color))] p-3">
             <div className="flex items-center gap-2 text-[hsl(var(--text-primary))]">
               <CreditCard className="h-4 w-4 text-[#1677ff]" />
               <span className="font-medium">{t('dashboard:billing.alipay', '支付宝')}</span>
@@ -292,7 +311,7 @@ export function PaymentCheckoutModal({
             </p>
           )}
           {isUnavailable && (
-            <div className="rounded-lg bg-[hsl(var(--warning)/0.1)] p-3 text-sm text-[hsl(var(--warning-text))]" role="alert">
+            <div className="rounded-xl bg-[hsl(var(--warning)/0.1)] p-3 text-sm text-[hsl(var(--warning-text))]" role="alert">
               {paymentUnavailableText}
               {redeemEntry === 'billing-page' && (
                 <Link to={BILLING_SUPPORT_PATH} className="ml-1 font-medium underline">
@@ -302,26 +321,12 @@ export function PaymentCheckoutModal({
             </div>
           )}
           {error && (
-            <div className="rounded-lg bg-[hsl(var(--error)/0.1)] p-3 text-sm text-[hsl(var(--error-text))]" role="alert">
+            <div className="rounded-xl bg-[hsl(var(--error)/0.1)] p-3 text-sm text-[hsl(var(--error-text))]" role="alert">
               {error}
             </div>
           )}
         </div>
       </Modal.Body>
-      <Modal.Footer>
-        <Button size="touch" variant="secondary" onClick={handleClose} disabled={isBusy}>
-          {t('common:cancel', '取消')}
-        </Button>
-        <Button size="touch" onClick={handlePay} disabled={!alipayEnabled || !hasSelectedPrice || isBusy || optionsQuery.isLoading}>
-          {redirecting
-            ? t('dashboard:billing.paymentRedirecting', "正在前往支付宝…")
-            : createOrder.isPending
-            ? t('dashboard:billing.paymentCreating', "正在创建订单…")
-            : hasSelectedPrice
-            ? t('dashboard:billing.goToPayAmount', '去支付 {{price}}', { price: formatYuan(selectedPrice, i18n.language) })
-            : t('dashboard:billing.goToPay', '去支付')}
-        </Button>
-      </Modal.Footer>
     </Modal>
   )
 }

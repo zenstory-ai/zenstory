@@ -34,9 +34,28 @@ describe('AdminLayout mobile navigation', () => {
     const main = screen.getByRole('main');
     main.scrollTop = 450;
     fireEvent.click(screen.getByRole('button', { name: '打开管理菜单' }));
-    fireEvent.click(screen.getByRole('link', { name: '用户管理' }));
+    fireEvent.click(screen.getByRole('link', { name: '用户' }));
     expect(screen.getByText('Users page')).toBeInTheDocument();
     expect(main.scrollTop).toBe(0);
+  });
+
+  it('renders URL-backed sub-tabs for consolidated sections', () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/subscriptions']}>
+        <Routes>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route path="subscriptions" element={<div>Subscriptions view</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const subNav = screen.getByRole('navigation', { name: '营收' });
+    expect(subNav).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '支付订单' })).toHaveAttribute('href', '/admin/payment-orders');
+    expect(screen.getByRole('link', { name: '订阅用户' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: '兑换码' })).toHaveAttribute('href', '/admin/codes');
+    expect(screen.getByRole('link', { name: '套餐配置' })).toHaveAttribute('href', '/admin/plans');
   });
 
   it('announces state, contains focus, closes on Escape, and makes the closed drawer inert', () => {
@@ -60,7 +79,7 @@ describe('AdminLayout mobile navigation', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(drawer).not.toHaveAttribute('inert');
     expect(drawer).toHaveAttribute('role', 'dialog');
-    expect(screen.getByRole('link', { name: '仪表盘' })).toHaveFocus();
+    expect(screen.getByRole('link', { name: '概览' })).toHaveFocus();
 
     screen.getByRole('link', { name: '返回应用' }).focus();
     fireEvent.keyDown(document, { key: 'Tab' });
