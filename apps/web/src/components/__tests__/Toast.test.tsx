@@ -57,4 +57,26 @@ describe('ToastContainer', () => {
     expect(screen.getByText('Third')).toBeInTheDocument()
     expect(screen.getByText('Fourth')).toBeInTheDocument()
   })
+
+  it('uses AA contrast solid tokens and rounded-xl corners for all toast types', () => {
+    render(<ToastContainer />)
+
+    act(() => {
+      toast.error('Error toast')
+      toast.success('Success toast')
+      toast.info('Info toast')
+    })
+
+    const errorEl = screen.getByText('Error toast')
+    const successEl = screen.getByText('Success toast')
+    const infoEl = screen.getByText('Info toast')
+
+    for (const el of [errorEl, successEl, infoEl]) {
+      expect(el.className).toContain('text-[hsl(var(--primary-foreground))]')
+      expect(el.className).toContain('rounded-xl')
+    }
+    expect(errorEl.className).toContain('bg-[hsl(var(--danger-solid))]')
+    expect(successEl.className).toContain('bg-[hsl(var(--success-solid))]')
+    expect(infoEl.className).toContain('bg-[hsl(var(--primary))]')
+  })
 })

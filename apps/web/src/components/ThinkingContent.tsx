@@ -33,7 +33,6 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { LazyMarkdown } from "./LazyMarkdown";
 import { sanitizeThinkingForDisplay } from "../lib/thinkingDisplay";
-import { CHAT_CARD_SURFACE } from "./chatCardStyles";
 
 /**
  * Props for the ThinkingContent component.
@@ -118,13 +117,15 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
   }
 
   return (
-    <div className={`max-w-full ${CHAT_CARD_SURFACE}`}>
+    <div className="max-w-full overflow-hidden rounded-xl border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary)/0.45)]">
       {/* Header */}
       <button
         type="button"
         onClick={handleToggle}
         aria-expanded={isExpanded}
-        className="w-full px-3 py-2 flex items-center justify-between gap-2 rounded-xl text-left hover:bg-[hsl(var(--bg-tertiary)/0.6)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
+        className={`w-full min-h-11 md:min-h-0 px-3 py-2 flex items-center justify-between gap-2 text-left hover:bg-[hsl(var(--bg-tertiary)/0.75)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))] ${
+          isExpanded ? 'rounded-t-xl' : 'rounded-xl'
+        }`}
         aria-label={isExpanded
           ? t('chat:thinking.collapse', '收起思考过程')
           : t('chat:thinking.expand', '展开思考过程')}

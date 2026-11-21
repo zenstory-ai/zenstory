@@ -73,7 +73,7 @@ export function DashboardPageHeader({
           <div className="min-w-0 w-full">
             <div className="flex items-center gap-2">
               <h1
-                className={`min-w-0 break-words font-semibold tracking-tight text-[hsl(var(--text-primary))] ${
+                className={`heading-display min-w-0 break-words font-semibold tracking-tight text-[hsl(var(--text-primary))] ${
                   isMobile ? "text-2xl" : "text-[28px]"
                 }`}
               >
@@ -92,9 +92,11 @@ export function DashboardPageHeader({
             )}
           </div>
         </div>
-        <div className={`flex items-center gap-2 ${isMobile ? "w-full flex-wrap" : "shrink-0"}`}>
-          {action}
-        </div>
+        {action && (
+          <div className={`flex items-center gap-2 ${isMobile ? "w-full flex-wrap" : "shrink-0"}`}>
+            {action}
+          </div>
+        )}
       </div>
     </div>
   );
