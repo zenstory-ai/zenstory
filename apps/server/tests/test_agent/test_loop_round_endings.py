@@ -11,19 +11,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from agent.core.request_context import AgentRequestContext
 from agent.core.run_meter import AgentRunMeter
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.loop import run_support
-from agent.tools.mcp_tools import ToolContext
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
-
-
-@pytest.fixture(autouse=True)
-def tool_context():
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    yield
-    ToolContext.clear_context()
 
 
 def _runner(runs: list[list[StreamEvent]], before=None):
@@ -31,7 +24,7 @@ def _runner(runs: list[list[StreamEvent]], before=None):
 
     async def fake(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
         if before is not None:
-            before()
+            before(state["request_context"])
         yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
         for event in pending.pop(0) if pending else []:
             yield event
@@ -56,27 +49,32 @@ def _exhausted() -> StreamEvent:
 
 
 def _state(**extra):
-    return {"user_message": "写第六章", "messages": [], "system_prompt": "系统", **extra}
+    req_ctx = extra.pop("request_context", None) or AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s"
+    )
+    return {"user_message": "写第六章", "messages": [], "system_prompt": "系统", "request_context": req_ctx, **extra}
 
 
 async def test_tool_call_exhaustion_rolls_back_pending_empty_file():
     rollback = MagicMock(return_value={"f6"})
+    state = _state()
+    req_ctx = state["request_context"]
     with (
         patch("agent.core.empty_files.probe_pending_file_body", return_value="empty"),
         patch("agent.core.empty_files.rollback_unfinished_empty_files", rollback),
     ):
         events = await _collect(
-            _state(), _runner([[_exhausted()]], before=lambda: ToolContext.set_pending_empty_file("f6", "第六章"))
+            state, _runner([[_exhausted()]], before=lambda ctx: ctx.set_pending_empty_file("f6", "第六章"))
         )
 
-    rollback.assert_called_once_with([{"file_id": "f6", "title": "第六章"}])
+    rollback.assert_called_once_with([{"file_id": "f6", "title": "第六章"}], request_context=req_ctx)
     # 回滚之后才发这一轮唯一的耗尽卡，层不变，带上已撤销的文件；不再另发文字说明。
     [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
     assert card["layer"] == "tool_call" and card["iterations_used"] == 60
     assert card["rolled_back_files"] == [{"file_id": "f6", "title": "第六章"}]
     assert "unfinished_files" not in card
     assert not any(e.type == StreamEventType.TEXT for e in events)
-    assert not ToolContext.has_pending_empty_file()
+    assert not req_ctx.has_pending_empty_file()
 
 
 async def test_tool_call_exhaustion_keeps_files_whose_body_was_written():
@@ -86,7 +84,7 @@ async def test_tool_call_exhaustion_keeps_files_whose_body_was_written():
         patch("agent.core.empty_files.rollback_unfinished_empty_files", rollback),
     ):
         events = await _collect(
-            _state(), _runner([[_exhausted()]], before=lambda: ToolContext.set_pending_empty_file("f6", "第六章"))
+            _state(), _runner([[_exhausted()]], before=lambda ctx: ctx.set_pending_empty_file("f6", "第六章"))
         )
 
     rollback.assert_not_called()
@@ -100,7 +98,7 @@ async def test_tool_call_exhaustion_reports_an_empty_file_that_could_not_be_roll
         patch("agent.core.empty_files.rollback_unfinished_empty_files", MagicMock(return_value=set())),
     ):
         events = await _collect(
-            _state(), _runner([[_exhausted()]], before=lambda: ToolContext.set_pending_empty_file("f6", "第六章"))
+            _state(), _runner([[_exhausted()]], before=lambda ctx: ctx.set_pending_empty_file("f6", "第六章"))
         )
 
     [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
@@ -207,9 +205,9 @@ def _saving_runner(runs: list[list[StreamEvent]], saves: list[list[tuple[str, ..
     每项是 (file_id, title) 或 (file_id, title, file_type)。"""
     pending_saves = list(saves)
 
-    def before():
+    def before(req_ctx: AgentRequestContext):
         for file_id, title, *file_type in pending_saves.pop(0) if pending_saves else []:
-            ToolContext.mark_chapter_body_saved(file_id, title, *file_type)
+            req_ctx.mark_chapter_body_saved(file_id, title, *file_type)
 
     inner = _runner(runs, before=before)
 
@@ -407,7 +405,7 @@ async def test_cut_body_hitting_wrap_up_still_emits_wall_clock_pause_card():
     finalize = AsyncMock(return_value=([], False))
 
     async def capped_runner(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
-        ToolContext.mark_cut_body_saved("ch3", "第3章 灯塔")
+        state["request_context"].mark_cut_body_saved("ch3", "第3章 灯塔")
         yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
         for ev in _create_events():
             yield ev
@@ -470,8 +468,8 @@ async def test_non_output_capped_cut_body_hitting_wrap_up_still_emits_wall_clock
     finalize = AsyncMock(return_value=([], False))
 
     async def cut_without_cap_runner(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
-        ToolContext.mark_chapter_body_saved("ch1", "第1章 起航", "draft")
-        ToolContext.mark_cut_body_saved("ch2", "第2章 暗礁")
+        state["request_context"].mark_chapter_body_saved("ch1", "第1章 起航", "draft")
+        state["request_context"].mark_cut_body_saved("ch2", "第2章 暗礁")
         yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
         for ev in _create_events():
             yield ev
@@ -514,7 +512,7 @@ async def test_self_check_run_soft_landing_on_wall_clock_finishes_cleanly_withou
         seen_defer_flags.append(bool(run_policy and run_policy.defer_wall_clock_soft_landing))
         yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
         if run_count == 1:
-            ToolContext.mark_chapter_body_saved("ch4", "第4章 死册与名额", "draft")
+            state["request_context"].mark_chapter_body_saved("ch4", "第4章 死册与名额", "draft")
             for ev in _create_events():
                 yield ev
             yield _BODY
@@ -564,7 +562,7 @@ async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_task_boa
         run_count += 1
         yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
         if run_count == 1:
-            ToolContext.mark_chapter_body_saved("ch1", "第1章 起航", "draft")
+            state["request_context"].mark_chapter_body_saved("ch1", "第1章 起航", "draft")
             for ev in _create_events():
                 yield ev
             yield _BODY
@@ -596,16 +594,17 @@ async def test_empty_file_correction_after_output_cap_gives_concise_thinking_gui
     """create_file 后因思考过长撞上 output_capped 仍为空文件时，纠偏说明明确指出输出上限并要求简短思考、首行直接输出 <file>。"""
     from agent.loop.engine import _settle_pending_empty_files
 
-    ToolContext.set_context(session=None, user_id="u1", project_id="p1", session_id="s1")
-    ok, _ = ToolContext.try_reserve_pending_empty_file("res-1", "排布总表")
+    req_ctx = AgentRequestContext(session=None, user_id="u1", project_id="p1", session_id="s1")
+    ok, _ = req_ctx.try_reserve_pending_empty_file("res-1", "排布总表")
     assert ok
-    ToolContext.bind_pending_empty_file("res-1", "f-table", "排布总表", "2026-11-19T00:00:00Z")
+    req_ctx.bind_pending_empty_file("res-1", "f-table", "排布总表", "2026-11-19T00:00:00Z")
 
     with (
         patch("agent.core.empty_files.probe_pending_file_body", return_value="unwritten"),
         patch("agent.core.empty_files.resume_target_version", return_value=("2026-11-19T00:00:00Z", 0)),
     ):
         context, resume_event, notices, settle_events = await _settle_pending_empty_files(
+            req_ctx,
             can_correct=True,
             english=False,
             body_cut=False,
@@ -637,7 +636,7 @@ async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_new_file
         run_count += 1
         yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
         if run_count == 1:
-            ToolContext.mark_chapter_body_saved("ch1", "第1章 起航", "draft")
+            state["request_context"].mark_chapter_body_saved("ch1", "第1章 起航", "draft")
             for ev in _create_events():
                 yield ev
             yield _BODY
@@ -694,10 +693,11 @@ async def test_runner_and_engine_end_to_end_deferred_wall_clock_policy(has_incom
     class FakeSDKResult:
         raw_responses: list = []
 
-        def __init__(self, run_idx: int, run_input: list, run_config):
+        def __init__(self, run_idx: int, run_input: list, run_config, req_ctx):
             self._run_idx = run_idx
             self._input = list(run_input)
             self._run_config = run_config
+            self._req_ctx = req_ctx
 
         def cancel(self, mode: str = "immediate") -> None:
             del mode
@@ -712,10 +712,10 @@ async def test_runner_and_engine_end_to_end_deferred_wall_clock_policy(has_incom
                 # 第 2 次（self_check）run 触发墙钟软着陆
                 meter.wrap_up_after_s = 0
             self._run_config.call_model_input_filter(
-                SimpleNamespace(model_data=ModelInputData(input=self._input, instructions="sys"))
+                SimpleNamespace(model_data=ModelInputData(input=self._input, instructions="sys"), context=self._req_ctx)
             )
             if self._run_idx == 1:
-                ToolContext.mark_chapter_body_saved("ch1", "第1章", "draft")
+                self._req_ctx.mark_chapter_body_saved("ch1", "第1章", "draft")
                 yield SimpleNamespace(
                     type="run_item_stream_event",
                     name="tool_called",
@@ -738,11 +738,11 @@ async def test_runner_and_engine_end_to_end_deferred_wall_clock_policy(has_incom
 
     run_idx = 0
 
-    def fake_run_streamed(agent, input, max_turns, run_config, hooks=None):  # noqa: A002
+    def fake_run_streamed(agent, input, max_turns, run_config, hooks=None, context=None):  # noqa: A002
         nonlocal run_idx
         run_idx += 1
         sdk_call_inputs.append(list(input))
-        return FakeSDKResult(run_idx, input, run_config)
+        return FakeSDKResult(run_idx, input, run_config, context)
 
     adapter = StreamAdapter()
     state = _state(user_message="写第1章", run_meter=meter)

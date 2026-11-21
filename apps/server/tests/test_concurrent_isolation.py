@@ -1,8 +1,9 @@
 """
-Concurrent isolation tests for ToolContext with contextvars.
+Concurrent isolation tests for per-request AgentRequestContext instances.
 
 These tests verify that multiple concurrent requests maintain
-isolated contexts and don't interfere with each other.
+isolated contexts, pending empty file state, and per-call sessions
+without interfering with each other.
 """
 
 import asyncio
@@ -10,7 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agent.tools.mcp_tools import ToolContext
+from agent.core.request_context import AgentRequestContext
 
 
 class TestConcurrentIsolation:
@@ -18,32 +19,23 @@ class TestConcurrentIsolation:
 
     @pytest.mark.asyncio
     async def test_concurrent_context_isolation(self):
-        """
-        验证并发请求之间的上下文隔离。
-
-        重要：必须使用 asyncio.create_task() 创建独立任务，
-        因为 contextvars 的隔离发生在任务边界。
-        """
+        """验证并发请求之间的上下文隔离。"""
         results = []
 
         async def request_a():
-            ToolContext.set_context(None, "user-a", "project-a", "session-a")
+            ctx = AgentRequestContext(session=None, user_id="user-a", project_id="project-a", session_id="session-a")
             await asyncio.sleep(0.1)  # 模拟 LLM 等待
-            ctx = ToolContext._get_context()
-            results.append(("A", ctx.get("project_id"), ctx.get("user_id")))
+            results.append(("A", ctx.project_id, ctx.user_id))
 
         async def request_b():
             await asyncio.sleep(0.05)  # 在 A 等待期间启动
-            ToolContext.set_context(None, "user-b", "project-b", "session-b")
-            ctx = ToolContext._get_context()
-            results.append(("B", ctx.get("project_id"), ctx.get("user_id")))
+            ctx = AgentRequestContext(session=None, user_id="user-b", project_id="project-b", session_id="session-b")
+            results.append(("B", ctx.project_id, ctx.user_id))
 
-        # 必须使用 create_task 创建独立任务以获得上下文隔离
         task_a = asyncio.create_task(request_a())
         task_b = asyncio.create_task(request_b())
         await asyncio.gather(task_a, task_b)
 
-        # 验证：A 应该读到 project-a，B 应该读到 project-b
         result_a = next((r for r in results if r[0] == "A"), None)
         result_b = next((r for r in results if r[0] == "B"), None)
 
@@ -60,17 +52,17 @@ class TestConcurrentIsolation:
         results = []
 
         async def request_a():
-            ToolContext.set_context(None, "user-a", "project-a", None)
-            ToolContext.set_pending_empty_file("file-a", "A的文件.md")
+            ctx = AgentRequestContext(session=None, user_id="user-a", project_id="project-a", session_id=None)
+            ctx.set_pending_empty_file("file-a", "A的文件.md")
             await asyncio.sleep(0.1)
-            pending = ToolContext.get_pending_empty_file()
+            pending = ctx.get_pending_empty_file()
             results.append(("A", pending))
 
         async def request_b():
             await asyncio.sleep(0.05)
-            ToolContext.set_context(None, "user-b", "project-b", None)
-            ToolContext.set_pending_empty_file("file-b", "B的文件.md")
-            pending = ToolContext.get_pending_empty_file()
+            ctx = AgentRequestContext(session=None, user_id="user-b", project_id="project-b", session_id=None)
+            ctx.set_pending_empty_file("file-b", "B的文件.md")
+            pending = ctx.get_pending_empty_file()
             results.append(("B", pending))
 
         task_a = asyncio.create_task(request_a())
@@ -95,24 +87,21 @@ class TestConcurrentIsolation:
             project_id = f"project-{request_id}"
             user_id = f"user-{request_id}"
 
-            ToolContext.set_context(None, user_id, project_id, None)
+            ctx = AgentRequestContext(session=None, user_id=user_id, project_id=project_id, session_id=None)
 
             # 随机延迟模拟真实场景
             await asyncio.sleep(0.01 * (request_id % 5))
 
-            ctx = ToolContext._get_context()
             results[request_id] = {
                 "expected_project": project_id,
-                "actual_project": ctx.get("project_id"),
+                "actual_project": ctx.project_id,
                 "expected_user": user_id,
-                "actual_user": ctx.get("user_id"),
+                "actual_user": ctx.user_id,
             }
 
-        # 创建所有任务
         tasks = [asyncio.create_task(make_request(i)) for i in range(num_requests)]
         await asyncio.gather(*tasks)
 
-        # 验证所有请求都获得了正确的上下文
         for request_id, result in results.items():
             assert result["expected_project"] == result["actual_project"], \
                 f"Request {request_id}: expected {result['expected_project']}, got {result['actual_project']}"
@@ -128,7 +117,7 @@ class TestConcurrentIsolation:
             mock_session = MagicMock()
             mock_session.name = name
 
-            ToolContext.set_context(
+            ctx = AgentRequestContext(
                 session=mock_session,
                 user_id=f"user-{name}",
                 project_id=f"project-{name}",
@@ -137,8 +126,8 @@ class TestConcurrentIsolation:
 
             await asyncio.sleep(0.05)
 
-            session = ToolContext.get_session()
-            results.append((name, session.name))
+            with ctx.session_scope() as session:
+                results.append((name, session.name))
 
         task_a = asyncio.create_task(request_with_session("A"))
         task_b = asyncio.create_task(request_with_session("B"))

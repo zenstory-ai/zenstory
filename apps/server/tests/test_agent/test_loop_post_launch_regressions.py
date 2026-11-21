@@ -272,12 +272,12 @@ def test_file_ops_and_message_manager_strip_nul_bytes(db_session: Session):
     """create_file / update_file / edit_file / replace_body / MessageManager 落库前剥离 \\x00。"""
     from agent.core.message_manager import MessageManager
     from agent.tools.file_ops import FileToolExecutor
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
     user, project, draft = _seed_user_project_file(db_session)
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="s-test")
+    req_ctx = AgentRequestContext(session=db_session, user_id=user.id, project_id=project.id, session_id="s-test")
     try:
-        executor = FileToolExecutor(session=db_session, user_id=user.id)
+        executor = FileToolExecutor(session=db_session, user_id=user.id, request_context=req_ctx)
 
         created = executor.create_file(
             project_id=project.id,
@@ -326,7 +326,7 @@ def test_file_ops_and_message_manager_strip_nul_bytes(db_session: Session):
         assert "\x00" not in saved_msg.content
         assert "\x00" not in (saved_msg.reasoning_content or "")
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
 
 @pytest.mark.unit

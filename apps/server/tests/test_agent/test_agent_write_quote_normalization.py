@@ -56,11 +56,14 @@ def _add_file(session, project, title, content, file_type="draft", order=0):
 
 async def _run_mcp(tool, session, user, project, args):
     engine = session.get_bind()
-    mcp_tools.ToolContext.set_context(None, user.id, project.id, None, create_session_func=lambda: Session(engine))
-    try:
-        raw = await tool(args)
-    finally:
-        mcp_tools.ToolContext.clear_context()
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
+        create_session_func=lambda: Session(engine),
+    )
+    raw = await tool(args, request_context=req_ctx)
     return json.loads(raw["content"][0]["text"])
 
 

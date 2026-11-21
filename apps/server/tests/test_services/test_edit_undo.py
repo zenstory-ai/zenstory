@@ -381,12 +381,23 @@ async def test_conditional_rollback_preserves_content_and_reports_optional_histo
 
 
 async def test_edit_descriptor_survives_actual_mcp_sse_and_chat_persistence(db_session, undo_file):
+    from agent.stream_adapter import StreamAdapterConfig
+
     user, project, file, *_ = undo_file
     engine = db_session.get_bind()
-    mcp_tools.ToolContext.set_context(None, user.id, project.id, None, create_session_func=lambda: Session(engine))
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
+        create_session_func=lambda: Session(engine),
+    )
     try:
-        with mcp_tools.ToolContext.tool_call_scope("undo-edit"):
-            raw = await mcp_tools.edit_file({"id": file.id, "edits": [{"op": "append", "text": "AI\n"}]})
+        with req_ctx.tool_call_scope("undo-edit"):
+            raw = await mcp_tools.edit_file(
+                {"id": file.id, "edits": [{"op": "append", "text": "AI\n"}]},
+                request_context=req_ctx,
+            )
         payload = json.loads(raw["content"][0]["text"])
         assert payload["status"] == "success"
         # LLM function_call_output omits UI-only undo; StreamAdapter restores it from the request side-channel.
@@ -395,9 +406,10 @@ async def test_edit_descriptor_survives_actual_mcp_sse_and_chat_persistence(db_s
             type=StreamEventType.TOOL_RESULT,
             data={"name": "edit_file", "tool_use_id": "undo-edit", "result": raw},
         )
-        streamed = [item async for item in StreamAdapter()._process_workflow_event(event)]
+        adapter = StreamAdapter(StreamAdapterConfig(request_context=req_ctx))
+        streamed = [item async for item in adapter._process_workflow_event(event)]
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
     db_session.refresh(file)
     tool_result = next(item for item in streamed if item.type.value == "tool_result")
     undo = tool_result.data["data"]["undo"]

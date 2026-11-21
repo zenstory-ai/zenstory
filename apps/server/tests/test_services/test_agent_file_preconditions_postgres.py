@@ -873,17 +873,19 @@ def test_parallel_writes_to_one_file_do_not_see_each_other_as_stale(pg_engine, m
     快照必须在提交前就更新成第一个写下的正文；提交后才记，第二个会把同请求的写入误判为
     「作者改了」。顺序靠包住第一个会话的 commit 控制：它一提交完，第二个写入就整段执行。
     """
-    from agent.tools.mcp_tools import ToolContext
+    from agent.core.request_context import AgentRequestContext
 
     with Session(pg_engine) as setup:
         user_id, file_id = _ai_then_author(setup, "parallel-own-writes")
         seen = setup.get(File, file_id).content
         project_id = setup.get(File, file_id).project_id
     monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
-    ToolContext.set_context(None, user_id, project_id, None, read_snapshots={file_id: seen})
+    req_ctx = AgentRequestContext(
+        session=None, user_id=user_id, project_id=project_id, session_id=None, read_snapshots={file_id: seen}
+    )
 
     def snapshot():
-        return ToolContext.read_snapshot(file_id)
+        return req_ctx.read_snapshot(file_id)
 
     second: dict[str, object] = {}
     try:
@@ -893,16 +895,16 @@ def test_parallel_writes_to_one_file_do_not_see_each_other_as_stale(pg_engine, m
             def commit_then_run_the_second_writer():
                 original_commit()
                 if "result" not in second:
-                    second["result"] = FileEditor(second_session, user_id).edit_file(
+                    second["result"] = FileEditor(second_session, user_id, request_context=req_ctx).edit_file(
                         file_id, [{"op": "append", "text": "\n第二个并行写入。"}], read_snapshot_fn=snapshot
                     )
 
             monkeypatch.setattr(first_session, "commit", commit_then_run_the_second_writer)
-            FileEditor(first_session, user_id).edit_file(
+            FileEditor(first_session, user_id, request_context=req_ctx).edit_file(
                 file_id, [{"op": "append", "text": "\n第一个并行写入。"}], read_snapshot_fn=snapshot
             )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     assert second["result"]["mutation_applied"] is True
     with Session(pg_engine) as verify:

@@ -111,13 +111,13 @@ def _add_assistant_turn(
     return msg
 
 
-def _set_tool_context(session: Session, user: User, project: Project, *, read_snapshots: dict[str, str] | None = None):
+def _make_tool_context(session: Session, user: User, project: Project, *, read_snapshots: dict[str, str] | None = None):
     engine = session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    return mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         author_message="修改一下",
         author_steering=[],
@@ -167,7 +167,7 @@ async def test_session_carryover_unchanged_query_files_allows_fuzzy_edit(db_sess
     assert chapter.id in turn.read_snapshots
     assert chapter.id in turn.session_carried_snapshot_ids
 
-    _set_tool_context(db_session, user, project, read_snapshots=turn.read_snapshots)
+    req_ctx = _make_tool_context(db_session, user, project, read_snapshots=turn.read_snapshots)
     try:
         # 标点略不同（英文逗号/句号）：若未结转快照会被 exact_only 拒绝。
         raw = await mcp_tools.edit_file(
@@ -180,13 +180,14 @@ async def test_session_carryover_unchanged_query_files_allows_fuzzy_edit(db_sess
                         "new": "温梨收了伞。",
                     }
                 ],
-            }
+            },
+            request_context=req_ctx,
         )
         payload = json.loads(raw["content"][0]["text"])
         assert payload["status"] == "success", payload
         assert payload["data"]["details"][0]["match_mode"] == "fuzzy"
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 async def test_session_carryover_author_edit_between_turns_never_bypasses_safety(db_session, env):
@@ -275,7 +276,7 @@ async def test_session_carryover_author_edit_between_turns_never_bypasses_safety
     assert ch_created.id not in turn.read_snapshots
 
     # 未结转的文件保持 exact_only=True，模型不能借近似匹配覆盖作者刚改的句子。
-    _set_tool_context(db_session, user, project, read_snapshots=turn.read_snapshots)
+    req_ctx = _make_tool_context(db_session, user, project, read_snapshots=turn.read_snapshots)
     try:
         raw = await mcp_tools.edit_file(
             {
@@ -287,14 +288,15 @@ async def test_session_carryover_author_edit_between_turns_never_bypasses_safety
                         "new": "温梨收了伞。",
                     }
                 ],
-            }
+            },
+            request_context=req_ctx,
         )
         payload = json.loads(raw["content"][0]["text"])
         assert payload["status"] == "error"
         assert payload["error_type"] == "anchor_not_found"
         assert "query_files" in payload["error"]
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 async def test_session_carryover_mid_turn_author_edit_still_triggers_stale_content(db_session, env):
@@ -334,7 +336,7 @@ async def test_session_carryover_mid_turn_author_edit_still_triggers_stale_conte
     )
     assert chapter.id in turn.read_snapshots
 
-    _set_tool_context(db_session, user, project, read_snapshots=turn.read_snapshots)
+    req_ctx = _make_tool_context(db_session, user, project, read_snapshots=turn.read_snapshots)
     try:
         # 模拟作者在本轮生成中途修改了该文件
         chapter.content = SAMPLE_BODY.replace("数到第七条船", "数到第九条船")
@@ -346,14 +348,15 @@ async def test_session_carryover_mid_turn_author_edit_still_triggers_stale_conte
             {
                 "id": chapter.id,
                 "edits": [{"op": "replace", "old": "雨下了一整夜", "new": "雨停了"}],
-            }
+            },
+            request_context=req_ctx,
         )
         payload = json.loads(raw["content"][0]["text"])
         assert payload["status"] == "error"
         assert payload["error_type"] == "stale_content"
         assert "第九条船" in payload["error"]
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 def test_session_carryover_unchanged_streamed_write_chapter_and_compaction_boundary(db_session, env):
@@ -489,14 +492,14 @@ def test_session_carryover_single_batched_select_and_cap_and_drop_on_compaction(
     assert focus.id not in turn.session_carried_snapshot_ids
     assert len(turn.session_carried_snapshot_ids) == SESSION_SNAPSHOT_MAX_FILES
 
-    _set_tool_context(db_session, user, project, read_snapshots=turn.read_snapshots)
+    req_ctx = _make_tool_context(db_session, user, project, read_snapshots=turn.read_snapshots)
     try:
-        mcp_tools.ToolContext.drop_initial_read_snapshots(turn.session_carried_snapshot_ids)
-        assert mcp_tools.ToolContext.has_seen_file(focus.id) is True
+        req_ctx.drop_initial_read_snapshots(turn.session_carried_snapshot_ids)
+        assert req_ctx.has_seen_file(focus.id) is True
         for carried_id in turn.session_carried_snapshot_ids:
-            assert mcp_tools.ToolContext.has_seen_file(carried_id) is False
+            assert req_ctx.has_seen_file(carried_id) is False
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 def test_session_carryover_ignores_partial_or_truncated_reads(db_session, env):
@@ -579,11 +582,11 @@ async def test_query_files_batch_ids_single_sql_preserves_order_and_tracks_snaps
         if lower.lstrip().startswith("select") and re.search(r"\bfrom\s+\"?file\"?\b", lower):
             file_selects.append(statement)
 
-    _set_tool_context(db_session, user, project, read_snapshots={})
+    req_ctx = _make_tool_context(db_session, user, project, read_snapshots={})
     engine = db_session.get_bind()
     event.listen(engine, "before_cursor_execute", _on_sql)
     try:
-        raw = await mcp_tools.query_files({"ids": requested})
+        raw = await mcp_tools.query_files({"ids": requested}, request_context=req_ctx)
         payload = json.loads(raw["content"][0]["text"])
         assert payload["status"] == "success", payload
         assert "missing_ids" not in payload
@@ -593,13 +596,13 @@ async def test_query_files_batch_ids_single_sql_preserves_order_and_tracks_snaps
         assert len(file_selects) == 1
 
         # 促进待生效读取后，每个返回的文件都已登记进 _ReadSnapshots，可做模糊 edit_file。
-        mcp_tools.ToolContext.promote_pending_reads()
+        req_ctx.promote_pending_reads()
         for f in (f1, f2, f3, f4):
-            assert mcp_tools.ToolContext.has_seen_file(f.id) is True
-            assert mcp_tools.ToolContext.read_snapshot(f.id) == f.content
+            assert req_ctx.has_seen_file(f.id) is True
+            assert req_ctx.read_snapshot(f.id) == f.content
     finally:
         event.remove(engine, "before_cursor_execute", _on_sql)
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 async def test_query_files_batch_ids_dedupe_cap_missing_and_cross_project_isolation(db_session, env):
@@ -608,11 +611,12 @@ async def test_query_files_batch_ids_dedupe_cap_missing_and_cross_project_isolat
     other_file = _make_file(db_session, other_project, title="他山私密文件", content="绝不能泄露")
     deleted_file = _make_file(db_session, project, title="已删文件", content="已删除内容", is_deleted=True)
 
-    _set_tool_context(db_session, user, project, read_snapshots={})
+    req_ctx = _make_tool_context(db_session, user, project, read_snapshots={})
     try:
         # 1) 去重后正好 5 个：不截断
         dedupe_raw = await mcp_tools.query_files(
-            {"ids": [files[0].id, files[1].id, files[0].id, files[2].id, files[3].id, files[4].id, files[1].id]}
+            {"ids": [files[0].id, files[1].id, files[0].id, files[2].id, files[3].id, files[4].id, files[1].id]},
+            request_context=req_ctx,
         )
         dedupe_payload = json.loads(dedupe_raw["content"][0]["text"])
         assert dedupe_payload["status"] == "success"
@@ -620,7 +624,7 @@ async def test_query_files_batch_ids_dedupe_cap_missing_and_cross_project_isolat
         assert "truncated_ids" not in dedupe_payload
 
         # 2) 超过 5 个唯一 ID：截断到前 5 个并报告 truncated_ids
-        cap_raw = await mcp_tools.query_files({"ids": [f.id for f in files]})
+        cap_raw = await mcp_tools.query_files({"ids": [f.id for f in files]}, request_context=req_ctx)
         cap_payload = json.loads(cap_raw["content"][0]["text"])
         assert cap_payload["status"] == "success"
         assert [r["id"] for r in cap_payload["data"]] == [files[i].id for i in range(5)]
@@ -629,7 +633,8 @@ async def test_query_files_batch_ids_dedupe_cap_missing_and_cross_project_isolat
 
         # 3) 跨项目隔离 + 已删除 + 不存在：仅返回本项目存活文件，其余进 missing_ids
         iso_raw = await mcp_tools.query_files(
-            {"ids": [files[0].id, other_file.id, deleted_file.id, "nonexistent-id"]}
+            {"ids": [files[0].id, other_file.id, deleted_file.id, "nonexistent-id"]},
+            request_context=req_ctx,
         )
         iso_payload = json.loads(iso_raw["content"][0]["text"])
         assert iso_payload["status"] == "success"
@@ -638,29 +643,29 @@ async def test_query_files_batch_ids_dedupe_cap_missing_and_cross_project_isolat
         assert "绝不能泄露" not in iso_raw["content"][0]["text"]
 
         # 4) 全部缺失 / 跨项目：返回 files_not_found 错误
-        none_raw = await mcp_tools.query_files({"ids": [other_file.id, "missing-x"]})
+        none_raw = await mcp_tools.query_files({"ids": [other_file.id, "missing-x"]}, request_context=req_ctx)
         none_payload = json.loads(none_raw["content"][0]["text"])
         assert none_payload["status"] == "error"
         assert none_payload["error_type"] == "files_not_found"
         assert none_payload["missing_ids"] == [other_file.id, "missing-x"]
 
         # 5) 校验错误：空列表、非列表、多 id 带范围参数
-        empty_payload = json.loads((await mcp_tools.query_files({"ids": []}))["content"][0]["text"])
+        empty_payload = json.loads((await mcp_tools.query_files({"ids": []}, request_context=req_ctx))["content"][0]["text"])
         assert empty_payload["status"] == "error"
-        bad_type_payload = json.loads((await mcp_tools.query_files({"ids": "not-a-list"}))["content"][0]["text"])
+        bad_type_payload = json.loads((await mcp_tools.query_files({"ids": "not-a-list"}, request_context=req_ctx))["content"][0]["text"])
         assert bad_type_payload["status"] == "error"
         range_payload = json.loads(
-            (await mcp_tools.query_files({"ids": [files[0].id, files[1].id], "tail_chars": 10}))["content"][0]["text"]
+            (await mcp_tools.query_files({"ids": [files[0].id, files[1].id], "tail_chars": 10}, request_context=req_ctx))["content"][0]["text"]
         )
         assert range_payload["status"] == "error"
 
         # 6) 向后兼容：单个 id 行为不变（含未找到返回空 data）
-        single_ok = json.loads((await mcp_tools.query_files({"id": files[0].id}))["content"][0]["text"])
+        single_ok = json.loads((await mcp_tools.query_files({"id": files[0].id}, request_context=req_ctx))["content"][0]["text"])
         assert single_ok["status"] == "success" and [r["id"] for r in single_ok["data"]] == [files[0].id]
-        single_miss = json.loads((await mcp_tools.query_files({"id": "missing-only"}))["content"][0]["text"])
+        single_miss = json.loads((await mcp_tools.query_files({"id": "missing-only"}, request_context=req_ctx))["content"][0]["text"])
         assert single_miss["status"] == "success" and single_miss["data"] == []
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 async def test_query_files_batch_truncated_oversize_does_not_record_snapshots(db_session, env, monkeypatch):
@@ -669,14 +674,14 @@ async def test_query_files_batch_truncated_oversize_does_not_record_snapshots(db
     f2 = _make_file(db_session, project, title="长文件二", content="乙" * 400)
     monkeypatch.setattr(mcp_tools, "TOOL_RESULT_MAX_CHARS", 300)
 
-    _set_tool_context(db_session, user, project, read_snapshots={})
+    req_ctx = _make_tool_context(db_session, user, project, read_snapshots={})
     try:
-        await mcp_tools.query_files({"ids": [f1.id, f2.id]})
-        mcp_tools.ToolContext.promote_pending_reads()
-        assert mcp_tools.ToolContext.has_seen_file(f1.id) is False
-        assert mcp_tools.ToolContext.has_seen_file(f2.id) is False
+        await mcp_tools.query_files({"ids": [f1.id, f2.id]}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
+        assert req_ctx.has_seen_file(f1.id) is False
+        assert req_ctx.has_seen_file(f2.id) is False
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 def test_repeat_read_guard_tracks_batch_ids_per_file_and_shares_key_with_single_id():

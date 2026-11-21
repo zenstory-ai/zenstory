@@ -1,16 +1,20 @@
 """单循环 agent 一轮里用到的收尾说明、插话追加轮提示、正文字数与事件整理。"""
 
+from __future__ import annotations
+
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from agent.constants import CONTENT_FILE_TYPES
 from agent.core.author_facing_text import AgentTextShaper
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.openai_agents.events import parse_mcp_tool_payload
-from agent.tools.mcp_tools import ToolContext
 from utils.logger import get_logger
 from utils.text_metrics import count_words
+
+if TYPE_CHECKING:
+    from agent.tools.tool_context import AgentRequestContext
 
 logger = get_logger(__name__)
 
@@ -75,9 +79,13 @@ def _ai_messages_left_today(user_id: str) -> bool | None:
         return None
 
 
-async def wrap_up_text(english: bool) -> str:
+async def wrap_up_text(
+    english: bool,
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> str:
     """收尾说明：确知今天的消息已用完时不叫作者回复「继续」；读不到额度时保持原说明。"""
-    user_id = ToolContext.get_user_id()
+    user_id = request_context.user_id if request_context is not None else None
     messages_left = await asyncio.to_thread(_ai_messages_left_today, user_id) if user_id else None
     if messages_left is False:
         return WRAP_UP_TEXT_NO_MESSAGES_LEFT_EN if english else WRAP_UP_TEXT_NO_MESSAGES_LEFT
@@ -92,17 +100,21 @@ _BODY_WORD_COUNT_NOTE = (
 )
 
 
-def collect_body_word_counts(file_ids: list[str]) -> list[tuple[str, int]] | None:
+def collect_body_word_counts(
+    file_ids: list[str],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> list[tuple[str, int]] | None:
     """本请求写过的正文类文件（draft / script）落库后的编辑器字数，按写入顺序。"""
-    project_id = ToolContext.get_project_id()
-    if not project_id or not file_ids:
+    project_id = request_context.project_id if request_context is not None else None
+    if not project_id or not file_ids or request_context is None:
         return None
 
     from sqlmodel import select
 
     from models import File
 
-    with ToolContext.short_lived_session() as session:
+    with request_context.session_scope() as session:
         rows = session.exec(
             select(File.id, File.title, File.content).where(
                 File.project_id == project_id,
@@ -115,15 +127,20 @@ def collect_body_word_counts(file_ids: list[str]) -> list[tuple[str, int]] | Non
     return [by_id[file_id] for file_id in file_ids if file_id in by_id] or None
 
 
-def read_body_tail(file_id: str, chars: int) -> tuple[str, str] | None:
+def read_body_tail(
+    file_id: str,
+    chars: int,
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> tuple[str, str] | None:
     """这个文件落库后的（标题，正文最后 chars 个字符）；文件不在当前作品里时返回 None。"""
-    project_id = ToolContext.get_project_id()
-    if not project_id or not file_id:
+    project_id = request_context.project_id if request_context is not None else None
+    if not project_id or not file_id or request_context is None:
         return None
 
     from models import File
 
-    with ToolContext.short_lived_session() as session:
+    with request_context.session_scope() as session:
         file = session.get(File, file_id)
         if file is None or file.project_id != project_id or file.is_deleted:
             return None

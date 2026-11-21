@@ -34,11 +34,14 @@ def _file(session, project, title, content=LONG_BODY, **kwargs):
 
 async def _rename(session, user, project, args):
     engine = session.get_bind()
-    mcp_tools.ToolContext.set_context(None, user.id, project.id, None, create_session_func=lambda: Session(engine))
-    try:
-        raw = await mcp_tools.rename_file(args)
-    finally:
-        mcp_tools.ToolContext.clear_context()
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
+        create_session_func=lambda: Session(engine),
+    )
+    raw = await mcp_tools.rename_file(args, request_context=req_ctx)
     return json.loads(raw["content"][0]["text"])
 
 

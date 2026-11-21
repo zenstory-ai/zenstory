@@ -6,9 +6,10 @@ from unittest.mock import patch
 import pytest
 from sqlmodel import Session
 
+from agent.core.request_context import AgentRequestContext
 from agent.skills.content_budget import SKILL_CONTENT_TOKEN_BUDGET
 from agent.skills.context_injector import SkillContextInjector
-from agent.tools.mcp_tools import ToolContext, load_skill, read_skill_resource
+from agent.tools.mcp_tools import load_skill, read_skill_resource
 from agent.tools.registry import get_exposed_tools
 from agent.tools.tool_schemas import TOOL_SCHEMAS
 from agent.utils.token_utils import estimate_text_tokens
@@ -44,14 +45,15 @@ def project(db_session: Session, owner: User) -> Project:
 
 
 @pytest.fixture
-def tool_context(db_session: Session, owner: User, project: Project):
-    ToolContext.set_context(
+def tool_context(db_session: Session, owner: User, project: Project) -> AgentRequestContext:
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=owner.id,
         project_id=project.id,
         session_id=None,
     )
-    yield
+    yield req_ctx
+    req_ctx.clear()
 
 
 def _payload(result: dict) -> dict:
@@ -89,7 +91,7 @@ async def test_load_skill_returns_instructions_resources(
     db_session.commit()
 
     with patch.object(Session, "commit", autospec=True) as commit:
-        payload = _payload(await load_skill({"name": "悬念大师"}))
+        payload = _payload(await load_skill({"name": "悬念大师"}, request_context=tool_context))
     commit.assert_not_called()
 
     assert payload == {
@@ -114,7 +116,7 @@ async def test_user_skill_takes_precedence_over_added_skill_with_same_name(
     db_session.add(user_skill)
     db_session.commit()
 
-    payload = _payload(await load_skill({"name": "同名技能"}))
+    payload = _payload(await load_skill({"name": "同名技能"}, request_context=tool_context))
 
     assert payload["data"]["skill_id"] == user_skill.id
     assert payload["data"]["instructions"] == "自建方法"
@@ -125,9 +127,9 @@ async def test_user_skill_takes_precedence_over_added_skill_with_same_name(
 async def test_added_skill_resolves_by_custom_name_and_ids(db_session: Session, owner: User, tool_context):
     public, added = _add_public(db_session, owner, "氛围渲染器", custom_name="阴影编织者")
 
-    by_name = _payload(await load_skill({"name": "阴影编织者"}))
-    by_added_id = _payload(await load_skill({"name": added.id}))
-    by_public_id = _payload(await load_skill({"name": public.id}))
+    by_name = _payload(await load_skill({"name": "阴影编织者"}, request_context=tool_context))
+    by_added_id = _payload(await load_skill({"name": added.id}, request_context=tool_context))
+    by_public_id = _payload(await load_skill({"name": public.id}, request_context=tool_context))
 
     for payload in (by_name, by_added_id, by_public_id):
         assert payload["status"] == "success"
@@ -149,7 +151,7 @@ async def test_inactive_unapproved_and_foreign_skills_are_hidden(
     _add_public(db_session, owner, "移除技能", active=False)
 
     for hidden in ("停用技能", "别人的技能", "待审技能", "移除技能"):
-        payload = _payload(await load_skill({"name": hidden}))
+        payload = _payload(await load_skill({"name": hidden}, request_context=tool_context))
         assert payload["status"] == "error"
         assert "正常技能" in payload["error"]
         assert hidden not in payload["error"].split("可用技能：", 1)[1]
@@ -161,7 +163,7 @@ async def test_unknown_skill_error_lists_at_most_ten_names(db_session: Session, 
         db_session.add(UserSkill(user_id=owner.id, name=f"技能{index:02d}", instructions="x"))
     db_session.commit()
 
-    payload = _payload(await load_skill({"name": "不存在的技能"}))
+    payload = _payload(await load_skill({"name": "不存在的技能"}, request_context=tool_context))
 
     assert payload["status"] == "error"
     listed = payload["error"].split("可用技能：", 1)[1].split("、")
@@ -170,8 +172,8 @@ async def test_unknown_skill_error_lists_at_most_ten_names(db_session: Session, 
 
 @pytest.mark.integration
 async def test_load_skill_requires_user_context(db_session: Session):
-    ToolContext.set_context(session=db_session, user_id=None, project_id="p", session_id=None)
-    payload = _payload(await load_skill({"name": "x"}))
+    req_ctx = AgentRequestContext(session=db_session, user_id=None, project_id="p", session_id=None)
+    payload = _payload(await load_skill({"name": "x"}, request_context=req_ctx))
     assert payload["status"] == "error"
 
 
@@ -183,9 +185,9 @@ async def test_read_skill_resource(db_session: Session, owner: User, tool_contex
     db_session.add(SkillResource(user_skill_id=skill.id, path="references/hooks.md", content="钩子清单", size=12))
     db_session.commit()
 
-    ok = _payload(await read_skill_resource({"name": "悬念大师", "path": "references/hooks.md"}))
-    missing = _payload(await read_skill_resource({"name": "悬念大师", "path": "references/none.md"}))
-    no_path = _payload(await read_skill_resource({"name": "悬念大师"}))
+    ok = _payload(await read_skill_resource({"name": "悬念大师", "path": "references/hooks.md"}, request_context=tool_context))
+    missing = _payload(await read_skill_resource({"name": "悬念大师", "path": "references/none.md"}, request_context=tool_context))
+    no_path = _payload(await read_skill_resource({"name": "悬念大师"}, request_context=tool_context))
 
     assert ok == {
         "status": "success",
@@ -208,7 +210,7 @@ async def test_read_skill_resource_of_added_public_skill(db_session: Session, ow
     db_session.add(SkillResource(public_skill_id=public.id, path="assets/t.json", content='{"a":1}', size=7))
     db_session.commit()
 
-    payload = _payload(await read_skill_resource({"name": "公共技能", "path": "assets/t.json"}))
+    payload = _payload(await read_skill_resource({"name": "公共技能", "path": "assets/t.json"}, request_context=tool_context))
 
     assert payload["data"]["content"] == '{"a":1}'
 
@@ -222,8 +224,8 @@ async def test_read_skill_resource_cannot_reach_foreign_skill(db_session: Sessio
     db_session.add(SkillResource(user_skill_id=foreign.id, path="references/secret.md", content="机密", size=6))
     db_session.commit()
 
-    by_name = _payload(await read_skill_resource({"name": "别人的技能", "path": "references/secret.md"}))
-    by_id = _payload(await read_skill_resource({"name": foreign.id, "path": "references/secret.md"}))
+    by_name = _payload(await read_skill_resource({"name": "别人的技能", "path": "references/secret.md"}, request_context=tool_context))
+    by_id = _payload(await read_skill_resource({"name": foreign.id, "path": "references/secret.md"}, request_context=tool_context))
 
     assert by_name["status"] == "error"
     assert by_id["status"] == "error"
@@ -238,8 +240,8 @@ async def test_repeated_load_skill_returns_same_instructions(
     db_session.add(skill)
     db_session.commit()
 
-    first = _payload(await load_skill({"name": "悬念大师"}))
-    second = _payload(await load_skill({"name": skill.id}))
+    first = _payload(await load_skill({"name": "悬念大师"}, request_context=tool_context))
+    second = _payload(await load_skill({"name": skill.id}, request_context=tool_context))
 
     assert first["status"] == second["status"] == "success"
     assert first["data"]["instructions"] == second["data"]["instructions"] == "方法"
@@ -255,9 +257,9 @@ async def test_load_skill_keeps_pending_state_of_tool_session(db_session: Sessio
     db_session.commit()
     pending = Project(name="未提交的项目", owner_id=owner.id, project_type="novel")
     db_session.add(pending)
-    ToolContext.set_context(session=db_session, user_id=owner.id, project_id=foreign_project.id, session_id=None)
+    req_ctx = AgentRequestContext(session=db_session, user_id=owner.id, project_id=foreign_project.id, session_id=None)
 
-    payload = _payload(await load_skill({"name": "悬念大师"}))
+    payload = _payload(await load_skill({"name": "悬念大师"}, request_context=req_ctx))
 
     assert payload["status"] == "success"
     assert pending in db_session.new
@@ -271,7 +273,7 @@ async def test_read_skill_resource_normalizes_path_to_nfc(db_session: Session, o
     db_session.add(SkillResource(user_skill_id=skill.id, path="references/café.md", content="C", size=1))
     db_session.commit()
 
-    payload = _payload(await read_skill_resource({"name": "悬念大师", "path": "references/café.md"}))
+    payload = _payload(await read_skill_resource({"name": "悬念大师", "path": "references/café.md"}, request_context=tool_context))
 
     assert payload["status"] == "success"
     assert payload["data"]["content"] == "C"
@@ -293,9 +295,9 @@ async def test_same_name_skills_are_listed_with_ids_and_loadable_by_id(
     db_session.commit()
 
     catalog = SkillContextInjector().build_skill_catalog(db_session, owner.id)
-    by_name = _payload(await load_skill({"name": "续写"}))
-    by_public_id = _payload(await load_skill({"name": public.id}))
-    resource_by_id = _payload(await read_skill_resource({"name": public.id, "path": "SKILL.md"}))
+    by_name = _payload(await load_skill({"name": "续写"}, request_context=tool_context))
+    by_public_id = _payload(await load_skill({"name": public.id}, request_context=tool_context))
+    resource_by_id = _payload(await read_skill_resource({"name": public.id, "path": "SKILL.md"}, request_context=tool_context))
 
     assert f"**续写** (id: {user_skill.id})" in catalog
     assert f"**续写** (id: {public.id})" in catalog
@@ -324,7 +326,7 @@ async def test_load_skill_truncates_long_instructions_and_reads_rest_in_segments
     db_session.add(skill)
     db_session.commit()
 
-    loaded = _payload(await load_skill({"name": "长技能"}))["data"]
+    loaded = _payload(await load_skill({"name": "长技能"}, request_context=tool_context))["data"]
 
     assert loaded["truncated"] is True
     assert estimate_text_tokens(loaded["instructions"]) <= SKILL_CONTENT_TOKEN_BUDGET
@@ -338,7 +340,7 @@ async def test_load_skill_truncates_long_instructions_and_reads_rest_in_segments
     delivered = estimate_text_tokens(loaded["instructions"])
     offset = loaded["next_offset"]
     for _ in range(20):
-        result = _payload(await read_skill_resource({"name": skill.id, "path": "SKILL.md", "offset": offset}))
+        result = _payload(await read_skill_resource({"name": skill.id, "path": "SKILL.md", "offset": offset}, request_context=tool_context))
         if result["status"] == "error":
             break
         assert result["data"]["offset"] == offset
@@ -349,10 +351,10 @@ async def test_load_skill_truncates_long_instructions_and_reads_rest_in_segments
     assert delivered <= SKILL_CONTENT_TOKEN_BUDGET
 
     # 新的一次请求（新的上下文）从 next_offset 续读，得到紧接着的下一段
-    ToolContext.set_context(session=db_session, user_id=owner.id, project_id="p", session_id=None)
+    fresh_ctx = AgentRequestContext(session=db_session, user_id=owner.id, project_id="p", session_id=None)
     rest = _payload(await read_skill_resource({
         "name": skill.id, "path": "SKILL.md", "offset": loaded["next_offset"],
-    }))["data"]
+    }, request_context=fresh_ctx))["data"]
     assert rest["offset"] == loaded["next_offset"]
     assert instructions[loaded["next_offset"]:].startswith(rest["content"])
     assert estimate_text_tokens(rest["content"]) <= SKILL_CONTENT_TOKEN_BUDGET
@@ -364,7 +366,7 @@ async def test_skill_budget_is_shared_with_selected_skills(db_session: Session, 
     skill = UserSkill(user_id=owner.id, name="长技能", instructions=_long_text(30_000))
     db_session.add(skill)
     db_session.commit()
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=owner.id,
         project_id=project.id,
@@ -372,7 +374,7 @@ async def test_skill_budget_is_shared_with_selected_skills(db_session: Session, 
         skill_tokens_used=SKILL_CONTENT_TOKEN_BUDGET - 1_000,
     )
 
-    loaded = _payload(await load_skill({"name": "长技能"}))["data"]
+    loaded = _payload(await load_skill({"name": "长技能"}, request_context=req_ctx))["data"]
 
     assert loaded["truncated"] is True
     assert estimate_text_tokens(loaded["instructions"]) <= 1_000
@@ -383,8 +385,8 @@ async def test_read_skill_resource_rejects_bad_offset(db_session: Session, owner
     db_session.add(UserSkill(user_id=owner.id, name="悬念大师", instructions="方法"))
     db_session.commit()
 
-    negative_text = _payload(await read_skill_resource({"name": "悬念大师", "path": "SKILL.md", "offset": "abc"}))
-    past_end = _payload(await read_skill_resource({"name": "悬念大师", "path": "SKILL.md", "offset": 99}))
+    negative_text = _payload(await read_skill_resource({"name": "悬念大师", "path": "SKILL.md", "offset": "abc"}, request_context=tool_context))
+    past_end = _payload(await read_skill_resource({"name": "悬念大师", "path": "SKILL.md", "offset": 99}, request_context=tool_context))
 
     assert negative_text["status"] == "error"
     assert past_end["status"] == "error"
@@ -403,8 +405,8 @@ async def test_load_skill_gets_full_text_of_added_official_skill(db_session: Ses
     db_session.add(SkillResource(public_skill_id=public.id, path="references/beats.md", content="节拍表", size=9))
     db_session.commit()
 
-    loaded = _payload(await load_skill({"name": "官方节奏"}))
-    resource = _payload(await read_skill_resource({"name": "官方节奏", "path": "references/beats.md"}))
+    loaded = _payload(await load_skill({"name": "官方节奏"}, request_context=tool_context))
+    resource = _payload(await read_skill_resource({"name": "官方节奏", "path": "references/beats.md"}, request_context=tool_context))
 
     assert loaded["data"]["instructions"] == "官方完整方法：先压后扬。"
     assert loaded["data"]["resources"] == [{"path": "references/beats.md", "size": 9}]
@@ -421,17 +423,17 @@ async def test_load_skill_caps_distinct_skills_per_request(db_session: Session, 
     db_session.commit()
 
     for name in names[:MAX_LOADED_SKILLS_PER_REQUEST]:
-        assert _payload(await load_skill({"name": name}))["status"] == "success"
+        assert _payload(await load_skill({"name": name}, request_context=tool_context))["status"] == "success"
     # 已加载过的技能重复加载、续读不另计
-    assert _payload(await load_skill({"name": names[0]}))["status"] == "success"
-    assert _payload(await read_skill_resource({"name": names[1], "path": "SKILL.md"}))["status"] == "success"
+    assert _payload(await load_skill({"name": names[0]}, request_context=tool_context))["status"] == "success"
+    assert _payload(await read_skill_resource({"name": names[1], "path": "SKILL.md"}, request_context=tool_context))["status"] == "success"
 
-    over = _payload(await load_skill({"name": names[-1]}))
-    over_read = _payload(await read_skill_resource({"name": names[-1], "path": "SKILL.md"}))
+    over = _payload(await load_skill({"name": names[-1]}, request_context=tool_context))
+    over_read = _payload(await read_skill_resource({"name": names[-1], "path": "SKILL.md"}, request_context=tool_context))
     for result in (over, over_read):
         assert result["status"] == "error"
         assert str(MAX_LOADED_SKILLS_PER_REQUEST) in result["error"] and names[-1] in result["error"]
 
     # 新的一轮请求重新计数
-    ToolContext.set_context(session=db_session, user_id=owner.id, project_id=None, session_id=None)
-    assert _payload(await load_skill({"name": names[-1]}))["status"] == "success"
+    fresh_ctx = AgentRequestContext(session=db_session, user_id=owner.id, project_id=None, session_id=None)
+    assert _payload(await load_skill({"name": names[-1]}, request_context=fresh_ctx))["status"] == "success"

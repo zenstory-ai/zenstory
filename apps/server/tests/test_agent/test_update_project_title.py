@@ -30,19 +30,16 @@ RENAME_ASK = "把项目名改成《雾港来信》"
 
 async def _update_project(session, user, project, args, *, author_message=None, author_steering=None):
     engine = session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         author_message=author_message,
         author_steering=author_steering,
     )
-    try:
-        raw = await mcp_tools.update_project(args)
-    finally:
-        mcp_tools.ToolContext.clear_context()
+    raw = await mcp_tools.update_project(args, request_context=req_ctx)
     return json.loads(raw["content"][0]["text"])
 
 

@@ -235,7 +235,7 @@ def test_attach_author_edits_for_agent_discloses_incomplete_on_error(
         raise RuntimeError("blame query exploded")
 
     monkeypatch.setattr("agent.tools.author_changes.author_changes", boom_author_changes)
-    mcp_tools.ToolContext.set_context(
+    req_ctx = mcp_tools.AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
@@ -244,9 +244,9 @@ def test_attach_author_edits_for_agent_discloses_incomplete_on_error(
     )
     try:
         row: dict = {"id": file.id}
-        attach_author_edits_for_agent(db_session, file, row)
+        attach_author_edits_for_agent(db_session, file, row, request_context=req_ctx)
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
     assert row["author_edits"] == {
         "note": "作者手改没算出来，改之前请核对全文。",
@@ -372,20 +372,20 @@ async def test_agent_service_shared_session_helpers_rollback_on_db_error() -> No
 
 
 def test_short_lived_session_rolls_back_shared_session_on_exception() -> None:
-    """ToolContext.short_lived_session must rollback a shared session when the body raises."""
+    """AgentRequestContext.session_scope must rollback a shared session when the body raises."""
     fake_session = MagicMock(spec=Session)
-    mcp_tools.ToolContext.set_context(
+    req_ctx = mcp_tools.AgentRequestContext(
         session=fake_session,
         user_id="u1",
         project_id="p1",
         session_id="s1",
     )
     try:
-        with pytest.raises(RuntimeError, match="probe boom"), mcp_tools.ToolContext.short_lived_session() as s:
+        with pytest.raises(RuntimeError, match="probe boom"), req_ctx.session_scope() as s:
             assert s is fake_session
             raise RuntimeError("probe boom")
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
     fake_session.rollback.assert_called_once()
     fake_session.close.assert_not_called()
@@ -399,18 +399,18 @@ def test_mcp_tools_probe_queries_clean_session_on_failure(
     fake_session.in_transaction.return_value = False
     fake_session.exec.side_effect = RuntimeError("probe sql error")
 
-    mcp_tools.ToolContext.set_context(
+    req_ctx = mcp_tools.AgentRequestContext(
         session=fake_session,
         user_id="u1",
         project_id="p1",
         session_id="s1",
     )
     try:
-        mcp_tools.ToolContext.set_pending_empty_file("f1", "第1章")
-        assert mcp_tools._clear_settled_pending_empty_files() is False
+        req_ctx.set_pending_empty_file("f1", "第1章")
+        assert mcp_tools._clear_settled_pending_empty_files(fake_session, req_ctx) is False
         assert fake_session.rollback.call_count == 1
 
-        assert mcp_tools._repeat_of_pending_empty_file({"title": "第1章"}, "p1") is None
+        assert mcp_tools._repeat_of_pending_empty_file(fake_session, {"title": "第1章"}, "p1", req_ctx) is None
         assert fake_session.rollback.call_count == 2
 
         board = _InMemoryBoard()
@@ -421,8 +421,9 @@ def test_mcp_tools_probe_queries_clean_session_on_failure(
         )
         fake_session.get.side_effect = RuntimeError("auto phase sql error")
         mcp_tools._update_project_sync(
-            {"tasks": [{"task": "收集资料", "status": "in_progress"}]}
+            {"tasks": [{"task": "收集资料", "status": "in_progress"}]},
+            req_ctx,
         )
         assert fake_session.rollback.call_count == 3
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()

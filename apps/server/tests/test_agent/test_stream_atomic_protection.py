@@ -8,7 +8,7 @@ from sqlmodel import Session
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 from agent.tools.file_ops.serialization import serialize_file
-from agent.tools.mcp_tools import ToolContext
+from agent.tools.tool_context import AgentRequestContext
 from api import files as files_api
 from models import File, Project, User
 
@@ -79,17 +79,19 @@ async def test_author_save_after_capture_baseline_blocks_stream_finalization(
         )
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=None,
         user_id=user.id,
         project_id=project.id,
         session_id="stream-race",
     )
-    adapter = StreamAdapter(StreamAdapterConfig(project_id=project.id, user_id=user.id))
+    adapter = StreamAdapter(
+        StreamAdapterConfig(project_id=project.id, user_id=user.id, request_context=req_ctx)
+    )
     try:
         emitted = [event async for event in adapter.process_workflow_events(events())]
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     db_session.expire_all()
     stored = db_session.get(File, target.id)

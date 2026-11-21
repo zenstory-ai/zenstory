@@ -1167,13 +1167,13 @@ def test_an_input_the_sdk_cannot_convert_keeps_the_existing_failover(monkeypatch
 @pytest.fixture
 def request_tools():
     """A request context with the pending-file state the file_body_pending guard reads."""
-    from agent.tools.mcp_tools import ToolContext
+    from agent.core.request_context import AgentRequestContext
 
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
-        yield ToolContext
+        yield req_ctx
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
 
 def _settings(tool_choice=None):
@@ -1349,8 +1349,8 @@ async def test_pending_body_guard_and_stop_hook_enforce_two_reply_protocol_witho
             {"id": "call_rogue", "type": "function", "function": {"name": "query_files", "arguments": "{}"}},
         ],
     })
-    hooks = build_agent_run_hooks("MiniMax-M3.1-Flash")
-    result = await Runner.run(agent, "写第一章正文", hooks=hooks)
+    hooks = build_agent_run_hooks("MiniMax-M3.1-Flash", request_context=request_tools)
+    result = await Runner.run(agent, "写第一章正文", context=request_tools, hooks=hooks)
 
     # Only 1 model call happened: _stop_run_after_tools synchronously ended the run after rejection.
     assert len(requests) == 1

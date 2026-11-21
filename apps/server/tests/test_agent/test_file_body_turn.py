@@ -1,11 +1,13 @@
 """Two-reply file protocol: the reply after create_file streams the body before any other tool."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
+from agents import RunContextWrapper
 
+from agent.core.request_context import AgentRequestContext
 from agent.openai_agents.tools_adapter import build_agent_function_tools
-from agent.tools.mcp_tools import ToolContext
 
 pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 
@@ -25,26 +27,27 @@ def tools(monkeypatch):
         "agent.openai_agents.tools_adapter.TOOL_FUNCTIONS",
         {name: fake(name) for name in ("create_file", "update_project", "edit_file", "delete_file", "query_files")},
     )
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
-        yield {tool.name: tool for tool in build_agent_function_tools()}, executed
+        yield {tool.name: tool for tool in build_agent_function_tools()}, executed, req_ctx
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
 
-async def _call(tool, args="{}") -> dict:
-    return json.loads(await tool.on_invoke_tool(None, args))
+async def _call(tool, req_ctx: AgentRequestContext, args="{}") -> dict:
+    tool_ctx = SimpleNamespace(context=req_ctx, tool_call_id="call-test")
+    return json.loads(await tool.on_invoke_tool(tool_ctx, args))
 
 
 async def test_reply_that_skips_the_body_cannot_call_other_tools(tools):
-    by_name, executed = tools
-    ToolContext.begin_model_reply()
-    ToolContext.set_pending_empty_file("f1", "第一章", "v1")  # reply 1 ends with create_file
-    ToolContext.begin_model_reply()  # reply 2 calls tools instead of streaming <file>
+    by_name, executed, req_ctx = tools
+    req_ctx.begin_model_reply()
+    req_ctx.set_pending_empty_file("f1", "第一章", "v1")  # reply 1 ends with create_file
+    req_ctx.begin_model_reply()  # reply 2 calls tools instead of streaming <file>
 
-    refused = await _call(by_name["update_project"])
-    edit = await _call(by_name["edit_file"], '{"id": "f1", "edits": []}')
-    await _call(by_name["delete_file"], '{"id": "f1"}')
+    refused = await _call(by_name["update_project"], req_ctx)
+    edit = await _call(by_name["edit_file"], req_ctx, '{"id": "f1", "edits": []}')
+    await _call(by_name["delete_file"], req_ctx, '{"id": "f1"}')
 
     assert refused["error_type"] == "file_body_pending" and "第一章" in refused["error"]
     assert edit["error_type"] == "file_body_pending"
@@ -53,24 +56,24 @@ async def test_reply_that_skips_the_body_cannot_call_other_tools(tools):
 
 async def test_body_then_next_create_file_in_the_same_reply_keeps_the_run_going(tools):
     """Bulk writing chains <file>chapter N</file> + create_file(chapter N+1) in one reply."""
-    by_name, executed = tools
-    ToolContext.begin_model_reply()
-    ToolContext.set_pending_empty_file("f1", "第一章")
-    ToolContext.begin_model_reply()
-    ToolContext.mark_latest_pending_body_streamed()  # on_llm_end saw the closed <file> block
+    by_name, executed, req_ctx = tools
+    req_ctx.begin_model_reply()
+    req_ctx.set_pending_empty_file("f1", "第一章")
+    req_ctx.begin_model_reply()
+    req_ctx.mark_latest_pending_body_streamed()  # on_llm_end saw the closed <file> block
 
-    result = await _call(by_name["create_file"], '{"title": "第二章"}')
+    result = await _call(by_name["create_file"], req_ctx, '{"title": "第二章"}')
 
     assert result["status"] == "success"
     assert executed == ["create_file"]
 
 
 async def test_tools_in_the_reply_that_creates_the_file_still_run(tools):
-    by_name, executed = tools
-    ToolContext.begin_model_reply()
-    ToolContext.set_pending_empty_file("f1", "第一章")
+    by_name, executed, req_ctx = tools
+    req_ctx.begin_model_reply()
+    req_ctx.set_pending_empty_file("f1", "第一章")
 
-    assert (await _call(by_name["update_project"]))["status"] == "success"
+    assert (await _call(by_name["update_project"], req_ctx))["status"] == "success"
     assert executed == ["update_project"]
 
 
@@ -79,11 +82,11 @@ async def test_tools_in_the_reply_that_creates_the_file_still_run(tools):
 # ---------------------------------------------------------------------------
 
 
-def _overdue(file_id: str = "f1", title: str = "第一章", version: str | None = "v1") -> None:
+def _overdue(req_ctx: AgentRequestContext, file_id: str = "f1", title: str = "第一章", version: str | None = "v1") -> None:
     """version：create_file 新建时记下的版本；复用已有剧集时为 None。"""
-    ToolContext.begin_model_reply()
-    ToolContext.set_pending_empty_file(file_id, title, version)  # reply 1 ends with create_file
-    ToolContext.begin_model_reply()  # reply 2 calls tools instead of streaming <file>
+    req_ctx.begin_model_reply()
+    req_ctx.set_pending_empty_file(file_id, title, version)  # reply 1 ends with create_file
+    req_ctx.begin_model_reply()  # reply 2 calls tools instead of streaming <file>
 
 
 @pytest.mark.parametrize(
@@ -98,10 +101,10 @@ def _overdue(file_id: str = "f1", title: str = "第一章", version: str | None 
     ],
 )
 async def test_overdue_body_refuses_every_delete_but_the_exact_pending_file(tools, args):
-    by_name, executed = tools
-    _overdue()
+    by_name, executed, req_ctx = tools
+    _overdue(req_ctx)
 
-    refused = await _call(by_name["delete_file"], args)
+    refused = await _call(by_name["delete_file"], req_ctx, args)
 
     assert refused["error_type"] == "file_body_pending"
     assert executed == []
@@ -109,20 +112,20 @@ async def test_overdue_body_refuses_every_delete_but_the_exact_pending_file(tool
 
 @pytest.mark.parametrize("args", ['{"id": "f1"}', '{"id": "f1", "recursive": false}', '{"id": "f1", "recursive": "false"}'])
 async def test_overdue_body_still_lets_the_model_cancel_that_exact_file(tools, args):
-    by_name, executed = tools
-    _overdue()
+    by_name, executed, req_ctx = tools
+    _overdue(req_ctx)
 
-    assert (await _call(by_name["delete_file"], args))["status"] == "success"
+    assert (await _call(by_name["delete_file"], req_ctx, args))["status"] == "success"
     assert executed == ["delete_file"]
 
 
 async def test_a_cancel_that_really_deleted_the_file_settles_the_guard_for_the_rest_of_the_run(monkeypatch, tools):
-    by_name, executed = tools
-    _overdue()
+    by_name, executed, req_ctx = tools
+    _overdue(req_ctx)
 
-    await _call(by_name["delete_file"], '{"id": "f1"}')
+    await _call(by_name["delete_file"], req_ctx, '{"id": "f1"}')
     # 假的 delete_file 没有 mutation_applied：没确认删掉，守卫不动
-    assert ToolContext.overdue_file_bodies() != []
+    assert req_ctx.overdue_file_bodies() != []
 
     async def really_deletes(_args):
         executed.append("delete_file")
@@ -131,37 +134,37 @@ async def test_a_cancel_that_really_deleted_the_file_settles_the_guard_for_the_r
     from agent.openai_agents import tools_adapter
 
     monkeypatch.setitem(tools_adapter.TOOL_FUNCTIONS, "delete_file", really_deletes)
-    await _call(by_name["delete_file"], '{"id": "f1"}')
-    assert ToolContext.overdue_file_bodies() == []
-    assert (await _call(by_name["create_file"], '{"title": "第二章"}'))["status"] == "success"
+    await _call(by_name["delete_file"], req_ctx, '{"id": "f1"}')
+    assert req_ctx.overdue_file_bodies() == []
+    assert (await _call(by_name["create_file"], req_ctx, '{"title": "第二章"}'))["status"] == "success"
     assert executed == ["delete_file", "delete_file", "create_file"]
 
 
 async def test_a_reused_existing_episode_cannot_be_deleted_as_a_cancel(tools):
     """复用的已有剧集（没有本请求的建好版本）可能已有正文：精确 id 也不放行删除。"""
-    by_name, executed = tools
-    _overdue(version=None)
+    by_name, executed, req_ctx = tools
+    _overdue(req_ctx, version=None)
 
-    assert (await _call(by_name["delete_file"], '{"id": "f1"}'))["error_type"] == "file_body_pending"
+    assert (await _call(by_name["delete_file"], req_ctx, '{"id": "f1"}'))["error_type"] == "file_body_pending"
     assert executed == []
 
 
 async def test_overdue_body_cancel_matches_any_overdue_file_not_only_the_first(tools):
-    by_name, executed = tools
-    ToolContext.begin_model_reply()
-    ToolContext.set_pending_empty_file("f1", "第一章", "v1")
-    ToolContext.set_pending_empty_file("f2", "第二章", "v2")
-    ToolContext.begin_model_reply()
+    by_name, executed, req_ctx = tools
+    req_ctx.begin_model_reply()
+    req_ctx.set_pending_empty_file("f1", "第一章", "v1")
+    req_ctx.set_pending_empty_file("f2", "第二章", "v2")
+    req_ctx.begin_model_reply()
 
-    assert (await _call(by_name["delete_file"], '{"id": "f2"}'))["status"] == "success"
+    assert (await _call(by_name["delete_file"], req_ctx, '{"id": "f2"}'))["status"] == "success"
     assert executed == ["delete_file"]
 
 
 async def test_deletes_without_an_overdue_body_are_unchanged(tools):
-    by_name, executed = tools
-    ToolContext.begin_model_reply()
+    by_name, executed, req_ctx = tools
+    req_ctx.begin_model_reply()
 
-    assert (await _call(by_name["delete_file"], '{"id": "folder-1", "recursive": true}'))["status"] == "success"
+    assert (await _call(by_name["delete_file"], req_ctx, '{"id": "folder-1", "recursive": true}'))["status"] == "success"
     assert executed == ["delete_file"]
 
 
@@ -177,7 +180,7 @@ async def test_overdue_refusal_is_counted_once_in_the_run_summary_without_a_tool
 
     meter = AgentRunMeter()
     breaker = ToolFailureBreaker()
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
         with pytest.MonkeyPatch.context() as patcher:
             patcher.setattr("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"update_project": fake})
@@ -185,10 +188,10 @@ async def test_overdue_refusal_is_counted_once_in_the_run_summary_without_a_tool
                 tool.name: tool
                 for tool in build_agent_function_tools(failure_breaker=breaker, run_meter=meter)
             }
-            _overdue()
-            refused = await _call(by_name["update_project"])
+            _overdue(req_ctx)
+            refused = await _call(by_name["update_project"], req_ctx)
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     assert refused["error_type"] == "file_body_pending"
     assert executed == []
@@ -207,8 +210,6 @@ async def test_overdue_refusal_is_counted_once_in_the_run_summary_without_a_tool
 
 
 def _result(name: str, payload: dict) -> object:
-    from types import SimpleNamespace
-
     return SimpleNamespace(tool=SimpleNamespace(name=name), output=json.dumps(payload, ensure_ascii=False))
 
 
@@ -218,8 +219,9 @@ PENDING_REFUSAL = {"status": "error", "error_type": "file_body_pending", "error"
 async def test_run_ends_after_a_structured_pending_refusal_while_the_body_is_still_overdue(tools):
     from agent.openai_agents.runner import _stop_run_after_tools
 
-    _overdue()
-    decision = _stop_run_after_tools(None, [_result("create_file", PENDING_REFUSAL)])
+    _by_name, _executed, req_ctx = tools
+    _overdue(req_ctx)
+    decision = _stop_run_after_tools(RunContextWrapper(req_ctx), [_result("create_file", PENDING_REFUSAL)])
 
     assert decision.is_final_output is True
     assert decision.final_output == ""
@@ -229,11 +231,12 @@ async def test_run_keeps_going_without_a_trusted_overdue_body(tools):
     """只认结构化错误码 + 当前仍可信的待补状态：没有待补条目时同样的结果不结束 run。"""
     from agent.openai_agents.runner import _stop_run_after_tools
 
-    ToolContext.begin_model_reply()
-    assert _stop_run_after_tools(None, [_result("create_file", PENDING_REFUSAL)]).is_final_output is False
+    _by_name, _executed, req_ctx = tools
+    req_ctx.begin_model_reply()
+    assert _stop_run_after_tools(RunContextWrapper(req_ctx), [_result("create_file", PENDING_REFUSAL)]).is_final_output is False
     other_error = {"status": "error", "error_type": "anchor_not_found", "error": "file_body_pending"}
-    _overdue()
-    assert _stop_run_after_tools(None, [_result("edit_file", other_error)]).is_final_output is False
+    _overdue(req_ctx)
+    assert _stop_run_after_tools(RunContextWrapper(req_ctx), [_result("edit_file", other_error)]).is_final_output is False
 
 
 async def test_breaker_and_budget_stops_keep_priority_over_the_pending_stop(tools):
@@ -241,13 +244,14 @@ async def test_breaker_and_budget_stops_keep_priority_over_the_pending_stop(tool
     from agent.openai_agents.runner import _stop_run_after_tools
     from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 
-    _overdue()
+    _by_name, _executed, req_ctx = tools
+    _overdue(req_ctx)
     breaker = ToolFailureBreaker(max_failures_per_request=1)
     breaker.observe("create_file", "{}", json.dumps(PENDING_REFUSAL))
-    tripped = _stop_run_after_tools(None, [_result("create_file", PENDING_REFUSAL)], failure_breaker=breaker)
+    tripped = _stop_run_after_tools(RunContextWrapper(req_ctx), [_result("create_file", PENDING_REFUSAL)], failure_breaker=breaker)
     assert tripped.is_final_output is True and tripped.final_output == breaker.trip.user_message()
 
     meter = AgentRunMeter(max_model_calls=1)
     meter.record_model_call()
-    budget = _stop_run_after_tools(None, [_result("create_file", PENDING_REFUSAL)], run_meter=meter)
+    budget = _stop_run_after_tools(RunContextWrapper(req_ctx), [_result("create_file", PENDING_REFUSAL)], run_meter=meter)
     assert budget.is_final_output is True and meter.budget_stopped is True

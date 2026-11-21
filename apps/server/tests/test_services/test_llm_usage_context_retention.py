@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from agent.tools.mcp_tools import ToolContext
+from agent.core.request_context import AgentRequestContext
 from services.usage import cost_budget
 from services.usage import llm_usage_service as svc
 from services.usage.llm_usage_service import LLMUsageAttribution, UsageTokens
@@ -79,8 +79,9 @@ async def test_pending_ledger_task_does_not_retain_request_snapshot(monkeypatch)
     snapshot = _TrackedText("x" * 8_000_000)
     snapshot_ref = weakref.ref(snapshot)
     task = None
+    req_ctx = None
     try:
-        ToolContext.set_context(
+        req_ctx = AgentRequestContext(
             session=None,
             user_id="user-1",
             project_id="project-1",
@@ -95,17 +96,19 @@ async def test_pending_ledger_task_does_not_retain_request_snapshot(monkeypatch)
         )
         usage_tokens = UsageTokens(cache_hit=800, cache_miss=200, output=70)
 
-        task = svc.schedule_llm_usage_record(
-            attribution,
-            model="deepseek-flash",
-            tokens=usage_tokens,
-        )
+        with req_ctx.bind_cost_budget_user():
+            task = svc.schedule_llm_usage_record(
+                attribution,
+                model="deepseek-flash",
+                tokens=usage_tokens,
+            )
         assert task is not None
         assert task in svc._pending_records
         del snapshot
         await _wait_for(started)
 
-        ToolContext.clear_context()
+        req_ctx.clear()
+        req_ctx = None
         gc.collect()
         assert snapshot_ref() is None
         assert not task.done()
@@ -126,7 +129,8 @@ async def test_pending_ledger_task_does_not_retain_request_snapshot(monkeypatch)
         ]
     finally:
         release.set()
-        ToolContext.clear_context()
+        if req_ctx is not None:
+            req_ctx.clear()
         if task is not None:
             await asyncio.gather(task, return_exceptions=True)
         await svc.drain_pending_usage_records()

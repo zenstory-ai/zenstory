@@ -263,8 +263,10 @@ class RepeatReadGuard:
     # 任意一次写工具成功（有些写入拿不到 id，例如结果被截断）。
     write_succeeded: bool = False
     _titles: dict[str, str] = field(default_factory=dict)
-    # 已经按「正文落库」清过读取计数的文件（ToolContext.saved_bodies_this_request 的 id）。
+    # 已经按「正文落库」清过读取计数的文件（AgentRequestContext.saved_bodies_this_request 的 id）。
     _saved_bodies_seen: set[str] = field(default_factory=set)
+    # 本次请求的强类型上下文（用于读取已落库正文集合，不再查全局 ContextVar）。
+    request_context: Any = field(default=None, repr=False, compare=False)
 
     @property
     def is_open(self) -> bool:
@@ -491,9 +493,9 @@ class RepeatReadGuard:
 
     def _forget_newly_saved_bodies(self) -> None:
         """StreamAdapter 落库的正文（整章替换、新建正文）不经过写工具的结果：按保存点的结构化记录清零读取计数。"""
-        from agent.tools.mcp_tools import ToolContext
-
-        for file_id in ToolContext.saved_bodies_this_request():
+        if self.request_context is None:
+            return
+        for file_id in self.request_context.saved_bodies_this_request():
             if file_id not in self._saved_bodies_seen:
                 self._saved_bodies_seen.add(file_id)
                 self._forget_reads(file_id)
@@ -524,7 +526,7 @@ class RepeatReadGuard:
         title = str((data.get("title") if isinstance(data, dict) else None) or args.get("title") or "")
         if payload.get("mutation_applied") is False:
             # 成功但什么都没改（已有章节 action=exists、同名 rename、整章替换的定位）：不是写入，只记目标。
-            # 整章替换真正落库由 StreamAdapter 的保存点记进 ToolContext.saved_bodies_this_request。
+            # 整章替换真正落库由 StreamAdapter 的保存点记进 AgentRequestContext.saved_bodies_this_request。
             if file_id:
                 if title:
                     self._titles[file_id] = title

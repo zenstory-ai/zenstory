@@ -517,13 +517,13 @@ def _parse(result: dict) -> dict:
 
 
 async def _call_edit_file(side_effect: Exception, edits: list[dict]) -> tuple[dict, dict]:
+    from agent.tools.tool_context import AgentRequestContext
+
     mock_executor = MagicMock()
     mock_executor.edit_file.side_effect = side_effect
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1"},
-    ):
-        result = await edit_file({"id": "f-1", "edits": edits})
+    req_ctx = AgentRequestContext(session=MagicMock(), project_id="proj-1")
+    with patch.object(req_ctx, "executor", return_value=mock_executor):
+        result = await edit_file({"id": "f-1", "edits": edits}, request_context=req_ctx)
     return result, _parse(result)
 
 

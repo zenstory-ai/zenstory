@@ -203,16 +203,24 @@ class FileCRUD:
     with permission checking and version history support.
     """
 
-    def __init__(self, session: Session, user_id: str | None = None):
+    def __init__(
+        self,
+        session: Session,
+        user_id: str | None = None,
+        *,
+        request_context: Any | None = None,
+    ):
         """
         Initialize file CRUD operations.
 
         Args:
             session: Database session
             user_id: Current user ID (UUID string, for permission checks)
+            request_context: Optional request-scoped ``AgentRequestContext``
         """
         self.session = session
         self.user_id = user_id
+        self.request_context = request_context
 
     def create_file(
         self,
@@ -639,7 +647,9 @@ class FileCRUD:
 
         if file.file_type != FILE_TYPE_FOLDER:
             # 记这次自己写下的正文（提交前记、失败还原），不记 refresh 后的（提交后作者可能已经又存了一版）。
-            with written_snapshot_for_commit(file.id, content or "", full=True):
+            with written_snapshot_for_commit(
+                file.id, content or "", full=True, request_context=self.request_context
+            ):
                 self.session.commit()
         else:
             self.session.commit()
@@ -719,7 +729,9 @@ class FileCRUD:
             target = self.session.get(File, id)
             if not target or target.is_deleted:
                 raise ValueError("文件不存在或已删除")
-            check_file_access_in_tool_context(self.session, target, self.user_id)
+            check_file_access_in_tool_context(
+                self.session, target, self.user_id, request_context=self.request_context
+            )
             lock_project_for_files(self.session, target.project_id, exclusive=True)
 
         if is_postgres:
@@ -792,7 +804,9 @@ class FileCRUD:
             raise ValueError("文件不存在或已删除")
 
         # Check permission (target must belong to the current tool-context project)
-        check_file_access_in_tool_context(self.session, file, self.user_id)
+        check_file_access_in_tool_context(
+            self.session, file, self.user_id, request_context=self.request_context
+        )
 
         if expected_updated_at is not None:
             current_updated_at = file.updated_at.isoformat() if file.updated_at else None
@@ -896,7 +910,9 @@ class FileCRUD:
 
         if content_changed:
             # 记这次自己写下的整份正文（提交前记、失败还原），不记 refresh 后的（提交后作者可能已经又存了一版）。
-            with written_snapshot_for_commit(file.id, prospective_content or "", full=True):
+            with written_snapshot_for_commit(
+                file.id, prospective_content or "", full=True, request_context=self.request_context
+            ):
                 self.session.commit()
         else:
             self.session.commit()
@@ -965,7 +981,9 @@ class FileCRUD:
             raise ValueError("文件不存在或已删除")
 
         # Check permission (target must belong to the current tool-context project)
-        check_file_access_in_tool_context(self.session, file, self.user_id)
+        check_file_access_in_tool_context(
+            self.session, file, self.user_id, request_context=self.request_context
+        )
 
         lock_project_for_files(self.session, file.project_id, exclusive=True)
         from database import is_postgres
@@ -978,7 +996,9 @@ class FileCRUD:
             file = self.session.exec(query.execution_options(populate_existing=True)).first()
             if not file or file.is_deleted:
                 raise ValueError("文件不存在或已删除")
-            check_file_access_in_tool_context(self.session, file, self.user_id)
+            check_file_access_in_tool_context(
+                self.session, file, self.user_id, request_context=self.request_context
+            )
 
             now = utcnow()
             if recursive is True:
@@ -1153,7 +1173,9 @@ class FileCRUD:
         if target_ids:
             for file, item in zip(files, serialized, strict=True):
                 if isinstance(item.get("content"), str):
-                    attach_author_edits_for_agent(self.session, file, item)
+                    attach_author_edits_for_agent(
+                        self.session, file, item, request_context=self.request_context
+                    )
         return serialized
 
     def _execute_query_files(

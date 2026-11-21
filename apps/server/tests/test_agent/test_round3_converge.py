@@ -62,7 +62,7 @@ def test_auto_current_phase_infers_from_script_files(
     db_session: Session, converge_project: Project, converge_user: User
 ):
     """短剧项目的正文是 script，只查 draft 会让 current_phase 永远推不出来。"""
-    from agent.tools.mcp_tools import ToolContext, _suggest_auto_current_phase_from_drafts
+    from agent.tools.mcp_tools import _suggest_auto_current_phase_from_drafts
 
     db_session.add(
         File(
@@ -74,13 +74,7 @@ def test_auto_current_phase_infers_from_script_files(
     )
     db_session.commit()
 
-    ToolContext.set_context(
-        db_session, converge_user.id, converge_project.id, "sess-converge"
-    )
-    try:
-        suggested = _suggest_auto_current_phase_from_drafts(converge_project.id)
-    finally:
-        ToolContext.clear_context()
+    suggested = _suggest_auto_current_phase_from_drafts(db_session, converge_project.id)
 
     assert suggested is not None
     assert "7" in suggested
@@ -91,7 +85,7 @@ def test_auto_current_phase_still_infers_from_draft_files(
     db_session: Session, converge_user: User
 ):
     """小说项目（draft）的既有行为不能被回归掉。"""
-    from agent.tools.mcp_tools import ToolContext, _suggest_auto_current_phase_from_drafts
+    from agent.tools.mcp_tools import _suggest_auto_current_phase_from_drafts
 
     project = Project(name="小说项目", owner_id=converge_user.id, project_type="novel")
     db_session.add(project)
@@ -103,11 +97,7 @@ def test_auto_current_phase_still_infers_from_draft_files(
     )
     db_session.commit()
 
-    ToolContext.set_context(db_session, converge_user.id, project.id, "sess-converge-2")
-    try:
-        suggested = _suggest_auto_current_phase_from_drafts(project.id)
-    finally:
-        ToolContext.clear_context()
+    suggested = _suggest_auto_current_phase_from_drafts(db_session, project.id)
 
     assert suggested is not None
     assert "3" in suggested
@@ -116,7 +106,7 @@ def test_auto_current_phase_still_infers_from_draft_files(
 @pytest.mark.unit
 def test_auto_current_phase_counts_episodes_for_a_screenplay(db_session: Session, converge_user: User):
     """live run 2 场景 A：短剧项目被自动写成「已写至第3章」，剧本应按「集」。"""
-    from agent.tools.mcp_tools import ToolContext, _suggest_auto_current_phase_from_drafts
+    from agent.tools.mcp_tools import _suggest_auto_current_phase_from_drafts
 
     drama = Project(name="短剧项目", owner_id=converge_user.id, project_type="screenplay")
     short = Project(name="短篇项目", owner_id=converge_user.id, project_type="short")
@@ -128,23 +118,19 @@ def test_auto_current_phase_counts_episodes_for_a_screenplay(db_session: Session
     ])
     db_session.commit()
 
-    ToolContext.set_context(db_session, converge_user.id, drama.id, "sess-drama")
-    try:
-        assert _suggest_auto_current_phase_from_drafts(drama.id) == "已写至第3集"
-        # 写到第4集后继续往前推（「第3集」要能被认出来，不然进度会停在这里）。
-        drama.current_phase = "已写至第3集"
-        db_session.add(File(project_id=drama.id, title="第4集 认亲", file_type="script", content="正文"))
-        db_session.commit()
-        assert _suggest_auto_current_phase_from_drafts(drama.id) == "已写至第4集"
-        assert _suggest_auto_current_phase_from_drafts(short.id) == "已写至第2章"
-    finally:
-        ToolContext.clear_context()
+    assert _suggest_auto_current_phase_from_drafts(db_session, drama.id) == "已写至第3集"
+    # 写到第4集后继续往前推（「第3集」要能被认出来，不然进度会停在这里）。
+    drama.current_phase = "已写至第3集"
+    db_session.add(File(project_id=drama.id, title="第4集 认亲", file_type="script", content="正文"))
+    db_session.commit()
+    assert _suggest_auto_current_phase_from_drafts(db_session, drama.id) == "已写至第4集"
+    assert _suggest_auto_current_phase_from_drafts(db_session, short.id) == "已写至第2章"
 
 
 @pytest.mark.unit
 def test_auto_current_phase_ignores_chapters_without_body(db_session: Session, converge_user: User):
     """F-10：第 1–3 章有正文、第 4–20 章只是空标题时，进度不能写成「已写至第20章」。"""
-    from agent.tools.mcp_tools import ToolContext, _suggest_auto_current_phase_from_drafts
+    from agent.tools.mcp_tools import _suggest_auto_current_phase_from_drafts
 
     novel = Project(name="空壳章节项目", owner_id=converge_user.id, project_type="novel")
     drama = Project(name="空壳剧集项目", owner_id=converge_user.id, project_type="screenplay")
@@ -159,18 +145,14 @@ def test_auto_current_phase_ignores_chapters_without_body(db_session: Session, c
     )
     db_session.commit()
 
-    ToolContext.set_context(db_session, converge_user.id, novel.id, "sess-empty-shells")
-    try:
-        assert _suggest_auto_current_phase_from_drafts(novel.id) == "已写至第3章"
-        assert _suggest_auto_current_phase_from_drafts(drama.id) == "已写至第1集"
-        # 只有空壳时不推断进度。
-        novel.current_phase = ""
-        for f in db_session.exec(select(File).where(File.project_id == novel.id)).all():
-            f.content = ""
-        db_session.commit()
-        assert _suggest_auto_current_phase_from_drafts(novel.id) is None
-    finally:
-        ToolContext.clear_context()
+    assert _suggest_auto_current_phase_from_drafts(db_session, novel.id) == "已写至第3章"
+    assert _suggest_auto_current_phase_from_drafts(db_session, drama.id) == "已写至第1集"
+    # 只有空壳时不推断进度。
+    novel.current_phase = ""
+    for f in db_session.exec(select(File).where(File.project_id == novel.id)).all():
+        f.content = ""
+    db_session.commit()
+    assert _suggest_auto_current_phase_from_drafts(db_session, novel.id) is None
 
 
 # ---------------------------------------------------------------------------
@@ -273,18 +255,16 @@ def test_edit_file_tool_payload_status_degrades_on_failure(monkeypatch):
         "warnings": [],
     }
 
+    from unittest.mock import MagicMock
+
     class _Executor:
         def edit_file(self, **kwargs):
             return fake_result
 
-    monkeypatch.setattr(mcp_tools.ToolContext, "get_executor", classmethod(lambda cls: _Executor()))
-    monkeypatch.setattr(
-        mcp_tools.ToolContext,
-        "_get_context",
-        classmethod(lambda cls: {"project_id": "p1"}),
-    )
+    req_ctx = mcp_tools.AgentRequestContext(session=MagicMock(), user_id="u1", project_id="p1")
+    monkeypatch.setattr(req_ctx, "executor", lambda _session: _Executor())
 
-    payload = mcp_tools._edit_file_sync({"id": "f1", "edits": [{"op": "replace"}]})
+    payload = mcp_tools._edit_file_sync({"id": "f1", "edits": [{"op": "replace"}]}, req_ctx)
     parsed = json.loads(payload["content"][0]["text"])
     assert parsed["status"] == "partial"
 
@@ -346,25 +326,25 @@ def test_file_edit_end_event_has_failure_fields_in_schema():
 @pytest.mark.unit
 def test_stream_adapter_clears_only_the_targeted_pending_file(db_session: Session):
     """同时存在多个待写空文件时，一份写完不得把其余的标记一起清光。"""
-    from agent.stream_adapter import StreamAdapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.core.request_context import AgentRequestContext
+    from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 
-    ToolContext.set_context(db_session, "u1", "p1", "s1")
+    req_ctx = AgentRequestContext(session=db_session, user_id="u1", project_id="p1", session_id="s1")
     try:
-        ToolContext.set_pending_empty_file("file-a", "第1集")
-        ToolContext.set_pending_empty_file("file-b", "第2集")
+        req_ctx.set_pending_empty_file("file-a", "第1集")
+        req_ctx.set_pending_empty_file("file-b", "第2集")
 
-        adapter = StreamAdapter()
+        adapter = StreamAdapter(StreamAdapterConfig(request_context=req_ctx))
         adapter._clear_pending_empty_file_guard("file-a")
 
-        remaining = {p["file_id"] for p in ToolContext.get_pending_empty_files()}
+        remaining = {p["file_id"] for p in req_ctx.get_pending_empty_files()}
         assert remaining == {"file-b"}, "只该摘掉 file-a"
 
         # 无参调用仍是"流结束兜底"的无条件清空
         adapter._clear_pending_empty_file_guard()
-        assert ToolContext.get_pending_empty_files() == []
+        assert req_ctx.get_pending_empty_files() == []
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
 
 # ---------------------------------------------------------------------------

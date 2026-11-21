@@ -86,17 +86,24 @@ def _file(session, project, content):
 
 async def _calls(session, user, project, calls, between=None):
     engine = session.get_bind()
-    mcp_tools.ToolContext.set_context(None, user.id, project.id, None, create_session_func=lambda: Session(engine), read_snapshots={})
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
+        create_session_func=lambda: Session(engine),
+        read_snapshots={},
+    )
     out = []
     try:
         for index, (tool, args) in enumerate(calls):
-            mcp_tools.ToolContext.promote_pending_reads()
+            req_ctx.promote_pending_reads()
             if between and index in between:
                 between[index]()
-            raw = await tool(args)
+            raw = await tool(args, request_context=req_ctx)
             out.append(json.loads(raw["content"][0]["text"]))
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
     return out
 
 
@@ -153,11 +160,18 @@ async def test_range_read_allows_an_exact_edit_but_is_not_a_full_read(db_session
 
     assert edit["status"] == "success"
     engine = db_session.get_bind()
-    mcp_tools.ToolContext.set_context(None, user.id, project.id, None, create_session_func=lambda: Session(engine), read_snapshots={})
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
+        create_session_func=lambda: Session(engine),
+        read_snapshots={},
+    )
     try:
-        await mcp_tools.query_files({"id": file.id, "tail_chars": 50})
-        mcp_tools.ToolContext.promote_pending_reads()
-        assert mcp_tools.ToolContext.has_seen_file(file.id) is False
-        assert mcp_tools.ToolContext.read_snapshot(file.id) is not None
+        await mcp_tools.query_files({"id": file.id, "tail_chars": 50}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
+        assert req_ctx.has_seen_file(file.id) is False
+        assert req_ctx.read_snapshot(file.id) is not None
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()

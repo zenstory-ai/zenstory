@@ -48,3 +48,5 @@ class WritingState(TypedDict, total=False):
     run_meter: Any
     # 请求级收尾状态（agent.core.round_outcome.RunOutcome，跨 agent run 共享）
     run_outcome: Any
+    # 强类型请求上下文（agent.tools.tool_context.AgentRequestContext，贯穿单循环、SDK RunContextWrapper 与工具执行）
+    request_context: Any
