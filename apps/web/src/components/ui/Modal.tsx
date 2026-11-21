@@ -311,6 +311,19 @@ export const Modal: React.FC<ModalProps> & {
   // `ui-sans-headings`: dialogs are control surfaces (portaled outside the dashboard's <main>).
   const contentClasses = `ui-sans-headings bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] shadow-xl w-full ${sizeClasses} animate-scale-in flex flex-col max-h-[90vh] ${className}`;
 
+  const hasHorizontalPaddingOverride = Boolean(
+    bodyClassName && /(?:^|\s)!?p(?:x|l|r)?-/.test(bodyClassName)
+  );
+  const hasBottomPaddingOverride = Boolean(
+    bodyClassName && /(?:^|\s)!?p(?:y|b)?-/.test(bodyClassName)
+  );
+  const bodyClasses = cn(
+    "flex-1 min-h-0 overflow-y-auto",
+    !hasHorizontalPaddingOverride && "px-4 sm:px-6",
+    !hasBottomPaddingOverride && "pb-4",
+    bodyClassName
+  );
+
   return createPortal(
     <ModalContext.Provider value={contextValue}>
       <div
@@ -362,7 +375,7 @@ export const Modal: React.FC<ModalProps> & {
           )}
 
           {/* Main content - scrollable */}
-          <div className={cn("flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pb-4", bodyClassName)}>{children}</div>
+          <div className={bodyClasses}>{children}</div>
 
           {/* Footer */}
           {footer && (

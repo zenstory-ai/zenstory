@@ -691,7 +691,8 @@ describe('Header', () => {
 
       const backdrop = await screen.findByTestId('mobile-menu-backdrop')
       const menuWrapper = document.getElementById('header-mobile-menu')?.parentElement
-      expect(menuWrapper).toHaveClass('overflow-y-auto')
+      expect(backdrop).toHaveClass('z-[55]')
+      expect(menuWrapper).toHaveClass('overflow-y-auto', 'z-[60]')
 
       fireEvent.click(backdrop)
       await waitFor(() => {

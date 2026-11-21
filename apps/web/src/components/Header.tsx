@@ -313,12 +313,12 @@ export const Header: React.FC<HeaderProps> = () => {
       {isMobile && showMobileMenu && (
         <>
           <div
-            className="md:hidden fixed inset-0 top-12 bg-black/25 z-30"
+            className="md:hidden fixed inset-0 top-12 bg-black/25 z-[55]"
             aria-hidden="true"
             data-testid="mobile-menu-backdrop"
             onClick={() => setShowMobileMenu(false)}
           />
-          <div className="md:hidden absolute top-12 left-0 right-0 max-h-[calc(var(--app-viewport-height)-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40">
+          <div className="md:hidden absolute top-12 left-0 right-0 max-h-[calc(var(--app-viewport-height)-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-[60]">
             <div
               id={mobileMenuId}
               className="flex flex-col p-2 gap-1"

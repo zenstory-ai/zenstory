@@ -261,4 +261,33 @@ describe('ProjectSwitcher', () => {
     fireEvent.click(screen.getByRole('button', { name: /common:retry|retry/i }))
     expect(refreshProjects).toHaveBeenCalledTimes(1)
   })
+
+  it('uses native sibling buttons without nested-interactive listbox roles for keyboard selection', () => {
+    render(<ProjectSwitcher />)
+
+    const trigger = screen.getByRole('button', { name: /alpha/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).not.toHaveAttribute('aria-haspopup', 'listbox')
+
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('option')).not.toBeInTheDocument()
+
+    const alphaButton = screen.getByRole('button', { name: /First project/i })
+    const betaButton = screen.getByRole('button', { name: /Second project/i })
+    expect(alphaButton).toHaveAttribute('aria-current', 'true')
+    expect(betaButton).not.toHaveAttribute('aria-current')
+
+    // Rename/Delete buttons must be siblings, never nested inside the project select button.
+    for (const renameBtn of screen.getAllByTestId('project-switcher-rename')) {
+      expect(alphaButton.contains(renameBtn)).toBe(false)
+      expect(betaButton.contains(renameBtn)).toBe(false)
+    }
+
+    betaButton.focus()
+    expect(betaButton).toHaveFocus()
+    fireEvent.click(betaButton)
+    expect(mockNavigate).toHaveBeenCalledWith('/project/project-2')
+  })
 })
