@@ -50,6 +50,18 @@ from agent.tools.tool_context import (  # noqa: F401 - re-exported for backward 
     _ReadSnapshots,
     _tool_context_var,
 )
+from agent.tools.tool_inputs import (
+    CreateFileInput,
+    DeleteFileInput,
+    EditFileInput,
+    LoadSkillInput,
+    QueryFilesInput,
+    ReadSkillResourceInput,
+    RenameFileInput,
+    UpdateProjectInput,
+    WriteChapterInput,
+    validate_tool_input,
+)
 from config.project_notes import merge_project_notes
 from services.file_tree_rules import has_sibling_title_conflict
 from utils.logger import get_logger, log_with_context
@@ -71,12 +83,6 @@ logger = get_logger(__name__)
 
 DEFAULT_TOOL_RESULT_MAX_CHARS = 200_000
 MIN_TOOL_RESULT_MAX_CHARS = 512
-
-PROJECT_STATUS_FIELD_ALIASES: dict[str, str] = {
-    "currentPhase": "current_phase",
-    "writingStyle": "writing_style",
-    "projectSummary": "summary",
-}
 
 
 def _run_sync_tool_with_owned_session_cleanup(
@@ -930,25 +936,19 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
     if project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
-    raw_number = args.get("chapter")
-    try:
-        number = int(raw_number) if not isinstance(raw_number, bool) else 0
-    except (TypeError, ValueError):
-        number = 0
-    if number <= 0 or (isinstance(raw_number, float) and not raw_number.is_integer()):
-        return _write_chapter_error(
-            "write_chapter 需要 chapter（正整数章号；剧本是集号），没有写入。",
-            error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,
-        )
-    file_type = str(args.get("file_type") or "draft").strip().lower()
-    unit = _CHAPTER_UNIT_BY_TYPE.get(file_type)
-    if unit is None:
-        return _write_chapter_error(
-            "write_chapter 只写正文：file_type 是 draft（小说章节）或 script（剧本分集），没有写入。"
-            "大纲、人物、设定等资料文件用 create_file。",
-            error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,
-        )
-    raw_title = str(args.get("title") or "").strip()
+    parsed, validation_error = validate_tool_input(
+        WriteChapterInput,
+        args,
+        tool_name=tool_name,
+        error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,
+    )
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+
+    number = parsed.chapter
+    file_type = parsed.file_type
+    unit = _CHAPTER_UNIT_BY_TYPE[file_type]
+    raw_title = parsed.title
     titled_number = extract_sequence_number(raw_title, unit=unit)
     prefixed_heading = _prefixed_chapter_heading(raw_title, unit) if titled_number is None else None
     if prefixed_heading is not None:
@@ -960,7 +960,7 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
             error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,
         )
     title = raw_title if titled_number is not None else _chapter_title(raw_title, number, unit)
-    requested_parent_id = args.get("parent_id") or None
+    requested_parent_id = parsed.parent_id or None
     parent_id = requested_parent_id
     if requested_parent_id is not None:
         # 与 create_file 同一套父节点归一（传成上一章的文件 id、剧本项目传了 -draft-folder）：
@@ -997,7 +997,7 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
             error_type=WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE,
             candidates=[{"id": row.id, "title": row.title, "parent_id": row.parent_id} for row in matches[:6]],
         )
-    empty = coerce_bool(args.get("empty"))
+    empty = bool(parsed.empty)
     if matches and requested_parent_id is None and not empty:
         body_folders = {
             row.parent_id or None
@@ -1019,7 +1019,13 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
         if parent_id is None:
             parent_id = _default_chapter_folder(project_id, file_type, rows)
         return _write_chapter_create(
-            args, title=title, number=number, unit=unit, file_type=file_type, parent_id=parent_id, empty=empty
+            {"metadata": parsed.metadata} if parsed.metadata is not None else {},
+            title=title,
+            number=number,
+            unit=unit,
+            file_type=file_type,
+            parent_id=parent_id,
+            empty=empty,
         )
     if empty:
         # 只建空章节：这一章已经有文件，什么也不做。
@@ -1286,21 +1292,36 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
     if project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
-    title = args.get("title", "")
+    parsed, validation_error = validate_tool_input(CreateFileInput, args, tool_name=tool_name)
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+
+    title = parsed.title
+    validated_args: dict[str, Any] = {
+        "title": title,
+        "file_type": parsed.file_type,
+        "parent_id": parsed.parent_id,
+        "metadata": parsed.metadata,
+        "empty": bool(parsed.empty),
+    }
+    if "source_text" in parsed.model_fields_set:
+        validated_args["source_text"] = parsed.source_text
+    if "content" in parsed.model_fields_set:
+        validated_args["content"] = parsed.content
     if tool_name == "create_file":
-        body_refusal = _loop_body_create_refusal(args)
+        body_refusal = _loop_body_create_refusal(validated_args)
         if body_refusal is not None:
             return body_refusal
-        source_content, source_error = _source_copy_content(args)
+        source_content, source_error = _source_copy_content(validated_args)
         if source_error is not None:
             return source_error
     else:
         source_content = None
-    content = source_content if source_content is not None else args.get("content", "")
+    content = source_content if source_content is not None else (parsed.content or "")
     executor = ToolContext.get_executor()
     # 作者明确只要建文件（「只建标题，不写内容」）：这个空文件就是交付物，不等正文。
     # 只在路由判断作者本轮不要正文时生效，作者要正文时模型传了也照常等正文。
-    empty_requested = coerce_bool(args.get("empty"))
+    empty_requested = bool(parsed.empty)
     empty_by_request = empty_requested and not content and ToolContext.author_wants_no_body()
 
     # 检查是否已有待写入的空文件（防止连续创建空文件导致内容丢失）。
@@ -1323,27 +1344,20 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
         if not acquired:
             # 挡路的正是本次要建的这个空文件（同标题、同父目录、同类型）：交回它，
             # 让模型直接写正文；挡路的是别的文件时照旧拒绝。
-            repeat = _repeat_of_pending_empty_file(args, project_id)
+            repeat = _repeat_of_pending_empty_file(validated_args, project_id)
             if repeat is not None:
                 return repeat
             return _pending_empty_file_rejection(blocking_title, title, tool_name=tool_name)
 
     try:
-        order_value = args.get("order") if "order" in args else None
-        if order_value is not None:
-            try:
-                order_value = int(order_value)
-            except (TypeError, ValueError):
-                order_value = None
-
         result = executor.create_file(
             project_id=project_id,
             title=title,
-            file_type=args.get("file_type", "draft"),
+            file_type=parsed.file_type,
             content=content,
-            parent_id=args.get("parent_id"),
-            order=order_value,
-            metadata=args.get("metadata"),
+            parent_id=parsed.parent_id,
+            order=parsed.order,
+            metadata=parsed.metadata,
             # 应用内 agent 写正文：draft/script 的双引号按稿件体例规范化。
             normalize_quotes=True,
         )
@@ -1356,7 +1370,7 @@ def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -
         body_in_reply = False
         if reservation is not None:
             file_id = result.get("id", "")
-            if file_id and not _is_folder_file_type(result, args):
+            if file_id and not _is_folder_file_type(result, validated_args):
                 # 只有本轮新建的文件记下建好时的版本（之后补不成可以回滚）；复用的既有空文件
                 # 照样等正文，但不是本轮产物，不记版本，回滚不删它。
                 created_version = None if result.get("reused_existing") is True else result.get("updated_at")
@@ -1445,33 +1459,21 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
 
     read_ticket: int | None = None
     try:
-        file_id_raw = args.get("id") or args.get("file_id") or args.get("fileId")
-        if isinstance(file_id_raw, str):
-            file_id = file_id_raw.strip()
-        elif file_id_raw is None:
-            file_id = ""
-        else:
-            # Do not silently accept non-string IDs; keep tool inputs strict to
-            # avoid noisy "file not found" logs when the caller passes wrong types.
-            return _make_edit_error(
-                "edit_file: invalid param 'id' (must be a string).",
-                error_type=EDIT_ERROR_INVALID_EDIT,
-            )
-        if not file_id:
-            return _make_edit_error(
-                "edit_file: missing required param 'id' (alias: file_id). "
-                "Please query_files to get the correct id, or use the provided 当前文件 ID.",
-                error_type=EDIT_ERROR_INVALID_EDIT,
-            )
+        parsed, validation_error = validate_tool_input(
+            EditFileInput,
+            args,
+            tool_name=tool_name,
+            error_type=EDIT_ERROR_INVALID_EDIT,
+            extra_fields={
+                "edits_applied": 0,
+                "user_message": edit_error_user_message(EDIT_ERROR_INVALID_EDIT),
+            },
+        )
+        if validation_error is not None or parsed is None:
+            return _make_mcp_payload(validation_error, tool_name=tool_name)
 
-        edits = args.get("edits")
-        if edits is None:
-            edits = args.get("operations", [])
-        if not isinstance(edits, list):
-            return _make_edit_error(
-                "edit_file: invalid param 'edits' (must be an array).",
-                error_type=EDIT_ERROR_INVALID_EDIT,
-            )
+        file_id = parsed.id
+        edits = parsed.edits
 
         if ToolContext.pending_chapter_replacement(file_id) is not None or (
             ToolContext.get_current_agent() == _loop_agent_type()
@@ -1496,11 +1498,7 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         edit_kwargs: dict[str, Any] = {
             "id": file_id,
             "edits": edits,
-            # 必须走 coerce_bool：strict_json_schema=False 让 schema 里的
-            # "type": "boolean" 在运行时毫无约束力，模型常把它序列化成
-            # "false"/"0"，而 bool("false") is True——一次编辑失败后本该中止的
-            # 批量编辑会继续往下做，且整体仍被报成 success。
-            "continue_on_error": coerce_bool(args.get("continue_on_error")),
+            "continue_on_error": parsed.continue_on_error,
             # 只规范化各 edit 的新文本，未编辑的段落不动。
             "normalize_quotes": True,
             # 在锁内取快照：同一请求里先写的那一步已经把快照更新为它写下的正文。
@@ -1631,9 +1629,12 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
     if project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
-    raw_id = args.get("id", "")
-    file_id = raw_id.strip() if isinstance(raw_id, str) else ""
-    recursive = coerce_bool(args.get("recursive"))
+    parsed, validation_error = validate_tool_input(DeleteFileInput, args, tool_name=tool_name)
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+
+    file_id = parsed.id
+    recursive = parsed.recursive
     if (pending := ToolContext.pending_empty_file_for(file_id)) is not None and (
         not pending.get("created_here") or recursive
     ):
@@ -1691,13 +1692,10 @@ def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
     if project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
-    file_id = args.get("id")
-    title = args.get("title")
-    if not isinstance(file_id, str) or not file_id.strip():
-        return _make_error("rename_file 需要文件 id", tool_name=tool_name)
-    if not isinstance(title, str) or not title.strip():
-        return _make_error("rename_file 需要非空的新标题", tool_name=tool_name)
-    file_id, title = file_id.strip(), title.strip()
+    parsed, validation_error = validate_tool_input(RenameFileInput, args, tool_name=tool_name)
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+    file_id, title = parsed.id, parsed.title
     if (pending := ToolContext.pending_empty_file_for(file_id)) is not None:
         return _make_structured_error(
             (
@@ -1771,10 +1769,14 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
     if project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
+    parsed, validation_error = validate_tool_input(QueryFilesInput, args, tool_name=tool_name)
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+
     try:
         # 校验、去重并按上限（最多 5 个）截断 id / ids；单 id 保持 100% 兼容。
-        raw_id = args.get("id")
-        raw_ids = args.get("ids")
+        raw_id = parsed.id
+        raw_ids = parsed.ids
         is_batch = raw_ids is not None
         requested_ids, truncated_ids = normalize_query_file_ids(
             file_id=raw_id,
@@ -1782,7 +1784,13 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
             max_ids=QUERY_FILES_MAX_BATCH_IDS,
         )
         has_exact_ids = bool(requested_ids)
-        if len(requested_ids) > 1 and wants_range(args):
+        range_args: dict[str, Any] = {
+            "section": parsed.section,
+            "tail_chars": parsed.tail_chars,
+            "start_char": parsed.start_char,
+            "max_chars": parsed.max_chars,
+        }
+        if len(requested_ids) > 1 and wants_range(range_args):
             return _make_error(
                 "批量读取多个文件（ids）不支持 section / tail_chars / start_char 范围参数；"
                 "需要按范围读取某个超长文件时请用单个 id。",
@@ -1791,40 +1799,38 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
 
         # 不按 id/ids、却要全文时（列表 × 全文），未显式给 limit 就收紧到 10 条：
         # 默认 50 条全文很容易顶到 TOOL_RESULT_MAX_CHARS，被截断后模型只能再读一遍。
-        raw_include = args.get("include_content")
-        wants_full = str(args.get("response_mode") or "").strip().lower() == QUERY_FILES_RESPONSE_MODE_FULL or (
-            raw_include is not None and coerce_bool(raw_include)
+        wants_full = (
+            str(parsed.response_mode or "").strip().lower() == QUERY_FILES_RESPONSE_MODE_FULL
+            or parsed.include_content is True
         )
         default_limit = (
             QUERY_FILES_FULL_MODE_DEFAULT_LIMIT if wants_full and not has_exact_ids else QUERY_FILES_DEFAULT_LIMIT
         )
         query_kwargs: dict[str, Any] = {
             "project_id": project_id,
-            "query": args.get("query"),
-            "file_type": args.get("file_type"),
-            "file_types": args.get("file_types"),
-            "parent_id": args.get("parent_id"),
-            "limit": args.get("limit", default_limit),
-            "offset": args.get("offset", 0),
+            "query": parsed.query,
+            "file_type": parsed.file_type,
+            "file_types": parsed.file_types,
+            "parent_id": parsed.parent_id,
+            "limit": parsed.limit if parsed.limit is not None else default_limit,
+            "offset": parsed.offset if parsed.offset is not None else 0,
         }
 
-        optional_keys = ("response_mode", "content_preview_chars", "include_content")
-        for key in optional_keys:
-            if key in args:
-                value = args.get(key)
-                if key == "include_content" and value is not None:
-                    # 三值语义：None 表示"未指定，按 response_mode 决定"，必须原样透传；
-                    # 显式传值时才强转——下游用的是 `include_content is True`，
-                    # 模型传字符串 "true" 会被判成"不含正文"，语义直接反了。
-                    value = coerce_bool(value)
-                query_kwargs[key] = value
+        if "response_mode" in parsed.model_fields_set:
+            query_kwargs["response_mode"] = parsed.response_mode
+        if "content_preview_chars" in parsed.model_fields_set:
+            query_kwargs["content_preview_chars"] = parsed.content_preview_chars
+        if "include_content" in parsed.model_fields_set:
+            # 三值语义：None 表示"未指定，按 response_mode 决定"，必须原样透传；
+            # 显式传值时已由 CoercedOptionalBool 强转为 bool。
+            query_kwargs["include_content"] = parsed.include_content
 
         if is_batch:
             query_kwargs["ids"] = requested_ids
-        elif "id" in args:
+        elif "id" in parsed.model_fields_set:
             query_kwargs["id"] = requested_ids[0] if requested_ids else raw_id
 
-        range_read = len(requested_ids) == 1 and wants_range(args)
+        range_read = len(requested_ids) == 1 and wants_range(range_args)
         if range_read:
             # 范围读取先取全文再在这里切：切之前的整份正文用作陈旧检查的快照。
             query_kwargs["response_mode"] = QUERY_FILES_RESPONSE_MODE_FULL
@@ -1833,7 +1839,7 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
 
         read_ticket = ToolContext.read_ticket() if has_exact_ids else None
         result = executor.query_files(**query_kwargs)
-        keyword = args.get("query")
+        keyword = parsed.query
         if (
             not range_read
             and not wants_full
@@ -1847,7 +1853,7 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
             rows = result if isinstance(result, list) else []
             if len(rows) == 1 and isinstance(rows[0], dict) and isinstance(rows[0].get("content"), str):
                 full_row = rows[0]
-                sliced = apply_content_range(full_row, args)
+                sliced = apply_content_range(full_row, range_args)
                 result = [sliced]
                 if sliced.get("content_partial"):
                     content_range = sliced.get("content_range")
@@ -1948,16 +1954,6 @@ def _note_file_read(result: Any, *, ticket: int | None = None) -> None:
             ToolContext.record_read_snapshot(file_id, content, ticket=ticket)
 
 
-def _normalize_update_project_args(args: dict[str, Any]) -> dict[str, Any]:
-    """Normalize update_project args with backward-compatible alias mapping."""
-    normalized = dict(args)
-    for alias, canonical in PROJECT_STATUS_FIELD_ALIASES.items():
-        if canonical in normalized or alias not in normalized:
-            continue
-        normalized[canonical] = normalized[alias]
-    return normalized
-
-
 _PHASE_BODY_TRIM_CHARS = " \t\r\n\u3000"
 
 
@@ -2055,8 +2051,12 @@ def _update_project_sync(
     if project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
+    parsed, validation_error = validate_tool_input(UpdateProjectInput, args, tool_name=tool_name)
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+
     try:
-        normalized_args = _normalize_update_project_args(args)
+        normalized_args = parsed.model_dump(include=parsed.model_fields_set)
         result = {}
         from_chat = isinstance(ToolContext._get_context().get("author_message"), str)
         if (
@@ -2328,7 +2328,10 @@ def _load_skill_sync(args: dict[str, Any]) -> dict[str, Any]:
     from agent.skills.content_budget import SKILL_BODY_PATH
 
     tool_name = "load_skill"
-    name = str(args.get("name") or "").strip()
+    parsed, validation_error = validate_tool_input(LoadSkillInput, args, tool_name=tool_name)
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+    name = parsed.name
     try:
         session = ToolContext.get_session()
         skill, others, error = _resolve_skill_for_tool(session, tool_name, name)
@@ -2377,13 +2380,13 @@ def _read_skill_resource_sync(args: dict[str, Any]) -> dict[str, Any]:
     from agent.skills.package import normalize_resource_path
 
     tool_name = "read_skill_resource"
-    name = str(args.get("name") or "").strip()
+    parsed, validation_error = validate_tool_input(ReadSkillResourceInput, args, tool_name=tool_name)
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+    name = parsed.name
     # 与存储时一致做 NFC 归一化，模型给出的分解形式路径也能命中
-    path = normalize_resource_path(str(args.get("path") or ""))
-    try:
-        offset = max(int(args.get("offset") or 0), 0)
-    except (TypeError, ValueError):
-        return _make_error("offset must be a non-negative integer", tool_name=tool_name)
+    path = normalize_resource_path(parsed.path)
+    offset = parsed.offset or 0
     try:
         session = ToolContext.get_session()
         skill, _others, error = _resolve_skill_for_tool(session, tool_name, name)
