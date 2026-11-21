@@ -7,6 +7,7 @@ import { adminApi } from "../../lib/adminApi";
 import type { AdminFeedbackItem, AdminFeedbackStatus } from "../../types/admin";
 import { AdminPageState, AdminSelect } from "../../components/admin";
 import { toast } from "../../lib/toast";
+import { Button } from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { AdminUserLink } from "../../components/admin/AdminUserLink";
@@ -179,14 +180,9 @@ export default function FeedbackManagement() {
 
   return (
     <div className="admin-page admin-page-fluid">
-      <div>
-        <h1 className="admin-page-title">
-          {t("feedback.title", "问题反馈管理")}
-        </h1>
-        <p className="admin-page-subtitle">
-          {t("feedback.subtitle", "查看用户反馈和截图，跟进处理状态")}
-        </p>
-      </div>
+      <h1 className="admin-page-title">
+        {t("feedback.title", "问题反馈")}
+      </h1>
 
       <form
         onSubmit={handleSearchSubmit}
@@ -250,9 +246,9 @@ export default function FeedbackManagement() {
           <option value="without">{t("feedback.filterWithoutScreenshot", "仅无截图")}</option>
         </AdminSelect>
 
-        <button type="submit" className="btn-primary h-11 px-4">
+        <Button type="submit" variant="primary" size="touch">
           {t("common:search", "搜索")}
-        </button>
+        </Button>
       </form>
 
       <AdminPageState
@@ -322,16 +318,18 @@ export default function FeedbackManagement() {
                       : t("feedback.noScreenshot", "无截图")}
                   </div>
                   {feedback.has_screenshot && (
-                    <button
+                    <Button
                       type="button"
-                      className="btn-ghost h-9 px-3 text-xs"
+                      variant="ghost"
+                      size="touch"
+                      leftIcon={<ImageIcon size={14} />}
+                      className="text-xs"
                       onClick={() => {
                         void handleOpenScreenshot(feedback);
                       }}
                     >
-                      <ImageIcon size={14} />
                       {t("feedback.viewScreenshot", "查看截图")}
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -385,16 +383,18 @@ export default function FeedbackManagement() {
                     </td>
                     <td className="px-4 py-3">
                       {feedback.has_screenshot ? (
-                        <button
+                        <Button
                           type="button"
-                          className="btn-ghost h-9 px-3 text-xs"
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<ImageIcon size={14} />}
+                          className="text-xs"
                           onClick={() => {
                             void handleOpenScreenshot(feedback);
                           }}
                         >
-                          <ImageIcon size={14} />
                           {t("feedback.viewScreenshot", "查看截图")}
-                        </button>
+                        </Button>
                       ) : (
                         <span className="text-xs text-[hsl(var(--text-secondary))]">
                           {t("feedback.noScreenshot", "无截图")}
@@ -436,28 +436,30 @@ export default function FeedbackManagement() {
           })}
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
-            className="btn-ghost h-10 px-3"
+            variant="ghost"
+            size="touch"
             disabled={page === 0}
             onClick={() => setPage((prev) => Math.max(0, prev - 1))}
           >
             {t("common:previous", "上一页")}
-          </button>
+          </Button>
           <span className="text-xs text-[hsl(var(--text-secondary))]">
             {t("feedback.pageInfo", "第 {{page}} / {{total}} 页", {
               page: page + 1,
               total: totalPages,
             })}
           </span>
-          <button
+          <Button
             type="button"
-            className="btn-ghost h-10 px-3"
+            variant="ghost"
+            size="touch"
             disabled={page + 1 >= totalPages}
             onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
           >
             {t("common:next", "下一页")}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -468,9 +470,9 @@ export default function FeedbackManagement() {
         title={t("feedback.screenshotPreviewTitle", "反馈截图预览")}
         size="xl"
         footer={
-          <button type="button" className="btn-primary h-10 px-4" onClick={closePreview}>
+          <Button type="button" variant="primary" size="touch" onClick={closePreview}>
             {t("common:close", "关闭")}
-          </button>
+          </Button>
         }
       >
         <div className="space-y-3">

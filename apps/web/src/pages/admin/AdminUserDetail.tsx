@@ -13,6 +13,7 @@ import { formatAdminDate, formatAdminDateTime, parseUTCDate } from "../../lib/da
 import { getLocaleCode } from "../../lib/i18n-helpers";
 import { getLocalizedPlanDisplayName } from "../../lib/subscriptionEntitlements";
 import { toast } from "../../lib/toast";
+import { pointsConfig } from "../../config/points";
 
 const RECENT_LIMIT = 10;
 
@@ -100,12 +101,12 @@ export const AdminUserDetail: React.FC = () => {
   const pointsQuery = useQuery({
     queryKey: ["admin", "points", "user", userId],
     queryFn: () => adminApi.getUserPoints(userId),
-    enabled: Boolean(userId),
+    enabled: Boolean(userId) && pointsConfig.enabled,
   });
   const transactionsQuery = useQuery({
     queryKey: ["admin", "points", "transactions", userId, 1],
     queryFn: () => adminApi.getUserPointsTransactions(userId, { page: 1, page_size: RECENT_LIMIT }),
-    enabled: Boolean(userId),
+    enabled: Boolean(userId) && pointsConfig.enabled,
   });
   const ordersQuery = useQuery({
     queryKey: ["admin", "payment-orders", "user", userId],
@@ -308,6 +309,7 @@ export const AdminUserDetail: React.FC = () => {
         </AdminPageState>
       </Section>
 
+      {pointsConfig.enabled && (
       <Section title={t("userDetail.points")}>
         <AdminPageState
           isLoading={pointsQuery.isLoading}
@@ -389,6 +391,7 @@ export const AdminUserDetail: React.FC = () => {
           </ul>
         </AdminPageState>
       </Section>
+      )}
 
       <Section title={t("userDetail.payments")}>
         <AdminPageState

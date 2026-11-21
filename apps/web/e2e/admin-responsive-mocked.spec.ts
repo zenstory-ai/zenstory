@@ -3,13 +3,12 @@ import AxeBuilder from '@axe-core/playwright';
 import { bootstrapAdminSession, longText, users } from './fixtures/admin-responsive';
 
 const routes = [
-  ['dashboard', '/admin', '1,289'], ['users', '/admin/users', users[0].username], ['prompts', '/admin/prompts', 'novel'],
+  ['dashboard', '/admin', '1,289'], ['acquisition', '/admin/acquisition', 'www.google.com'],
+  ['users', '/admin/users', users[0].username], ['prompts', '/admin/prompts', 'novel'],
   ['prompt-new', '/admin/prompts/new', null], ['prompt-novel', '/admin/prompts/novel', null],
   ['skills', '/admin/skills', 'Long-form narrative continuity reviewer'], ['codes', '/admin/codes', 'RESPONSIVE-AUDIT-LONG-CODE-2026'],
   ['subscriptions', '/admin/subscriptions', users[0].email], ['plans', '/admin/plans', 'Professional Writer Plan'],
   ['audit-logs', '/admin/audit-logs', 'super-administrator-with-long-name'], ['feedback', '/admin/feedback', users[0].email],
-  ['points', '/admin/points', '9,999,999'], ['check-in', '/admin/check-in', '611'],
-  ['referrals', '/admin/referrals', 'INVITE-RESPONSIVE-AUDIT-2026'], ['quota', '/admin/quota', '48,321'],
 ] as const;
 
 const viewports = [
@@ -71,19 +70,11 @@ test.describe('Admin responsive routes with populated mocked data', () => {
     });
   }
 
-  test('inspirations route follows the configured feature availability', async ({ page }) => {
+  test('removed admin routes redirect to their canonical destination', async ({ page }) => {
     await bootstrapAdminSession(page);
     await page.goto('/admin/inspirations');
-    await expect.poll(() => page.locator('body').innerText()).toMatch(/Urban fantasy mystery with a deliberately long title|1,289/);
-    if (new URL(page.url()).pathname === '/admin') {
-      await expect(page.locator('.admin-page')).toBeVisible();
-    } else {
-      const populatedInspiration = page
-        .getByText('Urban fantasy mystery with a deliberately long title', { exact: true })
-        .filter({ visible: true });
-      await expect(populatedInspiration).toHaveCount(1);
-      await expect(populatedInspiration).toBeVisible();
-    }
+    await expect(page).toHaveURL(/\/admin$/);
+    await expect(page.locator('.admin-page')).toBeVisible();
   });
 
   test('tablet uses compact cards and readable metric widths in the narrowed admin content area', async ({ page }) => {
@@ -96,15 +87,13 @@ test.describe('Admin responsive routes with populated mocked data', () => {
       await expect(page.locator('table')).toBeHidden();
     }
 
-    for (const path of ['/admin', '/admin/points', '/admin/check-in', '/admin/quota']) {
-      await page.goto(path);
-      const metricGrid = page.locator('.admin-page .grid.grid-cols-2').first();
-      await expect(metricGrid).toBeVisible();
-      const minimumCardWidth = await metricGrid.locator(':scope > *').evaluateAll((cards) =>
-        Math.min(...cards.map((card) => card.getBoundingClientRect().width)),
-      );
-      expect(minimumCardWidth).toBeGreaterThan(150);
-    }
+    await page.goto('/admin');
+    const metricGrid = page.locator('.admin-page .grid.grid-cols-2').first();
+    await expect(metricGrid).toBeVisible();
+    const minimumCardWidth = await metricGrid.locator(':scope > *').evaluateAll((cards) =>
+      Math.min(...cards.map((card) => card.getBoundingClientRect().width)),
+    );
+    expect(minimumCardWidth).toBeGreaterThan(150);
   });
 
   test('representative mobile dialogs and forms fit and keep their actions reachable', async ({ page }) => {
@@ -149,14 +138,14 @@ test.describe('Admin responsive routes with populated mocked data', () => {
     await page.locator('main').evaluate(el => { el.scrollTop = 500; });
     await page.getByRole('button', { name: '打开管理菜单' }).click();
     const drawer = page.getByRole('dialog', { name: '管理后台' });
-    await expect(drawer.getByRole('link', { name: '仪表盘', exact: true })).toBeFocused();
+    await expect(drawer.getByRole('link', { name: '概览', exact: true })).toBeFocused();
     await expect(page.locator('main')).toHaveAttribute('inert', '');
     await expect(drawer.getByRole('link', { name: '返回应用' })).toHaveAttribute('href', '/dashboard');
     await drawer.getByRole('button', { name: '关闭管理菜单' }).click();
     await expect(page.getByRole('button', { name: '打开管理菜单' })).toBeFocused();
     await page.getByRole('button', { name: '打开管理菜单' }).click();
-    await drawer.getByRole('link', { name: '用户管理', exact: true }).click();
-    await expect(page.getByRole('heading', { name: '用户管理', level: 1 })).toBeVisible();
+    await drawer.getByRole('link', { name: '用户', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '用户', level: 1 })).toBeVisible();
     await expect.poll(() => page.locator('main').evaluate(el => el.scrollTop)).toBe(0);
     await page.getByRole('button', { name: '返回应用', exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard$/);

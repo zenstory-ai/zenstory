@@ -12,9 +12,9 @@ const usagePercent = (used: number, limit: number) => {
 };
 
 const barColor = (percentage: number) => {
-  if (percentage >= 90) return "bg-red-500";
-  if (percentage >= 70) return "bg-yellow-500";
-  return "bg-green-500";
+  if (percentage >= 90) return "bg-[hsl(var(--danger-solid))]";
+  if (percentage >= 70) return "bg-[hsl(var(--warning))]";
+  return "bg-[hsl(var(--success))]";
 };
 
 const QuotaCard: React.FC<{

@@ -43,16 +43,13 @@ export function GrowthOverview({ days }: { days: 7 | 14 | 30 }) {
       <AdminPageState isLoading={query.isLoading} isFetching={query.isFetching} isError={query.isError}
         isEmpty={!data} onRetry={() => { void query.refetch(); }}>
         {metrics && prior && <>
-          <p className="text-xs text-[hsl(var(--text-secondary))]">{t('admin:growth.comparison')}</p>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {cards.map(card => <StatsCard key={card.key} icon={<card.icon className="h-5 w-5" />}
               title={t(`admin:growth.${card.title}`)} value={value(metrics, card)}
               trend="neutral" trendValue={t('admin:growth.previous', { value: value(prior, card) })} />)}
           </div>
-          <p className="text-sm text-[hsl(var(--text-secondary))]">{t('admin:growth.definition')}</p>
           <div className="admin-surface p-4">
-            <h3 className="font-semibold mb-2">{t('admin:growth.daily')}</h3>
-            <p className="text-xs text-[hsl(var(--text-secondary))] mb-3">{t('admin:growth.dailyDefinition')}</p>
+            <h3 className="font-semibold mb-3">{t('admin:growth.daily')}</h3>
             <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t('admin:growth.daily')}>
               <table className="w-full min-w-[600px] text-sm">
                 <thead><tr className="text-[hsl(var(--text-secondary))]">

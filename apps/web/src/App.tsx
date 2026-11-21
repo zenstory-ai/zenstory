@@ -72,14 +72,8 @@ const SubscriptionManagement = lazyRoute(() => import("./pages/admin/Subscriptio
 const PaymentOrderManagement = lazyRoute(() => import("./pages/admin/PaymentOrderManagement"), "PaymentOrderManagement");
 const SubscriptionPlanManagement = lazyRoute(() => import("./pages/admin/SubscriptionPlanManagement"), "SubscriptionPlanManagement");
 const AuditLogPage = lazyRoute(() => import("./pages/admin/AuditLogPage"), "AuditLogPage");
-const InspirationManagement = lazyRoute(() => import("./pages/admin/InspirationManagement"), "InspirationManagement");
 const FeedbackManagement = lazyRoute(() => import("./pages/admin/FeedbackManagement"), "FeedbackManagement");
 const AnnouncementManagement = lazyRoute(() => import("./pages/admin/AnnouncementManagement"), "AnnouncementManagement");
-// Commercial pages
-const PointsManagement = lazyRoute(() => import("./pages/admin/PointsManagement"), "PointsManagement");
-const CheckInStatsPage = lazyRoute(() => import("./pages/admin/CheckInStatsPage"), "CheckInStatsPage");
-const ReferralManagement = lazyRoute(() => import("./pages/admin/ReferralManagement"), "ReferralManagement");
-const QuotaManagement = lazyRoute(() => import("./pages/admin/QuotaManagement"), "QuotaManagement");
 const UsageCostPage = lazyRoute(() => import("./pages/admin/UsageCostPage"), "UsageCostPage");
 const AcquisitionPage = lazyRoute(() => import("./pages/admin/AcquisitionPage"), "AcquisitionPage");
 const AdminRoute = lazyRoute(() => import("./components/AdminRoute"), "AdminRoute");
@@ -423,14 +417,14 @@ function App() {
                       <Route path="payment-orders" element={<PaymentOrderManagement />} />
                       <Route path="plans" element={<SubscriptionPlanManagement />} />
                       <Route path="audit-logs" element={<AuditLogPage />} />
-                      <Route path="inspirations" element={inspirationsConfig.enabled ? <InspirationManagement /> : <Navigate to="/admin" replace />} />
                       <Route path="feedback" element={<FeedbackManagement />} />
                       <Route path="announcements" element={<AnnouncementManagement />} />
-                      {/* Commercial routes */}
-                      <Route path="points" element={<PointsManagement />} />
-                      <Route path="check-in" element={<CheckInStatsPage />} />
-                      <Route path="referrals" element={<ReferralManagement />} />
-                      <Route path="quota" element={<QuotaManagement />} />
+                      {/* Redirects for removed dormant/duplicate routes */}
+                      <Route path="inspirations" element={<Navigate to="/admin" replace />} />
+                      <Route path="points" element={<Navigate to="/admin" replace />} />
+                      <Route path="check-in" element={<Navigate to="/admin" replace />} />
+                      <Route path="referrals" element={<Navigate to="/admin" replace />} />
+                      <Route path="quota" element={<Navigate to="/admin/users" replace />} />
                     </Route>
 
                     {/* Fallback - redirect to home */}

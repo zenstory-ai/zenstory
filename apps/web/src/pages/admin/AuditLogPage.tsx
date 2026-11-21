@@ -260,14 +260,9 @@ export const AuditLogPage: React.FC = () => {
 
   return (
     <div className="admin-page admin-page-fluid">
-      <div>
-        <h1 className="admin-page-title">
-          {t("auditLogs.title")}
-        </h1>
-        <p className="admin-page-subtitle">
-          {t("auditLogs.subtitle")}
-        </p>
-      </div>
+      <h1 className="admin-page-title">
+        {t("auditLogs.title")}
+      </h1>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">

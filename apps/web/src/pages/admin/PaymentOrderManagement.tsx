@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { AdminPageState, AdminSelect } from "../../components/admin";
 import { AdminUserLink } from "../../components/admin/AdminUserLink";
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { adminApi, type AdminPaymentOrder, type PaymentOrderSyncResponse } from "../../lib/adminApi";
 import { ApiError } from "../../lib/apiClient";
@@ -94,29 +95,27 @@ export default function PaymentOrderManagement() {
 
   return (
     <div className="admin-page">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="admin-page-title">{t("paymentOrders.title")}</h1>
-          <p className="admin-page-subtitle">{t("paymentOrders.subtitle")}</p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="admin-page-title">{t("paymentOrders.title")}</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button
             type="button"
+            variant={needsAttention ? "primary" : "secondary"}
+            size="touch"
             aria-pressed={needsAttention}
-            className={`${needsAttention ? "btn-primary" : "btn-secondary"} flex items-center gap-2`}
-            onClick={() => { setNeedsAttention(!needsAttention); setPage(1); }}
-          >
-            <AlertTriangle className="h-4 w-4" />
-            {t("paymentOrders.needsAttention")}
-            {attentionTotal > 0 && (
-              <span className="rounded-full bg-[hsl(var(--error))] px-2 text-xs text-white" aria-label={t("paymentOrders.needsAttentionCount", { count: attentionTotal })}>
+            leftIcon={<AlertTriangle className="h-4 w-4" />}
+            rightIcon={attentionTotal > 0 ? (
+              <span className="rounded-full bg-[hsl(var(--danger-solid))] px-2 text-xs text-[hsl(var(--primary-foreground))]" aria-label={t("paymentOrders.needsAttentionCount", { count: attentionTotal })}>
                 {attentionTotal}
               </span>
-            )}
-          </button>
-          <button type="button" className="btn-secondary flex items-center gap-2" disabled={isFetching} onClick={() => void refetch()}>
-            <RefreshCw className="h-4 w-4" />{t("paymentOrders.refresh")}
-          </button>
+            ) : undefined}
+            onClick={() => { setNeedsAttention(!needsAttention); setPage(1); }}
+          >
+            {t("paymentOrders.needsAttention")}
+          </Button>
+          <Button type="button" variant="secondary" size="touch" leftIcon={<RefreshCw className="h-4 w-4" />} disabled={isFetching} onClick={() => void refetch()}>
+            {t("paymentOrders.refresh")}
+          </Button>
         </div>
       </div>
       <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[auto_auto_minmax(180px,1fr)]" onSubmit={(event) => {
@@ -138,10 +137,10 @@ export default function PaymentOrderManagement() {
           <option value="failed">{t("paymentOrders.fulfillment.failed")}</option>
         </AdminSelect>
         <div className="flex min-w-0 gap-3 sm:col-span-2 xl:col-span-1">
-          <input className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-primary))]"
+          <input className="min-h-11 min-w-0 flex-1 rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-primary))]"
             aria-label={t("paymentOrders.search")} placeholder={t("paymentOrders.searchPlaceholder")}
             value={searchInput} onChange={(event) => setSearchInput(event.target.value)} />
-          <button type="submit" className="btn-secondary shrink-0">{t("paymentOrders.search")}</button>
+          <Button type="submit" variant="secondary" size="touch" className="shrink-0">{t("paymentOrders.search")}</Button>
         </div>
       </form>
       <AdminPageState isLoading={isLoading} isFetching={isFetching} isError={isError} isEmpty={orders.length === 0}
@@ -185,7 +184,7 @@ export default function PaymentOrderManagement() {
               </dl>
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--separator-color))] pt-3">
                 <span className="text-xs text-[hsl(var(--text-secondary))]">{formatDate(order.created_at)}</span>
-                <button type="button" className="btn-secondary min-h-11" onClick={() => openDetails(order)}>{t("paymentOrders.details")}</button>
+                <Button type="button" variant="secondary" size="touch" onClick={() => openDetails(order)}>{t("paymentOrders.details")}</Button>
               </div>
             </article>
           ))}
@@ -195,9 +194,9 @@ export default function PaymentOrderManagement() {
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[hsl(var(--text-secondary))]">
           <span>{t("paymentOrders.total", { count: data?.total ?? 0 })}</span>
           <div className="flex items-center gap-3">
-            <button type="button" className="btn-secondary" disabled={page <= 1 || isFetching} onClick={() => setPage(page - 1)}>{t("paymentOrders.previousPage")}</button>
+            <Button type="button" variant="secondary" size="touch" disabled={page <= 1 || isFetching} onClick={() => setPage(page - 1)}>{t("paymentOrders.previousPage")}</Button>
             <span>{page} / {totalPages}</span>
-            <button type="button" className="btn-secondary" disabled={page >= totalPages || isFetching} onClick={() => setPage(page + 1)}>{t("paymentOrders.nextPage")}</button>
+            <Button type="button" variant="secondary" size="touch" disabled={page >= totalPages || isFetching} onClick={() => setPage(page + 1)}>{t("paymentOrders.nextPage")}</Button>
           </div>
         </div>
       )}
@@ -221,18 +220,19 @@ export default function PaymentOrderManagement() {
           {selectedOrder.fulfillment_status !== "succeeded" && (
             <div className="space-y-2 border-t border-[hsl(var(--separator-color))] pt-3">
               <p className="text-xs text-[hsl(var(--text-secondary))]">{t("paymentOrders.syncHint")}</p>
-              <button
+              <Button
                 type="button"
-                className="btn-primary flex items-center gap-2"
+                variant="primary"
+                size="touch"
+                leftIcon={<RefreshCw className={`h-4 w-4 ${syncOrder.isPending ? "animate-spin" : ""}`} />}
                 disabled={syncOrder.isPending}
                 onClick={() => {
                   setSyncMessage(null);
                   syncOrder.mutate({ orderId: selectedOrder.id, detailsRequestId: detailsRequestRef.current });
                 }}
               >
-                <RefreshCw className={`h-4 w-4 ${syncOrder.isPending ? "animate-spin" : ""}`} />
                 {syncOrder.isPending ? t("paymentOrders.syncing") : t("paymentOrders.sync")}
-              </button>
+              </Button>
             </div>
           )}
           {syncMessage && (

@@ -16,17 +16,15 @@ import SubscriptionManagement from '../SubscriptionManagement'
 import PaymentOrderManagement from '../PaymentOrderManagement'
 vi.mock('../../../hooks/useMediaQuery', () => ({ useIsDesktop: () => true }))
 import SubscriptionPlanManagement from '../SubscriptionPlanManagement'
-import QuotaManagement from '../QuotaManagement'
 import { adminApi } from '../../../lib/adminApi'
 import type { AdminPaymentOrder, Subscription, RedemptionCode, PaymentOrderSyncResponse } from '../../../lib/adminApi'
 import type { SubscriptionPlan } from '../../../types/subscription'
-import type { UserQuotaDetail } from '../../../types/admin'
 import { toast } from '../../../lib/toast'
 
 vi.mock('../../../lib/adminApi', () => ({ adminApi: {
   getCodes: vi.fn(), createCode: vi.fn(), createCodesBatch: vi.fn(), updateCode: vi.fn(),
   getSubscriptions: vi.fn(), getPlans: vi.fn(), updatePlan: vi.fn(), updateUserSubscription: vi.fn(),
-  getPaymentOrders: vi.fn(), syncPaymentOrder: vi.fn(), getQuotaUsageStats: vi.fn(), getUserQuota: vi.fn(),
+  getPaymentOrders: vi.fn(), syncPaymentOrder: vi.fn(),
 } }))
 vi.mock('../../../lib/toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -45,12 +43,6 @@ const order = (id = 'a'): AdminPaymentOrder => ({ id, out_trade_no: `ORDER-${id}
   cycle: 'month', amount_cents: 4900, payment_method: 'alipay', status: 'paid', fulfillment_status: 'failed',
   created_at: '2026-10-06T00:32:00', paid_at: null, fulfilled_at: null, failure_reason: null })
 const completed = (id = 'a'): PaymentOrderSyncResponse => ({ outcome: 'fulfilled', order: { ...order(id), fulfillment_status: 'succeeded' } })
-const quota = (id: string): UserQuotaDetail => ({ user_id: id, username: `quota-${id}`, email: `${id}@example.test`,
-  plan_name: 'pro', plan_display_name: 'Pro', plan_display_name_en: 'Pro',
-  ai_conversations: { used: 50, limit: 100, reset_at: null },
-  material_decompositions: { used: 0, limit: -1, reset_at: null },
-  custom_skills: { used: 0, limit: 0, reset_at: null },
-  inspiration_copies: { used: 0, limit: 0, reset_at: null } })
 let clients: QueryClient[]
 let gates: { done: () => boolean; settle: () => void }[]
 let unexpected: string[]
@@ -125,8 +117,6 @@ beforeEach(async () => {
   vi.mocked(adminApi.createCode).mockResolvedValue(code('2026-10-06T00:32:00Z'))
   vi.mocked(adminApi.createCodesBatch).mockResolvedValue({ codes: ['ONE', 'TWO'], count: 2 })
   vi.mocked(adminApi.updateUserSubscription).mockResolvedValue({ success: true })
-  vi.mocked(adminApi.getQuotaUsageStats).mockResolvedValue({ period_start: '2026-10-01T00:00:00Z', period_end: '2026-11-01T00:00:00Z', material_decompositions: 2, skills_created: 3, inspiration_copies: 0 })
-  vi.mocked(adminApi.getUserQuota).mockImplementation(async id => quota(id))
 })
 afterEach(async () => {
   const pending = gates.filter(g => !g.done()).length
@@ -135,7 +125,7 @@ afterEach(async () => {
   for (const client of clients) { await client.cancelQueries(); client.clear() }
   console.info('M16_UI_OBSERVATION', JSON.stringify({ queries: vi.mocked(adminApi.getPaymentOrders).mock.calls,
     sync: vi.mocked(adminApi.syncPaymentOrder).mock.calls, codes: vi.mocked(adminApi.getCodes).mock.calls,
-    subscriptions: vi.mocked(adminApi.getSubscriptions).mock.calls, userQuota: vi.mocked(adminApi.getUserQuota).mock.calls,
+    subscriptions: vi.mocked(adminApi.getSubscriptions).mock.calls,
     toastSuccess: vi.mocked(toast.success).mock.calls, toastError: vi.mocked(toast.error).mock.calls,
     cleanup: { pending, portals: document.querySelectorAll('[role="dialog"]').length, queryCount: clients.reduce((n, c) => n + c.getQueryCache().getAll().length, 0) }, unexpected }))
   expect(pending).toBe(0); expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(0)
@@ -260,17 +250,4 @@ it('live code create failure retries, and batch completion uses returned count',
   await waitFor(() => expect(container.ownerDocument.querySelector('[role="dialog"]')).toBeNull())
   expect(toast.success).toHaveBeenLastCalledWith(i18n.t('admin:codes.batchCreateSuccess', { count: 2 }))
   expect(adminApi.createCode).toHaveBeenCalledTimes(2); expect(adminApi.createCodesBatch).toHaveBeenCalledTimes(1)
-})
-it('real quota query keys isolate latest searched user from delayed old data', async () => {
-  const a = deferred(quota('a')); const b = deferred(quota('b'))
-  vi.mocked(adminApi.getUserQuota).mockImplementation(id => id === 'a' ? a.promise : b.promise)
-  mount(<QuotaManagement />); await screen.findByRole('heading', { level: 2, name: t('quota.stats') })
-  const input = screen.getByPlaceholderText(t('quota.searchUser'))
-  fireEvent.change(input, { target: { value: ' a ' } }); fireEvent.keyDown(input, { key: 'Enter' })
-  await waitFor(() => expect(adminApi.getUserQuota).toHaveBeenCalledWith('a'))
-  fireEvent.change(input, { target: { value: 'b' } }); fireEvent.click(screen.getByRole('button', { name: i18n.t('common:search') }))
-  await act(async () => b.resolve(quota('b'))); await screen.findByText('quota-b')
-  await act(async () => a.resolve(quota('a'))); await flush()
-  expect(screen.getByText('quota-b')).toBeInTheDocument(); expect(screen.queryByText('quota-a')).not.toBeInTheDocument()
-  expect(adminApi.getUserQuota).toHaveBeenCalledTimes(2)
 })

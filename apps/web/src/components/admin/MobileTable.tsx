@@ -2,6 +2,7 @@ import { Edit, UserX } from "lucide-react";
 import type { User } from "../../types/admin";
 import type { TFunction } from "i18next";
 import { formatAdminDateTime } from "../../lib/dateUtils";
+import { Badge } from "../ui/Badge";
 import { AdminUserLink } from "./AdminUserLink";
 
 interface UserCardProps {
@@ -25,9 +26,9 @@ export function UserCard({ user, onEdit, onDeactivate, t }: UserCardProps) {
           <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
             {/* 超级用户标识 */}
             {user.is_superuser && (
-              <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+              <Badge variant="purple" size="md" className="font-medium">
                 {t("users.isSuperuser")}
-              </span>
+              </Badge>
             )}
             {/* 状态徽章 */}
             <span

@@ -114,11 +114,6 @@ const PlanCard: React.FC<{
             </div>
           ))}
         </div>
-        {plan.effective_features && (
-          <p className="text-xs text-[hsl(var(--text-secondary))]">
-            {t("plans.featuresDetail.effectiveHint")}
-          </p>
-        )}
       </div>
 
       <div className="mt-auto pt-3 border-t border-[hsl(var(--separator-color))] flex items-center justify-end">
@@ -259,14 +254,9 @@ export const SubscriptionPlanManagement: React.FC = () => {
 
   return (
     <div className="admin-page">
-      <div>
-        <h1 className="admin-page-title">
-          {t("plans.title")}
-        </h1>
-        <p className="admin-page-subtitle">
-          {t("plans.subtitle")}
-        </p>
-      </div>
+      <h1 className="admin-page-title">
+        {t("plans.title")}
+      </h1>
 
       {/* Plans grid */}
       <AdminPageState
@@ -282,15 +272,22 @@ export const SubscriptionPlanManagement: React.FC = () => {
           void refetch();
         }}
       >
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-          {(plans ?? []).map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              onEdit={handleEdit}
-              t={t}
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            {(plans ?? []).map((plan) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                onEdit={handleEdit}
+                t={t}
+              />
+            ))}
+          </div>
+          {(plans ?? []).some((plan) => Boolean(plan.effective_features)) && (
+            <p className="text-xs text-[hsl(var(--text-secondary))]">
+              {t("plans.featuresDetail.effectiveHint")}
+            </p>
+          )}
         </div>
       </AdminPageState>
 

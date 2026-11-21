@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RecentActivityList } from '../RecentActivityList'
 
@@ -60,9 +60,12 @@ describe('RecentActivityList', () => {
     const { rerender } = render(<RecentActivityList />)
     expect(screen.getAllByTestId('skeleton').length).toBeGreaterThan(0)
 
-    queryState = { data: null, isLoading: false, isFetching: false, error: new Error('boom') }
+    const refetch = vi.fn()
+    queryState = { data: null, isLoading: false, isFetching: false, error: new Error('boom'), refetch }
     rerender(<RecentActivityList />)
-    expect(screen.getByText('Failed to load activity')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to load activity')
+    fireEvent.click(screen.getByRole('button', { name: 'common:retry' }))
+    expect(refetch).toHaveBeenCalledTimes(1)
 
     queryState = { data: { items: [] }, isLoading: false, isFetching: false, error: null }
     rerender(<RecentActivityList />)
