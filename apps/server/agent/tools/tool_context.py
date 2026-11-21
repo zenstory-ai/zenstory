@@ -417,6 +417,32 @@ def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
+_SHIFT_FALLBACK_MAX_MID_LINES = 500
+
+
+def _common_prefix_suffix_len(a: str, b: str) -> tuple[int, int]:
+    """在 O(N) 内求两段文本的最长公共前后缀长度（按块比较，避免逐字 Python 循环）。"""
+    min_len = min(len(a), len(b))
+    step = 256
+    prefix = 0
+    while prefix + step <= min_len and a[prefix : prefix + step] == b[prefix : prefix + step]:
+        prefix += step
+    while prefix < min_len and a[prefix] == b[prefix]:
+        prefix += 1
+
+    max_suffix = min_len - prefix
+    suffix = 0
+    la, lb = len(a), len(b)
+    while (
+        suffix + step <= max_suffix
+        and a[la - suffix - step : la - suffix] == b[lb - suffix - step : lb - suffix]
+    ):
+        suffix += step
+    while suffix < max_suffix and a[la - 1 - suffix] == b[lb - 1 - suffix]:
+        suffix += 1
+    return prefix, suffix
+
+
 def shift_spans_for_hunks(
     spans: Sequence[tuple[int, int]],
     hunks: Sequence[tuple[int, int, int]],
@@ -428,10 +454,14 @@ def shift_spans_for_hunks(
     每个 hunk 均在修改前正文坐标下给出且互不重叠。从右向左依次套用，确保：
     - 落在已读区间之前的改动只做坐标平移，绝不桥接中间的未读段落；
     - 落在已读区间之后的改动不影响该区间；
-    - 与已读区间重叠的改动只随该 hunk 自身伸缩，绝不把未读空白/章节并入已读区间。
+    - 完全落在已读区间内部的改动按该 hunk 伸缩；
+    - 跨出已读区间边界（触及未读文本）的改动只保留未被覆盖的已读部分，绝不把未读文本并入已读区间；
+    - ``new_len`` 裁剪仅在全部 hunk 应用完毕后执行一次，避免右向左处理时过早截断高坐标区间。
     """
     current = _merge_spans(list(spans))
     if not current or not hunks:
+        if new_len is not None and current:
+            return _merge_spans([(min(s, new_len), min(e, new_len)) for s, e in current if min(e, new_len) > min(s, new_len)])
         return current
     ordered_hunks = sorted(
         ((int(s), int(e), max(0, int(n))) for s, e, n in hunks),
@@ -448,21 +478,28 @@ def shift_spans_for_hunks(
             elif h_end <= start:
                 # 改动完全在已读区间之前（含在区间左端点插入）：仅平移坐标
                 new_start, new_end = start + delta, end + delta
+            elif start <= h_start and h_end <= end:
+                # 改动完全落在已读区间内部：按该 hunk 伸缩
+                new_start, new_end = start, end + delta
+            elif h_start < start and h_end > end:
+                # 改动跨越已读区间两侧并覆盖未读文本：保守丢弃，绝不向未读区域扩张
+                continue
+            elif h_start < start:
+                # 改动从左侧未读区域跨入已读区间：只保留右侧未受影响的已读后缀
+                new_start, new_end = h_start + repl_len, end + delta
             else:
-                # 改动与已读区间重叠（包含或跨边界）：仅按当前 hunk 局部调整
-                new_start = start if start <= h_start else h_start
-                new_end = (end + delta) if end >= h_end else (h_start + repl_len)
-            if new_len is not None:
-                new_start = max(0, min(new_start, new_len))
-                new_end = max(0, min(new_end, new_len))
-            else:
-                new_start = max(0, new_start)
-                new_end = max(0, new_end)
+                # 改动从已读区间内部跨出到右侧未读区域：只保留左侧未受影响的已读前缀
+                new_start, new_end = start, h_start
+            new_start = max(0, new_start)
+            new_end = max(0, new_end)
             if new_end > new_start:
                 updated.append((new_start, new_end))
         current = _merge_spans(updated)
         if not current:
             break
+    if new_len is not None and current:
+        clamped = [(min(s, new_len), min(e, new_len)) for s, e in current]
+        current = _merge_spans([(s, e) for s, e in clamped if e > s])
     return current
 
 
@@ -471,18 +508,57 @@ def shift_spans_for_edit(
     new_content: str,
     spans: list[tuple[int, int]],
 ) -> list[tuple[int, int]]:
-    """无显式 hunk 时的兜底区间投影：按非 equal opcode 逐块调用 shift_spans_for_hunks，不桥接未读间隙。"""
-    if not spans:
+    """无显式 hunk 时的兜底区间投影（O(N) 前后缀裁剪 + 有界按行 diff，绝不做 O(N^2) 字符级 diff）。"""
+    merged = _merge_spans(list(spans))
+    if not merged:
         return []
     if old_content == new_content:
-        return _merge_spans(spans)
-    matcher = difflib.SequenceMatcher(None, old_content, new_content, autojunk=False)
+        return merged
+
+    prefix, suffix = _common_prefix_suffix_len(old_content, new_content)
+    old_change_end = len(old_content) - suffix
+    new_change_end = len(new_content) - suffix
+    delta = len(new_content) - len(old_content)
+
+    preserved: list[tuple[int, int]] = []
+    overlapping: list[tuple[int, int]] = []
+    for start, end in merged:
+        if end <= prefix:
+            preserved.append((start, end))
+        elif start >= old_change_end:
+            shifted_s = max(0, min(start + delta, len(new_content)))
+            shifted_e = max(0, min(end + delta, len(new_content)))
+            if shifted_e > shifted_s:
+                preserved.append((shifted_s, shifted_e))
+        else:
+            overlapping.append((start, end))
+
+    if not overlapping:
+        return _merge_spans(preserved)
+
+    old_mid = old_content[prefix:old_change_end]
+    new_mid = new_content[prefix:new_change_end]
+    old_lines = old_mid.splitlines(keepends=True)
+    new_lines = new_mid.splitlines(keepends=True)
+    if len(old_lines) + len(new_lines) > _SHIFT_FALLBACK_MAX_MID_LINES:
+        # 变更窗口行数过大时保守丢弃重叠区间，不做无界 diff，绝不桥接未读区间。
+        return _merge_spans(preserved)
+
+    old_offsets = [prefix]
+    for line in old_lines:
+        old_offsets.append(old_offsets[-1] + len(line))
+    new_offsets = [0]
+    for line in new_lines:
+        new_offsets.append(new_offsets[-1] + len(line))
+
+    matcher = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False)
     hunks = [
-        (i1, i2, j2 - j1)
+        (old_offsets[i1], old_offsets[i2], new_offsets[j2] - new_offsets[j1])
         for tag, i1, i2, j1, j2 in matcher.get_opcodes()
         if tag != "equal"
     ]
-    return shift_spans_for_hunks(spans, hunks, new_len=len(new_content))
+    shifted_overlapping = shift_spans_for_hunks(overlapping, hunks, new_len=len(new_content))
+    return _merge_spans([*preserved, *shifted_overlapping])
 
 
 class _ToolUiPayloadStore:
@@ -634,8 +710,9 @@ class _ReadSnapshots:
                 return
             previous_content = self._latest_locked(file_id)
             self._sources["written"][file_id] = (self._seq, normalized)
-            if full:
-                self._full_writes.add(file_id)
+            if full or self._is_fully_seen_locked(file_id):
+                if full:
+                    self._full_writes.add(file_id)
                 self._range_spans.pop(file_id, None)
             elif seen_spans is not None:
                 merged = _merge_spans(list(seen_spans))
@@ -687,11 +764,15 @@ class _ReadSnapshots:
 
     def promote_pending_reads(self) -> None:
         with self._lock:
+            for file_id in self._pending:
+                self._range_spans.pop(file_id, None)
             self._sources["read"].update(self._pending)
             self._pending.clear()
             self._sources["range"].update(self._pending_range)
             self._pending_range.clear()
             for file_id, (_order, content, spans) in self._pending_range_spans.items():
+                if self._is_fully_seen_locked(file_id):
+                    continue
                 existing = self._range_spans.get(file_id)
                 if existing is not None and existing[0] == content:
                     self._range_spans[file_id] = (content, _merge_spans([*existing[1], *spans]))
@@ -712,13 +793,16 @@ class _ReadSnapshots:
         with self._lock:
             return self._latest_locked(file_id)
 
+    def _is_fully_seen_locked(self, file_id: str) -> bool:
+        return (
+            file_id in self._sources["initial"]
+            or file_id in self._sources["read"]
+            or file_id in self._full_writes
+        )
+
     def seen(self, file_id: str) -> bool:
         with self._lock:
-            return (
-                file_id in self._sources["initial"]
-                or file_id in self._sources["read"]
-                or file_id in self._full_writes
-            )
+            return self._is_fully_seen_locked(file_id)
 
     def seen_spans(self, file_id: str) -> list[tuple[int, int]]:
         """返回模型通过范围读取看过的字符区间（仅当区间对应的正文仍是最新快照时有效）。"""

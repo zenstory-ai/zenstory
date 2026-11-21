@@ -631,6 +631,187 @@ async def test_range_read_fuzzy_replace_all_spanning_unseen_and_seen_fails_witho
         mcp_tools.ToolContext.clear_context()
 
 
+@pytest.mark.asyncio
+async def test_range_read_then_full_read_clears_range_spans_and_skips_shift(
+    db_session, owner_project
+):
+    import time
+
+    user, project = owner_project
+    content = _long_collection()
+    chapter = _make_file(db_session, project, title="合集", content=content)
+    engine = db_session.get_bind()
+
+    mcp_tools.ToolContext.set_context(
+        None,
+        user.id,
+        project.id,
+        None,
+        create_session_func=lambda: Session(engine),
+        read_snapshots={},
+    )
+    try:
+        # 1) Range-read records a range span.
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
+        mcp_tools.ToolContext.promote_pending_reads()
+        assert mcp_tools.ToolContext.has_seen_file(chapter.id) is False
+        assert len(mcp_tools.ToolContext.seen_file_spans(chapter.id)) == 1
+
+        # 2) Subsequent full read promotes to full seen and clears stale _range_spans.
+        await mcp_tools.query_files({"id": chapter.id})
+        mcp_tools.ToolContext.promote_pending_reads()
+        assert mcp_tools.ToolContext.has_seen_file(chapter.id) is True
+        assert mcp_tools.ToolContext.seen_file_spans(chapter.id) == []
+
+        # 3) Writing afterward (seen_spans=None) must NOT run O(N^2) span shifting.
+        t0 = time.perf_counter()
+        edited = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {"op": "prepend", "text": "总序开头。"},
+                            {"op": "append", "text": "全书完。"},
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        elapsed = time.perf_counter() - t0
+        assert edited["status"] == "success", edited
+        assert elapsed < 1.0, f"Unexpected stall after full read: {elapsed:.3f}s"
+        assert mcp_tools.ToolContext.seen_file_spans(chapter.id) == []
+    finally:
+        mcp_tools.ToolContext.clear_context()
+
+
+def test_shift_spans_for_hunks_shrinking_multi_hunk_preserves_valid_spans():
+    from agent.tools.tool_context import shift_spans_for_hunks
+
+    # Right-to-left hunk iteration must NOT clamp to final new_len before earlier shrinking hunks run.
+    assert shift_spans_for_hunks([(800, 950)], [(0, 500, 0), (960, 970, 5)], new_len=495) == [
+        (300, 450)
+    ]
+    assert shift_spans_for_hunks([(700, 800)], [(0, 600, 0), (900, 905, 5)], new_len=400) == [
+        (100, 200)
+    ]
+    # A hunk crossing outside both boundaries of a seen span must never expand into unseen text.
+    assert shift_spans_for_hunks([(200, 300)], [(0, 500, 510)], new_len=510) == []
+
+
+def test_shift_spans_for_edit_large_file_is_fast_and_never_bridges_unseen_gaps():
+    import time
+
+    from agent.tools.tool_context import shift_spans_for_edit
+
+    big = _long_collection() * 3
+    assert len(big) >= 40_000
+    ch8_start = big.index("第8章 雨夜8")
+    ch8_end = big.index("第9章 雨夜9")
+    spans = [(ch8_start, ch8_end)]
+
+    # 1) Single edit before seen span shifts cleanly in milliseconds.
+    t0 = time.perf_counter()
+    shifted_pre = shift_spans_for_edit(big, "楔子开头。\n" + big, spans)
+    assert time.perf_counter() - t0 < 0.1
+    assert shifted_pre == [(ch8_start + len("楔子开头。\n"), ch8_end + len("楔子开头。\n"))]
+
+    # 2) Single local edit inside seen span shifts accurately in milliseconds.
+    old_line = "林晚在第8章收起雨伞，靠在廊柱边上，听见远处钟声敲了三下。"
+    new_line = "林晚在第8章合上油纸伞。"
+    delta = len(new_line) - len(old_line)
+    t0 = time.perf_counter()
+    shifted_in = shift_spans_for_edit(big, big.replace(old_line, new_line, 1), spans)
+    assert time.perf_counter() - t0 < 0.1
+    assert shifted_in == [(ch8_start, ch8_end + delta)]
+
+    # 3) Simultaneous prepend + append on >500-line middle window finishes in milliseconds
+    #    and conservatively drops overlapping spans (never bridges unseen gaps or runs O(N^2)).
+    t0 = time.perf_counter()
+    shifted_both = shift_spans_for_edit(big, "楔子开头。\n" + big + "\n尾声。", spans)
+    assert time.perf_counter() - t0 < 0.1
+    assert shifted_both == []
+
+
+@pytest.mark.asyncio
+async def test_range_read_shrinking_replace_all_preserves_tail_seen_span(
+    db_session, owner_project
+):
+    user, project = owner_project
+    long_marker = "【超长待删统一占位标记——用于验证大幅缩短时的多处替换偏移计算】" * 100
+    short_marker = "【短】"
+    content = (
+        _long_collection()
+        .replace("第1章 雨夜1", f"第1章 雨夜1{long_marker}")
+        .replace("第12章 雨夜12", f"第12章 雨夜12{long_marker}")
+    )
+    chapter = _make_file(db_session, project, title="合集", content=content)
+    engine = db_session.get_bind()
+
+    mcp_tools.ToolContext.set_context(
+        None,
+        user.id,
+        project.id,
+        None,
+        create_session_func=lambda: Session(engine),
+        read_snapshots={},
+    )
+    try:
+        # Range-read 第10章 (strictly before 第12章's marker); its pre-edit end coordinate > post-shrink len(content)!
+        await mcp_tools.query_files({"id": chapter.id, "section": "第10章"})
+        mcp_tools.ToolContext.promote_pending_reads()
+        orig_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        assert len(orig_spans) == 1
+        assert orig_spans[0][1] <= content.index("第12章 雨夜12")
+
+        replaced = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {
+                                "op": "replace",
+                                "old": long_marker,
+                                "new": short_marker,
+                                "replace_all": True,
+                            }
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert replaced["status"] == "success", replaced
+        # Confirm pre-edit span end exceeded post-edit length (the exact case premature new_len clamping broke).
+        assert orig_spans[0][1] > replaced["data"]["new_length"]
+        delta = len(short_marker) - len(long_marker)
+        assert mcp_tools.ToolContext.seen_file_spans(chapter.id) == [
+            (orig_spans[0][0] + delta, orig_spans[0][1] + delta)
+        ]
+
+        # Fuzzy edit inside seen 第10章 still works after shrinking multi-hunk replace_all!
+        ok = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {
+                                "op": "replace",
+                                "old": "林晚在第10章收起雨伞, 靠在廊柱边上, 听见远处钟声敲了三下.",
+                                "new": "林晚在第10章合上雨伞。",
+                            }
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert ok["status"] == "success", ok
+    finally:
+        mcp_tools.ToolContext.clear_context()
+
+
 # ---------------------------------------------------------------------------
 # Rank 2: edit_file LLM slimming + side-channel UI parity + update_project dedupe + compact JSON
 # ---------------------------------------------------------------------------
