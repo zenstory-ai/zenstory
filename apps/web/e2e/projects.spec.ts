@@ -47,8 +47,12 @@ async function openProjectSwitcher(page: Page): Promise<{
   }
 }
 
+function getProjectRows(dropdown: Locator): Locator {
+  return dropdown.locator('div.group:has(button[data-testid="project-switcher-rename"])')
+}
+
 function getCurrentProjectRow(dropdown: Locator): Locator {
-  return dropdown.locator('div.group.cursor-pointer').last()
+  return dropdown.locator('div.group:has(button[aria-current="true"])').first()
 }
 
 function registerOwnedProject(projectId: string, accessToken: string): string {
@@ -336,7 +340,7 @@ test.describe('Projects', () => {
     ).toBeVisible()
 
     const { dropdown } = await openProjectSwitcher(page)
-    const projectRows = dropdown.locator('div.group.cursor-pointer')
+    const projectRows = getProjectRows(dropdown)
     const searchableName = matchingProject.name
     await expect(projectRows.filter({ hasText: searchableName })).toHaveCount(1)
     await expect(projectRows.filter({ hasText: otherProject.name })).toHaveCount(1)
@@ -429,7 +433,7 @@ test.describe('Project Update', () => {
 
     // For now, verify the project exists by checking project switcher
     const { dropdown } = await openProjectSwitcher(page)
-    await expect(dropdown.locator('div.group.cursor-pointer').first()).toBeVisible()
+    await expect(getProjectRows(dropdown).first()).toBeVisible()
     await page.keyboard.press('Escape')
   })
 

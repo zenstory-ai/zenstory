@@ -1007,7 +1007,7 @@ function MaterialCard({
             <Button
               type="button"
               variant="secondary"
-              size={isMobile ? "touch" : "sm"}
+              size="touch"
               onClick={(e) => {
                 e.stopPropagation();
                 onExport();
@@ -1028,7 +1028,7 @@ function MaterialCard({
             <Button
               type="button"
               variant="secondary"
-              size={isMobile ? "touch" : "sm"}
+              size="touch"
               onClick={(e) => {
                 e.stopPropagation();
                 onRetry();
