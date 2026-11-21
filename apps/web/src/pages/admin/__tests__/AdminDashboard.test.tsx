@@ -205,7 +205,7 @@ describe('AdminDashboard', () => {
     expect(screen.queryByText('22')).not.toBeInTheDocument();
   });
 
-  it('omits dead commercial KPI cards and collapses methodology copy into details', async () => {
+  it('omits dead commercial KPI cards, collapses methodology copy, and refreshes queries', async () => {
     render(<AdminDashboard />, { wrapper: createWrapper() });
 
     expect(await screen.findByText('当前 Pro 用户（含赠送）')).toBeInTheDocument();
@@ -214,6 +214,9 @@ describe('AdminDashboard', () => {
     expect(screen.queryByText('admin:dashboard.activeInviteCodes')).not.toBeInTheDocument();
     expect(screen.queryByText('admin:dashboard.weekReferrals')).not.toBeInTheDocument();
     expect(screen.getByText('统计口径')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'admin:dashboard.refresh' }));
+    await waitFor(() => expect(mockGetDashboardStats).toHaveBeenCalledTimes(2));
   });
 
   it('shows paid Pro users and separates paid conversions from grants', async () => {

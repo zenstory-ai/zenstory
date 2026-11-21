@@ -663,7 +663,7 @@ test('all admin routes are reachable for superuser with mocked APIs', async ({ p
 
   for (const route of routes) {
     await page.goto(route);
-    await expect(page).toHaveURL(new RegExp(`${route.replace(/\//g, '\\/')}$`));
+    await expect.poll(() => new URL(page.url()).pathname).toBe(route);
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.locator('main')).toBeVisible();
   }

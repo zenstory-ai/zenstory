@@ -91,8 +91,14 @@ describe("PaymentOrderManagement", () => {
     expect(dialog.queryByRole("button", { name: "paymentOrders.sync" })).not.toBeInTheDocument();
   });
 
-  it("paginates, submits search explicitly, and resets page when filters change", async () => {
+  it("paginates, refreshes, submits search explicitly, and resets page when filters change", async () => {
     render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
+    fireEvent.click(screen.getByRole("button", { name: "paymentOrders.refresh" }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "paymentOrders.nextPage" }));
+    expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 2, "", "", "", false]);
+    fireEvent.click(screen.getByRole("button", { name: "paymentOrders.previousPage" }));
+    expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 1, "", "", "", false]);
     fireEvent.click(screen.getByRole("button", { name: "paymentOrders.nextPage" }));
     expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 2, "", "", "", false]);
     fireEvent.change(screen.getByRole("combobox", { name: "paymentOrders.paymentStatus" }), { target: { value: "paid" } });
