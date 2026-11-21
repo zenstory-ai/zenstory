@@ -461,14 +461,16 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
           {t('selectedVersions', { count: selectedVersions.length })}
         </span>
         {selectedVersions.length === 2 && (
-          <button
+          <Button
+            type="button"
+            variant="primary"
+            size={isMobile ? 'touch' : 'sm'}
             onClick={handleCompare}
             disabled={isComparing}
-            className="btn btn-primary"
+            leftIcon={<GitCompare size={14} />}
           >
-            <GitCompare size={14} />
             {isComparing ? t('comparing') : t('compare')}
-          </button>
+          </Button>
         )}
       </div>
       )}
@@ -528,18 +530,19 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                 />
               ))}
               {versions.length < total && (
-                <div className="p-3 flex justify-center">
-                  {pageError && <span role="alert" className="text-[hsl(var(--error-text))]">{pageError}</span>}
-                  <button
+                <div className="p-3 flex flex-col items-center gap-2">
+                  {pageError && <span role="alert" className="text-xs text-[hsl(var(--error-text))]">{pageError}</span>}
+                  <Button
                     type="button"
-                    className="btn"
+                    variant="secondary"
+                    size={isMobile ? 'touch' : 'sm'}
                     disabled={loadingMore}
                     onClick={() => void loadVersions(versions.length, true)}
                   >
                     {loadingMore
                       ? t('loading')
                       : t('loadMore', { defaultValue: '加载更多' })}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -575,15 +578,16 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                 })}
               </span>
               <div className="flex items-center gap-1">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size={isMobile ? 'touch' : 'sm'}
                   onClick={() => handleRollback(preview.versionNumber)}
                   disabled={isRollingBack}
-                  className="btn text-xs"
+                  leftIcon={<RotateCcw size={14} />}
                 >
-                  <RotateCcw size={14} />
                   {t('rollback')}
-                </button>
+                </Button>
                 <IconButton
                   onClick={() => setPreview(null)}
                   label={t('closePreview', { defaultValue: '关闭预览' })}
@@ -591,7 +595,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                 />
               </div>
             </div>
-            <pre className="flex-1 overflow-auto whitespace-pre-wrap break-words p-4 text-sm text-[hsl(var(--text-primary))] font-sans">
+            <pre className="flex-1 overflow-auto whitespace-pre-wrap break-words p-4 text-sm text-[hsl(var(--text-primary))] font-[family-name:var(--font-body)] leading-relaxed">
               {preview.content}
             </pre>
           </div>

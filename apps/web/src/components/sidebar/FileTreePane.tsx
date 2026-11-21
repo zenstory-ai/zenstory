@@ -273,9 +273,9 @@ export const FileTreePane: React.FC = () => {
           aria-level={depth + 1}
           aria-expanded={isFolder ? isExpanded : undefined}
           aria-selected={!isFolder ? isSelected : undefined}
-          className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))] ${
+          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer group transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))] ${
             isSelected && !isFolder
-              ? "bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))]"
+              ? "bg-[hsl(var(--accent-primary)/0.12)] text-[hsl(var(--accent-primary))] font-medium"
               : "text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
           }`}
           onClick={activateNode}
@@ -311,7 +311,7 @@ export const FileTreePane: React.FC = () => {
           )}
 
           {/* Icon */}
-          <span className="text-[hsl(var(--text-secondary))]">
+          <span className={isSelected && !isFolder ? "text-[hsl(var(--accent-primary))]" : "text-[hsl(var(--text-secondary))]"}>
             {FILE_TYPE_ICONS[node.file_type] || <FileText size={16} />}
           </span>
 

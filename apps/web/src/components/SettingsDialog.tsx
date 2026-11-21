@@ -304,15 +304,16 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
         title={tSettings('title')}
         size="xl"
         className="h-[min(80vh,760px)]"
+        bodyClassName="p-0 overflow-hidden"
         showCloseButton={true}
         closeOnBackdropClick={true}
         closeOnEscape={true}
       >
-        <div className={`ui-sans-headings flex h-full min-h-0 ${isMobile ? 'flex-col' : ''}`}>
+        <div className={`ui-sans-headings flex h-full min-h-0 border-t border-[hsl(var(--border-color))] ${isMobile ? 'flex-col' : ''}`}>
           {/* Left navigation */}
-          <div className={`${isMobile ? 'px-1 pb-2' : 'w-40 px-3 pb-4 shrink-0'}`}>
+          <div className={`${isMobile ? 'px-3 py-2 shrink-0' : 'w-44 p-3 shrink-0'}`}>
             <nav
-              className={`${isMobile ? 'grid grid-flow-col auto-cols-fr gap-1' : 'space-y-0.5'}`}
+              className={`${isMobile ? 'flex overflow-x-auto scrollbar-none gap-1' : 'space-y-0.5'}`}
               role="tablist"
               aria-orientation={isMobile ? 'horizontal' : 'vertical'}
             >
@@ -331,15 +332,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                     onClick={() => setActiveTab(item.id)}
                     onKeyDown={(event) => handleTabKeyDown(event, index)}
                     data-testid={`settings-tab-${item.id}`}
-                    className={`flex items-center text-sm transition-colors ${
-                      isMobile ? 'flex-col gap-1 justify-center min-h-11 py-2 px-1' : 'w-full gap-2 py-2 px-3'
+                    className={`flex items-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
+                      isMobile ? 'shrink-0 whitespace-nowrap gap-1.5 min-h-11 px-3 py-2 text-xs' : 'w-full gap-2 py-2 px-3 text-sm'
                     } rounded-lg ${
                       isActive
                         ? 'bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] font-medium'
                         : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] hover:text-[hsl(var(--text-primary))]'
                     }`}
                   >
-                    <Icon size={16} strokeWidth={1.5} />
+                    <Icon size={16} strokeWidth={1.5} className="shrink-0" />
                     <span>{item.label}</span>
                   </button>
                 );
@@ -385,7 +386,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                   size={isMobile ? 'touch' : 'md'}
                   onClick={handleLogout}
                   data-testid="settings-logout-button"
-                  className="w-full"
+                  className="w-full text-[hsl(var(--error-text))]! hover:bg-[hsl(var(--error)/0.08)]!"
                   leftIcon={<LogOut size={16} />}
                 >
                   {tAuth('logout.button')}
@@ -458,17 +459,21 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                         setAnalyticsOptOut(!nextEnabled);
                         setAnalyticsEnabled(nextEnabled);
                       }}
-                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                        analyticsEnabled
-                          ? 'bg-[hsl(var(--accent-primary))]'
-                          : 'bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))]'
-                      }`}
+                      className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center p-2 -m-2 sm:p-0 sm:m-0 shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
                     >
                       <span
-                        className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                          analyticsEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          analyticsEnabled
+                            ? 'bg-[hsl(var(--accent-primary))]'
+                            : 'bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))]'
                         }`}
-                      />
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                            analyticsEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -508,7 +513,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                   <div id="settings-accent-label" className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-2">
                     {tSettings('theme.color')}
                   </div>
-                  <div className="flex gap-2" role="radiogroup" aria-labelledby="settings-accent-label">
+                  <div className="flex flex-wrap gap-1 sm:gap-2" role="radiogroup" aria-labelledby="settings-accent-label">
                     {[
                       { value: '#4a9eff', name: tSettings('theme.colors.blue', '蓝色') },
                       { value: '#22c55e', name: tSettings('theme.colors.green', '绿色') },
@@ -526,11 +531,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                         onClick={() => setAccentColor(color)}
                         data-testid="accent-color-button"
                         data-color={color}
-                        className={`w-7 h-7 rounded-full transition-transform hover:scale-110 ${
-                          accentColor === color ? 'ring-2 ring-offset-2 ring-offset-[hsl(var(--bg-card))]' : ''
-                        }`}
-                        style={{ backgroundColor: color, '--tw-ring-color': color } as React.CSSProperties}
-                      />
+                        className="group min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 p-2 sm:p-0 inline-flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
+                      >
+                        <span
+                          className={`w-7 h-7 rounded-full transition-transform group-hover:scale-110 ${
+                            accentColor === color ? 'ring-2 ring-offset-2 ring-offset-[hsl(var(--bg-card))]' : ''
+                          }`}
+                          style={{ backgroundColor: color, '--tw-ring-color': color } as React.CSSProperties}
+                        />
+                      </button>
                     ))}
                   </div>
                 </div>

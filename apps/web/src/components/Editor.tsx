@@ -1599,18 +1599,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
       // Centred while it fits; on a short window it scrolls from the top instead of pushing the
       // heading under the header and the last hints out of reach.
       <div className="h-full overflow-y-auto">
-      <div className="relative flex min-h-full flex-col items-center justify-center p-6 md:p-8 overflow-hidden">
-        {/* Background ambient glow */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--accent-primary)/0.03)] via-transparent to-[hsl(var(--accent-primary)/0.02)] pointer-events-none" />
-
-        {/* Floating orbs for depth */}
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-[hsl(var(--accent-primary)/0.05)] blur-3xl pointer-events-none animate-pulse will-change-transform" style={{ animationDuration: '4s' }} />
-        <div className="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full bg-[hsl(var(--accent-primary)/0.04)] blur-2xl pointer-events-none animate-pulse will-change-transform" style={{ animationDuration: '5s', animationDelay: '1s' }} />
-
-        <div className="max-w-md w-full space-y-6 relative z-10">
+      <div className="relative flex min-h-full flex-col items-center justify-center p-6 md:p-8">
+        <div className="max-w-md w-full space-y-6">
           {/* Headline */}
           <div className="text-center space-y-3">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-[hsl(var(--accent-primary)/0.15)] to-[hsl(var(--accent-primary)/0.05)] mb-3 shadow-lg shadow-[hsl(var(--accent-primary)/0.1)] transform hover:scale-105 transition-transform duration-300">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[hsl(var(--accent-primary)/0.1)] mb-3">
               <Sparkles className="w-7 h-7 text-[hsl(var(--accent-primary))]" />
             </div>
             <h2 className="text-xl md:text-2xl font-semibold text-[hsl(var(--text-primary))]">
@@ -1637,12 +1630,13 @@ const EditorComponent: React.FC<EditorProps> = () => {
           {/* Write it yourself - 2 cards */}
           <div className="grid grid-cols-2 gap-3">
             {/* Create Draft (screenplay projects: Script) */}
-            <div
+            <button
+              type="button"
+              disabled={isCreating === primaryFileType}
               onClick={() => handleCreateFromEmptyState(primaryFileType)}
-              className={`group relative flex flex-col items-center gap-2.5 p-4 rounded-xl bg-gradient-to-br from-[hsl(var(--bg-secondary))] to-[hsl(var(--bg-tertiary)/0.5)] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:shadow-xl hover:shadow-[hsl(var(--accent-primary)/0.08)] transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 ${isCreating === primaryFileType ? 'opacity-50 pointer-events-none' : ''}`}
+              className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[hsl(var(--accent-primary)/0.1)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-[hsl(var(--accent-primary)/0.12)] to-[hsl(var(--accent-primary)/0.06)] flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
+              <div className="w-11 h-11 rounded-xl bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
                 {isCreating === primaryFileType ? (
                   <LoadingSpinner size="md" color="primary" />
                 ) : isScreenplay ? (
@@ -1651,31 +1645,34 @@ const EditorComponent: React.FC<EditorProps> = () => {
                   <BookOpen className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
                 )}
               </div>
-              <span className="relative text-sm font-medium text-[hsl(var(--text-primary))] text-center">
+              <span className="text-sm font-medium text-[hsl(var(--text-primary))] text-center">
                 {isScreenplay ? t('editor:fileTree.newScript') : t('editor:fileTree.newDraft')}
               </span>
-            </div>
+            </button>
 
             {/* Create Outline */}
-            <div
+            <button
+              type="button"
+              disabled={isCreating === 'outline'}
               onClick={() => handleCreateFromEmptyState('outline')}
-              className={`group relative flex flex-col items-center gap-2.5 p-4 rounded-xl bg-gradient-to-br from-[hsl(var(--bg-secondary))] to-[hsl(var(--bg-tertiary)/0.5)] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:shadow-xl hover:shadow-[hsl(var(--accent-primary)/0.08)] transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 ${isCreating === 'outline' ? 'opacity-50 pointer-events-none' : ''}`}
+              className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[hsl(var(--accent-primary)/0.1)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-[hsl(var(--accent-primary)/0.12)] to-[hsl(var(--accent-primary)/0.06)] flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
+              <div className="w-11 h-11 rounded-xl bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
                 {isCreating === 'outline' ? <LoadingSpinner size="md" color="primary" /> : <FileText className="w-5 h-5 text-[hsl(var(--accent-primary))]" />}
               </div>
-              <span className="relative text-sm font-medium text-[hsl(var(--text-primary))] text-center">
+              <span className="text-sm font-medium text-[hsl(var(--text-primary))] text-center">
                 {t('editor:fileTree.newOutline')}
               </span>
-            </div>
+            </button>
           </div>
 
           {/* More Options Toggle */}
           <div className="space-y-2">
             <button
+              type="button"
+              aria-expanded={showMore}
               onClick={() => setShowMore(!showMore)}
-              className="w-full flex items-center justify-center gap-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors py-2 group"
+              className="w-full min-h-11 md:min-h-0 flex items-center justify-center gap-1.5 rounded-lg text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] group"
             >
               <span>{showMore ? t('editor:showLess') : t('editor:showMore')}</span>
               <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${showMore ? 'rotate-180' : ''}`} />
@@ -1685,32 +1682,34 @@ const EditorComponent: React.FC<EditorProps> = () => {
             {showMore && (
               <div className="grid grid-cols-2 gap-3 animate-fade-in" style={{ animationDuration: '200ms' }}>
                 {/* Create Character */}
-                <div
+                <button
+                  type="button"
+                  disabled={isCreating === 'character'}
                   onClick={() => handleCreateFromEmptyState('character')}
-                  className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl bg-gradient-to-br from-[hsl(var(--bg-secondary))] to-[hsl(var(--bg-tertiary)/0.5)] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:shadow-xl hover:shadow-[hsl(var(--accent-primary)/0.08)] transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 ${isCreating === 'character' ? 'opacity-50 pointer-events-none' : ''}`}
+                  className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[hsl(var(--accent-primary)/0.1)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-[hsl(var(--accent-primary)/0.12)] to-[hsl(var(--accent-primary)/0.06)] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <div className="w-9 h-9 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
                     {isCreating === 'character' ? <LoadingSpinner size="sm" color="primary" /> : <Users className="w-4 h-4 text-[hsl(var(--accent-primary))]" />}
                   </div>
-                  <span className="relative text-xs font-medium text-[hsl(var(--text-primary))] text-center">
+                  <span className="text-xs font-medium text-[hsl(var(--text-primary))] text-center">
                     {t('editor:fileTree.newCharacter')}
                   </span>
-                </div>
+                </button>
 
                 {/* Create Lore */}
-                <div
+                <button
+                  type="button"
+                  disabled={isCreating === 'lore'}
                   onClick={() => handleCreateFromEmptyState('lore')}
-                  className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl bg-gradient-to-br from-[hsl(var(--bg-secondary))] to-[hsl(var(--bg-tertiary)/0.5)] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:shadow-xl hover:shadow-[hsl(var(--accent-primary)/0.08)] transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 ${isCreating === 'lore' ? 'opacity-50 pointer-events-none' : ''}`}
+                  className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[hsl(var(--accent-primary)/0.1)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-[hsl(var(--accent-primary)/0.12)] to-[hsl(var(--accent-primary)/0.06)] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <div className="w-9 h-9 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
                     {isCreating === 'lore' ? <LoadingSpinner size="sm" color="primary" /> : <Sparkles className="w-4 h-4 text-[hsl(var(--accent-primary))]" />}
                   </div>
-                  <span className="relative text-xs font-medium text-[hsl(var(--text-primary))] text-center">
+                  <span className="text-xs font-medium text-[hsl(var(--text-primary))] text-center">
                     {t('editor:fileTree.newLore')}
                   </span>
-                </div>
+                </button>
               </div>
             )}
           </div>
@@ -1784,8 +1783,16 @@ const EditorComponent: React.FC<EditorProps> = () => {
   // Render error state
   if (error) {
     return renderWithUpgradeModal(
-      <div className="flex items-center justify-center h-full text-[hsl(var(--error-text))]">
+      <div role="alert" className="flex flex-col items-center justify-center h-full gap-3 p-6 text-center text-[hsl(var(--error-text))]">
         <p className="text-sm">{error}</p>
+        <Button
+          type="button"
+          variant="secondary"
+          size={isMobile ? 'touch' : 'sm'}
+          onClick={() => void loadData()}
+        >
+          {t('common:retry')}
+        </Button>
       </div>
     );
   }
