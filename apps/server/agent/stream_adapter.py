@@ -45,6 +45,7 @@ from .core.round_outcome import RUN_DEADLINE_STOP_REASON, RunOutcome, tool_resul
 from .core.run_meter import AgentRunMeter
 from .core.stream_errors import REPETITION_LOOP_STOP_REASON, error_message_for, stream_error_from_event_data
 from .core.stream_processor import PREBODY_FILE_ID, StreamProcessor, StreamResult, StreamState
+from .core.usage import USAGE_KEY_ALIASES, merge_usage_dicts, normalize_usage_keys
 from .core.workflow_events import (
     FILE_BODY_RESUME_CAPTURE_ACTIVE,
     FILE_BODY_RESUME_GUARD_MISSING,
@@ -218,33 +219,12 @@ class StreamAdapter:
             user_id=self.config.user_id,
         )
 
-    # usage 键别名 → 规范键。Chat Completions 用 prompt/completion，
-    # Responses/SDK 用 input/output；两族键名若同时进同一个累加字典，
-    # 就只有 total_tokens 会被相加，而下游用量聚合取
-    # input_tokens 时读到的是另一族的值，别名那族被静默丢弃——
-    # 结果 total_tokens ≠ input + output + cache，计价口径自相矛盾。
-    _USAGE_KEY_ALIASES: dict[str, str] = {
-        "prompt_tokens": "input_tokens",
-        "completion_tokens": "output_tokens",
-    }
+    _USAGE_KEY_ALIASES: dict[str, str] = USAGE_KEY_ALIASES
 
     @classmethod
     def _normalize_usage_keys(cls, usage: dict[str, Any]) -> dict[str, Any]:
-        """把别名键折叠到规范键上（同名冲突时数值相加）。"""
-        normalized: dict[str, Any] = {}
-        for key, value in usage.items():
-            canonical = cls._USAGE_KEY_ALIASES.get(key, key)
-            previous = normalized.get(canonical)
-            if (
-                isinstance(value, (int, float))
-                and not isinstance(value, bool)
-                and isinstance(previous, (int, float))
-                and not isinstance(previous, bool)
-            ):
-                normalized[canonical] = previous + value
-            else:
-                normalized[canonical] = value
-        return normalized
+        """把别名键折叠到规范键上（同名冲突时数值相加），委托给 agent.core.usage。"""
+        return normalize_usage_keys(usage)
 
     @classmethod
     def _merge_usage(
@@ -252,35 +232,8 @@ class StreamAdapter:
         accumulated: dict[str, Any] | None,
         incoming: Any,
     ) -> dict[str, Any] | None:
-        """累加一次 MESSAGE_END 带来的 usage 统计。
-
-        一轮请求里 router 与 planner/writer/quality_reviewer 各上报一次用量，
-        每次只携带自己那部分 token 消耗。整轮的真实消耗是它们之和，
-        直接赋值会让统计只剩最后一个 agent 的部分。
-
-        规则：先把别名键归一（prompt_tokens→input_tokens、
-        completion_tokens→output_tokens），再逐键相加；
-        非数值字段以最新一次为准；incoming 不是字典时保留已累计的值。
-        """
-        if not isinstance(incoming, dict):
-            return accumulated
-        normalized_incoming = cls._normalize_usage_keys(incoming)
-        if not isinstance(accumulated, dict):
-            return normalized_incoming
-
-        merged: dict[str, Any] = cls._normalize_usage_keys(accumulated)
-        for key, value in normalized_incoming.items():
-            previous = merged.get(key)
-            if (
-                isinstance(value, (int, float))
-                and not isinstance(value, bool)
-                and isinstance(previous, (int, float))
-                and not isinstance(previous, bool)
-            ):
-                merged[key] = previous + value
-            else:
-                merged[key] = value
-        return merged
+        """累加一次 MESSAGE_END 带来的 usage 统计（委托给 agent.core.usage）。"""
+        return merge_usage_dicts(accumulated, incoming)
 
     def get_last_message_metadata(self) -> dict[str, Any]:
         """Get latest model message metadata captured from MESSAGE_END events."""

@@ -546,7 +546,7 @@ async def test_incomplete_or_error_turn_does_not_store_wire_prefix(db_session: S
     db_session.refresh(chat)
 
     def fake_error_loop(state, **_kwargs):
-        state["native_run_holder"] = {"items": _sample_wire_items(), "agent_type": "loop"}
+        state["run_items"] = _sample_wire_items()
         state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
 
         async def _stream():
@@ -613,13 +613,10 @@ async def test_dual_key_slot_switch_misses_wire_prefix_cache_and_falls_back_to_d
 
     def fake_loop(state, **_kwargs):
         seen_histories.append(list(state.get("history_items") or []))
-        state["native_run_holder"] = {
-            "agent_type": "loop",
-            "items": [
-                {"role": "user", "content": "<turn_context>LIVE_WIRE_MARKER</turn_context>\n\n第一轮"},
-                {"role": "assistant", "content": "第一轮完成"},
-            ],
-        }
+        state["run_items"] = [
+            {"role": "user", "content": "<turn_context>LIVE_WIRE_MARKER</turn_context>\n\n第一轮"},
+            {"role": "assistant", "content": "第一轮完成"},
+        ]
         state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
 
         async def _stream():
@@ -1122,13 +1119,10 @@ async def test_clean_max_turns_and_between_runs_wrap_up_store_wire_prefix(
 
     def fake_loop(state, **_kwargs):
         seen_histories.append(list(state.get("history_items") or []))
-        state["native_run_holder"] = {
-            "agent_type": "loop",
-            "items": [
-                {"role": "user", "content": "<turn_context>SOFT_LAND_WIRE_MARKER</turn_context>\n\n第一轮"},
-                {"role": "assistant", "content": "阶段总结"},
-            ],
-        }
+        state["run_items"] = [
+            {"role": "user", "content": "<turn_context>SOFT_LAND_WIRE_MARKER</turn_context>\n\n第一轮"},
+            {"role": "assistant", "content": "阶段总结"},
+        ]
         state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
 
         async def _stream():
@@ -1239,7 +1233,7 @@ async def test_unclean_or_skipped_turns_skip_store_and_invalidate_stale_cache(
                 {"role": "user", "content": "写"},
                 {"type": "function_call", "call_id": "call_dangling", "name": "query_files", "arguments": "{}"},
             ]
-        state["native_run_holder"] = {"agent_type": "loop", "items": items}
+        state["run_items"] = items
         state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
 
         async def _stream():
@@ -1362,7 +1356,7 @@ async def test_cancelled_user_stopped_and_client_disconnected_invalidate_stale_w
     scheduled_tasks: list[asyncio.Task] = []
 
     def fake_loop(state, **_kwargs):
-        state["native_run_holder"] = {"agent_type": "loop", "items": _sample_wire_items()}
+        state["run_items"] = _sample_wire_items()
         state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
 
         async def _stream():
@@ -1412,10 +1406,10 @@ async def test_cancelled_user_stopped_and_client_disconnected_invalidate_stale_w
 async def test_soft_landed_turn_with_unconsumed_steering_skips_cache_and_falls_back_to_db(
     db_session: Session, fake_redis, monkeypatch
 ):
-    """If a soft-landed turn acknowledged mid-run/boundary steering that was appended to
-    writing_state['messages'] AFTER native_run_holder captured items (messages_len < len(messages)),
-    Turn N must skip wire_prefix_cache and invalidate stale Redis entries so Turn N+1 falls back
-    to DB history containing the acknowledged steering message."""
+    """If a soft-landed turn acknowledged mid-run/boundary steering that was recorded in
+    writing_state['pending_steering'] without a follow-up SDK run, Turn N must skip
+    wire_prefix_cache and invalidate stale Redis entries so Turn N+1 falls back to DB
+    history containing the acknowledged steering message."""
     from agent.core.workflow_events import StreamEvent, StreamEventType
     from agent.service import AgentService
 
@@ -1456,22 +1450,15 @@ async def test_soft_landed_turn_with_unconsumed_steering_skips_cache_and_falls_b
 
         async def _stream():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "时间快到了，先总结。"})
-            # Simulate runner.py capturing native_run_holder BEFORE appending mid_run_steering to state["messages"].
-            state["messages"] = [{"role": "user", "content": "写第一章"}, {"role": "assistant", "content": "时间快到了，先总结。"}]
-            state["native_run_holder"] = {
-                "agent_type": "loop",
-                "items": [
-                    {"role": "user", "content": "<turn_context>STALE_WIRE_NO_STEER</turn_context>\n\n写第一章"},
-                    {"role": "assistant", "content": "时间快到了，先总结。"},
-                ],
-                "messages_len": len(state["messages"]),
-            }
+            # Simulate runner.py recording run_items AND pending_steering with no follow-up SDK run because of soft-land.
+            state["run_items"] = [
+                {"role": "user", "content": "<turn_context>STALE_WIRE_NO_STEER</turn_context>\n\n写第一章"},
+                {"role": "assistant", "content": "时间快到了，先总结。"},
+            ]
             state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
-            # Mid-run steering was drained via get_steering_messages() and appended to state["messages"]
-            # after native_run_holder was recorded, with no follow-up SDK run because of soft-land.
             if get_steering_messages is not None:
                 await get_steering_messages()
-            state["messages"].append({"role": "user", "content": steering_text})
+            state["pending_steering"] = [steering_text]
             yield StreamEvent(
                 type=StreamEventType.ITERATION_EXHAUSTED,
                 data={
@@ -1588,7 +1575,7 @@ async def test_cancellation_during_history_save_task_invalidates_stale_wire_pref
         return await orig_save_messages(self, *args, **kwargs)
 
     def fake_loop(state, **_kwargs):
-        state["native_run_holder"] = {"agent_type": "loop", "items": _sample_wire_items()}
+        state["run_items"] = _sample_wire_items()
         state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
 
         async def _stream():
@@ -1687,14 +1674,9 @@ async def test_skipped_clean_turns_emit_single_info_log_with_skip_reason(
         monkeypatch.setattr(agent_runtime, "AGENT_WIRE_PREFIX_CACHE_MAX_BYTES", 50)
 
     def fake_loop(state, **_kwargs):
-        state["messages"] = [{"role": "user", "content": "写第一章"}, {"role": "assistant", "content": "完成"}]
-        state["native_run_holder"] = {
-            "agent_type": "loop",
-            "items": _sample_wire_items(),
-            "messages_len": len(state["messages"]),
-        }
+        state["run_items"] = _sample_wire_items()
         if case == "unconsumed_steering":
-            state["messages"].append({"role": "user", "content": "未消费插话"})
+            state["pending_steering"] = ["未消费插话"]
         state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
 
         async def _stream():

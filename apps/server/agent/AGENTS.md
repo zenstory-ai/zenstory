@@ -53,6 +53,7 @@ agent/
 │   ├── message_manager.py  # 系统提示构建、本轮上下文的共用分段、历史保存、作者语言判断
 │   ├── protocol_filter.py  # 代码块/行内代码外的泄漏工具调用协议过滤与检测（单源共享）
 │   ├── stream_processor.py # <file>…</file> 捕获状态机
+│   ├── usage.py            # 统一的 LLM token 用量提取、键名归一与累加（runner / compaction / StreamAdapter 共用）
 │   ├── llm_providers.py    # 主 / 备供应商配置与 OpenAI 兼容客户端
 │   ├── llm_failover.py     # 主备切换：会话固定、熔断、还没出正文/工具参数时换供应商
 │   └── llm_client.py       # 输入建议 / 润色的单次调用
@@ -110,7 +111,7 @@ agent/
   `awaiting_body` / `next_step`，带 `body_saved`（write_chapter 的整章替换只认落库后补发的结果，只有定位结果时 `body_saved=false` 并说明没保存；
   新建写入看 service 落库前按保存回执写进卡片的 `body_saved`（`service._stamp_body_receipts`），为 false 时附说明，修复前没有这个键的行照旧当作已保存）。成功的历史文件写入回执另带 `write_target_active=false`：不恢复上一轮捕获目标，本轮仍需按作者要求重新定位，改为只读时不恢复写入；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、
   需要时重新调用。活跃会话在 `AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS`（默认 900s，匹配 MiniMax 缓存窗口；`<=0` 关闭）与 `AGENT_WIRE_PREFIX_CACHE_MAX_BYTES`（默认 2 MiB）内额外将干净结束或干净软着陆（`end_turn` / `run_deadline_exceeded` / `max_turns_exceeded`，含无未完成/回滚空文件的 `layer="collaboration", limit=None` 协作上限暂停卡，无未配对工具调用尾部、无错误/取消/待写文件/阻塞状态卡/保存前迟到插话）的一轮的 SDK `completed_items` 缓存到 Redis（`agent:wire_prefix:{session_id}`），落库了新消息却跳过写入时记一条带 `skip_reason` 的 `INFO` 日志（仅无错未取消轮次，不与 `wire_prefix_cache` 内部拒写日志重复）并主动 fail-open 删除旧键；下一轮按数据库最新消息 id、归属、`system_prompt` SHA-256 与 `provider:model:key_slot` 严格校验命中后直接复用（含轮前压缩，不记录原始内容；任何不匹配、会话清空/新建、卡片撤销/恢复、迟到插话或 Redis 异常均 fail-open 回退到 `load_loop_history`）[prompt-cache-stability][n-cache-stability]、[cache-soft-land-and-key-sticky][n-cache-followup]、[author-blame-perf-and-collab-cache][n-blame-perf-collab-cache]。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
-  的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
+  的文字折叠。首次 run 由 `runner.build_run_input` 把 `state["history_items"]` 排在本轮消息之前；同轮续跑（自查 / 纠偏 / 插话）直接从 `state["run_items"]`（上一次正常结束 run 的 `result.to_input_list()`）只追加续接，待消费插话记在 `state["pending_steering"]`（干净结束时 `service.py` 也直接把 `state["run_items"]` 写入 `wire_prefix_cache`）。
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用供应商同量纲估算 `estimate_provider_items_tokens`）
   超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，工具清单经 `Converter.tool_to_openai(build_agent_function_tools())` 生成并保持默认 `tool_choice` 以保住前缀缓存、`should_replay_reasoning_content` 与主循环一致、`max_retries=0`），
   空、被截断或混入未执行的工具调用机器协议（结构化 `tool_calls` 或代码外泄漏 `<tool_call>` / `<invoke>` / `<parameter>` 标签）时保持默认思考强度附带精炼重试说明再试一次（不降低 `reasoning_effort`），仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
@@ -139,7 +140,7 @@ agent/
   「《…》写到了单次回复的输出上限，正文已保存到中断处。」（`author_facing_text.body_cut_at_output_cap_notice`），续跑说明 `_BODY_CUT_CONTEXT` 附落库正文末尾 200 字，
   要求用 edit_file `op=append` 从断点续写、不整章重写，写完再自查；没撞上限的未闭合正文（漏写 `</file>`）照旧按已保存续跑。整章替换的新正文被截断时
   仍是原文不动、在纠偏次数内重试，重试说明换成 `_CHAPTER_REPLACE_CUT_RETRY_CONTEXT`（说明被截断、思考尽量简短）。到收尾时间不再开新 run：
-  若结构化 `pending_self_check` 为真（或正在跑的 `in_self_check` 在总结阶段触发内层 `limit=wall_clock` 软着陆），且已有确认落库正文、`auto_finalize_task_board_on_completion` 单次读取收尾后无未完任务（`has_incomplete == False`）、无待写空文件、无截断残稿、无未保存替换、无未执行工具与插话，直接按 `end_turn` 正常收尾（上一轮停在 `</file>` 尚未写总结时补一句确定性的已保存说明），不发暂停卡；任务板仍有未完成项或其余未完成续跑照旧发 `wall_clock` 暂停卡；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空（API 墙钟硬超时补发暂停卡时 `iterations_used` 取 `RunOutcome.runs_started`）。[prod-review-followups][n-prod-review]、[prod-audit-round2][n-prod-audit2]
+  若结构化 `pending_self_check` 为真（或正在跑的 `in_self_check` 通过 `runner.RunExecutionPolicy(defer_wall_clock_soft_landing=True)` 将内层 `limit=wall_clock` 软着陆延迟交回外层循环），且已有确认落库正文、`auto_finalize_task_board_on_completion` 单次读取收尾后无未完任务（`has_incomplete == False`）、无待写空文件、无截断残稿、无未保存替换、无未执行工具与插话，直接按 `end_turn` 正常收尾（上一轮停在 `</file>` 尚未写总结时补一句确定性的已保存说明），不发暂停卡；任务板仍有未完成项或其余未完成续跑照旧补发 `wall_clock` 暂停卡（`StreamAdapter` 随之将 `stop_reason` 记为 `run_deadline_exceeded`）；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空（API 墙钟硬超时补发暂停卡时 `iterations_used` 取 `RunOutcome.runs_started`）。[prod-review-followups][n-prod-review]、[prod-audit-round2][n-prod-audit2]
   收尾提醒（`runner._ModelCallCountingFilter`）用 `LOOP_SOFT_LANDING_PROMPT` / `LOOP_TIME_LANDING_PROMPT`
   （刚调用 write_chapter 或 create_file 还没写 `<file>` 的先写完）。空文件的核验与回滚在 `core/empty_files.py`，收尾说明、插话追加轮提示与续跑说明里的字数在 `loop/run_support.py`。
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` 是唯一的工具集（顺序即请求里工具清单的顺序，前缀缓存依赖它），请求里直接从 `tool_schemas.TOOL_SCHEMAS` 按序取出（`get_exposed_tools()`；`CREATE_FILE_TOOL` 只列资料文件与文件夹，不列 draft / script）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入直接落库并保留修改卡撤销、历史版本及草稿冲突与版本并发保护（[direct-ai-edits][n-direct-edits]）；

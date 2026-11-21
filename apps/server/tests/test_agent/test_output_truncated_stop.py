@@ -129,10 +129,12 @@ async def test_reasoning_only_run_at_output_cap_ends_with_continue_error(monkeyp
     assert fields["thinking_chars"] == len(THINKING) * 2
     assert fields["stop_basis"] == "usage_output_tokens_at_cap"
 
-    # 思考仍写回会话状态（与其他结束方式一致）。
-    assistant_turn = state["messages"][-1]
-    assert assistant_turn["role"] == "assistant"
-    assert assistant_turn["content"][0]["type"] == "thinking"
+    # 思考已通过 THINKING 事件流出，且截断终态不留残缺的 run_items。
+    streamed_thinking = "".join(
+        event.data.get("thinking", "") for event in events if event.type == StreamEventType.THINKING
+    )
+    assert THINKING in streamed_thinking
+    assert "run_items" not in state
 
 
 @pytest.mark.asyncio

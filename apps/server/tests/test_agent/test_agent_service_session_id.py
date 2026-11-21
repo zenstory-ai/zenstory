@@ -576,9 +576,9 @@ class TestProcessStreamLoadsResolvedSession:
         seen_messages: dict[str, str] = {}
 
         async def fake_workflow(state, *_args, **_kwargs):
-            # 图把历史放在 messages；单循环 agent 放在 history_items（同一会话的往轮行）。
+            # 单循环 agent 把同一会话的往轮行放在 history_items。
             seen_messages[state["session_id"]] = json.dumps(
-                [*(state.get("history_items") or []), *state["messages"]], ensure_ascii=False
+                list(state.get("history_items") or []), ensure_ascii=False
             )
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "好的"})
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})

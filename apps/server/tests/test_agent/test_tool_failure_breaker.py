@@ -708,10 +708,9 @@ async def test_sdk_run_stops_after_identical_failures_and_ends_with_error(monkey
     assert "tool_name" not in error
     assert "database is locked" not in error["error"]
 
-    # 已执行的工具调用照常写回会话状态，供后续回放/落库
-    assistant_turn = state["messages"][-2]
-    tool_uses = [block for block in assistant_turn["content"] if block["type"] == "tool_use"]
-    assert len(tool_uses) == MAX_IDENTICAL_TOOL_FAILURES
+    # 已执行的工具调用事件按序流出，且熔断终态不留残缺的 run_items
+    assert types.count(StreamEventType.TOOL_USE) == MAX_IDENTICAL_TOOL_FAILURES
+    assert "run_items" not in state
 
 
 @pytest.mark.asyncio
@@ -927,9 +926,9 @@ async def test_agent_run_exports_no_traces_even_in_a_fresh_process(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("_reset_model_cache")
-async def test_same_agent_next_run_continues_the_previous_run_append_only(monkeypatch):
-    """A continuation run (same agent right after itself) starts from the previous run's full
-    input: the request only grows at the end (prompt-cache hit) and files read stay readable."""
+async def test_next_run_continues_the_previous_run_append_only_via_run_items(monkeypatch):
+    """A continuation run automatically starts from state['run_items'] (result.to_input_list()):
+    the request only grows at the end (prompt-cache hit) and files read stay readable."""
     read_result = json.dumps({"status": "success", "data": {"id": "f1", "content": "第一章原文。"}}, ensure_ascii=False)
 
     async def fake_query(_args):
@@ -941,13 +940,10 @@ async def test_same_agent_next_run_continues_the_previous_run_append_only(monkey
         return _text_chunks("<file>\n第二章。\n</file>" if index == 1 else "第二章写好了。")
 
     run_starts: list[int] = []
-    _events, requests, _state = await _run_against_local_model(
+    _events, requests, state = await _run_against_local_model(
         monkeypatch, script, None,
-        state_extra={"native_run_holder": {}},
         tool_impls={"query_files": fake_query},
-        followups=[{"agent_type": "writer", "state": {
-            "continue_native_run": True, "user_message": "[来自上一个Agent的交接信息]: 继续写总结",
-        }}],
+        followups=[{"agent_type": "loop", "state": {"user_message": "[系统提醒] 请自查并总结"}}],
         run_starts=run_starts,
     )
 
@@ -956,13 +952,15 @@ async def test_same_agent_next_run_continues_the_previous_run_append_only(monkey
     assert second_run_first["messages"][: len(previous)] == previous
     assert any("第一章原文" in str(m.get("content")) for m in second_run_first["messages"] if m.get("role") == "tool")
     contents = [str(m.get("content")) for m in second_run_first["messages"]]
-    assert contents[-1] == "[来自上一个Agent的交接信息]: 继续写总结"
+    assert contents[-1] == "[系统提醒] 请自查并总结"
+    assert state.get("run_items")
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("_reset_model_cache")
-async def test_a_different_agent_does_not_continue_the_previous_run(monkeypatch):
+async def test_clearing_run_items_starts_a_fresh_run_from_history_items(monkeypatch):
+    """When state['run_items'] is cleared/absent, the next run starts fresh from history_items."""
     async def fake_query(_args):
         return {"content": [{"type": "text", "text": json.dumps({"status": "success", "data": {"id": "f1"}})}]}
 
@@ -974,14 +972,13 @@ async def test_a_different_agent_does_not_continue_the_previous_run(monkeypatch)
     run_starts: list[int] = []
     _events, requests, _state = await _run_against_local_model(
         monkeypatch, script, None,
-        state_extra={"native_run_holder": {}},
         tool_impls={"query_files": fake_query},
-        followups=[{"agent_type": "quality_reviewer", "state": {"continue_native_run": True}}],
+        followups=[{"agent_type": "loop", "state": {"run_items": [], "user_message": "全新起点"}}],
         run_starts=run_starts,
     )
 
-    writer_last = requests[run_starts[1] - 1]["messages"]
-    reviewer_first = requests[run_starts[1]]["messages"]
-    assert any(m.get("role") == "tool" for m in writer_last)
-    # Rebuilt from the folded history (tool results are not replayed across agents).
-    assert not any(m.get("role") == "tool" for m in reviewer_first)
+    first_last = requests[run_starts[1] - 1]["messages"]
+    second_first = requests[run_starts[1]]["messages"]
+    assert any(m.get("role") == "tool" for m in first_last)
+    assert not any(m.get("role") == "tool" for m in second_first)
+    assert second_first[-1]["content"] == "全新起点"

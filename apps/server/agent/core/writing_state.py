@@ -14,7 +14,9 @@ class WritingState(TypedDict, total=False):
         user_id: ID of the current user
         session_id: ID of the current chat session
         system_prompt: System prompt for the LLM
-        messages: Conversation messages in workflow message format
+        history_items: Cross-turn history in SDK wire-format items (before this turn)
+        run_items: Current turn's append-only SDK transcript (result.to_input_list())
+        pending_steering: Steering messages drained during/after a run, awaiting the next run
     """
 
     # Input fields
@@ -28,11 +30,13 @@ class WritingState(TypedDict, total=False):
 
     # Configuration
     system_prompt: str
-    # 上一个正常结束的 agent run 的完整 SDK 输入（openai_agents/runner.py 写入）与本轮是否接着它跑。
-    native_run_holder: dict[str, Any]
-    continue_native_run: bool
-    # 单循环 agent（agent/loop）：按会话重建的跨轮历史（SDK 输入项），排在本轮消息之前。
+    # 单循环 agent（agent/loop）：按会话重建（或 wire_prefix_cache 命中）的跨轮历史（SDK 输入项），排在本轮消息之前。
     history_items: list[dict[str, Any]]
+    # 本轮最近一次正常结束的 SDK run 完整输入项（result.to_input_list()）：同轮续跑只在末尾追加，
+    # 整轮干净结束后也直接交给 wire_prefix_cache 缓存。
+    run_items: list[Any]
+    # 运行中/边界消费到、尚未喂进下一次 SDK run 的作者插话文本。
+    pending_steering: list[str]
 
     # Run state
     previous_output_truncations: int
@@ -44,6 +48,3 @@ class WritingState(TypedDict, total=False):
     run_meter: Any
     # 请求级收尾状态（agent.core.round_outcome.RunOutcome，跨 agent run 共享）
     run_outcome: Any
-
-    # Conversation messages; the runner replaces it with a new list.
-    messages: list[dict[str, Any]]
