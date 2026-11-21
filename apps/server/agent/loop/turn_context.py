@@ -36,6 +36,8 @@ class LoopTurnContext:
     text: str = ""
     # 以全文给模型看的项目文件正文（file_id → 正文）：edit_file 的陈旧检查以它为起点。
     read_snapshots: dict[str, str] = field(default_factory=dict)
+    # 仅从本会话此前轮次结转、未在当前 <turn_context> 全文给出的文件 id（轮间压缩成功时撤销）。
+    session_carried_snapshot_ids: set[str] = field(default_factory=set)
     # 前端 context 事件的条目（与图同一个形状）。
     items: list[dict[str, Any]] = field(default_factory=list)
 
@@ -117,6 +119,19 @@ def build_loop_turn_context(
         file_id = assembler.item_file_id(item)
         if file_id and not item.is_truncated and isinstance(item.content, str):
             result.read_snapshots[file_id] = item.content
+    if chat_session_id and not (cancel_event is not None and cancel_event.is_set()):
+        carried = _session_read_snapshots(
+            session,
+            project_id=project_id,
+            user_id=user_id,
+            chat_session_id=chat_session_id,
+            exclude_ids=set(result.read_snapshots),
+            cancel_event=cancel_event,
+        )
+        for file_id, content in carried.items():
+            if file_id not in result.read_snapshots:
+                result.read_snapshots[file_id] = content
+                result.session_carried_snapshot_ids.add(file_id)
     result.items = [item.to_dict() for item in items]
     return result
 
@@ -206,3 +221,39 @@ def _author_edits_block(
             logger, 30, "Loop author edits build failed", project_id=project_id, error_type=type(exc).__name__
         )
         return ""
+
+
+def _session_read_snapshots(
+    session: Session,
+    *,
+    project_id: str,
+    user_id: str | None,
+    chat_session_id: str,
+    exclude_ids: set[str],
+    cancel_event: threading.Event | None = None,
+) -> dict[str, str]:
+    """结转本会话此前轮次读/写过且未变更的文件快照（增益信息，失败不影响本轮）。"""
+    from agent.core.session_loader import SESSION_SNAPSHOT_MAX_FILES, SessionLoader
+
+    if cancel_event is not None and cancel_event.is_set():
+        return {}
+    loader = SessionLoader(project_id=project_id, user_id=user_id)
+    try:
+        return loader.session_read_snapshots(
+            session,
+            chat_session_id=chat_session_id,
+            exclude_ids=exclude_ids,
+            limit=SESSION_SNAPSHOT_MAX_FILES,
+            cancel_event=cancel_event,
+        )
+    except Exception as exc:  # noqa: BLE001 - 增益信息，失败不影响本轮
+        with contextlib.suppress(Exception):
+            session.rollback()
+        log_with_context(
+            logger,
+            30,
+            "Loop session read snapshots carryover failed",
+            project_id=project_id,
+            error_type=type(exc).__name__,
+        )
+        return {}

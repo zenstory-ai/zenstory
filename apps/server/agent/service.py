@@ -1357,6 +1357,9 @@ class AgentService:
                     if outcome.record is not None and outcome.items is not None:
                         loop_compaction_record = outcome.record
                         writing_state["history_items"] = outcome.items
+                        # 压缩成功后前几轮的工具结果已折叠进摘要，撤销仅来自此前轮次的会话快照结转。
+                        if loop_turn.session_carried_snapshot_ids:
+                            ToolContext.drop_initial_read_snapshots(loop_turn.session_carried_snapshot_ids)
                         assistant_display_events.append({"type": "history_compacted", "data": {}})
                         yield history_compacted_event(outcome.record["summary"]).to_sse()
                     else:

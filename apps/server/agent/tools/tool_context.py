@@ -492,6 +492,15 @@ class _ReadSnapshots:
             self._sources["range"].clear()
             self._pending_range.clear()
 
+    def drop_initial(self, file_ids: Any) -> None:
+        """移除指定的初始快照（例如轮间压缩完成后撤销上一轮会话文件结转）。"""
+        ids = {str(fid) for fid in (file_ids or ()) if fid}
+        if not ids:
+            return
+        with self._lock:
+            for fid in ids:
+                self._sources["initial"].pop(fid, None)
+
     def get(self, file_id: str) -> str | None:
         with self._lock:
             found = [source[file_id] for source in self._sources.values() if file_id in source]
@@ -761,6 +770,13 @@ class ToolContext:
         holder = cls._get_context().get("read_snapshots")
         if isinstance(holder, _ReadSnapshots):
             holder.begin_agent_run()
+
+    @classmethod
+    def drop_initial_read_snapshots(cls, file_ids: Any) -> None:
+        """移除指定的初始快照（轮间压缩成功后撤销跨轮会话结转）。"""
+        holder = cls._get_context().get("read_snapshots")
+        if isinstance(holder, _ReadSnapshots):
+            holder.drop_initial(file_ids)
 
     @classmethod
     def get_current_agent(cls) -> str | None:

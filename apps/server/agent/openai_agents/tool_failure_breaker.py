@@ -364,10 +364,10 @@ def _with_recovery_hint(output_text: str, error_type: str, count: int, threshold
         )
     else:
         recovery = (
-            "同一文件已连续定位失败。先用 query_files 按准确 id 重读当前段落"
-            "（长文件可传 query=关键词 精确取命中片段，或传 start_char 与 max_chars 按范围读取），"
-            "从结果复制较短、逐字、唯一的 old/anchor；改动多时拆成几次 edit_file 调用、"
-            "每次只改少量几处，不要在一次调用里堆很多条；不要放宽匹配或整篇覆盖。"
+            "同一文件已连续定位失败。先用 query_files 按准确 id 重读当前文件"
+            "（仅超过 15000 字的超长文件才传 query=关键词 精确取命中片段，或传 start_char 与 max_chars 按范围读取），"
+            "从结果复制较短、逐字、唯一的 old/anchor；同一文件的多处独立修改合并进一次 edit_file(..., continue_on_error=true) "
+            "批量提交（超过 15 处或相互依赖时再拆分）；不要放宽匹配或整篇覆盖。"
         )
         hinted["retry_hint"] = recovery
         return json.dumps(hinted, ensure_ascii=False)
