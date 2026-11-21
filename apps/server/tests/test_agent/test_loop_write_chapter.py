@@ -123,7 +123,6 @@ async def _run_loop(
         **extra_state,
         "user_message": message,
         "router_message": message,
-        "messages": [{"role": "user", "content": message}],
         "system_prompt": "synthetic loop system",
         "run_meter": meter,
         "project_id": workspace.project.id,
@@ -1360,8 +1359,8 @@ async def test_turn_after_an_output_truncation_asks_for_short_thinking_once(work
         assert followup.count(OUTPUT_TRUNCATED_RESUME) <= 1
     else:
         assert OUTPUT_TRUNCATED_RESUME not in first
-    # 不写回对话（不进历史）。
-    assert OUTPUT_TRUNCATED_RESUME not in json.dumps(outcome.state.get("messages"), ensure_ascii=False)
+    # 不写回跨轮历史（history_items）。
+    assert OUTPUT_TRUNCATED_RESUME not in json.dumps(outcome.state.get("history_items"), ensure_ascii=False)
 
 
 # ---------------------------------------------------------------------------

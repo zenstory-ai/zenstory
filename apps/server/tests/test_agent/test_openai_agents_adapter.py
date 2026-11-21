@@ -108,6 +108,12 @@ async def test_runner_maps_sdk_text_tool_and_message_end():
         def cancel(self, mode="immediate"):
             self.cancel_mode = mode
 
+        def to_input_list(self):
+            return [
+                {"role": "user", "content": "写一章"},
+                {"role": "assistant", "content": "正文"},
+            ]
+
         async def stream_events(self):
             yield SimpleNamespace(
                 type="raw_response_event",
@@ -159,9 +165,7 @@ async def test_runner_maps_sdk_text_tool_and_message_end():
     ]
     assert events[1].data["text"] == "正文"
     assert events[2].data["name"] == "query_files"
-    assert state["messages"][-2]["role"] == "assistant"
-    assert state["messages"][-2]["content"][0]["type"] == "text"
-    assert state["messages"][-2]["content"][0]["text"] == "正文"
+    assert state["run_items"][-1] == {"role": "assistant", "content": "正文"}
 
 
 @pytest.mark.asyncio
@@ -340,8 +344,8 @@ async def test_runner_consumes_steering_at_tool_output_boundary():
     assert all(idx > message_start_idx for idx in steering_indexes)
     assert events[steering_indexes[0]].data["preview"] == "改成第一人称"
 
-    # run 结束后引导内容进入会话消息，供 graph 的下一次迭代注入模型
-    assert state["messages"][-1] == {"role": "user", "content": "改成第一人称"}
+    # run 结束后引导内容记入 state["pending_steering"]，供下一次续跑注入模型
+    assert state["pending_steering"] == ["改成第一人称"]
 
 
 def _wait_until_serving(host: str, port: int, timeout: float = 5.0) -> None:
@@ -518,7 +522,8 @@ async def test_runner_streams_through_openai_compatible_http_endpoint(monkeypatc
     ]
     assert events[0].data == {"model": "deepseek-flash", "agent_type": "writer"}
     assert "".join(event.data.get("text", "") for event in events) == "本地smoke"
-    assert state["messages"][-1]["content"][0]["text"] == "本地smoke"
+    assert state["run_items"], "完成的 SDK run 必须把 wire-format items 写进 state['run_items']"
+    assert "本地smoke" in json.dumps(state["run_items"], ensure_ascii=False)
 
 
 @pytest.mark.unit
@@ -591,3 +596,131 @@ async def test_runner_wires_intra_run_trimmer_into_run_config():
     # 外层是请求级模型调用计数器，内层仍是 IntraRunToolOutputTrimmer。
     assert isinstance(run_config.call_model_input_filter._inner, IntraRunToolOutputTrimmer)
     assert run_config.tool_execution.max_function_tool_concurrency == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_runner_continuation_consumes_pending_steering_and_clears_run_items_on_max_turns():
+    """续跑从 state['run_items'] 追加 pending_steering 与新的 user_message 并清空待消费插话；
+    若遇到 MaxTurnsExceeded，旧的 run_items 必须清除，避免把残缺前缀泄露给后续轮次或缓存。"""
+    from agents.exceptions import MaxTurnsExceeded
+
+    from agent.core.workflow_events import StreamEventType
+    from agent.openai_agents.runner import run_openai_agents_streaming_agent
+
+    seen_inputs: list[list] = []
+
+    class FakeContinueResult:
+        raw_responses = []
+
+        def __init__(self, run_input, *, fail_max_turns: bool = False):
+            self._input = list(run_input)
+            self._fail = fail_max_turns
+
+        def cancel(self, mode="immediate"):
+            del mode
+
+        def to_input_list(self):
+            return [*self._input, {"role": "assistant", "content": "已按插话改写"}]
+
+        async def stream_events(self):
+            if self._fail:
+                raise MaxTurnsExceeded("limit")
+            yield SimpleNamespace(
+                type="raw_response_event",
+                data=SimpleNamespace(type="response.output_text.delta", delta="已按插话改写"),
+            )
+
+    fail_flags = [False, True]
+
+    def fake_run_streamed(_agent, *, input, **_kwargs):  # noqa: A002
+        seen_inputs.append(list(input))
+        return FakeContinueResult(input, fail_max_turns=fail_flags.pop(0))
+
+    prior_items = [
+        {"role": "user", "content": "写第一章"},
+        {"role": "assistant", "content": "初稿完成"},
+    ]
+    state = {
+        "user_message": "[系统提醒] 请处理插话",
+        "run_items": list(prior_items),
+        "pending_steering": ["把主角改名为林川"],
+        "system_prompt": "base",
+    }
+
+    with (
+        patch("agent.openai_agents.runner._build_agent", return_value=object()),
+        patch("agents.Runner.run_streamed", side_effect=fake_run_streamed),
+    ):
+        events_1 = [
+            ev async for ev in run_openai_agents_streaming_agent(state=state, agent_type="loop", system_prompt="sys")
+        ]
+        assert events_1[-1].type == StreamEventType.MESSAGE_END
+        assert seen_inputs[0][: len(prior_items)] == prior_items
+        assert seen_inputs[0][len(prior_items) :] == [
+            {"role": "user", "content": "把主角改名为林川"},
+            {"role": "user", "content": "[系统提醒] 请处理插话"},
+        ]
+        assert not state.get("pending_steering")
+        assert state["run_items"][-1] == {"role": "assistant", "content": "已按插话改写"}
+
+        state["user_message"] = "再继续"
+        events_2 = [
+            ev async for ev in run_openai_agents_streaming_agent(state=state, agent_type="loop", system_prompt="sys")
+        ]
+        assert any(ev.type == StreamEventType.ITERATION_EXHAUSTED for ev in events_2)
+        assert "run_items" not in state
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_runner_defers_wall_clock_soft_landing_when_run_policy_requests_it():
+    """RunExecutionPolicy(defer_wall_clock_soft_landing=True) 时，runner 在墙钟软着陆下
+    不直接发 ITERATION_EXHAUSTED 与 run_deadline_exceeded，而是记入 policy 并按 end_turn 结束。"""
+    from agents.run_config import ModelInputData
+
+    from agent.core.run_meter import AgentRunMeter
+    from agent.core.workflow_events import StreamEventType
+    from agent.openai_agents.runner import RunExecutionPolicy, run_openai_agents_streaming_agent
+
+    class FakeResult:
+        raw_responses = []
+
+        def __init__(self, run_config):
+            self._run_config = run_config
+
+        def cancel(self, mode="immediate"):
+            del mode
+
+        def to_input_list(self):
+            return [{"role": "user", "content": "自查"}, {"role": "assistant", "content": "已保存"}]
+
+        async def stream_events(self):
+            self._run_config.call_model_input_filter(
+                SimpleNamespace(model_data=ModelInputData(input=[], instructions="sys"))
+            )
+            yield SimpleNamespace(
+                type="raw_response_event",
+                data=SimpleNamespace(type="response.output_text.delta", delta="已保存"),
+            )
+
+    policy = RunExecutionPolicy(defer_wall_clock_soft_landing=True)
+    state = {"user_message": "自查", "run_meter": AgentRunMeter(wrap_up_after_s=0)}
+    with (
+        patch("agent.openai_agents.runner._build_agent", return_value=object()),
+        patch("agents.Runner.run_streamed", side_effect=lambda _a, *, run_config, **_kw: FakeResult(run_config)),
+    ):
+        events = [
+            ev
+            async for ev in run_openai_agents_streaming_agent(
+                state=state, agent_type="loop", system_prompt="sys", run_policy=policy
+            )
+        ]
+
+    assert not any(ev.type == StreamEventType.ITERATION_EXHAUSTED for ev in events)
+    msg_ends = [ev for ev in events if ev.type == StreamEventType.MESSAGE_END]
+    assert len(msg_ends) == 1
+    assert msg_ends[0].data["stop_reason"] == "end_turn"
+    assert policy.deferred_wall_clock_exhausted is not None
+    assert policy.deferred_wall_clock_exhausted["limit"] == "wall_clock"
+    assert policy.deferred_wall_clock_exhausted["layer"] == "tool_call"

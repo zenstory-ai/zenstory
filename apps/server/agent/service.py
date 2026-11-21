@@ -1307,12 +1307,11 @@ class AgentService:
                 # 作者界面语言（zh / en…）：作者可见文案按它选英文或中文。
                 "language": lang,
                 "system_prompt": system_prompt,
-                "messages": [],
                 "run_meter": run_meter,
                 "run_outcome": run_outcome,
             }
             writing_state["history_items"] = loop_history.items
-            # 前几轮连续停在输出上限的次数（历史在 history_items 里，不在 state["messages"]）。
+            # 前几轮连续停在输出上限的次数（来自重建的跨轮历史）。
             writing_state["previous_output_truncations"] = loop_history.trailing_output_truncations
 
             # Create stream adapter for SSE conversion
@@ -1619,13 +1618,8 @@ class AgentService:
                 assistant_message_id = await asyncio.shield(history_save_task)
                 if run_outcome is not None:
                     run_outcome.resolve_message_id(assistant_message_id)
-                native_holder = writing_state.get("native_run_holder") or {}
-                completed_wire_items = native_holder.get("items")
-                has_unconsumed_steering = (
-                    "messages_len" in native_holder
-                    and len(writing_state.get("messages") or [])
-                    > int(native_holder.get("messages_len") or 0)
-                )
+                completed_wire_items = writing_state.get("run_items")
+                has_unconsumed_steering = bool(writing_state.get("pending_steering"))
                 wire_prefix_skip_reason: str | None = None
                 if (
                     user_id

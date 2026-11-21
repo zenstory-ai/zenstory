@@ -2,7 +2,7 @@
 
 它接在 ``AgentService.process_stream`` 的同一个生成器接口上（产出 ``core.workflow_events.StreamEvent``），
 SSE 外壳、计费 / 退还、停止 / 插话、残稿补存、文件版本并发保护都沿用。一轮里同一个 agent 可能再跑几次
-（都从上一次完整的 SDK 输入接着来，见 ``runner._continued_run_input``），只因为结构化事实：
+（都从上一次完整的 SDK 输入项 ``state["run_items"]`` 接着来，见 ``runner.build_run_input``），只因为结构化事实：
 
 - 空文件纠偏：create_file / write_chapter 建了文件、正文没用 <file> 写成（落库核验），为同一个文件恢复正文写入后
   再跑一次；补不成就回滚能确认的空文件并发 ``empty_file_correction`` 卡。write_chapter 定位到已有非空章节的
@@ -39,7 +39,8 @@ from agent.openai_agents.events import parse_mcp_tool_payload
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.runner import (
     OUTPUT_CAPPED_KEY,
-    RUN_DEADLINE_STOP_REASON,
+    RunExecutionPolicy,
+    append_pending_steering,
     run_openai_agents_streaming_agent,
 )
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
@@ -432,7 +433,6 @@ async def run_loop_agent_streaming(
         state["run_meter"] = AgentRunMeter()
     run_meter: AgentRunMeter = state["run_meter"]
     read_guard: RepeatReadGuard = state["repeat_read_guard"]
-    native_runs: dict[str, Any] = state.setdefault("native_run_holder", {})
     system_prompt = str(state.get("system_prompt") or "")
     drop_english_narration = text_contains_cjk(state.get("router_message") or state.get("user_message"))
 
@@ -520,7 +520,6 @@ async def run_loop_agent_streaming(
             run_outcome = state.get("run_outcome")
             if run_outcome is not None and hasattr(run_outcome, "runs_started"):
                 run_outcome.runs_started = runs
-            state["continue_native_run"] = runs > 1 and native_runs.get("agent_type") == LOOP_AGENT_TYPE
             run_resumed = resumed_correction
             resumed_correction = False
 
@@ -530,6 +529,7 @@ async def run_loop_agent_streaming(
             errored = False
             tool_call_exhausted = False
             deferred_exhausted: StreamEvent | None = None
+            run_policy = RunExecutionPolicy(defer_wall_clock_soft_landing=in_self_check)
             create_ids: set[str] = set()
             failed_ids: set[str] = set()
             # 这次 run 最后一次模型响应撞上了输出上限（runner 在 MESSAGE_END 上的结构化标记）。
@@ -543,6 +543,7 @@ async def run_loop_agent_streaming(
                     system_prompt=system_prompt,
                     get_steering_messages=get_steering_messages,
                     agent_directive=truncation_directive if runs == 1 else "",
+                    run_policy=run_policy,
                 ),
                 shaper,
             ):
@@ -550,18 +551,6 @@ async def run_loop_agent_streaming(
                     run_started = True
                 elif event.type == StreamEventType.MESSAGE_END:
                     output_capped = output_capped or event.data.get(OUTPUT_CAPPED_KEY) is True
-                    if (
-                        in_self_check
-                        and deferred_exhausted is not None
-                        and deferred_exhausted.data.get("limit") == WALL_CLOCK_LIMIT
-                        and event.data.get("stop_reason") == RUN_DEADLINE_STOP_REASON
-                    ):
-                        # 先按 end_turn 交给 StreamAdapter 结算当前流；若 run 结束核验出仍有未完结构化待办，
-                        # 随后补发的 wall_clock 暂停卡会照旧把 stop_reason 覆写回 run_deadline_exceeded。
-                        event = StreamEvent(
-                            type=StreamEventType.MESSAGE_END,
-                            data={**event.data, "stop_reason": "end_turn"},
-                        )
                 elif event.type == StreamEventType.ERROR:
                     errored = True
                 elif getattr(event.type, "value", "") == "steering_received" and run_started:
@@ -586,26 +575,17 @@ async def run_loop_agent_streaming(
                         reported_unsaved_ids.discard(rearmed_id)
                 if event.type == StreamEventType.ITERATION_EXHAUSTED and event.data.get("layer") == "tool_call":
                     tool_call_exhausted = True
-                    if ToolContext.has_pending_empty_file() or (
-                        in_self_check and event.data.get("limit") == WALL_CLOCK_LIMIT
-                    ):
-                        # 等 run 收尾（StreamAdapter 跑完 MESSAGE_END）后再按结构化事实决定是否发暂停卡 / 附空文件状态。
+                    if ToolContext.has_pending_empty_file():
+                        # 等 run 收尾（StreamAdapter 跑完 MESSAGE_END 补存尾部正文）后再按结构化事实附空文件状态。
                         deferred_exhausted = event
                         continue
                 yield event
 
-            if (
-                in_self_check
-                and deferred_exhausted is not None
-                and deferred_exhausted.data.get("limit") == WALL_CLOCK_LIMIT
-                and not errored
-            ):
+            if run_policy.deferred_wall_clock_exhausted is not None and not errored:
                 cut_after_self_check = ToolContext.take_cut_bodies()
                 boundary_steering = await _drain_boundary_steering(get_steering_messages)
                 if boundary_steering:
-                    state["messages"] = list(state.get("messages") or []) + [
-                        {"role": "user", "content": msg["content"]} for msg in boundary_steering
-                    ]
+                    append_pending_steering(state, [msg["content"] for msg in boundary_steering])
                     from agent.core.events import steering_received_event
 
                     for msg in boundary_steering:
@@ -641,6 +621,11 @@ async def run_loop_agent_streaming(
                         break
                     for task_event in task_events:
                         yield task_event
+                tool_call_exhausted = True
+                deferred_exhausted = StreamEvent(
+                    type=StreamEventType.ITERATION_EXHAUSTED,
+                    data=run_policy.deferred_wall_clock_exhausted,
+                )
 
             if deferred_exhausted is not None:
                 # 耗尽后不再重试：作废还在等正文的整章替换并如实说明（原文没动，不是空文件，不交给空文件核验——
@@ -786,9 +771,7 @@ async def run_loop_agent_streaming(
                         ] or [t for fid, t in saved.items() if fid in new_saved and t]
             boundary_steering = await _drain_boundary_steering(get_steering_messages)
             if boundary_steering:
-                state["messages"] = list(state.get("messages") or []) + [
-                    {"role": "user", "content": msg["content"]} for msg in boundary_steering
-                ]
+                append_pending_steering(state, [msg["content"] for msg in boundary_steering])
                 from agent.core.events import steering_received_event
 
                 for msg in boundary_steering:

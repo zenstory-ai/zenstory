@@ -13,6 +13,7 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from agent.core.usage import extract_response_usage, merge_usage_dicts
 from config.agent_runtime import (
     AGENT_LOOP_COMPACT_AT_TOKENS,
     AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS,
@@ -169,28 +170,6 @@ def compacted_items(author_messages: list[str], summary: str, keep_user_tokens: 
     return [*kept_author_messages(author_messages, keep_user_tokens), summary_message(summary)]
 
 
-def _usage_of(response: Any) -> dict[str, int]:
-    usage = getattr(response, "usage", None)
-    if usage is None:
-        return {}
-    prompt = int(getattr(usage, "prompt_tokens", 0) or 0)
-    cached = int(getattr(getattr(usage, "prompt_tokens_details", None), "cached_tokens", 0) or 0)
-    cached = max(0, min(cached, prompt))
-    totals = {
-        "input_tokens": prompt - cached,
-        "cache_read_tokens": cached,
-        "output_tokens": int(getattr(usage, "completion_tokens", 0) or 0),
-        "total_tokens": int(getattr(usage, "total_tokens", 0) or 0),
-    }
-    return {key: value for key, value in totals.items() if value}
-
-
-def _merge_usage(total: dict[str, int], usage: dict[str, int]) -> dict[str, int]:
-    for key, value in usage.items():
-        total[key] = total.get(key, 0) + value
-    return total
-
-
 async def compact_history(
     history: LoopHistory,
     *,
@@ -290,7 +269,7 @@ async def compact_history(
                 attempt=attempt_index + 1,
             )
             return CompactionOutcome(usage=usage or None, skipped=SKIPPED_PROVIDER_ERROR)
-        _merge_usage(usage, _usage_of(response))
+        usage = merge_usage_dicts(usage, extract_response_usage(getattr(response, "usage", None))) or {}
         choice = response.choices[0] if getattr(response, "choices", None) else None
         raw_text = str(getattr(getattr(choice, "message", None), "content", "") or "").strip()
         finish_reason = getattr(choice, "finish_reason", None)

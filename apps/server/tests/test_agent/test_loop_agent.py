@@ -705,13 +705,15 @@ def _fake_runner(runs: list[list[StreamEvent]], seen: list[dict]):
         seen.append({
             "agent_type": agent_type,
             "user_message": state.get("user_message"),
-            "continue": state.get("continue_native_run"),
+            "continue": bool(state.get("run_items")),
+            "pending_steering": list(state.get("pending_steering") or []),
             "history_items": list(state.get("history_items") or []),
         })
+        state.pop("pending_steering", None)
         yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
         for event in pending.pop(0):
             yield event
-        state["native_run_holder"].update(agent_type=agent_type, items=[{"role": "user", "content": "x"}])
+        state["run_items"] = [{"role": "user", "content": "x"}]
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
     return fake
@@ -773,7 +775,8 @@ async def test_loop_continues_once_for_steering_that_arrived_during_the_run(loop
     assert len(seen) == 2
     assert seen[1]["continue"] is True
     assert seen[1]["user_message"] == STEERING_FOLLOWUP_CONTEXT
-    assert state["messages"][-1] == {"role": "user", "content": "改成第一人称"}
+    assert seen[1]["pending_steering"] == ["改成第一人称"]
+    assert not state.get("pending_steering")
     assert any(getattr(event.type, "value", "") == "steering_received" for event in events)
 
 
@@ -1146,7 +1149,7 @@ async def test_loop_passes_the_truncation_resume_directive_to_the_first_run_only
         yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
         for event in runs.pop(0):
             yield event
-        state["native_run_holder"].update(agent_type=agent_type, items=[{"role": "user", "content": "x"}])
+        state["run_items"] = [{"role": "user", "content": "x"}]
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
     steering = [[{"id": "m1", "content": "顺便改个标题"}], []]
