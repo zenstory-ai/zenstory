@@ -357,15 +357,17 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
           {inspirationsConfig.enabled && (
             <>
               <button
+                type="button"
                 onClick={handleSubmitInspiration}
                 disabled={submittingInspiration || loading || !project}
-                className="w-full sm:w-auto px-4 py-2 bg-[hsl(var(--bg-secondary))] text-[hsl(var(--accent-primary))] border border-[hsl(var(--accent-primary)/0.35)] rounded-lg text-sm hover:bg-[hsl(var(--accent-primary)/0.08)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full sm:w-auto min-h-11 px-4 py-2 bg-[hsl(var(--bg-secondary))] text-[hsl(var(--accent-primary))] border border-[hsl(var(--accent-primary)/0.35)] rounded-xl text-sm hover:bg-[hsl(var(--accent-primary)/0.08)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {submittingInspiration ? t('sharingInspiration') : t('shareAsInspiration')}
               </button>
               <button
+                type="button"
                 onClick={handleViewInspirationLibrary}
-                className="w-full sm:w-auto px-4 py-2 bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] border border-[hsl(var(--border-color))] rounded-lg text-sm hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+                className="w-full sm:w-auto min-h-11 px-4 py-2 bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] border border-[hsl(var(--border-color))] rounded-xl text-sm hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
               >
                 {t('viewInspirationLibrary')}
               </button>
@@ -421,7 +423,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
               onChange={(e) => setSummary(e.target.value)}
               placeholder={t('placeholders.summary')}
               rows={5}
-              className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] resize-y"
+              className="textarea resize-y"
             />
           </div>
 
@@ -435,7 +437,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
               onChange={(e) => setWritingStyle(e.target.value)}
               placeholder={t('placeholders.writingStyle')}
               rows={2}
-              className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] resize-y"
+              className="textarea resize-y"
             />
           </div>
 
@@ -449,7 +451,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
               onChange={(e) => setCurrentPhase(e.target.value)}
               placeholder={t('placeholders.currentPhase')}
               rows={2}
-              className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] resize-y"
+              className="textarea resize-y"
             />
           </div>
 
@@ -475,7 +477,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
               }}
               placeholder={t('placeholders.notes')}
               rows={3}
-              className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-base md:text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] resize-y"
+              className="textarea resize-y text-base md:text-sm"
             />
             {notesConflict && (
               <div ref={notesConflictRef} className="space-y-2 scroll-mb-3">
@@ -490,7 +492,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                 </> : <>
                   <label htmlFor={`${fieldId}-latest-notes`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">{t('latestNotes')}</label>
                   <textarea id={`${fieldId}-latest-notes`} value={authorNotesText(latestNotes)} readOnly rows={3}
-                    className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-base md:text-sm text-[hsl(var(--text-primary))] resize-y" />
+                    className="textarea resize-y text-base md:text-sm" />
                   <div className="flex flex-wrap gap-2">
                     <Button variant="secondary" size="touch" disabled={saving} onClick={useLatestNotes}>{t('useLatestNotes')}</Button>
                     <Button size="touch" disabled={saving}

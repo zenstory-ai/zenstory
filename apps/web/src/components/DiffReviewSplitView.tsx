@@ -299,7 +299,7 @@ export const DiffReviewSplitView = ({
                   onClick={() => setFilter(item.key)}
                   aria-pressed={filter === item.key}
                   className={cn(
-                    "flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] leading-none transition-colors",
+                    "max-md:min-h-11 flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] leading-none transition-colors",
                     filter === item.key
                       ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]"
                       : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
@@ -316,19 +316,21 @@ export const DiffReviewSplitView = ({
           <div className="mt-3 flex items-center justify-between gap-2 py-1">
             <div className="flex items-center gap-1">
               <button
+                type="button"
                 onClick={goPrev}
                 disabled={filteredEdits.length === 0}
                 aria-label={t("editor:prevChange")}
-                className="h-8 w-8 rounded-full bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] transition-colors hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-8 w-8 max-md:h-11 max-md:w-11 rounded-full bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] transition-colors hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:cursor-not-allowed disabled:opacity-40"
                 title={t("editor:prevChange")}
               >
                 <ChevronUp size={16} className="mx-auto" />
               </button>
               <button
+                type="button"
                 onClick={goNext}
                 disabled={filteredEdits.length === 0}
                 aria-label={t("editor:nextChange")}
-                className="h-8 w-8 rounded-full bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] transition-colors hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-8 w-8 max-md:h-11 max-md:w-11 rounded-full bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] transition-colors hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:cursor-not-allowed disabled:opacity-40"
                 title={t("editor:nextChange")}
               >
                 <ChevronDown size={16} className="mx-auto" />
@@ -404,12 +406,13 @@ export const DiffReviewSplitView = ({
                         </div>
 
                         <button
+                          type="button"
                           onClick={(event) => {
                             event.stopPropagation();
                             locateEdit(edit.id);
                           }}
                           aria-label={t("editor:locateChange")}
-                          className="h-8 w-8 rounded-full bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] transition-colors hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]"
+                          className="h-8 w-8 max-md:h-11 max-md:w-11 shrink-0 rounded-full bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] transition-colors hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]"
                           title={t("editor:locateChange")}
                         >
                           <Crosshair size={16} className="mx-auto" />
@@ -422,12 +425,13 @@ export const DiffReviewSplitView = ({
 
                       <div className="mt-3 flex flex-wrap items-center gap-2 sm:flex-nowrap">
                         <button
+                          type="button"
                           onClick={(event) => {
                             event.stopPropagation();
                             acceptEdit(edit.id);
                           }}
                           disabled={edit.status === "accepted"}
-                          className="flex-1 rounded-xl bg-[hsl(var(--success)/0.06)] px-2.5 py-2 text-xs font-medium text-[hsl(var(--success-text))] transition-colors hover:bg-[hsl(var(--success)/0.1)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[hsl(var(--success)/0.06)]"
+                          className="max-md:min-h-11 flex-1 rounded-xl bg-[hsl(var(--success)/0.06)] px-2.5 py-2 text-xs font-medium text-[hsl(var(--success-text))] transition-colors hover:bg-[hsl(var(--success)/0.1)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[hsl(var(--success)/0.06)]"
                           title={t("editor:acceptChange")}
                         >
                           <span className="flex items-center justify-center gap-1.5">
@@ -436,12 +440,13 @@ export const DiffReviewSplitView = ({
                           </span>
                         </button>
                         <button
+                          type="button"
                           onClick={(event) => {
                             event.stopPropagation();
                             rejectEdit(edit.id);
                           }}
                           disabled={edit.status === "rejected"}
-                          className="flex-1 rounded-xl bg-[hsl(var(--error)/0.04)] px-2.5 py-2 text-xs font-medium text-[hsl(var(--error-text))] transition-colors hover:bg-[hsl(var(--error)/0.08)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[hsl(var(--error)/0.04)]"
+                          className="max-md:min-h-11 flex-1 rounded-xl bg-[hsl(var(--error)/0.04)] px-2.5 py-2 text-xs font-medium text-[hsl(var(--error-text))] transition-colors hover:bg-[hsl(var(--error)/0.08)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[hsl(var(--error)/0.04)]"
                           title={t("editor:rejectChange")}
                         >
                           <span className="flex items-center justify-center gap-1.5">
@@ -450,13 +455,14 @@ export const DiffReviewSplitView = ({
                           </span>
                         </button>
                         <button
+                          type="button"
                           onClick={(event) => {
                             event.stopPropagation();
                             resetEdit(edit.id);
                           }}
                           disabled={edit.status === "pending"}
                           aria-label={t("editor:resetChange")}
-                          className="rounded-xl bg-[hsl(var(--bg-secondary))] px-3 py-2 text-xs text-[hsl(var(--text-secondary))] transition-colors hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[hsl(var(--bg-secondary))]"
+                          className="max-md:min-h-11 max-md:min-w-11 rounded-xl bg-[hsl(var(--bg-secondary))] px-3 py-2 text-xs text-[hsl(var(--text-secondary))] transition-colors hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[hsl(var(--bg-secondary))]"
                           title={t("editor:resetChange")}
                         >
                           <span className="flex items-center justify-center gap-1.5">

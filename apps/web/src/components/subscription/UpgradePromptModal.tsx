@@ -102,7 +102,6 @@ export function UpgradePromptModal({
         onClose={onClose}
         size="md"
         title={title}
-        className="w-[calc(100vw-32px)] sm:w-auto"
       >
         <div className="space-y-3" data-testid="upgrade-prompt-pending" aria-busy="true">
           <div className="h-4 w-full animate-pulse rounded bg-[hsl(var(--bg-tertiary))]" />
@@ -120,16 +119,15 @@ export function UpgradePromptModal({
         onClose={onClose}
         size="md"
         title={title}
-        className="w-[calc(100vw-32px)] sm:w-auto"
-      >
-        <div className="space-y-3">
-          <p className="text-sm leading-relaxed text-[hsl(var(--text-secondary))]">
-            {paidDescription || t("dashboard:billing.paidLimitReached", "当前套餐的这项额度已经用满了。")}
-          </p>
-          <Button className="w-full" onClick={onClose}>
+        footer={
+          <Button size="touch" className="w-full" onClick={onClose}>
             {t("dashboard:billing.gotIt", "知道了")}
           </Button>
-        </div>
+        }
+      >
+        <p className="text-sm leading-relaxed text-[hsl(var(--text-secondary))]">
+          {paidDescription || t("dashboard:billing.paidLimitReached", "当前套餐的这项额度已经用满了。")}
+        </p>
       </Modal>
     );
   }
@@ -140,19 +138,10 @@ export function UpgradePromptModal({
       onClose={onClose}
       size="md"
       title={title}
-      className="w-[calc(100vw-32px)] sm:w-auto"
-    >
-      <div ref={exposureRef} className="space-y-3">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--accent-primary)/0.35)] bg-[hsl(var(--accent-primary)/0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--accent-primary))]">
-          <Sparkles className="h-3.5 w-3.5" />
-          {/* "Pro" reads the same in every locale. */}
-          <span>Pro</span>
-        </div>
-
-        <p className="text-sm leading-relaxed text-[hsl(var(--text-secondary))]">{description}</p>
-
-        <div className="flex flex-col gap-2 pt-1">
+      footer={
+        <div className="w-full flex flex-col gap-2">
           <Button
+            size="touch"
             className="w-full"
             onClick={() => {
               if (resolvedSource) {
@@ -168,6 +157,7 @@ export function UpgradePromptModal({
           {secondaryLabel && handleSecondary && (
             <Button
               variant="secondary"
+              size="touch"
               className="w-full"
               onClick={() => {
                 if (resolvedSource) {
@@ -181,6 +171,16 @@ export function UpgradePromptModal({
             </Button>
           )}
         </div>
+      }
+    >
+      <div ref={exposureRef} className="space-y-3">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--accent-primary)/0.35)] bg-[hsl(var(--accent-primary)/0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--accent-primary))]">
+          <Sparkles className="h-3.5 w-3.5" />
+          {/* "Pro" reads the same in every locale. */}
+          <span>Pro</span>
+        </div>
+
+        <p className="text-sm leading-relaxed text-[hsl(var(--text-secondary))]">{description}</p>
       </div>
     </Modal>
   );

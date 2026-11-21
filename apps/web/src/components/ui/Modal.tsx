@@ -144,7 +144,7 @@ const getSizeClasses = (size: ModalProps['size']): string => {
     md: 'max-w-[480px]',
     lg: 'max-w-[640px]',
     xl: 'max-w-[800px]',
-    full: 'max-w-[calc(100vw-48px)]',
+    full: 'max-w-[calc(100vw-32px)] sm:max-w-[calc(100vw-48px)]',
   };
   return sizes[size || 'md'];
 };
@@ -306,10 +306,23 @@ export const Modal: React.FC<ModalProps> & {
 
   const sizeClasses = getSizeClasses(size);
 
-  const overlayClasses = `viewport-overlay fixed inset-0 z-[1000] bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-6 ${overlayClassName}`;
+  const overlayClasses = `viewport-overlay fixed inset-0 z-[1000] bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-4 sm:p-6 ${overlayClassName}`;
 
   // `ui-sans-headings`: dialogs are control surfaces (portaled outside the dashboard's <main>).
   const contentClasses = `ui-sans-headings bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] shadow-xl w-full ${sizeClasses} animate-scale-in flex flex-col max-h-[90vh] ${className}`;
+
+  const hasHorizontalPaddingOverride = Boolean(
+    bodyClassName && /(?:^|\s)!?p(?:x|l|r)?-/.test(bodyClassName)
+  );
+  const hasBottomPaddingOverride = Boolean(
+    bodyClassName && /(?:^|\s)!?p(?:y|b)?-/.test(bodyClassName)
+  );
+  const bodyClasses = cn(
+    "flex-1 min-h-0 overflow-y-auto",
+    !hasHorizontalPaddingOverride && "px-4 sm:px-6",
+    !hasBottomPaddingOverride && "pb-4",
+    bodyClassName
+  );
 
   return createPortal(
     <ModalContext.Provider value={contextValue}>
@@ -331,7 +344,7 @@ export const Modal: React.FC<ModalProps> & {
         >
           {/* Header with optional title and close button */}
           {(title || showCloseButton) && (
-            <div className="flex items-start justify-between mb-4 px-6 pt-6 shrink-0">
+            <div className="flex items-start justify-between mb-4 px-4 pt-4 sm:px-6 sm:pt-6 shrink-0">
               {title && (
                 <div
                   id={titleId}
@@ -355,18 +368,18 @@ export const Modal: React.FC<ModalProps> & {
           {description && (
             <div
               id={descriptionId}
-              className="text-sm text-[hsl(var(--text-secondary))] mb-4 px-6 shrink-0"
+              className="text-sm text-[hsl(var(--text-secondary))] mb-4 px-4 sm:px-6 shrink-0"
             >
               {description}
             </div>
           )}
 
           {/* Main content - scrollable */}
-          <div className={cn("flex-1 min-h-0 overflow-y-auto px-6 pb-4", bodyClassName)}>{children}</div>
+          <div className={bodyClasses}>{children}</div>
 
           {/* Footer */}
           {footer && (
-            <div className="flex items-center justify-end gap-3 pt-4 px-6 pb-6 border-t border-[hsl(var(--border-color))] shrink-0">
+            <div className="flex items-center justify-end gap-3 pt-4 px-4 pb-4 sm:px-6 sm:pb-6 border-t border-[hsl(var(--border-color))] shrink-0">
               {footer}
             </div>
           )}

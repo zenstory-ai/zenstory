@@ -683,6 +683,24 @@ describe('Header', () => {
       expect(screen.getByTestId('x-icon')).toBeInTheDocument()
     })
 
+    it('closes mobile menu when clicking outside backdrop and caps menu height', async () => {
+      render(<Header />)
+
+      const menuButton = screen.getByTestId('menu-icon').closest('button')
+      fireEvent.click(menuButton!)
+
+      const backdrop = await screen.findByTestId('mobile-menu-backdrop')
+      const menuWrapper = document.getElementById('header-mobile-menu')?.parentElement
+      expect(backdrop).toHaveClass('z-[55]')
+      expect(menuWrapper).toHaveClass('overflow-y-auto', 'z-[60]')
+
+      fireEvent.click(backdrop)
+      await waitFor(() => {
+        expect(screen.queryByTestId('mobile-menu-backdrop')).not.toBeInTheDocument()
+        expect(screen.getByTestId('menu-icon')).toBeInTheDocument()
+      })
+    })
+
     it('does not show mobile dropdown when isMobile is false', () => {
       mockIsMobile = false
       render(<Header />)

@@ -123,7 +123,7 @@ const SplitWorkbenchLayout: React.FC<LayoutProps & { variant: SplitLayoutVariant
           <Separator className={SEPARATOR_CLASS} />
           <Panel defaultSize={preset.chat.defaultSize} minSize={preset.chat.minSize}>
             {/* data-testid: chat-panel - Chat panel for AI interaction tests */}
-            <div className="h-full overflow-hidden p-2" data-testid="chat-panel">{right}</div>
+            <div className="h-full overflow-hidden" data-testid="chat-panel">{right}</div>
           </Panel>
         </Group>
       </main>

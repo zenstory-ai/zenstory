@@ -28,4 +28,4 @@ export const CHAT_CARD_SECONDARY_BUTTON =
 
 /** Compact inline ghost control inside dense tool result headers (e.g. Undo). */
 export const CHAT_CARD_INLINE_ACTION =
-  'inline-flex items-center gap-1 min-h-11 md:min-h-7 shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]';
+  'inline-flex items-center gap-1 min-h-11 md:min-h-7 -my-2 md:my-0 shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]';

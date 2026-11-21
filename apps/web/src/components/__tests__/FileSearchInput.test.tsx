@@ -238,7 +238,7 @@ describe('FileSearchInput', () => {
 
       const input = screen.getByRole('searchbox')
       expect(input).toHaveClass('w-full')
-      expect(input).toHaveClass('rounded-lg')
+      expect(input).toHaveClass('rounded-xl')
     })
 
     it('shows focus styles when focused', () => {
@@ -255,7 +255,8 @@ describe('FileSearchInput', () => {
 
       const input = screen.getByRole('searchbox')
       expect(input).toHaveClass('pl-9')
-      expect(input).toHaveClass('pr-8')
+      expect(input).toHaveClass('pr-11')
+      expect(input).toHaveClass('sm:pr-8')
     })
   })
 
