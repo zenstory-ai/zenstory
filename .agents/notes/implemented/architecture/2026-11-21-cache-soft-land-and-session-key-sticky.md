@@ -16,15 +16,15 @@ Status: implemented
 1. **Redis 空闲滑动 TTL 会话粘性双 Key 路由（`apps/server/agent/core/llm_providers.py`、`apps/server/agent/core/llm_failover.py`）**：
    - 保留 `LLM_KEY_ROUTING_WINDOW_S`（默认 `1800.0` 秒 = 30 分钟），将其语义从固定墙钟分桶改为 **Redis 空闲滑动 TTL**（键 `llm:key_route:{session_key}`，最小 TTL 60 秒）。
    - **护栏 1（`weight=0` 零延迟切回主 Key）**：在访问内存 run 路由或 Redis 之前先判 `if not secondary_key or weight == 0: return primary_key, KEY_SLOT_PRIMARY`，关闭次 Key 后即使 Redis 仍有未过期 `"secondary"` 键也立即 0 秒切回主 Key。
-   - **护栏 2（单次 run 内存锁定）**：同一 `agent_run_id` 首次解析出槽位后写入进程内 `_key_routes[run_id]`（LRU 4096），本 run 后续所有模型调用（含轮前压缩与主循环）零额外 Redis IO 并严格锁定同一槽位。
+   - **护栏 2（单次 run 内存锁定）**：同一 `agent_run_id` 首次解析出槽位后写入进程内 `_key_routes[run_id]`（FIFO 上限 4096，`OrderedDict.popitem(last=False)`），本 run 后续所有模型调用（含轮前压缩与主循环）零额外 Redis IO 并严格锁定同一槽位。
    - **护栏 3（空闲滑动 TTL + `SET NX` 竞态安全）**：run 首次带 `session_key` 路由时读 `llm:key_route:{session_key}`；命中 `"primary"|"secondary"` 时执行 `EXPIRE key ttl` 顺延滑动窗口并沿用该槽位（活跃会话跨 UTC 整点永不翻转）；未命中（新会话或空闲超过窗口自然过期）时用主 Key 对 `f"{session_key}:{run_id or nonce}"` 做 HMAC-SHA256 按 `weight` 抽签，并以 `SET key slot NX EX ttl` 原子写入，并发竞态落败时 `GET` 采用胜者槽位。
    - **护栏 4（事件循环与 fail-open 安全）**：`llm_failover.aordered_providers` / `arecord_failure` / `apin_session_to_other` 整体经 `asyncio.to_thread` 执行（保留 `agent_run_id` ContextVar，永不阻塞事件循环）；`REDIS_URL` 未配置或 Redis 异常时（30 秒退避冷却）静默 fail-open 退回确定性 `session_key` HMAC。
    - **护栏 5（冷却优先级不覆盖粘性键）**：`llm_failover._apply_key_cooldowns()` 仍优先于粘性槽位在单 Key 401/402/403/429 冷却期内切至 `other_key()`，且绝不改写 `llm:key_route:{session_key}`；冷却到期后恢复原粘性槽位。
 2. **干净软着陆写入 `wire_prefix_cache` 并在跳过时主动失效旧键**：
    - `apps/server/agent/openai_agents/runner.py`：仅在真正触发 `MaxTurnsExceeded` 硬异常（`max_turns_exhausted=True`）时跳过 `result.to_input_list()`；正常结束与所有软着陆（`run_deadline_exceeded` / `max_turns_exceeded` / `model_call_budget_exhausted`）均把完整 `completed_items` 写入 `native_run_holder`。
-   - `apps/server/agent/loop/wire_prefix_cache.py`：新增 `is_well_formed_wire_prefix(items)` 校验，要求非空 dict 列表、每个 `function_call` 均有非空 `call_id` 并在后续非工具消息或列表结束前被匹配的 `function_call_output` 应答、无孤立 `function_call_output`、且尾部不为悬空 `function_call` 或 `reasoning`。写入与读取双端校验，写入被拒或序列化失败时主动失效旧键。
-   - `apps/server/agent/service.py`：允许 `assistant_stop_reason in {"end_turn", "run_deadline_exceeded", "max_turns_exceeded"}` 且仅含干净软着陆暂停卡（`type == "iteration_exhausted"`、`layer in {"tool_call", "collaboration"}`、`limit in {"wall_clock", "max_turns"}` 且无 `unfinishedFiles` / `rolledBackFiles`）、无错误/取消/`stop_kind`/保存前迟到插话/待写文件或未保存替换、且 `completed_wire_items` 通过 `is_well_formed_wire_prefix` 时写入缓存。
-   - 凡一轮在正常保存路径、取消补存路径（`user_stopped` / `client_disconnected` / 硬超时）或异常兜底补存路径中落库了新消息却未写入新缓存时，统一异步 fail-open 调用 `ainvalidate_wire_prefix(session_id)` 删除 Redis 旧键。
+   - `apps/server/agent/loop/wire_prefix_cache.py`：新增 `is_well_formed_wire_prefix(items)` 校验，要求非空 dict 列表、每个 `function_call` 均有唯一非空 `call_id` 并在后续非工具消息或列表结束前被匹配的 `function_call_output` 应答、无孤立 `function_call_output`、且尾部不为悬空 `function_call`、`reasoning` 或 `function_call_output`。写入与读取双端校验，写入被拒或序列化失败时主动失效旧键。
+   - `apps/server/agent/service.py`：允许 `assistant_stop_reason in {"end_turn", "run_deadline_exceeded", "max_turns_exceeded"}` 且仅含干净软着陆暂停卡（`type == "iteration_exhausted"`、`layer in {"tool_call", "collaboration"}`、`limit in {"wall_clock", "max_turns"}` 且无 `unfinishedFiles` / `rolledBackFiles`）、无错误/取消/`stop_kind`/保存前迟到插话或未消费的轮内插话（`len(state["messages"]) > native_run_holder["messages_len"]`）/待写文件或未保存替换、且 `completed_wire_items` 通过 `is_well_formed_wire_prefix` 时写入缓存。
+   - 凡一轮在正常保存路径、取消补存路径（`user_stopped` / `client_disconnected` / 硬超时，含取消落在 `history_save_task` 或 `astore_wire_prefix` 期间）或异常兜底补存路径中落库了新消息却未写入新缓存时，统一异步 fail-open 调用 `ainvalidate_wire_prefix(session_id)` 删除 Redis 旧键。
 
 ## Alternatives considered
 

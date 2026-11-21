@@ -90,9 +90,10 @@ def is_well_formed_wire_prefix(items: Any) -> bool:
     """Verify SDK wire items are structurally safe to replay as a Turn N+1 prefix.
 
     Checks that ``items`` is a non-empty list of dicts, every ``function_call`` has a
-    non-empty ``call_id`` answered by a matching ``function_call_output`` before any
-    subsequent non-tool item or end of list, no orphan ``function_call_output`` appears,
-    and the tail is not a dangling ``function_call`` or ``reasoning`` item.
+    unique non-empty ``call_id`` answered by a matching ``function_call_output`` before
+    any subsequent non-tool item or end of list, no orphan ``function_call_output``
+    appears, and the tail is not a dangling ``function_call``, ``reasoning``, or
+    ``function_call_output`` item.
     """
     if not isinstance(items, list) or not items:
         return False
@@ -103,7 +104,7 @@ def is_well_formed_wire_prefix(items: Any) -> bool:
         item_type = item.get("type")
         if item_type == "function_call":
             call_id = item.get("call_id")
-            if not isinstance(call_id, str) or not call_id:
+            if not isinstance(call_id, str) or not call_id or call_id in pending_call_ids:
                 return False
             pending_call_ids.add(call_id)
         elif item_type == "function_call_output":
@@ -115,7 +116,7 @@ def is_well_formed_wire_prefix(items: Any) -> bool:
             return False
     if pending_call_ids:
         return False
-    return items[-1].get("type") not in ("function_call", "reasoning")
+    return items[-1].get("type") not in ("function_call", "reasoning", "function_call_output")
 
 
 def load_wire_prefix(

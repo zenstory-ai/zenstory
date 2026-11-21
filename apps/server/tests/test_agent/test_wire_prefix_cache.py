@@ -850,6 +850,20 @@ def test_is_well_formed_wire_prefix_rejects_dangling_calls_and_malformed_tails(f
             {"role": "user", "content": "写"},
             {"type": "function_call", "call_id": "", "name": "query_files", "arguments": "{}"},
         ],
+        # Duplicate pending call_id
+        [
+            {"role": "user", "content": "写"},
+            {"type": "function_call", "call_id": "dup_1", "name": "query_files", "arguments": "{}"},
+            {"type": "function_call", "call_id": "dup_1", "name": "query_files", "arguments": "{}"},
+            {"type": "function_call_output", "call_id": "dup_1", "output": "{}"},
+            {"role": "assistant", "content": "ok"},
+        ],
+        # Trailing function_call_output without concluding assistant message
+        [
+            {"role": "user", "content": "写"},
+            {"type": "function_call", "call_id": "c_tail", "name": "query_files", "arguments": "{}"},
+            {"type": "function_call_output", "call_id": "c_tail", "output": "{}"},
+        ],
         # Dangling reasoning item at tail
         [
             {"role": "user", "content": "写"},
@@ -1357,6 +1371,236 @@ async def test_cancelled_user_stopped_and_client_disconnected_invalidate_stale_w
                 await gen.aclose()
                 break
 
+        if scheduled_tasks:
+            await asyncio.gather(*scheduled_tasks, return_exceptions=True)
+
+    assert key not in fake_redis.store
+    assert key in fake_redis.deleted_keys
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_soft_landed_turn_with_unconsumed_steering_skips_cache_and_falls_back_to_db(
+    db_session: Session, fake_redis, monkeypatch
+):
+    """If a soft-landed turn acknowledged mid-run/boundary steering that was appended to
+    writing_state['messages'] AFTER native_run_holder captured items (messages_len < len(messages)),
+    Turn N must skip wire_prefix_cache and invalidate stale Redis entries so Turn N+1 falls back
+    to DB history containing the acknowledged steering message."""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.service import AgentService
+
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-test-minimax")
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY", raising=False)
+    llm_failover.reset_failover_state()
+    llm_providers.reset_key_routing_state()
+
+    user = User(
+        email="wire_unconsumed_steer@example.com",
+        username="wireunconsumedsteer",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="软着陆插话不丢失", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    key = wire_prefix_cache.wire_prefix_cache_key(chat.id)
+    fake_redis.setex(key, 900, '{"stale": true}')
+    steering_text = "记得把反派的名字改成陆沉"
+    seen_histories: list[list[dict]] = []
+
+    def fake_loop_turn1(state, *, get_steering_messages=None, **_kwargs):
+        seen_histories.append(list(state.get("history_items") or []))
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "时间快到了，先总结。"})
+            # Simulate runner.py capturing native_run_holder BEFORE appending mid_run_steering to state["messages"].
+            state["messages"] = [{"role": "user", "content": "写第一章"}, {"role": "assistant", "content": "时间快到了，先总结。"}]
+            state["native_run_holder"] = {
+                "agent_type": "loop",
+                "items": [
+                    {"role": "user", "content": "<turn_context>STALE_WIRE_NO_STEER</turn_context>\n\n写第一章"},
+                    {"role": "assistant", "content": "时间快到了，先总结。"},
+                ],
+                "messages_len": len(state["messages"]),
+            }
+            state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+            # Mid-run steering was drained via get_steering_messages() and appended to state["messages"]
+            # after native_run_holder was recorded, with no follow-up SDK run because of soft-land.
+            if get_steering_messages is not None:
+                await get_steering_messages()
+            state["messages"].append({"role": "user", "content": steering_text})
+            yield StreamEvent(
+                type=StreamEventType.ITERATION_EXHAUSTED,
+                data={
+                    "layer": "tool_call",
+                    "iterations_used": 8,
+                    "max_iterations": 60,
+                    "reason": "时间快到了",
+                    "limit": "wall_clock",
+                },
+            )
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "run_deadline_exceeded"})
+
+        return _stream()
+
+    def fake_loop_turn2(state, **_kwargs):
+        seen_histories.append(list(state.get("history_items") or []))
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "收到，按陆沉继续。"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return _stream()
+
+    # Queue steering message inside fake steering queue so get_steering_messages() records it in consumed_steering.
+    class _OneShotQueue:
+        def __init__(self) -> None:
+            self._used = False
+
+        async def get_pending(self):
+            if self._used:
+                return []
+            self._used = True
+            return [SimpleNamespace(id="steer-mid-1", content=steering_text)]
+
+    service = AgentService()
+    with (
+        patch("agent.service.create_steering_queue_async", AsyncMock(return_value=_OneShotQueue())),
+        patch("agent.service.drain_and_seal_steering_async", AsyncMock(return_value=[])),
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop_turn1),
+    ):
+        async for _frame in service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="写第一章",
+            session=db_session,
+            session_id=chat.id,
+        ):
+            pass
+
+    # Turn 1 must NOT cache the wire prefix lacking steering_text, and must evict the stale key.
+    assert key not in fake_redis.store
+    assert key in fake_redis.deleted_keys
+
+    # Turn 2 must fall back to DB history and include the acknowledged steering message.
+    with patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop_turn2):
+        async for _frame in service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="继续",
+            session=db_session,
+            session_id=chat.id,
+        ):
+            pass
+
+    turn2_history = seen_histories[-1]
+    assert not any("STALE_WIRE_NO_STEER" in str(item.get("content") or "") for item in turn2_history)
+    assert any(steering_text in str(item.get("content") or "") for item in turn2_history)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_cancellation_during_history_save_task_invalidates_stale_wire_prefix(
+    db_session: Session, fake_redis
+):
+    """If cancellation arrives while awaiting asyncio.shield(history_save_task) (with run_outcome=None
+    and no late steering), the shielded save commits DB rows while astore_wire_prefix never runs;
+    the background cancellation handler must still invalidate any stale Redis key."""
+    import asyncio
+
+    from agent.core.message_manager import MessageManager
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.service import AgentService
+
+    user = User(
+        email="wire_cancel_save@example.com",
+        username="wirecancelsave",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="保存期间取消失效", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    key = wire_prefix_cache.wire_prefix_cache_key(chat.id)
+    fake_redis.setex(key, 900, '{"stale": true}')
+
+    save_started = asyncio.Event()
+    allow_save_finish = asyncio.Event()
+    orig_save_messages = MessageManager.save_messages
+
+    async def slow_save_messages(self, *args, **kwargs):
+        save_started.set()
+        await allow_save_finish.wait()
+        return await orig_save_messages(self, *args, **kwargs)
+
+    def fake_loop(state, **_kwargs):
+        state["native_run_holder"] = {"agent_type": "loop", "items": _sample_wire_items()}
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "正常完成"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return _stream()
+
+    scheduled_tasks: list[asyncio.Task] = []
+    service = AgentService()
+    orig_schedule = service._schedule_background_cleanup
+
+    def _capture_cleanup(coro, **kwargs):
+        task = orig_schedule(coro, **kwargs)
+        scheduled_tasks.append(task)
+        return task
+
+    service._schedule_background_cleanup = _capture_cleanup
+
+    async def _consume():
+        async for _frame in service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="写第一章",
+            session=db_session,
+            session_id=chat.id,
+            run_outcome=None,
+        ):
+            pass
+
+    with (
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
+        patch.object(MessageManager, "save_messages", new=slow_save_messages),
+    ):
+        task = asyncio.create_task(_consume())
+        await save_started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        allow_save_finish.set()
         if scheduled_tasks:
             await asyncio.gather(*scheduled_tasks, return_exceptions=True)
 

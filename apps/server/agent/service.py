@@ -829,6 +829,7 @@ class AgentService:
         request_failed = False
         stream_cancelled = False
         history_saved = False
+        stored_wire_prefix = False
         history_save_task: asyncio.Task | None = None
         cancellation_save_task: asyncio.Task | None = None
 
@@ -1603,8 +1604,13 @@ class AgentService:
                 assistant_message_id = await asyncio.shield(history_save_task)
                 if run_outcome is not None:
                     run_outcome.resolve_message_id(assistant_message_id)
-                completed_wire_items = writing_state.get("native_run_holder", {}).get("items")
-                stored_wire_prefix = False
+                native_holder = writing_state.get("native_run_holder") or {}
+                completed_wire_items = native_holder.get("items")
+                has_unconsumed_steering = (
+                    "messages_len" in native_holder
+                    and len(writing_state.get("messages") or [])
+                    > int(native_holder.get("messages_len") or 0)
+                )
                 if (
                     user_id
                     and session_id
@@ -1616,6 +1622,7 @@ class AgentService:
                     and assistant_stop_reason in _WIRE_PREFIX_CACHEABLE_STOP_REASONS
                     and not _has_blocking_wire_prefix_status_cards(assistant_status_cards)
                     and not late_steering_before_save
+                    and not has_unconsumed_steering
                     and not has_pending_file_state
                     and is_well_formed_wire_prefix(completed_wire_items)
                     and run_meter.last_served_provider_key
@@ -1708,8 +1715,9 @@ class AgentService:
                                 _append_user_messages_sync, late_steering
                             )
                             await ainvalidate_wire_prefix(session_id)
-                        elif run_outcome is not None and (
-                            run_outcome.stop_kind or run_outcome.deadline_stop_reason
+                        elif not stored_wire_prefix or (
+                            run_outcome is not None
+                            and (run_outcome.stop_kind or run_outcome.deadline_stop_reason)
                         ):
                             await ainvalidate_wire_prefix(session_id)
                         return

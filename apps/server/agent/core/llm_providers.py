@@ -276,9 +276,9 @@ def _minimax_key(
     primary_key = os.getenv(MINIMAX.api_key_env) or ""
     secondary_key = os.getenv("MINIMAX_SECONDARY_API_KEY") or ""
     weight = _minimax_secondary_weight_percent()
-    # Guard #1: instant switchback when secondary key is absent or weight == 0,
+    # Guard #1: instant switchback when primary/secondary key is absent or weight == 0,
     # before consulting in-memory run routes or Redis sticky keys.
-    if not secondary_key or weight == 0:
+    if not primary_key or not secondary_key or weight == 0:
         return primary_key, KEY_SLOT_PRIMARY
 
     # Guard #2: intra-run lock in memory (0 extra Redis IO for subsequent calls in the same run).
