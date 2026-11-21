@@ -205,6 +205,17 @@ describe('AdminDashboard', () => {
     expect(screen.queryByText('22')).not.toBeInTheDocument();
   });
 
+  it('omits dead commercial KPI cards and collapses methodology copy into details', async () => {
+    render(<AdminDashboard />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText('当前 Pro 用户（含赠送）')).toBeInTheDocument();
+    expect(screen.queryByText('admin:dashboard.totalPointsInCirculation')).not.toBeInTheDocument();
+    expect(screen.queryByText('admin:dashboard.todayCheckIns')).not.toBeInTheDocument();
+    expect(screen.queryByText('admin:dashboard.activeInviteCodes')).not.toBeInTheDocument();
+    expect(screen.queryByText('admin:dashboard.weekReferrals')).not.toBeInTheDocument();
+    expect(screen.getByText('统计口径')).toBeInTheDocument();
+  });
+
   it('shows paid Pro users and separates paid conversions from grants', async () => {
     render(<AdminDashboard />, { wrapper: createWrapper() });
 

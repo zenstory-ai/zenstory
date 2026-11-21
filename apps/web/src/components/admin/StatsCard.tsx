@@ -24,14 +24,14 @@ export function StatsCard({
   description,
 }: StatsCardProps) {
   const trendIcon = {
-    up: <TrendingUp className="h-4 w-4 text-green-500" />,
-    down: <TrendingDown className="h-4 w-4 text-red-500" />,
+    up: <TrendingUp className="h-4 w-4 text-[hsl(var(--success-text))]" />,
+    down: <TrendingDown className="h-4 w-4 text-[hsl(var(--error-text))]" />,
     neutral: <Minus className="h-4 w-4 text-[hsl(var(--text-secondary))]" />,
   };
 
   const trendColor = {
-    up: 'text-green-500',
-    down: 'text-red-500',
+    up: 'text-[hsl(var(--success-text))]',
+    down: 'text-[hsl(var(--error-text))]',
     neutral: 'text-[hsl(var(--text-secondary))]',
   };
 

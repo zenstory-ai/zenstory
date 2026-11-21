@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import { AdminPageState, AdminSelect } from "../../components/admin";
 import { AdminSegmented } from "../../components/admin/AdminSegmented";
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import {
   adminApi,
@@ -52,15 +53,6 @@ function Kpi({ label, children }: { label: string; children: ReactNode }) {
         {children}
       </div>
     </div>
-  );
-}
-
-function PriceLine() {
-  const { t } = useTranslation("admin");
-  return (
-    <p className="text-xs text-[hsl(var(--text-secondary))]">
-      {t("usage.priceLine")}
-    </p>
   );
 }
 
@@ -212,11 +204,8 @@ function ModelMetricsSection({ usageWindow }: { usageWindow: UsageWindow }) {
   const rows: ModelMetricsRow[] = models.data?.items ?? [];
   return (
     <section className="space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">{t("usage.models.title")}</h2>
-          <p className="text-xs text-[hsl(var(--text-secondary))]">{t("usage.models.subtitle")}</p>
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">{t("usage.models.title")}</h2>
         <AdminSelect
           wrapperClassName="w-full sm:w-auto"
           className="w-full"
@@ -266,6 +255,7 @@ function ModelMetricsSection({ usageWindow }: { usageWindow: UsageWindow }) {
       <details className="admin-surface px-4 py-3 text-xs text-[hsl(var(--text-secondary))]">
         <summary className="cursor-pointer text-sm font-medium text-[hsl(var(--text-primary))]">{t("usage.models.definitionsTitle")}</summary>
         <ul className="mt-2 list-disc space-y-1 pl-4">
+          <li>{t("usage.models.subtitle")}</li>
           {METRIC_DEFINITIONS.map((key) => <li key={key}>{t(`usage.models.definitions.${key}`)}</li>)}
         </ul>
       </details>
@@ -421,11 +411,8 @@ export default function UsageCostPage() {
 
   return (
     <div className="admin-page">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="admin-page-title">{t("usage.title")}</h1>
-          <p className="admin-page-subtitle">{t("usage.subtitle")}</p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="admin-page-title">{t("usage.title")}</h1>
         <div className="flex flex-wrap items-center gap-2">
           <AdminSegmented
             label={t("usage.window")}
@@ -434,9 +421,11 @@ export default function UsageCostPage() {
             onChange={changeWindow}
             renderLabel={(value) => t(`usage.windows.${value}`)}
           />
-          <button
+          <Button
             type="button"
-            className="btn-secondary flex items-center gap-2"
+            variant="secondary"
+            size="touch"
+            leftIcon={<RefreshCw className="h-4 w-4" />}
             disabled={summary.isFetching || users.isFetching || modelsFetching}
             onClick={() => {
               void summary.refetch();
@@ -444,9 +433,8 @@ export default function UsageCostPage() {
               void queryClient.invalidateQueries({ queryKey: ["admin", "usage", "models"] });
             }}
           >
-            <RefreshCw className="h-4 w-4" />
             {t("usage.refresh")}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -458,10 +446,6 @@ export default function UsageCostPage() {
       >
         {summary.data && totals && (
           <div className="space-y-4">
-            <div className="space-y-1">
-              <PriceLine />
-              <p className="text-xs text-[hsl(var(--text-secondary))]">{t("usage.notCounted")}</p>
-            </div>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
               <Kpi label={t("usage.totalCost")}>{formatCny(totals.cost_cny, locale)}</Kpi>
               <Kpi label={t("usage.peakOffpeak")}>
@@ -483,6 +467,15 @@ export default function UsageCostPage() {
             <Section title={t("usage.bySource")}>
               <SourceTable rows={summary.data.by_source} />
             </Section>
+            <details className="admin-surface px-4 py-3 text-xs text-[hsl(var(--text-secondary))]">
+              <summary className="cursor-pointer text-sm font-medium text-[hsl(var(--text-primary))]">
+                {t("methodology", "统计口径")}
+              </summary>
+              <ul className="mt-2 list-disc space-y-1 pl-4">
+                <li>{t("usage.priceLine")}</li>
+                <li>{t("usage.notCounted")}</li>
+              </ul>
+            </details>
           </div>
         )}
       </AdminPageState>
@@ -506,13 +499,13 @@ export default function UsageCostPage() {
             </AdminSelect>
             <form className="flex gap-2" onSubmit={submitSearch}>
               <input
-                className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-primary))]"
+                className="min-h-11 min-w-0 flex-1 rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-primary))]"
                 aria-label={t("usage.search")}
                 placeholder={t("usage.searchPlaceholder")}
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
               />
-              <button type="submit" className="btn-secondary">{t("usage.search")}</button>
+              <Button type="submit" variant="secondary" size="touch">{t("usage.search")}</Button>
             </form>
           </div>
         </div>
@@ -578,13 +571,13 @@ export default function UsageCostPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[hsl(var(--text-secondary))]">
             <span>{t("usage.totalUsers", { count: totalUsers })}</span>
             <div className="flex items-center gap-3">
-              <button type="button" className="btn-secondary" disabled={page <= 1 || users.isFetching} onClick={() => setPage(page - 1)}>
+              <Button type="button" variant="secondary" size="touch" disabled={page <= 1 || users.isFetching} onClick={() => setPage(page - 1)}>
                 {t("common:previous")}
-              </button>
+              </Button>
               <span>{page} / {totalPages}</span>
-              <button type="button" className="btn-secondary" disabled={page >= totalPages || users.isFetching} onClick={() => setPage(page + 1)}>
+              <Button type="button" variant="secondary" size="touch" disabled={page >= totalPages || users.isFetching} onClick={() => setPage(page + 1)}>
                 {t("common:next")}
-              </button>
+              </Button>
             </div>
           </div>
         )}

@@ -6,8 +6,6 @@
   "admin": {
     "navigation": "站内公告",
     "title": "站内公告",
-    "subtitle": "维护工作台首页当前展示的一条轻量公告",
-    "current": "当前公告",
     "visible": "正在展示",
     "hidden": "未展示",
     "version": "版本 {{version}}",

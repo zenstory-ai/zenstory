@@ -10,6 +10,7 @@ import { AdminUserLink } from "../../components/admin/AdminUserLink";
 import { formatAdminDateTime } from "../../lib/dateUtils";
 import { toast } from "../../lib/toast";
 import { useAuth } from "../../contexts/AuthContext";
+import { Button } from "../../components/ui/Button";
 import { IconButton } from "../../components/ui/IconButton";
 
 export const UserManagement: React.FC = () => {
@@ -121,14 +122,9 @@ export const UserManagement: React.FC = () => {
 
   return (
     <div className="admin-page admin-page-fluid">
-      <div>
-        <h1 className="admin-page-title">
-          {t("users.title")}
-        </h1>
-        <p className="admin-page-subtitle">
-          {t("users.subtitle")}
-        </p>
-      </div>
+      <h1 className="admin-page-title">
+        {t("users.title")}
+      </h1>
 
       {/* 搜索框 */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -413,7 +409,7 @@ export const UserManagement: React.FC = () => {
         >
           {/* 对话框头部 */}
           <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-[hsl(var(--separator-color))]">
-            <AlertTriangle size={24} className="text-red-500" />
+            <AlertTriangle size={24} className="text-[hsl(var(--error-text))]" />
             <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))]">
               {t("users.deactivate")}
             </h2>
@@ -431,20 +427,26 @@ export const UserManagement: React.FC = () => {
 
           {/* 对话框底部 */}
           <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 px-4 sm:px-6 py-4 border-t border-[hsl(var(--separator-color))]">
-            <button
+            <Button
+              type="button"
+              variant="secondary"
+              size="touch"
               onClick={() => setDeactivatingUser(null)}
               disabled={deactivateMutation.isPending}
-              className="w-full sm:w-auto px-4 py-2.5 min-h-11 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg hover:bg-[hsl(var(--bg-tertiary))] active:scale-95 transition-all text-sm text-[hsl(var(--text-primary))] disabled:opacity-50"
+              className="w-full sm:w-auto"
             >
               {t("common:cancel")}
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="touch"
               onClick={handleDeactivateConfirm}
               disabled={deactivateMutation.isPending}
-              className="w-full sm:w-auto px-4 py-2.5 min-h-11 bg-[hsl(var(--error))] text-white rounded-lg hover:bg-[hsl(var(--error)/0.9)] active:scale-95 transition-all text-sm disabled:opacity-50"
+              className="w-full sm:w-auto"
             >
               {deactivateMutation.isPending ? t("common:loading") : t("users.confirmDeactivate")}
-            </button>
+            </Button>
           </div>
         </Modal>
       )}

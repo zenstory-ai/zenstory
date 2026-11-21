@@ -645,6 +645,7 @@ test('all admin routes are reachable for superuser with mocked APIs', async ({ p
 
   const routes = [
     '/admin',
+    '/admin/acquisition',
     '/admin/users',
     '/admin/usage',
     '/admin/users/user-1',
@@ -656,19 +657,51 @@ test('all admin routes are reachable for superuser with mocked APIs', async ({ p
     '/admin/payment-orders',
     '/admin/plans',
     '/admin/audit-logs',
-    '/admin/inspirations',
     '/admin/feedback',
-    '/admin/points',
-    '/admin/check-in',
-    '/admin/referrals',
-    '/admin/quota',
+    '/admin/announcements',
   ];
 
   for (const route of routes) {
     await page.goto(route);
-    await expect(page).toHaveURL(new RegExp(route.replace('/', '\\/')));
+    await expect(page).toHaveURL(new RegExp(`${route.replace(/\//g, '\\/')}$`));
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.locator('main')).toBeVisible();
+  }
+});
+
+test('removed dormant and duplicate admin routes redirect cleanly', async ({ page }) => {
+  await bootstrapAdminSession(page);
+
+  const redirects: Array<[string, RegExp]> = [
+    ['/admin/points', /\/admin$/],
+    ['/admin/check-in', /\/admin$/],
+    ['/admin/referrals', /\/admin$/],
+    ['/admin/inspirations', /\/admin$/],
+    ['/admin/quota', /\/admin\/users$/],
+  ];
+
+  for (const [from, target] of redirects) {
+    await page.goto(from);
+    await expect(page).toHaveURL(target);
+    await expect(page.locator('main')).toBeVisible();
+  }
+});
+
+test('admin sidebar shows 6 flat items and sub-tabs keep parent nav active', async ({ page }) => {
+  await bootstrapAdminSession(page);
+  await page.goto('/admin');
+
+  const sidebarNav = page.locator('aside nav');
+  if (await sidebarNav.isVisible()) {
+    await expect(sidebarNav.getByRole('link')).toHaveCount(6);
+    await sidebarNav.getByRole('link', { name: /^(营收|Billing)$/ }).click();
+    await expect(page).toHaveURL(/\/admin\/payment-orders$/);
+    await expect(sidebarNav.getByRole('link', { name: /^(营收|Billing)$/ })).toHaveAttribute('aria-current', 'page');
+
+    const subNav = page.locator('main nav');
+    await subNav.getByRole('link', { name: /^(套餐配置|Plans)$/ }).click();
+    await expect(page).toHaveURL(/\/admin\/plans$/);
+    await expect(sidebarNav.getByRole('link', { name: /^(营收|Billing)$/ })).toHaveAttribute('aria-current', 'page');
   }
 });
 
@@ -707,14 +740,16 @@ test('usage page shows per-model call metrics, filters by feature and explains e
   await expect(section).toContainText(/解码速度 = 输出 tokens 合计|Decode speed = total output tokens/);
 });
 
-test('user detail page links to usage and lists every section', async ({ page }) => {
+test('user detail page links to usage and lists active sections', async ({ page }) => {
   await bootstrapAdminSession(page);
 
   await page.goto('/admin/users/user-1');
 
   await expect(page.locator('main')).toBeVisible();
   await expect(page.getByRole('link', { name: /查看用量|View usage/ })).toHaveAttribute('href', '/admin/usage?user=user-1');
-  for (const section of [/^(账号|Account)$/, /^(会员|Membership)$/, /^(配额|Quota)$/, /^(积分|Points)$/, /^(支付订单|Payment orders)$/]) {
+  for (const section of [/^(账号|Account)$/, /^(会员|Membership)$/, /^(配额|Quota)$/, /^(支付订单|Payment orders)$/]) {
     await expect(page.getByRole('heading', { name: section })).toBeVisible();
   }
+  const pointsEnabled = (process.env.VITE_POINTS_ENABLED ?? 'true') === 'true';
+  await expect(page.getByRole('heading', { name: /^(积分|Points)$/ })).toHaveCount(pointsEnabled ? 1 : 0);
 });
