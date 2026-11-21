@@ -60,4 +60,12 @@ describe('BottomTabs', () => {
 
     expect(onTabChange).toHaveBeenCalledWith('chat')
   })
+
+  it('uses min-h-14 so safe-area bottom inset does not clip tab controls', () => {
+    render(<BottomTabs activeTab="chat" onTabChange={vi.fn()} />)
+
+    const nav = screen.getByTestId('bottom-tabs')
+    expect(nav).toHaveClass('min-h-14')
+    expect(nav).not.toHaveClass('h-14')
+  })
 })
