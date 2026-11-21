@@ -5,6 +5,8 @@ Session loader helpers for legacy graph row replay, author edits, and session-wr
 import contextlib
 import json
 import os
+import threading
+import time
 from typing import Any
 
 from sqlalchemy import desc
@@ -67,6 +69,8 @@ logger = get_logger(__name__)
 WORKING_SET_USER_MESSAGE_LABEL = "【本轮用户消息】"
 # 本轮开始时给哪些文件算作者手改差异：焦点 / 附加与本会话 AI 写过的正文文件，按这个顺序最多这么多个。
 AUTHOR_EDITS_MAX_FILES = 30
+# 算作者手改的总墙钟预算（秒）：用尽后剩余文件归入 unchecked_titles（明说未核对），避免阻塞本轮启动。
+AUTHOR_EDITS_TIME_BUDGET_S = 2.0
 # session_written_file_ids 每次读多少条 assistant 行（只读 tool_calls 列）：凑够名额就不再往前读。
 SESSION_WRITTEN_FILES_PAGE_ROWS = 20
 
@@ -130,11 +134,19 @@ class SessionLoader:
         self.user_id = user_id
 
     def author_edits_for_files(
-        self, session: Session, ordered: list[str], fallback_titles: dict[str, str]
+        self,
+        session: Session,
+        ordered: list[str],
+        fallback_titles: dict[str, str],
+        *,
+        time_budget_s: float | None = AUTHOR_EDITS_TIME_BUDGET_S,
+        cancel_event: threading.Event | None = None,
     ) -> tuple[str, set[str], dict[str, Any] | None]:
-        """按 ordered 的先后（至多 AUTHOR_EDITS_MAX_FILES 个）算作者手改，返回 (<author_edits> 块, 作者改过的 id, id → File)。
+        """按 ordered 的先后（至多 AUTHOR_EDITS_MAX_FILES 个、总计不超过 time_budget_s 秒）算作者手改，
+        返回 (<author_edits> 块, 作者改过的 id, id → File)。
 
-        查询文件失败时块里明说「没算出来」，第三项为 None。
+        查询文件失败时块里明说「没算出来」，第三项为 None；预算用尽或收到 cancel_event 时，
+        剩余文件归入 unchecked_titles（明说未核对）。
         """
         from agent.tools.author_changes import AuthorChanges, author_changes, render_author_edits_block
         from models import File
@@ -188,7 +200,29 @@ class SessionLoader:
 
         entries = []
         edited_ids: set[str] = set()
-        for file_id in checked:
+        unchecked_ids = list(unchecked)
+        deadline = (
+            time.monotonic() + max(0.0, time_budget_s)
+            if time_budget_s is not None
+            else None
+        )
+        for index, file_id in enumerate(checked):
+            if cancel_event is not None and cancel_event.is_set():
+                unchecked_ids = [*checked[index:], *unchecked_ids]
+                break
+            if index > 0 and deadline is not None and time.monotonic() >= deadline:
+                unchecked_ids = [*checked[index:], *unchecked_ids]
+                log_with_context(
+                    logger,
+                    20,  # INFO
+                    "Author edits time budget reached; remaining files left unchecked",
+                    project_id=self.project_id,
+                    user_id=self.user_id,
+                    checked_count=index,
+                    unchecked_count=len(unchecked_ids),
+                    time_budget_s=time_budget_s,
+                )
+                break
             file = by_id[file_id]
             try:
                 with session.begin_nested() as nested:
@@ -203,7 +237,7 @@ class SessionLoader:
                     # 只核对不完整（窗口外 / 回放失败）的文件不标「作者改过」：不知道，就不下结论。
                     edited_ids.add(file_id)
         block = render_author_edits_block(
-            entries, unchecked_titles=[f"《{title_of(by_id[file_id])}》" for file_id in unchecked]
+            entries, unchecked_titles=[f"《{title_of(by_id[file_id])}》" for file_id in unchecked_ids]
         )
         return block, edited_ids, by_id
 
@@ -214,6 +248,7 @@ class SessionLoader:
         chat_session_id: str,
         limit: int,
         file_types: tuple[str, ...] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> list[str]:
         """这个会话里 AI 成功写过（create_file / write_chapter / edit_file / rename_file）的文件 id，新 → 旧，至多 limit 个。
 
@@ -237,6 +272,8 @@ class SessionLoader:
             # 新 → 旧按页读：会话很长时不一次把所有行的 tool_calls 读进来。
             offset = 0
             while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    return
                 page = session.exec(query.offset(offset).limit(SESSION_WRITTEN_FILES_PAGE_ROWS)).all()
                 yield from page
                 if len(page) < SESSION_WRITTEN_FILES_PAGE_ROWS:
