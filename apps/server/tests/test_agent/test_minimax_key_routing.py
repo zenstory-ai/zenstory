@@ -150,41 +150,44 @@ def _run_slot(run_id: str, session_id: str | None) -> str:
 
 
 @pytest.mark.unit
-def test_consecutive_runs_of_a_session_stay_on_one_key_within_a_window(monkeypatch):
-    monkeypatch.setattr(llm_providers.time, "time", lambda: 1_000.0)
+def test_consecutive_runs_of_a_session_stay_on_one_key_across_hour_boundaries(monkeypatch):
+    """Consecutive runs of the same session stay pinned to one key across UTC hour boundaries."""
+    import time as time_mod
+
     monkeypatch.setenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT", "40")
+    timestamps = [3_599.0, 3_600.0, 7_200.0, 10_800.0, 90_000.0]
 
     for session in (f"session-{index}" for index in range(50)):
-        assert len({_run_slot(f"{session}-run-{index}", session) for index in range(8)}) == 1
+        slots = set()
+        for run_idx, ts in enumerate(timestamps):
+            monkeypatch.setattr(time_mod, "time", lambda ts=ts: ts)
+            slots.add(_run_slot(f"{session}-run-{run_idx}", session))
+        assert len(slots) == 1
 
 
 @pytest.mark.unit
-def test_a_session_is_reassigned_between_windows_so_the_split_holds_over_time(monkeypatch):
-    """一个重度会话不能长期压在额度少的次 Key 上；按窗口统计仍接近配置比例。"""
+def test_distinct_sessions_distribute_according_to_secondary_weight(monkeypatch):
+    """Distinct sessions still split across primary/secondary by configured weight."""
     monkeypatch.setenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT", "40")
-    window = llm_providers.LLM_KEY_ROUTING_WINDOW_S
-    slots = []
-    for index in range(2_000):
-        monkeypatch.setattr(llm_providers.time, "time", lambda index=index: index * window)
-        slots.append(_run_slot(f"run-{index}", "one-heavy-session"))
+    slots = [_run_slot(f"run-{index}", f"session-{index}") for index in range(2_000)]
 
     assert 0.36 < slots.count("secondary") / len(slots) < 0.44
 
 
 @pytest.mark.unit
-def test_a_run_keeps_its_key_when_it_crosses_a_window(monkeypatch):
+def test_a_run_keeps_its_key_across_wall_clock_boundaries(monkeypatch):
+    import time as time_mod
+
     monkeypatch.setenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT", "40")
-    window = llm_providers.LLM_KEY_ROUTING_WINDOW_S
     for index in range(100):
-        monkeypatch.setattr(llm_providers.time, "time", lambda: 0.0)
+        monkeypatch.setattr(time_mod, "time", lambda: 0.0)
         first = _run_slot(f"long-run-{index}", f"session-{index}")
-        monkeypatch.setattr(llm_providers.time, "time", lambda: float(window * 7))
+        monkeypatch.setattr(time_mod, "time", lambda: 7_200.0)
         assert _run_slot(f"long-run-{index}", f"session-{index}") == first
 
 
 @pytest.mark.unit
 def test_a_run_keeps_its_key_when_a_later_call_has_no_session(monkeypatch):
-    monkeypatch.setattr(llm_providers.time, "time", lambda: 1_000.0)
     monkeypatch.setenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT", "40")
     for index in range(100):
         first = _run_slot(f"mixed-run-{index}", f"session-{index}")

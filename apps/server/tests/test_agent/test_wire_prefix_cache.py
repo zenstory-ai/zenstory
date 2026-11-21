@@ -562,7 +562,7 @@ async def test_incomplete_or_error_turn_does_not_store_wire_prefix(db_session: S
 async def test_dual_key_slot_switch_misses_wire_prefix_cache_and_falls_back_to_db(
     db_session: Session, fake_redis, monkeypatch
 ):
-    """When MiniMax dual-key routing switches key_slot (e.g. key cooldown or routing window boundary),
+    """When MiniMax dual-key routing switches key_slot (e.g. key cooldown or weight change),
     Turn N+1 must miss the cached wire prefix and fall back cleanly to DB load_loop_history."""
     from agent.core.workflow_events import StreamEvent, StreamEventType
     from agent.service import AgentService
@@ -791,3 +791,561 @@ def test_chat_tool_card_mutation_invalidates_wire_prefix_cache(db_session: Sessi
         is True
     )
     assert key not in fake_redis.store
+
+
+# ---------------------------------------------------------------------------
+# Well-formedness validation, clean soft-land caching, and stale invalidation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_is_well_formed_wire_prefix_rejects_dangling_calls_and_malformed_tails(fake_redis):
+    assert wire_prefix_cache.is_well_formed_wire_prefix(_sample_wire_items()) is True
+    # Parallel tool calls answered in any order before next message are valid.
+    parallel_valid = [
+        {"role": "user", "content": "查两章"},
+        {"type": "function_call", "call_id": "c1", "name": "query_files", "arguments": "{}"},
+        {"type": "function_call", "call_id": "c2", "name": "query_files", "arguments": "{}"},
+        {"type": "function_call_output", "call_id": "c2", "output": "{}"},
+        {"type": "function_call_output", "call_id": "c1", "output": "{}"},
+        {"role": "assistant", "content": "查完了"},
+    ]
+    assert wire_prefix_cache.is_well_formed_wire_prefix(parallel_valid) is True
+
+    malformed_cases = [
+        [],
+        None,
+        ["not-a-dict"],
+        # Dangling unanswered function_call at tail
+        [
+            {"role": "user", "content": "写"},
+            {"type": "function_call", "call_id": "c1", "name": "query_files", "arguments": "{}"},
+        ],
+        # Unanswered function_call followed by another message
+        [
+            {"role": "user", "content": "写"},
+            {"type": "function_call", "call_id": "c1", "name": "query_files", "arguments": "{}"},
+            {"role": "assistant", "content": "断了"},
+        ],
+        # Orphan function_call_output
+        [
+            {"role": "user", "content": "写"},
+            {"type": "function_call_output", "call_id": "c_missing", "output": "{}"},
+        ],
+        # Empty call_id
+        [
+            {"role": "user", "content": "写"},
+            {"type": "function_call", "call_id": "", "name": "query_files", "arguments": "{}"},
+        ],
+        # Dangling reasoning item at tail
+        [
+            {"role": "user", "content": "写"},
+            {"type": "reasoning", "summary": [{"type": "summary_text", "text": "只想到一半"}]},
+        ],
+    ]
+    for bad_items in malformed_cases:
+        assert wire_prefix_cache.is_well_formed_wire_prefix(bad_items) is False
+
+    # store_wire_prefix rejects dangling function_call and evicts any stale entry.
+    key = wire_prefix_cache.wire_prefix_cache_key("sess-bad-tail")
+    fake_redis.setex(key, 900, '{"stale": true}')
+    stored = wire_prefix_cache.store_wire_prefix(
+        session_id="sess-bad-tail",
+        project_id="p",
+        user_id="u",
+        last_assistant_message_id="m1",
+        system_prompt="sys",
+        provider_key="minimax:MiniMax-M3.1-Flash:primary",
+        items=malformed_cases[3],
+    )
+    assert stored is False
+    assert key not in fake_redis.store
+
+    # load_wire_prefix also rejects malformed items if present in Redis.
+    fake_redis.setex(
+        key,
+        900,
+        json.dumps(
+            {
+                "schema_version": wire_prefix_cache.WIRE_PREFIX_CACHE_SCHEMA_VERSION,
+                "project_id": "p",
+                "user_id": "u",
+                "last_assistant_message_id": "m1",
+                "system_prompt_sha256": wire_prefix_cache.system_prompt_sha256("sys"),
+                "provider_key": "minimax:MiniMax-M3.1-Flash:primary",
+                "items": malformed_cases[3],
+            }
+        ),
+    )
+    assert (
+        wire_prefix_cache.load_wire_prefix(
+            session_id="sess-bad-tail",
+            project_id="p",
+            user_id="u",
+            last_message_id="m1",
+            system_prompt="sys",
+            provider_key="minimax:MiniMax-M3.1-Flash:primary",
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs")
+async def test_soft_landed_wall_clock_run_stores_wire_prefix_and_turn_n_plus_1_hits(
+    db_session: Session, fake_redis, monkeypatch
+):
+    """A clean wall-clock soft-landed run (past_wrap_up + run_deadline_exceeded + wall_clock pause
+    card) populates completed_items, stores wire_prefix_cache, and Turn N+1 hits it byte-for-byte."""
+    from sqlmodel import select
+
+    from agent.core.run_meter import AgentRunMeter
+    from agent.service import AgentService
+
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-test-minimax")
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY", raising=False)
+    sdk_model.reset_sdk_model_cache()
+    llm_failover.reset_failover_state()
+    llm_providers.reset_key_routing_state()
+
+    user = User(
+        email="wire_soft_land@example.com",
+        username="wiresoftland",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="软着陆缓存", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chapter = File(project_id=project.id, title="第一章", file_type="draft", content="长夜未央。")
+    db_session.add(chapter)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    recorded_calls: list[dict] = []
+    scripted_streams = [
+        # Turn 1, step 1: tool call (before wrap-up)
+        [
+            _stream_chunk(role="assistant", reasoning="先查第一章"),
+            _stream_chunk(
+                tool_calls=[
+                    {
+                        "index": 0,
+                        "id": "call_soft_001",
+                        "type": "function",
+                        "function": {"name": "query_files", "arguments": json.dumps({"id": chapter.id})},
+                    }
+                ]
+            ),
+            _stream_chunk(finish_reason="tool_calls"),
+        ],
+        # Turn 1, step 2: wall-clock soft-landing summary
+        [
+            _stream_chunk(role="assistant", reasoning="时间快到了，先做阶段总结"),
+            _stream_chunk(content="已核对第一章，回复「继续」后继续。"),
+            _stream_chunk(finish_reason="stop"),
+        ],
+        # Turn 2, step 1: follow-up "继续"
+        [
+            _stream_chunk(role="assistant", reasoning="承接软着陆继续"),
+            _stream_chunk(content="继续完成剩余工作。"),
+            _stream_chunk(finish_reason="stop"),
+        ],
+    ]
+
+    wrap_up_armed = {"active": False}
+    monkeypatch.setattr(AgentRunMeter, "past_wrap_up", property(lambda _self: wrap_up_armed["active"]))
+
+    def fake_client_for(provider):
+        client = openai.AsyncOpenAI(api_key=provider.api_key, base_url="https://llm.test/v1", max_retries=0)
+
+        async def create(**kwargs):
+            recorded_calls.append(kwargs)
+            if len(recorded_calls) == 1:
+                # Trigger wall-clock wrap-up right after step 1 so step 2 soft-lands cleanly.
+                wrap_up_armed["active"] = True
+            chunks = scripted_streams.pop(0)
+
+            async def _gen():
+                for chunk in chunks:
+                    yield chunk
+
+            return _gen()
+
+        client.chat.completions.create = create
+        return client
+
+    monkeypatch.setattr(llm_providers, "get_async_client", fake_client_for)
+    monkeypatch.setattr("agent.openai_agents.usage_hooks.schedule_llm_usage_record", lambda *_a, **_kw: None)
+
+    service = AgentService()
+    try:
+        # Turn 1: soft-lands near wall-clock limit.
+        async for _frame in service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="核对并扩写第一章",
+            session=db_session,
+            session_id=chat.id,
+            metadata={"current_file_id": chapter.id, "current_file_type": "draft", "current_file_title": "第一章"},
+        ):
+            pass
+
+        assert wire_prefix_cache.wire_prefix_cache_key(chat.id) in fake_redis.store
+        assistant_rows = db_session.exec(
+            select(ChatMessage)
+            .where(ChatMessage.session_id == chat.id, ChatMessage.role == "assistant")
+            .order_by(ChatMessage.created_at)
+        ).all()
+        assert len(assistant_rows) == 1
+        meta = json.loads(assistant_rows[0].message_metadata or "{}")
+        assert meta.get("stop_reason") == "run_deadline_exceeded"
+        assert meta.get("status_cards") and meta["status_cards"][0]["limit"] == "wall_clock"
+
+        # Turn 2: follow-up hits wire_prefix_cache cleanly.
+        wrap_up_armed["active"] = False
+        async for _frame in service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="继续",
+            session=db_session,
+            session_id=chat.id,
+            metadata={"current_file_id": chapter.id, "current_file_type": "draft", "current_file_title": "第一章"},
+        ):
+            pass
+    finally:
+        sdk_model.reset_sdk_model_cache()
+        llm_failover.reset_failover_state()
+        llm_providers.reset_key_routing_state()
+
+    assert len(recorded_calls) == 3
+    # Turn 1 step 2 had the transient LOOP_TIME_LANDING_PROMPT appended at the end;
+    # everything before it is an exact prefix of Turn 2 step 1!
+    turn1_step2_prefix = recorded_calls[1]["messages"][:-1]
+    turn2_step1_messages = recorded_calls[2]["messages"]
+    assert turn2_step1_messages[: len(turn1_step2_prefix)] == turn1_step2_prefix
+    assert turn2_step1_messages[len(turn1_step2_prefix)] == {
+        "role": "assistant",
+        "content": "已核对第一章，回复「继续」后继续。",
+        "reasoning_content": "时间快到了，先做阶段总结",
+    }
+    assert turn2_step1_messages[len(turn1_step2_prefix) + 1]["role"] == "user"
+    assert "继续" in turn2_step1_messages[len(turn1_step2_prefix) + 1]["content"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+@pytest.mark.parametrize(
+    ("stop_reason", "card_layer", "card_limit"),
+    [
+        ("max_turns_exceeded", "tool_call", "max_turns"),
+        ("run_deadline_exceeded", "collaboration", "wall_clock"),
+    ],
+)
+async def test_clean_max_turns_and_between_runs_wrap_up_store_wire_prefix(
+    db_session: Session, fake_redis, monkeypatch, stop_reason: str, card_layer: str, card_limit: str
+):
+    """Clean max_turns_exceeded soft-land and between-runs wall_clock wrap-up both store
+    wire_prefix_cache and hit on Turn N+1."""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.service import AgentService
+
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-test-minimax")
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY", raising=False)
+    llm_failover.reset_failover_state()
+    llm_providers.reset_key_routing_state()
+
+    user = User(
+        email=f"wire_{stop_reason}_{card_layer}@example.com",
+        username=f"wire_{card_layer}",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="软着陆测试", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    seen_histories: list[list[dict]] = []
+
+    def fake_loop(state, **_kwargs):
+        seen_histories.append(list(state.get("history_items") or []))
+        state["native_run_holder"] = {
+            "agent_type": "loop",
+            "items": [
+                {"role": "user", "content": "<turn_context>SOFT_LAND_WIRE_MARKER</turn_context>\n\n第一轮"},
+                {"role": "assistant", "content": "阶段总结"},
+            ],
+        }
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "阶段总结"})
+            yield StreamEvent(
+                type=StreamEventType.ITERATION_EXHAUSTED,
+                data={
+                    "layer": card_layer,
+                    "iterations_used": 10,
+                    "max_iterations": 60,
+                    "reason": "先停在这里",
+                    "limit": card_limit,
+                },
+            )
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": stop_reason})
+
+        return _stream()
+
+    service = AgentService()
+    with patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop):
+        async for _frame in service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="第一轮",
+            session=db_session,
+            session_id=chat.id,
+        ):
+            pass
+        assert wire_prefix_cache.wire_prefix_cache_key(chat.id) in fake_redis.store
+
+        async for _frame in service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="继续",
+            session=db_session,
+            session_id=chat.id,
+        ):
+            pass
+
+    assert any("SOFT_LAND_WIRE_MARKER" in str(item.get("content") or "") for item in seen_histories[-1])
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+@pytest.mark.parametrize(
+    "case",
+    [
+        "dangling_function_call",
+        "stream_error",
+        "pending_empty_file",
+        "empty_file_correction_card",
+        "wall_clock_with_rolled_back_files",
+        "unexecuted_tool_text_card",
+        "late_steering_before_save",
+    ],
+)
+async def test_unclean_or_skipped_turns_skip_store_and_invalidate_stale_cache(
+    db_session: Session, fake_redis, monkeypatch, case: str
+):
+    """When a turn commits a new assistant message and skips wire_prefix_cache for any safety
+    reason, it must NOT store a new entry and MUST invalidate any pre-existing stale key."""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.service import AgentService
+    from agent.tools.mcp_tools import ToolContext
+
+    user = User(
+        email=f"wire_skip_{case}@example.com",
+        username=f"wireskip_{case[:12]}",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="跳过并失效", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    key = wire_prefix_cache.wire_prefix_cache_key(chat.id)
+    fake_redis.setex(key, 900, '{"stale": true}')
+
+    if case == "late_steering_before_save":
+        calls = {"n": 0}
+
+        async def fake_drain(_session_id, _run_id):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return [SimpleNamespace(id="steer-1", content="顺便改一下结尾")]
+            return []
+
+        monkeypatch.setattr("agent.service.drain_and_seal_steering_async", fake_drain)
+
+    def fake_loop(state, **_kwargs):
+        items = _sample_wire_items()
+        if case == "dangling_function_call":
+            items = [
+                {"role": "user", "content": "写"},
+                {"type": "function_call", "call_id": "call_dangling", "name": "query_files", "arguments": "{}"},
+            ]
+        state["native_run_holder"] = {"agent_type": "loop", "items": items}
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+
+        async def _stream():
+            if case == "pending_empty_file":
+                ToolContext.set_pending_empty_file("f-unwritten", "空章节", "v1")
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "部分回复"})
+            if case == "empty_file_correction_card":
+                yield StreamEvent(
+                    type=StreamEventType.ITERATION_EXHAUSTED,
+                    data={
+                        "layer": "empty_file_correction",
+                        "iterations_used": 2,
+                        "max_iterations": 2,
+                        "reason": "空文件已回滚",
+                        "rolled_back_files": [{"id": "f1", "title": "第一章"}],
+                    },
+                )
+            elif case == "wall_clock_with_rolled_back_files":
+                yield StreamEvent(
+                    type=StreamEventType.ITERATION_EXHAUSTED,
+                    data={
+                        "layer": "tool_call",
+                        "iterations_used": 5,
+                        "max_iterations": 60,
+                        "reason": "时限收尾但回滚了空文件",
+                        "limit": "wall_clock",
+                        "rolled_back_files": [{"id": "f1", "title": "第一章"}],
+                    },
+                )
+            elif case == "unexecuted_tool_text_card":
+                yield StreamEvent(
+                    type=StreamEventType.ITERATION_EXHAUSTED,
+                    data={
+                        "layer": "unexecuted_tool_text",
+                        "iterations_used": 1,
+                        "max_iterations": 12,
+                        "reason": "协议写成文字未执行",
+                    },
+                )
+            stop = "run_deadline_exceeded" if case == "wall_clock_with_rolled_back_files" else "end_turn"
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": stop})
+            if case == "stream_error":
+                yield StreamEvent(type=StreamEventType.ERROR, data={"error": "boom", "code": "INTERNAL_ERROR"})
+
+        return _stream()
+
+    with patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop):
+        async for _frame in AgentService().process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="测试跳过与失效",
+            session=db_session,
+            session_id=chat.id,
+        ):
+            pass
+
+    assert key not in fake_redis.store
+    assert key in fake_redis.deleted_keys
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+@pytest.mark.parametrize("stop_kind", ["user_stopped", "client_disconnected"])
+async def test_cancelled_user_stopped_and_client_disconnected_invalidate_stale_wire_prefix(
+    db_session: Session, fake_redis, stop_kind: str
+):
+    """Cancellation paths (user_stopped / client_disconnected) persist partial history and must
+    invalidate any pre-existing stale wire_prefix_cache entry in Redis."""
+    import asyncio
+
+    from agent.core.round_outcome import RunOutcome
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.service import AgentService
+
+    user = User(
+        email=f"wire_cancel_{stop_kind}@example.com",
+        username=f"wirecancel_{stop_kind[:10]}",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="取消失效", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    key = wire_prefix_cache.wire_prefix_cache_key(chat.id)
+    fake_redis.setex(key, 900, '{"stale": true}')
+    run_outcome = RunOutcome()
+    scheduled_tasks: list[asyncio.Task] = []
+
+    def fake_loop(state, **_kwargs):
+        state["native_run_holder"] = {"agent_type": "loop", "items": _sample_wire_items()}
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "写了一半被停"})
+            await asyncio.sleep(60)
+
+        return _stream()
+
+    service = AgentService()
+    orig_schedule = service._schedule_background_cleanup
+
+    def _capture_cleanup(coro, **kwargs):
+        task = orig_schedule(coro, **kwargs)
+        scheduled_tasks.append(task)
+        return task
+
+    service._schedule_background_cleanup = _capture_cleanup
+
+    with (
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
+        patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind())),
+    ):
+        gen = service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="写第一章",
+            session=db_session,
+            session_id=chat.id,
+            run_outcome=run_outcome,
+        )
+        async for frame in gen:
+            if "写了一半被停" in frame:
+                run_outcome.stop_kind = stop_kind
+                await gen.aclose()
+                break
+
+        if scheduled_tasks:
+            await asyncio.gather(*scheduled_tasks, return_exceptions=True)
+
+    assert key not in fake_redis.store
+    assert key in fake_redis.deleted_keys

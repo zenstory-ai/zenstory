@@ -4,6 +4,8 @@ Status: implemented
 
 调整 [双凭证加权路由](2026-11-05-minimax-dual-key-weighted-routing.md) 的第 2、4 条。关联：[模型供应商主备切换](2026-10-20-llm-primary-backup-failover.md)。
 
+后续：第 1 条（时间窗轮换 `LLM_KEY_ROUTING_WINDOW_S`）已反转并改为纯会话粘性，见 [纯会话粘性 Key 路由与软着陆 wire-prefix 缓存](2026-11-21-cache-soft-land-and-session-key-sticky.md)。
+
 ## Problem
 
 双 Key 上线后的线上数据显示两个问题：

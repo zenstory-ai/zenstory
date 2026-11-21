@@ -1318,7 +1318,7 @@ async def run_openai_agents_streaming_agent(
             cache_read_tokens=usage.get("cache_read_tokens", 0),
             continued_previous_run=continued is not None,
         )
-        if not turns_exhausted:
+        if not max_turns_exhausted:
             with contextlib.suppress(Exception):
                 completed_items = list(result.to_input_list())
 

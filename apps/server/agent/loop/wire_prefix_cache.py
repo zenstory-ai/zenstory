@@ -86,6 +86,38 @@ def _effective_max_bytes(max_bytes: int | None) -> int:
     return agent_runtime.AGENT_WIRE_PREFIX_CACHE_MAX_BYTES if max_bytes is None else max_bytes
 
 
+def is_well_formed_wire_prefix(items: Any) -> bool:
+    """Verify SDK wire items are structurally safe to replay as a Turn N+1 prefix.
+
+    Checks that ``items`` is a non-empty list of dicts, every ``function_call`` has a
+    non-empty ``call_id`` answered by a matching ``function_call_output`` before any
+    subsequent non-tool item or end of list, no orphan ``function_call_output`` appears,
+    and the tail is not a dangling ``function_call`` or ``reasoning`` item.
+    """
+    if not isinstance(items, list) or not items:
+        return False
+    pending_call_ids: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            return False
+        item_type = item.get("type")
+        if item_type == "function_call":
+            call_id = item.get("call_id")
+            if not isinstance(call_id, str) or not call_id:
+                return False
+            pending_call_ids.add(call_id)
+        elif item_type == "function_call_output":
+            call_id = item.get("call_id")
+            if not isinstance(call_id, str) or not call_id or call_id not in pending_call_ids:
+                return False
+            pending_call_ids.remove(call_id)
+        elif pending_call_ids:
+            return False
+    if pending_call_ids:
+        return False
+    return items[-1].get("type") not in ("function_call", "reasoning")
+
+
 def load_wire_prefix(
     *,
     session_id: str,
@@ -160,7 +192,7 @@ def load_wire_prefix(
         return None
 
     items = envelope.get("items")
-    if not isinstance(items, list) or not items or not all(isinstance(item, dict) for item in items):
+    if not is_well_formed_wire_prefix(items):
         return None
 
     log_with_context(
@@ -192,7 +224,8 @@ def store_wire_prefix(
         return False
     if not (session_id and project_id and user_id and last_assistant_message_id and provider_key):
         return False
-    if not isinstance(items, list) or not items or not all(isinstance(item, dict) for item in items):
+    if not is_well_formed_wire_prefix(items):
+        invalidate_wire_prefix(session_id)
         return False
     if not _redis_available():
         return False
@@ -216,6 +249,7 @@ def store_wire_prefix(
             session_id=session_id,
             error_type=type(exc).__name__,
         )
+        invalidate_wire_prefix(session_id)
         return False
 
     payload_bytes = len(serialized.encode("utf-8"))

@@ -8,7 +8,7 @@ quality_reviewer）已删除（[remove-graph-agent][n-remove-graph]）：它写�
 
 MiniMax 可配置双凭证：`MINIMAX_API_KEY` 是主凭证，
 `MINIMAX_SECONDARY_API_KEY` 是次凭证，
-`MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT` 控制次凭证承担的任务比例（默认 20）；同一会话在 `LLM_KEY_ROUTING_WINDOW_S` 内留在一把 Key，一把 Key 限流或账号出错只冷却自己 `LLM_KEY_COOLDOWN_S`，两把都冷却才算供应商失败。
+`MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT` 控制次凭证承担的任务比例（默认 20）；同一会话固定留在一把 Key（不再按时间窗轮换，避免跨整点切 Key 击穿热缓存），一把 Key 限流或账号出错只冷却自己 `LLM_KEY_COOLDOWN_S`，两把都冷却才算供应商失败。
 同一服务端 `agent_run_id` 的全部 MiniMax 调用固定到同一凭证；没有 run 上下文的素材调用按每次真实模型调用轮转分配。
 双凭证仍属于同一个 provider 槽位，不互相 failover；client cache 按真实凭证隔离，日志只记录
 `key_slot=primary|secondary`，不得记录 Key 或分桶值。该比例是任务数比例，不保证 token 或费用精确同比分摊。
@@ -109,7 +109,7 @@ agent/
   assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file / write_chapter 结果去掉
   `awaiting_body` / `next_step`，带 `body_saved`（write_chapter 的整章替换只认落库后补发的结果，只有定位结果时 `body_saved=false` 并说明没保存；
   新建写入看 service 落库前按保存回执写进卡片的 `body_saved`（`service._stamp_body_receipts`），为 false 时附说明，修复前没有这个键的行照旧当作已保存）。成功的历史文件写入回执另带 `write_target_active=false`：不恢复上一轮捕获目标，本轮仍需按作者要求重新定位，改为只读时不恢复写入；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、
-  需要时重新调用。活跃会话在 `AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS`（默认 900s，匹配 MiniMax 缓存窗口；`<=0` 关闭）与 `AGENT_WIRE_PREFIX_CACHE_MAX_BYTES`（默认 2 MiB）内额外将干净结束的一轮的 SDK `completed_items` 缓存到 Redis（`agent:wire_prefix:{session_id}`），下一轮按数据库最新消息 id、归属、`system_prompt` SHA-256 与 `provider:model:key_slot` 严格校验命中后直接复用（含轮前压缩，不记录原始内容；任何不匹配、会话清空/新建、卡片撤销/恢复、迟到插话或 Redis 异常均 fail-open 回退到 `load_loop_history`）[prompt-cache-stability][n-cache-stability]。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
+  需要时重新调用。活跃会话在 `AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS`（默认 900s，匹配 MiniMax 缓存窗口；`<=0` 关闭）与 `AGENT_WIRE_PREFIX_CACHE_MAX_BYTES`（默认 2 MiB）内额外将干净结束或干净软着陆（`end_turn` / `run_deadline_exceeded` / `max_turns_exceeded`，无未配对工具调用尾部、无错误/取消/待写文件/阻塞状态卡/保存前迟到插话）的一轮的 SDK `completed_items` 缓存到 Redis（`agent:wire_prefix:{session_id}`），落库了新消息却跳过写入时主动 fail-open 删除旧键；下一轮按数据库最新消息 id、归属、`system_prompt` SHA-256 与 `provider:model:key_slot` 严格校验命中后直接复用（含轮前压缩，不记录原始内容；任何不匹配、会话清空/新建、卡片撤销/恢复、迟到插话或 Redis 异常均 fail-open 回退到 `load_loop_history`）[prompt-cache-stability][n-cache-stability]、[cache-soft-land-and-key-sticky][n-cache-followup]。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
   的文字折叠。runner 把它作为 `state["history_items"]` 放在本轮消息之前（`runner._with_history_items`）。
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用供应商同量纲估算 `estimate_provider_items_tokens`）
   超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，工具清单经 `Converter.tool_to_openai(build_agent_function_tools())` 生成并保持默认 `tool_choice` 以保住前缀缓存、`should_replay_reasoning_content` 与主循环一致、`max_retries=0`），
@@ -333,5 +333,6 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-prod-review]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-prod-review-followups.md
 [n-prod-audit2]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-loop-prod-audit-round2-fixes.md
 [n-cache-stability]: ../../../.agents/notes/implemented/architecture/2026-11-20-agent-prompt-cache-stability.md
+[n-cache-followup]: ../../../.agents/notes/implemented/architecture/2026-11-21-cache-soft-land-and-session-key-sticky.md
 [n-issue-413]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-issue-413-blank-display-and-write-chapter-guard.md
 [n-model-error-refund]: ../../../.agents/notes/implemented/bug-fix/2026-11-20-round-billing-model-error-only-refund.md

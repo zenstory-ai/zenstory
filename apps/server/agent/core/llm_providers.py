@@ -11,8 +11,9 @@ configuration:
 - credentials per provider: ``DEEPSEEK_API_KEY`` / ``DEEPSEEK_BASE_URL``,
   ``MINIMAX_API_KEY`` / ``MINIMAX_BASE_URL``. MiniMax may additionally set
   ``MINIMAX_SECONDARY_API_KEY`` and
-  ``MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT`` (default 20). A session stays on one key
-  for ``LLM_KEY_ROUTING_WINDOW_S`` (default 1800) and a run for its whole length.
+  ``MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT`` (default 20). A session stays pinned to one
+  key across runs (until single-key cooldown shifts traffic), and a run keeps its route
+  for its whole length.
 - ``MINIMAX_REASONING_EFFORT`` (default ``high``): MiniMax defaults to ``max``
   when the request names no effort.
 - read timeout (longest silence between bytes, including the wait for the first byte):
@@ -29,7 +30,6 @@ import hashlib
 import hmac
 import os
 import threading
-import time
 from collections import OrderedDict
 from dataclasses import dataclass, replace
 from typing import Any
@@ -56,9 +56,6 @@ _KEY_ROUTE_MEMORY_RUNS = 4096
 # The read timeout (longest silence between bytes) is per provider: ProviderKind.read_timeout_s.
 LLM_CLIENT_CONNECT_TIMEOUT_S = get_positive_float_env("DEEPSEEK_CLIENT_CONNECT_TIMEOUT_S", 5.0)
 LLM_CLIENT_MAX_RETRIES = get_int_env("DEEPSEEK_CLIENT_MAX_RETRIES", 2, minimum=0)
-# MiniMax's prefix cache looks per-key and lasts about 10-15 minutes, so a longer stay on
-# one key gains little, while a re-draw keeps a heavy session from sitting on one key's quota.
-LLM_KEY_ROUTING_WINDOW_S = get_positive_float_env("LLM_KEY_ROUTING_WINDOW_S", 1800.0)
 
 
 @dataclass(frozen=True)
@@ -233,13 +230,15 @@ _key_routes: OrderedDict[str, str] = OrderedDict()
 def _route_for_run(run_id: str, session_key: str | None) -> str:
     """The run's credential route, decided by its first call and kept to its end.
 
-    Consecutive runs of a session share a route within a time window, so the next run finds
-    its prefix cache on the same key; a run crossing the window boundary does not move.
+    Consecutive runs of a session stay pinned to the same ``session_key`` across wall-clock
+    boundaries so active sessions do not flip credentials mid-conversation and wipe their
+    warm prefix cache. Single-key quota/rate-limit pressure is handled by ``other_key()`` +
+    ``LLM_KEY_COOLDOWN_S``. Calls without a session fall back to ``run_id``.
     """
     with _key_route_lock:
         route = _key_routes.get(run_id)
         if route is None:
-            route = f"{session_key}:{int(time.time() // LLM_KEY_ROUTING_WINDOW_S)}" if session_key else run_id
+            route = session_key if session_key else run_id
             _key_routes[run_id] = route
             while len(_key_routes) > _KEY_ROUTE_MEMORY_RUNS:
                 _key_routes.popitem(last=False)
