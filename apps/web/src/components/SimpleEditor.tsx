@@ -1353,8 +1353,8 @@ export const SimpleEditor = ({
       )}
 
       {!isReviewMode && (
-        <div className="shrink-0 px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))]">
-          <div className="flex items-center gap-4 text-xs text-[hsl(var(--text-secondary))]">
+        <div className="shrink-0 px-4 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))]">
+          <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-secondary))]">
             {/* Counts Chinese characters and English words only, so it reads lower than
                 platforms that count punctuation; say so on hover and on tap. */}
             <button
@@ -1375,7 +1375,7 @@ export const SimpleEditor = ({
               <button
                 type="button"
                 onClick={resetZoom}
-                className="max-md:min-h-11 px-2 py-1 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+                className="max-md:min-h-11 px-1.5 py-0.5 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 title={t('editor:resetZoom')}
               >
                 {Math.round(zoom * 100)}%
@@ -1383,7 +1383,7 @@ export const SimpleEditor = ({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {/* Version history button */}
             {fileId && (
               <button

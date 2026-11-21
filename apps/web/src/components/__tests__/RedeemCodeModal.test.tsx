@@ -166,8 +166,12 @@ describe('RedeemCodeModal', () => {
 
     render(<RedeemCodeModal isOpen={true} onClose={onClose} />, { wrapper: createWrapper() })
     const input = screen.getByLabelText('兑换码')
+    const submitButton = screen.getByRole('button', { name: '兑换' })
+    const form = document.querySelector('form')
+    expect(submitButton).toHaveAttribute('type', 'submit')
+    expect(submitButton).toHaveAttribute('form', form?.id)
     fireEvent.change(input, { target: { value: 'invalid' } })
-    fireEvent.click(screen.getByRole('button', { name: '兑换' }))
+    fireEvent.click(submitButton)
     expect(screen.getByRole('alert')).toBeInTheDocument()
 
     fireEvent.change(input, { target: { value: 'ERG-PRO30-1234-ABCDEFGH' } })
