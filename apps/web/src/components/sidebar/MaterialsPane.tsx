@@ -331,13 +331,16 @@ export const MaterialsPane: React.FC = () => {
           <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
             {t('editor:fileTree.referenceLibrary')}
           </span>
-          <span className="text-[10px] text-[hsl(var(--text-secondary))]">
+          <span className="text-xs text-[hsl(var(--text-secondary))]">
             ({t('editor:fileTree.aiExtracted')})
           </span>
         </div>
         <button
+          type="button"
           onClick={toggleBatchMode}
-          className={`p-1 text-xs ${batchMode ? 'text-[hsl(var(--accent-primary))]' : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))]'} transition-all`}
+          aria-pressed={batchMode}
+          aria-label={batchMode ? t('common:cancel') : t('editor:fileTree.batchSelect')}
+          className={`p-1.5 rounded-lg max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center text-xs ${batchMode ? 'text-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.1)]' : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))]'} transition-colors`}
           title={batchMode ? t('common:cancel') : t('editor:fileTree.batchSelect')}
         >
           {batchMode ? <X size={14} /> : <Check size={14} />}
@@ -385,28 +388,32 @@ export const MaterialsPane: React.FC = () => {
                 <span className="w-3" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs truncate">{result.name}</div>
-                  <div className="text-[10px] text-[hsl(var(--text-secondary))] truncate">{result.novel_title}</div>
+                  <div className="text-xs text-[hsl(var(--text-secondary))] truncate">{result.novel_title}</div>
                 </div>
-                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all">
+                <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 flex items-center gap-0.5 transition-opacity">
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleAttachToChat(result.novel_id, result.entity_type, result.entity_id, result.name);
                     }}
-                    className="p-0.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors"
+                    className="p-1.5 rounded max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors"
                     title={t('editor:fileTree.attachToChat')}
+                    aria-label={t('editor:fileTree.attachToChat')}
                   >
-                    <MessageSquarePlus size={12} />
+                    <MessageSquarePlus size={14} />
                   </button>
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleQuickImport(result.novel_id, result.entity_type, result.entity_id);
                     }}
-                    className="p-0.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors"
+                    className="p-1.5 rounded max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors"
                     title={t('editor:fileTree.addToProject')}
+                    aria-label={t('editor:fileTree.addToProject')}
                   >
-                    <Plus size={12} />
+                    <Plus size={14} />
                   </button>
                 </div>
               </div>
@@ -433,7 +440,7 @@ export const MaterialsPane: React.FC = () => {
         ) : materialLib.libraries.length === 0 ? (
           <div className="px-3 py-3 text-[hsl(var(--text-secondary))] text-xs">
             <p className="italic mb-1">{t('editor:fileTree.referenceLibraryEmpty')}</p>
-            <p className="text-[10px] opacity-70">{t('editor:fileTree.referenceLibraryEmptyHint')}</p>
+            <p className="text-xs text-[hsl(var(--text-secondary))]">{t('editor:fileTree.referenceLibraryEmptyHint')}</p>
           </div>
         ) : (
           materialLib.libraries.map((lib) => {
@@ -531,26 +538,30 @@ export const MaterialsPane: React.FC = () => {
                                       {!batchMode && <span className="w-3" />}
                                       <span className="flex-1 truncate text-xs">{item.name}</span>
                                       {!batchMode && (
-                                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all">
+                                        <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 flex items-center gap-0.5 transition-opacity">
                                           <button
+                                            type="button"
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               handleAttachToChat(lib.id, type, item.id, item.name);
                                             }}
-                                            className="p-0.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors"
+                                            className="p-1.5 rounded max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors"
                                             title={t('editor:fileTree.attachToChat')}
+                                            aria-label={t('editor:fileTree.attachToChat')}
                                           >
-                                            <MessageSquarePlus size={12} />
+                                            <MessageSquarePlus size={14} />
                                           </button>
                                           <button
+                                            type="button"
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               handleQuickImport(lib.id, type, item.id);
                                             }}
-                                            className="p-0.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors"
+                                            className="p-1.5 rounded max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors"
                                             title={t('editor:fileTree.addToProject')}
+                                            aria-label={t('editor:fileTree.addToProject')}
                                           >
-                                            <Plus size={12} />
+                                            <Plus size={14} />
                                           </button>
                                         </div>
                                       )}

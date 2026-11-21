@@ -1,7 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Quote } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
+const VIEWPORT_MARGIN_PX = 12;
+const DEFAULT_HALF_WIDTH_PX = 72;
+const DEFAULT_HEIGHT_PX = 48;
 
 interface SelectionToolbarProps {
   /** 选中的文本 */
@@ -14,6 +18,27 @@ interface SelectionToolbarProps {
   onClose: () => void;
 }
 
+function clampToolbarPosition(
+  position: { x: number; y: number },
+  width: number,
+  height: number,
+) {
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1024;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 768;
+  const halfWidth = width > 0 ? width / 2 : DEFAULT_HALF_WIDTH_PX;
+  const toolbarHeight = height > 0 ? height : DEFAULT_HEIGHT_PX;
+
+  const minX = Math.min(vw / 2, VIEWPORT_MARGIN_PX + halfWidth);
+  const maxX = Math.max(minX, vw - VIEWPORT_MARGIN_PX - halfWidth);
+  const x = Math.min(Math.max(position.x, minX), maxX);
+
+  const minY = Math.min(vh - VIEWPORT_MARGIN_PX, VIEWPORT_MARGIN_PX + toolbarHeight);
+  const maxY = Math.max(minY, vh - VIEWPORT_MARGIN_PX);
+  const y = Math.min(Math.max(position.y, minY), maxY);
+
+  return { x, y };
+}
+
 export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
   text,
   position,
@@ -22,6 +47,23 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
 }) => {
   const { t } = useTranslation('chat');
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const [measuredSize, setMeasuredSize] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
+
+  useLayoutEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 || rect.height > 0) {
+      setMeasuredSize((prev) =>
+        prev.width === rect.width && prev.height === rect.height
+          ? prev
+          : { width: rect.width, height: rect.height }
+      );
+    }
+  }, [text, position.x, position.y]);
 
   // 处理点击外部关闭
   useEffect(() => {
@@ -62,20 +104,23 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
   // 如果没有选中文本，不渲染
   if (!text) return null;
 
+  const clamped = clampToolbarPosition(position, measuredSize.width, measuredSize.height);
+
   return createPortal(
     <div
       ref={toolbarRef}
       className="fixed z-50 animate-in fade-in zoom-in-95 duration-150"
       style={{
-        left: position.x,
-        top: position.y,
+        left: clamped.x,
+        top: clamped.y,
         transform: 'translate(-50%, -100%)',
       }}
     >
-      <div className="flex items-center gap-1 px-2 py-1.5 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-lg shadow-lg">
+      <div className="flex items-center gap-1 px-2 py-1.5 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-xl shadow-lg">
         <button
+          type="button"
           onClick={handleAdd}
-          className="flex items-center gap-1.5 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
+          className="max-md:min-h-11 flex items-center gap-1.5 px-2.5 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
           title={t('input.addToContext')}
         >
           <Quote size={14} />

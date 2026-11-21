@@ -191,7 +191,7 @@ const SearchResultsDropdown: React.FC<SearchResultsDropdownProps> = ({
   // Render loading state with spinner text
   if (loading) {
     return (
-      <div ref={dropdownRef} data-testid="search-results-dropdown" className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
+      <div ref={dropdownRef} data-testid="search-results-dropdown" className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-xl shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
         <div role="status" data-testid="search-results-loading" className="px-3 py-3 sm:py-2 text-sm text-[hsl(var(--text-secondary))]">
           {t('common:loading')}
         </div>
@@ -202,7 +202,7 @@ const SearchResultsDropdown: React.FC<SearchResultsDropdownProps> = ({
   // Render empty state when no results found
   if (results.length === 0) {
     return (
-      <div ref={dropdownRef} data-testid="search-results-dropdown" className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
+      <div ref={dropdownRef} data-testid="search-results-dropdown" className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-xl shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
         <div role="status" data-testid="search-results-empty" className="px-3 py-3 sm:py-2 text-sm text-[hsl(var(--text-secondary))]">
           {t('editor:fileTree.noSearchResults')}
         </div>
@@ -211,7 +211,7 @@ const SearchResultsDropdown: React.FC<SearchResultsDropdownProps> = ({
   }
 
   return (
-    <div ref={dropdownRef} data-testid="search-results-dropdown" className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
+    <div ref={dropdownRef} data-testid="search-results-dropdown" className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-xl shadow-lg overflow-hidden z-50">
       {/* Results list with max height for 8 items */}
       <div className="max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto" role="listbox">
         {results.map((result, index) => {
@@ -225,7 +225,7 @@ const SearchResultsDropdown: React.FC<SearchResultsDropdownProps> = ({
               role="option"
               className={`flex items-center gap-2 px-3 py-3 sm:py-2 cursor-pointer transition-colors touch-manipulation ${
                 isSelected
-                  ? 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--accent-primary))]'
+                  ? 'bg-[hsl(var(--accent-primary)/0.12)] text-[hsl(var(--accent-primary))]'
                   : 'text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]'
               }`}
               onClick={() => onSelect(result)}

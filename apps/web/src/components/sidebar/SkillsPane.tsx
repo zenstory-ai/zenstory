@@ -112,7 +112,7 @@ export const SkillsPane: React.FC = () => {
             return (
             <div
               key={skill.id}
-              className="flex items-center gap-2 px-2 py-1.5 rounded group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
             >
               {/* Opening details is its own native button, a sibling of the use button. */}
               <button
@@ -132,10 +132,10 @@ export const SkillsPane: React.FC = () => {
                 onClick={() => handleUseSkill(skill)}
                 disabled={isSelected || selectionFull}
                 aria-pressed={isSelected}
-                className={`p-1 rounded transition-all focus-visible:opacity-100 disabled:cursor-default ${
+                className={`p-1.5 rounded-lg max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center transition-all focus-visible:opacity-100 disabled:cursor-default ${
                   isSelected
                     ? "opacity-100 text-[hsl(var(--accent-primary))]"
-                    : "opacity-0 group-hover:opacity-100 hover:bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] disabled:opacity-0"
+                    : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 hover:bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] disabled:opacity-0"
                 }`}
                 title={
                   isSelected

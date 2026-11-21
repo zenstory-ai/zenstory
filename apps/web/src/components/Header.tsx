@@ -311,13 +311,20 @@ export const Header: React.FC<HeaderProps> = () => {
 
       {/* Mobile Dropdown Menu */}
       {isMobile && showMobileMenu && (
-        <div className="md:hidden absolute top-12 left-0 right-0 bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40">
+        <>
           <div
-            id={mobileMenuId}
-            className="flex flex-col p-2 gap-1"
-            role="menu"
-            aria-label={t('editor:header.mobileMenu')}
-          >
+            className="md:hidden fixed inset-0 top-12 bg-black/25 z-30"
+            aria-hidden="true"
+            data-testid="mobile-menu-backdrop"
+            onClick={() => setShowMobileMenu(false)}
+          />
+          <div className="md:hidden absolute top-12 left-0 right-0 max-h-[calc(var(--app-viewport-height)-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40">
+            <div
+              id={mobileMenuId}
+              className="flex flex-col p-2 gap-1"
+              role="menu"
+              aria-label={t('editor:header.mobileMenu')}
+            >
             <button
               type="button"
               onClick={() => handleOpenBilling(true)}
@@ -398,8 +405,9 @@ export const Header: React.FC<HeaderProps> = () => {
             {/* User section in mobile menu */}
             <div className="h-px bg-[hsl(var(--separator-color))] my-1" />
             <UserMenuMobile onLogout={() => setShowMobileMenu(false)} />
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Settings Modal */}
