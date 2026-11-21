@@ -130,6 +130,7 @@ EDIT_FILE_TOOL: dict[str, Any] = {
                 "type": "array",
                 "description": (
                     "编辑操作列表。每一项都必须显式填写 op，不会根据其他字段猜测操作。"
+                    "同一文件的多处互不依赖修改优先合并在同一次调用的 edits 里并传 continue_on_error=true（仅超过 15 处或后项依赖前项输出时才拆分）。"
                     '最小示例：[{"op": "replace", "old": "当前原文", "new": "替换文本"}]。'
                 ),
                 "items": {
@@ -184,11 +185,11 @@ EDIT_FILE_TOOL: dict[str, Any] = {
             "continue_on_error": {
                 "type": "boolean",
                 "description": (
+                    "同一文件有多处互不依赖的修改时，合并进一次 edit_file 调用并传 continue_on_error=true"
+                    "（跳过失败项，其余照常生效，结果里的 failed_edits 列出没改成的几处，后续只需补失败项）；"
+                    "仅在超过 15 处修改，或后一项依赖前一项改后的新文本时才拆成多次调用。"
                     "默认 false：edits 是一个整体，任一处失败则本次调用的全部编辑都不生效（整体回滚），"
                     "错误会一次列出所有失败项，整批都仍待修改，不能只补失败项并假定其他项已生效。"
-                    "待改项多时将完整修改集合拆成几个小批次，每批使用较短且唯一的原文锚点，逐批提交；"
-                    "不要反复重建一次含几十处修改的大列表。"
-                    "true：跳过失败项，其余照常生效，结果里的 failed_edits 列出没改成的几处"
                 ),
                 "default": False,
             }
@@ -246,11 +247,11 @@ RENAME_FILE_TOOL: dict[str, Any] = {
 QUERY_FILES_TOOL: dict[str, Any] = {
     "name": "query_files",
     "description": (
-        "查询和搜索项目中的文件。按 id 读取默认返回全文（content）；列表/关键词查询默认返回 summary"
-        "（content_preview + content_length + content_truncated，不含全文）。"
-        "长文件只需要其中一段时按范围读：section（章节/分集标题，如「第3章」）、tail_chars（结尾若干字，"
-        "续写只需前文结尾时用）或 start_char + max_chars；结果的 content_range / content_partial 说明读到了哪一段，"
-        "范围外的正文没有读到。作者要求通篇检查或改动牵涉全文时仍读全文。"
+        "查询和搜索项目中的文件。按 id 读取单个文件或按 ids 一次批量读取 2–5 个已知文件，默认返回全文（content）；"
+        "列表/关键词查询默认返回 summary（content_preview + content_length + content_truncated，不含全文）。"
+        "仅在超过 15000 字的超长文件只需要其中一段时按范围读：section（章节/分集标题，如「第3章」）、"
+        "tail_chars（结尾若干字，续写只需前文结尾时用）或 start_char + max_chars（仅用于超过 15000 字的超长文件，常规长度文件直接读全文，不要分段翻页）；"
+        "结果的 content_range / content_partial 说明读到了哪一段，范围外的正文没有读到。作者要求通篇检查或改动牵涉全文时仍读全文。"
         "本轮已经读过的文件仍在上下文里，不要重复读取。"
         f"{WORD_COUNT_CONTRACT}"
     ),
@@ -260,6 +261,12 @@ QUERY_FILES_TOOL: dict[str, Any] = {
             "id": {
                 "type": "string",
                 "description": "按文件ID精确查询。按 id 读取默认返回全文；只想看预览时显式传 response_mode=summary"
+            },
+            "ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "maxItems": 5,
+                "description": "按多个文件ID一次批量精确读取（最多 5 个，按传入顺序返回，默认返回全文；读取 2–5 个已知文件时优先使用 ids 代替多次调用）"
             },
             "query": {
                 "type": "string",
@@ -322,12 +329,12 @@ QUERY_FILES_TOOL: dict[str, Any] = {
             },
             "start_char": {
                 "type": "integer",
-                "description": "按 id 读取时从第几个字符开始读（从 0 起），配合 max_chars",
+                "description": "仅用于超过 15000 字的超长文件按 id 分段读取：从第几个字符开始读（从 0 起），配合 max_chars；常规长度文件直接按 id 读全文，不要分段",
                 "minimum": 0,
             },
             "max_chars": {
                 "type": "integer",
-                "description": "配合 start_char 读取的字符数（默认 6000，上限 20000）",
+                "description": "配合 start_char 读取超过 15000 字超长文件的字符数（默认 6000，上限 20000）",
                 "minimum": 1,
             },
             "include_content": {

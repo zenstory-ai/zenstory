@@ -35,8 +35,10 @@ from agent.tools.file_ops.edit import (
 from agent.tools.file_ops.serialization import (
     QUERY_FILES_DEFAULT_LIMIT,
     QUERY_FILES_FULL_MODE_DEFAULT_LIMIT,
+    QUERY_FILES_MAX_BATCH_IDS,
     QUERY_FILES_RESPONSE_MODE_FULL,
     WRITE_FILE_OMITTED_FIELDS,
+    normalize_query_file_ids,
     serialize_file,
 )
 from agent.tools.permissions import ForbiddenError, NotFoundError
@@ -1770,16 +1772,31 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
         return _make_error("project_id not set", tool_name=tool_name)
 
     try:
-        # 不按 id、却要全文时（列表 × 全文），未显式给 limit 就收紧到 10 条：
-        # 默认 50 条全文很容易顶到 TOOL_RESULT_MAX_CHARS，被截断后模型只能再读一遍。
+        # 校验、去重并按上限（最多 5 个）截断 id / ids；单 id 保持 100% 兼容。
         raw_id = args.get("id")
-        has_id = isinstance(raw_id, str) and bool(raw_id.strip())
+        raw_ids = args.get("ids")
+        is_batch = raw_ids is not None
+        requested_ids, truncated_ids = normalize_query_file_ids(
+            file_id=raw_id,
+            file_ids=raw_ids,
+            max_ids=QUERY_FILES_MAX_BATCH_IDS,
+        )
+        has_exact_ids = bool(requested_ids)
+        if len(requested_ids) > 1 and wants_range(args):
+            return _make_error(
+                "批量读取多个文件（ids）不支持 section / tail_chars / start_char 范围参数；"
+                "需要按范围读取某个超长文件时请用单个 id。",
+                tool_name=tool_name,
+            )
+
+        # 不按 id/ids、却要全文时（列表 × 全文），未显式给 limit 就收紧到 10 条：
+        # 默认 50 条全文很容易顶到 TOOL_RESULT_MAX_CHARS，被截断后模型只能再读一遍。
         raw_include = args.get("include_content")
         wants_full = str(args.get("response_mode") or "").strip().lower() == QUERY_FILES_RESPONSE_MODE_FULL or (
             raw_include is not None and coerce_bool(raw_include)
         )
         default_limit = (
-            QUERY_FILES_FULL_MODE_DEFAULT_LIMIT if wants_full and not has_id else QUERY_FILES_DEFAULT_LIMIT
+            QUERY_FILES_FULL_MODE_DEFAULT_LIMIT if wants_full and not has_exact_ids else QUERY_FILES_DEFAULT_LIMIT
         )
         query_kwargs: dict[str, Any] = {
             "project_id": project_id,
@@ -1791,7 +1808,7 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
             "offset": args.get("offset", 0),
         }
 
-        optional_keys = ("id", "response_mode", "content_preview_chars", "include_content")
+        optional_keys = ("response_mode", "content_preview_chars", "include_content")
         for key in optional_keys:
             if key in args:
                 value = args.get(key)
@@ -1802,14 +1819,19 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
                     value = coerce_bool(value)
                 query_kwargs[key] = value
 
-        range_read = has_id and wants_range(args)
+        if is_batch:
+            query_kwargs["ids"] = requested_ids
+        elif "id" in args:
+            query_kwargs["id"] = requested_ids[0] if requested_ids else raw_id
+
+        range_read = len(requested_ids) == 1 and wants_range(args)
         if range_read:
             # 范围读取先取全文再在这里切：切之前的整份正文用作陈旧检查的快照。
             query_kwargs["response_mode"] = QUERY_FILES_RESPONSE_MODE_FULL
             query_kwargs.pop("include_content", None)
             query_kwargs.pop("content_preview_chars", None)
 
-        read_ticket = ToolContext.read_ticket() if has_id else None
+        read_ticket = ToolContext.read_ticket() if has_exact_ids else None
         result = executor.query_files(**query_kwargs)
         keyword = args.get("query")
         if (
@@ -1844,8 +1866,33 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
                     )
                     return _make_result({"status": "success", "data": result}, tool_name=tool_name)
 
-        payload = {"status": "success", "data": result}
-        if has_id and len(_dumps_compact(payload)) <= TOOL_RESULT_MAX_CHARS:
+        rows = result if isinstance(result, list) else []
+        missing_ids: list[str] = []
+        is_query_filter = not wants_full and isinstance(keyword, str) and bool(keyword.strip())
+        if is_batch and not is_query_filter:
+            returned_ids = {str(row.get("id") or "") for row in rows if isinstance(row, dict)}
+            missing_ids = [fid for fid in requested_ids if fid not in returned_ids]
+            if not rows:
+                extra: dict[str, Any] = {"missing_ids": missing_ids}
+                if truncated_ids:
+                    extra["truncated_ids"] = truncated_ids
+                return _make_structured_error(
+                    "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。",
+                    error_type="files_not_found",
+                    tool_name=tool_name,
+                    **extra,
+                )
+
+        payload: dict[str, Any] = {"status": "success", "data": result}
+        if missing_ids:
+            payload["missing_ids"] = missing_ids
+        if truncated_ids:
+            payload["truncated_ids"] = truncated_ids
+            payload["note"] = (
+                f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已返回前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
+                f"其余 {len(truncated_ids)} 个请另起调用读取。"
+            )
+        if has_exact_ids and len(_dumps_compact(payload)) <= TOOL_RESULT_MAX_CHARS:
             # 结果超过上限会被截断，模型拿不到全文：那时不记快照。
             _note_file_read(result, ticket=read_ticket)
         return _make_result(payload, tool_name=tool_name)
@@ -1890,15 +1937,15 @@ def _attach_query_matches(session: Session, rows: list[Any], keyword: str) -> No
 
 
 def _note_file_read(result: Any, *, ticket: int | None = None) -> None:
-    """按 id 读到全文时记下模型看到的正文（edit_file 的陈旧检查）。作者手改差异由 crud 附在同一行里。"""
+    """按 id / ids 读到全文时记下模型看到的正文（edit_file 的陈旧检查）。作者手改差异由 crud 附在同一行里。"""
     rows = result if isinstance(result, list) else []
-    if len(rows) != 1 or not isinstance(rows[0], dict):
-        return
-    row = rows[0]
-    file_id = str(row.get("id") or "")
-    content = row.get("content")
-    if file_id and isinstance(content, str) and not row.get("content_truncated"):
-        ToolContext.record_read_snapshot(file_id, content, ticket=ticket)
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        file_id = str(row.get("id") or "")
+        content = row.get("content")
+        if file_id and isinstance(content, str) and not row.get("content_truncated") and not row.get("content_partial"):
+            ToolContext.record_read_snapshot(file_id, content, ticket=ticket)
 
 
 def _normalize_update_project_args(args: dict[str, Any]) -> dict[str, Any]:

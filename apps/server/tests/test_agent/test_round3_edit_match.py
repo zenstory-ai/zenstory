@@ -138,7 +138,8 @@ def test_replace_not_found_in_long_content_requests_short_snippets_in_separate_c
     message = str(exc.value)
     assert "工作量保护" not in message  # long content is searched, not skipped
     assert "较短、逐字、唯一" in message
-    assert "拆成几次 edit_file 调用" in message
+    assert "continue_on_error=true" in message
+    assert "拆成几次 edit_file 调用" not in message
     assert "更长" not in message
 
 
@@ -462,7 +463,8 @@ def test_edit_file_schema_shows_explicit_op_and_atomic_batch_recovery():
     assert "failed_edits" in continue_description
     assert "整体回滚" in continue_description
     assert "整批都仍待修改" in continue_description
-    assert "完整修改集合拆成几个小批次" in continue_description
+    assert "continue_on_error=true" in continue_description
+    assert "15" in continue_description
 
 
 # ---------------------------------------------------------------------------

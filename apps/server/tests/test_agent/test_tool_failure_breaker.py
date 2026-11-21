@@ -227,8 +227,9 @@ def test_changed_missing_anchors_for_same_file_hint_but_do_not_trip_early():
         )
         if attempt >= 1:
             hint = json.loads(output)["retry_hint"]
-            assert "按准确 id 重读当前段落" in hint
-            assert "拆成几次 edit_file 调用" in hint
+            assert "按准确 id 重读当前文件" in hint
+            assert "continue_on_error=true" in hint
+            assert "拆成几次 edit_file 调用" not in hint
             assert "不要放宽匹配或整篇覆盖" in hint
             assert "自动终止" not in hint
 

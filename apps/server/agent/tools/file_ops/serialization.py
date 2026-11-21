@@ -6,6 +6,7 @@ into JSON-serializable dictionaries, handling special types like datetime object
 """
 
 import json
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Literal, cast
 
@@ -19,6 +20,8 @@ QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS = 200
 QUERY_FILES_DEFAULT_LIMIT = 50
 # 不按 id 的全文列表查询，未显式给 limit 时的默认条数（见 mcp_tools._query_files_sync）。
 QUERY_FILES_FULL_MODE_DEFAULT_LIMIT = 10
+# query_files(ids=[...]) 单次批量读取的最大文件数。
+QUERY_FILES_MAX_BATCH_IDS = 5
 
 # query_files 返回行省略模型与前端均不读取的 5 个数据库元字段；
 # create_file / write_chapter 保留 updated_at（StreamAdapter 用作 baseline_updated_at）。
@@ -31,6 +34,47 @@ WRITE_FILE_OMITTED_FIELDS: frozenset[str] = frozenset(
 _REDUNDANT_METADATA_KEYS: frozenset[str] = frozenset({"word_count", "word_count_rev"})
 
 QueryFilesResponseMode = Literal["summary", "full"]
+
+
+def normalize_query_file_ids(
+    *,
+    file_id: Any = None,
+    file_ids: Any = None,
+    max_ids: int = QUERY_FILES_MAX_BATCH_IDS,
+) -> tuple[list[str], list[str]]:
+    """校验、去重并截断 query_files 的 id / ids 参数，返回 (待查 ids, 超出上限被截掉的 ids)。
+
+    规则：
+    - 两者都未传或为 None 时返回 ([], [])；
+    - 显式传了 ids 时必须是 list/tuple，且每个元素必须是字符串，空列表报错；
+    - 同时传 id 和 ids 时合并（id 在前）并按首次出现顺序去重；
+    - 去重后超过 max_ids（默认 5）时截断到前 max_ids 个，并在第二项返回剩余 id。
+    """
+    ordered: list[str] = []
+    if file_id is not None:
+        if not isinstance(file_id, str):
+            raise ValueError("id 必须是字符串文件 ID")
+        cleaned_single = file_id.strip()
+        if cleaned_single:
+            ordered.append(cleaned_single)
+
+    has_batch_arg = file_ids is not None
+    if has_batch_arg:
+        if isinstance(file_ids, str | bytes) or not isinstance(file_ids, Sequence):
+            raise ValueError(f"ids 必须是文件 ID 列表（最多 {max_ids} 个）")
+        batch_cleaned: list[str] = []
+        for item in file_ids:
+            if not isinstance(item, str):
+                raise ValueError("ids 里的每一项都必须是字符串文件 ID")
+            cleaned = item.strip()
+            if cleaned:
+                batch_cleaned.append(cleaned)
+        if not batch_cleaned and not ordered:
+            raise ValueError(f"ids 不能为空，请传入 1–{max_ids} 个有效文件 ID")
+        ordered.extend(batch_cleaned)
+
+    deduped = list(dict.fromkeys(ordered))
+    return deduped[:max_ids], deduped[max_ids:]
 
 
 def serialize_file(
@@ -173,14 +217,15 @@ def resolve_query_files_response_mode(
     response_mode: str | None,
     *,
     file_id: str | None,
+    file_ids: Sequence[str] | None = None,
     include_content: bool | None,
     content_preview_chars: int | None,
     query: str | None = None,
 ) -> str:
     """决定 query_files 未显式给 response_mode 时用哪种模式。
 
-    按 id 读取（不带 query）默认返回全文：模型按 id 读一个文件，几乎总是要读正文；
-    同时传 id 与 query 时默认走 summary 搜索（返回命中片段，不整篇灌入正文），除非显式
+    按 id / ids 精确读取（不带 query）默认返回全文：模型按 id 读已知文件，几乎总是要读正文；
+    同时传 id / ids 与 query 时默认走 summary 搜索（返回命中片段，不整篇灌入正文），除非显式
     要求 response_mode="full" 或 include_content=True。
     显式参数优先：include_content=True → full；给了 response_mode → 原样使用
     （非法值留给序列化时报错，保持「空结果不报错」的既有时序）；include_content=False
@@ -196,7 +241,11 @@ def resolve_query_files_response_mode(
         return QUERY_FILES_RESPONSE_MODE_SUMMARY
     if isinstance(query, str) and query.strip():
         return QUERY_FILES_RESPONSE_MODE_SUMMARY
-    if (file_id or "").strip():
+    if (file_id or "").strip() or (
+        isinstance(file_ids, Sequence)
+        and not isinstance(file_ids, str | bytes)
+        and any(isinstance(item, str) and item.strip() for item in file_ids)
+    ):
         return QUERY_FILES_RESPONSE_MODE_FULL
     return QUERY_FILES_DEFAULT_RESPONSE_MODE
 
@@ -246,7 +295,9 @@ __all__ = [
     "QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS",
     "QUERY_FILES_DEFAULT_LIMIT",
     "QUERY_FILES_FULL_MODE_DEFAULT_LIMIT",
+    "QUERY_FILES_MAX_BATCH_IDS",
     "QUERY_FILES_OMITTED_FIELDS",
     "WRITE_FILE_OMITTED_FIELDS",
+    "normalize_query_file_ids",
     "resolve_query_files_response_mode",
 ]

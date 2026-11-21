@@ -7,11 +7,13 @@ import json
 import os
 import threading
 import time
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlmodel import Session, and_, select
 
+from config.datetime_utils import normalize_datetime_to_utc
 from utils.logger import get_logger, log_with_context
 
 # 回放「上一轮没来得及执行的审稿返修要求」的终止原因：时限截停与停止 / 断线（取消补存）。
@@ -73,6 +75,9 @@ AUTHOR_EDITS_MAX_FILES = 30
 AUTHOR_EDITS_TIME_BUDGET_S = 2.0
 # session_written_file_ids 每次读多少条 assistant 行（只读 tool_calls 列）：凑够名额就不再往前读。
 SESSION_WRITTEN_FILES_PAGE_ROWS = 20
+# 本轮开始时从本会话结转未变更文件快照的上限（最多结转这么多文件、最多往前翻这么多页，控制 prepare_context 耗时）。
+SESSION_SNAPSHOT_MAX_FILES = 20
+SESSION_SNAPSHOT_MAX_PAGES = 2
 
 # 工具名 → 面包屑里的动作（读取类只认按 id 精确读取的 query_files）
 _BREADCRUMB_VERBS_ZH = {
@@ -326,6 +331,340 @@ class SessionLoader:
         return written
 
     @staticmethod
+    def _same_utc_timestamp(db_dt: Any, iso_str: Any) -> bool:
+        """Compare a DB datetime against an ISO timestamp string in UTC."""
+        if not isinstance(db_dt, datetime) or not isinstance(iso_str, str) or not iso_str.strip():
+            return False
+        raw = iso_str.strip()
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(raw)
+        except ValueError:
+            return False
+        return normalize_datetime_to_utc(db_dt) == normalize_datetime_to_utc(parsed)
+
+    @staticmethod
+    def _extract_undo_proof(undo: Any) -> tuple[str | None, str | None]:
+        """从 edit_file / write_chapter(replaced) 的 undo 锚点提取内容哈希与时间戳凭证。
+
+        必须包含 expected_after_content_sha256（仅时间戳无内容哈希不放行）；已撤销卡片
+        （undo.undone is True）一律返回 (None, None) 以 fail closed。
+        """
+        if not isinstance(undo, dict) or undo.get("undone") is True:
+            return None, None
+        raw_sha = undo.get("expected_after_content_sha256")
+        exp_sha = raw_sha.strip() if isinstance(raw_sha, str) and raw_sha.strip() else None
+        if exp_sha is None:
+            return None, None
+        raw_ts = undo.get("expected_after_updated_at")
+        exp_ts = raw_ts.strip() if isinstance(raw_ts, str) and raw_ts.strip() else None
+        return exp_sha, exp_ts
+
+    def session_read_snapshots(
+        self,
+        session: Session,
+        *,
+        chat_session_id: str,
+        exclude_ids: set[str] | None = None,
+        limit: int = SESSION_SNAPSHOT_MAX_FILES,
+        cancel_event: threading.Event | None = None,
+    ) -> dict[str, str]:
+        """本会话此前轮次读过或写过、且至今未被修改的文件快照（file_id → 当前全文）。
+
+        目的：单循环跨轮时，历史里已经回放了前几轮的 query_files / write_chapter / edit_file，
+        但旧实现只把 <turn_context> 里的文件写进 read_snapshots["initial"]，导致跨轮 edit_file
+        被误判为没看过文件（exact_only=True）而触发大量假阳性 anchor_not_found。
+
+        安全不变量（绝不绕过 StaleContentError）：
+        - 只有当前 DB 状态与本会话最近一次工具触达时的精确凭证一致，才结转进 read_snapshots["initial"]：
+          - query_files 全文读 / create_file 直接写入：正文逐字一致且（若有）updated_at 一致；
+          - edit_file / write_chapter(replaced)：必须有 undo.expected_after_content_sha256 且未被撤销
+            （undo.undone != True），并与当前正文哈希及（若有）expected_after_updated_at 一致；
+          - write_chapter(created) / create_file(<file> 落库)：file.updated_at <= 该轮 assistant 行创建时间，
+            且最新 FileVersion 为 AI 写入且正文与当前 file.content 逐字一致；
+        - 只要作者在轮间改过文件（哪怕未推进 updated_at 或未建版本），一律不结转。
+        - 仅扫描单循环（engine == "loop"）assistant 行（旧多角色图行只回放单行面包屑、无原文），
+          同时检查 user 与 assistant 行的有效压缩点（遇到即止，压缩前工具结果已不在模型上下文中）。
+        - 最多扫 SESSION_SNAPSHOT_MAX_PAGES 页、最多取 limit 个文件，单次批量 SELECT File。
+        """
+        from agent.loop.history import LOOP_ENGINE_METADATA_VALUE, valid_compaction
+        from agent.tools.author_changes import AI, version_actor
+        from models import ChatMessage, File
+        from models.file_version import FileVersion
+        from services.features.file_version_service import FileVersionService, content_sha256
+
+        if limit <= 0 or (cancel_event is not None and cancel_event.is_set()):
+            return {}
+
+        excluded = set(exclude_ids or ())
+        deleted: set[str] = set()
+        # 较新的写工具若没有可验证凭证（或已撤销），也占位阻止更早的读记录盖过它。
+        unverifiable: set[str] = set()
+        candidates: dict[str, dict[str, Any]] = {}
+
+        # 每轮包含 user + assistant 两行：按双倍行宽分页以维持相同轮次覆盖深度。
+        page_rows = SESSION_WRITTEN_FILES_PAGE_ROWS * 2
+        query = (
+            select(
+                ChatMessage.role,
+                ChatMessage.tool_calls,
+                ChatMessage.created_at,
+                ChatMessage.message_metadata,
+            )
+            .where(
+                and_(
+                    ChatMessage.session_id == chat_session_id,
+                    ChatMessage.role.in_(("user", "assistant")),
+                )
+            )
+            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+        )
+
+        hit_compaction = False
+        for page_index in range(SESSION_SNAPSHOT_MAX_PAGES):
+            if cancel_event is not None and cancel_event.is_set():
+                return {}
+            rows = session.exec(query.offset(page_index * page_rows).limit(page_rows)).all()
+            if not rows:
+                break
+            for role, tool_calls_raw, row_created_at, metadata_raw in rows:
+                meta = self._parse_json_value(metadata_raw)
+                has_compaction = isinstance(meta, dict) and valid_compaction(meta) is not None
+                if role == "user":
+                    if has_compaction:
+                        # 压缩发生在这一条未得到助手回复的轮次开始前：更早的轮次已被折叠进摘要。
+                        hit_compaction = True
+                        break
+                    continue
+
+                if has_compaction:
+                    # 压缩发生在本轮开始前：本行的工具调用仍在压缩后历史里，更早的行不再扫描。
+                    hit_compaction = True
+
+                # 旧多角色图写下的 assistant 行只回放单行文本面包屑、不回放工具正文，绝不结转。
+                if not isinstance(meta, dict) or meta.get("engine") != LOOP_ENGINE_METADATA_VALUE:
+                    if hit_compaction:
+                        break
+                    continue
+
+                tool_calls = self._parse_json_value(tool_calls_raw)
+                if isinstance(tool_calls, list):
+                    for tc in reversed(tool_calls):
+                        if not isinstance(tc, dict):
+                            continue
+                        name = str(tc.get("name") or "").strip()
+                        status = str(tc.get("status") or "").strip().lower()
+                        if status in _FAILED_TOOL_STATUSES or status == _PENDING_TOOL_STATUS or tc.get("error"):
+                            continue
+
+                        result = self._parse_json_value(tc.get("result"))
+                        if name == "delete_file":
+                            res_data = (
+                                result.get("data")
+                                if isinstance(result, dict) and "data" in result
+                                else result
+                            )
+                            if (
+                                result is not False
+                                and res_data is not False
+                                and not (
+                                    isinstance(res_data, dict)
+                                    and (res_data.get("mutation_applied") is False or res_data.get("restored") is True)
+                                )
+                            ):
+                                fid = self._extract_breadcrumb_file_id(tc)
+                                if fid:
+                                    deleted.add(fid)
+                            continue
+
+                        if name == "query_files" and status == "success" and isinstance(result, list):
+                            for item in reversed(result):
+                                if not isinstance(item, dict):
+                                    continue
+                                fid = str(item.get("id") or "").strip()
+                                if (
+                                    not fid
+                                    or fid in excluded
+                                    or fid in deleted
+                                    or fid in unverifiable
+                                    or fid in candidates
+                                ):
+                                    continue
+                                content = item.get("content")
+                                if (
+                                    isinstance(content, str)
+                                    and item.get("file_type") != "folder"
+                                    and not item.get("content_truncated")
+                                    and not item.get("content_partial")
+                                ):
+                                    updated_at = item.get("updated_at")
+                                    candidates[fid] = {
+                                        "kind": "read",
+                                        "content": content,
+                                        "updated_at": (
+                                            updated_at.strip()
+                                            if isinstance(updated_at, str) and updated_at.strip()
+                                            else None
+                                        ),
+                                    }
+                                    if len(candidates) >= limit:
+                                        break
+                            if len(candidates) >= limit:
+                                break
+                            continue
+
+                        if name == "edit_file" and isinstance(result, dict):
+                            if result.get("all_failed"):
+                                continue
+                            applied = status == "success" or (
+                                status == "partial" and result.get("mutation_applied") is True
+                            )
+                            if not applied or result.get("mutation_applied") is False:
+                                continue
+                            fid = self._extract_breadcrumb_file_id(tc)
+                            if not fid or fid in excluded or fid in deleted or fid in unverifiable or fid in candidates:
+                                continue
+                            exp_sha, exp_ts = self._extract_undo_proof(result.get("undo"))
+                            if exp_sha is not None:
+                                candidates[fid] = {
+                                    "kind": "undo_write",
+                                    "updated_at": exp_ts,
+                                    "sha256": exp_sha,
+                                }
+                            else:
+                                unverifiable.add(fid)
+                            if len(candidates) >= limit:
+                                break
+                            continue
+
+                        if name in {"write_chapter", "create_file"} and status == "success" and isinstance(result, dict):
+                            fid = self._extract_breadcrumb_file_id(tc)
+                            if not fid or fid in excluded or fid in deleted or fid in unverifiable or fid in candidates:
+                                continue
+                            if result.get("file_type") == "folder":
+                                continue
+                            if name == "write_chapter" and result.get("action") == "replaced":
+                                if result.get("body_saved") is not True:
+                                    continue
+                                exp_sha, exp_ts = self._extract_undo_proof(result.get("undo"))
+                                if exp_sha is not None:
+                                    candidates[fid] = {
+                                        "kind": "undo_write",
+                                        "updated_at": exp_ts,
+                                        "sha256": exp_sha,
+                                    }
+                                else:
+                                    unverifiable.add(fid)
+                            elif result.get("awaiting_body") is True or result.get("body_in_reply") is True:
+                                if result.get("body_saved") is False:
+                                    continue
+                                if isinstance(row_created_at, datetime):
+                                    candidates[fid] = {
+                                        "kind": "streamed_create",
+                                        "turn_created_at": row_created_at,
+                                    }
+                                else:
+                                    unverifiable.add(fid)
+                            elif isinstance(result.get("content"), str):
+                                updated_at = result.get("updated_at")
+                                candidates[fid] = {
+                                    "kind": "read",
+                                    "content": result["content"],
+                                    "updated_at": (
+                                        updated_at.strip()
+                                        if isinstance(updated_at, str) and updated_at.strip()
+                                        else None
+                                    ),
+                                }
+                            if len(candidates) >= limit:
+                                break
+                if len(candidates) >= limit or hit_compaction:
+                    break
+            if len(candidates) >= limit or hit_compaction or len(rows) < page_rows:
+                break
+
+        if not candidates or (cancel_event is not None and cancel_event.is_set()):
+            return {}
+
+        files = session.exec(
+            select(File).where(
+                File.id.in_(list(candidates)),
+                File.project_id == self.project_id,
+                File.is_deleted.is_(False),
+            )
+        ).all()
+        by_id = {str(f.id): f for f in files if f.file_type != "folder"}
+        if not by_id:
+            return {}
+
+        snapshots: dict[str, str] = {}
+        streamed_check_ids: list[str] = []
+
+        for fid, spec in candidates.items():
+            file = by_id.get(fid)
+            if file is None:
+                continue
+            current_content = file.content or ""
+            kind = spec["kind"]
+            if kind == "read":
+                if current_content != spec["content"]:
+                    continue
+                if spec["updated_at"] is not None and not self._same_utc_timestamp(
+                    file.updated_at, spec["updated_at"]
+                ):
+                    continue
+                snapshots[fid] = current_content
+            elif kind == "undo_write":
+                if content_sha256(current_content) != spec["sha256"]:
+                    continue
+                if spec["updated_at"] is not None and not self._same_utc_timestamp(
+                    file.updated_at, spec["updated_at"]
+                ):
+                    continue
+                snapshots[fid] = current_content
+            elif (
+                kind == "streamed_create"
+                and isinstance(file.updated_at, datetime)
+                and normalize_datetime_to_utc(file.updated_at)
+                <= normalize_datetime_to_utc(spec["turn_created_at"])
+            ):
+                streamed_check_ids.append(fid)
+
+        if streamed_check_ids and not (cancel_event is not None and cancel_event.is_set()):
+            latest_subq = (
+                select(
+                    FileVersion.file_id,
+                    func.max(FileVersion.version_number).label("max_ver"),
+                )
+                .where(FileVersion.file_id.in_(streamed_check_ids))
+                .group_by(FileVersion.file_id)
+                .subquery()
+            )
+            latest_rows = session.exec(
+                select(FileVersion).join(
+                    latest_subq,
+                    and_(
+                        FileVersion.file_id == latest_subq.c.file_id,
+                        FileVersion.version_number == latest_subq.c.max_ver,
+                    ),
+                )
+            ).all()
+            ai_latest = {
+                str(ver.file_id): ver
+                for ver in latest_rows
+                if version_actor(ver) == AI
+            }
+            if ai_latest:
+                contents_by_id = FileVersionService()._get_contents_for_versions(session, ai_latest)
+                for fid, expected_content in contents_by_id.items():
+                    file = by_id.get(fid)
+                    if file is not None and (file.content or "") == expected_content:
+                        snapshots[fid] = file.content or ""
+
+        return snapshots
+
+    @staticmethod
     def attach_working_set_to_user_content(user_content: str, working_set_context: str) -> str:
         """把本轮上下文块放在本轮用户消息之前（同一条 user 消息里）。
 
@@ -557,16 +896,26 @@ class SessionLoader:
 
             if name == "query_files":
                 args = self._parse_json_value(tc.get("arguments"))
-                file_id = str(args.get("id") or "").strip() if isinstance(args, dict) else ""
-                if file_id:
-                    actions.append(
-                        {
-                            "name": "query_files",
-                            "file_id": file_id,
-                            "title": self._find_title_for_id(tc.get("result"), file_id),
-                            **unknown,
-                        }
-                    )
+                result = tc.get("result")
+                if isinstance(args, dict):
+                    query_ids: list[str] = []
+                    single_id = str(args.get("id") or "").strip()
+                    if single_id:
+                        query_ids.append(single_id)
+                    raw_ids = args.get("ids")
+                    if isinstance(raw_ids, list):
+                        for item in raw_ids:
+                            if isinstance(item, str) and item.strip():
+                                query_ids.append(item.strip())
+                    for file_id in dict.fromkeys(query_ids):
+                        actions.append(
+                            {
+                                "name": "query_files",
+                                "file_id": file_id,
+                                "title": self._find_title_for_id(result, file_id),
+                                **unknown,
+                            }
+                        )
                 continue
 
             if name == "parallel_execute":
