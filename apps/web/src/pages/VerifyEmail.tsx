@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Mail, AlertCircle, CheckCircle } from "../components/icons";
 import { useAuth } from "../contexts/AuthContext";
 import { PublicHeader } from "../components/PublicHeader";
+import { Button } from "../components/ui/Button";
 import { authConfig } from "../config/auth";
 import { authApi } from "../lib/api";
 import { ApiError } from "../lib/apiClient";
@@ -378,7 +379,7 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
 
   return (
     <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex flex-col">
-      <PublicHeader variant="auth" />
+      <PublicHeader variant="auth" maxWidth="max-w-6xl" />
 
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
@@ -418,22 +419,39 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
             {!success && hasEmail && correctingEmail && (
               <form onSubmit={handleCorrectEmail} aria-busy={loading} className="space-y-4">
                 <div>
-                  <label htmlFor="registration-new-email" className="mb-2 block text-sm font-medium">{t('auth:verifyEmail.newEmail')}</label>
+                  <label htmlFor="registration-new-email" className="mb-2 block text-sm font-medium text-[hsl(var(--text-secondary))]">{t('auth:verifyEmail.newEmail')}</label>
                   <input ref={newEmailRef} id="registration-new-email" type="text" inputMode="email" autoComplete="email" required disabled={loading}
                     value={newEmail} onChange={event => setNewEmail(event.target.value)}
                     aria-describedby={error ? "verification-error" : undefined}
                     className="input min-h-11" />
                 </div>
                 <div>
-                  <label htmlFor="registration-password" className="mb-2 block text-sm font-medium">{t('auth:verifyEmail.registrationPassword')}</label>
+                  <label htmlFor="registration-password" className="mb-2 block text-sm font-medium text-[hsl(var(--text-secondary))]">{t('auth:verifyEmail.registrationPassword')}</label>
                   <input id="registration-password" type="password" autoComplete="current-password" required disabled={loading}
                     value={registrationPassword} onChange={event => setRegistrationPassword(event.target.value)}
                     aria-describedby={error ? "verification-error" : undefined}
                     className="input min-h-11" />
                 </div>
-                <button type="submit" disabled={loading} className="btn-primary min-h-11 w-full">{loading ? t('auth:verifyEmail.updatingEmail') : t('auth:verifyEmail.confirmChange')}</button>
-                <button type="button" disabled={loading} onClick={() => { restoreCorrectionFocusRef.current = true; setCorrectingEmail(false); setRegistrationPassword(''); setError(''); }}
-                  className="btn-ghost min-h-11 w-full">{t('auth:verifyEmail.cancelChange')}</button>
+                <Button
+                  type="submit"
+                  size="touch"
+                  disabled={loading}
+                  isLoading={loading}
+                  loadingText={t('auth:verifyEmail.updatingEmail')}
+                  className="w-full"
+                >
+                  {t('auth:verifyEmail.confirmChange')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="touch"
+                  disabled={loading}
+                  onClick={() => { restoreCorrectionFocusRef.current = true; setCorrectingEmail(false); setRegistrationPassword(''); setError(''); }}
+                  className="w-full"
+                >
+                  {t('auth:verifyEmail.cancelChange')}
+                </Button>
               </form>
             )}
 
@@ -471,18 +489,20 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
                 </div>
                 </>}
 
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="lg"
                   onClick={handleResend}
                   disabled={cooldown > 0 || loading}
-                  className="btn-ghost w-full py-3 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-2 border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.05)] text-[hsl(var(--text-primary))]"
+                  className="w-full"
                 >
                   {cooldown > 0 ? (
                     t('auth:verifyEmail.resendButtonWithCount', { count: cooldown })
                   ) : (
                     t('auth:verifyEmail.resendButton')
                   )}
-                </button>
+                </Button>
 
                 {!deliveryPending && (
                   <p className="mt-4 text-center text-xs text-[hsl(var(--text-secondary))]">
@@ -492,13 +512,13 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
 
                 <div className="mt-6 text-center">
                   <button ref={correctionTriggerRef} type="button" disabled={loading} onClick={() => { cancelAutomaticSubmit(); setCorrectingEmail(true); setError(''); }}
-                    className="min-h-11 rounded-lg px-3 text-sm text-[hsl(var(--text-primary))]">
+                    className="min-h-11 rounded-lg px-3 text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors">
                     {t('auth:verifyEmail.changeEmail')}
                   </button>
                   <button
                     type="button"
                     onClick={() => navigate(loginLink)}
-                    className="min-h-11 rounded-lg px-3 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
+                    className="min-h-11 rounded-lg px-3 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                   >
                     {t('auth:verifyEmail.backToLogin')}
                   </button>
@@ -510,32 +530,43 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
               <div className="space-y-3">
                 <form onSubmit={handleSendToAddress} aria-busy={loading} className="space-y-3" noValidate>
                   <div>
-                    <label htmlFor="verification-address" className="mb-2 block text-sm font-medium">{t('auth:verifyEmail.emailLabel')}</label>
+                    <label htmlFor="verification-address" className="mb-2 block text-sm font-medium text-[hsl(var(--text-secondary))]">{t('auth:verifyEmail.emailLabel')}</label>
                     <input id="verification-address" type="email" inputMode="email" autoComplete="email" autoFocus required disabled={loading}
                       value={addressInput} onChange={event => { setAddressInput(event.target.value); if (error) setError(''); }}
                       aria-describedby={error ? "verification-error" : undefined}
                       className="input min-h-11" />
                   </div>
-                  <button type="submit" disabled={loading} className="btn-primary w-full py-3">
-                    {loading ? t('auth:verifyEmail.sendingCode') : t('auth:verifyEmail.sendCode')}
-                  </button>
+                  <Button
+                    type="submit"
+                    size="lg"
+                    disabled={loading}
+                    isLoading={loading}
+                    loadingText={t('auth:verifyEmail.sendingCode')}
+                    className="w-full"
+                  >
+                    {t('auth:verifyEmail.sendCode')}
+                  </Button>
                 </form>
                 {authConfig.registrationEnabled && (
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="lg"
                     onClick={() => navigate(registerLink)}
-                    className="btn-ghost w-full py-3 rounded-xl font-medium border border-[hsl(var(--border-color))]"
+                    className="w-full"
                   >
                     {t('auth:verifyEmail.goToRegister')}
-                  </button>
+                  </Button>
                 )}
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="lg"
                   onClick={() => navigate(loginLink)}
-                  className="btn-ghost w-full py-3 rounded-xl font-medium border border-[hsl(var(--border-color))]"
+                  className="w-full"
                 >
                   {t('auth:verifyEmail.backToLogin')}
-                </button>
+                </Button>
               </div>
             )}
           </div>

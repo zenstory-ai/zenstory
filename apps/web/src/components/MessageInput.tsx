@@ -145,9 +145,10 @@ const SwipeableSuggestionChip: React.FC<SwipeableSuggestionChipProps> = ({
   return (
     <button
       {...bind()}
+      type="button"
       onClick={onClick}
       aria-label={suggestion}
-      className={`shrink-0 bg-[hsl(var(--bg-tertiary))] hover:bg-[hsl(var(--bg-tertiary)/0.8)] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] rounded-full text-xs whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'px-2 py-0.5' : 'px-2.5 py-1'} ${isDismissing ? 'opacity-0 h-0 py-0 my-0 overflow-hidden' : ''}`}
+      className={`shrink-0 border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] rounded-full text-xs whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'px-3 py-1.5 min-h-[32px]' : 'px-2.5 py-1'} ${isDismissing ? 'opacity-0 h-0 py-0 my-0 overflow-hidden' : ''}`}
       style={{
         transform: `translateX(${translateX}px)`,
         transition: isDismissing ? 'transform 0.2s ease-out, opacity 0.2s ease-out' : 'none',
@@ -836,17 +837,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
       {/* Suggestion row: project suggestions first, static only as explicit fallback */}
       {showSuggestionRow && (
-        <div className={`shrink-0 flex min-w-0 items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
+        <div className="shrink-0 flex min-w-0 items-center gap-2">
           {/* Only the chips scroll sideways: long ones (a reply's own options) must not push the
               refresh button off a phone screen. */}
-          <div className={`flex min-w-0 flex-1 items-center overflow-x-auto pb-0.5 scrollbar-none ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
+          <div className={`flex min-w-0 flex-1 items-center overflow-x-auto pb-0.5 pr-5 scrollbar-none [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] ${isMobile ? 'gap-2' : 'gap-1.5'}`}>
           {isSuggestionLoading ? (
             <>
               <span className="sr-only">{t("common:loading")}</span>
               {[0, 1, 2].map((i) => (
                 <span
                   key={`suggestion-loading-${i}`}
-                  className={`shrink-0 rounded-full bg-[hsl(var(--bg-tertiary))] animate-pulse ${isMobile ? 'w-20 h-6' : 'w-24 h-6'}`}
+                  className={`shrink-0 rounded-full bg-[hsl(var(--bg-tertiary))] animate-pulse ${isMobile ? 'w-20 h-7' : 'w-24 h-6'}`}
                 />
               ))}
             </>
@@ -866,12 +867,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             type="button"
             onClick={refreshSuggestions}
             disabled={isRefreshingSuggestions}
-            className="shrink-0 inline-flex items-center justify-center min-h-11 min-w-11 md:min-h-0 md:min-w-0 p-1 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
+            className="shrink-0 inline-flex items-center justify-center min-h-11 min-w-11 md:min-h-7 md:min-w-7 -my-1.5 md:my-0 p-1.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
             title={t("chat:input.refresh")}
             aria-label={t("chat:input.refresh")}
             aria-busy={isRefreshingSuggestions}
           >
-            <RefreshCw size={12} className={isRefreshingSuggestions ? "animate-spin" : ""} />
+            <RefreshCw size={13} className={isRefreshingSuggestions ? "animate-spin" : ""} />
           </button>
         </div>
       )}
@@ -1027,7 +1028,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           }}
           placeholder={displayPlaceholder}
           disabled={inputDisabled}
-          className={`flex-1 bg-[hsl(var(--bg-tertiary))] border border-transparent rounded-lg text-sm text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary)/0.5)] outline-none resize-none overflow-y-auto transition-all disabled:opacity-50 focus:border-[hsl(var(--accent-primary)/0.5)] focus:shadow-[inset_0_1px_2px_hsl(0_0%_0%_/_0.1),_0_0_0_2px_hsl(var(--accent-primary)/0.15)] ${
+          className={`flex-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl text-sm text-[hsl(var(--text-primary))] placeholder:text-sm placeholder:text-[hsl(var(--text-secondary))] outline-none resize-none overflow-y-auto transition-all disabled:opacity-50 focus:border-[hsl(var(--accent-primary)/0.6)] focus:shadow-[inset_0_1px_2px_hsl(0_0%_0%_/_0.05),_0_0_0_2px_hsl(var(--accent-primary)/0.15)] ${
             isMobile ? 'px-3 py-2.5' : 'px-3 py-2'
           } ${
             isFillLayout ? "h-full min-h-0" : ""
@@ -1051,7 +1052,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <button
             onClick={() => { void handleSteer(); }}
             disabled={!input.trim() || steerPending || inputTooLong}
-            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-dark))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:cursor-not-allowed text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
+            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
             title={t("chat:input.steerButton")}
             aria-label={t("chat:input.steerButton")}
             data-testid="steer-button"
@@ -1064,12 +1065,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             // While arming the button stays clickable (aria-disabled) so a press gets an answer.
             disabled={isStopping}
             aria-disabled={!stopArmed || isStopping}
-            className={`shrink-0 flex items-center justify-center rounded-lg transition-colors focus-visible:outline-none ${
+            className={`shrink-0 flex items-center justify-center rounded-xl transition-colors focus-visible:outline-none ${
               !stopArmed || isStopping
                 // Muted while arming: secondary ink on the tertiary fill, hairline ring.
                 ? 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] shadow-[inset_0_0_0_1px_hsl(var(--border-color))] cursor-not-allowed focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))]'
                 // Same solid danger colors as ui/Button's danger variant.
-                : 'bg-[hsl(var(--danger-solid))] text-white hover:bg-[hsl(var(--danger-hover))] focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))]'
+                : 'bg-[hsl(var(--danger-solid))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--danger-hover))] focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))]'
             } ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
             title={stopButtonLabel}
             aria-label={stopButtonLabel}
@@ -1081,7 +1082,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <button
             onClick={handleSubmit}
             disabled={!input.trim() || effectiveSendDisabled || inputTooLong}
-            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-dark))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:cursor-not-allowed text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] disabled:focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--bg-tertiary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
+            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] disabled:focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--bg-tertiary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
             title={t("common:send")}
             data-testid="send-button"
           >

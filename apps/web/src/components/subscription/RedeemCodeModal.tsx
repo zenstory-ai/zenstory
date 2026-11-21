@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { subscriptionApi } from '../../lib/subscriptionApi';
 import { ApiError } from '../../lib/apiClient';
@@ -6,6 +6,7 @@ import { handleApiError } from '../../lib/errorHandler';
 import { trackEvent } from '../../lib/analytics';
 import { useTranslation } from 'react-i18next';
 import Modal from '../ui/Modal';
+import { Button } from '../ui/Button';
 import { CelebrationBurst } from './CelebrationBurst';
 
 interface RedeemCodeModalProps {
@@ -16,6 +17,7 @@ interface RedeemCodeModalProps {
 
 export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProps) {
   const { t } = useTranslation(['settings', 'dashboard', 'common']);
+  const codeInputId = useId();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -56,8 +58,8 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitRedeem = () => {
+    if (redeemMutation.isPending) return;
     setError('');
     setSuccess('');
     setCelebrate(false);
@@ -78,12 +80,44 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
     redeemMutation.mutate(trimmed);
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitRedeem();
+  };
+
   const handleClose = () => {
+    if (redeemMutation.isPending) return;
     setSuccess('');
     setError('');
     setCelebrate(false);
     onClose();
   };
+
+  const footer = success ? (
+    <Button type="button" size="touch" onClick={handleClose}>
+      {t('settings:subscription.redeemDone', '开始使用')}
+    </Button>
+  ) : (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="touch"
+        onClick={handleClose}
+        disabled={redeemMutation.isPending}
+      >
+        {t('common:cancel', '取消')}
+      </Button>
+      <Button
+        type="button"
+        size="touch"
+        onClick={submitRedeem}
+        disabled={redeemMutation.isPending || !code.trim()}
+      >
+        {redeemMutation.isPending ? t('dashboard:billing.redeeming', '正在兑换…') : t('settings:subscription.redeem', '兑换')}
+      </Button>
+    </>
+  );
 
   return (
     <Modal
@@ -91,27 +125,32 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
       onClose={handleClose}
       title={t('settings:subscription.redeemTitle', '使用兑换码')}
       size="sm"
+      showCloseButton={!redeemMutation.isPending}
+      closeOnBackdropClick={!redeemMutation.isPending}
+      closeOnEscape={!redeemMutation.isPending}
+      footer={footer}
     >
       <form onSubmit={handleSubmit}>
         <Modal.Body className="relative">
           {celebrate && <CelebrationBurst className="top-6" />}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
+            <label htmlFor={codeInputId} className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
               {t('settings:subscription.codeLabel', '兑换码')}
             </label>
             <input
+              id={codeInputId}
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder="ERG-XXXX-XXXX-XXXXXXXX"
-              className="w-full px-3 py-2 border border-[hsl(var(--border-color))] rounded-md bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.3)] focus:border-transparent font-mono text-sm"
+              className="input w-full min-h-11 font-mono text-sm"
               disabled={redeemMutation.isPending}
               autoFocus
             />
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] text-sm rounded-md">
+            <div role="alert" className="mb-4 p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] text-sm rounded-xl">
               {error}
             </div>
           )}
@@ -119,41 +158,12 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
           {success && (
             <div
               role="status"
-              className={`mb-4 p-3 bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success-text))] text-sm rounded-md ${celebrate ? 'animate-celebration-pop font-medium' : ''}`}
+              className={`mb-4 p-3 bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success-text))] text-sm rounded-xl ${celebrate ? 'animate-celebration-pop font-medium' : ''}`}
             >
               {success}
             </div>
           )}
         </Modal.Body>
-
-        <Modal.Footer>
-          {success ? (
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-4 py-2 text-sm bg-[hsl(var(--accent-primary))] text-white rounded-md hover:opacity-90 transition-colors"
-            >
-              {t('settings:subscription.redeemDone', '开始使用')}
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={handleClose}
-                className="px-4 py-2 text-sm text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] rounded-md transition-colors"
-              >
-                {t('common:cancel', '取消')}
-              </button>
-              <button
-                type="submit"
-                disabled={redeemMutation.isPending || !code.trim()}
-                className="px-4 py-2 text-sm bg-[hsl(var(--accent-primary))] text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {redeemMutation.isPending ? t('dashboard:billing.redeeming', "正在兑换…") : t('settings:subscription.redeem', '兑换')}
-              </button>
-            </>
-          )}
-        </Modal.Footer>
       </form>
     </Modal>
   );

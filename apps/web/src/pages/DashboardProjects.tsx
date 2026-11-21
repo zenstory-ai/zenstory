@@ -123,17 +123,17 @@ export default function DashboardProjects() {
       </div>}
 
       {loading && (
-        <div data-testid="projects-loading" aria-label={t('common.loading')} className="grid gap-3.5 lg:grid-cols-3">
+        <div role="status" data-testid="projects-loading" aria-label={t('common.loading')} className="grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((item) => (
-            <div key={item} className="h-32 animate-pulse rounded-lg bg-[hsl(var(--bg-secondary))]" />
+            <div key={item} className="h-32 animate-pulse rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]" />
           ))}
         </div>
       )}
 
       {!loading && error && (
-        <div role="alert" className="rounded-lg border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6 text-center">
+        <div role="alert" className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6 text-center">
           <p className="mb-4 text-[hsl(var(--text-primary))]">{error}</p>
-          <Button variant="secondary" onClick={() => void refreshProjects()}>
+          <Button variant="secondary" size={isMobile ? "touch" : "md"} onClick={() => void refreshProjects()}>
             {t('common.retry')}
           </Button>
         </div>

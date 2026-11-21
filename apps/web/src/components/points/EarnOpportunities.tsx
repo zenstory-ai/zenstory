@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { inspirationsConfig } from '../../config/inspirations';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 
 interface EarnOpportunitiesProps {
   className?: string;
@@ -47,6 +48,7 @@ const OPPORTUNITY_ICONS: Record<string, React.ReactNode> = {
 
 export function EarnOpportunities({ className = '' }: EarnOpportunitiesProps) {
   const { t } = useTranslation(['points', 'common']);
+  const actionSize = useIsMobile() ? 'touch' : 'md';
   const { data: opportunities, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ['earn-opportunities'],
     queryFn: () => pointsApi.getEarnOpportunities(),
@@ -63,7 +65,7 @@ export function EarnOpportunities({ className = '' }: EarnOpportunitiesProps) {
           <p role="alert" className="text-xs text-[hsl(var(--error-text))]">
             {t('opportunitiesLoadFailed', '积分任务加载失败，请重试')}
           </p>
-          <Button variant="secondary" size="sm" onClick={() => void refetch()}>
+          <Button variant="secondary" size={actionSize} onClick={() => void refetch()}>
             {t('common:retry', '重试')}
           </Button>
         </div>
@@ -123,7 +125,7 @@ export function EarnOpportunities({ className = '' }: EarnOpportunitiesProps) {
             <span className={`text-sm font-medium ${
               opportunity.is_completed
                 ? 'text-[hsl(var(--text-secondary))]'
-                : 'text-[hsl(var(--accent-secondary))]'
+                : 'text-[hsl(var(--warning-text))]'
             }`}>
               +{opportunity.points}
             </span>

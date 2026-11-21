@@ -1730,4 +1730,41 @@ describe('Editor', () => {
       base_updated_at: 'server-v3',
     }))
   })
+
+  it('renders empty-state creation cards as accessible buttons and offers retry on file load error', async () => {
+    mockProjectContext = {
+      ...mockProjectContext,
+      selectedItem: null,
+    }
+    const { unmount } = render(<Editor />)
+
+    expect(screen.getByRole('button', { name: 'New Chapter' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New Outline' })).toBeInTheDocument()
+
+    const showMoreButton = screen.getByRole('button', { name: 'More options' })
+    expect(showMoreButton).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(showMoreButton)
+    expect(showMoreButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'New Character Sheet' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New Setting' })).toBeInTheDocument()
+
+    unmount()
+
+    vi.mocked(api.fileApi.get)
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValueOnce(mockFile)
+    mockProjectContext = {
+      ...mockProjectContext,
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+    }
+    render(<Editor />)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Failed to load file')
+    fireEvent.click(screen.getByRole('button', { name: 'common:retry' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('simple-editor')).toBeInTheDocument()
+    })
+  })
 })

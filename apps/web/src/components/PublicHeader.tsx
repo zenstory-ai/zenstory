@@ -3,6 +3,7 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { LogOut, Menu, X, BookOpen, ChevronDown, BookText, CreditCard } from "lucide-react";
 import { Logo } from "./Logo";
+import { Button } from "./ui/Button";
 import { useAuth } from "../contexts/AuthContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useIsDesktop } from "../hooks/useMediaQuery";
@@ -285,13 +286,14 @@ export function PublicHeader({
             {variant === "home" && (
               // 首页：已登录显示"进入工作台"，未登录显示"登录"+"开始免费试用"
               user ? (
-                <button
+                <Button
                   type="button"
+                  size="touch"
                   onClick={() => navigate("/dashboard")}
-                  className="btn-primary min-h-[44px] px-3 text-sm"
+                  className="px-3"
                 >
                   {t('home:nav.goDashboard', '进入工作台')}
-                </button>
+                </Button>
               ) : (
                 <>
                   <button
@@ -301,13 +303,14 @@ export function PublicHeader({
                   >
                     {t('home:nav.login')}
                   </button>
-                  <button
+                  <Button
                     type="button"
+                    size="touch"
                     onClick={() => navigate(registerPath)}
-                    className="btn-primary min-h-[44px] px-3 text-sm"
+                    className="px-3"
                   >
                     {t('home:nav.getStarted')}
-                  </button>
+                  </Button>
                 </>
               )
             )}
@@ -340,7 +343,7 @@ export function PublicHeader({
             {/* Language Switcher */}
             <LanguageSwitcher />
 
-            {variant === "home" ? (
+            {variant === "home" || variant === "dashboard" ? (
               <button
                 ref={mobileMenuToggleRef}
                 type="button"
@@ -357,52 +360,7 @@ export function PublicHeader({
               >
                 {showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
-            ) : (
-              <>
-                {!isAuthVariant && (
-                  <>
-                    <Link
-                      to="/docs"
-                      aria-label={t('common:nav.docs')}
-                      title={t('common:nav.docs')}
-                      className={`min-h-[44px] px-3 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]`}
-                    >
-                      <BookText className="w-4 h-4" />
-                      <span>{t('common:nav.docs')}</span>
-                    </Link>
-                    <Link
-                      to={pricingPath}
-                      aria-label={t('home:nav.pricing')}
-                      title={t('home:nav.pricing')}
-                      className={`min-h-[44px] px-3 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]`}
-                    >
-                      <CreditCard className="w-4 h-4" />
-                      <span>{t('home:nav.pricing')}</span>
-                    </Link>
-                  </>
-                )}
-
-                {variant === "dashboard" && (
-                  // Dashboard：显示菜单按钮
-                  <button
-                    ref={mobileMenuToggleRef}
-                    type="button"
-                    onClick={() => setShowMobileMenu((prev) => !prev)}
-                    aria-expanded={showMobileMenu}
-                    aria-controls={mobileMenuId}
-                    aria-haspopup="menu"
-                    aria-label={
-                      showMobileMenu
-                        ? t("common:nav.closeMenu", "关闭菜单")
-                        : t("common:nav.openMenu", "打开菜单")
-                    }
-                    className="min-h-[44px] min-w-[44px] p-2 hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
-                  >
-                    {showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-                  </button>
-                )}
-              </>
-            )}
+            ) : null}
           </div>
         </div>
       </header>
@@ -436,17 +394,18 @@ export function PublicHeader({
                 </Link>
 
                 {user ? (
-                  <button
+                  <Button
                     type="button"
+                    size="touch"
                     onClick={() => {
                       navigate("/dashboard");
                       setShowMobileMenu(false);
                     }}
-                    className="btn-primary w-full min-h-[44px] text-sm"
+                    className="w-full"
                     role="menuitem"
                   >
                     {t('home:nav.goDashboard', '进入工作台')}
-                  </button>
+                  </Button>
                 ) : (
                   <>
                     <button
@@ -460,19 +419,43 @@ export function PublicHeader({
                     >
                       {t('home:nav.login')}
                     </button>
-                    <button
+                    <Button
                       type="button"
+                      size="touch"
                       onClick={() => {
                         navigate(registerPath);
                         setShowMobileMenu(false);
                       }}
-                      className="btn-primary w-full min-h-[44px] text-sm"
+                      className="w-full"
                       role="menuitem"
                     >
                       {t('home:nav.getStarted')}
-                    </button>
+                    </Button>
                   </>
                 )}
+              </>
+            )}
+
+            {variant === "dashboard" && (
+              <>
+                <Link
+                  to="/docs"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+                  role="menuitem"
+                >
+                  <BookText size={16} />
+                  <span>{t('common:nav.docs')}</span>
+                </Link>
+                <Link
+                  to={pricingPath}
+                  onClick={() => setShowMobileMenu(false)}
+                  className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+                  role="menuitem"
+                >
+                  <CreditCard size={16} />
+                  <span>{t('home:nav.pricing')}</span>
+                </Link>
               </>
             )}
 
@@ -480,14 +463,14 @@ export function PublicHeader({
               <>
                 {/* User section in mobile menu */}
                 <div className="flex items-center gap-3 px-3 py-2">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center text-white text-sm font-medium shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-[hsl(var(--primary))] flex items-center justify-center text-[hsl(var(--primary-foreground))] text-sm font-medium shrink-0">
                     {getUserDisplayName(user).charAt(0).toUpperCase() || "U"}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
                       {getUserDisplayName(user)}
                     </div>
-                    <div className="text-xs text-[hsl(var(--text-secondary))]">
+                    <div className="text-xs text-[hsl(var(--text-secondary))] truncate">
                       {user.email || ""}
                     </div>
                   </div>

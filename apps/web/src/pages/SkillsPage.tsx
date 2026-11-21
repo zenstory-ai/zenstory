@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useId, useState, useEffect, useRef, useCallback } from "react";
 import type { ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { LazyMarkdown } from "../components/LazyMarkdown";
@@ -15,6 +15,7 @@ import { DashboardFilterPills } from "../components/dashboard/DashboardFilterPil
 import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
 import { Modal } from "../components/ui/Modal";
+import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { IconButton } from "../components/ui/IconButton";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
@@ -68,6 +69,10 @@ const getLocalizedSkillCategory = (
 
 export default function SkillsPage() {
   const { t } = useTranslation(["skills", "common"]);
+  const skillNameInputId = useId();
+  const skillDescriptionInputId = useId();
+  const skillTriggersInputId = useId();
+  const skillInstructionsInputId = useId();
   const skillCreateUpgradePrompt = getUpgradePromptDefinition("skill_create_quota_blocked");
   const isMobile = useIsMobile();
 
@@ -473,6 +478,7 @@ export default function SkillsPage() {
   };
 
   const handleCancel = () => {
+    if (saving) return;
     formRequestRef.current += 1;
     setIsCreating(false);
     setEditingSkill(null);
@@ -638,32 +644,42 @@ export default function SkillsPage() {
         onClose={handleCancel}
         title={editingSkill ? t("skills:editSkill") : t("skills:createSkill")}
         size="lg"
+        showCloseButton={!saving}
+        closeOnBackdropClick={!saving}
+        closeOnEscape={!saving}
         footer={
           <>
-            <button onClick={handleCancel} className="btn-ghost flex-1 h-11">
+            <Button
+              type="button"
+              variant="ghost"
+              size="touch"
+              onClick={handleCancel}
+              disabled={saving}
+              className="flex-1"
+            >
               {t("common:cancel")}
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              size="touch"
               onClick={handleSave}
               disabled={saving || !formData.name.trim() || !formData.instructions.trim()}
-              className="btn-primary flex items-center justify-center gap-2 flex-1 h-11"
+              isLoading={saving}
+              leftIcon={<Check className="w-4 h-4" />}
+              className="flex-1"
             >
-              {saving ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
               {t("common:save")}
-            </button>
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
+            <label htmlFor={skillNameInputId} className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
               {t("skills:form.name")} *
             </label>
             <input
+              id={skillNameInputId}
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -675,10 +691,11 @@ export default function SkillsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
+            <label htmlFor={skillDescriptionInputId} className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
               {t("skills:form.description")}
             </label>
             <input
+              id={skillDescriptionInputId}
               type="text"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -690,10 +707,11 @@ export default function SkillsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
+            <label htmlFor={skillTriggersInputId} className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
               {t("skills:form.triggers")}
             </label>
             <input
+              id={skillTriggersInputId}
               type="text"
               value={formData.triggers}
               onChange={(e) => setFormData({ ...formData, triggers: e.target.value })}
@@ -706,10 +724,11 @@ export default function SkillsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
+            <label htmlFor={skillInstructionsInputId} className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
               {t("skills:form.instructions")} *
             </label>
             <textarea
+              id={skillInstructionsInputId}
               value={formData.instructions}
               onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
               className="input min-h-[120px] resize-y font-mono text-sm"
@@ -746,9 +765,9 @@ export default function SkillsPage() {
         title={t("skills:import.successTitle")}
         size="md"
         footer={
-          <button onClick={() => setImportResult(null)} className="btn-primary flex-1 h-11">
+          <Button type="button" size="touch" onClick={() => setImportResult(null)} className="flex-1">
             {t("skills:import.done")}
-          </button>
+          </Button>
         }
       >
         {importResult && (
@@ -888,10 +907,12 @@ function SkillCard({
         {/* Checkbox */}
         {onToggleSelect && (
           <button
+            type="button"
             onClick={onToggleSelect}
             data-testid="skill-selection-toggle"
             aria-pressed={isSelected}
-            className="shrink-0 mt-1"
+            aria-label={isSelected ? t("skills:batch.deselect", { name: skill.name }) : t("skills:batch.select", { name: skill.name })}
+            className="shrink-0 min-h-11 min-w-11 md:min-h-8 md:min-w-8 inline-flex items-center justify-center rounded-lg -ml-2 -mt-1 md:ml-0 md:mt-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]"
           >
             {isSelected ? (
               <CheckSquare className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
@@ -1023,13 +1044,14 @@ function MySkillsContent({
   onClearSelection: () => void;
   onBatchDelete: () => void;
 }) {
-  const { t } = useTranslation(["skills"]);
+  const { t } = useTranslation(["skills", "common"]);
 
   const hasSkills = userSkills.length > 0 || addedSkills.length > 0;
   if ((loading || !hasLoaded) && !hasSkills) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
+      <div role="status" className="flex items-center justify-center h-64">
+        <div aria-hidden="true" className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
+        <span className="sr-only">{t("common:loading")}</span>
       </div>
     );
   }
@@ -1051,17 +1073,21 @@ function MySkillsContent({
       {(userSkills.length > 0 || addedSkills.length > 0) && (
         <div className={`mb-4 flex ${isMobile ? "flex-col items-start gap-2" : "items-center justify-between"}`}>
           <div className="flex items-center gap-3 flex-wrap">
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size={isMobile ? "touch" : "sm"}
               onClick={onSelectAll}
-              className="flex items-center gap-2 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
+              leftIcon={
+                selectedSkillIds.size === userSkills.length + addedSkills.length && selectedSkillIds.size > 0 ? (
+                  <CheckSquare className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )
+              }
             >
-              {selectedSkillIds.size === userSkills.length + addedSkills.length && selectedSkillIds.size > 0 ? (
-                <CheckSquare className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
-              ) : (
-                <Square className="w-4 h-4" />
-              )}
               {t("batch.selectAll")}
-            </button>
+            </Button>
             {selectedSkillIds.size > 0 && (
               <span className="text-sm text-[hsl(var(--text-tertiary))]">
                 {t("batch.selected", { count: selectedSkillIds.size })}
@@ -1070,19 +1096,23 @@ function MySkillsContent({
           </div>
           {selectedSkillIds.size > 0 && (
             <div className={`flex items-center gap-2 ${isMobile ? "w-full flex-wrap" : ""}`}>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size={isMobile ? "touch" : "sm"}
                 onClick={onClearSelection}
-                className="text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
               >
                 {t("batch.clearSelection")}
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                size={isMobile ? "touch" : "sm"}
                 onClick={onBatchDelete}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.2)] transition-colors"
+                leftIcon={<Trash2 className="w-3.5 h-3.5" />}
               >
-                <Trash2 className="w-3.5 h-3.5" />
                 {t("batch.delete")}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -1113,12 +1143,9 @@ function MySkillsContent({
             description={searchQuery ? undefined : t("noUserSkillsHint")}
             action={
               !searchQuery && (
-                <button
-                  onClick={onCreate}
-                  className="text-sm text-[hsl(var(--accent-primary))] hover:underline"
-                >
+                <Button size={isMobile ? "touch" : "md"} onClick={onCreate}>
                   {t("createFirst")}
-                </button>
+                </Button>
               )
             }
           />
@@ -1151,9 +1178,9 @@ function MySkillsContent({
               {addedSkills.length}
             </span>
           </div>
-          <button onClick={onSwitchToDiscover} className="text-sm text-[hsl(var(--accent-primary))] hover:underline">
+          <Button variant="ghost" size={isMobile ? "touch" : "sm"} onClick={onSwitchToDiscover}>
             {t("discoverMore")}
-          </button>
+          </Button>
         </div>
 
         {addedSkills.length === 0 ? (
@@ -1162,12 +1189,9 @@ function MySkillsContent({
             title={searchQuery ? t("noSearchResults") : t("noAddedSkills")}
             action={
               !searchQuery && (
-                <button
-                  onClick={onSwitchToDiscover}
-                  className="text-sm text-[hsl(var(--accent-primary))] hover:underline"
-                >
+                <Button variant="secondary" size={isMobile ? "touch" : "md"} onClick={onSwitchToDiscover}>
                   {t("browsePublic")}
-                </button>
+                </Button>
               )
             }
           />
@@ -1256,10 +1280,12 @@ function AddedSkillCard({
         {/* Checkbox */}
         {onToggleSelect && (
           <button
+            type="button"
             onClick={onToggleSelect}
             data-testid="skill-selection-toggle"
             aria-pressed={isSelected}
-            className="shrink-0 mt-1"
+            aria-label={isSelected ? t("skills:batch.deselect", { name: skill.name }) : t("skills:batch.select", { name: skill.name })}
+            className="shrink-0 min-h-11 min-w-11 md:min-h-8 md:min-w-8 inline-flex items-center justify-center rounded-lg -ml-2 -mt-1 md:ml-0 md:mt-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]"
           >
             {isSelected ? (
               <CheckSquare className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
@@ -1410,25 +1436,20 @@ function DiscoverContent({
     <div>
       {/* Search and Filter */}
       <div className={`flex gap-3 mb-6 ${isMobile ? "flex-col" : "flex-row"}`}>
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(var(--text-tertiary))]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onCompositionStart={() => onSearchCompositionChange(true)}
-            onCompositionEnd={(e) => {
-              onSearchCompositionChange(false);
-              setSearchQuery(e.currentTarget.value);
-            }}
-            placeholder={t("searchPlaceholder")}
-            aria-label={t("searchPlaceholder")}
-            className="input pl-10 w-full"
-            data-testid="public-skill-search"
-          />
-        </div>
+        <DashboardSearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          onCompositionStart={() => onSearchCompositionChange(true)}
+          onCompositionEnd={(e) => {
+            onSearchCompositionChange(false);
+            setSearchQuery(e.currentTarget.value);
+          }}
+          placeholder={t("searchPlaceholder")}
+          className="flex-1"
+          inputTestId="public-skill-search"
+        />
         {categoriesError && categories.length === 0 ? (
-          <div className="flex items-center gap-2 text-xs text-[hsl(var(--error-text))]">
+          <div role="alert" className="flex items-center gap-2 text-xs text-[hsl(var(--error-text))]">
             <span>{t("skills:errors.categoriesLoadFailed")}</span>
             {onRetryCategories && (
               <button
@@ -1453,8 +1474,9 @@ function DiscoverContent({
 
       {/* Skills Grid */}
       {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
+        <div role="status" className="flex items-center justify-center h-64">
+          <div aria-hidden="true" className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
+          <span className="sr-only">{t("common:loading")}</span>
         </div>
       ) : hasError && publicSkills.length === 0 ? null : publicSkills.length === 0 ? (
         // Decide on the query these results came from, not the text still in its debounce window.
@@ -1470,7 +1492,7 @@ function DiscoverContent({
             title={t("noDiscoverableSkills")}
             description={t("noDiscoverableSkillsHint")}
             action={
-              <Button onClick={onCreate} leftIcon={<Plus className="w-4 h-4" />}>
+              <Button size={isMobile ? "touch" : "md"} onClick={onCreate} leftIcon={<Plus className="w-4 h-4" />}>
                 {t("createSkill")}
               </Button>
             }
@@ -1498,7 +1520,7 @@ function DiscoverContent({
 
       {!loading && !hasError && hasMore && (
         <div className="flex justify-center mt-6">
-          <Button variant="secondary" onClick={onLoadMore} isLoading={loadingMore}>
+          <Button variant="secondary" size={isMobile ? "touch" : "md"} onClick={onLoadMore} isLoading={loadingMore}>
             {t("loadMore")}
           </Button>
         </div>
@@ -1567,14 +1589,14 @@ function PublicSkillCard({
           <h3 className="font-semibold text-[hsl(var(--text-primary))] text-sm truncate">{skill.name}</h3>
         </div>
         {skill.source === "official" && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[hsl(var(--accent-primary)/0.08)] text-[hsl(var(--accent-primary))] shrink-0">
+          <Badge variant="info" className="shrink-0">
             {t("official")}
-          </span>
+          </Badge>
         )}
       </div>
 
       {/* Description - fixed 2-line height for alignment */}
-      <p className="text-sm leading-relaxed text-[hsl(var(--text-secondary))] line-clamp-2 min-h-[2.6em] mb-4">
+      <p className="text-xs leading-relaxed text-[hsl(var(--text-secondary))] line-clamp-2 min-h-[2.6em] mb-4">
         {skill.description || "\u00A0"}
       </p>
 
@@ -1616,7 +1638,7 @@ function PublicSkillCard({
       {/* Expanded instructions */}
       {canExpand && expanded && instructions && (
         <div className="mt-3 pt-3 border-t border-[hsl(var(--border-color)/0.5)]">
-          <div className="markdown-content bg-[hsl(var(--bg-secondary))] rounded-lg p-3 text-xs max-h-48 overflow-y-auto">
+          <div className="markdown-content bg-[hsl(var(--bg-tertiary))] rounded-xl p-3 text-xs max-h-48 overflow-y-auto">
             {loadingDetail ? (
               <div className="flex justify-center py-4">
                 <div className="w-4 h-4 animate-spin rounded-full border-2 border-[hsl(var(--accent-primary))] border-t-transparent" />

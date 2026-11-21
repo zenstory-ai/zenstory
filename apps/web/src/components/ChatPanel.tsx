@@ -52,6 +52,7 @@ import {
   CHAT_CARD_WARNING_SURFACE,
 } from "./chatCardStyles";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { IconButton } from "./ui/IconButton";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import { isAiMessageQuotaExhausted } from "../hooks/useAiMessageQuota";
 import {
@@ -2730,11 +2731,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       {/* Header */}
       <div
         ref={headerRef}
-        className={`shrink-0 flex items-center justify-between border-b border-[hsl(var(--separator-color))] ${isMobile ? 'h-11 px-2' : 'h-12 px-3'}`}
+        className="shrink-0 flex items-center justify-between border-b border-[hsl(var(--separator-color))] h-12 px-3"
       >
         {/* 右栏可能只有 300px 宽：标题不折行，状态词放不下就省略，额度用紧凑胶囊。 */}
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" data-testid="chat-panel-header-title">
-          <span className={`min-w-0 truncate whitespace-nowrap font-medium text-[hsl(var(--text-primary))] ${isMobile ? 'text-xs' : 'text-sm'}`}>{t('chat:panel.title')}</span>
+          <span className="min-w-0 truncate whitespace-nowrap text-sm font-medium text-[hsl(var(--text-primary))]">{t('chat:panel.title')}</span>
           {isStreaming && (
             <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--success-text))] animate-[breathe_1.5s_ease-in-out_infinite] motion-reduce:animate-none">
               · {t('chat:panel.processing')}
@@ -2746,30 +2747,36 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         </div>
         <div className={`flex shrink-0 items-center ${isMobile ? 'gap-1' : 'gap-2'}`} data-testid="chat-panel-header-actions">
           <QuotaBadge compact />
-          <button
+          <IconButton
             onClick={() => openAIMemory()}
-            className={`flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'p-2 min-h-[44px] min-w-[44px]' : 'p-1.5 min-h-0 min-w-0'}`}
-            title={t('chat:panel.aiMemory')}
-            aria-label={t('chat:panel.aiMemory')}
-          >
-            <Database size={isMobile ? 18 : 16} />
-          </button>
-          <button
+            size={isMobile ? 'touch' : 'md'}
+            label={t('chat:panel.aiMemory')}
+            icon={<Database size={isMobile ? 18 : 16} />}
+          />
+          <IconButton
             onClick={requestNewChat}
             disabled={isCreatingSession || newChatPending}
             aria-busy={isCreatingSession}
-            className={`flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'p-2 min-h-[44px] min-w-[44px]' : 'p-1.5 min-h-0 min-w-0'}`}
-            title={t('chat:panel.newSession')}
-          >
-            {isCreatingSession ? <><Loader2 size={isMobile ? 18 : 16} className="animate-spin" /><span className="sr-only" role="status">{t("chat:panel.creatingSession")}</span></> : <Plus size={isMobile ? 18 : 16} />}
-          </button>
+            size={isMobile ? 'touch' : 'md'}
+            label={t('chat:panel.newSession')}
+            icon={
+              isCreatingSession ? (
+                <>
+                  <Loader2 size={isMobile ? 18 : 16} className="animate-spin" />
+                  <span className="sr-only" role="status">{t("chat:panel.creatingSession")}</span>
+                </>
+              ) : (
+                <Plus size={isMobile ? 18 : 16} />
+              )
+            }
+          />
         </div>
       </div>
 
       {/* Messages - scrollable area */}
       {/* data-testid: message-list - Message container for message display tests */}
       <div ref={messagesScrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" data-testid="message-list">
-        <div className={`py-3 ${isMobile ? 'px-2 pb-2' : 'px-3'}`}>
+        <div className={`py-3 ${isMobile ? 'px-3 pb-2' : 'px-3'}`}>
           {sessionRecoveryError === currentProjectId && (
             <div role="alert" className={`mb-3 p-3 ${CHAT_CARD_SURFACE}`}>
               <p className="text-xs leading-5 text-[hsl(var(--text-primary))]">{t("chat:panel.sessionRecoveryFailed")}</p>

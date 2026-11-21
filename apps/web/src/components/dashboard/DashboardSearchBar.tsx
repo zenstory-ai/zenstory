@@ -1,3 +1,4 @@
+import type React from "react";
 import { Search } from "../icons";
 
 /**
@@ -12,6 +13,12 @@ export interface DashboardSearchBarProps {
   placeholder: string;
   /** Optional additional CSS classes */
   className?: string;
+  /** Optional IME composition start handler */
+  onCompositionStart?: React.CompositionEventHandler<HTMLInputElement>;
+  /** Optional IME composition end handler */
+  onCompositionEnd?: React.CompositionEventHandler<HTMLInputElement>;
+  /** Optional data-testid applied to the search input */
+  inputTestId?: string;
 }
 
 /**
@@ -57,6 +64,9 @@ export function DashboardSearchBar({
   onChange,
   placeholder,
   className,
+  onCompositionStart,
+  onCompositionEnd,
+  inputTestId,
 }: DashboardSearchBarProps) {
   return (
     <div className={`relative ${className || ""}`}>
@@ -67,6 +77,9 @@ export function DashboardSearchBar({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onCompositionStart={onCompositionStart}
+        onCompositionEnd={onCompositionEnd}
+        data-testid={inputTestId}
         className="w-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl min-h-[44px] pl-9 pr-4 text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary)/0.5)] focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.12)]"
       />
     </div>

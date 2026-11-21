@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Upload, BookOpen, FileText, Clock, CheckCircle, AlertCircle, RefreshCw, Trash2, Download } from "../components/icons";
@@ -38,6 +38,8 @@ import { useProMaterialDecompositionsLimit } from "../hooks/useProMaterialDecomp
 
 export default function MaterialsPage() {
   const { t, i18n } = useTranslation(["materials", "common"]);
+  const fileSelectButtonId = useId();
+  const titleInputId = useId();
   const materialUploadUpgradePrompt = getUpgradePromptDefinition("material_upload_quota_blocked");
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -182,7 +184,7 @@ export default function MaterialsPage() {
           title={t("materials:title")}
           subtitle={t("materials:description")}
         />
-        <div className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
+        <div role="alert" className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
           <div className="space-y-3">
             <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
               {t("common:error", { defaultValue: "加载失败" })}
@@ -214,12 +216,23 @@ export default function MaterialsPage() {
           title={t("materials:title")}
           subtitle={t("materials:description")}
         />
-        <div className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
-          <p className="text-sm text-[hsl(var(--text-secondary))]">
-            {t("materials:statusLoadError", {
-              defaultValue: "没能确认你的 Pro 状态，请重试。",
-            })}
-          </p>
+        <div role="alert" className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
+          <div className="space-y-3">
+            <p className="text-sm text-[hsl(var(--text-secondary))]">
+              {t("materials:statusLoadError", {
+                defaultValue: "没能确认你的 Pro 状态，请重试。",
+              })}
+            </p>
+            <Button
+              variant="secondary"
+              size={actionSize}
+              onClick={() => {
+                void refetchSubscriptionStatus();
+              }}
+            >
+              {t("common:retry", { defaultValue: "重试" })}
+            </Button>
+          </div>
         </div>
       </>
     );
@@ -449,11 +462,12 @@ export default function MaterialsPage() {
       )}
 
       {isMaterialsLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
+        <div role="status" className="flex items-center justify-center h-64">
+          <div aria-hidden="true" className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
+          <span className="sr-only">{t("common:loading", { defaultValue: "加载中…" })}</span>
         </div>
       ) : isMaterialsError ? (
-        <div className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
+        <div role="alert" className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
           <p className="text-sm text-[hsl(var(--text-secondary))]">
             {t("materials:listLoadError", { defaultValue: "素材列表加载失败，请重试。" })}
           </p>
@@ -604,12 +618,12 @@ export default function MaterialsPage() {
             title={t("materials:noMaterials")}
             action={
               !isMaterialsQuotaExhausted ? (
-                <button
+                <Button
+                  size={actionSize}
                   onClick={() => setShowUploadModal(true)}
-                  className="text-sm text-[hsl(var(--accent-primary))] hover:underline"
                 >
                   {t("materials:uploadFirst")}
-                </button>
+                </Button>
               ) : undefined
             }
           />
@@ -698,7 +712,10 @@ export default function MaterialsPage() {
         closeOnEscape={!uploading}
         footer={
           <>
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="touch"
               onClick={() => {
                 if (uploading) return;
                 setShowUploadModal(false);
@@ -707,27 +724,22 @@ export default function MaterialsPage() {
                 setError(null);
               }}
               disabled={uploading}
-              className="btn-ghost flex-1 h-11"
+              className="flex-1"
             >
               {t("common:cancel")}
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              size="touch"
               onClick={handleUpload}
               disabled={!file || uploading}
-              className="btn-primary flex items-center justify-center gap-2 flex-1 h-11"
+              isLoading={uploading}
+              loadingText={t("materials:uploadModal.uploading")}
+              leftIcon={<Upload className="w-4 h-4" />}
+              className="flex-1"
             >
-              {uploading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                  {t("materials:uploadModal.uploading")}
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" />
-                  {t("materials:uploadModal.upload")}
-                </>
-              )}
-            </button>
+              {t("materials:uploadModal.upload")}
+            </Button>
           </>
         }
       >
@@ -742,7 +754,7 @@ export default function MaterialsPage() {
         )}
         {/* File Input */}
         <div>
-          <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-2">
+          <label htmlFor={fileSelectButtonId} className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-2">
             {t("materials:uploadModal.selectFile")} *
           </label>
           {/* Hidden native file input */}
@@ -754,11 +766,13 @@ export default function MaterialsPage() {
             className="hidden"
           />
           {/* Custom file select button */}
-          <div
+          <button
+            id={fileSelectButtonId}
+            type="button"
             onClick={handleSelectFile}
-            className="flex items-center gap-3 p-3 border border-dashed border-[hsl(var(--border-color))] rounded-lg cursor-pointer hover:border-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-all"
+            className="w-full text-left flex items-center gap-3 p-3 border border-dashed border-[hsl(var(--border-color))] rounded-xl cursor-pointer hover:border-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]"
           >
-            <div className="w-10 h-10 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center shrink-0">
               <Upload className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
             </div>
             <div className="flex-1 min-w-0">
@@ -788,7 +802,7 @@ export default function MaterialsPage() {
                 </>
               )}
             </div>
-          </div>
+          </button>
           {file && trialAvailable && trialSelection && (
             <MaterialTrialSelectionNote selection={trialSelection} />
           )}
@@ -796,10 +810,11 @@ export default function MaterialsPage() {
 
         {/* Title Input */}
         <div className="mt-4">
-          <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
+          <label htmlFor={titleInputId} className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
             {t("materials:uploadModal.titleLabel")}
           </label>
           <input
+            id={titleInputId}
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -810,7 +825,7 @@ export default function MaterialsPage() {
 
         {/* Error Message */}
         {error && (
-          <div className="mt-4 p-3 rounded-lg bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)]">
+          <div role="alert" className="mt-4 p-3 rounded-xl bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)]">
             <p className="text-sm text-[hsl(var(--error-text))]">{error}</p>
           </div>
         )}
@@ -989,38 +1004,42 @@ function MaterialCard({
       {(canExport || canRetryCard) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {canExport && onExport && (
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size={isMobile ? "touch" : "sm"}
               onClick={(e) => {
                 e.stopPropagation();
                 onExport();
               }}
               disabled={isExporting}
-              className="min-h-11 px-3 inline-flex items-center gap-1.5 rounded-lg text-xs font-medium border border-[hsl(var(--border-color))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-60 disabled:cursor-not-allowed"
+              leftIcon={
+                isExporting ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )
+              }
             >
-              {isExporting ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Download className="w-3.5 h-3.5" />
-              )}
               {t("materials:export.button", { defaultValue: "导出拆解（TXT）" })}
-            </button>
+            </Button>
           )}
           {canRetryCard && onRetry && (
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size={isMobile ? "touch" : "sm"}
               onClick={(e) => {
                 e.stopPropagation();
                 onRetry();
               }}
               disabled={isRetrying}
-              className="min-h-11 px-3 inline-flex items-center gap-1.5 rounded-lg text-xs font-medium border border-[hsl(var(--border-color))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-60 disabled:cursor-not-allowed"
+              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? "animate-spin" : ""}`} />}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? "animate-spin" : ""}`} />
               {isRetrying
                 ? t("materials:status.processing", { defaultValue: "处理中" })
                 : t("common:retry", { defaultValue: "重试" })}
-            </button>
+            </Button>
           )}
         </div>
       )}

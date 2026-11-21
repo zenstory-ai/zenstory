@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Key, Plus, Copy, Trash2, RefreshCw, Shield, ShieldOff, Check } from 'lucide-react';
@@ -70,7 +70,7 @@ function ScopeBadge({ label }: { scope: string; label: string }) {
 
 function StatusBadge({ isActive, label }: { isActive: boolean; label: string }) {
   return isActive ? (
-    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-green-500">
+    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-[hsl(var(--success-text))]">
       <Shield size={12} />
       {label}
     </span>
@@ -115,7 +115,7 @@ function CommandLine({ command }: { command: string }) {
         aria-label={copied ? t('apiKeys.copied') : t('apiKeys.copy')}
         className={`${COPY_TOUCH_TARGET} shrink-0 p-1 rounded-md hover:bg-[hsl(var(--bg-hover))] transition-colors text-[hsl(var(--text-secondary))]`}
       >
-        {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+        {copied ? <Check size={12} className="text-[hsl(var(--success-text))]" /> : <Copy size={12} />}
       </button>
       <CopiedStatus copied={copied} />
     </div>
@@ -189,6 +189,7 @@ function KeyCreatedModal({
   onClose: () => void;
 }) {
   const { t } = useTranslation(['settings', 'common']);
+  const actionSize = useIsMobile() ? 'touch' : 'md';
   const [copied, setCopied] = useState(false);
   const { loginCommand } = getAgentConnectInfo();
 
@@ -203,11 +204,20 @@ function KeyCreatedModal({
 
   return (
     <Modal
-      open onClose={onClose} title={t('apiKeys.createdTitle')} showCloseButton={false}
-      closeOnEscape={false} closeOnBackdropClick={false}
+      open
+      onClose={onClose}
+      title={t('apiKeys.createdTitle')}
+      showCloseButton={false}
+      closeOnEscape={false}
+      closeOnBackdropClick={false}
+      footer={
+        <Button size={actionSize} onClick={onClose}>
+          {t('apiKeys.done')}
+        </Button>
+      }
     >
       <div>
-        <div className="mb-3 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-600 dark:text-yellow-400">
+        <div className="mb-3 p-2.5 rounded-xl bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)] text-xs text-[hsl(var(--warning-text))]">
           {t('apiKeys.copyWarning')}
         </div>
         <div className="flex items-center gap-2 p-2 rounded-lg bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] mb-4">
@@ -220,12 +230,12 @@ function KeyCreatedModal({
             aria-label={copied ? t('apiKeys.copied') : t('apiKeys.copyKey')}
             className={`${COPY_TOUCH_TARGET} shrink-0 p-1.5 rounded-lg hover:bg-[hsl(var(--bg-hover))] transition-colors text-[hsl(var(--text-secondary))]`}
           >
-            {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+            {copied ? <Check size={14} className="text-[hsl(var(--success-text))]" /> : <Copy size={14} />}
           </button>
           <CopiedStatus copied={copied} />
         </div>
 
-        <div className="mb-4 space-y-2">
+        <div className="space-y-2">
           <p className="text-xs text-[hsl(var(--text-secondary))]">
             {t('apiKeys.createdNextSteps')}
           </p>
@@ -234,15 +244,6 @@ function KeyCreatedModal({
             {t('apiKeys.connectGuide.step2Hint')}
           </p>
           <CommandLine command={SKILL_INSTALL_COMMAND} />
-        </div>
-
-        <div className="flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-lg text-xs text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-hover))] transition-colors"
-          >
-            {t('apiKeys.done')}
-          </button>
         </div>
       </div>
     </Modal>
@@ -259,6 +260,9 @@ function CreateKeyForm({
   isSubmitting: boolean;
 }) {
   const { t } = useTranslation('settings');
+  const nameId = useId();
+  const descriptionId = useId();
+  const expiresId = useId();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [scopes, setScopes] = useState<string[]>(['read']);
@@ -292,36 +296,38 @@ function CreateKeyForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-[hsl(var(--text-secondary))] mb-1.5">
-          {t('apiKeys.form.name')} <span className="text-red-500">*</span>
+        <label htmlFor={nameId} className="block text-xs font-medium text-[hsl(var(--text-secondary))] mb-1.5">
+          {t('apiKeys.form.name')} <span className="text-[hsl(var(--error-text))]" aria-hidden="true">*</span>
         </label>
         <input
+          id={nameId}
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={t('apiKeys.form.namePlaceholder')}
-          className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--accent-primary))]"
+          className="input w-full"
           autoFocus
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-[hsl(var(--text-secondary))] mb-1.5">
+        <label htmlFor={descriptionId} className="block text-xs font-medium text-[hsl(var(--text-secondary))] mb-1.5">
           {t('apiKeys.form.description')}
         </label>
         <input
+          id={descriptionId}
           type="text"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder={t('apiKeys.form.descriptionPlaceholder')}
-          className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--accent-primary))]"
+          className="input w-full"
         />
       </div>
 
-      <div>
-        <label className="block text-xs font-medium text-[hsl(var(--text-secondary))] mb-1.5">
+      <fieldset>
+        <legend className="block text-xs font-medium text-[hsl(var(--text-secondary))] mb-1.5">
           {t('apiKeys.form.permissions')}
-        </label>
+        </legend>
         <div className="flex gap-3">
           {SCOPES.map((scope) => (
             <label
@@ -338,16 +344,17 @@ function CreateKeyForm({
             </label>
           ))}
         </div>
-      </div>
+      </fieldset>
 
       <div>
-        <label className="block text-xs font-medium text-[hsl(var(--text-secondary))] mb-1.5">
+        <label htmlFor={expiresId} className="block text-xs font-medium text-[hsl(var(--text-secondary))] mb-1.5">
           {t('apiKeys.form.expiresAt')}
         </label>
         <select
+          id={expiresId}
           value={expiresInDays}
           onChange={(e) => setExpiresInDays(Number(e.target.value))}
-          className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-sm text-[hsl(var(--text-primary))] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--accent-primary))]"
+          className="input w-full"
         >
           {expirationOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -429,7 +436,7 @@ function KeyRow({
             className={`${COPY_TOUCH_TARGET} p-0.5 rounded hover:bg-[hsl(var(--bg-hover))] transition-colors`}
           >
             {copiedPrefix ? (
-              <Check size={11} className="text-green-500" />
+              <Check size={11} className="text-[hsl(var(--success-text))]" />
             ) : (
               <Copy size={11} />
             )}
@@ -578,7 +585,7 @@ export const AgentApiKeysPanel: React.FC = () => {
     return withCreatedKey(
       <div className="space-y-3">
         <ConnectGuide />
-        <p role="alert" className="text-sm text-red-500">{handleApiError(error)}</p>
+        <p role="alert" className="text-sm text-[hsl(var(--error-text))]">{handleApiError(error)}</p>
         <Button variant="secondary" size={actionSize} onClick={() => void refetch()}>{t('common:retry', '重试')}</Button>
       </div>
     );
@@ -609,7 +616,7 @@ export const AgentApiKeysPanel: React.FC = () => {
   return withCreatedKey(
     <div className="space-y-3">
       <ConnectGuide />
-      {mutationError && <p role="alert" className="text-sm text-red-500">{mutationError}</p>}
+      {mutationError && <p role="alert" className="text-sm text-[hsl(var(--error-text))]">{mutationError}</p>}
 
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-medium text-[hsl(var(--text-secondary))]">{t('apiKeys.title')}</h3>
