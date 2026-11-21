@@ -64,7 +64,7 @@ def tool_error_text(error: str, *, error_type: str | None = None, tool_name: str
         payload["error_type"] = error_type
     if tool_name:
         payload["tool_name"] = tool_name
-    return json.dumps(payload, ensure_ascii=False)
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
 def parse_json_object(raw: str, *, tool_name: str = "") -> tuple[dict[str, Any], str | None, dict[str, Any]]:

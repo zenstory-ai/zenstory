@@ -59,15 +59,7 @@ export default function AcquisitionPage() {
 
   return (
     <div className="admin-page admin-page-fluid">
-      <div>
-        <h1 className="admin-page-title">{t("acquisition.title", "注册来源")}</h1>
-        <p className="admin-page-subtitle">
-          {t(
-            "acquisition.subtitle",
-            "按首次来源统计这段时间新注册的账号，以及其中用过 AI、付费的人数。只统计注册，不统计访问。",
-          )}
-        </p>
-      </div>
+      <h1 className="admin-page-title">{t("acquisition.title", "注册来源")}</h1>
 
       <AdminSegmented
         label={t("dashboard.windowLabel", "时间窗口")}
@@ -170,12 +162,17 @@ export default function AcquisitionPage() {
               )}
             </section>
 
-            <p className="text-xs text-[hsl(var(--text-secondary))]">
-              {t(
-                "acquisition.note",
-                "来源取自账号注册前首次带来源信息的访问（30 天内）。「未记录」是上线来源统计之前注册、或浏览器禁用了本地存储的账号。用过 AI、付费按注册后至今统计。",
-              )}
-            </p>
+            <details className="admin-surface px-4 py-3 text-xs text-[hsl(var(--text-secondary))]">
+              <summary className="cursor-pointer text-sm font-medium text-[hsl(var(--text-primary))]">
+                {t("methodology", "统计口径")}
+              </summary>
+              <p className="mt-2">
+                {t(
+                  "acquisition.note",
+                  "来源取自账号注册前首次带来源信息的访问（30 天内）。只统计注册，不统计访问。「未记录」是上线来源统计之前注册、或浏览器禁用了本地存储的账号。用过 AI、付费按注册后至今统计。",
+                )}
+              </p>
+            </details>
           </div>
         )}
       </AdminPageState>

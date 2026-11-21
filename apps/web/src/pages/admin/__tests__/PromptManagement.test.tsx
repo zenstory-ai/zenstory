@@ -118,7 +118,10 @@ describe("PromptManagement", () => {
 
     fireEvent.click(screen.getByTitle("prompts.delete"));
     expect(screen.getByText("prompts.deleteConfirm")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "common:cancel" }));
+    expect(screen.queryByText("prompts.deleteConfirm")).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByTitle("prompts.delete"));
     fireEvent.click(screen.getByRole("button", { name: "common:confirm" }));
     expect(deleteMutateMock).toHaveBeenCalledWith("novel");
   });

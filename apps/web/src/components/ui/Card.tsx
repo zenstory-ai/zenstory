@@ -75,9 +75,10 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
    * Border radius size.
    * - 'lg': Standard rounded corners (8px)
    * - 'xl': Larger rounded corners (12px)
+   * - '2xl': Dashboard panel rounded corners (16px)
    * @default 'xl'
    */
-  rounded?: 'lg' | 'xl';
+  rounded?: 'lg' | 'xl' | '2xl';
 
   /**
    * Border color variant.
@@ -149,6 +150,7 @@ const getRoundedClasses = (rounded: CardProps['rounded']): string => {
   const roundedSizes = {
     lg: 'rounded-lg',
     xl: 'rounded-xl',
+    '2xl': 'rounded-2xl',
   };
   return roundedSizes[rounded || 'xl'];
 };

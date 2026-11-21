@@ -6,7 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { authConfig, hasOAuthProviders } from "../config/auth";
 import { referralConfig } from "../config/referral";
 import { PublicHeader } from "../components/PublicHeader";
-import { LoadingSpinner } from "../components/LoadingSpinner";
+import { Button } from "../components/ui/Button";
 import { InviteCodeInput } from "../components/referral/InviteCodeInput";
 import { authApi } from "../lib/api";
 import { translateError } from "../lib/errorHandler";
@@ -369,8 +369,8 @@ export const Register: React.FC = () => {
           {/* Logo */}
           <div className="text-center mb-8 sm:mb-10">
             <div className="inline-flex items-center gap-2.5 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-[hsl(var(--accent-primary))] flex items-center justify-center shadow-lg">
-                <LogoMark className="w-7 h-7 text-white" />
+              <div className="w-12 h-12 rounded-xl bg-[hsl(var(--primary))] flex items-center justify-center shadow-lg">
+                <LogoMark className="w-7 h-7 text-[hsl(var(--primary-foreground))]" />
               </div>
             </div>
             <h1 className="text-2xl font-bold text-[hsl(var(--text-primary))] mb-2">{t('auth:register.title')}</h1>
@@ -391,20 +391,21 @@ export const Register: React.FC = () => {
                 <>
                   <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">{t('auth:register.emailExistsHint')}</p>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <button
+                    <Button
                       type="button"
+                      size="touch"
                       onClick={() => navigate(loginLink, { state: { identifier: existingEmail } })}
-                      className="btn-primary min-h-11"
                     >
                       {t('auth:register.emailExistsLogin')}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="secondary"
+                      size="touch"
                       onClick={() => navigate(verifyEmailLink, { state: { email: existingEmail } })}
-                      className="btn-ghost min-h-11 rounded-xl border border-[hsl(var(--border-color))]"
                     >
                       {t('auth:register.emailExistsVerify')}
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}
@@ -588,23 +589,17 @@ export const Register: React.FC = () => {
             </div>
 
             {/* Submit Button */}
-            <button
+            <Button
               type="submit"
+              size="lg"
               disabled={submitDisabled}
-              className="btn-primary w-full py-3 text-base"
+              isLoading={loading}
+              loadingText={t('auth:register.submitting')}
+              className="w-full"
               aria-busy={loading}
             >
-              {loading ? (
-                <LoadingSpinner
-                  size="sm"
-                  variant="css"
-                  color="white"
-                  label={t('auth:register.submitting')}
-                />
-              ) : (
-                t('auth:register.submit')
-              )}
-            </button>
+              {t('auth:register.submit')}
+            </Button>
           </form>
 
           {/* Login Link */}

@@ -44,6 +44,8 @@
   "collapseDetails": "Hide details",
   "instructionsHidden": "Official skill instructions aren't shown. Once added, the AI uses the skill when it fits.",
   "batch": {
+    "select": "Select skill {{name}}",
+    "deselect": "Deselect skill {{name}}",
     "selectAll": "Select All",
     "selected_one": "1 selected",
     "selected_other": "{{count}} selected",

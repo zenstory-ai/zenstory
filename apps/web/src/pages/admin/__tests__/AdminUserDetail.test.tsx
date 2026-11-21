@@ -7,6 +7,12 @@ import AdminUserDetail from "../AdminUserDetail";
 import { adminApi } from "../../../lib/adminApi";
 import { ApiError } from "../../../lib/apiClient";
 
+const pointsFeature = vi.hoisted(() => ({ enabled: true }));
+
+vi.mock("../../../config/points", () => ({
+  pointsConfig: pointsFeature,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -49,6 +55,7 @@ const renderPage = () => {
 describe("AdminUserDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pointsFeature.enabled = true;
     api.getUser.mockResolvedValue({
       id: "user-1", username: "writer", email: "writer@example.com", email_verified: true,
       is_active: true, is_superuser: false, created_at: "2026-10-01T08:00:00", updated_at: "2026-10-01T08:00:00",
@@ -336,5 +343,16 @@ describe("AdminUserDetail", () => {
     fireEvent.change(screen.getByLabelText("points.adjustReason"), { target: { value: "fix" } });
     fireEvent.click(screen.getByRole("button", { name: "points.adjustPoints" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("points.adjustFailed"));
+  });
+
+  it("hides the points section and skips points queries when points are disabled", async () => {
+    pointsFeature.enabled = false;
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "writer" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "userDetail.quota" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "userDetail.points" })).not.toBeInTheDocument();
+    expect(api.getUserPoints).not.toHaveBeenCalled();
+    expect(api.getUserPointsTransactions).not.toHaveBeenCalled();
   });
 });

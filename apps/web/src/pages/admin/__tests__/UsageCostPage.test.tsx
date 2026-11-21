@@ -226,6 +226,9 @@ describe("UsageCostPage", () => {
     renderPage();
     fireEvent.click(screen.getAllByRole("button", { name: "common:next" })[0]);
     expect(lastKey("users")).toEqual(["admin", "usage", "users", "today", "cost", "", 2]);
+    fireEvent.click(screen.getAllByRole("button", { name: "common:previous" })[0]);
+    expect(lastKey("users")).toEqual(["admin", "usage", "users", "today", "cost", "", 1]);
+    fireEvent.click(screen.getAllByRole("button", { name: "common:next" })[0]);
 
     const windows = within(screen.getByRole("group", { name: "usage.window" }));
     fireEvent.click(windows.getByRole("button", { name: "usage.windows.7d" }));

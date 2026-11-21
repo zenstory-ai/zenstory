@@ -94,7 +94,8 @@ def test_stale_metadata_word_count_is_overwritten_or_dropped_in_the_copy_only():
     original_metadata = file.file_metadata
 
     full = serialize_file(file, include_content=True)
-    assert json.loads(full["file_metadata"]) == {"word_count": 2234, "word_count_target": 3000}
+    assert full["word_count"] == 2234
+    assert json.loads(full["file_metadata"]) == {"word_count_target": 3000}
 
     truncated = serialize_file(file, include_content=False, content_preview_chars=200)
     assert json.loads(truncated["file_metadata"]) == {"word_count_target": 3000}

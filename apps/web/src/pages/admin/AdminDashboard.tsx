@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Users, FolderOpen, Lightbulb, CreditCard, RefreshCw, Coins, CalendarCheck, Gift, UserPlus } from 'lucide-react';
+import { Users, FolderOpen, Lightbulb, CreditCard, RefreshCw } from 'lucide-react';
 import { adminApi } from '@/lib/adminApi';
 import { AdminPageState } from '@/components/admin';
 import { StatsCard } from '@/components/admin/StatsCard';
@@ -104,25 +104,22 @@ export default function AdminDashboard() {
   return (
     <div className="admin-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="admin-page-title">
-            {t('admin:dashboard.title')}
-          </h1>
-          <p className="admin-page-subtitle">
-            {t('admin:dashboard.subtitle')}
-          </p>
-        </div>
-        <button
-          className="btn-ghost flex min-h-11 items-center gap-2 text-sm text-[hsl(var(--text-primary))]!"
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="admin-page-title">
+          {t('admin:dashboard.title')}
+        </h1>
+        <Button
+          type="button"
+          variant="ghost"
+          size="touch"
+          leftIcon={<RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />}
           onClick={() => {
             void Promise.all([queryClient.invalidateQueries({queryKey: ['admin', 'dashboard', 'growth']}), refetch(), refetchActivationFunnel(), refetchUpgradeFunnel(), refetchUpgradeConversion()]);
           }}
           disabled={isRefreshing}
         >
-          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           {t('admin:dashboard.refresh')}
-        </button>
+        </Button>
       </div>
 
       <AdminSegmented
@@ -184,34 +181,6 @@ export default function AdminDashboard() {
             />
           </div>
 
-          {/* Stats Grid - Commercial */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatsCard
-              icon={<Coins className="h-5 w-5" />}
-              title={t('admin:dashboard.totalPointsInCirculation')}
-              value={stats?.total_points_in_circulation ?? 0}
-              isLoading={isLoading}
-            />
-            <StatsCard
-              icon={<CalendarCheck className="h-5 w-5" />}
-              title={t('admin:dashboard.todayCheckIns')}
-              value={stats?.today_check_ins ?? 0}
-              isLoading={isLoading}
-            />
-            <StatsCard
-              icon={<Gift className="h-5 w-5" />}
-              title={t('admin:dashboard.activeInviteCodes')}
-              value={stats?.active_invite_codes ?? 0}
-              isLoading={isLoading}
-            />
-            <StatsCard
-              icon={<UserPlus className="h-5 w-5" />}
-              title={t('admin:dashboard.weekReferrals')}
-              value={stats?.week_referrals ?? 0}
-              isLoading={isLoading}
-            />
-          </div>
-
           <div className="admin-surface p-4">
             <h2 className="text-lg font-semibold mb-3 text-[hsl(var(--text-primary))]">
               {t('admin:growth.events')}
@@ -239,8 +208,6 @@ export default function AdminDashboard() {
 
                   </div>
                 ))}
-
-                <p className="pt-2 text-sm text-[hsl(var(--text-secondary))]">{t('admin:growth.eventsNote')}</p>
               </div>
             )}
           </div>
@@ -397,7 +364,6 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
                 {t('admin:dashboard.upgradePaidAttributionTitle', '付费转化归因')}
               </h3>
-              <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">{t('admin:growth.legacyUpgradeNote')}</p>
 
               {upgradeConversionLoading && (
                 <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
@@ -563,6 +529,19 @@ export default function AdminDashboard() {
         </h2>
         <RecentActivityList />
       </div>
+
+      <details className="admin-surface px-4 py-3 text-xs text-[hsl(var(--text-secondary))]">
+        <summary className="cursor-pointer text-sm font-medium text-[hsl(var(--text-primary))]">
+          {t('admin:methodology', '统计口径')}
+        </summary>
+        <ul className="mt-2 list-disc space-y-1 pl-4">
+          <li>{t('admin:growth.comparison')}</li>
+          <li>{t('admin:growth.definition')}</li>
+          <li>{t('admin:growth.dailyDefinition')}</li>
+          <li>{t('admin:growth.eventsNote')}</li>
+          <li>{t('admin:growth.legacyUpgradeNote')}</li>
+        </ul>
+      </details>
     </div>
   );
 }

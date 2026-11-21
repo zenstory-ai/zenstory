@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 let mockIsMobile = false
 let mockIsTablet = false
 let mockIsDesktop = true
+let mockIsSuperuser = false
 let mockTheme: 'dark' | 'light' = 'light'
 let mockLanguage = 'zh-CN'
 let mockResolvedLanguage: string | undefined = 'zh-CN'
@@ -68,7 +69,7 @@ vi.mock('../../contexts/AuthContext', () => ({
       username: 'test-user',
       email: 'test@example.com',
       avatar_url: null,
-      is_superuser: false,
+      is_superuser: mockIsSuperuser,
     },
     logout: mockLogout,
   }),
@@ -267,5 +268,21 @@ describe('Dashboard user panel and quick switches', () => {
     renderDashboard()
 
     expect(screen.queryByRole('link', { name: 'Lab' })).not.toBeInTheDocument()
+  })
+
+  it('shows Admin Panel entry and truncates user email in mobile menu for superusers', () => {
+    mockIsMobile = true
+    mockIsDesktop = false
+    mockIsSuperuser = true
+    try {
+      renderDashboard()
+
+      fireEvent.click(screen.getByRole('button', { name: '打开菜单' }))
+      expect(screen.getByRole('button', { name: 'Admin panel' })).toBeInTheDocument()
+      const emailEl = screen.getByText('test@example.com')
+      expect(emailEl).toHaveClass('truncate')
+    } finally {
+      mockIsSuperuser = false
+    }
   })
 })

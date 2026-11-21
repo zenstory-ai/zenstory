@@ -6,6 +6,7 @@ import { formatRelativeTime } from '@/lib/dateUtils';
 import { auditActionLabel, auditActionTone, auditResourceLabel } from '@/lib/adminAuditLabels';
 import { Skeleton } from '../ui/Skeleton';
 import { IconWrapper } from '../ui/IconWrapper';
+import { Button } from '../ui/Button';
 
 const resourceIcons: Record<string, React.ReactNode> = {
   user: <User className="h-4 w-4" />,
@@ -22,16 +23,16 @@ const resourceIcons: Record<string, React.ReactNode> = {
 };
 
 const toneColors = {
-  create: 'text-green-500',
-  change: 'text-blue-500',
-  remove: 'text-red-500',
+  create: 'text-[hsl(var(--success-text))]',
+  change: 'text-[hsl(var(--info-text))]',
+  remove: 'text-[hsl(var(--error-text))]',
   neutral: 'text-[hsl(var(--text-secondary))]',
 } as const;
 
 export function RecentActivityList() {
   const { t } = useTranslation(['admin', 'common']);
 
-  const { data, isLoading, isFetching, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['admin', 'audit-logs', 'recent'],
     queryFn: () => adminApi.getAuditLogs({ page: 1, page_size: 10 }),
   });
@@ -57,8 +58,14 @@ export function RecentActivityList() {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-[hsl(var(--error)/0.28)] bg-[hsl(var(--error)/0.1)] p-4 text-sm text-[hsl(var(--error-text))]">
-        {t('admin:dashboard.loadError', '加载失败，请重试')}
+      <div
+        role="alert"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[hsl(var(--error)/0.28)] bg-[hsl(var(--error)/0.1)] p-4 text-sm text-[hsl(var(--error-text))]"
+      >
+        <span>{t('admin:dashboard.loadError', '加载失败，请重试')}</span>
+        <Button variant="secondary" size="sm" onClick={() => { void refetch?.(); }}>
+          {t('common:retry', '重试')}
+        </Button>
       </div>
     );
   }

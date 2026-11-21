@@ -65,4 +65,13 @@ describe('dialog keyboard contract', () => {
     view.unmount();
     expect(document.body.style.overflow).toBe('');
   });
+
+  it('uses viewport-overlay and responsive touch buttons in ConfirmDialog', () => {
+    render(<ConfirmDialog open variant="danger" title="Delete" message="Proceed?" onClose={vi.fn()} onConfirm={vi.fn()} />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.parentElement).toHaveClass('viewport-overlay');
+    const confirmBtn = screen.getByRole('button', { name: 'Confirm' });
+    expect(confirmBtn.className).toContain('min-h-[44px]');
+    expect(confirmBtn.className).toContain('text-[hsl(var(--primary-foreground))]');
+  });
 });

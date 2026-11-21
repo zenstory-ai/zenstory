@@ -110,24 +110,30 @@ def _range_mode(params: dict[str, Any]) -> str | None:
 
 
 def _read_mode(params: dict[str, Any], *, file_ids: list[str] | None = None) -> str:
-    """归一化读取模式：full（全文）、full:<范围>（按范围读取）或 summary:<预览字数>。
+    """归一化读取模式：full（全文）、full:<范围>（按范围读取）、search:<关键词> 或 summary:<预览字数>。
 
     与 query_files 用同一个判定（resolve_query_files_response_mode）：按 id / ids 读取且没给
     response_mode 时默认就是全文，否则 query_files(id=X) 与 query_files(id=X, response_mode="full")
-    会被当成两种读取，拦截被绕开。summary 的预览长度不同算不同的读取（模型要更长的预览不是重复）。
+    会被当成两种读取，拦截被绕开。同时带 id 与 query 且未显式要求 full 时是文件内搜索，不同关键词
+    互不冲突且不算读过全文。summary 的预览长度不同算不同的读取（模型要更长的预览不是重复）。
     """
     include_raw = params.get("include_content")
     preview = params.get("content_preview_chars")
     preview_chars = preview if isinstance(preview, int) and not isinstance(preview, bool) else None
+    raw_query = params.get("query")
+    normalized_query = raw_query.strip() if isinstance(raw_query, str) and raw_query.strip() else None
     mode = resolve_query_files_response_mode(
         params.get("response_mode"),
         file_id=str(params.get("id") or ""),
         file_ids=file_ids,
         include_content=None if include_raw is None else coerce_bool(include_raw),
         content_preview_chars=preview_chars,
+        query=normalized_query,
     )
     if str(mode).strip().lower() == "full":
         return "full"
+    if normalized_query:
+        return f"search:{normalized_query}"
     return f"summary:{preview_chars if preview_chars is not None else 'default'}"
 
 
@@ -402,7 +408,7 @@ class RepeatReadGuard:
                     f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已处理前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
                     f"其余 {len(truncated_ids)} 个请另起调用读取。",
                 )
-            return json.dumps(hinted, ensure_ascii=False)
+            return json.dumps(hinted, ensure_ascii=False, separators=(",", ":"))
 
         data = payload.get("data")
         if not isinstance(data, list) or not data:
@@ -423,7 +429,7 @@ class RepeatReadGuard:
                     f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已处理前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
                     f"其余 {len(truncated_ids)} 个请另起调用读取。",
                 )
-            return json.dumps(hinted, ensure_ascii=False)
+            return json.dumps(hinted, ensure_ascii=False, separators=(",", ":"))
 
         key_by_id = {key[1]: key for key in keys}
         max_count = 0
@@ -474,7 +480,7 @@ class RepeatReadGuard:
             )
         if hints:
             hinted["read_hint"] = " ".join(hints)
-        return json.dumps(hinted, ensure_ascii=False)
+        return json.dumps(hinted, ensure_ascii=False, separators=(",", ":"))
 
     def _forget_reads(self, file_id: str) -> None:
         """这个文件读过之后被别人改了：之前的读取计数作废。"""
@@ -609,7 +615,7 @@ def _blocked_error_text(
     payload["user_message"] = user_message
     if extra:
         payload.update(extra)
-    return json.dumps(payload, ensure_ascii=False)
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
 __all__ = [

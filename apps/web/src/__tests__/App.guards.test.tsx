@@ -204,12 +204,12 @@ vi.mock("../pages/InspirationDetailPage", () => ({
   default: () => <div>Inspiration Detail Page</div>,
 }));
 
-vi.mock("../pages/admin/InspirationManagement", () => ({
-  default: () => <div>Inspiration Admin Page</div>,
-}));
-
 vi.mock("../pages/admin/AdminDashboard", () => ({
   default: () => <div>Admin Dashboard</div>,
+}));
+
+vi.mock("../pages/admin/UserManagement", () => ({
+  default: () => <div>Admin Users Page</div>,
 }));
 
 import App from "../App";
@@ -297,17 +297,22 @@ describe("App route guards", () => {
     },
   );
 
-  it("redirects disabled admin library deep links", async () => {
+  it.each([
+    ["/admin/inspirations", "/admin"],
+    ["/admin/points", "/admin"],
+    ["/admin/check-in", "/admin"],
+    ["/admin/referrals", "/admin"],
+    ["/admin/quota", "/admin/users"],
+  ])("redirects removed admin route %s to %s", async (path, destination) => {
     state.auth.user = { id: "admin-user" };
-    renderAppAt("/admin/inspirations");
-    await waitFor(() => expect(screen.getByTestId("admin-path")).toHaveTextContent(/^\/admin$/));
-    expect(screen.queryByText("Inspiration Admin Page")).not.toBeInTheDocument();
+    state.inspirationsEnabled = true;
+    renderAppAt(path);
+    await waitFor(() => expect(screen.getByTestId("admin-path")).toHaveTextContent(new RegExp(`^${destination}$`)));
   });
 
   it.each([
     ["/dashboard/inspirations", "Inspiration List Page"],
     ["/dashboard/inspirations/template-1", "Inspiration Detail Page"],
-    ["/admin/inspirations", "Inspiration Admin Page"],
   ])("preserves enabled feature route %s", async (path, page) => {
     state.auth.user = { id: "user-auth" };
     state.inspirationsEnabled = true;

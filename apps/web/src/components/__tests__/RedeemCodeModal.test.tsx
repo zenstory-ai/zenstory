@@ -158,4 +158,25 @@ describe('RedeemCodeModal', () => {
     fireEvent.click(screen.getByRole('button', { name: '开始使用' }))
     expect(onClose).toHaveBeenCalledTimes(1)
   })
+
+  it('locks every close path while redemption is pending and renders errors as alerts', async () => {
+    const mockRedeemCode = vi.mocked(subscriptionApi.redeemCode)
+    mockRedeemCode.mockReturnValueOnce(new Promise(() => {}))
+    const onClose = vi.fn()
+
+    render(<RedeemCodeModal isOpen={true} onClose={onClose} />, { wrapper: createWrapper() })
+    const input = screen.getByLabelText('兑换码')
+    fireEvent.change(input, { target: { value: 'invalid' } })
+    fireEvent.click(screen.getByRole('button', { name: '兑换' }))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: 'ERG-PRO30-1234-ABCDEFGH' } })
+    fireEvent.click(screen.getByRole('button', { name: '兑换' }))
+
+    await screen.findByRole('button', { name: '正在兑换…' })
+    expect(screen.getByRole('button', { name: '取消' })).toBeDisabled()
+    fireEvent.click(document.querySelector('[role="presentation"]')!)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
 })

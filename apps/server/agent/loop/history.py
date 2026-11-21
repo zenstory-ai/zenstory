@@ -45,8 +45,8 @@ _INTERRUPTED_ROUND_NOTES = {
     "max_turns_exceeded": "（这一轮没做完：工具调用轮数到了上限。）",
     "model_call_budget_exhausted": "（这一轮没做完：模型调用次数到了上限。）",
 }
-# create_file 的结果里只对当时那一步有意义、回放时会误导模型的字段。
-_CREATE_FILE_TRANSIENT_KEYS = ("awaiting_body", "next_step", "content", "body_in_reply")
+# create_file / write_chapter 的结果里只对当时那一步或前端卡片有意义、回放时会误导/膨胀上下文的字段。
+_CREATE_FILE_TRANSIENT_KEYS = ("awaiting_body", "next_step", "content", "body_in_reply", "undo")
 _REPLACE_NOT_SAVED_NOTE = (
     "这次整章替换的新正文没有保存，这一章保持原样；当时的写入定位已失效。"
     "若本轮作者仍要求完成整章写作，先重新调用 write_chapter 建立本轮目标，"
@@ -252,8 +252,16 @@ def _tool_output_text(call: dict[str, Any]) -> str:
     result = call.get("result")
     error = call.get("error")
     if status == "pending" and result is None and error is None:
-        return json.dumps({"status": "unknown", "note": "这次调用的结果没有记录下来"}, ensure_ascii=False)
-    if name in ("create_file", "write_chapter") and status == "success" and isinstance(result, dict):
+        return json.dumps(
+            {"status": "unknown", "note": "这次调用的结果没有记录下来"},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    if name == "edit_file" and isinstance(result, dict):
+        from agent.tools.file_ops.edit import slim_edit_file_result_for_llm
+
+        result = slim_edit_file_result_for_llm(result)
+    elif name in ("create_file", "write_chapter") and status == "success" and isinstance(result, dict):
         replaced = name == "write_chapter" and result.get("action") == "replaced"
         streamed = result.get("awaiting_body") is True or result.get("body_in_reply") is True
         saved = result.get("body_saved") is True
@@ -281,7 +289,7 @@ def _tool_output_text(call: dict[str, Any]) -> str:
         payload["note"] = _FAILED_CALL_NOTE
     elif name in _SKILL_CONTENT_NOT_KEPT:
         payload["note"] = _SKILL_CONTENT_NOT_KEPT[name]
-    return json.dumps(payload, ensure_ascii=False)
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
 def _loop_row_items(row: Any, metadata: dict[str, Any]) -> list[dict[str, Any]]:
@@ -307,7 +315,7 @@ def _loop_row_items(row: Any, metadata: dict[str, Any]) -> list[dict[str, Any]]:
         call_id = f"h{row.id}_{index}"
         arguments = call.get("arguments")
         if not isinstance(arguments, str):
-            arguments = json.dumps(arguments if arguments is not None else {}, ensure_ascii=False)
+            arguments = json.dumps(arguments if arguments is not None else {}, ensure_ascii=False, separators=(",", ":"))
         items.append({
             "type": "function_call",
             "call_id": call_id,

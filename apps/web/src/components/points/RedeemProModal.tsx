@@ -79,13 +79,14 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
   const canAfford = balanceReady && selectedOption ? balance! >= selectedOption.cost : false;
 
   const footer = redeemedDays !== null ? (
-    <Button onClick={handleClose} className="flex-1">
+    <Button size="touch" onClick={handleClose} className="flex-1">
       {t('common:close', '关闭')}
     </Button>
   ) : (
     <>
       <Button
         variant="ghost"
+        size="touch"
         onClick={handleClose}
         disabled={redeemMutation.isPending}
         className="flex-1"
@@ -93,6 +94,7 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
         {t('common:cancel', '取消')}
       </Button>
       <Button
+        size="touch"
         onClick={handleRedeem}
         disabled={!canAfford || redeemMutation.isPending}
         className="flex-1"
@@ -135,7 +137,7 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
             <Button
               variant="secondary"
               size="sm"
-              className="mt-2"
+              className="mt-2 max-md:min-h-11"
               onClick={() => { if (configQuery.isError) void configQuery.refetch(); if (balanceQuery.isError) void balanceQuery.refetch(); }}
             >
               {t('common:retry', '重试')}
@@ -143,9 +145,9 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
           </div>}
           {(balanceQuery.isLoading || configQuery.isLoading) && <p role="status">{t('common:loading', "加载中…")}</p>}
           {/* Current Balance */}
-          <div className="mb-4 p-3 bg-[hsl(var(--warning)/0.1)] rounded-lg">
+          <div className="mb-4 p-3 bg-[hsl(var(--warning)/0.1)] rounded-xl">
             <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-[hsl(var(--warning-text))]" fill="currentColor" viewBox="0 0 20 20">
+              <svg aria-hidden="true" className="w-5 h-5 text-[hsl(var(--warning-text))]" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.736 6.979C9.208 6.193 9.696 6 10 6c.304 0 .792.193 1.264.979a1 1 0 001.715-1.029C12.279 4.784 11.232 4 10 4s-2.279.784-2.979 1.95c-.285.475-.507 1-.67 1.55H6a1 1 0 000 2h.013a9.358 9.358 0 000 1H6a1 1 0 100 2h.351c.163.55.385 1.075.67 1.55C7.721 15.216 8.768 16 10 16s2.279-.784 2.979-1.95a1 1 0 10-1.715-1.029c-.472.786-.96.979-1.264.979-.304 0-.792-.193-1.264-.979a4.265 4.265 0 01-.264-.521H10a1 1 0 100-2H8.017a7.36 7.36 0 010-1H10a1 1 0 100-2H8.472a4.265 4.265 0 01.264-.521z" />
               </svg>
               <span className="text-sm text-[hsl(var(--text-secondary))]">
@@ -165,14 +167,15 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
             <div className="grid grid-cols-3 gap-2">
               {options.map(option => (
                 <button
+                  type="button"
                   key={option.days}
                   onClick={() => setSelectedDays(option.days)}
                   aria-pressed={selectedDays === option.days}
                   disabled={!balanceReady || balance! < option.cost || redeemMutation.isPending}
-                  className={`p-3 rounded-lg border-2 text-center transition-all ${
+                  className={`p-3 rounded-xl border text-center transition-colors ${
                     selectedDays === option.days
-                      ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.1)]'
-                      : 'border-[hsl(var(--border-color))] hover:border-[hsl(var(--border-color)/0.5)]'
+                      ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.1)] ring-1 ring-[hsl(var(--accent-primary))]'
+                      : 'border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-tertiary))]'
                   } ${!balanceReady || balance! < option.cost ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 >
                   <p className="text-lg font-bold text-[hsl(var(--text-primary))]">
@@ -187,26 +190,26 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
           </div>
 
           {/* Pro Benefits */}
-          <div className="mb-4 p-3 bg-gradient-to-r from-[hsl(var(--accent-primary)/0.1)] to-[hsl(var(--accent-secondary)/0.1)] rounded-lg">
+          <div className="mb-4 p-3 bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-xl">
             <p className="text-sm font-medium text-[hsl(var(--text-primary))] mb-2">
               {t('proBenefits', 'Pro 权益')}
             </p>
             <ul className="text-xs text-[hsl(var(--text-secondary))] space-y-1">
               <li className="flex items-center gap-1">
-                <svg className="w-3 h-3 text-[hsl(var(--success-text))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg aria-hidden="true" className="w-3 h-3 text-[hsl(var(--success-text))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 {t('benefit.unlimitedAI', 'AI 消息不限条数')}
               </li>
               <li className="flex items-center gap-1">
-                <svg className="w-3 h-3 text-[hsl(var(--success-text))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg aria-hidden="true" className="w-3 h-3 text-[hsl(var(--success-text))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 {t('benefit.unlimitedProjects', '项目数不限')}
               </li>
               {materialLimit !== null && (
               <li className="flex items-center gap-1">
-                <svg className="w-3 h-3 text-[hsl(var(--success-text))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg aria-hidden="true" className="w-3 h-3 text-[hsl(var(--success-text))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 {t('benefit.materials', '每月 {{limit}} 次素材拆解', { limit: materialLimit })}
@@ -217,7 +220,7 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
 
           {/* Error */}
           {redeemMutation.isError && (
-            <div className="p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] text-sm rounded-lg">
+            <div role="alert" className="p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] text-sm rounded-xl">
               {t('redeemFailed', '兑换失败，请重试')}
             </div>
           )}

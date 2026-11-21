@@ -33,8 +33,24 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("../ui/Modal", () => {
-  const Modal = ({ open, children }: { open: boolean; children: ReactNode }) =>
-    open ? <div>{children}</div> : null;
+  const Modal = ({
+    open,
+    title,
+    footer,
+    children,
+  }: {
+    open: boolean;
+    title?: ReactNode;
+    footer?: ReactNode;
+    children: ReactNode;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label={typeof title === "string" ? title : undefined}>
+        {title && <div>{title}</div>}
+        <div>{children}</div>
+        {footer && <div>{footer}</div>}
+      </div>
+    ) : null;
 
   Modal.Header = ({ children }: { children: ReactNode }) => <div>{children}</div>;
   Modal.Body = ({ children }: { children: ReactNode }) => <div>{children}</div>;
@@ -225,5 +241,32 @@ describe("ImportMaterialDialog", () => {
         })
       );
     });
+  });
+
+  it("exposes accessible dialog name, labeled fields, and semantic primary button contrast", () => {
+    render(
+      <ImportMaterialDialog
+        isOpen
+        onClose={vi.fn()}
+        preview={{
+          title: "Preview",
+          markdown: "content",
+          novel_title: "Novel",
+          suggested_file_type: "character",
+          suggested_folder_name: "Characters",
+          suggested_file_name: "Hero",
+        }}
+        novelId={1}
+        entityType="characters"
+        entityId={1}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("dialog", { name: "editor:fileTree.importDialog.title" })).toBeInTheDocument();
+    expect(screen.getByLabelText("editor:fileTree.importDialog.fileName")).toHaveValue("Hero");
+    expect(screen.getByLabelText("editor:fileTree.importDialog.targetFolder")).toBeInTheDocument();
+    const confirmBtn = screen.getByRole("button", { name: "editor:fileTree.importDialog.confirm" });
+    expect(confirmBtn).toHaveClass("bg-[hsl(var(--primary))]", "text-[hsl(var(--primary-foreground))]");
   });
 });

@@ -199,16 +199,33 @@ class Store:
             self.calls.append(observation)
             assert observation["pool_checked_out"] == 0
 
-    def expected(self, rows, *, full=False, preview=200):
+    def expected(self, rows, *, full=False, preview=200, omit_preview=False):
+        from agent.tools.file_ops.serialization import QUERY_FILES_OMITTED_FIELDS
+
         result = []
         for row in rows:
-            item = dict(row)
+            item = {k: v for k, v in row.items() if k not in QUERY_FILES_OMITTED_FIELDS}
+            meta = item.get("file_metadata")
+            if meta is None or meta == "":
+                item.pop("file_metadata", None)
+            elif isinstance(meta, str):
+                try:
+                    parsed = json.loads(meta)
+                except (json.JSONDecodeError, TypeError):
+                    parsed = None
+                if isinstance(parsed, dict):
+                    cleaned = {k: v for k, v in parsed.items() if k not in {"word_count", "word_count_rev"}}
+                    if not cleaned:
+                        item.pop("file_metadata", None)
+                    else:
+                        item["file_metadata"] = json.dumps(cleaned, ensure_ascii=False, separators=(",", ":"))
             if full:
                 # word_count 与编辑器同口径（count_words），full 模式总是给出。
                 item["word_count"] = count_words(item["content"])
             else:
                 content = item.pop("content")
-                item["content_preview"] = content[:preview]
+                if not omit_preview:
+                    item["content_preview"] = content[:preview]
                 # summary 同时给出全文长度，模型能分辨「预览」与「短文件」。
                 item["content_length"] = len(content)
                 item["content_truncated"] = len(content) > len(content[:preview])
@@ -370,8 +387,13 @@ def test_summary_modes_and_exact_id_controls(store):
         ({"response_mode": "full", "include_content": False}, True, 200),
     ]
     for options, full, preview in cases:
-        payload, _ = store.call({"id": f" {row['id']} ", "limit": 0, "offset": 999, "query": "no-match", **options})
+        payload, _ = store.call({"id": f" {row['id']} ", "limit": 0, "offset": 999, **options})
         assert payload == store.expected([row], full=full, preview=preview)
+    # id + query honors query in summary mode, and only bypasses query filter on explicit response_mode="full".
+    payload, _ = store.call({"id": row["id"], "query": "no-match"})
+    assert payload == store.expected([])
+    payload, _ = store.call({"id": row["id"], "query": "no-match", "response_mode": "full"})
+    assert payload == store.expected([row], full=True)
     payload, _ = store.call({"response_mode": "full", "limit": 1})
     assert payload == store.expected([row], full=True)
     for options, fragment in [
@@ -396,11 +418,14 @@ def test_paging_type_keyword_and_zero_controls(store):
     ]
     for args, expected in cases:
         payload, _ = store.call(args)
+        omit_preview = False
         if "query" in args:
-            # 关键词查询另外附上正文命中处的原文（见 test_mcp_tools 的命中片段用例）。
+            # 关键词查询另外附上正文命中处的原文；正文命中时省略重复的 content_preview。
             for row in payload["data"]:
                 assert row.pop("match_count") >= 1 and args["query"] in row.pop("matches")[0]
-        assert payload == store.expected(expected)
+                assert "content_preview" not in row
+            omit_preview = True
+        assert payload == store.expected(expected, omit_preview=omit_preview)
     # Exact-ID applies both type constraints (different from merged page precedence).
     payload, _ = store.call({"id": store.rows[0]["id"], "file_type": "lore"})
     assert payload == store.expected([])
@@ -568,5 +593,6 @@ def test_postgres_native_unicode_preview_parity(store):
     payload, observation = store.call({"query": "file-900:", "limit": 32})
     for matched in payload["data"]:
         assert matched.pop("match_count") >= 1 and "file-900:" in matched.pop("matches")[0]
-    assert payload == store.expected([row])
+        assert "content_preview" not in matched
+    assert payload == store.expected([row], omit_preview=True)
     _assert_projection_budget(observation, keyword_matches=True)

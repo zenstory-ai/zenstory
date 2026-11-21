@@ -1080,12 +1080,18 @@ class FileCRUD:
             file_ids=ids,
             max_ids=QUERY_FILES_MAX_BATCH_IDS,
         )
+        explicit_full = (
+            include_content is True
+            or (isinstance(response_mode, str) and response_mode.strip().lower() == "full")
+        )
+        normalized_query = query.strip() if isinstance(query, str) and query.strip() else None
         response_mode = resolve_query_files_response_mode(
             response_mode,
             file_id=id,
             file_ids=target_ids or None,
             include_content=include_content,
             content_preview_chars=content_preview_chars,
+            query=normalized_query,
         )
 
         # Check project permission
@@ -1105,6 +1111,11 @@ class FileCRUD:
                 stmt = stmt.where(File.file_type == file_type)
             if parent_id is not None:
                 stmt = stmt.where(File.parent_id == parent_id)
+            if normalized_query and not explicit_full:
+                stmt = stmt.where(
+                    (File.title.contains(normalized_query, autoescape=True))  # type: ignore[attr-defined]
+                    | (File.content.contains(normalized_query, autoescape=True))  # type: ignore[attr-defined]
+                )
         else:
             # limit/offset apply to the MERGED type set, as on the full path.
             target_types = file_types or ([file_type] if file_type else None)

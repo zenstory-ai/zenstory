@@ -346,4 +346,70 @@ describe('MobileFileTree', () => {
     await waitFor(() => expect(mockSetSelectedItem).toHaveBeenCalledWith(null));
   });
 
+  it('keeps inline create open on input blur and submits via explicit confirm button', async () => {
+    const { fileApi } = await import('../../lib/api');
+    vi.mocked(fileApi.create).mockResolvedValue({
+      id: 'new-char-1',
+      title: '主角',
+      file_type: 'character',
+    } as never);
+    mockGetTree.mockResolvedValue({
+      tree: [
+        {
+          id: 'character-folder-id',
+          title: '角色',
+          file_type: 'folder',
+          parent_id: null,
+          order: 0,
+          content: '',
+          metadata: null,
+          children: [],
+        },
+      ],
+    });
+
+    render(<MobileFileTree />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'common:create common:fileTypes.character' }));
+    const input = screen.getByPlaceholderText('editor:fileTree.newCharacter');
+    fireEvent.change(input, { target: { value: '主角' } });
+    fireEvent.blur(input);
+
+    // Dismissing the mobile keyboard must not discard the draft name.
+    expect(screen.getByPlaceholderText('editor:fileTree.newCharacter')).toHaveValue('主角');
+
+    fireEvent.click(screen.getByRole('button', { name: 'common:confirm' }));
+    await waitFor(() => {
+      expect(fileApi.create).toHaveBeenCalledWith('project-1', expect.objectContaining({
+        title: '主角',
+        file_type: 'character',
+        parent_id: 'character-folder-id',
+      }));
+    });
+  });
+
+  it('exposes aria-selected on selected file rows and accessible names on row actions', async () => {
+    mockSelected.value = { id: 'draft-1', type: 'draft', title: '第一章' };
+    mockGetTree.mockResolvedValue({
+      tree: [
+        {
+          id: 'draft-1',
+          title: '第一章',
+          file_type: 'draft',
+          parent_id: null,
+          order: 0,
+          content: '',
+          metadata: null,
+          children: [],
+        },
+      ],
+    });
+
+    render(<MobileFileTree />);
+
+    const row = await screen.findByRole('treeitem');
+    expect(row).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'common:delete' })).toBeInTheDocument();
+  });
+
 });

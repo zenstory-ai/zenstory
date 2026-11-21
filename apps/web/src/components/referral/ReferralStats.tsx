@@ -7,21 +7,24 @@ import { getLocaleCode } from '@/lib/i18n-helpers';
 import { referralApi } from '@/lib/referralApi';
 import type { UserReward } from '@/types/referral';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 /**
  * Referral statistics and rewards display
  */
 export const ReferralStats: React.FC = () => {
-  const { t } = useTranslation('referral');
+  const { t } = useTranslation(['referral', 'common']);
+  const actionSize = useIsMobile() ? 'touch' : 'md';
   // Fetch stats
-  const { data: stats, isLoading: statsLoading, isFetching: statsFetching, error: statsError } = useQuery({
+  const { data: stats, isLoading: statsLoading, isFetching: statsFetching, error: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['referralStats'],
     queryFn: referralApi.getStats,
   });
   const isStatsLoading = statsLoading || (statsFetching && !stats);
 
   // Fetch rewards
-  const { data: rewards = [], isLoading: rewardsLoading, isFetching: rewardsFetching, error: rewardsError } = useQuery({
+  const { data: rewards = [], isLoading: rewardsLoading, isFetching: rewardsFetching, error: rewardsError, refetch: refetchRewards } = useQuery({
     queryKey: ['userRewards'],
     queryFn: referralApi.getRewards,
   });
@@ -29,16 +32,22 @@ export const ReferralStats: React.FC = () => {
 
   if (isStatsLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 size={24} className="animate-spin text-[hsl(var(--text-secondary))]" />
+      <div role="status" className="flex items-center justify-center py-8">
+        <Loader2 aria-hidden="true" size={24} className="animate-spin text-[hsl(var(--text-secondary))]" />
+        <span className="sr-only">{t('common:loading', '加载中…')}</span>
       </div>
     );
   }
 
   if (statsError || !stats) {
     return (
-      <div className="text-center py-8 text-[hsl(var(--error-text))]">
-        {t('stats.loadError')}
+      <div className="text-center py-8 space-y-3">
+        <p role="alert" className="text-sm text-[hsl(var(--error-text))]">
+          {t('stats.loadError')}
+        </p>
+        <Button variant="secondary" size={actionSize} onClick={() => void refetchStats()}>
+          {t('common:retry', '重试')}
+        </Button>
       </div>
     );
   }
@@ -72,7 +81,7 @@ export const ReferralStats: React.FC = () => {
       {/* Stats cards */}
       <div className="grid grid-cols-2 gap-3">
         {/* Total invites */}
-        <div className="bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl p-4 transition-all hover:shadow-md">
+        <div className="bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <Users size={16} className="text-[hsl(var(--text-secondary))]" />
             <span className="text-xs text-[hsl(var(--text-secondary))] font-medium">{t('stats.totalInvites')}</span>
@@ -83,7 +92,7 @@ export const ReferralStats: React.FC = () => {
         </div>
 
         {/* Successful invites */}
-        <div className="bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl p-4 transition-all hover:shadow-md">
+        <div className="bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <Award size={16} className="text-[hsl(var(--success-text))]" />
             <span className="text-xs text-[hsl(var(--text-secondary))] font-medium">{t('stats.successfulInvites')}</span>
@@ -94,7 +103,7 @@ export const ReferralStats: React.FC = () => {
         </div>
 
         {/* Total points */}
-        <div className="bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl p-4 transition-all hover:shadow-md">
+        <div className="bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <Gift size={16} className="text-[hsl(var(--text-secondary))]" />
             <span className="text-xs text-[hsl(var(--text-secondary))] font-medium">{t('stats.totalPoints')}</span>
@@ -105,7 +114,7 @@ export const ReferralStats: React.FC = () => {
         </div>
 
         {/* Available points */}
-        <div className="bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl p-4 transition-all hover:shadow-md">
+        <div className="bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <Coins size={16} className="text-[hsl(var(--warning-text))]" />
             <span className="text-xs text-[hsl(var(--text-secondary))] font-medium">{t('stats.availablePoints')}</span>
@@ -121,19 +130,25 @@ export const ReferralStats: React.FC = () => {
         <h3 className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-2">{t('stats.rewardHistory')}</h3>
 
         {isRewardsLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 size={20} className="animate-spin text-[hsl(var(--text-secondary))]" />
+          <div role="status" className="flex items-center justify-center py-4">
+            <Loader2 aria-hidden="true" size={20} className="animate-spin text-[hsl(var(--text-secondary))]" />
+            <span className="sr-only">{t('common:loading', '加载中…')}</span>
           </div>
         ) : rewardsError && rewards.length === 0 ? (
-          <div className="text-center py-8 text-[hsl(var(--error-text))]">
-            {t('stats.loadError')}
+          <div className="text-center py-8 space-y-3">
+            <p role="alert" className="text-sm text-[hsl(var(--error-text))]">
+              {t('stats.loadError')}
+            </p>
+            <Button variant="secondary" size={actionSize} onClick={() => void refetchRewards()}>
+              {t('common:retry', '重试')}
+            </Button>
           </div>
         ) : rewards.length > 0 ? (
           <div className="space-y-2">
             {rewards.map((reward) => (
               <div
                 key={reward.id}
-                className="flex items-center justify-between p-3 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl transition-all hover:shadow-md"
+                className="flex items-center justify-between p-3 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">

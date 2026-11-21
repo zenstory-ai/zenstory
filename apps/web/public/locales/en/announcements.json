@@ -6,8 +6,6 @@
   "admin": {
     "navigation": "Announcements",
     "title": "Announcements",
-    "subtitle": "Manage the single lightweight announcement shown on the dashboard home",
-    "current": "Current announcement",
     "visible": "Visible",
     "hidden": "Not visible",
     "version": "Version {{version}}",

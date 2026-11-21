@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 
 interface DailyCheckInProps {
   className?: string;
@@ -14,6 +15,7 @@ interface DailyCheckInProps {
 
 export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
   const { t } = useTranslation(['points', 'common']);
+  const actionSize = useIsMobile() ? 'touch' : 'md';
   const queryClient = useQueryClient();
 
   const {
@@ -46,7 +48,7 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
     <Card className={className} isLoading={statusLoading}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <svg className="w-5 h-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg aria-hidden="true" className="w-5 h-5 text-[hsl(var(--warning-text))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
           <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">
@@ -67,7 +69,7 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
           </p>
           <Button
             variant="secondary"
-            size="sm"
+            size={actionSize}
             onClick={() => void refetchStatus()}
           >
             {t('common:retry', '重试')}
@@ -75,7 +77,7 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
         </div>
       ) : isCheckedIn ? (
         <div className="flex items-center gap-2 text-[hsl(var(--success-text))]">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg aria-hidden="true" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <span className="text-sm">
@@ -89,6 +91,7 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
         </div>
       ) : (
         <Button
+          size={actionSize}
           onClick={handleCheckIn}
           isLoading={checkInMutation.isPending}
           loadingText={t('common:loading', "处理中…")}
@@ -99,13 +102,13 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
       )}
 
       {checkInMutation.isSuccess && checkInMutation.data && (
-        <div className="mt-2 p-2 bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))] text-sm rounded">
+        <div role="status" className="mt-2 p-2 bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))] text-sm rounded-xl">
           {t('checkInSuccess', '签到成功！+{{points}} 积分', { points: checkInMutation.data.points_earned })}
         </div>
       )}
 
       {checkInMutation.isError && (
-        <div className="mt-2 p-2 bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error-text))] text-sm rounded">
+        <div role="alert" className="mt-2 p-2 bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error-text))] text-sm rounded-xl">
           {t('checkInFailed', '签到失败，请重试')}
         </div>
       )}

@@ -243,4 +243,9 @@ describe("SettingsDialog language switching", () => {
     expect(screen.getByTestId("analytics-toggle")).toHaveAttribute("aria-checked", "false");
     isAnalyticsOptedOutMock.mockReturnValue(false);
   });
+
+  it("styles the logout action with red error text token", () => {
+    render(<SettingsDialog isOpen onClose={vi.fn()} defaultTab="profile" />);
+    expect(screen.getByTestId("settings-logout-button").className).toContain("--error-text");
+  });
 });

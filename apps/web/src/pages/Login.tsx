@@ -6,7 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { projectApi } from "../lib/api";
 import { authConfig, hasOAuthProviders } from "../config/auth";
 import { PublicHeader } from "../components/PublicHeader";
-import { LoadingSpinner } from "../components/LoadingSpinner";
+import { Button } from "../components/ui/Button";
 import { LOGIN_ATTEMPT_KEY, normalizePlanIntent, ownedReturnTarget, planIntentBillingPath, type LoginAttempt } from "../lib/authFlow";
 import { handleSsoRedirect } from '../lib/ssoRedirect';
 import { ApiError, resolveOwnedAuthSession } from '../lib/apiClient';
@@ -208,8 +208,8 @@ export const Login: React.FC = () => {
           {/* Logo */}
           <div className="text-center mb-8 sm:mb-10">
             <div className="inline-flex items-center gap-2.5 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-[hsl(var(--accent-primary))] flex items-center justify-center shadow-lg">
-                <LogoMark className="w-7 h-7 text-white" />
+              <div className="w-12 h-12 rounded-xl bg-[hsl(var(--primary))] flex items-center justify-center shadow-lg">
+                <LogoMark className="w-7 h-7 text-[hsl(var(--primary-foreground))]" />
               </div>
             </div>
             <h1 className="text-2xl font-bold text-[hsl(var(--text-primary))] mb-2">{t('auth:login.title')}</h1>
@@ -227,13 +227,14 @@ export const Login: React.FC = () => {
             >
               <p className="text-[hsl(var(--error-text))] text-sm">{error}</p>
               {unverifiedEmail !== null && (
-                <button
+                <Button
                   type="button"
+                  size="touch"
                   onClick={() => navigate(verifyEmailLink, { state: { email: unverifiedEmail } })}
-                  className="btn-primary mt-3 min-h-11 w-full"
+                  className="mt-3 w-full"
                 >
                   {t('auth:login.goVerify')}
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -296,7 +297,7 @@ export const Login: React.FC = () => {
                   if (error) setError("");
                   setUnverifiedEmail(null);
                 }}
-                className="input"
+                className="input min-h-11"
                 placeholder={t('auth:login.usernamePlaceholder')}
                 required
                 autoFocus
@@ -336,7 +337,7 @@ export const Login: React.FC = () => {
                   if (error) setError("");
                   setUnverifiedEmail(null);
                 }}
-                className="input"
+                className="input min-h-11"
                 placeholder={t('auth:login.passwordPlaceholder')}
                 required
                 data-testid="password-input"
@@ -349,24 +350,18 @@ export const Login: React.FC = () => {
 
             {/* Submit Button */}
             {/* data-testid: login-submit - Submit button for login action */}
-            <button
+            <Button
               type="submit"
+              size="lg"
               disabled={!canSubmit}
-              className="btn-primary w-full py-3 text-base"
+              isLoading={loading}
+              loadingText={t('auth:login.submitting')}
+              className="w-full"
               data-testid="login-submit"
               aria-busy={loading}
             >
-              {loading ? (
-                <LoadingSpinner
-                  size="sm"
-                  variant="css"
-                  color="white"
-                  label={t('auth:login.submitting')}
-                />
-              ) : (
-                t('auth:login.submit')
-              )}
-            </button>
+              {t('auth:login.submit')}
+            </Button>
           </form>
 
           {/* Register Link */}

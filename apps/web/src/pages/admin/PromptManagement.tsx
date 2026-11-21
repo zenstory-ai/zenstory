@@ -80,15 +80,10 @@ export const PromptManagement: React.FC = () => {
 
   return (
     <div className="admin-page">
-      <div className="flex flex-col items-start justify-between gap-4 lg:flex-row">
-        <div>
-          <h1 className="admin-page-title">
-            {t("prompts.title")}
-          </h1>
-          <p className="admin-page-subtitle">
-            {t("prompts.subtitle")}
-          </p>
-        </div>
+      <div className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-center">
+        <h1 className="admin-page-title">
+          {t("prompts.title")}
+        </h1>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={handleReload}
@@ -207,7 +202,7 @@ export const PromptManagement: React.FC = () => {
           size="md"
         >
           <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-[hsl(var(--separator-color))]">
-            <AlertTriangle size={24} className="text-red-500" />
+            <AlertTriangle size={24} className="text-[hsl(var(--error-text))]" />
             <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))]">
               {t("prompts.delete")}
             </h2>
@@ -223,20 +218,26 @@ export const PromptManagement: React.FC = () => {
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 px-4 sm:px-6 py-4 border-t border-[hsl(var(--separator-color))]">
-            <button
+            <Button
+              type="button"
+              variant="secondary"
+              size="touch"
               onClick={() => setDeletingPrompt(null)}
               disabled={deleteMutation.isPending}
-              className="w-full sm:w-auto px-4 py-2.5 min-h-11 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg hover:bg-[hsl(var(--bg-tertiary))] active:scale-95 transition-all text-sm text-[hsl(var(--text-primary))] disabled:opacity-50"
+              className="w-full sm:w-auto"
             >
               {t("common:cancel")}
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="touch"
               onClick={handleDeleteConfirm}
               disabled={deleteMutation.isPending}
-              className="w-full sm:w-auto px-4 py-2.5 min-h-11 bg-[hsl(var(--error))] text-white rounded-lg hover:bg-[hsl(var(--error)/0.9)] active:scale-95 transition-all text-sm disabled:opacity-50"
+              className="w-full sm:w-auto"
             >
               {deleteMutation.isPending ? t("common:loading") : t("common:confirm")}
-            </button>
+            </Button>
           </div>
         </Modal>
       )}

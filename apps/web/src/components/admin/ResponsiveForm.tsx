@@ -30,7 +30,7 @@ export function FormField({ label, required = false, children, className = "", h
     <div className={className}>
       <label htmlFor={htmlFor} className="mb-1 block text-sm font-medium text-[hsl(var(--text-primary))]">
         {label}
-        {required && <span className="text-red-500 ml-1">*</span>}
+        {required && <span className="text-[hsl(var(--error-text))] ml-1">*</span>}
       </label>
       {children}
     </div>

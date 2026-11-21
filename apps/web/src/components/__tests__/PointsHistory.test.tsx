@@ -353,7 +353,7 @@ describe('PointsHistory', () => {
 
       await waitFor(() => {
         const amountElement = screen.getByText('+50')
-        expect(amountElement).toHaveClass('text-[hsl(var(--success-light))]')
+        expect(amountElement).toHaveClass('text-[hsl(var(--success-text))]')
       })
     })
 
@@ -505,7 +505,7 @@ describe('PointsHistory', () => {
       render(<PointsHistory />, { wrapper: createWrapper() })
 
       await waitFor(() => {
-        const prevButton = screen.getByText('上一页')
+        const prevButton = screen.getByRole('button', { name: '上一页' })
         expect(prevButton).toBeDisabled()
       })
     })
@@ -628,9 +628,21 @@ describe('PointsHistory', () => {
       render(<PointsHistory />, { wrapper: createWrapper() })
 
       await waitFor(() => {
-        const prevButton = screen.getByText('上一页')
+        const prevButton = screen.getByRole('button', { name: '上一页' })
         expect(prevButton).toBeDisabled()
       })
+    })
+
+    it('renders error alert with retry button and recovers on retry', async () => {
+      mockPointsApi.getTransactions
+        .mockRejectedValueOnce(new Error('network error'))
+        .mockResolvedValueOnce(createMockResponse([createMockTransaction()]))
+
+      render(<PointsHistory />, { wrapper: createWrapper() })
+
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '重试' }))
+      expect(await screen.findByText('签到')).toBeInTheDocument()
     })
 
     it('does not exceed total pages', async () => {
