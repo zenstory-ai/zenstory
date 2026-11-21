@@ -1517,4 +1517,48 @@ describe('ToolResultCard', () => {
       expect(screen.getByText('「悬念大师」 · references/hooks.md')).toBeInTheDocument()
     })
   })
+
+  describe('mobile layout and touch-target polish', () => {
+    it('wraps icon and title together inside the unified file button without underline', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="write_chapter"
+          result={{ data: { id: 'ch-7', title: '第七章 开窍', file_type: 'draft', chapter: 7, action: 'created' } }}
+          onOpenFile={vi.fn()}
+        />
+      )
+      const fileButton = screen.getByRole('button', { name: '第七章 开窍' })
+      expect(fileButton.querySelector('svg')).not.toBeNull()
+      expect(fileButton.className).toContain('items-center')
+      expect(fileButton.className).toContain('min-h-11')
+      expect(fileButton.className).toContain('-my-2')
+      expect(fileButton.className).not.toContain('underline')
+    })
+
+    it('indents edit_file details summary to pl-6 with rotating chevron and 44px mobile touch target', () => {
+      const { container } = render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          result={{
+            data: {
+              id: 'file-1',
+              title: '第七章 开窍',
+              file_type: 'draft',
+              details: [{ op: 'replace', old_preview: 'a', new_preview: 'b' }],
+            },
+          }}
+        />
+      )
+      const details = container.querySelector('details')
+      const summary = container.querySelector('summary')
+      const chevron = summary?.querySelector('svg')
+      expect(details).toHaveClass('group')
+      expect(summary?.className).toContain('pl-6')
+      expect(summary?.className).toContain('min-h-11')
+      expect(chevron?.getAttribute('class')).toContain('group-open:rotate-90')
+      expect(screen.getByText('第七章 开窍')).toBeInTheDocument()
+    })
+  })
 })

@@ -475,11 +475,12 @@ const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) =>
   return (
     <div className="mt-2">
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="cursor-pointer select-none text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors flex items-center gap-1 w-full text-left"
+        className="cursor-pointer select-none min-h-11 md:min-h-0 -my-1.5 md:my-0 rounded text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors flex items-center gap-1 w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
       >
         <svg
-          className={`w-3 h-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -498,13 +499,13 @@ const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) =>
             return (
               <details
                 key={item.id || `${item.type}-${index}`}
-                className={CHAT_CARD_SURFACE}
+                className={`group ${CHAT_CARD_SURFACE}`}
               >
-                <summary className="cursor-pointer select-none px-3 py-2 text-xs flex items-center gap-2 min-w-0 list-none"
+                <summary className="cursor-pointer select-none min-h-11 md:min-h-0 px-3 py-2 text-xs flex items-center gap-2 min-w-0 list-none rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden"
                   style={{ listStyle: 'none' }}
                 >
                   <svg
-                    className="w-3 h-3 text-[hsl(var(--text-secondary))] transition-transform duration-200 shrink-0"
+                    className="w-3 h-3 text-[hsl(var(--text-secondary))] transition-transform duration-200 group-open:rotate-90 shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -799,13 +800,19 @@ const Row = React.memo(function Row({
   const avatarSize = isMobile ? 'w-7 h-7' : 'w-8 h-8';
   const iconSize = isMobile ? 14 : 16;
   const gap = isMobile ? 'gap-2' : 'gap-3';
-
   const paddingY = isMobile ? 'py-2' : 'py-3';
+  const isMobileAssistant = isMobile && message.role === 'assistant';
 
   return (
-    <div className={`flex items-start ${gap} ${paddingY}`}>
-      {/* Avatar - only show for first message in consecutive group */}
-      {!isConsecutiveSameRole ? (
+    <div className={`flex ${isMobileAssistant ? 'flex-col gap-1.5' : `items-start ${gap}`} ${paddingY}`}>
+      {/* Avatar - on mobile assistant rows, stack compactly only on the first row so cards/text use full width */}
+      {isMobileAssistant ? (
+        !isConsecutiveSameRole ? (
+          <div className="shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center ring-2 ring-[hsl(var(--accent-primary)/0.3)]">
+            <Sparkles size={13} className="text-white" />
+          </div>
+        ) : null
+      ) : !isConsecutiveSameRole ? (
         message.role === 'user' ? (
           user?.avatar_url ? (
             <img
@@ -823,26 +830,25 @@ const Row = React.memo(function Row({
             <Sparkles size={iconSize} className="text-white" />
           </div>
         )
-      ) : (
-        // Empty placeholder to maintain alignment with avatars that have ring-2 (ring adds ~4px total width)
-        // Use the same base size as avatar, then add ring offset for visual alignment
+      ) : !isMobile ? (
+        // Empty placeholder to maintain alignment with avatars on desktop/tablet
         <div className={`shrink-0 ${avatarSize}`} />
-      )}
+      ) : null}
 
       {/* Content */}
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0 overflow-hidden w-full">
         {hasDisplayItems ? (
           <OrderedMessageItems items={orderedDisplayItems!} onUndo={onUndo} onRestoreDeletion={onRestoreDeletion} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={false} chatMessageId={message.backendMessageId} />
         ) : (
           hasDisplayContent && (
             <div className="flex items-end gap-0.5">
               <div
-                className={`chat-message-bubble ${
+                className={`${
                   message.role === 'user'
-                    ? 'chat-message-bubble-user'
-                    : 'chat-message-bubble-ai'
+                    ? 'chat-message-bubble chat-message-bubble-user'
+                    : 'chat-message-bubble chat-message-bubble-ai rounded-xl bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))]'
                 } inline-block max-w-full text-sm ${
-                  isMobile ? 'px-3 py-2' : 'px-3.5 py-2.5'
+                  isMobile ? 'px-3 py-2' : 'px-4 py-3'
                 }`}
               >
                 {message.role === 'assistant' ? (
@@ -922,7 +928,7 @@ const Row = React.memo(function Row({
               title={!canSubmitFeedback
                 ? t('feedback.pendingSave', { ns: 'chat' })
                 : undefined}
-              className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-10 h-10 sm:w-8 sm:h-8 ${
+              className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
                 selectedFeedbackVote === 'up'
                   ? 'border-[hsl(var(--success)/0.45)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
                   : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
@@ -942,7 +948,7 @@ const Row = React.memo(function Row({
               title={!canSubmitFeedback
                 ? t('feedback.pendingSave', { ns: 'chat' })
                 : undefined}
-              className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-10 h-10 sm:w-8 sm:h-8 ${
+              className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
                 selectedFeedbackVote === 'down'
                   ? 'border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]'
                   : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
@@ -1207,18 +1213,24 @@ export const MessageList = React.memo(
 
       {/* 然后渲染流式内容 - 按服务端顺序直接追加在最后 */}
       {shouldShowStreamItems && (
-        <div key="stream-items" className={`flex items-start py-2 ${isMobile ? 'gap-2' : 'gap-3'}`}>
+        <div key="stream-items" className={`flex py-2 ${isMobile ? 'flex-col gap-1.5' : 'items-start gap-3'}`}>
           {/* AI Avatar - 只在第一条消息是 assistant 时显示 */}
-          {shouldShowAIAvatar ? (
-            <div className={`shrink-0 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center ring-2 ring-[hsl(var(--accent-primary)/0.3)] ${isMobile ? 'w-7 h-7' : 'w-8 h-8'}`}>
-              <Sparkles size={isMobile ? 14 : 16} className="text-white" />
+          {isMobile ? (
+            shouldShowAIAvatar ? (
+              <div className="shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center ring-2 ring-[hsl(var(--accent-primary)/0.3)]">
+                <Sparkles size={13} className="text-white" />
+              </div>
+            ) : null
+          ) : shouldShowAIAvatar ? (
+            <div className="shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center ring-2 ring-[hsl(var(--accent-primary)/0.3)]">
+              <Sparkles size={16} className="text-white" />
             </div>
           ) : (
-            <div className={`shrink-0 ${isMobile ? 'w-7 h-7' : 'w-8 h-8'}`} />
+            <div className="shrink-0 w-8 h-8" />
           )}
 
           {/* Stream items */}
-          <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="flex-1 min-w-0 overflow-hidden w-full">
             <OrderedMessageItems items={safeStreamRenderItems} onUndo={onUndo} onRestoreDeletion={onRestoreDeletion} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={true} />
 
             {/* Timestamp */}
