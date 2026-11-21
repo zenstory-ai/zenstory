@@ -37,6 +37,7 @@ from .core.account_run_limit import AccountRunSlot
 from .core.events import (
     HISTORY_COMPACTION_SKIPPED_STEP,
     HISTORY_COMPACTION_STEP,
+    WALL_CLOCK_LIMIT,
     context_event,
     done_event,
     error_event,
@@ -52,7 +53,7 @@ from .core.message_manager import (
     has_substantive_display_events,
     normalize_assistant_display_events,
 )
-from .core.round_outcome import RunOutcome
+from .core.round_outcome import RUN_DEADLINE_STOP_REASON, RunOutcome
 from .core.run_meter import AgentRunMeter
 from .core.session_loader import SessionLoader
 from .core.steering import (
@@ -83,8 +84,10 @@ from .loop.wire_prefix_cache import (
     aload_wire_prefix,
     astore_wire_prefix,
     invalidate_wire_prefix,
+    is_well_formed_wire_prefix,
     provider_cache_key,
 )
+from .openai_agents.runner import MAX_TURNS_STOP_REASON
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .skills.content_budget import split_selected_budget
@@ -100,6 +103,31 @@ PARTIAL_SAVE_CANCELLED_STOP_REASON = "cancelled"
 # 前端「重试 / 重新发送」一条没得到回复的消息时在 metadata 里带上它（见
 # _drop_unanswered_retry_message_sync）。
 RETRY_UNANSWERED_METADATA_KEY = "retry_unanswered"
+
+# Stop reasons whose clean completion (or soft-landing) produces a reusable wire-prefix cache entry.
+_WIRE_PREFIX_CACHEABLE_STOP_REASONS = frozenset(
+    {"end_turn", RUN_DEADLINE_STOP_REASON, MAX_TURNS_STOP_REASON}
+)
+# Clean soft-landing pause cards that do NOT taint wire_prefix_cache (as long as no empty files
+# were left unfinished or rolled back).
+_WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LAYERS = frozenset({"tool_call", "collaboration"})
+_WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LIMITS = frozenset({WALL_CLOCK_LIMIT, "max_turns"})
+
+
+def _has_blocking_wire_prefix_status_cards(status_cards: list[dict[str, Any]]) -> bool:
+    """Return True when any status card indicates an unclean/non-cacheable ending."""
+    for card in status_cards:
+        if not isinstance(card, dict):
+            return True
+        if card.get("type") != "iteration_exhausted":
+            return True
+        if card.get("layer") not in _WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LAYERS:
+            return True
+        if card.get("limit") not in _WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LIMITS:
+            return True
+        if card.get("unfinishedFiles") or card.get("rolledBackFiles"):
+            return True
+    return False
 
 
 # 作者在一部作品里发出的第一条消息带 metadata.entry：工作台想法（dashboard_idea）、聊天空态
@@ -801,6 +829,7 @@ class AgentService:
         request_failed = False
         stream_cancelled = False
         history_saved = False
+        stored_wire_prefix = False
         history_save_task: asyncio.Task | None = None
         cancellation_save_task: asyncio.Task | None = None
 
@@ -1575,7 +1604,13 @@ class AgentService:
                 assistant_message_id = await asyncio.shield(history_save_task)
                 if run_outcome is not None:
                     run_outcome.resolve_message_id(assistant_message_id)
-                completed_wire_items = writing_state.get("native_run_holder", {}).get("items")
+                native_holder = writing_state.get("native_run_holder") or {}
+                completed_wire_items = native_holder.get("items")
+                has_unconsumed_steering = (
+                    "messages_len" in native_holder
+                    and len(writing_state.get("messages") or [])
+                    > int(native_holder.get("messages_len") or 0)
+                )
                 if (
                     user_id
                     and session_id
@@ -1583,16 +1618,16 @@ class AgentService:
                     and not had_stream_error
                     and not request_failed
                     and not stream_cancelled
-                    and assistant_stop_reason == "end_turn"
-                    and not assistant_status_cards
+                    and not (run_outcome is not None and run_outcome.stop_kind)
+                    and assistant_stop_reason in _WIRE_PREFIX_CACHEABLE_STOP_REASONS
+                    and not _has_blocking_wire_prefix_status_cards(assistant_status_cards)
                     and not late_steering_before_save
+                    and not has_unconsumed_steering
                     and not has_pending_file_state
-                    and not run_meter.past_wrap_up
-                    and isinstance(completed_wire_items, list)
-                    and completed_wire_items
+                    and is_well_formed_wire_prefix(completed_wire_items)
                     and run_meter.last_served_provider_key
                 ):
-                    await astore_wire_prefix(
+                    stored_wire_prefix = await astore_wire_prefix(
                         session_id=session_id,
                         project_id=project_id,
                         user_id=user_id,
@@ -1601,6 +1636,8 @@ class AgentService:
                         provider_key=run_meter.last_served_provider_key,
                         items=completed_wire_items,
                     )
+                if user_id and session_id and history_saved and not stored_wire_prefix:
+                    await ainvalidate_wire_prefix(session_id)
                 if pending_done_payload is not None:
                     yield done_event(
                         assistant_message_id=assistant_message_id,
@@ -1678,6 +1715,11 @@ class AgentService:
                                 _append_user_messages_sync, late_steering
                             )
                             await ainvalidate_wire_prefix(session_id)
+                        elif not stored_wire_prefix or (
+                            run_outcome is not None
+                            and (run_outcome.stop_kind or run_outcome.deadline_stop_reason)
+                        ):
+                            await ainvalidate_wire_prefix(session_id)
                         return
                     # 作者停止 / 断线（路由层在取消前写入 stop_kind）：落库真实的停止
                     # 原因，并且即使没有任何产出也写一条助手消息，刷新后看得到终态。
@@ -1689,6 +1731,7 @@ class AgentService:
                     )
                     if run_outcome is not None:
                         run_outcome.resolve_message_id(saved_id)
+                    await ainvalidate_wire_prefix(session_id)
 
                 cancellation_save_task = self._schedule_background_cleanup(
                     _drain_then_save_partial_history(),
@@ -1797,6 +1840,7 @@ class AgentService:
                                 )
                                 if run_outcome is not None:
                                     run_outcome.resolve_message_id(saved_id)
+                                await ainvalidate_wire_prefix(session_id)
                             except Exception as exc:
                                 log_with_context(
                                     logger,
