@@ -76,7 +76,7 @@ export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) =>
   const expiryText = formatExpiry(inviteCode.expires_at);
 
   return (
-    <Card hoverable className="space-y-3">
+    <Card className="space-y-3">
       {/* Code display */}
       <div className="flex items-center justify-between">
         <div className="flex-1 min-w-0">

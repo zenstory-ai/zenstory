@@ -1239,5 +1239,19 @@ describe('SkillsPage', () => {
         expect(publicSkillsApi.getCategories).toHaveBeenCalledTimes(2)
       })
     })
+
+    it('gives skill selection toggle buttons accessible names and 44px mobile touch targets', async () => {
+      render(<SkillsPage />)
+      await userEvent.click(screen.getByRole('button', { name: /my skills/i }))
+      await screen.findByText('Writing Assistant')
+
+      const toggles = screen.getAllByTestId('skill-selection-toggle')
+      expect(toggles.length).toBeGreaterThan(0)
+      for (const toggle of toggles) {
+        expect(toggle).toHaveAttribute('type', 'button')
+        expect(toggle.getAttribute('aria-label')).toBeTruthy()
+        expect(toggle).toHaveClass('min-h-11', 'min-w-11')
+      }
+    })
   })
 })

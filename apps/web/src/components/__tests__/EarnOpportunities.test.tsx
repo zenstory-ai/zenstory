@@ -186,7 +186,7 @@ describe('EarnOpportunities', () => {
       })
     })
 
-    it('shows yellow color for available opportunity points', async () => {
+    it('shows warning-text semantic color for available opportunity points', async () => {
       mockPointsApi.getEarnOpportunities.mockResolvedValue(mockOpportunities)
 
       render(<EarnOpportunities />, { wrapper: createWrapper() })
@@ -195,7 +195,7 @@ describe('EarnOpportunities', () => {
         const pointsElements = screen.getAllByText(/\+\d+/)
         // Find the +50 points (available)
         const availablePoints = pointsElements.find(el => el.textContent === '+50')
-        expect(availablePoints).toHaveClass('text-[hsl(var(--accent-secondary))]')
+        expect(availablePoints).toHaveClass('text-[hsl(var(--warning-text))]')
       })
     })
 

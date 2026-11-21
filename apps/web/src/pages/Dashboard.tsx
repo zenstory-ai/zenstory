@@ -503,7 +503,7 @@ function DashboardContent() {
                   <div className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
                     {displayName}
                   </div>
-                  <div className="text-xs text-[hsl(var(--text-secondary))]">
+                  <div className="text-xs text-[hsl(var(--text-secondary))] truncate">
                     {user?.email || ""}
                   </div>
                 </div>
@@ -535,6 +535,15 @@ function DashboardContent() {
                 <Settings size={18} />
                 {openSettingsLabel}
               </button>
+              {user?.is_superuser && (
+                <button
+                  onClick={handleOpenAdmin}
+                  className="flex min-h-11 items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded-lg text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
+                >
+                  <Shield size={18} />
+                  {adminPanelLabel}
+                </button>
+              )}
               <a
                 href={SUPPORT_MAILTO}
                 data-testid="dashboard-contact-support-link-mobile"

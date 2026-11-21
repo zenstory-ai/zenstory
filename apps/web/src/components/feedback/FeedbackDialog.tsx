@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { AlertCircle, ImagePlus, Trash2 } from "lucide-react";
 
 import Modal from "../ui/Modal";
+import { Button } from "../ui/Button";
+import { useIsMobile } from "../../hooks/useMediaQuery";
 import { debugContext } from "../../lib/debugContext";
 import { feedbackApi, type FeedbackSourcePage } from "../../lib/feedbackApi";
 import { handleApiError } from "../../lib/errorHandler";
@@ -27,6 +29,7 @@ export function FeedbackDialog({
   sourceRoute,
 }: FeedbackDialogProps) {
   const { t } = useTranslation("common");
+  const isMobile = useIsMobile();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [issueText, setIssueText] = useState("");
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
@@ -165,28 +168,32 @@ export function FeedbackDialog({
         "遇到问题或有改进建议？告诉我们。"
       )}
       size="lg"
+      showCloseButton={!isSubmitting}
+      closeOnBackdropClick={!isSubmitting}
+      closeOnEscape={!isSubmitting}
       footer={
         <>
-          <button
+          <Button
             type="button"
-            className="btn-ghost h-11 px-5"
+            variant="ghost"
+            size="touch"
             onClick={() => closeDialog()}
             disabled={isSubmitting}
           >
             {t("cancel", "取消")}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn-primary h-11 px-5"
+            size="touch"
             onClick={() => {
               void handleSubmit();
             }}
             disabled={!canSubmit}
+            isLoading={isSubmitting}
+            loadingText={t("feedback.submitting", "提交中…")}
           >
-            {isSubmitting
-              ? t("feedback.submitting", "提交中…")
-              : t("feedback.submit", "提交反馈")}
-          </button>
+            {t("feedback.submit", "提交反馈")}
+          </Button>
         </>
       }
     >
@@ -277,23 +284,26 @@ export function FeedbackDialog({
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
                     type="button"
-                    className="btn-ghost h-9 px-3 text-xs"
+                    variant="ghost"
+                    size={isMobile ? "touch" : "sm"}
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isSubmitting}
                   >
                     {t("feedback.replaceAction", "更换")}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="btn-ghost h-9 px-3 text-xs text-[hsl(var(--error-text))] hover:text-[hsl(var(--error-text))]"
+                    variant="ghost"
+                    size={isMobile ? "touch" : "sm"}
+                    className="text-[hsl(var(--error-text))] hover:text-[hsl(var(--error-text))]"
                     onClick={handleRemoveScreenshot}
                     disabled={isSubmitting}
+                    leftIcon={<Trash2 size={14} />}
                   >
-                    <Trash2 size={14} />
                     {t("feedback.removeAction", "移除")}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -301,7 +311,7 @@ export function FeedbackDialog({
         </div>
 
         {validationError && (
-          <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--error)/0.28)] bg-[hsl(var(--error)/0.10)] px-3 py-2 text-sm text-[hsl(var(--error-text))]">
+          <div role="alert" className="flex items-start gap-2 rounded-xl border border-[hsl(var(--error)/0.28)] bg-[hsl(var(--error)/0.10)] px-3 py-2 text-sm text-[hsl(var(--error-text))]">
             <AlertCircle size={16} className="mt-0.5 shrink-0" />
             <span>{validationError}</span>
           </div>
