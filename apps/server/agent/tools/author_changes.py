@@ -149,10 +149,28 @@ def _advance(
     non_author：作者把段落改回原文时，那一段回到的来源（有 AI 写过时为 AI，否则为原稿）。
     作者整段删掉 AI 写的或原稿的段落时记进 blame.deletions；任何人把同一段文字放回来，这条删除就不再列出。
     """
-    matcher = _matcher(blame.lines, new_lines)
-    labels: list[str] = []
-    origins: list[str] = []
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+    old_lines = blame.lines
+    old_len = len(old_lines)
+    new_len = len(new_lines)
+    prefix = 0
+    limit = min(old_len, new_len)
+    while prefix < limit and old_lines[prefix] == new_lines[prefix]:
+        prefix += 1
+    suffix = 0
+    rem = limit - prefix
+    while suffix < rem and old_lines[old_len - 1 - suffix] == new_lines[new_len - 1 - suffix]:
+        suffix += 1
+    if prefix == old_len == new_len:
+        return
+
+    old_end = old_len - suffix
+    new_end = new_len - suffix
+    labels: list[str] = list(blame.labels[:prefix])
+    origins: list[str] = list(blame.origins[:prefix])
+    matcher = _matcher(old_lines[prefix:old_end], new_lines[prefix:new_end])
+    for tag, mi1, mi2, mj1, mj2 in matcher.get_opcodes():
+        i1, i2 = prefix + mi1, prefix + mi2
+        j1, j2 = prefix + mj1, prefix + mj2
         if tag == "equal":
             labels.extend(blame.labels[i1:i2])
             origins.extend(blame.origins[i1:i2])
@@ -196,6 +214,9 @@ def _advance(
             else:
                 labels.append(actor)
                 origins.append(replaced if offset == anchor else "")
+    if suffix:
+        labels.extend(blame.labels[old_end:])
+        origins.extend(blame.origins[old_end:])
     present = {line.strip() for line in new_lines if line.strip()}
     blame.deletions = [item for item in blame.deletions if item.text not in present]
     blame.lines = list(new_lines)
@@ -391,7 +412,10 @@ def author_hunks(blame: LineBlame) -> list[AuthorHunk]:
             if part.strip()
         }
         baseline = _split(blame.latest_ai_content)
-        if baseline != blame.lines:
+        if baseline != blame.lines and any(
+            (stripped := line.strip()) and current_counts[stripped] == 0 and stripped not in replaced_lines
+            for line in baseline
+        ):
             matcher = _matcher(baseline, blame.lines)
             for tag, i1, i2, _j1, _j2 in matcher.get_opcodes():
                 if tag not in ("delete", "replace"):

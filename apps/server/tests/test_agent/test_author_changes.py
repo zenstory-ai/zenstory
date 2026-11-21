@@ -934,5 +934,8 @@ def test_long_file_with_repeated_short_lines_replays_fast_for_ai_only_and_author
     edited_elapsed = time.perf_counter() - t1
     assert edited_result is not None
     assert [(h.before, h.after) for h in edited_result.hunks] == [(old_line, new_line)]
-    assert matcher_calls <= 2  # 1 in line_blame (v12->v13) + 1 in author_hunks (latest_ai_content vs lines)
+    assert matcher_calls == 1
     assert edited_elapsed < 1.0
+    # Verify autojunk=True marks the 600x repeated 2-char line as popular (preventing quadratic blowup
+    # even when edits span the full file without a shared prefix/suffix).
+    assert "——" in real_matcher(author_lines, author_lines).bpopular
