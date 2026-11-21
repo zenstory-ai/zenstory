@@ -581,3 +581,96 @@ async def test_failover_chat_model_is_decoupled_from_request_context_and_overdue
         [SimpleNamespace(output=json.dumps(clean_out, ensure_ascii=False))],
     )
     assert continue_res.is_final_output is False
+
+
+# ---------------------------------------------------------------------------
+# 5. AgentRequestContext helpers, scope resilience, and unwrap_request_context
+# ---------------------------------------------------------------------------
+
+
+def test_agent_request_context_scopes_and_unwrap_contracts():
+    from services.usage.cost_budget import current_user_id
+
+    # 1) unwrap_request_context handles direct, RunContextWrapper, ToolErrorFormatterArgs, None, unknown.
+    req_ctx = AgentRequestContext(user_id="u-contract", project_id="p-contract", session_id="s-contract")
+    assert unwrap_request_context(req_ctx) is req_ctx
+    assert unwrap_request_context(RunContextWrapper(req_ctx)) is req_ctx
+    assert unwrap_request_context(SimpleNamespace(run_context=RunContextWrapper(req_ctx))) is req_ctx
+    assert unwrap_request_context(SimpleNamespace(run_context=SimpleNamespace(context="not-a-ctx"))) is None
+    assert unwrap_request_context("not-a-ctx") is None
+    assert unwrap_request_context(None) is None
+
+    # 2) session_scope raises when neither factory nor injected session is set.
+    with pytest.raises(RuntimeError, match="No session available"):
+        with req_ctx.session_scope():
+            pass
+
+    # 3) session_scope handles rollback/close errors cleanly without masking original exception.
+    class _BrokenSession:
+        def rollback(self) -> None:
+            raise RuntimeError("rollback failed")
+
+        def close(self) -> None:
+            raise RuntimeError("close failed")
+
+    broken_ctx = AgentRequestContext(
+        user_id="u-broken", project_id="p-broken", create_session_func=_BrokenSession
+    )
+    with pytest.raises(ValueError, match="inner error"):
+        with broken_ctx.session_scope():
+            raise ValueError("inner error")
+
+    # 4) executor_scope opens and closes a short-lived session bound to FileToolExecutor.
+    created: list[_TrackingFakeSession] = []
+    exec_ctx = AgentRequestContext(
+        user_id="u-exec",
+        project_id="p-exec",
+        create_session_func=lambda: (s := _TrackingFakeSession(len(created)), created.append(s))[0],
+    )
+    with exec_ctx.executor_scope() as executor:
+        assert executor.user_id == "u-exec"
+        assert executor.session is created[0]
+        assert created[0].closed is False
+    assert created[0].closed is True
+
+    # 5) bind_cost_budget_user binds and restores ambient cost-budget user_id even on error.
+    assert current_user_id() is None
+    with pytest.raises(KeyError):
+        with req_ctx.bind_cost_budget_user():
+            assert current_user_id() == "u-contract"
+            raise KeyError("abort")
+    assert current_user_id() is None
+
+    # 6) Empty UI payload / missing call_id are no-ops.
+    req_ctx.record_tool_ui_payload(None, {"undo": {}})
+    req_ctx.record_tool_ui_payload("call-empty", {})
+    assert req_ctx.pop_tool_ui_payload(None) is None
+    assert req_ctx.pop_tool_ui_payload("call-empty") is None
+
+    # 7) Saved-body, cut-body, chapter-replacement, and close helpers delegate cleanly.
+    ok, _ = req_ctx.try_reserve_pending_empty_file("t-1", "第1章")
+    assert ok is True
+    req_ctx.bind_pending_empty_file(
+        "t-1",
+        "f-ch1",
+        "第1章",
+        version="v1",
+        replacement={"file_id": "f-ch1", "title": "第1章", "baseline_updated_at": "v1"},
+    )
+    assert req_ctx.pending_empty_file_version("f-ch1") == "v1"
+    assert req_ctx.rearm_pending_file_body("f-ch1") is True
+    assert req_ctx.unsaved_chapter_replacement_ids() == {"f-ch1"}
+    req_ctx.mark_chapter_replacement_saved("f-ch1")
+    assert req_ctx.unsaved_chapter_replacement_ids() == set()
+
+    req_ctx.mark_chapter_body_saved("f-ch1", "第1章", "draft")
+    assert req_ctx.saved_content_body_ids() == ["f-ch1"]
+    assert req_ctx.chapter_body_saved_this_request("f-ch1") is True
+    req_ctx.mark_cut_body_saved("f-ch2", "第2章")
+    assert req_ctx.take_cut_bodies() == {"f-ch2": "第2章"}
+    assert req_ctx.take_cut_bodies() == {}
+
+    closed = req_ctx.close_pending_body_files()
+    assert req_ctx.pending_body_files_closed() is True
+    assert isinstance(closed, list)
+
