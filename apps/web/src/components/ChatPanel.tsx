@@ -2735,7 +2735,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       >
         {/* 右栏可能只有 300px 宽：标题不折行，状态词放不下就省略，额度用紧凑胶囊。 */}
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" data-testid="chat-panel-header-title">
-          <span className={`min-w-0 truncate whitespace-nowrap font-medium text-[hsl(var(--text-primary))] ${isMobile ? 'text-xs' : 'text-sm'}`}>{t('chat:panel.title')}</span>
+          <span className="min-w-0 truncate whitespace-nowrap text-sm font-medium text-[hsl(var(--text-primary))]">{t('chat:panel.title')}</span>
           {isStreaming && (
             <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--success-text))] animate-[breathe_1.5s_ease-in-out_infinite] motion-reduce:animate-none">
               · {t('chat:panel.processing')}

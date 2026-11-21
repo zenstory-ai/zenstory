@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { BottomTabs } from '../BottomTabs'
 
 vi.mock('react-i18next', () => ({
@@ -67,5 +69,14 @@ describe('BottomTabs', () => {
     const nav = screen.getByTestId('bottom-tabs')
     expect(nav).toHaveClass('min-h-14')
     expect(nav).not.toHaveClass('h-14')
+  })
+
+  it('keeps .mobile-bottom-tab inside @layer components without unlayered utility overrides', () => {
+    const css = readFileSync(resolve(__dirname, '../../index.css'), 'utf8')
+    const layeredMatch = css.match(/@layer components\s*\{[\s\S]*?\.mobile-bottom-tab\s*\{([^}]*)\}/)
+    expect(layeredMatch).not.toBeNull()
+    expect(layeredMatch?.[1]).not.toMatch(/\bcolor\s*:/)
+    expect(layeredMatch?.[1]).not.toContain('transition-colors')
+    expect(css).not.toMatch(/\.mobile-bottom-tab:focus-visible/)
   })
 })

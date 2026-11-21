@@ -1028,7 +1028,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           }}
           placeholder={displayPlaceholder}
           disabled={inputDisabled}
-          className={`flex-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl text-sm text-[hsl(var(--text-primary))] placeholder:text-sm placeholder:text-[hsl(var(--text-secondary)/0.75)] outline-none resize-none overflow-y-auto transition-all disabled:opacity-50 focus:border-[hsl(var(--accent-primary)/0.6)] focus:shadow-[inset_0_1px_2px_hsl(0_0%_0%_/_0.05),_0_0_0_2px_hsl(var(--accent-primary)/0.15)] ${
+          className={`flex-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl text-sm text-[hsl(var(--text-primary))] placeholder:text-sm placeholder:text-[hsl(var(--text-secondary))] outline-none resize-none overflow-y-auto transition-all disabled:opacity-50 focus:border-[hsl(var(--accent-primary)/0.6)] focus:shadow-[inset_0_1px_2px_hsl(0_0%_0%_/_0.05),_0_0_0_2px_hsl(var(--accent-primary)/0.15)] ${
             isMobile ? 'px-3 py-2.5' : 'px-3 py-2'
           } ${
             isFillLayout ? "h-full min-h-0" : ""
