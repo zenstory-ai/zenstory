@@ -20,7 +20,7 @@ from services.core.auth_service import hash_password
 
 
 class _FakeRedis:
-    """Minimal in-memory Redis stand-in implementing get/setex/delete."""
+    """Minimal in-memory Redis stand-in implementing get/set/setex/expire/delete."""
 
     def __init__(self) -> None:
         self.store: dict[str, tuple[str, int]] = {}
@@ -29,6 +29,19 @@ class _FakeRedis:
     def get(self, key: str) -> str | None:
         entry = self.store.get(key)
         return entry[0] if entry is not None else None
+
+    def set(self, key: str, value: str, *, nx: bool = False, ex: int | None = None) -> bool:
+        if nx and key in self.store:
+            return False
+        self.store[key] = (value, ex if ex is not None else 0)
+        return True
+
+    def expire(self, key: str, ttl: int) -> bool:
+        entry = self.store.get(key)
+        if entry is None:
+            return False
+        self.store[key] = (entry[0], ttl)
+        return True
 
     def setex(self, key: str, ttl: int, value: str) -> bool:
         self.store[key] = (value, ttl)

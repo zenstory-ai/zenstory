@@ -353,3 +353,247 @@ def test_cooldown_works_without_a_backup_provider():
     llm_failover.record_failure(failing, session, _rate_limited())
 
     assert llm_failover.ordered_providers(session)[0].key_slot == "primary"
+
+
+# --- Redis idle sliding TTL sticky routing (Guards #1-#5) ---------------------------
+
+
+class _ClockedFakeRedis:
+    """Clock-aware in-memory Redis double supporting get/mget/set(nx,ex)/expire."""
+
+    def __init__(self) -> None:
+        self.now = 1_000.0
+        self.store: dict[str, tuple[str, float]] = {}
+        self.get_calls: list[str] = []
+        self.expire_calls: list[tuple[str, int]] = []
+        self.set_calls: list[tuple[str, str, bool, int | None]] = []
+
+    def _alive(self, key: str) -> str | None:
+        entry = self.store.get(key)
+        if entry is None:
+            return None
+        value, expires_at = entry
+        if expires_at <= self.now:
+            self.store.pop(key, None)
+            return None
+        return value
+
+    def get(self, key: str) -> str | None:
+        self.get_calls.append(key)
+        return self._alive(key)
+
+    def mget(self, keys: list[str]) -> list[str | None]:
+        return [self._alive(key) for key in keys]
+
+    def set(self, key: str, value: str, *, nx: bool = False, ex: int | None = None) -> bool:
+        self.set_calls.append((key, value, nx, ex))
+        if nx and self._alive(key) is not None:
+            return False
+        ttl = float(ex) if ex is not None else 3600.0
+        self.store[key] = (value, self.now + ttl)
+        return True
+
+    def expire(self, key: str, ttl: int) -> bool:
+        self.expire_calls.append((key, ttl))
+        value = self._alive(key)
+        if value is None:
+            return False
+        self.store[key] = (value, self.now + float(ttl))
+        return True
+
+
+@pytest.fixture
+def sticky_redis(monkeypatch):
+    client = _ClockedFakeRedis()
+    monkeypatch.setenv("REDIS_URL", "redis://fake-key-route/0")
+    monkeypatch.setattr("services.infra.redis_client.get_redis_client", lambda: client)
+    llm_providers.reset_key_routing_state()
+    llm_failover.reset_failover_state()
+    yield client
+    llm_providers.reset_key_routing_state()
+    llm_failover.reset_failover_state()
+
+
+@pytest.mark.unit
+def test_active_session_stays_pinned_across_utc_hour_boundaries_with_sliding_ttl_and_intra_run_lock(
+    sticky_redis, monkeypatch
+):
+    """Guard #2 & #3: active session refreshes TTL on each run and never flips across UTC
+    hour boundaries; subsequent calls within the same run use memory with 0 extra Redis IO."""
+    monkeypatch.setenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT", "40")
+    monkeypatch.setattr(llm_providers, "LLM_KEY_ROUTING_WINDOW_S", 1800.0)
+    sticky_redis.now = 3_000.0  # 10 min before 3600s UTC hour boundary
+
+    session = "active-whale-session"
+    first_slot = _run_slot("run-0", session)
+    assert sticky_redis.store[f"llm:key_route:{session}"][0] == first_slot
+
+    # Advance 15 min per turn across 10 consecutive UTC hour boundaries (> 2.5 hours active).
+    for idx in range(1, 12):
+        sticky_redis.now += 900.0  # < 1800s sliding TTL
+        assert _run_slot(f"run-{idx}", session) == first_slot
+
+    assert len(sticky_redis.expire_calls) == 11
+    assert sticky_redis.expire_calls[-1] == (f"llm:key_route:{session}", 1800)
+
+    # Guard #2: within one run, subsequent calls incur 0 extra Redis IO (even without session_key).
+    gets_before = len(sticky_redis.get_calls)
+    expires_before = len(sticky_redis.expire_calls)
+    tokens = bind_request_context(agent_run_id="run-intra")
+    try:
+        slot_1 = _provider(session).key_slot
+        assert len(sticky_redis.get_calls) == gets_before + 1
+        assert len(sticky_redis.expire_calls) == expires_before + 1
+        # Calls 2..5 (e.g. main loop after compaction, or session-less call) hit memory only.
+        for _ in range(3):
+            assert _provider(session).key_slot == slot_1
+        assert _provider(None).key_slot == slot_1
+        assert len(sticky_redis.get_calls) == gets_before + 1
+        assert len(sticky_redis.expire_calls) == expires_before + 1
+    finally:
+        reset_request_context(tokens)
+
+
+@pytest.mark.unit
+def test_idle_session_expires_and_redraws_at_configured_weight(sticky_redis, monkeypatch):
+    """Guard #3: once a session is idle longer than LLM_KEY_ROUTING_WINDOW_S, its Redis key
+    expires and re-draws at MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT so one session cannot camp
+    on secondary across days."""
+    monkeypatch.setenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT", "40")
+    monkeypatch.setattr(llm_providers, "LLM_KEY_ROUTING_WINDOW_S", 1800.0)
+
+    slots = []
+    for idx in range(1_500):
+        sticky_redis.now += 1801.0  # strictly past idle window
+        slots.append(_run_slot(f"idle-run-{idx}", "same-whale-session"))
+
+    secondary_share = slots.count("secondary") / len(slots)
+    assert 0.35 < secondary_share < 0.45
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("disable_mode", ["weight_zero", "missing_secondary_key"])
+def test_weight_zero_or_missing_secondary_key_switches_back_instantly_before_redis(
+    sticky_redis, monkeypatch, disable_mode: str
+):
+    """Guard #1: disabling secondary key (weight=0 or unset key) returns primary immediately
+    with 0 Redis reads even when Redis holds a live 'secondary' sticky entry."""
+    session = "stale-secondary-session"
+    sticky_redis.set(f"llm:key_route:{session}", "secondary", ex=1800)
+    sticky_redis.get_calls.clear()
+
+    if disable_mode == "weight_zero":
+        monkeypatch.setenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT", "0")
+    else:
+        monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY")
+
+    assert _run_slot("switchback-run", session) == "primary"
+    assert sticky_redis.get_calls == []
+
+
+@pytest.mark.unit
+def test_concurrent_set_nx_race_converges_on_winners_slot(monkeypatch):
+    """Guard #3: if a concurrent request wins SET NX between GET and SET, the loser re-reads
+    and returns the winner's slot instead of its own candidate draw."""
+
+    class _RaceRedis:
+        def __init__(self) -> None:
+            self.value: str | None = None
+            self.get_count = 0
+
+        def get(self, _key: str) -> str | None:
+            self.get_count += 1
+            return self.value
+
+        def set(self, _key: str, _value: str, *, nx: bool = False, ex: int | None = None) -> bool:
+            assert nx is True and ex == 1800
+            # Simulate concurrent winner writing "secondary" just before our SET NX executes.
+            self.value = "secondary"
+            return False
+
+        def expire(self, _key: str, _ttl: int) -> bool:
+            return True
+
+    race_redis = _RaceRedis()
+    monkeypatch.setenv("REDIS_URL", "redis://fake-race/0")
+    monkeypatch.setenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT", "40")
+    monkeypatch.setattr("services.infra.redis_client.get_redis_client", lambda: race_redis)
+    # Force our local candidate draw to "primary" so we prove the winner's "secondary" wins.
+    monkeypatch.setattr(llm_providers, "_hmac_slot", lambda *_a, **_kw: "primary")
+
+    assert _run_slot("loser-run", "raced-session") == "secondary"
+    assert race_redis.get_count == 2
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_redis_outage_fails_open_and_aordered_providers_runs_off_event_loop(monkeypatch):
+    """Guard #4: Redis errors fail open silently to deterministic session_key HMAC without
+    raising, and aordered_providers executes sync Redis I/O on a worker thread."""
+    import threading
+
+    seen_threads: list[int] = []
+
+    class _ThreadRecordingRedis(_ClockedFakeRedis):
+        def get(self, key: str) -> str | None:
+            seen_threads.append(threading.get_ident())
+            return super().get(key)
+
+    main_tid = threading.get_ident()
+    recording_redis = _ThreadRecordingRedis()
+    monkeypatch.setenv("REDIS_URL", "redis://fake-thread-check/0")
+    monkeypatch.setenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT", "40")
+    monkeypatch.setattr("services.infra.redis_client.get_redis_client", lambda: recording_redis)
+    llm_providers.reset_key_routing_state()
+
+    tokens = bind_request_context(agent_run_id="async-run-1")
+    try:
+        ordered = await llm_failover.aordered_providers("async-session")
+    finally:
+        reset_request_context(tokens)
+
+    assert len(ordered) == 1
+    assert seen_threads and all(tid != main_tid for tid in seen_threads)
+
+    # Now simulate Redis outage: must fail open without raising and stay deterministic.
+    class _BrokenRedis:
+        def get(self, _key: str):
+            raise ConnectionError("redis unreachable")
+
+        def mget(self, _keys):
+            raise ConnectionError("redis unreachable")
+
+    monkeypatch.setattr("services.infra.redis_client.get_redis_client", lambda: _BrokenRedis())
+    llm_providers.reset_key_routing_state()
+
+    first = _run_slot("outage-run-1", "outage-session")
+    second = _run_slot("outage-run-2", "outage-session")
+    assert first == second
+    assert first in ("primary", "secondary")
+
+
+@pytest.mark.unit
+def test_key_cooldown_overrides_sticky_slot_without_overwriting_redis_route(
+    sticky_redis, with_backup, monkeypatch
+):
+    """Guard #5: 429 cooldown fails over to other_key() without clobbering llm:key_route:{session};
+    once cooldown expires, the session returns to its sticky slot."""
+    monkeypatch.setenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT", "40")
+    session = "sticky-cooldown-session"
+    route_key = f"llm:key_route:{session}"
+    sticky_redis.set(route_key, "secondary", ex=1800)
+
+    first = llm_failover.ordered_providers(session)[0]
+    assert first.key_slot == "secondary"
+
+    # Secondary hits 429 -> cools down for LLM_KEY_COOLDOWN_S, failover serves primary.
+    llm_failover.record_failure(first, session, _rate_limited(429))
+    during_cooldown = llm_failover.ordered_providers(session)[0]
+    assert during_cooldown.key_slot == "primary"
+    # Sticky Redis route must NOT have been overwritten by the cooldown failover.
+    assert sticky_redis.store[route_key][0] == "secondary"
+
+    # Once cooldown expires (while still inside sticky window), session returns to secondary.
+    sticky_redis.now += llm_failover.LLM_KEY_COOLDOWN_S + 1.0
+    after_cooldown = llm_failover.ordered_providers(session)[0]
+    assert after_cooldown.key_slot == "secondary"

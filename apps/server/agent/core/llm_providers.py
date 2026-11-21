@@ -11,9 +11,10 @@ configuration:
 - credentials per provider: ``DEEPSEEK_API_KEY`` / ``DEEPSEEK_BASE_URL``,
   ``MINIMAX_API_KEY`` / ``MINIMAX_BASE_URL``. MiniMax may additionally set
   ``MINIMAX_SECONDARY_API_KEY`` and
-  ``MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT`` (default 20). A session stays pinned to one
-  key across runs (until single-key cooldown shifts traffic), and a run keeps its route
-  for its whole length.
+  ``MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT`` (default 20). An active session stays pinned
+  to one key via a Redis idle sliding TTL (``LLM_KEY_ROUTING_WINDOW_S``, default 1800 s),
+  re-drawing after going idle past the window; a run locks its chosen slot in memory for
+  its whole length, and ``weight=0`` switches back to primary immediately.
 - ``MINIMAX_REASONING_EFFORT`` (default ``high``): MiniMax defaults to ``max``
   when the request names no effort.
 - read timeout (longest silence between bytes, including the wait for the first byte):
@@ -30,6 +31,8 @@ import hashlib
 import hmac
 import os
 import threading
+import time
+import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, replace
 from typing import Any
@@ -56,6 +59,13 @@ _KEY_ROUTE_MEMORY_RUNS = 4096
 # The read timeout (longest silence between bytes) is per provider: ProviderKind.read_timeout_s.
 LLM_CLIENT_CONNECT_TIMEOUT_S = get_positive_float_env("DEEPSEEK_CLIENT_CONNECT_TIMEOUT_S", 5.0)
 LLM_CLIENT_MAX_RETRIES = get_int_env("DEEPSEEK_CLIENT_MAX_RETRIES", 2, minimum=0)
+# Idle sliding TTL for per-session MiniMax dual-key stickiness in Redis: active sessions
+# refresh on every run so they never flip across UTC hour boundaries, while sessions idle
+# longer than this window expire and re-draw at MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT.
+LLM_KEY_ROUTING_WINDOW_S = get_positive_float_env("LLM_KEY_ROUTING_WINDOW_S", 1800.0)
+_KEY_ROUTE_REDIS_PREFIX = "llm:key_route:"
+_KEY_ROUTE_REDIS_MIN_TTL_S = 60
+_KEY_ROUTE_REDIS_RETRY_AFTER_S = 30.0
 
 
 @dataclass(frozen=True)
@@ -188,22 +198,121 @@ def _next_minimax_bucket() -> int:
     return bucket
 
 
-def _minimax_key(routing_key: str | None, *, rotate_if_unkeyed: bool) -> tuple[str, str]:
+def _hmac_slot(primary_key: str, seed: str, weight: int) -> str:
+    # Keyed with primary_key: a session id may come from the client, which must not choose its bucket.
+    digest = hmac.new(primary_key.encode("utf-8"), seed.encode("utf-8"), hashlib.sha256).digest()
+    bucket = int.from_bytes(digest[:8], "big") % 100
+    return KEY_SLOT_SECONDARY if bucket < weight else KEY_SLOT_PRIMARY
+
+
+def _key_route_redis_key(session_key: str) -> str:
+    return f"{_KEY_ROUTE_REDIS_PREFIX}{session_key}"
+
+
+def _decode_slot(raw: Any) -> str | None:
+    if isinstance(raw, bytes):
+        try:
+            raw = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+    return raw if raw in (KEY_SLOT_PRIMARY, KEY_SLOT_SECONDARY) else None
+
+
+_key_route_redis_down_until = 0.0
+
+
+def _sticky_session_slot(
+    session_key: str,
+    *,
+    primary_key: str,
+    weight: int,
+    run_id: str | None,
+) -> str:
+    """Resolve a session's sticky key slot using Redis idle sliding TTL, failing open to HMAC.
+
+    - Hit in Redis -> refresh sliding TTL (``EXPIRE``) and return the stored slot.
+    - Miss (new session or idle past ``LLM_KEY_ROUTING_WINDOW_S``) -> draw via HMAC on
+      ``f"{session_key}:{run_id or nonce}"`` vs ``weight`` and write atomically with
+      ``SET key slot NX EX ttl``. If a concurrent caller wins the NX race, ``GET`` and
+      return the winner's slot.
+    - Redis unconfigured or unavailable -> fail open (with 30s error cooldown) to
+      deterministic HMAC on ``session_key``.
+    """
+    global _key_route_redis_down_until
+    if os.getenv("REDIS_URL") and time.monotonic() >= _key_route_redis_down_until:
+        from services.infra.redis_client import get_redis_client
+
+        key = _key_route_redis_key(session_key)
+        ttl = max(_KEY_ROUTE_REDIS_MIN_TTL_S, int(LLM_KEY_ROUTING_WINDOW_S))
+        try:
+            client = get_redis_client()
+            existing = _decode_slot(client.get(key))
+            if existing is not None:
+                client.expire(key, ttl)
+                return existing
+            draw_seed = f"{session_key}:{run_id or uuid.uuid4().hex}"
+            candidate = _hmac_slot(primary_key, draw_seed, weight)
+            if client.set(key, candidate, nx=True, ex=ttl):
+                return candidate
+            winner = _decode_slot(client.get(key))
+            return winner if winner is not None else candidate
+        except Exception as exc:  # noqa: BLE001 - fail open to deterministic session hash
+            _key_route_redis_down_until = time.monotonic() + _KEY_ROUTE_REDIS_RETRY_AFTER_S
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "LLM key routing state: Redis unavailable, falling back to deterministic session hash",
+                error_type=type(exc).__name__,
+            )
+    return _hmac_slot(primary_key, session_key, weight)
+
+
+def _minimax_key(
+    routing_key: str | None,
+    *,
+    rotate_if_unkeyed: bool,
+    run_id: str | None = None,
+) -> tuple[str, str]:
     primary_key = os.getenv(MINIMAX.api_key_env) or ""
     secondary_key = os.getenv("MINIMAX_SECONDARY_API_KEY") or ""
     weight = _minimax_secondary_weight_percent()
+    # Guard #1: instant switchback when secondary key is absent or weight == 0,
+    # before consulting in-memory run routes or Redis sticky keys.
     if not secondary_key or weight == 0:
         return primary_key, KEY_SLOT_PRIMARY
 
+    # Guard #2: intra-run lock in memory (0 extra Redis IO for subsequent calls in the same run).
+    if run_id:
+        with _key_route_lock:
+            cached_slot = _key_routes.get(run_id)
+        if cached_slot in (KEY_SLOT_PRIMARY, KEY_SLOT_SECONDARY):
+            return (
+                (secondary_key, KEY_SLOT_SECONDARY)
+                if cached_slot == KEY_SLOT_SECONDARY
+                else (primary_key, KEY_SLOT_PRIMARY)
+            )
+
     if routing_key:
-        # Keyed: a session id may come from the client, which must not choose its bucket.
-        digest = hmac.new(primary_key.encode("utf-8"), routing_key.encode("utf-8"), hashlib.sha256).digest()
-        bucket = int.from_bytes(digest[:8], "big") % 100
+        slot = _sticky_session_slot(
+            routing_key,
+            primary_key=primary_key,
+            weight=weight,
+            run_id=run_id,
+        )
+    elif run_id:
+        slot = _hmac_slot(primary_key, run_id, weight)
     elif rotate_if_unkeyed:
-        bucket = _next_minimax_bucket()
+        slot = KEY_SLOT_SECONDARY if _next_minimax_bucket() < weight else KEY_SLOT_PRIMARY
     else:
         return primary_key, KEY_SLOT_PRIMARY
-    if bucket < weight:
+
+    if run_id:
+        with _key_route_lock:
+            slot = _key_routes.setdefault(run_id, slot)
+            while len(_key_routes) > _KEY_ROUTE_MEMORY_RUNS:
+                _key_routes.popitem(last=False)
+
+    if slot == KEY_SLOT_SECONDARY:
         return secondary_key, KEY_SLOT_SECONDARY
     return primary_key, KEY_SLOT_PRIMARY
 
@@ -227,28 +336,12 @@ _key_route_lock = threading.Lock()
 _key_routes: OrderedDict[str, str] = OrderedDict()
 
 
-def _route_for_run(run_id: str, session_key: str | None) -> str:
-    """The run's credential route, decided by its first call and kept to its end.
-
-    Consecutive runs of a session stay pinned to the same ``session_key`` across wall-clock
-    boundaries so active sessions do not flip credentials mid-conversation and wipe their
-    warm prefix cache. Single-key quota/rate-limit pressure is handled by ``other_key()`` +
-    ``LLM_KEY_COOLDOWN_S``. Calls without a session fall back to ``run_id``.
-    """
-    with _key_route_lock:
-        route = _key_routes.get(run_id)
-        if route is None:
-            route = session_key if session_key else run_id
-            _key_routes[run_id] = route
-            while len(_key_routes) > _KEY_ROUTE_MEMORY_RUNS:
-                _key_routes.popitem(last=False)
-        return route
-
-
 def reset_key_routing_state() -> None:
-    """Clear remembered run routes; intended for tests."""
+    """Clear remembered run routes and Redis circuit cooldown; intended for tests."""
+    global _key_route_redis_down_until
     with _key_route_lock:
         _key_routes.clear()
+    _key_route_redis_down_until = 0.0
 
 
 def _build_provider(
@@ -258,6 +351,7 @@ def _build_provider(
     *,
     routing_key: str | None = None,
     rotate_if_unkeyed: bool = False,
+    run_id: str | None = None,
 ) -> ModelProvider:
     effort = kind.default_reasoning_effort
     if kind.reasoning_effort_env:
@@ -265,7 +359,7 @@ def _build_provider(
         if raw in kind.reasoning_efforts:
             effort = raw
     api_key, key_slot = (
-        _minimax_key(routing_key, rotate_if_unkeyed=rotate_if_unkeyed)
+        _minimax_key(routing_key, rotate_if_unkeyed=rotate_if_unkeyed, run_id=run_id)
         if kind is MINIMAX
         else (os.getenv(kind.api_key_env) or "", KEY_SLOT_PRIMARY)
     )
@@ -294,19 +388,18 @@ def configured_providers(
     a warning: a half-configured backup must not take the primary down.
     """
     # ``agent_run_id`` is generated server-side and keeps every model call in a run
-    # together; the session only decides that run's route. Do not route on a
-    # client-controlled request id. See _minimax_key for why a session id is safe here.
+    # together; the session decides that run's sticky key slot (via Redis idle sliding TTL,
+    # failing open to deterministic HMAC). Do not route on a client-controlled request id.
     from utils.request_context import get_agent_run_id
 
     run_id = get_agent_run_id()
-    if run_id:
-        routing_key = _route_for_run(run_id, routing_key)
     primary = _build_provider(
         SLOT_PRIMARY,
         _kind(os.getenv("LLM_PRIMARY_PROVIDER") or DEEPSEEK.name, "LLM_PRIMARY_PROVIDER"),
         "LLM_PRIMARY_MODEL",
         routing_key=routing_key,
         rotate_if_unkeyed=rotate_if_unkeyed,
+        run_id=run_id,
     )
     # A selected secondary credential does not make the documented primary
     # credential optional; deployment rollback must always have a primary key.
@@ -321,6 +414,7 @@ def configured_providers(
             "LLM_BACKUP_MODEL",
             routing_key=routing_key,
             rotate_if_unkeyed=rotate_if_unkeyed,
+            run_id=run_id,
         )
         if os.getenv(backup.kind.api_key_env) or "":
             providers.append(backup)

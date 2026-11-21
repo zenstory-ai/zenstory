@@ -469,7 +469,7 @@ def record_failure(provider: ModelProvider, session_id: str | None, exc: BaseExc
     """
     if _cool_key(provider, exc):
         return True
-    providers = llm_providers.configured_providers(routing_key=session_id)
+    providers = llm_providers.configured_providers()
     if len(providers) == 1:
         return False
     other = next(p for p in providers if p.slot != provider.slot)
@@ -507,29 +507,21 @@ def record_success(provider: ModelProvider, session_id: str | None, ordered: lis
 
 
 async def aordered_providers(session_id: str | None = None, *, thinking_enabled: bool = True) -> list[ModelProvider]:
-    providers = llm_providers.configured_providers(routing_key=session_id, rotate_if_unkeyed=True)
-    if len(providers) == 1 and llm_providers.other_key(providers[0]) is None:
-        return providers
+    """Async provider ordering offloaded from the event loop (Redis sticky routing + cooldowns)."""
     return await asyncio.to_thread(
-        _order_configured_providers,
-        providers,
+        ordered_providers,
         session_id,
         thinking_enabled=thinking_enabled,
     )
 
 
 async def arecord_failure(provider: ModelProvider, session_id: str | None, exc: BaseException) -> bool:
-    if (
-        len(llm_providers.configured_providers(routing_key=session_id)) > 1
-        or llm_providers.other_key(provider) is not None
-    ):
-        return await asyncio.to_thread(record_failure, provider, session_id, exc)
-    return False
+    return await asyncio.to_thread(record_failure, provider, session_id, exc)
 
 
 def pin_session_to_other(provider: ModelProvider, session_id: str | None) -> None:
     """Pin the session to the slot other than ``provider`` without counting a circuit failure."""
-    providers = llm_providers.configured_providers(routing_key=session_id)
+    providers = llm_providers.configured_providers()
     if len(providers) == 1 or not session_id:
         return
     other = next(p for p in providers if p.slot != provider.slot)
@@ -546,7 +538,7 @@ def pin_session_to_other(provider: ModelProvider, session_id: str | None) -> Non
 
 
 async def apin_session_to_other(provider: ModelProvider, session_id: str | None) -> None:
-    if session_id and len(llm_providers.configured_providers(routing_key=session_id)) > 1:
+    if session_id:
         await asyncio.to_thread(pin_session_to_other, provider, session_id)
 
 

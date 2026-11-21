@@ -8,7 +8,7 @@ quality_reviewer）已删除（[remove-graph-agent][n-remove-graph]）：它写�
 
 MiniMax 可配置双凭证：`MINIMAX_API_KEY` 是主凭证，
 `MINIMAX_SECONDARY_API_KEY` 是次凭证，
-`MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT` 控制次凭证承担的任务比例（默认 20）；同一会话固定留在一把 Key（不再按时间窗轮换，避免跨整点切 Key 击穿热缓存），一把 Key 限流或账号出错只冷却自己 `LLM_KEY_COOLDOWN_S`，两把都冷却才算供应商失败。
+`MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT` 控制次凭证承担的任务比例（默认 20）；活跃会话通过 Redis 空闲滑动 TTL 键 `llm:key_route:{session_id}`（`LLM_KEY_ROUTING_WINDOW_S`，默认 1800 秒，每次新 run 命中续期、空闲超时后重抽、`SET NX` 防并发竞态；Redis 不可用时 fail-open 退回确定性 `session_id` HMAC，权重为 0 时零延迟直切主 Key）固定留在一把 Key、避免跨整点切 Key 击穿热缓存，同一 `agent_run_id` 内记在内存零额外 Redis IO；一把 Key 限流或账号出错只冷却自己 `LLM_KEY_COOLDOWN_S`（不覆盖粘性路由键），两把都冷却才算供应商失败。
 同一服务端 `agent_run_id` 的全部 MiniMax 调用固定到同一凭证；没有 run 上下文的素材调用按每次真实模型调用轮转分配。
 双凭证仍属于同一个 provider 槽位，不互相 failover；client cache 按真实凭证隔离，日志只记录
 `key_slot=primary|secondary`，不得记录 Key 或分桶值。该比例是任务数比例，不保证 token 或费用精确同比分摊。
