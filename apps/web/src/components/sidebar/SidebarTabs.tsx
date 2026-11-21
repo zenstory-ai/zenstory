@@ -26,22 +26,29 @@ export const SidebarTabs: React.FC = () => {
   };
 
   return (
-    <div className="flex border-b border-[hsl(var(--border-primary))]">
+    <div
+      role="tablist"
+      aria-label={t('editor:sidebar.files')}
+      className="flex h-12 shrink-0 border-b border-[hsl(var(--separator-color))]"
+    >
       {tabs.map((tab) => {
         const isActive = effectiveActiveTab === tab.id;
         const Icon = tab.icon;
         return (
           <button
             key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
             onClick={() => handleTabClick(tab.id)}
-            className={`flex-1 flex flex-col items-center justify-center py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))] ${
+            className={`flex-1 flex flex-col items-center justify-center h-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
               isActive
                 ? "text-[hsl(var(--accent-primary))] border-b-2 border-[hsl(var(--accent-primary))]"
-                : "text-[hsl(var(--text-secondary))]"
+                : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
             }`}
           >
-            <Icon size={18} />
-            <span className="text-xs mt-0.5">
+            <Icon size={16} aria-hidden="true" />
+            <span className="text-xs mt-0.5 leading-none">
               {t(`editor:sidebar.${tab.id}`)}
             </span>
           </button>

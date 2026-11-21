@@ -43,6 +43,7 @@ import {
   Search,
   MessageSquarePlus,
   Check,
+  X,
 } from "lucide-react";
 
 /**
@@ -284,11 +285,12 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         <div
           role="treeitem"
           aria-expanded={isFolder ? isExpanded : undefined}
+          aria-selected={!isFolder ? isSelected : undefined}
           className={`
             flex items-center gap-3 px-4 cursor-pointer transition-colors
             min-h-[44px] /* Mobile touch target minimum */
             ${isSelected && !isFolder
-              ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]"
+              ? "bg-[hsl(var(--accent-primary)/0.12)] text-[hsl(var(--accent-primary))] font-medium"
               : "text-[hsl(var(--text-primary))] active:bg-[hsl(var(--bg-tertiary))]"
             }
           `}
@@ -313,7 +315,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           )}
 
           {/* Icon */}
-          <span className="text-[hsl(var(--text-secondary))] shrink-0">
+          <span className={`${isSelected && !isFolder ? "text-[hsl(var(--accent-primary))]" : "text-[hsl(var(--text-secondary))]"} shrink-0`}>
             {FILE_TYPE_ICONS[node.file_type] || <FileText size={20} />}
           </span>
 
@@ -332,6 +334,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           {/* Action buttons - always visible on mobile for better UX */}
           {isFolder && (
             <button
+              type="button"
               onClick={
                 isMaterialFolderNode
                   ? triggerUpload
@@ -354,6 +357,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           {/* Add/remove snippet to chat context */}
           {node.file_type === "snippet" && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 if (isMaterialAttached(node.id)) {
@@ -371,6 +375,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
                   : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))]"
               }`}
               title={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
+              aria-label={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
             >
               {isMaterialAttached(node.id) ? <Check size={18} /> : <MessageSquarePlus size={18} />}
             </button>
@@ -379,9 +384,11 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           {/* Delete button */}
           {!isFolder && (
             <button
+              type="button"
               onClick={(e) => handleDelete(e, node.id, node.title)}
               className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
               title={t('common:delete')}
+              aria-label={t('common:delete')}
             >
               <Trash2 size={18} />
             </button>
@@ -398,7 +405,6 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
               type="text"
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
-              onBlur={cancelCreate}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   handleCreate(node.id);
@@ -408,8 +414,29 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
               }}
               placeholder={getPlaceholder(newItemType)}
               autoFocus
-              className="flex-1 bg-[hsl(var(--bg-primary))] border border-[hsl(var(--accent-primary))] rounded-lg px-3 py-2 text-base text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none min-h-[44px]"
+              className="flex-1 min-w-0 bg-[hsl(var(--bg-primary))] border border-[hsl(var(--accent-primary))] rounded-lg px-3 py-2 text-base text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none min-h-[44px]"
             />
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleCreate(node.id)}
+              disabled={!newItemName.trim()}
+              aria-label={t('common:confirm')}
+              title={t('common:confirm')}
+              className="min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Check size={18} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={cancelCreate}
+              aria-label={t('common:cancel')}
+              title={t('common:cancel')}
+              className="min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
+            >
+              <X size={18} />
+            </button>
           </div>
         )}
 
@@ -552,7 +579,9 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
             <p className="text-sm">{t('editor:fileTree.noSearchResults')}</p>
           </div>
         ) : (
-          filteredTree.map((node) => renderNode(node))
+          <div role="tree" aria-label={t('editor:sidebar.files')}>
+            {filteredTree.map((node) => renderNode(node))}
+          </div>
         )}
       </div>
 

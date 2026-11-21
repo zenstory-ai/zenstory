@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useId, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Share2 } from "../icons";
 import Modal from "../ui/Modal";
+import { Button } from "../ui/Button";
 import { skillsApi } from "../../lib/api";
 import type { Skill } from "../../types";
 
@@ -24,9 +25,9 @@ export function ShareSkillModal({
   skill,
   onClose,
   onSuccess,
-  isMobile,
 }: ShareSkillModalProps) {
   const { t } = useTranslation(["skills", "common"]);
+  const categoryId = useId();
   const [category, setCategory] = useState("writing");
   const [sharing, setSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +42,11 @@ export function ShareSkillModal({
       if (ownerRef.current === owner) ownerRef.current = null;
     };
   }, [skill.id]);
+
+  const handleClose = () => {
+    if (sharing) return;
+    onClose();
+  };
 
   const handleShare = async () => {
     const owner = ownerRef.current;
@@ -66,32 +72,39 @@ export function ShareSkillModal({
   return (
     <Modal
       open={true}
-      onClose={onClose}
+      onClose={handleClose}
       title={t("skills:share.title")}
-      size={isMobile ? "full" : "md"}
-      className={isMobile ? "!rounded-none !inset-0" : ""}
+      size="md"
+      showCloseButton={!sharing}
+      closeOnBackdropClick={!sharing}
+      closeOnEscape={!sharing}
       footer={
         <>
-          <button onClick={onClose} className="btn-ghost flex-1 h-11">
-            {t("common:cancel")}
-          </button>
-          <button
-            onClick={handleShare}
+          <Button
+            type="button"
+            variant="ghost"
+            size="touch"
+            onClick={handleClose}
             disabled={sharing}
-            className="btn-primary flex-1 h-11 flex items-center justify-center gap-2"
+            className="flex-1"
           >
-            {sharing ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-            ) : (
-              <Share2 className="w-4 h-4" />
-            )}
+            {t("common:cancel")}
+          </Button>
+          <Button
+            type="button"
+            size="touch"
+            onClick={handleShare}
+            isLoading={sharing}
+            leftIcon={<Share2 className="w-4 h-4" />}
+            className="flex-1"
+          >
             {t("skills:share.submit")}
-          </button>
+          </Button>
         </>
       }
     >
       <div className="space-y-4">
-        <div className="p-3 bg-[hsl(var(--bg-tertiary))] rounded-lg">
+        <div className="p-3 bg-[hsl(var(--bg-tertiary))] rounded-xl">
           <p className="text-sm font-medium text-[hsl(var(--text-primary))]">{skill.name}</p>
           {skill.description && (
             <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">{skill.description}</p>
@@ -99,10 +112,11 @@ export function ShareSkillModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-2">
+          <label htmlFor={categoryId} className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-2">
             {t("skills:share.category")}
           </label>
           <select
+            id={categoryId}
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="input w-full"
@@ -120,7 +134,7 @@ export function ShareSkillModal({
         </p>
 
         {error && (
-          <p className="text-sm text-[hsl(var(--error-text))]">{error}</p>
+          <p role="alert" className="text-sm text-[hsl(var(--error-text))]">{error}</p>
         )}
       </div>
     </Modal>

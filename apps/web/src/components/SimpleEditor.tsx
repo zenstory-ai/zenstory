@@ -188,7 +188,7 @@ const NaturalPolishCandidate = ({
         <p className="mb-2 text-xs font-medium text-[hsl(var(--text-secondary))]">
           {t(showOriginal ? 'editor:naturalPolishOriginalLabel' : 'editor:naturalPolishCandidateLabel')}
         </p>
-        <pre className="m-0 whitespace-pre-wrap break-words font-[inherit] text-base leading-relaxed text-[hsl(var(--text-primary))]">
+        <pre className="m-0 whitespace-pre-wrap break-words font-[family-name:var(--font-body)] text-base leading-relaxed text-[hsl(var(--text-primary))]">
           {showOriginal ? originalContent : modifiedContent}
         </pre>
       </div>
@@ -1229,31 +1229,21 @@ export const SimpleEditor = ({
         />
       )}
 
-      {/* Streaming indicator overlay */}
+      {/* Streaming indicator banner */}
       {isStreaming && !isReviewMode && (
-        <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-r from-[hsl(var(--accent-primary)/0.15)] to-[hsl(var(--accent-primary)/0.05)] px-6 py-3 flex items-center gap-3 border-b border-[hsl(var(--accent-primary)/0.2)] backdrop-blur-sm">
-          <div className="relative">
-            <Sparkles size={18} className="text-[hsl(var(--accent-primary))]" />
-            <div className="absolute inset-0 animate-ping">
-              <Sparkles size={18} className="text-[hsl(var(--accent-primary))] opacity-40" />
-            </div>
-          </div>
+        <div className="shrink-0 bg-[hsl(var(--accent-primary)/0.08)] px-4 sm:px-6 py-2.5 flex items-center gap-2.5 border-b border-[hsl(var(--accent-primary)/0.2)]">
+          <Loader2 size={16} className="shrink-0 animate-spin text-[hsl(var(--accent-primary))]" aria-hidden="true" />
           <span className="text-sm text-[hsl(var(--accent-primary))] font-medium">{t('editor:aiWriting')}</span>
-          <div className="flex gap-1">
-            <span className="w-1.5 h-1.5 bg-[hsl(var(--accent-primary))] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-            <span className="w-1.5 h-1.5 bg-[hsl(var(--accent-primary))] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-            <span className="w-1.5 h-1.5 bg-[hsl(var(--accent-primary))] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-          </div>
         </div>
       )}
       
       {/* Title bar */}
       <div
-        className={`shrink-0 px-6 ${
+        className={`shrink-0 px-4 sm:px-6 ${
           isReviewMode
             ? 'bg-[hsl(var(--bg-primary))] pb-1.5 pt-2'
             : 'bg-[hsl(var(--bg-secondary)/0.3)] py-4'
-        } ${isStreaming && !isReviewMode ? 'mt-12' : ''}`}
+        }`}
       >
         <input
           type="text"
@@ -1261,7 +1251,7 @@ export const SimpleEditor = ({
           onChange={handleTitleChange}
           disabled={readOnly || isStreaming || isReviewMode || isNaturalPolishRunning}
           placeholder={t('editor:placeholder.titlePlaceholder')}
-          className={`w-full bg-transparent font-bold text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none ${
+          className={`w-full bg-transparent font-[family-name:var(--font-display)] font-bold text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none ${
             isReviewMode ? 'text-[1.7rem] leading-tight' : 'text-xl'
           }`}
         />
@@ -1292,7 +1282,7 @@ export const SimpleEditor = ({
           style={{ overflowAnchor: "none" }}
           {...bindPinchZoom()}
         >
-          <div className="px-6 py-4">
+          <div className="px-4 sm:px-6 py-4">
             {!content.trim() && !readOnly && !isStreaming && emptyHint?.(() => textareaRef.current?.focus())}
             <div className="relative">
               <textarea
@@ -1312,7 +1302,7 @@ export const SimpleEditor = ({
                 }}
                 disabled={readOnly || isStreaming || isNaturalPolishRunning}
                 placeholder={t('editor:placeholder.contentPlaceholder')}
-                className={`w-full overflow-y-hidden bg-transparent text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none resize-none leading-relaxed text-base ${isStreaming ? 'cursor-default' : ''}`}
+                className={`editor-content font-[family-name:var(--font-body)] w-full overflow-y-hidden bg-transparent text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none resize-none leading-relaxed text-base ${isStreaming ? 'cursor-default' : ''}`}
                 style={{ minHeight: `${SIMPLE_EDITOR_MIN_HEIGHT_PX}px`, fontSize: `${zoom}em` }}
               />
               {/* Mirror div for calculating selection position */}
@@ -1331,7 +1321,7 @@ export const SimpleEditor = ({
         <div
           role="alert"
           data-testid="natural-polish-retry"
-          className="shrink-0 mx-3 sm:mx-6 mb-1 flex flex-wrap items-center gap-2 rounded-lg border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.1)] px-3 py-2 text-xs"
+          className="shrink-0 mx-4 sm:mx-6 mb-1 flex flex-wrap items-center gap-2 rounded-lg border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.1)] px-3 py-2 text-xs"
         >
           <p className="min-w-0 flex-1 text-[hsl(var(--warning-text))]">{t(naturalPolishRetry.messageKey)}</p>
           <button
@@ -1339,7 +1329,7 @@ export const SimpleEditor = ({
             onClick={retryNaturalPolish}
             disabled={!projectId || readOnly || isStreaming || isNaturalPolishRunning}
             title={isLimitedAiQuota ? t("editor:naturalPolishTooltipFree") : undefined}
-            className="max-md:min-h-11 px-2 py-1.5 rounded flex items-center gap-1 text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="max-md:min-h-11 px-2 py-1.5 rounded-lg flex items-center gap-1 text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RotateCcw size={14} />
             {t("editor:naturalPolishRetry")}
@@ -1355,7 +1345,7 @@ export const SimpleEditor = ({
             onClick={() => setNaturalPolishRetry(null)}
             aria-label={t("editor:naturalPolishDismiss")}
             title={t("editor:naturalPolishDismiss")}
-            className="max-md:min-h-11 max-md:min-w-11 p-1.5 rounded flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] transition-colors"
+            className="max-md:min-h-11 max-md:min-w-11 p-1.5 rounded-lg flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
           >
             <X size={14} />
           </button>
@@ -1363,7 +1353,7 @@ export const SimpleEditor = ({
       )}
 
       {!isReviewMode && (
-        <div className="shrink-0 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 bg-[hsl(var(--bg-secondary)/0.3)]">
+        <div className="shrink-0 px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))]">
           <div className="flex items-center gap-4 text-xs text-[hsl(var(--text-secondary))]">
             {/* Counts Chinese characters and English words only, so it reads lower than
                 platforms that count punctuation; say so on hover and on tap. */}
@@ -1383,8 +1373,9 @@ export const SimpleEditor = ({
             {/* Zoom indicator - only show when zoomed */}
             {zoom !== 1 && (
               <button
+                type="button"
                 onClick={resetZoom}
-                className="text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
+                className="max-md:min-h-11 px-2 py-1 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 title={t('editor:resetZoom')}
               >
                 {Math.round(zoom * 100)}%
@@ -1396,8 +1387,9 @@ export const SimpleEditor = ({
             {/* Version history button */}
             {fileId && (
               <button
+                type="button"
                 onClick={() => setShowVersionHistory(true)}
-                className="max-md:min-h-11 px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors"
+                className="max-md:min-h-11 px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg flex items-center gap-1 transition-colors"
                 title={t('versions:title')}
               >
                 <History size={14} />
@@ -1408,6 +1400,7 @@ export const SimpleEditor = ({
             {/* Natural polish (selected text) */}
             {fileId && (
               <button
+                type="button"
                 onClick={startNaturalPolish}
                 // No selection yet: stays pressable (dimmed) so a tap says why — the
                 // hover title alone never reaches touch screens.
@@ -1418,7 +1411,7 @@ export const SimpleEditor = ({
                   isNaturalPolishRunning
                 }
                 aria-disabled={!selectedText || undefined}
-                className="max-md:min-h-11 px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent aria-disabled:opacity-50"
+                className="max-md:min-h-11 px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent aria-disabled:opacity-50"
                 title={
                   !projectId
                     ? t("editor:naturalPolishMissingContext")
@@ -1463,9 +1456,10 @@ export const SimpleEditor = ({
 
             {/* Save button */}
             <button
+              type="button"
               onClick={() => void handleSave()}
               disabled={isSaving || !isDirty || readOnly || isStreaming || isNaturalPolishRunning}
-              className="max-md:min-h-11 px-3 py-1.5 text-xs bg-[hsl(var(--accent-primary))] text-white rounded hover:bg-[hsl(var(--accent-dark))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
+              className="max-md:min-h-11 px-3 py-1.5 text-xs bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
             >
               <Save size={14} />
               {t('editor:save')}

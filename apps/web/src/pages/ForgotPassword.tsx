@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { LogoMark } from "../components/Logo";
 import { AlertCircle, Mail } from "../components/icons";
 import { PublicHeader } from "../components/PublicHeader";
+import { Button } from "../components/ui/Button";
 import { authConfig } from "../config/auth";
 import { isPasswordResetUnavailable, passwordResetApi } from "../lib/passwordResetApi";
 import { toast } from "../lib/toast";
@@ -143,8 +144,8 @@ export default function ForgotPassword() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8 sm:mb-10">
             <div className="inline-flex items-center gap-2.5 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-[hsl(var(--accent-primary))] flex items-center justify-center shadow-lg">
-                <LogoMark className="w-7 h-7 text-white" />
+              <div className="w-12 h-12 rounded-xl bg-[hsl(var(--primary))] flex items-center justify-center shadow-lg">
+                <LogoMark className="w-7 h-7 text-[hsl(var(--primary-foreground))]" />
               </div>
             </div>
             <h1 className="text-2xl font-bold text-[hsl(var(--text-primary))] mb-2">
@@ -185,7 +186,7 @@ export default function ForgotPassword() {
                       setEmail(event.target.value);
                       if (error) setError("");
                     }}
-                    className="input"
+                    className="input min-h-11"
                     placeholder={t("auth:forgotPassword.emailPlaceholder", "输入邮箱")}
                     autoComplete="email"
                     autoFocus
@@ -195,15 +196,16 @@ export default function ForgotPassword() {
                     aria-describedby={error ? "forgot-password-error" : undefined}
                   />
                 </div>
-                <button
+                <Button
                   type="submit"
-                  className="btn-primary w-full py-3 text-base"
+                  size="lg"
+                  className="w-full"
                   disabled={loading || !trimmedEmail}
+                  isLoading={loading}
+                  loadingText={t("auth:forgotPassword.sending", "正在发送…")}
                 >
-                  {loading
-                    ? t("auth:forgotPassword.sending", "正在发送…")
-                    : t("auth:forgotPassword.sendCode", "发送验证码")}
-                </button>
+                  {t("auth:forgotPassword.sendCode", "发送验证码")}
+                </Button>
               </form>
             )}
 
@@ -239,7 +241,7 @@ export default function ForgotPassword() {
                       setCode(event.target.value.replace(/[^0-9]/g, "").slice(0, 6));
                       if (error) setError("");
                     }}
-                    className="input tracking-[0.3em]"
+                    className="input min-h-11 tracking-[0.3em]"
                     placeholder={t("auth:forgotPassword.codePlaceholder", "6 位数字")}
                     autoFocus
                     disabled={loading}
@@ -261,7 +263,7 @@ export default function ForgotPassword() {
                       setNewPassword(event.target.value);
                       if (error) setError("");
                     }}
-                    className="input"
+                    className="input min-h-11"
                     placeholder={t("auth:forgotPassword.newPasswordPlaceholder", "至少 6 个字符")}
                     autoComplete="new-password"
                     minLength={6}
@@ -284,29 +286,36 @@ export default function ForgotPassword() {
                       setConfirmPassword(event.target.value);
                       if (error) setError("");
                     }}
-                    className="input"
+                    className="input min-h-11"
                     placeholder={t("auth:forgotPassword.confirmPasswordPlaceholder", "再输入一次新密码")}
                     autoComplete="new-password"
                     disabled={loading}
                   />
                 </div>
 
-                <button type="submit" className="btn-primary w-full py-3 text-base" disabled={loading}>
-                  {loading
-                    ? t("auth:forgotPassword.submitting", "正在重设…")
-                    : t("auth:forgotPassword.submit", "重设密码")}
-                </button>
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full"
+                  disabled={loading}
+                  isLoading={loading}
+                  loadingText={t("auth:forgotPassword.submitting", "正在重设…")}
+                >
+                  {t("auth:forgotPassword.submit", "重设密码")}
+                </Button>
 
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="lg"
                   onClick={handleResend}
                   disabled={cooldown > 0 || loading}
-                  className="btn-ghost w-full py-3 mt-3 rounded-xl font-medium border border-[hsl(var(--border-color))] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full mt-3"
                 >
                   {cooldown > 0
                     ? t("auth:forgotPassword.resendIn", { count: cooldown, defaultValue: "{{count}} 秒后可重新发送" })
                     : t("auth:forgotPassword.resend", "重新发送验证码")}
-                </button>
+                </Button>
               </form>
             )}
 
@@ -328,7 +337,7 @@ export default function ForgotPassword() {
 
                 <a
                   href={`mailto:${supportEmail}`}
-                  className="btn-primary w-full py-3 text-base inline-flex items-center justify-center"
+                  className="inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border border-transparent bg-[hsl(var(--primary))] px-6 py-3 text-base font-medium text-[hsl(var(--primary-foreground))] transition-colors hover:bg-[hsl(var(--primary-hover))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-light))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
                 >
                   {t("auth:forgotPassword.contactSupportAction", "发送邮件")}
                 </a>

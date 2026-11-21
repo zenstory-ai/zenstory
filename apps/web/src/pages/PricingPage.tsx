@@ -203,7 +203,7 @@ export default function PricingPage() {
           </p>
         </section>
 
-        <section className="sticky top-14 z-20 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary)/0.9)] p-3 md:p-4 backdrop-blur-sm">
+        <section className="sticky top-12 z-20 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary)/0.9)] p-3 md:p-4 backdrop-blur-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p id="billing-cycle-label" className="text-sm font-medium text-[hsl(var(--text-primary))]">
               {t("dashboard:billing.billingCycleLabel", "购买时长")}
@@ -235,7 +235,7 @@ export default function PricingPage() {
                     className={cn(
                       "min-h-11 px-4 text-sm rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
                       billingCycle === cycle
-                        ? "bg-[hsl(var(--accent-primary))] text-white"
+                        ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
                         : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
                     )}
                   >

@@ -115,9 +115,9 @@ const CodeCard: React.FC<{
           title={code.is_active ? t("codes.deactivate") : t("codes.activate")}
         >
           {code.is_active ? (
-            <ToggleRight size={20} className="text-red-500" />
+            <ToggleRight size={20} className="text-[hsl(var(--error-text))]" />
           ) : (
-            <ToggleLeft size={20} className="text-green-500" />
+            <ToggleLeft size={20} className="text-[hsl(var(--success-text))]" />
           )}
         </button>
       </div>
@@ -333,14 +333,9 @@ export const CodeManagement: React.FC = () => {
   return (
     <div className="admin-page admin-page-fluid">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="admin-page-title">
-            {t("codes.title")}
-          </h1>
-          <p className="admin-page-subtitle">
-            {t("codes.subtitle")}
-          </p>
-        </div>
+        <h1 className="admin-page-title">
+          {t("codes.title")}
+        </h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowCreateModal(true)}
@@ -521,9 +516,9 @@ export const CodeManagement: React.FC = () => {
                           title={code.is_active ? t("codes.deactivate") : t("codes.activate")}
                         >
                           {code.is_active ? (
-                            <ToggleRight size={18} className="text-red-500" />
+                            <ToggleRight size={18} className="text-[hsl(var(--error-text))]" />
                           ) : (
-                            <ToggleLeft size={18} className="text-green-500" />
+                            <ToggleLeft size={18} className="text-[hsl(var(--success-text))]" />
                           )}
                         </button>
                       </td>

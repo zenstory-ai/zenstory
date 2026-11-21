@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AdminSidebar } from "./AdminSidebar";
 import { AdminHeader } from "./AdminHeader";
+import { AdminSubNav } from "./AdminSubNav";
 import { useIsMobile } from "../../hooks/useMediaQuery";
 import { useDialogInteractions } from "../ui/dialogFocus";
 
@@ -70,6 +71,7 @@ export const AdminLayout: React.FC = () => {
 
         <main ref={mainRef} inert={menuOpen ? true : undefined} aria-hidden={menuOpen ? true : undefined} className="flex-1 min-w-0 min-h-0 overflow-y-auto">
           <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-4 md:px-6 md:py-6">
+            <AdminSubNav />
             <Outlet />
           </div>
         </main>

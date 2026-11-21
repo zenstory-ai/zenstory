@@ -29,6 +29,7 @@ import { useProject } from "../contexts/ProjectContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { Button } from "./ui/Button";
 import { IconButton } from "./ui/IconButton";
 import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 
@@ -305,8 +306,10 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       <div className="relative min-w-0 max-w-full" ref={dropdownRef}>
       {/* Trigger Button */}
       <button
+        type="button"
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 md:gap-2 px-2 py-1.5 md:px-3 hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-colors group min-w-0 max-w-full"
+        className="flex items-center gap-1.5 md:gap-2 min-h-11 md:min-h-0 px-2 py-1.5 md:px-3 hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-colors group min-w-0 max-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
       >
         <Folder size={16} className="text-[hsl(var(--text-secondary))] shrink-0" />
         <div className="text-left min-w-0 overflow-hidden">
@@ -325,7 +328,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       {/* Dropdown Menu */}
       {isOpen && (
         <div
-          className={`flex flex-col bg-[hsl(var(--bg-secondary))] rounded-xl shadow-2xl z-50 overflow-hidden ${
+          className={`flex flex-col bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl shadow-lg z-50 overflow-hidden ${
             isMobile
               // Pinned to the viewport: an ancestor-relative, translated panel
               // spilled off a 390px screen when the title was long.
@@ -375,87 +378,105 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                 {filteredProjects.map((project) => (
                   <div
                     key={project.id}
-                    onClick={() =>
-                      project.id && handleSelectProject(project.id)
-                    }
-                    className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] transition-colors group cursor-pointer"
+                    className={`w-full flex items-start gap-2 px-3 py-2.5 transition-colors group ${
+                      project.id === currentProjectId
+                        ? "bg-[hsl(var(--accent-primary)/0.08)]"
+                        : "hover:bg-[hsl(var(--bg-tertiary))]"
+                    }`}
                   >
-                    <Folder
-                      size={18}
-                      className={`mt-0.5 ${
-                        project.id === currentProjectId
-                          ? "text-[hsl(var(--accent-primary))]"
-                          : "text-[hsl(var(--text-secondary))]"
-                      }`}
-                    />
-                    <div className="flex-1 text-left min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        {editingProjectId === project.id ? (
-                          <input
-                            ref={editInputRef}
-                            type="text"
-                            value={editingName}
-                            onChange={(e) => setEditingName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleSaveEdit();
-                              if (e.key === "Escape") handleCancelEdit();
-                            }}
-                            onBlur={handleSaveEdit}
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex-1 bg-[hsl(var(--bg-primary))] border border-[hsl(var(--accent-primary))] rounded px-2 py-0.5 text-sm text-[hsl(var(--text-primary))] focus:outline-none"
-                          />
-                        ) : (
-                          <>
-                            <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
-                              {project.name}
-                            </span>
-                            <div className="flex items-center gap-0.5">
-                              <IconButton
-                                onClick={(e) =>
-                                  project.id && handleStartEditing(project.id, project.name, e)
-                                }
-                                // Always visible: full strength on touch (no hover there), dimmed on
-                                // desktop until the row is hovered or the button is focused.
-                                className={
-                                  isMobile
-                                    ? "opacity-100"
-                                    : "opacity-50 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-                                }
-                                label={t('editor:projectSwitcher.editName')}
-                                icon={<Pencil size={12} />}
-                                data-testid="project-switcher-rename"
-                              />
-                              {project.id === currentProjectId && (
-                                <Check
-                                  size={14}
-                                  className="text-[hsl(var(--accent-primary))] shrink-0"
-                                />
-                              )}
-                            </div>
-                          </>
-                        )}
+                    {editingProjectId === project.id ? (
+                      <div className="flex flex-1 min-w-0 items-center gap-3">
+                        <Folder
+                          size={18}
+                          className={`shrink-0 ${
+                            project.id === currentProjectId
+                              ? "text-[hsl(var(--accent-primary))]"
+                              : "text-[hsl(var(--text-secondary))]"
+                          }`}
+                        />
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveEdit();
+                            if (e.key === "Escape") handleCancelEdit();
+                          }}
+                          onBlur={handleSaveEdit}
+                          className="flex-1 min-w-0 bg-[hsl(var(--bg-primary))] border border-[hsl(var(--accent-primary))] rounded px-2 py-0.5 text-sm text-[hsl(var(--text-primary))] focus:outline-none"
+                        />
                       </div>
-                      {project.description && editingProjectId !== project.id && (
-                        <div className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 truncate">
-                          {project.description}
+                    ) : (
+                      <>
+                        {/* Selecting a project is a native button, sibling of Rename/Delete actions. */}
+                        <button
+                          type="button"
+                          aria-current={project.id === currentProjectId ? "true" : undefined}
+                          onClick={() =>
+                            project.id && handleSelectProject(project.id)
+                          }
+                          className="flex flex-1 min-w-0 items-start gap-3 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
+                        >
+                          <Folder
+                            size={18}
+                            aria-hidden="true"
+                            className={`mt-0.5 shrink-0 ${
+                              project.id === currentProjectId
+                                ? "text-[hsl(var(--accent-primary))]"
+                                : "text-[hsl(var(--text-secondary))]"
+                            }`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
+                              {project.name}
+                            </div>
+                            {project.description && (
+                              <div className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 truncate">
+                                {project.description}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          {project.id === currentProjectId && (
+                            <Check
+                              size={14}
+                              aria-hidden="true"
+                              className="text-[hsl(var(--accent-primary))] shrink-0 mr-0.5"
+                            />
+                          )}
+                          <IconButton
+                            onClick={(e) =>
+                              project.id && handleStartEditing(project.id, project.name, e)
+                            }
+                            // Always visible: full strength on touch (no hover there), dimmed on
+                            // desktop until the row is hovered or the button is focused.
+                            className={
+                              isMobile
+                                ? "opacity-100"
+                                : "opacity-50 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+                            }
+                            label={t('editor:projectSwitcher.editName')}
+                            icon={<Pencil size={12} />}
+                            data-testid="project-switcher-rename"
+                          />
+                          <IconButton
+                            onClick={(e) =>
+                              project.id && handleRequestDeleteProject(project.id, e)
+                            }
+                            // Hidden on desktop until hover or keyboard focus; always shown on touch.
+                            className={
+                              isMobile
+                                ? "opacity-100"
+                                : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+                            }
+                            tone="danger"
+                            label={t('editor:projectSwitcher.deleteProject')}
+                            icon={<Trash2 size={14} />}
+                          />
                         </div>
-                      )}
-                    </div>
-                    {editingProjectId !== project.id && (
-                      <IconButton
-                        onClick={(e) =>
-                          project.id && handleRequestDeleteProject(project.id, e)
-                        }
-                        // Hidden on desktop until hover or keyboard focus; always shown on touch.
-                        className={
-                          isMobile
-                            ? "opacity-100"
-                            : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-                        }
-                        tone="danger"
-                        label={t('editor:projectSwitcher.deleteProject')}
-                        icon={<Trash2 size={14} />}
-                      />
+                      </>
                     )}
                   </div>
                 ))}
@@ -482,22 +503,26 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                   className="flex-1 bg-[hsl(var(--bg-primary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2 text-sm text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))]"
                   autoFocus
                 />
-                <button
+                <Button
+                  type="button"
+                  size={isMobile ? 'touch' : 'sm'}
                   onClick={handleCreateProject}
                   disabled={!newProjectName.trim()}
-                  className="px-3 py-2 bg-[hsl(var(--accent-primary))] rounded-lg text-sm text-white hover:bg-[hsl(var(--accent-dark))] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {t('editor:projectSwitcher.create')}
-                </button>
+                </Button>
               </div>
             ) : (
-              <button
+              <Button
+                type="button"
+                variant="secondary"
+                size={isMobile ? 'touch' : 'md'}
                 onClick={() => setIsCreating(true)}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[hsl(var(--accent-primary)/0.15)] border border-[hsl(var(--accent-primary)/0.4)] rounded-lg text-sm text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.25)] hover:border-[hsl(var(--accent-primary)/0.6)] transition-all"
+                leftIcon={<Plus size={14} />}
+                className="w-full"
               >
-                <Plus size={14} />
                 {t('editor:projectSwitcher.createProject')}
-              </button>
+              </Button>
             )}
           </div>
         </div>

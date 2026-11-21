@@ -1,10 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import AdminSidebar from "../AdminSidebar";
-
-const inspirationFeature = vi.hoisted(() => ({ enabled: true }));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -12,59 +10,86 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("../../../config/inspirations", () => ({
-  inspirationsConfig: inspirationFeature,
-}));
-
 describe("AdminSidebar", () => {
-  beforeEach(() => {
-    inspirationFeature.enabled = true;
-  });
-
-  it("shows inspiration management when enabled", () => {
+  it("renders the 6 flat top-level items without group headers or redundant desktop header", () => {
     render(<AdminSidebar />, { wrapper: MemoryRouter });
 
-    expect(screen.getByRole("link", { name: "灵感管理" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "支付订单" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "兑换码管理" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "用量与成本" })).toBeInTheDocument();
-  });
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("region")).toHaveLength(0);
 
-  it("hides inspiration management when disabled", () => {
-    inspirationFeature.enabled = false;
-    render(<AdminSidebar />, { wrapper: MemoryRouter });
-
-    expect(screen.queryByRole("link", { name: "灵感管理" })).not.toBeInTheDocument();
-  });
-
-  it("groups pages into labeled sections in task order", () => {
-    render(<AdminSidebar />, { wrapper: MemoryRouter });
-
-    const groups = screen.getAllByRole("region");
-    expect(groups.map((group) => within(group).getByRole("heading").textContent)).toEqual([
-      "概览", "用户与用量", "营收", "增长", "内容与运营", "系统",
+    const links = screen.getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual([
+      "概览",
+      "用户",
+      "用量与成本",
+      "营收",
+      "运营",
+      "系统",
     ]);
-    const usersGroup = screen.getByRole("region", { name: "用户与用量" });
-    expect(within(usersGroup).getAllByRole("link").map((button) => button.textContent)).toEqual([
-      "用户管理", "用量与成本",
-    ]);
-    const revenue = screen.getByRole("region", { name: "营收" });
-    expect(within(revenue).getAllByRole("link").map((button) => button.textContent)).toEqual([
-      "支付订单", "订阅管理", "订阅计划", "兑换码管理",
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/admin",
+      "/admin/users",
+      "/admin/usage",
+      "/admin/payment-orders",
+      "/admin/feedback",
+      "/admin/prompts",
     ]);
   });
 
-  it("marks the section of a nested page as current and closes after navigating", () => {
+  it("renders an accessible title and close control in the mobile drawer", () => {
+    const onClose = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <AdminSidebar onClose={onClose} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "管理后台" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "关闭管理菜单" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "返回应用" })).toHaveAttribute("href", "/dashboard");
+  });
+
+  it.each([
+    ["/admin", "概览"],
+    ["/admin/", "概览"],
+    ["/admin/acquisition", "概览"],
+    ["/admin/users", "用户"],
+    ["/admin/users/user-1", "用户"],
+    ["/admin/usage", "用量与成本"],
+    ["/admin/payment-orders", "营收"],
+    ["/admin/subscriptions", "营收"],
+    ["/admin/codes", "营收"],
+    ["/admin/plans", "营收"],
+    ["/admin/feedback", "运营"],
+    ["/admin/skills", "运营"],
+    ["/admin/announcements", "运营"],
+    ["/admin/prompts", "系统"],
+    ["/admin/prompts/novel", "系统"],
+    ["/admin/audit-logs", "系统"],
+  ])("highlights %s under %s", (route, activeLabel) => {
+    render(
+      <MemoryRouter initialEntries={[route]}>
+        <AdminSidebar />
+      </MemoryRouter>,
+    );
+
+    for (const label of ["概览", "用户", "用量与成本", "营收", "运营", "系统"]) {
+      const link = screen.getByRole("link", { name: label });
+      if (label === activeLabel) {
+        expect(link).toHaveAttribute("aria-current", "page");
+      } else {
+        expect(link).not.toHaveAttribute("aria-current");
+      }
+    }
+  });
+
+  it("closes the mobile drawer after navigating", () => {
     const onClose = vi.fn();
     render(
       <MemoryRouter initialEntries={["/admin/users/user-1"]}>
         <AdminSidebar onClose={onClose} />
       </MemoryRouter>,
     );
-
-    expect(screen.getByRole("link", { name: "用户管理" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "用量与成本" })).not.toHaveAttribute("aria-current");
-    expect(screen.getByRole("link", { name: "仪表盘" })).not.toHaveAttribute("aria-current");
 
     fireEvent.click(screen.getByRole("link", { name: "用量与成本" }));
     expect(onClose).toHaveBeenCalledTimes(1);

@@ -82,7 +82,7 @@ const getVariantClasses = (variant: ButtonProps['variant']): string => {
     ghost:
       'border-transparent! text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] active:scale-[0.98] focus-visible:ring-[hsl(var(--accent-primary)/0.5)] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
     danger:
-      'border-transparent! bg-[hsl(var(--danger-solid))] text-white hover:bg-[hsl(var(--danger-hover))] active:scale-[0.98] focus-visible:ring-[hsl(var(--error)/0.5)] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
+      'border-transparent! bg-[hsl(var(--danger-solid))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--danger-hover))] active:scale-[0.98] focus-visible:ring-[hsl(var(--error)/0.5)] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
     outline:
       'bg-transparent text-[hsl(var(--accent-primary))] border-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] active:scale-[0.98] focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
   };

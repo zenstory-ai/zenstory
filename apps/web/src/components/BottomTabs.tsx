@@ -134,7 +134,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({
   return (
     <nav
       data-testid="bottom-tabs"
-      className="fixed bottom-0 left-0 right-0 h-14 bg-[hsl(var(--bg-secondary))] border-t border-[hsl(var(--separator-color))] flex z-50 safe-area-bottom overflow-x-hidden"
+      className="fixed bottom-0 left-0 right-0 min-h-14 bg-[hsl(var(--bg-secondary))] border-t border-[hsl(var(--separator-color))] flex z-50 safe-area-bottom overflow-x-hidden"
       role="tablist"
       aria-label={t('editor:bottomTabs.ariaLabel', '底部导航')}
     >
@@ -158,10 +158,10 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({
               event.currentTarget.parentElement
                 ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
             }}
-            className={`mobile-bottom-tab flex-1 flex flex-col items-center justify-center gap-1.5 transition-colors transition-transform min-h-[44px] no-select active:scale-95 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))] ${
+            className={`mobile-bottom-tab relative flex-1 flex flex-col items-center justify-center gap-1 transition-[color,background-color,transform] duration-150 motion-reduce:transition-none min-h-[44px] no-select active:scale-95 motion-reduce:active:scale-100 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
               isActive
-                ? "text-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.1)]"
-                : "text-[hsl(var(--text-secondary))] active:text-[hsl(var(--text-primary))]"
+                ? "text-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)] before:absolute before:top-0 before:inset-x-5 before:h-0.5 before:rounded-full before:bg-[hsl(var(--accent-primary))]"
+                : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] active:text-[hsl(var(--text-primary))]"
             }`}
             role="tab"
             aria-selected={isActive}
@@ -170,9 +170,9 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({
           >
             <Icon
               size={20}
-              className={`bottom-tab-icon ${isActive ? "stroke-[2.5]" : "stroke-[1.5]"}`}
+              className={`bottom-tab-icon ${isActive ? "stroke-[2.25]" : "stroke-[1.75]"}`}
             />
-            <span className={`bottom-tab-label text-xs ${isActive ? "font-medium" : ""}`}>
+            <span className={`bottom-tab-label text-xs ${isActive ? "font-semibold" : "font-normal"}`}>
               {tab.id === 'files' && t('editor:bottomTabs.files')}
               {tab.id === 'editor' && t('editor:bottomTabs.editor')}
               {tab.id === 'chat' && t('editor:bottomTabs.ai')}

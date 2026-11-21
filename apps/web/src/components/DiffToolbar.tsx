@@ -102,7 +102,7 @@ export const DiffToolbar = ({
               <span className="text-sm font-medium leading-tight text-[hsl(var(--text-primary))]">
                 {t('editor:reviewMode')}
               </span>
-              <span className="mt-0.5 block text-[10px] leading-tight text-[hsl(var(--text-secondary))]">
+              <span className="mt-0.5 block text-xs leading-tight text-[hsl(var(--text-secondary))]">
                 {t(isMobile ? 'editor:reviewModeHintMobile' : 'editor:reviewModeHint')}
               </span>
             </div>
@@ -134,10 +134,11 @@ export const DiffToolbar = ({
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           {/* Accept All button */}
           <button
+            type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={onAcceptAll}
             disabled={!canAcceptAll}
-            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all
+            className="max-md:min-h-11 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all
             text-[hsl(var(--success-text))] hover:bg-[hsl(var(--success)/0.1)]
             disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title={t('editor:acceptAll')}
@@ -148,10 +149,11 @@ export const DiffToolbar = ({
 
           {/* Reject All button */}
           <button
+            type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={onRejectAll}
             disabled={!canRejectAll}
-            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all
+            className="max-md:min-h-11 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all
             text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.1)]
             disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title={t('editor:rejectAll')}
@@ -165,11 +167,12 @@ export const DiffToolbar = ({
 
           {/* Finish Review button */}
           <button
+            type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={onFinish}
-            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all ${
+            className={`max-md:min-h-11 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all ${
               allReviewed
-                ? 'bg-[hsl(var(--accent-primary))] text-white shadow-sm hover:bg-[hsl(var(--accent-dark))]'
+                ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-sm hover:bg-[hsl(var(--primary-hover))]'
                 : 'bg-[hsl(var(--bg-primary)/0.88)] text-[hsl(var(--text-primary))] ring-1 ring-[hsl(var(--border-primary)/0.3)] hover:bg-[hsl(var(--bg-primary))]'
             }`}
             title={allReviewed

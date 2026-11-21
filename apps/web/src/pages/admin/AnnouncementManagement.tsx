@@ -33,10 +33,7 @@ export default function AnnouncementManagement() {
 
   return (
     <div className="admin-page">
-      <header>
-        <h1 className="admin-page-title">{t("admin.title", "站内公告")}</h1>
-        <p className="admin-page-subtitle">{t("admin.subtitle", "维护工作台首页当前展示的一条轻量公告")}</p>
-      </header>
+      <h1 className="admin-page-title">{t("admin.title", "站内公告")}</h1>
 
       <AdminPageState
         isLoading={!initialAnnouncement && (query.isPending || query.isFetching)}
@@ -137,12 +134,9 @@ function AnnouncementEditor({ initial }: { initial: AdminAnnouncement }) {
   return (
     <div className="admin-surface max-w-3xl p-5 sm:p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-[hsl(var(--separator-color))] pb-4">
-        <div>
-          <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">{t("admin.current", "当前公告")}</h2>
-          <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
-            {published.enabled ? t("admin.visible", "正在展示") : t("admin.hidden", "未展示")} · {t("admin.version", "版本 {{version}}", { version: published.version })}
-          </p>
-        </div>
+        <p className="text-xs text-[hsl(var(--text-secondary))]">
+          {published.enabled ? t("admin.visible", "正在展示") : t("admin.hidden", "未展示")} · {t("admin.version", "版本 {{version}}", { version: published.version })}
+        </p>
       </div>
 
       <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); save(); }}>
