@@ -106,23 +106,29 @@ def _range_mode(params: dict[str, Any]) -> str | None:
 
 
 def _read_mode(params: dict[str, Any]) -> str:
-    """归一化读取模式：full（全文）、full:<范围>（按范围读取）或 summary:<预览字数>。
+    """归一化读取模式：full（全文）、full:<范围>（按范围读取）、search:<关键词> 或 summary:<预览字数>。
 
     与 query_files 用同一个判定（resolve_query_files_response_mode）：按 id 读取且没给
     response_mode 时默认就是全文，否则 query_files(id=X) 与 query_files(id=X, response_mode="full")
-    会被当成两种读取，拦截被绕开。summary 的预览长度不同算不同的读取（模型要更长的预览不是重复）。
+    会被当成两种读取，拦截被绕开。同时带 id 与 query 且未显式要求 full 时是文件内搜索，不同关键词
+    互不冲突且不算读过全文。summary 的预览长度不同算不同的读取（模型要更长的预览不是重复）。
     """
     include_raw = params.get("include_content")
     preview = params.get("content_preview_chars")
     preview_chars = preview if isinstance(preview, int) and not isinstance(preview, bool) else None
+    raw_query = params.get("query")
+    normalized_query = raw_query.strip() if isinstance(raw_query, str) and raw_query.strip() else None
     mode = resolve_query_files_response_mode(
         params.get("response_mode"),
         file_id=str(params.get("id") or ""),
         include_content=None if include_raw is None else coerce_bool(include_raw),
         content_preview_chars=preview_chars,
+        query=normalized_query,
     )
     if str(mode).strip().lower() == "full":
         return "full"
+    if normalized_query:
+        return f"search:{normalized_query}"
     return f"summary:{preview_chars if preview_chars is not None else 'default'}"
 
 
@@ -325,7 +331,7 @@ class RepeatReadGuard:
         hinted = dict(payload)
         hinted["repeated_reads"] = count
         hinted["read_hint"] = hint
-        return json.dumps(hinted, ensure_ascii=False)
+        return json.dumps(hinted, ensure_ascii=False, separators=(",", ":"))
 
     def _forget_reads(self, file_id: str) -> None:
         """这个文件读过之后被别人改了：之前的读取计数作废。"""
@@ -452,7 +458,7 @@ def _blocked_error_text(model_text: str, *, user_message: str, tool_name: str) -
         tool_error_text(model_text, error_type=REPEATED_READ_ERROR_TYPE, tool_name=tool_name)
     )
     payload["user_message"] = user_message
-    return json.dumps(payload, ensure_ascii=False)
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
 __all__ = [
