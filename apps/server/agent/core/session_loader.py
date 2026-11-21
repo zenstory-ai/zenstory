@@ -613,13 +613,13 @@ class SessionLoader:
                 ):
                     continue
                 snapshots[fid] = current_content
-            elif kind == "streamed_create":
-                if (
-                    isinstance(file.updated_at, datetime)
-                    and normalize_datetime_to_utc(file.updated_at)
-                    <= normalize_datetime_to_utc(spec["turn_created_at"])
-                ):
-                    streamed_check_ids.append(fid)
+            elif (
+                kind == "streamed_create"
+                and isinstance(file.updated_at, datetime)
+                and normalize_datetime_to_utc(file.updated_at)
+                <= normalize_datetime_to_utc(spec["turn_created_at"])
+            ):
+                streamed_check_ids.append(fid)
 
         if streamed_check_ids and not (cancel_event is not None and cancel_event.is_set()):
             latest_subq = (
