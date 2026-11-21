@@ -21,7 +21,6 @@ def _collection(chapters: int) -> str:
     ({"section": "第3章"}, "第3章 霜\n丁丁", "第3章 霜"),
     ({"section": "第十三章"}, "第13章 雪\n丙丙\n", "第13章 雪"),
     ({"tail_chars": 4}, "霜\n丁丁", None),
-    ({"start_char": 2, "max_chars": 3}, "章 雨", None),
 ])
 def test_range_picks_exactly_the_requested_part(args, content, section):
     body = "第1章 雨\n甲甲甲\n\n第2章 风\n乙乙乙\n\n第13章 雪\n丙丙\n第3章 霜\n丁丁"
@@ -32,6 +31,21 @@ def test_range_picks_exactly_the_requested_part(args, content, section):
     assert row["content_partial"] is True and row["content_length"] == len(body)
     assert body[row["content_range"]["start"]:row["content_range"]["end"]] == content
     assert row.get("section") == section
+
+
+def test_start_char_slices_long_file_but_returns_short_file_full():
+    short_body = "第1章 雨\n甲甲甲\n\n第2章 风\n乙乙乙"
+    short_row = apply_content_range({"id": "f", "content": short_body}, {"start_char": 2, "max_chars": 3})
+    assert short_row["content"] == short_body
+    assert short_row["content_partial"] is False
+    assert short_row["content_range"] == {"start": 0, "end": len(short_body)}
+    assert "note" not in short_row
+
+    long_body = "第1章 雨\n" + ("甲" * 15000)
+    long_row = apply_content_range({"id": "f", "content": long_body}, {"start_char": 2, "max_chars": 3})
+    assert long_row["content"] == "章 雨"
+    assert long_row["content_partial"] is True
+    assert long_row["content_range"] == {"start": 2, "end": 5}
 
 
 @pytest.mark.parametrize(("args", "message"), [

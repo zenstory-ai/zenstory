@@ -411,18 +411,30 @@ async def test_drama_hook_with_the_authors_line_kept_is_written(db_session, owne
 async def test_rewriting_the_authors_line_is_done_and_reported(db_session, owner_project):
     user, project = owner_project
     ep2 = _author_edited_ep2(db_session, project)
-    payload = await _run(
-        db_session,
-        user,
-        project,
-        mcp_tools.edit_file,
-        {"id": ep2.id, "edits": [{"op": "replace", "old": AUTHOR_LINE, "new": "顾寒川：（冷笑）你也配？"}]},
-        message="把我改的那句台词再改狠一点",
+    engine = db_session.get_bind()
+    mcp_tools.ToolContext.set_context(
+        None,
+        user.id,
+        project.id,
+        None,
+        create_session_func=lambda: Session(engine),
+        author_message="把我改的那句台词再改狠一点",
+        author_steering=[],
         read_snapshots={ep2.id: EP2_AUTHOR},
     )
+    try:
+        with mcp_tools.ToolContext.tool_call_scope("call-author-line"):
+            raw = await mcp_tools.edit_file(
+                {"id": ep2.id, "edits": [{"op": "replace", "old": AUTHOR_LINE, "new": "顾寒川：（冷笑）你也配？"}]}
+            )
+        payload = json.loads(raw["content"][0]["text"])
+        ui_overlay = mcp_tools.ToolContext.pop_tool_ui_payload("call-author-line")
+    finally:
+        mcp_tools.ToolContext.clear_context()
     assert payload["status"] == "success"
     assert payload["data"]["author_edits_touched"] == [{"before": AUTHOR_LINE, "after": "顾寒川：（冷笑）你也配？"}]
-    assert payload["data"]["undo"]["before_version_number"] >= 2
+    assert "undo" not in payload["data"]
+    assert ui_overlay is not None and ui_overlay["undo"]["before_version_number"] >= 2
 
 
 async def test_edit_based_on_text_the_author_changed_meanwhile_is_refused(db_session, owner_project):

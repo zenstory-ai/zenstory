@@ -610,6 +610,25 @@ class StreamAdapter:
             # 状态口径与停止后的结果回放共用（round_outcome.tool_result_status）。
             status, result_data = tool_result_status(tool_name, parsed_result)
 
+            # 合并工具 UI 侧通道（如 edit_file 的 undo 锚点与精确匹配回显预览）：
+            # LLM function_call_output 省略了这些仅供前端卡片与撤销使用的字段，
+            # 这里按 tool_use_id 原样还原到 SSE tool_result、file_edit_applied 与落库卡片。
+            if isinstance(result_data, dict) and (tool_use_id or tool_name == "edit_file"):
+                from agent.tools.tool_context import ToolContext
+
+                file_id = result_data.get("id")
+                fallback_key = (
+                    (tool_name, str(file_id))
+                    if tool_name == "edit_file" and isinstance(file_id, str) and file_id
+                    else None
+                )
+                ui_overlay = ToolContext.pop_tool_ui_payload(
+                    tool_use_id or None,
+                    fallback_key=fallback_key,
+                )
+                if isinstance(ui_overlay, dict) and ui_overlay:
+                    result_data = {**result_data, **ui_overlay}
+
             error: str | None = None
             if isinstance(parsed_result, dict) and parsed_result.get("error") is not None:
                 error = str(parsed_result.get("error"))

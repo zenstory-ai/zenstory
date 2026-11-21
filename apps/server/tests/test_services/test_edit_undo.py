@@ -385,19 +385,24 @@ async def test_edit_descriptor_survives_actual_mcp_sse_and_chat_persistence(db_s
     engine = db_session.get_bind()
     mcp_tools.ToolContext.set_context(None, user.id, project.id, None, create_session_func=lambda: Session(engine))
     try:
-        raw = await mcp_tools.edit_file({"id": file.id, "edits": [{"op": "append", "text": "AI\n"}]})
+        with mcp_tools.ToolContext.tool_call_scope("undo-edit"):
+            raw = await mcp_tools.edit_file({"id": file.id, "edits": [{"op": "append", "text": "AI\n"}]})
+        payload = json.loads(raw["content"][0]["text"])
+        assert payload["status"] == "success"
+        # LLM function_call_output omits UI-only undo; StreamAdapter restores it from the request side-channel.
+        assert "undo" not in payload["data"]
+        event = StreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={"name": "edit_file", "tool_use_id": "undo-edit", "result": raw},
+        )
+        streamed = [item async for item in StreamAdapter()._process_workflow_event(event)]
     finally:
         mcp_tools.ToolContext.clear_context()
-    payload = json.loads(raw["content"][0]["text"])
-    assert payload["status"] == "success"
-    result = payload["data"]
-    assert "undo" in result
     db_session.refresh(file)
-    assert result["undo"]["expected_after_updated_at"] == normalize_datetime_to_utc(file.updated_at).isoformat()
-    event = StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "edit_file", "tool_use_id": "undo-edit", "result": raw})
-    streamed = [item async for item in StreamAdapter()._process_workflow_event(event)]
     tool_result = next(item for item in streamed if item.type.value == "tool_result")
-    assert tool_result.data["data"]["undo"] == result["undo"]
+    undo = tool_result.data["data"]["undo"]
+    assert undo["before_version_number"] == 1
+    assert undo["expected_after_updated_at"] == normalize_datetime_to_utc(file.updated_at).isoformat()
     chat = ChatSession(project_id=project.id, user_id=user.id)
     db_session.add(chat)
     db_session.commit()
@@ -407,7 +412,7 @@ async def test_edit_descriptor_survives_actual_mcp_sse_and_chat_persistence(db_s
         tool_calls=[{"id": "undo-edit", "name": "edit_file", "arguments": {"id": file.id}, "status": tool_result.data["status"], "result": tool_result.data["data"]}],
     )
     saved = db_session.get(ChatMessage, message_id)
-    assert json.loads(saved.tool_calls)[0]["result"]["undo"] == result["undo"]
+    assert json.loads(saved.tool_calls)[0]["result"]["undo"] == undo
 
 
 @pytest.mark.parametrize("delta", [False, True])
