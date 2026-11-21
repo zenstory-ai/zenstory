@@ -874,6 +874,57 @@ def test_line_blame_fast_path_parity_and_zero_matcher_calls_for_ai_only_and_pre_
         eo_blame is not None and eo_blame.lines == [""] and eo_blame.labels == [ORIGINAL] and eo_blame.has_ai is False
     )
 
+    # 6. Non-empty ORIGINAL v1 -> AI v2..v5 -> AUTHOR v6: preserves ORIGINAL on untouched v1 lines.
+    orig_then_ai = _file(db_session, project, "原稿第一段。\n原稿第二段。", title="原稿后AI", file_type="draft")
+    _version(db_session, orig_then_ai, "原稿第一段。\n原稿第二段。", "create", "system", "Initial version")
+    for idx in range(4):
+        _version(db_session, orig_then_ai, f"原稿第一段。\n原稿第二段。\nAI续写第{idx}版。", "ai_edit", "ai")
+    _version(db_session, orig_then_ai, "原稿第一段。\n原稿第二段。\n作者改写第三段。", "edit", "user")
+
+    ota_blame = line_blame(db_session, orig_then_ai.id, orig_then_ai.content)
+    assert ota_blame is not None
+    assert ota_blame.labels == [ORIGINAL, ORIGINAL, AUTHOR]
+    assert ota_blame.has_ai is True
+    assert [(h.before, h.after) for h in module.author_hunks(ota_blame)] == [("AI续写第3版。", "作者改写第三段。")]
+
+    # 7. Empty ORIGINAL v1 -> AI v2..v10: fast path with 0 SequenceMatcher calls & exact AI labels.
+    empty_then_ai = _file(db_session, project, "", title="空稿后AI", file_type="draft")
+    _version(db_session, empty_then_ai, "", "create", "system", "Initial version")
+    for idx in range(9):
+        _version(db_session, empty_then_ai, f"AI第一段。\nAI第二段第{idx}版。", "ai_edit", "ai")
+
+    matcher_calls = 0
+    eta_blame = line_blame(db_session, empty_then_ai.id, empty_then_ai.content)
+    assert eta_blame is not None
+    assert matcher_calls == 0
+    assert eta_blame.labels == [AI, AI]
+    assert eta_blame.has_ai is True
+    assert author_changes(db_session, empty_then_ai) is None
+    assert matcher_calls == 0
+
+    # 8. AI v1 -> ORIGINAL v2 (restore/system): preserves [AI, ORIGINAL] on untouched vs restored lines.
+    ai_then_restore = _file(db_session, project, "AI第一段。\nAI第二段。", title="系统恢复", file_type="draft")
+    _version(db_session, ai_then_restore, "AI第一段。\nAI第二段。", "create", "ai")
+    _version(db_session, ai_then_restore, "AI第一段。\n系统快照第二段。", "restore", "system")
+
+    atr_blame = line_blame(db_session, ai_then_restore.id, ai_then_restore.content)
+    assert atr_blame is not None
+    assert atr_blame.labels == [AI, ORIGINAL]
+    assert atr_blame.has_ai is True
+
+    # 9. Window start > 1 (complete=False): v_start seeded ORIGINAL -> v_{start+1} AI preserves ORIGINAL
+    # on lines untouched since v_start and marks lines written after v_start as AI.
+    windowed = _file(db_session, project, "固定开头。\n可变结尾0。", title="截断窗口", file_type="draft")
+    _version(db_session, windowed, "固定开头。\n可变结尾0。", "create", "ai")
+    for idx in range(1, MAX_VERSION_WINDOW + 2):
+        _version(db_session, windowed, f"固定开头。\n可变结尾{idx}。", "ai_edit", "ai")
+
+    win_blame = line_blame(db_session, windowed.id, windowed.content)
+    assert win_blame is not None
+    assert win_blame.complete is False
+    assert win_blame.has_ai is True
+    assert win_blame.labels == [ORIGINAL, AI]
+
 
 def test_long_file_with_repeated_short_lines_replays_fast_for_ai_only_and_author_edit(
     db_session, owner_project, monkeypatch

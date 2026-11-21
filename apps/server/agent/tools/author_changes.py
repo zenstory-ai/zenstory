@@ -162,6 +162,11 @@ def _advance(
         suffix += 1
     if prefix == old_len == new_len:
         return
+    # 空行属于 junk，不把紧贴改动区的纯空行算作已对齐前后缀，保持与全量 SequenceMatcher 完全一致。
+    while prefix > 0 and not old_lines[prefix - 1].strip():
+        prefix -= 1
+    while suffix > 0 and not old_lines[old_len - suffix].strip():
+        suffix -= 1
 
     old_end = old_len - suffix
     new_end = new_len - suffix
@@ -287,8 +292,9 @@ def line_blame(session: Session, file_id: str, current_content: str) -> LineBlam
     seen_ai = False if complete else _ai_versions_before(session, file_id, start)
     content = ""
     blame: LineBlame | None = None
-    # 首次遇到有效作者手改之前，连续的非作者版本不会产生 AUTHOR 标注或 AuthorDeletion；
-    # 先用低开销的 _apply_diff 推进最新非作者基线，跳过无意义的 SequenceMatcher 比对。
+    # 首次遇到有效作者手改或非作者基线标签变化之前，连续同标签（或从空稿起步）的非作者版本
+    # 不会产生混合标签、AUTHOR 标注或 AuthorDeletion；直接用低开销 _apply_diff 推进基线，
+    # 跳过冗余 SequenceMatcher 比对，同时保持与全量回放 100% 一致的 labels 语义。
     baseline_version_number: int | None = None
     baseline_content = ""
     baseline_label = ORIGINAL
@@ -314,13 +320,13 @@ def line_blame(session: Session, file_id: str, current_content: str) -> LineBlam
                     baseline_version_number = version.version_number
                     baseline_content = content
                     baseline_label = effective if version.version_number == 1 else ORIGINAL
-                elif effective != AUTHOR:
+                elif effective == baseline_label:
                     baseline_version_number = version.version_number
                     baseline_content = content
-                    if effective == AI:
-                        baseline_label = AI
-                    elif baseline_label != AI:
-                        baseline_label = ORIGINAL
+                elif not baseline_content and effective != AUTHOR:
+                    baseline_version_number = version.version_number
+                    baseline_content = content
+                    baseline_label = effective
                 else:
                     base_lines = _split(baseline_content)
                     blame = LineBlame(

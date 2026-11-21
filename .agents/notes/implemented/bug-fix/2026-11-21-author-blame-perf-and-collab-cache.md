@@ -19,9 +19,9 @@ Status: implemented
 
 1. **修复 `author_changes` 性能退化并加装总预算与协同取消**：
    - `apps/server/agent/tools/author_changes.py`：
-     - `line_blame()` 先用低开销的 `_apply_diff` 沿版本链重建正文；在窗口内首次遇到有效 `effective == AUTHOR` 版本之前，所有连续非作者版本都不会产生 `AUTHOR` 标注或 `AuthorDeletion`，直接推进最新非作者基线、跳过无意义的 `SequenceMatcher` 比对（纯 AI 文件与纯原稿文件 0 次 `SequenceMatcher` 调用；混合链跳过首次作者编辑前的全部非作者 diff；未进版本的作者手改只在最后做 1 次比对）。
-     - `_matcher()` 将 `autojunk=False` 改为 `autojunk=True`（Python 标准库仅在 `len(b) >= 200` 时忽略出现率 `> 1%` 的高频行，同时保留空行 `isjunk`，对短文件零影响、消除长文重复短行的二次退化）。
-     - `author_hunks()` 在 `baseline == blame.lines` 时跳过冗余 `_matcher`；`touched_author_text()` 在 `AUTHOR not in blame.labels` 时跳过 `_matcher` 仅核对 `_restored_deletions`。
+     - `line_blame()` 先用低开销的 `_apply_diff` 沿版本链重建正文；在首次遇到有效 `effective == AUTHOR` 版本或非作者基线标签切换之前，仅当 `effective == baseline_label`（连续同标签非作者版本）或从空基线起步（`not baseline_content and effective != AUTHOR`，如空原稿后接 AI 写作）时直接推进最新非作者基线、跳过无意义的 `SequenceMatcher` 比对（纯 AI 文件、空稿转 AI 链与纯原稿文件 0 次 `SequenceMatcher` 调用；非空 `ORIGINAL` 转 `AI`、`restore/system` 及 `start > 1` 截断窗口回退正常 `_advance()`，100% 保持原有 `LineBlame.labels` 语义）。
+     - `_matcher()` 将 `autojunk=False` 改为 `autojunk=True`（Python 标准库仅在 `len(b) >= 200` 时忽略出现率 `> 1%` 的高频行，同时保留空行 `isjunk`，对短文件零影响、消除长文重复短行的二次退化）；`_advance()` 在调用 `_matcher` 前裁剪完全一致的非空首尾行。
+     - `author_hunks()` 仅在基线存在未归因的已删非空行时才调用 `_matcher`；`touched_author_text()` 在 `AUTHOR not in blame.labels` 时跳过 `_matcher` 仅核对 `_restored_deletions`。
    - `apps/server/agent/core/session_loader.py`、`apps/server/agent/loop/turn_context.py`、`apps/server/agent/service.py`：
      - `SessionLoader.author_edits_for_files()` 增加总墙钟预算 `AUTHOR_EDITS_TIME_BUDGET_S = 2.0`（支持参数覆盖，默认检查完当前文件后若超预算，其余文件体面归入既有的 `unchecked_titles` 提示「未核对」）。
      - `AgentService.process_stream()` 为 `_prepare_loop_turn` / `_prepare_loop_turn_sync` 传入协同 `threading.Event`（`cancel_event`），透传至 `build_loop_turn_context` → `session_written_file_ids` / `author_edits_for_files`；流取消/超时及 `finally` 立即 `set()`，让后台线程在分页/文件边界快速退出，不再堆积僵尸 GIL 线程。
