@@ -244,6 +244,393 @@ async def test_range_read_still_enforces_stale_content_error_on_author_edit_anyw
         mcp_tools.ToolContext.clear_context()
 
 
+@pytest.mark.asyncio
+async def test_range_read_prepend_and_append_batch_shifts_span_without_exposing_unseen_regions(
+    db_session, owner_project
+):
+    user, project = owner_project
+    content = _long_collection()
+    chapter = _make_file(db_session, project, title="合集", content=content)
+    engine = db_session.get_bind()
+
+    mcp_tools.ToolContext.set_context(
+        None,
+        user.id,
+        project.id,
+        None,
+        create_session_func=lambda: Session(engine),
+        read_snapshots={},
+    )
+    try:
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
+        mcp_tools.ToolContext.promote_pending_reads()
+        orig_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        assert len(orig_spans) == 1
+
+        batch = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {"op": "prepend", "text": "楔子开头，细雨蒙蒙。"},
+                            {"op": "append", "text": "尾声收束，长夜将尽。"},
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert batch["status"] == "success", batch
+
+        with Session(engine) as check_sess:
+            updated_content = check_sess.get(File, chapter.id).content
+        delta = updated_content.index("第1章 雨夜1") - content.index("第1章 雨夜1")
+        assert delta > 0
+        shifted_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        assert shifted_spans == [(orig_spans[0][0] + delta, orig_spans[0][1] + delta)]
+
+        # Unseen 第1章 must STILL block fuzzy edits.
+        fuzzy_ch1 = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {
+                                "op": "replace",
+                                "old": "林晚在第1章收起雨伞, 靠在廊柱边上, 听见远处钟声敲了三下.",
+                                "new": "不应改到未读第1章。",
+                            }
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert fuzzy_ch1["status"] == "error"
+        assert fuzzy_ch1["error_type"] == "anchor_not_found"
+
+        # Seen 第8章 still allows fuzzy edits at its shifted coordinates.
+        fuzzy_ch8 = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {
+                                "op": "replace",
+                                "old": "林晚在第8章收起雨伞, 靠在廊柱边上, 听见远处钟声敲了三下.",
+                                "new": "林晚在第8章合上雨伞。",
+                            }
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert fuzzy_ch8["status"] == "success", fuzzy_ch8
+        assert fuzzy_ch8["data"]["details"][0]["match_mode"] == "fuzzy"
+    finally:
+        mcp_tools.ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+async def test_range_read_mixed_unseen_exact_and_seen_fuzzy_batch_keeps_other_unseen_blocked(
+    db_session, owner_project
+):
+    user, project = owner_project
+    content = _long_collection()
+    chapter = _make_file(db_session, project, title="合集", content=content)
+    engine = db_session.get_bind()
+
+    mcp_tools.ToolContext.set_context(
+        None,
+        user.id,
+        project.id,
+        None,
+        create_session_func=lambda: Session(engine),
+        read_snapshots={},
+    )
+    try:
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
+        mcp_tools.ToolContext.promote_pending_reads()
+
+        mixed = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {"op": "replace", "old": "第1章 雨夜1", "new": "第1章 长夜初明第1节"},
+                            {
+                                "op": "replace",
+                                "old": "林晚在第8章收起雨伞, 靠在廊柱边上, 听见远处钟声敲了三下.",
+                                "new": "林晚在第8章收拢雨伞，静听钟声。",
+                            },
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert mixed["status"] == "success", mixed
+        assert mixed["data"]["edits_applied"] == 2
+        assert mixed["data"]["details"][0]["match_mode"] == "exact"
+        assert mixed["data"]["details"][1]["match_mode"] == "fuzzy"
+
+        # Unseen 第2章 (between edit 0 in 第1章 and edit 1 in 第8章) must STILL block fuzzy edits.
+        fuzzy_ch2 = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {
+                                "op": "replace",
+                                "old": "林晚在第2章收起雨伞, 靠在廊柱边上, 听见远处钟声敲了三下.",
+                                "new": "不应改到未读第2章。",
+                            }
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert fuzzy_ch2["status"] == "error"
+        assert fuzzy_ch2["error_type"] == "anchor_not_found"
+
+        # Another fuzzy/approx edit inside 第8章 still works.
+        approx_ch8 = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {
+                                "op": "replace",
+                                "old": "陈默翻开旧账本，第8页写着一行极细的小字，墨迹早就被潮气晕开了。",
+                                "new": "陈默合上旧账本。",
+                            }
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert approx_ch8["status"] == "success", approx_ch8
+    finally:
+        mcp_tools.ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+async def test_range_read_exact_replace_all_across_unseen_and_seen_does_not_bridge_spans(
+    db_session, owner_project
+):
+    user, project = owner_project
+    content = (
+        _long_collection()
+        .replace("第1章 雨夜1", "第1章 雨夜1【旧印记】")
+        .replace("第8章 雨夜8", "第8章 雨夜8【旧印记】")
+        .replace("第12章 雨夜12", "第12章 雨夜12【旧印记】")
+    )
+    chapter = _make_file(db_session, project, title="合集", content=content)
+    engine = db_session.get_bind()
+
+    mcp_tools.ToolContext.set_context(
+        None,
+        user.id,
+        project.id,
+        None,
+        create_session_func=lambda: Session(engine),
+        read_snapshots={},
+    )
+    try:
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
+        mcp_tools.ToolContext.promote_pending_reads()
+        orig_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        assert len(orig_spans) == 1
+
+        old_marker = "【旧印记】"
+        new_marker = "【新印记——更长标记】"
+        delta_per_hit = len(new_marker) - len(old_marker)
+
+        replaced = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {"op": "replace", "old": old_marker, "new": new_marker, "replace_all": True}
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert replaced["status"] == "success", replaced
+        assert replaced["data"]["details"][0]["count"] == 3
+
+        # Seen span shifts by +delta (from Ch.1 hit) and grows by +delta (from Ch.8 hit); Ch.12 hit is after span.
+        shifted_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        assert shifted_spans == [
+            (orig_spans[0][0] + delta_per_hit, orig_spans[0][1] + 2 * delta_per_hit)
+        ]
+
+        # Fuzzy edits on unseen 第1章 and unseen 第12章 must both be REJECTED.
+        for unseen_n in (1, 12):
+            rejected = json.loads(
+                (
+                    await mcp_tools.edit_file(
+                        {
+                            "id": chapter.id,
+                            "edits": [
+                                {
+                                    "op": "replace",
+                                    "old": f"林晚在第{unseen_n}章收起雨伞, 靠在廊柱边上, 听见远处钟声敲了三下.",
+                                    "new": "不应改到未读章节。",
+                                }
+                            ],
+                        }
+                    )
+                )["content"][0]["text"]
+            )
+            assert rejected["status"] == "error", unseen_n
+            assert rejected["error_type"] == "anchor_not_found", unseen_n
+
+        # Fuzzy edit inside seen 第8章 still SUCCEEDS.
+        ok = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {
+                                "op": "replace",
+                                "old": "林晚在第8章收起雨伞, 靠在廊柱边上, 听见远处钟声敲了三下.",
+                                "new": "林晚在第8章合起油纸伞。",
+                            }
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert ok["status"] == "success", ok
+    finally:
+        mcp_tools.ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+async def test_range_read_failed_rolled_back_batch_preserves_seen_spans(db_session, owner_project):
+    user, project = owner_project
+    content = _long_collection()
+    chapter = _make_file(db_session, project, title="合集", content=content)
+    engine = db_session.get_bind()
+
+    mcp_tools.ToolContext.set_context(
+        None,
+        user.id,
+        project.id,
+        None,
+        create_session_func=lambda: Session(engine),
+        read_snapshots={},
+    )
+    try:
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
+        mcp_tools.ToolContext.promote_pending_reads()
+        orig_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        assert len(orig_spans) == 1
+
+        failed = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "continue_on_error": False,
+                        "edits": [
+                            {"op": "prepend", "text": "这段前置会随整批回滚。"},
+                            {"op": "replace", "old": "整份文稿里完全不存在的一句话。", "new": "替换"},
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert failed["status"] == "error"
+
+        # Rolled-back batch must NOT mutate stored seen_file_spans or DB content.
+        assert mcp_tools.ToolContext.seen_file_spans(chapter.id) == orig_spans
+        with Session(engine) as check_sess:
+            assert check_sess.get(File, chapter.id).content == content
+
+        # Subsequent fuzzy edit inside 第8章 still succeeds at original coordinates.
+        ok = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {
+                                "op": "replace",
+                                "old": "林晚在第8章收起雨伞, 靠在廊柱边上, 听见远处钟声敲了三下.",
+                                "new": "林晚在第8章收起雨伞。",
+                            }
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert ok["status"] == "success", ok
+    finally:
+        mcp_tools.ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+async def test_range_read_fuzzy_replace_all_spanning_unseen_and_seen_fails_without_approx_fallthrough(
+    db_session, owner_project
+):
+    user, project = owner_project
+    shared_sentence = "林晚停下脚步，抬头望向檐角的铜铃，久久没有说话。"
+    content = (
+        _long_collection()
+        .replace("第1章 雨夜1\n", f"第1章 雨夜1\n　　{shared_sentence}\n\n")
+        .replace("第8章 雨夜8\n", f"第8章 雨夜8\n　　{shared_sentence}\n\n")
+    )
+    chapter = _make_file(db_session, project, title="合集", content=content)
+    engine = db_session.get_bind()
+
+    mcp_tools.ToolContext.set_context(
+        None,
+        user.id,
+        project.id,
+        None,
+        create_session_func=lambda: Session(engine),
+        read_snapshots={},
+    )
+    try:
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
+        mcp_tools.ToolContext.promote_pending_reads()
+
+        # Fuzzy replace_all matches BOTH unseen 第1章 and seen 第8章: must fail outright,
+        # NEVER fall through to single-match approximate replacement on 第8章 alone!
+        res = json.loads(
+            (
+                await mcp_tools.edit_file(
+                    {
+                        "id": chapter.id,
+                        "edits": [
+                            {
+                                "op": "replace",
+                                "old": "林晚停下脚步, 抬头望向檐角的铜铃, 久久没有说话.",
+                                "new": "林晚转身走进雨幕。",
+                                "replace_all": True,
+                            }
+                        ],
+                    }
+                )
+            )["content"][0]["text"]
+        )
+        assert res["status"] == "error", res
+        assert res["error_type"] == "anchor_not_found"
+
+        with Session(engine) as check_sess:
+            assert check_sess.get(File, chapter.id).content == content
+    finally:
+        mcp_tools.ToolContext.clear_context()
+
+
 # ---------------------------------------------------------------------------
 # Rank 2: edit_file LLM slimming + side-channel UI parity + update_project dedupe + compact JSON
 # ---------------------------------------------------------------------------

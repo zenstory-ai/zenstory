@@ -16,8 +16,8 @@ Status: implemented
 ## Decision
 
 1. **范围读取区间快照（`tool_context.py`、`mcp_tools.py`、`file_ops/edit.py`）**
-   - `_ReadSnapshots` 在保留全文 `range` 基线快照（`StaleContentError` 100% 严格比对全文）的同时，记录并合并模型通过范围读取看过的字符区间 `_range_spans`（同一次回复内多段范围读取合并；本请求局部写入按最长公共前后缀平移区间；`begin_agent_run()` 时清空）。
-   - `ToolContext.has_seen_file()` 语义不变（仅全文看过时为 True）；`edit_file` 在 `exact_only=True` 且存在 `seen_spans` 时，允许模糊/近似/段落匹配仅落在已读区间内（区间外仍强制逐字匹配，绝不误改未读段落）。
+   - `_ReadSnapshots` 在保留全文 `range` 基线快照（`StaleContentError` 100% 严格比对全文）的同时，记录并合并模型通过范围读取看过的字符区间 `_range_spans`（同一次回复内多段范围读取合并；本请求局部写入由 `FileEditor` 按每个具体编辑 hunk `(old_start, old_end, replacement_len)` 经 `shift_spans_for_hunks` 精确平移，并在提交时传入 `written_snapshot_for_commit`，绝不桥接多处编辑或 `replace_all` 之间的未读间隙；`begin_agent_run()` 时清空）。
+   - `ToolContext.has_seen_file()` 语义不变（仅全文看过时为 True）；`edit_file` 在 `exact_only=True` 且存在 `seen_spans` 时，允许模糊/近似/段落匹配仅落在已读区间内（区间外仍强制逐字匹配；`replace_all=True` 不会在部分命中未读区间后退化为单处近似匹配，且当全文模糊匹配全部落在未读区间时不会退化到已读区间做近似/段落兜底，绝不误伤未读段落或已读相似句）。
 
 2. **`edit_file` UI 侧通道 + LLM 载荷瘦身 + 紧凑 JSON（`tool_context.py`、`edit.py`、`mcp_tools.py`、`tools_adapter.py`、`stream_adapter.py`、`events.py`、`repeat_read_guard.py`、`history.py`）**
    - `ToolContext` 新增请求级线程安全容器 `_ToolUiPayloadStore`（按 `tool_call_id` 索引，未传 `tool_call_id` 的测试替身回退到 `(tool_name, file_id)` 队列，`ToolContext.clear_context()` 清空）；`tools_adapter.invoke_project_tool` 通过 `ToolContext.tool_call_scope(call_id)` 透传 SDK `tool_call_id`。

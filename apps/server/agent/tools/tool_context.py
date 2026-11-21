@@ -7,8 +7,9 @@ handlers in ``agent.tools.mcp_tools``.
 
 import contextlib
 import contextvars
+import difflib
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
 from sqlmodel import Session
@@ -416,47 +417,72 @@ def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
+def shift_spans_for_hunks(
+    spans: Sequence[tuple[int, int]],
+    hunks: Sequence[tuple[int, int, int]],
+    *,
+    new_len: int | None = None,
+) -> list[tuple[int, int]]:
+    """按具体编辑块 ``(old_start, old_end, replacement_len)`` 平移/更新已读字符区间。
+
+    每个 hunk 均在修改前正文坐标下给出且互不重叠。从右向左依次套用，确保：
+    - 落在已读区间之前的改动只做坐标平移，绝不桥接中间的未读段落；
+    - 落在已读区间之后的改动不影响该区间；
+    - 与已读区间重叠的改动只随该 hunk 自身伸缩，绝不把未读空白/章节并入已读区间。
+    """
+    current = _merge_spans(list(spans))
+    if not current or not hunks:
+        return current
+    ordered_hunks = sorted(
+        ((int(s), int(e), max(0, int(n))) for s, e, n in hunks),
+        key=lambda item: (item[0], item[1]),
+        reverse=True,
+    )
+    for h_start, h_end, repl_len in ordered_hunks:
+        delta = repl_len - (h_end - h_start)
+        updated: list[tuple[int, int]] = []
+        for start, end in current:
+            if h_start >= end:
+                # 改动完全在已读区间之后（含在区间右端点插入）
+                new_start, new_end = start, end
+            elif h_end <= start:
+                # 改动完全在已读区间之前（含在区间左端点插入）：仅平移坐标
+                new_start, new_end = start + delta, end + delta
+            else:
+                # 改动与已读区间重叠（包含或跨边界）：仅按当前 hunk 局部调整
+                new_start = start if start <= h_start else h_start
+                new_end = (end + delta) if end >= h_end else (h_start + repl_len)
+            if new_len is not None:
+                new_start = max(0, min(new_start, new_len))
+                new_end = max(0, min(new_end, new_len))
+            else:
+                new_start = max(0, new_start)
+                new_end = max(0, new_end)
+            if new_end > new_start:
+                updated.append((new_start, new_end))
+        current = _merge_spans(updated)
+        if not current:
+            break
+    return current
+
+
 def shift_spans_for_edit(
     old_content: str,
     new_content: str,
     spans: list[tuple[int, int]],
 ) -> list[tuple[int, int]]:
-    """按一次本地写入的前后正文平移/调整已读字符区间。
-
-    利用最长公共前后缀定位变动窗口：变动前保持不变，变动后平移 delta，
-    与变动窗口重叠的已读区间同步覆盖新写入的范围；未读区间绝不被扩大。
-    """
+    """无显式 hunk 时的兜底区间投影：按非 equal opcode 逐块调用 shift_spans_for_hunks，不桥接未读间隙。"""
     if not spans:
         return []
     if old_content == new_content:
         return _merge_spans(spans)
-    old_len = len(old_content)
-    new_len = len(new_content)
-    min_len = min(old_len, new_len)
-    prefix = 0
-    while prefix < min_len and old_content[prefix] == new_content[prefix]:
-        prefix += 1
-    suffix = 0
-    max_suffix = min_len - prefix
-    while suffix < max_suffix and old_content[old_len - 1 - suffix] == new_content[new_len - 1 - suffix]:
-        suffix += 1
-    old_change_end = old_len - suffix
-    new_change_end = new_len - suffix
-    delta = new_len - old_len
-    adjusted: list[tuple[int, int]] = []
-    for start, end in spans:
-        if end <= prefix:
-            new_start, new_end = start, end
-        elif start >= old_change_end:
-            new_start, new_end = start + delta, end + delta
-        else:
-            new_start = start if start < prefix else prefix
-            new_end = end + delta if end >= old_change_end else new_change_end
-        new_start = max(0, min(new_start, new_len))
-        new_end = max(0, min(new_end, new_len))
-        if new_end > new_start:
-            adjusted.append((new_start, new_end))
-    return _merge_spans(adjusted)
+    matcher = difflib.SequenceMatcher(None, old_content, new_content, autojunk=False)
+    hunks = [
+        (i1, i2, j2 - j1)
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes()
+        if tag != "equal"
+    ]
+    return shift_spans_for_hunks(spans, hunks, new_len=len(new_content))
 
 
 class _ToolUiPayloadStore:
@@ -582,6 +608,7 @@ class _ReadSnapshots:
         full: bool = False,
         seq: int | None = None,
         span: tuple[int, int] | None = None,
+        seen_spans: Sequence[tuple[int, int]] | None = None,
     ) -> None:
         if not file_id or kind not in ("written", "read", "range"):
             return
@@ -610,6 +637,12 @@ class _ReadSnapshots:
             if full:
                 self._full_writes.add(file_id)
                 self._range_spans.pop(file_id, None)
+            elif seen_spans is not None:
+                merged = _merge_spans(list(seen_spans))
+                if merged:
+                    self._range_spans[file_id] = (normalized, merged)
+                else:
+                    self._range_spans.pop(file_id, None)
             elif file_id in self._range_spans and previous_content is not None:
                 snap_content, spans = self._range_spans[file_id]
                 if snap_content == previous_content:
@@ -991,11 +1024,18 @@ class ToolContext:
         return None
 
     @classmethod
-    def record_written_snapshot(cls, file_id: str, content: str | None, *, full: bool = False) -> None:
+    def record_written_snapshot(
+        cls,
+        file_id: str,
+        content: str | None,
+        *,
+        full: bool = False,
+        seen_spans: Sequence[tuple[int, int]] | None = None,
+    ) -> None:
         """记下本请求自己写下的正文（立即生效）；full=整份写下（创建 / 整份覆盖），模型知道全文。"""
         holder = cls._get_context().get("read_snapshots")
         if isinstance(holder, _ReadSnapshots):
-            holder.record(str(file_id or ""), content or "", kind="written", full=full)
+            holder.record(str(file_id or ""), content or "", kind="written", full=full, seen_spans=seen_spans)
 
     @classmethod
     def written_snapshot_state(cls, file_id: str) -> Any:
