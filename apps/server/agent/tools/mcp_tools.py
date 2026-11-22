@@ -549,8 +549,9 @@ def _awaiting_body_data(data: dict[str, Any], title: str) -> dict[str, Any]:
         **data,
         "awaiting_body": True,
         "next_step": (
-            f"「{title}」已建好，正文还是空的。下一次回复直接以 <file> 开头写它的正文，"
-            "写完用 </file> 结束；不要先调用其他工具。"
+            f"「{title}」已建好，正文还是空的。构思已在调用前完成，这一次思考只留一两行或直接开始，"
+            "不要在思考里重新推演全盘方案或预写全文；回复第一行直接输出 <file> 写完整正文，写完用 </file> 结束；"
+            "写完之前不要调用任何工具（query_files / write_chapter / edit_file / update_project 都会被拒绝）。"
         ),
     }
 
@@ -1219,8 +1220,10 @@ def _write_chapter_replace(
                 f"{title_clause}"
             ),
             "next_step": (
-                "下一次回复直接以 <file> 开头写这一章完整的新正文（不是改动片段），写完用 </file> 结束；"
-                "不要先调用其他工具。保存后原稿可在历史版本里找回（也可在聊天修改卡撤销）。"
+                "构思已在调用前完成，这一次思考只留一两行或直接开始，不要在思考里重新推演或预写全文；"
+                "回复第一行直接输出 <file> 写这一章完整的新正文（不是改动片段），写完用 </file> 结束；"
+                "写完之前不要调用任何工具（query_files / write_chapter / edit_file / update_project 都会被拒绝）。"
+                "保存后原稿可在历史版本里找回（也可在聊天修改卡撤销）。"
             ),
         }
     )

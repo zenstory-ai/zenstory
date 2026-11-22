@@ -370,7 +370,7 @@ test.describe('Accessibility - ARIA', () => {
     // Check for navigation landmark
     const navCount = await page.locator('nav, [role="navigation"]').count();
     const sidebarTabCount = await page
-      .locator('button:has-text("项目文件"), button:has-text("Files"), button:has-text("技能"), button:has-text("Skills"), button:has-text("素材库"), button:has-text("Materials")')
+      .locator('button:has-text("项目文件"), button:has-text("Files"), button:has-text("技能"), button:has-text("Skills"), button:has-text("参考小说"), button:has-text("References")')
       .count();
     expect(navCount + sidebarTabCount).toBeGreaterThan(0);
   });

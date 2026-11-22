@@ -6,6 +6,7 @@ import type { FileUpdateVersionIntent } from "../lib/api";
 import { FileVersionHistory } from "./FileVersionHistory";
 import { DiffReviewSplitView } from "./DiffReviewSplitView";
 import { DiffToolbar } from "./DiffToolbar";
+import { EditorStreamingBanner, EditorStreamingCanvasWaiting } from "./EditorStreamingWaiting";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { useTextQuote } from "../contexts/TextQuoteContext";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
@@ -1053,10 +1054,7 @@ export const SimpleEditor = ({
 
       {/* Streaming indicator banner */}
       {isStreaming && !isReviewMode && (
-        <div className="shrink-0 bg-[hsl(var(--accent-primary)/0.08)] px-4 sm:px-6 py-2.5 flex items-center gap-2.5 border-b border-[hsl(var(--accent-primary)/0.2)]">
-          <Loader2 size={16} className="shrink-0 animate-spin text-[hsl(var(--accent-primary))]" aria-hidden="true" />
-          <span className="text-sm text-[hsl(var(--accent-primary))] font-medium">{t('editor:aiWriting')}</span>
-        </div>
+        <EditorStreamingBanner isWaitingForFirstToken={!displayContent} title={title} />
       )}
       
       {/* Title bar */}
@@ -1117,10 +1115,14 @@ export const SimpleEditor = ({
                   requestAnimationFrame(() => adjustTextareaHeight());
                 }}
                 disabled={readOnly || isStreaming}
-                placeholder={t('editor:placeholder.contentPlaceholder')}
+                placeholder={isStreaming && !displayContent ? '' : t('editor:placeholder.contentPlaceholder')}
                 className={`editor-content font-[family-name:var(--font-body)] w-full overflow-y-hidden bg-transparent text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none resize-none leading-relaxed text-base ${isStreaming ? 'cursor-default' : ''}`}
                 style={{ minHeight: `${SIMPLE_EDITOR_MIN_HEIGHT_PX}px`, fontSize: `${zoom}em` }}
               />
+              {/* Calm editorial waiting state before the first streamed character arrives */}
+              {isStreaming && !displayContent && (
+                <EditorStreamingCanvasWaiting title={title} />
+              )}
               {/* Mirror div for calculating selection position */}
               <div ref={mirrorRef} aria-hidden="true" />
               {/* Typing cursor for streaming */}

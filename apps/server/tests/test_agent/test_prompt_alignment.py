@@ -259,3 +259,11 @@ def test_admin_directory_structure_with_stray_braces_still_builds(directory_stru
     )
 
     assert expected in prompt
+
+
+@pytest.mark.unit
+def test_anti_plagiarism_rule_scopes_to_reference_novels_and_allows_project_snippets():
+    """外部参考小说不搬运原句，但作者写进本项目「素材」文件夹的原创片段应允许按要求原句引用。"""
+    assert "参考小说等外部导入素材只用于学习结构、情绪与因果机制；另创人物、关系、情境和表达，不搬运原句或换名复刻。" in UNIFIED_EXECUTION_PROTOCOL
+    assert "作者自己写进本项目「素材」文件夹的原创片段" in UNIFIED_EXECUTION_PROTOCOL
+    assert "可直接原句使用" in UNIFIED_EXECUTION_PROTOCOL

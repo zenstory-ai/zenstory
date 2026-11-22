@@ -51,7 +51,7 @@
     "removeFromChat": "Remove from chat",
     "addToChat": "Add to chat",
     "emptyFolder": "Empty, click + to start creating",
-    "emptyMaterialFolder": "Reference texts for this project. Click + to upload a .txt / .md, then add it to the chat for the AI to use",
+    "emptyMaterialFolder": "Store lyrics, poems, dialogue lines, or reference texts here. Click + to create one, or use Upload to import .txt / .md, then add it to chat for the AI",
     "folderEmpty": "No files yet",
     "loadFailed": "Couldn't load files. Please try again.",
     "createWithAI": "Tell the AI what you want to write — it can set up the outline and chapters.",
@@ -175,6 +175,10 @@
   "editLabelAdd": "Suggested paragraph",
   "reviewParagraphLabel": "Paragraph",
   "aiWriting": "AI is writing",
+  "aiDraftingOpening": "Drafting the opening of “{{title}}”, writing will begin shortly…",
+  "aiDraftingOpeningUntitled": "Drafting the opening, writing will begin shortly…",
+  "aiDraftingElapsed": "Waiting {{seconds}}s",
+  "aiDraftingBannerElapsed": "{{seconds}}s",
   "wordCount": "Words",
   "wordCountHint": "Counts Chinese characters and English words, without punctuation or digits, so it can be lower than some platforms show.",
   "paragraphCount": "Paragraphs",
@@ -261,7 +265,7 @@
   "sidebar": {
     "files": "Files",
     "skills": "Skills",
-    "materials": "Materials",
+    "materials": "References",
     "menu": "Menu"
   },
   "projectMenu": {

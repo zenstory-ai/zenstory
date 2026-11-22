@@ -48,7 +48,8 @@ WRITE_CHAPTER_TOOL: dict[str, Any] = build_tool_schema(
     description=(
         "写正文的某一章（剧本是某一集）：按 chapter 编号定位这一章，不存在就新建，已存在就整章替换这一章，"
         "不会写到别的章。结果的 action 说明是新建（created）还是替换（replaced，附原来的字数）。"
-        "调用后的下一次回复第一行输出 <file>，接着写这一章完整的正文，最后 </file>；替换时写的是整章新正文。"
+        "调用前先读完所需大纲、前一章和角色卡；调用后的下一次回复第一行直接输出 <file> 写完整正文，最后 </file>，"
+        "写完前禁止再调用 query_files 或其他工具；替换时写的是整章新正文。"
         "只改一章里的几处用 edit_file。"
         f"{WORD_COUNT_CONTRACT}"
     ),

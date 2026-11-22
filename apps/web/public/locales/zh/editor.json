@@ -51,7 +51,7 @@
     "removeFromChat": "从对话中移除",
     "addToChat": "添加到对话",
     "emptyFolder": "暂无内容，点击 + 开始创作",
-    "emptyMaterialFolder": "放本项目要参考的文本，点 + 上传 .txt / .md，可添加到对话让 AI 参考",
+    "emptyMaterialFolder": "放歌词短诗、台词灵感或参考文本，点 + 新建编辑，或点上传图标导入 .txt / .md，可添加到对话让 AI 参考",
     "folderEmpty": "还没有文件",
     "loadFailed": "文件暂时没能加载，请重试",
     "createWithAI": "告诉 AI 你想写什么，它会帮你建好大纲和章节",
@@ -175,6 +175,10 @@
   "editLabelAdd": "建议段落",
   "reviewParagraphLabel": "段落",
   "aiWriting": "AI 正在创作中",
+  "aiDraftingOpening": "正在构思《{{title}}》开篇，即将逐字写入…",
+  "aiDraftingOpeningUntitled": "正在构思开篇，即将逐字写入…",
+  "aiDraftingElapsed": "已等待 {{seconds}} 秒",
+  "aiDraftingBannerElapsed": "{{seconds}} 秒",
   "wordCount": "字数",
   "wordCountHint": "字数按汉字和英文单词计，不含标点和数字，会比一些平台显示的少。",
   "paragraphCount": "段落",
@@ -261,7 +265,7 @@
   "sidebar": {
     "files": "项目文件",
     "skills": "技能",
-    "materials": "素材库",
+    "materials": "参考小说",
     "menu": "菜单"
   },
   "projectMenu": {
