@@ -973,8 +973,13 @@ describe('ChatPanel mount smoke', () => {
   })
 
   it('consumes pendingAgentUiAction for natural_polish with structured ui_action and does not leak it to the next message', async () => {
+    mockProjectState.consumeAgentUiAction.mockImplementation((id: number) => {
+      if (mockProjectState.pendingAgentUiAction?.id === id) {
+        mockProjectState.pendingAgentUiAction = null
+      }
+    })
     try {
-      const { rerender } = render(nextChatPanel())
+      const { rerender } = render(<ChatPanel />)
       await waitFor(() => expect(screen.getByTestId('mock-message-input')).toBeInTheDocument())
       await waitFor(() => expect(lastMessageInputProps()?.onSend).toBeTypeOf('function'))
 
@@ -1002,8 +1007,10 @@ describe('ChatPanel mount smoke', () => {
         }),
       }))
 
-      // Clear pending action and send a normal follow-up message: ui_action must NOT leak.
-      mockProjectState.pendingAgentUiAction = null
+      // Wait for startRound's same-tick double-click lock to release, then send a normal follow-up message: ui_action must NOT leak.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
       rerender(nextChatPanel())
       await act(async () => { await lastMessageInputProps().onSend('第二段再收紧一点') })
       await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(2))
@@ -1012,6 +1019,7 @@ describe('ChatPanel mount smoke', () => {
       expect(secondCall.ui_action).toBeUndefined()
     } finally {
       mockProjectState.pendingAgentUiAction = null
+      mockProjectState.consumeAgentUiAction.mockReset()
     }
   })
 

@@ -2023,10 +2023,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, [setIsChatStreaming]);
 
   // Handle one-shot structured UI actions dispatched from the editor (e.g. 去AI味).
+  const lastHandledUiActionIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (!pendingAgentUiAction || !currentProjectId || pendingAgentUiAction.projectId !== currentProjectId) {
       return;
     }
+    if (lastHandledUiActionIdRef.current === pendingAgentUiAction.id) {
+      return;
+    }
+    lastHandledUiActionIdRef.current = pendingAgentUiAction.id;
     consumeAgentUiAction?.(pendingAgentUiAction.id);
     if (pendingAgentUiAction.action !== "natural_polish") {
       return;
