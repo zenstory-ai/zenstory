@@ -468,6 +468,7 @@ async def run_loop_agent_streaming(
     run_meter: AgentRunMeter = state["run_meter"]
     read_guard: RepeatReadGuard = state["repeat_read_guard"]
     system_prompt = str(state.get("system_prompt") or "")
+    initial_user_message = str(state.get("user_message") or "")
     drop_english_narration = text_contains_cjk(state.get("router_message") or state.get("user_message"))
 
     # 上一轮停在思考阶段的输出上限（历史行的 stop_reason 数出的结构化事实）：本轮第一次 run 的输入末尾
@@ -717,6 +718,11 @@ async def run_loop_agent_streaming(
                             )
                         correction_attempts += 1
                         resumed_correction = True
+                        if not state.get("run_items") and initial_user_message:
+                            state["run_items"] = [
+                                *list(state.get("history_items") or []),
+                                {"role": "user", "content": initial_user_message},
+                            ]
                         state["user_message"] = context or ""
                         continue
                     if req_ctx.pending_chapter_replacement(resume.file_id) is not None:
@@ -858,6 +864,11 @@ async def run_loop_agent_streaming(
                 body_cut_at_output_cap=bool(output_capped and cut_bodies and ends_on_unclosed_file_block(tail_text)),
                 steering=bool(mid_run_steering or boundary_steering),
             )
+            if not state.get("run_items") and initial_user_message:
+                state["run_items"] = [
+                    *list(state.get("history_items") or []),
+                    {"role": "user", "content": initial_user_message},
+                ]
             state["user_message"] = followup
 
         if not terminated and runs >= max_runs:

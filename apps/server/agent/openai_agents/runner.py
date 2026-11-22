@@ -291,38 +291,42 @@ def _sanitized_early_stop_items(result: Any) -> list[Any] | None:
 
     早停发生在当前模型回复的流式阶段（尚未形成完整 ModelResponse），因此
     ``to_input_list()`` 只含此前已完成的轮次（如刚返回工具结果的 write_chapter）。
-    防御性剔除任何末尾悬空的 reasoning 项，并校验 function_call/function_call_output 成对，
-    避免污染续跑输入或 wire_prefix_cache。
+    防御性剔除任何末尾悬空的 reasoning 项或未配对的工具调用尾段，优先保留最长成对前缀，
+    避免整表退回 None 清空 ``state["run_items"]``、导致纠偏轮丢失本轮作者原始消息。
     """
     raw_items: list[Any] = []
     with contextlib.suppress(Exception):
         raw_items = list(result.to_input_list())
     if not raw_items:
         return None
-    while raw_items and isinstance(raw_items[-1], dict) and raw_items[-1].get("type") == "reasoning":
-        raw_items.pop()
-    if not raw_items:
-        return None
     pending_call_ids: set[str] = set()
-    for item in raw_items:
+    last_balanced_len = 0
+    for idx, item in enumerate(raw_items):
         if not isinstance(item, dict):
-            return None
+            break
         item_type = item.get("type")
         if item_type == "function_call":
             call_id = item.get("call_id")
             if not isinstance(call_id, str) or not call_id or call_id in pending_call_ids:
-                return None
+                break
             pending_call_ids.add(call_id)
         elif item_type == "function_call_output":
             call_id = item.get("call_id")
             if not isinstance(call_id, str) or not call_id or call_id not in pending_call_ids:
-                return None
+                break
             pending_call_ids.remove(call_id)
+            if not pending_call_ids:
+                last_balanced_len = idx + 1
         elif pending_call_ids:
-            return None
-    if pending_call_ids:
+            break
+        else:
+            last_balanced_len = idx + 1
+    if last_balanced_len <= 0:
         return None
-    return raw_items
+    trimmed = raw_items[:last_balanced_len]
+    while trimmed and isinstance(trimmed[-1], dict) and trimmed[-1].get("type") == "reasoning":
+        trimmed.pop()
+    return trimmed or None
 
 
 def extract_text_from_message_content(content: Any) -> str:
@@ -1088,7 +1092,7 @@ async def run_openai_agents_streaming_agent(
                 cache_read_tokens=usage.get("cache_read_tokens", 0),
                 continued_previous_run=continuing,
             )
-            completed_items = _sanitized_early_stop_items(result)
+            completed_items = _sanitized_early_stop_items(result) or list(run_input)
             return
 
         failure_trip = failure_breaker.trip
@@ -1354,6 +1358,8 @@ async def run_openai_agents_streaming_agent(
         if not max_turns_exhausted:
             with contextlib.suppress(Exception):
                 completed_items = list(result.to_input_list())
+            if not completed_items:
+                completed_items = list(run_input)
 
     except (asyncio.CancelledError, GeneratorExit):
         timing_outcome = "interrupted"
