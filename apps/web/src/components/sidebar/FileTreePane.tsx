@@ -21,6 +21,7 @@ import {
   Sparkles,
   FolderOpen,
   Plus,
+  Upload,
   Trash2,
   Folder,
   MessageSquarePlus,
@@ -326,11 +327,29 @@ export const FileTreePane: React.FC = () => {
           )}
 
           {/* Action buttons */}
-          {/* Phones have no hover: the draft folder keeps its import button visible there. */}
-          <div className={`${isMobile && isDraftFolder(node) ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"} flex items-center gap-0.5 transition-opacity`}>
-            {/* For draft folder: + button triggers draft upload */}
-            {isDraftFolder(node) ? (
+          {/* Phones have no hover: keep draft/material folder actions visible there. */}
+          <div className={`${isMobile && (isDraftFolder(node) || isMaterialFolder(node)) ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"} flex items-center gap-0.5 transition-opacity`}>
+            {/* Inline create button for every folder */}
+            {isFolder && (
               <button
+                type="button"
+                data-testid="file-tree-create-child"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startCreate(node.id, createFileType);
+                }}
+                className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))]"
+                title={`${t('common:create')} ${getFileTypeName(createFileType)}`}
+                aria-label={`${t('common:create')} ${getFileTypeName(createFileType)}`}
+              >
+                <Plus size={14} />
+              </button>
+            )}
+
+            {/* Explicit upload button for draft folder (.txt / .md chapter import) */}
+            {isDraftFolder(node) && (
+              <button
+                type="button"
                 data-testid="file-tree-upload-draft"
                 onClick={triggerDraftUpload}
                 disabled={isImportingDrafts}
@@ -338,11 +357,14 @@ export const FileTreePane: React.FC = () => {
                 title={t('editor:fileTree.uploadDraft')}
                 aria-label={t('editor:fileTree.uploadDraft')}
               >
-                <Plus size={14} />
+                <Upload size={14} />
               </button>
-            ) : isMaterialFolder(node) ? (
-              /* For material folder: + button triggers upload */
+            )}
+
+            {/* Explicit upload button for material folder (.txt / .md reference upload) */}
+            {isMaterialFolder(node) && (
               <button
+                type="button"
                 data-testid="file-tree-upload-material"
                 onClick={triggerUpload}
                 disabled={isUploading}
@@ -350,24 +372,8 @@ export const FileTreePane: React.FC = () => {
                 title={t('editor:fileTree.uploadMaterial')}
                 aria-label={t('editor:fileTree.uploadMaterial')}
               >
-                <Plus size={14} />
+                <Upload size={14} />
               </button>
-            ) : (
-              /* Add button for other folders */
-              isFolder && (
-                <button
-                  data-testid="file-tree-create-child"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startCreate(node.id, createFileType);
-                  }}
-                  className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))]"
-                  title={`${t('common:create')} ${getFileTypeName(createFileType)}`}
-                  aria-label={`${t('common:create')} ${getFileTypeName(createFileType)}`}
-                >
-                  <Plus size={14} />
-                </button>
-              )
             )}
 
             {/* Add to chat button for snippets (materials) */}

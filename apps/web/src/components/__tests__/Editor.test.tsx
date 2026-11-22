@@ -25,6 +25,7 @@ const editorTranslations = vi.hoisted(() => ({
   'editor:fileTree.newOutline': 'New Outline',
   'editor:fileTree.newCharacter': 'New Character Sheet',
   'editor:fileTree.newLore': 'New Setting',
+  'editor:fileTree.newSnippet': 'New Material',
   'editor:fileTree.newScript': 'New Script',
   'editor:emptyStateDescriptionScript': 'Open a file, or create a script or outline.',
   'editor:showMore': 'More options',
@@ -1747,6 +1748,34 @@ describe('Editor', () => {
     expect(showMoreButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'New Character Sheet' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New Setting' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New Material' })).toBeInTheDocument()
+
+    vi.mocked(api.fileApi.getTree).mockResolvedValueOnce({
+      tree: [
+        { id: 'project-1-material-folder', title: '素材', file_type: 'folder', parent_id: null, order: 2, metadata: null, children: [] },
+      ],
+    })
+    vi.mocked(api.fileApi.create).mockResolvedValueOnce({
+      ...mockFile,
+      id: 'snippet-created-1',
+      title: 'New Material',
+      file_type: 'snippet',
+      parent_id: 'project-1-material-folder',
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'New Material' }))
+    await waitFor(() => {
+      expect(api.fileApi.create).toHaveBeenCalledWith('project-1', {
+        title: 'New Material',
+        file_type: 'snippet',
+        parent_id: 'project-1-material-folder',
+        content: '',
+      })
+    })
+    expect(mockProjectContext?.setSelectedItem).toHaveBeenCalledWith({
+      id: 'snippet-created-1',
+      type: 'snippet',
+      title: 'New Material',
+    })
 
     unmount()
 

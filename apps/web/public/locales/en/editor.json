@@ -52,7 +52,7 @@
     "removeFromChat": "Remove from chat",
     "addToChat": "Add to chat",
     "emptyFolder": "Empty, click + to start creating",
-    "emptyMaterialFolder": "Reference texts for this project. Click + to upload a .txt / .md, then add it to the chat for the AI to use",
+    "emptyMaterialFolder": "Store lyrics, poems, dialogue lines, or reference texts here. Click + to create one, or use Upload to import .txt / .md, then add it to chat for the AI",
     "folderEmpty": "No files yet",
     "loadFailed": "Couldn't load files. Please try again.",
     "createWithAI": "Tell the AI what you want to write — it can set up the outline and chapters.",
@@ -274,7 +274,7 @@
   "sidebar": {
     "files": "Files",
     "skills": "Skills",
-    "materials": "Materials",
+    "materials": "References",
     "menu": "Menu"
   },
   "projectMenu": {
