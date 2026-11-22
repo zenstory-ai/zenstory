@@ -115,7 +115,9 @@ export class SettingsRegressionPOM extends BasePage {
   }
 
   async expectAccentButtonSelected(color: string): Promise<void> {
-    await expect(this.page.locator(`[data-testid="accent-color-button"][data-color="${color}"]`)).toHaveClass(/ring-2/);
+    const button = this.page.locator(`[data-testid="accent-color-button"][data-color="${color}"]`);
+    await expect(button).toHaveAttribute('aria-checked', 'true');
+    await expect(button.locator('span')).toHaveClass(/ring-2/);
   }
 
   async expectAccentPrimaryCssVar(color: string): Promise<void> {

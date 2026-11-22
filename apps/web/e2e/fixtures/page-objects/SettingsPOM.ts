@@ -143,7 +143,7 @@ export class SettingsPOM extends BasePage {
   }
 
   async getCurrentAccentColor(): Promise<string> {
-    const selectedColor = this.page.locator('[data-testid="accent-color-button"].ring-2');
+    const selectedColor = this.page.locator('[data-testid="accent-color-button"][aria-checked="true"]');
     return await selectedColor.getAttribute('data-color') || '#4a9eff';
   }
 

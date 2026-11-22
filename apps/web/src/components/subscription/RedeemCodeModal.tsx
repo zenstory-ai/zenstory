@@ -17,6 +17,7 @@ interface RedeemCodeModalProps {
 
 export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProps) {
   const { t } = useTranslation(['settings', 'dashboard', 'common']);
+  const formId = useId();
   const codeInputId = useId();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -109,9 +110,9 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
         {t('common:cancel', '取消')}
       </Button>
       <Button
-        type="button"
+        type="submit"
+        form={formId}
         size="touch"
-        onClick={submitRedeem}
         disabled={redeemMutation.isPending || !code.trim()}
       >
         {redeemMutation.isPending ? t('dashboard:billing.redeeming', '正在兑换…') : t('settings:subscription.redeem', '兑换')}
@@ -130,7 +131,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
       closeOnEscape={!redeemMutation.isPending}
       footer={footer}
     >
-      <form onSubmit={handleSubmit}>
+      <form id={formId} onSubmit={handleSubmit}>
         <Modal.Body className="relative">
           {celebrate && <CelebrationBurst className="top-6" />}
           <div className="mb-4">
