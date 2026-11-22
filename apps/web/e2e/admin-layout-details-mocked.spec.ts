@@ -148,7 +148,7 @@ test.describe('Admin detailed responsive layout', () => {
       await bootstrapAdminSession(page);
       await page.goto('/admin/usage');
       await page.getByRole('button', { name: '近7天', exact: true }).click();
-      const scroller = page.getByRole('table').filter({ hasText: '日期' }).locator('..');
+      const scroller = page.getByRole('region', { name: '每日', exact: true });
       await scroller.scrollIntoViewIfNeeded();
       await scroller.focus();
       await expect(scroller).toBeFocused();
