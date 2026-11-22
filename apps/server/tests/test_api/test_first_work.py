@@ -184,39 +184,57 @@ async def test_deleted_default_file_never_enables_automatic_model_suggestions(cl
 
 @pytest.mark.parametrize("mode", ["accepted", "quota_rejected", "model_failure", "observer_failure", "observer_and_model_failure"])
 async def test_explicit_polish_records_first_ai_only_after_reservation_without_changing_refunds(client, db_session, monkeypatch, mode):
-    from services.features.natural_polish_service import NaturalPolishResult
-
     user, quota, headers = author(db_session)
     quota.ai_conversations_used = 3 if mode == "quota_rejected" else 2
     db_session.add(quota)
     db_session.commit()
     state = initialize_first_work(db_session, user.id)
-    model = AsyncMock(return_value=NaturalPolishResult(polished_text="润色后的合成正文，保留作者设定。", model="mock-only"))
     model_failed = mode in {"model_failure", "observer_and_model_failure"}
     observation_failed = mode in {"observer_failure", "observer_and_model_failure"}
-    if model_failed:
-        model.side_effect = RuntimeError("synthetic model failure")
-    monkeypatch.setattr("api.editor.natural_polish_service.natural_polish", model)
+    started = 0
+
+    class _PolishStreamService:
+        async def process_stream(self, **kwargs):
+            nonlocal started
+            started += 1
+            assert kwargs.get("ui_action") == "natural_polish"
+            yield 'event: session_started\ndata: {"session_id":"synthetic-polish"}\n\n'
+            if model_failed:
+                yield 'event: error\ndata: {"message":"synthetic model failure","code":"ERR_INTERNAL_SERVER_ERROR","retryable":true,"refundable":true}\n\n'
+                return
+            yield 'event: tool_result\ndata: {"tool_name":"edit_file","status":"success","data":{"mutation_applied":true,"edits_applied":1}}\n\n'
+            yield 'event: done\ndata: {"session_id":"synthetic-polish"}\n\n'
+
+    monkeypatch.setattr("api.agent.get_agent_service", lambda: _PolishStreamService())
     observation = None
     if observation_failed:
         from unittest.mock import Mock
         observation = Mock(side_effect=RuntimeError("synthetic observation failure"))
         monkeypatch.setattr("services.first_work_service.record_first_work_action", observation)
-    response = await client.post("/api/v1/editor/natural-polish", headers=headers,
-                                 json={"project_id": state.project_id, "selected_text": "作者粘贴的合成原文。"})
+    response = await client.post(
+        "/api/v1/agent/stream",
+        headers=headers,
+        json={
+            "project_id": state.project_id,
+            "message": "给当前章节去AI味",
+            "selected_text": "作者粘贴的合成原文。",
+            "ui_action": "natural_polish",
+            "metadata": {"current_file_id": state.file_id, "entry": "editor_natural_polish"},
+        },
+    )
     current = (await client.get("/api/v1/workspace/first-work", headers=headers)).json()
     if mode == "quota_rejected":
         assert response.status_code == 402
-        model.assert_not_called()
+        assert started == 0
         assert current["first_ai_requested_at"] is None
     elif observation_failed:
-        assert response.status_code == (500 if model_failed else 200)
-        model.assert_awaited_once()
+        assert response.status_code == 200
+        assert started == 1
         observation.assert_called_once()
         assert current["first_ai_requested_at"] is None
         assert db_session.exec(select(UsageQuota.ai_conversations_used).where(UsageQuota.id == quota.id)).one() == (2 if model_failed else 3)
     else:
-        assert response.status_code == (500 if model_failed else 200)
-        model.assert_awaited_once()
+        assert response.status_code == 200
+        assert started == 1
         assert current["first_ai_requested_at"] is not None and current["static_guidance"] is False
         assert db_session.exec(select(UsageQuota.ai_conversations_used).where(UsageQuota.id == quota.id)).one() == (2 if model_failed else 3)

@@ -1,7 +1,5 @@
 {
   "ERR_INTERNAL_SERVER_ERROR": "Something went wrong. Please try again later.",
-  "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE": "This Humanize result couldn't be matched back to the selected text, so nothing was changed. Try again, or select less text",
-  "ERR_NATURAL_POLISH_PROVIDER_FAILED": "The AI service didn't respond this time, so nothing was changed. Please try again shortly",
   "ERR_VALIDATION_ERROR": "Some information is invalid. Check it and try again.",
   "ERR_DATABASE_ERROR": "Something went wrong. Please try again later.",
   "ERR_SERVICE_UNAVAILABLE": "Service temporarily unavailable. Please try again later.",

@@ -11,10 +11,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SimpleEditor } from '../SimpleEditor';
 
-vi.mock('../../lib/naturalPolishApi', () => ({
-  naturalPolishApi: { naturalPolish: vi.fn() },
-}));
-
 
 vi.mock('../../contexts/TextQuoteContext', () => ({
   useTextQuote: () => ({ addQuote: vi.fn() }),

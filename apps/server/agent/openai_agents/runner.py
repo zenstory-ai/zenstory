@@ -24,7 +24,13 @@ from agent.core.stream_errors import (
     output_truncated_error,
     repetition_loop_error,
 )
-from agent.core.stream_processor import find_repetition_start
+from agent.core.stream_processor import (
+    FILE_START_PATTERN,
+    LEAKED_TOOL_CALL_STOP_REASON,
+    could_be_leaked_tool_call_prefix,
+    find_repetition_start,
+    starts_with_leaked_tool_call_marker,
+)
 from agent.core.usage import sum_response_usages
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.core.writing_state import WritingState
@@ -278,6 +284,45 @@ def _safe_cancel(result: Any, mode: str) -> None:
         return
     with contextlib.suppress(Exception):
         cancel(mode=mode)
+
+
+def _sanitized_early_stop_items(result: Any) -> list[Any] | None:
+    """提取早停前已完成的 SDK 输入项，供同轮 FILE_BODY_RESUME 复用前缀缓存。
+
+    早停发生在当前模型回复的流式阶段（尚未形成完整 ModelResponse），因此
+    ``to_input_list()`` 只含此前已完成的轮次（如刚返回工具结果的 write_chapter）。
+    防御性剔除任何末尾悬空的 reasoning 项，并校验 function_call/function_call_output 成对，
+    避免污染续跑输入或 wire_prefix_cache。
+    """
+    raw_items: list[Any] = []
+    with contextlib.suppress(Exception):
+        raw_items = list(result.to_input_list())
+    if not raw_items:
+        return None
+    while raw_items and isinstance(raw_items[-1], dict) and raw_items[-1].get("type") == "reasoning":
+        raw_items.pop()
+    if not raw_items:
+        return None
+    pending_call_ids: set[str] = set()
+    for item in raw_items:
+        if not isinstance(item, dict):
+            return None
+        item_type = item.get("type")
+        if item_type == "function_call":
+            call_id = item.get("call_id")
+            if not isinstance(call_id, str) or not call_id or call_id in pending_call_ids:
+                return None
+            pending_call_ids.add(call_id)
+        elif item_type == "function_call_output":
+            call_id = item.get("call_id")
+            if not isinstance(call_id, str) or not call_id or call_id not in pending_call_ids:
+                return None
+            pending_call_ids.remove(call_id)
+        elif pending_call_ids:
+            return None
+    if pending_call_ids:
+        return None
+    return raw_items
 
 
 def extract_text_from_message_content(content: Any) -> str:
@@ -725,9 +770,12 @@ async def run_openai_agents_streaming_agent(
     no_progress_stopped = False
     # 模型在一次调用里把一大段原样再写一遍（循环）：立即停下这次 run（见 find_repetition_start）。
     repetition_stopped = False
+    # 等 <file> 正文时模型开头直接吐出泄漏的 tool_call 协议头：立即早停并转入 FILE_BODY_RESUME 纠偏。
+    leaked_tool_call_stopped = False
     call_text: list[str] = []
     call_text_length = 0
     repetition_checked_at = 0
+    call_head_checked = False
     max_turns_exhausted = False
     turn_filter: _ModelCallCountingFilter | None = None
     # 请求级模型调用预算（单循环 agent 建一个跨 run 共享；单独调用 runner
@@ -860,7 +908,7 @@ async def run_openai_agents_streaming_agent(
             async for sdk_event in sdk_events:
                 if (
                     failure_stopped or budget_stopped or no_progress_stopped
-                    or repetition_stopped
+                    or repetition_stopped or leaked_tool_call_stopped
                 ) and _is_new_model_turn_event(sdk_event):
                     # 兜底护栏：正常情况下 tool_use_behavior 已经让 run-loop 在终态
                     # 出现的那一刻结束，走不到这里。一旦走到（工具改名、SDK 行为
@@ -881,7 +929,7 @@ async def run_openai_agents_streaming_agent(
                     raw = getattr(sdk_event, "data", None)
                     raw_type = _raw_event_type(raw)
                     if raw_type == "response.created":
-                        call_text, call_text_length, repetition_checked_at = [], 0, 0
+                        call_text, call_text_length, repetition_checked_at, call_head_checked = [], 0, 0, False
                     if raw_type == "response.output_text.delta":
                         text = _raw_event_delta(raw)
                         if text:
@@ -889,6 +937,23 @@ async def run_openai_agents_streaming_agent(
                             yield StreamEvent(type=StreamEventType.TEXT, data={"text": text})
                             call_text.append(text)
                             call_text_length += len(text)
+                            if not call_head_checked and req_ctx.overdue_file_bodies():
+                                joined_head = "".join(call_text)
+                                if FILE_START_PATTERN.search(joined_head) is not None:
+                                    call_head_checked = True
+                                elif starts_with_leaked_tool_call_marker(joined_head):
+                                    log_with_context(
+                                        logger,
+                                        30,  # WARNING
+                                        "Model emitted leaked tool_call protocol while awaiting <file> body; stopping run early",
+                                        agent_type=agent_type,
+                                        call_text_length=call_text_length,
+                                    )
+                                    leaked_tool_call_stopped = True
+                                    _safe_cancel(result, "immediate")
+                                    break
+                                elif not could_be_leaked_tool_call_prefix(joined_head):
+                                    call_head_checked = True
                             if call_text_length - repetition_checked_at >= _REPETITION_CHECK_EVERY_CHARS:
                                 repetition_checked_at = call_text_length
                                 if find_repetition_start("".join(call_text)) is not None:
@@ -932,6 +997,8 @@ async def run_openai_agents_streaming_agent(
                         },
                     )
                 elif event_name == "tool_output":
+                    # 工具执行完毕后下一次 output_text 必然属于新一轮模型回复（兼容不发 response.created 的流/替身）。
+                    call_text, call_text_length, repetition_checked_at, call_head_checked = [], 0, 0, False
                     call_id, result_text = _tool_output_payload(item)
                     tool_name = tool_names_by_call_id.get(call_id, "")
                     result_payload = mcp_text_result(result_text)
@@ -994,6 +1061,34 @@ async def run_openai_agents_streaming_agent(
                 ),
             ):
                 yield event
+            return
+
+        if leaked_tool_call_stopped:
+            # 等待 <file> 正文时模型开头直接吐出泄漏 tool_call 协议头：不发 ERROR，先结算已完成调用的
+            # usage 并发 MESSAGE_END（StreamAdapter 清空 WAITING_START 缓冲并保留待写守卫），
+            # 交给单循环 agent 立即经 FILE_BODY_RESUME 纠偏重跑。
+            usage = _usage_dict_from_result(result)
+            yield StreamEvent(
+                type=StreamEventType.MESSAGE_END,
+                data={"stop_reason": LEAKED_TOOL_CALL_STOP_REASON, "usage": usage},
+            )
+            log_with_context(
+                logger,
+                20,  # INFO
+                "OpenAI Agents streaming run stopped early on leaked tool_call protocol",
+                agent_type=agent_type,
+                model=(run_meter.last_served_model if run_meter is not None else None) or start_model,
+                tool_calls=tool_calls_count,
+                response_length=response_length,
+                model_turns=len(getattr(result, "raw_responses", None) or []),
+                stop_reason=LEAKED_TOOL_CALL_STOP_REASON,
+                duration_ms=round((time.monotonic() - run_started_at) * 1000, 1),
+                input_tokens=usage.get("input_tokens", 0),
+                output_tokens=usage.get("output_tokens", 0),
+                cache_read_tokens=usage.get("cache_read_tokens", 0),
+                continued_previous_run=continuing,
+            )
+            completed_items = _sanitized_early_stop_items(result)
             return
 
         failure_trip = failure_breaker.trip

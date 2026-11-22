@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   refreshTree: vi.fn(),
   uploadDraft: vi.fn(),
+  uploadFile: vi.fn(),
   switchToEditor: vi.fn(),
   clearSearch: vi.fn(),
   getTree: vi.fn(),
@@ -37,7 +38,7 @@ vi.mock('../../../contexts/MaterialAttachmentContext', () => ({
   useMaterialAttachment: () => ({ addMaterial: mocks.addMaterial, removeMaterial: vi.fn(), isMaterialAttached: () => false, isAtLimit: mocks.isAtLimit }),
 }));
 vi.mock('../../../lib/api', () => ({
-  fileApi: { getTree: mocks.getTree, create: mocks.createFile, delete: mocks.deleteFile, uploadDraft: mocks.uploadDraft },
+  fileApi: { getTree: mocks.getTree, create: mocks.createFile, delete: mocks.deleteFile, uploadDraft: mocks.uploadDraft, upload: mocks.uploadFile },
 }));
 vi.mock('../../../lib/toast', () => ({ toast: { error: mocks.toastError, success: vi.fn(), info: mocks.toastInfo } }));
 vi.mock('../../../lib/logger', () => ({ logger: { error: mocks.loggerError } }));
@@ -572,5 +573,74 @@ describe('FileTreePane keyboard tree navigation', () => {
     expect(outlines).toHaveFocus();
     // Moving focus never opens a file.
     expect(mocks.select).not.toHaveBeenCalled();
+  });
+});
+
+describe('FileTreePane material and draft inline create vs upload split', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectId = 'project-1';
+    mocks.createFile.mockResolvedValue({ id: 'new-file-1' });
+    mocks.uploadFile.mockResolvedValue({ id: 'uploaded-snippet-1' });
+  });
+
+  it('supports inline snippet creation AND separate .txt/.md upload on the 素材 folder', async () => {
+    mocks.getTree.mockResolvedValue({
+      tree: [{ id: 'project-1-material-folder', title: '素材', file_type: 'folder', children: [] }],
+    });
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+
+    const createBtn = await screen.findByTestId('file-tree-create-child');
+    const uploadBtn = screen.getByTestId('file-tree-upload-material');
+    expect(createBtn).toHaveAttribute('aria-label', 'common:create common:fileTypes.snippet');
+    expect(uploadBtn).toHaveAttribute('aria-label', 'editor:fileTree.uploadMaterial');
+
+    // Clicking + opens inline create for snippet
+    fireEvent.click(createBtn);
+    const input = screen.getByPlaceholderText('editor:fileTree.newSnippet');
+    fireEvent.change(input, { target: { value: '海风歌词片段' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => expect(mocks.createFile).toHaveBeenCalledWith('project-1', {
+      title: '海风歌词片段',
+      file_type: 'snippet',
+      parent_id: 'project-1-material-folder',
+      content: '',
+    }));
+
+    // Clicking the separate Upload button triggers the hidden .txt,.md file input
+    const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, 'click');
+    fireEvent.click(uploadBtn);
+    expect(inputClickSpy).toHaveBeenCalled();
+    inputClickSpy.mockRestore();
+
+    const fileInput = document.querySelector('input[type="file"][accept=".txt,.md"]') as HTMLInputElement;
+    const file = new File(['诗句'], 'poem.md', { type: 'text/markdown' });
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [file] } });
+    });
+    await waitFor(() => expect(mocks.uploadFile).toHaveBeenCalledWith('project-1', file));
+  });
+
+  it('supports inline chapter creation alongside draft upload on the desktop 正文 folder', async () => {
+    mocks.getTree.mockResolvedValue({
+      tree: [{ id: 'project-1-draft-folder', title: '正文', file_type: 'folder', children: [] }],
+    });
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+
+    const createBtn = await screen.findByTestId('file-tree-create-child');
+    expect(screen.getByTestId('file-tree-upload-draft')).toBeInTheDocument();
+
+    fireEvent.click(createBtn);
+    const input = screen.getByPlaceholderText('editor:fileTree.newDraft');
+    fireEvent.change(input, { target: { value: '第一章 序幕' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => expect(mocks.createFile).toHaveBeenCalledWith('project-1', {
+      title: '第一章 序幕',
+      file_type: 'draft',
+      parent_id: 'project-1-draft-folder',
+      content: '',
+    }));
   });
 });

@@ -16,8 +16,8 @@ export interface AgentStreamTelemetry {
   noteFailureAfterTerminal(phase: AgentStreamFailurePhase, error: unknown): void;
   /** Record the HTTP response (status and correlation ids). */
   noteResponse(status: number, ids: { requestId?: string; agentRunId?: string }): void;
-  /** Count one parsed SSE event. */
-  noteEvent(): void;
+  /** Count one parsed SSE event, recording first visible/prose frame latencies when applicable. */
+  noteEvent(eventType?: string): void;
   /** Count one tool call announced by the stream. */
   noteToolCall(): void;
   completed(): void;
@@ -29,6 +29,26 @@ export interface AgentStreamTelemetry {
 
 /** Client-side codes for transport failures nobody else will ever report. */
 const UNEXPECTED_TRANSPORT_CODES = new Set(["STREAM_CLOSED", "STREAM_ERROR", "NO_BODY"]);
+
+/** SSE event types that deliver visible model/tool/thinking output to the browser. */
+const FIRST_CONTENT_EVENT_TYPES = new Set([
+  "thinking_content",
+  "content",
+  "file_content",
+  "tool_call",
+  "file_created",
+]);
+
+/** SSE event types that deliver visible prose text to chat or an open file. */
+const FIRST_PROSE_EVENT_TYPES = new Set([
+  "content",
+  "file_content",
+]);
+
+const monotonicNow = (): number =>
+  typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
 
 export class AgentStreamError extends Error {
   constructor(code: string) {
@@ -47,7 +67,7 @@ export class AgentStreamCallbackError extends Error {
 
 export function createAgentStreamTelemetry(
   projectId: string,
-  now: () => number = () => Date.now(),
+  now: () => number = monotonicNow,
   /** Where the message came from (request `metadata.entry`): starter_example, first_message, … or typed. */
   entry = "typed",
 ): AgentStreamTelemetry {
@@ -57,9 +77,13 @@ export function createAgentStreamTelemetry(
   let agentRunId: string | undefined;
   let eventCount = 0;
   let toolCallCount = 0;
+  let firstContentMs: number | undefined;
+  let firstProseMs: number | undefined;
   let settled = false;
   let failurePhase: AgentStreamFailurePhase | undefined;
   let exceptionType: string | undefined;
+
+  const elapsedMs = () => Math.round(Math.max(0, now() - startedAt));
 
   // Browsers suspend or drop the connections of hidden tabs (phones above all)
   // and of offline devices. A transport failure then is expected, not a defect.
@@ -74,12 +98,14 @@ export function createAgentStreamTelemetry(
     }
   };
   document.addEventListener("visibilitychange", onVisibilityChange);
-  const hiddenTotalMs = () => hiddenMs + (hiddenAt === undefined ? 0 : Math.max(0, now() - hiddenAt));
+  const hiddenTotalMs = () => Math.round(hiddenMs + (hiddenAt === undefined ? 0 : Math.max(0, now() - hiddenAt)));
 
   const baseProperties = () => ({
     project_id: projectId,
     entry,
-    duration_ms: Math.max(0, now() - startedAt),
+    duration_ms: elapsedMs(),
+    ...(firstContentMs !== undefined ? { first_content_ms: firstContentMs } : {}),
+    ...(firstProseMs !== undefined ? { first_prose_ms: firstProseMs } : {}),
     http_status: httpStatus,
     events_received: eventCount,
     tool_calls: toolCallCount,
@@ -127,11 +153,19 @@ export function createAgentStreamTelemetry(
       requestId = ids.requestId;
       agentRunId = ids.agentRunId;
     },
-    noteEvent() {
+    noteEvent(eventType?: string) {
       eventCount += 1;
+      if (!eventType) return;
+      const isProse = FIRST_PROSE_EVENT_TYPES.has(eventType);
+      const isVisible = isProse || FIRST_CONTENT_EVENT_TYPES.has(eventType);
+      if (!isVisible) return;
+      const elapsed = elapsedMs();
+      if (firstContentMs === undefined) firstContentMs = elapsed;
+      if (isProse && firstProseMs === undefined) firstProseMs = elapsed;
     },
     noteToolCall() {
       toolCallCount += 1;
+      if (firstContentMs === undefined) firstContentMs = elapsedMs();
     },
 
     completed() {

@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -14,11 +14,10 @@ from sqlmodel import select
 
 import agent.core.account_run_limit as limit
 from core.error_codes import ERROR_MESSAGES, ErrorCode
-from models import Project, User
+from models import File, Project, User
 from models.free_ai_network_quota import FreeAINetworkReservation
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.core.auth_service import hash_password
-from services.features.natural_polish_service import NaturalPolishFailure, NaturalPolishResult
 
 SERVER_ROOT = Path(__file__).resolve().parents[2]
 IP = "93.184.216.34"
@@ -30,19 +29,25 @@ def _sse(event: str, data: dict) -> str:
 
 
 class _Service:
-    def __init__(self, *, ends_without_done: bool = False):
+    def __init__(self, *, ends_without_done: bool = False, write_file: bool = True):
         self.started = 0
         self._ends_without_done = ends_without_done
+        self._write_file = write_file
 
     async def process_stream(self, **_kwargs):
         self.started += 1
         yield _sse("session_started", {"session_id": "synthetic-session"})
         if self._ends_without_done:
             return
+        if self._write_file:
+            yield _sse(
+                "tool_result",
+                {"tool_name": "edit_file", "status": "success", "data": {"mutation_applied": True, "edits_applied": 1}},
+            )
         yield _sse("done", {"session_id": "synthetic-session"})
 
 
-async def _member(client: AsyncClient, db_session) -> tuple[str, User, Project]:
+async def _member(client: AsyncClient, db_session) -> tuple[str, User, Project, File]:
     suffix = uuid4().hex[:8]
     user = User(
         username=f"network_api_{suffix}",
@@ -56,9 +61,12 @@ async def _member(client: AsyncClient, db_session) -> tuple[str, User, Project]:
     project = Project(name="Network", owner_id=user.id)
     db_session.add(project)
     db_session.commit()
+    draft = File(project_id=project.id, title="第一章", file_type="draft", content="原始文本")
+    db_session.add(draft)
+    db_session.commit()
     login = await client.post("/api/auth/login", data={"username": user.username, "password": "password123"})
     assert login.status_code == 200
-    return login.json()["access_token"], user, project
+    return login.json()["access_token"], user, project, draft
 
 
 def _stream(client: AsyncClient, token: str, project: Project, *, forwarded: str = IP):
@@ -69,10 +77,16 @@ def _stream(client: AsyncClient, token: str, project: Project, *, forwarded: str
     )
 
 
-def _polish(client: AsyncClient, token: str, project: Project, *, forwarded: str = IP):
+def _polish(client: AsyncClient, token: str, project: Project, file: File, *, forwarded: str = IP):
     return client.post(
-        "/api/v1/editor/natural-polish",
-        json={"project_id": str(project.id), "selected_text": "原始文本"},
+        "/api/v1/agent/stream",
+        json={
+            "project_id": str(project.id),
+            "message": "给第一章去AI味",
+            "selected_text": "原始文本",
+            "ui_action": "natural_polish",
+            "metadata": {"current_file_id": str(file.id), "entry": "editor_natural_polish"},
+        },
         headers={"Authorization": f"Bearer {token}", "X-Forwarded-For": forwarded},
     )
 
@@ -91,17 +105,11 @@ def _active(db_session) -> list[FreeAINetworkReservation]:
 
 
 async def _fill_seats(client, db_session):
-    """三个账号用两个入口各发一条，占满名额。"""
+    """三个账号通过普通对话和去AI味各发一条，占满名额。"""
     members = [await _member(client, db_session) for _ in range(3)]
-    with (
-        patch("api.agent.get_agent_service", return_value=_Service()),
-        patch(
-            "api.editor.natural_polish_service.natural_polish",
-            new=AsyncMock(return_value=NaturalPolishResult(polished_text="改写后", model="test-model")),
-        ),
-    ):
+    with patch("api.agent.get_agent_service", return_value=_Service()):
         first = await _stream(client, members[0][0], members[0][2])
-        second = await _polish(client, members[1][0], members[1][2])
+        second = await _polish(client, members[1][0], members[1][2], members[1][3])
         third = await _stream(client, members[2][0], members[2][2])
     assert [first.status_code, second.status_code, third.status_code] == [200, 200, 200]
     assert len(_active(db_session)) == 3
@@ -111,21 +119,16 @@ async def _fill_seats(client, db_session):
 @pytest.mark.integration
 async def test_both_entries_share_seats_and_refuse_the_fourth_account(client: AsyncClient, db_session):
     await _fill_seats(client, db_session)
-    token, user, project = await _member(client, db_session)
+    token, user, project, draft = await _member(client, db_session)
     service = _Service()
-    polish = AsyncMock()
-    with (
-        patch("api.agent.get_agent_service", return_value=service),
-        patch("api.editor.natural_polish_service.natural_polish", new=polish),
-    ):
+    with patch("api.agent.get_agent_service", return_value=service):
         stream_refused = await _stream(client, token, project)
-        polish_refused = await _polish(client, token, project)
+        polish_refused = await _polish(client, token, project, draft)
 
     for refused in (stream_refused, polish_refused):
         assert refused.status_code == 402
         assert refused.json()["error_code"] == CODE
     assert service.started == 0
-    polish.assert_not_awaited()
     assert _used(db_session, user) == 0
     # 被拒绝的请求放回了账号任务名额。
     slots = [await limit.acquire_account_run_slot(str(user.id))]
@@ -136,7 +139,7 @@ async def test_both_entries_share_seats_and_refuse_the_fourth_account(client: As
 @pytest.mark.integration
 async def test_refusal_copy_is_neutral_and_reveals_no_internals(client: AsyncClient, db_session):
     await _fill_seats(client, db_session)
-    token, _user, project = await _member(client, db_session)
+    token, _user, project, _draft = await _member(client, db_session)
     response = await _stream(client, token, project)
     body = response.text
     assert IP not in body
@@ -151,12 +154,9 @@ async def test_refusal_copy_is_neutral_and_reveals_no_internals(client: AsyncCli
 @pytest.mark.integration
 async def test_seated_account_continues_across_entries_after_seats_are_gone(client: AsyncClient, db_session):
     members = await _fill_seats(client, db_session)
-    token, user, project = members[0]
-    with patch(
-        "api.editor.natural_polish_service.natural_polish",
-        new=AsyncMock(return_value=NaturalPolishResult(polished_text="改写后", model="test-model")),
-    ):
-        response = await _polish(client, token, project)
+    token, user, project, draft = members[0]
+    with patch("api.agent.get_agent_service", return_value=_Service()):
+        response = await _polish(client, token, project, draft)
     assert response.status_code == 200
     assert _used(db_session, user) == 2
 
@@ -164,7 +164,7 @@ async def test_seated_account_continues_across_entries_after_seats_are_gone(clie
 @pytest.mark.integration
 async def test_forged_forwarded_prefix_does_not_change_the_network(client: AsyncClient, db_session):
     await _fill_seats(client, db_session)
-    token, user, project = await _member(client, db_session)
+    token, user, project, _draft = await _member(client, db_session)
     service = _Service()
     with patch("api.agent.get_agent_service", return_value=service):
         response = await _stream(client, token, project, forwarded=f"8.8.8.8, 1.1.1.1, {IP}")
@@ -177,7 +177,7 @@ async def test_forged_forwarded_prefix_does_not_change_the_network(client: Async
 @pytest.mark.integration
 async def test_trusted_address_change_is_a_different_network(client: AsyncClient, db_session):
     await _fill_seats(client, db_session)
-    token, user, project = await _member(client, db_session)
+    token, user, project, _draft = await _member(client, db_session)
     with patch("api.agent.get_agent_service", return_value=_Service()):
         response = await _stream(client, token, project, forwarded="93.184.216.99")
     assert response.status_code == 200
@@ -186,7 +186,7 @@ async def test_trusted_address_change_is_a_different_network(client: AsyncClient
 
 @pytest.mark.integration
 async def test_failed_stream_refunds_message_and_seat_exactly_once(client: AsyncClient, db_session):
-    token, user, project = await _member(client, db_session)
+    token, user, project, _draft = await _member(client, db_session)
     with patch("api.agent.get_agent_service", return_value=_Service(ends_without_done=True)):
         response = await _stream(client, token, project)
     assert response.status_code == 200
@@ -206,7 +206,7 @@ async def test_busy_session_refunds_network_share(client: AsyncClient, db_sessio
             raise SteeringSessionBusyError("synthetic")
             yield  # pragma: no cover
 
-    token, user, project = await _member(client, db_session)
+    token, user, project, _draft = await _member(client, db_session)
     with patch("api.agent.get_agent_service", return_value=_Busy()):
         response = await _stream(client, token, project)
     assert response.status_code == 409
@@ -215,27 +215,14 @@ async def test_busy_session_refunds_network_share(client: AsyncClient, db_sessio
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize(
-    ("outcome", "expected_status", "used_after"),
-    [
-        (NaturalPolishFailure(stage="model_call", category="provider_error"), 502, 0),
-        (RuntimeError("synthetic"), 500, 0),
-        (NaturalPolishResult(polished_text="原始文本", model="test-model"), 200, 0),
-    ],
-)
-async def test_polish_failure_or_no_change_refunds_the_network_share(
-    client: AsyncClient, db_session, outcome, expected_status, used_after
-):
-    token, user, project = await _member(client, db_session)
-    side_effect = outcome if isinstance(outcome, Exception) else None
-    return_value = None if isinstance(outcome, Exception) else outcome
-    with patch(
-        "api.editor.natural_polish_service.natural_polish",
-        new=AsyncMock(side_effect=side_effect, return_value=return_value),
-    ):
-        response = await _polish(client, token, project)
-    assert response.status_code == expected_status
-    assert _used(db_session, user) == used_after
+async def test_polish_no_change_refunds_the_network_share(client: AsyncClient, db_session):
+    token, user, project, draft = await _member(client, db_session)
+    with patch("api.agent.get_agent_service", return_value=_Service(write_file=False)):
+        response = await _polish(client, token, project, draft)
+    assert response.status_code == 200
+    assert "quota_refunded" in response.text
+    assert '"kind": "no_change"' in response.text
+    assert _used(db_session, user) == 0
     assert _active(db_session) == []
 
 
@@ -246,7 +233,7 @@ async def test_pro_passes_on_a_full_network(client: AsyncClient, db_session):
     from config.datetime_utils import utcnow
 
     await _fill_seats(client, db_session)
-    token, user, project = await _member(client, db_session)
+    token, user, project, _draft = await _member(client, db_session)
     plan = db_session.exec(select(SubscriptionPlan).where(SubscriptionPlan.name == "pro")).first()
     if plan is None:
         plan = SubscriptionPlan(
@@ -272,7 +259,7 @@ async def test_pro_passes_on_a_full_network(client: AsyncClient, db_session):
 @pytest.mark.integration
 async def test_reading_is_not_limited_on_a_full_network(client: AsyncClient, db_session):
     await _fill_seats(client, db_session)
-    token, _user, _project = await _member(client, db_session)
+    token, _user, _project, _draft = await _member(client, db_session)
     response = await client.get(
         "/api/v1/projects",
         headers={"Authorization": f"Bearer {token}", "X-Forwarded-For": IP},
@@ -284,17 +271,14 @@ async def test_reading_is_not_limited_on_a_full_network(client: AsyncClient, db_
 async def test_railway_chain_counts_the_client_behind_any_edge_address(client: AsyncClient, db_session, monkeypatch):
     """Railway 的链路是「客户端, 边缘」：不同边缘地址上的同一客户端共用额度，不同客户端互不影响。"""
     monkeypatch.setenv("TRUSTED_PROXY_HOPS", "2")
-    with patch(
-        "api.editor.natural_polish_service.natural_polish",
-        new=AsyncMock(return_value=NaturalPolishResult(polished_text="改写后", model="test-model")),
-    ):
+    with patch("api.agent.get_agent_service", return_value=_Service()):
         for index in range(3):
-            token, _user, project = await _member(client, db_session)
-            response = await _polish(client, token, project, forwarded=f"{IP}, 84.17.44.{225 + index}")
+            token, _user, project, draft = await _member(client, db_session)
+            response = await _polish(client, token, project, draft, forwarded=f"{IP}, 84.17.44.{225 + index}")
             assert response.status_code == 200
-        token, user, project = await _member(client, db_session)
-        same_client = await _polish(client, token, project, forwarded=f"{IP}, 84.17.44.229")
-        other_client = await _polish(client, token, project, forwarded="93.184.216.99, 84.17.44.225")
+        token, user, project, draft = await _member(client, db_session)
+        same_client = await _polish(client, token, project, draft, forwarded=f"{IP}, 84.17.44.229")
+        other_client = await _polish(client, token, project, draft, forwarded="93.184.216.99, 84.17.44.225")
     assert same_client.status_code == 402
     assert same_client.json()["error_code"] == CODE
     assert other_client.status_code == 200
@@ -306,18 +290,12 @@ async def test_railway_chain_counts_the_client_behind_any_edge_address(client: A
     "/api/v1/agent/%73tream",
     "/api/v1/agent%2Fstream",
     "/api/%76%31/agent/stream",
-    "/api/v1/editor/natural%2Dpolish",
-    "/api/v1/editor%2Fnatural-polish",
 ])
 async def test_encoded_spellings_of_charged_paths_do_not_reach_the_routes(client: AsyncClient, db_session, path):
     """编码写法能绕过生产回退改写的路径排除，经云厂商出口进入别的额度桶，所以路由本身拒绝。"""
-    token, user, project = await _member(client, db_session)
+    token, user, project, _draft = await _member(client, db_session)
     service = _Service()
-    polish = AsyncMock()
-    with (
-        patch("api.agent.get_agent_service", return_value=service),
-        patch("api.editor.natural_polish_service.natural_polish", new=polish),
-    ):
+    with patch("api.agent.get_agent_service", return_value=service):
         anonymous = await client.post(path, json={})
         signed_in = await client.post(
             path,
@@ -327,7 +305,6 @@ async def test_encoded_spellings_of_charged_paths_do_not_reach_the_routes(client
     assert anonymous.status_code == 404
     assert signed_in.status_code == 404
     assert service.started == 0
-    polish.assert_not_awaited()
     assert _used(db_session, user) == 0
     assert _active(db_session) == []
 
@@ -338,7 +315,7 @@ def test_every_charging_route_is_excluded_from_the_public_api_fallback():
 
     contract = json.loads((SERVER_ROOT.parents[1] / "apps/web/content/site-routing.json").read_text(encoding="utf-8"))
     excluded = {f"/api/{path}" for path in contract["apiFallbackExcludedPaths"]}
-    assert excluded == {"/api/v1/agent/stream", "/api/v1/editor/natural-polish", "/api/v1/materials/upload"}
+    assert excluded == {"/api/v1/agent/stream", "/api/v1/materials/upload"}
     assert excluded <= {route.path for route in app.routes if "POST" in getattr(route, "methods", ())}
 
 
@@ -357,7 +334,7 @@ def test_every_production_charge_passes_the_network_identity():
                     calls.append((path, "reserve", {kw.arg for kw in node.keywords}))
                 if name == "release_ai_conversation":
                     calls.append((path, "release", {kw.arg for kw in node.keywords}))
-    assert {path.relative_to(SERVER_ROOT).as_posix() for path, _, _ in calls} == {"api/agent.py", "api/editor.py"}
+    assert {path.relative_to(SERVER_ROOT).as_posix() for path, _, _ in calls} == {"api/agent.py"}
     for path, name, keywords in calls:
         assert name != "consume", path
         required = {"client_ip", "reservation_id"} if name == "reserve" else {"reservation_id"}

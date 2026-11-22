@@ -383,7 +383,36 @@ describe('agentApi', () => {
       expect(onQuotaRefunded).toHaveBeenCalledWith('stopped', [{ id: 'f-1', title: '第1章' }])
     })
 
-    it.each(['no_progress', 'stopped'])(
+    it('sends structured ui_action in /api/v1/agent/stream body when specified', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: createMockStream(['event: done\ndata: {}\n\n']),
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      streamAgentRequest(
+        {
+          project_id: 'test-project',
+          message: '给第一章去AI味',
+          selected_text: '选中段落',
+          ui_action: 'natural_polish',
+          metadata: { current_file_id: 'file-1', entry: 'editor_natural_polish' },
+        },
+        {},
+      )
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      const init = fetchMock.mock.calls[0]?.[1] as { body?: string }
+      expect(JSON.parse(init.body || '{}')).toMatchObject({
+        project_id: 'test-project',
+        selected_text: '选中段落',
+        ui_action: 'natural_polish',
+        metadata: { current_file_id: 'file-1', entry: 'editor_natural_polish' },
+      })
+    })
+
+    it.each(['no_progress', 'no_change', 'stopped'])(
       'maps a %s refund and ignores frames that do not claim a refund',
       async (kind) => {
         const onQuotaRefunded = vi.fn()
