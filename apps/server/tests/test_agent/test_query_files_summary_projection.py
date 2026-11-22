@@ -200,10 +200,16 @@ class Store:
             self.calls.append(observation)
             assert observation["pool_checked_out"] == 0
 
-    def expected(self, rows, *, full=False, preview=200, omit_preview=False):
-        from agent.tools.file_ops.serialization import QUERY_FILES_OMITTED_FIELDS
+    def expected(self, rows, *, full=False, preview=200, omit_preview=False, large_listing=False):
+        from agent.tools.file_ops.serialization import (
+            QUERY_FILES_LARGE_LISTING_CONTENT_PREVIEW_CHARS,
+            QUERY_FILES_LARGE_LISTING_REFERENCE_PREVIEW_CHARS,
+            QUERY_FILES_LARGE_LISTING_ROW_THRESHOLD,
+            QUERY_FILES_OMITTED_FIELDS,
+        )
 
         result = []
+        row_count = len(rows)
         for row in rows:
             item = {k: v for k, v in row.items() if k not in QUERY_FILES_OMITTED_FIELDS}
             meta = item.get("file_metadata")
@@ -224,12 +230,19 @@ class Store:
                 # word_count 与编辑器同口径（count_words），full 模式总是给出。
                 item["word_count"] = count_words(item["content"])
             else:
+                effective_preview = preview
+                if large_listing and row_count > QUERY_FILES_LARGE_LISTING_ROW_THRESHOLD:
+                    effective_preview = (
+                        QUERY_FILES_LARGE_LISTING_CONTENT_PREVIEW_CHARS
+                        if item.get("file_type") in {"draft", "script"}
+                        else QUERY_FILES_LARGE_LISTING_REFERENCE_PREVIEW_CHARS
+                    )
                 content = item.pop("content")
                 if not omit_preview:
-                    item["content_preview"] = content[:preview]
+                    item["content_preview"] = content[:effective_preview]
                 # summary 同时给出全文长度，模型能分辨「预览」与「短文件」。
                 item["content_length"] = len(content)
-                item["content_truncated"] = len(content) > len(content[:preview])
+                item["content_truncated"] = len(content) > len(content[:effective_preview])
                 # 预览就是全文时才给 word_count；截断的预览算不出全文字数。
                 if not item["content_truncated"]:
                     item["word_count"] = count_words(content)
@@ -352,12 +365,12 @@ def store(request, tmp_path):
 def test_summary_scale_actual_mcp_cold_measurements(store):
     for _ in range(3):
         payload, observation = store.call({"limit": len(store.rows)})
-        assert payload == store.expected(store.rows)
+        assert payload == store.expected(store.rows, large_listing=True)
         assert len(observation["sql"]) == 2
         assert len({row["id"] for row in observation["file_loads"]}) == len(store.rows)
     values = [call["elapsed_seconds"] for call in store.calls]
     payload, _ = store.call({})
-    assert payload == store.expected(store.rows[:50])
+    assert payload == store.expected(store.rows[:50], large_listing=True)
     payload, _ = store.call({"limit": 0})
     assert payload == store.expected([])
     _record(
@@ -395,8 +408,10 @@ def test_summary_modes_and_exact_id_controls(store):
     assert payload == store.expected([])
     payload, _ = store.call({"id": row["id"], "query": "no-match", "response_mode": "full"})
     assert payload == store.expected([row], full=True)
+    # list_full without id/ids downgrades to summary + note when total content exceeds 25k chars.
     payload, _ = store.call({"response_mode": "full", "limit": 1})
-    assert payload == store.expected([row], full=True)
+    assert "note" in payload and "query_files(ids=[...])" in payload["note"]
+    assert {k: v for k, v in payload.items() if k != "note"} == store.expected([row], full=False)
     for options, fragment in [
         ({"response_mode": "invalid"}, "response_mode"),
         ({"content_preview_chars": -1}, "content_preview_chars"),
@@ -426,7 +441,7 @@ def test_paging_type_keyword_and_zero_controls(store):
                 assert row.pop("match_count") >= 1 and args["query"] in row.pop("matches")[0]
                 assert "content_preview" not in row
             omit_preview = True
-        assert payload == store.expected(expected, omit_preview=omit_preview)
+        assert payload == store.expected(expected, omit_preview=omit_preview, large_listing="query" not in args)
     # Exact-ID applies both type constraints (different from merged page precedence).
     payload, _ = store.call({"id": store.rows[0]["id"], "file_type": "lore"})
     assert payload == store.expected([])
@@ -505,7 +520,7 @@ def test_prospective_summary_projection_budget(store, selection):
     )
     expected = [store.rows[0]] if selection == "exact" else store.rows if selection == "page" else store.rows[:50]
     payload, observation = store.call(args)
-    assert payload == store.expected(expected)
+    assert payload == store.expected(expected, large_listing=selection != "exact")
     _assert_projection_budget(observation)
 
 
@@ -589,7 +604,7 @@ def test_postgres_native_unicode_preview_parity(store):
             assert payload == store.expected([row], preview=200 if preview is None else preview)
             _assert_projection_budget(observation)
     payload, observation = store.call({"limit": 32})
-    assert payload == store.expected(store.rows)
+    assert payload == store.expected(store.rows, large_listing=True)
     _assert_projection_budget(observation)
     payload, observation = store.call({"query": "file-900:", "limit": 32})
     for matched in payload["data"]:

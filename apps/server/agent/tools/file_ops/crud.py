@@ -70,6 +70,7 @@ from .serialization import (
     _summary_projection_preview_length,
     normalize_query_file_ids,
     resolve_query_files_response_mode,
+    resolve_summary_preview_chars_for_listing,
     serialize_file,
     serialize_query_file,
 )
@@ -1159,11 +1160,18 @@ class FileCRUD:
         previews = {file.id: preview for file, preview, _ in rows}
         content_lengths = {file.id: content_length for file, _, content_length in rows}
 
+        row_count = len(files)
         serialized = [
             serialize_query_file(
                 file,
                 response_mode=response_mode,
-                content_preview_chars=content_preview_chars,
+                content_preview_chars=resolve_summary_preview_chars_for_listing(
+                    file.file_type,
+                    row_count=row_count,
+                    has_query=bool(normalized_query),
+                    has_exact_ids=bool(target_ids),
+                    explicit_preview_chars=content_preview_chars,
+                ),
                 include_content=include_content,
                 preloaded_content_preview=previews[file.id],
                 preloaded_content_length=content_lengths[file.id],

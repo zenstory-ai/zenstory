@@ -102,20 +102,26 @@ def should_compact(
     history: LoopHistory,
     threshold: int | None = None,
     retry_growth: int | None = None,
+    *,
+    extra_tokens: int = 0,
 ) -> bool:
-    """按实测输入与未折叠历史同量纲估算的较大值判断。
+    """按历史实测/同量纲估算与本轮新增输入（``<turn_context>`` + 用户消息）之和判断。
 
-    上次没压缩成（摘要不可用）时退避：输入比那次至少再长 ``retry_growth`` 才再试
-    （封顶 ``_MAX_SKIPPED_RETRY_CEILING_TOKENS``，避免逼近 1M 窗口的老会话死锁），
-    不让每一轮都多付两次整段历史的摘要调用。
+    仅在上次因模型输出不可用（如 ``empty_or_truncated_summary``）没压缩成时退避：
+    输入比那次至少再长 ``retry_growth`` 才再试（封顶 ``_MAX_SKIPPED_RETRY_CEILING_TOKENS``，
+    避免逼近 1M 窗口的老会话死锁），不让每一轮都多付两次整段历史的摘要调用。
+    瞬时 ``provider_error`` 不触发退避，下一轮立刻重试压缩，避免把长会话一路拖到 950k。
     """
     if not history.items or not history.last_message_id:
         return False
     limit = AGENT_LOOP_COMPACT_AT_TOKENS if threshold is None else threshold
-    measured = effective_history_provider_tokens(history)
+    measured = effective_history_provider_tokens(history) + max(0, extra_tokens)
     if measured <= limit:
         return False
-    if history.compaction_skipped_at_tokens > 0:
+    if (
+        history.compaction_skipped_at_tokens > 0
+        and history.compaction_skipped_reason != SKIPPED_PROVIDER_ERROR
+    ):
         growth = AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS if retry_growth is None else retry_growth
         retry_at = min(history.compaction_skipped_at_tokens + growth, _MAX_SKIPPED_RETRY_CEILING_TOKENS)
         return measured >= retry_at
@@ -123,7 +129,11 @@ def should_compact(
 
 
 def skipped_record(history: LoopHistory, reason: str) -> dict[str, Any]:
-    """没压缩成时随本轮落库的记录（``message_metadata.compaction_skipped``），下一轮据此退避。"""
+    """没压缩成时随本轮落库的记录（``message_metadata.compaction_skipped``）。
+
+    记录跳过时历史本身的实测/同量纲输入 token：模型输出不可用时下一轮据此退避，
+    瞬时 ``provider_error`` 仍保留审计记录但不触发退避。
+    """
     measured = effective_history_provider_tokens(history)
     return {"reason": reason, "at_prompt_tokens": int(measured), "created_at": utcnow().isoformat()}
 

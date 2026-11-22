@@ -76,8 +76,9 @@ class LoopHistory:
     compacted: bool = False
     # 历史里作者的原话（按时间先后，不含系统插入的摘要消息）：本轮压缩时从中保留最近的几条。
     author_messages: list[str] = field(default_factory=list)
-    # 最近一次没压缩成（摘要不可用）时的实测输入 token；之后有成功的压缩点时为 0。
+    # 最近一次没压缩成时的实测输入 token 与原因；之后有成功的压缩点时清零。
     compaction_skipped_at_tokens: int = 0
+    compaction_skipped_reason: str | None = None
     # 会话末尾连续几轮停在输出上限（stop_reason=output_truncated）。
     trailing_output_truncations: int = 0
 
@@ -465,6 +466,10 @@ def load_loop_history(
             if isinstance(skipped, dict) and isinstance(skipped.get("at_prompt_tokens"), int):
                 skip_seen = True
                 result.compaction_skipped_at_tokens = max(0, skipped["at_prompt_tokens"])
+                raw_reason = skipped.get("reason")
+                result.compaction_skipped_reason = (
+                    raw_reason if isinstance(raw_reason, str) and raw_reason else None
+                )
         compaction = valid_compaction(metadata)
         if compaction is not None:
             stored_kept = stored_kept_messages(compaction)

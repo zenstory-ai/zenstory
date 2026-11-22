@@ -19,10 +19,13 @@ Privacy: raw ``items`` payloads are never logged.
 from __future__ import annotations
 
 import asyncio
+import base64
+import gzip
 import hashlib
 import json
 import os
 import time
+import zlib
 from typing import Any
 
 from config import agent_runtime
@@ -35,6 +38,10 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 WIRE_PREFIX_CACHE_SCHEMA_VERSION = 1
+# ASCII-safe prefix for gzip+base64 payloads stored via the global decode_responses=True
+# Redis pool. Legacy plain-JSON entries (starting with "{") remain readable during rollout.
+WIRE_PREFIX_CACHE_GZIP_PREFIX = "zsgz1:"
+_WIRE_PREFIX_CACHE_GZIP_LEVEL = 6
 
 _REDIS_RETRY_AFTER_S = 30.0
 _redis_down_until = 0.0
@@ -119,6 +126,56 @@ def is_well_formed_wire_prefix(items: Any) -> bool:
     return items[-1].get("type") not in ("function_call", "reasoning", "function_call_output")
 
 
+def _encode_wire_prefix_payload(envelope: dict[str, Any]) -> tuple[str, int, int]:
+    """Serialize and gzip+base64 compress the wire-prefix envelope for decode_responses=True Redis.
+
+    Returns ``(encoded_str, stored_bytes, raw_bytes)``.
+    """
+    serialized = json.dumps(envelope, ensure_ascii=False, separators=(",", ":"))
+    raw_bytes = serialized.encode("utf-8")
+    compressed = gzip.compress(raw_bytes, compresslevel=_WIRE_PREFIX_CACHE_GZIP_LEVEL)
+    encoded = WIRE_PREFIX_CACHE_GZIP_PREFIX + base64.b64encode(compressed).decode("ascii")
+    return encoded, len(encoded), len(raw_bytes)
+
+
+def _decode_wire_prefix_payload(raw: Any) -> tuple[str, int] | None:
+    """Decode either compressed (``zsgz1:`` / raw gzip bytes) or legacy plain-JSON Redis values.
+
+    Returns ``(json_text, stored_bytes)`` or ``None`` if empty or corrupted.
+    """
+    if isinstance(raw, bytes):
+        if not raw:
+            return None
+        stored_bytes = len(raw)
+        if raw.startswith(b"\x1f\x8b"):
+            try:
+                return gzip.decompress(raw).decode("utf-8"), stored_bytes
+            except (OSError, EOFError, zlib.error, UnicodeDecodeError):
+                return None
+        try:
+            raw_str = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+    elif isinstance(raw, str):
+        if not raw:
+            return None
+        raw_str = raw
+        stored_bytes = len(raw_str.encode("utf-8"))
+    else:
+        return None
+
+    if raw_str.startswith(WIRE_PREFIX_CACHE_GZIP_PREFIX):
+        b64_payload = raw_str[len(WIRE_PREFIX_CACHE_GZIP_PREFIX) :]
+        try:
+            compressed = base64.b64decode(b64_payload, validate=True)
+            json_text = gzip.decompress(compressed).decode("utf-8")
+        except (ValueError, OSError, EOFError, zlib.error, UnicodeDecodeError):
+            return None
+        return json_text, stored_bytes
+
+    return raw_str, stored_bytes
+
+
 def load_wire_prefix(
     *,
     session_id: str,
@@ -131,7 +188,9 @@ def load_wire_prefix(
 ) -> list[dict[str, Any]] | None:
     """Load and strictly validate the cached SDK wire-prefix items for ``session_id``.
 
-    Returns ``None`` on any miss, validation mismatch, disabled config, or Redis error.
+    Seamlessly reads both new ``zsgz1:`` gzip+base64 entries and legacy plain-JSON entries
+    during rolling deploys. Returns ``None`` on any miss, validation mismatch, disabled
+    config, corruption, or Redis error.
     """
     if _effective_ttl(ttl_seconds) <= 0:
         return None
@@ -148,16 +207,19 @@ def load_wire_prefix(
 
     if raw is None:
         return None
-    if isinstance(raw, bytes):
-        try:
-            raw = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            return None
-    if not isinstance(raw, str) or not raw:
+    decoded = _decode_wire_prefix_payload(raw)
+    if decoded is None:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Agent wire prefix cache entry corrupted; ignoring",
+            session_id=session_id,
+        )
         return None
+    json_text, stored_bytes = decoded
 
     try:
-        envelope = json.loads(raw)
+        envelope = json.loads(json_text)
     except ValueError:
         log_with_context(
             logger,
@@ -202,7 +264,7 @@ def load_wire_prefix(
         "Agent wire prefix cache hit",
         session_id=session_id,
         item_count=len(items),
-        payload_bytes=len(raw.encode("utf-8")),
+        payload_bytes=stored_bytes,
     )
     return items
 
@@ -219,7 +281,7 @@ def store_wire_prefix(
     ttl_seconds: int | None = None,
     max_bytes: int | None = None,
 ) -> bool:
-    """Store validated SDK wire-prefix items in Redis with a short TTL and byte cap."""
+    """Store validated SDK wire-prefix items in Redis with gzip+base64 compression, TTL, and byte cap."""
     ttl = _effective_ttl(ttl_seconds)
     if ttl <= 0:
         return False
@@ -241,7 +303,7 @@ def store_wire_prefix(
         "items": items,
     }
     try:
-        serialized = json.dumps(envelope, ensure_ascii=False, separators=(",", ":"))
+        encoded, payload_bytes, raw_bytes = _encode_wire_prefix_payload(envelope)
     except (TypeError, ValueError) as exc:
         log_with_context(
             logger,
@@ -253,7 +315,6 @@ def store_wire_prefix(
         invalidate_wire_prefix(session_id)
         return False
 
-    payload_bytes = len(serialized.encode("utf-8"))
     cap = _effective_max_bytes(max_bytes)
     if payload_bytes > cap:
         log_with_context(
@@ -262,13 +323,14 @@ def store_wire_prefix(
             "Agent wire prefix cache skipped: payload exceeds max bytes",
             session_id=session_id,
             payload_bytes=payload_bytes,
+            raw_bytes=raw_bytes,
             max_bytes=cap,
         )
         invalidate_wire_prefix(session_id)
         return False
 
     try:
-        get_redis_client().setex(wire_prefix_cache_key(session_id), ttl, serialized)
+        get_redis_client().setex(wire_prefix_cache_key(session_id), ttl, encoded)
     except Exception as exc:  # noqa: BLE001 - fail open
         _mark_redis_down("setex", session_id, exc)
         return False
@@ -280,6 +342,7 @@ def store_wire_prefix(
         session_id=session_id,
         item_count=len(items),
         payload_bytes=payload_bytes,
+        raw_bytes=raw_bytes,
         ttl_seconds=ttl,
     )
     return True

@@ -1345,7 +1345,8 @@ class AgentService:
                     run_meter.record_stage("prepare_context", (time.monotonic() - run_started_monotonic) * 1000)
                     context_timing_recorded = True
                     compaction_usage: dict[str, int] | None = None
-                    if should_compact(loop_history):
+                    current_turn_tokens = estimate_provider_text_tokens(user_content)
+                    if should_compact(loop_history, extra_tokens=current_turn_tokens):
                         # 轮与轮之间压缩历史（不在工具循环中途）：摘要不可用时照常带完整历史跑这一轮。
                         # 作者能看到这一步：先发「正在压缩对话…」，成功后变成会话里的「对话已压缩」标记
                         # （记进 display_events，刷新后在同一位置回放，摘要读本轮的 compaction 记录）；

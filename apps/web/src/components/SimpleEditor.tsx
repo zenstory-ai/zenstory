@@ -1115,6 +1115,7 @@ export const SimpleEditor = ({
                   requestAnimationFrame(() => adjustTextareaHeight());
                 }}
                 disabled={readOnly || isStreaming}
+                aria-label={t('editor:placeholder.contentPlaceholder')}
                 placeholder={isStreaming && !displayContent ? '' : t('editor:placeholder.contentPlaceholder')}
                 className={`editor-content font-[family-name:var(--font-body)] w-full overflow-y-hidden bg-transparent text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none resize-none leading-relaxed text-base ${isStreaming ? 'cursor-default' : ''}`}
                 style={{ minHeight: `${SIMPLE_EDITOR_MIN_HEIGHT_PX}px`, fontSize: `${zoom}em` }}
