@@ -586,6 +586,48 @@
         "decode": "解码速度 = 输出 tokens 合计 ÷ 生成阶段时长合计（首 token 到流结束），不是单次速度的平均。输出 tokens 由供应商报告，含推理和工具参数；供应商若不流式返回推理，推理时间会算进首 token，速度偏高。没有返回用量的调用不计入。",
         "notRecorded": "未记录：本统计上线前的调用、补录的历史对话（一轮一行）和素材拆解不记结果与耗时；它们计入调用尝试、tokens 和费用，但不进成功率，也不当作 0。失败、取消的尝试通常拿不到用量，tokens 与费用是下限。"
       }
+    },
+    "stageLatency": {
+      "title": "阶段耗时与慢尾",
+      "range": "阶段耗时统计天数",
+      "empty": "这段时间没有记录到写作轮次数据",
+      "totalRounds": "统计轮次",
+      "prepareContext": "上下文准备 p50 / p95",
+      "firstOutput": "首屏产出 p50 / p95",
+      "chapterFirstProse": "成章首字 p50 / p90 / p95",
+      "fileBodyPending": "待正文重试轮次",
+      "leakedToolCall": "工具协议泄漏",
+      "stopAndDisconnect": "主动停止 / 断线",
+      "draftSurvival": "24h AI 初稿留存率",
+      "slowTailDetail": "≥10s 慢尾 {{rate}}（{{slow}} / {{samples}}）",
+      "roundsDetail": "{{affected}} / {{total}} 轮",
+      "stopDisconnectDetail": "停止 {{stopped}} · 断线 {{disconnected}}",
+      "draftSurvivalDetail": "保留 {{survived}} / {{eligible}} · 共创 {{coEditRate}}",
+      "deviceTitle": "桌面端与移动端拆解",
+      "device": "端类型",
+      "devices": {
+        "desktop": "桌面端",
+        "mobile": "移动端",
+        "unknown": "未上报"
+      },
+      "rounds": "轮次",
+      "firstOutputCol": "首屏产出 p50 / p95",
+      "firstOutputSlowCol": "首屏 ≥10s",
+      "chapterProseCol": "成章首字 p50 / p95",
+      "chapterProseSlowCol": "成章 ≥10s",
+      "disconnectCol": "断线率",
+      "dailyTitle": "每日阶段耗时与慢尾",
+      "prepareP50Col": "上下文 p50",
+      "pendingCol": "待正文重试",
+      "stopDisconnectCol": "停止 / 断线",
+      "definitionsTitle": "指标怎么算",
+      "definitions": {
+        "scope": "仅统计非管理员用户的写作助手对话轮次（agent_round_metric），按北京时间自然日划分；只记录耗时、枚举与计数，不存稿件正文或提示词。",
+        "chapterFirstProse": "成章首字耗时（chapter_first_prose_ms）：从 write_chapter 或 create_file 挂起待写文件起，到第一段 <file> 正文流出的单调时钟间隔；直接反映作者在建章后等待正文落笔的静默时长。",
+        "slowTail": "≥10s 慢尾占比：样本中耗时 ≥10,000 ms 的比例；无样本时显示 N/A，不填 0。",
+        "reliability": "待正文重试指本轮出现 file_body_pending 前置守卫拒绝的轮次占比；主动停止与断线分开统计，便于区分作者不满意与移动端切后台断连。",
+        "draftSurvival": "24h AI 初稿留存率：统计窗口内由 AI 创建且满 24 小时观察期的 draft / script 章节中，未被删除且未被回滚清空的比例；共创率为保留稿中后续有作者手动编辑版本的比例。"
+      }
     }
   },
   "userDetail": {

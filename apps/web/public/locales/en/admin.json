@@ -586,6 +586,48 @@
         "decode": "Decode speed = total output tokens ÷ total generation time (first token to stream end), not an average of per-call speeds. Output tokens are reported by the provider and include reasoning and tool arguments; if a provider does not stream its reasoning, that time lands in first token and the speed reads high. Calls without reported usage are left out.",
         "notRecorded": "Not recorded: calls from before these metrics, back-filled chat history (one row per round) and material breakdown have no outcome or timing; they count toward attempts, tokens and cost, but not the success rate, and never as zero. Failed and cancelled attempts rarely report usage, so tokens and cost are a lower bound."
       }
+    },
+    "stageLatency": {
+      "title": "Stage latency & slow tails",
+      "range": "Stage latency days",
+      "empty": "No writing rounds recorded in this period",
+      "totalRounds": "Recorded rounds",
+      "prepareContext": "Context prep p50 / p95",
+      "firstOutput": "First output p50 / p95",
+      "chapterFirstProse": "Chapter first prose p50 / p90 / p95",
+      "fileBodyPending": "Pending-body retries",
+      "leakedToolCall": "Leaked tool protocol",
+      "stopAndDisconnect": "User stop / disconnect",
+      "draftSurvival": "24h AI draft survival",
+      "slowTailDetail": "≥10s tail {{rate}} ({{slow}} / {{samples}})",
+      "roundsDetail": "{{affected}} / {{total}} rounds",
+      "stopDisconnectDetail": "Stopped {{stopped}} · Disconnected {{disconnected}}",
+      "draftSurvivalDetail": "Kept {{survived}} / {{eligible}} · Co-edited {{coEditRate}}",
+      "deviceTitle": "Desktop vs mobile split",
+      "device": "Client",
+      "devices": {
+        "desktop": "Desktop",
+        "mobile": "Mobile",
+        "unknown": "Unspecified"
+      },
+      "rounds": "Rounds",
+      "firstOutputCol": "First output p50 / p95",
+      "firstOutputSlowCol": "First ≥10s",
+      "chapterProseCol": "First prose p50 / p95",
+      "chapterProseSlowCol": "Prose ≥10s",
+      "disconnectCol": "Disconnect",
+      "dailyTitle": "Daily stage latency & slow tails",
+      "prepareP50Col": "Prep p50",
+      "pendingCol": "Pending retry",
+      "stopDisconnectCol": "Stop / disconnect",
+      "definitionsTitle": "How these are counted",
+      "definitions": {
+        "scope": "Counts non-admin customer writing-assistant rounds from agent_round_metric by Beijing calendar day. Stores timings, enums, and counts only—never manuscript prose or prompts.",
+        "chapterFirstProse": "Chapter first prose (chapter_first_prose_ms): monotonic elapsed time from arming a pending write_chapter / create_file body to the first streamed <file> prose chunk.",
+        "slowTail": "≥10s slow-tail rate: share of samples at or above 10,000 ms. Displays N/A when there are no samples, never 0.",
+        "reliability": "Pending-body retry counts rounds with at least one file_body_pending guard refusal. User stop is separated from client disconnect (e.g. mobile backgrounding).",
+        "draftSurvival": "24h AI draft survival: share of AI-created draft/script chapters at least 24 hours old in the window that remain undeleted and unreverted; co-edit rate is the share refined by a subsequent author edit."
+      }
     }
   },
   "userDetail": {

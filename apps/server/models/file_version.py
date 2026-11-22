@@ -77,7 +77,7 @@ class FileVersion(SQLModel, table=True):
     lines_removed: int = Field(default=0)
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
     # Optional link to project snapshot (for milestone versions)
     snapshot_id: str | None = Field(

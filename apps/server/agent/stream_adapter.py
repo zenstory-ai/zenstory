@@ -300,6 +300,8 @@ class StreamAdapter:
             target_title=target_title.strip() if isinstance(target_title, str) and target_title.strip() else None,
         )
         self._stream_processor.start_file_write(file_id)
+        if self.config.run_meter is not None:
+            self.config.run_meter.mark_pending_file_write_armed(file_id)
 
         log_with_context(
             logger,
@@ -512,6 +514,8 @@ class StreamAdapter:
                 message = data.get("error") if info.code == ErrorCode.AGENT_TOOL_FAILURE_LIMIT else None
                 # reason（如重复读取守卫的 no_progress）透传给 SSE 帧，计费据此识别失控停止。
                 reason = data.get("reason") if isinstance(data, dict) else None
+                if reason == "leaked_tool_call" and self.config.run_meter is not None:
+                    self.config.run_meter.record_leaked_tool_call()
                 yield error_event(
                     message=message if isinstance(message, str) and message else info.message,
                     code=info.code,
@@ -525,6 +529,8 @@ class StreamAdapter:
             if data.get("limit") == WALL_CLOCK_LIMIT:
                 # 时限暂停卡（runner 的时限收尾或循环收尾）：这一轮落可「继续」的时限原因。
                 self._last_message_stop_reason = RUN_DEADLINE_STOP_REASON
+            if data.get("layer") == "unexecuted_tool_text" and self.config.run_meter is not None:
+                self.config.run_meter.record_leaked_tool_call()
             yield iteration_exhausted_event(
                 layer=data.get("layer", ""),
                 iterations_used=data.get("iterations_used", 0),
@@ -1438,6 +1444,8 @@ class StreamAdapter:
 
         # Emit file content chunk
         if result.file_content and result.file_id:
+            if result.file_content.strip() and self.config.run_meter is not None:
+                self.config.run_meter.mark_first_file_prose_chunk(result.file_id)
             yield file_content_event(result.file_id, result.file_content)
 
         # Handle file completion

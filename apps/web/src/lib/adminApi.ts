@@ -465,6 +465,77 @@ export interface ModelMetricsResponse extends UsagePeriod {
   totals: ModelMetrics;
 }
 
+export interface SlowTailDistribution extends UsageDistribution {
+  slow_count: number;
+  slow_rate: number | null;
+}
+
+export interface ChapterFirstProseDistribution extends SlowTailDistribution {
+  p90: number | null;
+}
+
+export interface DeviceStageLatencySlice {
+  rounds: number;
+  first_output_ms: SlowTailDistribution;
+  chapter_first_prose_ms: ChapterFirstProseDistribution;
+  client_disconnected_rounds: number;
+  client_disconnected_rate: number | null;
+}
+
+export interface AiDraftSurvivalMetrics {
+  eligible_drafts: number;
+  survived_drafts: number;
+  co_edited_drafts: number;
+  deleted_or_reverted_drafts: number;
+  survival_rate: number | null;
+  co_edit_rate: number | null;
+  observation_hours: number;
+}
+
+export interface StageLatencyDailyRow {
+  date: string;
+  rounds: number;
+  prepare_context_p50_ms: number | null;
+  first_output_p50_ms: number | null;
+  first_output_p95_ms: number | null;
+  first_output_slow_rate: number | null;
+  chapter_first_prose_p50_ms: number | null;
+  chapter_first_prose_p95_ms: number | null;
+  chapter_first_prose_slow_rate: number | null;
+  file_body_pending_rate: number | null;
+  leaked_tool_call_rate: number | null;
+  user_stopped_rate: number | null;
+  client_disconnected_rate: number | null;
+}
+
+export interface StageLatencyResponse {
+  days: UsageDetailDays;
+  timezone: string;
+  period_start: string;
+  period_end: string;
+  slow_threshold_ms: number;
+  total_rounds: number;
+  prepare_context_ms: UsageDistribution;
+  first_output_ms: SlowTailDistribution;
+  chapter_first_prose_ms: ChapterFirstProseDistribution;
+  first_body_persisted_ms: UsageDistribution;
+  file_body_pending_rounds: number;
+  file_body_pending_rate: number | null;
+  leaked_tool_call_rounds: number;
+  leaked_tool_call_rate: number | null;
+  user_stopped_rounds: number;
+  user_stopped_rate: number | null;
+  client_disconnected_rounds: number;
+  client_disconnected_rate: number | null;
+  desktop_vs_mobile: {
+    desktop: DeviceStageLatencySlice;
+    mobile: DeviceStageLatencySlice;
+    unknown: DeviceStageLatencySlice;
+  };
+  ai_draft_survival: AiDraftSurvivalMetrics;
+  daily: StageLatencyDailyRow[];
+}
+
 async function getUsageSummary(window: UsageWindow): Promise<UsageSummaryResponse> {
   return api.get<UsageSummaryResponse>(`${ADMIN_BASE}/usage/summary?window=${window}`);
 }
@@ -491,6 +562,10 @@ async function getUsageByModel(
   const query = new URLSearchParams({ window });
   if (source) query.set("source", source);
   return api.get<ModelMetricsResponse>(`${ADMIN_BASE}/usage/models?${query.toString()}`);
+}
+
+async function getUsageStageLatency(days: UsageDetailDays = 7): Promise<StageLatencyResponse> {
+  return api.get<StageLatencyResponse>(`${ADMIN_BASE}/usage/stage-latency?days=${days}`);
 }
 
 async function getUserDailyUsage(
@@ -830,6 +905,7 @@ export const adminApi = {
   getUsageSummary,
   getUsageByUser,
   getUsageByModel,
+  getUsageStageLatency,
   getUserDailyUsage,
 
   // 审计日志

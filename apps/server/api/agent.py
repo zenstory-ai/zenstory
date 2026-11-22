@@ -15,6 +15,8 @@ Provides FastAPI router for agent endpoints:
 import asyncio
 import contextlib
 import json
+import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -83,6 +85,10 @@ from models import (
 from services.core.auth_service import get_current_active_user
 from services.features.activation_event_service import activation_event_service
 from services.quota_service import quota_service
+from services.usage.admin_stage_latency_service import (
+    build_agent_round_metric,
+    record_agent_round_metric,
+)
 from services.usage.cost_budget import bind_model_transport_start, reset_model_transport_start
 from services.usage.free_ai_network_quota import (
     FreeNetworkQuotaExceeded,
@@ -138,6 +144,11 @@ ROUND_OUTCOME_MESSAGE_ID_WAIT_S = 30.0
 _detached_refund_tasks: set[asyncio.Task[Any]] = set()
 # 停止 / 断线一轮的收尾（移除空白占位文件、终态写回助手消息）在后台进行。
 _round_outcome_tasks: set[asyncio.Task[Any]] = set()
+# 每轮指标落库任务（非阻塞、失败不影响 SSE）：持有强引用，关机前短暂等待。
+_round_metric_tasks: set[asyncio.Task[Any]] = set()
+_UI_ACTION_RE = re.compile(r"^[a-z0-9_-]{1,32}$")
+_RUNAWAY_ERROR_REASONS = frozenset({"no_progress", "repetition_loop"})
+_RUNAWAY_ERROR_CODES = frozenset({ErrorCode.AGENT_MODEL_CALL_LIMIT})
 
 
 @dataclass
@@ -172,7 +183,12 @@ async def wait_for_stream_cleanup(timeout_s: float) -> None:
 
     tasks = {
         task
-        for task in (*_detached_refund_tasks, *_round_outcome_tasks, *AgentService.background_cleanup_tasks)
+        for task in (
+            *_detached_refund_tasks,
+            *_round_outcome_tasks,
+            *_round_metric_tasks,
+            *AgentService.background_cleanup_tasks,
+        )
         if not task.done()
     }
     if tasks and timeout_s > 0:
@@ -206,6 +222,43 @@ def _activation_entry(metadata: dict[str, Any] | None) -> str:
     """作者从哪里发出这条消息（前端的 metadata.entry），只留一个短标识。"""
     entry = metadata.get("entry") if isinstance(metadata, dict) else None
     return entry[:32] if isinstance(entry, str) and entry else "typed"
+
+
+def _client_is_mobile(metadata: dict[str, Any] | None) -> bool | None:
+    """Optional client viewport hint from request metadata (strict bool or None)."""
+    raw = metadata.get("is_mobile") if isinstance(metadata, dict) else None
+    return raw if isinstance(raw, bool) else None
+
+
+def _client_ui_action(metadata: dict[str, Any] | None) -> str | None:
+    """Optional bounded UI action enum from request metadata (e.g. natural_polish)."""
+    raw = metadata.get("ui_action") if isinstance(metadata, dict) else None
+    if isinstance(raw, str):
+        candidate = raw.strip().lower()
+        if _UI_ACTION_RE.fullmatch(candidate):
+            return candidate
+    return None
+
+
+def _persist_round_metric(session: Session, metric: Any) -> None:
+    """Best-effort persistence for per-round latency/reliability metrics.
+
+    Offloads to a background thread on PostgreSQL so metric writes never block
+    or delay SSE teardown. Any exception is logged and swallowed.
+    """
+    try:
+        if should_offload_session_work(session):
+            task = asyncio.create_task(asyncio.to_thread(record_agent_round_metric, metric))
+            _round_metric_tasks.add(task)
+            task.add_done_callback(_round_metric_tasks.discard)
+            return
+        record_agent_round_metric(metric)
+    except Exception:
+        logger.warning(
+            "Could not schedule agent round metric persistence for agent_run_id=%s",
+            getattr(metric, "agent_run_id", None),
+            exc_info=True,
+        )
 
 
 def _record_activation_sync(user_id: str, project_id: str, event_name: str, entry: str) -> None:
@@ -370,6 +423,8 @@ class _AgentStreamSettlement:
     knows_stop_contract: bool
     activation_entry: str
     run_outcome: RunOutcome
+    is_mobile: bool | None = None
+    ui_action: str | None = None
     tracker: StreamBillingTracker = field(default_factory=StreamBillingTracker)
     written_files: RoundWrittenFiles = field(default_factory=RoundWrittenFiles)
     pump: SSEStreamPump | None = None
@@ -377,6 +432,7 @@ class _AgentStreamSettlement:
     user_stopped: bool = False
     unexpected_exception: bool = False
     deadline_exceeded: bool = False
+    runaway_stop: bool = False
     refund_scheduled: bool = False
     refund_task: asyncio.Task[bool] | None = None
     # 作者停止、这一轮被退还时移除的空白占位文件（停止路径当场移除并告诉前端）。
@@ -415,8 +471,18 @@ class _AgentStreamSettlement:
             self.source_done = True
         elif isinstance(frame, str) and frame.startswith("event: iteration_exhausted\n"):
             _, card_data = _parse_sse(frame)
-            if isinstance(card_data, dict) and card_data.get("limit") == WALL_CLOCK_LIMIT:
-                self.wall_clock_card_seen = True
+            if isinstance(card_data, dict):
+                if card_data.get("limit") == WALL_CLOCK_LIMIT:
+                    self.wall_clock_card_seen = True
+                if card_data.get("layer") == "tool_call":
+                    self.runaway_stop = True
+        elif isinstance(frame, str) and frame.startswith("event: error\n"):
+            _, err_data = _parse_sse(frame)
+            if isinstance(err_data, dict) and (
+                err_data.get("reason") in _RUNAWAY_ERROR_REASONS
+                or err_data.get("code") in _RUNAWAY_ERROR_CODES
+            ):
+                self.runaway_stop = True
 
     def saved_output(self, delivery: dict[str, Any]) -> bool:
         return self.written_files.saved_output(
@@ -927,6 +993,41 @@ class _AgentStreamSettlement:
             **{f"run_{key}": value for key, value in run_report.items()},
         )
 
+        # Persist 1 narrow numeric/enum fact row (zero prose/PII) in a fresh
+        # short-lived session; failures are logged and never affect SSE delivery.
+        try:
+            fallback_stop_reason = (
+                USER_STOPPED_REASON
+                if self.user_stopped
+                else (RUN_DEADLINE_STOP_REASON if self.deadline_exceeded else None)
+            )
+            metric = build_agent_round_metric(
+                user_id=self.user_id,
+                agent_run_id=self.agent_run_id,
+                project_id=self.project_id,
+                session_id=self.tracker.session_id,
+                is_mobile=self.is_mobile,
+                ui_action=self.ui_action,
+                billing_reason=billing_reason,
+                stop_reason=fallback_stop_reason,
+                first_output_ms=self.tracker.first_output_ms,
+                total_duration_ms=int((time.monotonic() - self.tracker.started_at) * 1000),
+                user_stopped=self.user_stopped,
+                client_disconnected=self.client_disconnected,
+                deadline_exceeded=self.deadline_exceeded,
+                write_succeeded=self.tracker.write_succeeded,
+                runaway_stop=self.runaway_stop,
+                unexecuted_tool_text=self.written_files.unexecuted_tool_text,
+                run_report=run_report,
+            )
+            _persist_round_metric(self.session, metric)
+        except Exception:
+            logger.warning(
+                "Could not build or persist agent round metric for agent_run_id=%s",
+                self.agent_run_id,
+                exc_info=True,
+            )
+
 
 async def _acquire_account_slot(user_id: str, project_id: str):
     """这个账号的任务名额；拒绝时什么都还没发生：没有预扣额度，也没有模型调用。"""
@@ -1306,6 +1407,8 @@ async def stream_request(
             knows_stop_contract=knows_stop_contract,
             activation_entry=activation_entry,
             run_outcome=run_outcome,
+            is_mobile=_client_is_mobile(body.metadata),
+            ui_action=_client_ui_action(body.metadata),
         )
         # 计费看这次运行实际产出了什么：源生成器的每一帧都在入队前记账，
         # 断线时还没送到客户端的帧也算数。

@@ -80,10 +80,11 @@ def initialized_test_schema():
 @pytest.fixture(autouse=True)
 def isolated_llm_usage_ledger(monkeypatch):
     """Usage metering writes through its own session; keep it on the test database."""
-    from services.usage import cost_budget, llm_usage_service
+    from services.usage import admin_stage_latency_service, cost_budget, llm_usage_service
 
     monkeypatch.setattr(llm_usage_service, "_session_factory", TestSessionLocal)
     monkeypatch.setattr(cost_budget, "_session_factory", TestSessionLocal)
+    monkeypatch.setattr(admin_stage_latency_service, "_session_factory", TestSessionLocal)
     # Material flows meter through the Prefect engine's session factory.
     monkeypatch.setattr(flows_database_session, "create_prefect_session", TestSessionLocal)
 
@@ -145,6 +146,7 @@ def db_session():
         cleanup_session.exec(Custom("DELETE FROM check_in_record"))
         # Subscription system tables (must come before user due to foreign key constraints)
         cleanup_session.exec(Custom("DELETE FROM payment_order"))
+        cleanup_session.exec(Custom("DELETE FROM agent_round_metric"))
         cleanup_session.exec(Custom("DELETE FROM llm_usage_event"))
         cleanup_session.exec(Custom("DELETE FROM ai_cost_reservation"))
         cleanup_session.exec(Custom("DELETE FROM ai_cost_daily_budget"))
