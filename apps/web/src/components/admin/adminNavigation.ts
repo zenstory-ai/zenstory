@@ -32,9 +32,10 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     fallback: "概览",
     icon: LayoutDashboard,
     path: "/admin",
-    matchPaths: ["/admin", "/admin/acquisition"],
+    matchPaths: ["/admin", "/admin/ux-health", "/admin/acquisition"],
     subTabs: [
       { key: "dashboard", labelKey: "sidebar.dashboard", fallback: "仪表盘", path: "/admin" },
+      { key: "ux-health", labelKey: "sidebar.uxHealth", fallback: "体验健康", path: "/admin/ux-health" },
       { key: "acquisition", labelKey: "sidebar.acquisition", fallback: "注册来源", path: "/admin/acquisition" },
     ],
   },

@@ -6,6 +6,8 @@ import { AlertCircle, Image as ImageIcon, Search } from "lucide-react";
 import { adminApi } from "../../lib/adminApi";
 import type { AdminFeedbackItem, AdminFeedbackStatus } from "../../types/admin";
 import { AdminPageState, AdminSelect } from "../../components/admin";
+import { AdminSegmented } from "../../components/admin/AdminSegmented";
+import { ChatVotesPanel } from "../../components/admin/ChatVotesPanel";
 import { toast } from "../../lib/toast";
 import { Button } from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -14,8 +16,10 @@ import { AdminUserLink } from "../../components/admin/AdminUserLink";
 import { formatAdminDateTime } from "../../lib/dateUtils";
 
 type ScreenshotFilter = "all" | "with" | "without";
+type FeedbackSubTab = "tickets" | "chat-votes";
 
 const PAGE_SIZE = 20;
+const FEEDBACK_SUB_TABS: FeedbackSubTab[] = ["tickets", "chat-votes"];
 
 const statusOrder: AdminFeedbackStatus[] = ["open", "processing", "resolved"];
 
@@ -23,6 +27,7 @@ export default function FeedbackManagement() {
   const { t } = useTranslation(["admin", "common"]);
   const queryClient = useQueryClient();
   const isCompact = useMediaQuery("(max-width: 1023px)");
+  const [activeTab, setActiveTab] = useState<FeedbackSubTab>("tickets");
   const [page, setPage] = useState(0);
   const [statusFilter, setStatusFilter] = useState<AdminFeedbackStatus | "">("");
   const [sourceFilter, setSourceFilter] = useState<"dashboard" | "editor" | "">("");
@@ -62,6 +67,7 @@ export default function FeedbackManagement() {
         has_screenshot: hasScreenshotFilter,
         search: searchKeyword || undefined,
       }),
+    enabled: activeTab === "tickets",
     staleTime: 30_000,
   });
 
@@ -184,7 +190,23 @@ export default function FeedbackManagement() {
         {t("feedback.title", "问题反馈")}
       </h1>
 
-      <form
+      <AdminSegmented
+        label={t("feedback.tabs.label", "反馈类型")}
+        options={FEEDBACK_SUB_TABS}
+        value={activeTab}
+        onChange={setActiveTab}
+        renderLabel={(tab) =>
+          tab === "tickets"
+            ? t("feedback.tabs.tickets", "工单反馈")
+            : t("feedback.tabs.chatVotes", "对话反馈")
+        }
+      />
+
+      {activeTab === "chat-votes" ? (
+        <ChatVotesPanel isCompact={isCompact} />
+      ) : (
+        <>
+          <form
         onSubmit={handleSearchSubmit}
         className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(0,180px))_auto]"
       >
@@ -526,6 +548,8 @@ export default function FeedbackManagement() {
           )}
         </div>
       </Modal>
+        </>
+      )}
     </div>
   );
 }

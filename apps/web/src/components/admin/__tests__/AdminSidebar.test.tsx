@@ -52,6 +52,7 @@ describe("AdminSidebar", () => {
   it.each([
     ["/admin", "概览"],
     ["/admin/", "概览"],
+    ["/admin/ux-health", "概览"],
     ["/admin/acquisition", "概览"],
     ["/admin/users", "用户"],
     ["/admin/users/user-1", "用户"],
