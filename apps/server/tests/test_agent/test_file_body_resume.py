@@ -224,10 +224,10 @@ async def _run(
     *,
     meter: AgentRunMeter | None = None,
     request_context: AgentRequestContext | None = None,
+    message: str = "写第一章",
 ) -> Outcome:
     from agent.loop.engine import run_loop_agent_streaming
 
-    message = "写第一章"
     meter = meter or AgentRunMeter()
     req_ctx = request_context or AgentRequestContext(
         session=None,
@@ -1400,4 +1400,69 @@ async def test_write_chapter_replace_next_step_includes_short_thinking_guidance_
     assert refreshed is not None and refreshed.content.strip() == BODY
     assert "<tool_call>" not in outcome.chat_text
     assert outcome.of("error") == [] and len(outcome.of("done")) == 1
+
+
+async def test_leaked_tool_call_early_stop_preserves_original_author_message_when_to_input_list_is_unbalanced(
+    workspace,
+):
+    """早停时即便 SDK to_input_list 含未配对尾项或抛错，FILE_BODY_RESUME 纠偏轮也绝不丢失作者原话。"""
+    from agent.openai_agents.runner import _sanitized_early_stop_items
+
+    class _UnbalancedResult:
+        def __init__(self, items):
+            self._items = items
+
+        def to_input_list(self):
+            return self._items
+
+    # 尾段有未配对的 function_call 与悬空 reasoning：保留最长成对前缀而非整表返回 None
+    trimmed = _sanitized_early_stop_items(
+        _UnbalancedResult(
+            [
+                {"role": "user", "content": "写宁宸第一章"},
+                {"type": "function_call", "call_id": "c1", "name": "create_file", "arguments": "{}"},
+                {"type": "function_call_output", "call_id": "c1", "output": '{"status":"success"}'},
+                {"type": "reasoning", "summary": [{"type": "summary_text", "text": "未完成思考"}]},
+                {"type": "function_call", "call_id": "c2", "name": "query_files", "arguments": "{}"},
+            ]
+        )
+    )
+    assert trimmed is not None
+    assert len(trimmed) == 3
+    assert trimmed[0] == {"role": "user", "content": "写宁宸第一章"}
+    assert trimmed[-1]["call_id"] == "c1"
+
+    # 即便 to_input_list() 在取消后直接失败，早停回退到 run_input 后纠偏轮仍保留作者原话
+    class _BrokenInputListResult(_ScriptedResult):
+        is_complete: bool = False
+
+        def cancel(self, mode: str = "immediate") -> None:
+            if mode == "immediate":
+                self.is_complete = True
+
+        def to_input_list(self) -> list[Any]:
+            raise RuntimeError("cancelled mid-turn")
+
+    class _TrackingModel(ScriptedModel):
+        def run_streamed(self, agent, *_args, input=None, hooks=None, context=None, **_kwargs):  # noqa: A002
+            self.run_inputs.append(input)
+            replies = self.runs.pop(0) if self.runs else [Reply(text="完成")]
+            return _BrokenInputListResult(self, agent, hooks, replies, context=context)
+
+    write_ch = Reply(tools=(("write_chapter", {"chapter": 1, "title": "第一章 开篇", "file_type": "draft"}),))
+    leaked_reply = Reply(text="]<]minimax[>[<tool_call>\n" + ("x" * 2000))
+    recovered_body = Reply(text=f"<file>\n{BODY}\n</file>")
+    self_check_done = Reply(text="第一章已写完。")
+
+    model = _TrackingModel(runs=[[write_ch, leaked_reply], [recovered_body], [self_check_done]])
+    outcome = await _run(workspace, model, message="我想写《阁下不讲道理》，主角宁宸穿越到大玄皇朝，写第1章。")
+
+    assert len(model.run_inputs) >= 2
+    second_run_text = "\n".join(
+        str(item.get("content") or "") for item in model.run_inputs[1] if isinstance(item, dict)
+    )
+    assert "宁宸" in second_run_text, "纠偏轮输入绝不能丢掉本轮作者原始需求"
+    assert "系统提醒" in second_run_text
+    assert outcome.of("error") == [] and len(outcome.of("done")) == 1
+
 
