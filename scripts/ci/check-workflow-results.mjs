@@ -57,6 +57,7 @@ export function ciJobExpectations({ backend, frontend, cli, ci }) {
     "frontend-build": frontend || ci,
     "cli-test": cli || ci,
     "vercel-build": frontend || ci,
+    "frontend-e2e-smoke": frontend || ci,
   };
 }
 
@@ -124,6 +125,7 @@ function main() {
         "frontend-build": env("FRONTEND_BUILD_RESULT"),
         "cli-test": env("CLI_TEST_RESULT"),
         "vercel-build": env("VERCEL_BUILD_RESULT"),
+        "frontend-e2e-smoke": env("FRONTEND_E2E_SMOKE_RESULT"),
       },
     });
   } else if (mode === "e2e") {
