@@ -31,7 +31,7 @@ import { MaterialPreview } from "./MaterialPreview";
 import { ImportMaterialDialog } from "./ImportMaterialDialog";
 import type { File, FileTreeNode, TreeNodeType } from "../types";
 import { FOLDER_TYPE_MAP } from "../lib/folderTypeMap";
-import { FileText, Users, BookOpen, Sparkles, Folder, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload } from "lucide-react";
+import { FileText, Users, BookOpen, Sparkles, Folder, FolderOpen, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { getUpgradePromptDefinition } from "../config/upgradeExperience";
@@ -66,7 +66,7 @@ const SERVER_SYNC_RETRY_DELAYS_MS = [1000, 3000];
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface EditorProps {}
 
-type EmptyStateFileType = 'draft' | 'outline' | 'character' | 'lore' | 'script';
+type EmptyStateFileType = 'draft' | 'outline' | 'character' | 'lore' | 'snippet' | 'script';
 
 /**
  * The comparison Editor opened for "the author wrote on an older copy": the
@@ -308,6 +308,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
         outline: 'outline-folder',
         character: 'character-folder',
         lore: 'lore-folder',
+        snippet: 'material-folder',
         script: 'script-folder',
       };
 
@@ -1499,11 +1500,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setIsCreating(fileType);
 
     // Default titles based on type
-    const defaultTitles: Record<string, string> = {
+    const defaultTitles: Record<EmptyStateFileType, string> = {
       draft: t('editor:fileTree.newDraft'),
       outline: t('editor:fileTree.newOutline'),
       character: t('editor:fileTree.newCharacter'),
       lore: t('editor:fileTree.newLore'),
+      snippet: t('editor:fileTree.newSnippet'),
       script: t('editor:fileTree.newScript'),
     };
 
@@ -1680,7 +1682,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
             {/* Secondary Actions - collapsible */}
             {showMore && (
-              <div className="grid grid-cols-2 gap-3 animate-fade-in" style={{ animationDuration: '200ms' }}>
+              <div className="grid grid-cols-3 gap-3 animate-fade-in" style={{ animationDuration: '200ms' }}>
                 {/* Create Character */}
                 <button
                   type="button"
@@ -1708,6 +1710,21 @@ const EditorComponent: React.FC<EditorProps> = () => {
                   </div>
                   <span className="text-xs font-medium text-[hsl(var(--text-primary))] text-center">
                     {t('editor:fileTree.newLore')}
+                  </span>
+                </button>
+
+                {/* Create Snippet / Material */}
+                <button
+                  type="button"
+                  disabled={isCreating === 'snippet'}
+                  onClick={() => handleCreateFromEmptyState('snippet')}
+                  className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
+                    {isCreating === 'snippet' ? <LoadingSpinner size="sm" color="primary" /> : <FolderOpen className="w-4 h-4 text-[hsl(var(--accent-primary))]" />}
+                  </div>
+                  <span className="text-xs font-medium text-[hsl(var(--text-primary))] text-center">
+                    {t('editor:fileTree.newSnippet')}
                   </span>
                 </button>
               </div>

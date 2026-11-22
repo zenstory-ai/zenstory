@@ -40,6 +40,7 @@ export type FileType =
   | "document"
   | "character"
   | "lore"
+  | "snippet"
   | "material"
   | "script";  // Script content (for screenplay)
 

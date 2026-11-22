@@ -84,7 +84,7 @@ test.beforeEach(async ({ page, ownedProject }) => {
   ownedProjectByPage.set(page, ownedProject)
 })
 
-/** Open a real API-created draft; the former 正文 + target is an upload control. */
+/** Open a real API-created draft and verify the 正文 folder exposes both create and upload controls. */
 async function setupProjectAndFile(page: import('@playwright/test').Page, fileName: string, content = '') {
   const project = ownedProjectByPage.get(page)
   if (!project) throw new Error('Large-document owned project fixture was not initialized')
@@ -96,10 +96,8 @@ async function setupProjectAndFile(page: import('@playwright/test').Page, fileNa
   const draftFolder = page.locator('[data-testid="file-tree-node"][data-file-type="folder"]').filter({ hasText: '正文' }).first()
   await expect(draftFolder).toBeVisible()
   await draftFolder.hover()
-  // This is the exact control the old parent-traversal selector clicked. Its
-  // upload contract proves why no inline input could ever appear.
+  await expect(draftFolder.getByTestId('file-tree-create-child')).toBeVisible()
   await expect(draftFolder.getByTestId('file-tree-upload-draft')).toBeVisible()
-  await expect(draftFolder.getByTestId('file-tree-create-child')).toHaveCount(0)
 
   const testFile = page.locator(`[data-testid="file-tree-node"][data-file-id="${file.id}"]`)
   await expect(testFile).toBeVisible()

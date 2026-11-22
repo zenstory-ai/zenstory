@@ -39,6 +39,6 @@ export const FOLDER_TYPE_MAP: Record<string, string> = {
 
 /**
  * Folder names that represent material/attachment folders (both zh and en).
- * Used to determine which folders should show upload UI instead of create-file UI.
+ * Used to determine which folders also expose .txt/.md upload controls.
  */
 export const MATERIAL_FOLDER_NAMES = ["素材", "Materials", "Material"] as const;
