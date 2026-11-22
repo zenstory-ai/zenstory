@@ -38,8 +38,8 @@ test('production API fallback carries ordinary API paths but never paths charged
     '/api/v1/agent/suggest', '/api/v1/agent/steer', '/api/v1/agent/stop', '/api/v1/agent/streams', '/api/v1/editor/other']) {
     assert.equal(matches.test(path), true, path)
   }
-  for (const path of ['/api/v1/agent/stream', '/api/v1/agent/stream/', '/api/v1/editor/natural-polish',
-    '/api/v1/editor/natural-polish/', '/API/V1/AGENT/STREAM']) {
+  for (const path of ['/api/v1/agent/stream', '/api/v1/agent/stream/', '/api/v1/materials/upload',
+    '/api/v1/materials/upload/', '/API/V1/AGENT/STREAM']) {
     assert.equal(matches.test(path), false, path)
   }
 
@@ -47,7 +47,7 @@ test('production API fallback carries ordinary API paths but never paths charged
   const previewOnly = (rule) => rule.has?.some((item) => item.value.startsWith('geo-preview'))
   for (const rule of vercelConfig.rewrites.filter((item) => !previewOnly(item))) {
     if (!rule.source.startsWith('/:path(')) continue
-    for (const path of ['/api/v1/agent/stream', '/api/v1/editor/natural-polish']) {
+    for (const path of ['/api/v1/agent/stream', '/api/v1/materials/upload']) {
       assert.equal(matcher(rule).test(path), false, `${rule.source} -> ${path}`)
     }
   }

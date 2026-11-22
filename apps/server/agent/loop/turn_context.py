@@ -16,6 +16,7 @@ from typing import Any
 from sqlmodel import Session
 
 from agent.core.message_manager import TURN_CONTEXT_CLOSE, TURN_CONTEXT_OPEN, MessageManager
+from agent.loop.ui_actions import UIAction, build_ui_action_turn_section
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -55,6 +56,8 @@ def build_loop_turn_context(
     chat_session_id: str | None = None,
     carried_compaction: dict[str, Any] | None = None,
     cancel_event: threading.Event | None = None,
+    ui_action: UIAction | None = None,
+    selected_text: str | None = None,
 ) -> LoopTurnContext:
     from agent.context import get_context_assembler
     from agent.tools.permissions import ForbiddenError, NotFoundError, check_project_ownership
@@ -86,10 +89,12 @@ def build_loop_turn_context(
     quotes = metadata.get("text_quotes")
     if isinstance(quotes, list) and quotes:
         items.extend(assembler.get_text_quotes([q for q in quotes if isinstance(q, dict)]))
+    focus_file = None
     focus_file_id = metadata.get("current_file_id")
     if isinstance(focus_file_id, str) and focus_file_id:
         focus = session.get(File, focus_file_id)
         if focus is not None and not focus.is_deleted and focus.project_id == project_id and focus.file_type != "folder":
+            focus_file = focus
             items.append(assembler.file_to_context_item(focus, is_focus=True))
     items = assembler.deduplicate_items(items)
     items = _bound_turn_context_items(items, assembler)
@@ -112,6 +117,18 @@ def build_loop_turn_context(
     parts.extend(manager._build_metadata_section(metadata, force_en))
     if selected_skills:
         parts.extend(manager._build_selected_skill_section(selected_skills, force_en))
+    if ui_action is not None and focus_file is not None:
+        parts.extend(
+            build_ui_action_turn_section(
+                session,
+                ui_action=ui_action,
+                force_en=force_en,
+                focus_file_id=focus_file.id,
+                focus_file_title=focus_file.title,
+                focus_file_type=focus_file.file_type,
+                has_selected_text=bool((selected_text or "").strip()),
+            )
+        )
     parts.extend(manager._build_author_language_line(author_message))
     parts.append(TURN_CONTEXT_CLOSE)
     result.text = "\n".join(parts)

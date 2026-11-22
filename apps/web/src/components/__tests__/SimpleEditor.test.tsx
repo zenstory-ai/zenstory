@@ -1,4 +1,4 @@
-import { act, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import type { RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, useState } from 'react';
@@ -8,18 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SimpleEditor } from '../SimpleEditor';
 import { MobileLayoutProvider, useMobileLayout } from '../../contexts/MobileLayoutContext';
 import { toast } from '../../lib/toast';
-import { logger } from '../../lib/logger';
 import type { DiffReviewState } from '../../types';
 import {
   BEFORE_CHUNK_RELOAD_EVENT,
   readEditorDraftSnapshot,
 } from '../../lib/editorDraftRecovery';
-
-vi.mock('../../lib/naturalPolishApi', () => ({
-  naturalPolishApi: {
-    naturalPolish: vi.fn(),
-  },
-}));
+import { setOpenEditorFlush } from '../../lib/editorSaveTracker';
 
 vi.mock('../../lib/subscriptionApi', () => ({
   subscriptionQueryKeys: {
@@ -104,124 +98,6 @@ describe('SimpleEditor', () => {
     origin,
   });
 
-  it('shows a natural-polish candidate as one accept-or-discard decision', () => {
-    const onResolvePolish = vi.fn();
-    const onFinishReview = vi.fn();
-    render(
-      <SimpleEditor
-        fileId="file-1"
-        title="Draft"
-        content="Original paragraph.\n\nSecond original paragraph."
-        onTitleChange={vi.fn()}
-        onContentChange={vi.fn()}
-        onSave={vi.fn()}
-        diffReviewState={reviewState('polish')}
-        onResolvePolish={onResolvePolish}
-        onAcceptEdit={vi.fn()}
-        onRejectEdit={vi.fn()}
-        onResetEdit={vi.fn()}
-        onAcceptAllEdits={vi.fn()}
-        onRejectAllEdits={vi.fn()}
-        onFinishReview={onFinishReview}
-      />,
-    );
-
-    const candidate = screen.getByRole('region', { name: 'editor:naturalPolishCandidate' });
-    expect(within(candidate).getByText('Polished paragraph.', { exact: false })).toBeInTheDocument();
-    expect(candidate.querySelector('pre')?.textContent).toBe(
-      'Polished paragraph.\n\nSecond polished paragraph.',
-    );
-    expect(screen.queryByTestId('paragraph-review')).not.toBeInTheDocument();
-
-    fireEvent.keyDown(candidate, { key: 'Enter' });
-    fireEvent.keyDown(candidate, { key: ' ' });
-    expect(onResolvePolish).not.toHaveBeenCalled();
-    expect(onFinishReview).not.toHaveBeenCalled();
-
-    fireEvent.click(within(candidate).getByRole('button', { name: 'editor:naturalPolishShowOriginal' }));
-    expect(within(candidate).getByText('Original paragraph.', { exact: false })).toBeInTheDocument();
-    expect(candidate.querySelector('pre')?.textContent).toBe(
-      'Original paragraph.\n\nSecond original paragraph.',
-    );
-    fireEvent.click(within(candidate).getByRole('button', { name: 'editor:naturalPolishDiscard' }));
-    expect(onResolvePolish).toHaveBeenCalledWith('discard');
-  });
-
-  it('accepts the complete natural-polish candidate with one explicit action', () => {
-    const onResolvePolish = vi.fn();
-    render(
-      <SimpleEditor
-        fileId="file-1"
-        title="Draft"
-        content="Original paragraph.\n\nSecond original paragraph."
-        onTitleChange={vi.fn()}
-        onContentChange={vi.fn()}
-        onSave={vi.fn()}
-        diffReviewState={reviewState('polish')}
-        onResolvePolish={onResolvePolish}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolishAccept' }));
-    expect(onResolvePolish).toHaveBeenCalledTimes(1);
-    expect(onResolvePolish).toHaveBeenCalledWith('accept');
-  });
-
-  it('submits a natural-polish decision once and disables every candidate action while saving', async () => {
-    let finishResolve: () => void = () => {};
-    const resolving = new Promise<void>((resolve) => { finishResolve = resolve; });
-    const onResolvePolish = vi.fn(() => resolving);
-    render(
-      <SimpleEditor
-        fileId="file-1"
-        title="Draft"
-        content="Original paragraph.\n\nSecond original paragraph."
-        onTitleChange={vi.fn()}
-        onContentChange={vi.fn()}
-        onSave={vi.fn()}
-        diffReviewState={reviewState('polish')}
-        onResolvePolish={onResolvePolish}
-      />,
-    );
-
-    const accept = screen.getByRole('button', { name: 'editor:naturalPolishAccept' });
-    fireEvent.click(accept);
-    fireEvent.click(accept);
-
-    expect(onResolvePolish).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'editor:naturalPolishAccept' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'editor:naturalPolishDiscard' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'editor:naturalPolishShowOriginal' })).toBeDisabled();
-
-    finishResolve();
-    await waitFor(() => expect(accept).not.toBeDisabled());
-  });
-
-  it('restores natural-polish actions when applying the candidate fails', async () => {
-    const failure = new Error('save failed');
-    const onResolvePolish = vi.fn().mockRejectedValueOnce(failure);
-    const logSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
-    render(
-      <SimpleEditor
-        fileId="file-1"
-        title="Draft"
-        content="Original paragraph.\n\nSecond original paragraph."
-        onTitleChange={vi.fn()}
-        onContentChange={vi.fn()}
-        onSave={vi.fn()}
-        diffReviewState={reviewState('polish')}
-        onResolvePolish={onResolvePolish}
-      />,
-    );
-
-    const accept = screen.getByRole('button', { name: 'editor:naturalPolishAccept' });
-    fireEvent.click(accept);
-
-    await waitFor(() => expect(logSpy).toHaveBeenCalledWith('Failed to resolve natural-polish candidate:', failure));
-    expect(accept).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: 'editor:naturalPolishDiscard' })).not.toBeDisabled();
-  });
-
   it('keeps save conflicts in the paragraph comparison', () => {
     render(
       <SimpleEditor
@@ -232,7 +108,6 @@ describe('SimpleEditor', () => {
         onContentChange={vi.fn()}
         onSave={vi.fn()}
         diffReviewState={reviewState('conflict')}
-        onResolvePolish={vi.fn()}
         onAcceptEdit={vi.fn()}
         onRejectEdit={vi.fn()}
         onResetEdit={vi.fn()}
@@ -658,269 +533,11 @@ describe('SimpleEditor', () => {
     expect(screen.getByRole('button', { name: 'editor:naturalPolish' })).toBeInTheDocument();
   });
 
-  it('natural polish triggers diff review with rewritten text', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    const naturalPolishMock = naturalPolishApi.naturalPolish as unknown as ReturnType<typeof vi.fn>;
-    naturalPolishMock.mockResolvedValueOnce({ text: '  Rewritten  ', unchanged: false });
-
-    const onEnterDiffReview = vi.fn();
-    render(
-      <SimpleEditor
-        projectId="project-1"
-        fileId="file-1"
-        fileType="draft"
-        title="File 1"
-        content="Hello world"
-        onTitleChange={vi.fn()}
-        onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
-        onEnterDiffReview={onEnterDiffReview}
-      />
-    );
-
-    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
-    selectText(textarea);
-    fireEvent.keyDown(textarea, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true });
-
-    await waitFor(() => {
-      expect(onEnterDiffReview).toHaveBeenCalledTimes(1);
-    });
-
-    expect(onEnterDiffReview).toHaveBeenCalledWith(
-      'file-1',
-      'Hello world',
-      'Rewritten world'
-    );
-  });
-
-  it('natural polish ignores stale result after file switch', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    const naturalPolishMock = naturalPolishApi.naturalPolish as unknown as ReturnType<typeof vi.fn>;
-
-    let resolvePolish: (value: { text: string; unchanged: boolean }) => void = () => {};
-    const deferred = new Promise<{ text: string; unchanged: boolean }>((resolve) => {
-      resolvePolish = resolve;
-    });
-    naturalPolishMock.mockReturnValueOnce(deferred);
-
-    const onEnterDiffReview = vi.fn();
-    const { rerender } = render(
-      <SimpleEditor
-        projectId="project-1"
-        fileId="file-1"
-        fileType="draft"
-        title="File 1"
-        content="Hello world"
-        onTitleChange={vi.fn()}
-        onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
-        onEnterDiffReview={onEnterDiffReview}
-      />
-    );
-
-    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
-    selectText(textarea);
-    fireEvent.keyDown(textarea, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true });
-
-    // Switch file before the request resolves.
-    rerender(
-      <SimpleEditor
-        projectId="project-1"
-        fileId="file-2"
-        fileType="draft"
-        title="File 2"
-        content="Another content"
-        onTitleChange={vi.fn()}
-        onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
-        onEnterDiffReview={onEnterDiffReview}
-      />
-    );
-
-    resolvePolish({ text: 'Rewritten', unchanged: false });
-    await waitFor(() => {
-      // flush promise microtasks
-      expect(true).toBe(true);
-    });
-
-    expect(onEnterDiffReview).not.toHaveBeenCalled();
-  });
-
-  it('natural polish surfaces backend error message', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    const naturalPolishMock = naturalPolishApi.naturalPolish as unknown as ReturnType<typeof vi.fn>;
-    naturalPolishMock.mockRejectedValueOnce(new Error('ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED'));
-
-    const toastErrorSpy = vi.spyOn(toast, 'error').mockImplementation(() => {});
-
-    render(
-      <SimpleEditor
-        projectId="project-1"
-        fileId="file-1"
-        fileType="draft"
-        title="File 1"
-        content="Hello world"
-        onTitleChange={vi.fn()}
-        onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
-      />
-    );
-
-    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
-    selectText(textarea);
-    fireEvent.keyDown(textarea, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true });
-
-    await waitFor(() => {
-      expect(toastErrorSpy).toHaveBeenCalledWith('ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED');
-    });
-  });
-
-  it('natural polish shows the network refusal as a neutral notice and leaves the text alone', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    const naturalPolishMock = naturalPolishApi.naturalPolish as unknown as ReturnType<typeof vi.fn>;
-    const copy = '当前网络今日免费体验额度已用完，请明天再试或升级。';
-    naturalPolishMock.mockRejectedValueOnce(
-      Object.assign(new Error(copy), { status: 402, errorCode: 'ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED' }),
-    );
-    const toastErrorSpy = vi.spyOn(toast, 'error').mockImplementation(() => {});
-    const onEnterDiffReview = vi.fn();
-
-    render(
-      <SimpleEditor
-        projectId="project-1"
-        fileId="file-1"
-        fileType="draft"
-        title="File 1"
-        content="Hello world"
-        onTitleChange={vi.fn()}
-        onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
-        onEnterDiffReview={onEnterDiffReview}
-      />
-    );
-
-    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
-    selectText(textarea);
-    fireEvent.keyDown(textarea, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true });
-
-    await waitFor(() => expect(toastErrorSpy).toHaveBeenCalledWith(copy));
-    expect(textarea.value).toBe('Hello world');
-    expect(onEnterDiffReview).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: 'editor:naturalPolishRetry' })).not.toBeInTheDocument();
-  });
-
-  const polishFailure = (errorCode: string, quotaRefunded: boolean) =>
-    Object.assign(new Error('translated headline'), {
-      status: 502,
-      errorCode,
-      details: { retryable: true, quota_refunded: quotaRefunded, failure_category: 'missing_anchor' },
-    });
-
-  it('a retryable 去AI味 failure says nothing changed and the AI message came back, and retries the same selection by hand', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    const naturalPolishMock = vi.mocked(naturalPolishApi.naturalPolish);
-    naturalPolishMock.mockRejectedValueOnce(polishFailure('ERR_NATURAL_POLISH_OUTPUT_UNUSABLE', true));
-    naturalPolishMock.mockResolvedValueOnce({ text: 'Howdy', unchanged: false });
-    const toastErrorSpy = vi.spyOn(toast, 'error').mockImplementation(() => {});
-    const onEnterDiffReview = vi.fn();
-    const textarea = renderPolishableEditor(onEnterDiffReview);
-
-    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
-
-    const notice = await screen.findByTestId('natural-polish-retry');
-    expect(notice).toHaveAttribute('role', 'alert');
-    expect(notice).toHaveTextContent('editor:naturalPolishUnusableRefunded');
-    expect(toastErrorSpy).not.toHaveBeenCalled();
-    expect(onEnterDiffReview).not.toHaveBeenCalled();
-    // 只调用了一次：失败后不自动重试。
-    expect(naturalPolishMock).toHaveBeenCalledTimes(1);
-
-    // 作者点了别处、选区没了；「再试一次」仍按失败时的选区重试。
-    textarea.setSelectionRange(11, 11);
-    fireEvent.select(textarea);
-    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolishRetry' }));
-
-    await waitFor(() => expect(onEnterDiffReview).toHaveBeenCalledWith('file-1', 'Hello world', 'Howdy world'));
-    expect(naturalPolishMock).toHaveBeenCalledTimes(2);
-    expect(naturalPolishMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ selectedText: 'Hello' }),
-      expect.anything(),
-    );
-    expect(screen.queryByTestId('natural-polish-retry')).not.toBeInTheDocument();
-  });
-
-  it.each([
-    ['ERR_NATURAL_POLISH_OUTPUT_UNUSABLE', false, 'editor:naturalPolishUnusable'],
-    ['ERR_NATURAL_POLISH_PROVIDER_FAILED', true, 'editor:naturalPolishProviderFailedRefunded'],
-    ['ERR_NATURAL_POLISH_PROVIDER_FAILED', false, 'editor:naturalPolishProviderFailed'],
-  ])('%s with quota_refunded=%s shows %s and can be dismissed', async (code, refunded, key) => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    vi.mocked(naturalPolishApi.naturalPolish).mockRejectedValueOnce(polishFailure(code, refunded));
-    renderPolishableEditor();
-
-    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
-
-    const notice = await screen.findByTestId('natural-polish-retry');
-    expect(notice).toHaveTextContent(key);
-    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolishDismiss' }));
-    expect(screen.queryByTestId('natural-polish-retry')).not.toBeInTheDocument();
-    expect(naturalPolishApi.naturalPolish).toHaveBeenCalledTimes(1);
-  });
-
-  it('the retry button shows free users that retrying uses another AI message, like the main button', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    vi.mocked(naturalPolishApi.naturalPolish).mockRejectedValueOnce(
-      polishFailure('ERR_NATURAL_POLISH_OUTPUT_UNUSABLE', true),
-    );
-    testQueryClient.setQueryData(['subscription-quota', 'test-user'], quotaPayload(3));
-    renderPolishableEditor();
-
-    fireEvent.click(screen.getByRole('button', { name: /^editor:naturalPolish\b/ }));
-
-    const notice = await screen.findByTestId('natural-polish-retry');
-    const retry = within(notice).getByRole('button', { name: /editor:naturalPolishRetry/ });
-    expect(retry).toHaveTextContent('editor:naturalPolishCost');
-    expect(retry).toHaveAttribute('title', 'editor:naturalPolishTooltipFree');
-  });
-
-  it('retrying after the text changed uses the current selection instead of the stale range', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    const naturalPolishMock = vi.mocked(naturalPolishApi.naturalPolish);
-    naturalPolishMock.mockRejectedValueOnce(polishFailure('ERR_NATURAL_POLISH_OUTPUT_UNUSABLE', true));
-    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
-    const Harness = () => {
-      const [content, setContent] = useState('Hello world');
-      return (
-        <SimpleEditor
-          projectId="project-1"
-          fileId="file-1"
-          fileType="draft"
-          title="File 1"
-          content={content}
-          onTitleChange={vi.fn()}
-          onContentChange={setContent}
-          onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
-        />
-      );
-    };
-    render(<Harness />);
-    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
-    selectText(textarea);
-
-    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
-    await screen.findByTestId('natural-polish-retry');
-
-    fireEvent.change(textarea, { target: { value: 'Hi there world' } });
-    expect(textarea.value).toBe('Hi there world');
-    textarea.setSelectionRange(0, 0);
-    fireEvent.select(textarea);
-    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolishRetry' }));
-
-    expect(toastInfoSpy).toHaveBeenCalledWith('editor:naturalPolishNoSelection');
-    expect(naturalPolishMock).toHaveBeenCalledTimes(1);
-  });
-
-  const renderPolishableEditor = (onEnterDiffReview = vi.fn(), content = "Hello world") => {
+  const renderPolishableEditor = (
+    onNaturalPolish = vi.fn(),
+    content = 'Hello world',
+    extraProps: Partial<React.ComponentProps<typeof SimpleEditor>> = {},
+  ) => {
     render(
       <SimpleEditor
         projectId="project-1"
@@ -931,20 +548,23 @@ describe('SimpleEditor', () => {
         onTitleChange={vi.fn()}
         onContentChange={vi.fn()}
         onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
-        onEnterDiffReview={onEnterDiffReview}
+        onNaturalPolish={onNaturalPolish}
+        {...extraProps}
       />
     );
     const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
-    selectText(textarea);
     return textarea;
   };
 
-  const renderMobilePolishableEditor = () => {
-    // Stand-in for the mobile bottom tabs.
+  const renderMobilePolishableEditor = (
+    onNaturalPolish = vi.fn(),
+    onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' }),
+  ) => {
     const PanelTabs = () => {
-      const { switchToChat, switchToEditor } = useMobileLayout();
+      const { activePanel, switchToChat, switchToEditor } = useMobileLayout();
       return (
         <>
+          <span data-testid="active-mobile-panel">{activePanel}</span>
           <button type="button" onClick={switchToChat}>tab-chat</button>
           <button type="button" onClick={switchToEditor}>tab-editor</button>
         </>
@@ -961,7 +581,8 @@ describe('SimpleEditor', () => {
           content="Hello world"
           onTitleChange={vi.fn()}
           onContentChange={vi.fn()}
-          onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
+          onSave={onSave}
+          onNaturalPolish={onNaturalPolish}
         />
       </MobileLayoutProvider>,
     );
@@ -969,82 +590,209 @@ describe('SimpleEditor', () => {
     return { textarea };
   };
 
-  it('clears a stale selection when the mobile editor panel is hidden, so 去AI味 asks for a selection instead of polishing invisible text', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
-    const { textarea } = renderMobilePolishableEditor();
+  it('polishes the whole open chapter via Agent when nothing is selected (no 6,000-char wall)', async () => {
+    const onNaturalPolish = vi.fn();
+    const longChapter = '文'.repeat(7500);
+    renderPolishableEditor(onNaturalPolish, longChapter);
+
+    const button = screen.getByRole('button', { name: 'editor:naturalPolish' });
+    expect(button).toBeEnabled();
+    expect(button).toHaveAttribute('title', 'editor:naturalPolishTooltip');
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(onNaturalPolish).toHaveBeenCalledWith({
+        projectId: 'project-1',
+        fileId: 'file-1',
+        fileType: 'draft',
+        fileTitle: 'File 1',
+        selectedText: undefined,
+      });
+    });
+  });
+
+  it('shows selection scope label and sends selectedText when text is highlighted (click and Ctrl/Cmd+Shift+R)', async () => {
+    const onNaturalPolish = vi.fn();
+    const textarea = renderPolishableEditor(onNaturalPolish);
     selectText(textarea);
 
-    fireEvent.click(screen.getByRole('button', { name: 'tab-chat' }));
-    fireEvent.click(screen.getByRole('button', { name: 'tab-editor' }));
-    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
+    const button = screen.getByRole('button', { name: 'editor:naturalPolishSelection' });
+    expect(button).toHaveAttribute('title', 'editor:naturalPolishTooltipSelection');
+    fireEvent.keyDown(textarea, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true });
 
-    expect(naturalPolishApi.naturalPolish).not.toHaveBeenCalled();
-    expect(toastInfoSpy).toHaveBeenCalledWith('editor:naturalPolishNoSelection');
+    await waitFor(() => {
+      expect(onNaturalPolish).toHaveBeenCalledWith({
+        projectId: 'project-1',
+        fileId: 'file-1',
+        fileType: 'draft',
+        fileTitle: 'File 1',
+        selectedText: 'Hello',
+      });
+    });
     expect(textarea.selectionStart).toBe(textarea.selectionEnd);
   });
 
-  it('keeps the selection while the mobile editor panel stays visible', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    vi.mocked(naturalPolishApi.naturalPolish).mockResolvedValueOnce({ text: 'Hello', unchanged: true });
-    vi.spyOn(toast, 'info').mockImplementation(() => {});
-    const { textarea } = renderMobilePolishableEditor();
-    selectText(textarea);
+  it('flushes dirty edits BEFORE dispatching natural polish to Agent', async () => {
+    const order: string[] = [];
+    const onSave = vi.fn(async () => {
+      order.push('save');
+      return { outcome: 'saved' as const, updatedAt: '2026-10-06T10:00:00.000002' };
+    });
+    const onNaturalPolish = vi.fn(() => {
+      order.push('polish');
+    });
+    const Harness = () => {
+      const [content, setContent] = useState('Hello world');
+      return (
+        <SimpleEditor
+          projectId="project-1"
+          fileId="file-1"
+          fileType="draft"
+          title="File 1"
+          content={content}
+          onTitleChange={vi.fn()}
+          onContentChange={setContent}
+          onSave={onSave}
+          onNaturalPolish={onNaturalPolish}
+        />
+      );
+    };
+    render(<Harness />);
+    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'Hello updated draft' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
 
-    await waitFor(() => expect(naturalPolishApi.naturalPolish).toHaveBeenCalledWith(
-      expect.objectContaining({ selectedText: 'Hello' }),
-      expect.anything(),
-    ));
+    await waitFor(() => expect(onNaturalPolish).toHaveBeenCalledTimes(1));
+    expect(order).toEqual(['save', 'polish']);
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ content: 'Hello updated draft' }));
   });
 
-  it('quoting a selection to chat clears the selection that 去AI味 would use', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
-    const textarea = renderPolishableEditor();
+  it('aborts natural polish and shows an error toast when dirty-draft flush fails', async () => {
+    const toastErrorSpy = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    const onNaturalPolish = vi.fn();
+    const flushHook = vi.fn().mockResolvedValue('failed');
+    setOpenEditorFlush(flushHook, undefined, () => 'file-1');
+    try {
+      renderPolishableEditor(onNaturalPolish);
+      fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
+
+      await waitFor(() => expect(toastErrorSpy).toHaveBeenCalledWith('editor:naturalPolishSaveFailed'));
+      expect(onNaturalPolish).not.toHaveBeenCalled();
+    } finally {
+      setOpenEditorFlush(null, flushHook);
+      toastErrorSpy.mockRestore();
+    }
+  });
+
+  it('aborts natural polish silently on 409 version conflict so Editor conflict review stays clean', async () => {
+    const toastErrorSpy = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    const onNaturalPolish = vi.fn();
+    const flushHook = vi.fn().mockResolvedValue('conflict');
+    setOpenEditorFlush(flushHook, undefined, () => 'file-1');
+    try {
+      renderPolishableEditor(onNaturalPolish);
+      fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
+
+      await waitFor(() => expect(flushHook).toHaveBeenCalledTimes(1));
+      expect(onNaturalPolish).not.toHaveBeenCalled();
+      expect(toastErrorSpy).not.toHaveBeenCalled();
+    } finally {
+      setOpenEditorFlush(null, flushHook);
+      toastErrorSpy.mockRestore();
+    }
+  });
+
+  it('disables natural polish when file is empty, streaming, chat streaming, or read-only', () => {
+    const { rerender } = render(
+      <SimpleEditor
+        projectId="project-1"
+        fileId="file-1"
+        fileType="draft"
+        title="File 1"
+        content="   "
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'editor:naturalPolish' })).toBeDisabled();
+
+    rerender(
+      <SimpleEditor
+        projectId="project-1"
+        fileId="file-1"
+        fileType="draft"
+        title="File 1"
+        content="Hello world"
+        isStreaming
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'editor:naturalPolish' })).toBeDisabled();
+
+    rerender(
+      <SimpleEditor
+        projectId="project-1"
+        fileId="file-1"
+        fileType="draft"
+        title="File 1"
+        content="Hello world"
+        isChatStreaming
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'editor:naturalPolish' })).toBeDisabled();
+
+    rerender(
+      <SimpleEditor
+        projectId="project-1"
+        fileId="file-1"
+        fileType="draft"
+        title="File 1"
+        content="Hello world"
+        readOnly
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'editor:naturalPolish' })).toBeDisabled();
+  });
+
+  it('switches to the AI chat tab on mobile after dispatching natural polish, and clears stale selection on panel switch', async () => {
+    const onNaturalPolish = vi.fn();
+    const { textarea } = renderMobilePolishableEditor(onNaturalPolish);
+    selectText(textarea);
+
+    // Leaving the editor tab clears stale selection so returning does not polish invisible text.
+    fireEvent.click(screen.getByRole('button', { name: 'tab-chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'tab-editor' }));
+    expect(textarea.selectionStart).toBe(textarea.selectionEnd);
+
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
+
+    await waitFor(() => expect(onNaturalPolish).toHaveBeenCalledWith(expect.objectContaining({
+      fileId: 'file-1',
+      selectedText: undefined,
+    })));
+    expect(screen.getByTestId('active-mobile-panel')).toHaveTextContent('chat');
+  });
+
+  it('quoting a selection to chat clears the selection scope back to full chapter', async () => {
+    const onNaturalPolish = vi.fn();
+    const textarea = renderPolishableEditor(onNaturalPolish);
+    selectText(textarea);
+    expect(screen.getByRole('button', { name: 'editor:naturalPolishSelection' })).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole('button', { name: 'quote-to-chat' }));
     expect(screen.queryByRole('button', { name: 'quote-to-chat' })).not.toBeInTheDocument();
     expect(textarea.selectionStart).toBe(textarea.selectionEnd);
-
-    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
-    expect(naturalPolishApi.naturalPolish).not.toHaveBeenCalled();
-    expect(toastInfoSpy).toHaveBeenCalledWith('editor:naturalPolishNoSelection');
-  });
-
-  it('natural polish with no real change skips review, says it was free and refreshes the quota', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    vi.mocked(naturalPolishApi.naturalPolish).mockResolvedValueOnce({ text: 'Hello', unchanged: true });
-    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
-    const invalidateSpy = vi.spyOn(testQueryClient, 'invalidateQueries');
-    const onEnterDiffReview = vi.fn();
-
-    const textarea = renderPolishableEditor(onEnterDiffReview);
-    fireEvent.keyDown(textarea, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true });
-
-    await waitFor(() => {
-      expect(toastInfoSpy).toHaveBeenCalledWith('editor:naturalPolishNoChange');
-    });
-    expect(onEnterDiffReview).not.toHaveBeenCalled();
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscription-quota', 'test-user'] });
-    expect(invalidateSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('natural polish refreshes the quota after a charged rewrite too', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    vi.mocked(naturalPolishApi.naturalPolish).mockResolvedValueOnce({ text: 'Howdy', unchanged: false });
-    const invalidateSpy = vi.spyOn(testQueryClient, 'invalidateQueries');
-    const onEnterDiffReview = vi.fn();
-
-    const textarea = renderPolishableEditor(onEnterDiffReview);
-    fireEvent.keyDown(textarea, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true });
-
-    await waitFor(() => {
-      expect(onEnterDiffReview).toHaveBeenCalledWith('file-1', 'Hello world', 'Howdy world');
-    });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscription-quota', 'test-user'] });
-    expect(invalidateSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'editor:naturalPolish' })).toBeInTheDocument();
   });
 
   it('tells free users that natural polish uses one of today\'s AI messages', async () => {
@@ -1054,7 +802,7 @@ describe('SimpleEditor', () => {
 
     // QuotaBadge 拉到额度后，提示跟着缓存更新，不需要编辑器自己再请求。
     act(() => {
-      testQueryClient.setQueryData(['subscription-quota', 'test-user'], quotaPayload(10));
+      testQueryClient.setQueryData(['subscription-quota', 'test-user'], quotaPayload(3));
     });
 
     await waitFor(() => {
@@ -1079,32 +827,6 @@ describe('SimpleEditor', () => {
     renderPolishableEditor();
 
     expect(screen.getByRole('button', { name: 'editor:history' })).toHaveAttribute('title', 'versions:title');
-  });
-
-  it('says why 去AI味 is unavailable when tapped without a selection, instead of a silent grey button', async () => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
-    render(
-      <SimpleEditor
-        projectId="project-1"
-        fileId="file-1"
-        fileType="draft"
-        title="File 1"
-        content="Hello world"
-        onTitleChange={vi.fn()}
-        onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
-      />
-    );
-
-    const polishButton = screen.getByRole('button', { name: 'editor:naturalPolish' });
-    expect(polishButton).not.toBeDisabled();
-    expect(polishButton).toHaveAttribute('aria-disabled', 'true');
-    fireEvent.click(polishButton);
-
-    expect(toastInfoSpy).toHaveBeenCalledWith('editor:naturalPolishNoSelection');
-    expect(naturalPolishApi.naturalPolish).not.toHaveBeenCalled();
-    toastInfoSpy.mockRestore();
   });
 
   it('counts one paragraph per line, as Chinese manuscripts are written', () => {
@@ -1557,25 +1279,6 @@ describe('SimpleEditor', () => {
         content: 'Edited before navigation',
       }),
     );
-  });
-  it.each([6000, 6001])('checks the natural polish selection boundary at %i characters before requesting', async (length) => {
-    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
-    const text = '文'.repeat(length);
-    vi.mocked(naturalPolishApi.naturalPolish).mockResolvedValue({ text, unchanged: true });
-    const info = vi.spyOn(toast, 'info').mockImplementation(() => {});
-    const textarea = renderPolishableEditor(vi.fn(), text);
-    textarea.setSelectionRange(0, length);
-    fireEvent.select(textarea);
-    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
-    if (length === 6000) {
-      await waitFor(() => expect(naturalPolishApi.naturalPolish).toHaveBeenCalledWith(
-        expect.objectContaining({ selectedText: text }), expect.anything(),
-      ));
-    } else {
-      expect(naturalPolishApi.naturalPolish).not.toHaveBeenCalled();
-      expect(info).toHaveBeenCalledWith('editor:naturalPolishTooLong');
-      expect(textarea).toHaveValue(text);
-    }
   });
 
   it('holds the autosave while the open file is streaming and resumes it when the stream ends', async () => {

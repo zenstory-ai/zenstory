@@ -80,6 +80,7 @@ from .loop.history import (
     valid_compaction,
 )
 from .loop.turn_context import LoopTurnContext, build_loop_turn_context
+from .loop.ui_actions import UIAction
 from .loop.wire_prefix_cache import (
     ainvalidate_wire_prefix,
     aload_wire_prefix,
@@ -627,6 +628,8 @@ class AgentService:
         language: str,
         carried_compaction: dict[str, Any] | None = None,
         cancel_event: threading.Event | None = None,
+        ui_action: UIAction | None = None,
+        selected_text: str | None = None,
     ) -> tuple[LoopHistory, LoopTurnContext, list[dict[str, Any]], str]:
         """单循环 agent 这一轮的输入：跨轮历史、本轮上下文、作者选的技能、系统提示。"""
         from models import ChatSession
@@ -663,6 +666,8 @@ class AgentService:
             chat_session_id=owned_session_id,
             carried_compaction=carried_compaction,
             cancel_event=cancel_event,
+            ui_action=ui_action,
+            selected_text=selected_text,
         )
         if cancel_event is not None and cancel_event.is_set():
             return history, turn, selected_skills, ""
@@ -687,6 +692,7 @@ class AgentService:
         metadata: dict[str, Any] | None = None,
         language: str | None = None,
         selected_skill_ids: list[str] | None = None,
+        ui_action: UIAction | None = None,
         run_report: dict[str, Any] | None = None,
         run_outcome: RunOutcome | None = None,
         account_run_slot: AccountRunSlot | None = None,
@@ -732,6 +738,7 @@ class AgentService:
             message_length=len(message),
             message_preview=message_preview,
             has_selected_text=selected_text is not None,
+            ui_action=ui_action,
             language=language,
             current_file_id=metadata.get("current_file_id") if metadata else None,
         )
@@ -1194,6 +1201,8 @@ class AgentService:
                 "language": lang,
                 "carried_compaction": retry_carried_compaction or None,
                 "cancel_event": prepare_cancel_event,
+                "ui_action": ui_action,
+                "selected_text": selected_text,
             }
             if should_offload_session_work(session):
                 loop_history, loop_turn, selected_skills, system_prompt = await asyncio.to_thread(

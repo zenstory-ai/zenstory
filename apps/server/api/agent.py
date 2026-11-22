@@ -60,6 +60,7 @@ from agent.core.stream_errors import (
     run_timeout_error,
     server_restarting_error,
 )
+from agent.loop.ui_actions import UI_ACTION_NATURAL_POLISH, UIAction
 from agent.service import get_agent_service
 from config.agent_runtime import (
     AGENT_COLLABORATION_MAX_ITERATIONS,
@@ -184,9 +185,31 @@ async def wait_for_stream_cleanup(timeout_s: float) -> None:
 CLIENT_STOP_CONTRACT_HEADER = "X-Client-Stop-Contract"
 
 
-# 「按登录用户限流」的依赖构造器现已下沉到 middleware.rate_limit，
-# 供本 router 与 api/editor.py（/natural-polish 同样直连 LLM）共用同一份实现。
-# 这里保留同名再导出，既有引用与静态自检用例无需改动。
+# 「按登录用户限流」的依赖构造器位于 middleware.rate_limit，供本 router 共用。
+
+
+def _validate_natural_polish_target(session: Session, project_id: str, file_id: str) -> None:
+    """Ensure the focus file for ui_action='natural_polish' exists, belongs to project_id, and is editable."""
+    from models import File
+
+    target = session.get(File, file_id)
+    if target is None or target.is_deleted or target.project_id != project_id:
+        raise APIException(
+            error_code=ErrorCode.FILE_NOT_FOUND,
+            status_code=404,
+            detail="Target file not found in this project.",
+        )
+    if target.file_type == "folder":
+        raise APIException(
+            error_code=ErrorCode.VALIDATION_ERROR,
+            status_code=422,
+            detail="natural_polish requires a non-folder file.",
+        )
+
+
+def _validate_natural_polish_target_sync(project_id: str, file_id: str) -> None:
+    with create_session() as check_session:
+        _validate_natural_polish_target(check_session, project_id, file_id)
 
 
 def _check_ai_conversation_quota_sync(user_id: str) -> tuple[bool, int, int]:
@@ -370,6 +393,7 @@ class _AgentStreamSettlement:
     knows_stop_contract: bool
     activation_entry: str
     run_outcome: RunOutcome
+    ui_action: UIAction | None = None
     tracker: StreamBillingTracker = field(default_factory=StreamBillingTracker)
     written_files: RoundWrittenFiles = field(default_factory=RoundWrittenFiles)
     pump: SSEStreamPump | None = None
@@ -566,6 +590,7 @@ class _AgentStreamSettlement:
                 server_restarting=self._deadline_moved_up,
                 provider_attempted=self.run_outcome.provider_attempted,
                 terminal_model_failure=self.run_outcome.terminal_model_failure,
+                ui_action=self.ui_action,
             )
             refund_applied = False
             refund_fields = {
@@ -990,6 +1015,10 @@ class AgentRequest(BaseModel):
             "(UserSkill.id / UserAddedSkill.id); their full instructions are injected"
         ),
     )
+    ui_action: UIAction | None = Field(
+        default=None,
+        description="Optional server-validated structured UI action scoped strictly to this single turn",
+    )
 
     @field_validator("metadata")
     @classmethod
@@ -1113,6 +1142,21 @@ async def stream_request(
     # Verify project access first to avoid charging quota for unauthorized/invalid projects
     await verify_project_access(body.project_id, session, current_user)
 
+    # Validate structured UI action target strictly on the current request before charging quota.
+    if body.ui_action == UI_ACTION_NATURAL_POLISH:
+        raw_file_id = body.metadata.get("current_file_id") if isinstance(body.metadata, dict) else None
+        target_file_id = raw_file_id.strip() if isinstance(raw_file_id, str) else ""
+        if not target_file_id:
+            raise APIException(
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=422,
+                detail="metadata.current_file_id is required for ui_action='natural_polish'.",
+            )
+        if should_offload_session_work(session):
+            await asyncio.to_thread(_validate_natural_polish_target_sync, body.project_id, target_file_id)
+        else:
+            _validate_natural_polish_target(session, body.project_id, target_file_id)
+
     # If a runtime session_id is provided, ensure it is either:
     # - an existing queue owned by current user, or
     # - a brand-new queue id (KeyError -> allowed and created later).
@@ -1163,6 +1207,7 @@ async def stream_request(
         message_length=len(body.message),
         message_preview=message_preview,
         has_selected_text=body.selected_text is not None,
+        ui_action=body.ui_action,
         language=accept_language,
     )
 
@@ -1239,6 +1284,7 @@ async def stream_request(
             metadata=body.metadata,
             language=lang,
             selected_skill_ids=body.selected_skill_ids,
+            ui_action=body.ui_action,
             run_report=run_report,
             run_outcome=run_outcome,
             account_run_slot=account_slot,
@@ -1306,6 +1352,7 @@ async def stream_request(
             knows_stop_contract=knows_stop_contract,
             activation_entry=activation_entry,
             run_outcome=run_outcome,
+            ui_action=body.ui_action,
         )
         # 计费看这次运行实际产出了什么：源生成器的每一帧都在入队前记账，
         # 断线时还没送到客户端的帧也算数。

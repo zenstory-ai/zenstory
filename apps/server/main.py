@@ -40,7 +40,6 @@ from api.agent_api import router as agent_api_router
 from api.agent_api_keys import router as agent_api_keys_router
 from api.auth import router as auth_router
 from api.chat import router as chat_router
-from api.editor import router as editor_router
 from api.export import router as export_router
 from api.feedback import router as feedback_router
 from api.files import router as files_router
@@ -179,7 +178,6 @@ app.include_router(files_router)
 app.include_router(versions_router)
 app.include_router(export_router)
 app.include_router(agent_router)
-app.include_router(editor_router)
 app.include_router(chat_router)
 app.include_router(voice_router)
 app.include_router(skills_router)

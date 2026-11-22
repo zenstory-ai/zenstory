@@ -108,7 +108,7 @@ File history uses the shared neutral `Badge` for the change source and a quiet s
 
 ## AI edits and draft conflicts
 
-Chat AI writes are already committed: show the latest saved text directly, without an accept/reject review queue or a second confirmation save. Keep the existing edit-card undo, file history and version comparison available. Humanize produces an unsaved candidate: show the full result with explicit “Use changes” and “Discard” actions, with original text available on demand. Only genuine unsaved-draft/version conflicts use paragraph decisions. Preserve original bytes, failed-save retry, concurrent-write protection and mobile/keyboard operation. See [direct AI edits](.agents/notes/implemented/feature/2026-11-18-direct-ai-edits.md).
+Chat AI writes (including editor-triggered Humanize via structured `ui_action="natural_polish"`) are already committed: show the latest saved text directly, without an accept/reject review queue or a second confirmation save. Before dispatching Humanize, flush unsaved editor edits cleanly and abort on save failure or version conflict. Keep the existing edit-card undo, file history and version comparison available. Only genuine unsaved-draft/version conflicts use paragraph decisions. Preserve original bytes, failed-save retry, concurrent-write protection and mobile/keyboard operation. See [direct AI edits](.agents/notes/implemented/feature/2026-11-18-direct-ai-edits.md) and [de-AI via single-loop agent](.agents/notes/implemented/architecture/2026-11-22-deai-via-single-loop-agent.md).
 
 ### Recoverable writing and file management
 

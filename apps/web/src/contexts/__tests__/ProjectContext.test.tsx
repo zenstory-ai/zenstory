@@ -915,7 +915,7 @@ describe('ProjectContext', () => {
       expect(result.current.diffReviewState?.modifiedContent).toBe('modified content')
     })
 
-    it('replaces a review of another origin or another file', async () => {
+    it('replaces an active diff review when entering another file', async () => {
       vi.mocked(projectApi.getAll).mockResolvedValue(mockProjects)
       const wrapper = createWrapper(mockUser)
       const { result } = renderHook(() => useProject(), { wrapper })
@@ -923,14 +923,6 @@ describe('ProjectContext', () => {
 
       act(() => result.current.enterDiffReview('file-1', 'mine', 'merged', 'conflict'))
       expect(result.current.diffReviewState?.pendingEdits.length).toBeGreaterThan(0)
-      act(() => result.current.enterDiffReview('file-1', 'server', 'polished', 'polish'))
-      expect(result.current.diffReviewState).toMatchObject({
-        fileId: 'file-1',
-        originalContent: 'server',
-        modifiedContent: 'polished',
-        pendingEdits: [],
-        origin: 'polish',
-      })
 
       act(() => result.current.enterDiffReview('file-2', 'other', 'other merged', 'conflict'))
       expect(result.current.diffReviewState).toMatchObject({
@@ -939,6 +931,32 @@ describe('ProjectContext', () => {
         modifiedContent: 'other merged',
         origin: 'conflict',
       })
+    })
+
+    it('queues and consumes one-shot agent UI actions per project', async () => {
+      vi.mocked(projectApi.getAll).mockResolvedValue(mockProjects)
+      const wrapper = createWrapper(mockUser)
+      const { result } = renderHook(() => useProject(), { wrapper })
+      await waitFor(() => expect(result.current.projects.length).toBe(2))
+
+      act(() => {
+        result.current.requestAgentUiAction({
+          projectId: 'proj-1',
+          action: 'natural_polish',
+          fileId: 'file-1',
+          fileType: 'draft',
+          fileTitle: '第一章',
+        })
+      })
+      const queued = result.current.pendingAgentUiAction
+      expect(queued).toMatchObject({
+        projectId: 'proj-1',
+        action: 'natural_polish',
+        fileId: 'file-1',
+      })
+
+      act(() => result.current.consumeAgentUiAction(queued!.id))
+      expect(result.current.pendingAgentUiAction).toBeNull()
     })
 
     it('should accept a single edit', async () => {

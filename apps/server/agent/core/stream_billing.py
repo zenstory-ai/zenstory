@@ -54,13 +54,16 @@ PROJECT_INFO_FIELDS: frozenset[str] = frozenset({"summary", "writing_style", "no
 
 _TERMINAL_EVENT_TYPES = frozenset({"done", "error", "workflow_stopped"})
 
-# 退还落库后补发的 SSE 帧。kind 区分前端要用的两种说法：
-# stopped（模型开始处理前作者点了停止）与 error（未进入模型前失败 / 上游模型服务报错）。
+# 退还落库后补发的 SSE 帧。kind 区分前端要用的说法：
+# stopped（模型开始处理前作者点了停止）、no_change（去AI味本轮零改动退额）
+# 与 error（未进入模型前失败 / 上游模型服务报错）。
 QUOTA_REFUNDED_EVENT = "quota_refunded"
 REFUND_KIND_ERROR = "error"
 REFUND_KIND_STOPPED = "stopped"
+REFUND_KIND_NO_CHANGE = "no_change"
 
 USER_STOPPED_BEFORE_MODEL_BILLING_REASON = "user_stopped_before_model"
+NATURAL_POLISH_NO_CHANGE_BILLING_REASON = "natural_polish_no_change"
 
 
 def quota_refunded_frame(
@@ -72,11 +75,12 @@ def quota_refunded_frame(
     ``removed_files``：被退还的这一轮新建、却还是空白的文件已被移除（见
     agent.core.round_outcome.remove_empty_placeholders），前端据此刷新文件树并告诉作者。
     """
-    kind = (
-        REFUND_KIND_STOPPED
-        if billing_reason == USER_STOPPED_BEFORE_MODEL_BILLING_REASON
-        else REFUND_KIND_ERROR
-    )
+    if billing_reason == USER_STOPPED_BEFORE_MODEL_BILLING_REASON:
+        kind = REFUND_KIND_STOPPED
+    elif billing_reason == NATURAL_POLISH_NO_CHANGE_BILLING_REASON:
+        kind = REFUND_KIND_NO_CHANGE
+    else:
+        kind = REFUND_KIND_ERROR
     payload: dict[str, Any] = {"refunded": True, "kind": kind}
     if removed_files:
         payload["removed_files"] = removed_files
@@ -432,11 +436,14 @@ class StreamBillingTracker:
         server_restarting: bool = False,
         provider_attempted: bool = False,
         terminal_model_failure: bool = False,
+        ui_action: str | None = None,
     ) -> tuple[str, bool]:
         """返回 (billing_reason, should_refund)。
 
         ``provider_attempted`` 表示本轮是否已通过成本预检并真正进入供应商 transport；
-        ``terminal_model_failure`` 表示整轮是否因未恢复的上游模型服务错误终止。
+        ``terminal_model_failure`` 表示整轮是否因未恢复的上游模型服务错误终止；
+        ``ui_action`` 为 ``"natural_polish"`` 且正常完成但未产生真实文件写入（``file_written == False``）
+        时，按产物证据退还 AI 消息额度（实际模型用量与每日成本兜底保持不变）。
         """
         if client_disconnected and not user_stopped and self.saw_terminal_event:
             client_disconnected = False
@@ -450,6 +457,8 @@ class StreamBillingTracker:
             and not client_disconnected
             and not deadline_exceeded
         ):
+            if ui_action == "natural_polish" and not self.file_written:
+                return NATURAL_POLISH_NO_CHANGE_BILLING_REASON, True
             return "completed", False
         if not provider_attempted:
             if user_stopped:
