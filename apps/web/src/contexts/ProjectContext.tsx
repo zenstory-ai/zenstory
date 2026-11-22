@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { Project, SelectedItem, ProjectType, DiffReviewState, DiffReviewOrigin } from '../types';
+import type { Project, SelectedItem, ProjectType, DiffReviewState, DiffReviewOrigin, AgentUiAction } from '../types';
 import { projectApi } from '../lib/api';
 import { useAuth } from './AuthContext';
 import {
@@ -29,6 +29,16 @@ function pickMostRecentlyUpdated(projects: ProjectWithId[]): ProjectWithId {
     const pTs = Math.max(toMillis(p.updated_at), toMillis(p.created_at));
     return pTs > bestTs ? p : best;
   }, projects[0]);
+}
+
+export interface PendingAgentUiAction {
+  id: number;
+  projectId: string;
+  action: AgentUiAction;
+  fileId: string;
+  fileType?: string;
+  fileTitle?: string;
+  selectedText?: string;
 }
 
 type ProjectWithId = Project & { id: string };
@@ -69,6 +79,13 @@ export interface ProjectContextType {
    */
   aiEditingFileId: string | null;
   setAiEditingFileId: (fileId: string | null) => void;
+  /** Whether the chat panel is currently running an agent stream for the active project. */
+  isChatStreaming: boolean;
+  setIsChatStreaming: (streaming: boolean) => void;
+  /** One-shot structured UI action dispatched from the editor to the chat agent. */
+  pendingAgentUiAction: PendingAgentUiAction | null;
+  requestAgentUiAction: (action: Omit<PendingAgentUiAction, 'id'>) => void;
+  consumeAgentUiAction: (id: number) => void;
   // File streaming state
   streamingFileId: string | null;
   streamingContent: string;
@@ -78,7 +95,7 @@ export interface ProjectContextType {
   // Diff review state (for Cursor-style inline diff)
   diffReviewState: DiffReviewState | null;
   /**
-   * Open the inline review of `originalContent` → `newContent` (conflict comparison or natural-polish candidate).
+   * Open the inline review of `originalContent` → `newContent` (conflict comparison).
    */
   enterDiffReview: (fileId: string, originalContent: string, newContent: string, origin?: DiffReviewOrigin) => void;
   acceptEdit: (editId: string) => void;
@@ -115,6 +132,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [lastEditedFileId, setLastEditedFileId] = useState<string | null>(null);
   // AI 正在编辑的文件（file_edit_start ~ file_edit_end 之间）
   const [aiEditingFileId, setAiEditingFileId] = useState<string | null>(null);
+  // Chat panel streaming state & one-shot structured UI actions from the editor
+  const [isChatStreaming, setIsChatStreaming] = useState(false);
+  const [pendingAgentUiAction, setPendingAgentUiAction] = useState<PendingAgentUiAction | null>(null);
+  const agentUiActionSeqRef = useRef(0);
+  const requestAgentUiAction = useCallback((action: Omit<PendingAgentUiAction, 'id'>) => {
+    agentUiActionSeqRef.current += 1;
+    setPendingAgentUiAction({ ...action, id: agentUiActionSeqRef.current });
+  }, []);
+  const consumeAgentUiAction = useCallback((id: number) => {
+    setPendingAgentUiAction((current) => (current?.id === id ? null : current));
+  }, []);
 
   // File streaming state (for AI-generated content)
   const [streamingFileId, setStreamingFileId] = useState<string | null>(null);
@@ -248,9 +276,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     origin?: DiffReviewOrigin,
   ) => {
     setDiffReviewState(() => {
-      const pendingEdits = origin === 'polish'
-        ? []
-        : buildParagraphReviewData(originalContent, newContent).pendingEdits;
+      const pendingEdits = buildParagraphReviewData(originalContent, newContent).pendingEdits;
       logger.log(`[DiffReview] Entering review mode for file ${fileId} with ${pendingEdits.length} edits`);
       return {
         isReviewing: true,
@@ -378,6 +404,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       // callback will never arrive. Do not let that stale ID suspend saves in
       // another project (or when the user later returns).
       setAiEditingFileId(null);
+      setIsChatStreaming(false);
+      setPendingAgentUiAction(null);
     }
 
     const storageKey = getProjectStorageKey(user?.id);
@@ -533,6 +561,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       currentProjectIdRef.current = null;
       setSelectedItem(null);
       setAiEditingFileId(null);
+      setIsChatStreaming(false);
+      setPendingAgentUiAction(null);
       setLoading(false);
     }
   }, [user, loadProjects]);
@@ -652,6 +682,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     lastEditedFileId,
     aiEditingFileId: identityMatchesProjects ? aiEditingFileId : null,
     setAiEditingFileId,
+    isChatStreaming: identityMatchesProjects ? isChatStreaming : false,
+    setIsChatStreaming,
+    pendingAgentUiAction: identityMatchesProjects ? pendingAgentUiAction : null,
+    requestAgentUiAction,
+    consumeAgentUiAction,
     streamingFileId: identityMatchesProjects ? streamingFileId : null,
     streamingContent: identityMatchesProjects ? streamingContent : '',
     appendFileContent,
@@ -690,6 +725,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     lastEditedFileId,
     aiEditingFileId,
     setAiEditingFileId,
+    isChatStreaming,
+    setIsChatStreaming,
+    pendingAgentUiAction,
+    requestAgentUiAction,
+    consumeAgentUiAction,
     streamingFileId,
     streamingContent,
     appendFileContent,

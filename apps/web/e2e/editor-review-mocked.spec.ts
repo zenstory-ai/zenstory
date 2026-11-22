@@ -21,6 +21,7 @@ const textarea = (page: Page) => page.locator('[data-editor-scroll-container="tr
 const titleInput = (page: Page) => page.getByPlaceholder("Enter title");
 // The fixture account is on the free plan, so Humanize shows its message cost on the button.
 const humanizeLabel = { en: 'Humanize · 1 msg', zh: '去AI味 · 用 1 条' } as const;
+const humanizeSelectionLabel = { en: 'Humanize (Selection) · 1 msg', zh: '去AI味（选区） · 用 1 条' } as const;
 const puts = (f: Fixture) => f.requests.filter(r => r.method === 'PUT');
 const wordCount = (text: string) => (text.match(/[\u4e00-\u9fa5]/g) || []).length + (text.match(/[a-zA-Z]+/g) || []).length;
 
@@ -107,7 +108,6 @@ async function fixture(page: Page, content = '你好 world\n\n第二段 story', 
     }
     if (method === 'POST' && url.pathname.endsWith('/agent/suggest')) return fulfill({ suggestions: [] });
     if (method === 'POST' && url.pathname === '/api/v1/activation/events') return fulfill({ recorded: true });
-    if (method === 'POST' && url.pathname === '/api/v1/editor/natural-polish') return fulfill({ text: 'A polished local story.' });
     if (method === 'GET' && url.pathname === '/api/v1/projects') return fulfill(responsiveProjects);
     if (method === 'GET' && url.pathname === '/api/v1/project-templates') return fulfill({});
     if (method === 'GET' && /^\/api\/v1\/projects\/[^/]+$/.test(url.pathname)) return fulfill(responsiveProjects.find(p => p.id === url.pathname.split('/').at(-1)));
@@ -418,109 +418,68 @@ test('file history restore confirmation opens above the history modal and comple
   await expect(textarea(page)).toHaveValue('Restored v1 body');
 });
 
-for (const theme of ['light', 'dark'] as const) {
-  for (const width of [390, 1920]) {
-    test(`humanize candidate stays readable and uses one complete decision ${theme} ${width}`, async ({ page }, info) => {
-      await page.setViewportSize({ width, height: 1000 });
-      const paragraphs = Array.from({ length: 10 }, (_, i) => `雨停后的第${i + 1}天，沈砚回到旧灯铺。\n他先检查门口的灯，再把那封信放在桌上。\n掌柜没有问他的来意，只给他倒了一碗热茶。`);
-      const revise = (text: string) => text.replace('先检查门口的灯', '看了一眼门口的灯');
-      const original = paragraphs.join('\n\n');
-      const revised = paragraphs.map(revise).join('\n\n');
-      const f = await fixture(page, original, 'zh');
-      await page.addInitScript(value => localStorage.setItem('zenstory-theme', value), theme);
-      await page.route('**/api/v1/editor/natural-polish', route => route.fulfill({ json: { text: revised } }));
-      await page.goto(`/project/${projectA}?file=A`);
-      if (width < 768) await page.locator('#editor-tab').click();
-      await expect(textarea(page)).toHaveValue(original);
-      await textarea(page).click();
-      await textarea(page).press('ControlOrMeta+a');
-      await page.getByRole('button', { name: humanizeLabel.zh, exact: true }).click();
-      const candidate = page.getByRole('region', { name: '去AI味结果' });
-      await expect(candidate).toBeVisible();
-      await expect(page.getByText('段落审阅', { exact: true })).toHaveCount(0);
-      await expect(candidate.getByText('看了一眼门口的灯', { exact: false }).first()).toBeVisible();
-      await page.screenshot({ path: info.outputPath('humanize-candidate.png'), animations: 'disabled' });
-      const contrast = await candidate.evaluate((root) => {
-        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
-        const ctx = canvas.getContext('2d')!;
-        const rgba = (css: string) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return Array.from(ctx.getImageData(0, 0, 1, 1).data); };
-        const blend = (front: number[], back: number[]) => front.slice(0, 3).map((c, i) => c * front[3] / 255 + back[i] * (1 - front[3] / 255));
-        const luminance = (rgb: number[]) => rgb.slice(0, 3).map(c => { const s = c / 255; return s <= .04045 ? s / 12.92 : ((s + .055) / 1.055) ** 2.4; }).reduce((sum, c, i) => sum + c * [.2126, .7152, .0722][i], 0);
-        return Array.from(root.querySelectorAll('pre, button')).map(el => {
-          const ancestors: Element[] = []; for (let node: Element | null = el; node; node = node.parentElement) ancestors.unshift(node);
-          const background = ancestors.reduce((color, node) => blend(rgba(getComputedStyle(node).backgroundColor), color), [255, 255, 255]);
-          const foreground = blend(rgba(getComputedStyle(el).color), background);
-          const a = luminance(foreground), b = luminance(background);
-          return { text: el.textContent?.trim().slice(0, 30), ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) };
-        });
-      });
-      await info.attach('candidate-contrast', { body: JSON.stringify(contrast), contentType: 'application/json' });
-      for (const item of contrast) expect(item.ratio, `${theme} ${item.text} remains readable`).toBeGreaterThanOrEqual(4.5);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
-      const showOriginal = candidate.getByRole('button', { name: '查看原文', exact: true });
-      await showOriginal.click();
-      await expect(candidate.getByText('先检查门口的灯', { exact: false }).first()).toBeVisible();
-      await candidate.getByRole('button', { name: '查看修改后', exact: true }).click();
-      await candidate.getByRole('button', { name: '采用修改', exact: true }).click();
-      await expect.poll(() => puts(f).length).toBe(1);
-      expect(puts(f)[0].body).toMatchObject({ content: revised, base_updated_at: token0, change_type: 'ai_edit' });
-      await expect(textarea(page)).toHaveValue(revised);
-    });
-  }
-}
+for (const width of [390, 1440]) {
+  test(`humanize flushes dirty edits before streaming via Agent and updates the editor directly (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const locale = width < 768 ? 'zh' : 'en';
+    const original = '雨停后的第一天，沈砚回到旧灯铺。\n他先检查门口的灯，再把那封信放在桌上。';
+    const dirtyDraft = `${original}\n掌柜给他倒了一碗热茶。`;
+    const polished = dirtyDraft.replace('先检查门口的灯', '看了一眼门口的灯');
+    const f = await fixture(page, original, locale);
 
-for (const conflict of [false, true]) {
-  test(`humanize complete candidate ${conflict ? '409 opens conflict comparison' : 'saves'}`, async ({ page }) => {
-    const f = await fixture(page, 'A local story.');
-    await openA(page);
-    await textarea(page).click();
-    await textarea(page).press('ControlOrMeta+a');
-    await page.getByRole('button', { name: humanizeLabel.en, exact: true }).click();
-    const candidate = page.getByRole('region', { name: 'Humanize result' });
-    await expect(candidate).toBeVisible();
-    expect(f.requests.find(r => r.path.endsWith('natural-polish'))?.body).toMatchObject({ selected_text: 'A local story.', project_id: projectA });
-    f.conflict = conflict;
-    await candidate.getByRole('button', { name: 'Use changes', exact: true }).click();
-    await expect.poll(() => puts(f).length).toBe(1);
-    expect(puts(f)[0].body).toMatchObject({ content: 'A polished local story.', base_updated_at: token0, change_type: 'ai_edit' });
-    if (conflict) {
-      await expect(page.getByText('This file changed elsewhere. Your text is safe.', { exact: false })).toBeVisible();
-      await expect(page.getByRole('button', { name: /^(Apply changes|Finish review)$/ })).toBeVisible();
+    await page.route('**/api/v1/agent/stream', async route => {
+      const body = JSON.parse(route.request().postData() || '{}') as Record<string, unknown>;
+      f.requests.push({ method: 'POST', path: '/api/v1/agent/stream', body });
+      f.files.A = { ...f.files.A, content: polished, updated_at: '2026-10-06T10:00:09.000Z' };
+      const sse = [
+        'event: session_started\ndata: {"session_id":"session-deai"}\n\n',
+        'event: file_edit_start\ndata: {"file_id":"A","title":"Chapter Alpha","total_edits":1,"file_type":"draft"}\n\n',
+        `event: file_edit_end\ndata: ${JSON.stringify({ file_id: 'A', edits_applied: 1, original_content: dirtyDraft, new_content: polished, file_type: 'draft', title: 'Chapter Alpha' })}\n\n`,
+        'event: content\ndata: {"text":"已完成去AI味修改。"}\n\n',
+        'event: done\ndata: {"session_id":"session-deai","file_mutated":true}\n\n',
+      ].join('');
+      return route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse });
+    });
+
+    await page.goto(`/project/${projectA}?file=A`);
+    if (width < 768) await page.locator('#editor-tab').click();
+    await expect(textarea(page)).toHaveValue(original);
+
+    // Edit locally so the draft is dirty before clicking 去AI味 / Humanize.
+    await textarea(page).fill(dirtyDraft);
+    await page.getByRole('button', { name: humanizeLabel[locale], exact: true }).click();
+
+    await expect.poll(() => f.requests.filter(r => r.path === '/api/v1/agent/stream').length).toBe(1);
+    const putIdx = f.requests.findIndex(r => r.method === 'PUT' && r.path === '/api/v1/files/A');
+    const streamIdx = f.requests.findIndex(r => r.method === 'POST' && r.path === '/api/v1/agent/stream');
+    expect(putIdx).toBeGreaterThanOrEqual(0);
+    expect(putIdx).toBeLessThan(streamIdx);
+    expect(f.requests[streamIdx].body).toMatchObject({
+      project_id: projectA,
+      ui_action: 'natural_polish',
+      metadata: { current_file_id: 'A', entry: 'editor_natural_polish' },
+    });
+
+    if (width < 768) {
+      await expect(page.locator('#chat-tab')).toHaveAttribute('aria-selected', 'true');
+      await page.locator('#editor-tab').click();
     }
-    else await expect(textarea(page)).toHaveValue('A polished local story.');
-    f.observations = { conflict, reviewAfterCompletion: await page.getByRole('button', { name: /^(Apply changes|Finish review)$/ }).count() };
+    await expect(textarea(page)).toHaveValue(polished);
+    expect(f.requests.filter(r => r.path.includes('natural-polish'))).toHaveLength(0);
   });
 }
 
-test('narrow humanize candidate scrolls as one document and can be discarded', async ({ page }, info) => {
-  const original = Array.from({ length: 30 }, (_, i) => `line ${i + 1} of the local story.`).join('\n');
-  const polished = original.replace(/line/g, 'Line');
-  const f = await fixture(page, original);
-  await page.route('**/api/v1/editor/natural-polish', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: polished }) }));
-  await page.setViewportSize({ width: 390, height: 844 });
+test('humanize aborts without starting Agent stream when dirty-draft flush hits 409 conflict', async ({ page }) => {
+  const f = await fixture(page, 'A local story.');
+  f.conflict = true;
   await openA(page);
-  await page.locator('#editor-tab').click();
-  await textarea(page).click();
-  await textarea(page).press('ControlOrMeta+a');
+  await textarea(page).fill('A local edited story.');
   await page.getByRole('button', { name: humanizeLabel.en, exact: true }).click();
-  const candidate = page.getByRole('region', { name: 'Humanize result' });
-  await expect(candidate).toBeVisible();
-  const document = candidate.locator('pre');
-  const scroller = document.locator('xpath=..');
-  const before = await scroller.evaluate(root => ({ scrollTop: root.scrollTop, scrollHeight: root.scrollHeight, clientHeight: root.clientHeight }));
-  expect(before.scrollHeight).toBeGreaterThan(before.clientHeight);
-  await scroller.hover();
-  await page.mouse.wheel(0, 900);
-  await expect.poll(() => scroller.evaluate(root => root.scrollTop)).toBeGreaterThan(100);
-  await page.screenshot({ path: info.outputPath('humanize-candidate-mobile-scrolled.png'), animations: 'disabled' });
-  const actions = await candidate.getByRole('button', { name: /^(Discard|Use changes)$/ }).evaluateAll(buttons => buttons.map(button => {
-    const box = button.getBoundingClientRect();
-    return { width: box.width, height: box.height, right: box.right };
-  }));
-  expect(actions.every(action => action.height >= 44 && action.right <= 390)).toBe(true);
-  await candidate.getByRole('button', { name: 'Discard', exact: true }).click();
-  expect(puts(f)).toHaveLength(0);
-  await expect(textarea(page)).toHaveValue(original);
+
+  await expect.poll(() => puts(f).length).toBe(1);
+  await expect(page.getByText('This file changed elsewhere. Your text is safe.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^(Apply changes|Finish review)$/ })).toBeVisible();
+  expect(f.requests.filter(r => r.path === '/api/v1/agent/stream')).toHaveLength(0);
 });
 
 test('narrow mobile panels retain actual textarea and responsive remount loads saved content', async ({ page }) => {
@@ -716,7 +675,7 @@ test.describe('footer locale and viewport matrix', () => {
   for (const width of [320, 390, 1440]) {
     for (const locale of ['en', 'zh'] as const) {
       test(`footer ${locale} ${width}: dirty saving saved selection and scroll`, async ({ page, browserName }) => {
-        const labels = locale === 'en' ? { save: 'Save', dirty: 'Unsaved', saving: "Saving…", saved: 'Saved just now', title: "Enter title", humanize: humanizeLabel.en, zoom: 'Reset zoom' } : { save: '保存', dirty: '未保存', saving: "保存中…", saved: '刚刚保存', title: "请输入标题", humanize: humanizeLabel.zh, zoom: '重置缩放' };
+        const labels = locale === 'en' ? { save: 'Save', dirty: 'Unsaved', saving: "Saving…", saved: 'Saved just now', title: "Enter title", humanize: humanizeLabel.en, humanizeSelection: humanizeSelectionLabel.en, zoom: 'Reset zoom' } : { save: '保存', dirty: '未保存', saving: "保存中…", saved: '刚刚保存', title: "请输入标题", humanize: humanizeLabel.zh, humanizeSelection: humanizeSelectionLabel.zh, zoom: '重置缩放' };
         const content = '你好 story text。\n\n'.repeat(80);
         const f = await fixture(page, content, locale);
         await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
@@ -726,7 +685,8 @@ test.describe('footer locale and viewport matrix', () => {
         const input = textarea(page);
         const saveButton = page.getByRole('button', { name: labels.save, exact: true });
         const humanize = page.getByRole('button', { name: labels.humanize, exact: true });
-        await expect(saveButton).toBeDisabled(); await expect(humanize).toBeDisabled();
+        const humanizeSelection = page.getByRole('button', { name: labels.humanizeSelection, exact: true });
+        await expect(saveButton).toBeDisabled(); await expect(humanize).toBeEnabled();
         await checkFooter(page, f, labels.save, 'initial', width === 1440);
         const draft = content + 'additional local draft';
         await input.fill(draft);
@@ -750,9 +710,9 @@ test.describe('footer locale and viewport matrix', () => {
         expect(await scroll.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
         f.observations.verticalScroll = await scroll.evaluate(el => ({ top: el.scrollTop, height: el.scrollHeight, client: el.clientHeight }));
         await input.click(); await input.press('ControlOrMeta+a');
-        await expect(humanize).toBeEnabled();
+        await expect(humanizeSelection).toBeEnabled();
         await checkFooter(page, f, labels.save, 'selected', width === 1440);
-        await input.press('ArrowRight'); await expect(humanize).toBeDisabled();
+        await input.press('ArrowRight'); await expect(humanize).toBeEnabled();
         if (browserName === 'chromium') {
           await test.step('Chromium browser-level pinch zoom and reset', async () => {
             // Playwright exposes browser-level emulated pinch through CDP only.
@@ -781,46 +741,4 @@ test.describe('footer locale and viewport matrix', () => {
       });
     }
   }
-});
-
-test.describe('narrow humanize candidate touch scrolling', () => {
-  // Describe-level skip runs before fixtures; CDP touch input exists only in Chromium.
-  test.skip(({ browserName }) => browserName !== 'chromium', 'CDP touch input is Chromium-only');
-  // hasTouch only: isMobile would be rejected by Firefox at context creation, before any skip.
-  test.use({ hasTouch: true });
-  test('a vertical swipe on the complete candidate scrolls its document', async ({ page }) => {
-    const original = Array.from({ length: 30 }, (_, i) => `Paragraph ${i + 1} of the local story stays short.`).join('\n\n');
-    const polished = original.replace(/local story/g, 'polished story');
-    const f = await fixture(page, original);
-    await page.route('**/api/v1/editor/natural-polish', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: polished }) }));
-    await page.setViewportSize({ width: 390, height: 844 });
-    await openA(page);
-    await page.locator('#editor-tab').click();
-    await textarea(page).click();
-    await textarea(page).press('ControlOrMeta+a');
-    await page.getByRole('button', { name: humanizeLabel.en, exact: true }).click();
-    const candidate = page.getByRole('region', { name: 'Humanize result' });
-    await expect(candidate).toBeVisible();
-    const scroller = candidate.locator('pre').locator('xpath=..');
-    const start = await scroller.evaluate(box => {
-      const r = box.getBoundingClientRect();
-      const x = r.x + r.width / 2, y = r.y + r.height / 2;
-      const hit = document.elementFromPoint(x, y);
-      return { x, y, onBox: !!hit && box.contains(hit), scrollTop: box.scrollTop, scrollable: box.scrollHeight > box.clientHeight };
-    });
-    f.observations.touchStart = start;
-    expect(start, 'precondition: the swipe starts on the complete scrollable candidate at the top').toMatchObject({ onBox: true, scrollTop: 0, scrollable: true });
-
-    // Browser-level touch input (not wheel, not scrollTop writes): finger moves up 240px.
-    const session = await page.context().newCDPSession(page);
-    try {
-      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 0, x: start.x, y: start.y }] });
-      for (let step = 1; step <= 12; step++) {
-        await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 0, x: start.x, y: start.y - step * 20 }] });
-      }
-      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    } finally { await session.detach(); }
-    await expect.poll(() => scroller.evaluate(root => root.scrollTop), { message: 'the complete candidate must follow native touch scrolling' }).toBeGreaterThan(100);
-    f.observations.candidateAfterSwipe = await scroller.evaluate(root => root.scrollTop);
-  });
 });

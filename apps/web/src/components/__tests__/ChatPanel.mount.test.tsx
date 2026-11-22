@@ -33,6 +33,17 @@ const mockProjectState = vi.hoisted(() => ({
   triggerFileTreeRefresh: vi.fn(),
   triggerEditorRefresh: vi.fn(),
   setSelectedItem: vi.fn(),
+  setIsChatStreaming: vi.fn(),
+  pendingAgentUiAction: null as {
+    id: number
+    projectId: string
+    action: 'natural_polish'
+    fileId: string
+    fileType?: string
+    fileTitle?: string
+    selectedText?: string
+  } | null,
+  consumeAgentUiAction: vi.fn(),
   fileTreeVersion: 0,
 }))
 
@@ -110,6 +121,9 @@ vi.mock('../../contexts/ProjectContext', () => ({
     fileTreeVersion: mockProjectState.fileTreeVersion,
     triggerFileTreeRefresh: mockProjectState.triggerFileTreeRefresh,
     triggerEditorRefresh: mockProjectState.triggerEditorRefresh,
+    setIsChatStreaming: mockProjectState.setIsChatStreaming,
+    pendingAgentUiAction: mockProjectState.pendingAgentUiAction,
+    consumeAgentUiAction: mockProjectState.consumeAgentUiAction,
     setSelectedItem: mockProjectState.setSelectedItem,
     appendFileContent: vi.fn(),
     finishFileStreaming: vi.fn(),
@@ -320,6 +334,7 @@ vi.mock('../../lib/toast', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
   },
 }))
 
@@ -940,10 +955,13 @@ describe('ChatPanel mount smoke', () => {
     expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument()
 
     const options = () => capturedUseAgentStream.options as {
-      onQuotaRefunded: (kind: 'no_progress' | 'error') => void
+      onQuotaRefunded: (kind: 'no_progress' | 'no_change' | 'error') => void
       onStart: () => void
     }
     act(() => options().onQuotaRefunded('no_progress'))
+    expect(await screen.findByText('这一轮没有改动文件，不计入今日 AI 消息。')).toBeInTheDocument()
+
+    act(() => options().onQuotaRefunded('no_change'))
     expect(await screen.findByText('这一轮没有改动文件，不计入今日 AI 消息。')).toBeInTheDocument()
 
     act(() => options().onQuotaRefunded('error'))
@@ -952,6 +970,49 @@ describe('ChatPanel mount smoke', () => {
     // 下一轮开始就清掉，不把上一轮的说明带过去。
     act(() => options().onStart())
     await waitFor(() => expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument())
+  })
+
+  it('consumes pendingAgentUiAction for natural_polish with structured ui_action and does not leak it to the next message', async () => {
+    try {
+      const { rerender } = render(nextChatPanel())
+      await waitFor(() => expect(screen.getByTestId('mock-message-input')).toBeInTheDocument())
+      await waitFor(() => expect(lastMessageInputProps()?.onSend).toBeTypeOf('function'))
+
+      mockProjectState.pendingAgentUiAction = {
+        id: 7,
+        projectId: 'project-1',
+        action: 'natural_polish',
+        fileId: 'file-ch1',
+        fileType: 'draft',
+        fileTitle: '第一章',
+        selectedText: '他心头一紧。',
+      }
+      rerender(nextChatPanel())
+
+      await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
+      expect(mockProjectState.consumeAgentUiAction).toHaveBeenCalledWith(7)
+      expect(mockStartStream).toHaveBeenLastCalledWith(expect.objectContaining({
+        ui_action: 'natural_polish',
+        selected_text: '他心头一紧。',
+        metadata: expect.objectContaining({
+          current_file_id: 'file-ch1',
+          current_file_type: 'draft',
+          current_file_title: '第一章',
+          entry: 'editor_natural_polish',
+        }),
+      }))
+
+      // Clear pending action and send a normal follow-up message: ui_action must NOT leak.
+      mockProjectState.pendingAgentUiAction = null
+      rerender(nextChatPanel())
+      await act(async () => { await lastMessageInputProps().onSend('第二段再收紧一点') })
+      await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(2))
+      const secondCall = mockStartStream.mock.calls[1][0] as { ui_action?: string; message: string }
+      expect(secondCall.message).toBe('第二段再收紧一点')
+      expect(secondCall.ui_action).toBeUndefined()
+    } finally {
+      mockProjectState.pendingAgentUiAction = null
+    }
   })
 
   type RoundOptions = {

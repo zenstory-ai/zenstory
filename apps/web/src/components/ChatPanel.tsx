@@ -444,6 +444,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     triggerFileTreeRefresh,
     triggerEditorRefresh,
     setAiEditingFileId,
+    setIsChatStreaming,
+    pendingAgentUiAction,
+    consumeAgentUiAction,
     setSelectedItem,
     appendFileContent,
     finishFileStreaming,
@@ -1543,7 +1546,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     ? [
       showDailyCount
         ? t(
-          quotaRefund.kind === 'no_progress'
+          quotaRefund.kind === 'no_progress' || quotaRefund.kind === 'no_change'
             ? 'chat:panel.notCharged'
             : quotaRefund.kind === 'stopped'
               ? 'chat:panel.notChargedStopped'
@@ -2008,6 +2011,82 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     return startRound(request, { userBubble: true });
   }, [isStreaming, aiSendBlocked, saveDraft, reportQuotaBlockedSend, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, clearDraft, currentProjectId, startRound]);
+
+  // Share chat streaming status with the editor so editor-initiated AI actions disable while busy.
+  useEffect(() => {
+    setIsChatStreaming?.(isStreaming);
+  }, [isStreaming, setIsChatStreaming]);
+  useEffect(() => {
+    return () => {
+      setIsChatStreaming?.(false);
+    };
+  }, [setIsChatStreaming]);
+
+  // Handle one-shot structured UI actions dispatched from the editor (e.g. 去AI味).
+  useEffect(() => {
+    if (!pendingAgentUiAction || !currentProjectId || pendingAgentUiAction.projectId !== currentProjectId) {
+      return;
+    }
+    consumeAgentUiAction?.(pendingAgentUiAction.id);
+    if (pendingAgentUiAction.action !== "natural_polish") {
+      return;
+    }
+    if (
+      isStreaming
+      || sendLockRef.current
+      || newChatAfterStopRef.current
+      || creatingSessionRef.current !== null
+      || sessionRecoveryBlockedRef.current
+    ) {
+      toast.info(t("editor:naturalPolishBusy"));
+      return;
+    }
+    if (aiSendBlocked) {
+      reportQuotaBlockedSend(false);
+      setShowQuotaUpgradeModal(true);
+      return;
+    }
+
+    const title = pendingAgentUiAction.fileTitle?.trim();
+    const hasSelection = Boolean(pendingAgentUiAction.selectedText?.trim());
+    const userMessage = hasSelection
+      ? (title
+          ? t("editor:naturalPolishPromptSelection", { title })
+          : t("editor:naturalPolishPromptSelectionFallback"))
+      : (title
+          ? t("editor:naturalPolishPromptChapter", { title })
+          : t("editor:naturalPolishPromptChapterFallback"));
+
+    const request: Omit<AgentRequest, "project_id"> = {
+      message: userMessage,
+      selected_text: hasSelection ? pendingAgentUiAction.selectedText : undefined,
+      ui_action: "natural_polish",
+      metadata: {
+        current_file_id: pendingAgentUiAction.fileId,
+        current_file_type: pendingAgentUiAction.fileType,
+        current_file_title: pendingAgentUiAction.fileTitle,
+        entry: "editor_natural_polish",
+      },
+    };
+
+    trackEvent("ai_chat_submitted", {
+      project_id: currentProjectId,
+      entry: "editor_natural_polish",
+      selected_item_type: pendingAgentUiAction.fileType,
+      has_selection: hasSelection,
+    });
+
+    startRound(request, { userBubble: true });
+  }, [
+    pendingAgentUiAction,
+    currentProjectId,
+    consumeAgentUiAction,
+    isStreaming,
+    aiSendBlocked,
+    reportQuotaBlockedSend,
+    t,
+    startRound,
+  ]);
 
   /**
    * 「重新发送」 after a stop that wrote nothing: the same round again, with the original

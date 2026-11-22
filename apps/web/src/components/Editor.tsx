@@ -148,6 +148,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
     editorRefreshVersion,
     lastEditedFileId,
     aiEditingFileId,
+    isChatStreaming,
+    requestAgentUiAction,
     // Diff review state
     diffReviewState,
     enterDiffReview,
@@ -251,9 +253,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
   // Counts every server read that can replace the open editor copy, so an older
   // loadData/syncOpenFileFromServer response answering late is known.
   const serverSyncSeqRef = useRef(0);
-  // A refresh may arrive while a polish candidate is open. Keep that server
-  // copy for discard reconciliation without advancing the candidate's token.
-  const naturalPolishServerCopyRef = useRef<File | null>(null);
   const restoredSelectionRef = useRef<string | null>(null);
   const currentFileRef = useRef<File | null>(file);
   const translateRef = useRef(t);
@@ -848,11 +847,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
     const review = currentReviewRef.current;
     if (review?.fileId === fileId) {
-      // A conflict or polish comparison is open: its save carries the token it was
+      // A conflict comparison is open: its save carries the token it was
       // opened with, so a newer server copy surfaces there as a conflict.
-      if (review.origin === 'polish') {
-        naturalPolishServerCopyRef.current = data;
-      }
       return;
     }
 
@@ -1169,30 +1165,24 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setDraftRecovery(null);
   }, [draftRecovery, currentUserId, currentProjectId, clearRemovedDraftEntry]);
 
-  // 只有「去AI味」进入的审阅才允许在全部拒绝时跳过写库。保存冲突审阅的
-  // originalContent 是本地草稿、服务端持有另一份正文，完成审阅必须 setEditContent
-  // 并带新令牌写回。这里按审阅的三元组记下去AI味审阅的来源，完成审阅时逐项比对。
-  const naturalPolishReviewRef = useRef<{
-    fileId: string;
-    /** Saved server body the candidate's author text was based on. */
-    baseContent: string;
-    originalContent: string;
-    modifiedContent: string;
-  } | null>(null);
-  const enterNaturalPolishReview = useCallback(
-    (fileId: string, originalContent: string, newContent: string) => {
-      naturalPolishServerCopyRef.current = null;
-      naturalPolishReviewRef.current = {
-        fileId,
-        baseContent: currentFileRef.current?.id === fileId
-          ? currentFileRef.current.content ?? ''
-          : originalContent,
-        originalContent,
-        modifiedContent: newContent,
-      };
-      enterDiffReview(fileId, originalContent, newContent, 'polish');
+  const handleRequestNaturalPolish = useCallback(
+    (params: {
+      projectId: string;
+      fileId: string;
+      fileType?: string;
+      fileTitle?: string;
+      selectedText?: string;
+    }) => {
+      requestAgentUiAction?.({
+        projectId: params.projectId,
+        action: "natural_polish",
+        fileId: params.fileId,
+        fileType: params.fileType,
+        fileTitle: params.fileTitle,
+        selectedText: params.selectedText,
+      });
     },
-    [enterDiffReview],
+    [requestAgentUiAction],
   );
 
   const commitReviewedFile = useCallback(async (params: {
@@ -1336,88 +1326,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setSelectedItem,
     t,
     triggerFileTreeRefresh,
-  ]);
-
-  const resolveNaturalPolish = useCallback(async (decision: 'accept' | 'discard') => {
-    const review = currentReviewRef.current;
-    const polish = naturalPolishReviewRef.current;
-    const opened = currentFileRef.current;
-    if (
-      !review || review.origin !== 'polish' || !polish || !opened ||
-      review.fileId !== opened.id || polish.fileId !== opened.id ||
-      polish.originalContent !== review.originalContent ||
-      polish.modifiedContent !== review.modifiedContent
-    ) return;
-    const fileId = opened.id;
-
-    if (decision === 'discard') {
-      naturalPolishReviewRef.current = null;
-      const cachedServerCopy = naturalPolishServerCopyRef.current?.id === fileId
-        ? naturalPolishServerCopyRef.current
-        : null;
-      const refreshed = cachedServerCopy
-        ? cachedServerCopy
-        : opened;
-      naturalPolishServerCopyRef.current = null;
-      const serverContent = refreshed.content ?? '';
-      if (cachedServerCopy || serverContent !== polish.baseContent) {
-        const outcome = openConflictReview(fileId, polish.baseContent, serverContent, review.originalContent);
-        const nextTitle = editTitleRef.current === opened.title ? refreshed.title : editTitleRef.current;
-        if (outcome === 'server') {
-          exitDiffReview();
-          adoptServerCopy(refreshed, nextTitle);
-        } else if (outcome === 'local') {
-          exitDiffReview();
-          keepLocalOnServerCopy(refreshed, nextTitle);
-        } else {
-          keepLocalOnServerCopy(refreshed, nextTitle);
-          toast.error(t('editor:aiEditedWhileDirty'));
-        }
-        return;
-      }
-      exitDiffReview();
-      return;
-    }
-
-    // The candidate may include text the author had not saved before opening
-    // polish. Rebase both that text and the polish from the saved copy; using
-    // review.originalContent here would misread the absent dirty text as a
-    // server deletion and could discard it.
-    await commitReviewedFile({
-      opened,
-      review,
-      content: review.modifiedContent,
-      conflictBase: polish.baseContent,
-      updateMeta: {
-        change_type: 'ai_edit',
-        change_summary: 'AI polish (reviewed)',
-      },
-      errorLogMessage: 'Failed to save natural-polish candidate:',
-      errorAction: 'natural_polish_candidate_apply',
-      onSuccess: () => {
-        naturalPolishReviewRef.current = null;
-        naturalPolishServerCopyRef.current = null;
-        trackEvent('natural_polish_candidate_applied', {
-          project_id: opened.project_id,
-          file_id: fileId,
-        });
-      },
-      onStaleWrite: (latest, outcome) => {
-        if (outcome === 'local') {
-          naturalPolishServerCopyRef.current = latest;
-        } else {
-          naturalPolishReviewRef.current = null;
-          naturalPolishServerCopyRef.current = null;
-        }
-      },
-    });
-  }, [
-    adoptServerCopy,
-    commitReviewedFile,
-    exitDiffReview,
-    keepLocalOnServerCopy,
-    openConflictReview,
-    t,
   ]);
 
   /**
@@ -1826,10 +1734,10 @@ const EditorComponent: React.FC<EditorProps> = () => {
       serverBaseline: serverBaseline?.fileId === file.id ? serverBaseline : undefined,
       getReviewLeaveDraft,
       isStreaming,
+      isChatStreaming: Boolean(isChatStreaming),
       // AI 正在编辑这份文件时挂起自动保存，避免过期整篇快照覆盖 AI 的改动
       isAiEditing: aiEditingFileId === file.id,
-      onEnterDiffReview: enterNaturalPolishReview,
-      onResolvePolish: resolveNaturalPolish,
+      onNaturalPolish: handleRequestNaturalPolish,
       // Diff review props
       diffReviewState: isInReviewMode ? diffReviewState : null,
       onAcceptEdit: handleAcceptEdit,

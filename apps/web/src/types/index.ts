@@ -322,11 +322,15 @@ export interface AgentStreamState {
 
 // ==================== Agent Request ====================
 
+export type AgentUiAction = "natural_polish";
+
 export interface AgentRequest {
   project_id: string;
   message: string;
   session_id?: string;
   selected_text?: string;
+  /** Optional server-validated structured UI action scoped strictly to this turn. */
+  ui_action?: AgentUiAction;
   metadata?: Record<string, unknown>;
   /** Skills explicitly selected by the user for this message (max 3). */
   selected_skill_ids?: string[];
@@ -366,13 +370,12 @@ export interface DiffReviewState {
   modifiedContent: string;    // Content after AI edits  
   pendingEdits: PendingEdit[];
   /**
-   * What opened the review: a save/sync met a newer copy (`conflict`)
-   * or a natural-polish result (`polish`). Absent for other callers.
+   * What opened the review: a save/sync met a newer copy (`conflict`). Absent for other callers.
    */
   origin?: DiffReviewOrigin;
 }
 
-export type DiffReviewOrigin = 'conflict' | 'polish';
+export type DiffReviewOrigin = 'conflict';
 
 /**
  * Response for rollback operation
