@@ -412,4 +412,16 @@ describe("CodeManagement", () => {
     expect(Array.from(tierSelect.options).map((option) => option.value)).toEqual(["pro", "max"]);
     expect(screen.getAllByText("旗舰版").length).toBeGreaterThan(0);
   });
+
+  it("exposes accessible labels on tier and status filter selects", () => {
+    useQueryMock.mockReturnValue({
+      data: { items: [], total: 0, page: 1, page_size: 20 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<CodeManagement />);
+
+    expect(screen.getByRole("combobox", { name: "codes.tier" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "codes.status" })).toBeInTheDocument();
+  });
 });

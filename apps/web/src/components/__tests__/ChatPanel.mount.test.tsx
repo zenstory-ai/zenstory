@@ -3596,4 +3596,21 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1))
     expect(screen.queryByTestId('starter-cards')).not.toBeInTheDocument()
   })
+
+  it('exposes a horizontal separator role on the desktop input resize handle and hides it on mobile', async () => {
+    const { rerender } = render(<ChatPanel />)
+    await waitFor(() => expect(screen.getByTestId('message-list')).toBeInTheDocument())
+    const separator = screen.getByRole('separator', { name: 'chat:panel.resizeHandle' })
+    expect(separator).toHaveAttribute('aria-orientation', 'horizontal')
+
+    mockLayout.isMobile = true
+    try {
+      rerender(nextChatPanel())
+      await waitFor(() => {
+        expect(screen.queryByRole('separator', { name: 'chat:panel.resizeHandle' })).not.toBeInTheDocument()
+      })
+    } finally {
+      mockLayout.isMobile = false
+    }
+  })
 })

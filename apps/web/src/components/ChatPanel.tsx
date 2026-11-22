@@ -3017,6 +3017,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         {/* Resize handle (drag to adjust input panel height) - hidden on mobile */}
         {!isMobile && (
           <div
+            role="separator"
+            aria-orientation="horizontal"
             className={`shrink-0 h-4 flex items-center justify-center select-none touch-none cursor-row-resize group border-t border-[hsl(var(--separator-color))] hover:bg-[hsl(var(--accent-primary)/0.08)] active:bg-[hsl(var(--accent-primary)/0.15)] ${resizeDragRef.current ? 'bg-[hsl(var(--accent-primary)/0.1)]' : ''}`}
             onPointerDown={handleInputPanelResizeStart}
             onPointerMove={handleInputPanelResizeMove}

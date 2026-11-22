@@ -357,6 +357,7 @@ export const CodeManagement: React.FC = () => {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         <AdminSelect
+          aria-label={t("codes.tier")}
           value={tierFilter}
           onChange={(e) => {
             setTierFilter(e.target.value);
@@ -370,6 +371,7 @@ export const CodeManagement: React.FC = () => {
           ))}
         </AdminSelect>
         <AdminSelect
+          aria-label={t("codes.status")}
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);

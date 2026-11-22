@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vites
 import { render, screen, waitFor, cleanup, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MessageInput, STOP_ARM_DELAY_MS } from '../MessageInput'
+import { MobileLayoutProvider } from '../../contexts/MobileLayoutContext'
 import { skillsApi } from '../../lib/api'
 import { MAX_AGENT_MESSAGE_CHARS } from '../../lib/agentLimits'
 
@@ -307,6 +308,18 @@ describe('MessageInput', () => {
     expect(screen.getByText('Suggestion 1')).toBeInTheDocument()
     expect(screen.getByText('Suggestion 2')).toBeInTheDocument()
     expect(screen.getByText('Suggestion 3')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Suggestion 1' })).not.toHaveClass('min-h-11')
+  })
+
+  it('gives mobile suggestion chips a 44px touch target while keeping md+ compact', () => {
+    render(
+      <MobileLayoutProvider isMobile={true}>
+        <MessageInput {...defaultProps} aiSuggestions={['Mobile suggestion']} />
+      </MobileLayoutProvider>,
+    )
+
+    const chip = screen.getByRole('button', { name: 'Mobile suggestion' })
+    expect(chip).toHaveClass('min-h-11', 'md:min-h-[32px]')
   })
 
   it('clicks suggestion to fill input', async () => {

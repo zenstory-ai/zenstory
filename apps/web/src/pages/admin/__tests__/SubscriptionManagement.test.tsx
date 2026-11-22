@@ -314,4 +314,11 @@ describe("SubscriptionManagement", () => {
       expect(link).toHaveAttribute("href", "/admin/users/user-1"),
     );
   });
+
+  it("exposes an accessible label on the status filter select", () => {
+    mockQueries({ subscriptionsData: { items: [subscriptionItem], total: 1, page: 1, page_size: 20 } });
+    render(<SubscriptionManagement />, { wrapper: MemoryRouter });
+
+    expect(screen.getByRole("combobox", { name: "subscriptions.status" })).toBeInTheDocument();
+  });
 });

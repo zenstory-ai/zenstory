@@ -63,7 +63,7 @@ function SourceTable({ rows }: { rows: UsageSourceRow[] }) {
     return <p className="px-4 py-6 text-sm text-[hsl(var(--text-secondary))]">{t("usage.noUsage")}</p>;
   }
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t("usage.bySource")}>
       <table className="w-full text-[hsl(var(--text-primary))]">
         <thead>
           <tr className="border-b border-[hsl(var(--separator-color))]">
@@ -93,7 +93,7 @@ function DailyTable({ rows, showUsers }: { rows: UsageDailyRow[]; showUsers?: bo
   const locale = getLocaleCode();
   const maxCost = Math.max(0, ...rows.map((row) => Number(row.cost_cny) || 0));
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t("usage.byDay")}>
       <table className="w-full min-w-[520px] text-[hsl(var(--text-primary))]">
         <thead>
           <tr className="border-b border-[hsl(var(--separator-color))]">
@@ -229,7 +229,7 @@ function ModelMetricsSection({ usageWindow }: { usageWindow: UsageWindow }) {
         onRetry={() => void models.refetch()}
       >
         {models.data && (
-          <div className="admin-table-shell overflow-x-auto">
+          <div className="admin-table-shell overflow-x-auto" tabIndex={0} role="region" aria-label={t("usage.models.title")}>
             <table className="w-full min-w-[880px] text-[hsl(var(--text-primary))]">
               <thead>
                 <tr className="border-b border-[hsl(var(--separator-color))]">
@@ -523,7 +523,7 @@ export default function UsageCostPage() {
             <div className="space-y-3 lg:hidden">
               {rows.map((row) => <UserCard key={row.user_id} row={row} onOpen={openUser} />)}
             </div>
-            <div className="hidden lg:block admin-table-shell overflow-x-auto">
+            <div className="hidden lg:block admin-table-shell overflow-x-auto" tabIndex={0} role="region" aria-label={t("usage.byUser")}>
               <table className="w-full text-[hsl(var(--text-primary))]">
                 <thead>
                   <tr className="border-b border-[hsl(var(--separator-color))]">
