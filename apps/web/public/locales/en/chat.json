@@ -367,6 +367,7 @@
     "elapsed": "AI is working · {{seconds}}s",
     "longWaitHint": "Long passages can take a few minutes.",
     "longWaitHintMobile": "Long passages can take a few minutes. Keep this page open.",
+    "preparingBody": "Drafting the opening of “{{title}}”…",
     "writingBody": "Writing the text of “{{title}}”…",
     "writingBodyWords_one": "Writing the text of “{{title}}” · {{words}} word so far",
     "writingBodyWords_other": "Writing the text of “{{title}}” · {{words}} words so far",

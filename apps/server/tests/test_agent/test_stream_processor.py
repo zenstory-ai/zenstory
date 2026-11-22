@@ -618,6 +618,54 @@ def test_reply_prebody_keeps_first_paragraph_indent_at_every_split():
         assert done.final_content == f"{_INDENTED_BODY}\n", cut
 
 
+@pytest.mark.parametrize(
+    "chunks",
+    [
+        ["]<]minimax[>[<tool_call>"],
+        ["\n  ]<]minimax[>[", "<tool_call>\n{\"name\":\"query_files\"}"],
+        ["]<]minimax[>[tool_call>\n"],
+        ["<tool_call>\n"],
+        ["<tool", "_call>\n"],
+        ["<<tool_call>\n"],
+        ["  <TOOL_CALL name=\"query_files\">\n"],
+    ],
+)
+def test_waiting_start_flags_leaked_tool_call_prefix_early(chunks):
+    """WAITING_START 开头完整命中泄漏 tool_call 协议头时立即标 leaked_tool_call_detected，且不向聊天泄漏。"""
+    proc = StreamProcessor()
+    proc.start_file_write("file-1")
+    results = [proc.process_content(chunk) for chunk in chunks]
+    assert any(r.leaked_tool_call_detected for r in results)
+    final = proc.finalize_on_stream_end()
+    assert final.file_complete is False
+    assert _all_conversation([*results, final]) == ""
+    assert proc.state == StreamState.IDLE
+
+
+@pytest.mark.parametrize(
+    "chunks",
+    [
+        # 合法 MiniMax 分隔符形式的 <file> 起始标记绝不能误判为泄漏 tool_call
+        ["]<]minimax[>[", "file>\n第一章正文\n</file>"],
+        ["]<]minimax[>[<file>\n第一章正文\n</file>"],
+        # 正文里合法提及 <tool_call> 绝不触发
+        ["<file>\n主角在日志里看到了 <tool_call> 字样。\n</file>"],
+        # 代码围栏或行内代码中的示例字面量绝不触发
+        ["```xml\n<tool_call>\n```\n<file>\n第一章正文\n</file>"],
+        ["`<tool_call>` 只是说明\n<file>\n第一章正文\n</file>"],
+        # 尚未闭合的半截前缀不提前触发
+        ["]<]minimax[>["],
+        ["<tool"],
+    ],
+)
+def test_waiting_start_does_not_flag_legitimate_file_prose_or_code_fences(chunks):
+    proc = StreamProcessor()
+    proc.start_file_write("file-1")
+    results = [proc.process_content(chunk) for chunk in chunks]
+    assert not any(r.leaked_tool_call_detected for r in results)
+
+
+
 def test_lone_file_tags_on_crlf_lines_are_protocol_markers():
     from agent.core.stream_processor import PREBODY_FILE_ID
 

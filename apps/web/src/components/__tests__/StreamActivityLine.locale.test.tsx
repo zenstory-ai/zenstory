@@ -27,6 +27,16 @@ describe('StreamActivityLine word count wording', () => {
     expect(screen.getByText(/· 1,234 words so far/)).toBeInTheDocument()
   })
 
+  it('shows drafting opening copy at 0 words in Chinese and English before the first word arrives', async () => {
+    await mount('zh', 0)
+    expect(screen.getByText(/正在构思《Chapter 1》开篇/)).toBeInTheDocument()
+  })
+
+  it('shows drafting opening copy at 0 words in English', async () => {
+    await mount('en', 0)
+    expect(screen.getByText(/Drafting the opening of “Chapter 1”/)).toBeInTheDocument()
+  })
+
   it('keeps the single Chinese form', async () => {
     await mount('zh', 1)
     expect(screen.getByText(/已写 1 字/)).toBeInTheDocument()

@@ -56,7 +56,12 @@ vi.mock('../../hooks/useGestures', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    t: (key: string, fallback?: string | Record<string, unknown>) =>
+      typeof fallback === 'string'
+        ? fallback
+        : fallback
+          ? `${key}:${JSON.stringify(fallback)}`
+          : key,
   }),
 }));
 
@@ -1610,15 +1615,77 @@ describe('SimpleEditor', () => {
     expect(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder')).toHaveValue('Partial preview');
     view.rerender(<SimpleEditor {...props} content="Committed server body" baseUpdatedAt="new-token"
       isStreaming streamingContent="" serverBaseline={{ version: 1, fileId: 'file-1', title: 'File', content: 'Committed server body', updatedAt: 'new-token' }} />);
-    expect(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder')).toHaveValue('');
+    const waitingTextarea = view.container.querySelector('textarea') as HTMLTextAreaElement;
+    expect(waitingTextarea).toHaveValue('');
+    expect(waitingTextarea).toHaveAttribute('placeholder', '');
     expect(screen.queryByText('editor:unsaved')).not.toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(5000));
     await act(async () => { expect(await onFlushReady.mock.calls.at(-1)?.[0]()).toBe('saved'); });
-    fireEvent.keyDown(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder'), { key: 's', ctrlKey: true });
+    fireEvent.keyDown(waitingTextarea, { key: 's', ctrlKey: true });
     view.unmount();
     await act(async () => Promise.resolve());
     expect(onSave).not.toHaveBeenCalled();
     vi.useRealTimers();
+  });
+
+  it('shows a calm drafting waiting state and hides the author placeholder before the first streamed char arrives, then switches seamlessly to live prose', () => {
+    vi.useFakeTimers();
+    const props = {
+      fileId: 'file-1',
+      title: '第一章 雨夜',
+      content: '',
+      onTitleChange: vi.fn(),
+      onContentChange: vi.fn(),
+      onSave: vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: 'saved-token' }),
+    };
+
+    const view = render(<SimpleEditor {...props} isStreaming streamingContent="" />);
+    const textarea = view.container.querySelector('textarea') as HTMLTextAreaElement;
+
+    // Author placeholder must stay hidden while waiting for the first streamed character
+    expect(textarea).toHaveAttribute('placeholder', '');
+    expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).not.toBeInTheDocument();
+
+    // Banner and canvas waiting state show drafting copy + elapsed seconds
+    const banner = screen.getByTestId('editor-streaming-banner');
+    expect(banner).toHaveTextContent('editor:aiDraftingOpening');
+    expect(screen.getByTestId('editor-streaming-banner-elapsed')).toHaveTextContent('editor:aiDraftingBannerElapsed');
+    const waitingCanvas = screen.getByTestId('editor-streaming-waiting');
+    expect(waitingCanvas).toHaveTextContent('editor:aiDraftingOpening');
+    expect(waitingCanvas).toHaveTextContent('editor:aiDraftingElapsed');
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByTestId('editor-streaming-banner-elapsed')).toHaveTextContent(
+      'editor:aiDraftingBannerElapsed:{"seconds":3}'
+    );
+    expect(screen.getByTestId('editor-streaming-waiting')).toHaveTextContent(
+      'editor:aiDraftingElapsed:{"seconds":3}'
+    );
+
+    // Seamless switch on the very first byte of displayContent
+    view.rerender(<SimpleEditor {...props} isStreaming streamingContent="雨" />);
+    expect(screen.queryByTestId('editor-streaming-waiting')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('editor-streaming-banner-elapsed')).not.toBeInTheDocument();
+    expect(screen.getByTestId('editor-streaming-banner')).toHaveTextContent('editor:aiWriting');
+    expect(textarea).toHaveValue('雨');
+    vi.useRealTimers();
+  });
+
+  it('uses untitled drafting copy when streaming starts on an untitled empty file', () => {
+    const props = {
+      fileId: 'file-2',
+      title: '   ',
+      content: '',
+      onTitleChange: vi.fn(),
+      onContentChange: vi.fn(),
+      onSave: vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: 'saved-token' }),
+    };
+
+    render(<SimpleEditor {...props} isStreaming streamingContent="" />);
+    expect(screen.getByTestId('editor-streaming-banner')).toHaveTextContent('editor:aiDraftingOpeningUntitled');
+    expect(screen.getByTestId('editor-streaming-waiting')).toHaveTextContent('editor:aiDraftingOpeningUntitled');
   });
 
 });
