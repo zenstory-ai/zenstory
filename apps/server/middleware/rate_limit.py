@@ -404,7 +404,7 @@ def require_user_rate_limit(key: str, max_requests: int, window_seconds: int):
     而 LLM 的成本是按账号结算的。
 
     所有会触发真实远端 LLM 调用的已登录端点都应该挂这个依赖
-    （/agent/stream、/agent/suggest、/agent/steer、/editor/natural-polish）。
+    （/agent/stream、/agent/suggest、/agent/steer）。
     """
     # 延迟 import：services.core.auth_service 会反向依赖 middleware，模块级 import 会成环
     from fastapi import Depends

@@ -149,8 +149,10 @@ describe('MobileFileTree', () => {
 
     render(<MobileFileTree />);
 
-    const uploadButton = await screen.findByTitle('editor:fileTree.uploadMaterial');
+    const uploadButton = await screen.findByTestId('file-tree-upload-material');
     expect(uploadButton).toBeInTheDocument();
+    expect(uploadButton).toHaveAttribute('title', 'editor:fileTree.uploadMaterial');
+    expect(uploadButton).toHaveAttribute('aria-label', 'editor:fileTree.uploadMaterial');
 
     const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, 'click');
     fireEvent.click(uploadButton);
@@ -165,6 +167,48 @@ describe('MobileFileTree', () => {
       expect(mockUpload).toHaveBeenCalledWith('project-1', file);
     });
     expect(mockToastSuccess).toHaveBeenCalledWith('editor:fileTree.uploadSuccess');
+  });
+
+  it('starts inline snippet creation when tapping + on the material folder', async () => {
+    const { fileApi } = await import('../../lib/api');
+    vi.mocked(fileApi.create).mockResolvedValue({
+      id: 'new-snippet-1',
+      title: '雨夜台词',
+      file_type: 'snippet',
+    } as never);
+    mockGetTree.mockResolvedValue({
+      tree: [
+        {
+          id: 'material-folder-id',
+          title: '素材',
+          file_type: 'folder',
+          parent_id: null,
+          order: 0,
+          content: '',
+          metadata: null,
+          children: [],
+        },
+      ],
+    });
+
+    render(<MobileFileTree />);
+
+    const createButton = await screen.findByTestId('file-tree-create-child');
+    expect(createButton).toHaveAttribute('aria-label', 'common:create common:fileTypes.snippet');
+    expect(screen.getByTestId('file-tree-upload-material')).toBeInTheDocument();
+
+    fireEvent.click(createButton);
+    const input = screen.getByPlaceholderText('editor:fileTree.newSnippet');
+    fireEvent.change(input, { target: { value: '雨夜台词' } });
+    fireEvent.click(screen.getByRole('button', { name: 'common:confirm' }));
+
+    await waitFor(() => {
+      expect(fileApi.create).toHaveBeenCalledWith('project-1', expect.objectContaining({
+        title: '雨夜台词',
+        file_type: 'snippet',
+        parent_id: 'material-folder-id',
+      }));
+    });
   });
 
   it('names the folder create button with the localized file type, not the internal id', async () => {

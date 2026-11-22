@@ -110,10 +110,10 @@ type StreamErrorEventData = {
 };
 
 /**
- * quota_refunded 帧的三种说法：失控停止未扣额（历史兼容） / 模型服务或预检出错未扣额 /
- * 模型开始处理前作者点了停止未扣额。
+ * quota_refunded 帧的说法：失控停止未扣额（历史兼容） / 去AI味零改动未扣额 /
+ * 模型服务或预检出错未扣额 / 模型开始处理前作者点了停止未扣额。
  */
-export type QuotaRefundKind = "no_progress" | "error" | "stopped";
+export type QuotaRefundKind = "no_progress" | "no_change" | "error" | "stopped";
 
 /** 会话仍在收尾、账号任务名额已满或当前网络额度已用完：服务端没有扣额，也没有开始运行。 */
 const MANUALLY_RETRYABLE_REFUSALS = new Set([
@@ -199,7 +199,9 @@ function notifyQuotaRefunded(data: unknown, callbacks: AgentStreamCallbacks): vo
   };
   if (payload.refunded !== true) return;
   const kind: QuotaRefundKind =
-    payload.kind === "no_progress" || payload.kind === "stopped" ? payload.kind : "error";
+    payload.kind === "no_progress" || payload.kind === "no_change" || payload.kind === "stopped"
+      ? payload.kind
+      : "error";
   const removedFiles: RemovedPlaceholderFile[] = Array.isArray(payload.removed_files)
     ? payload.removed_files.flatMap((item) => {
       const file = item as { id?: unknown; title?: unknown } | null;
@@ -366,6 +368,7 @@ export function streamAgentRequest(
             message: request.message,
             session_id: request.session_id,
             selected_text: request.selected_text,
+            ui_action: request.ui_action,
             metadata: request.metadata || {},
             selected_skill_ids: request.selected_skill_ids?.length
               ? request.selected_skill_ids

@@ -38,6 +38,7 @@ import {
   Sparkles,
   FolderOpen,
   Plus,
+  Upload,
   Trash2,
   Folder,
   Search,
@@ -275,9 +276,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     const createFileType = getCreateFileType(node.title);
     const isMaterialFolderNode = isMaterialFolder(node);
     // Same wording as the desktop tree: 创建 角色卡, not the internal type id.
-    const folderActionLabel = isMaterialFolderNode
-      ? t('editor:fileTree.uploadMaterial')
-      : `${t('common:create')} ${t(`common:fileTypes.${createFileType}`, { defaultValue: createFileType })}`;
+    const folderCreateLabel = `${t('common:create')} ${t(`common:fileTypes.${createFileType}`, { defaultValue: createFileType })}`;
 
     return (
       <div key={node.id} className="select-none">
@@ -333,25 +332,36 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
 
           {/* Action buttons - always visible on mobile for better UX */}
           {isFolder && (
-            <button
-              type="button"
-              onClick={
-                isMaterialFolderNode
-                  ? triggerUpload
-                  : (e) => {
-                      e.stopPropagation();
-                      startCreate(node.id, createFileType);
-                    }
-              }
-              disabled={isMaterialFolderNode && isUploading}
-              className={`p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] active:bg-[hsl(var(--bg-tertiary))] touch-target ${
-                isMaterialFolderNode && isUploading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-              title={folderActionLabel}
-              aria-label={folderActionLabel}
-            >
-              <Plus size={20} />
-            </button>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                data-testid="file-tree-create-child"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startCreate(node.id, createFileType);
+                }}
+                className="min-h-[44px] min-w-[44px] p-2 rounded-lg flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
+                title={folderCreateLabel}
+                aria-label={folderCreateLabel}
+              >
+                <Plus size={20} />
+              </button>
+              {isMaterialFolderNode && (
+                <button
+                  type="button"
+                  data-testid="file-tree-upload-material"
+                  onClick={triggerUpload}
+                  disabled={isUploading}
+                  className={`min-h-[44px] min-w-[44px] p-2 rounded-lg flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] active:bg-[hsl(var(--bg-tertiary))] touch-target ${
+                    isUploading ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  title={t('editor:fileTree.uploadMaterial')}
+                  aria-label={t('editor:fileTree.uploadMaterial')}
+                >
+                  <Upload size={18} />
+                </button>
+              )}
+            </div>
           )}
 
           {/* Add/remove snippet to chat context */}
@@ -448,7 +458,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         )}
 
         {/* Empty folder indicator */}
-        {isFolder && isExpanded && (!node.children || node.children.length === 0) && (
+        {isFolder && isExpanded && (!node.children || node.children.length === 0) && isCreating !== node.id && (
           <div
             className="px-4 py-3 text-[hsl(var(--text-secondary))] text-sm italic"
             style={{ paddingLeft: `${28 + depth * 16}px` }}

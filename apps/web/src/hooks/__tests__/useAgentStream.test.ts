@@ -1770,5 +1770,42 @@ describe('useAgentStream', () => {
       expect(onSessionStartedV1).toHaveBeenCalledTimes(1)
       expect(onSteeringReceivedV1).toHaveBeenCalledTimes(1)
     })
+
+    it('forwards ui_action on the current request without carrying it to the next round', () => {
+      const { result } = renderHook(() => useAgentStream('test-project-id'))
+      const controller = createMockStreamController()
+
+      act(() => {
+        result.current.startStream({
+          message: '请对《第一章》做一次去AI味润色。',
+          ui_action: 'natural_polish',
+          metadata: { current_file_id: 'ch-1' },
+        })
+      })
+
+      expect(agentApi.streamAgentRequest).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          project_id: 'test-project-id',
+          ui_action: 'natural_polish',
+          metadata: { current_file_id: 'ch-1' },
+        }),
+        expect.any(Object),
+      )
+
+      act(() => {
+        controller.getCallbacks()?.onDone?.({ assistant_message_id: 'assistant-1' })
+      })
+
+      act(() => {
+        result.current.startStream({
+          message: '继续下一段',
+          metadata: { current_file_id: 'ch-1' },
+        })
+      })
+
+      const secondRequest = vi.mocked(agentApi.streamAgentRequest).mock.calls[1]?.[0]
+      expect(secondRequest?.ui_action).toBeUndefined()
+    })
   })
 })

@@ -78,11 +78,15 @@ export function setOpenEditorFlush(
   }
 }
 
+export type OpenEditorFlushOutcome = "saved" | "conflict" | "failed" | "timeout";
+
 export interface OpenEditorFlushResult {
   /** The editor's text is stored (or it had nothing unsaved). */
   saved: boolean;
   /** The file the editor has open (when known). */
   fileId: string | null;
+  /** Detailed outcome so callers can distinguish version conflicts from generic save failures. */
+  outcome?: OpenEditorFlushOutcome;
 }
 
 /**
@@ -95,17 +99,18 @@ export function flushOpenEditor(timeoutMs = 1500): Promise<OpenEditorFlushResult
   if (!flush) return null;
   const fileId = openEditorFileId?.() ?? null;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<boolean>((resolve) => {
-    timer = setTimeout(() => resolve(false), timeoutMs);
+  const timeout = new Promise<OpenEditorFlushOutcome>((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), timeoutMs);
   });
   const save = Promise.resolve()
     .then(flush)
     .then(
-      (outcome) => outcome === "saved",
-      () => false,
+      (outcome): OpenEditorFlushOutcome =>
+        outcome === "saved" || outcome === "conflict" ? outcome : "failed",
+      (): OpenEditorFlushOutcome => "failed",
     );
   return Promise.race([save, timeout])
-    .then((saved) => ({ saved, fileId }))
+    .then((outcome) => ({ saved: outcome === "saved", fileId, outcome }))
     .finally(() => {
       if (timer) clearTimeout(timer);
     });
