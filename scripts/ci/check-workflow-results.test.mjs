@@ -17,6 +17,7 @@ const irrelevantJobs = {
   "frontend-build": "skipped",
   "cli-test": "skipped",
   "vercel-build": "skipped",
+  "frontend-e2e-smoke": "skipped",
 };
 
 test("CI permits skipped jobs only when their validated scope is irrelevant", () => {
@@ -30,6 +31,7 @@ test("CI permits skipped jobs only when their validated scope is irrelevant", ()
         "frontend-test": "success",
         "frontend-build": "success",
         "vercel-build": "success",
+        "frontend-e2e-smoke": "success",
       },
     }).scopes,
     { backend: false, frontend: true, cli: false, ci: false },

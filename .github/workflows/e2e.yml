@@ -34,6 +34,7 @@ concurrency:
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       backend: ${{ steps.scope.outputs.backend }}
       frontend: ${{ steps.scope.outputs.frontend }}
@@ -100,6 +101,7 @@ jobs:
     needs: detect-changes
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ci == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       # Whole-suite lanes (push, default, full) split by test count into 8
@@ -231,6 +233,7 @@ jobs:
 
   e2e-summary:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [detect-changes, e2e-test]
     if: always()
     steps:
