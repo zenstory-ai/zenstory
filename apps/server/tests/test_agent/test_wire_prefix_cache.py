@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import gzip
 import json
 import logging
 from types import SimpleNamespace
@@ -125,7 +127,9 @@ def test_store_and_load_round_trip_and_strict_envelope_validation(fake_redis):
     assert stored is True
     raw, ttl = fake_redis.store["agent:wire_prefix:sess-1"]
     assert ttl == 900
-    envelope = json.loads(raw)
+    assert raw.startswith(wire_prefix_cache.WIRE_PREFIX_CACHE_GZIP_PREFIX)
+    compressed_bytes = base64.b64decode(raw[len(wire_prefix_cache.WIRE_PREFIX_CACHE_GZIP_PREFIX) :])
+    envelope = json.loads(gzip.decompress(compressed_bytes).decode("utf-8"))
     assert envelope["schema_version"] == wire_prefix_cache.WIRE_PREFIX_CACHE_SCHEMA_VERSION
     assert envelope["last_assistant_message_id"] == "msg-10"
 
@@ -236,6 +240,104 @@ def test_oversized_payload_skips_caching_and_evicts_stale_entry(fake_redis):
     )
     assert stored is False
     assert "agent:wire_prefix:sess-big" not in fake_redis.store
+
+
+@pytest.mark.unit
+def test_gzip_compression_fits_large_session_under_max_bytes_and_reads_legacy_plain_json(fake_redis):
+    # ~2.5 MiB raw UTF-8 JSON of Chinese prose compresses well below 2 MiB max_bytes.
+    chapter_prose = "雾夜港口钟声响起，潮水拍打着石阶，温梨收起青玉佩推开木门。" * 25_000
+    items = [
+        {"role": "user", "content": chapter_prose},
+        {"role": "assistant", "content": "已记录这一章的完整内容。"},
+    ]
+    raw_envelope_bytes = len(
+        json.dumps(
+            {
+                "schema_version": wire_prefix_cache.WIRE_PREFIX_CACHE_SCHEMA_VERSION,
+                "project_id": "p",
+                "user_id": "u",
+                "last_assistant_message_id": "m-large",
+                "system_prompt_sha256": wire_prefix_cache.system_prompt_sha256("sys"),
+                "provider_key": "minimax:MiniMax-M3.1-Flash:primary",
+                "items": items,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+    assert raw_envelope_bytes > 2 * 1024 * 1024
+
+    stored = wire_prefix_cache.store_wire_prefix(
+        session_id="sess-large-gz",
+        project_id="p",
+        user_id="u",
+        last_assistant_message_id="m-large",
+        system_prompt="sys",
+        provider_key="minimax:MiniMax-M3.1-Flash:primary",
+        items=items,
+        max_bytes=2 * 1024 * 1024,
+    )
+    assert stored is True
+    stored_raw, _ttl = fake_redis.store["agent:wire_prefix:sess-large-gz"]
+    assert stored_raw.startswith(wire_prefix_cache.WIRE_PREFIX_CACHE_GZIP_PREFIX)
+    assert len(stored_raw.encode("ascii")) < 2 * 1024 * 1024
+
+    loaded = wire_prefix_cache.load_wire_prefix(
+        session_id="sess-large-gz",
+        project_id="p",
+        user_id="u",
+        last_message_id="m-large",
+        system_prompt="sys",
+        provider_key="minimax:MiniMax-M3.1-Flash:primary",
+    )
+    assert loaded == items
+
+    # Rolling-deploy compatibility: legacy plain-JSON entry already in Redis loads seamlessly.
+    legacy_items = _sample_wire_items()
+    legacy_json = json.dumps(
+        {
+            "schema_version": wire_prefix_cache.WIRE_PREFIX_CACHE_SCHEMA_VERSION,
+            "project_id": "p",
+            "user_id": "u",
+            "last_assistant_message_id": "m-legacy",
+            "system_prompt_sha256": wire_prefix_cache.system_prompt_sha256("sys"),
+            "provider_key": "minimax:MiniMax-M3.1-Flash:primary",
+            "items": legacy_items,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    fake_redis.setex("agent:wire_prefix:sess-legacy", 900, legacy_json)
+    assert (
+        wire_prefix_cache.load_wire_prefix(
+            session_id="sess-legacy",
+            project_id="p",
+            user_id="u",
+            last_message_id="m-legacy",
+            system_prompt="sys",
+            provider_key="minimax:MiniMax-M3.1-Flash:primary",
+        )
+        == legacy_items
+    )
+
+    # Corrupted zsgz1: entries (bad base64, bad gzip stream, bad utf-8) fail open to None.
+    for bad_value in (
+        f"{wire_prefix_cache.WIRE_PREFIX_CACHE_GZIP_PREFIX}!!!not-valid-base64!!!",
+        f"{wire_prefix_cache.WIRE_PREFIX_CACHE_GZIP_PREFIX}{base64.b64encode(b'not-gzip-bytes').decode('ascii')}",
+        f"{wire_prefix_cache.WIRE_PREFIX_CACHE_GZIP_PREFIX}{base64.b64encode(gzip.compress(b'\\xff\\xfe')).decode('ascii')}",
+    ):
+        fake_redis.setex("agent:wire_prefix:sess-corrupt-gz", 900, bad_value)
+        assert (
+            wire_prefix_cache.load_wire_prefix(
+                session_id="sess-corrupt-gz",
+                project_id="p",
+                user_id="u",
+                last_message_id="m1",
+                system_prompt="sys",
+                provider_key="minimax:MiniMax-M3.1-Flash:primary",
+            )
+            is None
+        )
 
 
 @pytest.mark.unit

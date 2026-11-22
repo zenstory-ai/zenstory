@@ -36,10 +36,14 @@ from agent.tools.file_ops.edit import (
 from agent.tools.file_ops.serialization import (
     QUERY_FILES_DEFAULT_LIMIT,
     QUERY_FILES_FULL_MODE_DEFAULT_LIMIT,
+    QUERY_FILES_LIST_FULL_MAX_TOTAL_CHARS,
     QUERY_FILES_MAX_BATCH_IDS,
     QUERY_FILES_RESPONSE_MODE_FULL,
+    QUERY_FILES_RESPONSE_MODE_SUMMARY,
     WRITE_FILE_OMITTED_FIELDS,
+    downgrade_full_row_to_summary,
     normalize_query_file_ids,
+    resolve_summary_preview_chars_for_listing,
     serialize_file,
 )
 from agent.tools.permissions import ForbiddenError, NotFoundError
@@ -1833,14 +1837,26 @@ def _query_files_sync(
                     tool_name=tool_name,
                 )
 
-            # 不按 id/ids、却要全文时（列表 × 全文），未显式给 limit 就收紧到 10 条：
-            # 默认 50 条全文很容易顶到 TOOL_RESULT_MAX_CHARS，被截断后模型只能再读一遍。
+            # 不按 id/ids、却要全文时（列表 × 全文）：
+            # - 带 query 搜索时直接降级为 summary + matches，避免把多章正文整批塞进上下文；
+            # - 不带 query 时未显式给 limit 先收紧到 10 条，且返回总正文超过 25,000 字符时
+            #   降级为 summary（保留小体量人物卡/设定集一枪读完，阻断多章正文炸弹）。
+            normalized_keyword = (
+                parsed.query.strip()
+                if isinstance(parsed.query, str) and parsed.query.strip()
+                else None
+            )
             wants_full = (
                 str(parsed.response_mode or "").strip().lower() == QUERY_FILES_RESPONSE_MODE_FULL
                 or parsed.include_content is True
             )
+            list_full_query_downgraded = (
+                not has_exact_ids and wants_full and bool(normalized_keyword)
+            )
             default_limit = (
-                QUERY_FILES_FULL_MODE_DEFAULT_LIMIT if wants_full and not has_exact_ids else QUERY_FILES_DEFAULT_LIMIT
+                QUERY_FILES_FULL_MODE_DEFAULT_LIMIT
+                if wants_full and not has_exact_ids and not list_full_query_downgraded
+                else QUERY_FILES_DEFAULT_LIMIT
             )
             query_kwargs: dict[str, Any] = {
                 "project_id": project_id,
@@ -1861,6 +1877,10 @@ def _query_files_sync(
                 # 显式传值时已由 CoercedOptionalBool 强转为 bool。
                 query_kwargs["include_content"] = parsed.include_content
 
+            if list_full_query_downgraded:
+                query_kwargs["response_mode"] = QUERY_FILES_RESPONSE_MODE_SUMMARY
+                query_kwargs.pop("include_content", None)
+
             if is_batch:
                 query_kwargs["ids"] = requested_ids
             elif "id" in parsed.model_fields_set:
@@ -1875,15 +1895,60 @@ def _query_files_sync(
 
             read_ticket = req_ctx.read_ticket() if has_exact_ids else None
             result = executor.query_files(**query_kwargs)
-            keyword = parsed.query
-            if (
-                not range_read
-                and not wants_full
-                and isinstance(keyword, str)
-                and keyword.strip()
+            downgrade_note: str | None = None
+            if list_full_query_downgraded:
+                downgrade_note = (
+                    "带 query 的关键词搜索不批量返回全文，已改为 summary 模式并附上命中片段（matches）；"
+                    "如需查看目标文件完整正文，请按文件 ID 调用 query_files(ids=[...]) 或 query_files(id=...)。"
+                )
+            elif (
+                not has_exact_ids
+                and wants_full
+                and not normalized_keyword
                 and isinstance(result, list)
             ):
-                _attach_query_matches(executor.session, result, keyword.strip())
+                total_content_chars = sum(
+                    len(row["content"])
+                    for row in result
+                    if isinstance(row, dict) and isinstance(row.get("content"), str)
+                )
+                if total_content_chars > QUERY_FILES_LIST_FULL_MAX_TOTAL_CHARS:
+                    explicit_preview = (
+                        parsed.content_preview_chars
+                        if isinstance(parsed.content_preview_chars, int)
+                        and not isinstance(parsed.content_preview_chars, bool)
+                        and parsed.content_preview_chars >= 0
+                        else None
+                    )
+                    row_count = len(result)
+                    result = [
+                        downgrade_full_row_to_summary(
+                            row,
+                            content_preview_chars=resolve_summary_preview_chars_for_listing(
+                                row.get("file_type"),
+                                row_count=row_count,
+                                has_query=False,
+                                has_exact_ids=False,
+                                explicit_preview_chars=explicit_preview,
+                            ),
+                        )
+                        if isinstance(row, dict) and isinstance(row.get("content"), str)
+                        else row
+                        for row in result
+                    ]
+                    downgrade_note = (
+                        f"不按 id/ids 的全文列表总正文（{total_content_chars} 字符）超过单次上限"
+                        f"（{QUERY_FILES_LIST_FULL_MAX_TOTAL_CHARS} 字符），已自动降级为 summary 模式；"
+                        "请先从列表中挑选目标文件，再通过 query_files(ids=[...]) 或 query_files(id=...) 精确读取全文。"
+                    )
+
+            if (
+                not range_read
+                and (not wants_full or list_full_query_downgraded)
+                and normalized_keyword
+                and isinstance(result, list)
+            ):
+                _attach_query_matches(executor.session, result, normalized_keyword)
 
             if range_read:
                 rows = result if isinstance(result, list) else []
@@ -1910,7 +1975,7 @@ def _query_files_sync(
 
             rows = result if isinstance(result, list) else []
             missing_ids: list[str] = []
-            is_query_filter = not wants_full and isinstance(keyword, str) and bool(keyword.strip())
+            is_query_filter = (not wants_full or list_full_query_downgraded) and bool(normalized_keyword)
             if is_batch and not is_query_filter:
                 returned_ids = {str(row.get("id") or "") for row in rows if isinstance(row, dict)}
                 missing_ids = [fid for fid in requested_ids if fid not in returned_ids]
@@ -1928,12 +1993,17 @@ def _query_files_sync(
             payload: dict[str, Any] = {"status": "success", "data": result}
             if missing_ids:
                 payload["missing_ids"] = missing_ids
+            notes: list[str] = []
             if truncated_ids:
                 payload["truncated_ids"] = truncated_ids
-                payload["note"] = (
+                notes.append(
                     f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已返回前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
                     f"其余 {len(truncated_ids)} 个请另起调用读取。"
                 )
+            if downgrade_note:
+                notes.append(downgrade_note)
+            if notes:
+                payload["note"] = " ".join(notes)
             if has_exact_ids and len(_dumps_compact(payload)) <= TOOL_RESULT_MAX_CHARS:
                 # 结果超过上限会被截断，模型拿不到全文：那时不记快照。
                 _note_file_read(result, req_ctx, ticket=read_ticket)

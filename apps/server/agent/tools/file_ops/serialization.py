@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Literal, cast
 
+from agent.constants import CONTENT_FILE_TYPES
 from models import File
 from utils.text_metrics import count_words
 
@@ -20,6 +21,12 @@ QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS = 200
 QUERY_FILES_DEFAULT_LIMIT = 50
 # 不按 id 的全文列表查询，未显式给 limit 时的默认条数（见 mcp_tools._query_files_sync）。
 QUERY_FILES_FULL_MODE_DEFAULT_LIMIT = 10
+# 不按 id/ids、不带 query 的全文列表总正文上限：保留小体量人物卡/设定集一枪读完，超出则自动降级为 summary。
+QUERY_FILES_LIST_FULL_MAX_TOTAL_CHARS = 25_000
+# 纯目录列表（无 id/ids、无 query）行数超过阈值时收紧默认预览长度：正文缩至 60 字，设定/大纲/人物保 100 字。
+QUERY_FILES_LARGE_LISTING_ROW_THRESHOLD = 20
+QUERY_FILES_LARGE_LISTING_CONTENT_PREVIEW_CHARS = 60
+QUERY_FILES_LARGE_LISTING_REFERENCE_PREVIEW_CHARS = 100
 # query_files(ids=[...]) 单次批量读取的最大文件数。
 QUERY_FILES_MAX_BATCH_IDS = 5
 
@@ -286,15 +293,68 @@ def _normalize_content_preview_chars(content_preview_chars: int | None) -> int:
     return content_preview_chars
 
 
+def resolve_summary_preview_chars_for_listing(
+    file_type: str | None,
+    *,
+    row_count: int,
+    has_query: bool,
+    has_exact_ids: bool,
+    explicit_preview_chars: int | None,
+) -> int | None:
+    """Resolve effective summary preview length for pure directory listings over 20 rows.
+
+    Explicit caller overrides, exact-ID reads, keyword searches, and small listings
+    (``<= 20`` rows) keep their existing preview length. On large pure directory listings
+    (``> 20`` rows, no ``query`` and no ``id``/``ids``), ``draft``/``script`` rows shrink
+    to 60 chars while ``outline``/``character``/``lore`` and other reference rows keep
+    100 chars so project discovery quality stays intact.
+    """
+    if explicit_preview_chars is not None:
+        return explicit_preview_chars
+    if has_exact_ids or has_query or row_count <= QUERY_FILES_LARGE_LISTING_ROW_THRESHOLD:
+        return None
+    if file_type in CONTENT_FILE_TYPES:
+        return QUERY_FILES_LARGE_LISTING_CONTENT_PREVIEW_CHARS
+    return QUERY_FILES_LARGE_LISTING_REFERENCE_PREVIEW_CHARS
+
+
+def downgrade_full_row_to_summary(
+    row: dict[str, Any],
+    *,
+    content_preview_chars: int | None = None,
+) -> dict[str, Any]:
+    """Convert a full-serialized query_files row dict into summary shape without DB re-query."""
+    preview_length = _normalize_content_preview_chars(content_preview_chars)
+    summary = dict(row)
+    raw_content = summary.pop("content", None)
+    content = raw_content if isinstance(raw_content, str) else ""
+    content_length = len(content)
+    preview = content[:preview_length]
+    summary["content_preview"] = preview
+    summary["content_length"] = content_length
+    summary["content_truncated"] = content_length > len(preview)
+    if summary["content_truncated"]:
+        summary.pop("word_count", None)
+    else:
+        summary["word_count"] = count_words(preview)
+    return summary
+
+
 __all__ = [
     "serialize_file",
     "serialize_query_file",
+    "downgrade_full_row_to_summary",
+    "resolve_summary_preview_chars_for_listing",
     "QUERY_FILES_RESPONSE_MODE_SUMMARY",
     "QUERY_FILES_RESPONSE_MODE_FULL",
     "QUERY_FILES_DEFAULT_RESPONSE_MODE",
     "QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS",
     "QUERY_FILES_DEFAULT_LIMIT",
     "QUERY_FILES_FULL_MODE_DEFAULT_LIMIT",
+    "QUERY_FILES_LIST_FULL_MAX_TOTAL_CHARS",
+    "QUERY_FILES_LARGE_LISTING_ROW_THRESHOLD",
+    "QUERY_FILES_LARGE_LISTING_CONTENT_PREVIEW_CHARS",
+    "QUERY_FILES_LARGE_LISTING_REFERENCE_PREVIEW_CHARS",
     "QUERY_FILES_MAX_BATCH_IDS",
     "QUERY_FILES_OMITTED_FIELDS",
     "WRITE_FILE_OMITTED_FIELDS",

@@ -106,8 +106,9 @@ AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS = get_int_env("AGENT_LOOP_COMPACT_MAX_OUTPU
 # leaving safe headroom below the 1M provider context window for system prompt, tool schemas,
 # max_tokens, and tokenizer variance.
 AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS = get_int_env("AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS", 700_000)
-# After a skipped compaction (unusable summary or provider error), wait until the measured
-# prompt has grown by this much before trying again.
+# After a skipped compaction due to unusable model output (e.g. empty/truncated summary),
+# wait until the measured prompt has grown by this much before trying again.
+# Transient provider errors do not back off and retry on the next turn.
 AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS = get_int_env("AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS", 100_000)
 # Hard bound on the replayed history of a loop run (provider tokens): when compaction keeps
 # failing, the oldest items are left out so the session degrades instead of exceeding the
@@ -121,6 +122,8 @@ AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS = get_int_env("AGENT_LOOP_TURN_CONTEXT_MAX_TO
 # Short-TTL Redis cache of the exact SDK wire-format input items at the end of a clean loop
 # turn (agent/loop/wire_prefix_cache.py). Matches MiniMax's ~15m KV-cache window so active
 # multi-turn sessions reuse an identical wire prefix across turns (including pre-run compaction).
+# Payloads are stored gzip+base64 compressed (``zsgz1:``) so ~600k-token sessions stay well
+# below ``AGENT_WIRE_PREFIX_CACHE_MAX_BYTES`` (enforced against the stored compressed size).
 # Set <= 0 to disable.
 AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS = get_int_env(
     "AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS",

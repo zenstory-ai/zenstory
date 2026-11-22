@@ -1345,8 +1345,11 @@ describe('SimpleEditor', () => {
     const view = render(<SimpleEditor {...props} isStreaming streamingContent="" />);
     const textarea = view.container.querySelector('textarea') as HTMLTextAreaElement;
 
-    // Author placeholder must stay hidden while waiting for the first streamed character
+    // Author placeholder must stay hidden while waiting for the first streamed character,
+    // while aria-label keeps the textarea accessible for screen readers / axe-core.
     expect(textarea).toHaveAttribute('placeholder', '');
+    expect(textarea).toHaveAttribute('aria-label', 'editor:placeholder.contentPlaceholder');
+    expect(screen.getByRole('textbox', { name: 'editor:placeholder.contentPlaceholder' })).toBe(textarea);
     expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).not.toBeInTheDocument();
 
     // Banner and canvas waiting state show drafting copy + elapsed seconds
