@@ -45,7 +45,7 @@ describe('StreamActivityLine', () => {
     let snapshot: { title: string; words: number } | null = { title: '第一章', words: 0 }
     render(<StreamActivityLine startedAt={Date.now()} bodyWrite={() => snapshot} />)
 
-    expect(screen.getByText('chat:activity.writingBody:{"title":"第一章"}')).toBeInTheDocument()
+    expect(screen.getByText('chat:activity.preparingBody:{"title":"第一章"}')).toBeInTheDocument()
 
     snapshot = { title: '第一章', words: 1234 }
     act(() => {
@@ -57,7 +57,7 @@ describe('StreamActivityLine', () => {
     act(() => {
       vi.advanceTimersByTime(1000)
     })
-    expect(screen.queryByText(/chat:activity\.writingBody/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/chat:activity\.(preparing|writing)Body/)).not.toBeInTheDocument()
     expect(screen.getByText('chat:activity.elapsed:{"seconds":2}')).toBeInTheDocument()
   })
 })

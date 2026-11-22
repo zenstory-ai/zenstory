@@ -33,6 +33,7 @@ from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
 from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_errors import classify_stream_exception, log_stream_exception
+from agent.core.stream_processor import LEAKED_TOOL_CALL_STOP_REASON
 from agent.core.workflow_events import FileBodyResume, StreamEvent, StreamEventType
 from agent.core.writing_state import WritingState
 from agent.openai_agents.events import parse_mcp_tool_payload
@@ -570,6 +571,8 @@ async def run_loop_agent_streaming(
             failed_ids: set[str] = set()
             # 这次 run 最后一次模型响应撞上了输出上限（runner 在 MESSAGE_END 上的结构化标记）。
             output_capped = False
+            # 等待 <file> 正文时模型开头直接吐出泄漏 tool_call 协议头被早停，需经 FILE_BODY_RESUME 立即纠偏。
+            leaked_tool_call_stopped = False
             shaper = AgentTextShaper(previous_text=accumulated_text, drop_english_narration=drop_english_narration)
 
             async for event in run_support.shape_agent_text(
@@ -588,6 +591,8 @@ async def run_loop_agent_streaming(
                     run_started = True
                 elif event.type == StreamEventType.MESSAGE_END:
                     output_capped = output_capped or event.data.get(OUTPUT_CAPPED_KEY) is True
+                    if event.data.get("stop_reason") == LEAKED_TOOL_CALL_STOP_REASON:
+                        leaked_tool_call_stopped = True
                 elif event.type == StreamEventType.ERROR:
                     errored = True
                 elif getattr(event.type, "value", "") == "steering_received" and run_started:
@@ -692,8 +697,8 @@ async def run_loop_agent_streaming(
                     req_ctx,
                     can_correct=can_correct,
                     english=english,
-                    body_cut=output_capped and ends_on_unclosed_file_block(tail_text),
-                    output_capped=output_capped,
+                    body_cut=(not leaked_tool_call_stopped) and output_capped and ends_on_unclosed_file_block(tail_text),
+                    output_capped=(not leaked_tool_call_stopped) and output_capped,
                 )
                 for notice in notices:
                     yield notice
@@ -701,6 +706,15 @@ async def run_loop_agent_streaming(
                     yield resume_event
                     resume = resume_event.data["request"]
                     if resume.armed:
+                        if leaked_tool_call_stopped:
+                            log_with_context(
+                                logger,
+                                20,  # INFO
+                                "Loop agent routing leaked tool_call early stop into FILE_BODY_RESUME",
+                                run=runs,
+                                file_id=resume.file_id,
+                                correction_attempt=correction_attempts + 1,
+                            )
                         correction_attempts += 1
                         resumed_correction = True
                         state["user_message"] = context or ""
@@ -720,7 +734,7 @@ async def run_loop_agent_streaming(
                     terminated = True
                     break
 
-            if not unexecuted_reported and (
+            if not unexecuted_reported and not leaked_tool_call_stopped and (
                 textual_calls := unexecuted_tool_protocol(tail_text, frozenset(LOOP_TOOL_NAMES))
             ):
                 # 回复里写出了完整的工具调用协议却没有执行：只按协议结构识别，如实记为未完成，不重试。

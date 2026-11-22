@@ -748,7 +748,7 @@ describe('ChatPanel mount smoke', () => {
       options.onToolResult?.('edit_file', 'error', { status: 'error', error_type: 'file_body_pending' }, 'internal')
       options.onFileContentEnd?.('ch-1')
     })
-    await waitFor(() => expect(screen.getByTestId('stream-activity-line')).toHaveTextContent('chat:activity.writingBody'), { timeout: 2500 })
+    await waitFor(() => expect(screen.getByTestId('stream-activity-line')).toHaveTextContent('chat:activity.preparingBody'), { timeout: 2500 })
 
     act(() => {
       options.onFileContent?.('ch-1', '林舟推开门。')

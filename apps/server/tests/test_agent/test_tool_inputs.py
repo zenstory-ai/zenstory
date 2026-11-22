@@ -40,8 +40,8 @@ from agent.tools.tool_inputs import (
 )
 from agent.tools.tool_schemas import TOOL_SCHEMAS
 
-# Compact JSON char count of the hand-written TOOL_SCHEMAS baseline before Pydantic unification.
-BASELINE_TOOL_SCHEMAS_COMPACT_CHARS = 11_453
+# Compact JSON char count budget for TOOL_SCHEMAS (11,453 baseline + concise write_chapter pre-read/<file> guidance).
+BASELINE_TOOL_SCHEMAS_COMPACT_CHARS = 11_530
 
 
 def _parse_mcp(result: dict[str, Any]) -> dict[str, Any]:
@@ -112,10 +112,14 @@ def test_exported_schemas_preserve_required_properties_constraints_and_open_meta
     assert create_props["metadata"] == {"type": "object", "description": "文件元数据（JSON对象）"}
     assert "content" not in create_props and "order" not in create_props
 
-    # write_chapter: chapter minimum=1, file_type enum draft/script, hidden metadata
+    # write_chapter: chapter minimum=1, file_type enum draft/script, hidden metadata, pre-read & immediate <file> guidance
     wc_schema = TOOL_SCHEMAS["write_chapter"]["input_schema"]
     assert wc_schema["required"] == ["chapter", "title", "file_type"]
     assert wc_schema["properties"]["chapter"]["minimum"] == 1
+    assert "<file>" in wc_schema["properties"]["chapter"]["description"]
+    assert "大纲" in wc_schema["properties"]["chapter"]["description"]
+    assert "query_files" in TOOL_SCHEMAS["write_chapter"]["description"]
+    assert "<file>" in TOOL_SCHEMAS["write_chapter"]["description"]
     assert wc_schema["properties"]["title"]["maxLength"] == 255
     assert wc_schema["properties"]["file_type"]["enum"] == ["draft", "script"]
     assert "metadata" not in wc_schema["properties"]

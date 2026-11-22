@@ -367,6 +367,7 @@
     "elapsed": "AI 正在处理 · {{seconds}} 秒",
     "longWaitHint": "写长内容可能要几分钟，请稍等。",
     "longWaitHintMobile": "写长内容可能要几分钟，请保持页面打开。",
+    "preparingBody": "正在构思《{{title}}》开篇…",
     "writingBody": "正在写入《{{title}}》正文…",
     "writingBodyWords_one": "正在写入《{{title}}》正文 · 已写 {{words}} 字",
     "writingBodyWords_other": "正在写入《{{title}}》正文 · 已写 {{words}} 字",
