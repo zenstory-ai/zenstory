@@ -86,7 +86,8 @@ agent/
 │   ├── content_budget.py   # 技能正文 token 预算
 │   └── package.py          # SKILL.md 解析、zip 导入安全检查、导出
 ├── tools/                  # 工具
-│   ├── tool_schemas.py     # provider-neutral 工具 schema（TOOL_SCHEMAS）
+│   ├── tool_inputs.py      # Pydantic v2 工具入参模型（TOOL_INPUT_MODELS）、紧凑 schema 导出与统一中文校验错误
+│   ├── tool_schemas.py     # provider-neutral 工具 schema（由 tool_inputs.py 导出 TOOL_SCHEMAS）
 │   ├── tool_context.py     # AgentRequestContext（强类型请求上下文、短生命周期 session_scope、待写正文/快照/UI 侧通道）
 │   ├── mcp_tools.py        # 工具实现（MCP_TOOL_HANDLERS）
 │   ├── registry.py         # schema / handler / 单循环 agent 工具集的唯一接线处
@@ -248,7 +249,7 @@ agent/
 
 ## 工具
 
-工具清单以 `tools/registry.LOOP_TOOL_NAMES` 为准，每一轮在请求里看到的都是同一份（前缀缓存不分裂）。旧会话历史里调用已删除的工具
+工具清单以 `tools/registry.LOOP_TOOL_NAMES` 为准，每一轮在请求里看到的都是同一份（前缀缓存不分裂）；各工具的 JSON Schema 与运行时参数校验统一以 `tools/tool_inputs.py` 的 Pydantic v2 入参模型（`TOOL_INPUT_MODELS`）为单一真相源，由 `export_tool_schema` 剔除 `title`/`$defs`/`anyOf[..., null]` 冗余并保持 `strict_json_schema=False` + `json_repair` + 结构化中文错误 [pydantic-tool-inputs][n-pydantic-tool-inputs]。旧会话历史里调用已删除的工具
 （handoff_to_agent / request_clarification / parallel_execute）时，SDK 按 `tool_not_found_behavior="return_error_to_model"` 把错误交还模型。
 create_file 录入本轮作者资料时可传 `source_text`：只接受原始作者消息中的非空连续原文（兼容 CRLF、行尾多余空白与连续空行个数差异，唯一命中时截取对应原始切片保存，禁止改写、跳段拼接或补字段），直接沿用创建路径保存；不与 content/empty 混用、不建正文或文件夹，不覆盖同名旧文件。原文复制不进入待写正文状态；模型仍负责选择资料范围，程序不从自然语言判断意图。
 普通 create_file 建好空文件后返回 `awaiting_body` 与 `next_step`（同条模型回复里并列发出的后续流式 `create_file` 以 `pending_empty_file_unwritten` 顺序化挡回，不计入请求级失败熔断上限）；下一次回复没先以 <file> 写完正文就调用的工具
@@ -286,7 +287,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 
 ### 添加工具
 
-1. schema 加进 `tools/tool_schemas.py` 的 `TOOL_SCHEMAS`。
+1. 在 `tools/tool_inputs.py` 定义 Pydantic v2 入参模型并注册进 `TOOL_INPUT_MODELS`，在 `tools/tool_schemas.py` 用 `build_tool_schema` 导出进 `TOOL_SCHEMAS`。
 2. 实现加进 `tools/mcp_tools.py` 的 `MCP_TOOL_HANDLERS`（`registry.TOOL_FUNCTIONS` 由它生成）。
 3. 在 `tools/registry.py` 把它加进 `LOOP_TOOL_NAMES`（加在末尾：顺序变了会让请求的前缀缓存失效）。
 4. 会产生作者可见产出的工具：在 `core/stream_billing.py` 里定义它怎样算产出（`WRITE_TOOL_NAMES` 等），供 `done.produced_output`、`stop_outcome.saved_output` 与时限暂停卡准确记录。
@@ -343,3 +344,4 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-payload-slimming]: ../../../.agents/notes/implemented/architecture/2026-11-21-tool-payload-and-range-slimming.md
 [n-batch-snapshots]: ../../../.agents/notes/implemented/architecture/2026-11-21-batch-tool-calls-and-session-snapshots.md
 [n-run-context-wrapper]: ../../../.agents/notes/implemented/architecture/2026-11-21-agent-run-context-wrapper.md
+[n-pydantic-tool-inputs]: ../../../.agents/notes/implemented/simplification/2026-11-21-agent-pydantic-tool-inputs.md

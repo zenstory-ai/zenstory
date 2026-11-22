@@ -179,17 +179,19 @@ async def invoke_project_tool(
 def _cancels_overdue_file(raw_arguments: str, overdue_ids: set[str]) -> str | None:
     """delete_file 的参数正好是「取消一份待写文件」（精确 id、非递归）时返回这个 id，否则 None。
 
-    与执行路径用同一个参数解析和同一个 recursive 判定，放行的就是将要执行的那次删除。
-    参数解析不了、没有 id、别的文件、递归删除（含删父目录）都不算。
+    与执行路径共用 ``DeleteFileInput`` 校验（含 ``id`` 别名与 ``recursive`` 布尔归一），
+    放行的就是将要执行的那次删除。参数解析不了、没有 id、别的文件、递归删除（含删父目录）都不算。
     """
-    from agent.constants import coerce_bool
+    from agent.tools.tool_inputs import DeleteFileInput, validate_tool_input
 
     parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="delete_file")
     if parse_error is not None or not isinstance(parsed, dict):
         return None
-    file_id = parsed.get("id")
-    if isinstance(file_id, str) and file_id in overdue_ids and not coerce_bool(parsed.get("recursive")):
-        return file_id
+    validated, validation_error = validate_tool_input(DeleteFileInput, parsed, tool_name="delete_file")
+    if validation_error is not None or validated is None:
+        return None
+    if validated.id in overdue_ids and not validated.recursive:
+        return validated.id
     return None
 
 
