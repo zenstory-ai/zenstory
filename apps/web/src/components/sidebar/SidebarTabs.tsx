@@ -48,7 +48,7 @@ export const SidebarTabs: React.FC = () => {
             }`}
           >
             <Icon size={16} aria-hidden="true" />
-            <span className="text-xs mt-0.5 leading-none">
+            <span className="text-xs mt-0.5 leading-none whitespace-nowrap">
               {t(`editor:sidebar.${tab.id}`)}
             </span>
           </button>
