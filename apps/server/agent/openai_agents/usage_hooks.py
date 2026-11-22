@@ -20,7 +20,7 @@ from typing import Any
 
 from agent.core.run_meter import AgentRunMeter, TimingOutcome
 from agent.core.stream_processor import StreamProcessor, extract_reply_prebody
-from agent.tools.mcp_tools import ToolContext
+from agent.tools.tool_context import AgentRequestContext, unwrap_request_context
 from models.llm_usage import LLM_USAGE_SOURCE_AGENT
 from services.usage.llm_usage_service import LLMUsageAttribution, schedule_llm_usage_record
 from utils.logger import get_logger
@@ -145,12 +145,14 @@ class PendingBodyStreamedMixin:
         finally:
             # on_llm_end 抛出的异常会让整个 SDK run 失败；检查只是放行优化，失败只记日志
             try:
-                text = _response_message_text(response)
-                # 没有还在等正文的文件，却先写出了一段 <file> 正文：留给同一回复里的 create_file 认领。
-                # 有这样的文件时 offer 不记下，正文按两次回复协议属于它。
-                offered = extract_reply_prebody(text) is not None and ToolContext.offer_reply_prebody()
-                if not offered and ToolContext.has_pending_empty_file() and _reply_has_closed_file_block(text):
-                    ToolContext.mark_latest_pending_body_streamed()
+                req_ctx = unwrap_request_context(context)
+                if req_ctx is not None:
+                    text = _response_message_text(response)
+                    # 没有还在等正文的文件，却先写出了一段 <file> 正文：留给同一回复里的 create_file 认领。
+                    # 有这样的文件时 offer 不记下，正文按两次回复协议属于它。
+                    offered = extract_reply_prebody(text) is not None and req_ctx.offer_reply_prebody()
+                    if not offered and req_ctx.has_pending_empty_file() and _reply_has_closed_file_block(text):
+                        req_ctx.mark_latest_pending_body_streamed()
             except Exception as exc:  # noqa: BLE001
                 logger.warning(f"Pending file body check after model call failed: {exc}")
 
@@ -163,15 +165,17 @@ class ReadSnapshotPromotionMixin:
     """
 
     async def on_llm_start(self, context: Any, agent: Any, system_prompt: Any, input_items: Any) -> None:
-        try:
-            ToolContext.promote_pending_reads()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Read snapshot promotion before model call failed: {exc}")
-        # 各自兜底：回复序号是待写正文守卫的依据，不能因读快照提升失败而不推进。
-        try:
-            ToolContext.begin_model_reply()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Reply counter advance before model call failed: {exc}")
+        req_ctx = unwrap_request_context(context)
+        if req_ctx is not None:
+            try:
+                req_ctx.promote_pending_reads()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"Read snapshot promotion before model call failed: {exc}")
+            # 各自兜底：回复序号是待写正文守卫的依据，不能因读快照提升失败而不推进。
+            try:
+                req_ctx.begin_model_reply()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"Reply counter advance before model call failed: {exc}")
         await super().on_llm_start(context, agent, system_prompt, input_items)  # type: ignore[misc]
 
 
@@ -194,16 +198,23 @@ def _hooks_class() -> type:
     return cls
 
 
-def agent_usage_attribution() -> LLMUsageAttribution:
+def agent_usage_attribution(
+    request_context: AgentRequestContext | None = None,
+) -> LLMUsageAttribution:
     """The current request's user/project/run id (read before the SDK task starts)."""
     return LLMUsageAttribution(
-        user_id=ToolContext.get_user_id(),
+        user_id=request_context.user_id if request_context is not None else None,
         source=LLM_USAGE_SOURCE_AGENT,
-        project_id=ToolContext.get_project_id(),
+        project_id=request_context.project_id if request_context is not None else None,
         correlation_id=get_agent_run_id(),
     )
 
 
-def build_agent_run_hooks(model: str, *, run_meter: AgentRunMeter | None = None) -> Any:
+def build_agent_run_hooks(
+    model: str,
+    *,
+    run_meter: AgentRunMeter | None = None,
+    request_context: AgentRequestContext | None = None,
+) -> Any:
     """Bind the current request's user/project/run id (read before the SDK task starts)."""
-    return _hooks_class()(agent_usage_attribution(), model, run_meter)
+    return _hooks_class()(agent_usage_attribution(request_context), model, run_meter)

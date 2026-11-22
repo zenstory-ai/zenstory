@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, event
 from sqlmodel import Session, SQLModel, select
 
 from agent.tools.file_ops.crud import FileCRUD
-from agent.tools.mcp_tools import ToolContext
+from agent.tools.tool_context import AgentRequestContext
 from api import agent_api
 from api import files as web
 from core.error_codes import ErrorCode
@@ -128,14 +128,11 @@ def _invoke(session, ids, writer, operation, payload, background):
         if operation == "update":
             return agent_api.update_file(ids["target"], agent_api.FileUpdate(**payload),  _rate_limit=0, context=context)
         return agent_api.move_file(ids["target"], agent_api.FileMove(**payload),  _rate_limit=0, context=context)
-    ToolContext.set_context(session, ids["user"], ids["project"], None)
-    try:
-        crud = FileCRUD(session, ids["user"])
-        if operation == "create":
-            return crud.create_file(ids["project"], **payload)
-        return crud.update_file(ids["target"], **payload)
-    finally:
-        ToolContext.clear_context()
+    req_ctx = AgentRequestContext(session=session, user_id=ids["user"], project_id=ids["project"])
+    crud = FileCRUD(session, ids["user"], request_context=req_ctx)
+    if operation == "create":
+        return crud.create_file(ids["project"], **payload)
+    return crud.update_file(ids["target"], **payload)
 
 
 def _record(record_property, facts):

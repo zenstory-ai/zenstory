@@ -1,12 +1,16 @@
-"""Request-scoped tool execution context and shared state holders.
+"""Request-scoped agent execution context and shared mutable state holders.
 
-Holds ``ToolContext`` along with its request-scoped mutable state containers
-(``_PendingEmptyFileState`` and ``_ReadSnapshots``), separated from the MCP tool
+Holds the strong-typed ``AgentRequestContext`` dataclass along with its
+request-scoped mutable state containers (``_PendingEmptyFileState``,
+``_ReadSnapshots``, and ``_ToolUiPayloadStore``), separated from the MCP tool
 handlers in ``agent.tools.mcp_tools``.
 """
 
+from __future__ import annotations
+
 import contextlib
 import contextvars
+import dataclasses
 import difflib
 import threading
 from collections.abc import Callable, Iterator, Sequence
@@ -22,35 +26,20 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 请求级别的上下文变量
-# Note: Using None as default to avoid mutable default argument (B039)
-_tool_context_var: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
-    "tool_context", default=None
-)
-_owned_session_var: contextvars.ContextVar[Session | None] = contextvars.ContextVar(
-    "owned_session", default=None
-)
+# Per-invocation tool call id (copied cleanly into asyncio.to_thread worker
+# threads and reset deterministically by AgentRequestContext.tool_call_scope).
 _current_tool_call_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "current_tool_call_id", default=None
 )
 
-# 工作线程的 session 隔离标记（见 ToolContext.get_session 与 _run_sync_tool_with_owned_session_cleanup）。
-# 放在工具上下文 dict 里而不是 ContextVar，因为它必须随上下文的浅拷贝一起进到
-# asyncio.to_thread 的线程副本。
-SESSION_ISOLATION_KEY = "isolated_session"
-
 
 class _PendingEmptyFileState:
-    """待写入空文件标记的可变持有者，随请求上下文 dict 在所有子任务间共享。
+    """待写入空文件标记的可变持有者，随 ``AgentRequestContext`` 在所有子任务与工作线程间共享。
 
-    IMPORTANT — 该标记不能存成独立 ContextVar：openai-agents SDK 会为 run loop
-    以及每一次 function tool 调用各包一层 asyncio.create_task，而 create_task 只
-    拷贝当前 contextvars 快照，子任务里对 ContextVar 的重绑定对父上下文与兄弟
-    任务均不可见（同理 asyncio.to_thread / asyncio.gather 的子任务）。因此这里
-    只能原地修改这个持有者对象——set_context 在请求主上下文把它放进
-    _tool_context_var 持有的 dict 后，所有子任务的上下文副本（含
-    set_current_agent 的浅拷贝）引用的都是同一个
-    实例，原地读写天然跨任务可见。
+    ``AgentRequestContext`` 作为单一对象实例通过 ``RunContextWrapper[AgentRequestContext]``
+    及显式参数传给 SDK 回调、工具工作线程、``StreamAdapter`` 与 ``loop/engine``；状态变更
+    原地写入本容器并由同一把 ``threading.Lock`` 保护，天然跨 ``asyncio.create_task`` 与
+    ``asyncio.to_thread`` 可见。
 
     结构从"单槽"改成"按 file_id 的集合"，并把检查与置位收进同一把
     ``threading.Lock``，原因有两条（均为实测缺陷）：
@@ -567,7 +556,7 @@ class _ToolUiPayloadStore:
     edit_file 返回给 LLM 的 function_call_output 省略了仅供前端卡片/撤销使用的
     undo 锚点与精确匹配回显预览；这里按 tool_call_id 暂存这些 UI 字段，
     由 StreamAdapter 在发 SSE tool_result 与落库前合回，请求结束时随
-    ToolContext.clear_context() 清空。
+    AgentRequestContext.clear() 清空。
     """
 
     __slots__ = ("_fallback", "_lock", "_payloads")
@@ -826,255 +815,227 @@ class _ReadSnapshots:
             return list(spans)
 
 
-class ToolContext:
+@dataclasses.dataclass
+class AgentRequestContext:
+    """Strong-typed, request-scoped execution context for the writing agent.
+
+    Instantiated once in ``AgentService.process_stream`` and threaded natively
+    through OpenAI Agents SDK ``RunContextWrapper[AgentRequestContext]`` (for
+    ``FunctionTool.on_invoke_tool``, ``RunHooks``, ``call_model_input_filter``,
+    ``tool_use_behavior``, and ``tool_error_formatter``) as well as explicitly
+    into ``StreamAdapter``, ``loop/engine.py``, ``runner.py``, and MCP tool
+    functions.
+
+    Session lifecycle:
+      - When ``create_session_func`` is configured (production path and
+        concurrent worker-thread tests), :meth:`session_scope` ALWAYS opens a
+        fresh short-lived SQLAlchemy ``Session`` per tool call / unit of work
+        and closes it deterministically on exit — eliminating cross-thread
+        Session sharing across ``asyncio.to_thread``.
+      - Otherwise, when a caller-owned ``session`` is injected (unit tests),
+        :meth:`session_scope` reuses it without closing it.
     """
-    Holds session and user_id for tool execution.
 
-    Uses contextvars for request-level isolation in async environments.
-    Each concurrent request gets its own isolated context.
-    """
+    project_id: str | None = None
+    user_id: str | None = None
+    session_id: str | None = None
+    create_session_func: Callable[[], Session] | None = None
+    session: Session | None = None
+    current_agent: str | None = None
+    notes_append_allowed: bool = False
+    author_message: str | None = None
+    author_steering: list[str] | None = None
+    inflight_tool_writes: list[tuple[str, Any]] | None = None
+    pending_empty_file_state: _PendingEmptyFileState = dataclasses.field(
+        default_factory=_PendingEmptyFileState
+    )
+    skill_content_budget: SkillContentBudget = dataclasses.field(
+        default_factory=SkillContentBudget
+    )
+    read_snapshots: _ReadSnapshots | None = None
+    tool_ui_payloads: _ToolUiPayloadStore = dataclasses.field(
+        default_factory=_ToolUiPayloadStore
+    )
+    skill_tokens_used: dataclasses.InitVar[int] = 0
 
-    @classmethod
-    def set_context(
-        cls,
-        session: Session | None,
-        user_id: str | None,
-        project_id: str,
-        session_id: str | None,
-        create_session_func: Callable[[], Session] | None = None,
-        current_agent: str | None = None,
-        skill_tokens_used: int = 0,
-        author_message: str | None = None,
-        author_steering: list[str] | None = None,
-        read_snapshots: dict[str, str] | None = None,
-        inflight_tool_writes: list[tuple[str, Any]] | None = None,
-    ) -> None:
-        """Set the execution context for tools (request-scoped).
+    def __post_init__(self, skill_tokens_used: int) -> None:
+        if skill_tokens_used and self.skill_content_budget._used == 0:
+            self.skill_content_budget = SkillContentBudget(used=skill_tokens_used)
+        if isinstance(self.read_snapshots, dict):
+            self.read_snapshots = _ReadSnapshots(self.read_snapshots)
 
-        Args:
-            author_message: 作者这一轮的原话（不含选中文本、上下文等拼接内容）。
-                由模型理解本轮意图与范围；程序只校验结构化目标、权限、版本和恢复记录。
-            author_steering: 本轮运行中作者追加的消息（service 的 consumed_steering，
-                同一个 list 对象，运行中会继续追加），只作为模型上下文。
-            skill_tokens_used: 显式选择的技能注入 system prompt 时已占用的技能内容 token，
-                从本次请求的技能内容预算里先扣掉。
-            read_snapshots: 本轮开始时以全文给模型看的文件正文（file_id → 正文），edit_file 的
-                陈旧检查以它为起点（_ReadSnapshots）；None 表示不跟踪（外部调用路径）。
-            inflight_tool_writes: 请求级的在途写工具登记（``RunOutcome.inflight_tool_writes``，
-                同一个 list 对象）；None 表示不登记（见 _offload_write_tool）。
-        """
-        cls._cleanup_owned_session()
-        _tool_context_var.set({
-            "session": session,
-            "user_id": user_id,
-            "project_id": project_id,
-            "session_id": session_id,
-            "create_session_func": create_session_func,
-            "current_agent": current_agent,
-            "pending_empty_file_state": _PendingEmptyFileState(),
-            "skill_content_budget": SkillContentBudget(used=skill_tokens_used),
-            "author_message": author_message,
-            "author_steering": author_steering,
-            "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
-            "inflight_tool_writes": inflight_tool_writes,
-            "tool_ui_payloads": _ToolUiPayloadStore(),
-        })
-        set_context_user_id(user_id)
-        _owned_session_var.set(None)
-        _current_tool_call_id_var.set(None)
+    @property
+    def is_loop_agent(self) -> bool:
+        from agent.tools.registry import LOOP_AGENT_TYPE
 
-    @classmethod
-    def inflight_tool_writes(cls) -> list[tuple[str, Any]] | None:
-        """请求级的在途写工具登记（见 set_context）；没有时为 None。"""
-        registry = cls._get_context().get("inflight_tool_writes")
-        return registry if isinstance(registry, list) else None
+        return self.current_agent == LOOP_AGENT_TYPE
 
-    @classmethod
-    def _get_context(cls) -> dict[str, Any]:
-        """Get current request's context."""
-        context = _tool_context_var.get()
-        return context if context is not None else {}
+    def author_wants_no_body(self) -> bool:
+        """create_file 的 empty 是否生效（单循环 agent 由模型按提示判断，不从原话推断）。"""
+        return self.is_loop_agent
 
-    @classmethod
-    def get_session(cls) -> Session:
-        """Get session, creating one if needed."""
-        context = cls._get_context()
-        if context.get("session"):
-            return context["session"]
-
-        # 隔离标记（工作线程拿到的上下文副本上置位）：本任务**必须**
-        # 自建 session，绝不能复用 contextvars 快照从父上下文继承来的
-        # _owned_session_var。否则多个工作线程会共用同一个 SQLAlchemy Session
-        # （非线程安全），且先结束的线程会在 finally 里把它 close 掉，另一个
-        # 线程还在同一 Session 上跑事务。
-        # 注意不能用「context 里 session 键为 None」当判据：正常请求路径
-        # （service.py 的 _should_offload_session_work 分支）本来就写的是
-        # session=None + create_session_func，那时必须允许复用自有 session。
-        isolated = bool(context.get(SESSION_ISOLATION_KEY))
-
-        owned = _owned_session_var.get()
-        if owned is not None and not isolated:
-            return owned
-
-        create_func = context.get("create_session_func")
-        if create_func:
-            new_session = create_func()
-            _owned_session_var.set(new_session)
-            if isolated:
-                # 本任务已经拥有自己的 session，隔离标记完成使命：就地摘掉，
-                # 后续 get_session() 复用它而不是每次新建（否则会泄漏连接）。
-                # context 是本任务专属的 dict 副本，原地改不影响兄弟任务。
-                context.pop(SESSION_ISOLATION_KEY, None)
-            return new_session
-
-        raise RuntimeError("No session available in ToolContext")
-
-    @classmethod
+    # ---- Session & executor lifecycle --------------------------------------
     @contextlib.contextmanager
-    def short_lived_session(cls) -> Iterator[Session]:
-        """借一个只在 with 块内有效的 session，用完即关、归还连接。
+    def session_scope(self) -> Iterator[Session]:
+        """Yield a short-lived DB Session for one tool call or unit of work.
 
-        供工作流在 agent 边界做的一次性查询（文件清单、空文件核验、空文件回滚）
-        使用：它们跑在 asyncio.to_thread 的工作线程里，不能走 get_session() 懒建
-        并写入 _owned_session_var——那会让一条连接以 idle in transaction 状态
-        一直挂到整轮 SSE 结束（clear_context 才关闭）。上下文里显式放了共享
-        session（SQLite 测试/非 offload 路径）时直接复用它，不由这里关闭。
+        Production sets ``create_session_func=create_session`` so every tool
+        invocation (including concurrent ``asyncio.to_thread`` workers) opens
+        and closes its own isolated ``Session``. Unit tests without a factory
+        inject ``session=db_session``, which is yielded without closing.
         """
-        context = cls._get_context()
-        shared = context.get("session")
-        if shared is not None:
+        if self.create_session_func is not None:
+            session = self.create_session_func()
             try:
-                yield shared
+                yield session
             except Exception:
-                if hasattr(shared, "rollback"):
-                    shared.rollback()
+                if hasattr(session, "rollback"):
+                    try:
+                        session.rollback()
+                    except Exception as exc:
+                        logger.debug(f"Error rolling back short-lived session: {exc}")
+                raise
+            finally:
+                try:
+                    session.close()
+                except Exception as exc:
+                    logger.debug(f"Error closing short-lived session: {exc}")
+            return
+
+        if self.session is not None:
+            try:
+                yield self.session
+            except Exception:
+                if hasattr(self.session, "rollback"):
+                    self.session.rollback()
                 raise
             return
 
-        create_func = context.get("create_session_func")
-        if not create_func:
-            raise RuntimeError("No session available in ToolContext")
+        raise RuntimeError("No session available in AgentRequestContext")
 
-        session = create_func()
+    def executor(self, session: Session) -> FileToolExecutor:
+        """Build a ``FileToolExecutor`` bound to ``session`` and this request context."""
+        return FileToolExecutor(session, self.user_id, request_context=self)
+
+    @contextlib.contextmanager
+    def executor_scope(self) -> Iterator[FileToolExecutor]:
+        """Yield a ``FileToolExecutor`` backed by a short-lived :meth:`session_scope`."""
+        with self.session_scope() as session:
+            yield self.executor(session)
+
+    @contextlib.contextmanager
+    def bind_cost_budget_user(self) -> Iterator[None]:
+        """Bind ``self.user_id`` for ambient cost-budget accounting during the request."""
+        set_context_user_id(self.user_id)
         try:
-            yield session
+            yield
         finally:
-            try:
-                session.close()
-            except Exception as e:
-                logger.debug(f"Error closing short-lived session: {e}")
+            set_context_user_id(None)
 
-    @classmethod
-    def get_session_id(cls) -> str | None:
-        """Get current request session_id."""
-        context = cls._get_context()
-        session_id = context.get("session_id")
-        return session_id if isinstance(session_id, str) and session_id else None
+    def clear(self) -> None:
+        """Clear shared mutable request containers at request end."""
+        self.pending_empty_file_state.clear_all()
+        self.tool_ui_payloads.clear()
+        _current_tool_call_id_var.set(None)
 
-    @classmethod
-    def get_user_id(cls) -> str | None:
-        """Get current request user_id."""
-        context = cls._get_context()
-        user_id = context.get("user_id")
-        return user_id if isinstance(user_id, str) and user_id else None
-
-    @classmethod
-    def get_project_id(cls) -> str | None:
-        """Get current request project_id."""
-        context = cls._get_context()
-        project_id = context.get("project_id")
-        return project_id if isinstance(project_id, str) and project_id else None
-
-    @classmethod
-    def author_wants_no_body(cls) -> bool:
-        """create_file 的 empty 是否生效。
-
-        单循环 agent 由模型按提示判断：它传 empty=true 就是它的判断（写入照旧受撤销 / 版本保护），
-        不从原话推断。
-        """
-        from agent.tools.registry import LOOP_AGENT_TYPE
-
-        return cls.get_current_agent() == LOOP_AGENT_TYPE
-
-    @classmethod
-    def tracks_reads(cls) -> bool:
+    # ---- Read snapshots ----------------------------------------------------
+    def tracks_reads(self) -> bool:
         """当前是应用内对话（有快照容器）：读文件时要记快照、附作者手改。"""
-        return isinstance(cls._get_context().get("read_snapshots"), _ReadSnapshots)
+        return isinstance(self.read_snapshots, _ReadSnapshots)
 
-    @classmethod
-    def read_snapshot(cls, file_id: str) -> str | None:
-        """模型在本请求里最后看到（或自己写下）的这个文件的正文；都没有（或没有上下文）时为 None。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            return holder.get(str(file_id or ""))
+    def read_snapshot(self, file_id: str) -> str | None:
+        """模型在本请求里最后看到（或自己写下）的这个文件的正文；没有时为 None。"""
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            return self.read_snapshots.get(str(file_id or ""))
         return None
 
-    @classmethod
-    def has_seen_file(cls, file_id: str) -> bool:
+    def has_seen_file(self, file_id: str) -> bool:
         """模型在本请求里看过这个文件的全文（上下文全文、按 id 读到、或整份写下的）。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            return holder.seen(str(file_id or ""))
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            return self.read_snapshots.seen(str(file_id or ""))
         return False
 
-    @classmethod
-    def discard_pending_read(cls, file_id: str) -> None:
+    def seen_file_spans(self, file_id: str) -> list[tuple[int, int]]:
+        """模型通过范围读取看到的字符区间列表；未范围读取或快照已变更时返回空列表。"""
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            return self.read_snapshots.seen_spans(str(file_id or ""))
+        return []
+
+    def discard_pending_read(self, file_id: str) -> None:
         """刚读到的正文没有完整交给模型（结果被截断）：不算看过。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            holder.discard_pending_read(str(file_id or ""))
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            self.read_snapshots.discard_pending_read(str(file_id or ""))
 
-    @classmethod
-    def promote_pending_reads(cls) -> None:
+    def promote_pending_reads(self) -> None:
         """一次新的模型调用开始：上一条回复里读到的正文，模型现在看到了。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            holder.promote_pending_reads()
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            self.read_snapshots.promote_pending_reads()
 
-    @classmethod
-    def read_ticket(cls) -> int | None:
+    def read_ticket(self) -> int | None:
         """读库之前调用：返回这次读取的序号，记快照时传回 record_read_snapshot。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            return holder.ticket()
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            return self.read_snapshots.ticket()
         return None
 
-    @classmethod
-    def record_read_snapshot(cls, file_id: str, content: str | None, *, ticket: int | None = None) -> None:
-        """记下当前 agent 这一程读到的正文（下一次模型调用起算数）；没有请求上下文时什么也不做。
+    def record_read_snapshot(
+        self, file_id: str, content: str | None, *, ticket: int | None = None
+    ) -> None:
+        """记下当前 agent 这一程读到的正文（下一次模型调用起算数）。"""
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            self.read_snapshots.record(str(file_id or ""), content or "", kind="read", seq=ticket)
 
-        ticket：读库前取的序号。读库之后、记下之前本请求又写了这个文件时，写下的正文更新，不被这次读取盖过。
-        """
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            holder.record(str(file_id or ""), content or "", kind="read", seq=ticket)
-
-    @classmethod
     def record_range_read_snapshot(
-        cls,
+        self,
         file_id: str,
         full_content: str | None,
         *,
         span: tuple[int, int] | None = None,
         ticket: int | None = None,
     ) -> None:
-        """按范围读取时记下读库那一刻的整份正文与已读字符区间：全文用于陈旧检查，已读区间内允许模糊/近似匹配。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            holder.record(str(file_id or ""), full_content or "", kind="range", seq=ticket, span=span)
+        """按范围读取时记下读库那一刻的整份正文与已读字符区间。"""
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            self.read_snapshots.record(
+                str(file_id or ""), full_content or "", kind="range", seq=ticket, span=span
+            )
 
-    @classmethod
-    def seen_file_spans(cls, file_id: str) -> list[tuple[int, int]]:
-        """模型通过范围读取看到的字符区间列表；未范围读取或快照已变更时返回空列表。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            return holder.seen_spans(str(file_id or ""))
-        return []
+    def record_written_snapshot(
+        self,
+        file_id: str,
+        content: str | None,
+        *,
+        full: bool = False,
+        seen_spans: Sequence[tuple[int, int]] | None = None,
+    ) -> None:
+        """记下本请求自己写下的正文（立即生效）；full=整份写下，模型知道全文。"""
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            self.read_snapshots.record(
+                str(file_id or ""), content or "", kind="written", full=full, seen_spans=seen_spans
+            )
 
-    @classmethod
+    def written_snapshot_state(self, file_id: str) -> Any:
+        """写入前的快照状态，提交失败时用 restore_written_snapshot 还原。"""
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            return self.read_snapshots.written_state(str(file_id or ""))
+        return None
+
+    def restore_written_snapshot(self, file_id: str, state: Any) -> None:
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            self.read_snapshots.restore_written(str(file_id or ""), state)
+
+    def begin_agent_run(self) -> None:
+        """新一程开始：上一程读到的正文模型看不到，不再算「模型看到的」。"""
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            self.read_snapshots.begin_agent_run()
+
+    def drop_initial_read_snapshots(self, file_ids: Any) -> None:
+        """移除指定的初始快照（轮间压缩成功后撤销跨轮会话结转）。"""
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            self.read_snapshots.drop_initial(file_ids)
+
+    # ---- Tool UI payload side-channel --------------------------------------
     @contextlib.contextmanager
-    def tool_call_scope(cls, call_id: str | None) -> Iterator[None]:
-        """绑定当前正在执行的工具调用 id（供工作线程写入 UI 侧通道）。"""
+    def tool_call_scope(self, call_id: str | None) -> Iterator[None]:
+        """绑定当前正在执行的工具调用 id（按协程/工作线程隔离，供 UI 侧通道写入）。"""
         normalized = call_id.strip() if isinstance(call_id, str) and call_id.strip() else None
         token = _current_tool_call_id_var.set(normalized)
         try:
@@ -1082,13 +1043,11 @@ class ToolContext:
         finally:
             _current_tool_call_id_var.reset(token)
 
-    @classmethod
-    def current_tool_call_id(cls) -> str | None:
+    def current_tool_call_id(self) -> str | None:
         return _current_tool_call_id_var.get()
 
-    @classmethod
     def record_tool_ui_payload(
-        cls,
+        self,
         call_id: str | None,
         payload: dict[str, Any],
         *,
@@ -1097,13 +1056,12 @@ class ToolContext:
         """按 tool_call_id 暂存仅供 SSE/UI 卡片与撤销使用的字段（不进入 LLM function_call_output）。"""
         if not payload or (not call_id and fallback_key is None):
             return
-        store = cls._get_context().get("tool_ui_payloads")
-        if isinstance(store, _ToolUiPayloadStore):
-            store.put(str(call_id) if call_id else None, payload, fallback_key=fallback_key)
+        self.tool_ui_payloads.put(
+            str(call_id) if call_id else None, payload, fallback_key=fallback_key
+        )
 
-    @classmethod
     def pop_tool_ui_payload(
-        cls,
+        self,
         call_id: str | None,
         *,
         fallback_key: tuple[str, str] | None = None,
@@ -1111,361 +1069,130 @@ class ToolContext:
         """取出并删除指定 tool_call_id 的 UI 侧通道字段（供 StreamAdapter 合并）。"""
         if not call_id and fallback_key is None:
             return None
-        store = cls._get_context().get("tool_ui_payloads")
-        if isinstance(store, _ToolUiPayloadStore):
-            return store.pop(str(call_id) if call_id else None, fallback_key=fallback_key)
-        return None
+        return self.tool_ui_payloads.pop(
+            str(call_id) if call_id else None, fallback_key=fallback_key
+        )
 
-    @classmethod
-    def record_written_snapshot(
-        cls,
-        file_id: str,
-        content: str | None,
-        *,
-        full: bool = False,
-        seen_spans: Sequence[tuple[int, int]] | None = None,
+    # ---- Pending empty-file / chapter-replacement state --------------------
+    def set_pending_empty_file(
+        self, file_id: str, title: str, version: str | None = None
     ) -> None:
-        """记下本请求自己写下的正文（立即生效）；full=整份写下（创建 / 整份覆盖），模型知道全文。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            holder.record(str(file_id or ""), content or "", kind="written", full=full, seen_spans=seen_spans)
+        self.pending_empty_file_state.add(file_id, title, version)
 
-    @classmethod
-    def written_snapshot_state(cls, file_id: str) -> Any:
-        """写入前的快照状态，提交失败时用 restore_written_snapshot 还原。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            return holder.written_state(str(file_id or ""))
-        return None
+    def clear_pending_empty_file(self, file_id: str | None = None) -> None:
+        self.pending_empty_file_state.discard(file_id)
 
-    @classmethod
-    def restore_written_snapshot(cls, file_id: str, state: Any) -> None:
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            holder.restore_written(str(file_id or ""), state)
+    def has_pending_empty_file(self) -> bool:
+        return self.pending_empty_file_state.has_pending()
 
-    @classmethod
-    def begin_agent_run(cls) -> None:
-        """换下一个 agent（或同一 agent 的下一程）：上一程读到的正文它看不到，不再算「模型看到的」。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            holder.begin_agent_run()
+    def get_pending_empty_file(self) -> dict[str, str] | None:
+        return self.pending_empty_file_state.latest()
 
-    @classmethod
-    def drop_initial_read_snapshots(cls, file_ids: Any) -> None:
-        """移除指定的初始快照（轮间压缩成功后撤销跨轮会话结转）。"""
-        holder = cls._get_context().get("read_snapshots")
-        if isinstance(holder, _ReadSnapshots):
-            holder.drop_initial(file_ids)
+    def get_pending_empty_files(self) -> list[dict[str, str]]:
+        return self.pending_empty_file_state.snapshot()
 
-    @classmethod
-    def get_current_agent(cls) -> str | None:
-        """Get current agent type bound to tool execution context."""
-        context = cls._get_context()
-        current_agent = context.get("current_agent")
-        return current_agent if isinstance(current_agent, str) and current_agent else None
+    def pending_empty_file_for(self, file_id: str) -> dict[str, Any] | None:
+        return self.pending_empty_file_state.entry_for(str(file_id or ""))
 
-    @classmethod
-    def set_notes_append_allowed(cls, allowed: bool) -> None:
-        """Set only from the current validated router decision before agent tools run."""
-        context = cls._get_context()
-        if context:
-            _tool_context_var.set({**context, "notes_append_allowed": allowed is True})
+    def begin_model_reply(self) -> None:
+        self.pending_empty_file_state.begin_reply()
 
-    @classmethod
-    def set_current_agent(cls, current_agent: str | None) -> None:
-        """Update current agent in request-scoped context.
+    def overdue_file_bodies(self) -> list[dict[str, Any]]:
+        return self.pending_empty_file_state.overdue_unwritten_files()
 
-        The runner sets it for each agent run and resets it to None at run end; tools read it
-        (e.g. the loop-only create_file / write_chapter rules), so it lives in the mutable
-        request context rather than a value frozen at run start.
-        """
-        context = cls._get_context()
-        if not context:
-            return
-        next_context = dict(context)
-        if isinstance(current_agent, str) and current_agent:
-            next_context["current_agent"] = current_agent
-        else:
-            next_context.pop("current_agent", None)
-        _tool_context_var.set(next_context)
+    def mark_pending_body_streamed(self, file_id: str) -> None:
+        self.pending_empty_file_state.mark_body_streamed(file_id)
 
-    @classmethod
-    def _cleanup_owned_session(cls) -> None:
-        """Clean up owned session if exists."""
-        owned = _owned_session_var.get()
-        if owned is not None:
-            try:
-                owned.close()
-            except Exception as e:
-                logger.debug(f"Error closing owned session: {e}")
-            _owned_session_var.set(None)
+    def offer_reply_prebody(self) -> bool:
+        return self.pending_empty_file_state.offer_reply_prebody()
 
-    @classmethod
-    def clear_context(cls) -> None:
-        """Clear context and clean up owned session."""
-        cls._cleanup_owned_session()
-        # 先清空共享持有者：其它任务里仍存活的上下文副本引用同一个对象，
-        # 仅把本上下文的 ContextVar 置 None 无法让它们看到清理结果。
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.clear_all()
-        ui_store = cls._get_context().get("tool_ui_payloads")
-        if isinstance(ui_store, _ToolUiPayloadStore):
-            ui_store.clear()
-        _current_tool_call_id_var.set(None)
-        _tool_context_var.set(None)
-        set_context_user_id(None)
+    def take_reply_prebody(self) -> bool:
+        return self.pending_empty_file_state.take_reply_prebody()
 
-    @classmethod
-    def get_skill_content_budget(cls) -> SkillContentBudget:
-        """本次请求共享的技能内容预算；没有请求上下文时每次给一份完整预算。"""
-        context = _tool_context_var.get()
-        budget = context.get("skill_content_budget") if isinstance(context, dict) else None
-        if isinstance(budget, SkillContentBudget):
-            return budget
-        return SkillContentBudget()
+    def mark_latest_pending_body_streamed(self) -> None:
+        self.pending_empty_file_state.mark_latest_body_streamed()
 
-    @classmethod
-    def _get_pending_empty_file_state(
-        cls, *, create: bool = False
-    ) -> _PendingEmptyFileState | None:
-        """获取请求上下文中跨任务共享的待写入文件持有者（create=True 时为单测按需初始化）。"""
-        context = _tool_context_var.get()
-        if isinstance(context, dict):
-            state = context.get("pending_empty_file_state")
-            if isinstance(state, _PendingEmptyFileState):
-                return state
-            if create:
-                state = _PendingEmptyFileState()
-                context["pending_empty_file_state"] = state
-                return state
-        elif create:
-            state = _PendingEmptyFileState()
-            _tool_context_var.set({"pending_empty_file_state": state})
-            return state
-        return None
+    def pending_empty_file_version(self, file_id: str) -> str | None:
+        return self.pending_empty_file_state.version(file_id)
 
-    @classmethod
-    def set_pending_empty_file(cls, file_id: str, title: str, version: str | None = None) -> None:
-        """标记有一个空文件等待流式写入（追加进集合，不覆盖已有条目）。
+    def rearm_pending_file_body(self, file_id: str) -> bool:
+        return self.pending_empty_file_state.rearm(file_id)
 
-        version：文件建好时的 updated_at（create_file 结果里的值）；没有时补不成也不会回滚它。
-        """
-        state = cls._get_pending_empty_file_state(create=True)
-        assert state is not None
-        state.add(file_id, title, version)
-
-    @classmethod
-    def clear_pending_empty_file(cls, file_id: str | None = None) -> None:
-        """清除待写入文件标记。
-
-        Args:
-            file_id: 传入时只摘掉指向该文件的条目（流式写入收尾用）；
-                省略表示无条件清空全部（请求/流结束时的兜底清理）。
-        """
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.discard(file_id)
-
-    @classmethod
-    def has_pending_empty_file(cls) -> bool:
-        """检查是否有待写入的空文件。"""
-        return cls.get_pending_empty_file() is not None
-
-    @classmethod
-    def get_pending_empty_file(cls) -> dict[str, str] | None:
-        """获取最近一个待写入的空文件信息（与历史单槽语义保持一致）。"""
-        state = cls._get_pending_empty_file_state()
-        return state.latest() if state is not None else None
-
-    @classmethod
-    def pending_empty_file_for(cls, file_id: str) -> dict[str, Any] | None:
-        """file_id 当前是待写入正文或待整章替换的文件时返回 {file_id, title, created_here}，否则为 None。"""
-        state = cls._get_pending_empty_file_state()
-        return state.entry_for(str(file_id or "")) if state is not None else None
-
-    @classmethod
-    def begin_model_reply(cls) -> None:
-        """一次新的模型调用开始（usage_hooks 的 on_llm_start）。"""
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.begin_reply()
-
-    @classmethod
-    def overdue_file_bodies(cls) -> list[dict[str, str]]:
-        """上一次回复建好、这次回复还没写正文的文件（两次回复协议被跳过）：见 overdue_unwritten_files；没有请求上下文时为空。"""
-        state = cls._get_pending_empty_file_state()
-        return state.overdue_unwritten_files() if state is not None else []
-
-    @classmethod
-    def mark_pending_body_streamed(cls, file_id: str) -> None:
-        """这个待写文件的正文已完整出现在本条模型回复里（条目留着，等 adapter 落库后清除）。"""
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.mark_body_streamed(file_id)
-
-    @classmethod
-    def offer_reply_prebody(cls) -> bool:
-        """本条回复在没有待写文件时先写出了闭合的 <file> 正文（on_llm_end 调用）。见 _PendingEmptyFileState。"""
-        state = cls._get_pending_empty_file_state()
-        return state.offer_reply_prebody() if state is not None else False
-
-    @classmethod
-    def take_reply_prebody(cls) -> bool:
-        """同一回复里建空文件的 create_file 认领先写出的那段正文；未建请求上下文时为 False。"""
-        state = cls._get_pending_empty_file_state()
-        return state.take_reply_prebody() if state is not None else False
-
-    @classmethod
-    def mark_latest_pending_body_streamed(cls) -> None:
-        """最近一个待写文件的正文已以闭合 <file> 块完整出现在本条模型回复里。
-
-        由 on_llm_end 钩子在 SDK 执行本轮工具前调用（见 usage_hooks），让同一
-        回复里紧跟的 create_file 不被尚未落库的上一份正文误拒。条目仍留着，
-        等 adapter 落库后清除。未建请求上下文时为 no-op。
-        """
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.mark_latest_body_streamed()
-
-    @classmethod
-    def pending_empty_file_version(cls, file_id: str) -> str | None:
-        """待写空文件建好时的版本（create_file 结果里的 updated_at）；不知道时为 None。"""
-        state = cls._get_pending_empty_file_state()
-        return state.version(file_id) if state is not None else None
-
-    @classmethod
-    def rearm_pending_file_body(cls, file_id: str) -> bool:
-        """StreamAdapter 为空文件纠偏轮重新等这个文件的正文（见 _PendingEmptyFileState.rearm）。
-
-        下一次回复照样要先以 <file> 写正文，其他工具仍按 file_body_pending 拒绝。返回这个文件的
-        待写守卫是否确实恢复：没有请求上下文、或它已不是待写条目时为 False，调用方不能恢复捕获。
-        """
-        state = cls._get_pending_empty_file_state()
-        return state.rearm(file_id) if state is not None else False
-
-    @classmethod
     def try_reserve_pending_empty_file(
-        cls, ticket: str, title: str
+        self, ticket: str, title: str
     ) -> tuple[bool, str | None]:
-        """原子地占用"待流式写入"名额（检查 + 置位在同一把锁内完成）。
+        return self.pending_empty_file_state.try_reserve(ticket, title)
 
-        Args:
-            ticket: 调用方生成的唯一票据；成功后必须用它调 bind/release 收尾。
-            title: 本次要创建的文件标题（占坑期间用于拼错误信息）。
-
-        Returns:
-            (是否占坑成功, 挡住本次创建的文件标题)。
-        """
-        state = cls._get_pending_empty_file_state(create=True)
-        assert state is not None
-        return state.try_reserve(ticket, title)
-
-    @classmethod
     def bind_pending_empty_file(
-        cls,
+        self,
         ticket: str,
         file_id: str,
         title: str,
         version: str | None = None,
         replacement: dict[str, Any] | None = None,
     ) -> None:
-        """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本（或整章替换的定位结果）。"""
-        state = cls._get_pending_empty_file_state(create=True)
-        assert state is not None
-        state.bind(ticket, file_id, title, version, replacement)
+        self.pending_empty_file_state.bind(ticket, file_id, title, version, replacement)
 
-    @classmethod
-    def close_pending_body_files(cls) -> list[dict[str, str]]:
-        """这一轮提前结束：不再接收新的待写文件，返回此刻的待写条目（见 _PendingEmptyFileState.close）。"""
-        state = cls._get_pending_empty_file_state(create=True)
-        assert state is not None
-        return state.close()
+    def release_pending_empty_file(self, ticket: str) -> None:
+        self.pending_empty_file_state.release(ticket)
 
-    @classmethod
-    def pending_body_files_closed(cls) -> bool:
-        state = cls._get_pending_empty_file_state()
-        return state.is_closed() if state is not None else False
+    def close_pending_body_files(self) -> list[dict[str, str]]:
+        return self.pending_empty_file_state.close()
 
-    @classmethod
-    def pending_chapter_replacement(cls, file_id: str) -> dict[str, Any] | None:
-        """write_chapter 定为整章替换、还在等正文的已有章节的定位结果；不是时为 None。"""
-        state = cls._get_pending_empty_file_state()
-        return state.replacement(file_id) if state is not None else None
+    def pending_body_files_closed(self) -> bool:
+        return self.pending_empty_file_state.is_closed()
 
-    @classmethod
-    def mark_chapter_replacement_saved(cls, file_id: str) -> None:
-        """StreamAdapter 已把这一章的整章替换正文落库（replace_body 成功）。"""
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.mark_replacement_saved(file_id)
+    def pending_chapter_replacement(self, file_id: str) -> dict[str, Any] | None:
+        return self.pending_empty_file_state.replacement(file_id)
 
-    @classmethod
-    def mark_chapter_body_saved(cls, file_id: str, title: str = "", file_type: str = "") -> None:
-        """StreamAdapter 已把这个文件的完整正文落库（新建或整章替换，不含截断补全）。"""
-        state = cls._get_pending_empty_file_state()
-        if state is not None and file_id:
-            state.mark_chapter_body_saved(file_id, title, file_type)
+    def mark_chapter_replacement_saved(self, file_id: str) -> None:
+        self.pending_empty_file_state.mark_replacement_saved(file_id)
 
-    @classmethod
-    def mark_cut_body_saved(cls, file_id: str, title: str = "") -> None:
-        """StreamAdapter 把一份没等到 </file>、按流结束补全的新正文落了库（截断补全，不是完整正文）。"""
-        state = cls._get_pending_empty_file_state()
-        if state is not None and file_id:
-            state.mark_cut_body_saved(file_id, title)
+    def mark_chapter_body_saved(
+        self, file_id: str, title: str = "", file_type: str = ""
+    ) -> None:
+        if file_id:
+            self.pending_empty_file_state.mark_chapter_body_saved(file_id, title, file_type)
 
-    @classmethod
-    def take_cut_bodies(cls) -> dict[str, str]:
-        """取走上次取走之后按截断补全保存的新正文：id -> 标题（loop 引擎每个 run 边界取一次）。"""
-        state = cls._get_pending_empty_file_state()
-        return state.take_cut_bodies() if state is not None else {}
+    def mark_cut_body_saved(self, file_id: str, title: str = "") -> None:
+        if file_id:
+            self.pending_empty_file_state.mark_cut_body_saved(file_id, title)
 
-    @classmethod
-    def saved_bodies_this_request(cls) -> dict[str, str]:
-        """本请求确认落库的完整正文：id -> 标题（保存点记下的结构化事实，不看模型文字）。"""
-        state = cls._get_pending_empty_file_state()
-        return state.saved_body_titles() if state is not None else {}
+    def take_cut_bodies(self) -> dict[str, str]:
+        return self.pending_empty_file_state.take_cut_bodies()
 
-    @classmethod
-    def saved_content_body_ids(cls) -> list[str]:
-        """本请求确认落库的完整正文里的章节 / 分集正文（大纲、人物等资料文件不在内）。"""
-        state = cls._get_pending_empty_file_state()
-        return state.saved_content_body_ids() if state is not None else []
+    def saved_bodies_this_request(self) -> dict[str, str]:
+        return self.pending_empty_file_state.saved_body_titles()
 
-    @classmethod
-    def chapter_body_saved_this_request(cls, file_id: str) -> bool:
-        """这一章的正文是不是本请求里已经由 write_chapter 写完并保存的。"""
-        state = cls._get_pending_empty_file_state()
-        return state.chapter_body_saved(file_id) if state is not None else False
+    def saved_content_body_ids(self) -> list[str]:
+        return self.pending_empty_file_state.saved_content_body_ids()
 
-    @classmethod
-    def unsaved_chapter_replacement_ids(cls) -> set[str]:
-        """本请求里 write_chapter 定过、最近一次定位之后新正文还没有落库的已有章节。"""
-        state = cls._get_pending_empty_file_state()
-        return state.unsaved_replacement_ids() if state is not None else set()
+    def chapter_body_saved_this_request(self, file_id: str) -> bool:
+        return self.pending_empty_file_state.chapter_body_saved(file_id)
 
-    @classmethod
-    def release_pending_empty_file(cls, ticket: str) -> None:
-        """占坑作废（创建失败 / 建出来的是文件夹）：回滚票据，不留残留守卫。"""
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.release(ticket)
+    def unsaved_chapter_replacement_ids(self) -> set[str]:
+        return self.pending_empty_file_state.unsaved_replacement_ids()
 
-    @classmethod
-    def get_pending_empty_files(cls) -> list[dict[str, str]]:
-        """获取**全部**待写入空文件（按置位先后）。
 
-        单槽时代只能看到最后一个，先建的空文件会成为无人认领的孤儿；
-        需要逐个补写/逐个上报的调用方（如单循环 agent 的纠偏分支）用这个。
-        """
-        state = cls._get_pending_empty_file_state()
-        return state.snapshot() if state is not None else []
+def unwrap_request_context(source: Any) -> AgentRequestContext | None:
+    """Extract an ``AgentRequestContext`` from itself or an SDK wrapper.
 
-    @classmethod
-    def get_executor(cls) -> FileToolExecutor:
-        """Get a FileToolExecutor with current context."""
-        session = cls.get_session()
-        context = cls._get_context()
-        user_id = context.get("user_id")
-        return FileToolExecutor(session, user_id)
+    Handles:
+      - ``AgentRequestContext`` directly
+      - ``RunContextWrapper[AgentRequestContext]`` / SDK ``ToolContext`` (``.context``)
+      - ``CallModelData[AgentRequestContext]`` (``.context``)
+      - ``ToolErrorFormatterArgs[AgentRequestContext]`` (``.run_context.context``)
+    """
+    if isinstance(source, AgentRequestContext):
+        return source
+    if source is None:
+        return None
+    inner = getattr(source, "context", None)
+    if isinstance(inner, AgentRequestContext):
+        return inner
+    run_ctx = getattr(source, "run_context", None)
+    if run_ctx is not None:
+        inner = getattr(run_ctx, "context", None)
+        if isinstance(inner, AgentRequestContext):
+            return inner
+    return None

@@ -44,8 +44,8 @@ from agent.openai_agents.runner import (
     run_openai_agents_streaming_agent,
 )
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
-from agent.tools.mcp_tools import ToolContext
 from agent.tools.registry import LOOP_AGENT_TYPE, LOOP_TOOL_NAMES
+from agent.tools.tool_context import AgentRequestContext
 from config.agent_runtime import AGENT_COLLABORATION_MAX_ITERATIONS
 from utils.logger import get_logger, log_with_context
 
@@ -198,20 +198,20 @@ def _armed_replacement_id(result: Any) -> str:
     return ""
 
 
-def _word_count_note(file_ids: list[str]) -> str:
+def _word_count_note(file_ids: list[str], req_ctx: AgentRequestContext) -> str:
     """续跑说明里附上本请求写过的正文落库后的字数，模型给作者报真实字数。"""
     try:
-        counts = run_support.collect_body_word_counts(file_ids)
+        counts = run_support.collect_body_word_counts(file_ids, request_context=req_ctx)
     except Exception as exc:  # noqa: BLE001 - 读不到字数不影响续跑
         logger.debug(f"Word counts for the continuation note failed: {type(exc).__name__}")
         return ""
     return run_support.format_body_word_counts(counts)
 
 
-def _cut_word_count_note(file_ids: list[str]) -> str:
+def _cut_word_count_note(file_ids: list[str], req_ctx: AgentRequestContext) -> str:
     """截断续写说明里附上截断处的落库字数，明确标为截断时的数（续写后会变）。"""
     try:
-        counts = run_support.collect_body_word_counts(file_ids)
+        counts = run_support.collect_body_word_counts(file_ids, request_context=req_ctx)
     except Exception as exc:  # noqa: BLE001 - 读不到字数不影响续跑
         logger.debug(f"Word counts for the cut continuation note failed: {type(exc).__name__}")
         return ""
@@ -240,6 +240,7 @@ async def _drain_boundary_steering(get_steering_messages: Any) -> list[dict[str,
 
 
 async def _settle_pending_empty_files(
+    req_ctx: AgentRequestContext,
     *,
     can_correct: bool,
     english: bool,
@@ -254,24 +255,26 @@ async def _settle_pending_empty_files(
     """
     unfinished: list[dict[str, str]] = []
     replacements: list[dict[str, str]] = []
-    for entry in ToolContext.get_pending_empty_files():
+    for entry in req_ctx.get_pending_empty_files():
         file_id = str(entry.get("file_id") or entry.get("id") or "")
         title = str(entry.get("title") or ("Untitled" if english else "未命名"))
-        armed = ToolContext.pending_chapter_replacement(file_id)
+        armed = req_ctx.pending_chapter_replacement(file_id)
         if armed is not None:
             # write_chapter 定下的整章替换没收到正文：原文没动、不是空文件，不回滚、不发空文件卡。
             replacements.append({"file_id": file_id, "title": title, "updated_at": str(armed.get("updated_at") or "")})
             continue
-        state = await asyncio.to_thread(empty_files.probe_pending_file_body, file_id)
+        state = await asyncio.to_thread(
+            empty_files.probe_pending_file_body, file_id, request_context=req_ctx
+        )
         if state in (empty_files.PENDING_BODY_WRITTEN, empty_files.PENDING_BODY_GONE):
-            ToolContext.clear_pending_empty_file(file_id)
+            req_ctx.clear_pending_empty_file(file_id)
             continue
         unfinished.append({"file_id": file_id, "title": title})
     if replacements and not unfinished and can_correct and replacements[-1]["updated_at"]:
         # 能纠偏时为这一章恢复正文捕获（StreamAdapter 核对定位时的版本），模型只需用 <file> 写正文。
         target = replacements[-1]
         for other in replacements[:-1]:
-            ToolContext.clear_pending_empty_file(other["file_id"])
+            req_ctx.clear_pending_empty_file(other["file_id"])
         resume = FileBodyResume(file_id=target["file_id"], expected_updated_at=target["updated_at"])
         # 这次 run 停在没闭合的 <file> 上、又撞上了输出上限（runner 的结构化标记）：如实说新正文被截断，而不是没写。
         template = _CHAPTER_REPLACE_CUT_RETRY_CONTEXT if body_cut else _CHAPTER_REPLACE_RETRY_CONTEXT
@@ -280,30 +283,37 @@ async def _settle_pending_empty_files(
         return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), notices, []
     for other in replacements:
         # 补不成：作废这次定位，原文保持不变。
-        ToolContext.clear_pending_empty_file(other["file_id"])
+        req_ctx.clear_pending_empty_file(other["file_id"])
     notices = [_rewrite_not_saved_event(english)] if replacements else []
     if not unfinished:
         return None, None, notices, []
     if can_correct:
         target = unfinished[-1]
-        facts = await asyncio.to_thread(empty_files.resume_target_version, target["file_id"])
+        facts = await asyncio.to_thread(
+            empty_files.resume_target_version, target["file_id"], request_context=req_ctx
+        )
         if facts is not None:
             resume = FileBodyResume(file_id=target["file_id"], expected_updated_at=facts[0])
             template = _EMPTY_FILE_CUT_CORRECTION_CONTEXT if output_capped else _EMPTY_FILE_CORRECTION_CONTEXT
             context = template.format(title=target["title"], file_id=target["file_id"])
             return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), notices, []
-    return None, None, notices, [await _empty_file_card(unfinished, None)]
+    return None, None, notices, [await _empty_file_card(unfinished, None, req_ctx)]
 
 
 async def _body_cut_followup(
-    cut_bodies: dict[str, str], read_guard: RepeatReadGuard, english: bool
+    cut_bodies: dict[str, str],
+    read_guard: RepeatReadGuard,
+    english: bool,
+    req_ctx: AgentRequestContext,
 ) -> tuple[str, StreamEvent]:
     """新正文被输出上限截断、已保存到截断处：返回 (续跑说明, 给作者的固定说明)。
 
     续跑说明给出截断处附近已保存的原文，要求从断点 append 续写；给作者的说明不说这一章已经写完。
     """
     file_id = list(cut_bodies)[-1]
-    tail = await asyncio.to_thread(run_support.read_body_tail, file_id, _BODY_CUT_TAIL_CHARS)
+    tail = await asyncio.to_thread(
+        run_support.read_body_tail, file_id, _BODY_CUT_TAIL_CHARS, request_context=req_ctx
+    )
     titles = {
         fid: title or read_guard.files_written.get(fid) or read_guard.files_targeted.get(fid) or ""
         for fid, title in cut_bodies.items()
@@ -313,7 +323,7 @@ async def _body_cut_followup(
     title = titles[file_id] or ("this chapter" if english else "这一章")
     template = _BODY_CUT_CONTEXT_EN if english else _BODY_CUT_CONTEXT
     followup = template.format(title=title, file_id=file_id, tail=tail[1] if tail else "") + _cut_word_count_note(
-        list(cut_bodies)
+        list(cut_bodies), req_ctx
     )
     joiner = ", " if english else "、"
     named = joiner.join((f'"{t}"' if english else f"《{t}》") for t in titles.values() if t) or (
@@ -332,13 +342,13 @@ async def _body_cut_followup(
     return followup, notice
 
 
-def _abandon_armed_replacements(english: bool) -> list[StreamEvent]:
+def _abandon_armed_replacements(english: bool, req_ctx: AgentRequestContext) -> list[StreamEvent]:
     """作废所有还在等正文的整章替换定位（原文不动）；有作废时返回一条「未保存」说明。"""
     abandoned = False
-    for entry in ToolContext.get_pending_empty_files():
+    for entry in req_ctx.get_pending_empty_files():
         file_id = str(entry.get("file_id") or entry.get("id") or "")
-        if ToolContext.pending_chapter_replacement(file_id) is not None:
-            ToolContext.clear_pending_empty_file(file_id)
+        if req_ctx.pending_chapter_replacement(file_id) is not None:
+            req_ctx.clear_pending_empty_file(file_id)
             abandoned = True
     return [_rewrite_not_saved_event(english)] if abandoned else []
 
@@ -348,7 +358,11 @@ def _rewrite_not_saved_event(english: bool) -> StreamEvent:
     return StreamEvent(type=StreamEventType.TEXT, data={"text": "\n\n" + rewrite_not_saved_notice(english)})
 
 
-async def _empty_file_card(unfinished: list[dict[str, str]], resume: FileBodyResume | None) -> StreamEvent:
+async def _empty_file_card(
+    unfinished: list[dict[str, str]],
+    resume: FileBodyResume | None,
+    req_ctx: AgentRequestContext,
+) -> StreamEvent:
     """补不成时回滚能确认的空文件，发既有的 empty_file_correction 卡（同图的口径）。"""
     from agent.core.workflow_events import FILE_BODY_RESUME_VERSION_CHANGED
 
@@ -358,16 +372,21 @@ async def _empty_file_card(unfinished: list[dict[str, str]], resume: FileBodyRes
         else set()
     )
     rollback_entries = empty_files.with_creation_versions(
-        [entry for entry in unfinished if entry["file_id"] not in kept_ids]
+        [entry for entry in unfinished if entry["file_id"] not in kept_ids],
+        request_context=req_ctx,
     )
     rolled_back = (
-        await asyncio.to_thread(empty_files.rollback_unfinished_empty_files, rollback_entries)
+        await asyncio.to_thread(
+            empty_files.rollback_unfinished_empty_files,
+            rollback_entries,
+            request_context=req_ctx,
+        )
         if rollback_entries
         else set()
     )
     for entry in unfinished:
         if entry["file_id"] in rolled_back:
-            ToolContext.clear_pending_empty_file(entry["file_id"])
+            req_ctx.clear_pending_empty_file(entry["file_id"])
     unresolved = [entry for entry in unfinished if entry["file_id"] not in rolled_back]
     log_with_context(
         logger,
@@ -396,6 +415,7 @@ async def _empty_file_card(unfinished: list[dict[str, str]], resume: FileBodyRes
 
 
 def _can_soft_land_self_check(
+    req_ctx: AgentRequestContext,
     *,
     output_capped: bool,
     created_files: bool,
@@ -410,9 +430,9 @@ def _can_soft_land_self_check(
         output_capped
         or created_files
         or run_resumed
-        or (set(ToolContext.saved_content_body_ids()) - self_checked_ids)
-        or ToolContext.has_pending_empty_file()
-        or ToolContext.unsaved_chapter_replacement_ids()
+        or (set(req_ctx.saved_content_body_ids()) - self_checked_ids)
+        or req_ctx.has_pending_empty_file()
+        or req_ctx.unsaved_chapter_replacement_ids()
         or cut_bodies
         or textual_calls
         or has_steering
@@ -424,11 +444,24 @@ async def run_loop_agent_streaming(
     *,
     get_steering_messages: Any | None = None,
     max_runs: int = AGENT_COLLABORATION_MAX_ITERATIONS,
+    request_context: AgentRequestContext | None = None,
 ) -> AsyncIterator[StreamEvent]:
     """跑完单循环 agent 的一轮，产出与图相同类型的工作流事件（不含路由 / 角色 / 交接事件）。"""
     english = _english(state)
+    req_ctx = (
+        request_context
+        if isinstance(request_context, AgentRequestContext)
+        else state.get("request_context")
+        if isinstance(state.get("request_context"), AgentRequestContext)
+        else AgentRequestContext(
+            project_id=state.get("project_id") or None,
+            user_id=state.get("user_id") or None,
+            session_id=state.get("session_id"),
+        )
+    )
+    state["request_context"] = req_ctx
     state["tool_failure_breaker"] = ToolFailureBreaker()
-    state["repeat_read_guard"] = RepeatReadGuard()
+    state["repeat_read_guard"] = RepeatReadGuard(request_context=req_ctx)
     if not isinstance(state.get("run_meter"), AgentRunMeter):
         state["run_meter"] = AgentRunMeter()
     run_meter: AgentRunMeter = state["run_meter"]
@@ -444,10 +477,10 @@ async def run_loop_agent_streaming(
         else ""
     )
 
-    ToolContext.set_current_agent(LOOP_AGENT_TYPE)
+    req_ctx.current_agent = LOOP_AGENT_TYPE
     # 写作约定由模型按提示判断是否追加（只追加、不删改、expected_notes 冲突保护照旧）。
-    ToolContext.set_notes_append_allowed(True)
-    ToolContext.begin_agent_run()
+    req_ctx.notes_append_allowed = True
+    req_ctx.begin_agent_run()
 
     runs = 0
     correction_attempts = 0
@@ -467,7 +500,7 @@ async def run_loop_agent_streaming(
             if runs > 0 and run_meter.past_wrap_up:
                 if pending_self_check:
                     task_events, has_incomplete = await task_board_completion.auto_finalize_task_board_on_completion(
-                        read_guard
+                        read_guard, request_context=req_ctx
                     )
                     if not has_incomplete:
                         # 正文已确认落库、任务板无未完待办、无待写空文件/截断残稿/未保存替换/未执行工具与插话：
@@ -496,7 +529,10 @@ async def run_loop_agent_streaming(
                     for task_event in task_events:
                         yield task_event
                 # 请求时间快用完：不再开新的 run，停在已经完成的部分（同图层收尾的暂停卡）。
-                yield StreamEvent(type=StreamEventType.TEXT, data={"text": await run_support.wrap_up_text(english)})
+                yield StreamEvent(
+                    type=StreamEventType.TEXT,
+                    data={"text": await run_support.wrap_up_text(english, request_context=req_ctx)},
+                )
                 yield StreamEvent(
                     type=StreamEventType.ITERATION_EXHAUSTED,
                     data={
@@ -544,6 +580,7 @@ async def run_loop_agent_streaming(
                     get_steering_messages=get_steering_messages,
                     agent_directive=truncation_directive if runs == 1 else "",
                     run_policy=run_policy,
+                    request_context=req_ctx,
                 ),
                 shaper,
             ):
@@ -575,14 +612,14 @@ async def run_loop_agent_streaming(
                         reported_unsaved_ids.discard(rearmed_id)
                 if event.type == StreamEventType.ITERATION_EXHAUSTED and event.data.get("layer") == "tool_call":
                     tool_call_exhausted = True
-                    if ToolContext.has_pending_empty_file():
+                    if req_ctx.has_pending_empty_file():
                         # 等 run 收尾（StreamAdapter 跑完 MESSAGE_END 补存尾部正文）后再按结构化事实附空文件状态。
                         deferred_exhausted = event
                         continue
                 yield event
 
             if run_policy.deferred_wall_clock_exhausted is not None and not errored:
-                cut_after_self_check = ToolContext.take_cut_bodies()
+                cut_after_self_check = req_ctx.take_cut_bodies()
                 boundary_steering = await _drain_boundary_steering(get_steering_messages)
                 if boundary_steering:
                     append_pending_steering(state, [msg["content"] for msg in boundary_steering])
@@ -596,6 +633,7 @@ async def run_loop_agent_streaming(
                     else []
                 )
                 if _can_soft_land_self_check(
+                    req_ctx,
                     output_capped=output_capped,
                     created_files=bool(create_ids - failed_ids),
                     run_resumed=run_resumed,
@@ -605,7 +643,7 @@ async def run_loop_agent_streaming(
                     has_steering=bool(mid_run_steering or boundary_steering),
                 ):
                     task_events, has_incomplete = await task_board_completion.auto_finalize_task_board_on_completion(
-                        read_guard
+                        read_guard, request_context=req_ctx
                     )
                     if not has_incomplete:
                         log_with_context(
@@ -630,9 +668,11 @@ async def run_loop_agent_streaming(
             if deferred_exhausted is not None:
                 # 耗尽后不再重试：作废还在等正文的整章替换并如实说明（原文没动，不是空文件，不交给空文件核验——
                 # 那里按「文件已有正文」把它静默清掉）。
-                for notice in _abandon_armed_replacements(english):
+                for notice in _abandon_armed_replacements(english, req_ctx):
                     yield notice
-                file_facts = await empty_files.settle_empty_files_after_exhaustion(LOOP_AGENT_TYPE, english)
+                file_facts = await empty_files.settle_empty_files_after_exhaustion(
+                    LOOP_AGENT_TYPE, english, request_context=req_ctx
+                )
                 yield StreamEvent(
                     type=StreamEventType.ITERATION_EXHAUSTED,
                     data={**deferred_exhausted.data, **file_facts},
@@ -641,7 +681,7 @@ async def run_loop_agent_streaming(
                 terminated = True
                 break
 
-            if ToolContext.has_pending_empty_file():
+            if req_ctx.has_pending_empty_file():
                 can_correct = (
                     runs < max_runs
                     and correction_attempts < empty_files.MAX_FILE_CORRECTION_ATTEMPTS
@@ -649,6 +689,7 @@ async def run_loop_agent_streaming(
                     and not run_meter.past_wrap_up
                 )
                 context, resume_event, notices, settle_events = await _settle_pending_empty_files(
+                    req_ctx,
                     can_correct=can_correct,
                     english=english,
                     body_cut=output_capped and ends_on_unclosed_file_block(tail_text),
@@ -664,15 +705,15 @@ async def run_loop_agent_streaming(
                         resumed_correction = True
                         state["user_message"] = context or ""
                         continue
-                    if ToolContext.pending_chapter_replacement(resume.file_id) is not None:
+                    if req_ctx.pending_chapter_replacement(resume.file_id) is not None:
                         # 整章替换的捕获没能恢复（版本变了等）：作废定位，原文不动，不发空文件卡。
-                        ToolContext.clear_pending_empty_file(resume.file_id)
+                        req_ctx.clear_pending_empty_file(resume.file_id)
                         yield _rewrite_not_saved_event(english)
                     pending = [
                         {"file_id": str(e.get("file_id") or ""), "title": str(e.get("title") or "")}
-                        for e in ToolContext.get_pending_empty_files()
+                        for e in req_ctx.get_pending_empty_files()
                     ]
-                    settle_events = [await _empty_file_card(pending, resume)] if pending else []
+                    settle_events = [await _empty_file_card(pending, resume, req_ctx)] if pending else []
                 for settle_event in settle_events:
                     yield settle_event
                 if settle_events:
@@ -702,30 +743,30 @@ async def run_loop_agent_streaming(
             followup: str | None = None
             # 这次 run 里没等到 </file>、按流结束补全保存的新正文（StreamAdapter 保存点的结构化事实）。
             # 每个 run 边界都取走，只有这次 run 撞上输出上限时才按截断续写处理。
-            cut_bodies = ToolContext.take_cut_bodies()
+            cut_bodies = req_ctx.take_cut_bodies()
             ended_on_file = ends_on_file_block(tail_text) or (
                 (bool(create_ids - failed_ids) or run_resumed) and ends_on_unclosed_file_block(tail_text)
             )
             # 本请求确认落库的完整章节 / 分集正文（StreamAdapter 保存点记下的结构化事实）里还没自查过的：
             # 不管 </file> 之后模型有没有再写一句总结，都按保存事实续跑一次自查。大纲、人物等资料文件不在内，
             # 它们照旧只在停在 </file> 上时续跑。
-            saved_bodies = ToolContext.saved_bodies_this_request()
-            new_saved = set(ToolContext.saved_content_body_ids()) - self_checked_ids
+            saved_bodies = req_ctx.saved_bodies_this_request()
+            new_saved = set(req_ctx.saved_content_body_ids()) - self_checked_ids
             if (
                 output_capped
                 and cut_bodies
                 and ends_on_unclosed_file_block(tail_text)
-                and not ToolContext.has_pending_empty_file()
+                and not req_ctx.has_pending_empty_file()
             ):
                 # 这次 run 停在没闭合的 <file> 正文上、最后一次响应撞上输出上限、正文按截断补全保存了：
                 # 是被截断，不是写完，不说「已保存，请自查」。
-                followup, cut_notice = await _body_cut_followup(cut_bodies, read_guard, english)
+                followup, cut_notice = await _body_cut_followup(cut_bodies, read_guard, english, req_ctx)
                 yield cut_notice
-            elif not ToolContext.has_pending_empty_file() and (
+            elif not req_ctx.has_pending_empty_file() and (
                 new_saved or ((bool(create_ids - failed_ids) or run_resumed) and ended_on_file)
             ):
-                # 定位过整章替换、新正文却没落库的章节（ToolContext 的结构化保存事实）：不算已保存，不列它的原稿字数。
-                unsaved_ids = ToolContext.unsaved_chapter_replacement_ids()
+                # 定位过整章替换、新正文却没落库的章节（AgentRequestContext 的结构化保存事实）：不算已保存，不列它的原稿字数。
+                unsaved_ids = req_ctx.unsaved_chapter_replacement_ids()
                 # 写入事实：工具确认的改动 + 还没保存的整章替换目标（定位结果） + 落库确认的正文。
                 written = {
                     **read_guard.files_written,
@@ -744,7 +785,7 @@ async def run_loop_agent_streaming(
                         "this chapter" if english else "这一章"
                     )
                     template = _REPLACE_UNSAVED_CONTEXT_EN if english else _REPLACE_UNSAVED_CONTEXT
-                    followup = template.format(titles=unsaved_titles) + _word_count_note(list(saved))
+                    followup = template.format(titles=unsaved_titles) + _word_count_note(list(saved), req_ctx)
                 else:
                     titles = "、".join(f"《{t}》" for t in saved.values() if t) or "（见下）"
                     written_ids = set(saved)
@@ -756,7 +797,7 @@ async def run_loop_agent_streaming(
                     else:
                         template = _BODY_RESAVED_CONTEXT_EN if english else _BODY_RESAVED_CONTEXT
                     self_checked_ids |= written_ids
-                    followup = template.format(titles=titles) + _word_count_note(list(saved))
+                    followup = template.format(titles=titles) + _word_count_note(list(saved), req_ctx)
                     if (
                         new_saved
                         and not unsaved_ids
@@ -765,7 +806,7 @@ async def run_loop_agent_streaming(
                     ):
                         pending_self_check = True
                         followup_ended_on_file = bool(ended_on_file)
-                        content_ids = set(ToolContext.saved_content_body_ids()) - unsaved_ids
+                        content_ids = set(req_ctx.saved_content_body_ids()) - unsaved_ids
                         followup_saved_titles = [
                             t for fid, t in saved.items() if fid in content_ids and t
                         ] or [t for fid, t in saved.items() if fid in new_saved and t]
@@ -785,7 +826,9 @@ async def run_loop_agent_streaming(
                 )
             if followup is None:
                 # 正常结束：与图相同，按本请求实际写出的文件把任务板上对应的任务收尾（什么都没写时不补）。
-                task_events, _ = await task_board_completion.auto_finalize_task_board_on_completion(read_guard)
+                task_events, _ = await task_board_completion.auto_finalize_task_board_on_completion(
+                    read_guard, request_context=req_ctx
+                )
                 for task_event in task_events:
                     yield task_event
                 terminated = True
@@ -822,4 +865,4 @@ async def run_loop_agent_streaming(
         log_stream_exception(logger, "Loop agent stream error", exc, info)
         yield StreamEvent(type=StreamEventType.ERROR, data=info.as_event_data(error_type=type(exc).__name__))
     finally:
-        ToolContext.set_current_agent(None)
+        req_ctx.current_agent = None

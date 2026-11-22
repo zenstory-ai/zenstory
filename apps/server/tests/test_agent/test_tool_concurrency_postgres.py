@@ -14,19 +14,16 @@ The agent runner currently sets::
         tool_execution=ToolExecutionConfig(max_function_tool_concurrency=1),
     )
 
-This serialises all tool calls to prevent concurrent access to the single
-SQLAlchemy Session stored in ToolContext._owned_session_var.  Raising the cap
-to N>1 is only safe when every concurrent tool call receives its own,
-independently-committed Session (item 1.1).
+This serialises all tool calls when desired; each concurrent tool call receives
+its own short-lived SQLAlchemy Session via ``AgentRequestContext.session_scope()``
+(replacing the old global ``ToolContext._owned_session_var``).
 
-This test verifies the Session-isolation contract that item 1.1 must satisfy:
+This test verifies the Session-isolation contract on a live PostgreSQL pool:
 when N tool calls run concurrently each must obtain a DISTINCT Session object,
 and the connection pool must return to its baseline depth after all calls
 complete.
 
-Skipped because:
-  (a) There is no Postgres instance in the dev / unit-test environment.
-  (b) Item 1.1 (per-call session isolation) is not yet implemented.
+Skipped unless RUN_PG_CONCURRENCY_GATE=1 and TEST_DATABASE_URL are set.
 
 See: .omc/plans/agent-layer-improvements.md Phase 1, items 1.1 and 1.5.
 """
@@ -86,9 +83,8 @@ class TestToolConcurrencySessionIsolation:
     These tests must pass before max_function_tool_concurrency may be raised
     above 1.  They depend on:
       - A live Postgres instance (TEST_DATABASE_URL env var)
-      - Item 1.1: ToolContext._get_or_create_session() returning a fresh,
-        independently-scoped Session for every tool invocation rather than
-        recycling the single owned Session.
+      - AgentRequestContext.session_scope() returning a fresh,
+        independently-scoped Session for every tool invocation.
     """
 
     def test_concurrent_tool_calls_get_distinct_sessions(self):
@@ -102,33 +98,36 @@ class TestToolConcurrencySessionIsolation:
         if not _PG_DSN:
             pytest.skip("TEST_DATABASE_URL not set")
 
+        from sqlmodel import Session
 
-        from agent.tools.mcp_tools import ToolContext
+        from agent.core.request_context import AgentRequestContext
+
+        engine = _make_pg_engine(_PG_DSN)
+        req_ctx = AgentRequestContext(create_session_func=lambda: Session(engine))
 
         CONCURRENCY = 4
         sessions_seen: list[int] = []  # ids of Session objects
 
         async def simulate_tool_call(call_index: int) -> None:
             """Simulate a single tool call acquiring a Session."""
-            # Item 1.1 must ensure each call gets its own Session.
-            session = ToolContext._get_or_create_session()
-            sessions_seen.append(id(session))
-            # Hold briefly to maximise overlap with sibling coroutines.
-            await asyncio.sleep(0.01)
-            # Each call must close / release its own session (item 1.1 contract).
-            session.close()
+            with req_ctx.session_scope() as session:
+                sessions_seen.append(id(session))
+                # Hold briefly to maximise overlap with sibling coroutines.
+                await asyncio.sleep(0.01)
 
-        asyncio.run(
-            asyncio.gather(*[simulate_tool_call(i) for i in range(CONCURRENCY)])
-        )
+        try:
+            asyncio.run(
+                asyncio.gather(*[simulate_tool_call(i) for i in range(CONCURRENCY)])
+            )
+        finally:
+            engine.dispose()
 
         assert len(sessions_seen) == CONCURRENCY, (
             f"Expected {CONCURRENCY} session acquisitions, got {len(sessions_seen)}"
         )
         assert len(set(sessions_seen)) == CONCURRENCY, (
             "All concurrent tool calls must receive DISTINCT Session objects; "
-            f"got {len(set(sessions_seen))} unique out of {CONCURRENCY} calls. "
-            "Implement per-call session isolation (item 1.1) before raising the cap."
+            f"got {len(set(sessions_seen))} unique out of {CONCURRENCY} calls."
         )
 
     def test_connection_pool_returns_to_baseline_after_concurrent_calls(self):
@@ -143,22 +142,21 @@ class TestToolConcurrencySessionIsolation:
             pytest.skip("TEST_DATABASE_URL not set")
 
         from sqlalchemy import text
+        from sqlmodel import Session
 
-        from agent.tools.mcp_tools import ToolContext
+        from agent.core.request_context import AgentRequestContext
 
         engine = _make_pg_engine(_PG_DSN)
+        req_ctx = AgentRequestContext(create_session_func=lambda: Session(engine))
         baseline = _pool_checkedout(engine)
 
         CONCURRENCY = 4
 
         async def simulate_tool_call_with_query(call_index: int) -> None:
             """Simulate a tool call that runs a trivial DB query."""
-            session = ToolContext._get_or_create_session()
-            try:
+            with req_ctx.session_scope() as session:
                 # Execute a cheap read to actually check out a connection.
                 session.execute(text("SELECT 1"))
-            finally:
-                session.close()
 
         asyncio.run(
             asyncio.gather(
@@ -169,8 +167,7 @@ class TestToolConcurrencySessionIsolation:
         after = _pool_checkedout(engine)
         assert after <= baseline, (
             f"Connection pool leaked: {after} connections checked out after concurrent "
-            f"calls, expected ≤ {baseline} (baseline). "
-            "Ensure every per-call Session is closed in a finally block (item 1.1)."
+            f"calls, expected ≤ {baseline} (baseline)."
         )
         engine.dispose()
 
@@ -186,8 +183,12 @@ class TestToolConcurrencySessionIsolation:
             pytest.skip("TEST_DATABASE_URL not set")
 
         from sqlalchemy import text
+        from sqlmodel import Session
 
-        from agent.tools.mcp_tools import ToolContext
+        from agent.core.request_context import AgentRequestContext
+
+        engine = _make_pg_engine(_PG_DSN)
+        req_ctx = AgentRequestContext(create_session_func=lambda: Session(engine))
 
         # Track what each call observed about the other's write.
         observations: dict[int, bool] = {}
@@ -198,8 +199,7 @@ class TestToolConcurrencySessionIsolation:
         sentinel_b = str(uuid.uuid4())
 
         async def writer_a() -> None:
-            session = ToolContext._get_or_create_session()
-            try:
+            with req_ctx.session_scope() as session:
                 # Write sentinel_a but do NOT commit yet.
                 session.execute(
                     text("CREATE TEMP TABLE IF NOT EXISTS _gate_test (val TEXT)")
@@ -217,12 +217,9 @@ class TestToolConcurrencySessionIsolation:
                 ).scalar()
                 observations[0] = int(row) == 0  # True = no cross-contamination
                 session.rollback()
-            finally:
-                session.close()
 
         async def writer_b() -> None:
-            session = ToolContext._get_or_create_session()
-            try:
+            with req_ctx.session_scope() as session:
                 session.execute(
                     text("CREATE TEMP TABLE IF NOT EXISTS _gate_test (val TEXT)")
                 )
@@ -238,10 +235,11 @@ class TestToolConcurrencySessionIsolation:
                 ).scalar()
                 observations[1] = int(row) == 0  # True = no cross-contamination
                 session.rollback()
-            finally:
-                session.close()
 
-        asyncio.run(asyncio.gather(writer_a(), writer_b()))
+        try:
+            asyncio.run(asyncio.gather(writer_a(), writer_b()))
+        finally:
+            engine.dispose()
 
         assert observations.get(0) is True, (
             "writer_a saw writer_b's uncommitted row — sessions are not isolated."

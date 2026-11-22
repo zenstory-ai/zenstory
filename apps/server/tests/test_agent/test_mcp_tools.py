@@ -14,11 +14,29 @@ from agent.tools.mcp_tools import (
     query_files,
     update_project,
 )
+from agent.tools.tool_context import AgentRequestContext
 
 
 def _parse_payload(result: dict) -> dict:
     text = result["content"][0]["text"]
     return json.loads(text)
+
+
+def _mock_req_ctx(
+    mock_executor: MagicMock,
+    *,
+    project_id: str = "proj-1",
+    session_id: str | None = "sess-1",
+    user_id: str | None = None,
+) -> AgentRequestContext:
+    req_ctx = AgentRequestContext(
+        session=MagicMock(),
+        user_id=user_id,
+        project_id=project_id,
+        session_id=session_id,
+    )
+    req_ctx.executor = MagicMock(return_value=mock_executor)
+    return req_ctx
 
 
 @pytest.mark.asyncio
@@ -31,11 +49,8 @@ async def test_update_project_supports_empty_string_and_returns_compat_fields():
         "current_status": {"summary": ""},
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ):
-        result = await update_project({"summary": ""})
+    req_ctx = _mock_req_ctx(mock_executor)
+    result = await update_project({"summary": ""}, request_context=req_ctx)
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -64,11 +79,8 @@ async def test_update_project_accepts_current_phase_camel_case_alias():
         "current_status": {"current_phase": "已写至第5章"},
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ):
-        result = await update_project({"currentPhase": "已写至第5章"})
+    req_ctx = _mock_req_ctx(mock_executor)
+    result = await update_project({"currentPhase": "已写至第5章"}, request_context=req_ctx)
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -93,11 +105,9 @@ async def test_update_project_passes_empty_tasks_array_when_present():
         "tasks": [],
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ):
-        result = await update_project({"tasks": []})
+    req_ctx = _mock_req_ctx(mock_executor)
+    with patch("agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts", return_value=None):
+        result = await update_project({"tasks": []}, request_context=req_ctx)
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -117,12 +127,11 @@ async def test_update_project_forwards_trusted_written_artifact_ids_outside_mode
     mock_executor = MagicMock()
     mock_executor.execute_update_plan.return_value = {"status": "success", "tasks": []}
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch("agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts", return_value=None):
+    req_ctx = _mock_req_ctx(mock_executor)
+    with patch("agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts", return_value=None):
         result = await update_project(
             {"tasks": []},
+            request_context=req_ctx,
             written_artifact_ids=["file-1"],
         )
 
@@ -149,14 +158,15 @@ async def test_update_project_tasks_only_can_auto_sync_current_phase():
         "current_status": {"current_phase": "已写至第5章"},
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
+    req_ctx = _mock_req_ctx(mock_executor)
+    with patch(
         "agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts",
         return_value="已写至第5章",
     ):
-        result = await update_project({"tasks": [{"task": "写第5章", "status": "done"}]})
+        result = await update_project(
+            {"tasks": [{"task": "写第5章", "status": "done"}]},
+            request_context=req_ctx,
+        )
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -188,14 +198,15 @@ async def test_update_project_tasks_only_logs_info_not_warning():
         "tasks": [{"task": "写第5章", "status": "done"}],
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
+    req_ctx = _mock_req_ctx(mock_executor)
+    with patch(
         "agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts",
         return_value=None,
     ), patch("agent.tools.mcp_tools.log_with_context") as mock_log:
-        result = await update_project({"tasks": [{"task": "写第5章", "status": "done"}]})
+        result = await update_project(
+            {"tasks": [{"task": "写第5章", "status": "done"}]},
+            request_context=req_ctx,
+        )
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -215,14 +226,15 @@ async def test_update_project_tasks_only_auto_sync_failure_is_non_blocking():
         "tasks": [{"task": "写第5章", "status": "done"}],
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
+    req_ctx = _mock_req_ctx(mock_executor)
+    with patch(
         "agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts",
         side_effect=RuntimeError("boom"),
     ), patch("agent.tools.mcp_tools.log_with_context") as mock_log:
-        result = await update_project({"tasks": [{"task": "写第5章", "status": "done"}]})
+        result = await update_project(
+            {"tasks": [{"task": "写第5章", "status": "done"}]},
+            request_context=req_ctx,
+        )
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -256,13 +268,14 @@ async def test_update_project_propagates_rejected_plan_without_phase_sync(
         "tasks": [],
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
+    req_ctx = _mock_req_ctx(mock_executor)
+    with patch(
         "agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts",
     ) as suggest_phase:
-        result = await update_project({"tasks": [{"task": "写第5章", "status": "done"}]})
+        result = await update_project(
+            {"tasks": [{"task": "写第5章", "status": "done"}]},
+            request_context=req_ctx,
+        )
 
     payload = _parse_payload(result)
     assert payload["status"] == "error"
@@ -288,11 +301,8 @@ async def test_update_project_reports_partial_when_fields_update_but_plan_is_rej
         "tasks": [],
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ):
-        result = await update_project({"summary": "new", "tasks": []})
+    req_ctx = _mock_req_ctx(mock_executor)
+    result = await update_project({"summary": "new", "tasks": []}, request_context=req_ctx)
 
     payload = _parse_payload(result)
     assert payload["status"] == "partial"
@@ -304,7 +314,6 @@ async def test_update_project_reports_partial_when_fields_update_but_plan_is_rej
 @pytest.mark.unit
 async def test_create_file_infers_order_from_episode_title_when_order_missing(db_session):
     """create_file tool should infer `order` from titles like 第8集 when caller omits order."""
-    from agent.tools.mcp_tools import ToolContext
     from models import File, Project, User
 
     suffix = uuid4().hex[:8]
@@ -338,21 +347,21 @@ async def test_create_file_infers_order_from_episode_title_when_order_missing(db
     db_session.commit()
     db_session.refresh(folder)
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-1",
     )
-    try:
-        result = await create_file({
+    result = await create_file(
+        {
             "title": "第8集：测试",
             "file_type": "outline",
             "parent_id": folder.id,
             "content": "outline",
-        })
-    finally:
-        ToolContext.clear_context()
+        },
+        request_context=req_ctx,
+    )
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -364,7 +373,6 @@ async def test_create_file_infers_order_from_episode_title_when_order_missing(db
 @pytest.mark.unit
 async def test_create_file_preserves_explicit_order_even_when_title_has_another_sequence(db_session):
     """A validated explicit order is structured input and wins over title parsing."""
-    from agent.tools.mcp_tools import ToolContext
     from models import File, Project, User
 
     suffix = uuid4().hex[:8]
@@ -398,22 +406,22 @@ async def test_create_file_preserves_explicit_order_even_when_title_has_another_
     db_session.commit()
     db_session.refresh(folder)
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-order-fix",
     )
-    try:
-        result = await create_file({
+    result = await create_file(
+        {
             "title": "第58章 真相",
             "file_type": "draft",
             "parent_id": folder.id,
             "order": 580,
             "content": "content",
-        })
-    finally:
-        ToolContext.clear_context()
+        },
+        request_context=req_ctx,
+    )
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -425,7 +433,6 @@ async def test_create_file_preserves_explicit_order_even_when_title_has_another_
 @pytest.mark.unit
 async def test_create_file_explicit_order_wins_title_sequence_for_chapter_files(db_session):
     """Chapter-like files also preserve a validated explicit order."""
-    from agent.tools.mcp_tools import ToolContext
     from models import File, Project, User
 
     suffix = uuid4().hex[:8]
@@ -459,22 +466,22 @@ async def test_create_file_explicit_order_wins_title_sequence_for_chapter_files(
     db_session.commit()
     db_session.refresh(folder)
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-order-lock",
     )
-    try:
-        result = await create_file({
+    result = await create_file(
+        {
             "title": "第58章 真相",
             "file_type": "draft",
             "parent_id": folder.id,
             "order": 1,
             "content": "content",
-        })
-    finally:
-        ToolContext.clear_context()
+        },
+        request_context=req_ctx,
+    )
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -488,15 +495,15 @@ async def test_edit_file_forwards_continue_on_error():
     mock_executor = MagicMock()
     mock_executor.edit_file.return_value = {"id": "f-1", "edits_applied": 1}
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1"},
-    ):
-        result = await edit_file({
+    req_ctx = _mock_req_ctx(mock_executor, session_id=None)
+    result = await edit_file(
+        {
             "id": "f-1",
             "edits": [{"op": "append", "text": "x"}],
             "continue_on_error": True,
-        })
+        },
+        request_context=req_ctx,
+    )
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -522,11 +529,11 @@ async def test_edit_file_reports_access_refusal_as_permission_denied():
     mock_executor = MagicMock()
     mock_executor.edit_file.side_effect = ForbiddenError("Access denied")
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1"},
-    ):
-        result = await edit_file({"id": "f-1", "edits": [{"op": "append", "text": "x"}]})
+    req_ctx = _mock_req_ctx(mock_executor, session_id=None)
+    result = await edit_file(
+        {"id": "f-1", "edits": [{"op": "append", "text": "x"}]},
+        request_context=req_ctx,
+    )
 
     payload = _parse_payload(result)
     assert payload["status"] == "error"
@@ -542,14 +549,14 @@ async def test_edit_file_accepts_file_id_alias():
     mock_executor = MagicMock()
     mock_executor.edit_file.return_value = {"id": "f-1", "edits_applied": 1}
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1"},
-    ):
-        result = await edit_file({
+    req_ctx = _mock_req_ctx(mock_executor, session_id=None)
+    result = await edit_file(
+        {
             "file_id": "f-1",
             "edits": [{"op": "append", "text": "x"}],
-        })
+        },
+        request_context=req_ctx,
+    )
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -574,17 +581,15 @@ async def test_tool_result_payload_is_truncated_when_exceeding_limit():
         "content": "x" * 2000,
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1"},
-    ), patch(
-        "agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS",
-        180,
-    ):
-        result = await edit_file({
-            "id": "f-1",
-            "edits": [{"op": "append", "text": "x"}],
-        })
+    req_ctx = _mock_req_ctx(mock_executor, session_id=None)
+    with patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 180):
+        result = await edit_file(
+            {
+                "id": "f-1",
+                "edits": [{"op": "append", "text": "x"}],
+            },
+            request_context=req_ctx,
+        )
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -600,17 +605,15 @@ async def test_tool_error_payload_is_truncated_when_exceeding_limit():
     mock_executor = MagicMock()
     mock_executor.edit_file.side_effect = ValueError("boom-" + ("x" * 2000))
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1"},
-    ), patch(
-        "agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS",
-        180,
-    ):
-        result = await edit_file({
-            "id": "f-1",
-            "edits": [{"op": "append", "text": "x"}],
-        })
+    req_ctx = _mock_req_ctx(mock_executor, session_id=None)
+    with patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 180):
+        result = await edit_file(
+            {
+                "id": "f-1",
+                "edits": [{"op": "append", "text": "x"}],
+            },
+            request_context=req_ctx,
+        )
 
     payload = _parse_payload(result)
     assert payload["status"] == "error"
@@ -625,16 +628,16 @@ async def test_query_files_forwards_new_wrapper_params():
     mock_executor = MagicMock()
     mock_executor.query_files.return_value = [{"id": "f-1"}]
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1"},
-    ):
-        result = await query_files({
+    req_ctx = _mock_req_ctx(mock_executor, session_id=None)
+    result = await query_files(
+        {
             "query": "chapter",
             "response_mode": "summary",
             "content_preview_chars": 120,
             "include_content": False,
-        })
+        },
+        request_context=req_ctx,
+    )
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -666,16 +669,16 @@ async def test_query_files_surfaces_type_error_without_retrying_or_dropping_argu
     mock_executor = MagicMock()
     mock_executor.query_files.side_effect = _legacy_query_files
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1"},
-    ):
-        result = await query_files({
+    req_ctx = _mock_req_ctx(mock_executor, session_id=None)
+    result = await query_files(
+        {
             "query": "chapter",
             "response_mode": "full",
             "content_preview_chars": 500,
             "include_content": True,
-        })
+        },
+        request_context=req_ctx,
+    )
 
     payload = _parse_payload(result)
     assert payload["status"] == "error"
@@ -691,11 +694,11 @@ async def test_query_files_does_not_interpret_width_or_id_words_in_type_error():
     mock_executor = MagicMock()
     mock_executor.query_files.side_effect = TypeError("width/id conversion failed inside executor")
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1"},
-    ):
-        result = await query_files({"id": "file-1", "response_mode": "full"})
+    req_ctx = _mock_req_ctx(mock_executor, session_id=None)
+    result = await query_files(
+        {"id": "file-1", "response_mode": "full"},
+        request_context=req_ctx,
+    )
 
     payload = _parse_payload(result)
     assert payload["status"] == "error"
@@ -716,25 +719,26 @@ async def test_query_files_does_not_interpret_width_or_id_words_in_type_error():
     ],
 )
 async def test_offloaded_wrappers_cleanup_owned_session(tool_func, sync_helper, args):
-    """PostgreSQL offloaded wrappers should deterministically close ToolContext-owned sessions."""
+    """Offloaded wrappers run sync helpers via asyncio.to_thread with explicit request_context."""
 
     async def _run_inline(func, *call_args):
         return func(*call_args)
 
+    req_ctx = AgentRequestContext(session=None, user_id="u1", project_id="proj-1", session_id="sess-1")
     with (
         patch("agent.tools.mcp_tools.asyncio.to_thread", side_effect=_run_inline) as mock_to_thread,
         patch(
             f"agent.tools.mcp_tools.{sync_helper}",
             return_value={"content": [{"type": "text", "text": '{"status":"success"}'}]},
         ) as mock_sync,
-        patch("agent.tools.mcp_tools.ToolContext._cleanup_owned_session") as mock_cleanup,
     ):
-        result = await tool_func(args)
+        result = await tool_func(args, request_context=req_ctx)
 
     assert _parse_payload(result)["status"] == "success"
     mock_to_thread.assert_called_once()
-    mock_sync.assert_called_once_with(args)
-    mock_cleanup.assert_called_once()
+    mock_sync.assert_called_once()
+    assert mock_sync.call_args.args[0] == args
+    assert mock_sync.call_args.args[1] is req_ctx
 
 
 @pytest.mark.asyncio
@@ -749,7 +753,6 @@ async def test_create_empty_file_sets_pending_marker_on_offload_path(db_session)
     otherwise the consecutive-empty-file guard and the loop agent's empty-file
     correction are both disabled in production.
     """
-    from agent.tools.mcp_tools import ToolContext
     from models import Project, User
 
     suffix = uuid4().hex[:8]
@@ -773,30 +776,28 @@ async def test_create_empty_file_sets_pending_marker_on_offload_path(db_session)
     db_session.commit()
     db_session.refresh(project)
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-empty",
     )
-    ToolContext.clear_pending_empty_file()
-    try:
-        result = await create_file({
+    result = await create_file(
+        {
             "title": "空章节",
             "file_type": "draft",
             "content": "",  # empty -> expects <file>…</file> streaming to follow
-        })
+        },
+        request_context=req_ctx,
+    )
 
-        payload = _parse_payload(result)
-        assert payload["status"] == "success"
-        # The marker must be visible in THIS (caller/event-loop) context.
-        assert ToolContext.has_pending_empty_file() is True
-        pending = ToolContext.get_pending_empty_file()
-        assert pending is not None
-        assert pending["file_id"] == payload["data"]["id"]
-    finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+    payload = _parse_payload(result)
+    assert payload["status"] == "success"
+    # The marker must be visible in THIS (caller/event-loop) context.
+    assert req_ctx.has_pending_empty_file() is True
+    pending = req_ctx.get_pending_empty_file()
+    assert pending is not None
+    assert pending["file_id"] == payload["data"]["id"]
 
 
 @pytest.mark.asyncio
@@ -809,7 +810,6 @@ async def test_consecutive_empty_create_file_rejected_across_tool_tasks(db_sessi
     create_file（另一个子任务）就看不到守卫，stream_adapter 会无条件覆盖捕获
     目标，第一个文件已流出的正文被静默丢弃。
     """
-    from agent.tools.mcp_tools import ToolContext
     from models import Project, User
 
     suffix = uuid4().hex[:8]
@@ -833,34 +833,40 @@ async def test_consecutive_empty_create_file_rejected_across_tool_tasks(db_sessi
     db_session.commit()
     db_session.refresh(project)
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-guard",
     )
-    try:
-        first = await asyncio.create_task(create_file({
-            "title": "第1章",
-            "file_type": "draft",
-            "content": "",
-        }))
-        first_payload = _parse_payload(first)
-        assert first_payload["status"] == "success"
-        # 子任务里设置的标记必须在父上下文可见
-        assert ToolContext.has_pending_empty_file() is True
+    first = await asyncio.create_task(
+        create_file(
+            {
+                "title": "第1章",
+                "file_type": "draft",
+                "content": "",
+            },
+            request_context=req_ctx,
+        )
+    )
+    first_payload = _parse_payload(first)
+    assert first_payload["status"] == "success"
+    # 子任务里设置的标记必须在父上下文可见
+    assert req_ctx.has_pending_empty_file() is True
 
-        second = await asyncio.create_task(create_file({
-            "title": "第2章",
-            "file_type": "draft",
-            "content": "",
-        }))
-        second_payload = _parse_payload(second)
-        assert second_payload["status"] == "error"
-        assert "第1章" in second_payload["error"]
-    finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+    second = await asyncio.create_task(
+        create_file(
+            {
+                "title": "第2章",
+                "file_type": "draft",
+                "content": "",
+            },
+            request_context=req_ctx,
+        )
+    )
+    second_payload = _parse_payload(second)
+    assert second_payload["status"] == "error"
+    assert "第1章" in second_payload["error"]
 
 
 def _make_user_and_project(db_session, tag: str):
@@ -899,69 +905,70 @@ async def test_create_folder_does_not_set_pending_empty_file_marker(db_session):
     收到 <file>…</file> 正文，所以标记一旦置上就没有清除路径：分卷/分章结构
     （先建「第一卷」文件夹再在其下建章节）会在第二次 create_file 上直接报错。
     """
-    from agent.tools.mcp_tools import ToolContext
-
     user, project = _make_user_and_project(db_session, "folder")
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-folder",
     )
-    try:
-        folder = await asyncio.create_task(create_file({
-            "title": "第一卷",
-            "file_type": "folder",
-        }))
-        folder_payload = _parse_payload(folder)
-        assert folder_payload["status"] == "success"
-        assert folder_payload["data"]["file_type"] == "folder"
-        assert ToolContext.has_pending_empty_file() is False
+    folder = await asyncio.create_task(
+        create_file(
+            {
+                "title": "第一卷",
+                "file_type": "folder",
+            },
+            request_context=req_ctx,
+        )
+    )
+    folder_payload = _parse_payload(folder)
+    assert folder_payload["status"] == "success"
+    assert folder_payload["data"]["file_type"] == "folder"
+    assert req_ctx.has_pending_empty_file() is False
 
-        chapter = await asyncio.create_task(create_file({
-            "title": "第1章",
-            "file_type": "draft",
-            "parent_id": folder_payload["data"]["id"],
-        }))
-        chapter_payload = _parse_payload(chapter)
-        assert chapter_payload["status"] == "success"
-        assert chapter_payload["data"]["parent_id"] == folder_payload["data"]["id"]
+    chapter = await asyncio.create_task(
+        create_file(
+            {
+                "title": "第1章",
+                "file_type": "draft",
+                "parent_id": folder_payload["data"]["id"],
+            },
+            request_context=req_ctx,
+        )
+    )
+    chapter_payload = _parse_payload(chapter)
+    assert chapter_payload["status"] == "success"
+    assert chapter_payload["data"]["parent_id"] == folder_payload["data"]["id"]
 
-        # 章节（真正等待流式正文的文件）仍然要置标记
-        pending = ToolContext.get_pending_empty_file()
-        assert pending is not None
-        assert pending["file_id"] == chapter_payload["data"]["id"]
-        assert pending["title"] == "第1章"
-    finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+    # 章节（真正等待流式正文的文件）仍然要置标记
+    pending = req_ctx.get_pending_empty_file()
+    assert pending is not None
+    assert pending["file_id"] == chapter_payload["data"]["id"]
+    assert pending["title"] == "第1章"
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_create_folder_marker_free_on_offload_path(db_session):
     """Postgres 卸载路径（asyncio.to_thread）同样不得给文件夹置标记。"""
-    from agent.tools.mcp_tools import ToolContext
-
     user, project = _make_user_and_project(db_session, "folderoff")
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-folder-offload",
     )
-    try:
-        folder = await create_file({
+    folder = await create_file(
+        {
             "title": "第二卷",
             "file_type": "folder",
-        })
-        assert _parse_payload(folder)["status"] == "success"
-        assert ToolContext.has_pending_empty_file() is False
-    finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+        },
+        request_context=req_ctx,
+    )
+    assert _parse_payload(folder)["status"] == "success"
+    assert req_ctx.has_pending_empty_file() is False
 
 
 @pytest.mark.asyncio
@@ -973,92 +980,77 @@ async def test_create_folder_still_blocked_while_file_awaits_content(db_session)
     因此在正文写完前插入任何 create_file（含文件夹）都会让前一个文件的正文写错
     位置；这里的拦截是可恢复的：写完正文后标记清除，建文件夹即可继续。
     """
-    from agent.tools.mcp_tools import ToolContext
-
     user, project = _make_user_and_project(db_session, "folderguard")
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-folder-guard",
     )
-    try:
-        chapter = await create_file({"title": "第1章", "file_type": "draft"})
-        assert _parse_payload(chapter)["status"] == "success"
-        assert ToolContext.has_pending_empty_file() is True
+    chapter = await create_file({"title": "第1章", "file_type": "draft"}, request_context=req_ctx)
+    assert _parse_payload(chapter)["status"] == "success"
+    assert req_ctx.has_pending_empty_file() is True
 
-        blocked = await create_file({"title": "第一卷", "file_type": "folder"})
-        blocked_payload = _parse_payload(blocked)
-        assert blocked_payload["status"] == "error"
-        assert "第1章" in blocked_payload["error"]
+    blocked = await create_file({"title": "第一卷", "file_type": "folder"}, request_context=req_ctx)
+    blocked_payload = _parse_payload(blocked)
+    assert blocked_payload["status"] == "error"
+    assert "第1章" in blocked_payload["error"]
 
-        # 正文写入后（stream_adapter 清除标记）文件夹可以正常创建
-        ToolContext.clear_pending_empty_file()
-        folder = await create_file({"title": "第一卷", "file_type": "folder"})
-        assert _parse_payload(folder)["status"] == "success"
-        assert ToolContext.has_pending_empty_file() is False
-    finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+    # 正文写入后（stream_adapter 清除标记）文件夹可以正常创建
+    req_ctx.clear_pending_empty_file()
+    folder = await create_file({"title": "第一卷", "file_type": "folder"}, request_context=req_ctx)
+    assert _parse_payload(folder)["status"] == "success"
+    assert req_ctx.has_pending_empty_file() is False
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_create_file_clears_stale_pending_marker_after_edit_file_wrote_body(db_session):
     """上一个空文件的正文已经用 edit_file(op=append) 写进去：标记陈旧，不能再挡新文件。"""
-    from agent.tools.mcp_tools import ToolContext, edit_file
-
     user, project = _make_user_and_project(db_session, "stale")
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session, user_id=user.id, project_id=project.id, session_id="sess-stale"
     )
-    try:
-        first = _parse_payload(await create_file({"title": "陈砚", "file_type": "character"}))
-        assert first["status"] == "success"
-        first_id = first["data"]["id"]
+    first = _parse_payload(await create_file({"title": "陈砚", "file_type": "character"}, request_context=req_ctx))
+    assert first["status"] == "success"
+    first_id = first["data"]["id"]
 
-        edited = _parse_payload(
-            await edit_file({"id": first_id, "edits": [{"op": "append", "text": "陈砚，二十七岁。"}]})
+    edited = _parse_payload(
+        await edit_file(
+            {"id": first_id, "edits": [{"op": "append", "text": "陈砚，二十七岁。"}]},
+            request_context=req_ctx,
         )
-        assert edited["status"] == "success"
-        # edit_file 不清标记（这是陈旧标记的来源）
-        assert ToolContext.has_pending_empty_file() is True
+    )
+    assert edited["status"] == "success"
+    # edit_file 不清标记（这是陈旧标记的来源）
+    assert req_ctx.has_pending_empty_file() is True
 
-        second = _parse_payload(await create_file({"title": "苏晚", "file_type": "character"}))
-        assert second["status"] == "success"
-        pending_ids = [entry["file_id"] for entry in ToolContext.get_pending_empty_files()]
-        assert pending_ids == [second["data"]["id"]]
-    finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+    second = _parse_payload(await create_file({"title": "苏晚", "file_type": "character"}, request_context=req_ctx))
+    assert second["status"] == "success"
+    pending_ids = [entry["file_id"] for entry in req_ctx.get_pending_empty_files()]
+    assert pending_ids == [second["data"]["id"]]
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_create_file_rejection_names_the_unblocking_action(db_session):
     """上一个空文件确实还没正文：拒绝信息点名文件 id 和解除办法，并带顺序性 error_type。"""
-    from agent.tools.mcp_tools import ToolContext
-
     user, project = _make_user_and_project(db_session, "unwritten")
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session, user_id=user.id, project_id=project.id, session_id="sess-unwritten"
     )
-    try:
-        first = _parse_payload(await create_file({"title": "沈砚", "file_type": "character"}))
-        first_id = first["data"]["id"]
+    first = _parse_payload(await create_file({"title": "沈砚", "file_type": "character"}, request_context=req_ctx))
+    first_id = first["data"]["id"]
 
-        rejected = _parse_payload(await create_file({"title": "苏晚", "file_type": "character"}))
-        assert rejected["status"] == "error"
-        assert rejected["error_type"] == "pending_empty_file_unwritten"
-        assert rejected["pending_file_id"] == first_id
-        assert "<file>" in rejected["error"]
-        assert "苏晚" in rejected["error"]
-        # 标记仍指向那个真正没写正文的文件
-        assert [entry["file_id"] for entry in ToolContext.get_pending_empty_files()] == [first_id]
-    finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+    rejected = _parse_payload(await create_file({"title": "苏晚", "file_type": "character"}, request_context=req_ctx))
+    assert rejected["status"] == "error"
+    assert rejected["error_type"] == "pending_empty_file_unwritten"
+    assert rejected["pending_file_id"] == first_id
+    assert "<file>" in rejected["error"]
+    assert "苏晚" in rejected["error"]
+    # 标记仍指向那个真正没写正文的文件
+    assert [entry["file_id"] for entry in req_ctx.get_pending_empty_files()] == [first_id]
 
 
 @pytest.mark.asyncio
@@ -1078,11 +1070,8 @@ async def test_query_files_full_listing_defaults_to_small_limit(args, expected_l
     mock_executor = MagicMock()
     mock_executor.query_files.return_value = []
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1"},
-    ):
-        await query_files(args)
+    req_ctx = _mock_req_ctx(mock_executor, session_id=None)
+    await query_files(args, request_context=req_ctx)
 
     assert mock_executor.query_files.call_args.kwargs["limit"] == expected_limit
 
@@ -1098,11 +1087,9 @@ async def test_oversized_query_result_keeps_every_file_identity_and_truncates_co
     mock_executor = MagicMock()
     mock_executor.query_files.return_value = files
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 8_000):
-        result = await query_files({"response_mode": "full", "limit": 8})
+    req_ctx = _mock_req_ctx(mock_executor)
+    with patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 8_000):
+        result = await query_files({"response_mode": "full", "limit": 8}, request_context=req_ctx)
 
     text = result["content"][0]["text"]
     assert len(text) <= 8_000
@@ -1236,50 +1223,40 @@ def test_streamed_mark_cleared_with_entries_and_ignored_for_unknown_ids():
 @pytest.mark.unit
 async def test_create_file_allowed_after_previous_body_streamed_in_same_reply(db_session):
     """上一集的正文已在本条回复里写完（库里还没落）：紧跟的 create_file(下一集) 必须成功。"""
-    from agent.tools.mcp_tools import ToolContext
-
     user, project = _make_user_and_project(db_session, "streamed")
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session, user_id=user.id, project_id=project.id, session_id="sess-streamed"
     )
-    try:
-        first = _parse_payload(await create_file({"title": "第1集", "file_type": "draft"}))
-        first_id = first["data"]["id"]
+    first = _parse_payload(await create_file({"title": "第1集", "file_type": "draft"}, request_context=req_ctx))
+    first_id = first["data"]["id"]
 
-        ToolContext.mark_latest_pending_body_streamed()
-        second = _parse_payload(
-            await asyncio.create_task(create_file({"title": "第2集", "file_type": "draft"}))
-        )
-        assert second["status"] == "success"
-        second_id = second["data"]["id"]
-        # 两条都还在：第1集等 adapter 落库清除，第2集等自己的正文
-        assert [e["file_id"] for e in ToolContext.get_pending_empty_files()] == [
-            first_id,
-            second_id,
-        ]
-    finally:
-        ToolContext.clear_context()
+    req_ctx.mark_latest_pending_body_streamed()
+    second = _parse_payload(
+        await asyncio.create_task(create_file({"title": "第2集", "file_type": "draft"}, request_context=req_ctx))
+    )
+    assert second["status"] == "success"
+    second_id = second["data"]["id"]
+    # 两条都还在：第1集等 adapter 落库清除，第2集等自己的正文
+    assert [e["file_id"] for e in req_ctx.get_pending_empty_files()] == [
+        first_id,
+        second_id,
+    ]
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_two_create_files_without_body_in_between_still_rejected(db_session):
     """同一条回复里只有两个 create_file、中间没写 <file> 正文：第二个照旧被拒。"""
-    from agent.tools.mcp_tools import ToolContext
-
     user, project = _make_user_and_project(db_session, "doublecreate")
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session, user_id=user.id, project_id=project.id, session_id="sess-double"
     )
-    try:
-        first = _parse_payload(await create_file({"title": "第4集", "file_type": "draft"}))
-        assert first["status"] == "success"
-        rejected = _parse_payload(await create_file({"title": "第5集", "file_type": "draft"}))
-        assert rejected["status"] == "error"
-        assert rejected["error_type"] == "pending_empty_file_unwritten"
-        assert rejected["pending_file_id"] == first["data"]["id"]
-    finally:
-        ToolContext.clear_context()
+    first = _parse_payload(await create_file({"title": "第4集", "file_type": "draft"}, request_context=req_ctx))
+    assert first["status"] == "success"
+    rejected = _parse_payload(await create_file({"title": "第5集", "file_type": "draft"}, request_context=req_ctx))
+    assert rejected["status"] == "error"
+    assert rejected["error_type"] == "pending_empty_file_unwritten"
+    assert rejected["pending_file_id"] == first["data"]["id"]
 
 
 def _count_files_titled(db_session, project_id: str, title: str) -> int:
@@ -1301,101 +1278,87 @@ def _count_files_titled(db_session, project_id: str, title: str) -> int:
 @pytest.mark.unit
 async def test_repeat_create_file_of_the_pending_empty_file_returns_that_file(db_session):
     """刚建好、正文还空着的文件，模型下一次回复又用同样参数 create_file：返回同一个文件让它写正文，不报错。"""
-    from agent.tools.mcp_tools import ToolContext
-
     user, project = _make_user_and_project(db_session, "repeatcreate")
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session, user_id=user.id, project_id=project.id, session_id="sess-repeat"
     )
-    try:
-        first = _parse_payload(await create_file({"title": "灵脉与修炼等级", "file_type": "lore"}))
-        assert first["status"] == "success"
-        first_id = first["data"]["id"]
+    first = _parse_payload(await create_file({"title": "灵脉与修炼等级", "file_type": "lore"}, request_context=req_ctx))
+    assert first["status"] == "success"
+    first_id = first["data"]["id"]
 
-        repeat = _parse_payload(
-            await asyncio.create_task(
-                create_file({"title": "灵脉与修炼等级", "file_type": "lore"})
-            )
+    repeat = _parse_payload(
+        await asyncio.create_task(
+            create_file({"title": "灵脉与修炼等级", "file_type": "lore"}, request_context=req_ctx)
         )
-        assert repeat["status"] == "success"
-        assert repeat["data"]["id"] == first_id
-        assert repeat["data"]["content"] == ""
-        # 不是「复用已有文件」：它就是本轮刚建的空文件，适配器照常重新等 <file> 正文
-        assert repeat["data"].get("reused_existing") is not True
-        assert repeat["mutation_applied"] is False
-        assert "<file>" in repeat["data"]["next_step"]
-        assert _count_files_titled(db_session, project.id, "灵脉与修炼等级") == 1
-        assert [e["file_id"] for e in ToolContext.get_pending_empty_files()] == [first_id]
-    finally:
-        ToolContext.clear_context()
+    )
+    assert repeat["status"] == "success"
+    assert repeat["data"]["id"] == first_id
+    assert repeat["data"]["content"] == ""
+    # 不是「复用已有文件」：它就是本轮刚建的空文件，适配器照常重新等 <file> 正文
+    assert repeat["data"].get("reused_existing") is not True
+    assert repeat["mutation_applied"] is False
+    assert "<file>" in repeat["data"]["next_step"]
+    assert _count_files_titled(db_session, project.id, "灵脉与修炼等级") == 1
+    assert [e["file_id"] for e in req_ctx.get_pending_empty_files()] == [first_id]
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_repeat_create_file_with_different_type_or_parent_still_rejected(db_session):
     """同标题但类型或父目录不同，不是同一个文件：照旧按一次一个文件拒绝。"""
-    from agent.tools.mcp_tools import ToolContext
-
     user, project = _make_user_and_project(db_session, "repeatmismatch")
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session, user_id=user.id, project_id=project.id, session_id="sess-mismatch"
     )
-    try:
-        folder = _parse_payload(await create_file({"title": "卷一", "file_type": "folder"}))
-        folder_id = folder["data"]["id"]
-        first = _parse_payload(
-            await create_file({"title": "雾港码头", "file_type": "draft", "parent_id": folder_id})
-        )
-        assert first["status"] == "success"
+    folder = _parse_payload(await create_file({"title": "卷一", "file_type": "folder"}, request_context=req_ctx))
+    folder_id = folder["data"]["id"]
+    first = _parse_payload(
+        await create_file({"title": "雾港码头", "file_type": "draft", "parent_id": folder_id}, request_context=req_ctx)
+    )
+    assert first["status"] == "success"
 
-        other_type = _parse_payload(
-            await create_file({"title": "雾港码头", "file_type": "lore", "parent_id": folder_id})
-        )
-        assert other_type["status"] == "error"
-        assert other_type["error_type"] == "pending_empty_file_unwritten"
+    other_type = _parse_payload(
+        await create_file({"title": "雾港码头", "file_type": "lore", "parent_id": folder_id}, request_context=req_ctx)
+    )
+    assert other_type["status"] == "error"
+    assert other_type["error_type"] == "pending_empty_file_unwritten"
 
-        other_parent = _parse_payload(await create_file({"title": "雾港码头", "file_type": "draft"}))
-        assert other_parent["status"] == "error"
-        assert other_parent["error_type"] == "pending_empty_file_unwritten"
-        assert _count_files_titled(db_session, project.id, "雾港码头") == 1
-    finally:
-        ToolContext.clear_context()
+    other_parent = _parse_payload(
+        await create_file({"title": "雾港码头", "file_type": "draft"}, request_context=req_ctx)
+    )
+    assert other_parent["status"] == "error"
+    assert other_parent["error_type"] == "pending_empty_file_unwritten"
+    assert _count_files_titled(db_session, project.id, "雾港码头") == 1
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_repeat_create_file_while_another_create_is_in_flight_still_rejected(db_session):
     """有别的 create_file 正在建库途中：不认作重复，照旧拒绝。"""
-    from agent.tools.mcp_tools import ToolContext
-
     user, project = _make_user_and_project(db_session, "repeatinflight")
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session, user_id=user.id, project_id=project.id, session_id="sess-inflight"
     )
-    try:
-        first = _parse_payload(await create_file({"title": "周砚", "file_type": "character"}))
-        assert first["status"] == "success"
-        state = ToolContext._get_pending_empty_file_state()
-        state._reservations["ticket-inflight"] = "许青"
+    first = _parse_payload(await create_file({"title": "周砚", "file_type": "character"}, request_context=req_ctx))
+    assert first["status"] == "success"
+    req_ctx.pending_empty_file_state._reservations["ticket-inflight"] = "许青"
 
-        repeat = _parse_payload(await create_file({"title": "周砚", "file_type": "character"}))
-        assert repeat["status"] == "error"
-        assert repeat["error_type"] == "pending_empty_file_unwritten"
-    finally:
-        ToolContext.clear_context()
+    repeat = _parse_payload(await create_file({"title": "周砚", "file_type": "character"}, request_context=req_ctx))
+    assert repeat["status"] == "error"
+    assert repeat["error_type"] == "pending_empty_file_unwritten"
 
 
-def _set_author_round(db_session, user, project, message: str, *, notes_append_allowed: bool = False) -> None:
-    from agent.tools.mcp_tools import ToolContext
-
-    ToolContext.set_context(
+def _set_author_round(
+    db_session, user, project, message: str, *, notes_append_allowed: bool = False
+) -> AgentRequestContext:
+    return AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id=f"sess-notes-{uuid4().hex[:6]}",
         author_message=message,
+        notes_append_allowed=notes_append_allowed,
     )
-    ToolContext.set_notes_append_allowed(notes_append_allowed)
 
 
 def _stored_notes(db_session, project) -> str:
@@ -1409,7 +1372,6 @@ def _stored_notes(db_session, project) -> str:
 @pytest.mark.unit
 async def test_update_project_appends_remembered_notes_and_reports_them(db_session):
     """Explicit remember: new entries are appended as author notes; author text stays byte-for-byte."""
-    from agent.tools.mcp_tools import ToolContext
     from config.project_notes import CONFIRMED_HEADER, UNLABELED_HEADER
 
     user, project = _make_user_and_project(db_session, f"notes-add-{uuid4().hex[:5]}")
@@ -1417,48 +1379,49 @@ async def test_update_project_appends_remembered_notes_and_reports_them(db_sessi
     project.notes = existing
     db_session.add(project)
     db_session.commit()
-    _set_author_round(db_session, user, project, "记住：女主要到第五章才出场；主角左手有旧伤，阴天会疼", notes_append_allowed=True)
-    try:
-        payload = _parse_payload(
-            await update_project({
+    req_ctx = _set_author_round(
+        db_session, user, project, "记住：女主要到第五章才出场；主角左手有旧伤，阴天会疼", notes_append_allowed=True
+    )
+    payload = _parse_payload(
+        await update_project(
+            {
                 "summary": "新摘要",
                 "notes": "作者事实\n女主要到第五章才出场；主角左手有旧伤，阴天会疼",
-            })
+            },
+            request_context=req_ctx,
         )
-        assert payload["status"] == "success"
-        data = payload["data"]
-        assert data["notes_added"] == ["女主要到第五章才出场", "主角左手有旧伤，阴天会疼"]
-        assert "notes_not_saved" not in data and "notes_note" not in data
-        assert data["updated_fields"] == ["summary", "notes"]
-        stored = _stored_notes(db_session, project)
-        assert stored == f"{existing}\n{UNLABELED_HEADER}\n女主要到第五章才出场\n主角左手有旧伤，阴天会疼"
-        assert "current_status" not in data
-        assert data["project_status"]["current_status"]["notes"] == stored
+    )
+    assert payload["status"] == "success"
+    data = payload["data"]
+    assert data["notes_added"] == ["女主要到第五章才出场", "主角左手有旧伤，阴天会疼"]
+    assert "notes_not_saved" not in data and "notes_note" not in data
+    assert data["updated_fields"] == ["summary", "notes"]
+    stored = _stored_notes(db_session, project)
+    assert stored == f"{existing}\n{UNLABELED_HEADER}\n女主要到第五章才出场\n主角左手有旧伤，阴天会疼"
+    assert "current_status" not in data
+    assert data["project_status"]["current_status"]["notes"] == stored
 
-        # Copying the notes back (or passing nothing new) writes nothing: no fake output.
-        copied = _parse_payload(await update_project({"notes": "女主要到第五章才出场"}))
-        assert "notes_added" not in copied["data"]
-        assert copied["data"]["updated_fields"] == []
-        assert _stored_notes(db_session, project) == stored
-    finally:
-        ToolContext.clear_context()
+    # Copying the notes back (or passing nothing new) writes nothing: no fake output.
+    copied = _parse_payload(await update_project({"notes": "女主要到第五章才出场"}, request_context=req_ctx))
+    assert "notes_added" not in copied["data"]
+    assert copied["data"]["updated_fields"] == []
+    assert _stored_notes(db_session, project) == stored
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_update_project_notes_over_limit_save_nothing_and_say_so(db_session):
-    from agent.tools.mcp_tools import NOTES_FULL_NOTE, ToolContext
+    from agent.tools.mcp_tools import NOTES_FULL_NOTE
 
     user, project = _make_user_and_project(db_session, f"notes-full-{uuid4().hex[:5]}")
     existing = "甲" * 3997
     project.notes = existing
     db_session.add(project)
     db_session.commit()
-    _set_author_round(db_session, user, project, "记住：主角怕水", notes_append_allowed=True)
-    try:
-        payload = _parse_payload(await update_project({"summary": "新摘要", "notes": "主角怕水"}))
-    finally:
-        ToolContext.clear_context()
+    req_ctx = _set_author_round(db_session, user, project, "记住：主角怕水", notes_append_allowed=True)
+    payload = _parse_payload(
+        await update_project({"summary": "新摘要", "notes": "主角怕水"}, request_context=req_ctx)
+    )
 
     assert payload["status"] == "success"
     assert "notes_added" not in payload["data"]
@@ -1471,7 +1434,6 @@ async def test_update_project_notes_over_limit_save_nothing_and_say_so(db_sessio
 @pytest.mark.unit
 async def test_update_project_partial_plan_rejection_still_reports_added_notes(db_session, monkeypatch):
     from agent.tools.file_ops import FileToolExecutor
-    from agent.tools.mcp_tools import ToolContext
 
     user, project = _make_user_and_project(db_session, f"notes-partial-{uuid4().hex[:5]}")
     monkeypatch.setattr(
@@ -1479,13 +1441,10 @@ async def test_update_project_partial_plan_rejection_still_reports_added_notes(d
         "execute_update_plan",
         lambda self, **kwargs: {"status": "error", "error": "任务计划板未更新"},
     )
-    _set_author_round(db_session, user, project, "记住：主角怕水", notes_append_allowed=True)
-    try:
-        payload = _parse_payload(
-            await update_project({"summary": "新摘要", "notes": "主角怕水", "tasks": []})
-        )
-    finally:
-        ToolContext.clear_context()
+    req_ctx = _set_author_round(db_session, user, project, "记住：主角怕水", notes_append_allowed=True)
+    payload = _parse_payload(
+        await update_project({"summary": "新摘要", "notes": "主角怕水", "tasks": []}, request_context=req_ctx)
+    )
 
     assert payload["status"] == "partial"
     assert payload["data"]["notes_added"] == ["主角怕水"]
@@ -1496,7 +1455,6 @@ async def test_update_project_partial_plan_rejection_still_reports_added_notes(d
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_update_project_preserves_existing_authoritative_notes_when_model_omits_or_rewrites(db_session):
-    from agent.tools.mcp_tools import ToolContext
     from config.project_notes import CONFIRMED_HEADER
 
     user, project = _make_user_and_project(db_session, "notes-preserve")
@@ -1504,25 +1462,21 @@ async def test_update_project_preserves_existing_authoritative_notes_when_model_
     project.notes = existing
     db_session.add(project)
     db_session.commit()
-    _set_author_round(db_session, user, project, "记住：主角会游泳", notes_append_allowed=True)
-    try:
-        for notes in ("", "主角不会游泳", f"{CONFIRMED_HEADER}\n旧约定"):
-            payload = _parse_payload(await update_project({"notes": notes}))
-            assert payload["status"] == "success"
-            assert "notes_added" not in payload["data"]
-            assert _stored_notes(db_session, project) == existing
-        # A rewrite cannot replace the author's entry; it is only appended after it.
-        payload = _parse_payload(await update_project({"notes": "主角会游泳"}))
-        assert payload["data"]["notes_added"] == ["主角会游泳"]
-        assert _stored_notes(db_session, project).startswith(existing + "\n")
-    finally:
-        ToolContext.clear_context()
+    req_ctx = _set_author_round(db_session, user, project, "记住：主角会游泳", notes_append_allowed=True)
+    for notes in ("", "主角不会游泳", f"{CONFIRMED_HEADER}\n旧约定"):
+        payload = _parse_payload(await update_project({"notes": notes}, request_context=req_ctx))
+        assert payload["status"] == "success"
+        assert "notes_added" not in payload["data"]
+        assert _stored_notes(db_session, project) == existing
+    # A rewrite cannot replace the author's entry; it is only appended after it.
+    payload = _parse_payload(await update_project({"notes": "主角会游泳"}, request_context=req_ctx))
+    assert payload["data"]["notes_added"] == ["主角会游泳"]
+    assert _stored_notes(db_session, project).startswith(existing + "\n")
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_update_project_removes_legacy_proposal_block_on_write(db_session):
-    from agent.tools.mcp_tools import ToolContext
     from config.project_notes import CONFIRMED_HEADER
 
     user, project = _make_user_and_project(db_session, f"notes-legacy-{uuid4().hex[:5]}")
@@ -1531,27 +1485,27 @@ async def test_update_project_removes_legacy_proposal_block_on_write(db_session)
     project.notes = legacy_stored
     db_session.add(project)
     db_session.commit()
-    _set_author_round(db_session, user, project, "记住本轮的新约定", notes_append_allowed=True)
-    try:
-        status_only = _parse_payload(await update_project({"current_phase": "第1章"}))
-        assert "current_status" not in status_only["data"]
-        assert status_only["data"]["project_status"]["current_status"]["notes"] == author_part
+    req_ctx = _set_author_round(db_session, user, project, "记住本轮的新约定", notes_append_allowed=True)
+    status_only = _parse_payload(await update_project({"current_phase": "第1章"}, request_context=req_ctx))
+    assert "current_status" not in status_only["data"]
+    assert status_only["data"]["project_status"]["current_status"]["notes"] == author_part
 
-        # The model copies the notes back with the legacy block: nothing is added or written
-        # (no billable output just for a cleanup that reads already apply).
-        copied = _parse_payload(
-            await update_project({"notes": "作者旧约定\n作者事实\n\n【AI 提议·待作者确认】\n沈度是关键配角；北境封印"})
+    # The model copies the notes back with the legacy block: nothing is added or written
+    # (no billable output just for a cleanup that reads already apply).
+    copied = _parse_payload(
+        await update_project(
+            {"notes": "作者旧约定\n作者事实\n\n【AI 提议·待作者确认】\n沈度是关键配角；北境封印"},
+            request_context=req_ctx,
         )
-        assert "notes_added" not in copied["data"]
-        assert copied["data"]["updated_fields"] == []
-        assert "current_status" not in copied["data"]
-        assert copied["data"]["project_status"]["current_status"]["notes"] == author_part
-        assert _stored_notes(db_session, project) == legacy_stored
+    )
+    assert "notes_added" not in copied["data"]
+    assert copied["data"]["updated_fields"] == []
+    assert "current_status" not in copied["data"]
+    assert copied["data"]["project_status"]["current_status"]["notes"] == author_part
+    assert _stored_notes(db_session, project) == legacy_stored
 
-        # The next real append writes the author part, the new entry, and no legacy block.
-        payload = _parse_payload(await update_project({"notes": "主角怕水"}))
-    finally:
-        ToolContext.clear_context()
+    # The next real append writes the author part, the new entry, and no legacy block.
+    payload = _parse_payload(await update_project({"notes": "主角怕水"}, request_context=req_ctx))
 
     assert payload["status"] == "success"
     assert payload["data"]["notes_added"] == ["主角怕水"]
@@ -1568,7 +1522,6 @@ async def test_update_project_merges_notes_against_author_patch_committed_after_
     from sqlmodel import Session
 
     from agent.tools.file_ops import FileToolExecutor
-    from agent.tools.mcp_tools import ToolContext
     from api.projects import PatchProjectRequest, patch_project
     from config.project_notes import CONFIRMED_HEADER
 
@@ -1594,11 +1547,8 @@ async def test_update_project_merges_notes_against_author_patch_committed_after_
         return original_update(executor, *args, **kwargs)
 
     monkeypatch.setattr(FileToolExecutor, "update_project_status", update_after_author_patch)
-    _set_author_round(db_session, user, project, "记住本轮的新约定", notes_append_allowed=True)
-    try:
-        payload = _parse_payload(await update_project({"notes": "旧事实\n模型新增推断"}))
-    finally:
-        ToolContext.clear_context()
+    req_ctx = _set_author_round(db_session, user, project, "记住本轮的新约定", notes_append_allowed=True)
+    payload = _parse_payload(await update_project({"notes": "旧事实\n模型新增推断"}, request_context=req_ctx))
 
     assert payload["status"] == "success"
     assert payload["data"]["notes_added"] == ["模型新增推断"]
@@ -1612,7 +1562,6 @@ async def test_update_project_merges_notes_against_author_patch_committed_after_
 async def test_keyword_query_returns_verbatim_match_snippets(db_session):
     """Production (2026-10-21): a rename across files took 27 full reads because keyword search
     only listed file names; the matches let the model edit without reading every file."""
-    from agent.tools.mcp_tools import ToolContext
     from models import File, Project, User
 
     suffix = uuid4().hex[:8]
@@ -1629,11 +1578,8 @@ async def test_keyword_query_returns_verbatim_match_snippets(db_session):
     db_session.add_all([hit, miss])
     db_session.commit()
 
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="sess-q")
-    try:
-        payload = _parse_payload(await query_files({"query": "银刀"}))
-    finally:
-        ToolContext.clear_context()
+    req_ctx = AgentRequestContext(session=db_session, user_id=user.id, project_id=project.id, session_id="sess-q")
+    payload = _parse_payload(await query_files({"query": "银刀"}, request_context=req_ctx))
 
     rows = {row["title"]: row for row in payload["data"]}
     assert set(rows) == {"第46集"}
@@ -1649,19 +1595,22 @@ async def test_empty_create_file_only_skips_the_body_turn_for_the_loop_agent(db_
     """Production (2026-10-21): 「建立第10章、第11章，不用写内容，建立标题就行」 was refused four times and tripped
     the breaker, because every empty create_file waited for a <file> body. The loop agent's empty=true is its own
     judgement; without the loop agent `empty` does not switch off the body turn."""
-    from agent.tools.mcp_tools import ToolContext
     from agent.tools.registry import LOOP_AGENT_TYPE
 
     user, project = _make_user_and_project(db_session, f"empty{int(loop_agent)}")
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="sess-empty")
-    if loop_agent:
-        ToolContext.set_current_agent(LOOP_AGENT_TYPE)
-    try:
-        first = _parse_payload(await create_file({"title": "第一卷大纲", "file_type": "outline", "empty": True}))
-        second = _parse_payload(await create_file({"title": "第二卷大纲", "file_type": "outline", "empty": True}))
-    finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+    req_ctx = AgentRequestContext(
+        session=db_session,
+        user_id=user.id,
+        project_id=project.id,
+        session_id="sess-empty",
+        current_agent=LOOP_AGENT_TYPE if loop_agent else None,
+    )
+    first = _parse_payload(
+        await create_file({"title": "第一卷大纲", "file_type": "outline", "empty": True}, request_context=req_ctx)
+    )
+    second = _parse_payload(
+        await create_file({"title": "第二卷大纲", "file_type": "outline", "empty": True}, request_context=req_ctx)
+    )
 
     assert first["status"] == "success"
     if not loop_agent:
@@ -1681,7 +1630,7 @@ async def test_empty_create_file_only_skips_the_body_turn_for_the_loop_agent(db_
 
 
 class _SessionFactorySpy:
-    """ToolContext 的 create_session_func：只计数，任何调用都说明有人另开了 session。"""
+    """只计数，任何调用都说明有人另开了 session。"""
 
     def __init__(self) -> None:
         self.calls = 0
@@ -1692,15 +1641,12 @@ class _SessionFactorySpy:
 
 
 @pytest.fixture
-def session_factory_spy():
-    from agent.tools.mcp_tools import ToolContext
+def session_factory_spy(monkeypatch):
+    import database
 
     spy = _SessionFactorySpy()
-    ToolContext.set_context(None, "user-1", "proj-1", "sess-1", create_session_func=spy)
-    try:
-        yield spy
-    finally:
-        ToolContext.clear_context()
+    monkeypatch.setattr(database, "create_session", spy)
+    yield spy
 
 
 @pytest.mark.unit
@@ -1733,10 +1679,12 @@ async def test_successful_writes_do_not_open_a_ledger_session(session_factory_sp
         "current_status": {"summary": "新"},
     }
 
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor):
-        created = _parse_payload(await create_file({"title": "第一章", "file_type": "draft", "content": "正文"}))
-        deleted = _parse_payload(await delete_file({"id": "f-1"}))
-        updated = _parse_payload(await update_project({"summary": "新"}))
+    req_ctx = _mock_req_ctx(mock_executor, user_id="user-1", project_id="proj-1", session_id="sess-1")
+    created = _parse_payload(
+        await create_file({"title": "第一章", "file_type": "draft", "content": "正文"}, request_context=req_ctx)
+    )
+    deleted = _parse_payload(await delete_file({"id": "f-1"}, request_context=req_ctx))
+    updated = _parse_payload(await update_project({"summary": "新"}, request_context=req_ctx))
 
     assert [created["status"], deleted["status"], updated["status"]] == ["success"] * 3
     assert session_factory_spy.calls == 0
@@ -1747,38 +1695,50 @@ async def test_successful_writes_do_not_open_a_ledger_session(session_factory_sp
 @pytest.mark.parametrize("author_edit", ["", "主角左手已经痊愈"])
 async def test_deleted_or_edited_notes_are_not_replayed_on_ordinary_writing(db_session, author_edit):
     """Reproduce memory -> manual PATCH -> ordinary writing in the same chat."""
-    from agent.tools.mcp_tools import ToolContext
     from api.projects import PatchProjectRequest, patch_project
 
     user, project = _make_user_and_project(db_session, f"notes-revival-{uuid4().hex[:5]}")
     old = "主角左手有旧伤，阴天会疼"
-    _set_author_round(db_session, user, project, f"记住：{old}", notes_append_allowed=True)
     # A successful current router decision, not words in author_message, grants this append.
-    ToolContext.set_notes_append_allowed(True)
-    try:
-        remembered = _parse_payload(await update_project({"notes": old}))
-        assert remembered["data"]["notes_added"] == [old]
-        patch_project(project.id, PatchProjectRequest(notes=author_edit, expected_notes=old),
-                      current_user=user, session=db_session)
-        # Keep the same chat id but start a fresh request. The model replays its old tool args.
-        session_id = ToolContext.get_session_id()
-        ToolContext.set_context(db_session, user.id, project.id, session_id,
-                                author_message="写第一章开头，不更新项目资料")
-        replay = _parse_payload(await update_project({"notes": old, "summary": "本轮正常简介"}))
-        assert _stored_notes(db_session, project) == author_edit
-        assert "notes_added" not in replay["data"]
-        assert "notes_note" not in replay["data"]
-        assert replay["data"]["notes_skipped_reason"]
-        assert replay["data"]["updated_fields"] == ["summary"]
-        assert db_session.get(type(project), project.id).summary == "本轮正常简介"
-        # A new explicit request may remember the same fact again after deletion or editing.
-        ToolContext.set_context(db_session, user.id, project.id, session_id, author_message=f"再记住：{old}")
-        ToolContext.set_notes_append_allowed(True)
-        remembered_again = _parse_payload(await update_project({"notes": old}))
-        assert remembered_again["data"]["notes_added"] == [old]
-        assert old in _stored_notes(db_session, project)
-    finally:
-        ToolContext.clear_context()
+    req_ctx = _set_author_round(db_session, user, project, f"记住：{old}", notes_append_allowed=True)
+    remembered = _parse_payload(await update_project({"notes": old}, request_context=req_ctx))
+    assert remembered["data"]["notes_added"] == [old]
+    patch_project(
+        project.id,
+        PatchProjectRequest(notes=author_edit, expected_notes=old),
+        current_user=user,
+        session=db_session,
+    )
+    # Keep the same chat id but start a fresh request. The model replays its old tool args.
+    session_id = req_ctx.session_id
+    req_ctx_2 = AgentRequestContext(
+        session=db_session,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=session_id,
+        author_message="写第一章开头，不更新项目资料",
+    )
+    replay = _parse_payload(
+        await update_project({"notes": old, "summary": "本轮正常简介"}, request_context=req_ctx_2)
+    )
+    assert _stored_notes(db_session, project) == author_edit
+    assert "notes_added" not in replay["data"]
+    assert "notes_note" not in replay["data"]
+    assert replay["data"]["notes_skipped_reason"]
+    assert replay["data"]["updated_fields"] == ["summary"]
+    assert db_session.get(type(project), project.id).summary == "本轮正常简介"
+    # A new explicit request may remember the same fact again after deletion or editing.
+    req_ctx_3 = AgentRequestContext(
+        session=db_session,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=session_id,
+        author_message=f"再记住：{old}",
+        notes_append_allowed=True,
+    )
+    remembered_again = _parse_payload(await update_project({"notes": old}, request_context=req_ctx_3))
+    assert remembered_again["data"]["notes_added"] == [old]
+    assert old in _stored_notes(db_session, project)
 
 
 @pytest.mark.asyncio
@@ -1786,27 +1746,28 @@ async def test_deleted_or_edited_notes_are_not_replayed_on_ordinary_writing(db_s
 async def test_consumed_steering_revokes_notes_in_existing_task_snapshot(db_session):
     import asyncio
 
-    from agent.tools.mcp_tools import ToolContext
-
     user, project = _make_user_and_project(db_session, f'notes-steer-{uuid4().hex[:5]}')
     consumed = []
-    ToolContext.set_context(db_session, user.id, project.id, 'same-chat',
-                            author_message='记住：主角怕水', author_steering=consumed)
-    ToolContext.set_notes_append_allowed(True)
+    req_ctx = AgentRequestContext(
+        session=db_session,
+        user_id=user.id,
+        project_id=project.id,
+        session_id='same-chat',
+        author_message='记住：主角怕水',
+        author_steering=consumed,
+        notes_append_allowed=True,
+    )
     ready = asyncio.Event()
 
     async def later_call():
         await ready.wait()
-        return _parse_payload(await update_project({'notes': '主角怕水'}))
+        return _parse_payload(await update_project({'notes': '主角怕水'}, request_context=req_ctx))
 
-    try:
-        # This task has already copied the context; the consumed list is shared.
-        pending = asyncio.create_task(later_call())
-        consumed.append('先停下，我改一下要求')
-        ready.set()
-        payload = await pending
-        assert payload['data']['notes_skipped_reason']
-        assert 'notes_added' not in payload['data'] and 'notes_note' not in payload['data']
-        assert _stored_notes(db_session, project) == ''
-    finally:
-        ToolContext.clear_context()
+    # This task shares the request context and consumed steering list.
+    pending = asyncio.create_task(later_call())
+    consumed.append('先停下，我改一下要求')
+    ready.set()
+    payload = await pending
+    assert payload['data']['notes_skipped_reason']
+    assert 'notes_added' not in payload['data'] and 'notes_note' not in payload['data']
+    assert _stored_notes(db_session, project) == ''

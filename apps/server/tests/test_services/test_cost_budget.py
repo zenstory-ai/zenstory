@@ -363,7 +363,7 @@ async def test_real_async_sdk_stream_settles_terminal_usage_and_preserves_start(
 async def test_sdk_model_call_is_guarded_before_transport(db_session):
     from agents import Agent, ModelSettings, OpenAIChatCompletionsModel, RunConfig, Runner
 
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
     from services.usage.model_call_guard import install_async_cost_guard
 
     account = user(db_session)
@@ -378,16 +378,19 @@ async def test_sdk_model_call_is_guarded_before_transport(db_session):
     create = AsyncMock()
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)), base_url="http://fake")
     install_async_cost_guard(client)
-    ToolContext.set_context(session=None, user_id=account.id, project_id=None, session_id=None)
+    req_ctx = AgentRequestContext(session=None, user_id=account.id, project_id=None, session_id=None)
     agent = Agent(
         name="writer",
         instructions="写作",
         model=OpenAIChatCompletionsModel(model="deepseek-flash", openai_client=client),
         model_settings=ModelSettings(max_tokens=1000),
     )
-    result = Runner.run_streamed(agent, input="继续写作", run_config=RunConfig(tracing_disabled=True))
-    with pytest.raises(APIException) as error:
-        async for _ in result.stream_events():
-            pass
+    with req_ctx.bind_cost_budget_user():
+        result = Runner.run_streamed(
+            agent, input="继续写作", context=req_ctx, run_config=RunConfig(tracing_disabled=True)
+        )
+        with pytest.raises(APIException) as error:
+            async for _ in result.stream_events():
+                pass
     assert error.value.error_code == budget.COST_LIMIT_CODE
     create.assert_not_called()

@@ -70,16 +70,16 @@ def _versions(session, file_id):
 
 
 class _Request:
-    """一次请求的 ToolContext：按顺序调用工具，中间可以插入作者保存、换 agent。"""
+    """一次请求的 AgentRequestContext：按顺序调用工具，中间可以插入作者保存、换 agent。"""
 
     def __init__(self, session, user, project, *, seen=None, message="改一下第一章"):
         self.session, self.user, self.project = session, user, project
         engine = session.get_bind()
-        mcp_tools.ToolContext.set_context(
-            None,
-            user.id,
-            project.id,
-            None,
+        self.req_ctx = mcp_tools.AgentRequestContext(
+            session=None,
+            user_id=user.id,
+            project_id=project.id,
+            session_id=None,
             create_session_func=lambda: Session(engine),
             author_message=message,
             author_steering=[],
@@ -87,7 +87,7 @@ class _Request:
         )
 
     async def call(self, tool, args):
-        raw = await tool(args)
+        raw = await tool(args, request_context=self.req_ctx)
         return json.loads(raw["content"][0]["text"])
 
     async def edit(self, file_id, *edits):
@@ -96,13 +96,12 @@ class _Request:
     async def read(self, file_id):
         return await self.call(mcp_tools.query_files, {"id": file_id})
 
-    @staticmethod
-    def next_model_call():
+    def next_model_call(self):
         """模型拿到上一条回复里工具结果之后的下一次调用（runner 的 on_llm_start 做同样的事）。"""
-        mcp_tools.ToolContext.promote_pending_reads()
+        self.req_ctx.promote_pending_reads()
 
     def close(self):
-        mcp_tools.ToolContext.clear_context()
+        self.req_ctx.clear()
 
 
 @pytest.fixture
@@ -319,7 +318,7 @@ async def test_the_next_agent_does_not_inherit_what_the_previous_one_read(db_ses
     _author_saves(db_session, chapter, author_version)
     await req.read(chapter.id)
     req.next_model_call()
-    mcp_tools.ToolContext.begin_agent_run()
+    req.req_ctx.begin_agent_run()
     payload = await req.edit(chapter.id, {"op": "replace", "old": "数到第七条船", "new": "数到第九条船"})
     assert payload["error_type"] == "stale_content"
     db_session.expire_all()
@@ -423,8 +422,8 @@ async def test_a_truncated_read_is_not_counted_as_seen(db_session, owner_project
     monkeypatch.setattr(mcp_tools, "TOOL_RESULT_MAX_CHARS", 200)
     await req.read(chapter.id)
     req.next_model_call()
-    assert mcp_tools.ToolContext.read_snapshot(chapter.id) is None
-    assert mcp_tools.ToolContext.has_seen_file(chapter.id) is False
+    assert req.req_ctx.read_snapshot(chapter.id) is None
+    assert req.req_ctx.has_seen_file(chapter.id) is False
 
 
 # ---------------------------------------------------------- 5. 改到作者的字：撤销回到作者的写法
@@ -439,7 +438,7 @@ async def test_undo_of_an_edit_that_touched_the_authors_text_restores_it(db_sess
     payload = await req.edit(chapter.id, {"op": "replace", "old": "温梨把伞折好了", "new": "温梨扔了伞"})
     assert payload["data"]["author_edits_touched"]
     assert "undo" not in payload["data"]
-    ui_overlay = mcp_tools.ToolContext.pop_tool_ui_payload(None, fallback_key=("edit_file", chapter.id))
+    ui_overlay = req.req_ctx.pop_tool_ui_payload(None, fallback_key=("edit_file", chapter.id))
     assert ui_overlay is not None
     undo = ui_overlay["undo"]
     from datetime import datetime
@@ -460,51 +459,61 @@ async def test_undo_of_an_edit_that_touched_the_authors_text_restores_it(db_sess
 
 async def test_run_hooks_promote_reads_at_the_next_model_call():
     """真实 runner 用的 run hooks：on_llm_start 时把上一条回复里读到的正文算作模型看过。"""
+    from agents import RunContextWrapper
+
     from agent.openai_agents.usage_hooks import build_agent_run_hooks
 
-    mcp_tools.ToolContext.set_context(None, "u", "p", None, read_snapshots={"f": "turn start"})
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id=None, read_snapshots={"f": "turn start"}
+    )
     try:
-        mcp_tools.ToolContext.record_read_snapshot("f", "read in reply 1")
-        assert mcp_tools.ToolContext.read_snapshot("f") == "turn start"
-        assert mcp_tools.ToolContext.has_seen_file("g") is False
-        mcp_tools.ToolContext.record_read_snapshot("g", "other file")
-        await build_agent_run_hooks("deepseek-flash").on_llm_start(None, None, "system", [])
-        assert mcp_tools.ToolContext.read_snapshot("f") == "read in reply 1"
-        assert mcp_tools.ToolContext.has_seen_file("g") is True
+        req_ctx.record_read_snapshot("f", "read in reply 1")
+        assert req_ctx.read_snapshot("f") == "turn start"
+        assert req_ctx.has_seen_file("g") is False
+        req_ctx.record_read_snapshot("g", "other file")
+        await build_agent_run_hooks("deepseek-flash", request_context=req_ctx).on_llm_start(
+            RunContextWrapper(req_ctx), None, "system", []
+        )
+        assert req_ctx.read_snapshot("f") == "read in reply 1"
+        assert req_ctx.has_seen_file("g") is True
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 def test_written_snapshot_is_restored_when_the_commit_fails():
     from agent.tools.file_ops.edit import written_snapshot_for_commit
 
-    mcp_tools.ToolContext.set_context(None, "u", "p", None, read_snapshots={"f": "seen"})
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id=None, read_snapshots={"f": "seen"}
+    )
     try:
-        with pytest.raises(RuntimeError), written_snapshot_for_commit("f", "never committed"):
+        with pytest.raises(RuntimeError), written_snapshot_for_commit("f", "never committed", request_context=req_ctx):
             # 提交前快照已经更新（同一文件的下一个写入在锁内看得到）。
-            assert mcp_tools.ToolContext.read_snapshot("f") == "never committed"
+            assert req_ctx.read_snapshot("f") == "never committed"
             raise RuntimeError("commit failed")
-        assert mcp_tools.ToolContext.read_snapshot("f") == "seen"
-        with pytest.raises(RuntimeError), written_snapshot_for_commit("new", "body", full=True):
+        assert req_ctx.read_snapshot("f") == "seen"
+        with pytest.raises(RuntimeError), written_snapshot_for_commit("new", "body", full=True, request_context=req_ctx):
             raise RuntimeError("commit failed")
-        assert mcp_tools.ToolContext.read_snapshot("new") is None
-        assert mcp_tools.ToolContext.has_seen_file("new") is False
-        with written_snapshot_for_commit("new", "body", full=True):
+        assert req_ctx.read_snapshot("new") is None
+        assert req_ctx.has_seen_file("new") is False
+        with written_snapshot_for_commit("new", "body", full=True, request_context=req_ctx):
             pass
-        assert mcp_tools.ToolContext.read_snapshot("new") == "body"
-        assert mcp_tools.ToolContext.has_seen_file("new") is True
+        assert req_ctx.read_snapshot("new") == "body"
+        assert req_ctx.has_seen_file("new") is True
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 def test_a_read_taken_before_an_own_write_does_not_override_it():
     """并行批次里 query_files 先读库、edit_file 后写入，但读取结果晚一步记下：按读库的先后算，写下的正文仍是最新的。"""
-    mcp_tools.ToolContext.set_context(None, "u", "p", None, read_snapshots={"f": "turn start"})
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id=None, read_snapshots={"f": "turn start"}
+    )
     try:
-        ticket = mcp_tools.ToolContext.read_ticket()
-        mcp_tools.ToolContext.record_written_snapshot("f", "written after the read")
-        mcp_tools.ToolContext.record_read_snapshot("f", "read before the write", ticket=ticket)
-        mcp_tools.ToolContext.promote_pending_reads()
-        assert mcp_tools.ToolContext.read_snapshot("f") == "written after the read"
+        ticket = req_ctx.read_ticket()
+        req_ctx.record_written_snapshot("f", "written after the read")
+        req_ctx.record_read_snapshot("f", "read before the write", ticket=ticket)
+        req_ctx.promote_pending_reads()
+        assert req_ctx.read_snapshot("f") == "written after the read"
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()

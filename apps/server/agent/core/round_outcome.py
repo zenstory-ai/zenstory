@@ -68,8 +68,8 @@ class RunOutcome:
     # 最后确认保存的整篇字数；取消补存可能包含尚未发出的控制标记尾部缓冲。
     # None 表示尚无成功保存；后续失败不能抹去之前已保存的正文回执。
     saved_file_word_counts: dict[str, int | None] = field(default_factory=dict)
-    # 写工具在线程里执行、还没把结果交回 SDK 的调用：(tool_name, future)。ToolContext 拿着同一个
-    # list（比 clear_context() 活得长），工具正常返回时自己移除；截停后留下的由 settle_inflight_tool_writes 等。
+    # 写工具在线程里执行、还没把结果交回 SDK 的调用：(tool_name, future)。AgentRequestContext 拿着同一个
+    # list（比 clear() 活得长），工具正常返回时自己移除；截停后留下的由 settle_inflight_tool_writes 等。
     inflight_tool_writes: list[tuple[str, asyncio.Future[Any]]] = field(default_factory=list)
     # 截停后才完成的写工具结果，按 tool_result 帧的格式（tool_name / status / data），补记进产物 tracker 与 RoundWrittenFiles。
     committed_tool_results: list[dict[str, Any]] = field(default_factory=list)

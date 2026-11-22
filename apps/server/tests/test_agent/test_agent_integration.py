@@ -71,14 +71,14 @@ class TestMCPTools:
 
     async def test_create_file_tool(self, db_session: Session, test_user_with_project):
         """Test create_file tool execution (async)."""
-        from agent.tools.mcp_tools import ToolContext, create_file
+        from agent.core.request_context import AgentRequestContext
+        from agent.tools.mcp_tools import create_file
 
         project = test_user_with_project["project"]
         user = test_user_with_project["user"]
         draft_file = test_user_with_project["draft_file"]
 
-        # Set up tool context
-        ToolContext.set_context(
+        req_ctx = AgentRequestContext(
             session=db_session,
             user_id=str(user.id),
             project_id=str(project.id),
@@ -86,12 +86,15 @@ class TestMCPTools:
         )
 
         # Execute create_file tool with dict argument (async)
-        result = await create_file({
-            "title": "新建章节",
-            "file_type": "draft",
-            "parent_id": str(draft_file.id),
-            "content": "这是新建章节的内容。",
-        })
+        result = await create_file(
+            {
+                "title": "新建章节",
+                "file_type": "draft",
+                "parent_id": str(draft_file.id),
+                "content": "这是新建章节的内容。",
+            },
+            request_context=req_ctx,
+        )
 
         # Result is now a dict with MCP format
         assert "content" in result
@@ -104,13 +107,13 @@ class TestMCPTools:
 
     async def test_query_files_tool(self, db_session: Session, test_user_with_project):
         """Test query_files tool execution (async)."""
-        from agent.tools.mcp_tools import ToolContext, query_files
+        from agent.core.request_context import AgentRequestContext
+        from agent.tools.mcp_tools import query_files
 
         project = test_user_with_project["project"]
         user = test_user_with_project["user"]
 
-        # Set up tool context
-        ToolContext.set_context(
+        req_ctx = AgentRequestContext(
             session=db_session,
             user_id=str(user.id),
             project_id=str(project.id),
@@ -118,10 +121,13 @@ class TestMCPTools:
         )
 
         # Execute query_files tool with dict argument (async)
-        result = await query_files({
-            "file_type": "draft",
-            "limit": 10,
-        })
+        result = await query_files(
+            {
+                "file_type": "draft",
+                "limit": 10,
+            },
+            request_context=req_ctx,
+        )
 
         # Result is now a dict with MCP format
         assert "content" in result
@@ -134,14 +140,14 @@ class TestMCPTools:
 
     async def test_edit_file_tool(self, db_session: Session, test_user_with_project):
         """Test edit_file tool execution (async)."""
-        from agent.tools.mcp_tools import ToolContext, edit_file
+        from agent.core.request_context import AgentRequestContext
+        from agent.tools.mcp_tools import edit_file
 
         draft_file = test_user_with_project["draft_file"]
         user = test_user_with_project["user"]
         project = test_user_with_project["project"]
 
-        # Set up tool context
-        ToolContext.set_context(
+        req_ctx = AgentRequestContext(
             session=db_session,
             user_id=str(user.id),
             project_id=str(project.id),
@@ -149,16 +155,19 @@ class TestMCPTools:
         )
 
         # Execute edit_file tool with dict argument (async)
-        result = await edit_file({
-            "id": str(draft_file.id),
-            "edits": [
-                {
-                    "op": "replace",
-                    "old": "主角走进了森林",
-                    "new": "主角勇敢地走进了黑暗的森林",
-                }
-            ],
-        })
+        result = await edit_file(
+            {
+                "id": str(draft_file.id),
+                "edits": [
+                    {
+                        "op": "replace",
+                        "old": "主角走进了森林",
+                        "new": "主角勇敢地走进了黑暗的森林",
+                    }
+                ],
+            },
+            request_context=req_ctx,
+        )
 
         # Result is now a dict with MCP format
         assert "content" in result

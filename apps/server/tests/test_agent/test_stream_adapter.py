@@ -1348,19 +1348,22 @@ class TestIntegration:
 
 @pytest.mark.unit
 async def test_abandoned_file_write_clears_pending_empty_file_guard():
-    """An abandoned <file> write must not leave ToolContext's pending guard set.
+    """An abandoned <file> write must not leave AgentRequestContext's pending guard set.
 
     Regression: create_file emits an empty file (pending-empty-file guard + adapter
     tracker set), but the model never streams the <file>...</file> content. The stream
     must clear the stale guard on finalize so later create_file calls are not blocked.
     """
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
-    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
-    ToolContext.set_pending_empty_file("file-A", "角色A")
+    req_ctx = AgentRequestContext(project_id="p", user_id="u", session_id="s")
+    adapter = create_stream_adapter(
+        project_id="p", user_id="u", process_file_markers=True, request_context=req_ctx
+    )
+    req_ctx.set_pending_empty_file("file-A", "角色A")
     adapter.set_pending_file_write("file-A", "character", "角色A")
-    assert ToolContext.has_pending_empty_file() is True
+    assert req_ctx.has_pending_empty_file() is True
 
     async def mock_events():
         yield WorkflowStreamEvent(type=StreamEventType.TEXT, data={"text": "好的，我已创建角色A。"})
@@ -1368,7 +1371,7 @@ async def test_abandoned_file_write_clears_pending_empty_file_guard():
 
     _ = [e async for e in adapter.process_workflow_events(mock_events())]
 
-    assert ToolContext.has_pending_empty_file() is False
+    assert req_ctx.has_pending_empty_file() is False
     assert adapter._pending_file_write is None
 
 
@@ -1382,11 +1385,14 @@ async def test_unterminated_file_with_control_marker_is_not_persisted():
     surfaced as conversation and the file left untouched.
     """
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
-    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    req_ctx = AgentRequestContext(project_id="p", user_id="u", session_id="s")
+    adapter = create_stream_adapter(
+        project_id="p", user_id="u", process_file_markers=True, request_context=req_ctx
+    )
     adapter._save_file_content = AsyncMock(return_value=True)
-    ToolContext.set_pending_empty_file("file-1", "第51章")
+    req_ctx.set_pending_empty_file("file-1", "第51章")
     adapter.set_pending_file_write("file-1", "draft", "第51章")
 
     async def mock_events():
@@ -1413,11 +1419,14 @@ async def test_truncated_prose_without_control_marker_is_still_saved():
     """Genuinely truncated prose (no </file>, no control markers) must still be
     salvaged and saved — the contamination guard must not over-discard."""
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
-    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    req_ctx = AgentRequestContext(project_id="p", user_id="u", session_id="s")
+    adapter = create_stream_adapter(
+        project_id="p", user_id="u", process_file_markers=True, request_context=req_ctx
+    )
     adapter._save_file_content = AsyncMock(return_value=True)
-    ToolContext.set_pending_empty_file("file-2", "第52章")
+    req_ctx.set_pending_empty_file("file-2", "第52章")
     adapter.set_pending_file_write("file-2", "draft", "第52章")
 
     async def mock_events():
@@ -1441,11 +1450,14 @@ async def test_fence_wrapped_file_block_is_saved_not_dumped_into_chat():
     """模型把整块 <file>…</file> 包在 ``` 围栏里输出（提示词范例即这种写法）时，
     正文必须落库；不能因为围栏保护把带原始标记的整章正文当成聊天消息、文件留空。"""
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
-    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    req_ctx = AgentRequestContext(project_id="p", user_id="u", session_id="s")
+    adapter = create_stream_adapter(
+        project_id="p", user_id="u", process_file_markers=True, request_context=req_ctx
+    )
     adapter._save_file_content = AsyncMock(return_value=True)
-    ToolContext.set_pending_empty_file("file-3", "第53章")
+    req_ctx.set_pending_empty_file("file-3", "第53章")
     adapter.set_pending_file_write("file-3", "draft", "第53章")
 
     async def mock_events():
@@ -1482,11 +1494,14 @@ async def test_unclosed_fence_narration_then_file_block_is_saved():
     整章正文会连 <file>/</file> 原始标记一起被持久化成 assistant 消息。
     """
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
-    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    req_ctx = AgentRequestContext(project_id="p", user_id="u", session_id="s")
+    adapter = create_stream_adapter(
+        project_id="p", user_id="u", process_file_markers=True, request_context=req_ctx
+    )
     adapter._save_file_content = AsyncMock(return_value=True)
-    ToolContext.set_pending_empty_file("file-4", "第54章")
+    req_ctx.set_pending_empty_file("file-4", "第54章")
     adapter.set_pending_file_write("file-4", "draft", "第54章")
 
     async def mock_events():
@@ -1567,10 +1582,12 @@ async def test_empty_folder_does_not_start_file_capture():
     同样命中，导致后续叙述全被缓冲到 MESSAGE_END 才吐出。
     """
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
-    ToolContext.clear_pending_empty_file()
-    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    req_ctx = AgentRequestContext(project_id="p", user_id="u", session_id="s")
+    adapter = create_stream_adapter(
+        project_id="p", user_id="u", process_file_markers=True, request_context=req_ctx
+    )
     adapter._save_file_content = AsyncMock(return_value=True)
 
     rounds = await _drive_per_event(adapter, [
@@ -1601,7 +1618,7 @@ async def test_empty_folder_does_not_start_file_capture():
     assert rounds[3] == []
 
     adapter._save_file_content.assert_not_awaited()
-    assert ToolContext.has_pending_empty_file() is False
+    assert req_ctx.has_pending_empty_file() is False
 
 
 @pytest.mark.unit
@@ -1754,10 +1771,12 @@ async def test_displaced_completion_keeps_new_files_pending_empty_guard():
     的空文件永远无人补写。
     """
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
-    ToolContext.clear_pending_empty_file()
-    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    req_ctx = AgentRequestContext(project_id="p", user_id="u", session_id="s")
+    adapter = create_stream_adapter(
+        project_id="p", user_id="u", process_file_markers=True, request_context=req_ctx
+    )
     adapter._save_file_content = AsyncMock(return_value=True)
 
     # draft-E 走的是「执行器复用/幂等路径返回 content=''」，入参带内容因此
@@ -1768,7 +1787,7 @@ async def test_displaced_completion_keeps_new_files_pending_empty_guard():
             type=StreamEventType.TEXT, data={"text": "<file>第五章开头。"}
         ),
     ])
-    ToolContext.set_pending_empty_file("draft-F", "第六章")
+    req_ctx.set_pending_empty_file("draft-F", "第六章")
 
     await _drive_per_event(adapter, [
         _create_file_result_event("draft-F", "draft", "第六章"),
@@ -1776,10 +1795,8 @@ async def test_displaced_completion_keeps_new_files_pending_empty_guard():
 
     adapter._save_file_content.assert_awaited_once()
     assert adapter._save_file_content.await_args.args == ("draft-E", "第五章开头。")
-    pending = ToolContext.get_pending_empty_file()
+    pending = req_ctx.get_pending_empty_file()
     assert pending is not None and pending["file_id"] == "draft-F"
-
-    ToolContext.clear_pending_empty_file()
 
 
 # ---------------------------------------------------------------------------
@@ -1800,87 +1817,85 @@ def _chat_text(rounds) -> str:
 async def test_body_then_next_create_file_saves_previous_and_captures_next():
     """上一集正文落库、只清上一集的守卫条目，随后进入下一集的捕获，对话里不露 <file>。"""
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    try:
-        adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
-        adapter._save_file_content = AsyncMock(return_value=True)
-        ToolContext.set_pending_empty_file("ep-1", "第1集")
-        adapter.set_pending_file_write("ep-1", "script", "第1集")
-        # SDK 先执行 create_file(第2集)（on_llm_end 已标记第1集正文写出），守卫放行并置位第2集
-        ToolContext.set_pending_empty_file("ep-2", "第2集")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
+    adapter = create_stream_adapter(
+        project_id="p", user_id="u", process_file_markers=True, request_context=req_ctx
+    )
+    adapter._save_file_content = AsyncMock(return_value=True)
+    req_ctx.set_pending_empty_file("ep-1", "第1集")
+    adapter.set_pending_file_write("ep-1", "script", "第1集")
+    # SDK 先执行 create_file(第2集)（on_llm_end 已标记第1集正文写出），守卫放行并置位第2集
+    req_ctx.set_pending_empty_file("ep-2", "第2集")
 
-        rounds = await _drive_per_event(adapter, [
-            WorkflowStreamEvent(
-                type=StreamEventType.TEXT, data={"text": "第1集如下。<file>\n雨夜，她推开门。\n</file>"}
-            ),
-            _create_file_result_event("ep-2", "script", "第2集"),
-        ])
-        assert [e["file_id"] for e in ToolContext.get_pending_empty_files()] == ["ep-2"]
-        assert adapter._pending_file_write is not None
-        assert adapter._pending_file_write.file_id == "ep-2"
-        assert adapter._stream_processor.state == StreamState.WAITING_START
+    rounds = await _drive_per_event(adapter, [
+        WorkflowStreamEvent(
+            type=StreamEventType.TEXT, data={"text": "第1集如下。<file>\n雨夜，她推开门。\n</file>"}
+        ),
+        _create_file_result_event("ep-2", "script", "第2集"),
+    ])
+    assert [e["file_id"] for e in req_ctx.get_pending_empty_files()] == ["ep-2"]
+    assert adapter._pending_file_write is not None
+    assert adapter._pending_file_write.file_id == "ep-2"
+    assert adapter._stream_processor.state == StreamState.WAITING_START
 
-        rounds += await _drive_per_event(adapter, [
-            WorkflowStreamEvent(
-                type=StreamEventType.TEXT, data={"text": "<file>\n天亮了。\n</file>"}
-            ),
-            WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
-        ])
+    rounds += await _drive_per_event(adapter, [
+        WorkflowStreamEvent(
+            type=StreamEventType.TEXT, data={"text": "<file>\n天亮了。\n</file>"}
+        ),
+        WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+    ])
 
-        saved = [call.args for call in adapter._save_file_content.await_args_list]
-        # <file> 行尾的那个换行不算正文。
-        assert saved == [("ep-1", "雨夜，她推开门。\n"), ("ep-2", "天亮了。\n")]
-        chat = _chat_text(rounds)
-        assert "<file>" not in chat and "</file>" not in chat
-        assert "雨夜" not in chat and "天亮了" not in chat
-        assert ToolContext.get_pending_empty_files() == []
-    finally:
-        ToolContext.clear_context()
+    saved = [call.args for call in adapter._save_file_content.await_args_list]
+    # <file> 行尾的那个换行不算正文。
+    assert saved == [("ep-1", "雨夜，她推开门。\n"), ("ep-2", "天亮了。\n")]
+    chat = _chat_text(rounds)
+    assert "<file>" not in chat and "</file>" not in chat
+    assert "雨夜" not in chat and "天亮了" not in chat
+    assert req_ctx.get_pending_empty_files() == []
 
 
 @pytest.mark.unit
 async def test_genuine_rejection_keeps_failure_card_and_still_captures_body():
     """真实拒绝（回复里没有闭合 <file> 就再建）：失败卡保留，模型随后补写的正文照常落库不外露。"""
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    try:
-        adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
-        adapter._save_file_content = AsyncMock(return_value=True)
-        ToolContext.set_pending_empty_file("ep-A", "第1集")
-        adapter.set_pending_file_write("ep-A", "script", "第1集")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
+    adapter = create_stream_adapter(
+        project_id="p", user_id="u", process_file_markers=True, request_context=req_ctx
+    )
+    adapter._save_file_content = AsyncMock(return_value=True)
+    req_ctx.set_pending_empty_file("ep-A", "第1集")
+    adapter.set_pending_file_write("ep-A", "script", "第1集")
 
-        rejection = {
-            "status": "error",
-            "error_type": "pending_empty_file_unwritten",
-            "error": "文件「第2集」未创建：上一个文件「第1集」正文还是空的。",
-            "pending_file_id": "ep-A",
-        }
-        rounds = await _drive_per_event(adapter, [
-            WorkflowStreamEvent(
-                type=StreamEventType.TOOL_RESULT,
-                data={
-                    "name": "create_file",
-                    "tool_use_id": "tu-B",
-                    "result": {"content": [{"type": "text", "text": json.dumps(rejection)}]},
-                },
-            ),
-            WorkflowStreamEvent(type=StreamEventType.TEXT, data={"text": "<file>第1集正文</file>"}),
-            WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
-        ])
+    rejection = {
+        "status": "error",
+        "error_type": "pending_empty_file_unwritten",
+        "error": "文件「第2集」未创建：上一个文件「第1集」正文还是空的。",
+        "pending_file_id": "ep-A",
+    }
+    rounds = await _drive_per_event(adapter, [
+        WorkflowStreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={
+                "name": "create_file",
+                "tool_use_id": "tu-B",
+                "result": {"content": [{"type": "text", "text": json.dumps(rejection)}]},
+            },
+        ),
+        WorkflowStreamEvent(type=StreamEventType.TEXT, data={"text": "<file>第1集正文</file>"}),
+        WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+    ])
 
-        [card] = [sse for sse in rounds[0] if sse.type == EventType.TOOL_RESULT]
-        assert card.data["tool_name"] == "create_file"
-        assert card.data["status"] == "error"
-        adapter._save_file_content.assert_awaited_once()
-        assert adapter._save_file_content.await_args.args == ("ep-A", "第1集正文")
-        assert "<file>" not in _chat_text(rounds)
-        assert ToolContext.get_pending_empty_files() == []
-    finally:
-        ToolContext.clear_context()
+    [card] = [sse for sse in rounds[0] if sse.type == EventType.TOOL_RESULT]
+    assert card.data["tool_name"] == "create_file"
+    assert card.data["status"] == "error"
+    adapter._save_file_content.assert_awaited_once()
+    assert adapter._save_file_content.await_args.args == ("ep-A", "第1集正文")
+    assert "<file>" not in _chat_text(rounds)
+    assert req_ctx.get_pending_empty_files() == []
 
 
 # ---------------------------------------------------------------------------
@@ -1896,9 +1911,7 @@ def _text_event(text: str) -> WorkflowStreamEvent:
 @pytest.mark.unit
 async def test_prod_empty_file_pair_after_close_is_not_emitted_as_chat():
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
 
-    ToolContext.clear_pending_empty_file()
     adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
     adapter._save_file_content = AsyncMock(return_value=True)
 
@@ -1932,9 +1945,7 @@ async def test_prod_empty_file_pair_after_close_is_not_emitted_as_chat():
 @pytest.mark.unit
 async def test_held_pair_prefix_is_released_before_next_create_file():
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
 
-    ToolContext.clear_pending_empty_file()
     adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
     adapter._save_file_content = AsyncMock(return_value=True)
 

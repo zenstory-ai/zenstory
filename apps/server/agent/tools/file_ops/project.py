@@ -100,16 +100,24 @@ class ProjectOperations:
     with permission checking and logging.
     """
 
-    def __init__(self, session: Session, user_id: str | None = None):
+    def __init__(
+        self,
+        session: Session,
+        user_id: str | None = None,
+        *,
+        request_context: Any | None = None,
+    ):
         """
         Initialize project operations.
 
         Args:
             session: Database session
             user_id: Current user ID (UUID string, for permission checks)
+            request_context: Optional request-scoped ``AgentRequestContext``
         """
         self.session = session
         self.user_id = user_id
+        self.request_context = request_context
 
     @staticmethod
     def _normalize_task_phase(task: dict[str, Any]) -> str | None:

@@ -142,29 +142,36 @@ def check_file_access_in_tool_context(
     session: Session,
     file: File,
     user_id: str | None = None,
+    *,
+    project_id: str | None = None,
+    request_context: object | None = None,
 ) -> None:
     """
     Check by-id file access for agent tool execution.
 
-    Agent 工具按 id 定位文件时，目标必须属于当前 ToolContext 绑定的项目：
+    Agent 工具按 id 定位文件时，目标必须属于当前 ``AgentRequestContext`` 绑定的项目：
     根文件夹 id 可由 project_id 推出（如 "{project_id}-draft-folder"），仅靠
     "用户拥有该文件所在项目"不足以阻止被注入文本诱导的跨项目写/删。
-    未绑定工具上下文的调用（stream_adapter 落盘、后台任务等直接构造执行器的
+    未绑定请求上下文的调用（stream_adapter 落盘、后台任务等直接构造执行器的
     路径）退回文件自身项目的所有权校验。
 
     Args:
         session: Database session
         file: Already-loaded target file
         user_id: User ID
+        project_id: Optional explicit project ID scope override
+        request_context: Optional ``AgentRequestContext`` providing the scoped project ID
 
     Raises:
         NotFoundError: 文件不属于当前上下文项目（用户可见信息与文件不存在一致）
         ForbiddenError: 用户不拥有相关项目
     """
-    # 函数内延迟导入：mcp_tools 在模块加载时经 file_ops 间接导入本模块
-    from agent.tools.mcp_tools import ToolContext
+    context_project_id = project_id
+    if context_project_id is None and request_context is not None:
+        raw_project_id = getattr(request_context, "project_id", None)
+        if isinstance(raw_project_id, str) and raw_project_id:
+            context_project_id = raw_project_id
 
-    context_project_id = ToolContext.get_project_id()
     if context_project_id is None:
         check_project_ownership(session, file.project_id, user_id)
         return

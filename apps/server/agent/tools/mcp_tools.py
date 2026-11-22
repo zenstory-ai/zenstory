@@ -5,6 +5,7 @@ Defines tool functions that can be called by the writing-agent adapter.
 """
 
 import asyncio
+import contextlib
 import copy
 import json
 import os
@@ -42,13 +43,10 @@ from agent.tools.file_ops.serialization import (
     serialize_file,
 )
 from agent.tools.permissions import ForbiddenError, NotFoundError
-from agent.tools.tool_context import (  # noqa: F401 - re-exported for backward compatibility
-    SESSION_ISOLATION_KEY,
-    ToolContext,
-    _owned_session_var,
+from agent.tools.tool_context import (  # noqa: F401 - re-exported for callers
+    AgentRequestContext,
     _PendingEmptyFileState,
     _ReadSnapshots,
-    _tool_context_var,
 )
 from config.project_notes import merge_project_notes
 from services.file_tree_rules import has_sibling_title_conflict
@@ -79,72 +77,25 @@ PROJECT_STATUS_FIELD_ALIASES: dict[str, str] = {
 }
 
 
-def _run_sync_tool_with_owned_session_cleanup(
-    sync_func: Callable[[dict[str, Any]], dict[str, Any]],
-    args: dict[str, Any],
-    *extra_args: Any,
-) -> dict[str, Any]:
-    """
-    Run a sync tool helper and deterministically close any ToolContext-owned session.
-
-    When PostgreSQL-mode tool calls are offloaded with ``asyncio.to_thread()``,
-    ``ToolContext.get_session()`` may lazily create a session inside the worker
-    thread. That worker context is separate from the main request context, so the
-    normal ``ToolContext.clear_context()`` in the caller does not guarantee the
-    thread-owned session is closed immediately. Close it here to avoid relying on
-    GC timing for connection release.
-
-    进线程后必须先把 ``_owned_session_var`` 清空：``asyncio.to_thread`` 拷贝的是
-    调用方的 contextvars 快照，事件循环侧此前懒建的 Session 会被原样带进工作
-    线程。若不清空，(1) 同一个 Session 会被事件循环线程与工作线程交替使用
-    （SQLAlchemy Session 非线程安全），(2) 下面 finally 里的 ``_cleanup_owned_session``
-    会把这个**属于事件循环上下文**的 Session 直接 close 掉，而事件循环那边的
-    ContextVar 仍指向它（线程里的 set 对调用方不可见），后续调用拿到的是一个
-    已关闭的 Session。清空后，本线程按需自建、用完即关，生命周期完全自洽。
-
-    同理，``context["session"]``（调用方显式塞进来的**请求级** Session）也不能
-    在工作线程里复用：``get_session()`` 的第一分支就是它，绕不过 _owned_session_var
-    与 SESSION_ISOLATION_KEY。SDK 同一 turn 里的多个 tool_call 会并发成多个
-    asyncio Task，各自 ``to_thread`` 出一个工作线程，一起在同一个 Session 上
-    flush/commit/refresh。因此这里把上下文浅拷贝一份、抹掉 session 并打上隔离
-    标记，让本线程按需自建。只有在拿得到 ``create_session_func`` 时才这么做——
-    否则自建无从谈起，只能沿用调用方给的 session（测试里的典型用法）。
-    """
-    _owned_session_var.set(None)
-
-    context = _tool_context_var.get()
-    if (
-        isinstance(context, dict)
-        and context.get("session") is not None
-        and context.get("create_session_func")
-    ):
-        isolated_context = dict(context)
-        isolated_context["session"] = None
-        isolated_context[SESSION_ISOLATION_KEY] = True
-        # 这是工作线程私有的 contextvars 快照，set 不会影响事件循环侧。
-        _tool_context_var.set(isolated_context)
-
-    try:
-        return sync_func(args, *extra_args)
-    finally:
-        ToolContext._cleanup_owned_session()
-
-
 async def _offload_write_tool(
-    tool_name: str, sync_func: Callable[[dict[str, Any]], dict[str, Any]], args: dict[str, Any]
+    tool_name: str,
+    sync_func: Callable[..., dict[str, Any]],
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+    *extra_args: Any,
 ) -> dict[str, Any]:
     """写工具在线程里执行；停止 / 断线 / 时限取消了等待时线程照常跑完，结果留给收尾结算。
 
-    线程的 future 先登记进请求级的在途列表（``ToolContext.inflight_tool_writes``，属于
-    ``RunOutcome``，比 ``clear_context()`` 活得长），正常返回或出错时移除；被取消时留着，
+    每个同步工具在线程内通过 ``req_ctx.session_scope()`` 自建短生命周期 DB Session，用完即关。
+    线程的 future 先登记进请求级的在途列表（``req_ctx.inflight_tool_writes``，属于
+    ``RunOutcome``，比 ``req_ctx.clear()`` 活得长），正常返回或出错时移除；被取消时留着，
     由 service 的截停收尾等它的真实结果（``RunOutcome.settle_inflight_tool_writes``）。
     """
-    future = asyncio.ensure_future(
-        asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, sync_func, args)
-    )
+    future = asyncio.ensure_future(asyncio.to_thread(sync_func, args, req_ctx, *extra_args))
     # 取消之后没人再取结果时，先把异常取走（不留 "exception was never retrieved"）。
     future.add_done_callback(lambda done: done.cancelled() or done.exception())
-    registry = ToolContext.inflight_tool_writes()
+    raw_registry = req_ctx.inflight_tool_writes if req_ctx is not None else None
+    registry = raw_registry if isinstance(raw_registry, list) else None
     entry = (tool_name, future)
     if registry is not None:
         registry.append(entry)
@@ -509,7 +460,7 @@ def _run_session_probe(session: Session, fn: Callable[[Session], Any]) -> Any:
         raise
 
 
-def _clear_settled_pending_empty_files() -> bool:
+def _clear_settled_pending_empty_files(session: Session, req_ctx: AgentRequestContext) -> bool:
     """落库核验待写入空文件标记，清掉正文已写入或文件已不存在的条目。
 
     标记只在 <file>…</file> 流式写入收尾时清除；模型改用 edit_file(op=append)
@@ -523,13 +474,13 @@ def _clear_settled_pending_empty_files() -> bool:
     from models import File
 
     cleared = False
-    for entry in ToolContext.get_pending_empty_files():
+    for entry in req_ctx.get_pending_empty_files():
         file_id = str(entry.get("file_id") or "")
-        if not file_id or ToolContext.pending_chapter_replacement(file_id) is not None:
+        if not file_id or req_ctx.pending_chapter_replacement(file_id) is not None:
             continue
         try:
             row = _run_session_probe(
-                ToolContext.get_session(),
+                session,
                 lambda s, fid=file_id: s.exec(
                     select(File.content, File.is_deleted).where(File.id == fid)
                 ).first(),
@@ -538,13 +489,17 @@ def _clear_settled_pending_empty_files() -> bool:
             logger.debug(f"Pending empty-file probe failed: {e}")
             return cleared
         if row is None or row[1] or str(row[0] or "").strip():
-            ToolContext.clear_pending_empty_file(file_id)
+            req_ctx.clear_pending_empty_file(file_id)
             cleared = True
     return cleared
 
 
 def _pending_empty_file_rejection(
-    blocking_title: str | None, title: str, *, tool_name: str = "create_file"
+    blocking_title: str | None,
+    title: str,
+    req_ctx: AgentRequestContext,
+    *,
+    tool_name: str = "create_file",
 ) -> dict[str, Any]:
     """create_file 被「上一个空文件还没写正文」挡回时的错误，点名解除方法。
 
@@ -555,7 +510,7 @@ def _pending_empty_file_rejection(
     """
     blocking_name = blocking_title or "未知"
     blocking_id = ""
-    for entry in ToolContext.get_pending_empty_files():
+    for entry in req_ctx.get_pending_empty_files():
         if entry.get("title") == blocking_title:
             blocking_id = str(entry.get("file_id") or "")
     id_part = f"（id={blocking_id}）" if blocking_id else ""
@@ -594,7 +549,12 @@ def _awaiting_body_data(data: dict[str, Any], title: str) -> dict[str, Any]:
     }
 
 
-def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict[str, Any] | None:
+def _repeat_of_pending_empty_file(
+    session: Session,
+    args: dict[str, Any],
+    project_id: str,
+    req_ctx: AgentRequestContext,
+) -> dict[str, Any] | None:
     """create_file 被挡住时，判断它是不是在重复创建正挡路的那个空文件；是就把那个文件交回去。
 
     模型常见的做法是：上一次回复 create_file(X) 成功，下一次回复本该以 <file> 开头写
@@ -608,10 +568,7 @@ def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict
     """
     from models import File
 
-    state = ToolContext._get_pending_empty_file_state()
-    if state is None:
-        return None
-    entry = state.sole_unwritten_entry()
+    entry = req_ctx.pending_empty_file_state.sole_unwritten_entry()
     if entry is None:
         return None
 
@@ -624,7 +581,7 @@ def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict
         return None
     try:
         row = _run_session_probe(
-            ToolContext.get_session(),
+            session,
             lambda s: s.exec(
                 select(File).where(File.id == file_id).execution_options(populate_existing=True)
             ).first(),
@@ -693,12 +650,6 @@ SOURCE_TEXT_FILE_TYPE_ERROR_TYPE = "invalid_source_text_file_type"
 SOURCE_TEXT_EXISTING_MISMATCH_ERROR_TYPE = "source_text_existing_mismatch"
 
 
-def _loop_agent_type() -> str:
-    from agent.tools.registry import LOOP_AGENT_TYPE
-
-    return LOOP_AGENT_TYPE
-
-
 _LINE_BREAK_RE = re.compile(r"\r\n|\r|\n")
 _CANONICAL_LINE_SEP = r"[ \t]*(?:\r\n|\r|\n)(?:[ \t]*(?:\r\n|\r|\n))*"
 
@@ -737,7 +688,9 @@ def _match_verbatim_author_span(author_message: str, source_text: str) -> str | 
     return _find_unique_line_match(author_message, stripped)
 
 
-def _source_copy_content(args: dict[str, Any]) -> tuple[str | None, dict[str, Any] | None]:
+def _source_copy_content(
+    args: dict[str, Any], req_ctx: AgentRequestContext
+) -> tuple[str | None, dict[str, Any] | None]:
     """Validate a model-selected exact span from this request's raw author message.
 
     The model chooses what the material means and which span belongs in a file.  This
@@ -769,7 +722,7 @@ def _source_copy_content(args: dict[str, Any]) -> tuple[str | None, dict[str, An
             tool_name="create_file",
         )
 
-    author_message = ToolContext._get_context().get("author_message")
+    author_message = req_ctx.author_message
     if not isinstance(author_message, str):
         return None, _make_structured_error(
             "当前调用没有可校验的作者原始消息，不能复制 source_text；没有新建文件。",
@@ -786,11 +739,11 @@ def _source_copy_content(args: dict[str, Any]) -> tuple[str | None, dict[str, An
     return matched_span, None
 
 
-def _loop_body_create_refusal(args: dict[str, Any]) -> dict[str, Any] | None:
+def _loop_body_create_refusal(
+    session: Session, args: dict[str, Any], req_ctx: AgentRequestContext
+) -> dict[str, Any] | None:
     """单循环 agent 用 create_file 建正文类文件时拒绝，指向 write_chapter；其余情况返回 None。"""
-    from agent.tools.registry import LOOP_AGENT_TYPE
-
-    if ToolContext.get_current_agent() != LOOP_AGENT_TYPE:
+    if not req_ctx.is_loop_agent:
         return None
     requested_type = str(args.get("file_type") or "draft").strip().lower()
     file_type = requested_type
@@ -798,6 +751,8 @@ def _loop_body_create_refusal(args: dict[str, Any]) -> dict[str, Any] | None:
         # create_file 会把剧本分集目录下带集号的 document 归一成 script（见 resolve_create_target）：
         # 按实际会建的类型判断，不让正文绕过 write_chapter。
         target = _resolve_chapter_target(
+            session,
+            req_ctx.project_id,
             args.get("parent_id") or None,
             title=str(args.get("title") or ""),
             file_type=file_type,
@@ -825,6 +780,8 @@ def _loop_body_create_refusal(args: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _resolve_chapter_target(
+    session: Session,
+    project_id: str | None,
     parent_id: str | None,
     *,
     title: str,
@@ -835,12 +792,11 @@ def _resolve_chapter_target(
     from agent.tools.file_ops.crud import resolve_create_target
     from models import Project
 
-    project_id = ToolContext._get_context().get("project_id")
     if project_id is None:
         return None
     try:
         return _run_session_probe(
-            ToolContext.get_session(),
+            session,
             lambda s: resolve_create_target(
                 s,
                 project_id,
@@ -904,12 +860,19 @@ def _write_chapter_error(error: str, *, error_type: str, **fields: Any) -> dict[
     )
 
 
-async def write_chapter(args: dict[str, Any]) -> dict[str, Any]:
+async def write_chapter(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> dict[str, Any]:
     """按章号 / 集号写一章正文：不存在就新建，已存在就替换这一章（正文随后以 <file> 写入）。"""
-    return await _offload_write_tool(WRITE_CHAPTER_TOOL_NAME, _write_chapter_sync, args)
+    return await _offload_write_tool(WRITE_CHAPTER_TOOL_NAME, _write_chapter_sync, args, request_context)
 
 
-def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
+def _write_chapter_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+) -> dict[str, Any]:
     """write_chapter 的同步实现。
 
     目标只按编号解析：本项目未删除、与请求同类型的正文文件里，标题开头的章号（draft）或集号
@@ -926,8 +889,8 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
     from utils.title_sequence import extract_sequence_number
 
     tool_name = WRITE_CHAPTER_TOOL_NAME
-    project_id = ToolContext._get_context().get("project_id")
-    if project_id is None:
+    project_id = req_ctx.project_id if req_ctx is not None else None
+    if req_ctx is None or project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
     raw_number = args.get("chapter")
@@ -962,102 +925,118 @@ def _write_chapter_sync(args: dict[str, Any]) -> dict[str, Any]:
     title = raw_title if titled_number is not None else _chapter_title(raw_title, number, unit)
     requested_parent_id = args.get("parent_id") or None
     parent_id = requested_parent_id
-    if requested_parent_id is not None:
-        # 与 create_file 同一套父节点归一（传成上一章的文件 id、剧本项目传了 -draft-folder）：
-        # 查找与新建落在同一个目录，不会在已有这一章的目录旁边再建一个。
-        target = _resolve_chapter_target(requested_parent_id, title=title, file_type=file_type)
-        if target is not None:
-            parent_id = target[0]
 
-    try:
-        rows = _run_session_probe(
-            ToolContext.get_session(),
-            lambda s: s.exec(
-                select(File.id, File.title, File.parent_id, File.file_type, File.file_metadata).where(
-                    File.project_id == project_id,
-                    File.is_deleted.is_(False),
-                    File.file_type == file_type,
-                )
-            ).all(),
-        )
-    except Exception as e:  # noqa: BLE001
-        return _make_error(f"读取章节列表失败，没有写入：{e}", tool_name=tool_name)
-    matches = [
-        row
-        for row in rows
-        if _row_chapter_number(row, unit=unit, expected_file_type=file_type) == number
-        and (parent_id is None or (row.parent_id or None) == parent_id)
-    ]
-    if len(matches) > 1:
-        listed = "；".join(f"《{row.title}》(id={row.id}, parent_id={row.parent_id})" for row in matches[:6])
-        return _write_chapter_error(
-            f"第{number}{unit}对应不止一个文件：{listed}。没有写入。"
-            f"分卷时传 parent_id 指明是哪一卷；同一目录里重复的第{number}{unit}文件请告诉作者，"
-            "由作者决定保留哪一个，不要自己删除或合并。",
-            error_type=WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE,
-            candidates=[{"id": row.id, "title": row.title, "parent_id": row.parent_id} for row in matches[:6]],
-        )
-    empty = coerce_bool(args.get("empty"))
-    if matches and requested_parent_id is None and not empty:
-        body_folders = {
-            row.parent_id or None
-            for row in rows
-            if _row_chapter_number(row, unit=unit, expected_file_type=file_type) is not None
-        }
-        if len(body_folders) > 1:
-            # 正文分在几个目录（分卷常各自从第1章编号）而没指明目录：唯一的同号章节不一定是要写的那一卷，
-            # 不把它当替换目标。
-            existing = matches[0]
-            return _write_chapter_error(
-                f"正文分在 {len(body_folders)} 个目录里，没给 parent_id 时不确定要写哪一个目录的第{number}{unit}"
-                f"（已有的是《{existing.title}》，parent_id={existing.parent_id}）。没有写入。"
-                "传 parent_id 指明目录：要替换它就传它所在的目录，要在别的卷新写就传那一卷的目录。",
-                error_type=WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE,
-                candidates=[{"id": existing.id, "title": existing.title, "parent_id": existing.parent_id}],
+    with req_ctx.session_scope() as session:
+        if requested_parent_id is not None:
+            # 与 create_file 同一套父节点归一（传成上一章的文件 id、剧本项目传了 -draft-folder）：
+            # 查找与新建落在同一个目录，不会在已有这一章的目录旁边再建一个。
+            target = _resolve_chapter_target(
+                session, project_id, requested_parent_id, title=title, file_type=file_type
             )
-    if not matches:
-        if parent_id is None:
-            parent_id = _default_chapter_folder(project_id, file_type, rows)
-        return _write_chapter_create(
-            args, title=title, number=number, unit=unit, file_type=file_type, parent_id=parent_id, empty=empty
-        )
-    if empty:
-        # 只建空章节：这一章已经有文件，什么也不做。
-        existing = matches[0]
-        return _make_result(
-            {
-                "status": "success",
-                "mutation_applied": False,
-                "data": {
-                    "id": existing.id,
-                    "title": existing.title,
-                    "file_type": existing.file_type,
-                    "chapter": number,
-                    "action": "exists",
-                    "result": f"第{number}{unit}《{existing.title}》已经有文件，没有改动。",
+            if target is not None:
+                parent_id = target[0]
+
+        try:
+            rows = _run_session_probe(
+                session,
+                lambda s: s.exec(
+                    select(File.id, File.title, File.parent_id, File.file_type, File.file_metadata).where(
+                        File.project_id == project_id,
+                        File.is_deleted.is_(False),
+                        File.file_type == file_type,
+                    )
+                ).all(),
+            )
+        except Exception as e:  # noqa: BLE001
+            return _make_error(f"读取章节列表失败，没有写入：{e}", tool_name=tool_name)
+        matches = [
+            row
+            for row in rows
+            if _row_chapter_number(row, unit=unit, expected_file_type=file_type) == number
+            and (parent_id is None or (row.parent_id or None) == parent_id)
+        ]
+        if len(matches) > 1:
+            listed = "；".join(f"《{row.title}》(id={row.id}, parent_id={row.parent_id})" for row in matches[:6])
+            return _write_chapter_error(
+                f"第{number}{unit}对应不止一个文件：{listed}。没有写入。"
+                f"分卷时传 parent_id 指明是哪一卷；同一目录里重复的第{number}{unit}文件请告诉作者，"
+                "由作者决定保留哪一个，不要自己删除或合并。",
+                error_type=WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE,
+                candidates=[{"id": row.id, "title": row.title, "parent_id": row.parent_id} for row in matches[:6]],
+            )
+        empty = coerce_bool(args.get("empty"))
+        if matches and requested_parent_id is None and not empty:
+            body_folders = {
+                row.parent_id or None
+                for row in rows
+                if _row_chapter_number(row, unit=unit, expected_file_type=file_type) is not None
+            }
+            if len(body_folders) > 1:
+                # 正文分在几个目录（分卷常各自从第1章编号）而没指明目录：唯一的同号章节不一定是要写的那一卷，
+                # 不把它当替换目标。
+                existing = matches[0]
+                return _write_chapter_error(
+                    f"正文分在 {len(body_folders)} 个目录里，没给 parent_id 时不确定要写哪一个目录的第{number}{unit}"
+                    f"（已有的是《{existing.title}》，parent_id={existing.parent_id}）。没有写入。"
+                    "传 parent_id 指明目录：要替换它就传它所在的目录，要在别的卷新写就传那一卷的目录。",
+                    error_type=WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE,
+                    candidates=[{"id": existing.id, "title": existing.title, "parent_id": existing.parent_id}],
+                )
+        if not matches:
+            if parent_id is None:
+                parent_id = _default_chapter_folder(session, project_id, file_type, rows)
+            return _write_chapter_create(
+                session,
+                req_ctx,
+                args,
+                title=title,
+                number=number,
+                unit=unit,
+                file_type=file_type,
+                parent_id=parent_id,
+                empty=empty,
+            )
+        if empty:
+            # 只建空章节：这一章已经有文件，什么也不做。
+            existing = matches[0]
+            return _make_result(
+                {
+                    "status": "success",
+                    "mutation_applied": False,
+                    "data": {
+                        "id": existing.id,
+                        "title": existing.title,
+                        "file_type": existing.file_type,
+                        "chapter": number,
+                        "action": "exists",
+                        "result": f"第{number}{unit}《{existing.title}》已经有文件，没有改动。",
+                    },
                 },
-            },
-            tool_name=tool_name,
+                tool_name=tool_name,
+            )
+        existing_title = (matches[0].title or "").strip()
+        if (raw_title and raw_title == existing_title) or not _chapter_title_has_subtitle(raw_title, unit):
+            requested_replace_title = None
+        else:
+            candidate_title = title
+            existing_prefixed = _split_prefixed_chapter_title(existing_title, unit)
+            if existing_prefixed is not None and _split_prefixed_chapter_title(raw_title, unit) is None:
+                candidate_title = f"{existing_prefixed[0]} - {title}"
+            requested_replace_title = None if candidate_title == existing_title else candidate_title
+        return _write_chapter_replace(
+            session,
+            req_ctx,
+            matches[0].id,
+            number=number,
+            unit=unit,
+            project_id=project_id,
+            requested_title=requested_replace_title,
         )
-    existing_title = (matches[0].title or "").strip()
-    if (raw_title and raw_title == existing_title) or not _chapter_title_has_subtitle(raw_title, unit):
-        requested_replace_title = None
-    else:
-        candidate_title = title
-        existing_prefixed = _split_prefixed_chapter_title(existing_title, unit)
-        if existing_prefixed is not None and _split_prefixed_chapter_title(raw_title, unit) is None:
-            candidate_title = f"{existing_prefixed[0]} - {title}"
-        requested_replace_title = None if candidate_title == existing_title else candidate_title
-    return _write_chapter_replace(
-        matches[0].id,
-        number=number,
-        unit=unit,
-        project_id=project_id,
-        requested_title=requested_replace_title,
-    )
 
 
-def _default_chapter_folder(project_id: str, file_type: str, rows: list[Any]) -> str | None:
+def _default_chapter_folder(
+    session: Session, project_id: str, file_type: str, rows: list[Any]
+) -> str | None:
     """没给 parent_id 的新章节放哪：同类型章节都在同一个目录就用它，否则用项目的默认正文目录；都没有返回 None。"""
     from models import File
 
@@ -1071,7 +1050,7 @@ def _default_chapter_folder(project_id: str, file_type: str, rows: list[Any]) ->
         default_ids = default_ids[1:]
     try:
         found = _run_session_probe(
-            ToolContext.get_session(),
+            session,
             lambda s: s.exec(
                 select(File.id).where(
                     File.id.in_(default_ids),
@@ -1088,6 +1067,8 @@ def _default_chapter_folder(project_id: str, file_type: str, rows: list[Any]) ->
 
 
 def _write_chapter_create(
+    session: Session,
+    req_ctx: AgentRequestContext,
     args: dict[str, Any],
     *,
     title: str,
@@ -1102,7 +1083,7 @@ def _write_chapter_create(
         create_args["parent_id"] = parent_id
     if args.get("metadata") is not None:
         create_args["metadata"] = args.get("metadata")
-    raw = _create_file_sync(create_args, tool_name=WRITE_CHAPTER_TOOL_NAME)
+    raw = _create_file_sync(create_args, req_ctx, tool_name=WRITE_CHAPTER_TOOL_NAME, session=session)
     payload = _payload_of(raw)
     if not isinstance(payload, dict) or payload.get("status") != "success":
         return raw
@@ -1118,6 +1099,8 @@ def _write_chapter_create(
 
 
 def _write_chapter_replace(
+    session: Session,
+    req_ctx: AgentRequestContext,
     file_id: str,
     *,
     number: int,
@@ -1130,8 +1113,7 @@ def _write_chapter_replace(
     from utils.text_metrics import count_words
 
     tool_name = WRITE_CHAPTER_TOOL_NAME
-    pending_ids = {str(entry.get("file_id") or "") for entry in ToolContext.get_pending_empty_files()}
-    session = ToolContext.get_session()
+    pending_ids = {str(entry.get("file_id") or "") for entry in req_ctx.get_pending_empty_files()}
     try:
         row = _run_session_probe(
             session,
@@ -1150,7 +1132,7 @@ def _write_chapter_replace(
     data.pop("content", None)
     data["chapter"] = number
     if file_id in pending_ids:
-        armed = ToolContext.pending_chapter_replacement(file_id)
+        armed = req_ctx.pending_chapter_replacement(file_id)
         if armed is not None:
             # 已有的这一章已经定为整章替换、在等正文（同一回复里重复或并行调用）：不当成新建，
             # 也不重新定位；第一次调用的结果与卡片照旧有效。
@@ -1164,14 +1146,14 @@ def _write_chapter_replace(
         # 这一章就是本请求刚建、还在等正文的那个文件：交回它，下一次回复照常写正文。
         data = _awaiting_body_data(data, str(row.title or ""))
         data["action"] = WRITE_CHAPTER_ACTION_CREATED
-        if content and ToolContext.pending_empty_file_version(file_id) is None:
+        if content and req_ctx.pending_empty_file_version(file_id) is None:
             # 复用的已有文件（不是本请求建的）已经有正文：带上原长度，截断补全时不整体覆盖它。
             data["reused_existing"] = True
             data["original_content_length"] = len(content)
         data["next_step"] = "不要再调用 write_chapter。" + data["next_step"]
         return _make_result({"status": "success", "mutation_applied": False, "data": data}, tool_name=tool_name)
 
-    if ToolContext.chapter_body_saved_this_request(file_id):
+    if req_ctx.chapter_body_saved_this_request(file_id):
         # 这一章的正文这一轮已经由 write_chapter 写完并保存：不再整章重写（自查发现的问题用 edit_file 局部改）。
         # 看的是本请求里确认落库的结构化记录，不看模型的文字。
         return _write_chapter_error(
@@ -1209,11 +1191,15 @@ def _write_chapter_replace(
             new_title = cleaned_title
 
     reservation = f"reserve-{uuid4().hex}"
-    acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(reservation, str(new_title or row.title or ""))
-    if not acquired and _clear_settled_pending_empty_files():
-        acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(reservation, str(new_title or row.title or ""))
+    acquired, blocking_title = req_ctx.try_reserve_pending_empty_file(reservation, str(new_title or row.title or ""))
+    if not acquired and _clear_settled_pending_empty_files(session, req_ctx):
+        acquired, blocking_title = req_ctx.try_reserve_pending_empty_file(
+            reservation, str(new_title or row.title or "")
+        )
     if not acquired:
-        return _pending_empty_file_rejection(blocking_title, str(new_title or row.title or ""), tool_name=tool_name)
+        return _pending_empty_file_rejection(
+            blocking_title, str(new_title or row.title or ""), req_ctx, tool_name=tool_name
+        )
     previous_words = count_words(content)
     title_clause = (
         f"保存时标题一并更新为《{new_title}》。"
@@ -1239,12 +1225,12 @@ def _write_chapter_replace(
         }
     )
     # 不是本轮新建的文件：不记建好时的版本（补不成时不回滚、不算可以取消的空文件），记下替换的定位结果。
-    ToolContext.bind_pending_empty_file(
+    req_ctx.bind_pending_empty_file(
         reservation, file_id, str(new_title or row.title or ""), None, replacement=data
     )
-    if ToolContext.take_reply_prebody():
+    if req_ctx.take_reply_prebody():
         # 本条回复在这次调用之前已写出正文：它就是这一章的替换稿，由 StreamAdapter 走整章替换落库。
-        ToolContext.mark_pending_body_streamed(file_id)
+        req_ctx.mark_pending_body_streamed(file_id)
         data = {
             **data,
             "body_in_reply": True,
@@ -1271,155 +1257,175 @@ def _payload_of(result: Any) -> Any:
         return None
 
 
-async def create_file(args: dict[str, Any]) -> dict[str, Any]:
+async def create_file(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> dict[str, Any]:
     """创建新文件。"""
-    # asyncio.to_thread 运行在拷贝上下文中，但 pending-empty-file 标记通过
-    # 请求上下文 dict 里的共享持有者原地修改，_create_file_sync 在工作线程
-    # 里设置后对主上下文同样可见，无需在此回填。
-    return await _offload_write_tool("create_file", _create_file_sync, args)
+    return await _offload_write_tool("create_file", _create_file_sync, args, request_context)
 
 
-def _create_file_sync(args: dict[str, Any], *, tool_name: str = "create_file") -> dict[str, Any]:
+def _create_file_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+    *,
+    tool_name: str = "create_file",
+    session: Session | None = None,
+) -> dict[str, Any]:
     """Synchronous create_file implementation (write_chapter 新建一章时也走这里)."""
-    project_id = ToolContext._get_context().get("project_id")
+    project_id = req_ctx.project_id if req_ctx is not None else None
 
-    if project_id is None:
+    if req_ctx is None or project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
     title = args.get("title", "")
     if tool_name == "create_file":
-        body_refusal = _loop_body_create_refusal(args)
-        if body_refusal is not None:
-            return body_refusal
-        source_content, source_error = _source_copy_content(args)
+        source_content, source_error = _source_copy_content(args, req_ctx)
         if source_error is not None:
             return source_error
     else:
         source_content = None
-    content = source_content if source_content is not None else args.get("content", "")
-    executor = ToolContext.get_executor()
-    # 作者明确只要建文件（「只建标题，不写内容」）：这个空文件就是交付物，不等正文。
-    # 只在路由判断作者本轮不要正文时生效，作者要正文时模型传了也照常等正文。
-    empty_requested = coerce_bool(args.get("empty"))
-    empty_by_request = empty_requested and not content and ToolContext.author_wants_no_body()
 
-    # 检查是否已有待写入的空文件（防止连续创建空文件导致内容丢失）。
-    # 检查与置位必须原子完成：两者之间隔着 DB INSERT（还跨 asyncio.to_thread
-    # 的线程边界），先查后置会让并发的两次空文件创建同时通过检查，各自建出一个
-    # 空文件，后置位的把先置位的覆盖掉——先建的空文件从此没有任何指针。
-    # 因此这里先 try_reserve 占坑，落库后再 bind 真实 file_id。
-    reservation: str | None = None
-    if not content and not empty_by_request:
-        reservation = f"reserve-{uuid4().hex}"
-        acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(
-            reservation, title
-        )
-        if not acquired and _clear_settled_pending_empty_files():
-            # 挡路的标记已陈旧（正文已经用 edit_file 等方式写进去了，或文件已删）：
-            # 清掉后再占一次坑，不让模型为一个早已完成的文件反复撞墙。
-            acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(
+    session_cm = contextlib.nullcontext(session) if session is not None else req_ctx.session_scope()
+    with session_cm as active_session:
+        if tool_name == "create_file":
+            body_refusal = _loop_body_create_refusal(active_session, args, req_ctx)
+            if body_refusal is not None:
+                return body_refusal
+        content = source_content if source_content is not None else args.get("content", "")
+        executor = req_ctx.executor(active_session)
+        # 作者明确只要建文件（「只建标题，不写内容」）：这个空文件就是交付物，不等正文。
+        # 只在单循环 agent 里生效，模型传了 empty=true 才不进入待写状态。
+        empty_requested = coerce_bool(args.get("empty"))
+        empty_by_request = empty_requested and not content and req_ctx.author_wants_no_body()
+
+        # 检查是否已有待写入的空文件（防止连续创建空文件导致内容丢失）。
+        # 检查与置位必须原子完成：两者之间隔着 DB INSERT（还跨 asyncio.to_thread
+        # 的线程边界），先查后置会让并发的两次空文件创建同时通过检查，各自建出一个
+        # 空文件，后置位的把先置位的覆盖掉——先建的空文件从此没有任何指针。
+        # 因此这里先 try_reserve 占坑，落库后再 bind 真实 file_id。
+        reservation: str | None = None
+        if not content and not empty_by_request:
+            reservation = f"reserve-{uuid4().hex}"
+            acquired, blocking_title = req_ctx.try_reserve_pending_empty_file(
                 reservation, title
             )
-        if not acquired:
-            # 挡路的正是本次要建的这个空文件（同标题、同父目录、同类型）：交回它，
-            # 让模型直接写正文；挡路的是别的文件时照旧拒绝。
-            repeat = _repeat_of_pending_empty_file(args, project_id)
-            if repeat is not None:
-                return repeat
-            return _pending_empty_file_rejection(blocking_title, title, tool_name=tool_name)
-
-    try:
-        order_value = args.get("order") if "order" in args else None
-        if order_value is not None:
-            try:
-                order_value = int(order_value)
-            except (TypeError, ValueError):
-                order_value = None
-
-        result = executor.create_file(
-            project_id=project_id,
-            title=title,
-            file_type=args.get("file_type", "draft"),
-            content=content,
-            parent_id=args.get("parent_id"),
-            order=order_value,
-            metadata=args.get("metadata"),
-            # 应用内 agent 写正文：draft/script 的双引号按稿件体例规范化。
-            normalize_quotes=True,
-        )
-
-        # 如果创建的是空文件，把占坑换成真实 file_id
-        # folder 例外：文件夹是纯容器节点，永远不会收到 <file>…</file> 正文，
-        # 给它置标记后无人清除（标记跨子任务可见），会硬阻断本轮后续所有建档，
-        # 并让纠偏分支把章节正文追加到文件夹节点上。
-        awaiting_body = False
-        body_in_reply = False
-        if reservation is not None:
-            file_id = result.get("id", "")
-            if file_id and not _is_folder_file_type(result, args):
-                # 只有本轮新建的文件记下建好时的版本（之后补不成可以回滚）；复用的既有空文件
-                # 照样等正文，但不是本轮产物，不记版本，回滚不删它。
-                created_version = None if result.get("reused_existing") is True else result.get("updated_at")
-                ToolContext.bind_pending_empty_file(
-                    reservation, file_id, title, created_version if isinstance(created_version, str) else None
+            if not acquired and _clear_settled_pending_empty_files(active_session, req_ctx):
+                # 挡路的标记已陈旧（正文已经用 edit_file 等方式写进去了，或文件已删）：
+                # 清掉后再占一次坑，不让模型为一个早已完成的文件反复撞墙。
+                acquired, blocking_title = req_ctx.try_reserve_pending_empty_file(
+                    reservation, title
                 )
+            if not acquired:
+                # 挡路的正是本次要建的这个空文件（同标题、同父目录、同类型）：交回它，
+                # 让模型直接写正文；挡路的是别的文件时照旧拒绝。
+                repeat = _repeat_of_pending_empty_file(active_session, args, project_id, req_ctx)
+                if repeat is not None:
+                    return repeat
+                return _pending_empty_file_rejection(blocking_title, title, req_ctx, tool_name=tool_name)
+
+        try:
+            order_value = args.get("order") if "order" in args else None
+            if order_value is not None:
+                try:
+                    order_value = int(order_value)
+                except (TypeError, ValueError):
+                    order_value = None
+
+            result = executor.create_file(
+                project_id=project_id,
+                title=title,
+                file_type=args.get("file_type", "draft"),
+                content=content,
+                parent_id=args.get("parent_id"),
+                order=order_value,
+                metadata=args.get("metadata"),
+                # 应用内 agent 写正文：draft/script 的双引号按稿件体例规范化。
+                normalize_quotes=True,
+            )
+
+            # 如果创建的是空文件，把占坑换成真实 file_id
+            # folder 例外：文件夹是纯容器节点，永远不会收到 <file>…</file> 正文，
+            # 给它置标记后无人清除（标记跨子任务可见），会硬阻断本轮后续所有建档，
+            # 并让纠偏分支把章节正文追加到文件夹节点上。
+            awaiting_body = False
+            body_in_reply = False
+            if reservation is not None:
+                file_id = result.get("id", "")
+                if file_id and not _is_folder_file_type(result, args):
+                    # 只有本轮新建的文件记下建好时的版本（之后补不成可以回滚）；复用的既有空文件
+                    # 照样等正文，但不是本轮产物，不记版本，回滚不删它。
+                    created_version = None if result.get("reused_existing") is True else result.get("updated_at")
+                    req_ctx.bind_pending_empty_file(
+                        reservation, file_id, title, created_version if isinstance(created_version, str) else None
+                    )
+                    reservation = None
+                    if req_ctx.pending_body_files_closed():
+                        # 这一轮已经提前结束（StreamAdapter 不会再处理这个结果）：撤销刚建的空文件。
+                        return _withdraw_file_created_after_close(
+                            file_id, title, result, req_ctx, tool_name=tool_name
+                        )
+                    awaiting_body = True
+                    # 本条回复在建它之前已写出正文：正文属于这个新文件，由 StreamAdapter 落库；
+                    # 守卫视同正文已写出，下一次回复不再要求先写它。复用的既有文件不认领。
+                    if result.get("reused_existing") is not True and req_ctx.take_reply_prebody():
+                        req_ctx.mark_pending_body_streamed(file_id)
+                        body_in_reply = True
+                else:
+                    req_ctx.release_pending_empty_file(reservation)
                 reservation = None
-                if ToolContext.pending_body_files_closed():
-                    # 这一轮已经提前结束（StreamAdapter 不会再处理这个结果）：撤销刚建的空文件。
-                    return _withdraw_file_created_after_close(file_id, title, result, tool_name=tool_name)
-                awaiting_body = True
-                # 本条回复在建它之前已写出正文：正文属于这个新文件，由 StreamAdapter 落库；
-                # 守卫视同正文已写出，下一次回复不再要求先写它。复用的既有文件不认领。
-                if result.get("reused_existing") is not True and ToolContext.take_reply_prebody():
-                    ToolContext.mark_pending_body_streamed(file_id)
-                    body_in_reply = True
-            else:
-                ToolContext.release_pending_empty_file(reservation)
-            reservation = None
 
-
-        if source_content is not None:
-            if result.get("reused_existing") is True and result.get("content") != source_content:
-                return _make_structured_error(
-                    "同名文件已存在且内容与作者原文不同；现有文件保持原样，没有复制 source_text。",
-                    error_type=SOURCE_TEXT_EXISTING_MISMATCH_ERROR_TYPE,
-                    tool_name=tool_name,
-                )
-            result = {**result, "source_copied": True, "body_saved": True}
-        data = _slim_write_file_data(_elide_reused_file_content(result))
-        if body_in_reply:
-            data = {**data, "body_in_reply": True, "next_step": _body_in_reply_next_step(title, tool_name)}
-        elif awaiting_body:
-            data = _awaiting_body_data(data, title)
-        elif empty_by_request:
-            data = {**data, "empty_by_request": True}
-        return _make_result(
-            {
-                "status": "success",
-                "mutation_applied": result.get("mutation_applied") is True,
-                "data": data,
-            },
-            tool_name=tool_name,
-        )
-    except Exception as e:
-        return _make_error(str(e), tool_name=tool_name)
-    finally:
-        # 创建失败（异常或提前 return）时必须回滚占坑，否则这个永远不会被
-        # bind 的票据会把本请求后续所有空文件创建全部挡在门外。
-        if reservation is not None:
-            ToolContext.release_pending_empty_file(reservation)
+            if source_content is not None:
+                if result.get("reused_existing") is True and result.get("content") != source_content:
+                    return _make_structured_error(
+                        "同名文件已存在且内容与作者原文不同；现有文件保持原样，没有复制 source_text。",
+                        error_type=SOURCE_TEXT_EXISTING_MISMATCH_ERROR_TYPE,
+                        tool_name=tool_name,
+                    )
+                result = {**result, "source_copied": True, "body_saved": True}
+            data = _slim_write_file_data(_elide_reused_file_content(result))
+            if body_in_reply:
+                data = {**data, "body_in_reply": True, "next_step": _body_in_reply_next_step(title, tool_name)}
+            elif awaiting_body:
+                data = _awaiting_body_data(data, title)
+            elif empty_by_request:
+                data = {**data, "empty_by_request": True}
+            return _make_result(
+                {
+                    "status": "success",
+                    "mutation_applied": result.get("mutation_applied") is True,
+                    "data": data,
+                },
+                tool_name=tool_name,
+            )
+        except Exception as e:
+            return _make_error(str(e), tool_name=tool_name)
+        finally:
+            # 创建失败（异常或提前 return）时必须回滚占坑，否则这个永远不会被
+            # bind 的票据会把本请求后续所有空文件创建全部挡在门外。
+            if reservation is not None:
+                req_ctx.release_pending_empty_file(reservation)
 
 
 def _withdraw_file_created_after_close(
-    file_id: str, title: str, result: dict[str, Any], *, tool_name: str
+    file_id: str,
+    title: str,
+    result: dict[str, Any],
+    req_ctx: AgentRequestContext,
+    *,
+    tool_name: str,
 ) -> dict[str, Any]:
     """这一轮被提前结束之后才建好的空文件：只撤销本请求新建、版本未变的那个，然后报告没有建成。"""
     from agent.core.empty_files import rollback_unfinished_empty_files
 
     version = result.get("updated_at") if result.get("reused_existing") is not True else None
     if isinstance(version, str) and version:
-        rollback_unfinished_empty_files([{"file_id": file_id, "title": title, "updated_at": version}])
-    ToolContext.clear_pending_empty_file(file_id)
+        rollback_unfinished_empty_files(
+            [{"file_id": file_id, "title": title, "updated_at": version}],
+            request_context=req_ctx,
+        )
+    req_ctx.clear_pending_empty_file(file_id)
     return _make_structured_error(
         "这一轮已经结束，没有新建文件。",
         error_type="round_closed",
@@ -1427,145 +1433,155 @@ def _withdraw_file_created_after_close(
     )
 
 
-async def edit_file(args: dict[str, Any]) -> dict[str, Any]:
+async def edit_file(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+    tool_call_id: str | None = None,
+) -> dict[str, Any]:
     """精确编辑文件内容。"""
-    return await _offload_write_tool("edit_file", _edit_file_sync, args)
+    return await _offload_write_tool("edit_file", _edit_file_sync, args, request_context, tool_call_id)
 
 
-def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
+def _edit_file_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+    tool_call_id: str | None = None,
+) -> dict[str, Any]:
     """Synchronous edit_file implementation."""
     tool_name = "edit_file"
-    executor = ToolContext.get_executor()
-    project_id = ToolContext._get_context().get("project_id")
+    project_id = req_ctx.project_id if req_ctx is not None else None
 
     # 写工具必须运行在绑定了项目的上下文中；执行器层会进一步校验目标文件
     # 属于该项目（check_file_access_in_tool_context）。
-    if project_id is None:
+    if req_ctx is None or project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
+    file_id_raw = args.get("id") or args.get("file_id") or args.get("fileId")
+    if isinstance(file_id_raw, str):
+        file_id = file_id_raw.strip()
+    elif file_id_raw is None:
+        file_id = ""
+    else:
+        # Do not silently accept non-string IDs; keep tool inputs strict to
+        # avoid noisy "file not found" logs when the caller passes wrong types.
+        return _make_edit_error(
+            "edit_file: invalid param 'id' (must be a string).",
+            error_type=EDIT_ERROR_INVALID_EDIT,
+        )
+    if not file_id:
+        return _make_edit_error(
+            "edit_file: missing required param 'id' (alias: file_id). "
+            "Please query_files to get the correct id, or use the provided 当前文件 ID.",
+            error_type=EDIT_ERROR_INVALID_EDIT,
+        )
+
+    edits = args.get("edits")
+    if edits is None:
+        edits = args.get("operations", [])
+    if not isinstance(edits, list):
+        return _make_edit_error(
+            "edit_file: invalid param 'edits' (must be an array).",
+            error_type=EDIT_ERROR_INVALID_EDIT,
+        )
+
+    if req_ctx.pending_chapter_replacement(file_id) is not None or (
+        req_ctx.is_loop_agent and req_ctx.pending_empty_file_for(file_id) is not None
+    ):
+        pending_entry = req_ctx.pending_empty_file_for(file_id) or {"title": file_id}
+        return _make_edit_error(
+            f"《{pending_entry['title']}》已定为待写入正文（等待 <file>…</file>），edit_file 未执行（没有改动）。"
+            "请先在下一次回复用 <file>…</file> 写完它的正文，保存之后确需局部修改再调用 edit_file。",
+            error_type=WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE,
+            id=file_id,
+        )
+
     read_ticket: int | None = None
-    try:
-        file_id_raw = args.get("id") or args.get("file_id") or args.get("fileId")
-        if isinstance(file_id_raw, str):
-            file_id = file_id_raw.strip()
-        elif file_id_raw is None:
-            file_id = ""
-        else:
-            # Do not silently accept non-string IDs; keep tool inputs strict to
-            # avoid noisy "file not found" logs when the caller passes wrong types.
-            return _make_edit_error(
-                "edit_file: invalid param 'id' (must be a string).",
-                error_type=EDIT_ERROR_INVALID_EDIT,
-            )
-        if not file_id:
-            return _make_edit_error(
-                "edit_file: missing required param 'id' (alias: file_id). "
-                "Please query_files to get the correct id, or use the provided 当前文件 ID.",
-                error_type=EDIT_ERROR_INVALID_EDIT,
-            )
+    with req_ctx.session_scope() as session:
+        executor = req_ctx.executor(session)
+        try:
+            # 作者手改过的文件不再整份拒绝：作者改了什么见 <author_edits>，由模型保留或按作者的新要求改；
+            # 这里只核对事实。模型本请求里没看过这个文件的全文时，old / anchor 只按逐字匹配，
+            # 不拿可能过时的记忆去模糊匹配作者刚改过的字。有快照（看过或自己写过）就做陈旧检查。
+            has_snapshot = req_ctx.read_snapshot(file_id) is not None
+            has_seen = req_ctx.has_seen_file(file_id)
+            seen_spans = None if has_seen else req_ctx.seen_file_spans(file_id)
+            read_ticket = req_ctx.read_ticket()
 
-        edits = args.get("edits")
-        if edits is None:
-            edits = args.get("operations", [])
-        if not isinstance(edits, list):
-            return _make_edit_error(
-                "edit_file: invalid param 'edits' (must be an array).",
-                error_type=EDIT_ERROR_INVALID_EDIT,
-            )
-
-        if ToolContext.pending_chapter_replacement(file_id) is not None or (
-            ToolContext.get_current_agent() == _loop_agent_type()
-            and ToolContext.pending_empty_file_for(file_id) is not None
-        ):
-            pending_entry = ToolContext.pending_empty_file_for(file_id) or {"title": file_id}
-            return _make_edit_error(
-                f"《{pending_entry['title']}》已定为待写入正文（等待 <file>…</file>），edit_file 未执行（没有改动）。"
-                "请先在下一次回复用 <file>…</file> 写完它的正文，保存之后确需局部修改再调用 edit_file。",
-                error_type=WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE,
-                id=file_id,
-            )
-
-        # 作者手改过的文件不再整份拒绝：作者改了什么见 <author_edits>，由模型保留或按作者的新要求改；
-        # 这里只核对事实。模型本请求里没看过这个文件的全文时，old / anchor 只按逐字匹配，
-        # 不拿可能过时的记忆去模糊匹配作者刚改过的字。有快照（看过或自己写过）就做陈旧检查。
-        has_snapshot = ToolContext.read_snapshot(file_id) is not None
-        has_seen = ToolContext.has_seen_file(file_id)
-        seen_spans = None if has_seen else ToolContext.seen_file_spans(file_id)
-        read_ticket = ToolContext.read_ticket()
-
-        edit_kwargs: dict[str, Any] = {
-            "id": file_id,
-            "edits": edits,
-            # 必须走 coerce_bool：strict_json_schema=False 让 schema 里的
-            # "type": "boolean" 在运行时毫无约束力，模型常把它序列化成
-            # "false"/"0"，而 bool("false") is True——一次编辑失败后本该中止的
-            # 批量编辑会继续往下做，且整体仍被报成 success。
-            "continue_on_error": coerce_bool(args.get("continue_on_error")),
-            # 只规范化各 edit 的新文本，未编辑的段落不动。
-            "normalize_quotes": True,
-            # 在锁内取快照：同一请求里先写的那一步已经把快照更新为它写下的正文。
-            "read_snapshot_fn": (lambda: ToolContext.read_snapshot(file_id)) if has_snapshot else None,
-            "exact_only": not has_seen,
-            "report_author_edits": True,
-            # 单循环 agent 改正文：不整份替换（走 write_chapter）、不新添逐字重复的段落。
-            "body_guards": ToolContext.get_current_agent() == _loop_agent_type(),
-        }
-        if seen_spans:
-            edit_kwargs["seen_spans"] = seen_spans
-        result = executor.edit_file(**edit_kwargs)
-        # status 必须按实际结果降级：continue_on_error 下部分/全部 edit 失败时，
-        # 恒返回 "success" 会让模型以为改动已经落地、继续往下写，
-        # 失败的 edit 只藏在 data.failed_edits 里没人看。
-        status = _derive_edit_status(result)
-        if isinstance(result, dict):
-            ui_overlay = extract_edit_file_ui_payload(result)
-            if ui_overlay:
-                ToolContext.record_tool_ui_payload(
-                    ToolContext.current_tool_call_id(),
-                    ui_overlay,
-                    fallback_key=(tool_name, str(result.get("id") or file_id)),
-                )
-            llm_data: Any = slim_edit_file_result_for_llm(result)
-        else:
-            llm_data = result
-        payload: dict[str, Any] = {
-            "status": status,
-            "mutation_applied": result.get("mutation_applied") is True,
-            "data": llm_data,
-        }
-        if status == "error":
-            # 全部失败（continue_on_error=true）：与整批回滚一样带上稳定分类和给作者的短句。
-            failed = result.get("failed_edits") if isinstance(result, dict) else None
-            first = failed[0] if isinstance(failed, list) and failed and isinstance(failed[0], dict) else {}
-            error_type = str(first.get("error_type") or EDIT_ERROR_GENERIC)
-            payload["error_type"] = error_type
-            payload["user_message"] = edit_error_user_message(error_type)
-        return _make_result(payload, tool_name=tool_name)
-    except StaleContentError as e:
-        # 新改动已经完整列给模型：它看到这条结果之后（下一次模型调用起）基于现在的正文改即可；
-        # 同一条回复里排在后面的修改仍按旧快照判陈旧。列不全时要模型先读全文。
-        if e.complete:
-            ToolContext.record_read_snapshot(file_id, e.current_content, ticket=read_ticket)
-        return _make_edit_error(str(e), **e.payload_fields())
-    except EditFileError as e:
-        # error 原样给模型（候选片段、occurrence 提示、全部失败项都在里面）；
-        # error_type / user_message 给界面；edits_applied=0、mutation_applied=false
-        # 明确告诉模型这次调用一处都没生效。
-        return _make_edit_error(str(e), **e.payload_fields())
-    except FileWriteBusyError as e:
-        return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_BUSY)
-    except PreWriteHistoryUnavailableError as e:
-        # 原稿没能先进历史：提交前已回滚，一处都没改。
-        return _make_edit_error(str(e), error_type=e.error_type, user_message=str(e))
-    except NotFoundError as e:
-        # 文件不在当前项目里与文件不存在对用户是同一回事（文案已统一为「文件不存在或已删除」）。
-        return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_NOT_FOUND)
-    except ForbiddenError as e:
-        # 工具层自己的权限拒绝（不是内建的 PermissionError/OSError），都发生在写入之前。
-        return _make_edit_error(str(e), error_type=EDIT_ERROR_PERMISSION_DENIED)
-    except Exception as e:
-        # 未分类异常可能发生在提交之后（例如台账记录），不能断言「一处都没生效」。
-        return _make_edit_error(str(e), error_type=EDIT_ERROR_GENERIC, known_unapplied=False)
+            edit_kwargs: dict[str, Any] = {
+                "id": file_id,
+                "edits": edits,
+                # 必须走 coerce_bool：strict_json_schema=False 让 schema 里的
+                # "type": "boolean" 在运行时毫无约束力，模型常把它序列化成
+                # "false"/"0"，而 bool("false") is True——一次编辑失败后本该中止的
+                # 批量编辑会继续往下做，且整体仍被报成 success。
+                "continue_on_error": coerce_bool(args.get("continue_on_error")),
+                # 只规范化各 edit 的新文本，未编辑的段落不动。
+                "normalize_quotes": True,
+                # 在锁内取快照：同一请求里先写的那一步已经把快照更新为它写下的正文。
+                "read_snapshot_fn": (lambda: req_ctx.read_snapshot(file_id)) if has_snapshot else None,
+                "exact_only": not has_seen,
+                "report_author_edits": True,
+                # 单循环 agent 改正文：不整份替换（走 write_chapter）、不新添逐字重复的段落。
+                "body_guards": req_ctx.is_loop_agent,
+            }
+            if seen_spans:
+                edit_kwargs["seen_spans"] = seen_spans
+            result = executor.edit_file(**edit_kwargs)
+            # status 必须按实际结果降级：continue_on_error 下部分/全部 edit 失败时，
+            # 恒返回 "success" 会让模型以为改动已经落地、继续往下写，
+            # 失败的 edit 只藏在 data.failed_edits 里没人看。
+            status = _derive_edit_status(result)
+            if isinstance(result, dict):
+                ui_overlay = extract_edit_file_ui_payload(result)
+                if ui_overlay:
+                    effective_call_id = tool_call_id or req_ctx.current_tool_call_id()
+                    req_ctx.record_tool_ui_payload(
+                        effective_call_id,
+                        ui_overlay,
+                        fallback_key=(tool_name, str(result.get("id") or file_id)),
+                    )
+                llm_data: Any = slim_edit_file_result_for_llm(result)
+            else:
+                llm_data = result
+            payload: dict[str, Any] = {
+                "status": status,
+                "mutation_applied": result.get("mutation_applied") is True,
+                "data": llm_data,
+            }
+            if status == "error":
+                # 全部失败（continue_on_error=true）：与整批回滚一样带上稳定分类和给作者的短句。
+                failed = result.get("failed_edits") if isinstance(result, dict) else None
+                first = failed[0] if isinstance(failed, list) and failed and isinstance(failed[0], dict) else {}
+                error_type = str(first.get("error_type") or EDIT_ERROR_GENERIC)
+                payload["error_type"] = error_type
+                payload["user_message"] = edit_error_user_message(error_type)
+            return _make_result(payload, tool_name=tool_name)
+        except StaleContentError as e:
+            # 新改动已经完整列给模型：它看到这条结果之后（下一次模型调用起）基于现在的正文改即可；
+            # 同一条回复里排在后面的修改仍按旧快照判陈旧。列不全时要模型先读全文。
+            if e.complete:
+                req_ctx.record_read_snapshot(file_id, e.current_content, ticket=read_ticket)
+            return _make_edit_error(str(e), **e.payload_fields())
+        except EditFileError as e:
+            # error 原样给模型（候选片段、occurrence 提示、全部失败项都在里面）；
+            # error_type / user_message 给界面；edits_applied=0、mutation_applied=false
+            # 明确告诉模型这次调用一处都没生效。
+            return _make_edit_error(str(e), **e.payload_fields())
+        except FileWriteBusyError as e:
+            return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_BUSY)
+        except PreWriteHistoryUnavailableError as e:
+            # 原稿没能先进历史：提交前已回滚，一处都没改。
+            return _make_edit_error(str(e), error_type=e.error_type, user_message=str(e))
+        except NotFoundError as e:
+            # 文件不在当前项目里与文件不存在对用户是同一回事（文案已统一为「文件不存在或已删除」）。
+            return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_NOT_FOUND)
+        except ForbiddenError as e:
+            # 工具层自己的权限拒绝（不是内建的 PermissionError/OSError），都发生在写入之前。
+            return _make_edit_error(str(e), error_type=EDIT_ERROR_PERMISSION_DENIED)
+        except Exception as e:
+            # 未分类异常可能发生在提交之后（例如台账记录），不能断言「一处都没生效」。
+            return _make_edit_error(str(e), error_type=EDIT_ERROR_GENERIC, known_unapplied=False)
 
 
 def _make_edit_error(
@@ -1615,26 +1631,32 @@ def _derive_edit_status(result: dict[str, Any]) -> str:
     return "success"
 
 
-async def delete_file(args: dict[str, Any]) -> dict[str, Any]:
+async def delete_file(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> dict[str, Any]:
     """删除文件。"""
-    return await _offload_write_tool("delete_file", _delete_file_sync, args)
+    return await _offload_write_tool("delete_file", _delete_file_sync, args, request_context)
 
 
-def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
+def _delete_file_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+) -> dict[str, Any]:
     """Synchronous delete_file implementation."""
     tool_name = "delete_file"
-    executor = ToolContext.get_executor()
-    project_id = ToolContext._get_context().get("project_id")
+    project_id = req_ctx.project_id if req_ctx is not None else None
 
     # 删除工具必须运行在绑定了项目的上下文中；执行器层会进一步校验目标文件
     # 属于该项目（check_file_access_in_tool_context）。
-    if project_id is None:
+    if req_ctx is None or project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
     raw_id = args.get("id", "")
     file_id = raw_id.strip() if isinstance(raw_id, str) else ""
     recursive = coerce_bool(args.get("recursive"))
-    if (pending := ToolContext.pending_empty_file_for(file_id)) is not None and (
+    if (pending := req_ctx.pending_empty_file_for(file_id)) is not None and (
         not pending.get("created_here") or recursive
     ):
         return _make_structured_error(
@@ -1646,49 +1668,57 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             tool_name=tool_name,
             id=file_id,
         )
-    try:
-        # recursive 是本项目破坏性最强的布尔参数：判真会软删除整棵子树。
-        # 模型传来的 "false"/"0"/被截断修复出来的 "fals" 在朴素真值判断下全是
-        # True，历史上把"删一个文件"变成"删掉整个文件夹的所有章节"。
-        meta = executor.delete_file_with_meta(
-            id=file_id,
-            recursive=recursive,
-        )
-        if not isinstance(meta, dict):
+    with req_ctx.session_scope() as session:
+        executor = req_ctx.executor(session)
+        try:
+            # recursive 是本项目破坏性最强的布尔参数：判真会软删除整棵子树。
+            # 模型传来的 "false"/"0"/被截断修复出来的 "fals" 在朴素真值判断下全是
+            # True，历史上把"删一个文件"变成"删掉整个文件夹的所有章节"。
+            meta = executor.delete_file_with_meta(
+                id=file_id,
+                recursive=recursive,
+            )
+            if not isinstance(meta, dict):
+                return _make_result(
+                    {"status": "success", "mutation_applied": False, "data": False},
+                    tool_name=tool_name,
+                )
+            if pending is not None:
+                req_ctx.clear_pending_empty_file(file_id)
+            data: dict[str, Any] = {
+                "id": file_id,
+                "restored": False,
+                "mutation_applied": True,
+            }
+            if meta.get("id") == file_id:
+                for key in ("title", "file_type", "deleted_at"):
+                    if isinstance(meta.get(key), str):
+                        data[key] = meta[key]
             return _make_result(
-                {"status": "success", "mutation_applied": False, "data": False},
+                {"status": "success", "mutation_applied": True, "data": data},
                 tool_name=tool_name,
             )
-        if pending is not None:
-            ToolContext.clear_pending_empty_file(file_id)
-        data: dict[str, Any] = {
-            "id": file_id,
-            "restored": False,
-            "mutation_applied": True,
-        }
-        if meta.get("id") == file_id:
-            for key in ("title", "file_type", "deleted_at"):
-                if isinstance(meta.get(key), str):
-                    data[key] = meta[key]
-        return _make_result(
-            {"status": "success", "mutation_applied": True, "data": data},
-            tool_name=tool_name,
-        )
-    except Exception as e:
-        return _make_error(str(e), tool_name=tool_name)
+        except Exception as e:
+            return _make_error(str(e), tool_name=tool_name)
 
 
-async def rename_file(args: dict[str, Any]) -> dict[str, Any]:
+async def rename_file(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> dict[str, Any]:
     """只改文件标题（#273）：不碰正文、不新建、不删除。"""
-    return await _offload_write_tool("rename_file", _rename_file_sync, args)
+    return await _offload_write_tool("rename_file", _rename_file_sync, args, request_context)
 
 
-def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
+def _rename_file_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+) -> dict[str, Any]:
     """Synchronous rename_file implementation: a title-only FileCRUD.update_file."""
     tool_name = "rename_file"
-    executor = ToolContext.get_executor()
-    project_id = ToolContext._get_context().get("project_id")
-    if project_id is None:
+    project_id = req_ctx.project_id if req_ctx is not None else None
+    if req_ctx is None or project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
     file_id = args.get("id")
@@ -1698,7 +1728,7 @@ def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(title, str) or not title.strip():
         return _make_error("rename_file 需要非空的新标题", tool_name=tool_name)
     file_id, title = file_id.strip(), title.strip()
-    if (pending := ToolContext.pending_empty_file_for(file_id)) is not None:
+    if (pending := req_ctx.pending_empty_file_for(file_id)) is not None:
         return _make_structured_error(
             (
                 f"《{pending['title']}》正在等待 <file>…</file> 写入正文，rename_file 未执行（没有改动）。"
@@ -1710,194 +1740,203 @@ def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             id=file_id,
         )
 
-    try:
-        from models import File
+    with req_ctx.session_scope() as session:
+        executor = req_ctx.executor(session)
+        try:
+            from models import File
 
-        session = ToolContext.get_session()
-        current = session.get(File, file_id)
-        if current is None or current.is_deleted or current.project_id != project_id:
-            return _make_error("文件不存在或已删除", tool_name=tool_name)
-        previous_title = current.title
-        if title == previous_title:
-            data = {"id": file_id, "title": title, "previous_title": previous_title, "mutation_applied": False}
-            return _make_result(
-                {"status": "success", "mutation_applied": False, "data": data},
-                tool_name=tool_name,
-            )
-        clash = session.exec(
-            select(File.id).where(
-                File.project_id == project_id,
-                File.parent_id == current.parent_id,
-                File.title == title,
-                File.is_deleted.is_(False),
-                File.id != file_id,
-            )
-        ).first()
-        if clash is not None:
-            return _make_error(
-                f"同一文件夹里已有名为《{title}》的文件，换一个标题或先问作者",
-                tool_name=tool_name,
-            )
-
-        result = executor.update_file(id=file_id, title=title)
-        data = {
-            "id": result.get("id", file_id),
-            "title": result.get("title", title),
-            "previous_title": previous_title,
-            "file_type": result.get("file_type"),
-            "parent_id": result.get("parent_id"),
-            # SSE 的 tool_result 只转发 data：计费和前端进度从这里读是否真的改了。
-            "mutation_applied": True,
-        }
-        return _make_result(
-            {"status": "success", "mutation_applied": True, "data": data},
-            tool_name=tool_name,
-        )
-    except Exception as e:
-        return _make_error(str(e), tool_name=tool_name)
-
-
-async def query_files(args: dict[str, Any]) -> dict[str, Any]:
-    """查询和搜索项目中的文件。"""
-    return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _query_files_sync, args)
-
-
-def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
-    """Synchronous query_files implementation."""
-    tool_name = "query_files"
-    executor = ToolContext.get_executor()
-    project_id = ToolContext._get_context().get("project_id")
-
-    if project_id is None:
-        return _make_error("project_id not set", tool_name=tool_name)
-
-    try:
-        # 校验、去重并按上限（最多 5 个）截断 id / ids；单 id 保持 100% 兼容。
-        raw_id = args.get("id")
-        raw_ids = args.get("ids")
-        is_batch = raw_ids is not None
-        requested_ids, truncated_ids = normalize_query_file_ids(
-            file_id=raw_id,
-            file_ids=raw_ids,
-            max_ids=QUERY_FILES_MAX_BATCH_IDS,
-        )
-        has_exact_ids = bool(requested_ids)
-        if len(requested_ids) > 1 and wants_range(args):
-            return _make_error(
-                "批量读取多个文件（ids）不支持 section / tail_chars / start_char 范围参数；"
-                "需要按范围读取某个超长文件时请用单个 id。",
-                tool_name=tool_name,
-            )
-
-        # 不按 id/ids、却要全文时（列表 × 全文），未显式给 limit 就收紧到 10 条：
-        # 默认 50 条全文很容易顶到 TOOL_RESULT_MAX_CHARS，被截断后模型只能再读一遍。
-        raw_include = args.get("include_content")
-        wants_full = str(args.get("response_mode") or "").strip().lower() == QUERY_FILES_RESPONSE_MODE_FULL or (
-            raw_include is not None and coerce_bool(raw_include)
-        )
-        default_limit = (
-            QUERY_FILES_FULL_MODE_DEFAULT_LIMIT if wants_full and not has_exact_ids else QUERY_FILES_DEFAULT_LIMIT
-        )
-        query_kwargs: dict[str, Any] = {
-            "project_id": project_id,
-            "query": args.get("query"),
-            "file_type": args.get("file_type"),
-            "file_types": args.get("file_types"),
-            "parent_id": args.get("parent_id"),
-            "limit": args.get("limit", default_limit),
-            "offset": args.get("offset", 0),
-        }
-
-        optional_keys = ("response_mode", "content_preview_chars", "include_content")
-        for key in optional_keys:
-            if key in args:
-                value = args.get(key)
-                if key == "include_content" and value is not None:
-                    # 三值语义：None 表示"未指定，按 response_mode 决定"，必须原样透传；
-                    # 显式传值时才强转——下游用的是 `include_content is True`，
-                    # 模型传字符串 "true" 会被判成"不含正文"，语义直接反了。
-                    value = coerce_bool(value)
-                query_kwargs[key] = value
-
-        if is_batch:
-            query_kwargs["ids"] = requested_ids
-        elif "id" in args:
-            query_kwargs["id"] = requested_ids[0] if requested_ids else raw_id
-
-        range_read = len(requested_ids) == 1 and wants_range(args)
-        if range_read:
-            # 范围读取先取全文再在这里切：切之前的整份正文用作陈旧检查的快照。
-            query_kwargs["response_mode"] = QUERY_FILES_RESPONSE_MODE_FULL
-            query_kwargs.pop("include_content", None)
-            query_kwargs.pop("content_preview_chars", None)
-
-        read_ticket = ToolContext.read_ticket() if has_exact_ids else None
-        result = executor.query_files(**query_kwargs)
-        keyword = args.get("query")
-        if (
-            not range_read
-            and not wants_full
-            and isinstance(keyword, str)
-            and keyword.strip()
-            and isinstance(result, list)
-        ):
-            _attach_query_matches(executor.session, result, keyword.strip())
-
-        if range_read:
-            rows = result if isinstance(result, list) else []
-            if len(rows) == 1 and isinstance(rows[0], dict) and isinstance(rows[0].get("content"), str):
-                full_row = rows[0]
-                sliced = apply_content_range(full_row, args)
-                result = [sliced]
-                if sliced.get("content_partial"):
-                    content_range = sliced.get("content_range")
-                    span = (
-                        (int(content_range["start"]), int(content_range["end"]))
-                        if isinstance(content_range, dict)
-                        and isinstance(content_range.get("start"), int)
-                        and isinstance(content_range.get("end"), int)
-                        else None
-                    )
-                    ToolContext.record_range_read_snapshot(
-                        str(full_row.get("id") or ""),
-                        full_row["content"],
-                        span=span,
-                        ticket=read_ticket,
-                    )
-                    return _make_result({"status": "success", "data": result}, tool_name=tool_name)
-
-        rows = result if isinstance(result, list) else []
-        missing_ids: list[str] = []
-        is_query_filter = not wants_full and isinstance(keyword, str) and bool(keyword.strip())
-        if is_batch and not is_query_filter:
-            returned_ids = {str(row.get("id") or "") for row in rows if isinstance(row, dict)}
-            missing_ids = [fid for fid in requested_ids if fid not in returned_ids]
-            if not rows:
-                extra: dict[str, Any] = {"missing_ids": missing_ids}
-                if truncated_ids:
-                    extra["truncated_ids"] = truncated_ids
-                return _make_structured_error(
-                    "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。",
-                    error_type="files_not_found",
+            current = session.get(File, file_id)
+            if current is None or current.is_deleted or current.project_id != project_id:
+                return _make_error("文件不存在或已删除", tool_name=tool_name)
+            previous_title = current.title
+            if title == previous_title:
+                data = {"id": file_id, "title": title, "previous_title": previous_title, "mutation_applied": False}
+                return _make_result(
+                    {"status": "success", "mutation_applied": False, "data": data},
                     tool_name=tool_name,
-                    **extra,
+                )
+            clash = session.exec(
+                select(File.id).where(
+                    File.project_id == project_id,
+                    File.parent_id == current.parent_id,
+                    File.title == title,
+                    File.is_deleted.is_(False),
+                    File.id != file_id,
+                )
+            ).first()
+            if clash is not None:
+                return _make_error(
+                    f"同一文件夹里已有名为《{title}》的文件，换一个标题或先问作者",
+                    tool_name=tool_name,
                 )
 
-        payload: dict[str, Any] = {"status": "success", "data": result}
-        if missing_ids:
-            payload["missing_ids"] = missing_ids
-        if truncated_ids:
-            payload["truncated_ids"] = truncated_ids
-            payload["note"] = (
-                f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已返回前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
-                f"其余 {len(truncated_ids)} 个请另起调用读取。"
+            result = executor.update_file(id=file_id, title=title)
+            data = {
+                "id": result.get("id", file_id),
+                "title": result.get("title", title),
+                "previous_title": previous_title,
+                "file_type": result.get("file_type"),
+                "parent_id": result.get("parent_id"),
+                # SSE 的 tool_result 只转发 data：计费和前端进度从这里读是否真的改了。
+                "mutation_applied": True,
+            }
+            return _make_result(
+                {"status": "success", "mutation_applied": True, "data": data},
+                tool_name=tool_name,
             )
-        if has_exact_ids and len(_dumps_compact(payload)) <= TOOL_RESULT_MAX_CHARS:
-            # 结果超过上限会被截断，模型拿不到全文：那时不记快照。
-            _note_file_read(result, ticket=read_ticket)
-        return _make_result(payload, tool_name=tool_name)
-    except Exception as e:
-        return _make_error(str(e), tool_name=tool_name)
+        except Exception as e:
+            return _make_error(str(e), tool_name=tool_name)
+
+
+async def query_files(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> dict[str, Any]:
+    """查询和搜索项目中的文件。"""
+    return await asyncio.to_thread(_query_files_sync, args, request_context)
+
+
+def _query_files_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+) -> dict[str, Any]:
+    """Synchronous query_files implementation."""
+    tool_name = "query_files"
+    project_id = req_ctx.project_id if req_ctx is not None else None
+
+    if req_ctx is None or project_id is None:
+        return _make_error("project_id not set", tool_name=tool_name)
+
+    with req_ctx.session_scope() as session:
+        executor = req_ctx.executor(session)
+        try:
+            # 校验、去重并按上限（最多 5 个）截断 id / ids；单 id 保持 100% 兼容。
+            raw_id = args.get("id")
+            raw_ids = args.get("ids")
+            is_batch = raw_ids is not None
+            requested_ids, truncated_ids = normalize_query_file_ids(
+                file_id=raw_id,
+                file_ids=raw_ids,
+                max_ids=QUERY_FILES_MAX_BATCH_IDS,
+            )
+            has_exact_ids = bool(requested_ids)
+            if len(requested_ids) > 1 and wants_range(args):
+                return _make_error(
+                    "批量读取多个文件（ids）不支持 section / tail_chars / start_char 范围参数；"
+                    "需要按范围读取某个超长文件时请用单个 id。",
+                    tool_name=tool_name,
+                )
+
+            # 不按 id/ids、却要全文时（列表 × 全文），未显式给 limit 就收紧到 10 条：
+            # 默认 50 条全文很容易顶到 TOOL_RESULT_MAX_CHARS，被截断后模型只能再读一遍。
+            raw_include = args.get("include_content")
+            wants_full = str(args.get("response_mode") or "").strip().lower() == QUERY_FILES_RESPONSE_MODE_FULL or (
+                raw_include is not None and coerce_bool(raw_include)
+            )
+            default_limit = (
+                QUERY_FILES_FULL_MODE_DEFAULT_LIMIT if wants_full and not has_exact_ids else QUERY_FILES_DEFAULT_LIMIT
+            )
+            query_kwargs: dict[str, Any] = {
+                "project_id": project_id,
+                "query": args.get("query"),
+                "file_type": args.get("file_type"),
+                "file_types": args.get("file_types"),
+                "parent_id": args.get("parent_id"),
+                "limit": args.get("limit", default_limit),
+                "offset": args.get("offset", 0),
+            }
+
+            optional_keys = ("response_mode", "content_preview_chars", "include_content")
+            for key in optional_keys:
+                if key in args:
+                    value = args.get(key)
+                    if key == "include_content" and value is not None:
+                        # 三值语义：None 表示"未指定，按 response_mode 决定"，必须原样透传；
+                        # 显式传值时才强转——下游用的是 `include_content is True`，
+                        # 模型传字符串 "true" 会被判成"不含正文"，语义直接反了。
+                        value = coerce_bool(value)
+                    query_kwargs[key] = value
+
+            if is_batch:
+                query_kwargs["ids"] = requested_ids
+            elif "id" in args:
+                query_kwargs["id"] = requested_ids[0] if requested_ids else raw_id
+
+            range_read = len(requested_ids) == 1 and wants_range(args)
+            if range_read:
+                # 范围读取先取全文再在这里切：切之前的整份正文用作陈旧检查的快照。
+                query_kwargs["response_mode"] = QUERY_FILES_RESPONSE_MODE_FULL
+                query_kwargs.pop("include_content", None)
+                query_kwargs.pop("content_preview_chars", None)
+
+            read_ticket = req_ctx.read_ticket() if has_exact_ids else None
+            result = executor.query_files(**query_kwargs)
+            keyword = args.get("query")
+            if (
+                not range_read
+                and not wants_full
+                and isinstance(keyword, str)
+                and keyword.strip()
+                and isinstance(result, list)
+            ):
+                _attach_query_matches(executor.session, result, keyword.strip())
+
+            if range_read:
+                rows = result if isinstance(result, list) else []
+                if len(rows) == 1 and isinstance(rows[0], dict) and isinstance(rows[0].get("content"), str):
+                    full_row = rows[0]
+                    sliced = apply_content_range(full_row, args)
+                    result = [sliced]
+                    if sliced.get("content_partial"):
+                        content_range = sliced.get("content_range")
+                        span = (
+                            (int(content_range["start"]), int(content_range["end"]))
+                            if isinstance(content_range, dict)
+                            and isinstance(content_range.get("start"), int)
+                            and isinstance(content_range.get("end"), int)
+                            else None
+                        )
+                        req_ctx.record_range_read_snapshot(
+                            str(full_row.get("id") or ""),
+                            full_row["content"],
+                            span=span,
+                            ticket=read_ticket,
+                        )
+                        return _make_result({"status": "success", "data": result}, tool_name=tool_name)
+
+            rows = result if isinstance(result, list) else []
+            missing_ids: list[str] = []
+            is_query_filter = not wants_full and isinstance(keyword, str) and bool(keyword.strip())
+            if is_batch and not is_query_filter:
+                returned_ids = {str(row.get("id") or "") for row in rows if isinstance(row, dict)}
+                missing_ids = [fid for fid in requested_ids if fid not in returned_ids]
+                if not rows:
+                    extra: dict[str, Any] = {"missing_ids": missing_ids}
+                    if truncated_ids:
+                        extra["truncated_ids"] = truncated_ids
+                    return _make_structured_error(
+                        "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。",
+                        error_type="files_not_found",
+                        tool_name=tool_name,
+                        **extra,
+                    )
+
+            payload: dict[str, Any] = {"status": "success", "data": result}
+            if missing_ids:
+                payload["missing_ids"] = missing_ids
+            if truncated_ids:
+                payload["truncated_ids"] = truncated_ids
+                payload["note"] = (
+                    f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已返回前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
+                    f"其余 {len(truncated_ids)} 个请另起调用读取。"
+                )
+            if has_exact_ids and len(_dumps_compact(payload)) <= TOOL_RESULT_MAX_CHARS:
+                # 结果超过上限会被截断，模型拿不到全文：那时不记快照。
+                _note_file_read(result, req_ctx, ticket=read_ticket)
+            return _make_result(payload, tool_name=tool_name)
+        except Exception as e:
+            return _make_error(str(e), tool_name=tool_name)
 
 
 # 关键词查询的命中位置：每个文件最多列这么多处，每处前后各带这么多字原文。
@@ -1936,7 +1975,9 @@ def _attach_query_matches(session: Session, rows: list[Any], keyword: str) -> No
             row.pop("content_preview", None)
 
 
-def _note_file_read(result: Any, *, ticket: int | None = None) -> None:
+def _note_file_read(
+    result: Any, req_ctx: AgentRequestContext, *, ticket: int | None = None
+) -> None:
     """按 id / ids 读到全文时记下模型看到的正文（edit_file 的陈旧检查）。作者手改差异由 crud 附在同一行里。"""
     rows = result if isinstance(result, list) else []
     for row in rows:
@@ -1945,7 +1986,7 @@ def _note_file_read(result: Any, *, ticket: int | None = None) -> None:
         file_id = str(row.get("id") or "")
         content = row.get("content")
         if file_id and isinstance(content, str) and not row.get("content_truncated") and not row.get("content_partial"):
-            ToolContext.record_read_snapshot(file_id, content, ticket=ticket)
+            req_ctx.record_read_snapshot(file_id, content, ticket=ticket)
 
 
 def _normalize_update_project_args(args: dict[str, Any]) -> dict[str, Any]:
@@ -1961,7 +2002,7 @@ def _normalize_update_project_args(args: dict[str, Any]) -> dict[str, Any]:
 _PHASE_BODY_TRIM_CHARS = " \t\r\n\u3000"
 
 
-def _suggest_auto_current_phase_from_drafts(project_id: str) -> str | None:
+def _suggest_auto_current_phase_from_drafts(session: Session, project_id: str) -> str | None:
     """
     Suggest monotonic chapter phase text from content files.
 
@@ -1977,7 +2018,6 @@ def _suggest_auto_current_phase_from_drafts(project_id: str) -> str | None:
     if not project_id:
         return None
 
-    session = ToolContext.get_session()
     from models import File, Project
     from models.entities import PROJECT_TYPE_SCREENPLAY
 
@@ -2026,14 +2066,15 @@ async def update_project(
     args: dict[str, Any],
     *,
     written_artifact_ids: Sequence[str] | None = None,
+    request_context: AgentRequestContext | None = None,
 ) -> dict[str, Any]:
     """更新项目信息和任务计划。"""
     if written_artifact_ids is None:
-        return await _offload_write_tool("update_project", _update_project_sync, args)
+        return await _offload_write_tool("update_project", _update_project_sync, args, request_context)
     return await asyncio.to_thread(
-        _run_sync_tool_with_owned_session_cleanup,
         _update_project_sync,
         args,
+        request_context,
         written_artifact_ids,
     )
 
@@ -2043,211 +2084,219 @@ NOTES_FULL_NOTE = "写作约定已接近 4000 字上限，这次没有记入；�
 
 def _update_project_sync(
     args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
     written_artifact_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Synchronous update_project implementation."""
     tool_name = "update_project"
-    executor = ToolContext.get_executor()
-    project_id = ToolContext.get_project_id()
-    session_id = ToolContext.get_session_id()
-    user_id = ToolContext.get_user_id()
+    project_id = req_ctx.project_id if req_ctx is not None else None
+    session_id = req_ctx.session_id if req_ctx is not None else None
+    user_id = req_ctx.user_id if req_ctx is not None else None
 
-    if project_id is None:
+    if req_ctx is None or project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
 
-    try:
-        normalized_args = _normalize_update_project_args(args)
-        result = {}
-        from_chat = isinstance(ToolContext._get_context().get("author_message"), str)
-        if (
-            "notes" in normalized_args
-            and from_chat
-            and (
-                ToolContext._get_context().get("notes_append_allowed") is not True
-                # Consumed steering is shared across SDK task/context snapshots.
-                # Only subsequent tool calls narrow; completed writes are not undone.
-                or bool(ToolContext._get_context().get("author_steering"))
-            )
-        ):
-            normalized_args.pop("notes")
-            result["notes_skipped_reason"] = "本轮未获追加许可或已有新的作者插话；不要重做历史记住请求。"
-
-        # 应用内对话的 notes 只追加：已有作者内容逐字节保留，新条目作为普通备注追加，
-        # 结果的 notes_added 列出存下的原文，结果卡可打开统一编辑面板。
-        notes_added: list[str] = []
-        notes_over_limit = False
-        notes_transform: Callable[[str | None], str | None] | None = None
-        notes_arg = normalized_args.get("notes")
-        if isinstance(notes_arg, str):
-            def transform_notes(existing_notes: str | None) -> str | None:
-                nonlocal notes_added, notes_over_limit
-                merged = merge_project_notes(existing_notes, notes_arg, from_chat=from_chat)
-                notes_added = merged.added
-                notes_over_limit = merged.over_limit
-                # Unchanged notes are not written, so they do not count as an updated field (no
-                # billable output).  A chat call that appends nothing does not write either, even
-                # to drop a legacy proposal block: every read already hides it.
-                if from_chat and not merged.added:
-                    return None
-                return None if merged.text == (existing_notes or "") else merged.text
-
-            notes_transform = transform_notes
-
-        # 更新项目状态（支持空字符串清空字段）
-        status_keys = ["summary", "current_phase", "writing_style", "notes"]
-        has_status_update_args = (
-            any(k in normalized_args for k in status_keys)
-            or notes_transform is not None
-        )
-        # App chat/model calls never carry human rename authority.  Direct human project APIs do
-        # not use this tool and keep their existing behavior.
-        title_arg = normalized_args.get("title")
-        has_title_arg = title_arg is not None
-        title_kwargs: dict[str, Any] = {}
-        if has_title_arg:
-            title_kwargs["title"] = title_arg
-            title_kwargs["author_requested"] = False
-        if has_status_update_args or has_title_arg:
-            status_kwargs: dict[str, Any] = {
-                "project_id": project_id,
-                "summary": normalized_args.get("summary"),
-                "current_phase": normalized_args.get("current_phase"),
-                "writing_style": normalized_args.get("writing_style"),
-                "notes": None if notes_transform is not None else normalized_args.get("notes"),
-                **title_kwargs,
-            }
-            if notes_transform is not None:
-                status_kwargs["notes_transform"] = notes_transform
-            status_result = executor.update_project_status(
-                **status_kwargs,
-            )
-            if notes_added or notes_over_limit:
-                log_with_context(
-                    logger,
-                    20,
-                    "update_project appended chat notes entries",
-                    project_id=project_id,
-                    added_count=len(notes_added),
-                    over_limit=notes_over_limit,
+    with req_ctx.session_scope() as session:
+        executor = req_ctx.executor(session)
+        try:
+            normalized_args = _normalize_update_project_args(args)
+            result = {}
+            from_chat = isinstance(req_ctx.author_message, str)
+            if (
+                "notes" in normalized_args
+                and from_chat
+                and (
+                    not req_ctx.notes_append_allowed
+                    # Consumed steering is shared across SDK task/context snapshots.
+                    # Only subsequent tool calls narrow; completed writes are not undone.
+                    or bool(req_ctx.author_steering)
                 )
-            result["project_status"] = status_result
-            # Backward compatibility: keep lightweight summary fields at top level;
-            # current_status already lives inside project_status and is not duplicated.
-            result["project_id"] = status_result.get("project_id")
-            result["updated_fields"] = status_result.get("updated_fields", [])
-            # Also on a partial plan rejection: the other fields were still saved.
-            if notes_added and "notes" in result["updated_fields"]:
-                result["notes_added"] = notes_added
-            if notes_over_limit:
-                result["notes_note"] = NOTES_FULL_NOTE
-            for key in (
-                "project_name_updated",
-                "project_name",
-                "title_skipped",
-                "title_error",
-                "title_note",
             ):
-                if key in status_result:
-                    result[key] = status_result[key]
+                normalized_args.pop("notes")
+                result["notes_skipped_reason"] = "本轮未获追加许可或已有新的作者插话；不要重做历史记住请求。"
 
-        # 更新任务计划（允许传空数组以清空任务板）
-        plan_rejected = False
-        if "tasks" in normalized_args and session_id:
-            plan_kwargs: dict[str, Any] = {
-                "session_id": session_id,
-                "tasks": normalized_args.get("tasks", []),
-                "user_id": user_id,
-                "project_id": project_id,
-            }
-            if written_artifact_ids is not None:
-                plan_kwargs["written_artifact_ids"] = written_artifact_ids
-            plan_result = executor.execute_update_plan(
-                **plan_kwargs,
-            )
-            result["plan"] = plan_result
-            plan_rejected = (
-                isinstance(plan_result, dict)
-                and str(plan_result.get("status") or "").lower() in {"ignored", "error"}
-            )
+            # 应用内对话的 notes 只追加：已有作者内容逐字节保留，新条目作为普通备注追加，
+            # 结果的 notes_added 列出存下的原文，结果卡可打开统一编辑面板。
+            notes_added: list[str] = []
+            notes_over_limit = False
+            notes_transform: Callable[[str | None], str | None] | None = None
+            notes_arg = normalized_args.get("notes")
+            if isinstance(notes_arg, str):
+                def transform_notes(existing_notes: str | None) -> str | None:
+                    nonlocal notes_added, notes_over_limit
+                    merged = merge_project_notes(existing_notes, notes_arg, from_chat=from_chat)
+                    notes_added = merged.added
+                    notes_over_limit = merged.over_limit
+                    # Unchanged notes are not written, so they do not count as an updated field (no
+                    # billable output).  A chat call that appends nothing does not write either, even
+                    # to drop a legacy proposal block: every read already hides it.
+                    if from_chat and not merged.added:
+                        return None
+                    return None if merged.text == (existing_notes or "") else merged.text
 
-        # 任务板-only 更新是正常路径（prompt 和 workflow completion hook 都会这样调用）。
-        # 这里仅做信息性记录，并尝试自动前推 current_phase（单调不回退）。
-        if "tasks" in normalized_args and not has_status_update_args and not plan_rejected:
-            tasks_arg = normalized_args.get("tasks", [])
-            task_count = len(tasks_arg) if isinstance(tasks_arg, list) else None
-            log_with_context(
-                logger,
-                20,  # INFO
-                "update_project received task-board-only payload",
-                project_id=project_id,
-                session_id=session_id,
-                task_count=task_count,
-                arg_keys=sorted(normalized_args.keys()),
-            )
+                notes_transform = transform_notes
 
-            try:
-                suggested_phase = _suggest_auto_current_phase_from_drafts(project_id)
-                if suggested_phase:
-                    status_result = executor.update_project_status(
-                        project_id=project_id,
-                        summary=None,
-                        current_phase=suggested_phase,
-                        writing_style=None,
-                        notes=None,
-                    )
-                    result["project_status"] = status_result
-                    result["project_id"] = status_result.get("project_id")
-                    result["updated_fields"] = status_result.get("updated_fields", [])
+            # 更新项目状态（支持空字符串清空字段）
+            status_keys = ["summary", "current_phase", "writing_style", "notes"]
+            has_status_update_args = (
+                any(k in normalized_args for k in status_keys)
+                or notes_transform is not None
+            )
+            # App chat/model calls never carry human rename authority.  Direct human project APIs do
+            # not use this tool and keep their existing behavior.
+            title_arg = normalized_args.get("title")
+            has_title_arg = title_arg is not None
+            title_kwargs: dict[str, Any] = {}
+            if has_title_arg:
+                title_kwargs["title"] = title_arg
+                title_kwargs["author_requested"] = False
+            if has_status_update_args or has_title_arg:
+                status_kwargs: dict[str, Any] = {
+                    "project_id": project_id,
+                    "summary": normalized_args.get("summary"),
+                    "current_phase": normalized_args.get("current_phase"),
+                    "writing_style": normalized_args.get("writing_style"),
+                    "notes": None if notes_transform is not None else normalized_args.get("notes"),
+                    **title_kwargs,
+                }
+                if notes_transform is not None:
+                    status_kwargs["notes_transform"] = notes_transform
+                status_result = executor.update_project_status(
+                    **status_kwargs,
+                )
+                if notes_added or notes_over_limit:
                     log_with_context(
                         logger,
-                        20,  # INFO
-                        "Auto-synced project current_phase from draft progress",
+                        20,
+                        "update_project appended chat notes entries",
                         project_id=project_id,
-                        current_phase=suggested_phase,
+                        added_count=len(notes_added),
+                        over_limit=notes_over_limit,
                     )
-            except Exception as exc:
-                if hasattr(executor.session, "rollback"):
-                    executor.session.rollback()
-                log_with_context(
-                    logger,
-                    40,  # ERROR
-                    "Failed to auto-sync current_phase from drafts",
-                    project_id=project_id,
-                    session_id=session_id,
-                    error=str(exc),
+                result["project_status"] = status_result
+                # Backward compatibility: keep lightweight summary fields at top level;
+                # current_status already lives inside project_status and is not duplicated.
+                result["project_id"] = status_result.get("project_id")
+                result["updated_fields"] = status_result.get("updated_fields", [])
+                # Also on a partial plan rejection: the other fields were still saved.
+                if notes_added and "notes" in result["updated_fields"]:
+                    result["notes_added"] = notes_added
+                if notes_over_limit:
+                    result["notes_note"] = NOTES_FULL_NOTE
+                for key in (
+                    "project_name_updated",
+                    "project_name",
+                    "title_skipped",
+                    "title_error",
+                    "title_note",
+                ):
+                    if key in status_result:
+                        result[key] = status_result[key]
+
+            # 更新任务计划（允许传空数组以清空任务板）
+            plan_rejected = False
+            if "tasks" in normalized_args and session_id:
+                plan_kwargs: dict[str, Any] = {
+                    "session_id": session_id,
+                    "tasks": normalized_args.get("tasks", []),
+                    "user_id": user_id,
+                    "project_id": project_id,
+                }
+                if written_artifact_ids is not None:
+                    plan_kwargs["written_artifact_ids"] = written_artifact_ids
+                plan_result = executor.execute_update_plan(
+                    **plan_kwargs,
+                )
+                result["plan"] = plan_result
+                plan_rejected = (
+                    isinstance(plan_result, dict)
+                    and str(plan_result.get("status") or "").lower() in {"ignored", "error"}
                 )
 
-        if plan_rejected:
-            project_mutated = bool(result.get("updated_fields")) or coerce_bool(
-                result.get("project_name_updated")
-            )
-            plan = result.get("plan") if isinstance(result.get("plan"), dict) else {}
-            return _make_result(
-                {
-                    "status": "partial" if project_mutated else "error",
-                    "error_type": "update_plan_rejected",
-                    "error": str(
-                        plan.get("error")
-                        or plan.get("message")
-                        or "任务计划板未更新"
-                    ),
-                    "mutation_applied": project_mutated,
-                    "data": result,
-                },
-                tool_name=tool_name,
-            )
+            # 任务板-only 更新是正常路径（prompt 和 workflow completion hook 都会这样调用）。
+            # 这里仅做信息性记录，并尝试自动前推 current_phase（单调不回退）。
+            if "tasks" in normalized_args and not has_status_update_args and not plan_rejected:
+                tasks_arg = normalized_args.get("tasks", [])
+                task_count = len(tasks_arg) if isinstance(tasks_arg, list) else None
+                log_with_context(
+                    logger,
+                    20,  # INFO
+                    "update_project received task-board-only payload",
+                    project_id=project_id,
+                    session_id=session_id,
+                    task_count=task_count,
+                    arg_keys=sorted(normalized_args.keys()),
+                )
 
-        return _make_result({"status": "success", "data": result}, tool_name=tool_name)
-    except Exception as e:
-        return _make_error(str(e), tool_name=tool_name)
+                try:
+                    suggested_phase = _suggest_auto_current_phase_from_drafts(session, project_id)
+                    if suggested_phase:
+                        status_result = executor.update_project_status(
+                            project_id=project_id,
+                            summary=None,
+                            current_phase=suggested_phase,
+                            writing_style=None,
+                            notes=None,
+                        )
+                        result["project_status"] = status_result
+                        result["project_id"] = status_result.get("project_id")
+                        result["updated_fields"] = status_result.get("updated_fields", [])
+                        log_with_context(
+                            logger,
+                            20,  # INFO
+                            "Auto-synced project current_phase from draft progress",
+                            project_id=project_id,
+                            current_phase=suggested_phase,
+                        )
+                except Exception as exc:
+                    if hasattr(executor.session, "rollback"):
+                        executor.session.rollback()
+                    log_with_context(
+                        logger,
+                        40,  # ERROR
+                        "Failed to auto-sync current_phase from drafts",
+                        project_id=project_id,
+                        session_id=session_id,
+                        error=str(exc),
+                    )
+
+            if plan_rejected:
+                project_mutated = bool(result.get("updated_fields")) or coerce_bool(
+                    result.get("project_name_updated")
+                )
+                plan = result.get("plan") if isinstance(result.get("plan"), dict) else {}
+                return _make_result(
+                    {
+                        "status": "partial" if project_mutated else "error",
+                        "error_type": "update_plan_rejected",
+                        "error": str(
+                            plan.get("error")
+                            or plan.get("message")
+                            or "任务计划板未更新"
+                        ),
+                        "mutation_applied": project_mutated,
+                        "data": result,
+                    },
+                    tool_name=tool_name,
+                )
+
+            return _make_result({"status": "success", "data": result}, tool_name=tool_name)
+        except Exception as e:
+            return _make_error(str(e), tool_name=tool_name)
 
 
-async def load_skill(args: dict[str, Any]) -> dict[str, Any]:
+async def load_skill(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> dict[str, Any]:
     """按名称加载一个已启用技能的完整方法与资源清单（技能 L2）。"""
-    return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _load_skill_sync, args)
+    return await asyncio.to_thread(_load_skill_sync, args, request_context)
 
 
-def _resolve_skill_for_tool(session: Session, tool_name: str, name: str):
+def _resolve_skill_for_tool(
+    session: Session, req_ctx: AgentRequestContext | None, tool_name: str, name: str
+):
     """Resolve an active skill for the current user; returns (skill, same-name skills, error_result)."""
     from agent.skills.active_skills import (
         find_active_skill,
@@ -2256,7 +2305,7 @@ def _resolve_skill_for_tool(session: Session, tool_name: str, name: str):
         suggest_skill_names,
     )
 
-    user_id = ToolContext.get_user_id()
+    user_id = req_ctx.user_id if req_ctx is not None else None
     if not user_id:
         return None, [], _make_error("user_id not set", tool_name=tool_name)
     if not name:
@@ -2322,55 +2371,65 @@ def _segment_fields(segment, *, skill_id: str, path: str) -> dict[str, Any]:
     }
 
 
-def _load_skill_sync(args: dict[str, Any]) -> dict[str, Any]:
+def _load_skill_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+) -> dict[str, Any]:
     """Synchronous load_skill implementation."""
     from agent.skills.active_skills import list_active_skill_resources
     from agent.skills.content_budget import SKILL_BODY_PATH
 
     tool_name = "load_skill"
     name = str(args.get("name") or "").strip()
+    if req_ctx is None or not req_ctx.user_id:
+        return _make_error("user_id not set", tool_name=tool_name)
     try:
-        session = ToolContext.get_session()
-        skill, others, error = _resolve_skill_for_tool(session, tool_name, name)
-        if error is not None:
-            return error
+        with req_ctx.session_scope() as session:
+            skill, others, error = _resolve_skill_for_tool(session, req_ctx, tool_name, name)
+            if error is not None:
+                return error
 
-        budget = ToolContext.get_skill_content_budget()
-        if not budget.admit_skill(skill.id):
-            return _skill_limit_error(tool_name, skill.name)
-        if budget.remaining <= 0:
-            return _skill_budget_exhausted_error(tool_name)
-        segment = budget.take(skill.instructions)
+            budget = req_ctx.skill_content_budget
+            if not budget.admit_skill(skill.id):
+                return _skill_limit_error(tool_name, skill.name)
+            if budget.remaining <= 0:
+                return _skill_budget_exhausted_error(tool_name)
+            segment = budget.take(skill.instructions)
 
-        resources = [
-            {"path": resource.path, "size": resource.size}
-            for resource in list_active_skill_resources(session, skill)
-        ]
+            resources = [
+                {"path": resource.path, "size": resource.size}
+                for resource in list_active_skill_resources(session, skill)
+            ]
 
-        return _make_result({
-            "status": "success",
-            "data": {
-                "skill_id": skill.id,
-                "skill_name": skill.name,
-                "source": skill.source,
-                "instructions": segment.text,
-                **_segment_fields(segment, skill_id=skill.id, path=SKILL_BODY_PATH),
-                "resources": resources,
-                **_same_name_payload(others),
-            },
-        }, tool_name=tool_name)
+            return _make_result({
+                "status": "success",
+                "data": {
+                    "skill_id": skill.id,
+                    "skill_name": skill.name,
+                    "source": skill.source,
+                    "instructions": segment.text,
+                    **_segment_fields(segment, skill_id=skill.id, path=SKILL_BODY_PATH),
+                    "resources": resources,
+                    **_same_name_payload(others),
+                },
+            }, tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
 
 
-async def read_skill_resource(args: dict[str, Any]) -> dict[str, Any]:
+async def read_skill_resource(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> dict[str, Any]:
     """读取已启用技能的一个参考文件（技能 L3）。"""
-    return await asyncio.to_thread(
-        _run_sync_tool_with_owned_session_cleanup, _read_skill_resource_sync, args
-    )
+    return await asyncio.to_thread(_read_skill_resource_sync, args, request_context)
 
 
-def _read_skill_resource_sync(args: dict[str, Any]) -> dict[str, Any]:
+def _read_skill_resource_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+) -> dict[str, Any]:
     """Synchronous read_skill_resource implementation."""
     from agent.skills.active_skills import get_skill_resource, list_active_skill_resources
     from agent.skills.content_budget import SKILL_BODY_PATH
@@ -2384,53 +2443,55 @@ def _read_skill_resource_sync(args: dict[str, Any]) -> dict[str, Any]:
         offset = max(int(args.get("offset") or 0), 0)
     except (TypeError, ValueError):
         return _make_error("offset must be a non-negative integer", tool_name=tool_name)
+    if req_ctx is None or not req_ctx.user_id:
+        return _make_error("user_id not set", tool_name=tool_name)
     try:
-        session = ToolContext.get_session()
-        skill, _others, error = _resolve_skill_for_tool(session, tool_name, name)
-        if error is not None:
-            return error
-        if not path:
-            return _make_error("path is required", tool_name=tool_name)
+        with req_ctx.session_scope() as session:
+            skill, _others, error = _resolve_skill_for_tool(session, req_ctx, tool_name, name)
+            if error is not None:
+                return error
+            if not path:
+                return _make_error("path is required", tool_name=tool_name)
 
-        if path == SKILL_BODY_PATH:
-            # 技能正文（load_skill 截断后按 offset 续读）
-            content = skill.instructions
-            resolved_path = SKILL_BODY_PATH
-        else:
-            resource = get_skill_resource(
-                session,
-                path,
-                user_skill_id=skill.user_skill_id,
-                public_skill_id=skill.public_skill_id,
-            )
-            if resource is None:
-                available = [item.path for item in list_active_skill_resources(session, skill)]
-                hint = f"可用资源：{'、'.join(available)}" if available else "该技能没有资源文件"
-                return _make_error(f"技能「{skill.name}」中没有资源 {path}。{hint}", tool_name=tool_name)
-            content = resource.content
-            resolved_path = resource.path
+            if path == SKILL_BODY_PATH:
+                # 技能正文（load_skill 截断后按 offset 续读）
+                content = skill.instructions
+                resolved_path = SKILL_BODY_PATH
+            else:
+                resource = get_skill_resource(
+                    session,
+                    path,
+                    user_skill_id=skill.user_skill_id,
+                    public_skill_id=skill.public_skill_id,
+                )
+                if resource is None:
+                    available = [item.path for item in list_active_skill_resources(session, skill)]
+                    hint = f"可用资源：{'、'.join(available)}" if available else "该技能没有资源文件"
+                    return _make_error(f"技能「{skill.name}」中没有资源 {path}。{hint}", tool_name=tool_name)
+                content = resource.content
+                resolved_path = resource.path
 
-        if offset > len(content):
-            return _make_error(
-                f"offset {offset} 超出内容长度（共 {len(content)} 个字符）", tool_name=tool_name
-            )
-        budget = ToolContext.get_skill_content_budget()
-        if not budget.admit_skill(skill.id):
-            return _skill_limit_error(tool_name, skill.name)
-        if budget.remaining <= 0 and offset < len(content):
-            return _skill_budget_exhausted_error(tool_name)
-        segment = budget.take(content, offset)
+            if offset > len(content):
+                return _make_error(
+                    f"offset {offset} 超出内容长度（共 {len(content)} 个字符）", tool_name=tool_name
+                )
+            budget = req_ctx.skill_content_budget
+            if not budget.admit_skill(skill.id):
+                return _skill_limit_error(tool_name, skill.name)
+            if budget.remaining <= 0 and offset < len(content):
+                return _skill_budget_exhausted_error(tool_name)
+            segment = budget.take(content, offset)
 
-        return _make_result({
-            "status": "success",
-            "data": {
-                "skill_id": skill.id,
-                "skill_name": skill.name,
-                "path": resolved_path,
-                "content": segment.text,
-                **_segment_fields(segment, skill_id=skill.id, path=resolved_path),
-            },
-        }, tool_name=tool_name)
+            return _make_result({
+                "status": "success",
+                "data": {
+                    "skill_id": skill.id,
+                    "skill_name": skill.name,
+                    "path": resolved_path,
+                    "content": segment.text,
+                    **_segment_fields(segment, skill_id=skill.id, path=resolved_path),
+                },
+            }, tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
 

@@ -19,10 +19,10 @@ from uuid import uuid4
 import pytest
 from sqlmodel import Session, select
 
+from agent.core.request_context import AgentRequestContext
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.stream_adapter import StreamAdapter
 from agent.tools import mcp_tools
-from agent.tools.mcp_tools import ToolContext
 from models import File, Project, User
 
 pytestmark = pytest.mark.unit
@@ -106,9 +106,9 @@ class _ProbeSession:
 
 @pytest.mark.asyncio
 async def test_sync_tool_thread_never_reuses_request_session(monkeypatch):
-    """SQLite 部署下 ToolContext 里若放的是请求级 Session，
-    get_session() 第一分支会把它交给工作线程；SDK 同一 turn 的多个 tool_call
-    是并发 asyncio Task，两个以上线程会同时在同一个 Session 上 flush/commit。
+    """即便 AgentRequestContext 同时带了 session 与 create_session_func，
+    session_scope() 仍必须为每次工作线程调用建独立短生命周期 Session 并在退出时关闭，
+    绝不让并发工具线程共享请求级 Session。
     """
     request_session = _ProbeSession(-1)
     created: list[_ProbeSession] = []
@@ -118,7 +118,7 @@ async def test_sync_tool_thread_never_reuses_request_session(monkeypatch):
         created.append(session)
         return session
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=request_session,
         user_id="u1",
         project_id="p1",
@@ -128,22 +128,18 @@ async def test_sync_tool_thread_never_reuses_request_session(monkeypatch):
     try:
         seen: list[int] = []
 
-        def probe(_args):
-            session = ToolContext.get_session()
-            seen.append(id(session))
-            time.sleep(0.05)  # 让两个工具的执行窗口真实重叠
-            return {"ok": True}
+        def probe():
+            with req_ctx.session_scope() as session:
+                seen.append(id(session))
+                time.sleep(0.05)  # 让两个工具的执行窗口真实重叠
+                return {"ok": True}
 
         await asyncio.gather(
-            asyncio.to_thread(
-                mcp_tools._run_sync_tool_with_owned_session_cleanup, probe, {}
-            ),
-            asyncio.to_thread(
-                mcp_tools._run_sync_tool_with_owned_session_cleanup, probe, {}
-            ),
+            asyncio.to_thread(probe),
+            asyncio.to_thread(probe),
         )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     assert len(seen) == 2
     # 1) 谁都不许拿到请求级 Session
@@ -156,24 +152,23 @@ async def test_sync_tool_thread_never_reuses_request_session(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_sync_tool_thread_falls_back_to_context_session_without_factory():
-    """没有 create_session_func 时自建无从谈起，只能沿用调用方给的 session
-    （测试与内部脚本的典型用法），不能因为隔离逻辑把它变成 RuntimeError。"""
+    """没有 create_session_func 时自建无从谈起，沿用调用方注入的 session 且不关闭。"""
     request_session = _ProbeSession(-1)
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=request_session, user_id="u1", project_id="p1", session_id="s1"
     )
     try:
 
-        def probe(_args):
-            return ToolContext.get_session()
+        def probe():
+            with req_ctx.session_scope() as session:
+                return session
 
-        got = await asyncio.to_thread(
-            mcp_tools._run_sync_tool_with_owned_session_cleanup, probe, {}
-        )
+        got = await asyncio.to_thread(probe)
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     assert got is request_session
+    assert request_session.closed is False
 
 
 def test_service_never_passes_request_session_into_tool_context():
@@ -204,7 +199,7 @@ async def test_concurrent_tools_use_distinct_sessions_on_sqlite(db_session: Sess
 
     monkeypatch.setattr(database, "create_session", factory)
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
@@ -214,14 +209,16 @@ async def test_concurrent_tools_use_distinct_sessions_on_sqlite(db_session: Sess
     try:
         results = await asyncio.gather(
             mcp_tools.create_file(
-                {"title": "并发一", "file_type": "draft", "content": "甲"}
+                {"title": "并发一", "file_type": "draft", "content": "甲"},
+                request_context=req_ctx,
             ),
             mcp_tools.create_file(
-                {"title": "并发二", "file_type": "draft", "content": "乙"}
+                {"title": "并发二", "file_type": "draft", "content": "乙"},
+                request_context=req_ctx,
             ),
         )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     payloads = [json.loads(r["content"][0]["text"]) for r in results]
     assert all(p.get("status") == "success" for p in payloads), payloads

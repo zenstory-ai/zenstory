@@ -8,7 +8,8 @@ from uuid import uuid4
 
 import pytest
 
-from agent.tools.mcp_tools import ToolContext, create_file
+from agent.core.request_context import AgentRequestContext
+from agent.tools.mcp_tools import create_file
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 
@@ -17,20 +18,14 @@ def _payload(result: dict) -> dict:
     return json.loads(result["content"][0]["text"])
 
 
-def _context(author_message: str | None) -> None:
-    ToolContext.set_context(
-        session=None,
+def _context(author_message: str | None) -> AgentRequestContext:
+    return AgentRequestContext(
+        session=MagicMock(),
         user_id="author-1",
         project_id="project-1",
         session_id="session-1",
         author_message=author_message,
     )
-
-
-@pytest.fixture(autouse=True)
-def clear_tool_context():
-    yield
-    ToolContext.clear_context()
 
 
 async def test_source_text_is_saved_byte_for_byte_from_current_author_message():
@@ -40,7 +35,7 @@ async def test_source_text_is_saved_byte_for_byte_from_current_author_message():
         "第二章 暗格：苏砚找到钟表行学徒陈默。\n\n"
         "陈默：28岁，话少手稳，对十年前的火灾讳莫如深。"
     )
-    _context(f"请把下面资料保存到项目中，保持原样：\n\n{source}\n\n保存后先别续写。")
+    req_ctx = _context(f"请把下面资料保存到项目中，保持原样：\n\n{source}\n\n保存后先别续写。")
     executor = MagicMock()
     executor.create_file.return_value = {
         "id": "outline-1",
@@ -50,10 +45,11 @@ async def test_source_text_is_saved_byte_for_byte_from_current_author_message():
         "mutation_applied": True,
     }
 
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    with patch.object(req_ctx, "executor", return_value=executor):
         result = _payload(
             await create_file(
-                {"title": "旧港残信", "file_type": "outline", "source_text": source}
+                {"title": "旧港残信", "file_type": "outline", "source_text": source},
+                request_context=req_ctx,
             )
         )
 
@@ -69,7 +65,7 @@ async def test_source_text_is_saved_byte_for_byte_from_current_author_message():
         metadata=None,
         normalize_quotes=True,
     )
-    assert not ToolContext.has_pending_empty_file()
+    assert not req_ctx.has_pending_empty_file()
 
 
 @pytest.mark.parametrize(
@@ -90,11 +86,11 @@ async def test_source_text_is_saved_byte_for_byte_from_current_author_message():
     ],
 )
 async def test_invalid_source_copy_is_rejected_before_file_mutation(args, error_type):
-    _context("作者只提供：陈默原文")
+    req_ctx = _context("作者只提供：陈默原文")
     executor = MagicMock()
 
-    with patch.object(ToolContext, "get_executor", return_value=executor):
-        result = _payload(await create_file(args))
+    with patch.object(req_ctx, "executor", return_value=executor):
+        result = _payload(await create_file(args, request_context=req_ctx))
 
     assert result["status"] == "error"
     assert result["error_type"] == error_type
@@ -102,13 +98,14 @@ async def test_invalid_source_copy_is_rejected_before_file_mutation(args, error_
 
 
 async def test_source_copy_requires_current_raw_author_message():
-    _context(None)
+    req_ctx = _context(None)
     executor = MagicMock()
 
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    with patch.object(req_ctx, "executor", return_value=executor):
         result = _payload(
             await create_file(
-                {"title": "苏砚", "file_type": "character", "source_text": "苏砚原文"}
+                {"title": "苏砚", "file_type": "character", "source_text": "苏砚原文"},
+                request_context=req_ctx,
             )
         )
 
@@ -126,20 +123,22 @@ async def test_source_copy_is_isolated_to_the_current_request():
         "content": "苏砚：26岁。",
         "mutation_applied": True,
     }
-    _context("苏砚：26岁。")
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    req_ctx_1 = _context("苏砚：26岁。")
+    with patch.object(req_ctx_1, "executor", return_value=executor):
         first = _payload(
             await create_file(
-                {"title": "苏砚", "file_type": "character", "source_text": "苏砚：26岁。"}
+                {"title": "苏砚", "file_type": "character", "source_text": "苏砚：26岁。"},
+                request_context=req_ctx_1,
             )
         )
     assert first["status"] == "success"
 
-    _context("这一轮只讨论陈默，不包含上一轮原文。")
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    req_ctx_2 = _context("这一轮只讨论陈默，不包含上一轮原文。")
+    with patch.object(req_ctx_2, "executor", return_value=executor):
         second = _payload(
             await create_file(
-                {"title": "苏砚副本", "file_type": "character", "source_text": "苏砚：26岁。"}
+                {"title": "苏砚副本", "file_type": "character", "source_text": "苏砚：26岁。"},
+                request_context=req_ctx_2,
             )
         )
 
@@ -150,7 +149,7 @@ async def test_source_copy_is_isolated_to_the_current_request():
 
 async def test_source_copy_preserves_nonblank_leading_and_trailing_whitespace():
     source = "\n  苏砚：26岁。  \n"
-    _context(f"资料如下：{source}结束")
+    req_ctx = _context(f"资料如下：{source}结束")
     executor = MagicMock()
     executor.create_file.return_value = {
         "id": "character-spaced",
@@ -160,10 +159,11 @@ async def test_source_copy_preserves_nonblank_leading_and_trailing_whitespace():
         "mutation_applied": True,
     }
 
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    with patch.object(req_ctx, "executor", return_value=executor):
         result = _payload(
             await create_file(
-                {"title": "苏砚", "file_type": "character", "source_text": source}
+                {"title": "苏砚", "file_type": "character", "source_text": source},
+                request_context=req_ctx,
             )
         )
 
@@ -173,7 +173,7 @@ async def test_source_copy_preserves_nonblank_leading_and_trailing_whitespace():
 
 
 async def test_mismatched_existing_reuse_is_reported_without_a_false_copy_receipt():
-    _context("陈默：28岁，话少手稳。")
+    req_ctx = _context("陈默：28岁，话少手稳。")
     executor = MagicMock()
     executor.create_file.return_value = {
         "id": "existing-character",
@@ -184,10 +184,11 @@ async def test_mismatched_existing_reuse_is_reported_without_a_false_copy_receip
         "mutation_applied": False,
     }
 
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    with patch.object(req_ctx, "executor", return_value=executor):
         result = _payload(
             await create_file(
-                {"title": "陈默", "file_type": "character", "source_text": "陈默：28岁，话少手稳。"}
+                {"title": "陈默", "file_type": "character", "source_text": "陈默：28岁，话少手稳。"},
+                request_context=req_ctx,
             )
         )
 
@@ -199,7 +200,7 @@ async def test_mismatched_existing_reuse_is_reported_without_a_false_copy_receip
 
 async def test_exact_existing_reuse_is_confirmed_without_mutation():
     source = "陈默：28岁，话少手稳。"
-    _context(source)
+    req_ctx = _context(source)
     executor = MagicMock()
     executor.create_file.return_value = {
         "id": "existing-character",
@@ -210,10 +211,11 @@ async def test_exact_existing_reuse_is_confirmed_without_mutation():
         "mutation_applied": False,
     }
 
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    with patch.object(req_ctx, "executor", return_value=executor):
         result = _payload(
             await create_file(
-                {"title": "陈默", "file_type": "character", "source_text": source}
+                {"title": "陈默", "file_type": "character", "source_text": source},
+                request_context=req_ctx,
             )
         )
 
@@ -227,7 +229,7 @@ async def test_exact_existing_reuse_is_confirmed_without_mutation():
 
 
 async def test_ordinary_generated_material_keeps_streamed_body_contract():
-    _context("请帮我设计一个海港城市设定。")
+    req_ctx = _context("请帮我设计一个海港城市设定。")
     executor = MagicMock()
     executor.create_file.return_value = {
         "id": "lore-1",
@@ -238,12 +240,12 @@ async def test_ordinary_generated_material_keeps_streamed_body_contract():
         "mutation_applied": True,
     }
 
-    with patch.object(ToolContext, "get_executor", return_value=executor):
-        result = _payload(await create_file({"title": "海港城市", "file_type": "lore"}))
+    with patch.object(req_ctx, "executor", return_value=executor):
+        result = _payload(await create_file({"title": "海港城市", "file_type": "lore"}, request_context=req_ctx))
 
     assert result["status"] == "success"
     assert result["data"]["awaiting_body"] is True
-    assert ToolContext.has_pending_empty_file()
+    assert req_ctx.has_pending_empty_file()
     executor.create_file.assert_called_once()
     assert executor.create_file.call_args.kwargs["content"] == ""
 
@@ -277,7 +279,7 @@ async def test_source_copy_does_not_overwrite_an_existing_material_file(db_sessi
     db_session.refresh(existing)
 
     copied = "陈默：28岁，话少手稳。"
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
@@ -285,7 +287,10 @@ async def test_source_copy_does_not_overwrite_an_existing_material_file(db_sessi
         author_message=copied,
     )
     result = _payload(
-        await create_file({"title": "陈默", "file_type": "character", "source_text": copied})
+        await create_file(
+            {"title": "陈默", "file_type": "character", "source_text": copied},
+            request_context=req_ctx,
+        )
     )
 
     db_session.expire_all()
@@ -297,7 +302,7 @@ async def test_source_copy_does_not_overwrite_an_existing_material_file(db_sessi
 
 async def test_source_copy_matches_crlf_trailing_spaces_and_blank_line_runs_while_keeping_author_slice():
     author_block = "## 世界观总纲  \r\n\r\n第一条：灵气复苏百年。\t\r\n第二条：东海群岛封禁。   "
-    _context(f"请帮我把下面这段设定原样建档：\r\n\r\n{author_block}\r\n\r\n先不要写正文。")
+    req_ctx = _context(f"请帮我把下面这段设定原样建档：\r\n\r\n{author_block}\r\n\r\n先不要写正文。")
     model_normalized = "## 世界观总纲\n第一条：灵气复苏百年。\n第二条：东海群岛封禁。\n"
     expected_saved = "## 世界观总纲  \n\n第一条：灵气复苏百年。\t\n第二条：东海群岛封禁。"
 
@@ -309,10 +314,11 @@ async def test_source_copy_matches_crlf_trailing_spaces_and_blank_line_runs_whil
         "content": kwargs["content"],
         "mutation_applied": True,
     }
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    with patch.object(req_ctx, "executor", return_value=executor):
         result = _payload(
             await create_file(
-                {"title": "世界观总纲", "file_type": "lore", "source_text": model_normalized}
+                {"title": "世界观总纲", "file_type": "lore", "source_text": model_normalized},
+                request_context=req_ctx,
             )
         )
 
@@ -323,7 +329,7 @@ async def test_source_copy_matches_crlf_trailing_spaces_and_blank_line_runs_whil
 
 async def test_source_copy_preserves_first_line_chinese_indent_across_crlf_and_trailing_spaces():
     author_block = "　　第一段：寒江孤影。  \r\n　　第二段：江湖故人。  "
-    _context(f"设定如下：\r\n{author_block}\r\n完。")
+    req_ctx = _context(f"设定如下：\r\n{author_block}\r\n完。")
     model_source = "　　第一段：寒江孤影。\n　　第二段：江湖故人。\n"
     expected_saved = "　　第一段：寒江孤影。  \n　　第二段：江湖故人。"
 
@@ -335,10 +341,11 @@ async def test_source_copy_preserves_first_line_chinese_indent_across_crlf_and_t
         "content": kwargs["content"],
         "mutation_applied": True,
     }
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    with patch.object(req_ctx, "executor", return_value=executor):
         result = _payload(
             await create_file(
-                {"title": "门派小传", "file_type": "lore", "source_text": model_source}
+                {"title": "门派小传", "file_type": "lore", "source_text": model_source},
+                request_context=req_ctx,
             )
         )
 
@@ -347,16 +354,17 @@ async def test_source_copy_preserves_first_line_chinese_indent_across_crlf_and_t
 
 
 async def test_source_copy_still_rejects_skipped_middle_line_or_ambiguous_raw_slices():
-    _context("第一行：沈砚\n第二行：二十八岁\n第三行：六扇门捕快")
+    req_ctx = _context("第一行：沈砚\n第二行：二十八岁\n第三行：六扇门捕快")
     executor = MagicMock()
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    with patch.object(req_ctx, "executor", return_value=executor):
         skipped = _payload(
             await create_file(
                 {
                     "title": "沈砚",
                     "file_type": "character",
                     "source_text": "第一行：沈砚\n第三行：六扇门捕快",
-                }
+                },
+                request_context=req_ctx,
             )
         )
     assert skipped["status"] == "error"
@@ -364,11 +372,12 @@ async def test_source_copy_still_rejects_skipped_middle_line_or_ambiguous_raw_sl
     executor.create_file.assert_not_called()
 
     # 两处归一化相同但原始空行不同的重复块：无法唯一确定哪一处原文切片时拒绝。
-    _context("版本A：\n甲行\n乙行\n---\n版本B：\n甲行\n\n\n乙行")
-    with patch.object(ToolContext, "get_executor", return_value=executor):
+    req_ctx_2 = _context("版本A：\n甲行\n乙行\n---\n版本B：\n甲行\n\n\n乙行")
+    with patch.object(req_ctx_2, "executor", return_value=executor):
         ambiguous = _payload(
             await create_file(
-                {"title": "重复块", "file_type": "lore", "source_text": "甲行\n\n乙行"}
+                {"title": "重复块", "file_type": "lore", "source_text": "甲行\n\n乙行"},
+                request_context=req_ctx_2,
             )
         )
     assert ambiguous["status"] == "error"

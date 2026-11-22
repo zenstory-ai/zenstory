@@ -1191,7 +1191,6 @@ async def test_unclean_or_skipped_turns_skip_store_and_invalidate_stale_cache(
     reason, it must NOT store a new entry and MUST invalidate any pre-existing stale key."""
     from agent.core.workflow_events import StreamEvent, StreamEventType
     from agent.service import AgentService
-    from agent.tools.mcp_tools import ToolContext
 
     user = User(
         email=f"wire_skip_{case}@example.com",
@@ -1238,7 +1237,7 @@ async def test_unclean_or_skipped_turns_skip_store_and_invalidate_stale_cache(
 
         async def _stream():
             if case == "pending_empty_file":
-                ToolContext.set_pending_empty_file("f-unwritten", "空章节", "v1")
+                state["request_context"].set_pending_empty_file("f-unwritten", "空章节", "v1")
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "部分回复"})
             if case == "empty_file_correction_card":
                 yield StreamEvent(
@@ -1648,7 +1647,6 @@ async def test_skipped_clean_turns_emit_single_info_log_with_skip_reason(
     must NOT double-log."""
     from agent.core.workflow_events import StreamEvent, StreamEventType
     from agent.service import AgentService
-    from agent.tools.mcp_tools import ToolContext
     from config import agent_runtime
 
     user = User(
@@ -1681,7 +1679,7 @@ async def test_skipped_clean_turns_emit_single_info_log_with_skip_reason(
 
         async def _stream():
             if case == "pending_file_state":
-                ToolContext.set_pending_empty_file("f-pending", "空章", "v1")
+                state["request_context"].set_pending_empty_file("f-pending", "空章", "v1")
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "阶段回复"})
             if case == "blocking_status_card":
                 yield StreamEvent(

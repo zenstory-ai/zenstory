@@ -18,7 +18,7 @@ import pytest
 from sqlmodel import Session, select
 
 from agent.tools import mcp_tools
-from agent.tools.mcp_tools import ToolContext
+from agent.tools.tool_context import AgentRequestContext
 from models import File, Project, User
 
 pytestmark = pytest.mark.unit
@@ -82,33 +82,29 @@ async def test_offloaded_tool_does_not_close_caller_owned_session(monkeypatch):
         created.append(session)
         return session
 
-    ToolContext.set_context(
-        session=None,
+    caller_session = _FakeSession(99)
+    req_ctx = AgentRequestContext(
+        session=caller_session,
         user_id="u1",
         project_id="p1",
         session_id="s1",
         create_session_func=factory,
     )
-    try:
-        caller_session = ToolContext.get_session()
+    thread_sessions: list[_FakeSession] = []
 
-        thread_sessions: list[_FakeSession] = []
+    def fake_edit_file_sync(args, ctx, tool_call_id=None):
+        with ctx.session_scope() as session:
+            thread_sessions.append(session)
+        return _ok_mcp_result()
 
-        def fake_edit_file_sync(args):
-            thread_sessions.append(ToolContext.get_session())
-            return _ok_mcp_result()
+    monkeypatch.setattr(mcp_tools, "_edit_file_sync", fake_edit_file_sync)
 
-        monkeypatch.setattr(mcp_tools, "_edit_file_sync", fake_edit_file_sync)
+    await mcp_tools.edit_file({"id": "file-1", "edits": []}, request_context=req_ctx)
 
-        await mcp_tools.edit_file({"id": "file-1", "edits": []})
-
-        assert thread_sessions[0] is not caller_session
-        assert caller_session.closed is False
-        assert thread_sessions[0].closed is True
-        # 事件循环侧再取，仍是那个没被关掉的 Session
-        assert ToolContext.get_session() is caller_session
-    finally:
-        ToolContext.clear_context()
+    assert thread_sessions[0] is not caller_session
+    assert caller_session.closed is False
+    assert thread_sessions[0].closed is True
+    assert req_ctx.session is caller_session
 
 
 @pytest.mark.asyncio
@@ -133,68 +129,64 @@ async def test_concurrent_empty_create_file_is_atomic(db_session, monkeypatch):
 
     from tests.conftest import TestSessionLocal
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=None,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-atomic",
         create_session_func=TestSessionLocal,
     )
-    try:
-        # create_file 在 await 处让出事件循环，两次调用的"检查"与"置位"因此真正交错。
-        results = await asyncio.gather(
-            mcp_tools.create_file(
-                {"title": "第一章", "file_type": "draft", "content": ""}
-            ),
-            mcp_tools.create_file(
-                {"title": "第二章", "file_type": "draft", "content": ""}
-            ),
-        )
-        statuses = sorted(_payload(r)["status"] for r in results)
-        assert statuses == ["error", "success"]
+    # create_file 在 await 处让出事件循环，两次调用的"检查"与"置位"因此真正交错。
+    results = await asyncio.gather(
+        mcp_tools.create_file(
+            {"title": "第一章", "file_type": "draft", "content": ""},
+            request_context=req_ctx,
+        ),
+        mcp_tools.create_file(
+            {"title": "第二章", "file_type": "draft", "content": ""},
+            request_context=req_ctx,
+        ),
+    )
+    statuses = sorted(_payload(r)["status"] for r in results)
+    assert statuses == ["error", "success"]
 
-        db_session.expire_all()
-        drafts = db_session.exec(
-            select(File).where(File.project_id == project.id, File.file_type == "draft")
-        ).all()
-        # 只允许落一个空文件；两个空文件里必然有一个成为孤儿
-        assert len(drafts) == 1
+    db_session.expire_all()
+    drafts = db_session.exec(
+        select(File).where(File.project_id == project.id, File.file_type == "draft")
+    ).all()
+    # 只允许落一个空文件；两个空文件里必然有一个成为孤儿
+    assert len(drafts) == 1
 
-        pending = ToolContext.get_pending_empty_files()
-        assert len(pending) == 1
-        assert pending[0]["file_id"] == drafts[0].id
-    finally:
-        ToolContext.clear_context()
+    pending = req_ctx.get_pending_empty_files()
+    assert len(pending) == 1
+    assert pending[0]["file_id"] == drafts[0].id
 
 
 def test_pending_empty_file_marker_is_a_set_not_a_slot():
     """rank 14：标记必须是按 file_id 的集合，后写者不得静默覆盖先写者。"""
-    ToolContext.set_context(None, "u1", "p1", "s1")
-    try:
-        ToolContext.set_pending_empty_file("file-1", "第一章")
-        ToolContext.set_pending_empty_file("file-2", "第二章")
+    req_ctx = AgentRequestContext(session=None, user_id="u1", project_id="p1", session_id="s1")
+    req_ctx.set_pending_empty_file("file-1", "第一章")
+    req_ctx.set_pending_empty_file("file-2", "第二章")
 
-        assert ToolContext.get_pending_empty_files() == [
-            {"file_id": "file-1", "title": "第一章"},
-            {"file_id": "file-2", "title": "第二章"},
-        ]
-        # 单槽语义保持兼容：get_pending_empty_file 返回最近一个
-        assert ToolContext.get_pending_empty_file() == {
-            "file_id": "file-2",
-            "title": "第二章",
-        }
+    assert req_ctx.get_pending_empty_files() == [
+        {"file_id": "file-1", "title": "第一章"},
+        {"file_id": "file-2", "title": "第二章"},
+    ]
+    # 单槽语义保持兼容：get_pending_empty_file 返回最近一个
+    assert req_ctx.get_pending_empty_file() == {
+        "file_id": "file-2",
+        "title": "第二章",
+    }
 
-        # 精确清除：收尾 file-2 不能把 file-1 的补写信号一起抹掉
-        ToolContext.clear_pending_empty_file("file-2")
-        assert ToolContext.get_pending_empty_files() == [
-            {"file_id": "file-1", "title": "第一章"}
-        ]
+    # 精确清除：收尾 file-2 不能把 file-1 的补写信号一起抹掉
+    req_ctx.clear_pending_empty_file("file-2")
+    assert req_ctx.get_pending_empty_files() == [
+        {"file_id": "file-1", "title": "第一章"}
+    ]
 
-        ToolContext.clear_pending_empty_file()
-        assert ToolContext.get_pending_empty_files() == []
-        assert ToolContext.has_pending_empty_file() is False
-    finally:
-        ToolContext.clear_context()
+    req_ctx.clear_pending_empty_file()
+    assert req_ctx.get_pending_empty_files() == []
+    assert req_ctx.has_pending_empty_file() is False
 
 
 # --------------------------------------------------------------------------- rank 29
@@ -203,27 +195,24 @@ async def test_pending_guard_does_not_forget_unfinished_empty_file(db_session):
     """Repeated invalid creates must not erase evidence of an unfinished file."""
     user, project = _make_user_project(db_session, "selfheal")
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-selfheal",
     )
-    try:
-        statuses = []
-        for index in range(4):
-            result = await mcp_tools.create_file(
-                {"title": f"第{index + 1}章", "file_type": "draft", "content": ""}
-            )
-            statuses.append(_payload(result)["status"])
+    statuses = []
+    for index in range(4):
+        result = await mcp_tools.create_file(
+            {"title": f"第{index + 1}章", "file_type": "draft", "content": ""},
+            request_context=req_ctx,
+        )
+        statuses.append(_payload(result)["status"])
 
-        assert statuses == ["success", "error", "error", "error"]
+    assert statuses == ["success", "error", "error", "error"]
 
-        pending = ToolContext.get_pending_empty_files()
-        assert [item["title"] for item in pending] == ["第1章"]
-    finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+    pending = req_ctx.get_pending_empty_files()
+    assert [item["title"] for item in pending] == ["第1章"]
 
 
 def test_correction_exhaustion_rolls_back_verified_empty_artifact(db_session):
@@ -241,24 +230,22 @@ def test_correction_exhaustion_rolls_back_verified_empty_artifact(db_session):
     db_session.commit()
     db_session.refresh(file)
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-empty-rollback",
     )
-    try:
-        rolled_back = rollback_unfinished_empty_files(
-            [{"file_id": file.id, "title": file.title, "updated_at": file.updated_at.isoformat()}]
-        )
-        assert rolled_back == {file.id}
-        db_session.expire_all()
-        persisted = db_session.get(File, file.id)
-        assert persisted is not None
-        assert persisted.is_deleted is True
-        assert persisted.deleted_at is not None
-    finally:
-        ToolContext.clear_context()
+    rolled_back = rollback_unfinished_empty_files(
+        [{"file_id": file.id, "title": file.title, "updated_at": file.updated_at.isoformat()}],
+        request_context=req_ctx,
+    )
+    assert rolled_back == {file.id}
+    db_session.expire_all()
+    persisted = db_session.get(File, file.id)
+    assert persisted is not None
+    assert persisted.is_deleted is True
+    assert persisted.deleted_at is not None
 
 
 @pytest.mark.asyncio
@@ -285,25 +272,25 @@ async def test_delete_file_tool_string_false_does_not_cascade(db_session):
         db_session.refresh(child)
         child_ids.append(child.id)
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-recursive",
     )
-    try:
-        result = await mcp_tools.delete_file({"id": folder.id, "recursive": "false"})
-        assert _payload(result)["status"] == "success"
+    result = await mcp_tools.delete_file(
+        {"id": folder.id, "recursive": "false"},
+        request_context=req_ctx,
+    )
+    assert _payload(result)["status"] == "success"
 
-        db_session.expire_all()
-        assert db_session.get(File, folder.id).is_deleted is True
-        assert [bool(db_session.get(File, cid).is_deleted) for cid in child_ids] == [
-            False,
-            False,
-            False,
-        ]
-    finally:
-        ToolContext.clear_context()
+    db_session.expire_all()
+    assert db_session.get(File, folder.id).is_deleted is True
+    assert [bool(db_session.get(File, cid).is_deleted) for cid in child_ids] == [
+        False,
+        False,
+        False,
+    ]
 
 
 @pytest.mark.asyncio
@@ -321,29 +308,29 @@ async def test_edit_file_tool_string_false_stops_on_first_failure(db_session):
     db_session.commit()
     db_session.refresh(target)
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
         project_id=project.id,
         session_id="sess-coe",
     )
-    try:
-        result = await mcp_tools.edit_file({
+    result = await mcp_tools.edit_file(
+        {
             "id": target.id,
             "edits": [
                 {"op": "replace", "old": "ZZZ_NOT_PRESENT", "new": "X"},
                 {"op": "replace", "old": "CCC", "new": "CCC_EDITED"},
             ],
             "continue_on_error": "false",
-        })
+        },
+        request_context=req_ctx,
+    )
 
-        db_session.expire_all()
-        content = db_session.get(File, target.id).content
-        # 第一条编辑失败即中止：第二条不得生效
-        assert "CCC_EDITED" not in (content or "")
-        assert _payload(result)["status"] == "error"
-    finally:
-        ToolContext.clear_context()
+    db_session.expire_all()
+    content = db_session.get(File, target.id).content
+    # 第一条编辑失败即中止：第二条不得生效
+    assert "CCC_EDITED" not in (content or "")
+    assert _payload(result)["status"] == "error"
 
 
 # --------------------------------------------------------------------------- rank 6 / 28 应用侧
@@ -357,15 +344,12 @@ async def test_write_tools_run_off_event_loop_thread_on_sqlite(db_session, monke
     loop_thread = threading.current_thread().name
     observed: list[str] = []
 
-    def fake_edit_file_sync(args):
+    def fake_edit_file_sync(args, req_ctx, tool_call_id=None):
         observed.append(threading.current_thread().name)
         return _ok_mcp_result()
 
     monkeypatch.setattr(mcp_tools, "_edit_file_sync", fake_edit_file_sync)
 
-    ToolContext.set_context(None, "u1", "p1", "s1")
-    try:
-        await mcp_tools.edit_file({"id": "file-1", "edits": []})
-        assert observed and observed[0] != loop_thread
-    finally:
-        ToolContext.clear_context()
+    req_ctx = AgentRequestContext(session=None, user_id="u1", project_id="p1", session_id="s1")
+    await mcp_tools.edit_file({"id": "file-1", "edits": []}, request_context=req_ctx)
+    assert observed and observed[0] != loop_thread

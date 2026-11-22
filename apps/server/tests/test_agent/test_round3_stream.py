@@ -711,7 +711,7 @@ def _e2e_stream_save_session(monkeypatch):
     """让 StreamAdapter 的落库分支（独立 session）也落到测试库。
 
     _save_file_content_sync 走的是 database.get_session / create_session，
-    不复用 ToolContext 里的 session，不重定向就会写到真实的 zenstory.db。
+    不复用 AgentRequestContext 里的 session，不重定向就会写到真实的 zenstory.db。
     """
     import database
     from tests.conftest import TestSessionLocal
@@ -759,6 +759,7 @@ async def _run_e2e_turn(
     user_id: str,
     title: str,
     *,
+    request_context=None,
     close_file: bool = False,
     agent_boundary: bool = False,
     end_with_message_end: bool = True,
@@ -779,6 +780,7 @@ async def _run_e2e_turn(
             project_id=project_id,
             user_id=user_id,
             process_file_markers=True,
+            request_context=request_context,
         )
     )
     args = json.dumps(
@@ -789,7 +791,7 @@ async def _run_e2e_turn(
         },
         ensure_ascii=False,
     )
-    result_text = await invoke_project_tool("create_file", args)
+    result_text = await invoke_project_tool("create_file", args, request_context=request_context)
 
     body = f"<file>{title}\n{_E2E_TRUNCATED_PROSE}"
     if close_file:
@@ -826,16 +828,17 @@ async def test_reused_episode_body_survives_truncated_stream(
     这里不给 MESSAGE_END，流直接结束，走 process_workflow_events 尾部的
     finalize_on_stream_end 收尾分支。
     """
-    from agent.tools.mcp_tools import ToolContext
+    from agent.core.request_context import AgentRequestContext
     from models import File
 
     file_id = _seed_finished_episode(db_session, _e2e_project)
-    ToolContext.set_context(db_session, _e2e_user.id, _e2e_project.id, None)
+    req_ctx = AgentRequestContext(session=db_session, user_id=_e2e_user.id, project_id=_e2e_project.id, session_id=None)
 
     payload, sse_events = await _run_e2e_turn(
         _e2e_project.id,
         _e2e_user.id,
         _E2E_EPISODE_TITLE,
+        request_context=req_ctx,
         end_with_message_end=False,
     )
     assert payload["data"]["id"] == file_id, "没有命中幂等复用分支，用例失去意义"
@@ -861,16 +864,17 @@ async def test_reused_episode_normal_stream_still_persists(
     防止后续把拒绝条件放宽成"只看 original_content_length > 0"而漏掉
     auto_completed —— 那样正常的整集重写也会被守卫拦下。
     """
-    from agent.tools.mcp_tools import ToolContext
+    from agent.core.request_context import AgentRequestContext
     from models import File
 
     file_id = _seed_finished_episode(db_session, _e2e_project)
-    ToolContext.set_context(db_session, _e2e_user.id, _e2e_project.id, None)
+    req_ctx = AgentRequestContext(session=db_session, user_id=_e2e_user.id, project_id=_e2e_project.id, session_id=None)
 
     payload, _ = await _run_e2e_turn(
         _e2e_project.id,
         _e2e_user.id,
         _E2E_EPISODE_TITLE,
+        request_context=req_ctx,
         close_file=True,
     )
     assert payload["data"]["id"] == file_id, "没有命中幂等复用分支，用例失去意义"
@@ -893,16 +897,17 @@ async def test_truncated_overwrite_guard_covers_agent_boundary_path(
     断言警告文本出现在第二个 agent 的叙述**之前**，以此证明收尾确实发生在
     agent 边界上，而不是被推迟到流结束。
     """
-    from agent.tools.mcp_tools import ToolContext
+    from agent.core.request_context import AgentRequestContext
     from models import File
 
     file_id = _seed_finished_episode(db_session, _e2e_project)
-    ToolContext.set_context(db_session, _e2e_user.id, _e2e_project.id, None)
+    req_ctx = AgentRequestContext(session=db_session, user_id=_e2e_user.id, project_id=_e2e_project.id, session_id=None)
 
     _, sse_events = await _run_e2e_turn(
         _e2e_project.id,
         _e2e_user.id,
         _E2E_EPISODE_TITLE,
+        request_context=req_ctx,
         agent_boundary=True,
     )
 

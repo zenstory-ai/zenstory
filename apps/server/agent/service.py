@@ -93,7 +93,7 @@ from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .skills.content_budget import split_selected_budget
 from .stream_adapter import STREAM_FILE_SAVE_TIMEOUT_S, create_stream_adapter
-from .tools.mcp_tools import ToolContext
+from .tools.tool_context import AgentRequestContext
 
 logger = get_logger(__name__)
 
@@ -379,7 +379,7 @@ class AgentService:
         """
         Resolve the `session_id` used by:
         - SSE `session_started` event (frontend steering + continuity)
-        - ToolContext (task board)
+        - AgentRequestContext (task board)
 
         IMPORTANT: This value must exist in `chat_session.id` because
         `chat_message.session_id` has a FK to `chat_session.id`.
@@ -1274,11 +1274,11 @@ class AgentService:
             if session.in_transaction():
                 session.commit()
 
-            # Set tool context for tool execution.
-            # 所有工具都在 asyncio.to_thread 的工作线程里执行，而 SDK 同一 turn 里的多个
-            # tool_call 是并发 asyncio Task：传 session=None + create_session_func，让每个
-            # 工作线程自建独立 session，不在并发线程间共享同一个 SQLAlchemy Session。
-            ToolContext.set_context(
+            # Build strong-typed per-request context shared with StreamAdapter, loop engine,
+            # SDK RunContextWrapper[AgentRequestContext], and MCP tool worker threads.
+            # 始终传 session=None + create_session_func=create_session，每个工具调用在
+            # req_ctx.session_scope() 内自建短生命周期独立 Session、用完即关。
+            request_context = AgentRequestContext(
                 session=None,
                 user_id=user_id,
                 project_id=project_id,
@@ -1310,6 +1310,7 @@ class AgentService:
                 "system_prompt": system_prompt,
                 "run_meter": run_meter,
                 "run_outcome": run_outcome,
+                "request_context": request_context,
             }
             writing_state["history_items"] = loop_history.items
             # 前几轮连续停在输出上限的次数（来自重建的跨轮历史）。
@@ -1325,363 +1326,354 @@ class AgentService:
                 run_meter=run_meter,
                 run_outcome=run_outcome,
                 language=lang,
+                request_context=request_context,
             )
             usage_source["adapter"] = stream_adapter
 
-            try:
-                # Process through workflow stream
-                run_meter.record_stage("prepare_context", (time.monotonic() - run_started_monotonic) * 1000)
-                context_timing_recorded = True
-                compaction_usage: dict[str, int] | None = None
-                if should_compact(loop_history):
-                    # 轮与轮之间压缩历史（不在工具循环中途）：摘要不可用时照常带完整历史跑这一轮。
-                    # 作者能看到这一步：先发「正在压缩对话…」，成功后变成会话里的「对话已压缩」标记
-                    # （记进 display_events，刷新后在同一位置回放，摘要读本轮的 compaction 记录）；
-                    # 没压缩成时只发一条收起它的进度提示，不落库。
-                    yield thinking_event(
-                        "Compacting conversation…" if force_en else "正在压缩对话…",
-                        step=HISTORY_COMPACTION_STEP,
-                    ).to_sse()
-                    from services.usage.cost_budget import on_model_transport_start
-
-                    transport_scope = (
-                        on_model_transport_start(run_outcome.mark_provider_attempted)
-                        if run_outcome is not None
-                        else contextlib.nullcontext()
-                    )
-                    with run_meter.measure_stage("compaction"), transport_scope:
-                        outcome = await compact_history(
-                            loop_history, system_prompt=system_prompt, session_id=session_id, run_meter=run_meter
-                        )
-                    compaction_usage = outcome.usage
-                    if outcome.record is not None and outcome.items is not None:
-                        loop_compaction_record = outcome.record
-                        writing_state["history_items"] = outcome.items
-                        # 压缩成功后前几轮的工具结果已折叠进摘要，撤销仅来自此前轮次的会话快照结转。
-                        if loop_turn.session_carried_snapshot_ids:
-                            ToolContext.drop_initial_read_snapshots(loop_turn.session_carried_snapshot_ids)
-                        assistant_display_events.append({"type": "history_compacted", "data": {}})
-                        yield history_compacted_event(outcome.record["summary"]).to_sse()
-                    else:
-                        if outcome.skipped:
-                            loop_compaction_skipped = skipped_record(loop_history, outcome.skipped)
+            with request_context.bind_cost_budget_user():
+                try:
+                    # Process through workflow stream
+                    run_meter.record_stage("prepare_context", (time.monotonic() - run_started_monotonic) * 1000)
+                    context_timing_recorded = True
+                    compaction_usage: dict[str, int] | None = None
+                    if should_compact(loop_history):
+                        # 轮与轮之间压缩历史（不在工具循环中途）：摘要不可用时照常带完整历史跑这一轮。
+                        # 作者能看到这一步：先发「正在压缩对话…」，成功后变成会话里的「对话已压缩」标记
+                        # （记进 display_events，刷新后在同一位置回放，摘要读本轮的 compaction 记录）；
+                        # 没压缩成时只发一条收起它的进度提示，不落库。
                         yield thinking_event(
-                            "Couldn't compact the conversation; continuing as is"
-                            if force_en
-                            else "未能压缩对话，按原样继续",
-                            step=HISTORY_COMPACTION_SKIPPED_STEP,
+                            "Compacting conversation…" if force_en else "正在压缩对话…",
+                            step=HISTORY_COMPACTION_STEP,
                         ).to_sse()
-                # 重试接过来的记录：本轮历史照它重建，本轮没写新记录时随本轮的行落库，之后的轮次照样读到。
-                carried_record = valid_compaction(retry_carried_compaction)
-                if loop_compaction_record is None and carried_record is not None and loop_history.compacted:
-                    loop_compaction_record = carried_record
-                if (
-                    loop_compaction_record is None
-                    and loop_compaction_skipped is None
-                    and carried_record is None
-                    and isinstance(retry_carried_compaction.get("compaction_skipped"), dict)
-                ):
-                    loop_compaction_skipped = retry_carried_compaction["compaction_skipped"]
-                # 兜底上限：压缩一直不成、实测（或供应商同量纲估算）逼近 1M 窗口时才丢掉最旧项；
-                # 本轮刚完成压缩时 items 已是摘要结果，不再按压缩前读数裁剪。
-                if loop_compaction_record is None:
-                    run_history = writing_state.get("history_items") or []
-                    turn_user_text = str(writing_state.get("user_message") or "")
-                    turn_extra_tokens = max(0, estimate_provider_text_tokens(turn_user_text) - 50_000)
-                    history_max_tokens = max(100_000, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS - turn_extra_tokens)
-                    if effective_history_provider_tokens(loop_history, run_history) > history_max_tokens:
-                        from agent.openai_agents.intra_run_trimmer import IntraRunToolOutputTrimmer
+                        from services.usage.cost_budget import on_model_transport_start
 
-                        folded_history = IntraRunToolOutputTrimmer().trim_items(
-                            run_history, instructions_chars=len(system_prompt)
+                        transport_scope = (
+                            on_model_transport_start(run_outcome.mark_provider_attempted)
+                            if run_outcome is not None
+                            else contextlib.nullcontext()
                         )
-                        if folded_history is not run_history:
-                            writing_state["history_items"] = folded_history
-                            run_history = folded_history
-                        bounded_history = bound_history_for_provider(
-                            loop_history, run_history, history_max_tokens
-                        )
-                        if len(bounded_history) < len(run_history):
-                            log_with_context(
-                                logger,
-                                30,  # WARNING
-                                "Loop history exceeded the run bound; oldest items left out",
-                                session_id=session_id,
-                                dropped_items=len(run_history) - len(bounded_history),
-                                kept_tokens=estimate_provider_items_tokens(bounded_history),
+                        with run_meter.measure_stage("compaction"), transport_scope:
+                            outcome = await compact_history(
+                                loop_history, system_prompt=system_prompt, session_id=session_id, run_meter=run_meter
                             )
-                            writing_state["history_items"] = bounded_history
-                workflow_events = self._loop_events(
-                    writing_state,
-                    get_steering_messages=get_steering_messages,
-                    leading_usage=compaction_usage,
-                )
-                async for event in stream_adapter.process_workflow_events(workflow_events):
-                    event_type = event.type.value
-                    if event_type == "done":
-                        pending_done_payload = event.data if isinstance(event.data, dict) else {}
-                        continue
-
-                    # Yield SSE event
-                    yield event.to_sse()
-
-                    if event_type not in {"content", "thinking_content"}:
-                        # Even non-persisted stream markers (notably content_start /
-                        # content_end) delimit separately rendered text segments.
-                        display_text_run_type = None
-
-                    if event_type == "iteration_exhausted":
-                        assistant_display_events.append(
-                            {
-                                "type": event_type,
-                                "data": dict(event.data),
-                            }
-                        )
-
-                    if event_type == "file_content_end":
-                        post_file_whitespace_pending = True
-                        post_file_whitespace_buf = ""
-                    elif event_type in {
-                        "tool_call",
-                        "thinking_content",
-                        "iteration_exhausted",
-                        "error",
-                    }:
-                        post_file_whitespace_pending = False
-                        post_file_whitespace_buf = ""
-
-                    # Track content for history
-                    if event_type == "content":
-                        text_chunk = event.data.get("text", "")
-                        if post_file_whitespace_pending:
-                            candidate = (post_file_whitespace_buf + text_chunk).replace("\x00", "")
-                            if not candidate.strip():
-                                post_file_whitespace_buf = candidate
-                            else:
-                                trimmed = candidate.lstrip("\r\n")
-                                _append_display_text(
-                                    "content",
-                                    trimmed,
-                                    response_chunk=trimmed if not assistant_response else candidate,
-                                )
-                                post_file_whitespace_pending = False
-                                post_file_whitespace_buf = ""
+                        compaction_usage = outcome.usage
+                        if outcome.record is not None and outcome.items is not None:
+                            loop_compaction_record = outcome.record
+                            writing_state["history_items"] = outcome.items
+                            # 压缩成功后前几轮的工具结果已折叠进摘要，撤销仅来自此前轮次的会话快照结转。
+                            if loop_turn.session_carried_snapshot_ids:
+                                request_context.drop_initial_read_snapshots(loop_turn.session_carried_snapshot_ids)
+                            assistant_display_events.append({"type": "history_compacted", "data": {}})
+                            yield history_compacted_event(outcome.record["summary"]).to_sse()
                         else:
-                            _append_display_text("content", text_chunk)
-                    elif event_type == "thinking_content":
-                        thinking_chunk = event.data.get("content", "")
-                        reasoning_content += thinking_chunk
-                        _append_display_text("thinking_content", thinking_chunk)
-                    elif event_type == "tool_call":
-                        tool_use_id = str(event.data.get("tool_use_id") or "").strip()
-                        tool_call_record = {
-                            "id": tool_use_id,
-                            "name": event.data.get("tool_name", ""),
-                            "arguments": event.data.get("arguments", {}),
-                            "status": "pending",
-                        }
-                        if tool_use_id:
-                            existing_index = tool_call_index_by_id.get(tool_use_id)
-                            if existing_index is None:
+                            if outcome.skipped:
+                                loop_compaction_skipped = skipped_record(loop_history, outcome.skipped)
+                            yield thinking_event(
+                                "Couldn't compact the conversation; continuing as is"
+                                if force_en
+                                else "未能压缩对话，按原样继续",
+                                step=HISTORY_COMPACTION_SKIPPED_STEP,
+                            ).to_sse()
+                    # 重试接过来的记录：本轮历史照它重建，本轮没写新记录时随本轮的行落库，之后的轮次照样读到。
+                    carried_record = valid_compaction(retry_carried_compaction)
+                    if loop_compaction_record is None and carried_record is not None and loop_history.compacted:
+                        loop_compaction_record = carried_record
+                    if (
+                        loop_compaction_record is None
+                        and loop_compaction_skipped is None
+                        and carried_record is None
+                        and isinstance(retry_carried_compaction.get("compaction_skipped"), dict)
+                    ):
+                        loop_compaction_skipped = retry_carried_compaction["compaction_skipped"]
+                    # 兜底上限：压缩一直不成、实测（或供应商同量纲估算）逼近 1M 窗口时才丢掉最旧项；
+                    # 本轮刚完成压缩时 items 已是摘要结果，不再按压缩前读数裁剪。
+                    if loop_compaction_record is None:
+                        run_history = writing_state.get("history_items") or []
+                        turn_user_text = str(writing_state.get("user_message") or "")
+                        turn_extra_tokens = max(0, estimate_provider_text_tokens(turn_user_text) - 50_000)
+                        history_max_tokens = max(100_000, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS - turn_extra_tokens)
+                        if effective_history_provider_tokens(loop_history, run_history) > history_max_tokens:
+                            from agent.openai_agents.intra_run_trimmer import IntraRunToolOutputTrimmer
+
+                            folded_history = IntraRunToolOutputTrimmer().trim_items(
+                                run_history, instructions_chars=len(system_prompt)
+                            )
+                            if folded_history is not run_history:
+                                writing_state["history_items"] = folded_history
+                                run_history = folded_history
+                            bounded_history = bound_history_for_provider(
+                                loop_history, run_history, history_max_tokens
+                            )
+                            if len(bounded_history) < len(run_history):
+                                log_with_context(
+                                    logger,
+                                    30,  # WARNING
+                                    "Loop history exceeded the run bound; oldest items left out",
+                                    session_id=session_id,
+                                    dropped_items=len(run_history) - len(bounded_history),
+                                    kept_tokens=estimate_provider_items_tokens(bounded_history),
+                                )
+                                writing_state["history_items"] = bounded_history
+                    workflow_events = self._loop_events(
+                        writing_state,
+                        get_steering_messages=get_steering_messages,
+                        leading_usage=compaction_usage,
+                    )
+                    async for event in stream_adapter.process_workflow_events(workflow_events):
+                        event_type = event.type.value
+                        if event_type == "done":
+                            pending_done_payload = event.data if isinstance(event.data, dict) else {}
+                            continue
+
+                        # Yield SSE event
+                        yield event.to_sse()
+
+                        if event_type not in {"content", "thinking_content"}:
+                            # Even non-persisted stream markers (notably content_start /
+                            # content_end) delimit separately rendered text segments.
+                            display_text_run_type = None
+
+                        if event_type == "iteration_exhausted":
+                            assistant_display_events.append(
+                                {
+                                    "type": event_type,
+                                    "data": dict(event.data),
+                                }
+                            )
+
+                        if event_type == "file_content_end":
+                            post_file_whitespace_pending = True
+                            post_file_whitespace_buf = ""
+                        elif event_type in {
+                            "tool_call",
+                            "thinking_content",
+                            "iteration_exhausted",
+                            "error",
+                        }:
+                            post_file_whitespace_pending = False
+                            post_file_whitespace_buf = ""
+
+                        # Track content for history
+                        if event_type == "content":
+                            text_chunk = event.data.get("text", "")
+                            if post_file_whitespace_pending:
+                                candidate = (post_file_whitespace_buf + text_chunk).replace("\x00", "")
+                                if not candidate.strip():
+                                    post_file_whitespace_buf = candidate
+                                else:
+                                    trimmed = candidate.lstrip("\r\n")
+                                    _append_display_text(
+                                        "content",
+                                        trimmed,
+                                        response_chunk=trimmed if not assistant_response else candidate,
+                                    )
+                                    post_file_whitespace_pending = False
+                                    post_file_whitespace_buf = ""
+                            else:
+                                _append_display_text("content", text_chunk)
+                        elif event_type == "thinking_content":
+                            thinking_chunk = event.data.get("content", "")
+                            reasoning_content += thinking_chunk
+                            _append_display_text("thinking_content", thinking_chunk)
+                        elif event_type == "tool_call":
+                            tool_use_id = str(event.data.get("tool_use_id") or "").strip()
+                            tool_call_record = {
+                                "id": tool_use_id,
+                                "name": event.data.get("tool_name", ""),
+                                "arguments": event.data.get("arguments", {}),
+                                "status": "pending",
+                            }
+                            if tool_use_id:
+                                existing_index = tool_call_index_by_id.get(tool_use_id)
+                                if existing_index is None:
+                                    tool_call_index = len(all_tool_calls)
+                                    tool_call_index_by_id[tool_use_id] = tool_call_index
+                                    all_tool_calls.append(tool_call_record)
+                                    assistant_display_events.append(
+                                        {"type": "tool_call", "tool_call_index": tool_call_index}
+                                    )
+                                else:
+                                    all_tool_calls[existing_index].update(tool_call_record)
+                            else:
                                 tool_call_index = len(all_tool_calls)
-                                tool_call_index_by_id[tool_use_id] = tool_call_index
                                 all_tool_calls.append(tool_call_record)
                                 assistant_display_events.append(
                                     {"type": "tool_call", "tool_call_index": tool_call_index}
                                 )
-                            else:
-                                all_tool_calls[existing_index].update(tool_call_record)
-                        else:
-                            tool_call_index = len(all_tool_calls)
-                            all_tool_calls.append(tool_call_record)
-                            assistant_display_events.append(
-                                {"type": "tool_call", "tool_call_index": tool_call_index}
-                            )
-                    elif event_type == "tool_result":
-                        tool_use_id = str(event.data.get("tool_use_id") or "").strip()
-                        target_call: dict[str, Any] | None = None
+                        elif event_type == "tool_result":
+                            tool_use_id = str(event.data.get("tool_use_id") or "").strip()
+                            target_call: dict[str, Any] | None = None
 
-                        if tool_use_id:
-                            existing_index = tool_call_index_by_id.get(tool_use_id)
-                            if existing_index is None:
-                                target_call = {
-                                    "id": tool_use_id,
-                                    "name": event.data.get("tool_name", ""),
-                                    "arguments": {},
-                                    "status": "pending",
-                                }
-                                tool_call_index = len(all_tool_calls)
-                                tool_call_index_by_id[tool_use_id] = tool_call_index
-                                all_tool_calls.append(target_call)
-                                assistant_display_events.append(
-                                    {"type": "tool_call", "tool_call_index": tool_call_index}
-                                )
-                            else:
-                                target_call = all_tool_calls[existing_index]
-                        elif all_tool_calls:
-                            target_call = all_tool_calls[-1]
+                            if tool_use_id:
+                                existing_index = tool_call_index_by_id.get(tool_use_id)
+                                if existing_index is None:
+                                    target_call = {
+                                        "id": tool_use_id,
+                                        "name": event.data.get("tool_name", ""),
+                                        "arguments": {},
+                                        "status": "pending",
+                                    }
+                                    tool_call_index = len(all_tool_calls)
+                                    tool_call_index_by_id[tool_use_id] = tool_call_index
+                                    all_tool_calls.append(target_call)
+                                    assistant_display_events.append(
+                                        {"type": "tool_call", "tool_call_index": tool_call_index}
+                                    )
+                                else:
+                                    target_call = all_tool_calls[existing_index]
+                            elif all_tool_calls:
+                                target_call = all_tool_calls[-1]
 
-                        if target_call is not None:
-                            target_call["status"] = event.data.get("status", "success")
-                            target_call["result"] = event.data.get("data")
-                            target_call["error"] = event.data.get("error")
-                    elif event_type == "iteration_exhausted":
-                        assistant_status_cards.append(iteration_exhausted_status_card(event.data))
-                    elif event_type == "error":
-                        had_stream_error = True
+                            if target_call is not None:
+                                target_call["status"] = event.data.get("status", "success")
+                                target_call["result"] = event.data.get("data")
+                                target_call["error"] = event.data.get("error")
+                        elif event_type == "iteration_exhausted":
+                            assistant_status_cards.append(iteration_exhausted_status_card(event.data))
+                        elif event_type == "error":
+                            had_stream_error = True
 
-                model_metadata = stream_adapter.get_last_message_metadata()
-                assistant_stop_reason = model_metadata.get("stop_reason")
-                usage_candidate = model_metadata.get("usage")
-                assistant_usage = usage_candidate if isinstance(usage_candidate, dict) else None
-                if had_stream_error:
-                    # Still persist partial history so the user and AI can
-                    # recover context on the next turn instead of losing
-                    # everything (user message + completed tool calls).
-                    log_with_context(
-                        logger,
-                        30,  # WARNING
-                        "Stream emitted an error event — saving partial history for recovery",
-                        project_id=project_id,
-                        user_id=user_id,
-                        response_length=len(assistant_response),
-                        tool_calls=len(all_tool_calls) if all_tool_calls else 0,
-                    )
-
-                # 工作流结束后队列里可能仍有未被任何消费点取走的 steering
-                # （协作轮数耗尽、或最后一轮 agent 收尾窗口才到达的消息）。
-                # 保存历史前统一取出，保证 /agent/steer 已确认 queued 的输入
-                # 随本轮落库，而不是被随后的 cleanup 静默删除。
-                # 这段 drain 覆盖的是「工作流结束 → 保存历史」这个窗口，它比
-                # finally 里那段更宽：本 run 已经不会再把消息喂给模型，必须把
-                # 已确认 queued 的消息随本轮历史落库。
-                # 这里同时封口：本 run 之后不会再把引导喂给模型，保存历史期间再到的引导回 404，
-                # 由前端作为下一条消息发出，而不是回 200「下一步会用上」再挂在已结束的一轮上。
-                # 封口幂等，finally 里那次 drain 照旧兜底取出封口前刚入队的消息。
-                late_steering_before_save = await _drain_late_steering(
-                    failure_message=(
-                        "Failed to drain remaining steering messages before history save"
-                    )
-                )
-                has_pending_file_state = ToolContext.has_pending_empty_file() or bool(
-                    ToolContext.unsaved_chapter_replacement_ids()
-                )
-
-                # Save to history。落库放进独立任务并 shield：PG 下
-                # save_messages 内部走 asyncio.to_thread，工作线程一旦启动就
-                # 无法取消（awaiting 侧抛 CancelledError，线程照样 commit）。
-                # shield 保证取消不会打断这次落库，且 history_saved 只在真正
-                # 写完后置位，取消分支据此跳过补偿保存，避免整轮历史写两遍。
-                async def _save_history_once() -> str | None:
-                    nonlocal history_saved
-                    if not _has_assistant_payload():
-                        # 与补偿保存同一不变量：本轮一个 token 都没产出（典型是
-                        # 首次模型调用就报错、只发了 error 事件）时不写空
-                        # assistant 行，只保留用户消息与已消费的 steering。
-                        await asyncio.to_thread(
-                            _append_user_messages_sync,
-                            [message, *consumed_steering],
-                            first_created_at=user_sent_at,
-                            first_metadata=_loop_user_row_metadata(),
-                        )
-                        history_saved = True
-                        return None
-                    _stamp_body_receipts(
-                        all_tool_calls,
-                        stream_adapter.get_saved_file_word_counts(),
-                        stream_adapter.get_replacement_receipts(),
-                        stream_adapter.get_replacement_card_updates(),
-                    )
-                    saved_id = await message_manager.save_messages(
-                        session,
-                        session_id,
-                        message,
-                        assistant_response,
-                        all_tool_calls if all_tool_calls else None,
-                        reasoning_content if reasoning_content else None,
-                        assistant_stop_reason=assistant_stop_reason,
-                        assistant_usage=assistant_usage,
-                        assistant_status_cards=assistant_status_cards or None,
-                        steering_messages=consumed_steering or None,
-                        assistant_display_events=normalize_assistant_display_events(assistant_display_events),
-                        user_created_at=user_sent_at,
-                        assistant_extra_metadata=_loop_extra_metadata(),
-                    )
-                    history_saved = True
-                    return saved_id
-
-                def _consume_history_save_error(done_task: asyncio.Task) -> None:
-                    # 取消路径下可能没人再取这个任务的结果，先消费掉异常避免
-                    # "exception was never retrieved"；失败仍会由下面的 await
-                    # 传播成 error 事件。
-                    if not done_task.cancelled():
-                        done_task.exception()
-
-                history_save_task = asyncio.create_task(_save_history_once())
-                history_save_task.add_done_callback(_consume_history_save_error)
-                assistant_message_id = await asyncio.shield(history_save_task)
-                if run_outcome is not None:
-                    run_outcome.resolve_message_id(assistant_message_id)
-                completed_wire_items = writing_state.get("run_items")
-                has_unconsumed_steering = bool(writing_state.get("pending_steering"))
-                wire_prefix_skip_reason: str | None = None
-                if (
-                    user_id
-                    and session_id
-                    and history_saved
-                    and not had_stream_error
-                    and not request_failed
-                    and not stream_cancelled
-                ):
-                    if not assistant_message_id:
-                        wire_prefix_skip_reason = "no_assistant_message"
-                    elif run_outcome is not None and run_outcome.stop_kind:
-                        wire_prefix_skip_reason = "stop_kind"
-                    elif assistant_stop_reason not in _WIRE_PREFIX_CACHEABLE_STOP_REASONS:
-                        wire_prefix_skip_reason = "stop_reason"
-                    elif _has_blocking_wire_prefix_status_cards(assistant_status_cards):
-                        wire_prefix_skip_reason = "blocking_status_card"
-                    elif late_steering_before_save:
-                        wire_prefix_skip_reason = "late_steering"
-                    elif has_unconsumed_steering:
-                        wire_prefix_skip_reason = "unconsumed_steering"
-                    elif has_pending_file_state:
-                        wire_prefix_skip_reason = "pending_file_state"
-                    elif not is_well_formed_wire_prefix(completed_wire_items):
-                        wire_prefix_skip_reason = "malformed_items"
-                    elif not run_meter.last_served_provider_key:
-                        wire_prefix_skip_reason = "no_provider_key"
-
-                    if wire_prefix_skip_reason is None:
-                        stored_wire_prefix = await astore_wire_prefix(
-                            session_id=session_id,
-                            project_id=project_id,
-                            user_id=user_id,
-                            last_assistant_message_id=assistant_message_id,
-                            system_prompt=system_prompt,
-                            provider_key=run_meter.last_served_provider_key,
-                            items=completed_wire_items,
-                        )
-                    else:
+                    model_metadata = stream_adapter.get_last_message_metadata()
+                    assistant_stop_reason = model_metadata.get("stop_reason")
+                    usage_candidate = model_metadata.get("usage")
+                    assistant_usage = usage_candidate if isinstance(usage_candidate, dict) else None
+                    if had_stream_error:
+                        # Still persist partial history so the user and AI can
+                        # recover context on the next turn instead of losing
+                        # everything (user message + completed tool calls).
                         log_with_context(
                             logger,
-                            20,  # INFO
-                            "Agent wire prefix cache store skipped",
-                            session_id=session_id,
-                            skip_reason=wire_prefix_skip_reason,
-                            stop_reason=assistant_stop_reason,
+                            30,  # WARNING
+                            "Stream emitted an error event — saving partial history for recovery",
+                            project_id=project_id,
+                            user_id=user_id,
+                            response_length=len(assistant_response),
+                            tool_calls=len(all_tool_calls) if all_tool_calls else 0,
                         )
-                if user_id and session_id and history_saved and not stored_wire_prefix:
-                    await ainvalidate_wire_prefix(session_id)
-                if pending_done_payload is not None:
-                    yield done_event(
-                        assistant_message_id=assistant_message_id,
-                        session_id=session_id,
-                        file_mutated=pending_done_payload.get("file_mutated") is True,
-                    ).to_sse()
-            finally:
-                # Clean up tool context
-                ToolContext.clear_context()
+
+                    late_steering_before_save = await _drain_late_steering(
+                        failure_message=(
+                            "Failed to drain remaining steering messages before history save"
+                        )
+                    )
+                    has_pending_file_state = request_context.has_pending_empty_file() or bool(
+                        request_context.unsaved_chapter_replacement_ids()
+                    )
+
+                    # Save to history。落库放进独立任务并 shield：PG 下
+                    # save_messages 内部走 asyncio.to_thread，工作线程一旦启动就
+                    # 无法取消（awaiting 侧抛 CancelledError，线程照样 commit）。
+                    # shield 保证取消不会打断这次落库，且 history_saved 只在真正
+                    # 写完后置位，取消分支据此跳过补偿保存，避免整轮历史写两遍。
+                    async def _save_history_once() -> str | None:
+                        nonlocal history_saved
+                        if not _has_assistant_payload():
+                            # 与补偿保存同一不变量：本轮一个 token 都没产出（典型是
+                            # 首次模型调用就报错、只发了 error 事件）时不写空
+                            # assistant 行，只保留用户消息与已消费的 steering。
+                            await asyncio.to_thread(
+                                _append_user_messages_sync,
+                                [message, *consumed_steering],
+                                first_created_at=user_sent_at,
+                                first_metadata=_loop_user_row_metadata(),
+                            )
+                            history_saved = True
+                            return None
+                        _stamp_body_receipts(
+                            all_tool_calls,
+                            stream_adapter.get_saved_file_word_counts(),
+                            stream_adapter.get_replacement_receipts(),
+                            stream_adapter.get_replacement_card_updates(),
+                        )
+                        saved_id = await message_manager.save_messages(
+                            session,
+                            session_id,
+                            message,
+                            assistant_response,
+                            all_tool_calls if all_tool_calls else None,
+                            reasoning_content if reasoning_content else None,
+                            assistant_stop_reason=assistant_stop_reason,
+                            assistant_usage=assistant_usage,
+                            assistant_status_cards=assistant_status_cards or None,
+                            steering_messages=consumed_steering or None,
+                            assistant_display_events=normalize_assistant_display_events(assistant_display_events),
+                            user_created_at=user_sent_at,
+                            assistant_extra_metadata=_loop_extra_metadata(),
+                        )
+                        history_saved = True
+                        return saved_id
+
+                    def _consume_history_save_error(done_task: asyncio.Task) -> None:
+                        # 取消路径下可能没人再取这个任务的结果，先消费掉异常避免
+                        # "exception was never retrieved"；失败仍会由下面的 await
+                        # 传播成 error 事件。
+                        if not done_task.cancelled():
+                            done_task.exception()
+
+                    history_save_task = asyncio.create_task(_save_history_once())
+                    history_save_task.add_done_callback(_consume_history_save_error)
+                    assistant_message_id = await asyncio.shield(history_save_task)
+                    if run_outcome is not None:
+                        run_outcome.resolve_message_id(assistant_message_id)
+                    completed_wire_items = writing_state.get("run_items")
+                    has_unconsumed_steering = bool(writing_state.get("pending_steering"))
+                    wire_prefix_skip_reason: str | None = None
+                    if (
+                        user_id
+                        and session_id
+                        and history_saved
+                        and not had_stream_error
+                        and not request_failed
+                        and not stream_cancelled
+                    ):
+                        if not assistant_message_id:
+                            wire_prefix_skip_reason = "no_assistant_message"
+                        elif run_outcome is not None and run_outcome.stop_kind:
+                            wire_prefix_skip_reason = "stop_kind"
+                        elif assistant_stop_reason not in _WIRE_PREFIX_CACHEABLE_STOP_REASONS:
+                            wire_prefix_skip_reason = "stop_reason"
+                        elif _has_blocking_wire_prefix_status_cards(assistant_status_cards):
+                            wire_prefix_skip_reason = "blocking_status_card"
+                        elif late_steering_before_save:
+                            wire_prefix_skip_reason = "late_steering"
+                        elif has_unconsumed_steering:
+                            wire_prefix_skip_reason = "unconsumed_steering"
+                        elif has_pending_file_state:
+                            wire_prefix_skip_reason = "pending_file_state"
+                        elif not is_well_formed_wire_prefix(completed_wire_items):
+                            wire_prefix_skip_reason = "malformed_items"
+                        elif not run_meter.last_served_provider_key:
+                            wire_prefix_skip_reason = "no_provider_key"
+
+                        if wire_prefix_skip_reason is None:
+                            stored_wire_prefix = await astore_wire_prefix(
+                                session_id=session_id,
+                                project_id=project_id,
+                                user_id=user_id,
+                                last_assistant_message_id=assistant_message_id,
+                                system_prompt=system_prompt,
+                                provider_key=run_meter.last_served_provider_key,
+                                items=completed_wire_items,
+                            )
+                        else:
+                            log_with_context(
+                                logger,
+                                20,  # INFO
+                                "Agent wire prefix cache store skipped",
+                                session_id=session_id,
+                                skip_reason=wire_prefix_skip_reason,
+                                stop_reason=assistant_stop_reason,
+                            )
+                    if user_id and session_id and history_saved and not stored_wire_prefix:
+                        await ainvalidate_wire_prefix(session_id)
+                    if pending_done_payload is not None:
+                        yield done_event(
+                            assistant_message_id=assistant_message_id,
+                            session_id=session_id,
+                            file_mutated=pending_done_payload.get("file_mutated") is True,
+                        ).to_sse()
+                finally:
+                    request_context.clear()
 
         except (asyncio.CancelledError, GeneratorExit):
             stream_cancelled = True

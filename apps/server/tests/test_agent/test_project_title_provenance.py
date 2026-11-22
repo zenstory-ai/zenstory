@@ -36,17 +36,14 @@ def _project(session: Session, owner: User, name: str = "我的小说") -> Proje
 
 async def _agent_title(session: Session, owner: User, project: Project, title: str) -> dict:
     engine = session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None,
-        owner.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=owner.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
     )
-    try:
-        raw = await mcp_tools.update_project({"title": title})
-    finally:
-        mcp_tools.ToolContext.clear_context()
+    raw = await mcp_tools.update_project({"title": title}, request_context=req_ctx)
     return json.loads(raw["content"][0]["text"])
 
 

@@ -89,23 +89,25 @@ async def test_range_read_allows_fuzzy_and_approx_inside_seen_span_but_blocks_un
     chapter = _make_file(db_session, project, title="合集", content=content)
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
-        raw_read = await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
+        raw_read = await mcp_tools.query_files(
+            {"id": chapter.id, "section": "第8章"}, request_context=req_ctx
+        )
         read_payload = json.loads(raw_read["content"][0]["text"])
         assert read_payload["data"][0]["content_partial"] is True
-        mcp_tools.ToolContext.promote_pending_reads()
+        req_ctx.promote_pending_reads()
 
         # Partial range read is still NOT a full read, but tracks the seen character span.
-        assert mcp_tools.ToolContext.has_seen_file(chapter.id) is False
-        spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        assert req_ctx.has_seen_file(chapter.id) is False
+        spans = req_ctx.seen_file_spans(chapter.id)
         assert len(spans) == 1 and spans[0][1] > spans[0][0]
 
         # 1) Fuzzy punctuation mismatch INSIDE seen section 第8章 succeeds.
@@ -121,7 +123,8 @@ async def test_range_read_allows_fuzzy_and_approx_inside_seen_span_but_blocks_un
                                 "new": "林晚在第8章合上油纸伞，靠在廊柱边上听钟声。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
@@ -142,7 +145,8 @@ async def test_range_read_allows_fuzzy_and_approx_inside_seen_span_but_blocks_un
                                 "new": "陈默合上旧账本，把第8页折了一角。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
@@ -162,7 +166,8 @@ async def test_range_read_allows_fuzzy_and_approx_inside_seen_span_but_blocks_un
                                 "new": "不应改到未读章节。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
@@ -183,17 +188,18 @@ async def test_range_read_allows_fuzzy_and_approx_inside_seen_span_but_blocks_un
                                 "new": "第2章 晴夜2",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
         assert exact_outside["status"] == "success"
 
         # 5) begin_agent_run clears range spans.
-        mcp_tools.ToolContext.begin_agent_run()
-        assert mcp_tools.ToolContext.seen_file_spans(chapter.id) == []
+        req_ctx.begin_agent_run()
+        assert req_ctx.seen_file_spans(chapter.id) == []
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 @pytest.mark.asyncio
@@ -203,17 +209,17 @@ async def test_range_read_still_enforces_stale_content_error_on_author_edit_anyw
     chapter = _make_file(db_session, project, title="合集", content=content)
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
-        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
-        mcp_tools.ToolContext.promote_pending_reads()
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
 
         # Author edits an unseen section (第1章) after the range read.
         with Session(engine) as other:
@@ -234,14 +240,15 @@ async def test_range_read_still_enforces_stale_content_error_on_author_edit_anyw
                                 "new": "林晚收了伞。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
         assert edit["status"] == "error"
         assert edit["error_type"] == "stale_content"
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 @pytest.mark.asyncio
@@ -253,18 +260,18 @@ async def test_range_read_prepend_and_append_batch_shifts_span_without_exposing_
     chapter = _make_file(db_session, project, title="合集", content=content)
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
-        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
-        mcp_tools.ToolContext.promote_pending_reads()
-        orig_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
+        orig_spans = req_ctx.seen_file_spans(chapter.id)
         assert len(orig_spans) == 1
 
         batch = json.loads(
@@ -276,7 +283,8 @@ async def test_range_read_prepend_and_append_batch_shifts_span_without_exposing_
                             {"op": "prepend", "text": "楔子开头，细雨蒙蒙。"},
                             {"op": "append", "text": "尾声收束，长夜将尽。"},
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
@@ -286,7 +294,7 @@ async def test_range_read_prepend_and_append_batch_shifts_span_without_exposing_
             updated_content = check_sess.get(File, chapter.id).content
         delta = updated_content.index("第1章 雨夜1") - content.index("第1章 雨夜1")
         assert delta > 0
-        shifted_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        shifted_spans = req_ctx.seen_file_spans(chapter.id)
         assert shifted_spans == [(orig_spans[0][0] + delta, orig_spans[0][1] + delta)]
 
         # Unseen 第1章 must STILL block fuzzy edits.
@@ -302,7 +310,8 @@ async def test_range_read_prepend_and_append_batch_shifts_span_without_exposing_
                                 "new": "不应改到未读第1章。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
@@ -322,14 +331,15 @@ async def test_range_read_prepend_and_append_batch_shifts_span_without_exposing_
                                 "new": "林晚在第8章合上雨伞。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
         assert fuzzy_ch8["status"] == "success", fuzzy_ch8
         assert fuzzy_ch8["data"]["details"][0]["match_mode"] == "fuzzy"
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 @pytest.mark.asyncio
@@ -341,17 +351,17 @@ async def test_range_read_mixed_unseen_exact_and_seen_fuzzy_batch_keeps_other_un
     chapter = _make_file(db_session, project, title="合集", content=content)
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
-        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
-        mcp_tools.ToolContext.promote_pending_reads()
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
 
         mixed = json.loads(
             (
@@ -366,7 +376,8 @@ async def test_range_read_mixed_unseen_exact_and_seen_fuzzy_batch_keeps_other_un
                                 "new": "林晚在第8章收拢雨伞，静听钟声。",
                             },
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
@@ -388,7 +399,8 @@ async def test_range_read_mixed_unseen_exact_and_seen_fuzzy_batch_keeps_other_un
                                 "new": "不应改到未读第2章。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
@@ -408,13 +420,14 @@ async def test_range_read_mixed_unseen_exact_and_seen_fuzzy_batch_keeps_other_un
                                 "new": "陈默合上旧账本。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
         assert approx_ch8["status"] == "success", approx_ch8
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 @pytest.mark.asyncio
@@ -431,18 +444,18 @@ async def test_range_read_exact_replace_all_across_unseen_and_seen_does_not_brid
     chapter = _make_file(db_session, project, title="合集", content=content)
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
-        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
-        mcp_tools.ToolContext.promote_pending_reads()
-        orig_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
+        orig_spans = req_ctx.seen_file_spans(chapter.id)
         assert len(orig_spans) == 1
 
         old_marker = "【旧印记】"
@@ -457,7 +470,8 @@ async def test_range_read_exact_replace_all_across_unseen_and_seen_does_not_brid
                         "edits": [
                             {"op": "replace", "old": old_marker, "new": new_marker, "replace_all": True}
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
@@ -465,7 +479,7 @@ async def test_range_read_exact_replace_all_across_unseen_and_seen_does_not_brid
         assert replaced["data"]["details"][0]["count"] == 3
 
         # Seen span shifts by +delta (from Ch.1 hit) and grows by +delta (from Ch.8 hit); Ch.12 hit is after span.
-        shifted_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        shifted_spans = req_ctx.seen_file_spans(chapter.id)
         assert shifted_spans == [
             (orig_spans[0][0] + delta_per_hit, orig_spans[0][1] + 2 * delta_per_hit)
         ]
@@ -484,7 +498,8 @@ async def test_range_read_exact_replace_all_across_unseen_and_seen_does_not_brid
                                     "new": "不应改到未读章节。",
                                 }
                             ],
-                        }
+                        },
+                        request_context=req_ctx,
                     )
                 )["content"][0]["text"]
             )
@@ -504,13 +519,14 @@ async def test_range_read_exact_replace_all_across_unseen_and_seen_does_not_brid
                                 "new": "林晚在第8章合起油纸伞。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
         assert ok["status"] == "success", ok
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 @pytest.mark.asyncio
@@ -520,18 +536,18 @@ async def test_range_read_failed_rolled_back_batch_preserves_seen_spans(db_sessi
     chapter = _make_file(db_session, project, title="合集", content=content)
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
-        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
-        mcp_tools.ToolContext.promote_pending_reads()
-        orig_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
+        orig_spans = req_ctx.seen_file_spans(chapter.id)
         assert len(orig_spans) == 1
 
         failed = json.loads(
@@ -544,14 +560,15 @@ async def test_range_read_failed_rolled_back_batch_preserves_seen_spans(db_sessi
                             {"op": "prepend", "text": "这段前置会随整批回滚。"},
                             {"op": "replace", "old": "整份文稿里完全不存在的一句话。", "new": "替换"},
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
         assert failed["status"] == "error"
 
         # Rolled-back batch must NOT mutate stored seen_file_spans or DB content.
-        assert mcp_tools.ToolContext.seen_file_spans(chapter.id) == orig_spans
+        assert req_ctx.seen_file_spans(chapter.id) == orig_spans
         with Session(engine) as check_sess:
             assert check_sess.get(File, chapter.id).content == content
 
@@ -568,13 +585,14 @@ async def test_range_read_failed_rolled_back_batch_preserves_seen_spans(db_sessi
                                 "new": "林晚在第8章收起雨伞。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
         assert ok["status"] == "success", ok
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 @pytest.mark.asyncio
@@ -591,17 +609,17 @@ async def test_range_read_fuzzy_replace_all_spanning_unseen_and_seen_fails_witho
     chapter = _make_file(db_session, project, title="合集", content=content)
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
-        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
-        mcp_tools.ToolContext.promote_pending_reads()
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
 
         # Fuzzy replace_all matches BOTH unseen 第1章 and seen 第8章: must fail outright,
         # NEVER fall through to single-match approximate replacement on 第8章 alone!
@@ -618,7 +636,8 @@ async def test_range_read_fuzzy_replace_all_spanning_unseen_and_seen_fails_witho
                                 "replace_all": True,
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
@@ -628,7 +647,7 @@ async def test_range_read_fuzzy_replace_all_spanning_unseen_and_seen_fails_witho
         with Session(engine) as check_sess:
             assert check_sess.get(File, chapter.id).content == content
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 @pytest.mark.asyncio
@@ -642,26 +661,26 @@ async def test_range_read_then_full_read_clears_range_spans_and_skips_shift(
     chapter = _make_file(db_session, project, title="合集", content=content)
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
         # 1) Range-read records a range span.
-        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"})
-        mcp_tools.ToolContext.promote_pending_reads()
-        assert mcp_tools.ToolContext.has_seen_file(chapter.id) is False
-        assert len(mcp_tools.ToolContext.seen_file_spans(chapter.id)) == 1
+        await mcp_tools.query_files({"id": chapter.id, "section": "第8章"}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
+        assert req_ctx.has_seen_file(chapter.id) is False
+        assert len(req_ctx.seen_file_spans(chapter.id)) == 1
 
         # 2) Subsequent full read promotes to full seen and clears stale _range_spans.
-        await mcp_tools.query_files({"id": chapter.id})
-        mcp_tools.ToolContext.promote_pending_reads()
-        assert mcp_tools.ToolContext.has_seen_file(chapter.id) is True
-        assert mcp_tools.ToolContext.seen_file_spans(chapter.id) == []
+        await mcp_tools.query_files({"id": chapter.id}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
+        assert req_ctx.has_seen_file(chapter.id) is True
+        assert req_ctx.seen_file_spans(chapter.id) == []
 
         # 3) Writing afterward (seen_spans=None) must NOT run O(N^2) span shifting.
         t0 = time.perf_counter()
@@ -674,16 +693,17 @@ async def test_range_read_then_full_read_clears_range_spans_and_skips_shift(
                             {"op": "prepend", "text": "总序开头。"},
                             {"op": "append", "text": "全书完。"},
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
         elapsed = time.perf_counter() - t0
         assert edited["status"] == "success", edited
         assert elapsed < 1.0, f"Unexpected stall after full read: {elapsed:.3f}s"
-        assert mcp_tools.ToolContext.seen_file_spans(chapter.id) == []
+        assert req_ctx.seen_file_spans(chapter.id) == []
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 def test_shift_spans_for_hunks_shrinking_multi_hunk_preserves_valid_spans():
@@ -749,19 +769,19 @@ async def test_range_read_shrinking_replace_all_preserves_tail_seen_span(
     chapter = _make_file(db_session, project, title="合集", content=content)
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
         # Range-read 第10章 (strictly before 第12章's marker); its pre-edit end coordinate > post-shrink len(content)!
-        await mcp_tools.query_files({"id": chapter.id, "section": "第10章"})
-        mcp_tools.ToolContext.promote_pending_reads()
-        orig_spans = mcp_tools.ToolContext.seen_file_spans(chapter.id)
+        await mcp_tools.query_files({"id": chapter.id, "section": "第10章"}, request_context=req_ctx)
+        req_ctx.promote_pending_reads()
+        orig_spans = req_ctx.seen_file_spans(chapter.id)
         assert len(orig_spans) == 1
         assert orig_spans[0][1] <= content.index("第12章 雨夜12")
 
@@ -778,7 +798,8 @@ async def test_range_read_shrinking_replace_all_preserves_tail_seen_span(
                                 "replace_all": True,
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
@@ -786,7 +807,7 @@ async def test_range_read_shrinking_replace_all_preserves_tail_seen_span(
         # Confirm pre-edit span end exceeded post-edit length (the exact case premature new_len clamping broke).
         assert orig_spans[0][1] > replaced["data"]["new_length"]
         delta = len(short_marker) - len(long_marker)
-        assert mcp_tools.ToolContext.seen_file_spans(chapter.id) == [
+        assert req_ctx.seen_file_spans(chapter.id) == [
             (orig_spans[0][0] + delta, orig_spans[0][1] + delta)
         ]
 
@@ -803,13 +824,14 @@ async def test_range_read_shrinking_replace_all_preserves_tail_seen_span(
                                 "new": "林晚在第10章合上雨伞。",
                             }
                         ],
-                    }
+                    },
+                    request_context=req_ctx,
                 )
             )["content"][0]["text"]
         )
         assert ok["status"] == "success", ok
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -830,17 +852,17 @@ async def test_edit_file_slims_llm_output_and_stream_adapter_restores_ui_card_an
     )
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={chapter.id: chapter.content},
     )
     try:
         tools = {t.name: t for t in build_agent_function_tools()}
-        sdk_ctx = SimpleNamespace(tool_call_id="call-sdk-edit-1")
+        sdk_ctx = SimpleNamespace(context=req_ctx, tool_call_id="call-sdk-edit-1")
         args = json.dumps(
             {
                 "id": chapter.id,
@@ -872,8 +894,10 @@ async def test_edit_file_slims_llm_output_and_stream_adapter_restores_ui_card_an
         assert append_detail["op"] == "append" and append_detail["text_words"] > 0
         assert "text_preview" not in append_detail and "new_preview" not in append_detail
 
-        # StreamAdapter restores full UI undo & details previews via ToolContext side-channel!
-        adapter = create_stream_adapter(project_id=project.id, user_id=user.id)
+        # StreamAdapter restores full UI undo & details previews via AgentRequestContext side-channel!
+        adapter = create_stream_adapter(
+            project_id=project.id, user_id=user.id, request_context=req_ctx
+        )
 
         async def events():
             yield StreamEvent(
@@ -913,10 +937,10 @@ async def test_edit_file_slims_llm_output_and_stream_adapter_restores_ui_card_an
         assert "new_preview" not in replayed["data"]["details"][0]
         assert "text_preview" not in replayed["data"]["details"][1]
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
-    # clear_context empties side-channel cleanly.
-    assert mcp_tools.ToolContext.pop_tool_ui_payload("call-sdk-edit-1") is None
+    # clear empties side-channel cleanly.
+    assert req_ctx.pop_tool_ui_payload("call-sdk-edit-1") is None
 
 
 @pytest.mark.asyncio
@@ -930,11 +954,11 @@ async def test_edit_file_keeps_non_exact_diagnostics_and_partial_failures(db_ses
     )
     engine = db_session.get_bind()
 
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={chapter.id: chapter.content},
     )
@@ -947,7 +971,8 @@ async def test_edit_file_keeps_non_exact_diagnostics_and_partial_failures(db_ses
                     {"op": "replace", "old": "温梨把伞收了, 靠在摊子边上.", "new": "温梨合上了伞。"},
                     {"op": "replace", "old": "根本不存在的句子", "new": "x"},
                 ],
-            }
+            },
+            request_context=req_ctx,
         )
         payload = json.loads(raw["content"][0]["text"])
         assert payload["status"] == "partial"
@@ -961,19 +986,24 @@ async def test_edit_file_keeps_non_exact_diagnostics_and_partial_failures(db_ses
         assert data["details"][0]["warning"]
         assert "undo" not in data
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 @pytest.mark.asyncio
 async def test_update_project_omits_duplicate_top_level_current_status(db_session, owner_project):
     user, project = owner_project
     engine = db_session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None, user.id, project.id, None, create_session_func=lambda: Session(engine)
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
+        create_session_func=lambda: Session(engine),
     )
     try:
         raw = await mcp_tools.update_project(
-            {"summary": "一段较长的项目摘要" * 20, "current_phase": "已写至第3章"}
+            {"summary": "一段较长的项目摘要" * 20, "current_phase": "已写至第3章"},
+            request_context=req_ctx,
         )
         text = raw["content"][0]["text"]
         assert '": "' not in text
@@ -983,7 +1013,7 @@ async def test_update_project_omits_duplicate_top_level_current_status(db_sessio
         assert payload["data"]["project_status"]["current_status"]["current_phase"] == "已写至第3章"
         assert payload["data"]["updated_fields"] == ["summary", "current_phase"]
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -1019,17 +1049,17 @@ async def test_query_files_slims_dead_columns_metadata_preview_and_honors_id_plu
         file_metadata=None,
     )
     engine = db_session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
         # 1) List summary omits 5 dead DB cols & redundant/empty file_metadata.
-        raw_list = await mcp_tools.query_files({})
+        raw_list = await mcp_tools.query_files({}, request_context=req_ctx)
         list_text = raw_list["content"][0]["text"]
         assert '": "' not in list_text
         rows_by_id = {row["id"]: row for row in json.loads(list_text)["data"]}
@@ -1043,7 +1073,9 @@ async def test_query_files_slims_dead_columns_metadata_preview_and_honors_id_plu
         # 2) Search summary omits content_preview when match_count > 0, keeps it on title-only match_count == 0.
         search_rows = {
             row["id"]: row
-            for row in json.loads((await mcp_tools.query_files({"query": "玉佩"}))["content"][0]["text"])["data"]
+            for row in json.loads(
+                (await mcp_tools.query_files({"query": "玉佩"}, request_context=req_ctx))["content"][0]["text"]
+            )["data"]
         }
         assert search_rows[f_match.id]["match_count"] == 1
         assert "青玉佩" in search_rows[f_match.id]["matches"][0]
@@ -1053,7 +1085,9 @@ async def test_query_files_slims_dead_columns_metadata_preview_and_honors_id_plu
 
         # 3) id + query honors query (returns compact match snippet, NOT full body!).
         id_query_hit = json.loads(
-            (await mcp_tools.query_files({"id": f_match.id, "query": "青玉佩"}))["content"][0]["text"]
+            (await mcp_tools.query_files({"id": f_match.id, "query": "青玉佩"}, request_context=req_ctx))[
+                "content"
+            ][0]["text"]
         )["data"]
         assert len(id_query_hit) == 1
         assert "content" not in id_query_hit[0]
@@ -1062,31 +1096,39 @@ async def test_query_files_slims_dead_columns_metadata_preview_and_honors_id_plu
         assert "青玉佩" in id_query_hit[0]["matches"][0]
 
         id_query_miss = json.loads(
-            (await mcp_tools.query_files({"id": f_match.id, "query": "绝不存在的词"}))["content"][0]["text"]
+            (await mcp_tools.query_files({"id": f_match.id, "query": "绝不存在的词"}, request_context=req_ctx))[
+                "content"
+            ][0]["text"]
         )["data"]
         assert id_query_miss == []
 
         # Explicit response_mode="full" with id + query still returns full content.
         id_query_full = json.loads(
-            (await mcp_tools.query_files({"id": f_match.id, "query": "青玉佩", "response_mode": "full"}))[
-                "content"
-            ][0]["text"]
+            (
+                await mcp_tools.query_files(
+                    {"id": f_match.id, "query": "青玉佩", "response_mode": "full"},
+                    request_context=req_ctx,
+                )
+            )["content"][0]["text"]
         )["data"]
         assert len(id_query_full) == 1
         assert id_query_full[0]["content"] == f_match.content
 
         # 4) create_file / write_chapter drop 4 dead DB cols but KEEP updated_at for StreamAdapter.
         created = json.loads(
-            (await mcp_tools.create_file({"title": "大纲", "file_type": "outline", "content": "提纲"}))[
-                "content"
-            ][0]["text"]
+            (
+                await mcp_tools.create_file(
+                    {"title": "大纲", "file_type": "outline", "content": "提纲"},
+                    request_context=req_ctx,
+                )
+            )["content"][0]["text"]
         )["data"]
         for col in WRITE_FILE_OMITTED_FIELDS:
             assert col not in created
         assert isinstance(created.get("updated_at"), str) and created["updated_at"]
         assert "file_metadata" not in created
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
 
 
 def test_repeat_read_guard_treats_id_plus_query_as_distinct_searches():
@@ -1115,20 +1157,23 @@ async def test_short_file_start_char_returns_full_and_records_full_snapshot(db_s
     long_file = _make_file(db_session, project, title="长稿", content=long_content)
 
     engine = db_session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         read_snapshots={},
     )
     try:
         # Short file with start_char + tiny max_chars returns the entire file in 1 step!
         short_resp = json.loads(
-            (await mcp_tools.query_files({"id": short_file.id, "start_char": 1000, "max_chars": 1500}))[
-                "content"
-            ][0]["text"]
+            (
+                await mcp_tools.query_files(
+                    {"id": short_file.id, "start_char": 1000, "max_chars": 1500},
+                    request_context=req_ctx,
+                )
+            )["content"][0]["text"]
         )
         [short_row] = short_resp["data"]
         assert short_row["content"] == short_content
@@ -1136,14 +1181,17 @@ async def test_short_file_start_char_returns_full_and_records_full_snapshot(db_s
         assert short_row["content_range"] == {"start": 0, "end": len(short_content)}
         assert "note" not in short_row
 
-        mcp_tools.ToolContext.promote_pending_reads()
-        assert mcp_tools.ToolContext.has_seen_file(short_file.id) is True
+        req_ctx.promote_pending_reads()
+        assert req_ctx.has_seen_file(short_file.id) is True
 
         # Long file (> 12k) with start_char=0, max_chars=2000 still slices.
         long_slice = json.loads(
-            (await mcp_tools.query_files({"id": long_file.id, "start_char": 0, "max_chars": 2000}))[
-                "content"
-            ][0]["text"]
+            (
+                await mcp_tools.query_files(
+                    {"id": long_file.id, "start_char": 0, "max_chars": 2000},
+                    request_context=req_ctx,
+                )
+            )["content"][0]["text"]
         )["data"][0]
         assert long_slice["content_partial"] is True
         assert long_slice["content_range"] == {"start": 0, "end": 2000}
@@ -1156,4 +1204,4 @@ async def test_short_file_start_char_returns_full_and_records_full_snapshot(db_s
         assert long_tail["content_range"] == {"start": 10_000, "end": len(long_content)}
         assert long_tail["content_partial"] is True
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()

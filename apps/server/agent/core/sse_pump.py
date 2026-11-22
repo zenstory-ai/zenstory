@@ -15,8 +15,8 @@ API 层发送终止帧并决定计费。作者主动停止（``request_stop``）
 没送出去的帧照样算数。
 
 源生成器的迭代全部在同一个后台 task 里进行：它在各步之间通过 contextvars
-传递的请求上下文（ToolContext、日志上下文）保持一致。（api/agent.py 会在路由里
-先取出第一个事件以便把「会话忙」转成 409，那一步发生在 ToolContext 建立之前。）
+传递的请求上下文（日志上下文、费用归属等）保持一致。（api/agent.py 会在路由里
+先取出第一个事件以便把「会话忙」转成 409，那一步发生在 AgentRequestContext 建立之前。）
 """
 
 from __future__ import annotations

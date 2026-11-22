@@ -116,6 +116,8 @@ class StreamAdapterConfig:
     run_outcome: RunOutcome | None = None
     # UI language supplied by the request, not inferred from generated prose.
     language: str = "zh"
+    # Typed per-request context shared with tools, hooks, and loop engine.
+    request_context: Any | None = None
 
 
 @dataclass
@@ -368,7 +370,7 @@ class StreamAdapter:
 
         # An abandoned <file> write (create_file emitted an empty file but the model never
         # streamed its <file>...</file> content) leaves both the adapter tracker and the
-        # ToolContext pending-empty-file guard set — finalize_on_stream_end flushes a
+        # AgentRequestContext pending-empty-file guard set — finalize_on_stream_end flushes a
         # WAITING_START file as plain text without completing it, so _complete_file_write
         # (which normally clears the guard) never runs. Clear the stale state at stream end
         # so it cannot block create_file in any subsequent processing/request.
@@ -468,7 +470,7 @@ class StreamAdapter:
             # at end-of-request. finalize_on_stream_end discards control-marker
             # contaminated narration and salvages only genuine truncated prose.
             #
-            # We deliberately leave the ToolContext pending-empty-file guard set:
+            # We deliberately leave the AgentRequestContext pending-empty-file guard set:
             # it is the signal the workflow loop uses to detect an unwritten file
             # and re-run the agent to complete it (see agent/loop/engine.py). It is
             # cleared on a successful <file> completion or at full stream end.
@@ -482,7 +484,7 @@ class StreamAdapter:
             for sse_event in self._release_held_reply():
                 yield sse_event
                 # NOTE: deliberately keep self._pending_file_write and the
-                # ToolContext pending-empty-file guard set. The StreamProcessor is
+                # AgentRequestContext pending-empty-file guard set. The StreamProcessor is
                 # now reset (no further cross-agent capture), but the guard remains
                 # the signal the workflow loop reads to re-run the writer; the
                 # correction run re-arms this same capture only through the graph's
@@ -566,16 +568,15 @@ class StreamAdapter:
             # 合并工具 UI 侧通道（如 edit_file 的 undo 锚点与精确匹配回显预览）：
             # LLM function_call_output 省略了这些仅供前端卡片与撤销使用的字段，
             # 这里按 tool_use_id 原样还原到 SSE tool_result、file_edit_applied 与落库卡片。
-            if isinstance(result_data, dict) and (tool_use_id or tool_name == "edit_file"):
-                from agent.tools.tool_context import ToolContext
-
+            req_ctx = self.config.request_context
+            if req_ctx is not None and isinstance(result_data, dict) and (tool_use_id or tool_name == "edit_file"):
                 file_id = result_data.get("id")
                 fallback_key = (
                     (tool_name, str(file_id))
                     if tool_name == "edit_file" and isinstance(file_id, str) and file_id
                     else None
                 )
-                ui_overlay = ToolContext.pop_tool_ui_payload(
+                ui_overlay = req_ctx.pop_tool_ui_payload(
                     tool_use_id or None,
                     fallback_key=fallback_key,
                 )
@@ -895,15 +896,19 @@ class StreamAdapter:
         复用的或之后被动过的文件保留。
         """
         from agent.core.empty_files import rollback_unfinished_empty_files
-        from agent.tools.mcp_tools import ToolContext
 
+        req_ctx = self.config.request_context
+        if req_ctx is None:
+            return
         # 关闭与取条目是同一步：之后才建好的空文件由建它的工具自己撤销（见 _create_file_sync）。
-        targets = [entry for entry in ToolContext.close_pending_body_files() if entry.get("updated_at")]
+        targets = [entry for entry in req_ctx.close_pending_body_files() if entry.get("updated_at")]
         if not targets:
             return
-        rolled_back = await asyncio.to_thread(rollback_unfinished_empty_files, targets)
+        rolled_back = await asyncio.to_thread(
+            rollback_unfinished_empty_files, targets, request_context=req_ctx
+        )
         for file_id in rolled_back:
-            ToolContext.clear_pending_empty_file(file_id)
+            req_ctx.clear_pending_empty_file(file_id)
         log_with_context(
             logger,
             20,  # INFO
@@ -1083,9 +1088,8 @@ class StreamAdapter:
         )
         self._note_replacement_receipt(pending.replace_tool_use_id, words)
         self._note_replacement_card_update(pending.replace_tool_use_id, replaced)
-        from agent.tools.mcp_tools import ToolContext
-
-        ToolContext.mark_chapter_replacement_saved(file_id)
+        if self.config.request_context is not None:
+            self.config.request_context.mark_chapter_replacement_saved(file_id)
         return "saved", replaced
 
     def _replace_file_body_sync(
@@ -1098,7 +1102,11 @@ class StreamAdapter:
         from agent.tools.file_ops import FileToolExecutor
 
         return _with_sync_session(
-            lambda session: FileToolExecutor(session=session, user_id=self.config.user_id).replace_body(
+            lambda session: FileToolExecutor(
+                session=session,
+                user_id=self.config.user_id,
+                request_context=self.config.request_context,
+            ).replace_body(
                 file_id,
                 content,
                 expected_updated_at=expected_updated_at,
@@ -1164,13 +1172,13 @@ class StreamAdapter:
             refusal=refusal,
         )
 
-    @staticmethod
-    def _rearm_pending_guard(file_id: str) -> bool:
+    def _rearm_pending_guard(self, file_id: str) -> bool:
         """恢复这个文件的待写守卫；只有确实恢复了才返回 True（异常也按失败处理）。"""
+        req_ctx = self.config.request_context
+        if req_ctx is None:
+            return False
         try:
-            from agent.tools.mcp_tools import ToolContext
-
-            return ToolContext.rearm_pending_file_body(file_id) is True
+            return req_ctx.rearm_pending_file_body(file_id) is True
         except Exception as exc:  # noqa: BLE001 - a failed guard must decline the resume
             log_with_context(logger, 30, "Pending file guard re-arm failed", file_id=file_id, error_type=type(exc).__name__)
             return False
@@ -1607,7 +1615,7 @@ class StreamAdapter:
         # Clear pending file write
         self._pending_file_write = None
 
-        # Also clear ToolContext pending state, allowing next create_file.
+        # Also clear AgentRequestContext pending state, allowing next create_file.
         self._clear_pending_empty_file_guard(result.file_id)
 
     async def _save_new_body(self, result: StreamResult, pending: PendingFileWrite | None) -> bool:
@@ -1631,10 +1639,8 @@ class StreamAdapter:
             _ABORT_SAVE_TASKS.add(save)
             save.add_done_callback(_ABORT_SAVE_TASKS.discard)
             raise
-        if saved and result.auto_completed:
-            from agent.tools.mcp_tools import ToolContext
-
-            ToolContext.mark_cut_body_saved(file_id, self._save_title(file_id, pending))
+        if saved and result.auto_completed and self.config.request_context is not None:
+            self.config.request_context.mark_cut_body_saved(file_id, self._save_title(file_id, pending))
         return saved
 
     @staticmethod
@@ -1659,10 +1665,8 @@ class StreamAdapter:
         if self.config.run_outcome is not None:
             self.config.run_outcome.saved_file_word_counts[file_id] = words
             self.config.run_outcome.uncertain_save_file_ids.discard(file_id)
-        if title is not None:
-            from agent.tools.mcp_tools import ToolContext
-
-            ToolContext.mark_chapter_body_saved(file_id, title, file_type)
+        if title is not None and self.config.request_context is not None:
+            self.config.request_context.mark_chapter_body_saved(file_id, title, file_type)
 
     def _note_save_unconfirmed(self, file_id: str, *, timed_out: bool = False) -> None:
         """保存未确认或超时：写回执（不覆盖之前成功的字数），超时一并记入不确定集合。"""
@@ -1688,7 +1692,7 @@ class StreamAdapter:
         return pending.original_content_length > 0
 
     def _clear_pending_empty_file_guard(self, file_id: str = "") -> None:
-        """清除 ToolContext 的 pending-empty-file 标记。
+        """清除 ``AgentRequestContext`` 的 pending-empty-file 标记。
 
         传入 file_id 时只清除指向该文件的标记：一份仍在缓冲的文件被新的
         create_file 顶掉时，标记可能已经指向新建的空文件，若被上一份文件的
@@ -1696,12 +1700,11 @@ class StreamAdapter:
         安排补写）。file_id 为空表示流结束时的无条件清理，避免标记泄漏到
         下一个请求。
 
-        实现上直接把 file_id 交给 ToolContext 做精确摘除：标记现在是集合，
+        实现上直接把 file_id 交给 ``AgentRequestContext`` 做精确摘除：标记现在是集合，
         「读最近一个再无参清空」在同时存在多个待写空文件时会一次清光其余条目。
         """
-        from agent.tools.mcp_tools import ToolContext
-
-        ToolContext.clear_pending_empty_file(file_id or None)
+        if self.config.request_context is not None:
+            self.config.request_context.clear_pending_empty_file(file_id or None)
 
     async def _save_file_content(
         self,
@@ -1803,6 +1806,7 @@ class StreamAdapter:
             lambda session: FileToolExecutor(
                 session=session,
                 user_id=self.config.user_id,
+                request_context=self.config.request_context,
             ).update_file(
                 id=file_id,
                 content=content,
@@ -1960,6 +1964,7 @@ def create_stream_adapter(
     run_meter: AgentRunMeter | None = None,
     run_outcome: RunOutcome | None = None,
     language: str = "zh",
+    request_context: Any | None = None,
 ) -> StreamAdapter:
     """
     Factory function to create a StreamAdapter.
@@ -1972,6 +1977,7 @@ def create_stream_adapter(
         run_meter: Optional request-level timing recorder
         run_outcome: Optional request-level round outcome updated as saves complete
         language: Request UI language for author-facing save notices
+        request_context: Optional request-scoped ``AgentRequestContext``
 
     Returns:
         Configured StreamAdapter instance
@@ -1984,6 +1990,7 @@ def create_stream_adapter(
         run_meter=run_meter,
         run_outcome=run_outcome,
         language=language,
+        request_context=request_context,
     )
     return StreamAdapter(config)
 

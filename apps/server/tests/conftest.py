@@ -335,22 +335,18 @@ def shell_engine(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _reset_tool_context():
-    """每个用例前后都把 Agent 的全局 ToolContext 清干净。
+def _reset_ambient_agent_context():
+    """每个用例前后重置进程内残留的轻量 ContextVar（费用归属 user_id 与当前 tool_call_id）。"""
+    from agent.tools.tool_context import _current_tool_call_id_var
+    from services.usage.cost_budget import set_context_user_id
 
-    ToolContext 的 project_id / session / pending-empty-file 标记都存在
-    ContextVar 里，是跨用例可见的进程级状态。任何一个用例调了
-    ToolContext.set_context 而没收尾，后面所有"故意不设上下文"的用例就会
-    读到别人残留的 project_id——表现为按执行顺序随机红绿（xdist 每次分组
-    不同，更难复现）。这里统一兜底，用例自己就不必再各写一遍 try/finally。
-    """
-    from agent.tools.mcp_tools import ToolContext
-
-    ToolContext.clear_context()
+    _current_tool_call_id_var.set(None)
+    set_context_user_id(None)
     try:
         yield
     finally:
-        ToolContext.clear_context()
+        _current_tool_call_id_var.set(None)
+        set_context_user_id(None)
 
 
 @pytest.fixture(autouse=True)

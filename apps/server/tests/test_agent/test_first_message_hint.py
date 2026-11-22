@@ -221,13 +221,13 @@ async def test_tools_see_the_author_words_without_the_hidden_hint(
 ):
     """update_project 核对「作者是否要求改名」时，看的是作者原话，不是拼了提示的模型输入。"""
     from agent.core.workflow_events import StreamEvent, StreamEventType
-    from agent.tools.mcp_tools import ToolContext
 
     user, project = short_project
     seen: dict = {}
 
     def fake_workflow(state, **_kwargs):
-        seen["author_message"] = ToolContext._get_context().get("author_message")
+        req_ctx = state.get("request_context")
+        seen["author_message"] = req_ctx.author_message if req_ctx is not None else None
 
         async def stream():
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})

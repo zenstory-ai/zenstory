@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlmodel import Session, select
 
-from agent.tools.mcp_tools import ToolContext
+from agent.core.request_context import AgentRequestContext
 from models import LLMUsageEvent, User
 from services.usage import llm_usage_service
 from services.usage.llm_usage_service import LLMUsageAttribution, drain_pending_usage_records
@@ -32,9 +32,10 @@ def _events(db_session: Session) -> list[LLMUsageEvent]:
 @pytest.fixture
 def bound_request(db_session: Session):
     user = _user(db_session, "agent_meter")
-    ToolContext.set_context(session=None, user_id=user.id, project_id="project-9", session_id="s-1")
+    req_ctx = AgentRequestContext(session=None, user_id=user.id, project_id="project-9", session_id="s-1")
     tokens = bind_request_context(agent_run_id="run-abc")
-    yield user
+    yield user, req_ctx
+    req_ctx.clear()
     reset_request_context(tokens)
 
 
@@ -97,6 +98,7 @@ async def test_sdk_run_writes_one_row_per_model_call(db_session: Session, bound_
     from agent.core.run_meter import AgentRunMeter
     from agent.openai_agents.usage_hooks import build_agent_run_hooks
 
+    user, req_ctx = bound_request
     meter = AgentRunMeter()
     completions = _FakeStreamingCompletions()
     client = SimpleNamespace(chat=SimpleNamespace(completions=completions), base_url="http://fake")
@@ -108,7 +110,8 @@ async def test_sdk_run_writes_one_row_per_model_call(db_session: Session, bound_
     result = Runner.run_streamed(
         agent,
         input="写一章",
-        hooks=build_agent_run_hooks("deepseek-flash", run_meter=meter),
+        context=req_ctx,
+        hooks=build_agent_run_hooks("deepseek-flash", run_meter=meter, request_context=req_ctx),
         run_config=RunConfig(tracing_disabled=True),
     )
     async for _event in result.stream_events():
@@ -117,7 +120,7 @@ async def test_sdk_run_writes_one_row_per_model_call(db_session: Session, bound_
 
     [event] = _events(db_session)
     assert completions.calls == 1
-    assert event.user_id == bound_request.id
+    assert event.user_id == user.id
     assert (event.source, event.project_id, event.correlation_id) == ("agent", "project-9", "run-abc")
     assert (event.cache_hit_tokens, event.cache_miss_tokens, event.output_tokens) == (800, 200, 70)
 
@@ -131,9 +134,10 @@ async def test_sdk_run_writes_one_row_per_model_call(db_session: Session, bound_
 def test_hooks_bind_attribution_from_request_context(bound_request):
     from agent.openai_agents.usage_hooks import build_agent_run_hooks
 
-    hooks = build_agent_run_hooks("deepseek-flash")
+    user, req_ctx = bound_request
+    hooks = build_agent_run_hooks("deepseek-flash", request_context=req_ctx)
     assert hooks._attribution == LLMUsageAttribution(
-        user_id=bound_request.id, source="agent", project_id="project-9", correlation_id="run-abc"
+        user_id=user.id, source="agent", project_id="project-9", correlation_id="run-abc"
     )
 
 
@@ -141,6 +145,8 @@ def test_hooks_bind_attribution_from_request_context(bound_request):
 @pytest.mark.asyncio
 async def test_runner_passes_metering_hooks_to_sdk(bound_request):
     from agent.openai_agents.runner import run_openai_agents_streaming_agent
+
+    user, req_ctx = bound_request
 
     class FakeResult:
         raw_responses = []
@@ -152,18 +158,19 @@ async def test_runner_passes_metering_hooks_to_sdk(bound_request):
             if False:  # pragma: no cover - empty async generator
                 yield None
 
-    state = {"user_message": "写一章", "messages": [], "system_prompt": "base"}
+    state = {"user_message": "写一章", "messages": [], "system_prompt": "base", "request_context": req_ctx}
     with (
         patch("agent.openai_agents.runner._build_agent", return_value=object()),
         patch("agents.Runner.run_streamed", return_value=FakeResult()) as mock_run,
     ):
         async for _event in run_openai_agents_streaming_agent(
-            state=state, agent_type="writer", system_prompt="system"
+            state=state, agent_type="writer", system_prompt="system", request_context=req_ctx
         ):
             pass
 
     hooks = mock_run.call_args.kwargs["hooks"]
-    assert hooks._attribution.user_id == bound_request.id
+    assert mock_run.call_args.kwargs["context"] is req_ctx
+    assert hooks._attribution.user_id == user.id
     assert hooks._attribution.correlation_id == "run-abc"
 
 

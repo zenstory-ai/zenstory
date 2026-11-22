@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from agent.core.request_context import AgentRequestContext
 from agent.core.task_board_completion import (
     _build_completion_task_payload,
     _existing_written_artifacts,
@@ -15,7 +16,6 @@ from agent.core.task_board_completion import (
 )
 from agent.openai_agents.repeat_read_guard import ReadPlan, RepeatReadGuard
 from agent.tools.file_ops.project import ProjectOperations
-from agent.tools.mcp_tools import ToolContext
 from agent.tools.task_progress import (
     ArtifactEvidence,
     artifact_units,
@@ -414,16 +414,19 @@ def test_existing_written_artifacts_excludes_deleted_empty_and_foreign_project_f
         content="正文",
         file_type="script",
     )
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id="u",
         project_id="project-task-board",
         session_id="s",
     )
     try:
-        evidence = _existing_written_artifacts([own.id, empty.id, deleted.id, foreign.id])
+        evidence = _existing_written_artifacts(
+            [own.id, empty.id, deleted.id, foreign.id],
+            request_context=req_ctx,
+        )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     assert evidence == [
         ArtifactEvidence("own-live", "任意标题", "script", {"episode_number": 2})
@@ -447,7 +450,7 @@ def _guard_with_write(file_id: str = "s2", title: str = "第2集") -> RepeatRead
 async def test_finalize_without_any_write_does_not_read_or_update_the_board():
     get_tasks = MagicMock()
     update = AsyncMock()
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
         with (
             patch(
@@ -456,10 +459,10 @@ async def test_finalize_without_any_write_does_not_read_or_update_the_board():
             ),
             patch("agent.core.task_board_completion.update_project", update),
         ):
-            assert await auto_finalize_task_board_on_completion(RepeatReadGuard()) == ([], False)
-            assert await auto_finalize_task_board_on_completion(None) == ([], False)
+            assert await auto_finalize_task_board_on_completion(RepeatReadGuard(), request_context=req_ctx) == ([], False)
+            assert await auto_finalize_task_board_on_completion(None, request_context=req_ctx) == ([], False)
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     get_tasks.assert_not_called()
     update.assert_not_awaited()
@@ -469,7 +472,7 @@ async def test_finalize_without_any_write_does_not_read_or_update_the_board():
 async def test_finalize_records_partial_progress_from_typed_written_artifacts():
     update = AsyncMock(return_value={"content": []})
     written = [_artifact("s2", "任意标题", "script", {"episode_number": 2})]
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
         with (
             patch(
@@ -482,11 +485,13 @@ async def test_finalize_records_partial_progress_from_typed_written_artifacts():
             ) as existing,
             patch("agent.core.task_board_completion.update_project", update),
         ):
-            events, has_incomplete = await auto_finalize_task_board_on_completion(_guard_with_write())
+            events, has_incomplete = await auto_finalize_task_board_on_completion(
+                _guard_with_write(), request_context=req_ctx
+            )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
-    existing.assert_called_once_with(["s2"])
+    existing.assert_called_once_with(["s2"], request_context=req_ctx)
     sent = update.await_args.args[0]["tasks"]
     assert sent[0]["done_units"] == [2]
     assert sent[0]["progress"] == "已写：第2集；待写：第3–5集"
@@ -494,6 +499,7 @@ async def test_finalize_records_partial_progress_from_typed_written_artifacts():
     update.assert_awaited_once_with(
         {"tasks": sent},
         written_artifact_ids=["s2"],
+        request_context=req_ctx,
     )
     assert events[0].data["input"]["tasks"] == sent
     assert has_incomplete is True
@@ -512,7 +518,7 @@ async def test_finalize_revalidates_recorded_progress_against_live_typed_artifac
         _artifact("s4", "第4集", "script"),
         _artifact("s5", "第5集", "script"),
     ]
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
         with (
             patch(
@@ -529,11 +535,13 @@ async def test_finalize_revalidates_recorded_progress_against_live_typed_artifac
             ) as live_lookup,
             patch("agent.core.task_board_completion.update_project", update),
         ):
-            await auto_finalize_task_board_on_completion(_guard_with_write("s4", "第4集"))
+            await auto_finalize_task_board_on_completion(
+                _guard_with_write("s4", "第4集"), request_context=req_ctx
+            )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
-    live_lookup.assert_called_once_with("p")
+    live_lookup.assert_called_once_with("p", request_context=req_ctx)
     sent = update.await_args.args[0]["tasks"]
     assert sent[0]["status"] == "in_progress"
     assert sent[0]["done_units"] == [2, 4, 5]
@@ -541,6 +549,7 @@ async def test_finalize_revalidates_recorded_progress_against_live_typed_artifac
     update.assert_awaited_once_with(
         {"tasks": sent},
         written_artifact_ids=["s4"],
+        request_context=req_ctx,
     )
 
 
@@ -903,7 +912,7 @@ async def test_noop_write_leaves_the_task_open():
         "write_chapter",
         {"status": "success", "mutation_applied": False, "data": {"id": "ch1", "title": "第1章", "action": "exists"}},
     )
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
         with (
             patch(
@@ -912,9 +921,9 @@ async def test_noop_write_leaves_the_task_open():
             ),
             patch("agent.core.task_board_completion.update_project", update),
         ):
-            assert await auto_finalize_task_board_on_completion(guard) == ([], False)
+            assert await auto_finalize_task_board_on_completion(guard, request_context=req_ctx) == ([], False)
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     update.assert_not_awaited()
 
@@ -927,9 +936,9 @@ async def test_replaced_chapter_with_a_confirmed_body_save_counts_as_written():
         "write_chapter",
         {"status": "success", "mutation_applied": False, "data": {"id": "c2", "title": "第2章", "action": "replaced"}},
     )
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
-        ToolContext.mark_chapter_body_saved("c2", "第2章")
+        req_ctx.mark_chapter_body_saved("c2", "第2章")
         with (
             patch(
                 "services.infra.task_board_service.task_board_service.get_tasks",
@@ -941,11 +950,11 @@ async def test_replaced_chapter_with_a_confirmed_body_save_counts_as_written():
             ) as existing,
             patch("agent.core.task_board_completion.update_project", update),
         ):
-            await auto_finalize_task_board_on_completion(guard)
+            await auto_finalize_task_board_on_completion(guard, request_context=req_ctx)
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
-    existing.assert_called_once_with(["c2"])
+    existing.assert_called_once_with(["c2"], request_context=req_ctx)
     update.assert_awaited_once()
 
 
@@ -958,7 +967,7 @@ async def test_finalize_reports_incomplete_when_update_project_mcp_envelope_fail
     }
     update = AsyncMock(return_value=failed_envelope)
     task = {"task": "写第1章", "status": "in_progress", "artifact": "第1章", "artifact_file_type": "draft"}
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
         with (
             patch("services.infra.task_board_service.task_board_service.get_tasks", return_value=[task]),
@@ -968,9 +977,11 @@ async def test_finalize_reports_incomplete_when_update_project_mcp_envelope_fail
             ),
             patch("agent.core.task_board_completion.update_project", update),
         ):
-            events, has_incomplete = await auto_finalize_task_board_on_completion(_guard_with_write("c1", "第1章"))
+            events, has_incomplete = await auto_finalize_task_board_on_completion(
+                _guard_with_write("c1", "第1章"), request_context=req_ctx
+            )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     assert len(events) == 2
     assert has_incomplete is True
