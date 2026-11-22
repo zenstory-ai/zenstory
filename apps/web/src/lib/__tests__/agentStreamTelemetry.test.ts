@@ -330,4 +330,133 @@ describe("agent stream telemetry", () => {
     expect(trackEventMock).toHaveBeenCalledTimes(1);
     expect(trackEventMock).toHaveBeenCalledWith("ai_chat_completed", expect.any(Object));
   });
+
+  describe("browser-perceived TTFT (first_content_ms and first_prose_ms)", () => {
+    it("measures first_content_ms from thinking_content and first_prose_ms from content", () => {
+      let clock = 1_000;
+      const telemetry = createAgentStreamTelemetry("project-1", () => clock);
+
+      // Non-visible frames must not set TTFT.
+      clock = 1_050;
+      telemetry.noteEvent("session_started");
+      clock = 1_100;
+      telemetry.noteEvent("thinking");
+
+      // First visible thinking frame sets first_content_ms only.
+      clock = 1_240;
+      telemetry.noteEvent("thinking_content");
+      clock = 1_300;
+      telemetry.noteEvent("thinking_content");
+
+      // First prose frame sets first_prose_ms without overwriting first_content_ms.
+      clock = 1_680;
+      telemetry.noteEvent("content");
+      clock = 1_900;
+      telemetry.noteEvent("content");
+
+      clock = 2_200;
+      telemetry.completed();
+
+      expect(trackEventMock).toHaveBeenCalledWith(
+        "ai_chat_completed",
+        expect.objectContaining({
+          duration_ms: 1_200,
+          first_content_ms: 240,
+          first_prose_ms: 680,
+          events_received: 6,
+        }),
+      );
+    });
+
+    it("measures first_content_ms from tool_call/file_created and first_prose_ms from file_content", () => {
+      let clock = 500;
+      const telemetry = createAgentStreamTelemetry("project-1", () => clock);
+
+      clock = 720;
+      telemetry.noteEvent("tool_call");
+      clock = 890;
+      telemetry.noteEvent("file_created");
+      clock = 1_150;
+      telemetry.noteEvent("file_content");
+      clock = 1_400;
+      telemetry.stopped();
+
+      expect(trackEventMock).toHaveBeenCalledWith(
+        "ai_chat_stopped",
+        expect.objectContaining({
+          first_content_ms: 220,
+          first_prose_ms: 650,
+          duration_ms: 900,
+        }),
+      );
+    });
+
+    it("records identical first_content_ms and first_prose_ms when prose arrives first, across all outcome events", () => {
+      for (const [outcome, trigger] of [
+        ["ai_chat_cancelled", (t: ReturnType<typeof createAgentStreamTelemetry>) => t.cancelled()],
+        ["ai_chat_failed", (t: ReturnType<typeof createAgentStreamTelemetry>) => t.failed("STREAM_ERROR", true)],
+        ["ai_chat_tail_failed", (t: ReturnType<typeof createAgentStreamTelemetry>) => {
+          t.completed();
+          t.noteFailureAfterTerminal("read", new TypeError("reset"));
+        }],
+      ] as const) {
+        trackEventMock.mockReset();
+        let clock = 2_000;
+        const telemetry = createAgentStreamTelemetry("project-1", () => clock);
+        clock = 2_310;
+        telemetry.noteEvent("content");
+        clock = 2_800;
+        trigger(telemetry);
+
+        expect(trackEventMock).toHaveBeenCalledWith(
+          outcome,
+          expect.objectContaining({
+            first_content_ms: 310,
+            first_prose_ms: 310,
+          }),
+        );
+      }
+    });
+
+    it("omits first_content_ms and first_prose_ms when no visible frame arrives and ignores empty thinking_content", async () => {
+      await runStream(
+        sseResponse([
+          'event: session_started\ndata: {"session_id":"s-1"}\n\n',
+          'event: thinking\ndata: {"message":"正在思考"}\n\n',
+          'event: thinking_content\ndata: {"content":"","is_complete":true}\n\n',
+          'event: done\ndata: {}\n\n',
+        ]),
+      );
+
+      expect(trackEventMock).toHaveBeenCalledTimes(1);
+      const [eventName, properties] = trackEventMock.mock.calls[0] as [string, Record<string, unknown>];
+      expect(eventName).toBe("ai_chat_completed");
+      expect(properties).not.toHaveProperty("first_content_ms");
+      expect(properties).not.toHaveProperty("first_prose_ms");
+      expect(JSON.stringify(properties)).not.toContain(PROMPT);
+    });
+
+    it("emits first_content_ms and first_prose_ms via streamAgentRequest without leaking manuscript prose", async () => {
+      const secretProse = "绝密剧情：夜半钟声敲响了十三下";
+      await runStream(
+        sseResponse([
+          'event: file_created\ndata: {"file_id":"f-1","file_type":"draft","title":"绝密章节名"}\n\n',
+          `event: file_content\ndata: {"file_id":"f-1","chunk":"${secretProse}"}\n\n`,
+          'event: done\ndata: {}\n\n',
+        ]),
+      );
+
+      expect(trackEventMock).toHaveBeenCalledTimes(1);
+      const [eventName, properties] = trackEventMock.mock.calls[0] as [string, Record<string, unknown>];
+      expect(eventName).toBe("ai_chat_completed");
+      expect(typeof properties.first_content_ms).toBe("number");
+      expect(typeof properties.first_prose_ms).toBe("number");
+      expect(properties.first_content_ms as number).toBeGreaterThanOrEqual(0);
+      expect(properties.first_prose_ms as number).toBeGreaterThanOrEqual(properties.first_content_ms as number);
+      const serialized = JSON.stringify(trackEventMock.mock.calls);
+      expect(serialized).not.toContain(PROMPT);
+      expect(serialized).not.toContain(secretProse);
+      expect(serialized).not.toContain("绝密章节名");
+    });
+  });
 });

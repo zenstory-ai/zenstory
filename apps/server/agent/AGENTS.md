@@ -64,6 +64,7 @@ agent/
 │   ├── wire_prefix_cache.py # 活跃会话短 TTL Redis wire-prefix 缓存（跨轮逐字节前缀复用，fail-open）
 │   ├── compaction.py       # 轮与轮之间的交接摘要压缩
 │   ├── turn_context.py     # 每轮附在作者消息前的结构化上下文
+│   ├── ui_actions.py       # 经 Pydantic 校验的当轮结构化 UI 动作（如 ui_action="natural_polish"）
 │   ├── prompts.py          # 工作方式、输入布局、压缩提示
 │   ├── run_support.py      # 收尾说明、插话追加轮提示、正文字数、事件文字整理
 │   └── completion_evidence.py # 回复停在 <file> 正文上、文字里没执行的工具调用（协议结构识别）
@@ -106,7 +107,7 @@ agent/
 - **输入**：`[系统提示][重建的历史][<turn_context> + 作者消息]`。系统提示 = 项目类型配置（`prompts.get_prompt_for_project_type`：
   `LOOP_AUTHOR_REPLY_PROTOCOL`、`LOOP_TOOL_USAGE_PROTOCOL`）+ 回复语言 + `loop/prompts.py` 的输入布局与
   工作方式（含写后连贯自查、按真实字数汇报）+ 技能目录，跨轮不变。`<turn_context>`（`loop/turn_context.py`）只放这一轮请求带来的东西：
-  项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、本轮回复语言（沿用 ContextAssembler 的解析器与渲染，不做
+  项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、经服务端校验的当轮结构化 UI 动作（`ui_action="natural_polish"` 时经 `loop/ui_actions.py` 直接注入官方「去AI味」权威方法、剧本 `△`/台词保护及单次批量 `edit_file` 范围约束，不改动静态系统提示、也不依赖 `UserAddedSkill`；见 [deai-via-agent][n-deai-agent]）、本轮回复语言（沿用 ContextAssembler 的解析器与渲染，不做
   优先级裁剪、检索和文件清单；超出 `AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS` 120000 供应商 token 时按 `TokenBudget` 优先保留引用与焦点文件全文、截断超大附加稿并标注 `query_files`），以及 `<author_edits>`：焦点、附加文件和本会话 AI 写过的正文文件（`SessionLoader.session_written_file_ids`，
   按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改（`SessionLoader.author_edits_for_files`，受总墙钟预算 `AUTHOR_EDITS_TIME_BUDGET_S` 2.0s 与 `service.process_stream` 传入的协同 `cancel_event` 约束，超时或取消后剩余文件体面归入 `unchecked_titles`；`author_changes.line_blame` 对连续同标签非作者版本或从空基线起步的纯 AI 链直接走 `_apply_diff` 快速基线、跳过冗余 `SequenceMatcher`，`_matcher` 启用 `autojunk=True` 并裁剪 `_advance` 公共非空前后缀防长文高频短行二次退化 [author-blame-perf-and-collab-cache][n-blame-perf-collab-cache]）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件与本会话此前轮次读/写过且库内未变更的文件（`SessionLoader.session_read_snapshots`，至多 `SESSION_SNAPSHOT_MAX_FILES` 个、单次批量 `SELECT` 核验、遇压缩点停止；若本轮开始前轮间压缩成功则经 `AgentRequestContext.drop_initial_read_snapshots` 撤销）作为 edit_file 陈旧检查的起点（[batch-tool-calls-and-session-snapshots][n-batch-snapshots]）。
 - **历史**（`loop/history.py`、`loop/wire_prefix_cache.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
@@ -221,7 +222,7 @@ agent/
   错误码与固定文案在 `core/stream_errors.py`。[terminal-frame][n-terminal]、[error-and-refund][n-refund]
 - 计费规则以 `core/stream_billing.py` 与 [model-error-only-refund][n-model-error-refund] 为准（已推翻早期“无 60 字回复或无文件写入即退还”的规则）：
   唯一计费边界是请求是否真正进入供应商模型调用（`services/usage/model_call_guard.py` 在 `reserve_model_call` 通过后、紧贴 `await transport` 之前通过 `services/usage/cost_budget.py` 回调置 `RunOutcome.provider_attempted=True`，含轮前压缩与主循环调用，零反向依赖）以及是否因未恢复的上游模型服务错误终止整轮（`core/llm_failover.py:is_upstream_provider_error` 统一判据 + `FailoverChatModel.unrecovered_provider_error` 单一终态出口 → `runner` `error_source="model"` → `StreamAdapter` 致命终止置 `RunOutcome.terminal_model_failure=True`）。
-  正常完成（`done` 且无 error）直接计费；仅 `provider_attempted == False`（进入模型前停止、断线、超时、预检或首次调用成本预检拦截）或 `terminal_model_failure == True`（即使此前已流出部分正文）时退还本轮 AI 消息额度；一旦 `provider_attempted == True` 且非上述上游模型错误终止，纯读取核对、只思考、主动停止、客户端断线、600s 软着陆、780s 墙钟硬超时、发布交接、工具熔断 / `no_progress` / 重复循环 / 模型调用上限 / 输出截断、第 2 次及以后调用撞成本兜底、SDK/本地异常均计 1 轮 AI 消息额度。`produced_output` / `write_succeeded` 仍保留用于 `stop_outcome.saved_output`、时限暂停卡与前端建议门槛。退还实际落库后才发 `quota_refunded`，单轮至多结算一次。
+  正常完成（`done` 且无 error）直接计费（特例：经校验的 `ui_action="natural_polish"` 正常完成且真实文件写入证据 `file_written == False` 时，按 `natural_polish_no_change` 退还本次 AI 消息额度并补发 `quota_refunded(kind="no_change")`，真实 `llm_usage` 成本台账与内部 ¥15 每日成本兜底不变，见 [deai-via-agent][n-deai-agent]）；仅 `provider_attempted == False`（进入模型前停止、断线、超时、预检或首次调用成本预检拦截）或 `terminal_model_failure == True`（即使此前已流出部分正文）时退还本轮 AI 消息额度；一旦 `provider_attempted == True` 且非上述上游模型错误终止，纯读取核对、只思考、主动停止、客户端断线、600s 软着陆、780s 墙钟硬超时、发布交接、工具熔断 / `no_progress` / 重复循环 / 模型调用上限 / 输出截断、第 2 次及以后调用撞成本兜底、SDK/本地异常均计 1 轮 AI 消息额度。`produced_output` / `write_succeeded` 仍保留用于 `stop_outcome.saved_output`、时限暂停卡与前端建议门槛。退还实际落库后才发 `quota_refunded`，单轮至多结算一次。
   历史背景见 [error-and-refund][n-refund]、[stop-output-definition][n-output]。
 - 作者停止走 `POST /agent/stop` → `SSEStreamPump.request_stop()`，连接上先发 `workflow_stopped(user_stopped)`、等保存回执与迟到写工具结果补齐后真实结算计费（若实际退还额度且满足版本/作者保留安全条件则清理本轮空白占位文件，异常记日志不阻塞 `done`），再以实际 `charged=not refund_applied` 与真实移除集过滤后的回执发出 `done`（退还生效时随后发 `quota_refunded`）；未移除的新建空白占位保留在库并在 `done.unwritten_files` 与 `stop_outcome.unwritten_files` 如实列出。停止 / 断线 / 超时的取消路径会把进行中的 `<file>` 捕获补存，并由 `core/round_outcome.py` 写终态。
   [graceful-stop][n-stop]、[abort-flushes-capture][n-flush]、[stop-output-definition][n-output]、[model-error-only-refund][n-model-error-refund]
@@ -335,6 +336,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-xreview]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-agent-cross-review-fixes.md
 [n-direct-edits]: ../../../.agents/notes/implemented/feature/2026-11-18-direct-ai-edits.md
 [n-prod-review]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-prod-review-followups.md
+[n-deai-agent]: ../../../.agents/notes/implemented/architecture/2026-11-22-deai-via-single-loop-agent.md
 [n-prod-audit2]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-loop-prod-audit-round2-fixes.md
 [n-round-metric]: ../../../.agents/notes/implemented/architecture/2026-11-22-agent-round-metric-ledger.md
 [n-cache-stability]: ../../../.agents/notes/implemented/architecture/2026-11-20-agent-prompt-cache-stability.md

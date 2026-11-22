@@ -58,6 +58,24 @@ describe('AdminLayout mobile navigation', () => {
     expect(screen.getByRole('link', { name: '套餐配置' })).toHaveAttribute('href', '/admin/plans');
   });
 
+  it('renders UX Health sub-tab under Overview without adding a top-level item', () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/ux-health']}>
+        <Routes>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route path="ux-health" element={<div>UX Health view</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const subNav = screen.getByRole('navigation', { name: '概览' });
+    expect(subNav).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '仪表盘' })).toHaveAttribute('href', '/admin');
+    expect(screen.getByRole('link', { name: '体验健康' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: '注册来源' })).toHaveAttribute('href', '/admin/acquisition');
+  });
+
   it('announces state, contains focus, closes on Escape, and makes the closed drawer inert', () => {
     render(
       <MemoryRouter initialEntries={['/admin']}>

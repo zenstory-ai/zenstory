@@ -397,4 +397,85 @@ test.describe('Admin moderation flows (mocked)', () => {
     await page.getByRole('button', { name: /^关闭$|^close$/i }).click({ force: true });
     await expect(page.getByText(/反馈截图预览|screenshot preview|feedback\.screenshotPreviewTitle/i)).toHaveCount(0);
   });
+
+  test('can switch to chat votes sub-tab and filter by vote', async ({ page }) => {
+    await bootstrapAdminSession(page);
+
+    const voteQueries: Array<{ days: string | null; vote: string | null }> = [];
+
+    await page.route('**/api/admin/feedback**', async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+
+      if (request.method() === 'GET' && url.pathname.endsWith('/api/admin/feedback')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items: [], total: 0 }),
+        });
+        return;
+      }
+
+      if (request.method() === 'GET' && url.pathname.endsWith('/api/admin/feedback/chat-votes')) {
+        const vote = url.searchParams.get('vote');
+        voteQueries.push({ days: url.searchParams.get('days'), vote });
+        const allItems = [
+          {
+            message_id: 'msg-1',
+            user_id: 'user-1',
+            username: 'novelist',
+            vote: 'down',
+            preset: 'too_slow',
+            comment: 'Took too long to respond',
+            created_at: '2026-03-08T00:00:00Z',
+          },
+          {
+            message_id: 'msg-2',
+            user_id: 'user-2',
+            username: 'playwright_author',
+            vote: 'up',
+            preset: null,
+            comment: 'Great dialogue pacing',
+            created_at: '2026-03-07T00:00:00Z',
+          },
+        ];
+        const filtered = vote && vote !== 'all' ? allItems.filter((item) => item.vote === vote) : allItems;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            days: 7,
+            timezone: 'Asia/Shanghai',
+            period_start: '2026-03-01T00:00:00Z',
+            period_end: '2026-03-08T00:00:00Z',
+            summary: {
+              up: 1,
+              down: 1,
+              total_votes: 2,
+              up_rate: 0.5,
+              preset_counts: [{ preset: 'too_slow', count: 1 }],
+            },
+            items: filtered,
+            total: filtered.length,
+            page: 1,
+            page_size: 20,
+          }),
+        });
+        return;
+      }
+
+      await route.continue();
+    });
+
+    await page.goto('/admin/feedback');
+    await page.getByRole('button', { name: /^(对话反馈|Chat Votes)$/ }).click();
+    await expect(page.getByText('50.0%')).toBeVisible();
+    await expect(page.getByText('Took too long to respond')).toBeVisible();
+    await expect(page.getByText('Great dialogue pacing')).toBeVisible();
+
+    await page.getByRole('combobox', { name: /^(评价筛选|Vote filter)$/ }).selectOption('down');
+    await expect.poll(() => voteQueries.some((q) => q.vote === 'down')).toBe(true);
+    await expect(page.getByText('Took too long to respond')).toBeVisible();
+    await expect(page.getByText('Great dialogue pacing')).toHaveCount(0);
+  });
 });

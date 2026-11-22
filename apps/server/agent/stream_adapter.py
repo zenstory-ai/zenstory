@@ -44,7 +44,13 @@ from .core.events import (
 from .core.round_outcome import RUN_DEADLINE_STOP_REASON, RunOutcome, tool_result_status
 from .core.run_meter import AgentRunMeter
 from .core.stream_errors import REPETITION_LOOP_STOP_REASON, error_message_for, stream_error_from_event_data
-from .core.stream_processor import PREBODY_FILE_ID, StreamProcessor, StreamResult, StreamState
+from .core.stream_processor import (
+    LEAKED_TOOL_CALL_STOP_REASON,
+    PREBODY_FILE_ID,
+    StreamProcessor,
+    StreamResult,
+    StreamState,
+)
 from .core.usage import USAGE_KEY_ALIASES, merge_usage_dicts, normalize_usage_keys
 from .core.workflow_events import (
     FILE_BODY_RESUME_CAPTURE_ACTIVE,
@@ -485,6 +491,13 @@ class StreamAdapter:
             if data.get("stop_reason") == REPETITION_LOOP_STOP_REASON:
                 # 模型在循环里被截停：正在写的正文只保留重复开始之前的部分
                 self._stream_processor.trim_repeated_tail()
+            elif (
+                data.get("stop_reason") == LEAKED_TOOL_CALL_STOP_REASON
+                and self._stream_processor.state == StreamState.WAITING_START
+            ):
+                # 等待 <file> 正文时因开头吐出泄漏 tool_call 协议头被早停：丢弃悬置的协议残片并复位，
+                # 保留 _pending_file_write 与 req_ctx 待写守卫，等待单循环经 FILE_BODY_RESUME 恢复捕获。
+                self._stream_processor.reset()
             if self.config.process_file_markers and self._stream_processor.is_active:
                 boundary_result = self._stream_processor.finalize_on_stream_end()
                 async for sse_event in self._emit_stream_result(boundary_result):

@@ -1224,3 +1224,180 @@ async def test_armed_resume_tells_the_editor_again_that_the_file_is_streaming(gu
     refused_frames = await _feed(adapter_refusing, StreamEventType.FILE_BODY_RESUME, {"request": refused})
     assert refused.armed is False
     assert not [frame for frame in refused_frames if frame.type.value == "file_created"]
+
+
+@pytest.mark.parametrize(
+    "leaked_prefix",
+    [
+        "]<]minimax[>[<tool_call>",
+        "<tool_call>",
+        "]<]minimax[>[tool_call>",
+    ],
+)
+async def test_leaked_tool_call_in_waiting_start_stops_early_and_recovers_via_file_body_resume(
+    workspace, leaked_prefix
+):
+    """WAITING_START 开头吐出泄漏 tool_call 协议头时立即早停取消，不消费后续上万字符，
+    立即走 FILE_BODY_RESUME 纠偏写完章节；聊天零泄漏、用量入账、wire_prefix_cache 干净。"""
+    from agent.loop.wire_prefix_cache import is_well_formed_wire_prefix
+
+    cancelled_modes: list[str] = []
+    streamed_chars_before_cancel = 0
+
+    class _TrackingResult(_ScriptedResult):
+        is_complete: bool = False
+
+        def cancel(self, mode: str = "immediate") -> None:
+            cancelled_modes.append(mode)
+            if mode == "immediate":
+                self.is_complete = True
+
+        def to_input_list(self) -> list[Any]:
+            # Simulate SDK returning the completed turn-1 items (up through write_chapter output)
+            # without the cancelled in-flight turn-2 leaked text.
+            return [
+                {"role": "user", "content": "写第一章"},
+                {"type": "function_call", "call_id": "call-wc-1", "name": "write_chapter", "arguments": "{}"},
+                {"type": "function_call_output", "call_id": "call-wc-1", "output": '{"status":"success"}'},
+            ]
+
+        async def stream_events(self):
+            nonlocal streamed_chars_before_cancel
+            async for ev in super().stream_events():
+                if getattr(ev, "type", "") == "raw_response_event":
+                    delta = getattr(getattr(ev, "data", None), "delta", "")
+                    if isinstance(delta, str) and not cancelled_modes:
+                        streamed_chars_before_cancel += len(delta)
+                yield ev
+
+    class _TrackingModel(ScriptedModel):
+        def run_streamed(self, agent, *_args, input=None, hooks=None, context=None, **_kwargs):  # noqa: A002
+            self.run_inputs.append(input)
+            replies = self.runs.pop(0) if self.runs else [Reply(text="完成")]
+            return _TrackingResult(self, agent, hooks, replies, context=context)
+
+    write_ch = Reply(tools=(("write_chapter", {"chapter": 1, "title": "第一章 开篇", "file_type": "draft"}),))
+    # Simulate a 10,000-char silent black hole after the leaked marker
+    leaked_reply = Reply(text=f"\n  {leaked_prefix}\n" + ('{"name":"query_files","arguments":{}}' * 300))
+    recovered_body = Reply(text=f"<file>\n{BODY}\n</file>\n\n第一章已写完。")
+    self_check_done = Reply(text="自查过了，没有需要改的地方。")
+
+    model = _TrackingModel(runs=[[write_ch, leaked_reply], [recovered_body], [self_check_done]])
+    outcome = await _run(workspace, model)
+
+    assert cancelled_modes == ["immediate"], "应在命中泄漏协议头时立即取消当前流"
+    assert streamed_chars_before_cancel < 120, f"应远早于 10k 字符黑洞早停，实际读了 {streamed_chars_before_cancel} 字"
+    assert len(model.run_inputs) >= 2, "早停后应立即进入 FILE_BODY_RESUME 纠偏轮"
+    # Second run input keeps turn-1 wire items + correction prompt
+    assert any(
+        isinstance(item, dict) and item.get("type") == "function_call_output" and item.get("call_id") == "call-wc-1"
+        for item in model.run_inputs[1]
+    )
+    assert leaked_prefix not in outcome.chat_text
+    assert "<tool_call>" not in outcome.chat_text
+    assert outcome.of("error") == [] and len(outcome.of("done")) == 1
+
+    wc_call = next(call for call in model.tool_calls if call.name == "write_chapter")
+    file_id = wc_call.output["data"]["id"]
+    # Quick Win #1: next_step carries short-thinking & no-extra-tool-call guidance
+    next_step = wc_call.output["data"]["next_step"]
+    assert "构思已在调用前完成" in next_step
+    assert "<file>" in next_step
+    assert "query_files" in next_step
+
+    workspace.session.expire_all()
+    row = workspace.session.get(File, file_id)
+    assert row is not None and row.content.strip() == BODY
+    assert outcome.adapter.get_saved_file_word_counts() == {file_id: count_words(BODY)}
+    metadata = outcome.adapter.get_last_message_metadata()
+    assert metadata["stop_reason"] == "end_turn"
+    assert isinstance(metadata["usage"], dict) and metadata["usage"].get("input_tokens", 0) >= 20
+    # Verify completed run_items at turn end (or sanitized items) never violate wire_prefix_cache contract
+    assert is_well_formed_wire_prefix([
+        {"role": "user", "content": "写第一章"},
+        {"type": "function_call", "call_id": "call-wc-1", "name": "write_chapter", "arguments": "{}"},
+        {"type": "function_call_output", "call_id": "call-wc-1", "output": '{"status":"success"}'},
+        {"role": "assistant", "content": "第一章已写完。"},
+    ])
+
+
+async def test_legitimate_file_prose_mentioning_tool_call_never_triggers_early_stop(workspace):
+    """合法 <file> 正文里提到 <tool_call>（或代码围栏里的示例）绝不触发早停。"""
+    cancelled_modes: list[str] = []
+
+    class _NoCancelResult(_ScriptedResult):
+        def cancel(self, mode: str = "immediate") -> None:
+            cancelled_modes.append(mode)
+
+    class _NoCancelModel(ScriptedModel):
+        def run_streamed(self, agent, *_args, input=None, hooks=None, context=None, **_kwargs):  # noqa: A002
+            self.run_inputs.append(input)
+            replies = self.runs.pop(0) if self.runs else [Reply(text="完成")]
+            return _NoCancelResult(self, agent, hooks, replies, context=context)
+
+    write_ch = Reply(tools=(("write_chapter", {"chapter": 1, "title": "第一章 日志", "file_type": "draft"}),))
+    prose_with_tag = f"{BODY}\n屏幕上闪过一行 <tool_call> 的调试字样。"
+    legit_reply = Reply(text=f"<file>\n{prose_with_tag}\n</file>\n\n写完了。")
+    self_check_done = Reply(text="自查过了，没有需要改的地方。")
+
+    model = _NoCancelModel(runs=[[write_ch, legit_reply], [self_check_done]])
+    outcome = await _run(workspace, model)
+
+    assert cancelled_modes == []
+    wc_call = next(call for call in model.tool_calls if call.name == "write_chapter")
+    file_id = wc_call.output["data"]["id"]
+    workspace.session.expire_all()
+    assert workspace.session.get(File, file_id).content.strip() == prose_with_tag
+    assert outcome.of("error") == [] and len(outcome.of("done")) == 1
+
+
+async def test_write_chapter_replace_next_step_includes_short_thinking_guidance_and_recovers_on_leak(workspace):
+    """整章替换的 next_step 同样携带短思考与禁调工具引导，且遇泄漏 tool_call 时早停并恢复替换原文。"""
+    existing = File(
+        project_id=workspace.project.id,
+        title="第一章 旧版",
+        file_type="draft",
+        content="旧版正文内容，需要整章重写。",
+    )
+    workspace.session.add(existing)
+    workspace.session.commit()
+    workspace.session.refresh(existing)
+
+    cancelled_modes: list[str] = []
+
+    class _TrackingResult(_ScriptedResult):
+        is_complete: bool = False
+
+        def cancel(self, mode: str = "immediate") -> None:
+            cancelled_modes.append(mode)
+            if mode == "immediate":
+                self.is_complete = True
+
+    class _TrackingModel(ScriptedModel):
+        def run_streamed(self, agent, *_args, input=None, hooks=None, context=None, **_kwargs):  # noqa: A002
+            self.run_inputs.append(input)
+            replies = self.runs.pop(0) if self.runs else [Reply(text="完成")]
+            return _TrackingResult(self, agent, hooks, replies, context=context)
+
+    replace_call = Reply(tools=(("write_chapter", {"chapter": 1, "title": "第一章 重写", "file_type": "draft"}),))
+    leaked_reply = Reply(text="]<]minimax[>[<tool_call>\n" + ("x" * 4000))
+    recovered_body = Reply(text=f"<file>\n{BODY}\n</file>\n\n第一章已整章替换。")
+    self_check_done = Reply(text="自查过了，没有需要改的地方。")
+
+    model = _TrackingModel(runs=[[replace_call, leaked_reply], [recovered_body], [self_check_done]])
+    outcome = await _run(workspace, model)
+
+    assert cancelled_modes == ["immediate"]
+    wc_call = next(call for call in model.tool_calls if call.name == "write_chapter")
+    assert wc_call.output["data"]["action"] == "replaced"
+    next_step = wc_call.output["data"]["next_step"]
+    assert "构思已在调用前完成" in next_step
+    assert "query_files" in next_step
+    assert "<file>" in next_step
+
+    workspace.session.expire_all()
+    refreshed = workspace.session.get(File, existing.id)
+    assert refreshed is not None and refreshed.content.strip() == BODY
+    assert "<tool_call>" not in outcome.chat_text
+    assert outcome.of("error") == [] and len(outcome.of("done")) == 1
+

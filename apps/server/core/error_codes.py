@@ -175,12 +175,6 @@ class ErrorCode:
     AGENT_OUTPUT_REPEATEDLY_TRUNCATED = "ERR_AGENT_OUTPUT_REPEATEDLY_TRUNCATED"
     AGENT_FILE_SAVE_FAILED = "ERR_AGENT_FILE_SAVE_FAILED"
 
-    # ==================== Editor Errors ====================
-
-    # 去AI味：模型回复没法安全套回选区，或模型服务这次没响应。都已退额、可以直接再试。
-    NATURAL_POLISH_OUTPUT_UNUSABLE = "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE"
-    NATURAL_POLISH_PROVIDER_FAILED = "ERR_NATURAL_POLISH_PROVIDER_FAILED"
-
 
 # Error messages mapping (for server-side reference, if needed)
 # Note: These messages are primarily used by frontend i18n
@@ -298,8 +292,6 @@ ERROR_MESSAGES = {
         "ERR_AGENT_OUTPUT_TRUNCATED": "这一步 AI 在思考阶段达到输出上限，尚未交付该步骤的内容。可以回复「继续」再尝试；任务较大时，建议先指定其中一部分。",
         "ERR_AGENT_OUTPUT_REPEATEDLY_TRUNCATED": "这一步再次在思考阶段达到输出上限，尚未交付该步骤的内容。建议缩小请求范围，例如一次只写一章。",
         "ERR_AGENT_FILE_SAVE_FAILED": "保存生成的文件内容失败，请重试",
-        "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE": "这次去AI味的结果没法准确对回选中的文字，原文没有改动，可以直接再试，或缩小选区",
-        "ERR_NATURAL_POLISH_PROVIDER_FAILED": "AI 服务这次没有响应，原文没有改动，可以稍后再试",
     },
     "en": {
         "ERR_INTERNAL_SERVER_ERROR": "Internal server error, please try again later",
@@ -414,8 +406,6 @@ ERROR_MESSAGES = {
         "ERR_AGENT_OUTPUT_TRUNCATED": "The AI reached its output limit while thinking and did not deliver this step. You can reply \"continue\" to try again, or ask for one part of a larger task.",
         "ERR_AGENT_OUTPUT_REPEATEDLY_TRUNCATED": "This step reached its output limit again while thinking, without delivering content. Try a smaller request, such as one chapter at a time.",
         "ERR_AGENT_FILE_SAVE_FAILED": "Failed to save the generated file content. Please try again",
-        "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE": "This Humanize result couldn't be matched back to the selected text, so nothing was changed. Try again, or select less text",
-        "ERR_NATURAL_POLISH_PROVIDER_FAILED": "The AI service didn't respond this time, so nothing was changed. Please try again shortly",
     },
 }
 

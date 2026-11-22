@@ -22,6 +22,7 @@ from services.features.points_service import effective_check_in_date, points_ser
 from services.features.upgrade_funnel_event_service import upgrade_funnel_event_service
 from services.usage.acquisition_service import ACQUISITION_DAYS, get_acquisition_stats
 from services.usage.admin_growth_service import get_growth_dashboard
+from services.usage.admin_ux_metrics_service import UX_HEALTH_DAYS, get_ux_health_dashboard
 from utils.logger import get_logger, log_with_context
 
 from .schemas import (
@@ -31,6 +32,7 @@ from .schemas import (
     GrowthDashboardResponse,
     UpgradeConversionStatsResponse,
     UpgradeFunnelStatsResponse,
+    UxHealthDashboardResponse,
 )
 
 logger = get_logger(__name__)
@@ -74,6 +76,28 @@ def get_dashboard_growth(
         paid_orders=payload["current"]["metrics"]["paid_orders"],
     )
     return GrowthDashboardResponse(**payload)
+
+
+@router.get("/dashboard/ux-health", response_model=UxHealthDashboardResponse)
+def get_dashboard_ux_health(
+    days: int = Query(7),
+    current_user: User = Depends(get_current_superuser),
+    session: Session = Depends(get_session),
+):
+    """Return customer-scoped UX health metrics, prior-period comparison, and daily trend."""
+    if days not in UX_HEALTH_DAYS:
+        raise HTTPException(status_code=422, detail="days must be one of: 7, 14, 30")
+    payload = get_ux_health_dashboard(session, days=days)
+    log_with_context(
+        logger,
+        logging.INFO,
+        "Retrieved UX health dashboard",
+        user_id=current_user.id,
+        window_days=days,
+        total_rounds=payload["current"]["metrics"]["total_rounds"],
+        feedback_total=payload["current"]["metrics"]["feedback_total"],
+    )
+    return UxHealthDashboardResponse(**payload)
 
 
 @router.get("/dashboard/acquisition", response_model=AcquisitionStatsResponse)

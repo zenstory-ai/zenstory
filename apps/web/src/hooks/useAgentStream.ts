@@ -754,6 +754,7 @@ export function useAgentStream(
           message: request.message,
           session_id: request.session_id ?? sessionIdRef.current ?? undefined,
           selected_text: request.selected_text,
+          ui_action: request.ui_action,
           metadata: request.metadata,
           selected_skill_ids: request.selected_skill_ids,
         },

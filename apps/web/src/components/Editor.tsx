@@ -31,7 +31,7 @@ import { MaterialPreview } from "./MaterialPreview";
 import { ImportMaterialDialog } from "./ImportMaterialDialog";
 import type { File, FileTreeNode, TreeNodeType } from "../types";
 import { FOLDER_TYPE_MAP } from "../lib/folderTypeMap";
-import { FileText, Users, BookOpen, Sparkles, Folder, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload } from "lucide-react";
+import { FileText, Users, BookOpen, Sparkles, Folder, FolderOpen, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { getUpgradePromptDefinition } from "../config/upgradeExperience";
@@ -49,6 +49,11 @@ import {
   resolveEditorDraftRecovery,
   type EditorDraftSnapshot,
 } from "../lib/editorDraftRecovery";
+import {
+  trackEditorDraftRecoveryResolved,
+  trackEditorDraftRecoveryShown,
+  trackEditorSaveConflict409,
+} from "../lib/editorSafetyTelemetry";
 import { notifyEditorContentSaved, setOpenEditorFlush } from "../lib/editorSaveTracker";
 import { rebaseLocalEdits } from "../lib/rebaseLocalEdits";
 import { applyPendingEditsToDiffs, computeParagraphReviewDiffs } from "../lib/diffReview";
@@ -66,7 +71,7 @@ const SERVER_SYNC_RETRY_DELAYS_MS = [1000, 3000];
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface EditorProps {}
 
-type EmptyStateFileType = 'draft' | 'outline' | 'character' | 'lore' | 'script';
+type EmptyStateFileType = 'draft' | 'outline' | 'character' | 'lore' | 'snippet' | 'script';
 
 /**
  * The comparison Editor opened for "the author wrote on an older copy": the
@@ -148,6 +153,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
     editorRefreshVersion,
     lastEditedFileId,
     aiEditingFileId,
+    isChatStreaming,
+    requestAgentUiAction,
     // Diff review state
     diffReviewState,
     enterDiffReview,
@@ -251,9 +258,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
   // Counts every server read that can replace the open editor copy, so an older
   // loadData/syncOpenFileFromServer response answering late is known.
   const serverSyncSeqRef = useRef(0);
-  // A refresh may arrive while a polish candidate is open. Keep that server
-  // copy for discard reconciliation without advancing the candidate's token.
-  const naturalPolishServerCopyRef = useRef<File | null>(null);
   const restoredSelectionRef = useRef<string | null>(null);
   const currentFileRef = useRef<File | null>(file);
   const translateRef = useRef(t);
@@ -308,6 +312,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
         outline: 'outline-folder',
         character: 'character-folder',
         lore: 'lore-folder',
+        snippet: 'material-folder',
         script: 'script-folder',
       };
 
@@ -491,13 +496,21 @@ const EditorComponent: React.FC<EditorProps> = () => {
         } else {
           const liveSnapshot: EditorDraftSnapshot =
             snapshot.reason === "file-deleted" ? { ...snapshot, reason: "page-exit" } : snapshot;
+          let storageAvailable = !memoryRemoved || memoryRemoved.persisted;
           if (scope && (snapshot.reason === "file-deleted" || memoryRemoved)) {
             const persistedNow = writeEditorDraftSnapshot(localStorage, liveSnapshot);
+            storageAvailable = persistedNow;
             if (persistedNow && !liveSnapshot.recoveryDraft) {
               clearRemovedDraftEntry(scope);
             }
           }
           if (resolution === "recover") {
+            trackEditorDraftRecoveryShown({
+              surface: "draft_recovery",
+              isMobile: openContextRef.current.isMobile,
+              reason: "recover",
+              storageAvailable,
+            });
             setDraftRecovery({
               snapshot: liveSnapshot,
               serverTitle: data.title,
@@ -508,6 +521,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
             setEditTitle(liveSnapshot.title);
             setEditContent(liveSnapshot.content);
           } else {
+            trackEditorDraftRecoveryShown({
+              surface: "draft_recovery",
+              isMobile: openContextRef.current.isMobile,
+              reason: "conflict",
+              storageAvailable,
+            });
             setDraftRecovery({
               snapshot: liveSnapshot,
               serverTitle: data.title,
@@ -848,11 +867,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
     const review = currentReviewRef.current;
     if (review?.fileId === fileId) {
-      // A conflict or polish comparison is open: its save carries the token it was
+      // A conflict comparison is open: its save carries the token it was
       // opened with, so a newer server copy surfaces there as a conflict.
-      if (review.origin === 'polish') {
-        naturalPolishServerCopyRef.current = data;
-      }
       return;
     }
 
@@ -880,6 +896,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
     currentFileRef.current = merged;
     setFile((prev) => (prev?.id === fileId ? merged : prev));
     setEditTitle(nextTitle);
+    trackEditorDraftRecoveryShown({
+      surface: "conflict_review",
+      isMobile: openContextRef.current.isMobile,
+      reason: "external_edit",
+    });
     toast.error(translateRef.current('editor:aiEditedWhileDirty'));
   }, [adoptServerCopy, keepLocalOnServerCopy, openConflictReview]);
   syncOpenFileFromServerRef.current = syncOpenFileFromServer;
@@ -1007,6 +1028,15 @@ const EditorComponent: React.FC<EditorProps> = () => {
         error.status === 409 &&
         error.details?.reason === "stale_write"
       ) {
+        const saveSurface =
+          submission.versionIntent?.change_type === "auto_save" || submission.versionIntent?.skip_version
+            ? "auto_save"
+            : "manual";
+        trackEditorSaveConflict409({
+          surface: saveSurface,
+          isMobile: openContextRef.current.isMobile,
+          reason: "stale_write",
+        });
         // 文件在本次编辑期间被别人（AI 或另一个标签页）改过。
         //
         // 绝不能直接 setEditContent(服务端正文)：那会把用户尚未保存的本地编辑
@@ -1058,6 +1088,13 @@ const EditorComponent: React.FC<EditorProps> = () => {
               // save it on the newer token.
               keepLocalOnServerCopy(nextFile(openedFile), editTitleRef.current);
               return { outcome: "conflict" };
+            }
+            if (outcome === "review") {
+              trackEditorDraftRecoveryShown({
+                surface: "conflict_review",
+                isMobile: openContextRef.current.isMobile,
+                reason: "stale_write",
+              });
             }
             toast.error(t('editor:saveStaleWriteConflict'));
             return { outcome: "conflict" };
@@ -1135,7 +1172,17 @@ const EditorComponent: React.FC<EditorProps> = () => {
       );
       const cleared = clearEditorDraftSnapshot(localStorage, scope);
       clearRemovedDraftEntry(scope);
-      if (cleared || hasMemoryRemoved) setDraftRecovery(null);
+      if (cleared || hasMemoryRemoved) {
+        if (draftRecovery.kind === "recover") {
+          trackEditorDraftRecoveryResolved({
+            surface: "draft_recovery",
+            isMobile: openContextRef.current.isMobile,
+            reason: "recover",
+            resolution: "restore_local",
+          });
+        }
+        setDraftRecovery(null);
+      }
     }
     notifyEditorContentSaved(updated?.project_id ?? currentFileRef.current?.project_id ?? "");
     return { outcome: "saved", updatedAt: updated.updated_at };
@@ -1143,6 +1190,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
   const applyRecoveredDraft = useCallback(() => {
     if (!draftRecovery) return;
+    trackEditorDraftRecoveryResolved({
+      surface: "draft_recovery",
+      isMobile: openContextRef.current.isMobile,
+      reason: draftRecovery.kind,
+      resolution: "restore_local",
+    });
     setEditTitle(draftRecovery.snapshot.title);
     setEditContent(draftRecovery.snapshot.content);
     setDraftRecovery((current) => current ? { ...current, applied: true } : null);
@@ -1163,36 +1216,36 @@ const EditorComponent: React.FC<EditorProps> = () => {
         item.snapshot.fileId === scope.fileId,
     );
     if (!cleared && !hasMemoryRemoved) return;
+    trackEditorDraftRecoveryResolved({
+      surface: "draft_recovery",
+      isMobile: openContextRef.current.isMobile,
+      reason: draftRecovery.kind,
+      resolution: draftRecovery.applied ? "discard" : "use_server",
+    });
     clearRemovedDraftEntry(scope);
     setEditTitle(draftRecovery.serverTitle);
     setEditContent(draftRecovery.serverContent);
     setDraftRecovery(null);
   }, [draftRecovery, currentUserId, currentProjectId, clearRemovedDraftEntry]);
 
-  // 只有「去AI味」进入的审阅才允许在全部拒绝时跳过写库。保存冲突审阅的
-  // originalContent 是本地草稿、服务端持有另一份正文，完成审阅必须 setEditContent
-  // 并带新令牌写回。这里按审阅的三元组记下去AI味审阅的来源，完成审阅时逐项比对。
-  const naturalPolishReviewRef = useRef<{
-    fileId: string;
-    /** Saved server body the candidate's author text was based on. */
-    baseContent: string;
-    originalContent: string;
-    modifiedContent: string;
-  } | null>(null);
-  const enterNaturalPolishReview = useCallback(
-    (fileId: string, originalContent: string, newContent: string) => {
-      naturalPolishServerCopyRef.current = null;
-      naturalPolishReviewRef.current = {
-        fileId,
-        baseContent: currentFileRef.current?.id === fileId
-          ? currentFileRef.current.content ?? ''
-          : originalContent,
-        originalContent,
-        modifiedContent: newContent,
-      };
-      enterDiffReview(fileId, originalContent, newContent, 'polish');
+  const handleRequestNaturalPolish = useCallback(
+    (params: {
+      projectId: string;
+      fileId: string;
+      fileType?: string;
+      fileTitle?: string;
+      selectedText?: string;
+    }) => {
+      requestAgentUiAction?.({
+        projectId: params.projectId,
+        action: "natural_polish",
+        fileId: params.fileId,
+        fileType: params.fileType,
+        fileTitle: params.fileTitle,
+        selectedText: params.selectedText,
+      });
     },
-    [enterDiffReview],
+    [requestAgentUiAction],
   );
 
   const commitReviewedFile = useCallback(async (params: {
@@ -1273,7 +1326,17 @@ const EditorComponent: React.FC<EditorProps> = () => {
             projectId: currentProjectId,
             fileId,
           });
-          if (cleared) setDraftRecovery(null);
+          if (cleared) {
+            if (draftRecovery.kind === "recover") {
+              trackEditorDraftRecoveryResolved({
+                surface: "draft_recovery",
+                isMobile: openContextRef.current.isMobile,
+                reason: "recover",
+                resolution: "restore_local",
+              });
+            }
+            setDraftRecovery(null);
+          }
         } else if (draftRecovery?.snapshot.fileId !== fileId) {
           clearEditorDraftSnapshot(localStorage, {
             userId: currentUserId,
@@ -1289,6 +1352,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
     } catch (err) {
       if (!isStillCurrent()) return;
       if (err instanceof ApiError && err.status === 409 && err.details?.reason === "stale_write") {
+        trackEditorSaveConflict409({
+          surface: "manual",
+          isMobile: openContextRef.current.isMobile,
+          reason: "stale_write",
+        });
         // 审阅结果绝不能因为并发写而丢：把服务端最新正文当作新基线，
         // 连同本次审阅得到的定稿重新进入审阅通道，由用户决定最终版本。
         const current = currentFileRef.current;
@@ -1312,6 +1380,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
           // open so retrying saves on top of the fresh server token.
           toast.error(t("editor:saveStaleWrite"));
         } else {
+          trackEditorDraftRecoveryShown({
+            surface: "conflict_review",
+            isMobile: openContextRef.current.isMobile,
+            reason: "stale_write",
+          });
           toast.error(t("editor:saveStaleWriteConflict"));
         }
         return;
@@ -1336,88 +1409,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setSelectedItem,
     t,
     triggerFileTreeRefresh,
-  ]);
-
-  const resolveNaturalPolish = useCallback(async (decision: 'accept' | 'discard') => {
-    const review = currentReviewRef.current;
-    const polish = naturalPolishReviewRef.current;
-    const opened = currentFileRef.current;
-    if (
-      !review || review.origin !== 'polish' || !polish || !opened ||
-      review.fileId !== opened.id || polish.fileId !== opened.id ||
-      polish.originalContent !== review.originalContent ||
-      polish.modifiedContent !== review.modifiedContent
-    ) return;
-    const fileId = opened.id;
-
-    if (decision === 'discard') {
-      naturalPolishReviewRef.current = null;
-      const cachedServerCopy = naturalPolishServerCopyRef.current?.id === fileId
-        ? naturalPolishServerCopyRef.current
-        : null;
-      const refreshed = cachedServerCopy
-        ? cachedServerCopy
-        : opened;
-      naturalPolishServerCopyRef.current = null;
-      const serverContent = refreshed.content ?? '';
-      if (cachedServerCopy || serverContent !== polish.baseContent) {
-        const outcome = openConflictReview(fileId, polish.baseContent, serverContent, review.originalContent);
-        const nextTitle = editTitleRef.current === opened.title ? refreshed.title : editTitleRef.current;
-        if (outcome === 'server') {
-          exitDiffReview();
-          adoptServerCopy(refreshed, nextTitle);
-        } else if (outcome === 'local') {
-          exitDiffReview();
-          keepLocalOnServerCopy(refreshed, nextTitle);
-        } else {
-          keepLocalOnServerCopy(refreshed, nextTitle);
-          toast.error(t('editor:aiEditedWhileDirty'));
-        }
-        return;
-      }
-      exitDiffReview();
-      return;
-    }
-
-    // The candidate may include text the author had not saved before opening
-    // polish. Rebase both that text and the polish from the saved copy; using
-    // review.originalContent here would misread the absent dirty text as a
-    // server deletion and could discard it.
-    await commitReviewedFile({
-      opened,
-      review,
-      content: review.modifiedContent,
-      conflictBase: polish.baseContent,
-      updateMeta: {
-        change_type: 'ai_edit',
-        change_summary: 'AI polish (reviewed)',
-      },
-      errorLogMessage: 'Failed to save natural-polish candidate:',
-      errorAction: 'natural_polish_candidate_apply',
-      onSuccess: () => {
-        naturalPolishReviewRef.current = null;
-        naturalPolishServerCopyRef.current = null;
-        trackEvent('natural_polish_candidate_applied', {
-          project_id: opened.project_id,
-          file_id: fileId,
-        });
-      },
-      onStaleWrite: (latest, outcome) => {
-        if (outcome === 'local') {
-          naturalPolishServerCopyRef.current = latest;
-        } else {
-          naturalPolishReviewRef.current = null;
-          naturalPolishServerCopyRef.current = null;
-        }
-      },
-    });
-  }, [
-    adoptServerCopy,
-    commitReviewedFile,
-    exitDiffReview,
-    keepLocalOnServerCopy,
-    openConflictReview,
-    t,
   ]);
 
   /**
@@ -1461,15 +1452,31 @@ const EditorComponent: React.FC<EditorProps> = () => {
       errorLogMessage: "Failed to save reviewed changes:",
       errorAction: "ai_edit_review_apply",
       onSuccess: () => {
+        const acceptedEditCount = diffReviewState.pendingEdits.filter(
+          (edit) => edit.status !== "rejected"
+        ).length;
+        const rejectedEditCount = diffReviewState.pendingEdits.filter(
+          (edit) => edit.status === "rejected"
+        ).length;
+        const resolution =
+          acceptedEditCount > 0 && rejectedEditCount > 0
+            ? "merge"
+            : acceptedEditCount > 0
+              ? "use_server"
+              : rejectedEditCount > 0
+                ? "restore_local"
+                : "merge";
+        trackEditorDraftRecoveryResolved({
+          surface: "conflict_review",
+          isMobile: openContextRef.current.isMobile,
+          reason: "stale_write",
+          resolution,
+        });
         trackEvent("ai_edit_review_applied", {
           project_id: file.project_id,
           file_id: file.id,
-          accepted_edit_count: diffReviewState.pendingEdits.filter(
-            (edit) => edit.status !== "rejected"
-          ).length,
-          rejected_edit_count: diffReviewState.pendingEdits.filter(
-            (edit) => edit.status === "rejected"
-          ).length,
+          accepted_edit_count: acceptedEditCount,
+          rejected_edit_count: rejectedEditCount,
         });
       },
     });
@@ -1499,11 +1506,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setIsCreating(fileType);
 
     // Default titles based on type
-    const defaultTitles: Record<string, string> = {
+    const defaultTitles: Record<EmptyStateFileType, string> = {
       draft: t('editor:fileTree.newDraft'),
       outline: t('editor:fileTree.newOutline'),
       character: t('editor:fileTree.newCharacter'),
       lore: t('editor:fileTree.newLore'),
+      snippet: t('editor:fileTree.newSnippet'),
       script: t('editor:fileTree.newScript'),
     };
 
@@ -1680,7 +1688,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
             {/* Secondary Actions - collapsible */}
             {showMore && (
-              <div className="grid grid-cols-2 gap-3 animate-fade-in" style={{ animationDuration: '200ms' }}>
+              <div className="grid grid-cols-3 gap-3 animate-fade-in" style={{ animationDuration: '200ms' }}>
                 {/* Create Character */}
                 <button
                   type="button"
@@ -1708,6 +1716,21 @@ const EditorComponent: React.FC<EditorProps> = () => {
                   </div>
                   <span className="text-xs font-medium text-[hsl(var(--text-primary))] text-center">
                     {t('editor:fileTree.newLore')}
+                  </span>
+                </button>
+
+                {/* Create Snippet / Material */}
+                <button
+                  type="button"
+                  disabled={isCreating === 'snippet'}
+                  onClick={() => handleCreateFromEmptyState('snippet')}
+                  className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
+                    {isCreating === 'snippet' ? <LoadingSpinner size="sm" color="primary" /> : <FolderOpen className="w-4 h-4 text-[hsl(var(--accent-primary))]" />}
+                  </div>
+                  <span className="text-xs font-medium text-[hsl(var(--text-primary))] text-center">
+                    {t('editor:fileTree.newSnippet')}
                   </span>
                 </button>
               </div>
@@ -1826,10 +1849,10 @@ const EditorComponent: React.FC<EditorProps> = () => {
       serverBaseline: serverBaseline?.fileId === file.id ? serverBaseline : undefined,
       getReviewLeaveDraft,
       isStreaming,
+      isChatStreaming: Boolean(isChatStreaming),
       // AI 正在编辑这份文件时挂起自动保存，避免过期整篇快照覆盖 AI 的改动
       isAiEditing: aiEditingFileId === file.id,
-      onEnterDiffReview: enterNaturalPolishReview,
-      onResolvePolish: resolveNaturalPolish,
+      onNaturalPolish: handleRequestNaturalPolish,
       // Diff review props
       diffReviewState: isInReviewMode ? diffReviewState : null,
       onAcceptEdit: handleAcceptEdit,

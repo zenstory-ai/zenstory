@@ -40,7 +40,7 @@ export const StreamActivityLine: React.FC<{
     }
     stage = writing.words > 0
       ? t("chat:activity.writingBodyWords", { title: writing.title, count: writing.words, words: numberFormat.format(writing.words) })
-      : t("chat:activity.writingBody", { title: writing.title });
+      : t("chat:activity.preparingBody", { title: writing.title });
   }
 
   return (

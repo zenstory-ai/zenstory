@@ -339,7 +339,7 @@ class WriteChapterInput(_ToolInputModel):
 
     chapter: NonBoolInt = Field(
         ge=1,
-        description="章号（剧本是集号），从 1 开始",
+        description="章号（剧本是集号），从 1 开始；调用前先读完大纲/前一章/角色卡，调用后立即输出 <file> 正文",
     )
     title: StrictStr = Field(
         json_schema_extra={"maxLength": 255},

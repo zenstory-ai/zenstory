@@ -264,7 +264,15 @@ class StreamResult:
     # 一半（模型漏写结尾标记是本项目公认的高频故障），调用方据此决定要不要
     # 用它整体覆盖一个原本已有正文的文件（见 StreamAdapter._complete_file_write）。
     auto_completed: bool = False
+    # WAITING_START 阶段尚未看到 <file>，但开头已完整命中泄漏的工具调用协议头
+    # （如 ]<]minimax[>[<tool_call> / <tool_call>）：用于通知上游早停并进入
+    # FILE_BODY_RESUME 纠偏，不再静默缓冲整段直到流结束再丢弃。
+    leaked_tool_call_detected: bool = False
 
+
+# WAITING_START 阶段模型开头吐出泄漏 tool_call 协议头被早停时，MESSAGE_END 的 stop_reason。
+# 不是致命错误：StreamAdapter 清空 WAITING_START 缓冲并保留待写守卫，loop/engine 经 FILE_BODY_RESUME 立即纠偏。
+LEAKED_TOOL_CALL_STOP_REASON = "leaked_tool_call_early_stop"
 
 # 模型把工具调用写成文字时的开头标记（有的模型会多写一个 "<" 或带 MiniMax 分隔符）。只用于识别等正文时悬置的协议残片。
 _TOOL_CALL_MARKERS = (
@@ -273,11 +281,48 @@ _TOOL_CALL_MARKERS = (
     "]<\x5dminimax[>[<tool_call>",
     "]<\x5dminimax[>[tool_call>",
 )
+_WAITING_START_TOOL_CALL_PREFIX_RE = re.compile(
+    r"^(?:\]<\]minimax\[>\[\s*<?\s*tool_call\b[^>\r\n]*>|<\s*<?\s*tool_call\b[^>\r\n]*>)",
+    re.IGNORECASE,
+)
+_LEAKED_TOOL_CALL_PREFIX_MAX_LEN = 64
 _BARE_PROTOCOL_PREFIXES = frozenset({"<", "<<", _MINIMAX_DELIM})
 
 
+def starts_with_leaked_tool_call_marker(text: str) -> bool:
+    """等待 <file> 正文时，text 去掉前导空白后是否以完整的泄漏 tool_call 协议头开头。
+
+    只在尚未打开 <file>、且不在代码围栏/行内代码内时命中：以 ````` 或 ```` ``` ````
+    开头的文本不会命中；未闭合前缀（如 ``<tool`` 或裸 ``]<]minimax[>[``）也不会命中，
+    避免误伤合法的 ``]<]minimax[>[file>`` 起始标记。
+    """
+    stripped = text.lstrip()
+    if not stripped:
+        return False
+    lowered = stripped.lower()
+    if lowered.startswith(_TOOL_CALL_MARKERS):
+        return True
+    return _WAITING_START_TOOL_CALL_PREFIX_RE.match(stripped) is not None
+
+
+def could_be_leaked_tool_call_prefix(text: str) -> bool:
+    """text 去掉前导空白后，是否仍可能随着后续 chunk 补全为泄漏 tool_call 协议头。
+
+    供 runner 在流式增量检查时快速剪枝：首字符一旦确定为普通正文、``<file>`` 或反引号，
+    本条回复的其余 chunk 不再重复扫描。
+    """
+    stripped = text.lstrip()
+    if not stripped:
+        return True
+    if len(stripped) > _LEAKED_TOOL_CALL_PREFIX_MAX_LEN:
+        return False
+    if not stripped.startswith(("<", "]")):
+        return False
+    return FILE_START_PATTERN.match(stripped) is None
+
+
 def _starts_with_tool_call_marker(text: str) -> bool:
-    return text.lstrip().startswith(_TOOL_CALL_MARKERS)
+    return starts_with_leaked_tool_call_marker(text)
 
 
 def _is_bare_protocol_prefix(text: str) -> bool:
@@ -678,6 +723,20 @@ class StreamProcessor:
                 cleaned_before = strip_minimax_tool_leaks(before_marker)
                 result.conversation_content = cleaned_before + result.conversation_content
             return result
+
+        # WAITING_START 尚未出现 <file>，但开头已经完整命中泄漏的 tool_call 协议头：
+        # 立即通知上游早停并走 FILE_BODY_RESUME 纠偏，避免静默缓冲几千到上万字符到 EOF 再整段丢弃。
+        if starts_with_leaked_tool_call_marker(self.temp_buffer):
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Detected leaked tool_call protocol while waiting for <file> marker",
+                project_id=self.project_id,
+                user_id=self.user_id,
+                file_id=self.file_id,
+                buffered_length=len(self.temp_buffer),
+            )
+            return StreamResult(leaked_tool_call_detected=True)
 
         # Check buffer size limit
         if len(self.temp_buffer) > BUFFER_MAX_SIZE:

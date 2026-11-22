@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { QueryClientContext } from "@tanstack/react-query";
-import { Save, Clock, Check, History, Sparkles, Loader2, RotateCcw, X } from "lucide-react";
+import { Save, Clock, Check, History, Sparkles, Loader2 } from "lucide-react";
 import type { FileUpdateVersionIntent } from "../lib/api";
 import { FileVersionHistory } from "./FileVersionHistory";
 import { DiffReviewSplitView } from "./DiffReviewSplitView";
 import { DiffToolbar } from "./DiffToolbar";
+import { EditorStreamingBanner, EditorStreamingCanvasWaiting } from "./EditorStreamingWaiting";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { useTextQuote } from "../contexts/TextQuoteContext";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
@@ -15,12 +16,6 @@ import { SavedAgoLabel } from "./SavedAgoLabel";
 import { countWords } from "../lib/documentChunker";
 import { logger } from "../lib/logger";
 import { toast } from "../lib/toast";
-import {
-  MAX_NATURAL_POLISH_CHARS,
-  preserveSelectionWhitespace,
-  readNaturalPolishRetryableFailure,
-} from "../lib/naturalPolish";
-import { naturalPolishApi } from "../lib/naturalPolishApi";
 import { subscriptionQueryKeys } from "../lib/subscriptionApi";
 import type { QuotaResponse } from "../types/subscription";
 import {
@@ -28,7 +23,7 @@ import {
   createEditorDraftSnapshot,
   writeEditorDraftSnapshot,
 } from "../lib/editorDraftRecovery";
-import { trackEditorSave } from "../lib/editorSaveTracker";
+import { flushOpenEditor, trackEditorSave } from "../lib/editorSaveTracker";
 import { isFileRemoved } from "../lib/fileRemovalEvents";
 
 const isNearBottom = (el: HTMLElement, thresholdPx = 32) => {
@@ -105,6 +100,8 @@ interface SimpleEditorProps {
   getReviewLeaveDraft?: () => { title: string; content: string; baseUpdatedAt?: string } | null;
   readOnly?: boolean;
   isStreaming?: boolean;
+  /** Whether the chat agent is currently running a turn (disables editor-triggered AI actions). */
+  isChatStreaming?: boolean;
   /**
    * AI 正在编辑这份文件（file_edit_start ~ file_edit_end 之间）。
    * 期间必须挂起防抖自动保存：编辑前拍下的整篇快照若在 AI 写完之后才发出，
@@ -117,105 +114,23 @@ interface SimpleEditorProps {
     serverTitle: string;
     serverContent: string;
   };
+  /** Dispatch a structured ui_action="natural_polish" turn to the chat agent (after flushing dirty edits). */
+  onNaturalPolish?: (params: {
+    projectId: string;
+    fileId: string;
+    fileType?: string;
+    fileTitle?: string;
+    selectedText?: string;
+  }) => void;
   // Diff review props
   diffReviewState?: DiffReviewState | null;
-  onEnterDiffReview?: (fileId: string, originalContent: string, newContent: string) => void;
   onAcceptEdit?: (editId: string) => void;
   onRejectEdit?: (editId: string) => void;
   onResetEdit?: (editId: string) => void;
   onAcceptAllEdits?: () => void;
   onRejectAllEdits?: () => void;
   onFinishReview?: () => void;
-  /** Resolve a generated natural-polish candidate without paragraph-by-paragraph review. */
-  onResolvePolish?: (decision: 'accept' | 'discard') => void | Promise<void>;
 }
-
-const NaturalPolishCandidate = ({
-  originalContent,
-  modifiedContent,
-  onResolve,
-}: {
-  originalContent: string;
-  modifiedContent: string;
-  onResolve: (decision: 'accept' | 'discard') => void | Promise<void>;
-}) => {
-  const { t } = useTranslation(['editor']);
-  const [showOriginal, setShowOriginal] = useState(false);
-  const [isResolving, setIsResolving] = useState(false);
-  const resolvingRef = useRef(false);
-
-  const resolveCandidate = async (decision: 'accept' | 'discard') => {
-    if (resolvingRef.current) return;
-    resolvingRef.current = true;
-    setIsResolving(true);
-    try {
-      await onResolve(decision);
-    } catch (error) {
-      logger.error('Failed to resolve natural-polish candidate:', error);
-    } finally {
-      resolvingRef.current = false;
-      setIsResolving(false);
-    }
-  };
-
-  return (
-    <section
-      role="region"
-      aria-label={t('editor:naturalPolishCandidate')}
-      className="flex min-h-0 flex-1 flex-col bg-[hsl(var(--bg-primary))]"
-    >
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[hsl(var(--border-color))] px-4 py-3 sm:px-6">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-[hsl(var(--text-primary))]">
-            {t('editor:naturalPolishCandidate')}
-          </p>
-          <p className="mt-0.5 text-xs text-[hsl(var(--text-secondary))]">
-            {t('editor:naturalPolishCandidateHint')}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="btn-secondary min-h-11 shrink-0 px-3 text-sm"
-          onClick={() => setShowOriginal((value) => !value)}
-          aria-pressed={showOriginal}
-          disabled={isResolving}
-        >
-          {t(showOriginal ? 'editor:naturalPolishShowCandidate' : 'editor:naturalPolishShowOriginal')}
-        </button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto px-4 py-4 sm:px-6">
-        <p className="mb-2 text-xs font-medium text-[hsl(var(--text-secondary))]">
-          {t(showOriginal ? 'editor:naturalPolishOriginalLabel' : 'editor:naturalPolishCandidateLabel')}
-        </p>
-        <pre className="m-0 whitespace-pre-wrap break-words font-[family-name:var(--font-body)] text-base leading-relaxed text-[hsl(var(--text-primary))]">
-          {showOriginal ? originalContent : modifiedContent}
-        </pre>
-      </div>
-
-      <div className="flex shrink-0 flex-wrap-reverse justify-end gap-2 border-t border-[hsl(var(--border-color))] px-4 py-3 sm:px-6">
-        <button
-          type="button"
-          className="btn-secondary min-h-11 px-4 text-sm"
-          onClick={() => void resolveCandidate('discard')}
-          disabled={isResolving}
-        >
-          <X size={16} aria-hidden="true" />
-          {t('editor:naturalPolishDiscard')}
-        </button>
-        <button
-          type="button"
-          className="btn-primary min-h-11 px-4 text-sm"
-          onClick={() => void resolveCandidate('accept')}
-          disabled={isResolving}
-        >
-          {isResolving ? <Loader2 size={16} aria-hidden="true" className="animate-spin" /> : <Check size={16} aria-hidden="true" />}
-          {t('editor:naturalPolishAccept')}
-        </button>
-      </div>
-    </section>
-  );
-};
 
 export const SimpleEditor = ({
   emptyHint,
@@ -238,18 +153,18 @@ export const SimpleEditor = ({
   getReviewLeaveDraft,
   readOnly = false,
   isStreaming = false,
+  isChatStreaming = false,
   isAiEditing = false,
   recoveredDraft,
+  onNaturalPolish,
   // Diff review props
   diffReviewState,
-  onEnterDiffReview,
   onAcceptEdit,
   onRejectEdit,
   onResetEdit,
   onAcceptAllEdits,
   onRejectAllEdits,
   onFinishReview,
-  onResolvePolish,
 }: SimpleEditorProps) => {
   const displayContent = isStreaming ? streamingContent ?? content : content;
   const { t } = useTranslation(['editor', 'versions']);
@@ -330,21 +245,9 @@ export const SimpleEditor = ({
   const suppressRecoveredAutoSaveRef = useRef(false);
   const appliedRecoveryRef = useRef<string | null>(null);
 
-  // Natural polish (de-AI tone) state
-  const [isNaturalPolishRunning, setIsNaturalPolishRunning] = useState(false);
-  const naturalPolishRunIdRef = useRef(0);
-  const naturalPolishAbortRef = useRef<AbortController | null>(null);
-  // 去AI味这一次没能用上（模型回复对不回选区、或模型没响应）：留一条提示，作者手动点「再试一次」。
-  // 记住失败时的选区和正文，正文没变就按原选区重试。存文案 key，切换界面语言时提示跟着变。
-  const [naturalPolishRetry, setNaturalPolishRetry] = useState<{
-    messageKey: string;
-    start: number;
-    end: number;
-    content: string;
-  } | null>(null);
-  useEffect(() => {
-    setNaturalPolishRetry(null);
-  }, [fileId]);
+  // Re-entrancy guard while flushing unsaved edits before dispatching ui_action="natural_polish".
+  const [isFlushingNaturalPolish, setIsFlushingNaturalPolish] = useState(false);
+  const flushingNaturalPolishRef = useRef(false);
 
   latestContentRef.current = content;
   latestTitleRef.current = title;
@@ -490,9 +393,6 @@ export const SimpleEditor = ({
 
   // Check if in diff review mode
   const isReviewMode = diffReviewState?.isReviewing && diffReviewState.fileId === fileId;
-  const isPolishCandidate = Boolean(
-    isReviewMode && diffReviewState?.origin === 'polish' && onResolvePolish,
-  );
   const isReviewModeRef = useRef(false);
   isReviewModeRef.current = Boolean(isReviewMode);
 
@@ -543,13 +443,8 @@ export const SimpleEditor = ({
     }
 
     // This editor instance is often reused across file switches, so we must
-    // clear selection and abort any in-flight natural polish requests.
+    // clear selection state when switching files.
     clearSelectionState();
-
-    naturalPolishRunIdRef.current += 1;
-    naturalPolishAbortRef.current?.abort();
-    naturalPolishAbortRef.current = null;
-    setIsNaturalPolishRunning(false);
   }, [fileId, adjustTextareaHeight, clearSelectionState]);
 
   useEffect(() => {
@@ -735,156 +630,95 @@ export const SimpleEditor = ({
 
   // Mobile keeps every panel mounted (hidden with inert), so a selection made before
   // switching to 文件 / AI would otherwise survive unseen and be what 去AI味 polishes.
-  const { isMobile, activePanel } = useMobileLayout();
+  const { isMobile, activePanel, switchToChat } = useMobileLayout();
   useEffect(() => {
     if (isMobile && activePanel !== "editor") dropSelection();
   }, [isMobile, activePanel, dropSelection]);
 
+  const isNaturalPolishBusy = isStreaming || isChatStreaming || isAiEditing || isFlushingNaturalPolish;
+  const hasPolishableContent = Boolean(displayContent.trim());
+
   const startNaturalPolish = useCallback(async () => {
-    if (isNaturalPolishRunning) return;
+    if (flushingNaturalPolishRef.current || isNaturalPolishBusy || readOnly || isReviewModeRef.current) {
+      return;
+    }
     if (!projectId || !fileId) {
-      toast.error(
-        t("editor:naturalPolishMissingContext"),
-      );
+      toast.error(t("editor:naturalPolishMissingContext"));
       return;
     }
 
     const textarea = textareaRef.current;
-    if (!textarea) return;
+    const currentText = textarea?.value ?? latestContentRef.current;
+    if (!currentText.trim()) {
+      return;
+    }
 
     const range = selectionRangeRef.current;
-    if (!range || range.start === range.end) {
-      toast.info(t("editor:naturalPolishNoSelection"));
-      return;
+    let selection: string | undefined;
+    if (range && range.start !== range.end && textarea) {
+      const rawSelection = textarea.value.substring(range.start, range.end);
+      if (rawSelection.trim()) {
+        selection = rawSelection;
+      }
     }
 
-    const { start, end } = range;
-    const selection = textarea.value.substring(start, end);
-    if (!selection.trim()) {
-      toast.info(t("editor:naturalPolishNoSelection"));
-      return;
-    }
-
-    if (selection.length > MAX_NATURAL_POLISH_CHARS) {
-      toast.info(t("editor:naturalPolishTooLong"));
-      return;
-    }
-
-    const baselineContent = textarea.value;
-    setNaturalPolishRetry(null);
-    const runId = naturalPolishRunIdRef.current + 1;
-    naturalPolishRunIdRef.current = runId;
-
-    // Cancel any previous in-flight request (defensive)
-    naturalPolishAbortRef.current?.abort();
-
-    setIsNaturalPolishRunning(true);
-    const controller = new AbortController();
-    naturalPolishAbortRef.current = controller;
-
-    // 去AI味会预扣一条 AI 消息，没改动或失败时服务端再退还；
-    // 无论结果如何，结束后都让额度胶囊重新拉一次，显示真实用量。
-    const refreshAiQuota = () => {
-      void queryClient?.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
-    };
-
+    flushingNaturalPolishRef.current = true;
+    setIsFlushingNaturalPolish(true);
     try {
-      const { text: rewrittenRaw, unchanged } = await naturalPolishApi.naturalPolish(
-        {
-          projectId,
-          fileId,
-          fileType,
-          selectedText: selection,
-        },
-        { signal: controller.signal },
-      );
-      refreshAiQuota();
-
-      if (naturalPolishRunIdRef.current !== runId) return;
-      setIsNaturalPolishRunning(false);
-      naturalPolishAbortRef.current = null;
-
-      if (latestFileIdRef.current !== fileId) {
-        // File switched while request was in flight; ignore this result.
-        return;
-      }
-
-      if (unchanged) {
-        // 服务端判定没有实质改动并已退还额度：不进审阅，原文一个字节都不动。
-        toast.info(t("editor:naturalPolishNoChange"));
-        return;
-      }
-
-      const rewrittenCore = rewrittenRaw.trim();
-      if (!rewrittenCore) {
-        toast.error(t("editor:naturalPolishEmpty"));
-        return;
-      }
-
-      const replacement = preserveSelectionWhitespace(selection, rewrittenCore);
-      const modifiedContent =
-        baselineContent.slice(0, start) +
-        replacement +
-        baselineContent.slice(end);
-
-      onEnterDiffReview?.(fileId, baselineContent, modifiedContent);
-    } catch (error) {
-      refreshAiQuota();
-      // Abort is user-intentional (or file-switch cleanup); keep silent.
-      if (controller.signal.aborted) {
-        if (naturalPolishRunIdRef.current === runId) {
-          setIsNaturalPolishRunning(false);
-          naturalPolishAbortRef.current = null;
-        }
-        return;
-      }
-
-      if (naturalPolishRunIdRef.current !== runId) return;
-      setIsNaturalPolishRunning(false);
-      naturalPolishAbortRef.current = null;
-      if (latestFileIdRef.current === fileId) {
-        const retryable = readNaturalPolishRetryableFailure(error);
-        if (retryable) {
-          const messageKey =
-            retryable.kind === "provider"
-              ? retryable.quotaRefunded
-                ? "editor:naturalPolishProviderFailedRefunded"
-                : "editor:naturalPolishProviderFailed"
-              : retryable.quotaRefunded
-                ? "editor:naturalPolishUnusableRefunded"
-                : "editor:naturalPolishUnusable";
-          setNaturalPolishRetry({ messageKey, start, end, content: baselineContent });
+      // Mandatory dirty-draft flush BEFORE starting /api/v1/agent/stream so the
+      // agent never edits stale DB content or triggers aiEditedWhileDirty.
+      const pendingFlush = flushOpenEditor(5000);
+      if (pendingFlush) {
+        const result = await pendingFlush;
+        if (!result.saved) {
+          if (result.outcome !== "conflict") {
+            toast.error(t("editor:naturalPolishSaveFailed"));
+          }
           return;
         }
-        const errorMessage =
-          error instanceof Error && error.message.trim()
-            ? error.message
-            : t("editor:naturalPolishFailed");
-        toast.error(errorMessage);
+      } else if (dirtyRef.current || suppressRecoveredAutoSaveRef.current) {
+        const outcome: SaveOutcome = suppressRecoveredAutoSaveRef.current
+          ? "failed"
+          : await handleSaveRef.current();
+        if (outcome !== "saved") {
+          if (outcome !== "conflict") {
+            toast.error(t("editor:naturalPolishSaveFailed"));
+          }
+          return;
+        }
+      }
+
+      if (latestFileIdRef.current !== fileId) {
+        return;
+      }
+
+      dropSelection();
+      onNaturalPolish?.({
+        projectId,
+        fileId,
+        fileType,
+        fileTitle: fileTitle || latestTitleRef.current,
+        selectedText: selection,
+      });
+      switchToChat();
+    } finally {
+      flushingNaturalPolishRef.current = false;
+      if (isMountedRef.current) {
+        setIsFlushingNaturalPolish(false);
       }
     }
   }, [
-    isNaturalPolishRunning,
+    isNaturalPolishBusy,
+    readOnly,
     projectId,
     fileId,
     fileType,
+    fileTitle,
     t,
-    onEnterDiffReview,
-    queryClient,
+    dropSelection,
+    onNaturalPolish,
+    switchToChat,
   ]);
-
-  const retryNaturalPolish = useCallback(() => {
-    const failed = naturalPolishRetry;
-    setNaturalPolishRetry(null);
-    const textarea = textareaRef.current;
-    if (failed && textarea && textarea.value === failed.content) {
-      // 正文没动过：按失败时的选区再试一次。正文改过就用当前选区（没有就提示先选中）。
-      selectionRangeRef.current = { start: failed.start, end: failed.end };
-      setSelectedText(textarea.value.substring(failed.start, failed.end).trim());
-      textarea.setSelectionRange(failed.start, failed.end);
-    }
-    void startNaturalPolish();
-  }, [naturalPolishRetry, startNaturalPolish]);
 
   // Cleanup selection timeout
   useEffect(() => {
@@ -892,13 +726,6 @@ export const SimpleEditor = ({
       if (selectionTimeoutRef.current) {
         clearTimeout(selectionTimeoutRef.current);
       }
-    };
-  }, []);
-
-  // Abort in-flight natural polish request when unmounting
-  useEffect(() => {
-    return () => {
-      naturalPolishAbortRef.current?.abort();
     };
   }, []);
 
@@ -925,7 +752,6 @@ export const SimpleEditor = ({
       saveTimeoutRef.current = null;
     }
     if (!isDirty || showVersionHistory) return;
-    if (isNaturalPolishRunning) return;
     if (suppressRecoveredAutoSaveRef.current) return;
     // AI 正在改这份文件：先不排自动保存。标记清除后本 effect 会重新跑，
     // 届时再按新的基线保存，用户的本地改动不会丢。
@@ -950,12 +776,12 @@ export const SimpleEditor = ({
         saveTimeoutRef.current = null;
       }
     };
-  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing, isStreaming, showVersionHistory, isReviewMode, autosaveNudge]);
+  }, [isDirty, title, content, isAiEditing, isStreaming, showVersionHistory, isReviewMode, autosaveNudge]);
 
   // Handle save
   const handleSave = async (providedSubmission?: SaveSubmission): Promise<SaveOutcome> => {
     if (isFileRemoved(draftScopeRef.current.projectId, providedSubmission?.fileId ?? draftRef.current.fileId)) return "failed";
-    if ((!dirtyRef.current && !providedSubmission) || isNaturalPolishRunning || isAiEditing || showVersionHistory) {
+    if ((!dirtyRef.current && !providedSubmission) || isAiEditing || showVersionHistory) {
       return "failed";
     }
 
@@ -1107,9 +933,6 @@ export const SimpleEditor = ({
     // Diff review mode shortcuts
     // In review mode, we should not start new natural polish requests.
     if (isReviewMode) {
-      // Natural polish is one complete candidate. Only its explicit buttons resolve it;
-      // ordinary Enter/Space scrolling must not inherit paragraph-review shortcuts.
-      if (isPolishCandidate) return;
       // Shift+Y: Accept all
       if (e.shiftKey && (e.key === 'y' || e.key === 'Y')) {
         e.preventDefault();
@@ -1155,10 +978,10 @@ export const SimpleEditor = ({
       return;
     }
 
-    // Cmd/Ctrl + Shift + R: Natural polish selection
+    // Cmd/Ctrl + Shift + R: Natural polish selection or whole open chapter via Agent
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'r' || e.key === 'R')) {
       e.preventDefault();
-      startNaturalPolish();
+      void startNaturalPolish();
       return;
     }
   };
@@ -1220,7 +1043,7 @@ export const SimpleEditor = ({
   return (
     <div className="relative flex flex-col h-full bg-[hsl(var(--bg-primary))]" onKeyDown={handleKeyDown}>
       {/* Diff Review Toolbar - shown when in review mode */}
-      {isReviewMode && !isPolishCandidate && diffReviewState && onAcceptAllEdits && onRejectAllEdits && onFinishReview && (
+      {isReviewMode && diffReviewState && onAcceptAllEdits && onRejectAllEdits && onFinishReview && (
         <DiffToolbar
           pendingEdits={diffReviewState.pendingEdits}
           onAcceptAll={onAcceptAllEdits}
@@ -1231,10 +1054,7 @@ export const SimpleEditor = ({
 
       {/* Streaming indicator banner */}
       {isStreaming && !isReviewMode && (
-        <div className="shrink-0 bg-[hsl(var(--accent-primary)/0.08)] px-4 sm:px-6 py-2.5 flex items-center gap-2.5 border-b border-[hsl(var(--accent-primary)/0.2)]">
-          <Loader2 size={16} className="shrink-0 animate-spin text-[hsl(var(--accent-primary))]" aria-hidden="true" />
-          <span className="text-sm text-[hsl(var(--accent-primary))] font-medium">{t('editor:aiWriting')}</span>
-        </div>
+        <EditorStreamingBanner isWaitingForFirstToken={!displayContent} title={title} />
       )}
       
       {/* Title bar */}
@@ -1249,7 +1069,7 @@ export const SimpleEditor = ({
           type="text"
           value={title}
           onChange={handleTitleChange}
-          disabled={readOnly || isStreaming || isReviewMode || isNaturalPolishRunning}
+          disabled={readOnly || isStreaming || isReviewMode}
           placeholder={t('editor:placeholder.titlePlaceholder')}
           className={`w-full bg-transparent font-[family-name:var(--font-display)] font-bold text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none ${
             isReviewMode ? 'text-[1.7rem] leading-tight' : 'text-xl'
@@ -1258,13 +1078,7 @@ export const SimpleEditor = ({
       </div>
 
       {/* Content area - switch between normal editor and diff review */}
-      {isPolishCandidate && diffReviewState && onResolvePolish ? (
-        <NaturalPolishCandidate
-          originalContent={diffReviewState.originalContent}
-          modifiedContent={diffReviewState.modifiedContent}
-          onResolve={onResolvePolish}
-        />
-      ) : isReviewMode && diffReviewState && onAcceptEdit && onRejectEdit && onResetEdit ? (
+      {isReviewMode && diffReviewState && onAcceptEdit && onRejectEdit && onResetEdit ? (
         <DiffReviewSplitView
           originalContent={diffReviewState.originalContent}
           modifiedContent={diffReviewState.modifiedContent}
@@ -1300,11 +1114,15 @@ export const SimpleEditor = ({
                   // Resize after IME commits the final text.
                   requestAnimationFrame(() => adjustTextareaHeight());
                 }}
-                disabled={readOnly || isStreaming || isNaturalPolishRunning}
-                placeholder={t('editor:placeholder.contentPlaceholder')}
+                disabled={readOnly || isStreaming}
+                placeholder={isStreaming && !displayContent ? '' : t('editor:placeholder.contentPlaceholder')}
                 className={`editor-content font-[family-name:var(--font-body)] w-full overflow-y-hidden bg-transparent text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none resize-none leading-relaxed text-base ${isStreaming ? 'cursor-default' : ''}`}
                 style={{ minHeight: `${SIMPLE_EDITOR_MIN_HEIGHT_PX}px`, fontSize: `${zoom}em` }}
               />
+              {/* Calm editorial waiting state before the first streamed character arrives */}
+              {isStreaming && !displayContent && (
+                <EditorStreamingCanvasWaiting title={title} />
+              )}
               {/* Mirror div for calculating selection position */}
               <div ref={mirrorRef} aria-hidden="true" />
               {/* Typing cursor for streaming */}
@@ -1317,41 +1135,6 @@ export const SimpleEditor = ({
       )}
 
       {/* Status bar - hide during review mode */}
-      {!isReviewMode && naturalPolishRetry && (
-        <div
-          role="alert"
-          data-testid="natural-polish-retry"
-          className="shrink-0 mx-4 sm:mx-6 mb-1 flex flex-wrap items-center gap-2 rounded-lg border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.1)] px-3 py-2 text-xs"
-        >
-          <p className="min-w-0 flex-1 text-[hsl(var(--warning-text))]">{t(naturalPolishRetry.messageKey)}</p>
-          <button
-            type="button"
-            onClick={retryNaturalPolish}
-            disabled={!projectId || readOnly || isStreaming || isNaturalPolishRunning}
-            title={isLimitedAiQuota ? t("editor:naturalPolishTooltipFree") : undefined}
-            className="max-md:min-h-11 px-2 py-1.5 rounded-lg flex items-center gap-1 text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RotateCcw size={14} />
-            {t("editor:naturalPolishRetry")}
-            {/* A retry reserves a new AI message, even right after the notice says the last one came back. */}
-            {isLimitedAiQuota && (
-              <span className="text-[10px] text-[hsl(var(--text-secondary))]">
-                {t("editor:naturalPolishCost")}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setNaturalPolishRetry(null)}
-            aria-label={t("editor:naturalPolishDismiss")}
-            title={t("editor:naturalPolishDismiss")}
-            className="max-md:min-h-11 max-md:min-w-11 p-1.5 rounded-lg flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
       {!isReviewMode && (
         <div className="shrink-0 px-4 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))]">
           <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-secondary))]">
@@ -1397,41 +1180,44 @@ export const SimpleEditor = ({
               </button>
             )}
 
-            {/* Natural polish (selected text) */}
+            {/* Natural polish (selection when highlighted, otherwise full open chapter via Agent) */}
             {fileId && (
               <button
                 type="button"
-                onClick={startNaturalPolish}
-                // No selection yet: stays pressable (dimmed) so a tap says why — the
-                // hover title alone never reaches touch screens.
+                onClick={() => void startNaturalPolish()}
                 disabled={
                   !projectId ||
                   readOnly ||
-                  isStreaming ||
-                  isNaturalPolishRunning
+                  isNaturalPolishBusy ||
+                  !hasPolishableContent
                 }
-                aria-disabled={!selectedText || undefined}
-                className="max-md:min-h-11 px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent aria-disabled:opacity-50"
+                className="max-md:min-h-11 px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 title={
                   !projectId
                     ? t("editor:naturalPolishMissingContext")
-                    : !selectedText
-                      ? t("editor:naturalPolishNoSelection")
-                      : isLimitedAiQuota
-                        ? t("editor:naturalPolishTooltipFree")
-                        : t("editor:naturalPolishTooltip")
+                    : !hasPolishableContent
+                      ? t("editor:naturalPolishEmptyContent")
+                      : selectedText
+                        ? isLimitedAiQuota
+                          ? t("editor:naturalPolishTooltipSelectionFree")
+                          : t("editor:naturalPolishTooltipSelection")
+                        : isLimitedAiQuota
+                          ? t("editor:naturalPolishTooltipFree")
+                          : t("editor:naturalPolishTooltip")
                 }
               >
-                {isNaturalPolishRunning ? (
+                {isFlushingNaturalPolish ? (
                   <Loader2 size={14} className="animate-spin" />
                 ) : (
                   <Sparkles size={14} />
                 )}
-                {isNaturalPolishRunning
+                {isFlushingNaturalPolish
                   ? t("editor:naturalPolishWorking")
-                  : t("editor:naturalPolish")}
+                  : selectedText
+                    ? t("editor:naturalPolishSelection")
+                    : t("editor:naturalPolish")}
                 {/* The cost is visible before the click; the hover title alone is easy to miss. */}
-                {isLimitedAiQuota && !isNaturalPolishRunning && (
+                {isLimitedAiQuota && !isFlushingNaturalPolish && (
                   <span className="text-[10px] text-[hsl(var(--text-secondary))]">
                     {t("editor:naturalPolishCost")}
                   </span>
@@ -1458,7 +1244,7 @@ export const SimpleEditor = ({
             <button
               type="button"
               onClick={() => void handleSave()}
-              disabled={isSaving || !isDirty || readOnly || isStreaming || isNaturalPolishRunning}
+              disabled={isSaving || !isDirty || readOnly || isStreaming}
               className="max-md:min-h-11 px-3 py-1.5 text-xs bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
             >
               <Save size={14} />

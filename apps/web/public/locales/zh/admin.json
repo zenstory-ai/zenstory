@@ -11,6 +11,7 @@
     "title": "管理后台",
     "overview": "概览",
     "dashboard": "仪表盘",
+    "uxHealth": "体验健康",
     "acquisition": "注册来源",
     "users": "用户",
     "usage": "用量与成本",
@@ -319,7 +320,42 @@
     "statusUpdateFailed": "状态更新失败，请重试",
     "screenshotLoadFailed": "截图加载失败，请重试",
     "screenshotPreviewTitle": "反馈截图预览",
-    "screenshotPreviewAlt": "反馈截图"
+    "screenshotPreviewAlt": "反馈截图",
+    "tabs": {
+      "label": "反馈类型",
+      "tickets": "工单反馈",
+      "chatVotes": "对话反馈"
+    },
+    "chatVotes": {
+      "voteFilterLabel": "评价筛选",
+      "filterAll": "全部评价",
+      "filterUp": "仅点赞",
+      "filterDown": "仅点踩",
+      "totalVotes": "评价总数",
+      "upRate": "好评率",
+      "upCount": "点赞",
+      "downCount": "点踩",
+      "topPresets": "高频点踩原因",
+      "empty": "本期暂无对话评价记录",
+      "voteUp": "点赞",
+      "voteDown": "点踩",
+      "presetPrefix": "原因：",
+      "tableLabel": "对话评价列表",
+      "columns": {
+        "vote": "评价",
+        "preset": "原因标签",
+        "comment": "补充说明"
+      },
+      "presets": {
+        "not_helpful": "帮助不大",
+        "inaccurate": "内容不准确",
+        "off_topic": "偏离需求",
+        "too_slow": "响应太慢",
+        "style_mismatch": "文风不符",
+        "repetition": "内容重复",
+        "other": "其他"
+      }
+    }
   },
   "auditLogs": {
     "title": "审计日志",
@@ -698,5 +734,71 @@
       "unknown": "未记录"
     },
     "countWithRate": "{{count}}（{{rate}}%）"
+  },
+  "uxHealth": {
+    "title": "体验健康",
+    "period": "北京时间 · 截至 {{end}}，今日数据未完结",
+    "priorWithDelta": "上期 {{prior}}（{{delta}}）",
+    "priorOnly": "上期 {{prior}}",
+    "minutesValue": "{{value}} 分钟",
+    "chaptersValue": "{{count}} 章",
+    "wordsShort": "{{value}} 字",
+    "cards": {
+      "ttft": "供应商首字延迟 (p50 / p95)",
+      "ttftDetail": "首字 ≥10s 慢尾 {{ttftSlow}} · 总耗时 ≥10s {{durSlow}}",
+      "cacheHit": "Prompt 缓存命中率",
+      "cacheDetail": "命中 {{hit}} / 输入 {{total}}",
+      "healthyRounds": "健康轮次完成率",
+      "healthyDetail": "健康 {{healthy}} / 总轮次 {{total}}",
+      "userStopped": "中途主动停止率",
+      "stopDetail": "主动停止 {{stopped}} · 断线 {{disconnected}} ({{disconnectedRate}})",
+      "editUndo": "AI 修改撤销率",
+      "undoRestoreDetail": "修改撤销 {{undone}}/{{edits}} · 删除恢复 {{restored}}/{{deletes}} ({{restoreRate}})",
+      "thumbsUp": "对话好评率",
+      "thumbsDetail": "点赞 {{up}} / 点踩 {{down}}（共 {{total}} 票）",
+      "ttfv": "首次价值耗时 (TTFV p50)",
+      "retentionDetail": "次周写作留存 {{rate}} ({{returned}}/{{eligible}})",
+      "output": "成稿章节产出",
+      "outputDetail": "净增 {{words}} 字 · 移动端 {{mobile}} / 桌面端 {{desktop}}"
+    },
+    "abnormalStops": {
+      "title": "异常终止分布",
+      "summary": "共 {{count}} 轮（{{rate}}）",
+      "empty": "本期无异常终止轮次"
+    },
+    "dislikePresets": {
+      "title": "高频点踩原因",
+      "viewAll": "前往对话反馈",
+      "empty": "本期暂无带标签的点踩反馈"
+    },
+    "daily": {
+      "title": "每日趋势",
+      "date": "日期",
+      "rounds": "轮次",
+      "healthyRate": "健康完成率",
+      "undoRate": "修改撤销率",
+      "ttftP95": "首字 p95",
+      "thumbsUpRate": "好评率"
+    },
+    "stopReasons": {
+      "run_deadline_exceeded": "单轮时限截停",
+      "tool_failure_circuit_open": "工具失败熔断",
+      "terminal_model_failure": "上游模型不可用",
+      "upstream_model_error": "上游模型错误",
+      "max_turns_exceeded": "达到步数上限",
+      "repetition_loop": "重复输出截停",
+      "runaway_stop": "失控保护截停",
+      "unexecuted_tool_text": "未执行工具文本",
+      "unwritten_files": "新建文件未写入",
+      "cancelled": "已取消",
+      "unknown": "未记录原因"
+    },
+    "methodology": {
+      "scope": "仅统计非管理员客户，排除历史回填记录；时间窗口按北京时间自然日划分，与上一等长时段（含同等当日进度）比较。",
+      "speed": "供应商首字延迟（TTFT）与 ≥10s 慢尾率按成功流式调用计算，总耗时 ≥10s 慢尾按全部成功调用计算；Prompt 缓存命中率按输入 tokens 加权。",
+      "quality": "健康轮次指 stop_reason 为 end_turn 且无未执行工具文本、未落盘空文件或失控截停；主动停止（user_stopped）与客户端断线（client_disconnected）分开统计。",
+      "undo": "修改撤销率与删除恢复率来自助手消息工具卡的实际回写状态，对话好评率按消息产生时间窗口统计。",
+      "value": "TTFV 为本期新注册用户到首次 AI 写稿或首次保存文件的中位分钟数；次周写作留存比较前 7 天与近 7 天活跃写作者；成稿产出统计未删除草稿与剧本相对期前版本的净增字数；设备占比取自激活事件中的 is_mobile 字段。"
+    }
   }
 }

@@ -298,6 +298,43 @@ export interface AdminFeedbackListResponse {
   total: number;
 }
 
+export type ChatVoteFilter = "all" | "up" | "down";
+
+export interface ChatVotePresetCount {
+  preset: string;
+  count: number;
+}
+
+export interface ChatVoteSummary {
+  up: number;
+  down: number;
+  total_votes: number;
+  up_rate: number | null;
+  preset_counts: ChatVotePresetCount[];
+}
+
+export interface ChatVoteItem {
+  message_id: string;
+  user_id: string;
+  username: string;
+  vote: "up" | "down";
+  preset: string | null;
+  comment: string | null;
+  created_at: string;
+}
+
+export interface ChatVotesListResponse {
+  days: 7 | 14 | 30;
+  timezone: string;
+  period_start: string;
+  period_end: string;
+  summary: ChatVoteSummary;
+  items: ChatVoteItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 // ==================== Points Management ====================
 
 /**
@@ -509,6 +546,96 @@ export interface GrowthDashboard {
   current: { period_start: string; period_end: string; metrics: GrowthMetrics };
   previous: { period_start: string; period_end: string; metrics: GrowthMetrics };
   daily: Array<GrowthMetrics & { date: string }>;
+  definitions: Record<string, string>;
+}
+
+export interface UxAbnormalStop {
+  reason: string;
+  count: number;
+  rate: number | null;
+}
+
+export interface UxHealthMetrics {
+  ttft_p50_ms: number | null;
+  ttft_p95_ms: number | null;
+  ttft_samples: number;
+  ttft_slow_tail_count: number;
+  ttft_slow_tail_rate: number | null;
+  duration_samples: number;
+  duration_slow_tail_count: number;
+  duration_slow_tail_rate: number | null;
+  cache_hit_tokens: number;
+  cache_miss_tokens: number;
+  prompt_cache_hit_rate: number | null;
+  total_rounds: number;
+  healthy_rounds: number;
+  healthy_round_rate: number | null;
+  user_stopped_rounds: number;
+  user_stopped_rate: number | null;
+  client_disconnected_rounds: number;
+  client_disconnected_rate: number | null;
+  abnormal_stop_rounds: number;
+  abnormal_stop_rate: number | null;
+  abnormal_stops: UxAbnormalStop[];
+  ai_edit_cards: number;
+  ai_edit_undone: number;
+  ai_edit_undo_rate: number | null;
+  ai_delete_cards: number;
+  ai_delete_restored: number;
+  ai_delete_restore_rate: number | null;
+  feedback_up: number;
+  feedback_down: number;
+  feedback_total: number;
+  thumbs_up_rate: number | null;
+  top_dislike_presets: ChatVotePresetCount[];
+  ttfv_p50_minutes: number | null;
+  ttfv_samples: number;
+  w1_returning_writers: number;
+  w1_eligible_writers: number;
+  w1_retention_rate: number | null;
+  chapters_written: number;
+  net_words_written: number;
+  mobile_users: number;
+  desktop_users: number;
+  mobile_share: number | null;
+}
+
+export interface UxHealthDelta {
+  ttft_p50_ms: number | null;
+  ttft_p95_ms: number | null;
+  ttft_slow_tail_rate: number | null;
+  duration_slow_tail_rate: number | null;
+  prompt_cache_hit_rate: number | null;
+  healthy_round_rate: number | null;
+  user_stopped_rate: number | null;
+  client_disconnected_rate: number | null;
+  abnormal_stop_rate: number | null;
+  ai_edit_undo_rate: number | null;
+  ai_delete_restore_rate: number | null;
+  thumbs_up_rate: number | null;
+  ttfv_p50_minutes: number | null;
+  w1_retention_rate: number | null;
+  chapters_written: number | null;
+  net_words_written: number | null;
+  mobile_share: number | null;
+}
+
+export interface UxHealthDailyRow {
+  date: string;
+  rounds: number;
+  healthy_rate: number | null;
+  undo_rate: number | null;
+  ttft_p95_ms: number | null;
+  thumbs_up_rate: number | null;
+}
+
+export interface UxHealthDashboard {
+  days: 7 | 14 | 30;
+  timezone: string;
+  current: { period_start: string; period_end: string; metrics: UxHealthMetrics };
+  previous: { period_start: string; period_end: string; metrics: UxHealthMetrics };
+  delta: UxHealthDelta;
+  daily: UxHealthDailyRow[];
   definitions: Record<string, string>;
 }
 
