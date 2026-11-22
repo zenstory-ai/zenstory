@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import threading
 from collections.abc import Iterator
 from datetime import datetime
 from typing import Any, Literal
@@ -409,7 +410,41 @@ def _load_file_for_write(session: Session, file_id: str) -> File | None:
     return load_file_for_write(session, file_id)
 
 
-def _assert_not_stale_write(file: File, base_updated_at: datetime | None) -> None:
+_stale_write_conflict_lock = threading.Lock()
+_stale_write_conflict_counts: dict[str, int] = {}
+
+
+def _record_stale_write_conflict(change_type: str) -> int:
+    """Increment process-wide 409 stale_write counters and return the total."""
+    with _stale_write_conflict_lock:
+        _stale_write_conflict_counts[change_type] = (
+            _stale_write_conflict_counts.get(change_type, 0) + 1
+        )
+        return sum(_stale_write_conflict_counts.values())
+
+
+def get_stale_write_conflict_metrics() -> dict[str, Any]:
+    """Return a snapshot of process-wide 409 stale_write counts."""
+    with _stale_write_conflict_lock:
+        by_change_type = dict(_stale_write_conflict_counts)
+    return {
+        "total": sum(by_change_type.values()),
+        "by_change_type": by_change_type,
+    }
+
+
+def reset_stale_write_conflict_metrics() -> None:
+    """Reset in-memory 409 stale_write conflict counters (for tests)."""
+    with _stale_write_conflict_lock:
+        _stale_write_conflict_counts.clear()
+
+
+def _assert_not_stale_write(
+    file: File,
+    base_updated_at: datetime | None,
+    *,
+    change_type: str = CHANGE_TYPE_EDIT,
+) -> None:
     """
     乐观并发校验：客户端提交的是「整篇正文快照」，纯加锁挡不住丢更新——
     锁只保证串行，陈旧快照照样会在拿到锁之后原样覆盖别人刚写完的内容。
@@ -425,6 +460,20 @@ def _assert_not_stale_write(file: File, base_updated_at: datetime | None) -> Non
     base = normalize_datetime_to_utc(base_updated_at)
     if current <= base:
         return
+
+    process_conflict_count = _record_stale_write_conflict(change_type)
+    log_with_context(
+        logger,
+        logging.WARNING,
+        "Editor save conflict 409",
+        event="editor_save_conflict_409",
+        project_id=file.project_id,
+        file_id=file.id,
+        change_type=change_type,
+        reason="stale_write",
+        stale_delta_ms=max(0, int((current - base).total_seconds() * 1000)),
+        process_conflict_count=process_conflict_count,
+    )
 
     raise APIException(
         error_code=ErrorCode.RESOURCE_CONFLICT,
@@ -831,7 +880,7 @@ def update_file(
         verify_project_ownership(file.project_id, current_user, session)
 
         # 陈旧写入检测：必须在拿到锁、读到最新行之后做，否则校验的是过期快照。
-        _assert_not_stale_write(file, file_data.base_updated_at)
+        _assert_not_stale_write(file, file_data.base_updated_at, change_type=change_type)
 
         _reject_renamed_title_too_long(file_data.title, file.title)
         prospective_title = file_data.title if file_data.title is not None else file.title

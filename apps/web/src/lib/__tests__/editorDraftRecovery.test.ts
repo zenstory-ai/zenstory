@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const { trackEventMock } = vi.hoisted(() => ({
+  trackEventMock: vi.fn(),
+}));
+
+vi.mock("../analytics", () => ({
+  trackEvent: trackEventMock,
+}));
+
 import {
   clearEditorDraftSnapshot,
   createEditorDraftSnapshot,
@@ -13,7 +21,10 @@ import {
 const scope = { userId: "user/a", projectId: "project:b", fileId: "file c" };
 
 describe("editorDraftRecovery", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    trackEventMock.mockReset();
+  });
 
   it("isolates snapshots by user, project, and file", () => {
     const snapshot = createEditorDraftSnapshot({
@@ -125,6 +136,84 @@ describe("editorDraftRecovery", () => {
     [own, { ...own, userId: 'another-user' }, { ...own, projectId: 'another-project' }, { ...own, fileId: 'ordinary', reason: 'page-exit' as const }]
       .forEach(snapshot => writeEditorDraftSnapshot(localStorage, snapshot));
     expect(readDeletedEditorDraftSnapshots(localStorage, scope)).toEqual([own]);
+    expect(trackEventMock).not.toHaveBeenCalled();
+  });
+
+  it("emits privacy-clean editor_draft_storage_failed events when storage operations throw", () => {
+    const secretTitle = "绝密草稿标题";
+    const secretContent = "主角在雨夜写下的绝密遗书";
+    const unavailableStorage = {
+      getItem: vi.fn(() => { throw new Error("SecurityError: blocked"); }),
+      setItem: vi.fn(() => { throw new Error("QuotaExceededError: full"); }),
+      removeItem: vi.fn(() => { throw new Error("SecurityError: blocked"); }),
+    };
+
+    const reloadSnapshot = createEditorDraftSnapshot({
+      ...scope,
+      title: secretTitle,
+      content: secretContent,
+      reason: "chunk-reload",
+    });
+    expect(writeEditorDraftSnapshot(unavailableStorage, reloadSnapshot)).toBe(false);
+    expect(trackEventMock).toHaveBeenLastCalledWith("editor_draft_storage_failed", {
+      surface: "draft_recovery",
+      is_mobile: false,
+      reason: "chunk-reload",
+      storage_available: false,
+    });
+
+    const deletedSnapshot = createEditorDraftSnapshot({
+      ...scope,
+      title: secretTitle,
+      content: secretContent,
+      reason: "file-deleted",
+    });
+    expect(writeEditorDraftSnapshot(unavailableStorage, deletedSnapshot)).toBe(false);
+    expect(trackEventMock).toHaveBeenLastCalledWith("editor_draft_storage_failed", {
+      surface: "deleted_file_recovery",
+      is_mobile: false,
+      reason: "file-deleted",
+      storage_available: false,
+    });
+
+    expect(readEditorDraftSnapshot(unavailableStorage, scope)).toBeNull();
+    expect(trackEventMock).toHaveBeenLastCalledWith("editor_draft_storage_failed", {
+      surface: "draft_recovery",
+      is_mobile: false,
+      reason: "read_failed",
+      storage_available: false,
+    });
+
+    expect(clearEditorDraftSnapshot(unavailableStorage, scope)).toBe(false);
+    expect(trackEventMock).toHaveBeenLastCalledWith("editor_draft_storage_failed", {
+      surface: "draft_recovery",
+      is_mobile: false,
+      reason: "clear_failed",
+      storage_available: false,
+    });
+
+    const unavailableEnum = { get length() { throw new Error("storage unavailable"); } } as Storage;
+    expect(readDeletedEditorDraftSnapshots(unavailableEnum, scope)).toEqual([]);
+    expect(trackEventMock).toHaveBeenLastCalledWith("editor_draft_storage_failed", {
+      surface: "deleted_file_recovery",
+      is_mobile: false,
+      reason: "file-deleted",
+      storage_available: false,
+    });
+
+    // Zero manuscript text, title, or identifiers leaked into telemetry.
+    const serialized = JSON.stringify(trackEventMock.mock.calls);
+    expect(serialized).not.toContain(secretTitle);
+    expect(serialized).not.toContain(secretContent);
+    expect(serialized).not.toContain(scope.userId);
+    expect(serialized).not.toContain(scope.projectId);
+    expect(serialized).not.toContain(scope.fileId);
+  });
+
+  it("does not emit editor_draft_storage_failed for malformed JSON when storage is working", () => {
+    localStorage.setItem(getEditorDraftRecoveryKey(scope), "{not-valid-json");
+    expect(readEditorDraftSnapshot(localStorage, scope)).toBeNull();
+    expect(trackEventMock).not.toHaveBeenCalled();
   });
 
 });
