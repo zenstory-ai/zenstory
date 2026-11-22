@@ -65,7 +65,12 @@ class AgentRunMeter:
     # Diagnostic origin does not alter the existing wrap-up budget clock.
     timing_origin: float | None = None
     first_tool_started_ms: float | None = None
+    chapter_first_prose_ms: float | None = None
     first_body_persisted_ms: float | None = None
+    # Monotonic arming timestamp for pending file writes (write_chapter / create_file awaiting <file> body).
+    _pending_file_write_armed_at: float | None = field(default=None, repr=False)
+    _pending_file_write_file_id: str | None = field(default=None, repr=False)
+    leaked_tool_call_count: int = 0
     # 最近一次模型调用的输入 token（含命中缓存的部分）：单循环 agent 据此决定下一轮前是否压缩历史。
     last_prompt_tokens: int = 0
     _stage_timings: dict[TimingStage, dict[str, float | int]] = field(default_factory=dict)
@@ -171,6 +176,29 @@ class AgentRunMeter:
         if self.first_tool_started_ms is None:
             self.first_tool_started_ms = self._offset_ms()
 
+    def mark_pending_file_write_armed(self, file_id: str | None = None) -> None:
+        """Record when a pending file write (write_chapter / create_file awaiting <file>) arms."""
+        if self.chapter_first_prose_ms is None:
+            self._pending_file_write_armed_at = time.monotonic()
+            self._pending_file_write_file_id = file_id
+
+    def mark_first_file_prose_chunk(self, file_id: str | None = None) -> None:
+        """Compute write_chapter/create_file -> first streamed <file> prose chunk latency once per round."""
+        if self.chapter_first_prose_ms is not None or self._pending_file_write_armed_at is None:
+            return
+        if (
+            file_id is not None
+            and self._pending_file_write_file_id is not None
+            and file_id != self._pending_file_write_file_id
+        ):
+            return
+        self.chapter_first_prose_ms = round(max(0.0, time.monotonic() - self._pending_file_write_armed_at) * 1000, 1)
+
+    def record_leaked_tool_call(self, count: int = 1) -> None:
+        """Increment count of leaked tool-call protocol aborts/detections in this round."""
+        if count > 0:
+            self.leaked_tool_call_count += int(count)
+
     def mark_first_body_persisted(self) -> None:
         if self.first_body_persisted_ms is None:
             self.first_body_persisted_ms = self._offset_ms()
@@ -179,7 +207,9 @@ class AgentRunMeter:
         """Snapshot for the existing billing log. Nested stages overlap: do not sum them."""
         return {
             "first_tool_started_ms": self.first_tool_started_ms,
+            "chapter_first_prose_ms": self.chapter_first_prose_ms,
             "first_body_persisted_ms": self.first_body_persisted_ms,
+            "leaked_tool_call_count": self.leaked_tool_call_count,
             "stage_timings": {
                 stage: {key: round(value, 1) if isinstance(value, float) else value for key, value in stats.items()}
                 for stage, stats in self._stage_timings.items()

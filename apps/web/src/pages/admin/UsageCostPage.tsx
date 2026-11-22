@@ -9,8 +9,10 @@ import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import {
   adminApi,
+  type DeviceStageLatencySlice,
   type ModelMetrics,
   type ModelMetricsRow,
+  type StageLatencyDailyRow,
   type UsageDistribution,
   type UsageSource,
   type UsageDailyRow,
@@ -32,6 +34,8 @@ const DETAIL_DAYS: UsageDetailDays[] = [7, 14, 30];
 const SORTS: UsageUserSort[] = ["cost", "calls", "tokens"];
 const SOURCES: UsageSource[] = ["agent", "router", "suggest", "polish", "material"];
 const METRIC_DEFINITIONS = ["attempts", "successRate", "latency", "ttft", "decode", "notRecorded"] as const;
+const STAGE_LATENCY_DEFINITIONS = ["scope", "chapterFirstProse", "slowTail", "reliability", "draftSurvival"] as const;
+const DEVICE_KEYS = ["desktop", "mobile", "unknown"] as const;
 // The model table has nine columns: tighter cells and wrapping headers keep it within a desktop page.
 const metricCellClass = "px-3 py-3 text-left text-sm";
 const metricNumberCellClass = "px-3 py-3 text-right text-sm tabular-nums";
@@ -141,6 +145,11 @@ function formatMs(value: number | null, locale: string, na: string): string {
   if (value === null) return na;
   if (value < 1000) return `${value.toLocaleString(locale)} ms`;
   return `${(value / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} s`;
+}
+
+function formatPercent(value: number | null, locale: string, na: string): string {
+  if (value === null) return na;
+  return value.toLocaleString(locale, { style: "percent", maximumFractionDigits: 1 });
 }
 
 function DistributionCell({ value }: { value: UsageDistribution }) {
@@ -263,6 +272,216 @@ function ModelMetricsSection({ usageWindow }: { usageWindow: UsageWindow }) {
   );
 }
 
+function StageLatencyDeviceTable({
+  devices,
+}: {
+  devices: Record<(typeof DEVICE_KEYS)[number], DeviceStageLatencySlice>;
+}) {
+  const { t } = useTranslation("admin");
+  const locale = getLocaleCode();
+  const na = t("usage.models.na");
+  return (
+    <div className="admin-table-shell">
+      <h3 className="border-b border-[hsl(var(--separator-color))] px-4 py-3 text-sm font-semibold text-[hsl(var(--text-primary))]">
+        {t("usage.stageLatency.deviceTitle")}
+      </h3>
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t("usage.stageLatency.deviceTitle")}>
+        <table className="w-full min-w-[640px] text-[hsl(var(--text-primary))]">
+          <thead>
+            <tr className="border-b border-[hsl(var(--separator-color))]">
+              <th className={metricHeadClass}>{t("usage.stageLatency.device")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.rounds")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.firstOutputCol")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.firstOutputSlowCol")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.chapterProseCol")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.disconnectCol")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {DEVICE_KEYS.map((key) => {
+              const row = devices[key];
+              return (
+                <tr key={key} className="border-b border-[hsl(var(--separator-color))] last:border-0">
+                  <td className={`${metricCellClass} whitespace-nowrap`}>{t(`usage.stageLatency.devices.${key}`)}</td>
+                  <td className={metricNumberCellClass}>{row.rounds.toLocaleString(locale)}</td>
+                  <td className={`${metricNumberCellClass} whitespace-nowrap`}>
+                    {formatMs(row.first_output_ms.p50, locale, na)} / {formatMs(row.first_output_ms.p95, locale, na)}
+                  </td>
+                  <td className={metricNumberCellClass}>{formatPercent(row.first_output_ms.slow_rate, locale, na)}</td>
+                  <td className={`${metricNumberCellClass} whitespace-nowrap`}>
+                    {formatMs(row.chapter_first_prose_ms.p50, locale, na)} / {formatMs(row.chapter_first_prose_ms.p95, locale, na)}
+                  </td>
+                  <td className={metricNumberCellClass}>{formatPercent(row.client_disconnected_rate, locale, na)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function StageLatencyDailyTable({ rows }: { rows: StageLatencyDailyRow[] }) {
+  const { t } = useTranslation("admin");
+  const locale = getLocaleCode();
+  const na = t("usage.models.na");
+  return (
+    <div className="admin-table-shell">
+      <h3 className="border-b border-[hsl(var(--separator-color))] px-4 py-3 text-sm font-semibold text-[hsl(var(--text-primary))]">
+        {t("usage.stageLatency.dailyTitle")}
+      </h3>
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t("usage.stageLatency.dailyTitle")}>
+        <table className="w-full min-w-[780px] text-[hsl(var(--text-primary))]">
+          <thead>
+            <tr className="border-b border-[hsl(var(--separator-color))]">
+              <th className={metricHeadClass}>{t("usage.date")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.rounds")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.prepareP50Col")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.firstOutputCol")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.firstOutputSlowCol")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.chapterProseCol")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.chapterProseSlowCol")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.pendingCol")}</th>
+              <th className={metricNumberHeadClass}>{t("usage.stageLatency.stopDisconnectCol")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.date} className="border-b border-[hsl(var(--separator-color))] last:border-0">
+                <td className={`${metricCellClass} whitespace-nowrap tabular-nums`}>{row.date}</td>
+                <td className={metricNumberCellClass}>{row.rounds.toLocaleString(locale)}</td>
+                <td className={`${metricNumberCellClass} whitespace-nowrap`}>{formatMs(row.prepare_context_p50_ms, locale, na)}</td>
+                <td className={`${metricNumberCellClass} whitespace-nowrap`}>
+                  {formatMs(row.first_output_p50_ms, locale, na)} / {formatMs(row.first_output_p95_ms, locale, na)}
+                </td>
+                <td className={metricNumberCellClass}>{formatPercent(row.first_output_slow_rate, locale, na)}</td>
+                <td className={`${metricNumberCellClass} whitespace-nowrap`}>
+                  {formatMs(row.chapter_first_prose_p50_ms, locale, na)} / {formatMs(row.chapter_first_prose_p95_ms, locale, na)}
+                </td>
+                <td className={metricNumberCellClass}>{formatPercent(row.chapter_first_prose_slow_rate, locale, na)}</td>
+                <td className={metricNumberCellClass}>{formatPercent(row.file_body_pending_rate, locale, na)}</td>
+                <td className={`${metricNumberCellClass} whitespace-nowrap`}>
+                  {formatPercent(row.user_stopped_rate, locale, na)} / {formatPercent(row.client_disconnected_rate, locale, na)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function StageLatencySection() {
+  const { t } = useTranslation("admin");
+  const locale = getLocaleCode();
+  const na = t("usage.models.na");
+  const [days, setDays] = useState<UsageDetailDays>(7);
+  const stageLatency = useQuery({
+    queryKey: ["admin", "usage", "stage-latency", days],
+    queryFn: () => adminApi.getUsageStageLatency(days),
+  });
+  const data = stageLatency.data;
+  const isEmpty = Boolean(data && data.total_rounds === 0 && data.ai_draft_survival.eligible_drafts === 0);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">{t("usage.stageLatency.title")}</h2>
+        <AdminSegmented
+          label={t("usage.stageLatency.range")}
+          options={DETAIL_DAYS}
+          value={days}
+          onChange={setDays}
+          renderLabel={(value) => t("usage.lastDays", { count: value })}
+        />
+      </div>
+      <AdminPageState
+        isLoading={stageLatency.isLoading}
+        isFetching={stageLatency.isFetching}
+        isError={stageLatency.isError}
+        isEmpty={isEmpty}
+        errorText={t("usage.loadError")}
+        emptyText={t("usage.stageLatency.empty")}
+        onRetry={() => void stageLatency.refetch()}
+      >
+        {data && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <Kpi label={t("usage.stageLatency.prepareContext")}>
+                <div>{formatMs(data.prepare_context_ms.p50, locale, na)} / {formatMs(data.prepare_context_ms.p95, locale, na)}</div>
+                <div className="mt-1 text-xs font-normal text-[hsl(var(--text-secondary))]">
+                  {t("usage.models.samples", { count: data.prepare_context_ms.samples })}
+                </div>
+              </Kpi>
+              <Kpi label={t("usage.stageLatency.firstOutput")}>
+                <div>{formatMs(data.first_output_ms.p50, locale, na)} / {formatMs(data.first_output_ms.p95, locale, na)}</div>
+                <div className="mt-1 text-xs font-normal text-[hsl(var(--text-secondary))]">
+                  {t("usage.stageLatency.slowTailDetail", {
+                    rate: formatPercent(data.first_output_ms.slow_rate, locale, na),
+                    slow: data.first_output_ms.slow_count.toLocaleString(locale),
+                    samples: data.first_output_ms.samples.toLocaleString(locale),
+                  })}
+                </div>
+              </Kpi>
+              <Kpi label={t("usage.stageLatency.chapterFirstProse")}>
+                <div className="text-base sm:text-lg">
+                  {formatMs(data.chapter_first_prose_ms.p50, locale, na)} / {formatMs(data.chapter_first_prose_ms.p90, locale, na)} / {formatMs(data.chapter_first_prose_ms.p95, locale, na)}
+                </div>
+                <div className="mt-1 text-xs font-normal text-[hsl(var(--text-secondary))]">
+                  {t("usage.stageLatency.slowTailDetail", {
+                    rate: formatPercent(data.chapter_first_prose_ms.slow_rate, locale, na),
+                    slow: data.chapter_first_prose_ms.slow_count.toLocaleString(locale),
+                    samples: data.chapter_first_prose_ms.samples.toLocaleString(locale),
+                  })}
+                </div>
+              </Kpi>
+              <Kpi label={t("usage.stageLatency.fileBodyPending")}>
+                <div>{formatPercent(data.file_body_pending_rate, locale, na)}</div>
+                <div className="mt-1 text-xs font-normal text-[hsl(var(--text-secondary))]">
+                  {t("usage.stageLatency.roundsDetail", {
+                    affected: data.file_body_pending_rounds.toLocaleString(locale),
+                    total: data.total_rounds.toLocaleString(locale),
+                  })}
+                </div>
+              </Kpi>
+              <Kpi label={t("usage.stageLatency.stopAndDisconnect")}>
+                <div>
+                  {formatPercent(data.user_stopped_rate, locale, na)} / {formatPercent(data.client_disconnected_rate, locale, na)}
+                </div>
+                <div className="mt-1 text-xs font-normal text-[hsl(var(--text-secondary))]">
+                  {t("usage.stageLatency.leakedToolCall")}: {formatPercent(data.leaked_tool_call_rate, locale, na)}
+                </div>
+              </Kpi>
+              <Kpi label={t("usage.stageLatency.draftSurvival")}>
+                <div>{formatPercent(data.ai_draft_survival.survival_rate, locale, na)}</div>
+                <div className="mt-1 text-xs font-normal text-[hsl(var(--text-secondary))]">
+                  {t("usage.stageLatency.draftSurvivalDetail", {
+                    survived: data.ai_draft_survival.survived_drafts.toLocaleString(locale),
+                    eligible: data.ai_draft_survival.eligible_drafts.toLocaleString(locale),
+                    coEditRate: formatPercent(data.ai_draft_survival.co_edit_rate, locale, na),
+                  })}
+                </div>
+              </Kpi>
+            </div>
+            <StageLatencyDeviceTable devices={data.desktop_vs_mobile} />
+            <StageLatencyDailyTable rows={data.daily} />
+          </div>
+        )}
+      </AdminPageState>
+      <details className="admin-surface px-4 py-3 text-xs text-[hsl(var(--text-secondary))]">
+        <summary className="cursor-pointer text-sm font-medium text-[hsl(var(--text-primary))]">
+          {t("usage.stageLatency.definitionsTitle")}
+        </summary>
+        <ul className="mt-2 list-disc space-y-1 pl-4">
+          {STAGE_LATENCY_DEFINITIONS.map((key) => <li key={key}>{t(`usage.stageLatency.definitions.${key}`)}</li>)}
+        </ul>
+      </details>
+    </section>
+  );
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="admin-table-shell">
@@ -353,6 +572,7 @@ export default function UsageCostPage() {
   const { t } = useTranslation(["admin", "common"]);
   const queryClient = useQueryClient();
   const modelsFetching = useIsFetching({ queryKey: ["admin", "usage", "models"] }) > 0;
+  const stageLatencyFetching = useIsFetching({ queryKey: ["admin", "usage", "stage-latency"] }) > 0;
   const [searchParams, setSearchParams] = useSearchParams();
   const [usageWindow, setUsageWindow] = useState<UsageWindow>("today");
   const [sort, setSort] = useState<UsageUserSort>("cost");
@@ -426,11 +646,12 @@ export default function UsageCostPage() {
             variant="secondary"
             size="touch"
             leftIcon={<RefreshCw className="h-4 w-4" />}
-            disabled={summary.isFetching || users.isFetching || modelsFetching}
+            disabled={summary.isFetching || users.isFetching || modelsFetching || stageLatencyFetching}
             onClick={() => {
               void summary.refetch();
               void users.refetch();
               void queryClient.invalidateQueries({ queryKey: ["admin", "usage", "models"] });
+              void queryClient.invalidateQueries({ queryKey: ["admin", "usage", "stage-latency"] });
             }}
           >
             {t("usage.refresh")}
@@ -481,6 +702,8 @@ export default function UsageCostPage() {
       </AdminPageState>
 
       <ModelMetricsSection usageWindow={usageWindow} />
+
+      <StageLatencySection />
 
       <section className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

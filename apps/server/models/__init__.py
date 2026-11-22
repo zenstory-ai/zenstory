@@ -23,6 +23,7 @@ from .agent_api_key import (
     DEFAULT_SCOPES,
     AgentApiKey,
 )
+from .agent_round_metric import AgentRoundMetric
 from .ai_cost_budget import AICostDailyBudget, AICostReservation
 from .announcement import AnnouncementConfig
 from .entities import (
@@ -192,8 +193,9 @@ __all__ = [
     "SubscriptionHistory",
     "AdminAuditLog",
     "PaymentOrder",
-    # LLM usage ledger
+    # LLM usage & round latency ledgers
     "LLMUsageEvent",
+    "AgentRoundMetric",
     # Points and check-in models
     "PointsTransaction",
     "CheckInRecord",

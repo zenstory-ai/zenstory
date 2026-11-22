@@ -299,7 +299,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 ## 调试
 
 - 日志：`apps/server/utils/logger.py` 的 `log_with_context`（自动带 `apps/server/utils/request_context.py` 里的 `request_id` / `agent_run_id`）。每个请求结束时 `apps/server/api/agent.py`
-  写一条 `Agent stream billing evaluated`，含真实 `charged`、`billing_reason`、`provider_attempted`、`terminal_model_failure`、`produced_output` 和 `run_*` 运行摘要（模型调用数等，来自 `core/run_meter.py`）。
+  写一条 `Agent stream billing evaluated`，含真实 `charged`、`billing_reason`、`provider_attempted`、`terminal_model_failure`、`produced_output` 和 `run_*` 运行摘要（模型调用数、阶段耗时、`chapter_first_prose_ms`、`leaked_tool_call_count` 等，来自 `core/run_meter.py`），并在旁路经独立短 session 写入 1 行窄表事实 `agent_round_metric`（零正文/零 PII；异常只记日志、绝不阻塞或影响 SSE；见 [round-metric-ledger][n-round-metric]）。
 - 工具执行看 `tools/mcp_tools.py` 的返回结构（`status` / `error_type`）；事件转换看 `stream_adapter.py`；一轮里为什么再跑看 `loop/engine.py` 的日志。
 - 测试在 `apps/server/tests/test_agent/` 与 `apps/server/tests/test_api/`（如 `apps/server/tests/test_api/test_agent.py`、`apps/server/tests/test_api/test_agent_stream_hardening.py`）。
 
@@ -338,6 +338,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-prod-review]: ../../../.agents/notes/implemented/bug-fix/2026-11-18-loop-prod-review-followups.md
 [n-deai-agent]: ../../../.agents/notes/implemented/architecture/2026-11-22-deai-via-single-loop-agent.md
 [n-prod-audit2]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-loop-prod-audit-round2-fixes.md
+[n-round-metric]: ../../../.agents/notes/implemented/architecture/2026-11-22-agent-round-metric-ledger.md
 [n-cache-stability]: ../../../.agents/notes/implemented/architecture/2026-11-20-agent-prompt-cache-stability.md
 [n-cache-followup]: ../../../.agents/notes/implemented/architecture/2026-11-21-cache-soft-land-and-session-key-sticky.md
 [n-issue-413]: ../../../.agents/notes/implemented/bug-fix/2026-11-19-issue-413-blank-display-and-write-chapter-guard.md

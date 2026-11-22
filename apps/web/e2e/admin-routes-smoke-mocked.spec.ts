@@ -331,6 +331,84 @@ async function bootstrapAdminSession(page: Page) {
       return;
     }
 
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/usage/stage-latency')) {
+      const daysParam = Number(new URL(request.url()).searchParams.get('days') || '7');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          days: daysParam,
+          timezone: 'Asia/Shanghai',
+          period_start: '2026-10-01',
+          period_end: '2026-10-07',
+          slow_threshold_ms: 10000,
+          total_rounds: 20,
+          prepare_context_ms: { p50: 180, p95: 620, samples: 20 },
+          first_output_ms: { p50: 3200, p95: 12500, samples: 18, slow_count: 3, slow_rate: 0.1667 },
+          chapter_first_prose_ms: { p50: 4500, p90: 11000, p95: 14000, samples: 10, slow_count: 2, slow_rate: 0.2 },
+          first_body_persisted_ms: { p50: 9000, p95: 25000, samples: 10 },
+          file_body_pending_rounds: 2,
+          file_body_pending_rate: 0.1,
+          leaked_tool_call_rounds: 1,
+          leaked_tool_call_rate: 0.05,
+          user_stopped_rounds: 3,
+          user_stopped_rate: 0.15,
+          client_disconnected_rounds: 1,
+          client_disconnected_rate: 0.05,
+          desktop_vs_mobile: {
+            desktop: {
+              rounds: 15,
+              first_output_ms: { p50: 2800, p95: 11000, samples: 14, slow_count: 2, slow_rate: 0.1429 },
+              chapter_first_prose_ms: { p50: 4000, p90: 10000, p95: 13000, samples: 8, slow_count: 1, slow_rate: 0.125 },
+              client_disconnected_rounds: 0,
+              client_disconnected_rate: 0,
+            },
+            mobile: {
+              rounds: 5,
+              first_output_ms: { p50: 5000, p95: 14000, samples: 4, slow_count: 1, slow_rate: 0.25 },
+              chapter_first_prose_ms: { p50: 6000, p90: 14000, p95: 14000, samples: 2, slow_count: 1, slow_rate: 0.5 },
+              client_disconnected_rounds: 1,
+              client_disconnected_rate: 0.2,
+            },
+            unknown: {
+              rounds: 0,
+              first_output_ms: { p50: null, p95: null, samples: 0, slow_count: 0, slow_rate: null },
+              chapter_first_prose_ms: { p50: null, p90: null, p95: null, samples: 0, slow_count: 0, slow_rate: null },
+              client_disconnected_rounds: 0,
+              client_disconnected_rate: null,
+            },
+          },
+          ai_draft_survival: {
+            eligible_drafts: 8,
+            survived_drafts: 6,
+            co_edited_drafts: 4,
+            deleted_or_reverted_drafts: 2,
+            survival_rate: 0.75,
+            co_edit_rate: 0.5,
+            observation_hours: 24,
+          },
+          daily: [
+            {
+              date: '2026-10-07',
+              rounds: 6,
+              prepare_context_p50_ms: 190,
+              first_output_p50_ms: 3100,
+              first_output_p95_ms: 12000,
+              first_output_slow_rate: 0.1667,
+              chapter_first_prose_p50_ms: 4200,
+              chapter_first_prose_p95_ms: 13500,
+              chapter_first_prose_slow_rate: 0.25,
+              file_body_pending_rate: 0.1667,
+              leaked_tool_call_rate: 0,
+              user_stopped_rate: 0.1667,
+              client_disconnected_rate: 0,
+            },
+          ],
+        }),
+      });
+      return;
+    }
+
     if (request.method() === 'GET' && /\/api\/admin\/usage\/users\/[^/]+\/daily$/.test(pathname)) {
       await route.fulfill({
         status: 200,
@@ -852,6 +930,14 @@ test('usage page shows per-model call metrics, filters by feature and explains e
   await section.getByText(/指标怎么算|How these are counted/).click();
   await expect(section).toContainText(/成功率 = 成功 ÷|Success rate = succeeded ÷/);
   await expect(section).toContainText(/解码速度 = 输出 tokens 合计|Decode speed = total output tokens/);
+
+  const stageSection = page.locator('section').filter({
+    has: page.getByRole('heading', { name: /^(阶段耗时与慢尾|Stage latency & slow tails)$/ }),
+  });
+  await expect(stageSection).toContainText('180 ms / 620 ms');
+  await expect(stageSection).toContainText('3.2 s / 12.5 s');
+  await expect(stageSection).toContainText('4.5 s / 11 s / 14 s');
+  await expect(stageSection).toContainText('75%');
 });
 
 test('user detail page links to usage and lists active sections', async ({ page }) => {

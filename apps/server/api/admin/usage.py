@@ -12,6 +12,10 @@ from core.error_handler import APIException
 from database import get_session
 from models.entities import User
 from services.core.auth_service import get_current_superuser
+from services.usage.admin_stage_latency_service import (
+    STAGE_LATENCY_DAYS,
+    get_stage_latency_metrics,
+)
 from services.usage.admin_usage_service import (
     get_model_metrics,
     get_usage_summary,
@@ -138,6 +142,79 @@ class ModelMetricsResponse(UsagePeriod):
     totals: ModelMetrics
 
 
+class SlowTailDistribution(Distribution):
+    slow_count: int
+    slow_rate: float | None
+
+
+class ChapterFirstProseDistribution(SlowTailDistribution):
+    p90: int | None
+
+
+class DeviceStageLatencySlice(BaseModel):
+    rounds: int
+    first_output_ms: SlowTailDistribution
+    chapter_first_prose_ms: ChapterFirstProseDistribution
+    client_disconnected_rounds: int
+    client_disconnected_rate: float | None
+
+
+class DeviceStageLatencySplit(BaseModel):
+    desktop: DeviceStageLatencySlice
+    mobile: DeviceStageLatencySlice
+    unknown: DeviceStageLatencySlice
+
+
+class AiDraftSurvivalMetrics(BaseModel):
+    eligible_drafts: int
+    survived_drafts: int
+    co_edited_drafts: int
+    deleted_or_reverted_drafts: int
+    survival_rate: float | None
+    co_edit_rate: float | None
+    observation_hours: int
+
+
+class StageLatencyDailyRow(BaseModel):
+    date: str
+    rounds: int
+    prepare_context_p50_ms: int | None
+    first_output_p50_ms: int | None
+    first_output_p95_ms: int | None
+    first_output_slow_rate: float | None
+    chapter_first_prose_p50_ms: int | None
+    chapter_first_prose_p95_ms: int | None
+    chapter_first_prose_slow_rate: float | None
+    file_body_pending_rate: float | None
+    leaked_tool_call_rate: float | None
+    user_stopped_rate: float | None
+    client_disconnected_rate: float | None
+
+
+class StageLatencyResponse(BaseModel):
+    days: int
+    timezone: str
+    period_start: str
+    period_end: str
+    slow_threshold_ms: int
+    total_rounds: int
+    prepare_context_ms: Distribution
+    first_output_ms: SlowTailDistribution
+    chapter_first_prose_ms: ChapterFirstProseDistribution
+    first_body_persisted_ms: Distribution
+    file_body_pending_rounds: int
+    file_body_pending_rate: float | None
+    leaked_tool_call_rounds: int
+    leaked_tool_call_rate: float | None
+    user_stopped_rounds: int
+    user_stopped_rate: float | None
+    client_disconnected_rounds: int
+    client_disconnected_rate: float | None
+    desktop_vs_mobile: DeviceStageLatencySplit
+    ai_draft_survival: AiDraftSurvivalMetrics
+    daily: list[StageLatencyDailyRow]
+
+
 @router.get("/summary", response_model=UsageSummaryResponse)
 def usage_summary(
     window: UsageWindowParam = "today",
@@ -155,6 +232,21 @@ def usage_by_model(
     session: Session = Depends(get_session),
 ):
     return get_model_metrics(session, window, source=source)
+
+
+@router.get("/stage-latency", response_model=StageLatencyResponse)
+def usage_stage_latency(
+    days: int = Query(default=7),
+    _current_user: User = Depends(get_current_superuser),
+    session: Session = Depends(get_session),
+):
+    if days not in STAGE_LATENCY_DAYS:
+        raise APIException(
+            error_code=ErrorCode.VALIDATION_ERROR,
+            status_code=422,
+            detail="days must be 7, 14 or 30",
+        )
+    return get_stage_latency_metrics(session, days)
 
 
 @router.get("/users", response_model=UserUsageListResponse)

@@ -196,7 +196,7 @@ class ChatMessage(SQLModel, table=True):
     reasoning_content: str | None = None  # AI reasoning/thinking process
     # Extra data
     message_metadata: str | None = None  # JSON string for additional data
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
 class SystemPromptConfig(SQLModel, table=True):
