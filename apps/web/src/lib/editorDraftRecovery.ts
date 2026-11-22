@@ -1,3 +1,5 @@
+import { trackEditorDraftStorageFailed } from "./editorSafetyTelemetry";
+
 export const EDITOR_DRAFT_RECOVERY_SCHEMA = 1 as const;
 export const BEFORE_CHUNK_RELOAD_EVENT = "zenstory:before-chunk-reload";
 
@@ -98,6 +100,11 @@ export function writeEditorDraftSnapshot(
     storage.setItem(getEditorDraftRecoveryKey(snapshot), JSON.stringify(snapshot));
     return true;
   } catch {
+    trackEditorDraftStorageFailed({
+      surface: snapshot.reason === "file-deleted" ? "deleted_file_recovery" : "draft_recovery",
+      reason: snapshot.reason,
+      storageAvailable: false,
+    });
     return false;
   }
 }
@@ -107,9 +114,19 @@ export function readEditorDraftSnapshot(
   scope: EditorDraftScope,
 ): EditorDraftSnapshot | null {
   const key = getEditorDraftRecoveryKey(scope);
+  let raw: string | null;
   try {
-    const raw = storage.getItem(key);
-    if (!raw) return null;
+    raw = storage.getItem(key);
+  } catch {
+    trackEditorDraftStorageFailed({
+      surface: "draft_recovery",
+      reason: "read_failed",
+      storageAvailable: false,
+    });
+    return null;
+  }
+  if (!raw) return null;
+  try {
     const parsed: unknown = JSON.parse(raw);
     if (isSnapshotForScope(parsed, scope)) return parsed;
     storage.removeItem(key);
@@ -117,7 +134,11 @@ export function readEditorDraftSnapshot(
     try {
       storage.removeItem(key);
     } catch {
-      // Storage is unavailable; editor loading must continue.
+      trackEditorDraftStorageFailed({
+        surface: "draft_recovery",
+        reason: "clear_failed",
+        storageAvailable: false,
+      });
     }
   }
   return null;
@@ -131,6 +152,11 @@ export function clearEditorDraftSnapshot(
     storage.removeItem(getEditorDraftRecoveryKey(scope));
     return true;
   } catch {
+    trackEditorDraftStorageFailed({
+      surface: "draft_recovery",
+      reason: "clear_failed",
+      storageAvailable: false,
+    });
     return false;
   }
 }
@@ -168,6 +194,12 @@ export function readDeletedEditorDraftSnapshots(
       const snapshot = readEditorDraftSnapshot(storage, { ...scope, fileId });
       if (snapshot?.reason === "file-deleted") drafts.push(snapshot);
     }
-  } catch { /* Unavailable storage never prevents editing or claims protection. */ }
+  } catch {
+    trackEditorDraftStorageFailed({
+      surface: "deleted_file_recovery",
+      reason: "file-deleted",
+      storageAvailable: false,
+    });
+  }
   return drafts;
 }

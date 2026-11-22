@@ -49,6 +49,11 @@ import {
   resolveEditorDraftRecovery,
   type EditorDraftSnapshot,
 } from "../lib/editorDraftRecovery";
+import {
+  trackEditorDraftRecoveryResolved,
+  trackEditorDraftRecoveryShown,
+  trackEditorSaveConflict409,
+} from "../lib/editorSafetyTelemetry";
 import { notifyEditorContentSaved, setOpenEditorFlush } from "../lib/editorSaveTracker";
 import { rebaseLocalEdits } from "../lib/rebaseLocalEdits";
 import { applyPendingEditsToDiffs, computeParagraphReviewDiffs } from "../lib/diffReview";
@@ -491,13 +496,21 @@ const EditorComponent: React.FC<EditorProps> = () => {
         } else {
           const liveSnapshot: EditorDraftSnapshot =
             snapshot.reason === "file-deleted" ? { ...snapshot, reason: "page-exit" } : snapshot;
+          let storageAvailable = !memoryRemoved || memoryRemoved.persisted;
           if (scope && (snapshot.reason === "file-deleted" || memoryRemoved)) {
             const persistedNow = writeEditorDraftSnapshot(localStorage, liveSnapshot);
+            storageAvailable = persistedNow;
             if (persistedNow && !liveSnapshot.recoveryDraft) {
               clearRemovedDraftEntry(scope);
             }
           }
           if (resolution === "recover") {
+            trackEditorDraftRecoveryShown({
+              surface: "draft_recovery",
+              isMobile: openContextRef.current.isMobile,
+              reason: "recover",
+              storageAvailable,
+            });
             setDraftRecovery({
               snapshot: liveSnapshot,
               serverTitle: data.title,
@@ -508,6 +521,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
             setEditTitle(liveSnapshot.title);
             setEditContent(liveSnapshot.content);
           } else {
+            trackEditorDraftRecoveryShown({
+              surface: "draft_recovery",
+              isMobile: openContextRef.current.isMobile,
+              reason: "conflict",
+              storageAvailable,
+            });
             setDraftRecovery({
               snapshot: liveSnapshot,
               serverTitle: data.title,
@@ -880,6 +899,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
     currentFileRef.current = merged;
     setFile((prev) => (prev?.id === fileId ? merged : prev));
     setEditTitle(nextTitle);
+    trackEditorDraftRecoveryShown({
+      surface: "conflict_review",
+      isMobile: openContextRef.current.isMobile,
+      reason: "external_edit",
+    });
     toast.error(translateRef.current('editor:aiEditedWhileDirty'));
   }, [adoptServerCopy, keepLocalOnServerCopy, openConflictReview]);
   syncOpenFileFromServerRef.current = syncOpenFileFromServer;
@@ -1007,6 +1031,15 @@ const EditorComponent: React.FC<EditorProps> = () => {
         error.status === 409 &&
         error.details?.reason === "stale_write"
       ) {
+        const saveSurface =
+          submission.versionIntent?.change_type === "auto_save" || submission.versionIntent?.skip_version
+            ? "auto_save"
+            : "manual";
+        trackEditorSaveConflict409({
+          surface: saveSurface,
+          isMobile: openContextRef.current.isMobile,
+          reason: "stale_write",
+        });
         // 文件在本次编辑期间被别人（AI 或另一个标签页）改过。
         //
         // 绝不能直接 setEditContent(服务端正文)：那会把用户尚未保存的本地编辑
@@ -1058,6 +1091,13 @@ const EditorComponent: React.FC<EditorProps> = () => {
               // save it on the newer token.
               keepLocalOnServerCopy(nextFile(openedFile), editTitleRef.current);
               return { outcome: "conflict" };
+            }
+            if (outcome === "review") {
+              trackEditorDraftRecoveryShown({
+                surface: "conflict_review",
+                isMobile: openContextRef.current.isMobile,
+                reason: "stale_write",
+              });
             }
             toast.error(t('editor:saveStaleWriteConflict'));
             return { outcome: "conflict" };
@@ -1135,7 +1175,17 @@ const EditorComponent: React.FC<EditorProps> = () => {
       );
       const cleared = clearEditorDraftSnapshot(localStorage, scope);
       clearRemovedDraftEntry(scope);
-      if (cleared || hasMemoryRemoved) setDraftRecovery(null);
+      if (cleared || hasMemoryRemoved) {
+        if (draftRecovery.kind === "recover") {
+          trackEditorDraftRecoveryResolved({
+            surface: "draft_recovery",
+            isMobile: openContextRef.current.isMobile,
+            reason: "recover",
+            resolution: "restore_local",
+          });
+        }
+        setDraftRecovery(null);
+      }
     }
     notifyEditorContentSaved(updated?.project_id ?? currentFileRef.current?.project_id ?? "");
     return { outcome: "saved", updatedAt: updated.updated_at };
@@ -1143,6 +1193,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
   const applyRecoveredDraft = useCallback(() => {
     if (!draftRecovery) return;
+    trackEditorDraftRecoveryResolved({
+      surface: "draft_recovery",
+      isMobile: openContextRef.current.isMobile,
+      reason: draftRecovery.kind,
+      resolution: "restore_local",
+    });
     setEditTitle(draftRecovery.snapshot.title);
     setEditContent(draftRecovery.snapshot.content);
     setDraftRecovery((current) => current ? { ...current, applied: true } : null);
@@ -1163,6 +1219,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
         item.snapshot.fileId === scope.fileId,
     );
     if (!cleared && !hasMemoryRemoved) return;
+    trackEditorDraftRecoveryResolved({
+      surface: "draft_recovery",
+      isMobile: openContextRef.current.isMobile,
+      reason: draftRecovery.kind,
+      resolution: draftRecovery.applied ? "discard" : "use_server",
+    });
     clearRemovedDraftEntry(scope);
     setEditTitle(draftRecovery.serverTitle);
     setEditContent(draftRecovery.serverContent);
@@ -1273,7 +1335,17 @@ const EditorComponent: React.FC<EditorProps> = () => {
             projectId: currentProjectId,
             fileId,
           });
-          if (cleared) setDraftRecovery(null);
+          if (cleared) {
+            if (draftRecovery.kind === "recover") {
+              trackEditorDraftRecoveryResolved({
+                surface: "draft_recovery",
+                isMobile: openContextRef.current.isMobile,
+                reason: "recover",
+                resolution: "restore_local",
+              });
+            }
+            setDraftRecovery(null);
+          }
         } else if (draftRecovery?.snapshot.fileId !== fileId) {
           clearEditorDraftSnapshot(localStorage, {
             userId: currentUserId,
@@ -1289,6 +1361,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
     } catch (err) {
       if (!isStillCurrent()) return;
       if (err instanceof ApiError && err.status === 409 && err.details?.reason === "stale_write") {
+        trackEditorSaveConflict409({
+          surface: "manual",
+          isMobile: openContextRef.current.isMobile,
+          reason: "stale_write",
+        });
         // 审阅结果绝不能因为并发写而丢：把服务端最新正文当作新基线，
         // 连同本次审阅得到的定稿重新进入审阅通道，由用户决定最终版本。
         const current = currentFileRef.current;
@@ -1312,6 +1389,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
           // open so retrying saves on top of the fresh server token.
           toast.error(t("editor:saveStaleWrite"));
         } else {
+          trackEditorDraftRecoveryShown({
+            surface: "conflict_review",
+            isMobile: openContextRef.current.isMobile,
+            reason: "stale_write",
+          });
           toast.error(t("editor:saveStaleWriteConflict"));
         }
         return;
@@ -1461,15 +1543,31 @@ const EditorComponent: React.FC<EditorProps> = () => {
       errorLogMessage: "Failed to save reviewed changes:",
       errorAction: "ai_edit_review_apply",
       onSuccess: () => {
+        const acceptedEditCount = diffReviewState.pendingEdits.filter(
+          (edit) => edit.status !== "rejected"
+        ).length;
+        const rejectedEditCount = diffReviewState.pendingEdits.filter(
+          (edit) => edit.status === "rejected"
+        ).length;
+        const resolution =
+          acceptedEditCount > 0 && rejectedEditCount > 0
+            ? "merge"
+            : acceptedEditCount > 0
+              ? "use_server"
+              : rejectedEditCount > 0
+                ? "restore_local"
+                : "merge";
+        trackEditorDraftRecoveryResolved({
+          surface: "conflict_review",
+          isMobile: openContextRef.current.isMobile,
+          reason: "stale_write",
+          resolution,
+        });
         trackEvent("ai_edit_review_applied", {
           project_id: file.project_id,
           file_id: file.id,
-          accepted_edit_count: diffReviewState.pendingEdits.filter(
-            (edit) => edit.status !== "rejected"
-          ).length,
-          rejected_edit_count: diffReviewState.pendingEdits.filter(
-            (edit) => edit.status === "rejected"
-          ).length,
+          accepted_edit_count: acceptedEditCount,
+          rejected_edit_count: rejectedEditCount,
         });
       },
     });

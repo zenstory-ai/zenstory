@@ -211,6 +211,28 @@ function notifyQuotaRefunded(data: unknown, callbacks: AgentStreamCallbacks): vo
   callbacks.onQuotaRefunded?.(kind, removedFiles);
 }
 
+function resolveTelemetryEventType(event: SSEEvent): SSEEventType | undefined {
+  const payload = event.data && typeof event.data === "object"
+    ? (event.data as Record<string, unknown>)
+    : null;
+  switch (event.type) {
+    case "thinking_content":
+      return typeof payload?.content === "string" && payload.content.length > 0
+        ? "thinking_content"
+        : undefined;
+    case "content":
+      return typeof payload?.text === "string" && payload.text.length > 0
+        ? "content"
+        : undefined;
+    case "file_content":
+      return typeof payload?.chunk === "string" && payload.chunk.length > 0
+        ? "file_content"
+        : undefined;
+    default:
+      return event.type;
+  }
+}
+
 /** Report stream outcomes (completed/failed) before handing off to the caller. */
 function withOutcomeTelemetry(
   callbacks: AgentStreamCallbacks,
@@ -670,7 +692,7 @@ export function streamAgentRequest(
           failurePhase = "parse";
           const event = parseSSEEvent(eventString);
           if (!event) continue;
-          telemetry.noteEvent();
+          telemetry.noteEvent(resolveTelemetryEventType(event));
           failurePhase = "callback";
           dispatchSSEEvent(event);
         }
