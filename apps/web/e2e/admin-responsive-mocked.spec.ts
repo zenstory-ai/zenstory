@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { bootstrapAdminSession, longText, users } from './fixtures/admin-responsive';
 
 const routes = [
-  ['dashboard', '/admin', '1,289'], ['acquisition', '/admin/acquisition', 'www.google.com'],
+  ['dashboard', '/admin', '1,289'], ['ux-health', '/admin/ux-health', '88.0%'], ['acquisition', '/admin/acquisition', 'www.google.com'],
   ['users', '/admin/users', users[0].username], ['prompts', '/admin/prompts', 'novel'],
   ['prompt-new', '/admin/prompts/new', null], ['prompt-novel', '/admin/prompts/novel', null],
   ['skills', '/admin/skills', 'Long-form narrative continuity reviewer'], ['codes', '/admin/codes', 'RESPONSIVE-AUDIT-LONG-CODE-2026'],
@@ -173,10 +173,11 @@ test.describe('Admin responsive routes with populated mocked data', () => {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.addInitScript(value => localStorage.setItem('zenstory-theme', value), theme);
       await bootstrapAdminSession(page);
-      for (const path of ['/admin', '/admin/users', '/admin/prompts/new', '/admin/plans']) {
+      for (const path of ['/admin', '/admin/ux-health', '/admin/users', '/admin/prompts/new', '/admin/plans']) {
         await page.goto(path);
         await expect(page.locator('.admin-page')).toBeVisible();
         if (path === '/admin') await expect(page.getByText('¥1234.56', { exact: true })).toBeVisible();
+        if (path === '/admin/ux-health') await expect(page.getByText('88.0%', { exact: true })).toBeVisible();
         if (path === '/admin/users') await expect(page.getByRole('button', { name: '编辑', exact: true }).first()).toBeVisible();
         if (path === '/admin/plans') await expect(page.getByText('Professional Writer Plan').first()).toBeVisible();
         const result = await new AxeBuilder({ page }).analyze();

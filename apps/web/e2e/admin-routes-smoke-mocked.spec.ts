@@ -142,6 +142,100 @@ async function bootstrapAdminSession(page: Page) {
       return;
     }
 
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/dashboard/ux-health')) {
+      const uxMetrics = {
+        ttft_p50_ms: 1400,
+        ttft_p95_ms: 8200,
+        ttft_samples: 40,
+        ttft_slow_tail_count: 2,
+        ttft_slow_tail_rate: 0.05,
+        duration_samples: 45,
+        duration_slow_tail_count: 9,
+        duration_slow_tail_rate: 0.2,
+        cache_hit_tokens: 80000,
+        cache_miss_tokens: 20000,
+        prompt_cache_hit_rate: 0.8,
+        total_rounds: 50,
+        healthy_rounds: 44,
+        healthy_round_rate: 0.88,
+        user_stopped_rounds: 2,
+        user_stopped_rate: 0.04,
+        client_disconnected_rounds: 1,
+        client_disconnected_rate: 0.02,
+        abnormal_stop_rounds: 3,
+        abnormal_stop_rate: 0.06,
+        abnormal_stops: [{ reason: 'run_deadline_exceeded', count: 2, rate: 0.04 }],
+        ai_edit_cards: 20,
+        ai_edit_undone: 2,
+        ai_edit_undo_rate: 0.1,
+        ai_delete_cards: 4,
+        ai_delete_restored: 1,
+        ai_delete_restore_rate: 0.25,
+        feedback_up: 16,
+        feedback_down: 4,
+        feedback_total: 20,
+        thumbs_up_rate: 0.8,
+        top_dislike_presets: [{ preset: 'too_slow', count: 3 }],
+        ttfv_p50_minutes: 8.5,
+        ttfv_samples: 12,
+        w1_returning_writers: 7,
+        w1_eligible_writers: 10,
+        w1_retention_rate: 0.7,
+        chapters_written: 18,
+        net_words_written: 24500,
+        mobile_users: 6,
+        desktop_users: 14,
+        mobile_share: 0.3,
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          days: 7,
+          timezone: 'Asia/Shanghai',
+          current: {
+            period_start: '2026-03-01T00:00:00Z',
+            period_end: '2026-03-08T00:00:00Z',
+            metrics: uxMetrics,
+          },
+          previous: {
+            period_start: '2026-02-22T00:00:00Z',
+            period_end: '2026-03-01T00:00:00Z',
+            metrics: uxMetrics,
+          },
+          delta: {
+            ttft_p50_ms: 0,
+            ttft_p95_ms: 0,
+            ttft_slow_tail_rate: 0,
+            duration_slow_tail_rate: 0,
+            prompt_cache_hit_rate: 0,
+            healthy_round_rate: 0,
+            user_stopped_rate: 0,
+            client_disconnected_rate: 0,
+            abnormal_stop_rate: 0,
+            ai_edit_undo_rate: 0,
+            ai_delete_restore_rate: 0,
+            thumbs_up_rate: 0,
+            ttfv_p50_minutes: 0,
+            w1_retention_rate: 0,
+            chapters_written: 0,
+            net_words_written: 0,
+            mobile_share: 0,
+          },
+          daily: [{
+            date: '2026-03-07',
+            rounds: 15,
+            healthy_rate: 0.9333,
+            undo_rate: 0.05,
+            ttft_p95_ms: 4200,
+            thumbs_up_rate: 0.85,
+          }],
+          definitions: {},
+        }),
+      });
+      return;
+    }
+
     if (request.method() === 'GET' && pathname.endsWith('/api/admin/prompts')) {
       await route.fulfill({
         status: 200,
@@ -549,6 +643,25 @@ async function bootstrapAdminSession(page: Page) {
       return;
     }
 
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/feedback/chat-votes')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          days: 7,
+          timezone: 'Asia/Shanghai',
+          period_start: '2026-03-01T00:00:00Z',
+          period_end: '2026-03-08T00:00:00Z',
+          summary: { up: 0, down: 0, total_votes: 0, up_rate: null, preset_counts: [] },
+          items: [],
+          total: 0,
+          page: 1,
+          page_size: 20,
+        }),
+      });
+      return;
+    }
+
     if (request.method() === 'GET' && pathname.endsWith('/api/admin/check-in/stats')) {
       await route.fulfill({
         status: 200,
@@ -645,6 +758,7 @@ test('all admin routes are reachable for superuser with mocked APIs', async ({ p
 
   const routes = [
     '/admin',
+    '/admin/ux-health',
     '/admin/acquisition',
     '/admin/users',
     '/admin/usage',

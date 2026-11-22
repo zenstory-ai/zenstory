@@ -26,9 +26,14 @@ from services.infra.upload_storage import (
     get_upload_storage_or_503,
     resolve_feedback_upload_root,
 )
+from services.usage.admin_ux_metrics_service import (
+    CHAT_VOTE_FILTERS,
+    UX_HEALTH_DAYS,
+    list_chat_feedback_votes,
+)
 from utils.logger import get_logger, log_with_context
 
-from .schemas import FeedbackStatusUpdateRequest
+from .schemas import ChatVotesListResponse, FeedbackStatusUpdateRequest
 
 logger = get_logger(__name__)
 
@@ -217,6 +222,52 @@ def list_feedback_admin(
     )
 
     return {"items": items, "total": total}
+
+
+@router.get("/feedback/chat-votes", response_model=ChatVotesListResponse)
+def list_chat_votes_admin(
+    days: int = Query(7),
+    vote: str = Query("all"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_superuser),
+    session: Session = Depends(get_session),
+):
+    """List explicit chat thumbs-up/down votes and window summary (no manuscript/prompt text)."""
+    if days not in UX_HEALTH_DAYS:
+        raise APIException(
+            error_code=ErrorCode.VALIDATION_ERROR,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="days must be one of: 7, 14, 30.",
+        )
+    normalized_vote = vote.strip().lower()
+    if normalized_vote not in CHAT_VOTE_FILTERS:
+        raise APIException(
+            error_code=ErrorCode.VALIDATION_ERROR,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="vote must be one of: all, up, down.",
+        )
+
+    payload = list_chat_feedback_votes(
+        session,
+        days=days,
+        vote=normalized_vote,
+        page=page,
+        page_size=page_size,
+    )
+
+    log_with_context(
+        logger,
+        logging.INFO,
+        "Admin listed chat feedback votes",
+        admin_user_id=current_user.id,
+        window_days=days,
+        vote=normalized_vote,
+        count=len(payload["items"]),
+        total=payload["total"],
+    )
+
+    return ChatVotesListResponse(**payload)
 
 
 @router.patch("/feedback/{feedback_id}/status")

@@ -35,6 +35,7 @@ import type {
   SkillReviewStatus,
   DashboardStats,
   GrowthDashboard,
+  UxHealthDashboard,
   ActivationFunnelStats,
   UpgradeConversionStats,
   UpgradeFunnelStats,
@@ -43,6 +44,8 @@ import type {
   AdminFeedbackItem,
   AdminFeedbackListResponse,
   AdminFeedbackStatus,
+  ChatVoteFilter,
+  ChatVotesListResponse,
   PointsStats,
   AdminPointsBalance,
   PointsAdjustRequest,
@@ -544,6 +547,10 @@ async function getGrowthDashboard(days: 7 | 14 | 30 = 7): Promise<GrowthDashboar
   return api.get<GrowthDashboard>(`${ADMIN_BASE}/dashboard/growth?days=${days}`);
 }
 
+async function getUxHealthDashboard(days: 7 | 14 | 30 = 7): Promise<UxHealthDashboard> {
+  return api.get<UxHealthDashboard>(`${ADMIN_BASE}/dashboard/ux-health?days=${days}`);
+}
+
 async function getAcquisitionStats(days: 7 | 14 | 30 | 90 = 30): Promise<AcquisitionStats> {
   return api.get<AcquisitionStats>(`${ADMIN_BASE}/dashboard/acquisition?days=${days}`);
 }
@@ -684,6 +691,26 @@ async function getFeedbackScreenshotBlob(feedbackId: string): Promise<Blob> {
   }
 
   return response.blob();
+}
+
+async function getChatVotes(params?: {
+  days?: 7 | 14 | 30;
+  vote?: ChatVoteFilter;
+  page?: number;
+  page_size?: number;
+}): Promise<ChatVotesListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.days) searchParams.set("days", String(params.days));
+  if (params?.vote) searchParams.set("vote", params.vote);
+  if (params?.page) searchParams.set("page", String(params.page));
+  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
+
+  const queryString = searchParams.toString();
+  const url = queryString
+    ? `${ADMIN_BASE}/feedback/chat-votes?${queryString}`
+    : `${ADMIN_BASE}/feedback/chat-votes`;
+
+  return api.get<ChatVotesListResponse>(url);
 }
 
 // ==================== Points Management API ====================
@@ -838,6 +865,7 @@ export const adminApi = {
   // Dashboard
   getDashboardStats,
   getGrowthDashboard,
+  getUxHealthDashboard,
   getAcquisitionStats,
   getActivationFunnel,
   getUpgradeConversionStats,
@@ -857,6 +885,7 @@ export const adminApi = {
   getFeedbackList,
   updateFeedbackStatus,
   getFeedbackScreenshotBlob,
+  getChatVotes,
 
   // 积分管理
   getPointsStats,

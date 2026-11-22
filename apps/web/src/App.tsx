@@ -76,6 +76,7 @@ const FeedbackManagement = lazyRoute(() => import("./pages/admin/FeedbackManagem
 const AnnouncementManagement = lazyRoute(() => import("./pages/admin/AnnouncementManagement"), "AnnouncementManagement");
 const UsageCostPage = lazyRoute(() => import("./pages/admin/UsageCostPage"), "UsageCostPage");
 const AcquisitionPage = lazyRoute(() => import("./pages/admin/AcquisitionPage"), "AcquisitionPage");
+const UxHealthPage = lazyRoute(() => import("./pages/admin/UxHealthPage"), "UxHealthPage");
 const AdminRoute = lazyRoute(() => import("./components/AdminRoute"), "AdminRoute");
 
 // Protected route wrapper - redirects to login if not authenticated
@@ -405,6 +406,7 @@ function App() {
                       }
                     >
                       <Route index element={<AdminDashboard />} />
+                      <Route path="ux-health" element={<UxHealthPage />} />
                       <Route path="users" element={<UserManagement />} />
                       <Route path="usage" element={<UsageCostPage />} />
                       <Route path="acquisition" element={<AcquisitionPage />} />

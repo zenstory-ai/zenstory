@@ -11,6 +11,7 @@
     "title": "Admin Panel",
     "overview": "Overview",
     "dashboard": "Dashboard",
+    "uxHealth": "UX Health",
     "acquisition": "Sign-up sources",
     "users": "Users",
     "usage": "Usage",
@@ -319,7 +320,42 @@
     "statusUpdateFailed": "Couldn't update the status. Please try again.",
     "screenshotLoadFailed": "Couldn't load the screenshot. Please try again.",
     "screenshotPreviewTitle": "Screenshot Preview",
-    "screenshotPreviewAlt": "Feedback screenshot"
+    "screenshotPreviewAlt": "Feedback screenshot",
+    "tabs": {
+      "label": "Feedback type",
+      "tickets": "Tickets",
+      "chatVotes": "Chat Votes"
+    },
+    "chatVotes": {
+      "voteFilterLabel": "Vote filter",
+      "filterAll": "All votes",
+      "filterUp": "Thumbs up",
+      "filterDown": "Thumbs down",
+      "totalVotes": "Total votes",
+      "upRate": "Thumbs-up rate",
+      "upCount": "Thumbs up",
+      "downCount": "Thumbs down",
+      "topPresets": "Top dislike reasons",
+      "empty": "No chat votes in this period",
+      "voteUp": "Helpful",
+      "voteDown": "Not helpful",
+      "presetPrefix": "Reason: ",
+      "tableLabel": "Chat votes list",
+      "columns": {
+        "vote": "Vote",
+        "preset": "Reason tag",
+        "comment": "Comment"
+      },
+      "presets": {
+        "not_helpful": "Not helpful",
+        "inaccurate": "Inaccurate",
+        "off_topic": "Off topic",
+        "too_slow": "Too slow",
+        "style_mismatch": "Style mismatch",
+        "repetition": "Repetitive",
+        "other": "Other"
+      }
+    }
   },
   "auditLogs": {
     "title": "Audit logs",
@@ -656,5 +692,71 @@
       "unknown": "Not recorded"
     },
     "countWithRate": "{{count}} ({{rate}}%)"
+  },
+  "uxHealth": {
+    "title": "UX Health",
+    "period": "Beijing time · through {{end}}; today is incomplete",
+    "priorWithDelta": "Prior {{prior}} ({{delta}})",
+    "priorOnly": "Prior {{prior}}",
+    "minutesValue": "{{value}} min",
+    "chaptersValue": "{{count}} ch",
+    "wordsShort": "{{value}} words",
+    "cards": {
+      "ttft": "Provider TTFT (p50 / p95)",
+      "ttftDetail": "TTFT ≥10s {{ttftSlow}} · Duration ≥10s {{durSlow}}",
+      "cacheHit": "Prompt cache hit rate",
+      "cacheDetail": "Hit {{hit}} / Input {{total}}",
+      "healthyRounds": "Healthy round completion",
+      "healthyDetail": "Healthy {{healthy}} / {{total}} rounds",
+      "userStopped": "Mid-stream user stop",
+      "stopDetail": "Stopped {{stopped}} · Disconnected {{disconnected}} ({{disconnectedRate}})",
+      "editUndo": "AI edit undo rate",
+      "undoRestoreDetail": "Undone {{undone}}/{{edits}} · Restored {{restored}}/{{deletes}} ({{restoreRate}})",
+      "thumbsUp": "Chat thumbs-up rate",
+      "thumbsDetail": "{{up}} up / {{down}} down ({{total}} votes)",
+      "ttfv": "Time to first value (p50)",
+      "retentionDetail": "W1 returning writers {{rate}} ({{returned}}/{{eligible}})",
+      "output": "Chapters written",
+      "outputDetail": "{{words}} net words · Mobile {{mobile}} / Desktop {{desktop}}"
+    },
+    "abnormalStops": {
+      "title": "Abnormal stop breakdown",
+      "summary": "{{count}} rounds ({{rate}})",
+      "empty": "No abnormal stops in this period"
+    },
+    "dislikePresets": {
+      "title": "Top dislike reasons",
+      "viewAll": "Open Chat Votes",
+      "empty": "No tagged dislike votes in this period"
+    },
+    "daily": {
+      "title": "Daily trend",
+      "date": "Date",
+      "rounds": "Rounds",
+      "healthyRate": "Healthy rate",
+      "undoRate": "Edit undo rate",
+      "ttftP95": "TTFT p95",
+      "thumbsUpRate": "Thumbs-up rate"
+    },
+    "stopReasons": {
+      "run_deadline_exceeded": "Run deadline exceeded",
+      "tool_failure_circuit_open": "Tool failure circuit open",
+      "terminal_model_failure": "Terminal model failure",
+      "upstream_model_error": "Upstream model error",
+      "max_turns_exceeded": "Max turns exceeded",
+      "repetition_loop": "Repetition loop",
+      "runaway_stop": "Runaway stop",
+      "unexecuted_tool_text": "Unexecuted tool text",
+      "unwritten_files": "Unwritten files",
+      "cancelled": "Cancelled",
+      "unknown": "Unknown reason"
+    },
+    "methodology": {
+      "scope": "Customer accounts only (superusers and backfilled usage rows excluded). Windows use Beijing calendar days compared with the prior equal-duration period.",
+      "speed": "Provider TTFT and ≥10s TTFT slow-tail cover successful streaming calls; ≥10s duration slow-tail covers all successful calls. Prompt cache hit rate is token-weighted.",
+      "quality": "Healthy rounds ended with end_turn and no unexecuted tool text, unwritten files, or runaway stop flags. User stops are separated from client disconnects.",
+      "undo": "AI edit undo and delete restore rates come from live chat tool-card states; chat thumbs-up rate is attributed to message creation date.",
+      "value": "TTFV is median minutes from signup to earliest first AI write or file save; W1 retention compares prior-7d vs trailing-7d active writers; output counts active draft/script chapters and net words vs pre-window baseline; device share reads activation event is_mobile."
+    }
   }
 }

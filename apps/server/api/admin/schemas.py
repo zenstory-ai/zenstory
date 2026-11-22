@@ -162,6 +162,49 @@ class FeedbackStatusUpdateRequest(BaseModel):
     status: Literal["open", "processing", "resolved"]
 
 
+class ChatVotePresetCountResponse(BaseModel):
+    """Count of one dislike preset tag in chat votes."""
+
+    preset: str
+    count: int
+
+
+class ChatVoteSummaryResponse(BaseModel):
+    """Window summary for assistant thumbs-up/down chat feedback."""
+
+    up: int
+    down: int
+    total_votes: int
+    up_rate: float | None
+    preset_counts: list[ChatVotePresetCountResponse] = Field(default_factory=list)
+
+
+class ChatVoteItemResponse(BaseModel):
+    """One explicit chat feedback vote without manuscript or prompt body."""
+
+    message_id: str
+    user_id: str
+    username: str
+    vote: Literal["up", "down"]
+    preset: str | None = None
+    comment: str | None = None
+    created_at: UTCDateTime
+
+
+class ChatVotesListResponse(BaseModel):
+    """Paginated explicit chat feedback votes and window summary."""
+
+    days: Literal[7, 14, 30]
+    timezone: Literal["Asia/Shanghai"] = "Asia/Shanghai"
+    period_start: UTCDateTime
+    period_end: UTCDateTime
+    summary: ChatVoteSummaryResponse
+    items: list[ChatVoteItemResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 # ==================== Subscription Plan Schemas ====================
 
 
@@ -498,6 +541,114 @@ class GrowthDashboardResponse(BaseModel):
     current: GrowthPeriodResponse
     previous: GrowthPeriodResponse
     daily: list[GrowthDailyResponse]
+    definitions: dict[str, str]
+
+
+class UxAbnormalStopResponse(BaseModel):
+    """Count and share of one abnormal round stop reason."""
+
+    reason: str
+    count: int
+    rate: float | None
+
+
+class UxHealthMetricsResponse(BaseModel):
+    """Customer-scoped UX health KPIs for one half-open Beijing window."""
+
+    ttft_p50_ms: int | None
+    ttft_p95_ms: int | None
+    ttft_samples: int
+    ttft_slow_tail_count: int
+    ttft_slow_tail_rate: float | None
+    duration_samples: int
+    duration_slow_tail_count: int
+    duration_slow_tail_rate: float | None
+    cache_hit_tokens: int
+    cache_miss_tokens: int
+    prompt_cache_hit_rate: float | None
+    total_rounds: int
+    healthy_rounds: int
+    healthy_round_rate: float | None
+    user_stopped_rounds: int
+    user_stopped_rate: float | None
+    client_disconnected_rounds: int
+    client_disconnected_rate: float | None
+    abnormal_stop_rounds: int
+    abnormal_stop_rate: float | None
+    abnormal_stops: list[UxAbnormalStopResponse] = Field(default_factory=list)
+    ai_edit_cards: int
+    ai_edit_undone: int
+    ai_edit_undo_rate: float | None
+    ai_delete_cards: int
+    ai_delete_restored: int
+    ai_delete_restore_rate: float | None
+    feedback_up: int
+    feedback_down: int
+    feedback_total: int
+    thumbs_up_rate: float | None
+    top_dislike_presets: list[ChatVotePresetCountResponse] = Field(default_factory=list)
+    ttfv_p50_minutes: float | None
+    ttfv_samples: int
+    w1_returning_writers: int
+    w1_eligible_writers: int
+    w1_retention_rate: float | None
+    chapters_written: int
+    net_words_written: int
+    mobile_users: int
+    desktop_users: int
+    mobile_share: float | None
+
+
+class UxHealthDeltaResponse(BaseModel):
+    """Current minus prior period delta for key UX health metrics."""
+
+    ttft_p50_ms: int | None = None
+    ttft_p95_ms: int | None = None
+    ttft_slow_tail_rate: float | None = None
+    duration_slow_tail_rate: float | None = None
+    prompt_cache_hit_rate: float | None = None
+    healthy_round_rate: float | None = None
+    user_stopped_rate: float | None = None
+    client_disconnected_rate: float | None = None
+    abnormal_stop_rate: float | None = None
+    ai_edit_undo_rate: float | None = None
+    ai_delete_restore_rate: float | None = None
+    thumbs_up_rate: float | None = None
+    ttfv_p50_minutes: float | None = None
+    w1_retention_rate: float | None = None
+    chapters_written: int | None = None
+    net_words_written: int | None = None
+    mobile_share: float | None = None
+
+
+class UxHealthPeriodResponse(BaseModel):
+    """Metrics and exact UTC bounds for one UX health period."""
+
+    period_start: UTCDateTime
+    period_end: UTCDateTime
+    metrics: UxHealthMetricsResponse
+
+
+class UxHealthDailyResponse(BaseModel):
+    """Compact daily UX health trend row for one Beijing calendar day."""
+
+    date: date
+    rounds: int
+    healthy_rate: float | None
+    undo_rate: float | None
+    ttft_p95_ms: int | None
+    thumbs_up_rate: float | None
+
+
+class UxHealthDashboardResponse(BaseModel):
+    """Current UX health window, matched prior window, delta, and daily trend."""
+
+    days: Literal[7, 14, 30]
+    timezone: Literal["Asia/Shanghai"] = "Asia/Shanghai"
+    current: UxHealthPeriodResponse
+    previous: UxHealthPeriodResponse
+    delta: UxHealthDeltaResponse
+    daily: list[UxHealthDailyResponse]
     definitions: dict[str, str]
 
 

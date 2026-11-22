@@ -18,6 +18,7 @@ vi.mock("../../../lib/adminApi", () => ({
     getFeedbackList: vi.fn(),
     updateFeedbackStatus: vi.fn(),
     getFeedbackScreenshotBlob: (...args: unknown[]) => getScreenshotBlobMock(...args),
+    getChatVotes: vi.fn(),
   },
 }));
 
@@ -231,5 +232,74 @@ describe("FeedbackManagement", () => {
       expect(toast.error).toHaveBeenCalledWith("状态更新失败，请重试");
       expect(toast.success).not.toHaveBeenCalled();
     });
+  });
+
+  it("switches to chat votes sub-tab, displays summary & preset chips, and filters by vote", () => {
+    i18nState.useFallback = true;
+    useQueryMock.mockImplementation((opts: { queryKey: unknown[] }) => {
+      if (opts.queryKey[2] === "chat-votes") {
+        return {
+          data: {
+            days: 7,
+            timezone: "Asia/Shanghai",
+            period_start: "2026-09-30T16:00:00+00:00",
+            period_end: "2026-10-07T08:00:00+00:00",
+            summary: {
+              up: 8,
+              down: 2,
+              total_votes: 10,
+              up_rate: 0.8,
+              preset_counts: [{ preset: "too_slow", count: 2 }],
+            },
+            items: [
+              {
+                message_id: "msg-1",
+                user_id: "user-1",
+                username: "novelist",
+                vote: "down",
+                preset: "too_slow",
+                comment: "Wait was too long",
+                created_at: "2026-10-06T08:00:00Z",
+              },
+            ],
+            total: 1,
+            page: 1,
+            page_size: 20,
+          },
+          isLoading: false,
+          isFetching: false,
+          isError: false,
+          error: null,
+          refetch: vi.fn(),
+        };
+      }
+      return {
+        data: { items: [], total: 0 },
+        isLoading: false,
+        isFetching: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      };
+    });
+
+    render(<FeedbackManagement />, { wrapper: MemoryRouter });
+
+    fireEvent.click(screen.getByRole("button", { name: "对话反馈" }));
+
+    expect(screen.getByText("80.0%")).toBeInTheDocument();
+    expect(screen.getByText("Wait was too long")).toBeInTheDocument();
+    expect(screen.getByText("novelist")).toBeInTheDocument();
+
+    const voteSelect = screen.getByRole("combobox", { name: "评价筛选" });
+    fireEvent.change(voteSelect, { target: { value: "down" } });
+    expect(useQueryMock.mock.lastCall?.[0].queryKey).toEqual([
+      "admin",
+      "feedback",
+      "chat-votes",
+      7,
+      "down",
+      1,
+    ]);
   });
 });
