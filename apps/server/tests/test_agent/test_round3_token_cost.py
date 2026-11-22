@@ -16,10 +16,11 @@ import json
 import pytest
 from sqlmodel import Session
 
+from agent.core.request_context import AgentRequestContext
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.openai_agents.events import mcp_text_result
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
-from agent.tools.mcp_tools import ToolContext, create_file
+from agent.tools.mcp_tools import create_file
 from models import File, Project, User
 from services.features.file_version_service import FileVersionService
 
@@ -107,13 +108,14 @@ def _tool_result_text(payload: dict) -> str:
     return payload["content"][0]["text"]
 
 
-async def _reuse_episode(project: Project, title: str = EPISODE_TITLE) -> dict:
+async def _reuse_episode(project: Project, request_context: AgentRequestContext, title: str = EPISODE_TITLE) -> dict:
     return await create_file(
         {
             "title": title,
             "file_type": "script",
             "parent_id": f"{project.id}-script-folder",
-        }
+        },
+        request_context=request_context,
     )
 
 
@@ -123,9 +125,9 @@ async def test_reused_episode_tool_result_drops_the_body(
 ):
     """复用分支回给模型的文本里不得再出现整集正文。"""
     file_id = _seed_episode(db_session, screenplay_project)
-    ToolContext.set_context(db_session, test_user.id, screenplay_project.id, None)
+    req_ctx = AgentRequestContext(session=db_session, user_id=test_user.id, project_id=screenplay_project.id, session_id=None)
 
-    text = _tool_result_text(await _reuse_episode(screenplay_project))
+    text = _tool_result_text(await _reuse_episode(screenplay_project, req_ctx))
     parsed = json.loads(text)
     data = parsed["data"]
 
@@ -144,9 +146,9 @@ async def test_reused_episode_tool_result_keeps_guard_fields(
 ):
     """省略正文的同时，覆盖保护赖以判断的显式字段必须原样保留。"""
     _seed_episode(db_session, screenplay_project)
-    ToolContext.set_context(db_session, test_user.id, screenplay_project.id, None)
+    req_ctx = AgentRequestContext(session=db_session, user_id=test_user.id, project_id=screenplay_project.id, session_id=None)
 
-    data = json.loads(_tool_result_text(await _reuse_episode(screenplay_project)))["data"]
+    data = json.loads(_tool_result_text(await _reuse_episode(screenplay_project, req_ctx)))["data"]
 
     assert data["reused_existing"] is True
     assert data["original_content_length"] == len(EPISODE_BODY)
@@ -158,9 +160,9 @@ async def test_reused_empty_episode_is_untouched(
 ):
     """复用的目标文件本来就是空的时候没有正文可省，契约保持原样。"""
     _seed_episode(db_session, screenplay_project, body="")
-    ToolContext.set_context(db_session, test_user.id, screenplay_project.id, None)
+    req_ctx = AgentRequestContext(session=db_session, user_id=test_user.id, project_id=screenplay_project.id, session_id=None)
 
-    data = json.loads(_tool_result_text(await _reuse_episode(screenplay_project)))["data"]
+    data = json.loads(_tool_result_text(await _reuse_episode(screenplay_project, req_ctx)))["data"]
 
     assert data["reused_existing"] is True
     assert data["original_content_length"] == 0
@@ -173,14 +175,15 @@ async def test_explicit_content_on_new_file_still_echoes(
     db_session: Session, test_user: User, screenplay_project: Project
 ):
     """用户显式带 content 建新文件时回显 content 是既有行为，不在省略范围内。"""
-    ToolContext.set_context(db_session, test_user.id, screenplay_project.id, None)
+    req_ctx = AgentRequestContext(session=db_session, user_id=test_user.id, project_id=screenplay_project.id, session_id=None)
 
     payload = await create_file(
         {
             "title": "人物小传",
             "file_type": "character",
             "content": "赵四，四十岁，退伍侦察兵。",
-        }
+        },
+        request_context=req_ctx,
     )
     data = json.loads(_tool_result_text(payload))["data"]
 
@@ -206,14 +209,15 @@ def _collect_sse_text(sse_events: list) -> str:
 async def _run_streaming_turn(
     project: Project,
     user_id: str,
+    request_context: AgentRequestContext,
     *,
     close_file: bool,
 ) -> list:
     """跑一轮「复用分集 + 流式写正文」，close_file=False 模拟模型漏写 </file>。"""
     adapter = StreamAdapter(
-        StreamAdapterConfig(project_id=project.id, user_id=user_id)
+        StreamAdapterConfig(project_id=project.id, user_id=user_id, request_context=request_context)
     )
-    tool_payload = await _reuse_episode(project)
+    tool_payload = await _reuse_episode(project, request_context)
     result_text = _tool_result_text(tool_payload)
 
     body = f"<file>{EPISODE_TITLE}\n{TRUNCATED_PROSE}"
@@ -249,10 +253,10 @@ async def test_elided_content_still_blocks_truncated_overwrite(
 ):
     """bug03 保护不得被削弱：正文被省略后，截断补全仍不能覆盖整集正文。"""
     file_id = _seed_episode(db_session, screenplay_project)
-    ToolContext.set_context(db_session, test_user.id, screenplay_project.id, None)
+    req_ctx = AgentRequestContext(session=db_session, user_id=test_user.id, project_id=screenplay_project.id, session_id=None)
 
     sse_events = await _run_streaming_turn(
-        screenplay_project, test_user.id, close_file=False
+        screenplay_project, test_user.id, req_ctx, close_file=False
     )
 
     db_session.expire_all()
@@ -276,9 +280,9 @@ async def test_elided_content_does_not_block_legit_rewrite(
 ):
     """守卫不得矫枉过正：正常闭合 </file> 的重写照样要落库。"""
     file_id = _seed_episode(db_session, screenplay_project)
-    ToolContext.set_context(db_session, test_user.id, screenplay_project.id, None)
+    req_ctx = AgentRequestContext(session=db_session, user_id=test_user.id, project_id=screenplay_project.id, session_id=None)
 
-    await _run_streaming_turn(screenplay_project, test_user.id, close_file=True)
+    await _run_streaming_turn(screenplay_project, test_user.id, req_ctx, close_file=True)
 
     db_session.expire_all()
     stored = db_session.get(File, file_id)

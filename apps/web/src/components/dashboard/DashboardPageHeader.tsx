@@ -73,7 +73,7 @@ export function DashboardPageHeader({
           <div className="min-w-0 w-full">
             <div className="flex items-center gap-2">
               <h1
-                className={`heading-display min-w-0 break-words font-semibold tracking-tight text-[hsl(var(--text-primary))] ${
+                className={`min-w-0 break-words font-semibold tracking-tight text-[hsl(var(--text-primary))] ${
                   isMobile ? "text-2xl" : "text-[28px]"
                 }`}
               >

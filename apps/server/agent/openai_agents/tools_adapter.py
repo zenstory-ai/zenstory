@@ -14,8 +14,8 @@ from agent.openai_agents.tool_failure_breaker import (
     ToolFailureBreaker,
     _parse_error_payload,
 )
-from agent.tools.mcp_tools import ToolContext
 from agent.tools.registry import TOOL_FUNCTIONS, get_exposed_tools
+from agent.tools.tool_context import AgentRequestContext, unwrap_request_context
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -99,12 +99,34 @@ def _record_business_failure(run_meter: AgentRunMeter, tool_name: str, args: dic
         logger.warning(f"Tool failure count for the run summary failed: {type(exc).__name__}")
 
 
+def _call_tool_handler(
+    tool_func: Any,
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+    tool_call_id: str | None = None,
+) -> Any:
+    """Invoke a registered tool handler, forwarding typed context kwargs when accepted."""
+    try:
+        params = inspect.signature(tool_func).parameters
+    except (TypeError, ValueError):
+        params = {}
+    has_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+    kwargs: dict[str, Any] = {}
+    if request_context is not None and (has_var_kw or "request_context" in params):
+        kwargs["request_context"] = request_context
+    if tool_call_id is not None and (has_var_kw or "tool_call_id" in params):
+        kwargs["tool_call_id"] = tool_call_id
+    return tool_func(args, **kwargs)
+
+
 async def invoke_project_tool(
     tool_name: str,
     raw_arguments: str,
     *,
     run_meter: AgentRunMeter | None = None,
     tool_call_id: str | None = None,
+    request_context: AgentRequestContext | None = None,
 ) -> str:
     """Invoke a project tool from an SDK FunctionTool callback."""
     parsed_args, parse_error_text = _parse_tool_arguments(raw_arguments, tool_name=tool_name)
@@ -119,8 +141,18 @@ async def invoke_project_tool(
         if run_meter is not None:
             run_meter.mark_first_tool_started()
         timing = run_meter.measure_stage("tool") if run_meter is not None else nullcontext()
-        with timing, ToolContext.tool_call_scope(tool_call_id):
-            result = tool_func(parsed_args or {})
+        call_scope = (
+            request_context.tool_call_scope(tool_call_id)
+            if request_context is not None
+            else nullcontext()
+        )
+        with timing, call_scope:
+            result = _call_tool_handler(
+                tool_func,
+                parsed_args or {},
+                request_context=request_context,
+                tool_call_id=tool_call_id,
+            )
             if inspect.isawaitable(result):
                 result = await result
         text = _normalize_tool_result_text(result)
@@ -208,12 +240,13 @@ def build_agent_function_tools(
         description = str(tool_schema.get("description") or "")
 
         async def _on_invoke_tool(
-            _ctx: Any,
+            ctx: Any,
             raw_arguments: str,
             *,
             _tool_name: str = name,
         ) -> str:
-            raw_call_id = getattr(_ctx, "tool_call_id", None)
+            req_ctx = unwrap_request_context(ctx)
+            raw_call_id = getattr(ctx, "tool_call_id", None)
             call_id = raw_call_id if isinstance(raw_call_id, str) and raw_call_id else None
 
             async def invoke_allowed(arguments: str) -> str:
@@ -222,13 +255,15 @@ def build_agent_function_tools(
                     kwargs["run_meter"] = run_meter
                 if call_id is not None:
                     kwargs["tool_call_id"] = call_id
+                if req_ctx is not None:
+                    kwargs["request_context"] = req_ctx
                 return await invoke_project_tool(_tool_name, arguments, **kwargs)
 
             if failure_breaker is not None and failure_breaker.is_open:
                 return failure_breaker.short_circuit_text(_tool_name)
             if read_guard is not None and read_guard.is_open:
                 return read_guard.short_circuit_text(_tool_name)
-            overdue = ToolContext.overdue_file_bodies()
+            overdue = req_ctx.overdue_file_bodies() if req_ctx is not None else []
             cancelled_id = (
                 # 复用的已有剧集可能已有正文，不算「取消本请求建的空文件」。
                 _cancels_overdue_file(raw_arguments, {entry["id"] for entry in overdue if entry["created_here"]})
@@ -251,10 +286,10 @@ def build_agent_function_tools(
                     output = read_guard.observe(_tool_name, plan, output)
             else:
                 output = await invoke_allowed(raw_arguments)
-            if cancelled_id is not None and _deleted(output):
+            if cancelled_id is not None and _deleted(output) and req_ctx is not None:
                 # 待写文件确实删掉了：守卫随这次删除结果收敛（StreamAdapter 按同一结果解除捕获），
                 # 模型在本 run 里接着做别的不会再被它拒绝；run 边界的「已删除」核验照旧兜底。
-                ToolContext.clear_pending_empty_file(cancelled_id)
+                req_ctx.clear_pending_empty_file(cancelled_id)
             if failure_breaker is not None:
                 output = failure_breaker.observe(_tool_name, raw_arguments, output)
             return output

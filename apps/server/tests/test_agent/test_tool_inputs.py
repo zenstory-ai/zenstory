@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -20,6 +20,7 @@ from agent.openai_agents.tools_adapter import (
 )
 from agent.tools import mcp_tools
 from agent.tools.registry import LOOP_TOOL_NAMES
+from agent.tools.tool_context import AgentRequestContext
 from agent.tools.tool_inputs import (
     TOOL_INPUT_MODELS,
     TOOL_INPUT_VALIDATION_ERROR_TYPE,
@@ -339,46 +340,57 @@ def test_empty_id_falls_back_to_file_id_alias_and_update_project_aliases_work():
 # ---------------------------------------------------------------------------
 
 
+def _mock_req_ctx(mock_executor: MagicMock, *, project_id: str = "proj-1") -> AgentRequestContext:
+    req_ctx = AgentRequestContext(session=MagicMock(), project_id=project_id, session_id="sess-1")
+    req_ctx.executor = MagicMock(return_value=mock_executor)
+    return req_ctx
+
+
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_direct_mcp_tools_return_structured_chinese_validation_errors():
     mock_executor = MagicMock()
-    with (
-        patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor),
-        patch("agent.tools.mcp_tools.ToolContext._get_context", return_value={"project_id": "proj-1"}),
-    ):
-        # edit_file bad id type -> invalid_edit + edits_applied=0 + Chinese error & message
-        bad_edit = _parse_mcp(await mcp_tools.edit_file({"id": 123, "edits": []}))
-        assert bad_edit["status"] == "error"
-        assert bad_edit["error_type"] == "invalid_edit"
-        assert bad_edit["mutation_applied"] is False
-        assert bad_edit["edits_applied"] == 0
-        assert bad_edit["message"] == bad_edit["error"]
-        assert "字符串" in bad_edit["message"]
+    req_ctx = _mock_req_ctx(mock_executor)
 
-        # query_files bool passed for start_char -> invalid_tool_input
-        bad_query = _parse_mcp(await mcp_tools.query_files({"id": "f-1", "start_char": True}))
-        assert bad_query["status"] == "error"
-        assert bad_query["error_type"] == TOOL_INPUT_VALIDATION_ERROR_TYPE
-        assert bad_query["mutation_applied"] is False
-        assert bad_query["message"] == bad_query["error"]
-        assert "布尔值" in bad_query["message"]
+    # edit_file bad id type -> invalid_edit + edits_applied=0 + Chinese error & message
+    bad_edit = _parse_mcp(await mcp_tools.edit_file({"id": 123, "edits": []}, request_context=req_ctx))
+    assert bad_edit["status"] == "error"
+    assert bad_edit["error_type"] == "invalid_edit"
+    assert bad_edit["mutation_applied"] is False
+    assert bad_edit["edits_applied"] == 0
+    assert bad_edit["message"] == bad_edit["error"]
+    assert "字符串" in bad_edit["message"]
 
-        # delete_file missing id -> invalid_tool_input
-        bad_del = _parse_mcp(await mcp_tools.delete_file({}))
-        assert bad_del["status"] == "error"
-        assert bad_del["error_type"] == TOOL_INPUT_VALIDATION_ERROR_TYPE
-        assert bad_del["message"] == bad_del["error"]
+    # query_files bool passed for start_char -> invalid_tool_input
+    bad_query = _parse_mcp(
+        await mcp_tools.query_files({"id": "f-1", "start_char": True}, request_context=req_ctx)
+    )
+    assert bad_query["status"] == "error"
+    assert bad_query["error_type"] == TOOL_INPUT_VALIDATION_ERROR_TYPE
+    assert bad_query["mutation_applied"] is False
+    assert bad_query["message"] == bad_query["error"]
+    assert "布尔值" in bad_query["message"]
 
-        # write_chapter bool chapter -> WRITE_CHAPTER_INVALID_ERROR_TYPE
-        bad_wc = _parse_mcp(await mcp_tools.write_chapter({"chapter": True, "title": "第一章", "file_type": "draft"}))
-        assert bad_wc["status"] == "error"
-        assert bad_wc["error_type"] == mcp_tools.WRITE_CHAPTER_INVALID_ERROR_TYPE
-        assert bad_wc["message"] == bad_wc["error"]
+    # delete_file missing id -> invalid_tool_input
+    bad_del = _parse_mcp(await mcp_tools.delete_file({}, request_context=req_ctx))
+    assert bad_del["status"] == "error"
+    assert bad_del["error_type"] == TOOL_INPUT_VALIDATION_ERROR_TYPE
+    assert bad_del["message"] == bad_del["error"]
 
-        mock_executor.edit_file.assert_not_called()
-        mock_executor.query_files.assert_not_called()
-        mock_executor.delete_file_with_meta.assert_not_called()
+    # write_chapter bool chapter -> WRITE_CHAPTER_INVALID_ERROR_TYPE
+    bad_wc = _parse_mcp(
+        await mcp_tools.write_chapter(
+            {"chapter": True, "title": "第一章", "file_type": "draft"},
+            request_context=req_ctx,
+        )
+    )
+    assert bad_wc["status"] == "error"
+    assert bad_wc["error_type"] == mcp_tools.WRITE_CHAPTER_INVALID_ERROR_TYPE
+    assert bad_wc["message"] == bad_wc["error"]
+
+    mock_executor.edit_file.assert_not_called()
+    mock_executor.query_files.assert_not_called()
+    mock_executor.delete_file_with_meta.assert_not_called()
 
 
 @pytest.mark.unit
@@ -421,14 +433,11 @@ def test_sdk_function_tools_keep_strict_json_schema_false_and_clean_params():
 async def test_invoke_project_tool_repairs_json_before_pydantic_validation():
     mock_executor = MagicMock()
     mock_executor.edit_file.return_value = {"id": "f-1", "edits_applied": 1, "mutation_applied": True}
+    req_ctx = _mock_req_ctx(mock_executor)
 
     # Trailing comma & single quotes (repaired by json_repair) + alias file_id + string bool "false"
     malformed_json = "{'file_id': 'f-1', 'operations': [{'op': 'append', 'text': '你好'}], 'continue_on_error': 'false',}"
-    with (
-        patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor),
-        patch("agent.tools.mcp_tools.ToolContext._get_context", return_value={"project_id": "proj-1"}),
-    ):
-        output_text = await invoke_project_tool("edit_file", malformed_json)
+    output_text = await invoke_project_tool("edit_file", malformed_json, request_context=req_ctx)
 
     payload = json.loads(output_text)
     assert payload["status"] == "success"

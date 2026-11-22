@@ -331,34 +331,34 @@ def test_render_budget_says_what_is_missing():
 
 async def _run(session, user, project, tool, args, *, message, read_snapshots=None):
     engine = session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         author_message=message,
         author_steering=[],
         read_snapshots=read_snapshots,
     )
     try:
-        raw = await tool(args)
+        raw = await tool(args, request_context=req_ctx)
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
     return json.loads(raw["content"][0]["text"])
 
 
 async def _run_many(session, user, project, calls, *, message, read_snapshots=None):
-    """同一请求里先后调用几个工具（共享 ToolContext，快照会被更新）。
+    """同一请求里先后调用几个工具（共享 AgentRequestContext，快照会被更新）。
 
     每个调用算作模型的一条回复：调用之间模型看到了上一个结果（runner 的 on_llm_start 做的事）。
     """
     engine = session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         author_message=message,
         author_steering=[],
@@ -367,11 +367,11 @@ async def _run_many(session, user, project, calls, *, message, read_snapshots=No
     out = []
     try:
         for tool, args in calls:
-            mcp_tools.ToolContext.promote_pending_reads()
-            raw = await tool(args)
+            req_ctx.promote_pending_reads()
+            raw = await tool(args, request_context=req_ctx)
             out.append(json.loads(raw["content"][0]["text"]))
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
     return out
 
 
@@ -412,25 +412,27 @@ async def test_rewriting_the_authors_line_is_done_and_reported(db_session, owner
     user, project = owner_project
     ep2 = _author_edited_ep2(db_session, project)
     engine = db_session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         author_message="把我改的那句台词再改狠一点",
         author_steering=[],
         read_snapshots={ep2.id: EP2_AUTHOR},
     )
     try:
-        with mcp_tools.ToolContext.tool_call_scope("call-author-line"):
+        with req_ctx.tool_call_scope("call-author-line"):
             raw = await mcp_tools.edit_file(
-                {"id": ep2.id, "edits": [{"op": "replace", "old": AUTHOR_LINE, "new": "顾寒川：（冷笑）你也配？"}]}
+                {"id": ep2.id, "edits": [{"op": "replace", "old": AUTHOR_LINE, "new": "顾寒川：（冷笑）你也配？"}]},
+                request_context=req_ctx,
+                tool_call_id="call-author-line",
             )
         payload = json.loads(raw["content"][0]["text"])
-        ui_overlay = mcp_tools.ToolContext.pop_tool_ui_payload("call-author-line")
+        ui_overlay = req_ctx.pop_tool_ui_payload("call-author-line")
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
     assert payload["status"] == "success"
     assert payload["data"]["author_edits_touched"] == [{"before": AUTHOR_LINE, "after": "顾寒川：（冷笑）你也配？"}]
     assert "undo" not in payload["data"]
@@ -565,23 +567,23 @@ async def test_unread_files_match_verbatim_whatever_the_edit_says(db_session, ow
 
 
 def test_what_the_previous_agent_read_is_not_what_the_next_one_saw():
-    from agent.tools.mcp_tools import ToolContext
+    from agent.core.request_context import AgentRequestContext
 
-    ToolContext.set_context(None, "u", "p", None, read_snapshots={"f": "turn start"})
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id=None, read_snapshots={"f": "turn start"})
     try:
-        ToolContext.record_read_snapshot("f", "read by writer")
-        ToolContext.record_written_snapshot("g", "written by writer")
+        req_ctx.record_read_snapshot("f", "read by writer")
+        req_ctx.record_written_snapshot("g", "written by writer")
         # 读到的正文要等模型下一次调用才算看过；自己写下的立即生效。
-        assert ToolContext.read_snapshot("f") == "turn start"
-        assert ToolContext.read_snapshot("g") == "written by writer"
-        ToolContext.promote_pending_reads()
-        assert ToolContext.read_snapshot("f") == "read by writer"
-        ToolContext.begin_agent_run()
+        assert req_ctx.read_snapshot("f") == "turn start"
+        assert req_ctx.read_snapshot("g") == "written by writer"
+        req_ctx.promote_pending_reads()
+        assert req_ctx.read_snapshot("f") == "read by writer"
+        req_ctx.begin_agent_run()
         # 下一个 agent 没看到 writer 读到的新正文；本请求自己写下的仍算看到了。
-        assert ToolContext.read_snapshot("f") == "turn start"
-        assert ToolContext.read_snapshot("g") == "written by writer"
+        assert req_ctx.read_snapshot("f") == "turn start"
+        assert req_ctx.read_snapshot("g") == "written by writer"
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
 
 def test_undoing_an_ai_rewrite_is_the_authors_choice(db_session, owner_project):

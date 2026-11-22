@@ -43,12 +43,15 @@ def test_a_repeated_passage_is_found_where_the_repeat_starts():
 @pytest.mark.unit
 async def test_adapter_saves_only_the_text_before_the_repeat():
     from agent.stream_adapter import create_stream_adapter
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
     opening, cycle = _prose(3000, 3), _prose(2000, 4)
-    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    req_ctx = AgentRequestContext(project_id="p", user_id="u")
+    adapter = create_stream_adapter(
+        project_id="p", user_id="u", process_file_markers=True, request_context=req_ctx
+    )
     adapter._save_file_content = AsyncMock(return_value=True)
-    ToolContext.set_pending_empty_file("story", "订婚宴前的账本")
+    req_ctx.set_pending_empty_file("story", "订婚宴前的账本")
     adapter.set_pending_file_write("story", "draft", "订婚宴前的账本")
 
     async def events():

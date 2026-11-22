@@ -38,6 +38,7 @@ agent/
 │   ├── events.py           # SSE 事件（EventType）与帧构造
 │   ├── workflow_events.py  # 循环 → StreamAdapter 的内部事件（StreamEventType / StreamEvent）
 │   ├── writing_state.py    # WritingState：一轮请求交给单循环 agent 与 runner 的状态
+│   ├── request_context.py  # AgentRequestContext 与 unwrap_request_context 的 core 层导出入口
 │   ├── empty_files.py      # 空文件的落库核验、恢复写入目标与回滚
 │   ├── task_board_completion.py # 正常结束时按实际写出的文件补记任务板
 │   ├── sse_pump.py         # SSEStreamPump：心跳、请求墙钟时限、作者停止
@@ -87,8 +88,8 @@ agent/
 ├── tools/                  # 工具
 │   ├── tool_inputs.py      # Pydantic v2 工具入参模型（TOOL_INPUT_MODELS）、紧凑 schema 导出与统一中文校验错误
 │   ├── tool_schemas.py     # provider-neutral 工具 schema（由 tool_inputs.py 导出 TOOL_SCHEMAS）
+│   ├── tool_context.py     # AgentRequestContext（强类型请求上下文、短生命周期 session_scope、待写正文/快照/UI 侧通道）
 │   ├── mcp_tools.py        # 工具实现（MCP_TOOL_HANDLERS）
-│   ├── tool_context.py     # ToolContext（请求级工具上下文、读快照、待写正文状态）
 │   ├── registry.py         # schema / handler / 单循环 agent 工具集的唯一接线处
 │   ├── file_ops/           # 文件 CRUD、编辑、项目操作（FileToolExecutor 组合三者）
 │   ├── author_changes.py   # 作者在 AI 写过之后的净改动
@@ -107,7 +108,7 @@ agent/
   工作方式（含写后连贯自查、按真实字数汇报）+ 技能目录，跨轮不变。`<turn_context>`（`loop/turn_context.py`）只放这一轮请求带来的东西：
   项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、本轮回复语言（沿用 ContextAssembler 的解析器与渲染，不做
   优先级裁剪、检索和文件清单；超出 `AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS` 120000 供应商 token 时按 `TokenBudget` 优先保留引用与焦点文件全文、截断超大附加稿并标注 `query_files`），以及 `<author_edits>`：焦点、附加文件和本会话 AI 写过的正文文件（`SessionLoader.session_written_file_ids`，
-  按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改（`SessionLoader.author_edits_for_files`，受总墙钟预算 `AUTHOR_EDITS_TIME_BUDGET_S` 2.0s 与 `service.process_stream` 传入的协同 `cancel_event` 约束，超时或取消后剩余文件体面归入 `unchecked_titles`；`author_changes.line_blame` 对连续同标签非作者版本或从空基线起步的纯 AI 链直接走 `_apply_diff` 快速基线、跳过冗余 `SequenceMatcher`，`_matcher` 启用 `autojunk=True` 并裁剪 `_advance` 公共非空前后缀防长文高频短行二次退化 [author-blame-perf-and-collab-cache][n-blame-perf-collab-cache]）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件与本会话此前轮次读/写过且库内未变更的文件（`SessionLoader.session_read_snapshots`，至多 `SESSION_SNAPSHOT_MAX_FILES` 个、单次批量 `SELECT` 核验、遇压缩点停止；若本轮开始前轮间压缩成功则经 `ToolContext.drop_initial_read_snapshots` 撤销）作为 edit_file 陈旧检查的起点（[batch-tool-calls-and-session-snapshots][n-batch-snapshots]）。
+  按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改（`SessionLoader.author_edits_for_files`，受总墙钟预算 `AUTHOR_EDITS_TIME_BUDGET_S` 2.0s 与 `service.process_stream` 传入的协同 `cancel_event` 约束，超时或取消后剩余文件体面归入 `unchecked_titles`；`author_changes.line_blame` 对连续同标签非作者版本或从空基线起步的纯 AI 链直接走 `_apply_diff` 快速基线、跳过冗余 `SequenceMatcher`，`_matcher` 启用 `autojunk=True` 并裁剪 `_advance` 公共非空前后缀防长文高频短行二次退化 [author-blame-perf-and-collab-cache][n-blame-perf-collab-cache]）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件与本会话此前轮次读/写过且库内未变更的文件（`SessionLoader.session_read_snapshots`，至多 `SESSION_SNAPSHOT_MAX_FILES` 个、单次批量 `SELECT` 核验、遇压缩点停止；若本轮开始前轮间压缩成功则经 `AgentRequestContext.drop_initial_read_snapshots` 撤销）作为 edit_file 陈旧检查的起点（[batch-tool-calls-and-session-snapshots][n-batch-snapshots]）。
 - **历史**（`loop/history.py`、`loop/wire_prefix_cache.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
   assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file / write_chapter 结果去掉
   `awaiting_body` / `next_step`，带 `body_saved`（write_chapter 的整章替换只认落库后补发的结果，只有定位结果时 `body_saved=false` 并说明没保存；
@@ -129,8 +130,8 @@ agent/
 - **运行循环**（`loop/engine.py`）：每次 run 都是 `runner.run_openai_agents_streaming_agent(agent_type="loop")`。同一轮里只因结构化事实再跑
   （从上一次完整的 SDK 输入接着来）：空文件纠偏（落库核验 + `FILE_BODY_RESUME`，补不成就回滚并发 `empty_file_correction` 卡；write_chapter 定下的整章替换没收到正文时也经 `FILE_BODY_RESUME` 恢复捕获、
   补不成就作废定位，原文不动）、
-  保存后自查的续写（本请求有确认落库、还没自查过的完整章节 / 分集正文就续跑一次——`ToolContext.saved_content_body_ids()`，由 StreamAdapter 的保存点
-  `_note_body_saved` 连同文件类型记下，不看 `</file>` 之后有没有一句总结；大纲、人物等资料文件不在内；另外停在写完的 `</file>` 或新正文 EOF 上的 run 照旧续跑。写正文的回复到 `</file>` 就结束；续跑说明附落库字数，并要求先自查、用 edit_file 改正再回复，同一个文件只要求一次，见 `_BODY_SAVED_CONTEXT` / `_BODY_RESAVED_CONTEXT`；正文之后已经回复过作者（这次 run 没停在 `</file>` 上）时改用 `_BODY_SAVED_REPLIED_CONTEXT`，只自查、不重复总结；整章替换的新正文没落库时——`ToolContext.unsaved_chapter_replacement_ids()`，
+  保存后自查的续写（本请求有确认落库、还没自查过的完整章节 / 分集正文就续跑一次——`AgentRequestContext.saved_content_body_ids()`，由 StreamAdapter 的保存点
+  `_note_body_saved` 连同文件类型记下，不看 `</file>` 之后有没有一句总结；大纲、人物等资料文件不在内；另外停在写完的 `</file>` 或新正文 EOF 上的 run 照旧续跑。写正文的回复到 `</file>` 就结束；续跑说明附落库字数，并要求先自查、用 edit_file 改正再回复，同一个文件只要求一次，见 `_BODY_SAVED_CONTEXT` / `_BODY_RESAVED_CONTEXT`；正文之后已经回复过作者（这次 run 没停在 `</file>` 上）时改用 `_BODY_SAVED_REPLIED_CONTEXT`，只自查、不重复总结；整章替换的新正文没落库时——`AgentRequestContext.unsaved_chapter_replacement_ids()`，
   StreamAdapter 提交 `replace_body` 成功才 `mark_chapter_replacement_saved`——不说已保存、不列它的原稿字数，改发 `_REPLACE_UNSAVED_CONTEXT` 如实说明原文没动；同一章每次重新定位（结构化结果 `action=replaced`）算一次新的替换，
   没保存就再说一次，没有任何正文保存过时也不退回已保存的说明；新正文被输出上限截断时见下）、运行中插话；最多 `AGENT_COLLABORATION_MAX_ITERATIONS` 次。正常结束时调用 `core/task_board_completion.auto_finalize_task_board_on_completion` 收尾任务板
   （写入证据 = ReadGuard 记下的写入 + 本请求确认落库的正文；ReadGuard 不把 `mutation_applied=false` 的成功结果——已有章节、同名 rename、整章替换的定位——记为写入）；
@@ -138,7 +139,7 @@ agent/
   「## 截断后的本轮交付」+ `OUTPUT_TRUNCATED_RESUME`（只进这次 SDK 输入，不写回历史，续跑不再追加）。
   正常结束的 run 最后一次响应的 output_tokens 也到了上限（`OUTPUT_CAP_RATIO`；SDK 不给 finish_reason）时，runner 照常 `end_turn`，MESSAGE_END 多带
   `output_capped=True`（`runner.OUTPUT_CAPPED_KEY`）。这次 run 里又有没等到 `</file>`、按流结束补全保存的新正文（StreamAdapter `_save_new_body` 记进
-  `ToolContext.mark_cut_body_saved`，engine 每个 run 边界 `take_cut_bodies()` 取走）时，正文照样保存，但不发 `_BODY_SAVED_CONTEXT`：作者看到固定的
+  `AgentRequestContext.mark_cut_body_saved`，engine 每个 run 边界 `take_cut_bodies()` 取走）时，正文照样保存，但不发 `_BODY_SAVED_CONTEXT`：作者看到固定的
   「《…》写到了单次回复的输出上限，正文已保存到中断处。」（`author_facing_text.body_cut_at_output_cap_notice`），续跑说明 `_BODY_CUT_CONTEXT` 附落库正文末尾 200 字，
   要求用 edit_file `op=append` 从断点续写、不整章重写，写完再自查；没撞上限的未闭合正文（漏写 `</file>`）照旧按已保存续跑。整章替换的新正文被截断时
   仍是原文不动、在纠偏次数内重试，重试说明换成 `_CHAPTER_REPLACE_CUT_RETRY_CONTEXT`（说明被截断、思考尽量简短）。到收尾时间不再开新 run：
@@ -147,7 +148,7 @@ agent/
   （刚调用 write_chapter 或 create_file 还没写 `<file>` 的先写完）。空文件的核验与回滚在 `core/empty_files.py`，收尾说明、插话追加轮提示与续跑说明里的字数在 `loop/run_support.py`。
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` 是唯一的工具集（顺序即请求里工具清单的顺序，前缀缓存依赖它），请求里直接从 `tool_schemas.TOOL_SCHEMAS` 按序取出（`get_exposed_tools()`；`CREATE_FILE_TOOL` 只列资料文件与文件夹，不列 draft / script）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入直接落库并保留修改卡撤销、历史版本及草稿冲突与版本并发保护（[direct-ai-edits][n-direct-edits]）；
   写作约定追加许可放开（只追加、`expected_notes` 冲突保护不变）。
-  create_file 的 `empty=true` 在单循环轮次里直接生效（`ToolContext.author_wants_no_body`，由模型判断，不从原话推断）。
+  create_file 的 `empty=true` 在单循环轮次里直接生效（`AgentRequestContext.author_wants_no_body`，由模型判断，不从原话推断）。
 - **改稿恢复**：`FileEditor._commit_ai_content` 在文件写锁内为 edit_file 与 write_chapter(replaced) 先用 `stage_pre_ai_write_backup` 备份未进历史的原稿（非空原稿拿不到历史锚点时抛 `PreWriteHistoryUnavailableError` 拒绝覆盖），在同一事务内创建 AI `FileVersion` 并返回轻量 `undo` 锚点（`before_version_number`、`expected_after_updated_at`、`expected_after_content_sha256`；write_chapter 整章替换顺带改名时另记 `before_title`）。聊天修改卡复用既有的条件版本回滚（`file_version_service.rollback_to_version` + `record_edit_card_undone`；整章替换改名卡在标题未被作者改写且无同级重名时同事务恢复 `before_title`），后续又有编辑时由文件版本历史面板查看或恢复任意旧稿；不再维护独立的 `FileEditOperation` 账本或三方合并撤销接口。正文来源只通过 `author_changes` 帮助模型理解手改，不决定能否改写。
 - **可恢复删除**：`delete_file(id, recursive=false)` 对目标文件（及 `recursive=true` 时的存活子树）执行软删除并统一打上同一 `deleted_at` 时间戳，结果卡返回 `id`、`title`、`file_type`、`restored=false`；作者点击聊天删除卡上的「恢复」调用 `POST /api/v1/files/{file_id}/restore`，在项目排他锁与文件写锁下校验父目录存活及同级重名，按同一 `deleted_at` 恢复该次删除的文件或目录子树（不复活更早单独删除的子项），并通过 `record_delete_card_restored` 将 `restored=true` 写回 `ChatMessage.tool_calls` 供刷新展示与后续轮次历史回放。工作台不单独设侧栏回收站。
 - **正文按章号写入**（`mcp_tools.write_chapter`）：`write_chapter(chapter, title, file_type=draft|script, parent_id?, empty?)` 在本项目未删除的
@@ -163,7 +164,7 @@ agent/
   然后发 `file_content_end`、`file_edit_start/applied/end`（end 带 `original_content` / `new_content`，前端直接刷新展示最新正文），
   并以同一个 tool_use_id 补发一条 write_chapter 的 tool_result（`body_saved`、`new_word_count`、`previous_word_count`、`undo`；落库卡片随之更新，
   `services/chat_tool_cards` 的撤销标记接受 write_chapter 卡）。版本变了或恢复记录无法建立时不覆盖、发「这一章的整章替换没有保存，原文保持不变」、
-  补发 `body_saved=false`，然后结束这一轮（`_stop_after_refused_replace`：之后的模型文字不放出，正常 done；`ToolContext.close_pending_body_files`
+  补发 `body_saved=false`，然后结束这一轮（`_stop_after_refused_replace`：之后的模型文字不放出，正常 done；`AgentRequestContext.close_pending_body_files`
   撤销模型跑在前面建好的空文件，之后才建好的由 `_create_file_sync` 自己撤销）。产出与保存回执记录（`StreamBillingTracker._write_effect`，供 `stop_outcome.saved_output`、暂停卡与前端建议门槛使用；消息额度计费见下节 [model-error-only-refund][n-model-error-refund]）：write_chapter
   新建同 create_file 只看 content，替换只认 `body_saved` 且 `mutation_applied` 的补发结果（替换目标即结果 `action=replaced` 且原文非空的 id 记进
   `replace_target_ids`，它的流式 file_content 不算已保存写入：正文流到一半停止 / 断线 / 到时，原文保持不变，但因本轮已进入模型执行仍照常计费；
@@ -196,8 +197,8 @@ agent/
    同文件还有 `/stop`（作者停止）、`/steer`（运行中插话）、`/suggest`。新增会触发 LLM 的端点必须同时有
    鉴权 + 项目权限 + 成本上限 + 按用户限流（见该文件模块 docstring）。
 2. `AgentService.process_stream`（`service.py`）：按本轮已解析的会话 id（`chat_session_id`，不是重新挑最新活跃会话）准备单循环 agent 的输入
-   （见上一节），`ToolContext.set_context` 设置工具上下文，然后
-   `StreamAdapter.process_workflow_events(run_loop_agent_streaming(...))`，结束时保存历史。
+   （见上一节），构造单份强类型 `AgentRequestContext`（`tools/tool_context.py`，同时由 `core/request_context.py` 导出；生产路径下工具每次调用经 `req_ctx.session_scope()` 独立开关短生命周期 DB Session，不再使用全局 `ContextVar` 服务定位器或跨线程复用的懒建 Session），经 `WritingState["request_context"]`、`StreamAdapterConfig.request_context` 与 SDK 原生 `Runner.run_streamed(..., context=req_ctx)`（`RunContextWrapper[AgentRequestContext]`）贯通 `FunctionTool.on_invoke_tool`、`RunHooks`、`call_model_input_filter` 与 `_stop_run_after_tools`（[agent-run-context-wrapper][n-run-context-wrapper]），然后
+   `StreamAdapter.process_workflow_events(run_loop_agent_streaming(...))`，结束时保存历史并清理请求级上下文。
 3. `loop/engine.run_loop_agent_streaming` 每次 run 调用 `openai_agents/runner.run_openai_agents_streaming_agent`。[cache-stable-prompt-layout][n-cache-layout]
    runner 用 `Runner.run_streamed` 跑 SDK，事件映射：`response.output_text.delta` → TEXT，reasoning delta → THINKING，
    `tool_called` → TOOL_USE，`tool_output` → TOOL_RESULT（熔断后为 MESSAGE_END(stop_reason=tool_failure_circuit_open) + ERROR）。
@@ -261,7 +262,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 |---|---|
 | `create_file` | 新建资料文件；source_text 校验并直接保存本轮作者原文，生成资料则先建空文件、随后用 `<file>` 写入；不建 draft / script |
 | `write_chapter` | 按章号 / 集号写一章正文，不存在就新建、已存在就整章替换这一章（正文同样随后用 `<file>` 写入，传入新章名时落库一并更新标题，支持撤销与历史版本恢复） |
-| `edit_file` | 精确编辑（replace / insert / append / delete）；逐字、引号等价、模糊都找不到时近似匹配兜底，长章节用种子定位（[approx-seeds][n-approx-seeds]）；范围读取后在已读区间内同样允许模糊/近似匹配、未读区间仍只逐字匹配，陈旧检查始终核对全文；LLM 输出经 `slim_edit_file_result_for_llm` 省略 UI 专用 `undo`、精确匹配回显预览与空样板字段，`StreamAdapter` 经 `ToolContext` 侧通道原样还给前端卡片与落库（[payload-slimming][n-payload-slimming]）；同一文件找不到原文只附恢复提示、不提前熔断，无效文件 id 三次即熔断（[anchor-no-early-trip][n-anchor-no-early-trip]） |
+| `edit_file` | 精确编辑（replace / insert / append / delete）；逐字、引号等价、模糊都找不到时近似匹配兜底，长章节用种子定位（[approx-seeds][n-approx-seeds]）；范围读取后在已读区间内同样允许模糊/近似匹配、未读区间仍只逐字匹配，陈旧检查始终核对全文；LLM 输出经 `slim_edit_file_result_for_llm` 省略 UI 专用 `undo`、精确匹配回显预览与空样板字段，`StreamAdapter` 经 `AgentRequestContext` 侧通道原样还给前端卡片与落库（[payload-slimming][n-payload-slimming]）；同一文件找不到原文只附恢复提示、不提前熔断，无效文件 id 三次即熔断（[anchor-no-early-trip][n-anchor-no-early-trip]） |
 | `delete_file` | 删除文件 |
 | `rename_file` | 只改文件标题，id 与正文不变（同文件夹重名拒绝；[rename-file][n-rename]） |
 | `query_files` | 查询和读取文件；支持单 `id` 与批量 `ids`（去重最多 5 个、单条 `IN` SQL、按传入顺序返回并逐 ID 记快照与重复读取守卫；[batch-tool-calls-and-session-snapshots][n-batch-snapshots]）；单 `id` 可只读 `section` / `tail_chars` / `start_char`+`max_chars`（`start_char` 仅用于超过 15000 字的超长文件，总长或剩余 `<= 12000` 字符直接返回全文/余下全文避免多步分页），范围读取记下全文陈旧快照与已读字符区间（[range-reads][n-range]、[payload-slimming][n-payload-slimming]）；同时传 `id` 与 `query` 时按 `query` 返回命中片段（显式 `response_mode="full"` 除外）；返回行省略 5 个死库字段、剥离 `file_metadata` 冗余字数键，并在 `match_count > 0` 的 summary 行省略 `content_preview` |
@@ -342,4 +343,5 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-blame-perf-collab-cache]: ../../../.agents/notes/implemented/bug-fix/2026-11-21-author-blame-perf-and-collab-cache.md
 [n-payload-slimming]: ../../../.agents/notes/implemented/architecture/2026-11-21-tool-payload-and-range-slimming.md
 [n-batch-snapshots]: ../../../.agents/notes/implemented/architecture/2026-11-21-batch-tool-calls-and-session-snapshots.md
+[n-run-context-wrapper]: ../../../.agents/notes/implemented/architecture/2026-11-21-agent-run-context-wrapper.md
 [n-pydantic-tool-inputs]: ../../../.agents/notes/implemented/simplification/2026-11-21-agent-pydantic-tool-inputs.md

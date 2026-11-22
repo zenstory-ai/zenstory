@@ -134,12 +134,19 @@ async def test_agent_http_done_confirms_real_committed_file_mutation(
     monkeypatch.setattr("agent.tools.file_ops.edit.activation_event_service.record_ai_write_accepted", lambda *_a, **_kw: None)
     created_ids = []
 
-    async def stream(*_args, **_kwargs):
+    async def stream(state, **_kwargs):
+        req_ctx = state["request_context"]
         if mode == "no_op":
-            result = await mcp_tools.edit_file({"id": file_id, "edits": [{"op": "replace", "old": "Body", "new": "Body"}]})
+            result = await mcp_tools.edit_file(
+                {"id": file_id, "edits": [{"op": "replace", "old": "Body", "new": "Body"}]},
+                request_context=req_ctx,
+            )
             name = "edit_file"
         elif mode in {"create", "stream"}:
-            result = await mcp_tools.create_file({"title": "New draft", "file_type": "draft", "content": "" if mode == "stream" else "Committed"})
+            result = await mcp_tools.create_file(
+                {"title": "New draft", "file_type": "draft", "content": "" if mode == "stream" else "Committed"},
+                request_context=req_ctx,
+            )
             created_ids.append(json.loads(result["content"][0]["text"])["data"]["id"])
             name = "create_file"
         else:

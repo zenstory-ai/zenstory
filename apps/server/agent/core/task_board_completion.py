@@ -4,13 +4,15 @@
 tool_use_id ``workflow_auto_completion`` 是回放与前端识别这次自动补记的标识，不能改。
 """
 
+from __future__ import annotations
+
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.openai_agents.events import parse_mcp_tool_payload
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
-from agent.tools.mcp_tools import ToolContext, update_project
+from agent.tools.mcp_tools import update_project
 from agent.tools.task_progress import (
     ArtifactEvidence,
     artifact_units,
@@ -20,6 +22,9 @@ from agent.tools.task_progress import (
     validate_task_artifact_fields,
 )
 from utils.logger import get_logger, log_with_context
+
+if TYPE_CHECKING:
+    from agent.tools.tool_context import AgentRequestContext
 
 logger = get_logger(__name__)
 
@@ -102,29 +107,39 @@ def _build_completion_task_payload(
     return updated_tasks if has_updates else None
 
 
-def _existing_written_artifacts(file_ids: list[str]) -> list[ArtifactEvidence]:
+def _existing_written_artifacts(
+    file_ids: list[str],
+    *,
+    request_context: AgentRequestContext,
+) -> list[ArtifactEvidence]:
     """Read nonempty live files scoped to this request's project."""
     if not file_ids:
         return []
     from sqlmodel import select
 
     from models import File
-    with ToolContext.short_lived_session() as session:
+
+    with request_context.session_scope() as session:
         query = select(File).where(File.id.in_(file_ids), File.is_deleted.is_(False))
-        project_id = ToolContext.get_project_id()
+        project_id = request_context.project_id
         if project_id:
             query = query.where(File.project_id == project_id)
         rows = session.exec(query).all()
         return [ArtifactEvidence(row.id, row.title, row.file_type, row.get_metadata()) for row in rows if row.content.strip()]
 
 
-def _live_project_artifacts(project_id: str) -> list[ArtifactEvidence] | None:
+def _live_project_artifacts(
+    project_id: str,
+    *,
+    request_context: AgentRequestContext,
+) -> list[ArtifactEvidence] | None:
     """Current typed file evidence for revalidating persisted progress."""
     from sqlmodel import select
 
     from models import File
+
     try:
-        with ToolContext.short_lived_session() as session:
+        with request_context.session_scope() as session:
             rows = session.exec(select(File).where(File.project_id == project_id, File.is_deleted.is_(False))).all()
             return [ArtifactEvidence(row.id, row.title, row.file_type, row.get_metadata()) for row in rows if row.content.strip()]
     except Exception as exc:
@@ -148,6 +163,8 @@ def _update_project_failed(tool_result: Any) -> bool:
 
 async def auto_finalize_task_board_on_completion(
     guard: RepeatReadGuard | None = None,
+    *,
+    request_context: AgentRequestContext | None = None,
 ) -> tuple[list[StreamEvent], bool]:
     """
     在 workflow 完成时按实际产物补一次 update_project(tasks=[...])。
@@ -156,18 +173,21 @@ async def auto_finalize_task_board_on_completion(
     避免调用方再重读一次任务板。只有本请求确实写出对应文件的任务改为 done（规则见
     _build_completion_task_payload；pending 任务只认编号或产出物对上的文件），什么都没写时不读也不补。
     """
-    session_id = ToolContext.get_session_id()
+    req_ctx = request_context if request_context is not None else (guard.request_context if guard is not None else None)
+    if req_ctx is None:
+        return [], False
+    session_id = req_ctx.session_id
     if not session_id:
         return [], False
 
-    user_id = ToolContext.get_user_id()
-    project_id = ToolContext.get_project_id()
+    user_id = req_ctx.user_id
+    project_id = req_ctx.project_id
 
     try:
         # 本请求的写入证据：工具确认改动的文件 + StreamAdapter 确认落库的正文（整章替换的定位结果不算）。
         written_ids = list(
             dict.fromkeys(
-                [*(guard.written_file_ids() if guard is not None else []), *ToolContext.saved_bodies_this_request()]
+                [*(guard.written_file_ids() if guard is not None else []), *req_ctx.saved_bodies_this_request()]
             )
         )
         if not written_ids:
@@ -182,20 +202,28 @@ async def auto_finalize_task_board_on_completion(
         ) or []
         if not _has_incomplete_tasks(current_tasks):
             return [], False
-        written_artifacts = await asyncio.to_thread(_existing_written_artifacts, written_ids)
+        written_artifacts = await asyncio.to_thread(
+            _existing_written_artifacts, written_ids, request_context=req_ctx
+        )
         live_artifacts: list[ArtifactEvidence] | None = None
         if project_id and any(
             isinstance(task, dict) and task.get("completed_artifact_refs")
             for task in current_tasks
         ):
-            live_artifacts = await asyncio.to_thread(_live_project_artifacts, project_id)
+            live_artifacts = await asyncio.to_thread(
+                _live_project_artifacts, project_id, request_context=req_ctx
+            )
         completion_tasks = _build_completion_task_payload(
             current_tasks, written_artifacts, live_artifacts
         )
         if not completion_tasks:
             return [], True
 
-        tool_result = await update_project({"tasks": completion_tasks}, written_artifact_ids=written_ids)
+        tool_result = await update_project(
+            {"tasks": completion_tasks},
+            written_artifact_ids=written_ids,
+            request_context=req_ctx,
+        )
         still_incomplete = True if _update_project_failed(tool_result) else _has_incomplete_tasks(completion_tasks)
         tool_use_id = "workflow_auto_completion"
         return [

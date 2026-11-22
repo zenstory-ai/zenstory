@@ -147,7 +147,7 @@ class Store:
                     )
                 elif name == "close" and instance is session:
                     observation["closed_sessions"] += 1
-                elif name == "_run_sync_tool_with_owned_session_cleanup":
+                elif name == "_query_files_sync":
                     sys.setprofile(original_profile)
                     observation["profile_restored"] = sys.getprofile() is original_profile
 
@@ -158,14 +158,15 @@ class Store:
 
         async def invoke():
             observation["loop_thread"] = threading.get_ident()
-            mcp_tools.ToolContext.set_context(
-                None, self.owner, project or self.project, None, create_session_func=factory
+            req_ctx = mcp_tools.AgentRequestContext(
+                session=None,
+                user_id=self.owner,
+                project_id=project or self.project,
+                session_id=None,
+                create_session_func=factory,
             )
-            try:
-                assert TOOL_FUNCTIONS["query_files"] is mcp_tools.query_files
-                return await TOOL_FUNCTIONS["query_files"](args)
-            finally:
-                mcp_tools.ToolContext.clear_context()
+            assert TOOL_FUNCTIONS["query_files"] is mcp_tools.query_files
+            return await TOOL_FUNCTIONS["query_files"](args, request_context=req_ctx)
 
         event.listen(self.engine, "before_cursor_execute", sql_listener)
         started = time.perf_counter()

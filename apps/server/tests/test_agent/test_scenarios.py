@@ -13,7 +13,7 @@ import pytest
 from sqlmodel import Session, select
 
 from agent.context.assembler import ContextAssembler
-from agent.tools.mcp_tools import ToolContext
+from agent.core.request_context import AgentRequestContext
 from models import ChatMessage, ChatSession, File, Project, User
 from services.core.auth_service import hash_password
 
@@ -470,8 +470,7 @@ class TestConcurrentOperations:
 
         async def edit_file(file_id: str, new_content: str, delay: float):
             """Simulate concurrent file edit."""
-            # Set isolated context
-            ToolContext.set_context(
+            ctx = AgentRequestContext(
                 session=db_session,
                 user_id=str(test_user.id),
                 project_id=str(test_project.id),
@@ -480,13 +479,10 @@ class TestConcurrentOperations:
 
             await asyncio.sleep(delay)  # Simulate processing time
 
-            # In a real scenario, this would call file update logic
-            # For this test, we just verify context isolation
-            ctx = ToolContext._get_context()
             results.append({
                 "file_id": file_id,
-                "project_id": ctx.get("project_id"),
-                "session_id": ctx.get("session_id"),
+                "project_id": ctx.project_id,
+                "session_id": ctx.session_id,
             })
 
         # Run concurrent edits
@@ -522,7 +518,7 @@ class TestConcurrentOperations:
 
         async def process_session(session_id: str, message: str):
             """Simulate processing a chat message."""
-            ToolContext.set_context(
+            ctx = AgentRequestContext(
                 session=db_session,
                 user_id=str(test_user.id),
                 project_id=str(test_project.id),
@@ -531,10 +527,9 @@ class TestConcurrentOperations:
 
             await asyncio.sleep(0.02)  # Simulate processing
 
-            ctx = ToolContext._get_context()
             results.append({
                 "session_id": session_id,
-                "context_session_id": ctx.get("session_id"),
+                "context_session_id": ctx.session_id,
             })
 
         # Run concurrent session processing
@@ -603,7 +598,7 @@ class TestConcurrentOperations:
 
         async def user_operation(user_id: str, project_id: str):
             """Simulate user operation."""
-            ToolContext.set_context(
+            ctx = AgentRequestContext(
                 session=db_session,
                 user_id=user_id,
                 project_id=project_id,
@@ -612,12 +607,11 @@ class TestConcurrentOperations:
 
             await asyncio.sleep(0.02)
 
-            ctx = ToolContext._get_context()
             results.append({
                 "user_id": user_id,
-                "context_user_id": ctx.get("user_id"),
+                "context_user_id": ctx.user_id,
                 "project_id": project_id,
-                "context_project_id": ctx.get("project_id"),
+                "context_project_id": ctx.project_id,
             })
 
         # Run concurrent operations for different users

@@ -115,7 +115,7 @@ def material_trial_call(*, output_limit: int | None):
 
 
 def set_context_user_id(user_id: str | None) -> None:
-    """Bind the ambient user id for the current execution context (e.g. ToolContext)."""
+    """Bind the ambient user id for the current execution context (e.g. AgentRequestContext)."""
     _context_user_id.set(user_id if isinstance(user_id, str) and user_id else None)
 
 

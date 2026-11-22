@@ -18,8 +18,9 @@ from uuid import uuid4
 
 import pytest
 
+from agent.core.request_context import AgentRequestContext
 from agent.tools.file_ops import FileToolExecutor
-from agent.tools.mcp_tools import ToolContext, delete_file, edit_file
+from agent.tools.mcp_tools import delete_file, edit_file
 from agent.tools.permissions import NotFoundError
 from models import File, Project, User
 
@@ -137,19 +138,22 @@ async def test_edit_file_rejects_file_from_other_project_of_same_user(
     db_session, test_user, project_a, project_b, file_b
 ):
     """会话绑定项目 A 时，edit_file 不得改写同一用户项目 B 中的文件"""
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=test_user.id,
         project_id=project_a.id,
         session_id="sess-scope-edit",
     )
     try:
-        result = await edit_file({
-            "id": file_b.id,
-            "edits": [{"op": "append", "text": "注入的内容"}],
-        })
+        result = await edit_file(
+            {
+                "id": file_b.id,
+                "edits": [{"op": "append", "text": "注入的内容"}],
+            },
+            request_context=req_ctx,
+        )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     payload = _parse_payload(result)
     assert payload["status"] == "error"
@@ -169,19 +173,22 @@ async def test_delete_file_rejects_predictable_root_folder_of_other_project(
     db_session, test_user, project_a, project_b, file_b, draft_folder_b
 ):
     """会话绑定项目 A 时，delete_file 不得递归删除项目 B 的草稿文件夹树"""
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=test_user.id,
         project_id=project_a.id,
         session_id="sess-scope-delete",
     )
     try:
-        result = await delete_file({
-            "id": f"{project_b.id}-draft-folder",
-            "recursive": True,
-        })
+        result = await delete_file(
+            {
+                "id": f"{project_b.id}-draft-folder",
+                "recursive": True,
+            },
+            request_context=req_ctx,
+        )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     payload = _parse_payload(result)
     assert payload["status"] == "error"
@@ -201,19 +208,22 @@ async def test_edit_file_same_project_still_works(
     db_session, test_user, project_a, file_a
 ):
     """会话内对当前项目文件的编辑不受影响"""
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=test_user.id,
         project_id=project_a.id,
         session_id="sess-scope-ok",
     )
     try:
-        result = await edit_file({
-            "id": file_a.id,
-            "edits": [{"op": "append", "text": "，续写"}],
-        })
+        result = await edit_file(
+            {
+                "id": file_a.id,
+                "edits": [{"op": "append", "text": "，续写"}],
+            },
+            request_context=req_ctx,
+        )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     payload = _parse_payload(result)
     assert payload["status"] == "success"
@@ -228,11 +238,15 @@ async def test_edit_file_same_project_still_works(
 async def test_edit_file_requires_project_context():
     """未绑定项目上下文时写工具直接失败，而不是绕过项目校验"""
     mock_executor = MagicMock()
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor):
-        result = await edit_file({
-            "id": "file-1",
-            "edits": [{"op": "append", "text": "x"}],
-        })
+    req_ctx = AgentRequestContext(session=MagicMock(), user_id="u1", project_id=None)
+    with patch.object(req_ctx, "executor", return_value=mock_executor):
+        result = await edit_file(
+            {
+                "id": "file-1",
+                "edits": [{"op": "append", "text": "x"}],
+            },
+            request_context=req_ctx,
+        )
 
     payload = _parse_payload(result)
     assert payload["status"] == "error"
@@ -245,8 +259,9 @@ async def test_edit_file_requires_project_context():
 async def test_delete_file_requires_project_context():
     """未绑定项目上下文时删除工具直接失败，而不是绕过项目校验"""
     mock_executor = MagicMock()
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor):
-        result = await delete_file({"id": "file-1"})
+    req_ctx = AgentRequestContext(session=MagicMock(), user_id="u1", project_id=None)
+    with patch.object(req_ctx, "executor", return_value=mock_executor):
+        result = await delete_file({"id": "file-1"}, request_context=req_ctx)
 
     payload = _parse_payload(result)
     assert payload["status"] == "error"
@@ -262,13 +277,13 @@ def test_executor_edit_file_rejects_cross_project_under_tool_context(
     db_session, test_user, project_a, project_b, file_b
 ):
     """绕过 mcp_tools 包装、直接调用执行器同样受当前上下文项目约束"""
-    executor = FileToolExecutor(db_session, test_user.id)
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=test_user.id,
         project_id=project_a.id,
         session_id="sess-scope-exec-edit",
     )
+    executor = FileToolExecutor(db_session, test_user.id, request_context=req_ctx)
     try:
         with pytest.raises(NotFoundError, match="文件不存在"):
             executor.edit_file(
@@ -276,7 +291,7 @@ def test_executor_edit_file_rejects_cross_project_under_tool_context(
                 edits=[{"op": "append", "text": "注入"}],
             )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     db_session.expire_all()
     assert db_session.get(File, file_b.id).content == "项目 B 原文"
@@ -286,18 +301,18 @@ def test_executor_edit_file_rejects_cross_project_under_tool_context(
 def test_executor_update_file_rejects_cross_project_under_tool_context(
     db_session, test_user, project_a, project_b, file_b
 ):
-    executor = FileToolExecutor(db_session, test_user.id)
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=test_user.id,
         project_id=project_a.id,
         session_id="sess-scope-exec-update",
     )
+    executor = FileToolExecutor(db_session, test_user.id, request_context=req_ctx)
     try:
         with pytest.raises(NotFoundError, match="文件不存在"):
             executor.update_file(id=file_b.id, content="整体覆盖")
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     db_session.expire_all()
     assert db_session.get(File, file_b.id).content == "项目 B 原文"
@@ -307,18 +322,18 @@ def test_executor_update_file_rejects_cross_project_under_tool_context(
 def test_executor_delete_file_rejects_cross_project_under_tool_context(
     db_session, test_user, project_a, project_b, file_b
 ):
-    executor = FileToolExecutor(db_session, test_user.id)
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=db_session,
         user_id=test_user.id,
         project_id=project_a.id,
         session_id="sess-scope-exec-delete",
     )
+    executor = FileToolExecutor(db_session, test_user.id, request_context=req_ctx)
     try:
         with pytest.raises(NotFoundError, match="文件不存在"):
             executor.delete_file(id=file_b.id)
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     db_session.expire_all()
     assert db_session.get(File, file_b.id).is_deleted is False

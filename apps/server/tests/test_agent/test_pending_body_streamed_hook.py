@@ -10,10 +10,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from agents import RunContextWrapper
 from openai.types.responses import ResponseOutputMessage, ResponseOutputText, ResponseReasoningItem
 from openai.types.responses.response_reasoning_item import Summary
 
-from agent.tools.mcp_tools import ToolContext
+from agent.core.request_context import AgentRequestContext
 
 
 def _message(text: str) -> ResponseOutputMessage:
@@ -37,38 +38,40 @@ def _response(*items) -> SimpleNamespace:
 
 
 @pytest.fixture
-def pending_ep1():
-    ToolContext.set_context(session=None, user_id="u-1", project_id="p-1", session_id="s-1")
-    ToolContext.set_pending_empty_file("ep1", "第1集")
-    yield
-    ToolContext.clear_context()
+def pending_ep1() -> AgentRequestContext:
+    req_ctx = AgentRequestContext(session=None, user_id="u-1", project_id="p-1", session_id="s-1")
+    req_ctx.set_pending_empty_file("ep1", "第1集")
+    yield req_ctx
+    req_ctx.clear()
 
 
-def _next_create_allowed() -> bool:
-    ok, _blocking = ToolContext.try_reserve_pending_empty_file("probe", "第2集")
+def _next_create_allowed(req_ctx: AgentRequestContext) -> bool:
+    ok, _blocking = req_ctx.try_reserve_pending_empty_file("probe", "第2集")
     if ok:
-        ToolContext.release_pending_empty_file("probe")
+        req_ctx.release_pending_empty_file("probe")
     return ok
 
 
-def _hooks():
+def _hooks(req_ctx: AgentRequestContext):
     from agent.openai_agents.usage_hooks import build_agent_run_hooks
 
-    return build_agent_run_hooks("deepseek-flash")
+    return build_agent_run_hooks("deepseek-flash", request_context=req_ctx)
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_closed_file_block_marks_latest_pending_body(pending_ep1):
     with patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record") as meter:
-        await _hooks().on_llm_end(
-            None, None, _response(_reasoning("先写正文"), _message("好的。<file>\n正文\n</file>"))
+        await _hooks(pending_ep1).on_llm_end(
+            RunContextWrapper(pending_ep1),
+            None,
+            _response(_reasoning("先写正文"), _message("好的。<file>\n正文\n</file>")),
         )
 
     meter.assert_called_once()
-    assert _next_create_allowed() is True
+    assert _next_create_allowed(pending_ep1) is True
     # 条目仍在，等 adapter 落库后清除
-    assert ToolContext.get_pending_empty_file() == {"file_id": "ep1", "title": "第1集"}
+    assert pending_ep1.get_pending_empty_file() == {"file_id": "ep1", "title": "第1集"}
 
 
 @pytest.mark.unit
@@ -86,26 +89,26 @@ async def test_closed_file_block_marks_latest_pending_body(pending_ep1):
 )
 async def test_reply_without_real_closed_body_does_not_mark(pending_ep1, output):
     with patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record") as meter:
-        await _hooks().on_llm_end(None, None, _response(*output))
+        await _hooks(pending_ep1).on_llm_end(RunContextWrapper(pending_ep1), None, _response(*output))
 
     meter.assert_called_once()
-    assert _next_create_allowed() is False
+    assert _next_create_allowed(pending_ep1) is False
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_no_pending_file_is_a_no_op():
-    ToolContext.set_context(session=None, user_id="u-1", project_id="p-1", session_id="s-1")
+    req_ctx = AgentRequestContext(session=None, user_id="u-1", project_id="p-1", session_id="s-1")
     try:
         with (
             patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record") as meter,
-            patch.object(ToolContext, "mark_latest_pending_body_streamed") as mark,
+            patch.object(req_ctx, "mark_latest_pending_body_streamed") as mark,
         ):
-            await _hooks().on_llm_end(None, None, _response(_message("<file>正文</file>")))
+            await _hooks(req_ctx).on_llm_end(RunContextWrapper(req_ctx), None, _response(_message("<file>正文</file>")))
         meter.assert_called_once()
         mark.assert_not_called()
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
 
 @pytest.mark.unit
@@ -119,21 +122,21 @@ async def test_check_failure_is_swallowed_and_usage_still_metered(pending_ep1):
         ),
     ):
         # on_llm_end 抛出会让整个 SDK run 失败：检查失败只能记日志
-        await _hooks().on_llm_end(None, None, _response(_message("<file>正文</file>")))
+        await _hooks(pending_ep1).on_llm_end(RunContextWrapper(pending_ep1), None, _response(_message("<file>正文</file>")))
 
     meter.assert_called_once()
-    assert _next_create_allowed() is False
+    assert _next_create_allowed(pending_ep1) is False
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_read_promotion_failure_still_advances_the_reply_counter(pending_ep1):
-    """读快照提升失败不能连带跳过回复计数：否则下一次回复认不出待写正文，守卫和 tool_choice 都失效。"""
-    assert ToolContext.overdue_file_bodies() == []  # ep1 建在第 0 次回复，这还是建它的那一次
-    with patch.object(ToolContext, "promote_pending_reads", side_effect=RuntimeError("boom")):
-        await _hooks().on_llm_start(None, None, None, [])
+    """读快照提升失败不能连带跳过回复计数：否则下一次回复认不出待写正文，守卫就会失效。"""
+    assert pending_ep1.overdue_file_bodies() == []  # ep1 建在第 0 次回复，这还是建它的那一次
+    with patch.object(pending_ep1, "promote_pending_reads", side_effect=RuntimeError("boom")):
+        await _hooks(pending_ep1).on_llm_start(RunContextWrapper(pending_ep1), None, None, [])
 
-    assert [entry["id"] for entry in ToolContext.overdue_file_bodies()] == ["ep1"]
+    assert [entry["id"] for entry in pending_ep1.overdue_file_bodies()] == ["ep1"]
 
 
 # ---------------------------------------------------------------------------
@@ -203,10 +206,14 @@ async def test_real_sdk_run_marks_body_from_model_response(pending_ep1, text, al
     )
     with patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record") as meter:
         result = Runner.run_streamed(
-            agent, input="写第1集", hooks=_hooks(), run_config=RunConfig(tracing_disabled=True)
+            agent,
+            input="写第1集",
+            context=pending_ep1,
+            hooks=_hooks(pending_ep1),
+            run_config=RunConfig(tracing_disabled=True),
         )
         async for _event in result.stream_events():
             pass
 
     meter.assert_called_once()
-    assert _next_create_allowed() is allowed
+    assert _next_create_allowed(pending_ep1) is allowed

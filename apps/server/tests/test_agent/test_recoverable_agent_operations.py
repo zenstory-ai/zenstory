@@ -54,20 +54,20 @@ def _author_saves(session, user, file, content):
 
 async def _run(tool, session, user, project, args, *, message, **context):
     engine = session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         author_message=message,
         author_steering=[],
         **context,
     )
     try:
-        raw = await tool(args)
+        raw = await tool(args, request_context=req_ctx)
     finally:
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear()
     return json.loads(raw["content"][0]["text"])
 
 
@@ -562,26 +562,28 @@ async def test_delete_file_refuses_pending_chapter_replacement_and_billing_clear
     chapter = _ai_chapter(db_session, project, title="第1章 钟楼")
 
     engine = db_session.get_bind()
-    mcp_tools.ToolContext.set_context(
-        None,
-        user.id,
-        project.id,
-        None,
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=None,
+        user_id=user.id,
+        project_id=project.id,
+        session_id=None,
         create_session_func=lambda: Session(engine),
         author_message="重写第一章",
         author_steering=[],
     )
     try:
-        armed = json.loads((await mcp_tools.write_chapter({"chapter": 1, "title": "第1章 钟楼", "file_type": "draft"}))["content"][0]["text"])
+        armed = json.loads(
+            (await mcp_tools.write_chapter({"chapter": 1, "title": "第1章 钟楼", "file_type": "draft"}, request_context=req_ctx))["content"][0]["text"]
+        )
         assert armed["status"] == "success" and armed["data"]["action"] == "replaced"
 
-        refused = json.loads((await mcp_tools.delete_file({"id": chapter.id}))["content"][0]["text"])
+        refused = json.loads((await mcp_tools.delete_file({"id": chapter.id}, request_context=req_ctx))["content"][0]["text"])
         assert refused["status"] == "error"
         assert refused["error_type"] == "chapter_replace_pending"
         assert refused["mutation_applied"] is False
     finally:
-        mcp_tools.ToolContext.clear_pending_empty_file()
-        mcp_tools.ToolContext.clear_context()
+        req_ctx.clear_pending_empty_file()
+        req_ctx.clear()
 
     db_session.expire_all()
     assert db_session.get(File, chapter.id).is_deleted is False

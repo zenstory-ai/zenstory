@@ -11,13 +11,15 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from agents import RunContextWrapper
 from openai.types.responses import ResponseOutputMessage, ResponseOutputText
 
 from agent.core.events import EventType
+from agent.core.request_context import AgentRequestContext
 from agent.core.stream_processor import StreamProcessor, extract_reply_prebody
 from agent.core.workflow_events import StreamEvent as WorkflowStreamEvent
 from agent.core.workflow_events import StreamEventType
-from agent.tools.mcp_tools import ToolContext, create_file
+from agent.tools.mcp_tools import create_file
 
 
 def _reply(text: str) -> SimpleNamespace:
@@ -31,16 +33,17 @@ def _reply(text: str) -> SimpleNamespace:
     return SimpleNamespace(output=[message], usage=SimpleNamespace(total_tokens=1))
 
 
-def _hooks():
+def _hooks(req_ctx: AgentRequestContext):
     from agent.openai_agents.usage_hooks import build_agent_run_hooks
 
-    return build_agent_run_hooks("deepseek-flash")
+    return build_agent_run_hooks("deepseek-flash", request_context=req_ctx)
 
 
-async def _model_reply(hooks, text: str) -> None:
+async def _model_reply(hooks, req_ctx: AgentRequestContext, text: str) -> None:
     """一次模型调用：开始、结束（工具在 on_llm_end 之后执行）。"""
-    await hooks.on_llm_start(None, None, None, [])
-    await hooks.on_llm_end(None, SimpleNamespace(model=None), _reply(text))
+    wrapper = RunContextWrapper(req_ctx)
+    await hooks.on_llm_start(wrapper, None, None, [])
+    await hooks.on_llm_end(wrapper, SimpleNamespace(model=None), _reply(text))
 
 
 def _parse(payload):
@@ -78,19 +81,19 @@ def test_lone_file_block_without_pending_file_is_a_claimable_body():
 @pytest.mark.unit
 async def test_body_written_before_its_create_file_is_claimed_by_that_create(db_session):
     user, project = _make_project(db_session)
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="s-prebody")
-    hooks = _hooks()
+    req_ctx = AgentRequestContext(session=db_session, user_id=user.id, project_id=project.id, session_id="s-prebody")
+    hooks = _hooks(req_ctx)
     try:
-        await _model_reply(hooks, "<file>\n第64章正文\n</file>\n")
-        ch64 = _parse(await create_file({"title": "第64章", "file_type": "draft"}))
+        await _model_reply(hooks, req_ctx, "<file>\n第64章正文\n</file>\n")
+        ch64 = _parse(await create_file({"title": "第64章", "file_type": "draft"}, request_context=req_ctx))
         # 下一条回复照样先写第65章正文、再建第65章：第64章不挡路
-        await _model_reply(hooks, "<file>\n第65章正文\n</file>\n")
-        ch65 = _parse(await create_file({"title": "第65章", "file_type": "draft"}))
+        await _model_reply(hooks, req_ctx, "<file>\n第65章正文\n</file>\n")
+        ch65 = _parse(await create_file({"title": "第65章", "file_type": "draft"}, request_context=req_ctx))
         # 正文只认领一次：同一回复里再建一个空文件，它照常等自己的正文
-        ch66 = _parse(await create_file({"title": "第66章", "file_type": "draft"}))
+        ch66 = _parse(await create_file({"title": "第66章", "file_type": "draft"}, request_context=req_ctx))
     finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+        req_ctx.clear_pending_empty_file()
+        req_ctx.clear()
 
     for payload in (ch64, ch65):
         assert payload["status"] == "success"
@@ -105,16 +108,16 @@ async def test_body_written_before_its_create_file_is_claimed_by_that_create(db_
 async def test_body_for_the_file_still_waiting_is_not_claimed_by_the_next_create(db_session):
     """两次回复协议的连写照旧：等正文的文件在前，这段正文是它的，下一个文件照常等正文。"""
     user, project = _make_project(db_session)
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="s-chain")
-    hooks = _hooks()
+    req_ctx = AgentRequestContext(session=db_session, user_id=user.id, project_id=project.id, session_id="s-chain")
+    hooks = _hooks(req_ctx)
     try:
-        await _model_reply(hooks, "")
-        ep1 = _parse(await create_file({"title": "第1集", "file_type": "draft"}))
-        await _model_reply(hooks, "<file>\n第1集正文\n</file>\n")
-        ep2 = _parse(await create_file({"title": "第2集", "file_type": "draft"}))
+        await _model_reply(hooks, req_ctx, "")
+        ep1 = _parse(await create_file({"title": "第1集", "file_type": "draft"}, request_context=req_ctx))
+        await _model_reply(hooks, req_ctx, "<file>\n第1集正文\n</file>\n")
+        ep2 = _parse(await create_file({"title": "第2集", "file_type": "draft"}, request_context=req_ctx))
     finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+        req_ctx.clear_pending_empty_file()
+        req_ctx.clear()
 
     assert ep1["data"]["awaiting_body"] is True
     assert ep2["status"] == "success"
@@ -199,18 +202,19 @@ async def test_chaining_body_saved_before_on_llm_end_is_not_claimed_by_the_next_
     """StreamAdapter saves A as soon as </file> streams and clears A's entry, usually before on_llm_end;
     A's body must still not be offered to create_file(B)."""
     user, project = _make_project(db_session)
-    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="s-race")
-    hooks = _hooks()
+    req_ctx = AgentRequestContext(session=db_session, user_id=user.id, project_id=project.id, session_id="s-race")
+    hooks = _hooks(req_ctx)
+    wrapper = RunContextWrapper(req_ctx)
     try:
-        await _model_reply(hooks, "")
-        ep1 = _parse(await create_file({"title": "第1集", "file_type": "draft"}))
-        await hooks.on_llm_start(None, None, None, [])
-        ToolContext.clear_pending_empty_file(ep1["data"]["id"])  # the adapter saved 第1集 mid-reply
-        await hooks.on_llm_end(None, SimpleNamespace(model=None), _reply("<file>\n第1集正文\n</file>\n"))
-        ep2 = _parse(await create_file({"title": "第2集", "file_type": "draft"}))
+        await _model_reply(hooks, req_ctx, "")
+        ep1 = _parse(await create_file({"title": "第1集", "file_type": "draft"}, request_context=req_ctx))
+        await hooks.on_llm_start(wrapper, None, None, [])
+        req_ctx.clear_pending_empty_file(ep1["data"]["id"])  # the adapter saved 第1集 mid-reply
+        await hooks.on_llm_end(wrapper, SimpleNamespace(model=None), _reply("<file>\n第1集正文\n</file>\n"))
+        ep2 = _parse(await create_file({"title": "第2集", "file_type": "draft"}, request_context=req_ctx))
     finally:
-        ToolContext.clear_pending_empty_file()
-        ToolContext.clear_context()
+        req_ctx.clear_pending_empty_file()
+        req_ctx.clear()
 
     assert ep2["data"]["awaiting_body"] is True
     assert "body_in_reply" not in ep2["data"]

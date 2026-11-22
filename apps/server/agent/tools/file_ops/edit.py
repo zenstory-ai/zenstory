@@ -425,15 +425,20 @@ def stage_pre_ai_write_backup(session: Session, file_id: str, current_content: s
         return False
 
 
-def attach_author_edits_for_agent(session: Session, file: Any, row: dict[str, Any]) -> None:
+def attach_author_edits_for_agent(
+    session: Session,
+    file: Any,
+    row: dict[str, Any],
+    *,
+    request_context: Any | None = None,
+) -> None:
     """应用内 agent 按 id 读全文时，在返回行里附上作者在 AI 之后的手改（agent/tools/author_changes.py）。
 
     只在请求上下文里有快照容器（应用内对话）时算，外部 Agent API 与列表查询不受影响；
     核对失败时回滚 savepoint 并如实附上未算出的 author_edits 说明。
     """
-    from agent.tools.mcp_tools import ToolContext
-
-    if not ToolContext.tracks_reads() or not str(getattr(file, "id", "") or ""):
+    tracks_reads = getattr(request_context, "tracks_reads", None)
+    if not callable(tracks_reads) or not tracks_reads() or not str(getattr(file, "id", "") or ""):
         return
     from agent.tools.author_changes import AuthorChanges, author_changes, author_edits_payload
 
@@ -456,25 +461,28 @@ def written_snapshot_for_commit(
     *,
     full: bool = False,
     seen_spans: Sequence[tuple[int, int]] | None = None,
+    request_context: Any | None = None,
 ) -> Iterator[None]:
     """包住本请求的提交：提交前就把快照更新成要写下的正文，提交失败再还原。
 
     PostgreSQL 上提交即放锁，同一文件的下一个并行写入立刻拿到锁、在锁内比对快照；
     提交之后才记快照，它会把这次自己的写入误判成「别人改了」。没有请求上下文时什么也不做。
     """
-    from agent.tools.mcp_tools import ToolContext
+    if request_context is None:
+        yield
+        return
 
     state = None
     try:
-        state = ToolContext.written_snapshot_state(file_id)
-        ToolContext.record_written_snapshot(file_id, content, full=full, seen_spans=seen_spans)
+        state = request_context.written_snapshot_state(file_id)
+        request_context.record_written_snapshot(file_id, content, full=full, seen_spans=seen_spans)
     except Exception as exc:  # pragma: no cover - 防御：辅助信息不能拖垮写入
         logger.debug("Failed to record written snapshot", extra={"file_id": file_id, "error": str(exc)})
     try:
         yield
     except BaseException:
         try:
-            ToolContext.restore_written_snapshot(file_id, state)
+            request_context.restore_written_snapshot(file_id, state)
         except Exception as exc:  # pragma: no cover
             logger.debug("Failed to restore written snapshot", extra={"file_id": file_id, "error": str(exc)})
         raise
@@ -543,7 +551,7 @@ def check_body_edit_guards(old_content: str, new_content: str, edits: Any) -> No
 
 # 精确匹配（或无锚点的 append/prepend）回显给模型的冗余预览键：
 # 模型刚在上一条 function_call.arguments 里发出了同样的原文与新文，再原样回传只白占上下文；
-# 前端卡片与撤销仍经 ToolContext UI 侧通道拿到完整 details 与 undo。
+# 前端卡片与撤销仍经 AgentRequestContext UI 侧通道拿到完整 details 与 undo。
 _EXACT_MATCH_MODES: frozenset[str] = frozenset({"exact", "exact_quote"})
 _EXACT_DETAIL_ECHO_KEYS: frozenset[str] = frozenset(
     {"old_preview", "new_preview", "text_preview", "anchor_preview", "deleted_preview"}
@@ -594,7 +602,7 @@ def slim_edit_file_result_for_llm(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_edit_file_ui_payload(result: dict[str, Any]) -> dict[str, Any]:
-    """提取 edit_file 结果中仅供 SSE/UI 卡片与撤销使用的字段，写入 ToolContext 侧通道。"""
+    """提取 edit_file 结果中仅供 SSE/UI 卡片与撤销使用的字段，写入 AgentRequestContext 侧通道。"""
     overlay: dict[str, Any] = {}
     if isinstance(result.get("undo"), dict):
         overlay["undo"] = result["undo"]
@@ -677,16 +685,24 @@ class FileEditor:
     - Permission checking
     """
 
-    def __init__(self, session: Session, user_id: str | None = None):
+    def __init__(
+        self,
+        session: Session,
+        user_id: str | None = None,
+        *,
+        request_context: Any | None = None,
+    ):
         """
         Initialize file editor.
 
         Args:
             session: Database session
             user_id: Current user ID (UUID string, for permission checks)
+            request_context: Optional request-scoped ``AgentRequestContext``
         """
         self.session = session
         self.user_id = user_id
+        self.request_context = request_context
 
     def edit_file(
         self,
@@ -847,7 +863,9 @@ class FileEditor:
             )
 
         # Check permission (target must belong to the current tool-context project)
-        check_file_access_in_tool_context(self.session, file, self.user_id)
+        check_file_access_in_tool_context(
+            self.session, file, self.user_id, request_context=self.request_context
+        )
 
         old_content = file.content or ""
         # 锁内重读的正文和模型看到的不一样：作者（或别的写入）在模型读过之后又改了。
@@ -1204,7 +1222,13 @@ class FileEditor:
                 exc_info=True,
                 extra={"file_id": file_id, "error": str(exc)},
             )
-        with written_snapshot_for_commit(file_id, content, full=full_snapshot, seen_spans=seen_spans):
+        with written_snapshot_for_commit(
+            file_id,
+            content,
+            full=full_snapshot,
+            seen_spans=seen_spans,
+            request_context=self.request_context,
+        ):
             self.session.commit()
         self.session.refresh(file)
         activation_event_service.record_ai_write_accepted(
@@ -1282,7 +1306,9 @@ class FileEditor:
             file = self.session.get(File, id, populate_existing=True)
         if not file or file.is_deleted:
             raise EditFileError("文件不存在或已删除。", error_type=EDIT_ERROR_FILE_NOT_FOUND)
-        check_file_access_in_tool_context(self.session, file, self.user_id)
+        check_file_access_in_tool_context(
+            self.session, file, self.user_id, request_context=self.request_context
+        )
 
         if expected_updated_at is not None:
             current_updated_at = file.updated_at.isoformat() if file.updated_at else None
@@ -1335,7 +1361,9 @@ class FileEditor:
         elif title_changed:
             apply_file_title_and_order(file, prospective_title)
             file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
-            with written_snapshot_for_commit(file.id, content, full=True):
+            with written_snapshot_for_commit(
+                file.id, content, full=True, request_context=self.request_context
+            ):
                 self.session.commit()
             self.session.refresh(file)
         result: dict[str, Any] = {

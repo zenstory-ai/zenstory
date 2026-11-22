@@ -42,7 +42,6 @@ def mutation_project(db_session, monkeypatch):
     folder = File(id=f"{project.id}-script-folder", project_id=project.id, title="剧本", file_type="folder")
     db_session.add(folder)
     db_session.commit()
-    mcp_tools.ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id=None)
     monkeypatch.setattr("agent.tools.file_ops.crud.activation_event_service.record_ai_write_accepted", lambda *_a, **_kw: None)
     monkeypatch.setattr("agent.tools.file_ops.edit.activation_event_service.record_ai_write_accepted", lambda *_a, **_kw: None)
     return user, project, folder
@@ -112,15 +111,22 @@ async def test_direct_tool_envelopes_keep_explicit_mutation(monkeypatch, tool_na
         )
     else:
         getattr(executor, tool_name).return_value = result
-    monkeypatch.setattr(mcp_tools.ToolContext, "get_executor", lambda: executor)
-    monkeypatch.setattr(mcp_tools.ToolContext, "_get_context", lambda: {"project_id": "project"})
-    payload = _payload(await getattr(mcp_tools, tool_name)({"id": "file", "title": "Title", "content": "Body", "edits": []}))
+    req_ctx = mcp_tools.AgentRequestContext(session=MagicMock(), project_id="project")
+    monkeypatch.setattr(req_ctx, "executor", lambda _s: executor)
+    payload = _payload(
+        await getattr(mcp_tools, tool_name)(
+            {"id": "file", "title": "Title", "content": "Body", "edits": []},
+            request_context=req_ctx,
+        )
+    )
     assert payload["mutation_applied"] is changed
 
 
 @pytest.mark.asyncio
 async def test_delete_failure_does_not_report_mutation(db_session, mutation_project):
-    payload = _payload(await mcp_tools.delete_file({"id": "missing"}))
+    user, project, _ = mutation_project
+    req_ctx = mcp_tools.AgentRequestContext(session=db_session, user_id=user.id, project_id=project.id)
+    payload = _payload(await mcp_tools.delete_file({"id": "missing"}, request_context=req_ctx))
     assert payload["status"] == "error"
     assert payload.get("mutation_applied", False) is False
 
@@ -250,11 +256,22 @@ async def test_closed_reused_file_stream_flips_false_tool_flag_after_commit(db_s
 
     monkeypatch.setattr(database, "get_session", get_session)
     monkeypatch.setattr(database, "is_postgres", False)
-    result = await mcp_tools.create_file({"title": "第3集", "file_type": "script", "parent_id": folder.id})
+    req_ctx = mcp_tools.AgentRequestContext(
+        session=db_session,
+        user_id=user.id,
+        project_id=project.id,
+        session_id="mutation-signal",
+    )
+    result = await mcp_tools.create_file(
+        {"title": "第3集", "file_type": "script", "parent_id": folder.id},
+        request_context=req_ctx,
+    )
     payload = _payload(result)
     assert payload["data"]["id"] == file.id
     assert payload["mutation_applied"] is False
-    adapter = StreamAdapter(StreamAdapterConfig(project_id=project.id, user_id=user.id))
+    adapter = StreamAdapter(
+        StreamAdapterConfig(project_id=project.id, user_id=user.id, request_context=req_ctx)
+    )
     events = await _drive(adapter, [
         _tool_event("create_file", result),
         StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>Changed body</file>"}),

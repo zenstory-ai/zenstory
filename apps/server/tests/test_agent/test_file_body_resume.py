@@ -20,13 +20,14 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from agents import RunContextWrapper
 from sqlmodel import Session, select
 
+from agent.core.request_context import AgentRequestContext
 from agent.core.round_outcome import RoundWrittenFiles
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_billing import StreamBillingTracker
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
-from agent.tools.mcp_tools import ToolContext
 from models import File, Project, User
 from tests.conftest import TestSessionLocal
 from utils.text_metrics import count_words
@@ -67,10 +68,10 @@ class ScriptedModel:
     run_inputs: list[Any] = field(default_factory=list)
     _call_seq: int = 0
 
-    def run_streamed(self, agent, *_args, input=None, hooks=None, **_kwargs):  # noqa: A002 - SDK kwarg
+    def run_streamed(self, agent, *_args, input=None, hooks=None, context=None, **_kwargs):  # noqa: A002 - SDK kwarg
         self.run_inputs.append(input)
         replies = self.runs.pop(0) if self.runs else [Reply(text="（脚本外的多余一轮）")]
-        return _ScriptedResult(self, agent, hooks, replies)
+        return _ScriptedResult(self, agent, hooks, replies, context=context)
 
     def next_call_id(self) -> str:
         self._call_seq += 1
@@ -81,11 +82,12 @@ class ScriptedModel:
 
 
 class _ScriptedResult:
-    def __init__(self, model: ScriptedModel, agent: Any, hooks: Any, replies: list[Reply]) -> None:
+    def __init__(self, model: ScriptedModel, agent: Any, hooks: Any, replies: list[Reply], *, context: Any = None) -> None:
         self._model = model
         self._agent = agent
         self._hooks = hooks
         self._replies = replies
+        self._context = context
         self.raw_responses: list[Any] = []
 
     def cancel(self, mode: str = "immediate") -> None:
@@ -97,11 +99,12 @@ class _ScriptedResult:
     async def stream_events(self):
         from services.usage.cost_budget import notify_model_transport_start
 
+        run_ctx_wrapper = RunContextWrapper(self._context)
         tools = {tool.name: tool for tool in self._agent.tools}
         for reply in self._replies:
             if reply.before is not None:
                 reply.before()
-            await self._hooks.on_llm_start(None, self._agent, "", [])
+            await self._hooks.on_llm_start(run_ctx_wrapper, self._agent, "", [])
             notify_model_transport_start()
             for start in range(0, len(reply.text), 17):
                 yield SimpleNamespace(
@@ -120,7 +123,7 @@ class _ScriptedResult:
                 output=output,
             )
             self.raw_responses.append(response)
-            await self._hooks.on_llm_end(None, self._agent, response)
+            await self._hooks.on_llm_end(run_ctx_wrapper, self._agent, response)
             if not reply.tools:
                 return  # 没有工具调用的回复就是这次 run 的最终输出
             results = []
@@ -136,7 +139,8 @@ class _ScriptedResult:
                         raw_item={"name": name, "call_id": call_id, "arguments": raw_arguments},
                     ),
                 )
-                text = await tools[name].on_invoke_tool(None, raw_arguments)
+                tool_ctx = SimpleNamespace(context=self._context, tool_call_id=call_id)
+                text = await tools[name].on_invoke_tool(tool_ctx, raw_arguments)
                 self._model.tool_calls.append(ToolCall(name, json.loads(text)))
                 results.append(SimpleNamespace(tool=tools[name], output=text))
                 yield SimpleNamespace(
@@ -148,7 +152,7 @@ class _ScriptedResult:
                 from agents.exceptions import MaxTurnsExceeded
 
                 raise MaxTurnsExceeded("synthetic max_turns")
-            if self._agent.tool_use_behavior(None, results).is_final_output:
+            if self._agent.tool_use_behavior(run_ctx_wrapper, results).is_final_output:
                 return  # 熔断 / 控制流工具：SDK 不再发起下一次模型调用
 
 
@@ -214,11 +218,26 @@ def workspace(db_session: Session, monkeypatch):
     return SimpleNamespace(user=user, project=project, session=db_session)
 
 
-async def _run(workspace, model: ScriptedModel, *, meter: AgentRunMeter | None = None) -> Outcome:
+async def _run(
+    workspace,
+    model: ScriptedModel,
+    *,
+    meter: AgentRunMeter | None = None,
+    request_context: AgentRequestContext | None = None,
+) -> Outcome:
     from agent.loop.engine import run_loop_agent_streaming
 
     message = "写第一章"
     meter = meter or AgentRunMeter()
+    req_ctx = request_context or AgentRequestContext(
+        session=None,
+        user_id=workspace.user.id,
+        project_id=workspace.project.id,
+        session_id="file-body-resume",
+        create_session_func=TestSessionLocal,
+        author_message=message,
+        read_snapshots={},
+    )
     state: dict[str, Any] = {
         "user_message": message,
         "router_message": message,
@@ -228,18 +247,15 @@ async def _run(workspace, model: ScriptedModel, *, meter: AgentRunMeter | None =
         "project_id": workspace.project.id,
         "user_id": workspace.user.id,
         "session_id": "file-body-resume",
+        "request_context": req_ctx,
     }
-    ToolContext.set_context(
-        session=None,
-        user_id=workspace.user.id,
-        project_id=workspace.project.id,
-        session_id="file-body-resume",
-        create_session_func=TestSessionLocal,
-        author_message=message,
-        read_snapshots={},
-    )
     adapter = StreamAdapter(
-        StreamAdapterConfig(project_id=workspace.project.id, user_id=workspace.user.id, run_meter=meter)
+        StreamAdapterConfig(
+            project_id=workspace.project.id,
+            user_id=workspace.user.id,
+            run_meter=meter,
+            request_context=req_ctx,
+        )
     )
     try:
         with (
@@ -256,7 +272,7 @@ async def _run(workspace, model: ScriptedModel, *, meter: AgentRunMeter | None =
                 frame async for frame in adapter.process_workflow_events(run_loop_agent_streaming(state))
             ]
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
     return Outcome(frames=frames, adapter=adapter, state=state)
 
 
@@ -351,8 +367,8 @@ async def test_second_correction_resumes_the_same_file_once(workspace):
 class _ContinuedInputResult(_ScriptedResult):
     """to_input_list 像真实 SDK 一样返回这次的输入加上模型的回复（续跑走 _continued_run_input）。"""
 
-    def __init__(self, model, agent, hooks, replies, run_input):
-        super().__init__(model, agent, hooks, replies)
+    def __init__(self, model, agent, hooks, replies, run_input, *, context=None):
+        super().__init__(model, agent, hooks, replies, context=context)
         self._input = run_input
 
     def to_input_list(self) -> list[Any]:
@@ -361,10 +377,10 @@ class _ContinuedInputResult(_ScriptedResult):
 
 
 class _ContinuedInputModel(ScriptedModel):
-    def run_streamed(self, agent, *_args, input=None, hooks=None, **_kwargs):  # noqa: A002 - SDK kwarg
+    def run_streamed(self, agent, *_args, input=None, hooks=None, context=None, **_kwargs):  # noqa: A002 - SDK kwarg
         self.run_inputs.append(input)
         replies = self.runs.pop(0) if self.runs else [Reply(text="（脚本外的多余一轮）")]
-        return _ContinuedInputResult(self, agent, hooks, replies, input)
+        return _ContinuedInputResult(self, agent, hooks, replies, input, context=context)
 
 
 async def test_every_correction_run_ends_on_a_fresh_instruction(workspace):
@@ -499,12 +515,22 @@ async def test_pending_marker_for_another_projects_file_is_never_written(workspa
     workspace.session.commit()
     foreign_id = foreign.id
 
+    req_ctx = AgentRequestContext(
+        session=None,
+        user_id=workspace.user.id,
+        project_id=workspace.project.id,
+        session_id="file-body-resume",
+        create_session_func=TestSessionLocal,
+        author_message="写第一章",
+        read_snapshots={},
+    )
+
     def inject() -> None:
-        ToolContext.set_pending_empty_file(foreign_id, "别处的空文件")
+        req_ctx.set_pending_empty_file(foreign_id, "别处的空文件")
 
     model = ScriptedModel(runs=[[Reply(text="先看一下。", before=inject)], [WRITE_BODY]])
 
-    outcome = await _run(workspace, model)
+    outcome = await _run(workspace, model, request_context=req_ctx)
 
     assert len(model.run_inputs) == 1
     workspace.session.expire_all()
@@ -525,14 +551,7 @@ async def test_cancel_during_resumed_body_saves_only_the_streamed_part(workspace
 
     message = "写第一章"
     meter = AgentRunMeter()
-    state: dict[str, Any] = {
-        "user_message": message,
-        "router_message": message,
-        "messages": [],
-        "system_prompt": "synthetic system",
-        "run_meter": meter,
-    }
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=None,
         user_id=workspace.user.id,
         project_id=workspace.project.id,
@@ -541,8 +560,21 @@ async def test_cancel_during_resumed_body_saves_only_the_streamed_part(workspace
         author_message=message,
         read_snapshots={},
     )
+    state: dict[str, Any] = {
+        "user_message": message,
+        "router_message": message,
+        "messages": [],
+        "system_prompt": "synthetic system",
+        "run_meter": meter,
+        "request_context": req_ctx,
+    }
     adapter = StreamAdapter(
-        StreamAdapterConfig(project_id=workspace.project.id, user_id=workspace.user.id, run_meter=meter)
+        StreamAdapterConfig(
+            project_id=workspace.project.id,
+            user_id=workspace.user.id,
+            run_meter=meter,
+            request_context=req_ctx,
+        )
     )
     holder["adapter"] = adapter
     body_started = asyncio.Event()
@@ -567,7 +599,7 @@ async def test_cancel_during_resumed_body_saves_only_the_streamed_part(workspace
                 await task
             counts = await adapter.settle_aborted_capture()
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     file_id = _created_id(model)
     stored = _drafts(workspace)[0]
@@ -581,19 +613,19 @@ async def test_cancel_during_resumed_body_saves_only_the_streamed_part(workspace
 
 
 @pytest.fixture
-def guard():
+def guard() -> AgentRequestContext:
     """真实的待写守卫：f1 是本请求建好、还没写正文的文件。"""
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    ToolContext.begin_model_reply()
-    ToolContext.set_pending_empty_file("f1", CHAPTER)
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx.begin_model_reply()
+    req_ctx.set_pending_empty_file("f1", CHAPTER)
     try:
-        yield
+        yield req_ctx
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
 
-def _bound_adapter(*, original_content_length: int = 0) -> StreamAdapter:
-    adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u"))
+def _bound_adapter(*, original_content_length: int = 0, request_context: AgentRequestContext | None = None) -> StreamAdapter:
+    adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u", request_context=request_context))
     adapter.set_pending_file_write(
         "f1", "draft", CHAPTER, original_content_length=original_content_length, baseline_updated_at="v1"
     )
@@ -633,9 +665,9 @@ async def test_adapter_refuses_files_it_is_not_safely_waiting_for(guard, setup, 
     from agent.core.stream_processor import StreamState
 
     if setup == "unbound":
-        adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u"))
+        adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u", request_context=guard))
     else:
-        adapter = _bound_adapter(original_content_length=12 if setup == "reused" else 0)
+        adapter = _bound_adapter(original_content_length=12 if setup == "reused" else 0, request_context=guard)
         await _end_agent_run(adapter)
 
     request = await _resume(adapter, file_id, version)
@@ -648,7 +680,7 @@ async def test_adapter_does_not_reset_a_capture_that_is_already_writing(guard):
     from agent.core.stream_processor import StreamState
     from agent.core.workflow_events import StreamEventType
 
-    adapter = _bound_adapter()
+    adapter = _bound_adapter(request_context=guard)
     await _feed(adapter, StreamEventType.TEXT, {"text": "<file>\n已经在写的正文"})
 
     request = await _resume(adapter)
@@ -659,7 +691,7 @@ async def test_adapter_does_not_reset_a_capture_that_is_already_writing(guard):
 
 
 async def test_adapter_refuses_after_a_fatal_stream_error(guard):
-    adapter = _bound_adapter()
+    adapter = _bound_adapter(request_context=guard)
     await _end_agent_run(adapter)
     adapter._fatal_stream_error = True
 
@@ -672,7 +704,7 @@ async def test_repeated_resume_is_idempotent_and_the_body_is_saved_once(guard, m
     from agent.core.stream_processor import StreamState
     from agent.core.workflow_events import StreamEventType
 
-    adapter = _bound_adapter()
+    adapter = _bound_adapter(request_context=guard)
     await _end_agent_run(adapter)
     saved: list[tuple[str, str]] = []
 
@@ -683,11 +715,11 @@ async def test_repeated_resume_is_idempotent_and_the_body_is_saved_once(guard, m
     monkeypatch.setattr(adapter, "_save_file_content", fake_save)
 
     # 上一程没被捕获的闭合块让守卫以为「正文已写出」：恢复后这个标记必须作废。
-    ToolContext.mark_latest_pending_body_streamed()
+    guard.mark_latest_pending_body_streamed()
     first = await _resume(adapter)
     second = await _resume(adapter)
-    ToolContext.begin_model_reply()
-    assert [entry["id"] for entry in ToolContext.overdue_file_bodies()] == ["f1"], "恢复后下一次回复仍须先写正文"
+    guard.begin_model_reply()
+    assert [entry["id"] for entry in guard.overdue_file_bodies()] == ["f1"], "恢复后下一次回复仍须先写正文"
     frames = await _feed(adapter, StreamEventType.TEXT, {"text": f"<file>\n{BODY}\n</file>\n"})
 
     assert first.armed and second.armed
@@ -702,18 +734,19 @@ async def test_adapter_does_not_arm_unless_the_exact_pending_guard_is_restored(c
     """armed 要同时证明捕获与这个文件的待写守卫都已恢复；守卫缺失 / 不对 / 恢复失败时不开捕获。"""
     from agent.core.stream_processor import StreamState
 
+    req_ctx = None
     if case != "no_request_context":
-        ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-        ToolContext.set_pending_empty_file("f2" if case == "other_file_pending" else "f1", CHAPTER)
+        req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
+        req_ctx.set_pending_empty_file("f2" if case == "other_file_pending" else "f1", CHAPTER)
         if case == "guard_cleared":
-            ToolContext.clear_pending_empty_file("f1")
-    if case == "rearm_raises":
-        def boom(_file_id):
-            raise RuntimeError("synthetic guard failure")
+            req_ctx.clear_pending_empty_file("f1")
+        if case == "rearm_raises":
+            def boom(_file_id):
+                raise RuntimeError("synthetic guard failure")
 
-        monkeypatch.setattr(ToolContext, "rearm_pending_file_body", boom)
+            monkeypatch.setattr(req_ctx, "rearm_pending_file_body", boom)
     try:
-        adapter = _bound_adapter()
+        adapter = _bound_adapter(request_context=req_ctx)
         await _end_agent_run(adapter)
 
         request = await _resume(adapter)
@@ -721,7 +754,8 @@ async def test_adapter_does_not_arm_unless_the_exact_pending_guard_is_restored(c
         assert request.armed is False and request.refusal == "guard_missing"
         assert adapter._stream_processor.state == StreamState.IDLE
     finally:
-        ToolContext.clear_context()
+        if req_ctx is not None:
+            req_ctx.clear()
 
 
 # ---------------------------------------------------------------- 补不成时的回滚只删没被动过的空产物
@@ -752,13 +786,13 @@ async def test_author_rename_during_the_last_failed_correction_keeps_the_file(wo
 def _rollback_with(workspace, entries):
     from agent.core.empty_files import rollback_unfinished_empty_files
 
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=workspace.session, user_id=workspace.user.id, project_id=workspace.project.id, session_id="s"
     )
     try:
-        return rollback_unfinished_empty_files(entries)
+        return rollback_unfinished_empty_files(entries, request_context=req_ctx)
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
 
 def _empty_draft(workspace, **fields):
@@ -869,16 +903,24 @@ def test_reused_blank_episode_is_writable_but_never_a_rollback_target(workspace)
     from agent.tools.mcp_tools import _create_file_sync
 
     folder, episode = _blank_episode(workspace)
-    ToolContext.set_context(
-        workspace.session, workspace.user.id, workspace.project.id, "s", author_message="写第1集", read_snapshots={}
+    req_ctx = AgentRequestContext(
+        session=workspace.session,
+        user_id=workspace.user.id,
+        project_id=workspace.project.id,
+        session_id="s",
+        author_message="写第1集",
+        read_snapshots={},
     )
     try:
-        _create_file_sync({"title": "第1集", "file_type": "script", "parent_id": folder.id, "order": 1})
+        _create_file_sync({"title": "第1集", "file_type": "script", "parent_id": folder.id, "order": 1}, req_ctx)
         # 复用的就是这一集（没有另建），它仍在等正文。
-        assert ToolContext.get_pending_empty_files() == [{"file_id": episode.id, "title": "第1集"}]
-        rolled_back = rollback_unfinished_empty_files(with_creation_versions(ToolContext.get_pending_empty_files()))
+        assert req_ctx.get_pending_empty_files() == [{"file_id": episode.id, "title": "第1集"}]
+        rolled_back = rollback_unfinished_empty_files(
+            with_creation_versions(req_ctx.get_pending_empty_files(), request_context=req_ctx),
+            request_context=req_ctx,
+        )
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     assert rolled_back == set()
     workspace.session.expire_all()
@@ -1165,7 +1207,7 @@ async def test_armed_resume_tells_the_editor_again_that_the_file_is_streaming(gu
     纠偏轮写 <file> 之前的思考期间不能让作者未保存的文字自动保存推进版本、作废重试。"""
     from agent.core.workflow_events import FileBodyResume, StreamEventType
 
-    adapter = _bound_adapter()
+    adapter = _bound_adapter(request_context=guard)
     await _end_agent_run(adapter)
 
     request = FileBodyResume(file_id="f1", expected_updated_at="v1")
@@ -1177,7 +1219,7 @@ async def test_armed_resume_tells_the_editor_again_that_the_file_is_streaming(gu
     assert created[0].data.get("file_id") == "f1" and created[0].data.get("title") == CHAPTER
 
     refused = FileBodyResume(file_id="f1", expected_updated_at="v2")
-    adapter_refusing = _bound_adapter()
+    adapter_refusing = _bound_adapter(request_context=guard)
     await _end_agent_run(adapter_refusing)
     refused_frames = await _feed(adapter_refusing, StreamEventType.FILE_BODY_RESUME, {"request": refused})
     assert refused.armed is False

@@ -727,11 +727,11 @@ async def _collect(state, *, get_steering_messages=None):
 
 @pytest.fixture
 def loop_tool_context():
-    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.tool_context import AgentRequestContext
 
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
-    yield
-    ToolContext.clear_context()
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
+    yield req_ctx
+    req_ctx.clear()
 
 
 @pytest.mark.asyncio
@@ -1020,12 +1020,12 @@ async def test_loop_asks_for_a_self_check_once_per_chapter(loop_tool_context, mo
     from agent.loop import engine
 
     class _Guard(engine.RepeatReadGuard):
-        def __init__(self) -> None:
-            super().__init__()
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
             self.files_written["ch1"] = "第1章"
 
     monkeypatch.setattr(engine, "RepeatReadGuard", _Guard)
-    monkeypatch.setattr(engine, "_word_count_note", lambda guard: "")
+    monkeypatch.setattr(engine, "_word_count_note", lambda *_args: "")
     seen: list[dict] = []
     write = [
         StreamEvent(type=StreamEventType.TOOL_USE, data={"id": "c1", "name": "write_chapter", "status": "complete", "input": {}}),

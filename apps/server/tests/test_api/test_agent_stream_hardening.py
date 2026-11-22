@@ -2480,11 +2480,18 @@ class _CaptureSettlingService:
             self.settle_tasks.append(asyncio.get_running_loop().create_task(settle()))
 
 
-def _gated_capture_adapter(project, user, placeholder, gate: asyncio.Event):
+def _gated_capture_adapter(project, user, placeholder, gate: asyncio.Event, *, request_context=None):
     """真实 StreamAdapter；残稿补存（abort-save）在 gate 打开前一直挂着。"""
     from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 
-    adapter = StreamAdapter(StreamAdapterConfig(project_id=project.id, user_id=user.id, process_file_markers=True))
+    adapter = StreamAdapter(
+        StreamAdapterConfig(
+            project_id=project.id,
+            user_id=user.id,
+            process_file_markers=True,
+            request_context=request_context,
+        )
+    )
     adapter.set_pending_file_write(
         placeholder.id, "draft", placeholder.title, baseline_updated_at=placeholder.updated_at.isoformat()
     )
@@ -2526,7 +2533,7 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
     没有 file_content 帧，残稿补存还在进行，空白占位不能先被移除，否则补存被已删除的文件拒绝，
     正文丢失。停止路径当场只等很短的时间，等不到保存回执就按「没有产出」退还；断线路径在后台
     等回执，补存提交了就撤回退还（按保存回执计费）。"""
-    from agent.tools.mcp_tools import ToolContext
+    from agent.core.request_context import AgentRequestContext
     from models import ChatMessage, File
     from tests.conftest import TestSessionLocal
 
@@ -2534,12 +2541,15 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
     monkeypatch.setattr(agent_api, "STOP_MESSAGE_ID_WAIT_S", 0.05)
     _token, project, user = await _login_with_project(client, db_session)
     message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=None, user_id=user.id, project_id=project.id, session_id="s1",
         create_session_func=TestSessionLocal, author_message="写第一章", read_snapshots={},
     )
     gate = asyncio.Event()
-    service = _CaptureSettlingService(_gated_capture_adapter(project, user, placeholder, gate), placeholder, text, message_id)
+    service = _CaptureSettlingService(
+        _gated_capture_adapter(project, user, placeholder, gate, request_context=req_ctx),
+        placeholder, text, message_id,
+    )
     try:
         with (
             patch("api.agent.get_agent_service", return_value=service),
@@ -2568,7 +2578,7 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
             await asyncio.gather(*service.settle_tasks)
             await asyncio.gather(*agent_api._round_outcome_tasks)
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     refund.assert_called_once()
     db_session.expire_all()
@@ -2586,20 +2596,20 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
 @pytest.mark.usefixtures("_adapter_saves_on_test_db")
 async def test_stop_with_a_short_body_in_the_tail_buffer_is_charged_once_it_is_saved(client, db_session):
     """新章只写了一句（还在解析器尾缓冲里，没有 file_content 帧）就停止：已进入模型且补存提交，回执确认写入，不退还。"""
-    from agent.tools.mcp_tools import ToolContext
+    from agent.core.request_context import AgentRequestContext
     from models import ChatMessage, File
     from tests.conftest import TestSessionLocal
 
     _token, project, user = await _login_with_project(client, db_session)
     message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
-    ToolContext.set_context(
+    req_ctx = AgentRequestContext(
         session=None, user_id=user.id, project_id=project.id, session_id="s1",
         create_session_func=TestSessionLocal, author_message="写第一章", read_snapshots={},
     )
     gate = asyncio.Event()
     gate.set()
     service = _CaptureSettlingService(
-        _gated_capture_adapter(project, user, placeholder, gate),
+        _gated_capture_adapter(project, user, placeholder, gate, request_context=req_ctx),
         placeholder,
         "<file>　　第一段。",
         message_id,
@@ -2624,7 +2634,7 @@ async def test_stop_with_a_short_body_in_the_tail_buffer_is_charged_once_it_is_s
             await asyncio.gather(*service.settle_tasks)
             await asyncio.gather(*agent_api._round_outcome_tasks)
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
 
     assert _frame_data(rest, "quota_refunded") is None
     # 停止卡的 done 帧在结算之前发出：它也按保存回执说明这一轮有产出。
@@ -3074,7 +3084,7 @@ class _InflightWriteService:
 
         if run_outcome is not None and self._provider_attempted:
             run_outcome.provider_attempted = True
-        mcp_tools.ToolContext.set_context(
+        req_ctx = mcp_tools.AgentRequestContext(
             session=None, user_id=self._user.id, project_id=self._project.id, session_id="s1",
             create_session_func=TestSessionLocal, author_message="写第一章", read_snapshots={},
             inflight_tool_writes=run_outcome.inflight_tool_writes,
@@ -3082,10 +3092,10 @@ class _InflightWriteService:
         try:
             yield _sse("session_started", {"session_id": "s1"})
             yield _sse("tool_call", {"tool_name": self._tool, "tool_use_id": "call-1", "arguments": self._args})
-            await getattr(mcp_tools, self._tool)(self._args)
+            await getattr(mcp_tools, self._tool)(self._args, request_context=req_ctx)
             await asyncio.sleep(30)
         finally:
-            mcp_tools.ToolContext.clear_context()
+            req_ctx.clear()
 
             async def settle() -> None:
                 try:
@@ -3129,7 +3139,7 @@ async def test_edit_committed_by_its_thread_after_a_stop_is_charged(client, db_s
     message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
     release = threading.Event()
 
-    def slow_edit(args):
+    def slow_edit(args, _req_ctx=None, _tool_call_id=None):
         release.wait(5)
         if thread_fails:
             raise RuntimeError("synthetic edit failure")
@@ -3183,7 +3193,7 @@ async def test_empty_file_created_by_its_thread_after_a_stop_is_removed_with_the
     release = threading.Event()
     created: list[str] = []
 
-    def slow_create(args):
+    def slow_create(args, _req_ctx=None):
         release.wait(5)
         with TestSessionLocal() as session:
             row = File(project_id=project.id, title=args["title"], content="", file_type="draft")

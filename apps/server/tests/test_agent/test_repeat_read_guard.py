@@ -810,19 +810,18 @@ def test_whole_chapter_replacement_target_resets_reads_of_that_chapter():
 @pytest.mark.unit
 def test_body_saved_by_the_stream_resets_reads_made_before_the_save():
     """同一批里定位后又读过一次、正文随后落库：落库之后再读是在看新正文，不算重复。"""
-    from agent.tools.mcp_tools import ToolContext
+    from agent.core.request_context import AgentRequestContext
 
-    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
-        ToolContext._get_pending_empty_file_state(create=True)
-        guard = RepeatReadGuard()
+        guard = RepeatReadGuard(request_context=req_ctx)
         _write_chapter_target(guard)
         _guarded_read(guard)
         assert "read_hint" in json.loads(_guarded_read(guard)), "落库之前的重复读取照常提示"
 
-        ToolContext.mark_chapter_body_saved("f1", "第一章")
+        req_ctx.mark_chapter_body_saved("f1", "第一章")
         reread = json.loads(_guarded_read(guard))
         assert reread["status"] == "success" and "read_hint" not in reread
         assert "read_hint" in json.loads(_guarded_read(guard)), "落库之后的重复读取重新计数"
     finally:
-        ToolContext.clear_context()
+        req_ctx.clear()
