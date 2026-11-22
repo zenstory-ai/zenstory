@@ -230,9 +230,13 @@ def _client_is_mobile(metadata: dict[str, Any] | None) -> bool | None:
     return raw if isinstance(raw, bool) else None
 
 
-def _client_ui_action(metadata: dict[str, Any] | None) -> str | None:
-    """Optional bounded UI action enum from request metadata (e.g. natural_polish)."""
-    raw = metadata.get("ui_action") if isinstance(metadata, dict) else None
+def _client_ui_action(
+    metadata: dict[str, Any] | None,
+    *,
+    top_level: Any = None,
+) -> str | None:
+    """Optional bounded UI action enum (prefers top-level body.ui_action, falls back to metadata)."""
+    raw = top_level if top_level is not None else (metadata.get("ui_action") if isinstance(metadata, dict) else None)
     if isinstance(raw, str):
         candidate = raw.strip().lower()
         if _UI_ACTION_RE.fullmatch(candidate):
@@ -1408,7 +1412,7 @@ async def stream_request(
             activation_entry=activation_entry,
             run_outcome=run_outcome,
             is_mobile=_client_is_mobile(body.metadata),
-            ui_action=_client_ui_action(body.metadata),
+            ui_action=_client_ui_action(body.metadata, top_level=getattr(body, "ui_action", None)),
         )
         # 计费看这次运行实际产出了什么：源生成器的每一帧都在入队前记账，
         # 断线时还没送到客户端的帧也算数。

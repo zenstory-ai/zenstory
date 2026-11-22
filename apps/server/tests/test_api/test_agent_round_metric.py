@@ -169,6 +169,33 @@ async def test_stream_adapter_increments_leaked_tool_call_count_on_leaked_error(
     assert meter.leaked_tool_call_count == 1
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stop_reason", ["leaked_tool_call_early_stop", "leaked_tool_call"])
+async def test_stream_adapter_increments_leaked_tool_call_count_on_message_end_stop_reason(stop_reason: str):
+    meter = AgentRunMeter()
+    adapter = StreamAdapter(StreamAdapterConfig(project_id="proj-1", user_id="user-1", run_meter=meter))
+
+    async def workflow_events():
+        yield WorkflowStreamEvent(
+            type=StreamEventType.MESSAGE_END,
+            data={"stop_reason": stop_reason, "usage": {"input_tokens": 10, "output_tokens": 5}},
+        )
+
+    emitted = [event async for event in adapter.process_workflow_events(workflow_events())]
+    assert any(event.type == EventType.DONE for event in emitted)
+    assert meter.leaked_tool_call_count == 1
+    assert meter.timing_report()["leaked_tool_call_count"] == 1
+
+
+def test_client_ui_action_prefers_top_level_over_metadata():
+    from api.agent import _client_ui_action
+
+    assert _client_ui_action({"ui_action": "fallback_action"}, top_level="natural_polish") == "natural_polish"
+    assert _client_ui_action({"ui_action": "natural_polish"}, top_level=None) == "natural_polish"
+    assert _client_ui_action({"ui_action": "INVALID ACTION!!"}, top_level=None) is None
+    assert _client_ui_action({}, top_level="   ") is None
+
+
 # ---------------------------------------------------------------------------
 # 2. Settlement persistence & fault isolation
 # ---------------------------------------------------------------------------

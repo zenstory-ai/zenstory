@@ -455,7 +455,13 @@ class StreamAdapter:
 
         elif event_type == StreamEventType.MESSAGE_END:
             # Message completed - capture metadata for downstream persistence
-            self._last_message_stop_reason = data.get("stop_reason")
+            stop_reason = data.get("stop_reason")
+            self._last_message_stop_reason = stop_reason
+            if (
+                stop_reason in {"leaked_tool_call_early_stop", "leaked_tool_call"}
+                and self.config.run_meter is not None
+            ):
+                self.config.run_meter.record_leaked_tool_call()
             # 多 agent 协作时每个 agent 各发一次 MESSAGE_END：usage 必须**累加**，
             # 用后来的覆盖先前的会让整轮统计只剩最后一个 agent 的消耗（计费/
             # 配额都基于它）。非字典的 usage 不清空已累计的值。

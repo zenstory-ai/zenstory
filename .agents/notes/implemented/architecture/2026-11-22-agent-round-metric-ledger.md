@@ -15,7 +15,7 @@
    - 以 `agent_run_id` 唯一索引防重，按 `occurred_at` 与 `(user_id, occurred_at)` 建索引；同一迁移为 `chat_message.created_at` 与 `file_version.created_at` 幂等补建轻量时间索引。
 2. **在 `AgentRunMeter` 与 `StreamAdapter` 精确测量 `chapter_first_prose_ms` 与 `leaked_tool_call_count`**：
    - `StreamAdapter.set_pending_file_write` 挂起待写文件时在 `AgentRunMeter` 记录单调时钟起点（`mark_pending_file_write_armed`），并在第一段非空 `<file>` 正文流出时计算 `chapter_first_prose_ms`（每轮只记首次，空文件纠偏重挂不重置起点以反映真实等待）。
-   - `AgentRunMeter` 预置 `leaked_tool_call_count`（默认 `0`），在遇到 `unexecuted_tool_text` 或 `reason="leaked_tool_call"` 终止时递增，便于与泄漏工具调用截停改造无缝对接。
+   - `AgentRunMeter` 预置 `leaked_tool_call_count`（默认 `0`），在遇到 `MESSAGE_END(stop_reason ∈ {"leaked_tool_call_early_stop", "leaked_tool_call"})`、`ITERATION_EXHAUSTED(layer="unexecuted_tool_text")` 或 `ERROR(reason="leaked_tool_call")` 终止时递增，与 PR #447 的泄漏工具调用早停改造无缝对接。
 3. **结算旁路非阻塞落库**：
    - `apps/server/api/agent.py` 在 `_AgentStreamSettlement.finish` 记录 `Agent stream billing evaluated` 旁通过 `services/usage/admin_stage_latency_service.py` 的 `record_agent_round_metric` 写入 1 行。
    - 始终使用独立短生命周期 session（PostgreSQL 放进 `asyncio.to_thread` 后台任务并纳入 `wait_for_stream_cleanup`），全链路 `try/except` 捕获日志，**绝不阻塞或中断用户 SSE 交付与额度结算**。
