@@ -279,8 +279,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 - `prompts/base.py`：`get_base_prompt` 与 `UNIFIED_EXECUTION_PROTOCOL` 等共享协议，回复规则 `LOOP_AUTHOR_REPLY_PROTOCOL` 与工具规则
   `LOOP_TOOL_USAGE_PROTOCOL`（`_LOOP_TOOL_USAGE_HEAD` + 文件 ID / 失败重试 / update_project 通用段 + `_LOOP_TOOL_USAGE_FILE_WRITES` + 思考段：
   写正文用 write_chapter，改已有文件用 edit_file 且不整份替换正文，资料文件用 create_file）。
-- `loop/prompts.py`：单循环 agent 的输入布局、工作方式（`LOOP_WORKING_RULES`：正文按章写、作者的稿子直接写进对应章节不另存副本、
-  大纲是节奏的上限也是底线、写后自查、只报工具结果给出的真实字数，不提模式）和压缩提示。
+- `loop/prompts.py`：单循环 agent 的输入布局、工作方式（`LOOP_WORKING_RULES`：三类项目目录规划与 `分章大纲`/`分集大纲` 边界、正文按章写、作者的稿子直接写进对应章节不另存副本、大纲是节奏的上限也是底线、写后快速自查最多一次 `edit_file` 且不重读刚写完的章节、只报工具结果给出的真实字数、以及从已删除多角色 `WRITER_PROMPT` 补回的「行文与成稿质量」六条正面原则；见 [single-loop-prompt-tuning][n-loop-prompt-tuning]）和压缩提示。
 - `prompts/suggestions.py`：建议生成。
 - 项目写作配置只存数据库（`prompts/__init__.py`）；项目类型的默认模板在 `apps/server/config/project_templates.py`。
 
@@ -349,3 +348,4 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-run-context-wrapper]: ../../../.agents/notes/implemented/architecture/2026-11-21-agent-run-context-wrapper.md
 [n-pydantic-tool-inputs]: ../../../.agents/notes/implemented/simplification/2026-11-21-agent-pydantic-tool-inputs.md
 [n-tier0-quota]: ../../../.agents/notes/implemented/architecture/2026-11-22-tier0-minimax-quota-safety.md
+[n-loop-prompt-tuning]: ../../../.agents/notes/implemented/feature/2026-11-22-single-loop-agent-prompt-tuning.md
