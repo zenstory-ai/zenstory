@@ -141,9 +141,14 @@ describe("FeedbackManagement", () => {
     expect(issueText).toBeInTheDocument();
     expect(screen.getByText("feedback.viewScreenshot")).toBeInTheDocument();
 
+    const filterForm = screen.getByRole("button", { name: "common:search" }).closest("form")!;
+    expect(within(filterForm).getByRole("combobox", { name: "feedback.columns.status" })).toBeInTheDocument();
+    expect(within(filterForm).getByRole("combobox", { name: "feedback.columns.source" })).toBeInTheDocument();
+    expect(within(filterForm).getByRole("combobox", { name: "feedback.columns.screenshot" })).toBeInTheDocument();
+
     const row = issueText.closest("tr");
     expect(row).not.toBeNull();
-    const statusSelect = within(row as HTMLTableRowElement).getByRole("combobox");
+    const statusSelect = within(row as HTMLTableRowElement).getByRole("combobox", { name: "feedback.columns.status" });
     fireEvent.change(statusSelect, { target: { value: "resolved" } });
 
     expect(mutateMock).toHaveBeenCalledWith({ id: "fb-1", status: "resolved" });

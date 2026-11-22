@@ -165,7 +165,8 @@ describe("AuditLogPage", () => {
 
     render(<AuditLogPage />, { wrapper: MemoryRouter });
 
-    const [resourceSelect, actionSelect] = screen.getAllByRole("combobox");
+    const resourceSelect = screen.getByRole("combobox", { name: "auditLogs.resourceType" });
+    const actionSelect = screen.getByRole("combobox", { name: "auditLogs.action" });
     const resourceValues = Array.from((resourceSelect as HTMLSelectElement).options).map((o) => o.value);
     expect(resourceValues).toEqual(expect.arrayContaining([
       "user", "code", "subscription", "inspiration", "plan", "points", "skill",

@@ -397,6 +397,7 @@ export const SubscriptionManagement: React.FC = () => {
           {t("common:search")}
         </button>
         <AdminSelect
+          aria-label={t("subscriptions.status")}
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);

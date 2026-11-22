@@ -267,6 +267,7 @@ export const AuditLogPage: React.FC = () => {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         <AdminSelect
+          aria-label={t("auditLogs.resourceType")}
           value={resourceTypeFilter}
           onChange={(e) => {
             const nextType = e.target.value;
@@ -285,6 +286,7 @@ export const AuditLogPage: React.FC = () => {
           ))}
         </AdminSelect>
         <AdminSelect
+          aria-label={t("auditLogs.action")}
           value={actionFilter}
           onChange={(e) => {
             setActionFilter(e.target.value);

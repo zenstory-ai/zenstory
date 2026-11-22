@@ -203,6 +203,7 @@ export default function FeedbackManagement() {
 
         <AdminSelect
           fullWidth
+          aria-label={t("feedback.columns.status", "状态")}
           value={statusFilter}
           onChange={(event) => {
             setStatusFilter(event.target.value as AdminFeedbackStatus | "");
@@ -220,6 +221,7 @@ export default function FeedbackManagement() {
 
         <AdminSelect
           fullWidth
+          aria-label={t("feedback.columns.source", "来源")}
           value={sourceFilter}
           onChange={(event) => {
             setSourceFilter(event.target.value as "dashboard" | "editor" | "");
@@ -234,6 +236,7 @@ export default function FeedbackManagement() {
 
         <AdminSelect
           fullWidth
+          aria-label={t("feedback.columns.screenshot", "截图")}
           value={screenshotFilter}
           onChange={(event) => {
             setScreenshotFilter(event.target.value as ScreenshotFilter);
@@ -403,6 +406,7 @@ export default function FeedbackManagement() {
                     </td>
                     <td className="px-4 py-3">
                       <AdminSelect
+                        aria-label={t("feedback.columns.status", "状态")}
                         value={feedback.status}
                         onChange={(event) =>
                           handleStatusChange(feedback, event.target.value as AdminFeedbackStatus)

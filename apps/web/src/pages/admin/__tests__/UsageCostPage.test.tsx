@@ -310,4 +310,16 @@ describe("UsageCostPage", () => {
     expect(adminApi.getUsageByUser).toHaveBeenCalledWith({ window: "today", sort: "cost", search: undefined, page: 1, page_size: 20 });
     expect(adminApi.getUserDailyUsage).toHaveBeenCalledWith("user-1", 7);
   });
+
+  it("exposes keyboard-focusable scroll regions on usage tables", () => {
+    renderPage();
+
+    for (const label of ["usage.bySource", "usage.models.title", "usage.byUser"]) {
+      const region = screen.getByRole("region", { name: label });
+      expect(region).toHaveAttribute("tabindex", "0");
+    }
+
+    fireEvent.click(within(screen.getByRole("group", { name: "usage.window" })).getByRole("button", { name: "usage.windows.7d" }));
+    expect(screen.getByRole("region", { name: "usage.byDay" })).toHaveAttribute("tabindex", "0");
+  });
 });
