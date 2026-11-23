@@ -1122,7 +1122,7 @@ export const SimpleEditor = ({
               />
               {/* Calm editorial waiting state before the first streamed character arrives */}
               {isStreaming && !displayContent && (
-                <EditorStreamingCanvasWaiting title={title} />
+                <EditorStreamingCanvasWaiting />
               )}
               {/* Mirror div for calculating selection position */}
               <div ref={mirrorRef} aria-hidden="true" />

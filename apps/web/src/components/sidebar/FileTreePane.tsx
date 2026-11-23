@@ -308,27 +308,20 @@ export const FileTreePane: React.FC = () => {
               />
             )
           ) : (
-            <span className="w-3.5" /> /* Spacer for non-folders */
+            <span className="w-3.5 shrink-0" /> /* Spacer for non-folders */
           )}
 
           {/* Icon */}
-          <span className={isSelected && !isFolder ? "text-[hsl(var(--accent-primary))]" : "text-[hsl(var(--text-secondary))]"}>
+          <span className={`shrink-0 ${isSelected && !isFolder ? "text-[hsl(var(--accent-primary))]" : "text-[hsl(var(--text-secondary))]"}`}>
             {FILE_TYPE_ICONS[node.file_type] || <FileText size={16} />}
           </span>
 
           {/* Title */}
-          <span className="flex-1 truncate">{node.title}</span>
-
-          {/* Children count for folders */}
-          {isFolder && (
-            <span className="text-[hsl(var(--text-secondary))] text-xs">
-              {node.children?.length || 0}
-            </span>
-          )}
+          <span className="flex-1 min-w-0 truncate">{node.title}</span>
 
           {/* Action buttons */}
           {/* Phones have no hover: keep draft/material folder actions visible there. */}
-          <div className={`${isMobile && (isDraftFolder(node) || isMaterialFolder(node)) ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"} flex items-center gap-0.5 transition-opacity`}>
+          <div className={`${isMobile && (isDraftFolder(node) || isMaterialFolder(node)) ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"} flex items-center gap-0.5 shrink-0 transition-opacity`}>
             {/* Inline create button for every folder */}
             {isFolder && (
               <button
@@ -414,6 +407,16 @@ export const FileTreePane: React.FC = () => {
               </button>
             )}
           </div>
+
+          {/* Children count for folders — pinned to the trailing edge so counts align across rows */}
+          {isFolder && (
+            <span
+              data-testid="file-tree-folder-count"
+              className="min-w-[1.5rem] shrink-0 text-right text-xs tabular-nums text-[hsl(var(--text-secondary))]"
+            >
+              {node.children?.length || 0}
+            </span>
+          )}
         </div>
 
         {/* Children */}

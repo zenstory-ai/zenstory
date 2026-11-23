@@ -20,7 +20,7 @@
    - `runner.py` 在存在待写正文（`req_ctx.overdue_file_bodies()`）且当前回复文本前缀命中上述完整协议头时，立即调用 `_safe_cancel(result, "immediate")` 中止本次无效生成，不发致命 `ERROR`，先以 `stop_reason = LEAKED_TOOL_CALL_STOP_REASON` 发出 `MESSAGE_END` 结算已完成调用的用量并保留校验过的 `completed_items`（剔除任何末尾悬空 `reasoning` 并核对 `function_call` 成对，保持 `wire_prefix_cache` 干净）。
    - `stream_adapter.py` 在收到该 `stop_reason` 时丢弃 `WAITING_START` 悬置协议残片并复位处理器（保留 `_pending_file_write` 与待写守卫）；`loop/engine.py` 直接将其路由进既有 `FILE_BODY_RESUME` 纠偏轮（不误判为 `body_cut` 或重复发 `unexecuted_tool_text` 卡）。
 3. **前端明确区分「等待首字构思」与「逐字写入」状态（`EditorStreamingWaiting.tsx`、`SimpleEditor.tsx`、`StreamActivityLine.tsx` 及中英 locale）**：
-   - 当 `isStreaming && !displayContent` 时，`SimpleEditor` 隐藏作者态占位符「开始你的创作」，在顶部横幅与编辑器画布中展示轻量的「正在构思《第N章》开篇，即将逐字写入…」与独立计时的已等待秒数（遵守 `motion-reduce`），收到首字节 `displayContent` 后无缝切换为正文流式写入与跟随光标。
+   - 当 `isStreaming && !displayContent` 时，`SimpleEditor` 隐藏作者态占位符「开始你的创作」，在顶部横幅展示「正在构思《第N章》开篇，即将逐字写入…」与独立计时的等待秒数（单点呈现，不重复），编辑器画布仅展示轻量的骨架占位线（遵守 `motion-reduce`），收到首字节 `displayContent` 后无缝切换为正文流式写入与跟随光标。
    - `StreamActivityLine` 在 `words === 0` 时展示「正在构思《…》开篇…」（`chat:activity.preparingBody`），`words > 0` 后展示「正在写入《…》正文 · 已写 N 字」。
 
 ## Alternatives considered

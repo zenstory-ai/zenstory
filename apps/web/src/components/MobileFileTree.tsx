@@ -319,16 +319,9 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           </span>
 
           {/* Title */}
-          <span className="flex-1 truncate text-base font-medium">
+          <span className="flex-1 min-w-0 truncate text-base font-medium">
             {node.title}
           </span>
-
-          {/* Children count for folders */}
-          {isFolder && (
-            <span className="text-[hsl(var(--text-secondary))] text-sm mr-1">
-              {node.children?.length || 0}
-            </span>
-          )}
 
           {/* Action buttons - always visible on mobile for better UX */}
           {isFolder && (
@@ -362,6 +355,16 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
                 </button>
               )}
             </div>
+          )}
+
+          {/* Children count for folders — pinned to the trailing edge so counts align across rows */}
+          {isFolder && (
+            <span
+              data-testid="file-tree-folder-count"
+              className="min-w-[1.5rem] shrink-0 text-right text-sm tabular-nums text-[hsl(var(--text-secondary))]"
+            >
+              {node.children?.length || 0}
+            </span>
           )}
 
           {/* Add/remove snippet to chat context */}

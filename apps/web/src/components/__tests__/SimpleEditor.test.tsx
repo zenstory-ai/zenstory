@@ -1352,22 +1352,20 @@ describe('SimpleEditor', () => {
     expect(screen.getByRole('textbox', { name: 'editor:placeholder.contentPlaceholder' })).toBe(textarea);
     expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).not.toBeInTheDocument();
 
-    // Banner and canvas waiting state show drafting copy + elapsed seconds
+    // Banner owns the single drafting status copy + elapsed seconds; canvas shows only a quiet visual skeleton
     const banner = screen.getByTestId('editor-streaming-banner');
     expect(banner).toHaveTextContent('editor:aiDraftingOpening');
     expect(screen.getByTestId('editor-streaming-banner-elapsed')).toHaveTextContent('editor:aiDraftingBannerElapsed');
     const waitingCanvas = screen.getByTestId('editor-streaming-waiting');
-    expect(waitingCanvas).toHaveTextContent('editor:aiDraftingOpening');
-    expect(waitingCanvas).toHaveTextContent('editor:aiDraftingElapsed');
+    expect(waitingCanvas).toHaveAttribute('aria-hidden', 'true');
+    expect(waitingCanvas).toHaveTextContent('');
+    expect(screen.getAllByText(/editor:aiDraftingOpening/)).toHaveLength(1);
 
     act(() => {
       vi.advanceTimersByTime(3000);
     });
     expect(screen.getByTestId('editor-streaming-banner-elapsed')).toHaveTextContent(
       'editor:aiDraftingBannerElapsed:{"seconds":3}'
-    );
-    expect(screen.getByTestId('editor-streaming-waiting')).toHaveTextContent(
-      'editor:aiDraftingElapsed:{"seconds":3}'
     );
 
     // Seamless switch on the very first byte of displayContent
@@ -1379,7 +1377,7 @@ describe('SimpleEditor', () => {
     vi.useRealTimers();
   });
 
-  it('uses untitled drafting copy when streaming starts on an untitled empty file', () => {
+  it('uses untitled drafting copy once in the banner when streaming starts on an untitled empty file', () => {
     const props = {
       fileId: 'file-2',
       title: '   ',
@@ -1391,7 +1389,8 @@ describe('SimpleEditor', () => {
 
     render(<SimpleEditor {...props} isStreaming streamingContent="" />);
     expect(screen.getByTestId('editor-streaming-banner')).toHaveTextContent('editor:aiDraftingOpeningUntitled');
-    expect(screen.getByTestId('editor-streaming-waiting')).toHaveTextContent('editor:aiDraftingOpeningUntitled');
+    expect(screen.getAllByText(/editor:aiDraftingOpeningUntitled/)).toHaveLength(1);
+    expect(screen.getByTestId('editor-streaming-waiting')).toHaveTextContent('');
   });
 
 });

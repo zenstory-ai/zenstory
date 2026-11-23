@@ -177,7 +177,6 @@
   "aiWriting": "AI is writing",
   "aiDraftingOpening": "Drafting the opening of “{{title}}”, writing will begin shortly…",
   "aiDraftingOpeningUntitled": "Drafting the opening, writing will begin shortly…",
-  "aiDraftingElapsed": "Waiting {{seconds}}s",
   "aiDraftingBannerElapsed": "{{seconds}}s",
   "wordCount": "Words",
   "wordCountHint": "Counts Chinese characters and English words, without punctuation or digits, so it can be lower than some platforms show.",

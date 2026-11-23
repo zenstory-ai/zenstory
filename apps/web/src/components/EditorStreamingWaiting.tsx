@@ -25,6 +25,7 @@ const BannerElapsedLabel: React.FC = () => {
   return (
     <span
       data-testid="editor-streaming-banner-elapsed"
+      aria-hidden="true"
       className="ml-auto shrink-0 text-xs text-[hsl(var(--text-secondary))] tabular-nums"
     >
       {t("editor:aiDraftingBannerElapsed", { seconds })}
@@ -55,7 +56,11 @@ export const EditorStreamingBanner: React.FC<{
         className="shrink-0 animate-spin motion-reduce:animate-none text-[hsl(var(--accent-primary))]"
         aria-hidden="true"
       />
-      <span className="text-sm text-[hsl(var(--accent-primary))] font-medium break-words">
+      <span
+        role="status"
+        aria-live="polite"
+        className="text-sm text-[hsl(var(--accent-primary))] font-medium break-words"
+      >
         {message}
       </span>
       {isWaitingForFirstToken && <BannerElapsedLabel />}
@@ -63,41 +68,20 @@ export const EditorStreamingBanner: React.FC<{
   );
 };
 
-export const EditorStreamingCanvasWaiting: React.FC<{
-  title: string;
-}> = ({ title }) => {
-  const { t } = useTranslation(["editor"]);
-  const seconds = useElapsedSeconds();
-  const trimmedTitle = title.trim();
-
-  const message = trimmedTitle
-    ? t("editor:aiDraftingOpening", { title: trimmedTitle })
-    : t("editor:aiDraftingOpeningUntitled");
-
+/**
+ * Quiet visual placeholder inside the blank canvas before the first streamed byte arrives.
+ * Status text and elapsed time live once in `EditorStreamingBanner` above to avoid repetition.
+ */
+export const EditorStreamingCanvasWaiting: React.FC = () => {
   return (
     <div
       data-testid="editor-streaming-waiting"
-      role="status"
-      aria-live="polite"
-      className="pointer-events-none select-none absolute inset-x-0 top-0 py-1 space-y-4"
+      aria-hidden="true"
+      className="pointer-events-none select-none absolute inset-x-0 top-0 py-1.5 space-y-3 max-w-xl"
     >
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-[hsl(var(--text-secondary))]">
-        <span
-          aria-hidden="true"
-          className="inline-block h-2 w-2 rounded-full bg-[hsl(var(--accent-primary))] animate-pulse motion-reduce:animate-none"
-        />
-        <span className="text-[hsl(var(--text-primary))] font-medium break-words">
-          {message}
-        </span>
-        <span className="text-xs text-[hsl(var(--text-secondary))] tabular-nums">
-          {t("editor:aiDraftingElapsed", { seconds })}
-        </span>
-      </div>
-      <div aria-hidden="true" className="space-y-2.5 max-w-xl pt-1">
-        <div className="h-3 w-4/5 rounded-full bg-[hsl(var(--text-secondary)/0.12)] animate-pulse motion-reduce:animate-none" />
-        <div className="h-3 w-full rounded-full bg-[hsl(var(--text-secondary)/0.1)] animate-pulse motion-reduce:animate-none" />
-        <div className="h-3 w-3/5 rounded-full bg-[hsl(var(--text-secondary)/0.08)] animate-pulse motion-reduce:animate-none" />
-      </div>
+      <div className="h-3 w-4/5 rounded-full bg-[hsl(var(--text-secondary)/0.12)] animate-pulse motion-reduce:animate-none" />
+      <div className="h-3 w-full rounded-full bg-[hsl(var(--text-secondary)/0.1)] animate-pulse motion-reduce:animate-none" />
+      <div className="h-3 w-3/5 rounded-full bg-[hsl(var(--text-secondary)/0.08)] animate-pulse motion-reduce:animate-none" />
     </div>
   );
 };
