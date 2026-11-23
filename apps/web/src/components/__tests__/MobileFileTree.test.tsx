@@ -456,4 +456,23 @@ describe('MobileFileTree', () => {
     expect(screen.getByRole('button', { name: 'common:delete' })).toBeInTheDocument();
   });
 
+  it('pins folder counts to the trailing edge after action buttons so 1-action and 2-action folders align', async () => {
+    mockGetTree.mockResolvedValue({
+      tree: [
+        { id: 'f-lore', title: '设定', file_type: 'folder', parent_id: null, order: 0, content: '', metadata: null, children: [] },
+        { id: 'f-material', title: '素材', file_type: 'folder', parent_id: null, order: 1, content: '', metadata: null, children: [] },
+      ],
+    });
+
+    render(<MobileFileTree />);
+
+    const rows = await screen.findAllByRole('treeitem');
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      const count = within(row).getByTestId('file-tree-folder-count');
+      expect(row.lastElementChild).toBe(count);
+      expect(count).toHaveClass('tabular-nums', 'text-right');
+    }
+  });
+
 });

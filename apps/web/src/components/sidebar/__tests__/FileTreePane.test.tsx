@@ -643,4 +643,26 @@ describe('FileTreePane material and draft inline create vs upload split', () => 
       content: '',
     }));
   });
+
+  it('pins folder counts to the trailing edge after row actions so 1-action and 2-action folders align', async () => {
+    mocks.getTree.mockResolvedValue({
+      tree: [
+        { id: 'f-lore', title: '设定', file_type: 'folder', children: [] },
+        { id: 'f-material', title: '素材', file_type: 'folder', children: [{ id: 's-1', title: '灵感', file_type: 'snippet', children: [] }] },
+        { id: 'f-draft', title: '正文', file_type: 'folder', children: [] },
+      ],
+    });
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+
+    const rows = await screen.findAllByTestId('file-tree-node');
+    const folderRows = rows.filter((row) => row.getAttribute('data-file-type') === 'folder');
+    expect(folderRows).toHaveLength(3);
+
+    for (const row of folderRows) {
+      const count = within(row).getByTestId('file-tree-folder-count');
+      // Count is always the trailing element in the row so varying action counts never shift it.
+      expect(row.lastElementChild).toBe(count);
+      expect(count).toHaveClass('tabular-nums', 'text-right');
+    }
+  });
 });
