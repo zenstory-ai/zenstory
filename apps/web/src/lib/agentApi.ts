@@ -47,6 +47,18 @@ const generateTraceId = (): string => {
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 };
 
+const detectMobileViewport = (): boolean | undefined => {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return undefined;
+  }
+  try {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    return typeof mediaQuery?.matches === "boolean" ? mediaQuery.matches : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 /**
  * Parse a single SSE (Server-Sent Event) from a raw string.
  *
@@ -352,6 +364,13 @@ export function streamAgentRequest(
     let responseRequestId: string | undefined;
     let responseTraceId = traceId;
     let responseAgentRunId: string | undefined;
+    const rawMetadata = request.metadata || {};
+    const detectedMobile =
+      typeof rawMetadata.is_mobile === "boolean" ? undefined : detectMobileViewport();
+    const requestMetadata =
+      detectedMobile === undefined
+        ? rawMetadata
+        : { ...rawMetadata, is_mobile: detectedMobile };
     try {
       const response = await authenticatedFetch(
         "/api/v1/agent/stream",
@@ -369,7 +388,7 @@ export function streamAgentRequest(
             session_id: request.session_id,
             selected_text: request.selected_text,
             ui_action: request.ui_action,
-            metadata: request.metadata || {},
+            metadata: requestMetadata,
             selected_skill_ids: request.selected_skill_ids?.length
               ? request.selected_skill_ids
               : undefined,

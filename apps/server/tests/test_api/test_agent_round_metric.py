@@ -196,6 +196,26 @@ def test_client_ui_action_prefers_top_level_over_metadata():
     assert _client_ui_action({}, top_level="   ") is None
 
 
+def test_client_is_mobile_prefers_metadata_and_falls_back_to_user_agent():
+    from api.agent import _client_is_mobile
+
+    desktop_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/135.0.0.0 Safari/537.36"
+    iphone_ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148"
+    android_ua = "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/135.0.0.0 Mobile Safari/537.36"
+
+    # Explicit boolean metadata always takes precedence over User-Agent.
+    assert _client_is_mobile({"is_mobile": True}, desktop_ua) is True
+    assert _client_is_mobile({"is_mobile": False}, iphone_ua) is False
+    # Missing or non-bool metadata falls back to User-Agent.
+    assert _client_is_mobile({}, iphone_ua) is True
+    assert _client_is_mobile({"is_mobile": "yes"}, android_ua) is True
+    assert _client_is_mobile({}, desktop_ua) is False
+    # Unknown/automated clients remain None rather than guessing.
+    assert _client_is_mobile({}, "python-httpx/0.28.1") is None
+    assert _client_is_mobile({}, "Mozilla/5.0 (compatible; CustomClient/1.0)") is None
+    assert _client_is_mobile(None, None) is None
+
+
 # ---------------------------------------------------------------------------
 # 2. Settlement persistence & fault isolation
 # ---------------------------------------------------------------------------
