@@ -93,11 +93,6 @@ window.addEventListener('popstate',function(){input.value=new URL(location.href)
 input.value=new URL(location.href).searchParams.get('q')||'';form.hidden=false;update();
 })()</script>`
 
-/** The site's one type system: Geist for text and headings, Geist Mono for paths and commands (CJK falls back to system fonts). */
-export const FONTS = 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap'
-/** Kept for the homepage call site; the same stylesheet as every other page. */
-export const HOME_FONTS = FONTS
-
 /**
  * Remembers a language picked with the switch: a first-party `zs_lang` cookie (one year) that the
  * organization host's `/` and `/zh` redirects read (build-site-layout.mjs). Only the click sets it;
@@ -188,10 +183,10 @@ export const footer = (lang) => `
  * A complete document. `route` is this page's own path (already localized);
  * `alternates` is `{en, zh}` of the two language paths, or null when the page
  * has no counterpart (then `switchLinks` must be given, e.g. in-page anchors).
- * `pageId` marks `<body data-page>` for a page with its own visual system; `fonts`
- * is the Google Fonts stylesheet that system loads.
+ * `pageId` marks `<body data-page>` for a page with its own visual system. Fonts
+ * are self-hosted Latin `.woff2` subsets loaded via `@font-face` in `/org/org.css`.
  */
-export const page = ({ lang, route, alternates = null, switchLinks = alternates, section = null, brandHref, title, description, ogType = 'article', ld, body, head = '', pageId = null, fonts = FONTS }) => {
+export const page = ({ lang, route, alternates = null, switchLinks = alternates, section = null, brandHref, title, description, ogType = 'article', ld, body, head = '', pageId = null }) => {
   if (!switchLinks) throw new Error(`${route}: a page needs alternates or switchLinks`)
   const other = lang === 'zh' ? 'en' : 'zh'
   return `<!doctype html>
@@ -219,11 +214,6 @@ ${alternates ? `<link rel="alternate" hreflang="en" href="${SITE}${alternates.en
 ${alternates ? `<meta property="og:locale:alternate" content="${OG_LOCALE[other]}">\n` : ''}<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#081431">
 <link rel="stylesheet" href="/org/org.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="style" href="${fonts}">
-<link rel="stylesheet" href="${fonts}" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="${fonts}"></noscript>
 ${head}${jsonld({ '@context': 'https://schema.org', '@graph': ld })}
 </head>
 <body${pageId ? ` data-page="${esc(pageId)}"` : ''}>

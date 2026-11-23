@@ -721,6 +721,15 @@
       ]
     },
     {
+      "source": "/fonts/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800, stale-while-revalidate=86400"
+        }
+      ]
+    },
+    {
       "source": "/favicon.ico",
       "headers": [
         {
@@ -830,7 +839,7 @@
       ]
     },
     {
-      "source": "/:path((?!api(?:/|$)|assets(?:/|$)|_app(?:/|$)|_site(?:/|$)|org-home(?:/|$)).*)",
+      "source": "/:path((?!api(?:/|$)|assets(?:/|$)|fonts(?:/|$)|_app(?:/|$)|_site(?:/|$)|org-home(?:/|$)).*)",
       "destination": "/_app/index.html",
       "has": [
         {

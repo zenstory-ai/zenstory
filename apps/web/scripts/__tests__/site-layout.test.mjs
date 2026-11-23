@@ -96,7 +96,7 @@ test('missing Vite assets bypass the SPA fallback while app deep links still mat
 
   for (const host of ['app.zenstory.ai', 'app-preview.zenstory.ai', 'stale-assets.vercel.app']) {
     assert.ok(matchesHost(host), `${host} keeps the existing app fallback`)
-    for (const path of ['/assets', '/assets/', '/assets/AdminRoute-CESi9LW4.js', '/assets/AdminRoute-ZxO1YCHS.js', '/assets/nested/missing.js']) {
+    for (const path of ['/assets', '/assets/', '/assets/AdminRoute-CESi9LW4.js', '/assets/AdminRoute-ZxO1YCHS.js', '/assets/nested/missing.js', '/fonts', '/fonts/', '/fonts/missing.woff2']) {
       assert.equal(matchesPath(path), false, `${host}${path} must reach a real filesystem 404`)
     }
     for (const path of ['/admin/payment-orders', '/project/synthetic', '/docs/user-guide/editor', '/assets-archive']) {
@@ -118,8 +118,10 @@ test('only content-addressed URLs get a year-long immutable cache', () => {
   assert.match(cacheControl('/locales/zh/common.json', { v: 'abc123' }), /immutable/)
   assert.match(cacheControl('/favicon.ico'), /max-age=604800/)
   assert.doesNotMatch(cacheControl('/favicon.ico'), /immutable/)
+  assert.match(cacheControl('/fonts/plus-jakarta-sans-latin.woff2'), /max-age=604800/)
+  assert.doesNotMatch(cacheControl('/fonts/plus-jakarta-sans-latin.woff2'), /immutable/)
   for (const path of ['/', '/index.html', '/_app/index.html', '/_app/home.html', '/org-home/index.html', '/oh-story/novel-opening', '/assets-archive',
-    '/version.json', '/locales/zh/common.json', '/org/org.css', '/brand/zenstory-ai-mark.svg', '/favicon.svg', '/sitemap.xml', '/robots.txt']) {
+    '/version.json', '/locales/zh/common.json', '/org/org.css', '/fonts/geist-latin.woff2', '/brand/zenstory-ai-mark.svg', '/favicon.svg', '/sitemap.xml', '/robots.txt']) {
     assert.doesNotMatch(cacheControl(path), /immutable/, `${path} can change in place and must stay revalidatable`)
   }
 })
@@ -152,6 +154,7 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
       assert.match(html, /<h1\b[^>]*>[^<]+<\/h1>/)
       assert.match(html, /<p\b[^>]*>[^<]+<\/p>/)
       assert.match(html, /<link rel="stylesheet" href="\/org\/org.css">/)
+      assert.doesNotMatch(html, /fonts\.googleapis\.com|fonts\.gstatic\.com/)
       assert.doesNotMatch(html, /id="root"|type="module"|\/assets\/.*\.js/)
       assert.match(html, /<a class="brand" href="https:\/\/app\.zenstory\.ai\/">/)
       assert.match(html, /id="legal-zh" lang="zh-CN"/)
