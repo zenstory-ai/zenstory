@@ -21,7 +21,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_
+from sqlalchemy import and_, case, literal_column, or_
+from sqlalchemy.exc import DataError
 from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import (
@@ -52,7 +53,59 @@ TOP_DISLIKE_PRESET_LIMIT = 5
 
 _UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter"})
 _DELETE_CARD_TOOLS = frozenset({"delete_file"})
+_TOOL_CARD_MARKERS = ('"edit_file"', '"write_chapter"', '"delete_file"')
 _FAILED_CARD_STATUSES = frozenset({"error", "failed", "pending"})
+_STREAM_CHAT_BATCH_SIZE = 50
+_STREAM_PG_PROJECTED_BATCH_SIZE = 100
+_STREAM_SCALAR_BATCH_SIZE = 500
+
+# PostgreSQL 15+ JSON extraction expressions (compatible with PG 15/16/17; uses
+# ``json`` rather than ``jsonb`` so legacy ``\u0000`` escapes do not fail and no
+# binary key-sorting tree is allocated). Any malformed JSON raises DataError and
+# transparently falls back to the bounded ``yield_per`` Python streaming path.
+_PG_PROJECTED_METADATA_SQL = r"""
+CASE
+    WHEN chat_message.message_metadata IS NOT NULL
+     AND left(ltrim(chat_message.message_metadata, E' \t\r\n'), 1) = '{'
+    THEN json_build_object(
+        'stop_reason', (chat_message.message_metadata::json)->'stop_reason',
+        'stop_outcome', (chat_message.message_metadata::json)->'stop_outcome',
+        'runaway_stop', (chat_message.message_metadata::json)->'runaway_stop',
+        'feedback', (chat_message.message_metadata::json)->'feedback'
+    )::text
+    ELSE NULL
+END
+"""
+
+_PG_PROJECTED_FEEDBACK_SQL = r"""
+CASE
+    WHEN chat_message.message_metadata IS NOT NULL
+     AND left(ltrim(chat_message.message_metadata, E' \t\r\n'), 1) = '{'
+    THEN json_build_object(
+        'feedback', (chat_message.message_metadata::json)->'feedback'
+    )::text
+    ELSE NULL
+END
+"""
+
+_PG_PROJECTED_TOOL_CALLS_SQL = r"""
+CASE
+    WHEN chat_message.tool_calls IS NOT NULL
+     AND left(ltrim(chat_message.tool_calls, E' \t\r\n'), 1) = '['
+     AND (
+         strpos(chat_message.tool_calls, '"edit_file"') > 0
+         OR strpos(chat_message.tool_calls, '"write_chapter"') > 0
+         OR strpos(chat_message.tool_calls, '"delete_file"') > 0
+     )
+    THEN (
+        SELECT json_agg(elem)::text
+        FROM json_array_elements(chat_message.tool_calls::json) AS elem
+        WHERE json_typeof(elem) = 'object'
+          AND elem->>'name' IN ('edit_file', 'write_chapter', 'delete_file')
+    )
+    ELSE NULL
+END
+"""
 _TTFV_EVENTS = (
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ACTIVATION_EVENT_FIRST_FILE_SAVED,
@@ -321,6 +374,176 @@ def _build_daily_skeleton(period: UxPeriod, *, days: int) -> tuple[list[date], d
     return day_list, buckets
 
 
+def _is_postgres_session(session: Session) -> bool:
+    bind = session.get_bind() if hasattr(session, "get_bind") else None
+    return getattr(getattr(bind, "dialect", None), "name", "") == "postgresql"
+
+
+def _sql_card_tool_calls_column():
+    """Return ``ChatMessage.tool_calls`` only when it may contain undo/restore cards."""
+    return case(
+        (
+            and_(
+                ChatMessage.tool_calls.is_not(None),
+                or_(*(col(ChatMessage.tool_calls).contains(marker) for marker in _TOOL_CARD_MARKERS)),
+            ),
+            ChatMessage.tool_calls,
+        ),
+        else_=None,
+    )
+
+
+def _accumulate_period_messages(
+    session: Session,
+    *,
+    start: datetime,
+    end: datetime,
+    include_daily: bool,
+    daily_buckets: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Stream assistant messages in bounded batches without buffering raw JSON blobs."""
+    customer = User.is_superuser.is_(False)
+
+    def _run_scan(stmt: Any, *, yield_per: int) -> dict[str, Any]:
+        total_rounds = 0
+        healthy_rounds = 0
+        user_stopped_rounds = 0
+        client_disconnected_rounds = 0
+        abnormal_stop_rounds = 0
+        abnormal_reasons: Counter[str] = Counter()
+
+        ai_edit_cards = 0
+        ai_edit_undone = 0
+        ai_delete_cards = 0
+        ai_delete_restored = 0
+
+        feedback_up = 0
+        feedback_down = 0
+        dislike_presets: Counter[str] = Counter()
+        day_deltas: dict[str, list[int]] = {}
+
+        rows = session.exec(stmt, execution_options={"yield_per": yield_per})
+        try:
+            for created_at, raw_metadata, raw_tool_calls in rows:
+                total_rounds += 1
+                metadata = _parse_json_dict(raw_metadata)
+                category, abnormal_reason = _classify_round(metadata)
+                if category == "healthy":
+                    healthy_rounds += 1
+                elif category == "user_stopped":
+                    user_stopped_rounds += 1
+                elif category == "client_disconnected":
+                    client_disconnected_rounds += 1
+                else:
+                    abnormal_stop_rounds += 1
+                    if abnormal_reason:
+                        abnormal_reasons[abnormal_reason] += 1
+
+                if raw_tool_calls:
+                    calls = _parse_json_list(raw_tool_calls)
+                    m_edit, m_undone, m_del, m_restored = _count_tool_cards(calls)
+                else:
+                    m_edit = m_undone = m_del = m_restored = 0
+                ai_edit_cards += m_edit
+                ai_edit_undone += m_undone
+                ai_delete_cards += m_del
+                ai_delete_restored += m_restored
+
+                fb = _extract_feedback(metadata)
+                if fb is not None:
+                    if fb["vote"] == "up":
+                        feedback_up += 1
+                    else:
+                        feedback_down += 1
+                        if fb["preset"]:
+                            dislike_presets[fb["preset"]] += 1
+
+                if include_daily:
+                    day_key = _beijing_day_iso(created_at)
+                    if day_key in daily_buckets:
+                        delta = day_deltas.get(day_key)
+                        if delta is None:
+                            delta = [0, 0, 0, 0, 0, 0]
+                            day_deltas[day_key] = delta
+                        delta[0] += 1
+                        if category == "healthy":
+                            delta[1] += 1
+                        delta[2] += m_edit
+                        delta[3] += m_undone
+                        if fb is not None:
+                            delta[4] += 1
+                            if fb["vote"] == "up":
+                                delta[5] += 1
+        finally:
+            rows.close()
+
+        return {
+            "total_rounds": total_rounds,
+            "healthy_rounds": healthy_rounds,
+            "user_stopped_rounds": user_stopped_rounds,
+            "client_disconnected_rounds": client_disconnected_rounds,
+            "abnormal_stop_rounds": abnormal_stop_rounds,
+            "abnormal_reasons": abnormal_reasons,
+            "ai_edit_cards": ai_edit_cards,
+            "ai_edit_undone": ai_edit_undone,
+            "ai_delete_cards": ai_delete_cards,
+            "ai_delete_restored": ai_delete_restored,
+            "feedback_up": feedback_up,
+            "feedback_down": feedback_down,
+            "dislike_presets": dislike_presets,
+            "day_deltas": day_deltas,
+        }
+
+    base_filters = (
+        customer,
+        ChatMessage.role == "assistant",
+        ChatMessage.created_at >= start,
+        ChatMessage.created_at < end,
+    )
+
+    result: dict[str, Any] | None = None
+    if _is_postgres_session(session):
+        pg_stmt = (
+            select(
+                ChatMessage.created_at,
+                literal_column(_PG_PROJECTED_METADATA_SQL).label("projected_metadata"),
+                literal_column(_PG_PROJECTED_TOOL_CALLS_SQL).label("projected_tool_calls"),
+            )
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .join(User, User.id == ChatSession.user_id)
+            .where(*base_filters)
+        )
+        try:
+            with session.begin_nested():
+                result = _run_scan(pg_stmt, yield_per=_STREAM_PG_PROJECTED_BATCH_SIZE)
+        except DataError:
+            result = None
+
+    if result is None:
+        portable_stmt = (
+            select(
+                ChatMessage.created_at,
+                ChatMessage.message_metadata,
+                _sql_card_tool_calls_column().label("card_tool_calls"),
+            )
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .join(User, User.id == ChatSession.user_id)
+            .where(*base_filters)
+        )
+        result = _run_scan(portable_stmt, yield_per=_STREAM_CHAT_BATCH_SIZE)
+
+    for day_key, delta in result["day_deltas"].items():
+        bucket = daily_buckets[day_key]
+        bucket["rounds"] += delta[0]
+        bucket["healthy_rounds"] += delta[1]
+        bucket["edit_cards"] += delta[2]
+        bucket["edit_undone"] += delta[3]
+        bucket["feedback_total"] += delta[4]
+        bucket["feedback_up"] += delta[5]
+
+    return result
+
+
 def _period_metrics(
     session: Session,
     period: UxPeriod,
@@ -352,8 +575,9 @@ def _period_metrics(
             LLMUsageEvent.is_backfilled.is_(False),
             LLMUsageEvent.occurred_at >= start,
             LLMUsageEvent.occurred_at < end,
-        )
-    ).all()
+        ),
+        execution_options={"yield_per": _STREAM_SCALAR_BATCH_SIZE},
+    )
 
     ttft_values: list[int] = []
     ttft_slow_tail_count = 0
@@ -362,103 +586,53 @@ def _period_metrics(
     cache_hit_tokens = 0
     cache_miss_tokens = 0
 
-    for occurred_at, outcome, ttft_ms, duration_ms, hit_tokens, miss_tokens in usage_rows:
-        cache_hit_tokens += int(hit_tokens or 0)
-        cache_miss_tokens += int(miss_tokens or 0)
-        if outcome == CALL_OUTCOME_SUCCESS:
-            if ttft_ms is not None:
-                ttft_int = int(ttft_ms)
-                ttft_values.append(ttft_int)
-                if ttft_int >= SLOW_TAIL_THRESHOLD_MS:
-                    ttft_slow_tail_count += 1
-                if include_daily:
-                    bucket = daily_buckets.get(_beijing_day_iso(occurred_at))
-                    if bucket is not None:
-                        bucket["ttft_values"].append(ttft_int)
-            if duration_ms is not None:
-                duration_samples += 1
-                if int(duration_ms) >= SLOW_TAIL_THRESHOLD_MS:
-                    duration_slow_tail_count += 1
+    try:
+        for occurred_at, outcome, ttft_ms, duration_ms, hit_tokens, miss_tokens in usage_rows:
+            cache_hit_tokens += int(hit_tokens or 0)
+            cache_miss_tokens += int(miss_tokens or 0)
+            if outcome == CALL_OUTCOME_SUCCESS:
+                if ttft_ms is not None:
+                    ttft_int = int(ttft_ms)
+                    ttft_values.append(ttft_int)
+                    if ttft_int >= SLOW_TAIL_THRESHOLD_MS:
+                        ttft_slow_tail_count += 1
+                    if include_daily:
+                        bucket = daily_buckets.get(_beijing_day_iso(occurred_at))
+                        if bucket is not None:
+                            bucket["ttft_values"].append(ttft_int)
+                if duration_ms is not None:
+                    duration_samples += 1
+                    if int(duration_ms) >= SLOW_TAIL_THRESHOLD_MS:
+                        duration_slow_tail_count += 1
+    finally:
+        usage_rows.close()
 
     prompt_input_tokens = cache_hit_tokens + cache_miss_tokens
     prompt_cache_hit_rate = _rate(cache_hit_tokens, prompt_input_tokens)
 
     # 2. Assistant rounds, abnormal stops, undo/restore, explicit feedback (chat_message)
-    message_rows = session.exec(
-        select(
-            ChatMessage.created_at,
-            ChatMessage.message_metadata,
-            ChatMessage.tool_calls,
-        )
-        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .join(User, User.id == ChatSession.user_id)
-        .where(
-            customer,
-            ChatMessage.role == "assistant",
-            ChatMessage.created_at >= start,
-            ChatMessage.created_at < end,
-        )
-    ).all()
+    msg_stats = _accumulate_period_messages(
+        session,
+        start=start,
+        end=end,
+        include_daily=include_daily,
+        daily_buckets=daily_buckets,
+    )
+    total_rounds = msg_stats["total_rounds"]
+    healthy_rounds = msg_stats["healthy_rounds"]
+    user_stopped_rounds = msg_stats["user_stopped_rounds"]
+    client_disconnected_rounds = msg_stats["client_disconnected_rounds"]
+    abnormal_stop_rounds = msg_stats["abnormal_stop_rounds"]
+    abnormal_reasons: Counter[str] = msg_stats["abnormal_reasons"]
 
-    total_rounds = 0
-    healthy_rounds = 0
-    user_stopped_rounds = 0
-    client_disconnected_rounds = 0
-    abnormal_stop_rounds = 0
-    abnormal_reasons: Counter[str] = Counter()
+    ai_edit_cards = msg_stats["ai_edit_cards"]
+    ai_edit_undone = msg_stats["ai_edit_undone"]
+    ai_delete_cards = msg_stats["ai_delete_cards"]
+    ai_delete_restored = msg_stats["ai_delete_restored"]
 
-    ai_edit_cards = 0
-    ai_edit_undone = 0
-    ai_delete_cards = 0
-    ai_delete_restored = 0
-
-    feedback_up = 0
-    feedback_down = 0
-    dislike_presets: Counter[str] = Counter()
-
-    for created_at, raw_metadata, raw_tool_calls in message_rows:
-        total_rounds += 1
-        metadata = _parse_json_dict(raw_metadata)
-        category, abnormal_reason = _classify_round(metadata)
-        if category == "healthy":
-            healthy_rounds += 1
-        elif category == "user_stopped":
-            user_stopped_rounds += 1
-        elif category == "client_disconnected":
-            client_disconnected_rounds += 1
-        else:
-            abnormal_stop_rounds += 1
-            if abnormal_reason:
-                abnormal_reasons[abnormal_reason] += 1
-
-        calls = _parse_json_list(raw_tool_calls)
-        m_edit, m_undone, m_del, m_restored = _count_tool_cards(calls)
-        ai_edit_cards += m_edit
-        ai_edit_undone += m_undone
-        ai_delete_cards += m_del
-        ai_delete_restored += m_restored
-
-        fb = _extract_feedback(metadata)
-        if fb is not None:
-            if fb["vote"] == "up":
-                feedback_up += 1
-            else:
-                feedback_down += 1
-                if fb["preset"]:
-                    dislike_presets[fb["preset"]] += 1
-
-        if include_daily:
-            bucket = daily_buckets.get(_beijing_day_iso(created_at))
-            if bucket is not None:
-                bucket["rounds"] += 1
-                if category == "healthy":
-                    bucket["healthy_rounds"] += 1
-                bucket["edit_cards"] += m_edit
-                bucket["edit_undone"] += m_undone
-                if fb is not None:
-                    bucket["feedback_total"] += 1
-                    if fb["vote"] == "up":
-                        bucket["feedback_up"] += 1
+    feedback_up = msg_stats["feedback_up"]
+    feedback_down = msg_stats["feedback_down"]
+    dislike_presets: Counter[str] = msg_stats["dislike_presets"]
 
     feedback_total = feedback_up + feedback_down
     abnormal_stops = [
@@ -538,19 +712,23 @@ def _period_metrics(
             col(File.file_type).in_(CONTENT_FILE_TYPES),
             FileVersion.created_at >= start,
             FileVersion.created_at < end,
-        )
-    ).all()
+        ),
+        execution_options={"yield_per": _STREAM_SCALAR_BATCH_SIZE},
+    )
 
     latest_by_file: dict[str, tuple[int, int]] = {}
     max_words_by_file: dict[str, int] = {}
-    for file_id, version_number, word_count in version_rows:
-        ver_num = int(version_number or 0)
-        words = int(word_count or 0)
-        prev = latest_by_file.get(file_id)
-        if prev is None or ver_num >= prev[0]:
-            latest_by_file[file_id] = (ver_num, words)
-        if words > max_words_by_file.get(file_id, 0):
-            max_words_by_file[file_id] = words
+    try:
+        for file_id, version_number, word_count in version_rows:
+            ver_num = int(version_number or 0)
+            words = int(word_count or 0)
+            prev = latest_by_file.get(file_id)
+            if prev is None or ver_num >= prev[0]:
+                latest_by_file[file_id] = (ver_num, words)
+            if words > max_words_by_file.get(file_id, 0):
+                max_words_by_file[file_id] = words
+    finally:
+        version_rows.close()
 
     chapters_written = sum(1 for words in max_words_by_file.values() if words > 0)
     baseline_words: dict[str, int] = {}
@@ -596,13 +774,17 @@ def _period_metrics(
             ActivationEvent.created_at >= start,
             ActivationEvent.created_at < end,
         )
-        .order_by(col(ActivationEvent.created_at).asc(), col(ActivationEvent.id).asc())
-    ).all()
+        .order_by(col(ActivationEvent.created_at).asc(), col(ActivationEvent.id).asc()),
+        execution_options={"yield_per": _STREAM_SCALAR_BATCH_SIZE},
+    )
 
     device_by_user: dict[str, bool] = {}
-    for user_id, event_metadata in device_rows:
-        if isinstance(event_metadata, dict) and isinstance(event_metadata.get("is_mobile"), bool):
-            device_by_user[user_id] = event_metadata["is_mobile"]
+    try:
+        for user_id, event_metadata in device_rows:
+            if isinstance(event_metadata, dict) and isinstance(event_metadata.get("is_mobile"), bool):
+                device_by_user[user_id] = event_metadata["is_mobile"]
+    finally:
+        device_rows.close()
 
     mobile_users = sum(1 for is_mobile in device_by_user.values() if is_mobile)
     desktop_users = sum(1 for is_mobile in device_by_user.values() if not is_mobile)
@@ -787,63 +969,95 @@ def list_chat_feedback_votes(
     current, _ = _periods(days, report_now)
     start, end = current.naive_bounds
 
-    rows = session.exec(
-        select(
-            ChatMessage.id,
-            ChatMessage.created_at,
-            ChatMessage.message_metadata,
-            User.id,
-            User.username,
+    base_filters = (
+        User.is_superuser.is_(False),
+        ChatMessage.role == "assistant",
+        ChatMessage.created_at >= start,
+        ChatMessage.created_at < end,
+        ChatMessage.message_metadata.is_not(None),
+        col(ChatMessage.message_metadata).contains('"feedback"'),
+    )
+
+    def _scan_votes(stmt: Any, *, yield_per: int) -> tuple[int, int, Counter[str], list[dict[str, Any]]]:
+        up_acc = 0
+        down_acc = 0
+        presets_acc: Counter[str] = Counter()
+        entries_acc: list[dict[str, Any]] = []
+
+        rows = session.exec(stmt, execution_options={"yield_per": yield_per})
+        try:
+            for message_id, message_created_at, raw_metadata, user_id, username in rows:
+                metadata = _parse_json_dict(raw_metadata)
+                fb = _extract_feedback(metadata)
+                if fb is None:
+                    continue
+
+                if fb["vote"] == "up":
+                    up_acc += 1
+                else:
+                    down_acc += 1
+                    if fb["preset"]:
+                        presets_acc[fb["preset"]] += 1
+
+                if vote != "all" and fb["vote"] != vote:
+                    continue
+
+                feedback_time = (
+                    fb["updated_at"]
+                    or fb["created_at"]
+                    or normalize_datetime_to_utc(message_created_at)
+                )
+                entries_acc.append(
+                    {
+                        "message_id": message_id,
+                        "user_id": user_id,
+                        "username": username,
+                        "vote": fb["vote"],
+                        "preset": fb["preset"],
+                        "comment": fb["comment"],
+                        "created_at": feedback_time,
+                    }
+                )
+        finally:
+            rows.close()
+        return up_acc, down_acc, presets_acc, entries_acc
+
+    scanned: tuple[int, int, Counter[str], list[dict[str, Any]]] | None = None
+    if _is_postgres_session(session):
+        pg_stmt = (
+            select(
+                ChatMessage.id,
+                ChatMessage.created_at,
+                literal_column(_PG_PROJECTED_FEEDBACK_SQL).label("projected_feedback"),
+                User.id,
+                User.username,
+            )
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .join(User, User.id == ChatSession.user_id)
+            .where(*base_filters)
         )
-        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .join(User, User.id == ChatSession.user_id)
-        .where(
-            User.is_superuser.is_(False),
-            ChatMessage.role == "assistant",
-            ChatMessage.created_at >= start,
-            ChatMessage.created_at < end,
-            ChatMessage.message_metadata.is_not(None),
-            col(ChatMessage.message_metadata).contains('"feedback"'),
+        try:
+            with session.begin_nested():
+                scanned = _scan_votes(pg_stmt, yield_per=_STREAM_PG_PROJECTED_BATCH_SIZE)
+        except DataError:
+            scanned = None
+
+    if scanned is None:
+        portable_stmt = (
+            select(
+                ChatMessage.id,
+                ChatMessage.created_at,
+                ChatMessage.message_metadata,
+                User.id,
+                User.username,
+            )
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .join(User, User.id == ChatSession.user_id)
+            .where(*base_filters)
         )
-    ).all()
+        scanned = _scan_votes(portable_stmt, yield_per=_STREAM_CHAT_BATCH_SIZE)
 
-    up_count = 0
-    down_count = 0
-    preset_counter: Counter[str] = Counter()
-    entries: list[dict[str, Any]] = []
-
-    for message_id, message_created_at, raw_metadata, user_id, username in rows:
-        metadata = _parse_json_dict(raw_metadata)
-        fb = _extract_feedback(metadata)
-        if fb is None:
-            continue
-
-        if fb["vote"] == "up":
-            up_count += 1
-        else:
-            down_count += 1
-            if fb["preset"]:
-                preset_counter[fb["preset"]] += 1
-
-        if vote != "all" and fb["vote"] != vote:
-            continue
-
-        feedback_time = (
-            fb["updated_at"]
-            or fb["created_at"]
-            or normalize_datetime_to_utc(message_created_at)
-        )
-        entries.append(
-            {
-                "message_id": message_id,
-                "user_id": user_id,
-                "username": username,
-                "vote": fb["vote"],
-                "preset": fb["preset"],
-                "comment": fb["comment"],
-                "created_at": feedback_time,
-            }
-        )
+    up_count, down_count, preset_counter, entries = scanned
 
     entries.sort(
         key=lambda item: (item["created_at"], item["message_id"]),

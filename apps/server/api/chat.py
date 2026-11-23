@@ -16,7 +16,7 @@ from sqlalchemy import delete, desc
 from sqlalchemy.orm import load_only
 from sqlmodel import Session, func, select
 
-from agent.loop.history import client_message_metadata
+from agent.loop.history import client_message_metadata, client_tool_calls
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
@@ -273,7 +273,7 @@ def get_recent_messages(
             session_id=msg.session_id,
             role=msg.role,
             content=msg.content,
-            tool_calls=msg.tool_calls,
+            tool_calls=client_tool_calls(msg.tool_calls),
             metadata=client_message_metadata(msg.message_metadata),
             created_at=msg.created_at,
         )

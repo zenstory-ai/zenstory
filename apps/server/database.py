@@ -223,6 +223,19 @@ async def init_db():
         raise
 
 
+async def dispose_async_engine() -> None:
+    """Release the startup-only async_engine connection pool after init_db().
+
+    Runtime requests exclusively use ``sync_engine``; disposing ``async_engine``
+    immediately after startup DDL frees idle asyncpg pool connections and RAM
+    on both the API container and PostgreSQL.
+    """
+    if async_engine is not None:
+        dispose = getattr(async_engine, "dispose", None)
+        if callable(dispose):
+            await dispose()
+
+
 def get_session() -> Generator[Session, None, None]:
     """Get database session (sync for both SQLite and PostgreSQL)."""
     with Session(sync_engine) as session:

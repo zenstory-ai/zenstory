@@ -2470,3 +2470,80 @@ class TestStoppedRoundHistory:
             {"type": "tool_call", "tool_call_index": 1},
             {"type": "content", "content": "两份档案已建好。"},
         ]
+
+    @pytest.mark.asyncio
+    async def test_process_stream_slims_query_files_over_sse_but_persists_full_content_for_replay(
+        self, mock_agent_service, test_user_with_project, db_session
+    ):
+        """SSE omits multi-KB query_files content while persisted ChatMessage.tool_calls retains full content for loop/history replay."""
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+        heavy_body = "整章长篇正文。" * 600
+
+        async def stream():
+            yield StreamEvent(
+                type=StreamEventType.TOOL_USE,
+                data={
+                    "id": "call-qf-1",
+                    "name": "query_files",
+                    "input": {"id": "ch-1"},
+                    "status": "complete",
+                },
+            )
+            yield StreamEvent(
+                type=StreamEventType.TOOL_RESULT,
+                data={
+                    "tool_use_id": "call-qf-1",
+                    "name": "query_files",
+                    "result": {
+                        "status": "success",
+                        "data": [
+                            {
+                                "id": "ch-1",
+                                "title": "第1章",
+                                "file_type": "draft",
+                                "word_count": 4200,
+                                "content_length": len(heavy_body),
+                                "content": heavy_body,
+                                "content_preview": heavy_body[:200],
+                            }
+                        ],
+                    },
+                },
+            )
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "已经读完第1章。"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        with patch("agent.service.run_loop_agent_streaming", return_value=stream()):
+            sse_frames = [
+                frame
+                async for frame in service.process_stream(
+                    project_id=str(project.id),
+                    user_id=str(user.id),
+                    message="读第1章",
+                    session=db_session,
+                )
+            ]
+
+        tool_result_frames = [f for f in sse_frames if "event: tool_result" in f]
+        assert len(tool_result_frames) == 1
+        assert "整章长篇正文" not in tool_result_frames[0]
+        sse_payload = json.loads(tool_result_frames[0].split("data:", 1)[1])
+        assert sse_payload["data"] == [
+            {
+                "id": "ch-1",
+                "title": "第1章",
+                "file_type": "draft",
+                "word_count": 4200,
+                "content_length": len(heavy_body),
+            }
+        ]
+
+        done_payload = json.loads([f for f in sse_frames if "event: done" in f][0].split("data:", 1)[1])
+        saved = db_session.get(ChatMessage, done_payload["assistant_message_id"])
+        assert saved is not None
+        persisted_calls = json.loads(saved.tool_calls or "[]")
+        assert persisted_calls[0]["result"][0]["content"] == heavy_body

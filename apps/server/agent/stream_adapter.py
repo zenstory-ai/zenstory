@@ -7,6 +7,7 @@ Reuses StreamProcessor for handling <file> markers in text content.
 
 import asyncio
 import contextlib
+from collections import deque
 from collections.abc import AsyncIterator, Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
@@ -63,6 +64,7 @@ from .core.workflow_events import (
     StreamEventType,
 )
 from .core.workflow_events import StreamEvent as WorkflowStreamEvent
+from .loop.history import slim_client_tool_result
 from .openai_agents.events import extract_tool_result_text, parse_mcp_tool_payload
 
 logger = get_logger(__name__)
@@ -212,6 +214,10 @@ class StreamAdapter:
         # 文件级回执只说「这个文件存过」，不能拿来证明后一次替换也存了。
         self._replacement_receipts: dict[str, int | None] = {}
         self._replacement_card_updates: dict[str, dict[str, Any]] = {}
+        # 仅对发往浏览器的 SSE 帧做了线缆瘦身（query_files / parallel_execute）的工具结果：
+        # 暂存瘦身前的完整结果供 AgentService 落库，保证 DB 与 loop/history 回放原样不变。
+        self._persisted_tool_results: dict[str, Any] = {}
+        self._persisted_tool_results_anonymous: deque[Any] = deque()
         # 停止时补存的残稿属于哪一次整章替换（tool_use_id），没有则为 None。
         self._abort_capture_replace_id: str | None = None
         # 解析器已经收到 </file>、正文完整但还没开始保存的结果（解析器此时已 reset，完整正文只在这里）：
@@ -249,6 +255,15 @@ class StreamAdapter:
             "stop_reason": self._last_message_stop_reason,
             "usage": self._last_message_usage,
         }
+
+    def pop_persisted_tool_result(self, tool_use_id: str | None, fallback: Any) -> Any:
+        """取出待落库的完整工具结果（若该次 tool_result 仅对 SSE 线缆做了瘦身）。"""
+        key = tool_use_id.strip() if isinstance(tool_use_id, str) else ""
+        if key and key in self._persisted_tool_results:
+            return self._persisted_tool_results.pop(key)
+        if not key and self._persisted_tool_results_anonymous:
+            return self._persisted_tool_results_anonymous.popleft()
+        return fallback
 
     def set_pending_file_write(
         self,
@@ -646,6 +661,14 @@ class StreamAdapter:
             if failure_hints:
                 emit_data = {**emit_data, **failure_hints} if isinstance(emit_data, dict) else failure_hints
 
+            # query_files / parallel_execute 只对发往浏览器的 SSE 帧瘦身（不改动模型上下文与落库结果）。
+            wire_data = slim_client_tool_result(tool_name, emit_data)
+            if wire_data is not emit_data:
+                if tool_use_id:
+                    self._persisted_tool_results[tool_use_id] = emit_data
+                else:
+                    self._persisted_tool_results_anonymous.append(emit_data)
+
             async for sse_event in self._end_reply_text():
                 yield sse_event
             if self._held_reply:
@@ -657,7 +680,7 @@ class StreamAdapter:
             yield tool_result_event(
                 tool_name=tool_name,
                 status=status,
-                data=emit_data,
+                data=wire_data,
                 error=error,
                 tool_use_id=tool_use_id or None,
             )

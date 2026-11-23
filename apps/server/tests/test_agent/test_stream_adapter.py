@@ -1990,3 +1990,151 @@ async def test_delivery_receipt_keeps_last_saved_body_when_later_write_fails(mon
     assert adapter.get_saved_file_word_counts() == {"f": count_words("已保存")}
     await adapter._save_file_content("f", "后来真正保存的完整正文")
     assert adapter.get_saved_file_word_counts() == {"f": count_words("后来真正保存的完整正文")}
+
+
+@pytest.mark.asyncio
+async def test_sse_tool_result_slims_query_files_and_parallel_execute_while_preserving_db_payload():
+    """SSE frames drop multi-KB file content for query_files/parallel_execute, while pop_persisted_tool_result keeps full DB payload and non-target tools stay intact."""
+    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    heavy_body = "整章小说正文。" * 1000
+    heavy_preview = "章节预览片段。" * 80
+
+    qf_payload = {
+        "status": "success",
+        "data": [
+            {
+                "id": "ch-1",
+                "title": "第1章",
+                "file_type": "draft",
+                "word_count": 7000,
+                "content_length": len(heavy_body),
+                "content": heavy_body,
+                "content_preview": heavy_preview,
+                "matches": [{"line": 1, "snippet": heavy_preview}],
+                "author_edits": {"changed": False},
+            }
+        ],
+    }
+    pe_payload = {
+        "status": "success",
+        "data": {
+            "total_tasks": 2,
+            "completed": 1,
+            "failed": 1,
+            "tasks": [
+                {
+                    "id": "t0",
+                    "type": "query_files",
+                    "description": "读取第1章",
+                    "status": "completed",
+                    "result": [
+                        {
+                            "id": "ch-1",
+                            "title": "第1章",
+                            "file_type": "draft",
+                            "content": heavy_body,
+                            "content_preview": heavy_preview,
+                        }
+                    ],
+                },
+                {
+                    "id": "t1",
+                    "type": "edit_file",
+                    "description": "改第2章",
+                    "status": "failed",
+                    "result": {
+                        "error_type": "author_edit_protected",
+                        "user_message": "跳过作者手改段落",
+                        "author_edits_touched": [{"restored_deleted": True}],
+                        "original_content": heavy_body,
+                    },
+                },
+            ],
+        },
+    }
+    edit_payload = {
+        "status": "success",
+        "data": {
+            "id": "ch-2",
+            "title": "第2章",
+            "file_type": "draft",
+            "edits_applied": 1,
+            "details": [{"op": "replace", "old_preview": "旧", "new_preview": "新"}],
+            "undo": {"before_version_number": 3, "undone": False},
+        },
+    }
+    delete_payload = {
+        "status": "success",
+        "data": {
+            "id": "ch-3",
+            "title": "第3章",
+            "file_type": "draft",
+            "mutation_applied": True,
+            "restored": False,
+        },
+    }
+    update_proj_payload = {
+        "status": "success",
+        "data": {"updated_fields": ["notes"], "notes_added": ["主线推进"]},
+    }
+
+    def _wf_result(call_id: str, name: str, payload: dict) -> WorkflowStreamEvent:
+        return WorkflowStreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={
+                "tool_use_id": call_id,
+                "name": name,
+                "result": {"content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}]},
+            },
+        )
+
+    async def _gen():
+        yield _wf_result("call-qf", "query_files", qf_payload)
+        yield _wf_result("call-pe", "parallel_execute", pe_payload)
+        yield _wf_result("call-edit", "edit_file", edit_payload)
+        yield _wf_result("call-del", "delete_file", delete_payload)
+        yield _wf_result("call-up", "update_project", update_proj_payload)
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    sse_events = [e async for e in adapter.process_workflow_events(_gen())]
+    by_tool = {
+        e.data["tool_name"]: e.data["data"]
+        for e in sse_events
+        if e.type == EventType.TOOL_RESULT
+    }
+
+    # SSE payloads strip multi-KB content/preview/matches for query_files & parallel_execute
+    sse_blob = json.dumps([e.data for e in sse_events if e.type == EventType.TOOL_RESULT], ensure_ascii=False)
+    assert "整章小说正文" not in sse_blob
+    assert "章节预览片段" not in sse_blob
+
+    assert by_tool["query_files"] == [
+        {
+            "id": "ch-1",
+            "title": "第1章",
+            "file_type": "draft",
+            "word_count": 7000,
+            "content_length": len(heavy_body),
+        }
+    ]
+    assert by_tool["parallel_execute"]["tasks"][0]["result"] == [
+        {"id": "ch-1", "title": "第1章", "file_type": "draft"}
+    ]
+    assert by_tool["parallel_execute"]["tasks"][1]["result"] == {
+        "error_type": "author_edit_protected",
+        "user_message": "跳过作者手改段落",
+        "author_edits_touched": [{"restored_deleted": True}],
+    }
+
+    # Non-target tools stay 100% intact on SSE
+    assert by_tool["edit_file"] == edit_payload["data"]
+    assert by_tool["delete_file"] == delete_payload["data"]
+    assert by_tool["update_project"] == update_proj_payload["data"]
+
+    # DB persistence pops the unslimmed payload so DB & history replay remain 100% untouched
+    persisted_qf = adapter.pop_persisted_tool_result("call-qf", by_tool["query_files"])
+    assert persisted_qf[0]["content"] == heavy_body
+    persisted_pe = adapter.pop_persisted_tool_result("call-pe", by_tool["parallel_execute"])
+    assert persisted_pe["tasks"][0]["result"][0]["content"] == heavy_body
+    # Non-target tools fall back directly to SSE payload
+    assert adapter.pop_persisted_tool_result("call-edit", by_tool["edit_file"]) == edit_payload["data"]

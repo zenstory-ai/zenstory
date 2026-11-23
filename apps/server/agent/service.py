@@ -1536,7 +1536,10 @@ class AgentService:
 
                             if target_call is not None:
                                 target_call["status"] = event.data.get("status", "success")
-                                target_call["result"] = event.data.get("data")
+                                target_call["result"] = stream_adapter.pop_persisted_tool_result(
+                                    tool_use_id,
+                                    event.data.get("data"),
+                                )
                                 target_call["error"] = event.data.get("error")
                         elif event_type == "iteration_exhausted":
                             assistant_status_cards.append(iteration_exhausted_status_card(event.data))

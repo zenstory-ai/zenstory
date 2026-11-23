@@ -236,6 +236,12 @@ Before promoting a release whose diff contains `apps/server/alembic/versions/`:
    `alembic upgrade head` against production with an explicitly checked
    Postgres URL. An empty `DATABASE_URL` makes Alembic fall back to a local
    SQLite file without failing.
+   - To avoid multi-GB Railway public TCP egress bursts and Postgres page-cache
+     RAM spikes from pulling full TOAST tables over `DATABASE_PUBLIC_URL`
+     (`*.proxy.rlwy.net`), prefer a **Railway Volume Snapshot** or run a
+     compressed dump (`pg_dump -Fc -Z9`) **inside Railway's private network**
+     (`postgres.railway.internal`) uploading directly to private object storage,
+     keeping the same backup-and-verify gate before migration.
 4. Read back `alembic_version` and the new columns, record the revision and
    backup receipt, and only then push the `prod-v*` tag. Vercel can serve the
    new frontend minutes before Railway switches the API, so the database must

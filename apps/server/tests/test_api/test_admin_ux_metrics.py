@@ -657,3 +657,149 @@ def test_ux_health_30_days_has_bounded_query_count(db_session: Session):
 
     assert len(payload["daily"]) == 30
     assert statements <= 20
+
+
+@pytest.mark.integration
+def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
+    db_session: Session,
+    monkeypatch,
+):
+    """Multi-MB message_metadata/tool_calls must stream via yield_per and skip non-card tool_calls."""
+    from sqlalchemy.exc import DataError
+
+    import services.usage.admin_ux_metrics_service as ux_svc
+
+    writer = _user(db_session, "ux_stream_writer", NOW - timedelta(days=10))
+    _proj, chat_sess = _project_and_session(db_session, writer, "Large Novel", NOW - timedelta(days=5))
+
+    big_prose = "长篇正文内容" * 50_000  # ~300k chars (~900 KB UTF-8) per blob
+    big_thinking = "深度思考过程" * 40_000
+
+    # 1. Read-only query_files turn (no edit/write/delete cards) with giant blobs
+    _assistant_message(
+        db_session,
+        chat_sess,
+        NOW - timedelta(hours=3),
+        metadata={
+            "stop_reason": "end_turn",
+            "display_events": [{"type": "thinking_content", "content": big_thinking}],
+            "feedback": {"vote": "up", "comment": "Good analysis", "created_at": (NOW - timedelta(hours=3)).isoformat()},
+        },
+        tool_calls=[
+            {
+                "id": "tc-read",
+                "name": "query_files",
+                "status": "success",
+                "result": [{"id": "f-1", "title": "Ch 1", "file_type": "draft", "content": big_prose}],
+            }
+        ],
+    )
+    # 2. Mixed read + edit/delete turn with giant query_files blob alongside undo/restore cards
+    _assistant_message(
+        db_session,
+        chat_sess,
+        NOW - timedelta(hours=2),
+        metadata={
+            "stop_reason": "end_turn",
+            "display_events": [{"type": "thinking_content", "content": big_thinking}],
+            "feedback": {"vote": "down", "preset": "too_slow", "comment": "Slow", "created_at": (NOW - timedelta(hours=2)).isoformat()},
+        },
+        tool_calls=[
+            {
+                "id": "tc-read-2",
+                "name": "query_files",
+                "status": "success",
+                "result": [{"id": "f-2", "title": "Ch 2", "file_type": "draft", "content": big_prose}],
+            },
+            {
+                "id": "tc-edit",
+                "name": "edit_file",
+                "status": "success",
+                "result": {"data": {"id": "f-2", "undo": {"before_version_number": 1, "undone": True}}},
+            },
+            {
+                "id": "tc-del",
+                "name": "delete_file",
+                "status": "success",
+                "result": {"id": "f-3", "mutation_applied": True, "restored": True},
+            },
+        ],
+    )
+    # 3. Malformed JSON metadata/tool_calls row must never crash metrics
+    bad_msg = ChatMessage(
+        session_id=chat_sess.id,
+        role="assistant",
+        content="corrupt",
+        message_metadata="{not-valid-json",
+        tool_calls="[not-valid-json",
+        created_at=_naive(NOW - timedelta(hours=1)),
+    )
+    db_session.add(bad_msg)
+    db_session.commit()
+
+    recorded_exec_options: list[dict] = []
+    seen_tool_call_values: list[str | None] = []
+    original_exec = db_session.exec
+
+    def spy_exec(stmt, *args, **kwargs):
+        opts = kwargs.get("execution_options")
+        if opts:
+            recorded_exec_options.append(dict(opts))
+        result = original_exec(stmt, *args, **kwargs)
+        sql_text = str(stmt)
+        if "card_tool_calls" in sql_text:
+            # Intercept streamed tuples without altering yield_per semantics
+            class _SpyResult:
+                def __iter__(self_inner):
+                    for row in result:
+                        seen_tool_call_values.append(row[2])
+                        yield row
+
+                def close(self_inner):
+                    result.close()
+
+            return _SpyResult()
+        return result
+
+    monkeypatch.setattr(db_session, "exec", spy_exec)
+    payload = get_ux_health_dashboard(db_session, days=7, now=NOW)
+    votes = list_chat_feedback_votes(db_session, days=7, vote="all", now=NOW)
+
+    # Bounded streaming was used on both endpoints (no unbounded .all() on chat_message)
+    assert any(opt.get("yield_per") == ux_svc._STREAM_CHAT_BATCH_SIZE for opt in recorded_exec_options)
+    assert any(opt.get("yield_per") == ux_svc._STREAM_SCALAR_BATCH_SIZE for opt in recorded_exec_options)
+    # Read-only query_files row and corrupt row had NULL projected for tool_calls by SQL CASE
+    assert seen_tool_call_values.count(None) == 2
+    assert sum(1 for v in seen_tool_call_values if v is not None) == 1
+
+    m = payload["current"]["metrics"]
+    assert m["total_rounds"] == 3
+    assert m["healthy_rounds"] == 2
+    assert m["abnormal_stop_rounds"] == 1
+    assert m["ai_edit_cards"] == 1
+    assert m["ai_edit_undone"] == 1
+    assert m["ai_delete_cards"] == 1
+    assert m["ai_delete_restored"] == 1
+    assert m["feedback_up"] == 1
+    assert m["feedback_down"] == 1
+    assert votes["summary"]["total_votes"] == 2
+
+    # Verify PostgreSQL projection path falls back cleanly on DataError (e.g. corrupt JSON row)
+    monkeypatch.setattr(ux_svc, "_is_postgres_session", lambda _s: True)
+    pg_attempts = 0
+
+    def fail_pg_projected_exec(stmt, *args, **kwargs):
+        nonlocal pg_attempts
+        sql_text = str(stmt)
+        if "projected_metadata" in sql_text or "projected_feedback" in sql_text:
+            pg_attempts += 1
+            raise DataError("SELECT ...", {}, Exception("invalid input syntax for type json"))
+        return original_exec(stmt, *args, **kwargs)
+
+    monkeypatch.setattr(db_session, "exec", fail_pg_projected_exec)
+    fallback_payload = get_ux_health_dashboard(db_session, days=7, now=NOW)
+    fallback_votes = list_chat_feedback_votes(db_session, days=7, vote="all", now=NOW)
+
+    assert pg_attempts == 3  # current window + previous window + chat_votes
+    assert fallback_payload["current"]["metrics"] == payload["current"]["metrics"]
+    assert fallback_votes["summary"] == votes["summary"]

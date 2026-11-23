@@ -695,3 +695,249 @@ class TestChatAPI:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 403
+
+    async def test_get_recent_messages_slims_query_files_and_parallel_execute_without_altering_db(
+        self, client: AsyncClient, db_session: Session
+    ):
+        """GET /recent strips heavy content from query_files & parallel_execute while keeping UI fields, other tools, and DB replay intact."""
+        from agent.loop.history import load_loop_history
+
+        user = User(
+            username="testuser_slim_recent",
+            email="testuser_slim_recent@example.com",
+            hashed_password=hash_password("password123"),
+            email_verified=True,
+            is_active=True,
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        project = Project(
+            id="proj-slim-recent",
+            owner_id=user.id,
+            name="Slim Novel",
+        )
+        db_session.add(project)
+        db_session.commit()
+
+        chat_sess = ChatSession(
+            user_id=user.id,
+            project_id=project.id,
+            title="Slim Session",
+            is_active=True,
+            message_count=2,
+        )
+        db_session.add(chat_sess)
+        db_session.commit()
+
+        heavy_chapter = "这是整章长篇正文内容。" * 1000
+        heavy_preview = "这是预览内容片段。" * 100
+
+        stored_tool_calls = [
+            {
+                "id": "tc-qf",
+                "name": "query_files",
+                "arguments": {"id": "file-1"},
+                "status": "success",
+                "result": [
+                    {
+                        "id": "file-1",
+                        "title": "第1章 开端",
+                        "file_type": "draft",
+                        "word_count": 10000,
+                        "content_length": len(heavy_chapter),
+                        "content": heavy_chapter,
+                        "content_preview": heavy_preview,
+                        "matches": [{"line": 1, "snippet": heavy_preview}],
+                        "author_edits": {"changed": True},
+                        "file_metadata": '{"chapter_number": 1}',
+                    }
+                ],
+            },
+            {
+                "id": "tc-pe",
+                "name": "parallel_execute",
+                "arguments": {"tasks": []},
+                "status": "success",
+                "result": {
+                    "total_tasks": 2,
+                    "completed": 1,
+                    "failed": 1,
+                    "partial": 0,
+                    "tasks": [
+                        {
+                            "id": "t0",
+                            "type": "query_files",
+                            "description": "读取第1章",
+                            "status": "completed",
+                            "result": [
+                                {
+                                    "id": "file-1",
+                                    "title": "第1章 开端",
+                                    "file_type": "draft",
+                                    "content": heavy_chapter,
+                                    "content_preview": heavy_preview,
+                                }
+                            ],
+                        },
+                        {
+                            "id": "t1",
+                            "type": "edit_file",
+                            "description": "修改第2章",
+                            "status": "failed",
+                            "result": {
+                                "error_type": "stale_content",
+                                "user_message": "文件已被作者修改",
+                                "author_edits_touched": [{"restored_deleted": False}],
+                                "original_content": heavy_chapter,
+                                "new_content": heavy_chapter,
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                "id": "tc-edit",
+                "name": "edit_file",
+                "arguments": {"id": "file-2"},
+                "status": "success",
+                "result": {
+                    "id": "file-2",
+                    "title": "第2章",
+                    "file_type": "draft",
+                    "details": [{"op": "replace", "old_preview": "旧句", "new_preview": "新句"}],
+                    "undo": {
+                        "before_version_number": 2,
+                        "expected_after_updated_at": "2026-11-23T00:00:00Z",
+                        "undone": False,
+                    },
+                },
+            },
+            {
+                "id": "tc-wc",
+                "name": "write_chapter",
+                "arguments": {"chapter": 3},
+                "status": "success",
+                "result": {
+                    "id": "file-3",
+                    "title": "第3章",
+                    "action": "replaced",
+                    "body_saved": True,
+                    "mutation_applied": True,
+                    "new_word_count": 3200,
+                    "previous_word_count": 2800,
+                    "undo": {"before_version_number": 1, "undone": False},
+                },
+            },
+            {
+                "id": "tc-del",
+                "name": "delete_file",
+                "arguments": {"id": "file-4"},
+                "status": "success",
+                "result": {
+                    "id": "file-4",
+                    "title": "废稿",
+                    "file_type": "draft",
+                    "mutation_applied": True,
+                    "restored": False,
+                },
+            },
+            {
+                "id": "tc-up",
+                "name": "update_project",
+                "arguments": {"notes": ["保持冷峻"]},
+                "status": "success",
+                "result": {
+                    "updated_fields": ["notes"],
+                    "notes_added": ["保持冷峻"],
+                },
+            },
+        ]
+
+        db_session.add(
+            ChatMessage(
+                session_id=chat_sess.id,
+                role="user",
+                content="帮我检查第一章并修改",
+            )
+        )
+        assistant_msg = ChatMessage(
+            session_id=chat_sess.id,
+            role="assistant",
+            content="已完成检查",
+            tool_calls=json.dumps(stored_tool_calls, ensure_ascii=False),
+            message_metadata=json.dumps(
+                {
+                    "engine": "loop",
+                    "display_events": [
+                        {"type": "tool_call", "tool_call_index": 0},
+                        {"type": "content", "content": "已完成检查"},
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+        )
+        db_session.add(assistant_msg)
+        db_session.commit()
+
+        login = await client.post(
+            "/api/auth/login",
+            data={"username": "testuser_slim_recent", "password": "password123"},
+        )
+        assert login.status_code == 200
+        token = login.json()["access_token"]
+
+        resp = await client.get(
+            f"/api/v1/chat/session/{project.id}/recent",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200
+        body_text = resp.text
+        assert "这是整章长篇正文内容" not in body_text
+        assert "这是预览内容片段" not in body_text
+
+        messages = resp.json()
+        assert len(messages) == 2
+        returned_calls = json.loads(messages[1]["tool_calls"])
+        by_id = {call["id"]: call for call in returned_calls}
+
+        # query_files keeps UI fields, strips content/content_preview/matches
+        assert by_id["tc-qf"]["result"] == [
+            {
+                "id": "file-1",
+                "title": "第1章 开端",
+                "file_type": "draft",
+                "word_count": 10000,
+                "content_length": len(heavy_chapter),
+            }
+        ]
+        # parallel_execute keeps task metadata, error hints, author_edits_touched; strips heavy content
+        pe_res = by_id["tc-pe"]["result"]
+        assert pe_res["total_tasks"] == 2
+        assert pe_res["completed"] == 1
+        assert pe_res["failed"] == 1
+        assert pe_res["tasks"][0]["result"] == [
+            {"id": "file-1", "title": "第1章 开端", "file_type": "draft"}
+        ]
+        assert pe_res["tasks"][1]["result"] == {
+            "error_type": "stale_content",
+            "user_message": "文件已被作者修改",
+            "author_edits_touched": [{"restored_deleted": False}],
+        }
+        # Non-target tools are 100% untouched
+        assert by_id["tc-edit"]["result"] == stored_tool_calls[2]["result"]
+        assert by_id["tc-wc"]["result"] == stored_tool_calls[3]["result"]
+        assert by_id["tc-del"]["result"] == stored_tool_calls[4]["result"]
+        assert by_id["tc-up"]["result"] == stored_tool_calls[5]["result"]
+
+        # DB row & loop/history.py replay remain 100% untouched with full content
+        db_session.refresh(assistant_msg)
+        assert heavy_chapter in (assistant_msg.tool_calls or "")
+        replayed = load_loop_history(
+            db_session,
+            project_id=project.id,
+            user_id=user.id,
+            chat_session_id=chat_sess.id,
+        )
+        tool_outputs = [item["output"] for item in replayed.items if item.get("type") == "function_call_output"]
+        assert any(heavy_chapter in output for output in tool_outputs)
