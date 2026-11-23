@@ -247,10 +247,30 @@ def _activation_entry(metadata: dict[str, Any] | None) -> str:
     return entry[:32] if isinstance(entry, str) and entry else "typed"
 
 
-def _client_is_mobile(metadata: dict[str, Any] | None) -> bool | None:
-    """Optional client viewport hint from request metadata (strict bool or None)."""
+_MOBILE_UA_RE = re.compile(
+    r"(?:Android|iPhone|iPad|iPod|Mobile|IEMobile|Windows Phone|HarmonyOS|\bMobi\b)",
+    re.IGNORECASE,
+)
+_DESKTOP_UA_RE = re.compile(
+    r"(?:Windows NT|Win64|WOW64|Macintosh|X11|CrOS|Linux x86_64)",
+    re.IGNORECASE,
+)
+
+
+def _client_is_mobile(
+    metadata: dict[str, Any] | None,
+    user_agent: str | None = None,
+) -> bool | None:
+    """Client viewport hint from request metadata (strict bool), falling back to User-Agent."""
     raw = metadata.get("is_mobile") if isinstance(metadata, dict) else None
-    return raw if isinstance(raw, bool) else None
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(user_agent, str) and user_agent.strip():
+        if _MOBILE_UA_RE.search(user_agent):
+            return True
+        if _DESKTOP_UA_RE.search(user_agent):
+            return False
+    return None
 
 
 def _client_ui_action(
@@ -1457,7 +1477,7 @@ async def stream_request(
             knows_stop_contract=knows_stop_contract,
             activation_entry=activation_entry,
             run_outcome=run_outcome,
-            is_mobile=_client_is_mobile(body.metadata),
+            is_mobile=_client_is_mobile(body.metadata, request.headers.get("user-agent")),
             ui_action=body.ui_action,
             metric_ui_action=_client_ui_action(body.metadata, top_level=body.ui_action),
         )

@@ -18,6 +18,7 @@ failed and cancelled attempts are written here with zero tokens.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import time
 from collections.abc import AsyncIterator, Callable
@@ -57,6 +58,59 @@ _ANSWER_OUTPUT_EVENT_TYPES = frozenset({
     "response.refusal.delta",
     "response.function_call_arguments.delta",
 })
+
+
+def _is_meaningful_stream_progress(event: Any) -> bool:
+    """Whether ``event`` carries real generation progress (not an empty keepalive/lifecycle frame)."""
+    event_type = getattr(event, "type", None)
+    if event_type == _COMPLETED_EVENT_TYPE:
+        return True
+    return event_type in _FIRST_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != ""
+
+
+async def _iter_with_idle_timeout(
+    stream: AsyncIterator[Any],
+    idle_timeout_s: float,
+    provider_name: str,
+) -> AsyncIterator[Any]:
+    """Yield events from ``stream``, timing out if no meaningful delta arrives within ``idle_timeout_s``.
+
+    httpx's read timeout only measures silence between raw TCP bytes, so an upstream
+    endpoint that stalls mid-stream while emitting SSE keepalives or empty deltas can
+    hold a single call open until the 780s request wall-clock limit. Tracking silence
+    between non-empty text/reasoning/tool deltas catches those stalls cleanly and hands
+    control back to ``FailoverChatModel`` (which can still fail over while ``answered``
+    is False).
+    """
+    aiter = stream.__aiter__()
+    idle_deadline = time.monotonic() + idle_timeout_s
+    try:
+        while True:
+            remaining = idle_deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"{provider_name} stream produced no output for {idle_timeout_s:g}s"
+                )
+            cm = asyncio.timeout(remaining)
+            try:
+                async with cm:
+                    event = await aiter.__anext__()
+            except StopAsyncIteration:
+                break
+            except TimeoutError:
+                if cm.expired():
+                    raise TimeoutError(
+                        f"{provider_name} stream produced no output for {idle_timeout_s:g}s"
+                    ) from None
+                raise
+            if _is_meaningful_stream_progress(event):
+                idle_deadline = time.monotonic() + idle_timeout_s
+            yield event
+    finally:
+        aclose = getattr(aiter, "aclose", None)
+        if callable(aclose):
+            with contextlib.suppress(Exception):
+                await aclose()
 
 
 def _replay_reasoning_content(_context: Any) -> bool:
@@ -291,44 +345,52 @@ class FailoverChatModel:
             first_answer_ms: int | None = None
             completed = False
             try:
-                async for event in _sdk_model_for(provider).stream_response(
+                raw_stream = _sdk_model_for(provider).stream_response(
                     system_instructions, input, _settings_for(provider, model_settings), *args, **kwargs
-                ):
-                    event_type = getattr(event, "type", None)
-                    # An empty delta (openai-agents 0.17.6 emits one for a role chunk with
-                    # ``content: ""``) is not output yet.
-                    if (
-                        ttft_ms is None
-                        and event_type in _FIRST_OUTPUT_EVENT_TYPES
-                        and getattr(event, "delta", None) != ""
-                    ):
-                        from services.usage.llm_usage_service import elapsed_ms
-
-                        ttft_ms = elapsed_ms(attempt_started)
-                    if event_type in _ANSWER_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != "":
-                        if not answered:
+                )
+                async with contextlib.aclosing(
+                    _iter_with_idle_timeout(
+                        raw_stream,
+                        provider.kind.read_timeout_s(),
+                        provider.name,
+                    )
+                ) as guarded_stream:
+                    async for event in guarded_stream:
+                        event_type = getattr(event, "type", None)
+                        # An empty delta (openai-agents 0.17.6 emits one for a role chunk with
+                        # ``content: ""``) is not output yet.
+                        if (
+                            ttft_ms is None
+                            and event_type in _FIRST_OUTPUT_EVENT_TYPES
+                            and getattr(event, "delta", None) != ""
+                        ):
                             from services.usage.llm_usage_service import elapsed_ms
 
-                            first_answer_ms = elapsed_ms(attempt_started)
-                        answered = True
-                    elif event_type in _REASONING_DELTA_EVENT_TYPES and not answered:
-                        delta = getattr(event, "delta", None)
-                        thinking_chars += len(delta) if isinstance(delta, str) else 0
-                    if event_type == _COMPLETED_EVENT_TYPE:
-                        # Timed when the provider finished, before the SDK consumes the event.
-                        completed = True
-                        self._succeeded(attempt_started, ttft_ms)
-                        self._thinking_before_answer = (thinking_chars, first_answer_ms)
-                    if not started:
-                        if ttft_ms is None and not completed:
-                            preamble.append(event)
-                            continue
-                        started = True
-                        self._served(provider)
-                        for held in preamble:
-                            yield held
-                        preamble.clear()
-                    yield event
+                            ttft_ms = elapsed_ms(attempt_started)
+                        if event_type in _ANSWER_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != "":
+                            if not answered:
+                                from services.usage.llm_usage_service import elapsed_ms
+
+                                first_answer_ms = elapsed_ms(attempt_started)
+                            answered = True
+                        elif event_type in _REASONING_DELTA_EVENT_TYPES and not answered:
+                            delta = getattr(event, "delta", None)
+                            thinking_chars += len(delta) if isinstance(delta, str) else 0
+                        if event_type == _COMPLETED_EVENT_TYPE:
+                            # Timed when the provider finished, before the SDK consumes the event.
+                            completed = True
+                            self._succeeded(attempt_started, ttft_ms)
+                            self._thinking_before_answer = (thinking_chars, first_answer_ms)
+                        if not started:
+                            if ttft_ms is None and not completed:
+                                preamble.append(event)
+                                continue
+                            started = True
+                            self._served(provider)
+                            for held in preamble:
+                                yield held
+                            preamble.clear()
+                        yield event
             except (asyncio.CancelledError, GeneratorExit) as exc:
                 if not completed:
                     self._record_failed_attempt(provider, attempt_started, exc, ttft_ms)

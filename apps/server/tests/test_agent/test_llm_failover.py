@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import httpx
@@ -1364,3 +1365,149 @@ async def test_pending_body_guard_and_stop_hook_enforce_two_reply_protocol_witho
     assert len(outputs) == 1
     assert '"file_body_pending"' in outputs[0]
     assert request_tools.has_pending_empty_file() is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_agent_stream_stalled_during_reasoning_times_out_and_fails_over(sdk_models, monkeypatch):
+    """A stream that stalls mid-reasoning (even while emitting empty keepalive frames) must
+    time out cleanly and fail over to the backup while no answer output has started."""
+    monkeypatch.setenv("MINIMAX_CLIENT_TIMEOUT_S", "0.05")
+    closed = False
+
+    class _StalledReasoningModel:
+        calls = 0
+
+        async def stream_response(self, *_args, **_kwargs):
+            nonlocal closed
+            self.calls += 1
+            try:
+                yield SimpleNamespace(type="response.created")
+                yield SimpleNamespace(type="response.reasoning_text.delta", delta="先思考一下")
+                # Keep emitting empty keepalive frames faster than the 50ms timeout:
+                # raw byte timeouts would keep resetting, but meaningful-delta idle timeout must fire.
+                for _ in range(10):
+                    await asyncio.sleep(0.015)
+                    yield SimpleNamespace(type="response.output_text.delta", delta="")
+            finally:
+                closed = True
+
+    sdk_models["minimax"] = _StalledReasoningModel()
+    sdk_models["deepseek"] = _StreamingModel([
+        SimpleNamespace(type="response.output_text.delta", delta="备源回复"),
+        SimpleNamespace(type="response.completed"),
+    ])
+    model = sdk_model.build_failover_chat_model("stalled-reasoning")
+
+    events = await _drain(model)
+
+    assert closed is True
+    assert model.served_model == "deepseek-flash"
+    assert any(getattr(e, "delta", None) == "备源回复" for e in events)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_agent_stream_stalled_after_answer_raises_timeout_and_marks_unrecovered_provider_error(
+    sdk_models, monkeypatch
+):
+    """Once answer text has started, a stalled stream raises TimeoutError without duplicating
+    output on the backup, records unrecovered_provider_error, and pins the retry."""
+    monkeypatch.setenv("MINIMAX_CLIENT_TIMEOUT_S", "0.05")
+
+    class _StalledAfterAnswerModel:
+        calls = 0
+
+        async def stream_response(self, *_args, **_kwargs):
+            self.calls += 1
+            yield SimpleNamespace(type="response.output_text.delta", delta="已开始写正文")
+            await asyncio.sleep(0.5)
+
+    sdk_models["minimax"] = _StalledAfterAnswerModel()
+    sdk_models["deepseek"] = _StreamingModel([SimpleNamespace(type="response.output_text.delta", delta="retry-ok")])
+    model = sdk_model.build_failover_chat_model("stalled-after-answer")
+
+    with pytest.raises(TimeoutError, match="minimax stream produced no output"):
+        await _drain(model)
+
+    assert sdk_models["deepseek"].calls == 0
+    assert isinstance(model.unrecovered_provider_error, TimeoutError)
+    # Next turn in the same session routes directly to the backup.
+    retry_events = await _drain(sdk_model.build_failover_chat_model("stalled-after-answer"))
+    assert [getattr(e, "delta", None) for e in retry_events] == ["retry-ok"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_agent_stream_continuous_meaningful_deltas_do_not_hit_idle_timeout(sdk_models, monkeypatch):
+    """Ongoing reasoning/text deltas keep resetting the idle timer even when total duration exceeds it."""
+    monkeypatch.setenv("MINIMAX_CLIENT_TIMEOUT_S", "0.2")
+
+    class _SlowHealthyModel:
+        calls = 0
+
+        async def stream_response(self, *_args, **_kwargs):
+            self.calls += 1
+            for idx in range(5):
+                await asyncio.sleep(0.05)
+                yield SimpleNamespace(type="response.reasoning_text.delta", delta=f"r{idx}")
+            yield SimpleNamespace(type="response.output_text.delta", delta="done")
+            yield SimpleNamespace(type="response.completed")
+
+    sdk_models["minimax"] = _SlowHealthyModel()
+    sdk_models["deepseek"] = _StreamingModel([])
+    model = sdk_model.build_failover_chat_model("slow-healthy")
+
+    events = await _drain(model)
+
+    assert model.served_model == "MiniMax-M3.1-Flash"
+    assert sdk_models["deepseek"].calls == 0
+    assert any(getattr(e, "delta", None) == "done" for e in events)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_agent_stream_closes_inner_generator_immediately_on_caller_aclose(sdk_models):
+    """Exiting FailoverChatModel.stream_response at a yield deterministically closes the inner stream."""
+    closed = False
+
+    class _InfiniteStreamModel:
+        calls = 0
+
+        async def stream_response(self, *_args, **_kwargs):
+            nonlocal closed
+            self.calls += 1
+            try:
+                yield SimpleNamespace(type="response.output_text.delta", delta="first")
+                yield SimpleNamespace(type="response.output_text.delta", delta="second")
+            finally:
+                closed = True
+
+    sdk_models["minimax"] = _InfiniteStreamModel()
+    sdk_models["deepseek"] = _StreamingModel([])
+    model = sdk_model.build_failover_chat_model("caller-aclose")
+    settings = SimpleNamespace(reasoning=None)
+
+    stream = model.stream_response("sys", [], settings, [], None, [], None)
+    first = await stream.__anext__()
+    assert getattr(first, "delta", None) == "first"
+    assert closed is False
+
+    await stream.aclose()
+    assert closed is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_agent_stream_preserves_inner_timeout_error_message(sdk_models):
+    """A TimeoutError raised directly by the upstream iterator before idle expiry is not masked."""
+    inner_err = TimeoutError("upstream read socket timed out")
+    sdk_models["minimax"] = _StreamingModel(
+        [SimpleNamespace(type="response.output_text.delta", delta="partial")],
+        error=inner_err,
+    )
+    sdk_models["deepseek"] = _StreamingModel([])
+    model = sdk_model.build_failover_chat_model("inner-timeout")
+
+    with pytest.raises(TimeoutError, match="upstream read socket timed out"):
+        await _drain(model)

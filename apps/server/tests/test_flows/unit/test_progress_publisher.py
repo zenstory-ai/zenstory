@@ -173,3 +173,87 @@ class TestProgressPublisher:
         summary = publisher._build_novel_summary(novel_id=1, chapters_count=2)
         assert summary is None
         logger.warning.assert_called_once()
+
+    def test_create_redis_client_uses_redis_url_even_when_flag_defaults_false(self, monkeypatch):
+        fake_client = MagicMock()
+        captured: dict[str, object] = {}
+
+        def _fake_from_url(url: str, **kwargs):
+            captured["url"] = url
+            captured["kwargs"] = kwargs
+            return fake_client
+
+        monkeypatch.setenv("REDIS_URL", "redis://default:secret@redis.railway.internal:6379/0")
+        monkeypatch.delenv("MATERIAL_REDIS_ENABLED", raising=False)
+        monkeypatch.setattr("flows.pipelines.helpers.progress_publisher.redis.from_url", _fake_from_url)
+
+        publisher = ProgressPublisher(correlation_id="cid-prod", logger=MagicMock())
+
+        assert publisher._client is fake_client
+        fake_client.ping.assert_called_once()
+        assert captured["url"] == "redis://default:secret@redis.railway.internal:6379/0"
+        assert captured["kwargs"] == {
+            "decode_responses": True,
+            "socket_timeout": 2.0,
+            "socket_connect_timeout": 2.0,
+        }
+
+    def test_create_redis_client_respects_explicit_disable_over_redis_url(self, monkeypatch):
+        from_url_mock = MagicMock()
+        monkeypatch.setenv("REDIS_URL", "redis://redis.railway.internal:6379/0")
+        monkeypatch.setenv("MATERIAL_REDIS_ENABLED", "false")
+        monkeypatch.setattr("flows.pipelines.helpers.progress_publisher.redis.from_url", from_url_mock)
+
+        publisher = ProgressPublisher(correlation_id="cid-disabled", logger=MagicMock())
+
+        assert publisher._client is None
+        from_url_mock.assert_not_called()
+
+    def test_create_redis_client_falls_back_to_host_port_when_enabled_without_url(self, monkeypatch):
+        fake_client = MagicMock()
+        redis_ctor = MagicMock(return_value=fake_client)
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("MATERIAL_REDIS_ENABLED", "true")
+        monkeypatch.setenv("REDIS_HOST", "redis-local")
+        monkeypatch.setenv("REDIS_PORT", "6380")
+        monkeypatch.setattr("flows.pipelines.helpers.progress_publisher.redis.Redis", redis_ctor)
+
+        publisher = ProgressPublisher(correlation_id="cid-host", logger=MagicMock())
+
+        assert publisher._client is fake_client
+        fake_client.ping.assert_called_once()
+        assert redis_ctor.call_args.kwargs["host"] == "redis-local"
+        assert redis_ctor.call_args.kwargs["port"] == 6380
+
+    def test_create_redis_client_skips_when_neither_url_nor_flag_configured(self, monkeypatch):
+        from_url_mock = MagicMock()
+        redis_ctor = MagicMock()
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("MATERIAL_REDIS_ENABLED", "   ")
+        monkeypatch.setattr("flows.pipelines.helpers.progress_publisher.redis.from_url", from_url_mock)
+        monkeypatch.setattr("flows.pipelines.helpers.progress_publisher.redis.Redis", redis_ctor)
+
+        publisher = ProgressPublisher(correlation_id="cid-none", logger=MagicMock())
+
+        assert publisher._client is None
+        from_url_mock.assert_not_called()
+        redis_ctor.assert_not_called()
+
+    def test_create_redis_client_closes_failed_client_and_redacts_url_in_logs(self, monkeypatch):
+        secret_url = "redis://default:super-secret-pass@redis.railway.internal:6379/0"
+        fake_client = MagicMock()
+        fake_client.ping.side_effect = ConnectionError(f"failed connecting to {secret_url}")
+        logger = MagicMock()
+
+        monkeypatch.setenv("REDIS_URL", secret_url)
+        monkeypatch.delenv("MATERIAL_REDIS_ENABLED", raising=False)
+        monkeypatch.setattr("flows.pipelines.helpers.progress_publisher.redis.from_url", lambda *_a, **_kw: fake_client)
+        monkeypatch.setattr("flows.pipelines.helpers.progress_publisher.time.sleep", lambda _s: None)
+
+        publisher = ProgressPublisher(correlation_id="cid-fail", logger=logger)
+
+        assert publisher._client is None
+        assert fake_client.close.call_count == 3
+        all_logged = " ".join(str(call.args) for call in [*logger.warning.call_args_list, *logger.error.call_args_list])
+        assert "super-secret-pass" not in all_logged
+        assert "ConnectionError" in all_logged

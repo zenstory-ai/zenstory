@@ -412,6 +412,41 @@ describe('agentApi', () => {
       })
     })
 
+    it('attaches detected viewport is_mobile to /api/v1/agent/stream metadata unless explicitly set', async () => {
+      const fetchMock = vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        body: createMockStream(['event: done\ndata: {}\n\n']),
+      }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const originalMatchMedia = window.matchMedia
+      try {
+        window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia
+        streamAgentRequest({ project_id: 'test-project', message: 'mobile msg' }, {})
+        await new Promise(resolve => setTimeout(resolve, 50))
+        const mobileBody = JSON.parse(((fetchMock.mock.calls[0]?.[1] as { body?: string }).body) || '{}')
+        expect(mobileBody.metadata.is_mobile).toBe(true)
+
+        window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia
+        streamAgentRequest({ project_id: 'test-project', message: 'desktop msg' }, {})
+        await new Promise(resolve => setTimeout(resolve, 50))
+        const desktopBody = JSON.parse(((fetchMock.mock.calls[1]?.[1] as { body?: string }).body) || '{}')
+        expect(desktopBody.metadata.is_mobile).toBe(false)
+
+        // Explicit caller boolean wins over matchMedia.
+        streamAgentRequest(
+          { project_id: 'test-project', message: 'override msg', metadata: { is_mobile: true } },
+          {},
+        )
+        await new Promise(resolve => setTimeout(resolve, 50))
+        const overrideBody = JSON.parse(((fetchMock.mock.calls[2]?.[1] as { body?: string }).body) || '{}')
+        expect(overrideBody.metadata.is_mobile).toBe(true)
+      } finally {
+        window.matchMedia = originalMatchMedia
+      }
+    })
+
     it.each(['no_progress', 'no_change', 'stopped'])(
       'maps a %s refund and ignores frames that do not claim a refund',
       async (kind) => {

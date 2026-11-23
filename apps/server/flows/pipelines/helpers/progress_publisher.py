@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import time
@@ -54,32 +55,51 @@ class ProgressPublisher:
         if not self.correlation_id:
             return None
 
-        import time
         max_retries = 3
         retry_delay = 1.0  # 秒
 
         for attempt in range(max_retries):
+            client: redis.Redis | None = None
             try:
                 from config.material_settings import material_settings as settings
 
-                # 【优雅降级】检查 Redis 是否启用
-                if not settings.REDIS_ENABLED:
+                redis_url = (os.getenv("REDIS_URL") or "").strip()
+                explicit_flag = (os.getenv("MATERIAL_REDIS_ENABLED") or "").strip().lower() or None
+                if explicit_flag in {"0", "false", "no", "off"}:
+                    self.logger.debug("[PubSub] Redis 已通过 MATERIAL_REDIS_ENABLED 显式禁用，跳过连接")
+                    return None
+                enabled_by_flag = (
+                    explicit_flag in {"1", "true", "yes", "on"}
+                    if explicit_flag is not None
+                    else bool(settings.REDIS_ENABLED)
+                )
+
+                # 【优雅降级】既无 REDIS_URL 也未开启 MATERIAL_REDIS_ENABLED 时跳过连接
+                if not redis_url and not enabled_by_flag:
                     self.logger.debug("[PubSub] Redis 未启用，跳过连接")
                     return None
 
-                # 运行时读取环境变量，确保在 Prefect Worker 中使用正确的 Redis 主机
-                redis_host = os.getenv("REDIS_HOST", settings.REDIS_HOST)
-                redis_port = int(os.getenv("REDIS_PORT", str(settings.REDIS_PORT)))
-                redis_password = os.getenv("REDIS_PASSWORD", settings.REDIS_PASSWORD)
+                if redis_url:
+                    client = redis.from_url(
+                        redis_url,
+                        decode_responses=True,
+                        socket_timeout=2.0,
+                        socket_connect_timeout=2.0,
+                    )
+                else:
+                    # 运行时读取环境变量，确保在 Prefect Worker 中使用正确的 Redis 主机
+                    redis_host = os.getenv("REDIS_HOST", settings.REDIS_HOST)
+                    redis_port = int(os.getenv("REDIS_PORT", str(settings.REDIS_PORT)))
+                    redis_password = os.getenv("REDIS_PASSWORD", settings.REDIS_PASSWORD)
 
-                client = redis.Redis(
-                    host=redis_host,
-                    port=redis_port,
-                    password=redis_password,
-                    decode_responses=True,
-                    socket_timeout=2.0,
-                    socket_connect_timeout=2.0,
-                )
+                    client = redis.Redis(
+                        host=redis_host,
+                        port=redis_port,
+                        password=redis_password,
+                        decode_responses=True,
+                        socket_timeout=2.0,
+                        socket_connect_timeout=2.0,
+                    )
 
                 # 测试连接
                 client.ping()
@@ -87,14 +107,17 @@ class ProgressPublisher:
                 return client
 
             except Exception as e:
+                if client is not None:
+                    with contextlib.suppress(Exception):
+                        client.close()
                 if attempt < max_retries - 1:
                     self.logger.warning(
-                        f"[PubSub] Redis 连接失败 (尝试 {attempt + 1}/{max_retries}): {e}, {retry_delay}秒后重试"
+                        f"[PubSub] Redis 连接失败 (尝试 {attempt + 1}/{max_retries}): {type(e).__name__}, {retry_delay}秒后重试"
                     )
                     time.sleep(retry_delay)
                     retry_delay *= 2  # 指数退避
                 else:
-                    self.logger.error(f"[PubSub] Redis 连接失败，放弃重试: {e}")
+                    self.logger.error(f"[PubSub] Redis 连接失败，放弃重试: {type(e).__name__}")
                     return None
 
         return None
