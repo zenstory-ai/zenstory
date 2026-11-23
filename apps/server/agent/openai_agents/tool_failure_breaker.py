@@ -42,7 +42,9 @@ MAX_TOOL_FAILURES_PER_REQUEST = 10
 # 同批其余调用在模型看到 awaiting_body 之前就被同步挡回（pending_empty_file_unwritten）。
 # 这属于单批并列调用的顺序化，不是工具失败，也不计入请求级累计失败上限（否则一次批量建 5～6 份
 # 角色档案就会凭空耗掉一半熔断额度）。
-_PARALLEL_BATCH_ORDERING_ERROR_TYPES = frozenset({"pending_empty_file_unwritten"})
+# 墙钟收尾提醒已注入后仍发出的工具调用由 tools_adapter 以 wall_clock_wrap_up 同步挡回，
+# 同样不能计入熔断（否则模型并行发出多个工具时会误触发致命 tool_failure_circuit_open 错误，破坏干净软着陆）。
+_PARALLEL_BATCH_ORDERING_ERROR_TYPES = frozenset({"pending_empty_file_unwritten", "wall_clock_wrap_up"})
 
 # 建文件后的**下一次**模型回复仍未先写 <file> 正文就调工具时，tools_adapter 在执行前以
 # file_body_pending 挡回，并由 runner 结束当前 run 交回 FILE_BODY_RESUME 纠偏：不参与「同参数连续

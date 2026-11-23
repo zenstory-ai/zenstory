@@ -916,6 +916,35 @@ describe('MessageList', () => {
     )
     expect(container.textContent).not.toMatch(/chat:tool\.failed/)
     expect(container.textContent).toMatch(/第1章 开篇/)
+
+    const wrapUpBlockedEdit = {
+      id: 'tool-wrapup-edit', tool_name: 'edit_file', arguments: { id: 'ch-1' }, status: 'error' as const,
+      result: { error_type: 'wall_clock_wrap_up', user_message: '本轮已进入收尾阶段，这一步留到下一轮继续。' },
+      error: '本轮已进入收尾阶段，这一步留到下一轮继续。',
+    }
+    rerender(
+      <MessageList
+        messages={[]}
+        streamRenderItems={[{ id: 'tools-wrapup', type: 'tool_calls' as const, toolCalls: [savedChapter, wrapUpBlockedEdit], timestamp }]}
+      />,
+    )
+    expect(container.textContent).not.toMatch(/chat:tool\.failed/)
+    expect(container.textContent).not.toMatch(/本轮已进入收尾阶段/)
+    expect(container.textContent).toMatch(/第1章 开篇/)
+
+    rerender(
+      <MessageList
+        messages={[createMessage({
+          role: 'assistant',
+          content: '已完成第1章，其余留待继续。',
+          toolCalls: [savedChapter, wrapUpBlockedEdit],
+          toolResults: [savedChapter, wrapUpBlockedEdit],
+        })]}
+      />,
+    )
+    expect(container.textContent).not.toMatch(/chat:tool\.failed/)
+    expect(container.textContent).not.toMatch(/本轮已进入收尾阶段/)
+    expect(container.textContent).toMatch(/第1章 开篇/)
   })
 
   it('labels citations by the real file type and shows the quoted file name', () => {

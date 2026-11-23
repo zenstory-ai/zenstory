@@ -112,17 +112,19 @@ export function isWriteToolResult(
 }
 
 /**
- * Refusals the server's write-order or same-turn rewrite guard returns before mutating anything:
- * a created file has to get its text first (`file_body_pending`, `pending_empty_file_unwritten`),
- * or a chapter whose full body was already saved in this turn cannot be rewritten again via
- * `write_chapter` during self-check (`chapter_written_this_turn`). They steer the model without
- * indicating any failure of the author's work, whereas `chapter_replace_pending` can also refuse
- * an unexecuted edit/delete before a replacement is saved and therefore stays visible.
+ * Refusals the server's write-order, same-turn rewrite, or wall-clock wrap-up guard returns before
+ * mutating anything: a created file has to get its text first (`file_body_pending`,
+ * `pending_empty_file_unwritten`), a chapter whose full body was already saved in this turn cannot
+ * be rewritten again via `write_chapter` during self-check (`chapter_written_this_turn`), or a tool
+ * call emitted after wall-clock wrap-up reminder is blocked (`wall_clock_wrap_up`). They steer the
+ * model without indicating any failure of the author's work, whereas `chapter_replace_pending` can
+ * also refuse an unexecuted edit/delete before a replacement is saved and therefore stays visible.
  */
 const INTERNAL_ORDERING_ERROR_TYPES = new Set([
   'file_body_pending',
   'pending_empty_file_unwritten',
   'chapter_written_this_turn',
+  'wall_clock_wrap_up',
 ]);
 
 export function isInternalOrderingRefusal(result: Record<string, unknown> | undefined): boolean {

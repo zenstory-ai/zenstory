@@ -203,12 +203,26 @@ def _deleted(output: str) -> bool:
     return isinstance(payload, dict) and payload.get("status") == "success" and payload.get("mutation_applied") is True
 
 
+WALL_CLOCK_WRAP_UP_ERROR_TYPE = "wall_clock_wrap_up"
+_WALL_CLOCK_WRAP_UP_USER_MESSAGE = "本轮已进入收尾阶段，这一步留到下一轮继续。"
+
+
 def file_body_pending_text(tool_name: str, title: str) -> str:
     return tool_error_text(
         f"「{title}」已经建好但还没写正文，{tool_name} 未执行。这一次回复先以 <file> 开头写完它的正文、"
         "用 </file> 结束，然后再调用其他工具；不要用 edit_file 分段补写正文。",
         error_type="file_body_pending",
         tool_name=tool_name,
+    )
+
+
+def wall_clock_wrap_up_text(tool_name: str) -> str:
+    return tool_error_text(
+        f"本轮已进入时间收尾阶段，{tool_name} 未执行。"
+        "请立即停止调用任何工具，思考尽量简短，直接用文字向作者总结已完成和尚未完成的工作。",
+        error_type=WALL_CLOCK_WRAP_UP_ERROR_TYPE,
+        tool_name=tool_name,
+        user_message=_WALL_CLOCK_WRAP_UP_USER_MESSAGE,
     )
 
 
@@ -277,6 +291,17 @@ def build_agent_function_tools(
                 # 工具没有执行：只在运行摘要里记一次固定分类，不记首个工具开始、不算回滚批次。
                 if run_meter is not None:
                     run_meter.record_tool_failure(_tool_name, "file_body_pending", rolled_back_batch=False)
+            elif (
+                run_meter is not None
+                and run_meter.wall_clock_landing_injected
+                and cancelled_id is None
+            ):
+                # 本次模型调用开始前已注入墙钟收尾提醒，但模型仍继续调用工具：同步拦截不执行，
+                # 避免继续耗尽剩余时间窗或在收尾阶段新建空白待写文件，下一跳直接输出阶段总结软着陆。
+                output = wall_clock_wrap_up_text(_tool_name)
+                run_meter.record_tool_failure(
+                    _tool_name, WALL_CLOCK_WRAP_UP_ERROR_TYPE, rolled_back_batch=False
+                )
             elif read_guard is not None:
                 plan = read_guard.plan(_tool_name, raw_arguments)
                 if plan.blocked_output is not None:

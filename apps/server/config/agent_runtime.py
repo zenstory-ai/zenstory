@@ -77,8 +77,10 @@ RAILWAY_HTTP_CONNECTION_LIMIT_S = 900
 AGENT_RUN_WALL_CLOCK_TIMEOUT_S = get_int_env("AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 780)
 # From here on the agent is told to wrap up and the workflow starts no new agent runs,
 # so a long request ends with a phase summary instead of being cut at the deadline.
+# 240s margin covers long single-step completions (~150-200s on MiniMax) plus a pending
+# <file> body or wrap-up summary so turns soft-land cleanly and preserve wire_prefix_cache.
 AGENT_RUN_WRAP_UP_AFTER_S = get_int_env(
-    "AGENT_RUN_WRAP_UP_AFTER_S", max(60, AGENT_RUN_WALL_CLOCK_TIMEOUT_S - 180)
+    "AGENT_RUN_WRAP_UP_AFTER_S", max(60, AGENT_RUN_WALL_CLOCK_TIMEOUT_S - 240)
 )
 
 # Deploy handover (agent/core/server_drain.py): after SIGTERM, Uvicorn keeps open
