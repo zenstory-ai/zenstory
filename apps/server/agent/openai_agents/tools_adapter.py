@@ -297,7 +297,7 @@ def build_agent_function_tools(
                     run_meter.record_tool_failure(_tool_name, "file_body_pending", rolled_back_batch=False)
             elif (
                 run_meter is not None
-                and run_meter.wall_clock_landing_injected
+                and getattr(run_meter, "wall_clock_landing_injected", False)
                 and cancelled_id is None
             ):
                 # 本次模型调用开始前已注入墙钟收尾提醒，但模型仍继续调用工具：同步拦截不执行，
