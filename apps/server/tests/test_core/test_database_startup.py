@@ -246,3 +246,20 @@ async def test_init_db_fails_fast_when_a_new_tables_reference_is_locked(monkeypa
             for name in (child_table, parent_table):
                 await conn.execute(text(f"DROP TABLE IF EXISTS {name} CASCADE"))
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_dispose_async_engine_releases_pool_and_handles_none(monkeypatch):
+    disposed = False
+
+    class _DisposableEngine:
+        async def dispose(self):
+            nonlocal disposed
+            disposed = True
+
+    monkeypatch.setattr(database, "async_engine", _DisposableEngine())
+    await database.dispose_async_engine()
+    assert disposed is True
+
+    monkeypatch.setattr(database, "async_engine", None)
+    await database.dispose_async_engine()

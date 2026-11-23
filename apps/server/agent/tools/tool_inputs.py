@@ -475,19 +475,17 @@ class EditFileInput(_ToolInputModel):
     ] = Field(
         validation_alias=AliasChoices("edits", "operations"),
         description=(
-            "编辑操作列表。每一项都必须显式填写 op，不会根据其他字段猜测操作。"
-            "同一文件的多处互不依赖修改优先合并在同一次调用的 edits 里并传 continue_on_error=true（仅超过 15 处或后项依赖前项输出时才拆分）。"
-            '最小示例：[{"op": "replace", "old": "当前原文", "new": "替换文本"}]。'
+            "编辑操作列表，每项必填 op。同文件多处独立修改合并进一次调用并传 continue_on_error=true"
+            "（超过 30 处或后项依赖前项时再拆分；不要对同一 id 并列多次调用）。"
+            '示例：[{"op": "replace", "old": "当前原文", "new": "替换文本"}]。'
         ),
     )
     continue_on_error: CoercedBool = Field(
         default=False,
         description=(
-            "同一文件有多处互不依赖的修改时，合并进一次 edit_file 调用并传 continue_on_error=true"
-            "（跳过失败项，其余照常生效，结果里的 failed_edits 列出没改成的几处，后续只需补失败项）；"
-            "仅在超过 15 处修改，或后一项依赖前一项改后的新文本时才拆成多次调用。"
-            "默认 false：edits 是一个整体，任一处失败则本次调用的全部编辑都不生效（整体回滚），"
-            "错误会一次列出所有失败项，整批都仍待修改，不能只补失败项并假定其他项已生效。"
+            "同文件多处独立修改时合并为一次 edit_file 并传 continue_on_error=true"
+            "（跳过失败项，其余照常生效，结果 failed_edits 列出失败项供补改；仅超过 30 处或后项依赖前项时拆分）。"
+            "默认 false：任一处失败整体回滚，整批都仍待修改，不可只补失败项。"
         ),
     )
 
@@ -680,12 +678,12 @@ class QueryFilesInput(_ToolInputModel):
     start_char: OptionalNonBoolInt = Field(
         default=None,
         ge=0,
-        description="仅用于超过 15000 字的超长文件按 id 分段读取：从第几个字符开始读（从 0 起），配合 max_chars；常规长度文件直接按 id 读全文，不要分段",
+        description="仅用于超过 25000 字的超长文件按 id 分段读取：从第几个字符开始读（从 0 起），配合 max_chars；常规长度文件直接按 id 读全文，不要分段",
     )
     max_chars: OptionalNonBoolInt = Field(
         default=None,
         ge=1,
-        description="配合 start_char 读取超过 15000 字超长文件的字符数（默认 6000，上限 20000）",
+        description="配合 start_char 读取超过 25000 字超长文件的字符数（默认 6000，上限 20000）",
     )
     include_content: CoercedOptionalBool = Field(
         default=None,

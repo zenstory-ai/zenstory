@@ -21,6 +21,10 @@ from utils.logger import get_logger, log_with_context
 
 from ..constants import should_offload_session_work
 from ..prompts import get_prompt_for_project_type
+from .chat_storage import (
+    archive_pre_compaction_tool_calls_safe,
+    display_events_have_thinking_content,
+)
 
 _HAN_CHAR_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 _LATIN_WORD_RE = re.compile(r"[A-Za-z]{2,}")
@@ -349,12 +353,17 @@ class MessageManager:
                     display_events=assistant_display_events,
                     extra_metadata=assistant_extra_metadata,
                 )
+                persisted_reasoning_content = (
+                    None
+                    if display_events_have_thinking_content(assistant_display_events)
+                    else reasoning_content
+                )
                 assistant_chat_message = ChatMessage(
                     session_id=chat_session.id,
                     role="assistant",
                     content=assistant_message,
                     tool_calls=tool_calls_json,
-                    reasoning_content=reasoning_content,
+                    reasoning_content=persisted_reasoning_content,
                     message_metadata=assistant_metadata_json,
                 )
                 session.add(assistant_chat_message)
@@ -368,6 +377,19 @@ class MessageManager:
             # commit would reload its entire message payload just to get the ID.
             assistant_message_id = assistant_chat_message.id if assistant_chat_message else None
             session.commit()
+
+            # 压缩记录已安全提交后，尽力归档压缩点覆盖范围内（<= covers_through_message_id）
+            # 的历史 query_files / parallel_execute 正文载荷；任何异常只记日志不阻断主保存。
+            if assistant_chat_message is not None and isinstance(assistant_extra_metadata, dict):
+                from ..loop.history import valid_compaction
+
+                compaction = valid_compaction(assistant_extra_metadata)
+                if compaction is not None:
+                    archive_pre_compaction_tool_calls_safe(
+                        session,
+                        chat_session_id=session_id,
+                        covers_through_message_id=compaction["covers_through_message_id"],
+                    )
 
             log_with_context(
                 logger,

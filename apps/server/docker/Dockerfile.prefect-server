@@ -5,6 +5,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Cap glibc malloc arenas to limit steady-state RSS growth in Linux containers.
+ENV MALLOC_ARENA_MAX=2
+
 # 安装 Prefect 和 PostgreSQL 驱动
 # Keep Prefect and FastAPI aligned with requirements.txt. FastAPI 0.141.x changes
 # routing internals in a way that breaks PrefectRouter at request time, despite

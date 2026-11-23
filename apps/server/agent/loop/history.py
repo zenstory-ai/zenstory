@@ -227,6 +227,183 @@ def stored_kept_messages(compaction: dict[str, Any]) -> list[str] | None:
     return kept
 
 
+_CLIENT_QUERY_FILE_ITEM_KEYS = (
+    "id",
+    "title",
+    "file_type",
+    "parent_id",
+    "order",
+    "word_count",
+    "content_length",
+    "content_truncated",
+    "match_count",
+    "status",
+    "error",
+    "error_type",
+    "user_message",
+)
+_CLIENT_HEAVY_RESULT_KEYS = frozenset(
+    {
+        "content",
+        "content_preview",
+        "matches",
+        "author_edits",
+        "file_metadata",
+        "content_range",
+        "downgrade_note",
+    }
+)
+_CLIENT_PARALLEL_HEAVY_RESULT_KEYS = _CLIENT_HEAVY_RESULT_KEYS | frozenset(
+    {"original_content", "new_content", "instructions"}
+)
+
+
+def _slim_query_file_item(item: Any) -> tuple[Any, bool]:
+    if not isinstance(item, dict):
+        return item, False
+    slimmed = {key: item[key] for key in _CLIENT_QUERY_FILE_ITEM_KEYS if key in item}
+    if len(slimmed) == len(item):
+        return item, False
+    return slimmed, True
+
+
+def _slim_query_files_payload(data: Any) -> tuple[Any, bool]:
+    if isinstance(data, list):
+        changed = False
+        projected: list[Any] = []
+        for item in data:
+            slim_item, item_changed = _slim_query_file_item(item)
+            projected.append(slim_item)
+            changed = changed or item_changed
+        return (projected, True) if changed else (data, False)
+
+    if isinstance(data, dict):
+        changed = False
+        projected_dict: dict[str, Any] = {}
+        for key, value in data.items():
+            if key in _CLIENT_HEAVY_RESULT_KEYS:
+                changed = True
+                continue
+            if key in ("data", "items", "files") and (
+                isinstance(value, list) or (key == "data" and isinstance(value, dict))
+            ):
+                slim_nested, nested_changed = _slim_query_files_payload(value)
+                projected_dict[key] = slim_nested
+                changed = changed or nested_changed
+            else:
+                projected_dict[key] = value
+        return (projected_dict, True) if changed else (data, False)
+
+    return data, False
+
+
+def _slim_parallel_task_result(task_type: Any, result: Any) -> tuple[Any, bool]:
+    if task_type == "query_files" or isinstance(result, list):
+        return _slim_query_files_payload(result)
+    if not isinstance(result, dict):
+        return result, False
+
+    changed = False
+    projected: dict[str, Any] = {}
+    for key, value in result.items():
+        if key in _CLIENT_PARALLEL_HEAVY_RESULT_KEYS:
+            changed = True
+            continue
+        if key in ("data", "items", "files") and isinstance(value, list):
+            slim_nested, nested_changed = _slim_query_files_payload(value)
+            projected[key] = slim_nested
+            changed = changed or nested_changed
+        elif key == "data" and isinstance(value, dict):
+            slim_nested, nested_changed = _slim_parallel_task_result(task_type, value)
+            projected[key] = slim_nested
+            changed = changed or nested_changed
+        else:
+            projected[key] = value
+    return (projected, True) if changed else (result, False)
+
+
+def _slim_parallel_execute_payload(data: Any) -> tuple[Any, bool]:
+    if not isinstance(data, dict):
+        return data, False
+
+    changed = False
+    projected: dict[str, Any] = {}
+    for key, value in data.items():
+        if key == "tasks" and isinstance(value, list):
+            tasks_changed = False
+            slim_tasks: list[Any] = []
+            for task in value:
+                if isinstance(task, dict) and "result" in task:
+                    slim_res, res_changed = _slim_parallel_task_result(task.get("type"), task["result"])
+                    if res_changed:
+                        slim_task = dict(task)
+                        slim_task["result"] = slim_res
+                        slim_tasks.append(slim_task)
+                        tasks_changed = True
+                    else:
+                        slim_tasks.append(task)
+                else:
+                    slim_tasks.append(task)
+            projected[key] = slim_tasks if tasks_changed else value
+            changed = changed or tasks_changed
+        elif key == "data" and isinstance(value, dict) and "tasks" in value:
+            slim_nested, nested_changed = _slim_parallel_execute_payload(value)
+            projected[key] = slim_nested
+            changed = changed or nested_changed
+        else:
+            projected[key] = value
+    return (projected, True) if changed else (data, False)
+
+
+def slim_client_tool_result(tool_name: str, data: Any) -> Any:
+    """发给浏览器的工具结果瘦身：去掉 query_files / parallel_execute 的大段正文与预览。
+
+    只影响发往前端的 SSE 帧与聊天历史 HTTP 响应，不改动落库内容与模型历史回放；
+    edit_file / write_chapter / delete_file / create_file / update_project 等其余工具原样保留。
+    """
+    if tool_name == "query_files":
+        slimmed, changed = _slim_query_files_payload(data)
+        return slimmed if changed else data
+    if tool_name == "parallel_execute":
+        slimmed, changed = _slim_parallel_execute_payload(data)
+        return slimmed if changed else data
+    return data
+
+
+def client_tool_calls(raw: str | None) -> str | None:
+    """发给浏览器的 tool_calls：去掉 query_files 与 parallel_execute 中前端不展示的正文载荷。
+
+    未命中目标工具或无需瘦身时原样返回同一个字符串，不改写数据库记录。
+    """
+    if not raw or ('"query_files"' not in raw and '"parallel_execute"' not in raw):
+        return raw
+    calls = _parse_json(raw)
+    if not isinstance(calls, list):
+        return raw
+
+    changed = False
+    projected: list[Any] = []
+    for call in calls:
+        if (
+            isinstance(call, dict)
+            and call.get("name") in ("query_files", "parallel_execute")
+            and "result" in call
+        ):
+            original_result = call["result"]
+            slim_result = slim_client_tool_result(str(call["name"]), original_result)
+            if slim_result is not original_result:
+                slim_call = dict(call)
+                slim_call["result"] = slim_result
+                projected.append(slim_call)
+                changed = True
+                continue
+        projected.append(call)
+
+    if not changed:
+        return raw
+    return json.dumps(projected, ensure_ascii=False)
+
+
 def client_message_metadata(raw: str | None) -> str | None:
     """发给浏览器的 message_metadata：去掉压缩点里只给模型回放的作者原话（可达上万 token，前端不用）。
 

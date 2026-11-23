@@ -40,6 +40,7 @@ from agent.openai_agents.events import (
     tool_error_text,
 )
 from agent.openai_agents.model import build_failover_chat_model
+from agent.openai_agents.repeat_edit_guard import RepeatEditGuard
 from agent.openai_agents.repeat_read_guard import (
     NO_PROGRESS_STOP_REASON,
     RepeatReadGuard,
@@ -103,9 +104,10 @@ LOOP_SOFT_LANDING_PROMPT = (
     "用户回复「继续」后会从这里接着完成剩余部分。"
 )
 LOOP_TIME_LANDING_PROMPT = (
-    "[系统提醒] 这次请求的时间快用完了。不要再开始新的章节或大段改写，也不要再读文件："
+    "[系统提醒] 这次请求的时间快用完了。请立即停止调用任何工具（包括 query_files / edit_file / "
+    "write_chapter / create_file / update_project），思考尽量简短。"
     "正在写的 <file> 正文先写完并用 </file> 结束；刚调用 write_chapter（或 create_file）还没写正文的，"
-    "在本次回复里写完它的 <file> 正文。然后直接用文字给作者收尾：\n"
+    "在本次回复里写完它的 <file> 正文并用 </file> 结束。然后直接用文字给作者收尾：\n"
     "- 如果作者本轮要求的内容已经全部保存完成，直接用一到三句话总结已完成的文件与字数即可，不要编造待续工作；\n"
     "- 只有作者本轮明确要求、但还没来得及完成的部分，才如实写明已完成的工作与尚未完成的部分（用户回复「继续」后会接着完成剩余部分）。"
 )
@@ -171,6 +173,11 @@ def _stop_run_after_tools(
         req_ctx = unwrap_request_context(ctx)
         if req_ctx is not None and req_ctx.overdue_file_bodies():
             return ToolsToFinalOutputResult(is_final_output=True, final_output="")
+
+    # 墙钟收尾提醒与 wall_clock_wrap_up 挡回后模型仍连续多次只调工具不写总结：
+    # 同步结束当前 run，按既有墙钟软着陆收尾，避免一路拖到 780s 墙钟硬超时被截断。
+    if run_meter is not None and run_meter.wall_clock_landing_exhausted:
+        return ToolsToFinalOutputResult(is_final_output=True, final_output="")
 
     return ToolsToFinalOutputResult(is_final_output=False, final_output=None)
 
@@ -242,9 +249,12 @@ class _ModelCallCountingFilter:
         self.landing_injected = True
         if remaining is not None:
             self.landing_limit = self._remaining_calls()[1]
+            if self._run_meter.past_wrap_up:
+                self._run_meter.record_wall_clock_landing_call()
             reminder = {"role": "user", "content": LOOP_SOFT_LANDING_PROMPT.format(remaining=remaining)}
         else:
             self.landing_limit = LANDING_LIMIT_WALL_CLOCK
+            self._run_meter.record_wall_clock_landing_call()
             reminder = {"role": "user", "content": LOOP_TIME_LANDING_PROMPT}
         return ModelInputData(
             input=[*list(model_data.input or []), reminder],
@@ -574,6 +584,7 @@ def _build_agent(
     failure_breaker: ToolFailureBreaker | None = None,
     run_meter: AgentRunMeter | None = None,
     read_guard: RepeatReadGuard | None = None,
+    edit_guard: RepeatEditGuard | None = None,
     request_context: AgentRequestContext | None = None,
 ) -> Any:
     # NOTE — Agent.as_tool was evaluated and rejected.
@@ -632,6 +643,7 @@ def _build_agent(
         tools=build_agent_function_tools(
             failure_breaker=failure_breaker,
             read_guard=read_guard,
+            edit_guard=edit_guard,
             run_meter=run_meter,
         ),
         # 工具失败熔断等终态时即结束 run，避免 SDK 再跑一整轮模型调用并真实执行其工具
@@ -767,6 +779,14 @@ async def run_openai_agents_streaming_agent(
     )
     if read_guard.request_context is None:
         read_guard.request_context = req_ctx
+    shared_edit_guard = state.get("repeat_edit_guard")
+    edit_guard = (
+        shared_edit_guard
+        if isinstance(shared_edit_guard, RepeatEditGuard)
+        else RepeatEditGuard(request_context=req_ctx)
+    )
+    if edit_guard.request_context is None:
+        edit_guard.request_context = req_ctx
     previous_items = state.get("run_items")
     continuing = isinstance(previous_items, list) and bool(previous_items)
     if not continuing:
@@ -854,6 +874,7 @@ async def run_openai_agents_streaming_agent(
             failure_breaker=failure_breaker,
             run_meter=run_meter,
             read_guard=read_guard,
+            edit_guard=edit_guard,
             request_context=req_ctx,
         )
         # 外层计数器给请求级模型调用预算记账（每次模型调用前调用一次），并在
@@ -1349,6 +1370,8 @@ async def run_openai_agents_streaming_agent(
             stop_reason=run_stop_reason,
             duplicate_reads=read_guard.duplicate_reads,
             blocked_reads=read_guard.blocked_reads,
+            blocked_edits=edit_guard.blocked_edits,
+            guarded_self_reads=edit_guard.guarded_self_reads,
             duration_ms=round((time.monotonic() - run_started_at) * 1000, 1),
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),

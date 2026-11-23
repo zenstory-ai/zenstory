@@ -70,7 +70,7 @@ from core.error_handler import (
     validation_exception_handler,
 )
 from config.payment_settings import get_payment_settings
-from database import init_db
+from database import dispose_async_engine, init_db
 from middleware.body_size_limit import BodySizeLimitMiddleware
 from middleware.logging_middleware import LoggingMiddleware
 from services.infra.readiness_service import check_readiness
@@ -81,6 +81,7 @@ from services.subscription.zpay_service import zpay_service
 async def lifespan(_app: FastAPI):
     """Application lifespan handler."""
     await init_db()
+    await dispose_async_engine()
     zpay_service.log_configuration_status(get_payment_settings())
     log_with_context(
         logger,

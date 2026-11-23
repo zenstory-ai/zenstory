@@ -44,6 +44,8 @@ class WritingState(TypedDict, total=False):
     tool_failure_breaker: Any
     # 本次请求共享的 RepeatReadGuard（同一文件重复读取的拦截 + 本请求读写台账），跨 agent run 复用。
     repeat_read_guard: Any
+    # 本次请求共享的 RepeatEditGuard（同一文件串行微调收敛护栏与刚写章节自读拦截），跨 agent run 复用。
+    repeat_edit_guard: Any
     # 请求级模型调用计数与预算（agent.core.run_meter.AgentRunMeter，跨 agent run 共享）
     run_meter: Any
     # 请求级收尾状态（agent.core.round_outcome.RunOutcome，跨 agent run 共享）

@@ -464,7 +464,7 @@ def test_edit_file_schema_shows_explicit_op_and_atomic_batch_recovery():
     assert "整体回滚" in continue_description
     assert "整批都仍待修改" in continue_description
     assert "continue_on_error=true" in continue_description
-    assert "15" in continue_description
+    assert "30" in continue_description
 
 
 # ---------------------------------------------------------------------------

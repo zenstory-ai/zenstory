@@ -44,6 +44,10 @@ class _ToolFailureStats:
 _ROLE_STAGES: dict[str, TimingStage] = {
     "loop": "agent_loop",
 }
+# 进入墙钟收尾提醒（LOOP_TIME_LANDING_PROMPT）后允许模型最多再发起几次调用来收尾：
+# 第 1 次提醒收尾；若模型仍忽略提醒并调用工具，tools_adapter 立即以 wall_clock_wrap_up 挡回，
+# 第 2 次看到挡回后写阶段总结；若连续 3 次仍只调工具则由 tool_use_behavior 同步结束 run，避免拖到 780s 硬超时。
+MAX_WALL_CLOCK_LANDING_CALLS = 3
 
 
 @dataclass
@@ -54,6 +58,8 @@ class AgentRunMeter:
     llm_duration_ms: float = 0.0
     # 预算用尽且确实因此截停了一次 SDK run（区别于最后一次调用恰好自然结束）。
     budget_stopped: bool = False
+    # 墙钟收尾提醒已注入到模型调用的次数（首次注入后 tools_adapter 同步拦截模型继续发起的新工具调用）。
+    wall_clock_landing_calls: int = 0
     # 最近一次模型调用实际用的模型（主备切换后可能是备用供应商的模型）。
     last_served_model: str | None = None
     # 最近一次模型调用的 provider:model:key_slot 标识，用于校验跨轮 wire-prefix 缓存归属。
@@ -83,12 +89,26 @@ class AgentRunMeter:
     def record_model_call(self) -> None:
         self.model_calls += 1
 
+    def record_wall_clock_landing_call(self) -> None:
+        """记录一次已注入墙钟收尾提醒的模型调用。"""
+        self.wall_clock_landing_calls += 1
+
+    @property
+    def wall_clock_landing_injected(self) -> bool:
+        """是否已向模型注入过墙钟收尾提醒（此后不允许再执行新工具调用）。"""
+        return self.wall_clock_landing_calls > 0
+
+    @property
+    def wall_clock_landing_exhausted(self) -> bool:
+        """模型在收到墙钟收尾提醒后仍连续调用工具达到上限，应同步结束 run。"""
+        return self.wall_clock_landing_calls >= MAX_WALL_CLOCK_LANDING_CALLS
+
     def elapsed_s(self) -> float:
         return time.monotonic() - self.started_at
 
     @property
     def past_wrap_up(self) -> bool:
-        """请求时间快用完了：离墙钟时限不到 3 分钟，或进程正在为发布交接收尾。"""
+        """请求时间快用完了：到达收尾时刻（默认离墙钟时限 4 分钟），或进程正在为发布交接收尾。"""
         return is_draining() or self.elapsed_s() >= self.wrap_up_after_s
 
     def record_served_model(self, model: str) -> None:

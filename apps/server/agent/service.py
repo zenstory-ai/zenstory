@@ -810,7 +810,6 @@ class AgentService:
         assistant_response = ""
         post_file_whitespace_pending = False
         post_file_whitespace_buf = ""
-        reasoning_content = ""
         assistant_stop_reason: str | None = None
         assistant_usage: dict[str, Any] | None = None
         assistant_status_cards: list[dict[str, Any]] = []
@@ -891,8 +890,9 @@ class AgentService:
                 or all_tool_calls
                 or assistant_status_cards
                 # 「对话已压缩」标记与纯空白文本块本身都不是有效回复：没有实质产出的一轮只落作者那条消息。
+                # 单循环轮次的 thinking_content 已完整记入 assistant_display_events（不再双写 reasoning_content），
+                # 仅思考的轮次仍经 has_substantive_display_events 正常落库。
                 or has_substantive_display_events(assistant_display_events)
-                or (reasoning_content or "").strip()
             )
 
         def _append_display_text(
@@ -994,6 +994,17 @@ class AgentService:
                 chat_session.message_count += len(cleaned)
                 chat_session.updated_at = utcnow()
                 append_session.commit()
+
+                if isinstance(first_metadata, dict):
+                    compaction = valid_compaction(first_metadata)
+                    if compaction is not None:
+                        from .core.chat_storage import archive_pre_compaction_tool_calls_safe
+
+                        archive_pre_compaction_tool_calls_safe(
+                            append_session,
+                            chat_session_id=session_id,
+                            covers_through_message_id=compaction["covers_through_message_id"],
+                        )
 
             return len(cleaned)
 
@@ -1150,7 +1161,7 @@ class AgentService:
                     message,
                     assistant_response,
                     all_tool_calls if all_tool_calls else None,
-                    reasoning_content if reasoning_content else None,
+                    None,
                     assistant_status_cards=assistant_status_cards or None,
                     steering_messages=consumed_steering or None,
                     assistant_display_events=normalize_assistant_display_events(assistant_display_events),
@@ -1483,7 +1494,6 @@ class AgentService:
                                 _append_display_text("content", text_chunk)
                         elif event_type == "thinking_content":
                             thinking_chunk = event.data.get("content", "")
-                            reasoning_content += thinking_chunk
                             _append_display_text("thinking_content", thinking_chunk)
                         elif event_type == "tool_call":
                             tool_use_id = str(event.data.get("tool_use_id") or "").strip()
@@ -1536,7 +1546,10 @@ class AgentService:
 
                             if target_call is not None:
                                 target_call["status"] = event.data.get("status", "success")
-                                target_call["result"] = event.data.get("data")
+                                target_call["result"] = stream_adapter.pop_persisted_tool_result(
+                                    tool_use_id,
+                                    event.data.get("data"),
+                                )
                                 target_call["error"] = event.data.get("error")
                         elif event_type == "iteration_exhausted":
                             assistant_status_cards.append(iteration_exhausted_status_card(event.data))
@@ -1601,7 +1614,7 @@ class AgentService:
                             message,
                             assistant_response,
                             all_tool_calls if all_tool_calls else None,
-                            reasoning_content if reasoning_content else None,
+                            None,
                             assistant_stop_reason=assistant_stop_reason,
                             assistant_usage=assistant_usage,
                             assistant_status_cards=assistant_status_cards or None,

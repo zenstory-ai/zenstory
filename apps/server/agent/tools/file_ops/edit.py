@@ -264,8 +264,8 @@ def _approximate_not_found_advice(stats: dict[str, int], *, label: str) -> str:
         reason = "精确、引号等价、模糊和近似匹配都没有找到唯一位置。"
     return (
         f"{reason}请先用 query_files 按准确 id 重读当前文件"
-        f"（仅超过 15000 字的超长文件才传 query=关键词 取逐字命中片段，或传 start_char + max_chars 分段读取），再从结果复制较短、逐字、"
-        f"唯一的{label}；同一文件的多处独立修改合并进一次 edit_file(..., continue_on_error=true) 批量提交（超过 15 处或相互依赖时再拆分）；不要放宽匹配或整篇覆盖。"
+        f"（仅超过 25000 字的超长文件才传 query=关键词 取逐字命中片段，或传 start_char + max_chars 分段读取），再从结果复制较短、逐字、"
+        f"唯一的{label}；同一文件的多处独立修改合并进一次 edit_file(..., continue_on_error=true) 批量提交（超过 30 处或相互依赖时再拆分）；不要放宽匹配或整篇覆盖。"
     )
 
 

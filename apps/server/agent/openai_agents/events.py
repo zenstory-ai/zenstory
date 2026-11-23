@@ -57,13 +57,21 @@ def mcp_text_result(text: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": text}]}
 
 
-def tool_error_text(error: str, *, error_type: str | None = None, tool_name: str | None = None) -> str:
+def tool_error_text(
+    error: str,
+    *,
+    error_type: str | None = None,
+    tool_name: str | None = None,
+    user_message: str | None = None,
+) -> str:
     """Build the JSON text payload used for tool execution errors."""
     payload: dict[str, Any] = {"status": "error", "error": error}
     if error_type:
         payload["error_type"] = error_type
     if tool_name:
         payload["tool_name"] = tool_name
+    if user_message:
+        payload["user_message"] = user_message
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 

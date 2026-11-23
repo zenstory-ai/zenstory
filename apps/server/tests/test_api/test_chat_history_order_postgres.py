@@ -396,11 +396,15 @@ def test_suggest_tied_prompt_window_matches_session_loader_convention(
         assert response.status_code == 200
         assert response.json() == {"suggestions": ["完善角色动机", "讨论情节伏笔", "梳理章节结构"]}
         assert len(completion_capture) == len(observed) + 1, "actual history must reach completion"
-        prompt = completion_capture[-1]["messages"][0]["content"]
-        assert "小说写作助手" in prompt
+        messages = completion_capture[-1]["messages"]
+        assert [m["role"] for m in messages] == ["system", "user"]
+        system_prompt = messages[0]["content"]
+        prompt = messages[1]["content"]
+        assert "小说写作助手" in system_prompt
+        assert "excluded:" not in system_prompt
         assert "excluded:" not in prompt
         contents = prompt_history_contents(prompt)
-        record("actual_prompt", prompt=prompt, observed_contents=contents)
+        record("actual_prompt", system_prompt=system_prompt, prompt=prompt, observed_contents=contents)
         observed.append(contents)
     record("tie_comparison", expected_contents=expected, observed_contents=observed,
            unchanged_reads_equal=observed[0] == observed[1])
@@ -416,9 +420,13 @@ def test_suggest_non_tied_novel_ownership_count_and_no_quota_consumption_control
     assert response.status_code == 200
     assert len(response.json()["suggestions"]) == 3
     assert len(completion_capture) == 1
-    prompt = completion_capture[0]["messages"][0]["content"]
-    record("actual_prompt", prompt=prompt)
-    assert "小说写作助手" in prompt and "excluded:" not in prompt
+    messages = completion_capture[0]["messages"]
+    assert [m["role"] for m in messages] == ["system", "user"]
+    system_prompt = messages[0]["content"]
+    prompt = messages[1]["content"]
+    record("actual_prompt", system_prompt=system_prompt, prompt=prompt)
+    assert "小说写作助手" in system_prompt and "excluded:" not in system_prompt
+    assert "excluded:" not in prompt
     assert prompt_history_contents(prompt) == [row["content"] for row in latest_window(snapshot, 5)]
     for project, count, status in ((actors["foreign_project"], 3, 403),
                                    (actors["project"], 0, 422),

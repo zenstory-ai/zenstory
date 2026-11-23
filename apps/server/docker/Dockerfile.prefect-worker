@@ -5,6 +5,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Cap glibc malloc arenas to limit steady-state RSS growth in Linux containers.
+ENV MALLOC_ARENA_MAX=2
+
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \

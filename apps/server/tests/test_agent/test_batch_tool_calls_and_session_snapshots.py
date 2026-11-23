@@ -787,13 +787,16 @@ def test_batch_edit_and_start_char_guidance_and_ids_schema():
     for text in (_BODY_SAVED_CONTEXT_EN, _BODY_SAVED_REPLIED_CONTEXT_EN):
         assert "continue_on_error=true" in text
 
-    # start_char 仅用于超长文件 (>15000 字)
+    # start_char 仅用于超长文件 (>25000 字)
     q_props = QUERY_FILES_TOOL["input_schema"]["properties"]
-    assert "15000" in QUERY_FILES_TOOL["description"]
-    assert "15000" in q_props["start_char"]["description"]
-    assert "15000" in q_props["max_chars"]["description"]
-    assert "15000" in LOOP_TOOL_USAGE_PROTOCOL
-    assert "15000" in approx_advice
+    assert "25000" in QUERY_FILES_TOOL["description"]
+    assert "25000" in q_props["start_char"]["description"]
+    assert "25000" in q_props["max_chars"]["description"]
+    assert "25000" in LOOP_TOOL_USAGE_PROTOCOL
+    assert "25000" in approx_advice
+    assert "30 处" in LOOP_TOOL_USAGE_PROTOCOL
+    assert "30 处" in edits_desc
+    assert "30 处" in continue_desc
 
     # query_files batch ids schema
     assert "ids" in q_props

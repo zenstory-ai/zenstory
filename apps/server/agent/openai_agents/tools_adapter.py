@@ -9,6 +9,7 @@ from typing import Any
 
 from agent.core.run_meter import AgentRunMeter
 from agent.openai_agents.events import extract_tool_result_text, tool_error_text
+from agent.openai_agents.repeat_edit_guard import RepeatEditGuard
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.tool_failure_breaker import (
     ToolFailureBreaker,
@@ -203,6 +204,10 @@ def _deleted(output: str) -> bool:
     return isinstance(payload, dict) and payload.get("status") == "success" and payload.get("mutation_applied") is True
 
 
+WALL_CLOCK_WRAP_UP_ERROR_TYPE = "wall_clock_wrap_up"
+_WALL_CLOCK_WRAP_UP_USER_MESSAGE = "本轮已进入收尾阶段，这一步留到下一轮继续。"
+
+
 def file_body_pending_text(tool_name: str, title: str) -> str:
     return tool_error_text(
         f"「{title}」已经建好但还没写正文，{tool_name} 未执行。这一次回复先以 <file> 开头写完它的正文、"
@@ -212,10 +217,21 @@ def file_body_pending_text(tool_name: str, title: str) -> str:
     )
 
 
+def wall_clock_wrap_up_text(tool_name: str) -> str:
+    return tool_error_text(
+        f"本轮已进入时间收尾阶段，{tool_name} 未执行。"
+        "请立即停止调用任何工具，思考尽量简短，直接用文字向作者总结已完成和尚未完成的工作。",
+        error_type=WALL_CLOCK_WRAP_UP_ERROR_TYPE,
+        tool_name=tool_name,
+        user_message=_WALL_CLOCK_WRAP_UP_USER_MESSAGE,
+    )
+
+
 def build_agent_function_tools(
     *,
     failure_breaker: ToolFailureBreaker | None = None,
     read_guard: RepeatReadGuard | None = None,
+    edit_guard: RepeatEditGuard | None = None,
     run_meter: AgentRunMeter | None = None,
 ) -> list[Any]:
     """Build SDK FunctionTool instances for the loop agent's toolset.
@@ -225,6 +241,8 @@ def build_agent_function_tools(
     read_guard：本次请求的重复读取守卫。query_files(id) 执行前经它判定（同一文件第 4 次起不执行），执行后经它记账、附提示；
     写工具成功会清零对应文件的读取计数。守卫判定无进展后，同一轮里剩下的调用
     同样不再执行。
+    edit_guard：本次请求的串行微调收敛守卫（兼刚写章节自读拦截）。在 edit_file / query_files
+    执行前按结构化计数与增量判定，不触发致命熔断。
     run_meter：请求级耗时记录器。只有熔断、待补正文与重复读取守卫都放行后，
     才记录首次工具开始并计量实际工具调用耗时；返回成功只表示调用结束，不代表业务写入成功。
     """
@@ -277,15 +295,32 @@ def build_agent_function_tools(
                 # 工具没有执行：只在运行摘要里记一次固定分类，不记首个工具开始、不算回滚批次。
                 if run_meter is not None:
                     run_meter.record_tool_failure(_tool_name, "file_body_pending", rolled_back_batch=False)
-            elif read_guard is not None:
-                plan = read_guard.plan(_tool_name, raw_arguments)
-                if plan.blocked_output is not None:
-                    output = plan.blocked_output
-                else:
-                    output = await invoke_allowed(plan.arguments)
-                    output = read_guard.observe(_tool_name, plan, output)
+            elif (
+                run_meter is not None
+                and getattr(run_meter, "wall_clock_landing_injected", False)
+                and cancelled_id is None
+            ):
+                # 本次模型调用开始前已注入墙钟收尾提醒，但模型仍继续调用工具：同步拦截不执行，
+                # 避免继续耗尽剩余时间窗或在收尾阶段新建空白待写文件，下一跳直接输出阶段总结软着陆。
+                output = wall_clock_wrap_up_text(_tool_name)
+                run_meter.record_tool_failure(
+                    _tool_name, WALL_CLOCK_WRAP_UP_ERROR_TYPE, rolled_back_batch=False
+                )
             else:
-                output = await invoke_allowed(raw_arguments)
+                edit_plan = edit_guard.plan(_tool_name, raw_arguments) if edit_guard is not None else None
+                if edit_plan is not None and edit_plan.blocked_output is not None:
+                    output = edit_plan.blocked_output
+                elif read_guard is not None:
+                    plan = read_guard.plan(_tool_name, raw_arguments)
+                    if plan.blocked_output is not None:
+                        output = plan.blocked_output
+                    else:
+                        output = await invoke_allowed(plan.arguments)
+                        output = read_guard.observe(_tool_name, plan, output)
+                else:
+                    output = await invoke_allowed(raw_arguments)
+                if edit_guard is not None and edit_plan is not None and edit_plan.blocked_output is None:
+                    output = edit_guard.observe(_tool_name, edit_plan, output)
             if cancelled_id is not None and _deleted(output) and req_ctx is not None:
                 # 待写文件确实删掉了：守卫随这次删除结果收敛（StreamAdapter 按同一结果解除捕获），
                 # 模型在本 run 里接着做别的不会再被它拒绝；run 边界的「已删除」核验照旧兜底。

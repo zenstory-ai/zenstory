@@ -1824,3 +1824,476 @@ async def test_skipped_clean_turns_emit_single_info_log_with_skip_reason(
         assert fields.get("skip_reason") == expected_skip_reason
         assert fields.get("session_id") == chat.id
         assert fields.get("stop_reason") == "end_turn"
+
+
+@pytest.mark.unit
+def test_default_wire_prefix_cache_ttl_is_1200_seconds(fake_redis, monkeypatch):
+    """Default TTL matches MiniMax's 20-minute KV-cache retention window."""
+    import importlib
+
+    from config import agent_runtime
+
+    try:
+        with monkeypatch.context() as env:
+            env.delenv("AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS", raising=False)
+            importlib.reload(agent_runtime)
+            assert agent_runtime.AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS == 1200
+
+            stored = wire_prefix_cache.store_wire_prefix(
+                session_id="sess-default-ttl",
+                project_id="proj-1",
+                user_id="user-1",
+                last_assistant_message_id="msg-1",
+                system_prompt="static system prompt",
+                provider_key="minimax:MiniMax-M3.1-Flash:primary",
+                items=_sample_wire_items(),
+            )
+            assert stored is True
+            _raw, ttl = fake_redis.store["agent:wire_prefix:sess-default-ttl"]
+            assert ttl == 1200
+    finally:
+        importlib.reload(agent_runtime)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs")
+async def test_wall_clock_wrap_up_blocks_disobedient_tool_calls_and_preserves_wire_prefix_cache(
+    db_session: Session, fake_redis, monkeypatch
+):
+    """If a model ignores LOOP_TIME_LANDING_PROMPT and keeps calling tools (even 3+ parallel
+    calls) after wall-clock wrap-up was injected:
+    - tools emitted by a pre-wrap-up call still execute normally;
+    - tools emitted AFTER LOOP_TIME_LANDING_PROMPT are synchronously blocked with
+      `wall_clock_wrap_up` (zero DB mutations, zero empty files, no ToolFailureBreaker trip);
+    - the model outputs its summary on the next step, cleanly soft-landing with
+      `run_deadline_exceeded`, storing wire_prefix_cache, and hitting it on Turn 2."""
+    from sqlmodel import select
+
+    from agent.core.run_meter import AgentRunMeter
+    from agent.service import AgentService
+
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-test-minimax")
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY", raising=False)
+    sdk_model.reset_sdk_model_cache()
+    llm_failover.reset_failover_state()
+    llm_providers.reset_key_routing_state()
+
+    user = User(
+        email="wire_wrap_guard@example.com",
+        username="wirewrapguard",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="收尾拦截测试", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chapter = File(project_id=project.id, title="第一章", file_type="draft", content="雾夜未散。")
+    db_session.add(chapter)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    recorded_calls: list[dict] = []
+    scripted_streams = [
+        # Step 1 (started BEFORE wrap-up): valid query_files call; wrap-up flips True while executing.
+        [
+            _stream_chunk(role="assistant", reasoning="先查第一章"),
+            _stream_chunk(
+                tool_calls=[
+                    {
+                        "index": 0,
+                        "id": "call_pre_wrap_1",
+                        "type": "function",
+                        "function": {"name": "query_files", "arguments": json.dumps({"id": chapter.id})},
+                    }
+                ]
+            ),
+            _stream_chunk(finish_reason="tool_calls"),
+        ],
+        # Step 2 (AFTER wrap-up injected): disobedient model emits 3 parallel write/read tool calls.
+        [
+            _stream_chunk(role="assistant", reasoning="忽略收尾提醒继续调工具"),
+            _stream_chunk(
+                tool_calls=[
+                    {
+                        "index": 0,
+                        "id": "call_post_wrap_1",
+                        "type": "function",
+                        "function": {
+                            "name": "edit_file",
+                            "arguments": json.dumps(
+                                {"id": chapter.id, "edits": [{"op": "replace", "old": "雾夜未散。", "new": "不应落库"}]}
+                            ),
+                        },
+                    },
+                    {
+                        "index": 1,
+                        "id": "call_post_wrap_2",
+                        "type": "function",
+                        "function": {
+                            "name": "write_chapter",
+                            "arguments": json.dumps({"chapter": 2, "title": "第二章", "file_type": "draft"}),
+                        },
+                    },
+                    {
+                        "index": 2,
+                        "id": "call_post_wrap_3",
+                        "type": "function",
+                        "function": {"name": "query_files", "arguments": json.dumps({"id": chapter.id})},
+                    },
+                ]
+            ),
+            _stream_chunk(finish_reason="tool_calls"),
+        ],
+        # Step 3: model sees wall_clock_wrap_up refusals and summarizes cleanly.
+        [
+            _stream_chunk(role="assistant", reasoning="收到收尾拦截，立刻总结"),
+            _stream_chunk(content="已完成前期核对，其余修改留待回复「继续」后完成。"),
+            _stream_chunk(finish_reason="stop"),
+        ],
+        # Turn 2 step 1 ("继续"): should hit wire_prefix_cache!
+        [
+            _stream_chunk(role="assistant", reasoning="承接软着陆继续"),
+            _stream_chunk(content="继续完成后续章节。"),
+            _stream_chunk(finish_reason="stop"),
+        ],
+    ]
+
+    wrap_up_armed = {"active": False}
+    monkeypatch.setattr(AgentRunMeter, "past_wrap_up", property(lambda _self: wrap_up_armed["active"]))
+
+    def fake_client_for(provider):
+        client = openai.AsyncOpenAI(api_key=provider.api_key, base_url="https://llm.test/v1", max_retries=0)
+
+        async def create(**kwargs):
+            recorded_calls.append(kwargs)
+            if len(recorded_calls) == 1:
+                # Flip past_wrap_up during step 1: step 1's tool still runs, step 2 gets landing prompt.
+                wrap_up_armed["active"] = True
+            chunks = scripted_streams.pop(0)
+
+            async def _gen():
+                for chunk in chunks:
+                    yield chunk
+
+            return _gen()
+
+        client.chat.completions.create = create
+        return client
+
+    monkeypatch.setattr(llm_providers, "get_async_client", fake_client_for)
+    monkeypatch.setattr("agent.openai_agents.usage_hooks.schedule_llm_usage_record", lambda *_a, **_kw: None)
+
+    service = AgentService()
+    turn1_frames: list[str] = []
+    try:
+        with patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind())):
+            async for frame in service.process_stream(
+                project_id=str(project.id),
+                user_id=str(user.id),
+                message="核对并续写",
+                session=db_session,
+                session_id=chat.id,
+                metadata={"current_file_id": chapter.id, "current_file_type": "draft", "current_file_title": "第一章"},
+            ):
+                turn1_frames.append(frame)
+
+            # Zero DB mutations occurred after wrap-up: chapter 1 untouched and chapter 2 NOT created.
+            db_session.expire_all()
+            reloaded_ch1 = db_session.get(File, chapter.id)
+            assert reloaded_ch1 is not None and reloaded_ch1.content == "雾夜未散。"
+            all_files = db_session.exec(select(File).where(File.project_id == project.id, File.is_deleted.is_(False))).all()
+            assert len(all_files) == 1
+
+            # No fatal ERROR frame (ToolFailureBreaker did NOT trip on the 3 parallel refusals).
+            assert not any(f.startswith("event: error\n") for f in turn1_frames)
+            assert wire_prefix_cache.wire_prefix_cache_key(chat.id) in fake_redis.store
+
+            # Verify step 2 received strengthened LOOP_TIME_LANDING_PROMPT forbidding all tools,
+            # and step 3 received structured wall_clock_wrap_up tool outputs.
+            step2_last = recorded_calls[1]["messages"][-1]["content"]
+            assert "请立即停止调用任何工具" in step2_last
+            step3_tool_msgs = [m for m in recorded_calls[2]["messages"] if m.get("role") == "tool"]
+            assert len(step3_tool_msgs) == 4
+            assert '"status":"success"' in step3_tool_msgs[0]["content"]  # pre-wrap-up query_files executed
+            for blocked_msg in step3_tool_msgs[1:]:
+                parsed = json.loads(blocked_msg["content"])
+                assert parsed["status"] == "error"
+                assert parsed["error_type"] == "wall_clock_wrap_up"
+                assert parsed["user_message"]
+
+            # Turn 2 hits wire_prefix_cache cleanly!
+            wrap_up_armed["active"] = False
+            async for _frame in service.process_stream(
+                project_id=str(project.id),
+                user_id=str(user.id),
+                message="继续",
+                session=db_session,
+                session_id=chat.id,
+                metadata={"current_file_id": chapter.id, "current_file_type": "draft", "current_file_title": "第一章"},
+            ):
+                pass
+    finally:
+        sdk_model.reset_sdk_model_cache()
+        llm_failover.reset_failover_state()
+        llm_providers.reset_key_routing_state()
+
+    assert len(recorded_calls) == 4
+    turn1_step3_prefix = recorded_calls[2]["messages"][:-1]
+    turn2_step1_messages = recorded_calls[3]["messages"]
+    assert turn2_step1_messages[: len(turn1_step3_prefix)] == turn1_step3_prefix
+    assert turn2_step1_messages[len(turn1_step3_prefix)] == {
+        "role": "assistant",
+        "content": "已完成前期核对，其余修改留待回复「继续」后完成。",
+        "reasoning_content": "收到收尾拦截，立刻总结",
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs")
+async def test_wall_clock_wrap_up_hard_stops_stubborn_tool_loop_and_skips_malformed_wire_prefix(
+    db_session: Session, fake_redis, monkeypatch
+):
+    """If a model keeps calling tools on 3 consecutive post-wrap-up calls (MAX_WALL_CLOCK_LANDING_CALLS),
+    _stop_run_after_tools synchronously stops the SDK run cleanly before 780s, and service.py refuses
+    to cache the trailing function_call_output while invalidating any stale Redis entry."""
+    from agent.core.run_meter import MAX_WALL_CLOCK_LANDING_CALLS, AgentRunMeter
+    from agent.service import AgentService
+
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-test-minimax")
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY", raising=False)
+    sdk_model.reset_sdk_model_cache()
+    llm_failover.reset_failover_state()
+    llm_providers.reset_key_routing_state()
+
+    user = User(
+        email="wire_wrap_stubborn@example.com",
+        username="wirewrapstub",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="顽固循环收尾", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chapter = File(project_id=project.id, title="第一章", file_type="draft", content="原文。")
+    db_session.add(chapter)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    key = wire_prefix_cache.wire_prefix_cache_key(chat.id)
+    fake_redis.setex(key, 900, '{"stale": true}')
+    monkeypatch.setattr(AgentRunMeter, "past_wrap_up", property(lambda _self: True))
+
+    call_count = {"n": 0}
+
+    def fake_client_for(provider):
+        client = openai.AsyncOpenAI(api_key=provider.api_key, base_url="https://llm.test/v1", max_retries=0)
+
+        async def create(**_kwargs):
+            call_count["n"] += 1
+            idx = call_count["n"]
+            chunks = [
+                _stream_chunk(role="assistant", reasoning=f"顽固调工具 #{idx}"),
+                _stream_chunk(
+                    tool_calls=[
+                        {
+                            "index": 0,
+                            "id": f"call_stubborn_{idx}",
+                            "type": "function",
+                            "function": {"name": "query_files", "arguments": json.dumps({"id": chapter.id})},
+                        }
+                    ]
+                ),
+                _stream_chunk(finish_reason="tool_calls"),
+            ]
+
+            async def _gen():
+                for chunk in chunks:
+                    yield chunk
+
+            return _gen()
+
+        client.chat.completions.create = create
+        return client
+
+    monkeypatch.setattr(llm_providers, "get_async_client", fake_client_for)
+    monkeypatch.setattr("agent.openai_agents.usage_hooks.schedule_llm_usage_record", lambda *_a, **_kw: None)
+
+    frames: list[str] = []
+    try:
+        async for frame in AgentService().process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="写下去",
+            session=db_session,
+            session_id=chat.id,
+        ):
+            frames.append(frame)
+    finally:
+        sdk_model.reset_sdk_model_cache()
+        llm_failover.reset_failover_state()
+        llm_providers.reset_key_routing_state()
+
+    assert call_count["n"] == MAX_WALL_CLOCK_LANDING_CALLS
+    assert not any(f.startswith("event: error\n") for f in frames)
+    assert any(f.startswith("event: iteration_exhausted\n") and '"wall_clock"' in f for f in frames)
+    assert key not in fake_redis.store
+    assert key in fake_redis.deleted_keys
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_wall_clock_wrap_up_preserves_file_body_pending_and_overdue_delete_precedence(monkeypatch):
+    """tools_adapter guard precedence:
+    1. Overdue empty file + non-delete tool -> `file_body_pending` wins over `wall_clock_wrap_up`;
+    2. Overdue empty file created in this turn + exact non-recursive `delete_file` -> allowed through;
+    3. No overdue file + `wall_clock_landing_injected=True` -> blocked with `wall_clock_wrap_up` without invoking tool."""
+    from agents import RunContextWrapper
+
+    from agent.core.run_meter import AgentRunMeter
+    from agent.openai_agents import tools_adapter
+    from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
+    from agent.tools.tool_context import AgentRequestContext
+
+    meter = AgentRunMeter()
+    meter.record_wall_clock_landing_call()
+    assert meter.wall_clock_landing_injected is True
+
+    req_ctx = AgentRequestContext(session=None, user_id="u1", project_id="p1", session_id="s1")
+    req_ctx.begin_model_reply()
+    ok, _ = req_ctx.try_reserve_pending_empty_file("t1", "第一章")
+    assert ok
+    req_ctx.bind_pending_empty_file("t1", "file-empty-1", "第一章", "2026-11-23T00:00:00Z")
+    # Next model reply: file-empty-1 is now overdue.
+    req_ctx.begin_model_reply()
+
+    invoked: list[tuple[str, str]] = []
+
+    async def fake_invoke(tool_name: str, raw_arguments: str, **_kwargs) -> str:
+        invoked.append((tool_name, raw_arguments))
+        return json.dumps({"status": "success", "mutation_applied": True, "data": {"id": "file-empty-1"}})
+
+    monkeypatch.setattr(tools_adapter, "invoke_project_tool", fake_invoke)
+
+    breaker = ToolFailureBreaker()
+    tools = {
+        t.name: t
+        for t in tools_adapter.build_agent_function_tools(failure_breaker=breaker, run_meter=meter)
+    }
+    ctx = RunContextWrapper(context=req_ctx)
+
+    # 1. Overdue file + edit_file -> file_body_pending (NOT wall_clock_wrap_up).
+    out_overdue = json.loads(await tools["edit_file"].on_invoke_tool(ctx, '{"id":"other","edits":[]}'))
+    assert out_overdue["error_type"] == "file_body_pending"
+    assert invoked == []
+    failures_before_wrap_up = breaker.total_failures
+    assert failures_before_wrap_up == 1
+
+    # 2. Overdue file + exact non-recursive delete_file -> allowed through and clears overdue guard!
+    out_del = json.loads(await tools["delete_file"].on_invoke_tool(ctx, '{"id":"file-empty-1","recursive":false}'))
+    assert out_del["status"] == "success"
+    assert len(invoked) == 1 and invoked[0][0] == "delete_file"
+    assert not req_ctx.has_pending_empty_file()
+
+    # 3. No overdue file + wall_clock_landing_injected -> blocked by wall_clock_wrap_up, never invokes tool or trips breaker.
+    for _ in range(5):
+        out_blocked = json.loads(await tools["query_files"].on_invoke_tool(ctx, '{"id":"f1"}'))
+        assert out_blocked["status"] == "error"
+        assert out_blocked["error_type"] == tools_adapter.WALL_CLOCK_WRAP_UP_ERROR_TYPE
+        assert out_blocked["user_message"]
+    assert len(invoked) == 1
+    assert breaker.is_open is False
+    assert breaker.total_failures == failures_before_wrap_up
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_leaked_tool_call_early_stop_never_caches_wire_prefix(db_session: Session, fake_redis):
+    """Safety guard (Case 1): a turn ending with stop_reason='leaked_tool_call_early_stop'
+    must NEVER store wire_prefix_cache and MUST invalidate any stale Redis key."""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.service import AgentService
+
+    user = User(
+        email="wire_leaked_stop@example.com",
+        username="wireleakedstop",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="早停不缓存", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    key = wire_prefix_cache.wire_prefix_cache_key(chat.id)
+    fake_redis.setex(key, 900, '{"stale": true}')
+
+    def fake_loop(state, **_kwargs):
+        state["run_items"] = _sample_wire_items()
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "部分回复"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "leaked_tool_call_early_stop"})
+
+        return _stream()
+
+    with patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop):
+        async for _frame in AgentService().process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="写第一章",
+            session=db_session,
+            session_id=chat.id,
+        ):
+            pass
+
+    assert key not in fake_redis.store
+    assert key in fake_redis.deleted_keys
+
+
+@pytest.mark.unit
+def test_default_wall_clock_wrap_up_margin_is_240s(monkeypatch):
+    """Default AGENT_RUN_WRAP_UP_AFTER_S leaves a 240s wrap-up margin before the 780s hard deadline."""
+    import importlib
+
+    from config import agent_runtime
+
+    monkeypatch.delenv("AGENT_RUN_WALL_CLOCK_TIMEOUT_S", raising=False)
+    monkeypatch.delenv("AGENT_RUN_WRAP_UP_AFTER_S", raising=False)
+    reloaded = importlib.reload(agent_runtime)
+    try:
+        assert reloaded.AGENT_RUN_WALL_CLOCK_TIMEOUT_S == 780
+        assert reloaded.AGENT_RUN_WRAP_UP_AFTER_S == 540
+    finally:
+        importlib.reload(agent_runtime)
