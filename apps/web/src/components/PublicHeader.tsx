@@ -183,7 +183,7 @@ export function PublicHeader({
   return (
     <>
       <header className="sticky top-0 z-50 h-12 bg-[hsl(var(--bg-secondary))] shadow-sm">
-        <div className={`${maxWidth} mx-auto px-4 h-full flex items-center`}>
+        <div className={`${maxWidth} mx-auto px-2.5 sm:px-4 h-full flex items-center`}>
           {/* Logo - 固定左侧 */}
           <Link
             to={getWorkbenchHomeUrl(window.location.href)}
@@ -195,7 +195,7 @@ export function PublicHeader({
           </Link>
 
           {/* 产品下拉菜单 - logo 右侧 */}
-          <div className="relative ml-2 md:ml-4" ref={productMenuRef}>
+          <div className="relative ml-1 sm:ml-2 md:ml-4" ref={productMenuRef}>
             <button
               type="button"
               ref={productMenuTriggerRef}
@@ -218,7 +218,7 @@ export function PublicHeader({
                   setShowProductMenu(false);
                 }
               }}
-              className="min-h-[44px] px-2.5 md:px-3 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors inline-flex items-center gap-1 md:gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+              className="min-h-[44px] px-1.5 sm:px-2.5 md:px-3 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors inline-flex items-center gap-1 md:gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
               aria-expanded={showProductMenu}
               aria-haspopup="menu"
               aria-controls={productMenuId}
@@ -339,7 +339,7 @@ export function PublicHeader({
           </div>
 
           {/* Mobile: Right side */}
-          <div className="flex lg:hidden items-center gap-1 shrink-0">
+          <div className="flex lg:hidden items-center gap-0.5 sm:gap-1 shrink-0">
             {/* Language Switcher */}
             <LanguageSwitcher />
 
