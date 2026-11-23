@@ -120,14 +120,15 @@ AGENT_LOOP_RUN_HISTORY_MAX_TOKENS = get_int_env("AGENT_LOOP_RUN_HISTORY_MAX_TOKE
 AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS = get_int_env("AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS", 120_000)
 
 # Short-TTL Redis cache of the exact SDK wire-format input items at the end of a clean loop
-# turn (agent/loop/wire_prefix_cache.py). Matches MiniMax's ~15m KV-cache window so active
-# multi-turn sessions reuse an identical wire prefix across turns (including pre-run compaction).
+# turn (agent/loop/wire_prefix_cache.py). Matches MiniMax's ~20m KV-cache window (measured
+# 58.6% hit rate in the 15-20m bucket before dropping at 20-30m) so active multi-turn sessions
+# reuse an identical wire prefix across turns (including pre-run compaction).
 # Payloads are stored gzip+base64 compressed (``zsgz1:``) so ~600k-token sessions stay well
 # below ``AGENT_WIRE_PREFIX_CACHE_MAX_BYTES`` (enforced against the stored compressed size).
 # Set <= 0 to disable.
 AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS = get_int_env(
     "AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS",
-    900,
+    1200,
     minimum=None,
 )
 AGENT_WIRE_PREFIX_CACHE_MAX_BYTES = get_int_env(

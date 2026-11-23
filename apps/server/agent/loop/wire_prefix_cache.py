@@ -5,7 +5,7 @@ Why this exists:
   is not persisted, ``call_id``s are synthesized as ``h{row.id}_{i}``, tool outputs are
   reshaped into UI cards, ``<file>`` bodies are stripped, and ``reasoning_content`` plus
   intra-round continuation notes are omitted.
-- When Turn N+1 arrives within the provider's KV-cache window (~15 min on MiniMax),
+- When Turn N+1 arrives within the provider's KV-cache window (~20 min on MiniMax),
   replaying from DB diverges at the very first token of Turn N, wasting 100% of Turn N's
   cached tokens (and breaking pre-run compaction prefix reuse).
 - Caching the exact ``completed_items`` from ``Runner.run_streamed`` in Redis for a short

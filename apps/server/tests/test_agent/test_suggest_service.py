@@ -938,14 +938,16 @@ class TestLanguageDetection:
         # Verify LLM was called
         assert suggest_service.llm.acomplete.called
 
-        # Verify prompt includes English labels
-        call_args = suggest_service.llm.acomplete.call_args
-        # acomplete is called with messages as keyword arg
-        messages = call_args[1]["messages"]  # Get keyword arg 'messages'
-        prompt = messages[0]["content"]  # First message content
+        # Verify prompt uses static English system message and dynamic English user message
+        from agent.suggest_service import ENGLISH_OUTPUT_RULE
 
-        # Should contain English labels
-        assert "Project info:" in prompt or "Recent conversation:" in prompt
+        call_args = suggest_service.llm.acomplete.call_args
+        messages = call_args[1]["messages"]
+        assert [m["role"] for m in messages] == ["system", "user"]
+        assert ENGLISH_OUTPUT_RULE in messages[0]["content"]
+        assert ENGLISH_OUTPUT_RULE not in messages[1]["content"]
+        assert "Project info:" in messages[1]["content"]
+        assert "Recent conversation:" in messages[1]["content"]
 
 
 # =============================================================================
@@ -1223,38 +1225,284 @@ class TestHelperMethods:
         assert suggest_service._get_role_label("user", is_english=True) == "User"
         assert suggest_service._get_role_label("assistant", is_english=True) == "Assistant"
 
-    def test_build_prompt_structure(self, suggest_service):
-        """Test prompt structure includes all sections."""
-        prompt = suggest_service._build_prompt(
+    def test_build_messages_structure(self, suggest_service):
+        """Test message structure separates static system prompt from dynamic user context."""
+        messages = suggest_service._build_messages(
             system_prompt="You are a helpful assistant",
             context="项目上下文",
             recent_messages=[{"role": "user", "content": "Hello"}],
             language="zh",
         )
 
-        assert "You are a helpful assistant" in prompt
-        assert "项目信息:" in prompt
-        assert "项目上下文" in prompt
-        assert "最近对话:" in prompt
+        assert messages == [
+            {"role": "system", "content": "You are a helpful assistant"},
+            {
+                "role": "user",
+                "content": "项目信息:\n项目上下文\n\n最近对话:\n用户: Hello",
+            },
+        ]
 
-    def test_build_prompt_no_context(self, suggest_service):
-        """Test prompt with no context shows placeholder."""
-        prompt = suggest_service._build_prompt(
+    def test_build_messages_no_context(self, suggest_service):
+        """Test user message shows placeholder when context is empty."""
+        messages = suggest_service._build_messages(
             system_prompt="System",
             context="",
             recent_messages=[],
             language="zh",
         )
 
-        assert "(暂无项目信息)" in prompt
+        assert messages[0] == {"role": "system", "content": "System"}
+        assert "(暂无项目信息)" in messages[1]["content"]
+        assert "(暂无对话)" in messages[1]["content"]
 
     def test_english_interface_asks_for_english_suggestions(self, suggest_service):
-        """英文界面的建议提示词要求英文输出；中文界面不变。"""
+        """英文界面的建议提示词把英文规则放在静态 system 消息里；中文界面不变。"""
         from agent.suggest_service import ENGLISH_OUTPUT_RULE
 
-        kwargs = {"system_prompt": "System", "context": "", "recent_messages": []}
-        assert suggest_service._build_prompt(**kwargs, language="en-US").endswith(ENGLISH_OUTPUT_RULE)
-        assert ENGLISH_OUTPUT_RULE not in suggest_service._build_prompt(**kwargs, language="zh")
+        kwargs = {"system_prompt": "System", "context": "Project A", "recent_messages": [{"role": "user", "content": "Hi"}]}
+        en_messages = suggest_service._build_messages(**kwargs, language="en-US")
+        zh_messages = suggest_service._build_messages(**kwargs, language="zh")
+
+        assert en_messages[0]["role"] == "system"
+        assert en_messages[0]["content"] == f"System\n\n{ENGLISH_OUTPUT_RULE}"
+        assert ENGLISH_OUTPUT_RULE not in en_messages[1]["content"]
+        assert ENGLISH_OUTPUT_RULE not in zh_messages[0]["content"]
+        assert ENGLISH_OUTPUT_RULE not in zh_messages[1]["content"]
+
+
+# =============================================================================
+# Prompt Cache Stability Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestSuggestPromptCacheStability:
+    """Verify cache-stable `[system, user]` message layout and provider compatibility."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("project_type", "language"),
+        [
+            ("novel", "zh"),
+            ("short", "zh"),
+            ("screenplay", "zh"),
+            ("novel", "en-US"),
+            ("screenplay", "en"),
+        ],
+    )
+    async def test_system_message_is_byte_identical_across_dynamic_requests(
+        self, suggest_service, project_type, language
+    ):
+        """Two calls with different context and history must share a byte-identical system message."""
+        from agent.prompts import get_suggestion_prompt
+        from agent.suggest_service import ENGLISH_OUTPUT_RULE
+
+        suggest_service.llm.acomplete.return_value = json.dumps({"suggestions": ["建议一", "建议二"]})
+
+        suggest_service.context_assembler.assemble.return_value = ContextData(
+            items=[],
+            context="项目：雾港档案\n主角：温梨",
+            token_estimate=20,
+        )
+        await suggest_service.generate_suggestions(
+            session=MagicMock(),
+            project_id="proj-a",
+            user_id=None,
+            recent_messages=[{"role": "user", "content": "帮我写第一章开场"}],
+            language=language,
+            project_type=project_type,
+        )
+        first_messages = suggest_service.llm.acomplete.call_args.kwargs["messages"]
+
+        suggest_service.context_assembler.assemble.return_value = ContextData(
+            items=[],
+            context="项目：星际列车\n设定：曲速跳跃规则",
+            token_estimate=25,
+        )
+        await suggest_service.generate_suggestions(
+            session=MagicMock(),
+            project_id="proj-b",
+            user_id=None,
+            recent_messages=[
+                {"role": "user", "content": "设计一个反转"},
+                {"role": "assistant", "content": "可以让列车长是卧底。"},
+            ],
+            language=language,
+            project_type=project_type,
+        )
+        second_messages = suggest_service.llm.acomplete.call_args.kwargs["messages"]
+
+        assert [m["role"] for m in first_messages] == ["system", "user"]
+        assert [m["role"] for m in second_messages] == ["system", "user"]
+        assert first_messages[0] == second_messages[0]
+        assert first_messages[0]["content"].encode("utf-8") == second_messages[0]["content"].encode("utf-8")
+
+        base_system = get_suggestion_prompt(project_type)["system_prompt"]
+        if suggest_service._is_english(language):
+            assert first_messages[0]["content"] == f"{base_system}\n\n{ENGLISH_OUTPUT_RULE}"
+            assert ENGLISH_OUTPUT_RULE not in first_messages[1]["content"]
+            assert ENGLISH_OUTPUT_RULE not in second_messages[1]["content"]
+        else:
+            assert first_messages[0]["content"] == base_system
+            assert ENGLISH_OUTPUT_RULE not in first_messages[0]["content"]
+
+        # Dynamic project context must stay strictly in user message, before recent conversation.
+        assert "雾港档案" not in first_messages[0]["content"]
+        assert "雾港档案" in first_messages[1]["content"]
+        assert "星际列车" in second_messages[1]["content"]
+        conv_marker = "Recent conversation:" if suggest_service._is_english(language) else "最近对话:"
+        assert first_messages[1]["content"].index("雾港档案") < first_messages[1]["content"].index(conv_marker)
+        assert second_messages[1]["content"].index("星际列车") < second_messages[1]["content"].index(conv_marker)
+
+    @pytest.mark.asyncio
+    async def test_unchanged_project_context_stays_prefix_stable_before_recent_messages(
+        self, suggest_service
+    ):
+        """When project context is unchanged across turns, user message preserves its leading prefix."""
+        suggest_service.llm.acomplete.return_value = json.dumps({"suggestions": ["写第二章"]})
+        suggest_service.context_assembler.assemble.return_value = ContextData(
+            items=[],
+            context="项目：长安夜行\n角色：沈墨、林霜",
+            token_estimate=30,
+        )
+
+        await suggest_service.generate_suggestions(
+            session=MagicMock(),
+            project_id="proj-stable",
+            user_id=None,
+            recent_messages=[{"role": "user", "content": "第一轮对话"}],
+            language="zh",
+        )
+        turn1_messages = suggest_service.llm.acomplete.call_args.kwargs["messages"]
+
+        await suggest_service.generate_suggestions(
+            session=MagicMock(),
+            project_id="proj-stable",
+            user_id=None,
+            recent_messages=[
+                {"role": "user", "content": "第一轮对话"},
+                {"role": "assistant", "content": "已完成第一章"},
+                {"role": "user", "content": "第二轮新问题"},
+            ],
+            language="zh",
+        )
+        turn2_messages = suggest_service.llm.acomplete.call_args.kwargs["messages"]
+
+        assert turn1_messages[0] == turn2_messages[0]
+        expected_prefix = "项目信息:\n项目：长安夜行\n角色：沈墨、林霜\n\n最近对话:\n"
+        assert turn1_messages[1]["content"].startswith(expected_prefix)
+        assert turn2_messages[1]["content"].startswith(expected_prefix)
+
+    @pytest.mark.asyncio
+    async def test_acomplete_and_failover_handle_system_user_messages_on_deepseek_and_minimax(
+        self, monkeypatch
+    ):
+        """`[system, user]` works through LLMClient.acomplete + llm_failover + cost guard on DeepSeek and MiniMax."""
+        from types import SimpleNamespace
+
+        import httpx
+        import openai
+
+        from agent.core import llm_failover, llm_providers
+        from agent.core.llm_client import LLMClient
+        from agent.suggest_service import RESPONSE_MAX_TOKENS, SuggestService
+        from services.usage import llm_usage_service
+        from services.usage.model_call_guard import install_async_cost_guard
+
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+        monkeypatch.setenv("MINIMAX_API_KEY", "synthetic-minimax")
+        monkeypatch.setenv("LLM_BACKUP_PROVIDER", "deepseek")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "synthetic-deepseek")
+        for name in ("LLM_PRIMARY_MODEL", "LLM_BACKUP_MODEL", "MINIMAX_REASONING_EFFORT"):
+            monkeypatch.delenv(name, raising=False)
+
+        recorded: dict[str, list[dict]] = {"deepseek": [], "minimax": []}
+        scripts: dict[str, list[object]] = {"deepseek": [], "minimax": []}
+        metered: list[tuple[str, str, str | None]] = []
+
+        def _fake_client(provider):
+            async def create(**kwargs):
+                recorded[provider.name].append(kwargs)
+                outcome = scripts[provider.name].pop(0)
+                if isinstance(outcome, BaseException):
+                    raise outcome
+                return outcome
+
+            raw_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+            return install_async_cost_guard(raw_client)
+
+        monkeypatch.setattr(llm_providers, "get_async_client", _fake_client)
+        monkeypatch.setattr("services.usage.model_call_guard.reserve_model_call", lambda _kw: None)
+        monkeypatch.setattr("services.usage.model_call_guard.settle_model_call", lambda *_a: None)
+        monkeypatch.setattr(
+            llm_usage_service,
+            "schedule_llm_usage_record",
+            lambda attr, *, model, timing, **_kw: metered.append((attr.source, model, timing.outcome)),
+        )
+        llm_failover.reset_failover_state()
+
+        try:
+            with patch("agent.suggest_service.get_llm_client", return_value=LLMClient()):
+                svc = SuggestService()
+            svc.context_assembler = MagicMock()
+            svc.context_assembler.assemble.return_value = ContextData(
+                items=[], context="项目：双供应商测试", token_estimate=12
+            )
+
+            ok_resp = SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content='{"suggestions": ["推进下一章", "完善主角动机"]}'),
+                        finish_reason="stop",
+                    )
+                ],
+                usage=SimpleNamespace(prompt_tokens=80, completion_tokens=20, total_tokens=100),
+            )
+            scripts["deepseek"] = [ok_resp]
+            suggestions = await svc.generate_suggestions(
+                session=MagicMock(),
+                project_id="proj-1",
+                user_id="user-1",
+                recent_messages=[{"role": "user", "content": "继续"}],
+                language="zh",
+            )
+            assert suggestions == ["推进下一章", "完善主角动机"]
+            assert len(recorded["deepseek"]) == 1
+            ds_call = recorded["deepseek"][0]
+            assert [m["role"] for m in ds_call["messages"]] == ["system", "user"]
+            assert ds_call["extra_body"] == {"thinking": {"type": "disabled"}}
+            assert ds_call["max_tokens"] == RESPONSE_MAX_TOKENS
+
+            # DeepSeek 503 fails over cleanly to MiniMax with the exact `[system, user]` payload intact.
+            err_503 = openai.InternalServerError(
+                "503",
+                response=httpx.Response(503, request=httpx.Request("POST", "https://llm.test")),
+                body=None,
+            )
+            scripts["deepseek"] = [err_503]
+            scripts["minimax"] = [ok_resp]
+            suggestions_mm = await svc.generate_suggestions(
+                session=MagicMock(),
+                project_id="proj-1",
+                user_id="user-1",
+                recent_messages=[{"role": "user", "content": "继续"}],
+                language="en",
+            )
+            assert suggestions_mm == ["推进下一章", "完善主角动机"]
+            assert len(recorded["minimax"]) == 1
+            mm_call = recorded["minimax"][0]
+            assert [m["role"] for m in mm_call["messages"]] == ["system", "user"]
+            assert "extra_body" not in mm_call
+            assert mm_call["reasoning_effort"] == "low"
+            assert mm_call["max_tokens"] == RESPONSE_MAX_TOKENS + llm_failover.THINKING_HEADROOM_TOKENS
+            assert metered == [
+                ("suggest", "deepseek-flash", "success"),
+                ("suggest", "deepseek-flash", "error"),
+                ("suggest", "MiniMax-M3.1-Flash", "success"),
+            ]
+        finally:
+            llm_failover.reset_failover_state()
 
 
 # =============================================================================

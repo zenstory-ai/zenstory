@@ -1824,3 +1824,32 @@ async def test_skipped_clean_turns_emit_single_info_log_with_skip_reason(
         assert fields.get("skip_reason") == expected_skip_reason
         assert fields.get("session_id") == chat.id
         assert fields.get("stop_reason") == "end_turn"
+
+
+@pytest.mark.unit
+def test_default_wire_prefix_cache_ttl_is_1200_seconds(fake_redis, monkeypatch):
+    """Default TTL matches MiniMax's 20-minute KV-cache retention window."""
+    import importlib
+
+    from config import agent_runtime
+
+    try:
+        with monkeypatch.context() as env:
+            env.delenv("AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS", raising=False)
+            importlib.reload(agent_runtime)
+            assert agent_runtime.AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS == 1200
+
+            stored = wire_prefix_cache.store_wire_prefix(
+                session_id="sess-default-ttl",
+                project_id="proj-1",
+                user_id="user-1",
+                last_assistant_message_id="msg-1",
+                system_prompt="static system prompt",
+                provider_key="minimax:MiniMax-M3.1-Flash:primary",
+                items=_sample_wire_items(),
+            )
+            assert stored is True
+            _raw, ttl = fake_redis.store["agent:wire_prefix:sess-default-ttl"]
+            assert ttl == 1200
+    finally:
+        importlib.reload(agent_runtime)

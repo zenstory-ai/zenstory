@@ -187,8 +187,8 @@ class SuggestService:
             # Step 3: Get prompt configuration for project type
             prompt_config = get_suggestion_prompt(project_type)
 
-            # Step 4: Build complete prompt
-            full_prompt = self._build_prompt(
+            # Step 4: Build cache-stable system + dynamic user messages
+            messages = self._build_messages(
                 system_prompt=prompt_config["system_prompt"],
                 context=context_data.context,
                 recent_messages=recent_messages,
@@ -198,7 +198,9 @@ class SuggestService:
                 logger,
                 logging.DEBUG,
                 "Built suggestion prompt",
-                prompt_length=len(full_prompt),
+                system_prompt_length=len(messages[0]["content"]),
+                user_prompt_length=len(messages[1]["content"]),
+                prompt_length=len(messages[0]["content"]) + len(messages[1]["content"]),
                 project_type=project_type,
                 count=count,
                 language=language,
@@ -207,7 +209,7 @@ class SuggestService:
             # Step 5: Call LLM
             result = await asyncio.wait_for(
                 self.llm.acomplete(
-                    messages=[{"role": "user", "content": full_prompt}],
+                    messages=messages,
                     max_tokens=RESPONSE_MAX_TOKENS,
                     temperature=TEMPERATURE,
                     thinking_enabled=False,
@@ -475,48 +477,60 @@ class SuggestService:
             and len(s.strip()) >= MIN_SUGGESTION_LENGTH
         ]
 
-    def _build_prompt(
+    def _build_system_prompt(
         self,
         system_prompt: str,
+        language: str | None = None,
+    ) -> str:
+        """Build the static, cache-stable system prompt for suggestion generation."""
+        if self._is_english(language):
+            return f"{system_prompt}\n\n{ENGLISH_OUTPUT_RULE}"
+        return system_prompt
+
+    def _build_user_prompt(
+        self,
         context: str,
         recent_messages: list[dict[str, str]],
         language: str | None = None,
     ) -> str:
-        """
-        Build the complete prompt for suggestions generation.
-
-        Args:
-            system_prompt: System prompt from prompt config
-            context: Assembled project context
-            recent_messages: List of recent messages
-            language: Language preference
-
-        Returns:
-            Complete prompt string
-        """
+        """Build the dynamic user prompt with slower-changing context before recent chat."""
         is_english = self._is_english(language)
-
-        # Format conversation history
         chat_str = self._format_chat_history(recent_messages, is_english)
 
-        # Build prompt sections
         context_label = "项目信息:" if not is_english else "Project info:"
         conversation_label = "最近对话:" if not is_english else "Recent conversation:"
         no_context_text = "(暂无项目信息)" if not is_english else "(No project context)"
 
-        prompt_parts = [
-            system_prompt,
-            "",
+        return "\n".join([
             context_label,
             context or no_context_text,
             "",
             conversation_label,
             chat_str,
-        ]
-        if is_english:
-            prompt_parts += ["", ENGLISH_OUTPUT_RULE]
+        ])
 
-        return "\n".join(prompt_parts)
+    def _build_messages(
+        self,
+        system_prompt: str,
+        context: str,
+        recent_messages: list[dict[str, str]],
+        language: str | None = None,
+    ) -> list[dict[str, str]]:
+        """Build `[system, user]` messages so the static instructions stay prefix-cacheable."""
+        return [
+            {
+                "role": "system",
+                "content": self._build_system_prompt(system_prompt, language=language),
+            },
+            {
+                "role": "user",
+                "content": self._build_user_prompt(
+                    context=context,
+                    recent_messages=recent_messages,
+                    language=language,
+                ),
+            },
+        ]
 
     def _is_english(self, language: str | None) -> bool:
         """
