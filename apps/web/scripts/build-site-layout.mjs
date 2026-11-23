@@ -75,6 +75,8 @@ export const vercelConfig = {
     {source:'/locales/(.*)',has:[{type:'query',key:'v'}],headers:[{key:'Cache-Control',value:'public, max-age=31536000, immutable'}]},
     // Unhashed shared files may change in place: fresh for an hour, then refreshed in the background.
     {source:'/:path((?:brand|org)/.*|favicon\\.svg)',headers:[{key:'Cache-Control',value:'public, max-age=3600, stale-while-revalidate=86400'}]},
+    // Self-hosted font subsets are unhashed; keep fresh for a week with background revalidation.
+    {source:'/fonts/(.*)',headers:[{key:'Cache-Control',value:'public, max-age=604800, stale-while-revalidate=86400'}]},
     // Compatibility clients probe the conventional root ICO even when the page advertises an SVG.
     // Keep it fresh for a week without claiming an unversioned URL is immutable.
     {source:'/favicon.ico',headers:[{key:'Cache-Control',value:'public, max-age=604800'}]},
@@ -92,8 +94,8 @@ export const vercelConfig = {
       rewrite(`/${name}`,`/_site/${name}`,`${siteHosts}|.*\\.vercel\\.app`),
     ]),
     // Existing static docs/project/legal pages are found before these fallbacks.
-    // Missing Vite assets and unknown apex/reserved URLs must remain platform 404s.
-    rewrite('/:path((?!api(?:/|$)|assets(?:/|$)|_app(?:/|$)|_site(?:/|$)|org-home(?:/|$)).*)','/_app/index.html',`${appHosts}|.*\\.vercel\\.app`),
+    // Missing Vite assets, self-hosted fonts and unknown apex/reserved URLs must remain platform 404s.
+    rewrite('/:path((?!api(?:/|$)|assets(?:/|$)|fonts(?:/|$)|_app(?:/|$)|_site(?:/|$)|org-home(?:/|$)).*)','/_app/index.html',`${appHosts}|.*\\.vercel\\.app`),
   ],
 }
 

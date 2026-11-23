@@ -2,6 +2,47 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ========================================
+   Self-hosted Latin/Mono Variable Fonts (OFL-1.1)
+   CJK glyphs intentionally fall back to native OS fonts for 0ms first paint.
+   ======================================== */
+
+@font-face {
+    font-family: "Crimson Pro";
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url("/fonts/crimson-pro-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Source Serif 4";
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url("/fonts/source-serif-4-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Plus Jakarta Sans";
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url("/fonts/plus-jakarta-sans-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 400 500;
+    font-display: swap;
+    src: url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ========================================
    CSS Variables - React Workbench Design System
    Canonical usage and migration rules are documented in repository DESIGN.md
    ======================================== */
@@ -9,11 +50,11 @@
 :root {
     --app-viewport-height: 100dvh;
     --app-viewport-top: 0px;
-    /* Font System - Literary serif for reading, sans-serif for UI */
-    --font-display: "Crimson Pro", "Noto Serif SC", Georgia, serif;
-    --font-body: "Source Serif 4", "Noto Serif SC", Georgia, serif;
-    --font-sans: "Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-mono: "Fira Code", "JetBrains Mono", Consolas, Monaco, monospace;
+    /* Font System - Literary serif for reading, sans-serif for UI (self-hosted Latin + system CJK) */
+    --font-display: "Crimson Pro", "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", Georgia, serif;
+    --font-body: "Source Serif 4", "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", Georgia, serif;
+    --font-sans: "Plus Jakarta Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
 
     /* Theme variables (set by ThemeContext) */
     --bg-primary: 225 14% 9%;
