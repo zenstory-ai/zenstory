@@ -53,13 +53,15 @@ def system_prompt_sha256(system_prompt: str) -> str:
 
 
 def provider_cache_key(provider: Any) -> str | None:
-    """Canonical ``provider:model:key_slot`` identity for cache-affinity validation."""
+    """Canonical ``provider:model:key_slot[:responses]`` identity for cache-affinity validation."""
     name = getattr(provider, "name", None)
     model = getattr(provider, "model", None)
     key_slot = getattr(provider, "key_slot", None)
     if not isinstance(name, str) or not name or not isinstance(model, str) or not model:
         return None
     slot = key_slot if isinstance(key_slot, str) and key_slot else "primary"
+    if getattr(provider, "uses_responses_api", False) is True:
+        return f"{name}:{model}:{slot}:responses"
     return f"{name}:{model}:{slot}"
 
 

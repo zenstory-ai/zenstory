@@ -1188,10 +1188,21 @@ async def run_openai_agents_streaming_agent(
             return
 
         last_output_tokens = _last_response_output_tokens(result)
+        sdk_model_capped = bool(
+            getattr(getattr(sdk_agent, "model", None), "last_response_output_capped", False)
+        )
+        output_at_cap = sdk_model_capped or (
+            AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS > 0
+            and last_output_tokens >= AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS * OUTPUT_CAP_RATIO
+        )
+        stop_basis = (
+            "response_incomplete_max_output_tokens"
+            if sdk_model_capped
+            else "usage_output_tokens_at_cap"
+        )
         if (
             not max_turns_exhausted
-            and AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS > 0
-            and last_output_tokens >= AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS * OUTPUT_CAP_RATIO
+            and output_at_cap
             and _last_response_is_thinking_only(result)
         ):
             # 最后一次响应只有思考（没有正文、没有工具调用），又撞上了输出上限，本 run
@@ -1207,7 +1218,7 @@ async def run_openai_agents_streaming_agent(
                 output_tokens=last_output_tokens,
                 max_output_tokens=AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS,
                 thinking_chars=thinking_chars,
-                stop_basis="usage_output_tokens_at_cap",
+                stop_basis=stop_basis,
                 model_turns=len(getattr(result, "raw_responses", None) or []),
             )
             truncation_count = state["previous_output_truncations"] + 1
@@ -1341,8 +1352,7 @@ async def run_openai_agents_streaming_agent(
         message_end: dict[str, Any] = {"stop_reason": run_stop_reason, "usage": usage}
         if (
             (not turns_exhausted or time_landed)
-            and AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS > 0
-            and last_output_tokens >= AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS * OUTPUT_CAP_RATIO
+            and output_at_cap
         ):
             # 最后一次响应写了正文或工具调用，同时撞上输出上限：run 照常结束（stop_reason 不变），
             # 但它的文字可能停在半句话上。loop 引擎据此区分「<file> 正文被输出上限截断」与「正文写完」。
@@ -1354,7 +1364,7 @@ async def run_openai_agents_streaming_agent(
                 agent_type=agent_type,
                 output_tokens=last_output_tokens,
                 max_output_tokens=AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS,
-                stop_basis="usage_output_tokens_at_cap",
+                stop_basis=stop_basis,
             )
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data=message_end)
 

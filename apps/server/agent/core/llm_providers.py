@@ -49,6 +49,11 @@ SLOT_PRIMARY = "primary"
 SLOT_BACKUP = "backup"
 KEY_SLOT_PRIMARY = "primary"
 KEY_SLOT_SECONDARY = "secondary"
+API_SURFACE_CHAT_COMPLETIONS = "chat_completions"
+API_SURFACE_RESPONSES = "responses"
+_VALID_API_SURFACES = frozenset({API_SURFACE_CHAT_COMPLETIONS, API_SURFACE_RESPONSES})
+_PROMPT_CACHE_KEY_PREFIX = "zs:"
+_PROMPT_CACHE_KEY_MAX_LEN = 64
 _MINIMAX_SECONDARY_DEFAULT_WEIGHT_PERCENT = 20
 # Coprime with 100: a full context-free cycle visits each percentage bucket once.
 _MINIMAX_ROTATION_STEP = 37
@@ -91,6 +96,9 @@ class ProviderKind:
     # first byte, which grows with uncached input length.
     read_timeout_env: str = "DEEPSEEK_CLIENT_TIMEOUT_S"
     default_read_timeout_s: float = 45.0
+    # API surface for the writing agent loop and compaction: "responses" or "chat_completions".
+    api_surface_env: str | None = None
+    default_api_surface: str = API_SURFACE_CHAT_COMPLETIONS
 
     def read_timeout_s(self) -> float:
         return get_positive_float_env(self.read_timeout_env, self.default_read_timeout_s)
@@ -123,12 +131,27 @@ MINIMAX = ProviderKind(
     # production inputs reach 260k tokens.
     read_timeout_env="MINIMAX_CLIENT_TIMEOUT_S",
     default_read_timeout_s=120.0,
+    # Instant env-only rollback to /v1/chat/completions via MINIMAX_API_SURFACE=chat_completions.
+    api_surface_env="MINIMAX_API_SURFACE",
+    default_api_surface=API_SURFACE_RESPONSES,
 )
 
 PROVIDER_KINDS: dict[str, ProviderKind] = {kind.name: kind for kind in (DEEPSEEK, MINIMAX)}
 
 # Effort used in place of "thinking off" on a provider that cannot turn it off.
 _LOWEST_EFFORT_ORDER = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
+
+
+def prompt_cache_key_for_session(session_id: str | None) -> str | None:
+    """Deterministic ``prompt_cache_key`` for a chat session (shared by loop and compaction)."""
+    cleaned = (session_id or "").strip()
+    if not cleaned:
+        return None
+    candidate = f"{_PROMPT_CACHE_KEY_PREFIX}{cleaned}"
+    if len(candidate) <= _PROMPT_CACHE_KEY_MAX_LEN:
+        return candidate
+    digest = hashlib.sha256(cleaned.encode("utf-8")).hexdigest()[:32]
+    return f"{_PROMPT_CACHE_KEY_PREFIX}{digest}"
 
 
 @dataclass(frozen=True)
@@ -143,10 +166,15 @@ class ModelProvider:
     reasoning_effort: str | None
     # Safe credential identity for diagnostics. Never log ``api_key`` itself.
     key_slot: str = KEY_SLOT_PRIMARY
+    api_surface: str = API_SURFACE_CHAT_COMPLETIONS
 
     @property
     def name(self) -> str:
         return self.kind.name
+
+    @property
+    def uses_responses_api(self) -> bool:
+        return self.api_surface == API_SURFACE_RESPONSES
 
     def reasoning_effort_for(self, requested: str | None, *, thinking_enabled: bool = True) -> str | None:
         """The ``reasoning_effort`` to send, or None to send nothing."""
@@ -165,6 +193,23 @@ class ModelProvider:
         effort = self.reasoning_effort_for(reasoning_effort, thinking_enabled=thinking_enabled)
         if effort:
             options["reasoning_effort"] = effort
+        return options
+
+    def responses_request_options(
+        self,
+        *,
+        thinking_enabled: bool = True,
+        reasoning_effort: str | None = None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Provider-specific Responses API kwargs (stateless store, cache key, reasoning)."""
+        options: dict[str, Any] = {"store": False}
+        cache_key = prompt_cache_key_for_session(session_id)
+        if cache_key:
+            options["prompt_cache_key"] = cache_key
+        effort = self.reasoning_effort_for(reasoning_effort, thinking_enabled=thinking_enabled)
+        if effort:
+            options["reasoning"] = {"effort": effort}
         return options
 
 
@@ -358,6 +403,11 @@ def _build_provider(
         raw = (os.getenv(kind.reasoning_effort_env) or "").strip().lower()
         if raw in kind.reasoning_efforts:
             effort = raw
+    surface = kind.default_api_surface
+    if kind.api_surface_env:
+        raw_surface = (os.getenv(kind.api_surface_env) or "").strip().lower()
+        if raw_surface in _VALID_API_SURFACES:
+            surface = raw_surface
     api_key, key_slot = (
         _minimax_key(routing_key, rotate_if_unkeyed=rotate_if_unkeyed, run_id=run_id)
         if kind is MINIMAX
@@ -371,6 +421,7 @@ def _build_provider(
         base_url=os.getenv(kind.base_url_env) or kind.default_base_url,
         reasoning_effort=effort,
         key_slot=key_slot,
+        api_surface=surface,
     )
 
 

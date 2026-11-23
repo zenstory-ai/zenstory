@@ -496,6 +496,7 @@ async def test_turn_n_plus_1_exact_wire_prefix_round_trip_through_agent_service(
     monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
     monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
     monkeypatch.setenv("MINIMAX_API_KEY", "sk-test-minimax")
+    monkeypatch.setenv("MINIMAX_API_SURFACE", "chat_completions")
     monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
     monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY", raising=False)
     sdk_model.reset_sdk_model_cache()
@@ -649,7 +650,7 @@ async def test_incomplete_or_error_turn_does_not_store_wire_prefix(db_session: S
 
     def fake_error_loop(state, **_kwargs):
         state["run_items"] = _sample_wire_items()
-        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary:responses"
 
         async def _stream():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "写了一半"})
@@ -719,7 +720,7 @@ async def test_dual_key_slot_switch_misses_wire_prefix_cache_and_falls_back_to_d
             {"role": "user", "content": "<turn_context>LIVE_WIRE_MARKER</turn_context>\n\n第一轮"},
             {"role": "assistant", "content": "第一轮完成"},
         ]
-        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary:responses"
 
         async def _stream():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "第一轮完成"})
@@ -1032,6 +1033,7 @@ async def test_soft_landed_wall_clock_run_stores_wire_prefix_and_turn_n_plus_1_h
     monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
     monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
     monkeypatch.setenv("MINIMAX_API_KEY", "sk-test-minimax")
+    monkeypatch.setenv("MINIMAX_API_SURFACE", "chat_completions")
     monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
     monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY", raising=False)
     sdk_model.reset_sdk_model_cache()
@@ -1225,7 +1227,7 @@ async def test_clean_max_turns_and_between_runs_wrap_up_store_wire_prefix(
             {"role": "user", "content": "<turn_context>SOFT_LAND_WIRE_MARKER</turn_context>\n\n第一轮"},
             {"role": "assistant", "content": "阶段总结"},
         ]
-        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary:responses"
 
         async def _stream():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "阶段总结"})
@@ -1335,7 +1337,7 @@ async def test_unclean_or_skipped_turns_skip_store_and_invalidate_stale_cache(
                 {"type": "function_call", "call_id": "call_dangling", "name": "query_files", "arguments": "{}"},
             ]
         state["run_items"] = items
-        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary:responses"
 
         async def _stream():
             if case == "pending_empty_file":
@@ -1458,7 +1460,7 @@ async def test_cancelled_user_stopped_and_client_disconnected_invalidate_stale_w
 
     def fake_loop(state, **_kwargs):
         state["run_items"] = _sample_wire_items()
-        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary:responses"
 
         async def _stream():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "写了一半被停"})
@@ -1556,7 +1558,7 @@ async def test_soft_landed_turn_with_unconsumed_steering_skips_cache_and_falls_b
                 {"role": "user", "content": "<turn_context>STALE_WIRE_NO_STEER</turn_context>\n\n写第一章"},
                 {"role": "assistant", "content": "时间快到了，先总结。"},
             ]
-            state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+            state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary:responses"
             if get_steering_messages is not None:
                 await get_steering_messages()
             state["pending_steering"] = [steering_text]
@@ -1677,7 +1679,7 @@ async def test_cancellation_during_history_save_task_invalidates_stale_wire_pref
 
     def fake_loop(state, **_kwargs):
         state["run_items"] = _sample_wire_items()
-        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary:responses"
 
         async def _stream():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "正常完成"})
@@ -1777,7 +1779,7 @@ async def test_skipped_clean_turns_emit_single_info_log_with_skip_reason(
         state["run_items"] = _sample_wire_items()
         if case == "unconsumed_steering":
             state["pending_steering"] = ["未消费插话"]
-        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+        state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary:responses"
 
         async def _stream():
             if case == "pending_file_state":
@@ -1876,6 +1878,7 @@ async def test_wall_clock_wrap_up_blocks_disobedient_tool_calls_and_preserves_wi
     monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
     monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
     monkeypatch.setenv("MINIMAX_API_KEY", "sk-test-minimax")
+    monkeypatch.setenv("MINIMAX_API_SURFACE", "chat_completions")
     monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
     monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY", raising=False)
     sdk_model.reset_sdk_model_cache()
@@ -2074,6 +2077,7 @@ async def test_wall_clock_wrap_up_hard_stops_stubborn_tool_loop_and_skips_malfor
     monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
     monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
     monkeypatch.setenv("MINIMAX_API_KEY", "sk-test-minimax")
+    monkeypatch.setenv("MINIMAX_API_SURFACE", "chat_completions")
     monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
     monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY", raising=False)
     sdk_model.reset_sdk_model_cache()

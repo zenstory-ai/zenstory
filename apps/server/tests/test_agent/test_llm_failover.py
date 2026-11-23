@@ -292,6 +292,7 @@ def _chunk(*, role: str | None = None, content: str | None = None, finish_reason
 @pytest.fixture
 def chunk_endpoints(endpoints, monkeypatch):
     """Real SDK Chat Completions models whose clients stream scripted chunks, then optionally fail."""
+    monkeypatch.setenv("MINIMAX_API_SURFACE", "chat_completions")
     scripts: dict[str, tuple[list, BaseException | None]] = {}
     calls: dict[str, int] = {"minimax": 0, "deepseek": 0}
     clients: dict[str, openai.AsyncOpenAI] = {}
@@ -1199,6 +1200,7 @@ def _tool():
 @pytest.fixture
 def recorded_requests(endpoints, monkeypatch):
     """Real SDK models on clients that record each request's arguments and stream a short answer."""
+    monkeypatch.setenv("MINIMAX_API_SURFACE", "chat_completions")
     requests: list[tuple[str, dict]] = []
     failures: dict[str, BaseException] = {}
     # Non-streaming answers, in order (default: a <file> body).

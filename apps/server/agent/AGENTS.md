@@ -1,8 +1,8 @@
 # Agent 模块架构指南
 
 ZenStory 写作 agent 的服务端：由**单循环 agent**（`loop/`）跑完每一轮——一个模型、写作工具集、
-一份只追加的对话 → openai-agents-python 运行时（OpenAI 兼容 Chat Completions，主备两个供应商，见 `core/llm_providers.py` /
-`core/llm_failover.py`）→ SSE。决策见 [single-loop-agent][n-loop]。原来的多角色工作流（路由 → planner / hook_designer / writer /
+一份只追加的对话 → openai-agents-python 运行时（主备两个供应商，见 `core/llm_providers.py` /
+`core/llm_failover.py`：MiniMax 默认走 OpenAI `/v1/responses` + `store=False` + 会话确定性 `prompt_cache_key`，可由 `MINIMAX_API_SURFACE=chat_completions` 环境变量即时回滚；DeepSeek 严格走 `/v1/chat/completions`；[minimax-responses-api][n-minimax-responses]）→ SSE。决策见 [single-loop-agent][n-loop]。原来的多角色工作流（路由 → planner / hook_designer / writer /
 quality_reviewer）已删除（[remove-graph-agent][n-remove-graph]）：它写下的旧会话行只读回放（`loop/history.py` 的 `_legacy_row_items` →
 `SessionLoader._format_chat_message_for_history`），前端照常展示；回滚 = 从 git 检出删除前的提交重新部署。
 
@@ -349,3 +349,4 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-pydantic-tool-inputs]: ../../../.agents/notes/implemented/simplification/2026-11-21-agent-pydantic-tool-inputs.md
 [n-tier0-quota]: ../../../.agents/notes/implemented/architecture/2026-11-22-tier0-minimax-quota-safety.md
 [n-loop-prompt-tuning]: ../../../.agents/notes/implemented/feature/2026-11-22-single-loop-agent-prompt-tuning.md
+[n-minimax-responses]: ../../../.agents/notes/implemented/architecture/2026-11-23-minimax-responses-api-prompt-cache-key.md
