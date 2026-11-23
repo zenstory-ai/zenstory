@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agent.openai_agents.events import parse_json_object, tool_error_text
+from agent.openai_agents.repeat_edit_guard import EDIT_GUARD_ERROR_TYPES
 from agent.openai_agents.repeat_read_guard import GUARD_ERROR_TYPES
 
 # 同一调用以等价错误连续失败多少次后熔断。取 3：第 1 次失败让模型看到错误，
@@ -259,7 +260,7 @@ class ToolFailureBreaker:
         key = (tool_name, _normalize_arguments(raw_arguments))
         payload = _parse_error_payload(output_text)
         if payload is not None and payload.get("error_type") in (
-            GUARD_ERROR_TYPES | _PARALLEL_BATCH_ORDERING_ERROR_TYPES
+            GUARD_ERROR_TYPES | EDIT_GUARD_ERROR_TYPES | _PARALLEL_BATCH_ORDERING_ERROR_TYPES
         ):
             return output_text
         if payload is None:
@@ -367,9 +368,9 @@ def _with_recovery_hint(output_text: str, error_type: str, count: int, threshold
     else:
         recovery = (
             "同一文件已连续定位失败。先用 query_files 按准确 id 重读当前文件"
-            "（仅超过 15000 字的超长文件才传 query=关键词 精确取命中片段，或传 start_char 与 max_chars 按范围读取），"
+            "（仅超过 25000 字的超长文件才传 query=关键词 精确取命中片段，或传 start_char 与 max_chars 按范围读取），"
             "从结果复制较短、逐字、唯一的 old/anchor；同一文件的多处独立修改合并进一次 edit_file(..., continue_on_error=true) "
-            "批量提交（超过 15 处或相互依赖时再拆分）；不要放宽匹配或整篇覆盖。"
+            "批量提交（超过 30 处或相互依赖时再拆分）；不要放宽匹配或整篇覆盖。"
         )
         hinted["retry_hint"] = recovery
         return json.dumps(hinted, ensure_ascii=False)

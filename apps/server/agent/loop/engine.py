@@ -37,6 +37,7 @@ from agent.core.stream_processor import LEAKED_TOOL_CALL_STOP_REASON
 from agent.core.workflow_events import FileBodyResume, StreamEvent, StreamEventType
 from agent.core.writing_state import WritingState
 from agent.openai_agents.events import parse_mcp_tool_payload
+from agent.openai_agents.repeat_edit_guard import RepeatEditGuard
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.runner import (
     OUTPUT_CAPPED_KEY,
@@ -468,6 +469,7 @@ async def run_loop_agent_streaming(
     state["request_context"] = req_ctx
     state["tool_failure_breaker"] = ToolFailureBreaker()
     state["repeat_read_guard"] = RepeatReadGuard(request_context=req_ctx)
+    state["repeat_edit_guard"] = RepeatEditGuard(request_context=req_ctx)
     if not isinstance(state.get("run_meter"), AgentRunMeter):
         state["run_meter"] = AgentRunMeter()
     run_meter: AgentRunMeter = state["run_meter"]

@@ -40,6 +40,7 @@ from agent.openai_agents.events import (
     tool_error_text,
 )
 from agent.openai_agents.model import build_failover_chat_model
+from agent.openai_agents.repeat_edit_guard import RepeatEditGuard
 from agent.openai_agents.repeat_read_guard import (
     NO_PROGRESS_STOP_REASON,
     RepeatReadGuard,
@@ -583,6 +584,7 @@ def _build_agent(
     failure_breaker: ToolFailureBreaker | None = None,
     run_meter: AgentRunMeter | None = None,
     read_guard: RepeatReadGuard | None = None,
+    edit_guard: RepeatEditGuard | None = None,
     request_context: AgentRequestContext | None = None,
 ) -> Any:
     # NOTE — Agent.as_tool was evaluated and rejected.
@@ -641,6 +643,7 @@ def _build_agent(
         tools=build_agent_function_tools(
             failure_breaker=failure_breaker,
             read_guard=read_guard,
+            edit_guard=edit_guard,
             run_meter=run_meter,
         ),
         # 工具失败熔断等终态时即结束 run，避免 SDK 再跑一整轮模型调用并真实执行其工具
@@ -776,6 +779,14 @@ async def run_openai_agents_streaming_agent(
     )
     if read_guard.request_context is None:
         read_guard.request_context = req_ctx
+    shared_edit_guard = state.get("repeat_edit_guard")
+    edit_guard = (
+        shared_edit_guard
+        if isinstance(shared_edit_guard, RepeatEditGuard)
+        else RepeatEditGuard(request_context=req_ctx)
+    )
+    if edit_guard.request_context is None:
+        edit_guard.request_context = req_ctx
     previous_items = state.get("run_items")
     continuing = isinstance(previous_items, list) and bool(previous_items)
     if not continuing:
@@ -863,6 +874,7 @@ async def run_openai_agents_streaming_agent(
             failure_breaker=failure_breaker,
             run_meter=run_meter,
             read_guard=read_guard,
+            edit_guard=edit_guard,
             request_context=req_ctx,
         )
         # 外层计数器给请求级模型调用预算记账（每次模型调用前调用一次），并在
@@ -1358,6 +1370,8 @@ async def run_openai_agents_streaming_agent(
             stop_reason=run_stop_reason,
             duplicate_reads=read_guard.duplicate_reads,
             blocked_reads=read_guard.blocked_reads,
+            blocked_edits=edit_guard.blocked_edits,
+            guarded_self_reads=edit_guard.guarded_self_reads,
             duration_ms=round((time.monotonic() - run_started_at) * 1000, 1),
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),

@@ -9,6 +9,7 @@ from typing import Any
 
 from agent.core.run_meter import AgentRunMeter
 from agent.openai_agents.events import extract_tool_result_text, tool_error_text
+from agent.openai_agents.repeat_edit_guard import RepeatEditGuard
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.tool_failure_breaker import (
     ToolFailureBreaker,
@@ -230,6 +231,7 @@ def build_agent_function_tools(
     *,
     failure_breaker: ToolFailureBreaker | None = None,
     read_guard: RepeatReadGuard | None = None,
+    edit_guard: RepeatEditGuard | None = None,
     run_meter: AgentRunMeter | None = None,
 ) -> list[Any]:
     """Build SDK FunctionTool instances for the loop agent's toolset.
@@ -239,6 +241,8 @@ def build_agent_function_tools(
     read_guard：本次请求的重复读取守卫。query_files(id) 执行前经它判定（同一文件第 4 次起不执行），执行后经它记账、附提示；
     写工具成功会清零对应文件的读取计数。守卫判定无进展后，同一轮里剩下的调用
     同样不再执行。
+    edit_guard：本次请求的串行微调收敛守卫（兼刚写章节自读拦截）。在 edit_file / query_files
+    执行前按结构化计数与增量判定，不触发致命熔断。
     run_meter：请求级耗时记录器。只有熔断、待补正文与重复读取守卫都放行后，
     才记录首次工具开始并计量实际工具调用耗时；返回成功只表示调用结束，不代表业务写入成功。
     """
@@ -302,15 +306,21 @@ def build_agent_function_tools(
                 run_meter.record_tool_failure(
                     _tool_name, WALL_CLOCK_WRAP_UP_ERROR_TYPE, rolled_back_batch=False
                 )
-            elif read_guard is not None:
-                plan = read_guard.plan(_tool_name, raw_arguments)
-                if plan.blocked_output is not None:
-                    output = plan.blocked_output
-                else:
-                    output = await invoke_allowed(plan.arguments)
-                    output = read_guard.observe(_tool_name, plan, output)
             else:
-                output = await invoke_allowed(raw_arguments)
+                edit_plan = edit_guard.plan(_tool_name, raw_arguments) if edit_guard is not None else None
+                if edit_plan is not None and edit_plan.blocked_output is not None:
+                    output = edit_plan.blocked_output
+                elif read_guard is not None:
+                    plan = read_guard.plan(_tool_name, raw_arguments)
+                    if plan.blocked_output is not None:
+                        output = plan.blocked_output
+                    else:
+                        output = await invoke_allowed(plan.arguments)
+                        output = read_guard.observe(_tool_name, plan, output)
+                else:
+                    output = await invoke_allowed(raw_arguments)
+                if edit_guard is not None and edit_plan is not None and edit_plan.blocked_output is None:
+                    output = edit_guard.observe(_tool_name, edit_plan, output)
             if cancelled_id is not None and _deleted(output) and req_ctx is not None:
                 # 待写文件确实删掉了：守卫随这次删除结果收敛（StreamAdapter 按同一结果解除捕获），
                 # 模型在本 run 里接着做别的不会再被它拒绝；run 边界的「已删除」核验照旧兜底。

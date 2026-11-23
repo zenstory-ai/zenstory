@@ -91,8 +91,8 @@ QUERY_FILES_TOOL: dict[str, Any] = build_tool_schema(
     description=(
         "查询和搜索项目中的文件。按 id 读取单个文件或按 ids 一次批量读取 2–5 个已知文件，默认返回全文（content）；"
         "列表/关键词查询默认返回 summary（content_preview + content_length + content_truncated，不含全文）。"
-        "仅在超过 15000 字的超长文件只需要其中一段时按范围读：section（章节/分集标题，如「第3章」）、"
-        "tail_chars（结尾若干字，续写只需前文结尾时用）或 start_char + max_chars（仅用于超过 15000 字的超长文件，常规长度文件直接读全文，不要分段翻页）；"
+        "仅在超过 25000 字的超长文件只需要其中一段时按范围读：section（章节/分集标题，如「第3章」）、"
+        "tail_chars（结尾若干字，续写只需前文结尾时用）或 start_char + max_chars（仅用于超过 25000 字的超长文件，常规长度文件直接读全文，不要分段翻页）；"
         "结果的 content_range / content_partial 说明读到了哪一段，范围外的正文没有读到。作者要求通篇检查或改动牵涉全文时仍读全文。"
         "本轮已经读过的文件仍在上下文里，不要重复读取。"
         f"{WORD_COUNT_CONTRACT}"

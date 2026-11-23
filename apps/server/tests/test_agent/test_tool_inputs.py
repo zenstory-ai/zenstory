@@ -141,7 +141,7 @@ def test_exported_schemas_preserve_required_properties_constraints_and_open_meta
     assert TOOL_SCHEMAS["rename_file"]["input_schema"]["required"] == ["id", "title"]
     assert TOOL_SCHEMAS["rename_file"]["input_schema"]["properties"]["title"]["maxLength"] == 255
 
-    # query_files: Batch B ids maxItems=5, >15000 guidance, range constraints, defaults
+    # query_files: Batch B ids maxItems=5, >25000 guidance, range constraints, defaults
     qf_schema = TOOL_SCHEMAS["query_files"]["input_schema"]
     assert qf_schema["required"] == []
     qf_props = qf_schema["properties"]
@@ -154,8 +154,8 @@ def test_exported_schemas_preserve_required_properties_constraints_and_open_meta
     assert qf_props["start_char"]["minimum"] == 0
     assert qf_props["max_chars"]["minimum"] == 1
     assert qf_props["include_content"]["default"] is False
-    assert "15000" in qf_props["start_char"]["description"]
-    assert "15000" in qf_props["max_chars"]["description"]
+    assert "25000" in qf_props["start_char"]["description"]
+    assert "25000" in qf_props["max_chars"]["description"]
 
     # update_project: tasks.items & unit_spec keep additionalProperties=False, uniqueItems, minItems/maxItems
     up_schema = TOOL_SCHEMAS["update_project"]["input_schema"]
