@@ -31,7 +31,7 @@ import { join, resolve } from 'node:path'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
-import { SITE, appHref, LANGS, LOCALE, webRoot, org, projects, esc, orgNode, arrowGlyph, extGlyph, localized, alternatesOf, page as shellPage, t as tt, HOME_FONTS, homeLanguageScript } from './site-shell.mjs'
+import { SITE, appHref, LANGS, LOCALE, webRoot, org, projects, esc, orgNode, arrowGlyph, extGlyph, localized, alternatesOf, page as shellPage, t as tt, homeLanguageScript } from './site-shell.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const outDir = resolve(process.argv[2] ?? join(webRoot, 'dist'))
@@ -583,7 +583,7 @@ const homePage = () => {
   </div></section>
 </article>
 ${playerScript}${carouselScript}`
-  write(route, page({ route, title, description, ogType: 'website', ld, body, pageId: 'home', fonts: HOME_FONTS, head: LANG === 'en' ? homeLanguageScript : '' }))
+  write(route, page({ route, title, description, ogType: 'website', ld, body, pageId: 'home', head: LANG === 'en' ? homeLanguageScript : '' }))
 }
 
 // ---------- project pages ----------

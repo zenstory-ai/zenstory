@@ -1137,8 +1137,8 @@ export const SimpleEditor = ({
 
       {/* Status bar - hide during review mode */}
       {!isReviewMode && (
-        <div className="shrink-0 px-4 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))]">
-          <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-secondary))]">
+        <div className="shrink-0 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))]">
+          <div className="flex items-center gap-2.5 text-xs text-[hsl(var(--text-secondary))] whitespace-nowrap">
             {/* Counts Chinese characters and English words only, so it reads lower than
                 platforms that count punctuation; say so on hover and on tap. */}
             <button
@@ -1167,13 +1167,13 @@ export const SimpleEditor = ({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             {/* Version history button */}
             {fileId && (
               <button
                 type="button"
                 onClick={() => setShowVersionHistory(true)}
-                className="max-md:min-h-11 px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg flex items-center gap-1 transition-colors"
+                className="max-md:min-h-11 px-1.5 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg flex items-center gap-1 whitespace-nowrap transition-colors"
                 title={t('versions:title')}
               >
                 <History size={14} />
@@ -1192,7 +1192,7 @@ export const SimpleEditor = ({
                   isNaturalPolishBusy ||
                   !hasPolishableContent
                 }
-                className="max-md:min-h-11 px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                className="max-md:min-h-11 px-1.5 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg flex items-center gap-1 whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 title={
                   !projectId
                     ? t("editor:naturalPolishMissingContext")
@@ -1228,14 +1228,14 @@ export const SimpleEditor = ({
 
             {/* Save status */}
             {isSaving ? (
-              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1">
+              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1 whitespace-nowrap">
                 <Clock size={12} className="animate-spin" />
                 {t('editor:saving')}
               </span>
             ) : isDirty ? (
-              <span className="text-xs text-[hsl(var(--warning-text))]">{t('editor:unsaved')}</span>
+              <span className="text-xs text-[hsl(var(--warning-text))] whitespace-nowrap">{t('editor:unsaved')}</span>
             ) : lastSaved ? (
-              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1">
+              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1 whitespace-nowrap">
                 <Check size={12} className="text-[hsl(var(--success-text))]" />
                 <SavedAgoLabel savedAt={lastSaved} />
               </span>
@@ -1246,7 +1246,7 @@ export const SimpleEditor = ({
               type="button"
               onClick={() => void handleSave()}
               disabled={isSaving || !isDirty || readOnly || isStreaming}
-              className="max-md:min-h-11 px-3 py-1.5 text-xs bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
+              className="max-md:min-h-11 px-2.5 py-1.5 text-xs bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap transition-colors"
             >
               <Save size={14} />
               {t('editor:save')}
