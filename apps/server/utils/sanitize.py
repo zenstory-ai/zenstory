@@ -281,3 +281,48 @@ def sanitize_chat_messages(messages: object) -> object:
     if not any(_is_empty_assistant_message(m) for m in messages):
         return messages
     return [m for m in messages if not _is_empty_assistant_message(m)]
+
+
+# ASCII C0 control chars except tab (\x09), LF (\x0a), CR (\x0d), plus DEL (\x7f).
+_RESPONSES_CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+# Opaque provider-issued reasoning tokens must never be mutated.
+_RESPONSES_OPAQUE_KEYS = frozenset({"encrypted_content"})
+
+
+def sanitize_responses_text(text: object) -> object:
+    """Strip disallowed ASCII control characters from a Responses API string."""
+    if not isinstance(text, str) or not text:
+        return text
+    cleaned = _RESPONSES_CONTROL_CHAR_RE.sub("", text)
+    return text if cleaned == text else cleaned
+
+
+def _sanitize_responses_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return sanitize_responses_text(value)
+    if isinstance(value, list):
+        changed = False
+        cleaned_list: list[Any] = []
+        for entry in value:
+            cleaned_entry = _sanitize_responses_value(entry)
+            if cleaned_entry is not entry:
+                changed = True
+            cleaned_list.append(cleaned_entry)
+        return cleaned_list if changed else value
+    if isinstance(value, dict):
+        changed = False
+        cleaned_dict: dict[str, Any] = {}
+        for key, item_val in value.items():
+            cleaned_val = item_val if key in _RESPONSES_OPAQUE_KEYS else _sanitize_responses_value(item_val)
+            if cleaned_val is not item_val:
+                changed = True
+            cleaned_dict[key] = cleaned_val
+        return cleaned_dict if changed else value
+    return value
+
+
+def sanitize_responses_input(items: object) -> object:
+    """Strip disallowed control characters from Responses API ``input`` payloads."""
+    if isinstance(items, (str, list, dict)):
+        return _sanitize_responses_value(items)
+    return items

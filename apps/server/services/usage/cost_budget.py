@@ -186,18 +186,69 @@ def _has_non_free_entitlement(session: Any, user_id: str, now: datetime) -> bool
     return naive_utc(sub.current_period_end) >= naive_utc(now)
 
 
+_TEXT_CONTENT_TYPES = frozenset({
+    "text",
+    "input_text",
+    "output_text",
+    "reasoning_text",
+    "summary_text",
+    "refusal",
+})
+_MULTIMODAL_RESPONSES_ITEM_TYPES = frozenset({"input_image", "input_audio", "input_file", "image_url"})
+
+
+def _is_omitted(value: Any) -> bool:
+    if value is None:
+        return True
+    cls_name = type(value).__name__
+    return cls_name in {"Omit", "NotGiven"} and type(value).__module__.startswith("openai")
+
+
+def _is_responses_payload(payload: dict[str, Any]) -> bool:
+    return "messages" not in payload and (
+        ("input" in payload and not _is_omitted(payload.get("input")))
+        or ("max_output_tokens" in payload and not _is_omitted(payload.get("max_output_tokens")))
+        or ("instructions" in payload and not _is_omitted(payload.get("instructions")))
+    )
+
+
+def _check_text_only_content(content: Any) -> None:
+    if isinstance(content, list) and any(
+        isinstance(item, dict) and item.get("type") not in _TEXT_CONTENT_TYPES for item in content
+    ):
+        raise _error(UNAVAILABLE_CODE, 503)
+
+
 def _input_upper_bound(payload: dict[str, Any]) -> int:
     # A text token cannot contain less than one UTF-8 byte. Count the entire
-    # serialized request (including tools and framing), plus per-message framing.
+    # serialized request (including tools, instructions, and framing), plus per-item framing.
     # Multimodal inputs have provider-specific accounting; fail closed for free.
-    messages = payload.get("messages", [])
-    for message in messages:
-        content = message.get("content") if isinstance(message, dict) else None
-        if isinstance(content, list) and any(
-            item.get("type") not in {"text", "input_text"} for item in content if isinstance(item, dict)
-        ):
-            raise _error(UNAVAILABLE_CODE, 503)
-    return len(json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")) + 128 * (len(messages) + 1)
+    messages = payload.get("messages")
+    if isinstance(messages, list):
+        for message in messages:
+            content = message.get("content") if isinstance(message, dict) else None
+            if isinstance(content, list) and any(
+                item.get("type") not in {"text", "input_text"} for item in content if isinstance(item, dict)
+            ):
+                raise _error(UNAVAILABLE_CODE, 503)
+        item_count = len(messages)
+    else:
+        raw_input = payload.get("input")
+        if isinstance(raw_input, list):
+            for entry in raw_input:
+                if not isinstance(entry, dict):
+                    continue
+                if entry.get("type") in _MULTIMODAL_RESPONSES_ITEM_TYPES:
+                    raise _error(UNAVAILABLE_CODE, 503)
+                _check_text_only_content(entry.get("content"))
+            item_count = len(raw_input)
+        elif not _is_omitted(raw_input):
+            item_count = 1
+        else:
+            item_count = 0
+        if not _is_omitted(payload.get("instructions")):
+            item_count += 1
+    return len(json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")) + 128 * (item_count + 1)
 
 
 @dataclass(frozen=True)
@@ -259,20 +310,31 @@ def reserve_model_call(
             pricing_version = pricing_version_for_model(payload.get("model"))
             if pricing_version is None:
                 raise _error(UNAVAILABLE_CODE, 503)
-            if payload.get("n", 1) != 1:
+            n_value = payload.get("n", 1)
+            if not _is_omitted(n_value) and n_value != 1:
                 raise _error(UNAVAILABLE_CODE, 503)
+            is_responses = _is_responses_payload(payload)
+            output_key = "max_output_tokens" if is_responses else "max_tokens"
             if trial_limit is not None:
                 # The last step before transport, so failover headroom is covered too.
-                if payload.get("stream"):
+                if payload.get("stream") is True:
                     raise _error(UNAVAILABLE_CODE, 503)
-                requested = payload.pop("max_completion_tokens", payload.get("max_tokens"))
+                requested = (
+                    payload.get("max_output_tokens")
+                    if is_responses
+                    else payload.pop("max_completion_tokens", payload.get("max_tokens"))
+                )
                 valid = isinstance(requested, int) and not isinstance(requested, bool) and requested > 0
-                payload["max_tokens"] = min(requested, trial_limit) if valid else trial_limit
-            maximum = payload.get("max_completion_tokens", payload.get("max_tokens"))
+                payload[output_key] = min(requested, trial_limit) if valid else trial_limit
+            maximum = (
+                payload.get("max_output_tokens")
+                if is_responses
+                else payload.get("max_completion_tokens", payload.get("max_tokens"))
+            )
             if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 0:
                 # Set explicit output bound; DeepSeek thinking default can be 64K.
                 maximum = 65_536
-                payload["max_tokens"] = maximum
+                payload[output_key] = maximum
             upper = cost_units("peak", 0, _input_upper_bound(payload), maximum, pricing_version=pricing_version)
             day = beijing_today(started)
             quota = None

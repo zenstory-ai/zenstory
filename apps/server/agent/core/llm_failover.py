@@ -82,6 +82,7 @@ _FAILURE_CALL_SITES = frozenset({"agent", "agent_loop_compaction", "suggest", "p
 _FAILURE_PARAMETER_FIELDS = frozenset({
     "model", "messages", "max_tokens", "max_completion_tokens", "temperature", "top_p",
     "tools", "tool_choice", "response_format", "stream", "stream_options", "thinking", "reasoning_effort",
+    "input", "instructions", "max_output_tokens", "prompt_cache_key", "store", "reasoning",
 })
 
 
@@ -250,13 +251,17 @@ def is_provider_unavailable(exc: BaseException) -> bool:
             return True
     except ImportError:  # pragma: no cover - openai is a hard dependency
         pass
-    try:
-        import httpx
-
-        if isinstance(exc, httpx.TimeoutException | httpx.TransportError):
+    for mod_name in ("httpx", "httpx2"):
+        try:
+            mod = __import__(mod_name)
+        except ImportError:  # pragma: no cover
+            continue
+        timeout_exc = getattr(mod, "TimeoutException", None)
+        transport_exc = getattr(mod, "TransportError", None)
+        if isinstance(timeout_exc, type) and isinstance(exc, timeout_exc):
             return True
-    except ImportError:  # pragma: no cover
-        pass
+        if isinstance(transport_exc, type) and isinstance(exc, transport_exc):
+            return True
     status = _status_code_of(exc)
     if status is None:
         return False
@@ -677,6 +682,107 @@ async def acreate_chat_completion(
             response = await client.chat.completions.create(
                 **_call_kwargs(provider, kwargs, thinking_enabled=thinking_enabled, reasoning_effort=reasoning_effort)
             )
+        except asyncio.CancelledError as exc:
+            _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
+            raise
+        except Exception as exc:
+            _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
+            log_provider_failure(provider, exc, call_site=call_site)
+            if not is_provider_unavailable(exc):
+                raise
+            key_cooled = await arecord_failure(provider, session_id, exc) or key_cooled
+            if index + 1 >= len(ordered):
+                raise
+            log_failover(provider, ordered[index + 1], call_site=call_site)
+            continue
+        _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
+        if not key_cooled:
+            await arecord_success(provider, session_id, ordered)
+        return response, provider
+    raise AssertionError("unreachable: configured_providers() is never empty")
+
+
+def _responses_call_kwargs(
+    provider: ModelProvider,
+    kwargs: dict[str, Any],
+    *,
+    thinking_enabled: bool,
+    reasoning_effort: str | None,
+    session_id: str | None,
+) -> dict[str, Any]:
+    call = dict(kwargs)
+    options = provider.responses_request_options(
+        thinking_enabled=thinking_enabled,
+        reasoning_effort=reasoning_effort,
+        session_id=session_id,
+    )
+    for key, value in options.items():
+        call.setdefault(key, value)
+    if (
+        not thinking_enabled
+        and not provider.kind.can_disable_thinking
+        and isinstance(call.get("max_output_tokens"), int)
+    ):
+        call["max_output_tokens"] += THINKING_HEADROOM_TOKENS
+    call["model"] = provider.model
+    return call
+
+
+async def acreate_response(
+    *,
+    call_site: str,
+    session_id: str | None = None,
+    thinking_enabled: bool = True,
+    reasoning_effort: str | None = None,
+    usage_attribution: LLMUsageAttribution | None = None,
+    attempt_sink: dict[str, Any] | None = None,
+    max_retries: int | None = None,
+    chat_kwargs_builder: Callable[[ModelProvider], dict[str, Any]] | None = None,
+    **kwargs: Any,
+) -> tuple[Any, ModelProvider]:
+    """``responses.create`` on Responses providers, falling back to ``chat.completions.create``.
+
+    Used by ``agent/loop/compaction.py`` so MiniMax compaction stays on ``/v1/responses`` with
+    the session's ``prompt_cache_key`` while mid-call failover to a Chat Completions backup
+    (e.g. DeepSeek) builds Chat Completions kwargs via ``chat_kwargs_builder``.
+    """
+    if kwargs.get("stream"):
+        usage_attribution = None
+    ordered = await aordered_providers(session_id, thinking_enabled=thinking_enabled)
+    key_cooled = False
+    for index, provider in enumerate(ordered):
+        client = llm_providers.get_async_client(provider)
+        if max_retries is not None and callable(getattr(client, "with_options", None)):
+            client = client.with_options(max_retries=max_retries)
+        if attempt_sink is not None:
+            attempt_sink["provider"] = provider.name
+            attempt_sink["model"] = provider.model
+        attempt_started = time.monotonic()
+        try:
+            if provider.uses_responses_api:
+                response = await client.responses.create(
+                    **_responses_call_kwargs(
+                        provider,
+                        kwargs,
+                        thinking_enabled=thinking_enabled,
+                        reasoning_effort=reasoning_effort,
+                        session_id=session_id,
+                    )
+                )
+            else:
+                if chat_kwargs_builder is None:
+                    raise RuntimeError(
+                        f"Provider {provider.name} uses chat_completions and no chat_kwargs_builder was supplied"
+                    )
+                chat_kwargs = chat_kwargs_builder(provider)
+                response = await client.chat.completions.create(
+                    **_call_kwargs(
+                        provider,
+                        chat_kwargs,
+                        thinking_enabled=thinking_enabled,
+                        reasoning_effort=reasoning_effort,
+                    )
+                )
         except asyncio.CancelledError as exc:
             _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
             raise

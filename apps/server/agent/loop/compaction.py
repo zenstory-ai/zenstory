@@ -91,6 +91,40 @@ def _extract_valid_summary(choice: Any) -> tuple[str, bool]:
     return raw, False
 
 
+def _extract_valid_response_summary(response: Any) -> tuple[str, bool, str, str | None]:
+    """从 Responses API ``Response`` 提取合法的纯文本交接摘要，返回 ``(summary, leaked_tool, raw_text, status)``。"""
+    if response is None:
+        return "", False, "", None
+    status = getattr(response, "status", None)
+    output_items = getattr(response, "output", None) or []
+    parts: list[str] = []
+    has_structured_tool_call = False
+    for item in output_items:
+        item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
+        if item_type in {"function_call", "tool_call"}:
+            has_structured_tool_call = True
+            continue
+        if item_type != "message":
+            continue
+        content = item.get("content") if isinstance(item, dict) else getattr(item, "content", None)
+        for block in content or []:
+            block_type = block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+            if block_type == "output_text":
+                text = block.get("text") if isinstance(block, dict) else getattr(block, "text", "")
+                if isinstance(text, str):
+                    parts.append(text)
+    raw = "".join(parts).strip()
+    if has_structured_tool_call:
+        return "", True, raw, status
+    if status in {"incomplete", "failed", "cancelled"}:
+        return "", False, raw, status
+    if not raw:
+        return "", False, "", status
+    if contains_leaked_tool_protocol(raw):
+        return "", True, raw, status
+    return raw, False, raw, status
+
+
 def _is_request_rejected_error(exc: BaseException) -> bool:
     status = getattr(exc, "status_code", None)
     if not isinstance(status, int):
@@ -148,6 +182,51 @@ def _chat_tools() -> list[dict[str, Any]]:
     return [dict(Converter.tool_to_openai(tool)) for tool in build_agent_function_tools()]
 
 
+def _responses_tools() -> list[dict[str, Any]]:
+    """Responses API 压缩请求的工具清单：与 ``OpenAIResponsesModel`` 序列化结果逐字节一致以复用前缀缓存。"""
+    from agents.models.openai_responses import (
+        Converter as ResponsesConverter,
+    )
+    from agents.models.openai_responses import (
+        _materialize_responses_tool_params,
+    )
+
+    from agent.openai_agents.tools_adapter import build_agent_function_tools
+
+    converted = ResponsesConverter.convert_tools(build_agent_function_tools(), [])
+    return [dict(tool) for tool in _materialize_responses_tool_params(converted.tools)]
+
+
+def _responses_input(
+    items: list[dict[str, Any]],
+    *,
+    retry_prompt: bool = False,
+) -> list[dict[str, Any]]:
+    """构造 Responses API 压缩输入（清理 fake id / provider_data，末尾追加压缩指令）。"""
+    from agents.items import ItemHelpers
+    from agents.models.fake_id import FAKE_RESPONSES_ID
+    from agents.util._json import _to_dump_compatible
+
+    prompt = f"{COMPACT_PROMPT}{_COMPACT_RETRY_NOTE}" if retry_prompt else COMPACT_PROMPT
+    raw_list = _to_dump_compatible(ItemHelpers.input_to_new_input_list(items))  # type: ignore[arg-type]
+    cleaned: list[dict[str, Any]] = []
+    for item in raw_list:
+        if not isinstance(item, dict):
+            cleaned.append(item)
+            continue
+        if item.get("type") == "reasoning" and item.get("provider_data"):
+            continue
+        if item.get("id") == FAKE_RESPONSES_ID or "provider_data" in item:
+            item = {
+                k: v
+                for k, v in item.items()
+                if k != "provider_data" and not (k == "id" and v == FAKE_RESPONSES_ID)
+            }
+        cleaned.append(item)
+    cleaned.append({"role": "user", "content": prompt})
+    return cleaned
+
+
 def _request_messages(
     system_prompt: str,
     items: list[dict[str, Any]],
@@ -158,15 +237,19 @@ def _request_messages(
     from agents.models.chatcmpl_converter import Converter
 
     from agent.core.llm_providers import primary_model_name
-    from agent.openai_agents.model import _replay_reasoning_content
+    from agent.openai_agents.model import (
+        _replay_reasoning_content,
+        bridge_responses_reasoning_for_chat_completions,
+    )
 
     prompt = f"{COMPACT_PROMPT}{_COMPACT_RETRY_NOTE}" if retry_prompt else COMPACT_PROMPT
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     # Converter.items_to_messages only invokes should_replay_reasoning_content when ``model`` is non-None.
     effective_model = model or primary_model_name() or "agent"
+    bridged_items = bridge_responses_reasoning_for_chat_completions(items)
     messages.extend(
         Converter.items_to_messages(
-            items,  # type: ignore[arg-type]
+            bridged_items,  # type: ignore[arg-type]
             model=effective_model,
             should_replay_reasoning_content=_replay_reasoning_content,
         )
@@ -210,12 +293,15 @@ async def compact_history(
         )
 
     target_model: str | None = None
+    use_responses = False
     try:
         ordered_providers = await llm_failover.aordered_providers(session_id)
         if ordered_providers:
             target_model = ordered_providers[0].model
+            use_responses = bool(getattr(ordered_providers[0], "uses_responses_api", False))
     except Exception:  # noqa: BLE001 - fall back to primary_model_name() in _request_messages
         target_model = None
+        use_responses = False
 
     trimmed_items = _trim_for_budget(input_budget)
     usage: dict[str, int] = {}
@@ -232,28 +318,64 @@ async def compact_history(
                 input_budget=input_budget,
             )
             break
-        messages = _request_messages(
-            system_prompt,
-            bounded,
-            retry_prompt=retry_after_invalid_output,
-            model=target_model,
-        )
         if run_meter is not None:
             run_meter.record_model_call()
         try:
             with budget_attribution(attribution):
-                response, _provider = await llm_failover.acreate_chat_completion(
-                    call_site=COMPACTION_CALL_SITE,
-                    session_id=session_id,
-                    reasoning_effort=None,
-                    usage_attribution=attribution,
-                    max_retries=0,
-                    messages=messages,
-                    tools=_chat_tools(),
-                    max_tokens=AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS,
-                    temperature=1.0,
-                    top_p=0.95,
-                )
+                if use_responses:
+                    resp_input = _responses_input(bounded, retry_prompt=retry_after_invalid_output)
+
+                    def _build_chat_fallback(
+                        fallback_provider: Any,
+                        _bounded: list[dict[str, Any]] = bounded,
+                        _retry: bool = retry_after_invalid_output,
+                    ) -> dict[str, Any]:
+                        return {
+                            "messages": _request_messages(
+                                system_prompt,
+                                _bounded,
+                                retry_prompt=_retry,
+                                model=getattr(fallback_provider, "model", None) or target_model,
+                            ),
+                            "tools": _chat_tools(),
+                            "max_tokens": AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS,
+                            "temperature": 1.0,
+                            "top_p": 0.95,
+                        }
+
+                    response, _provider = await llm_failover.acreate_response(
+                        call_site=COMPACTION_CALL_SITE,
+                        session_id=session_id,
+                        reasoning_effort=None,
+                        usage_attribution=attribution,
+                        max_retries=0,
+                        chat_kwargs_builder=_build_chat_fallback,
+                        instructions=system_prompt,
+                        input=resp_input,
+                        tools=_responses_tools(),
+                        max_output_tokens=AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS,
+                        temperature=1.0,
+                        top_p=0.95,
+                    )
+                else:
+                    messages = _request_messages(
+                        system_prompt,
+                        bounded,
+                        retry_prompt=retry_after_invalid_output,
+                        model=target_model,
+                    )
+                    response, _provider = await llm_failover.acreate_chat_completion(
+                        call_site=COMPACTION_CALL_SITE,
+                        session_id=session_id,
+                        reasoning_effort=None,
+                        usage_attribution=attribution,
+                        max_retries=0,
+                        messages=messages,
+                        tools=_chat_tools(),
+                        max_tokens=AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS,
+                        temperature=1.0,
+                        top_p=0.95,
+                    )
         except APIException:
             # 平台自身的配额/成本限制（如免费用户 ¥15 成本兜底 402）必须原样上抛，不降级成退避也不重撞主循环。
             raise
@@ -280,10 +402,14 @@ async def compact_history(
             )
             return CompactionOutcome(usage=usage or None, skipped=SKIPPED_PROVIDER_ERROR)
         usage = merge_usage_dicts(usage, extract_response_usage(getattr(response, "usage", None))) or {}
-        choice = response.choices[0] if getattr(response, "choices", None) else None
-        raw_text = str(getattr(getattr(choice, "message", None), "content", "") or "").strip()
-        finish_reason = getattr(choice, "finish_reason", None)
-        candidate, leaked_tool_protocol = _extract_valid_summary(choice)
+        choices = getattr(response, "choices", None)
+        if choices is not None:
+            choice = choices[0] if choices else None
+            raw_text = str(getattr(getattr(choice, "message", None), "content", "") or "").strip()
+            finish_reason = getattr(choice, "finish_reason", None)
+            candidate, leaked_tool_protocol = _extract_valid_summary(choice)
+        else:
+            candidate, leaked_tool_protocol, raw_text, finish_reason = _extract_valid_response_summary(response)
         if candidate:
             summary = candidate
             break

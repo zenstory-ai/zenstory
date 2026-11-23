@@ -33,8 +33,8 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# (slot, base_url, api_key, model) -> (client, SDK model built on it)
-_models: dict[tuple[str, str, str, str], tuple[Any, Any]] = {}
+# (slot, base_url, api_key, model, api_surface) -> (client, SDK model built on it)
+_models: dict[tuple[str, str, str, str, str], tuple[Any, Any]] = {}
 
 # The first event that carries generated output: text, reasoning, refusal or tool
 # arguments (the SDK streams those as deltas). ``response.created`` is emitted on
@@ -47,6 +47,7 @@ _FIRST_OUTPUT_EVENT_TYPES = frozenset({
     "response.function_call_arguments.delta",
 })
 _COMPLETED_EVENT_TYPE = "response.completed"
+_INCOMPLETE_EVENT_TYPE = "response.incomplete"
 _REASONING_DELTA_EVENT_TYPES = frozenset({
     "response.reasoning_text.delta",
     "response.reasoning_summary_text.delta",
@@ -63,7 +64,7 @@ _ANSWER_OUTPUT_EVENT_TYPES = frozenset({
 def _is_meaningful_stream_progress(event: Any) -> bool:
     """Whether ``event`` carries real generation progress (not an empty keepalive/lifecycle frame)."""
     event_type = getattr(event, "type", None)
-    if event_type == _COMPLETED_EVENT_TYPE:
+    if event_type in (_COMPLETED_EVENT_TYPE, _INCOMPLETE_EVENT_TYPE):
         return True
     return event_type in _FIRST_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != ""
 
@@ -124,6 +125,60 @@ def _replay_reasoning_content(_context: Any) -> bool:
     return True
 
 
+def bridge_responses_reasoning_for_chat_completions(input: Any) -> Any:
+    """Copy Responses ``reasoning`` ``content[].reasoning_text`` into ``summary`` for Chat Completions replay.
+
+    MiniMax ``/v1/responses`` returns reasoning text under ``content`` (with ``summary: []``),
+    while the SDK's ``chatcmpl_converter.Converter.items_to_messages`` only populates DeepSeek's
+    ``reasoning_content`` from ``summary``. Bridging on a shallow copy preserves mid-run failover
+    to DeepSeek without mutating the Responses wire history.
+    """
+    if not isinstance(input, list):
+        return input
+
+    needs_bridge = False
+    for item in input:
+        if (
+            isinstance(item, dict)
+            and item.get("type") == "reasoning"
+            and not item.get("summary")
+            and isinstance(item.get("content"), list)
+            and any(
+                isinstance(part, dict)
+                and part.get("type") == "reasoning_text"
+                and isinstance(part.get("text"), str)
+                and part["text"]
+                for part in item["content"]
+            )
+        ):
+            needs_bridge = True
+            break
+    if not needs_bridge:
+        return input
+
+    bridged: list[Any] = []
+    for item in input:
+        if (
+            isinstance(item, dict)
+            and item.get("type") == "reasoning"
+            and not item.get("summary")
+            and isinstance(item.get("content"), list)
+        ):
+            summary = [
+                {"type": "summary_text", "text": part["text"]}
+                for part in item["content"]
+                if isinstance(part, dict)
+                and part.get("type") == "reasoning_text"
+                and isinstance(part.get("text"), str)
+                and part["text"]
+            ]
+            if summary:
+                bridged.append({**item, "summary": summary})
+                continue
+        bridged.append(item)
+    return bridged
+
+
 def _rejects_missing_tool_turn_reasoning(provider: ModelProvider, input: Any) -> bool:
     """Whether ``provider`` would reject this run input with HTTP 400 for missing reasoning.
 
@@ -137,8 +192,9 @@ def _rejects_missing_tool_turn_reasoning(provider: ModelProvider, input: Any) ->
     try:
         from agents.models.chatcmpl_converter import Converter
 
+        bridged = bridge_responses_reasoning_for_chat_completions(input)
         messages = Converter.items_to_messages(
-            input, model=provider.model, should_replay_reasoning_content=_replay_reasoning_content
+            bridged, model=provider.model, should_replay_reasoning_content=_replay_reasoning_content
         )
     except Exception:
         return False
@@ -150,30 +206,37 @@ def _rejects_missing_tool_turn_reasoning(provider: ModelProvider, input: Any) ->
 
 
 def _sdk_model_for(provider: ModelProvider) -> Any:
-    """The SDK Chat Completions model for a provider on the current loop's client.
+    """The SDK model (Responses or Chat Completions) for a provider on the current loop's client.
 
     Rebuilt when get_async_client() hands out a new client (a new event loop),
     so the model never keeps a client whose connections belong to a closed loop.
     """
     client = llm_providers.get_async_client(provider)
-    key = (provider.slot, provider.base_url, provider.api_key, provider.model)
+    key = (provider.slot, provider.base_url, provider.api_key, provider.model, provider.api_surface)
     cached = _models.get(key)
     if cached is not None and cached[0] is client:
         return cached[1]
 
     # Import lazily so unit tests that do not touch the SDK can still import the
     # server package before dependencies are installed.
-    from agents import OpenAIChatCompletionsModel, set_tracing_disabled
+    from agents import OpenAIChatCompletionsModel, OpenAIResponsesModel, set_tracing_disabled
 
     # Neither provider is platform.openai.com, so SDK tracing must not attempt
     # to use an OpenAI tracing key.
     set_tracing_disabled(True)
 
-    model = OpenAIChatCompletionsModel(
-        model=provider.model,
-        openai_client=client,
-        should_replay_reasoning_content=_replay_reasoning_content,
-    )
+    model: Any
+    if provider.uses_responses_api:
+        model = OpenAIResponsesModel(
+            model=provider.model,
+            openai_client=client,
+        )
+    else:
+        model = OpenAIChatCompletionsModel(
+            model=provider.model,
+            openai_client=client,
+            should_replay_reasoning_content=_replay_reasoning_content,
+        )
     _models[key] = (client, model)
     return model
 
@@ -188,6 +251,69 @@ def _settings_for(provider: ModelProvider, model_settings: Any) -> Any:
     from openai.types.shared import Reasoning
 
     return dataclasses.replace(model_settings, reasoning=Reasoning(effort=effort) if effort else None)  # type: ignore[arg-type]
+
+
+def _apply_surface_settings(provider: ModelProvider, model_settings: Any, session_id: str | None) -> Any:
+    """Apply API-surface-specific settings without leaking Responses params to Chat Completions.
+
+    - Responses providers (MiniMax on ``/v1/responses``): set ``store=False`` and inject the
+      deterministic session ``prompt_cache_key`` into ``extra_args``.
+    - Chat Completions providers (DeepSeek, or MiniMax rolled back via ``MINIMAX_API_SURFACE``):
+      strip any ``prompt_cache_key`` from ``extra_args`` and clear ``store`` so unknown fields
+      never leak on failover.
+    """
+    if not dataclasses.is_dataclass(model_settings):
+        return model_settings
+    updates: dict[str, Any] = {}
+    existing_extra = getattr(model_settings, "extra_args", None)
+    if provider.uses_responses_api:
+        if getattr(model_settings, "store", None) is not False:
+            updates["store"] = False
+        cache_key = llm_providers.prompt_cache_key_for_session(session_id)
+        if cache_key and not (isinstance(existing_extra, dict) and existing_extra.get("prompt_cache_key")):
+            new_extra = dict(existing_extra) if isinstance(existing_extra, dict) else {}
+            new_extra["prompt_cache_key"] = cache_key
+            updates["extra_args"] = new_extra
+    else:
+        if getattr(model_settings, "store", None) is not None:
+            updates["store"] = None
+        if isinstance(existing_extra, dict) and "prompt_cache_key" in existing_extra:
+            cleaned_extra = {k: v for k, v in existing_extra.items() if k != "prompt_cache_key"}
+            updates["extra_args"] = cleaned_extra or None
+    if not updates:
+        return model_settings
+    return dataclasses.replace(model_settings, **updates)
+
+
+def _incomplete_max_output_tokens_to_completed(event: Any) -> Any | None:
+    """Convert ``response.incomplete(reason='max_output_tokens')`` to a ``ResponseCompletedEvent``.
+
+    ``OpenAIResponsesModel.stream_response`` and ``run_loop.run_single_turn_streamed`` treat
+    ``response.incomplete`` as a fatal ``ModelBehaviorError``, whereas ZenStory handles
+    max-output-token truncation gracefully (recording usage, saving partial ``<file>`` bodies,
+    and emitting ``OUTPUT_CAPPED_KEY`` / ``OUTPUT_TRUNCATED_STOP_REASON``). Non-token
+    incomplete reasons (e.g. ``content_filter``) still propagate untouched.
+    """
+    if getattr(event, "type", None) != _INCOMPLETE_EVENT_TYPE:
+        return None
+    resp = getattr(event, "response", None)
+    if resp is None:
+        return None
+    details = getattr(resp, "incomplete_details", None)
+    reason = details.get("reason") if isinstance(details, dict) else getattr(details, "reason", None)
+    if reason != "max_output_tokens":
+        return None
+    seq = getattr(event, "sequence_number", 0)
+    try:
+        from openai.types.responses import Response, ResponseCompletedEvent
+
+        if isinstance(resp, Response):
+            return ResponseCompletedEvent(type=_COMPLETED_EVENT_TYPE, response=resp, sequence_number=seq)
+        return ResponseCompletedEvent.model_construct(type=_COMPLETED_EVENT_TYPE, response=resp, sequence_number=seq)
+    except Exception:  # noqa: BLE001 - lightweight stub fallback when openai types unavailable
+        from types import SimpleNamespace
+
+        return SimpleNamespace(type=_COMPLETED_EVENT_TYPE, response=resp, sequence_number=seq)
 
 
 def _base_model_class() -> type:
@@ -232,6 +358,10 @@ class FailoverChatModel:
         # Upstream provider exception that escaped the latest call after failover was
         # exhausted or disallowed; read by runner.py to classify terminal model failures.
         self._unrecovered_provider_error: BaseException | None = None
+        # True when the latest streamed Responses call ended with
+        # ``response.incomplete(reason="max_output_tokens")`` and was adapted to a capped
+        # completion so runner.py can handle truncation without a fatal ModelBehaviorError.
+        self.last_response_output_capped: bool = False
 
     @property
     def unrecovered_provider_error(self) -> BaseException | None:
@@ -292,11 +422,20 @@ class FailoverChatModel:
         key_cooled = False
         self._call_timing = None
         self._unrecovered_provider_error = None
+        self.last_response_output_capped = False
         for index, provider in enumerate(ordered):
             attempt_started = time.monotonic()
+            effective_input = (
+                input
+                if provider.uses_responses_api
+                else bridge_responses_reasoning_for_chat_completions(input)
+            )
+            effective_settings = _apply_surface_settings(
+                provider, _settings_for(provider, model_settings), self._session_id
+            )
             try:
                 response = await _sdk_model_for(provider).get_response(
-                    system_instructions, input, _settings_for(provider, model_settings), *args, **kwargs
+                    system_instructions, effective_input, effective_settings, *args, **kwargs
                 )
             except asyncio.CancelledError as exc:
                 self._record_failed_attempt(provider, attempt_started, exc)
@@ -331,6 +470,7 @@ class FailoverChatModel:
         self._call_timing = None
         self._thinking_before_answer = None
         self._unrecovered_provider_error = None
+        self.last_response_output_capped = False
         for index, provider in enumerate(ordered):
             # Events before the first output or completion (``response.created``,
             # ``output_item.added``) are held back: until output reaches the runner,
@@ -344,9 +484,18 @@ class FailoverChatModel:
             thinking_chars = 0
             first_answer_ms: int | None = None
             completed = False
+            self.last_response_output_capped = False
+            effective_input = (
+                input
+                if provider.uses_responses_api
+                else bridge_responses_reasoning_for_chat_completions(input)
+            )
+            effective_settings = _apply_surface_settings(
+                provider, _settings_for(provider, model_settings), self._session_id
+            )
             try:
                 raw_stream = _sdk_model_for(provider).stream_response(
-                    system_instructions, input, _settings_for(provider, model_settings), *args, **kwargs
+                    system_instructions, effective_input, effective_settings, *args, **kwargs
                 )
                 async with contextlib.aclosing(
                     _iter_with_idle_timeout(
@@ -356,6 +505,10 @@ class FailoverChatModel:
                     )
                 ) as guarded_stream:
                     async for event in guarded_stream:
+                        converted_cap = _incomplete_max_output_tokens_to_completed(event)
+                        if converted_cap is not None:
+                            self.last_response_output_capped = True
+                            event = converted_cap
                         event_type = getattr(event, "type", None)
                         # An empty delta (openai-agents 0.17.6 emits one for a role chunk with
                         # ``content: ""``) is not output yet.
@@ -391,6 +544,10 @@ class FailoverChatModel:
                                 yield held
                             preamble.clear()
                         yield event
+                        if converted_cap is not None:
+                            # Stop before OpenAIResponsesModel.stream_response raises
+                            # ModelBehaviorError after yielding response.incomplete.
+                            break
             except (asyncio.CancelledError, GeneratorExit) as exc:
                 if not completed:
                     self._record_failed_attempt(provider, attempt_started, exc, ttft_ms)
