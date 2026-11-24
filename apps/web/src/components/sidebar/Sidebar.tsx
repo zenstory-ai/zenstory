@@ -19,7 +19,7 @@ export const Sidebar: React.FC = () => {
   const effectiveTab = activeTab === 'dashboard' ? 'files' : activeTab;
 
   return (
-    <div className="h-full flex flex-col bg-[hsl(var(--bg-primary))]">
+    <div className="h-full flex flex-col bg-[hsl(var(--bg-rail))]">
       {/* Tab navigation */}
       <SidebarTabs />
 

@@ -2793,7 +2793,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   if (!currentProjectId) {
     return (
       <>
-      <div className="h-full flex flex-col items-center justify-center text-[hsl(var(--text-secondary))] p-4 text-center">
+      <div className="h-full flex flex-col items-center justify-center bg-[hsl(var(--bg-rail))] text-[hsl(var(--text-secondary))] p-4 text-center">
         <Sparkles size={48} className="mb-4 opacity-50" />
         <p className="text-sm">{t('chat:panel.selectProject')}</p>
       </div>
@@ -2825,7 +2825,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   return (
     <div
       ref={chatPanelRef}
-      className={`flex flex-col h-full bg-[hsl(var(--bg-primary))] overflow-hidden ${isMobile ? 'pb-safe-or-2' : ''}`}
+      className={`flex flex-col h-full bg-[hsl(var(--bg-rail))] overflow-hidden ${isMobile ? 'pb-safe-or-2' : ''}`}
       style={{ maxHeight: '100%' }}
     >
       {/* Header */}
@@ -2894,8 +2894,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       {/* Messages - scrollable area */}
       <div className="relative flex-1 min-h-0 flex flex-col">
         {/* data-testid: message-list - Message container for message display tests */}
-        <div ref={messagesScrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" data-testid="message-list">
-        <div className={`py-3 ${isMobile ? 'px-3 pb-2' : 'px-3'}`}>
+        <div ref={messagesScrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden chat-message-feed-fade" data-testid="message-list">
+        <div className={`pt-3.5 pb-6 ${isMobile ? 'px-3' : 'px-4'}`}>
           {sessionRecoveryError === currentProjectId && (
             <div role="alert" className={`mb-3 p-3 ${CHAT_CARD_SURFACE}`}>
               <p className="text-xs leading-5 text-[hsl(var(--text-primary))]">{t("chat:panel.sessionRecoveryFailed")}</p>
@@ -3146,7 +3146,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           <div
             role="separator"
             aria-orientation="horizontal"
-            className={`shrink-0 h-4 flex items-center justify-center select-none touch-none cursor-row-resize group border-t border-[hsl(var(--separator-color))] hover:bg-[hsl(var(--accent-primary)/0.08)] active:bg-[hsl(var(--accent-primary)/0.15)] ${resizeDragRef.current ? 'bg-[hsl(var(--accent-primary)/0.1)]' : ''}`}
+            className={`shrink-0 h-3.5 flex items-center justify-center select-none touch-none cursor-row-resize group border-t border-[hsl(var(--separator-color)/0.55)] hover:bg-[hsl(var(--accent-primary)/0.08)] active:bg-[hsl(var(--accent-primary)/0.15)] ${resizeDragRef.current ? 'bg-[hsl(var(--accent-primary)/0.1)]' : ''}`}
             onPointerDown={handleInputPanelResizeStart}
             onPointerMove={handleInputPanelResizeMove}
             onPointerUp={handleInputPanelResizeEnd}

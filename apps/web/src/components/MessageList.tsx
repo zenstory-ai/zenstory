@@ -18,7 +18,7 @@ import React, { useMemo, useRef, useState, useEffect, forwardRef, useImperativeH
 import type { TFunction } from 'i18next';
 import type { StreamRenderItem } from '../hooks/useChatStreaming';
 import { useTranslation } from 'react-i18next';
-import { User, Sparkles, Bot, AlertTriangle, CirclePause, ThumbsUp, ThumbsDown, Copy, Check } from 'lucide-react';
+import { Sparkles, Bot, AlertTriangle, CirclePause, ThumbsUp, ThumbsDown, Copy, Check, ChevronDown, Search, ArrowRight } from 'lucide-react';
 import { toast } from '../lib/toast';
 import { LazyMarkdown } from './LazyMarkdown';
 import { ToolResultCard } from './ToolResultCard';
@@ -30,7 +30,6 @@ import type { AgentContextItem, FileEditUndoTarget, IterationExhaustedLayer, Too
 import { getLocaleCode } from '../lib/i18n-helpers';
 import { stripThinkTags } from '../lib/utils';
 import { getAgentDisplayName } from '../lib/agentDisplayName';
-import { useAuth } from '../contexts/AuthContext';
 import { useMobileLayout } from '../contexts/MobileLayoutContext';
 import { RoundEndNote } from './RoundEndNote';
 import { exhaustionLeftFilesUnfinished, type RoundStopOutcome } from '../lib/chatRoundEnd';
@@ -439,6 +438,115 @@ function WorkflowStoppedCard({ stop }: {
 }
 
 const CONTROL_FLOW_TOOL_NAMES = new Set(['handoff_to_agent', 'request_clarification']);
+const READ_ONLY_TOOL_NAMES = new Set(['query_files', 'hybrid_search', 'load_skill', 'read_skill_resource']);
+
+const isCollapsibleReadOnlyToolCall = (call: ToolCall): boolean =>
+  READ_ONLY_TOOL_NAMES.has(call.tool_name) && call.status === 'success' && !call.error;
+
+type ToolCallRun =
+  | { kind: 'single'; call: ToolCall; key: string }
+  | { kind: 'readonly_group'; calls: ToolCall[]; key: string };
+
+const groupToolCallsForDisplay = (calls: ToolCall[], keyPrefix: string): ToolCallRun[] => {
+  const runs: ToolCallRun[] = [];
+  let pendingReadOnly: ToolCall[] = [];
+  let runStartIdx = 0;
+
+  const flushReadOnly = () => {
+    if (pendingReadOnly.length === 0) return;
+    if (pendingReadOnly.length >= 2) {
+      runs.push({
+        kind: 'readonly_group',
+        calls: pendingReadOnly,
+        key: `${keyPrefix}-ro-${runStartIdx}`,
+      });
+    } else {
+      runs.push({
+        kind: 'single',
+        call: pendingReadOnly[0],
+        key: `${keyPrefix}-${runStartIdx}`,
+      });
+    }
+    pendingReadOnly = [];
+  };
+
+  calls.forEach((call, idx) => {
+    if (isCollapsibleReadOnlyToolCall(call)) {
+      if (pendingReadOnly.length === 0) runStartIdx = idx;
+      pendingReadOnly.push(call);
+    } else {
+      flushReadOnly();
+      runs.push({ kind: 'single', call, key: `${keyPrefix}-${idx}` });
+    }
+  });
+  flushReadOnly();
+  return runs;
+};
+
+interface ReadOnlyToolGroupProps {
+  calls: ToolCall[];
+  isStreaming: boolean;
+  onUndo?: MessageListProps['onUndo'];
+  onRestoreDeletion?: MessageListProps['onRestoreDeletion'];
+  chatMessageId?: string;
+  onOpenFile?: MessageListProps['onOpenFile'];
+  onOpenAIMemory?: MessageListProps['onOpenAIMemory'];
+}
+
+const ReadOnlyToolGroup: React.FC<ReadOnlyToolGroupProps> = ({
+  calls,
+  isStreaming,
+  onUndo,
+  onRestoreDeletion,
+  chatMessageId,
+  onOpenFile,
+  onOpenAIMemory,
+}) => {
+  const { t } = useTranslation(['chat']);
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div data-testid="readonly-tool-group" className="max-w-full">
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        className="inline-flex max-w-full min-h-11 md:min-h-7 -ml-1.5 items-center gap-1.5 rounded-lg px-2 py-1 text-left text-xs text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-tertiary)/0.75)] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--accent-primary))]"
+      >
+        <Search size={12} className="shrink-0 opacity-80" aria-hidden="true" />
+        <span className="min-w-0 truncate tabular-nums">
+          {t('tool.readonlyGroupSummary', { ns: 'chat', count: calls.length })}
+        </span>
+        <ChevronDown
+          size={12}
+          aria-hidden="true"
+          className={`shrink-0 opacity-75 motion-chevron ${expanded ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <AnimatedCollapse open={expanded} fast>
+        <div className="mt-1.5 space-y-1.5 pl-2.5 border-l border-[hsl(var(--separator-color))]">
+          {calls.map((toolCall, idx) => (
+            <ToolResultCard
+              key={toolCall.id || idx}
+              type="tool_result"
+              toolName={toolCall.tool_name}
+              result={toolCardPayload(toolCall)}
+              error={toolCall.error}
+              isPending={false}
+              interrupted={false}
+              onUndo={onUndo}
+              onRestoreDeletion={isStreaming ? undefined : onRestoreDeletion}
+              toolUseId={toolCall.id}
+              chatMessageId={chatMessageId}
+              onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
+              onOpenAIMemory={onOpenAIMemory}
+            />
+          ))}
+        </div>
+      </AnimatedCollapse>
+    </div>
+  );
+};
 
 /**
  * The cards the author sees: no control-flow calls, and no write-order refusals (the server sent the
@@ -566,8 +674,30 @@ function OrderedMessageItems({ items, onUndo, onRestoreDeletion, onOpenFile, onO
   const agentLabel = (agentType?: string, agentName?: string) =>
     getAgentDisplayName(agentType, translate)
     ?? (agentName && agentName !== agentType ? agentName : null);
+  const normalizedItems = useMemo(() => {
+    const merged: StreamRenderItem[] = [];
+    for (const item of items) {
+      if (item.type === 'tool_calls' && item.toolCalls) {
+        const visible = visibleToolCalls(item.toolCalls);
+        if (visible.length === 0) continue;
+        const prev = merged[merged.length - 1];
+        if (prev && prev.type === 'tool_calls' && prev.toolCalls) {
+          merged[merged.length - 1] = {
+            ...prev,
+            toolCalls: [...prev.toolCalls, ...visible],
+          };
+          continue;
+        }
+        merged.push({ ...item, toolCalls: visible });
+      } else {
+        merged.push(item);
+      }
+    }
+    return merged;
+  }, [items]);
+
   return <>
-  {items.map((item) => {
+  {normalizedItems.map((item) => {
     if (item.type === 'thinking_status' && item.content) {
       // 1. thinking 事件 - 轻量状态小标签（不透明文字 token）
       return (
@@ -595,12 +725,12 @@ function OrderedMessageItems({ items, onUndo, onRestoreDeletion, onOpenFile, onO
         </div>
       );
     } else if (item.type === 'content' && item.content) {
-      // 3. content - AI回复内容，主要
+      // 3. content - AI回复内容，无框排版直接落在面板表面
       const cleanContent = stripThinkTags(item.content);
       if (!cleanContent.trim()) return null;
       return (
-        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
-          <div className={`inline-block max-w-full rounded-xl text-sm bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] ${isMobile ? 'px-3 py-2' : 'px-4 py-3'}`}>
+        <div key={item.id} className={isMobile ? 'mb-2' : 'mb-2.5'}>
+          <div className="w-full max-w-full text-sm text-[hsl(var(--text-primary))]">
             <div className="markdown-content">
               <LazyMarkdown>{cleanContent}</LazyMarkdown>
             </div>
@@ -608,30 +738,44 @@ function OrderedMessageItems({ items, onUndo, onRestoreDeletion, onOpenFile, onO
         </div>
       );
     } else if (item.type === 'tool_calls' && item.toolCalls) {
-      // 4. tool_calls - 工具调用卡片
+      // 4. tool_calls - 工具调用卡片（连续 >=2 个成功的纯只读探索工具自动收纳，写卡/进行中/错误绝不折叠）
       const toolCalls = visibleToolCalls(item.toolCalls);
       if (toolCalls.length === 0) return null;
+      const runs = groupToolCallsForDisplay(toolCalls, item.id);
       return (
         <div key={item.id} className={`${isMobile ? 'mb-2' : 'mb-2.5'} space-y-2`}>
-          {toolCalls.map((toolCall, idx) => (
-            <ToolResultCard
-              key={`${item.id}-${idx}`}
-              type={toolCall.status === 'pending' ? 'tool_call' : 'tool_result'}
-              toolName={toolCall.tool_name}
-              result={toolCardPayload(toolCall)}
-              error={toolCall.error}
-              // A call still pending in a finished round (stopped / dropped) never got its
-              // result: it did not finish, it is not still running.
-              isPending={toolCall.status === 'pending' && isStreaming}
-              interrupted={toolCall.status === 'pending' && !isStreaming}
-              onUndo={onUndo}
-              onRestoreDeletion={isStreaming ? undefined : onRestoreDeletion}
-              toolUseId={toolCall.id}
-              chatMessageId={chatMessageId}
-              onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
-              onOpenAIMemory={onOpenAIMemory}
-            />
-          ))}
+          {runs.map((run) =>
+            run.kind === 'readonly_group' ? (
+              <ReadOnlyToolGroup
+                key={run.key}
+                calls={run.calls}
+                isStreaming={isStreaming}
+                onUndo={onUndo}
+                onRestoreDeletion={onRestoreDeletion}
+                chatMessageId={chatMessageId}
+                onOpenFile={onOpenFile}
+                onOpenAIMemory={onOpenAIMemory}
+              />
+            ) : (
+              <ToolResultCard
+                key={run.key}
+                type={run.call.status === 'pending' ? 'tool_call' : 'tool_result'}
+                toolName={run.call.tool_name}
+                result={toolCardPayload(run.call)}
+                error={run.call.error}
+                // A call still pending in a finished round (stopped / dropped) never got its
+                // result: it did not finish, it is not still running.
+                isPending={run.call.status === 'pending' && isStreaming}
+                interrupted={run.call.status === 'pending' && !isStreaming}
+                onUndo={onUndo}
+                onRestoreDeletion={isStreaming ? undefined : onRestoreDeletion}
+                toolUseId={run.call.id}
+                chatMessageId={chatMessageId}
+                onOpenFile={run.call.status === 'success' && run.call.result ? onOpenFile : undefined}
+                onOpenAIMemory={onOpenAIMemory}
+              />
+            ),
+          )}
         </div>
       );
     } else if (item.type === 'context' && item.items) {
@@ -745,7 +889,6 @@ const Row = React.memo(function Row({
   nextStepsBlocked = false,
 }: RowDataProps): React.ReactElement {
   const { t } = useTranslation(['chat']);
-  const { user } = useAuth();
   const { isMobile, switchToEditor } = useMobileLayout();
   // Phones keep the chat in front while the AI writes; the latest round that wrote files offers
   // the manuscript (the editor already follows the AI's writes).
@@ -832,61 +975,37 @@ const Row = React.memo(function Row({
 
   // Always show timestamp for the last message in a role group, or for standalone messages
   const shouldShowTimestamp = isLastInRoleGroup;
+  const isUser = message.role === 'user';
+  const hasAssistantFooterActions = !isUser && (shouldShowFeedbackActions || Boolean(copyableText));
+  const hasActiveFooterState = copied || Boolean(selectedFeedbackVote) || (shouldShowFeedbackActions && !canSubmitFeedback);
 
-  // Avatar size based on mobile/desktop
-  const avatarSize = isMobile ? 'w-7 h-7' : 'w-8 h-8';
-  const iconSize = isMobile ? 14 : 16;
-  const gap = isMobile ? 'gap-2' : 'gap-3';
-  const paddingY = isMobile ? 'py-2' : 'py-3';
-  const isMobileAssistant = isMobile && message.role === 'assistant';
+  const rowPaddingClass = isUser
+    ? isConsecutiveSameRole
+      ? 'pt-1 pb-1.5'
+      : previousRole
+        ? (isMobile ? 'pt-3.5 pb-1.5' : 'pt-4 pb-1.5')
+        : 'pt-1 pb-1.5'
+    : isConsecutiveSameRole
+      ? 'pt-1 pb-2.5'
+      : (isMobile ? 'pt-1.5 pb-2.5' : 'pt-2 pb-3');
 
   return (
-    <div className={`flex ${isMobileAssistant ? 'flex-col gap-1.5' : `items-start ${gap}`} ${paddingY}`}>
-      {/* Avatar - on mobile assistant rows, stack compactly only on the first row so cards/text use full width */}
-      {isMobileAssistant ? (
-        !isConsecutiveSameRole ? (
-          <div className="shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center ring-2 ring-[hsl(var(--accent-primary)/0.3)]">
-            <Sparkles size={13} className="text-white" />
-          </div>
-        ) : null
-      ) : !isConsecutiveSameRole ? (
-        message.role === 'user' ? (
-          user?.avatar_url ? (
-            <img
-              src={user.avatar_url}
-              alt={user.username || 'User'}
-              className={`shrink-0 ${avatarSize} rounded-full object-cover ring-2 ring-[hsl(var(--message-user-gradient-end)/0.5)]`}
-            />
-          ) : (
-            <div className={`shrink-0 ${avatarSize} rounded-full bg-gradient-to-br from-[hsl(var(--message-user-gradient-start))] to-[hsl(var(--message-user-gradient-end))] flex items-center justify-center ring-2 ring-[hsl(var(--message-user-gradient-end)/0.3)]`}>
-              <User size={iconSize} className="text-white" />
-            </div>
-          )
-        ) : (
-          <div className={`shrink-0 ${avatarSize} rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center ring-2 ring-[hsl(var(--accent-primary)/0.3)]`}>
-            <Sparkles size={iconSize} className="text-white" />
-          </div>
-        )
-      ) : !isMobile ? (
-        // Empty placeholder to maintain alignment with avatars on desktop/tablet
-        <div className={`shrink-0 ${avatarSize}`} />
-      ) : null}
-
+    <div className={`group/msg flex flex-col ${isUser ? 'items-end' : 'items-stretch'} ${rowPaddingClass}`}>
       {/* Content */}
-      <div className="flex-1 min-w-0 overflow-hidden w-full">
+      <div className={isUser ? 'max-w-[88%] min-w-0' : 'w-full min-w-0 overflow-hidden'}>
         {hasDisplayItems ? (
           <OrderedMessageItems items={orderedDisplayItems!} onUndo={onUndo} onRestoreDeletion={onRestoreDeletion} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={false} chatMessageId={message.backendMessageId} />
         ) : (
           hasDisplayContent && (
-            <div className="flex items-end gap-0.5">
+            <div className={isUser ? 'flex justify-end' : 'w-full'}>
               <div
-                className={`${
-                  message.role === 'user'
-                    ? 'chat-message-bubble chat-message-bubble-user'
-                    : 'chat-message-bubble chat-message-bubble-ai rounded-xl bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))]'
-                } inline-block max-w-full text-sm ${
-                  isMobile ? 'px-3 py-2' : 'px-4 py-3'
-                }`}
+                className={
+                  isUser
+                    ? `chat-message-bubble chat-message-bubble-user inline-block max-w-full text-sm ${
+                        isMobile ? 'px-3.5 py-2' : 'px-3.5 py-2.5'
+                      }`
+                    : 'chat-message-bubble-ai w-full max-w-full text-sm'
+                }
               >
                 {message.role === 'assistant' ? (
                   <div className="markdown-content">
@@ -902,141 +1021,9 @@ const Row = React.memo(function Row({
           )
         )}
 
-        {message.role === 'assistant' && message.stopOutcome && (
-          <>
-            <RoundEndNote
-              outcome={message.stopOutcome}
-              showDailyCount={showDailyCount}
-              nextStepsBlocked={nextStepsBlocked}
-              pauseCardShown={hasVisibleIterationExhaustedCard}
-            />
-            {quietIncompleteCard && !nextStepsBlocked && (
-              <div className="mt-2">
-                <button
-                  type="button"
-                  className={CHAT_CARD_PRIMARY_BUTTON}
-                  onClick={() => onIterationAssistAction?.('continue', quietIncompleteCard)}
-                >
-                  {t('workflow.actionContinue', { ns: 'chat' })}
-                </button>
-              </div>
-            )}
-            {deliveredFiles.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2" data-testid="round-delivery-receipt">
-                {deliveredFiles.map((file) => (
-                  <button
-                    key={file.id}
-                    type="button"
-                    className={`max-w-full text-left break-words ${CHAT_CARD_SECONDARY_BUTTON}`}
-                    onClick={() => onOpenFile?.(file.id, '', file.title)}
-                  >
-                    {t('panel.openWrittenFile', { ns: 'chat', title: file.title })}
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {showReadWritten && (
-          <div className="mt-2">
-            <button
-              type="button"
-              data-testid="read-written-files"
-              onClick={switchToEditor}
-              className={CHAT_CARD_PRIMARY_BUTTON}
-            >
-              {t('chat:panel.readWrittenFiles')}
-            </button>
-          </div>
-        )}
-
-        {(shouldShowFeedbackActions || Boolean(copyableText)) && (
-          <div className="mt-2 flex items-center gap-1.5">
-            {copyableText && (
-              <>
-                <button
-                  type="button"
-                  data-testid="copy-message-button"
-                  onClick={() => { void handleCopyReply(); }}
-                  aria-label={copied
-                    ? t('message.copiedReply', { ns: 'chat', defaultValue: '已复制' })
-                    : t('message.copyReply', { ns: 'chat', defaultValue: '复制回复' })}
-                  title={copied
-                    ? t('message.copiedReply', { ns: 'chat', defaultValue: '已复制' })
-                    : t('message.copyReply', { ns: 'chat', defaultValue: '复制回复' })}
-                  className={`inline-flex items-center justify-center rounded-lg border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
-                    copied
-                      ? 'border-[hsl(var(--success)/0.45)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
-                      : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
-                  }`}
-                >
-                  {copied ? (
-                    <Check key="copied" size={14} className="motion-icon-pop" />
-                  ) : (
-                    <Copy key="copy" size={14} />
-                  )}
-                </button>
-                <span role="status" aria-live="polite" className="sr-only">
-                  {copied ? t('message.copiedReply', { ns: 'chat', defaultValue: '已复制' }) : ''}
-                </span>
-              </>
-            )}
-            {shouldShowFeedbackActions && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!canSubmitFeedback) return;
-                    void onSubmitFeedback?.(message, 'up');
-                  }}
-                  disabled={isFeedbackDisabled}
-                  aria-pressed={selectedFeedbackVote === 'up'}
-                  aria-label={t('feedback.like', { ns: 'chat' })}
-                  title={!canSubmitFeedback
-                    ? t('feedback.pendingSave', { ns: 'chat' })
-                    : t('feedback.like', { ns: 'chat' })}
-                  className={`inline-flex items-center justify-center rounded-lg border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
-                    selectedFeedbackVote === 'up'
-                      ? 'border-[hsl(var(--success)/0.45)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
-                      : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
-                  } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
-                >
-                  <ThumbsUp key={selectedFeedbackVote === 'up' ? 'up-active' : 'up'} size={14} className={selectedFeedbackVote === 'up' ? 'motion-icon-pop' : undefined} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!canSubmitFeedback) return;
-                    void onSubmitFeedback?.(message, 'down');
-                  }}
-                  disabled={isFeedbackDisabled}
-                  aria-pressed={selectedFeedbackVote === 'down'}
-                  aria-label={t('feedback.dislike', { ns: 'chat' })}
-                  title={!canSubmitFeedback
-                    ? t('feedback.pendingSave', { ns: 'chat' })
-                    : t('feedback.dislike', { ns: 'chat' })}
-                  className={`inline-flex items-center justify-center rounded-lg border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
-                    selectedFeedbackVote === 'down'
-                      ? 'border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]'
-                      : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
-                  } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
-                >
-                  <ThumbsDown key={selectedFeedbackVote === 'down' ? 'down-active' : 'down'} size={14} className={selectedFeedbackVote === 'down' ? 'motion-icon-pop' : undefined} />
-                </button>
-                {!canSubmitFeedback && (
-                  <span className="text-xs text-[hsl(var(--text-secondary))]">
-                    {t('feedback.pendingSave', { ns: 'chat' })}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
         {/* Tool calls */}
         {message.role === 'assistant' && !hasDisplayItems && toolCalls.length > 0 && (
-          <div className={hasDisplayContent ? "mt-3 space-y-2" : "space-y-2"}>
+          <div className={hasDisplayContent ? "mt-2.5 space-y-2" : "space-y-2"}>
             {toolCalls.map((toolCall, idx) => (
               <ToolResultCard
                 key={idx}
@@ -1059,22 +1046,35 @@ const Row = React.memo(function Row({
 
         {/* Tool results */}
         {message.role === 'assistant' && !hasDisplayItems && toolResults.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {toolResults.map((result, idx) => (
-              <ToolResultCard
-                key={idx}
-                type="tool_result"
-                toolName={result.tool_name}
-                result={toolCardPayload(result)}
-                error={result.status === 'error' ? result.error : undefined}
-                onUndo={onUndo}
-                onRestoreDeletion={onRestoreDeletion}
-                toolUseId={result.id}
-                chatMessageId={message.backendMessageId}
-                onOpenFile={result.status === 'success' ? onOpenFile : undefined}
-                onOpenAIMemory={onOpenAIMemory}
-              />
-            ))}
+          <div className="mt-2.5 space-y-2">
+            {groupToolCallsForDisplay(toolResults, `${message.id}-res`).map((run) =>
+              run.kind === 'readonly_group' ? (
+                <ReadOnlyToolGroup
+                  key={run.key}
+                  calls={run.calls}
+                  isStreaming={false}
+                  onUndo={onUndo}
+                  onRestoreDeletion={onRestoreDeletion}
+                  chatMessageId={message.backendMessageId}
+                  onOpenFile={onOpenFile}
+                  onOpenAIMemory={onOpenAIMemory}
+                />
+              ) : (
+                <ToolResultCard
+                  key={run.key}
+                  type="tool_result"
+                  toolName={run.call.tool_name}
+                  result={toolCardPayload(run.call)}
+                  error={run.call.status === 'error' ? run.call.error : undefined}
+                  onUndo={onUndo}
+                  onRestoreDeletion={onRestoreDeletion}
+                  toolUseId={run.call.id}
+                  chatMessageId={message.backendMessageId}
+                  onOpenFile={run.call.status === 'success' ? onOpenFile : undefined}
+                  onOpenAIMemory={onOpenAIMemory}
+                />
+              ),
+            )}
           </div>
         )}
 
@@ -1108,10 +1108,161 @@ const Row = React.memo(function Row({
           </div>
         )}
 
-        {/* Timestamp - always show at the bottom of each message group */}
-        {shouldShowTimestamp && (
-          <div className={`chat-timestamp ${isMobile ? 'mt-1.5' : 'mt-2'}`}>
-            {formatTime(message.timestamp)}
+        {/* Round-end delivery receipt (+ compact mobile jump-to-editor pill), chronologically after tool cards */}
+        {message.role === 'assistant' && message.stopOutcome && (
+          <>
+            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+              <RoundEndNote
+                outcome={message.stopOutcome}
+                showDailyCount={showDailyCount}
+                nextStepsBlocked={nextStepsBlocked}
+                pauseCardShown={hasVisibleIterationExhaustedCard}
+                className="min-w-0"
+              />
+              {showReadWritten && (
+                <button
+                  type="button"
+                  data-testid="read-written-files"
+                  onClick={switchToEditor}
+                  className="relative inline-flex shrink-0 items-center gap-1 h-8 rounded-full border border-[hsl(var(--accent-primary)/0.28)] bg-[hsl(var(--accent-primary)/0.12)] px-3 text-xs font-medium text-[hsl(var(--info-text))] hover:bg-[hsl(var(--accent-primary)/0.2)] transition-colors active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-rail))] before:content-[''] before:absolute before:-inset-y-1.5 before:inset-x-0"
+                >
+                  <span>{t('chat:panel.readWrittenFiles')}</span>
+                  <ArrowRight size={13} className="shrink-0" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+            {quietIncompleteCard && !nextStepsBlocked && (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  className={CHAT_CARD_PRIMARY_BUTTON}
+                  onClick={() => onIterationAssistAction?.('continue', quietIncompleteCard)}
+                >
+                  {t('workflow.actionContinue', { ns: 'chat' })}
+                </button>
+              </div>
+            )}
+            {deliveredFiles.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2" data-testid="round-delivery-receipt">
+                {deliveredFiles.map((file) => (
+                  <button
+                    key={file.id}
+                    type="button"
+                    className={`max-w-full text-left break-words ${CHAT_CARD_SECONDARY_BUTTON}`}
+                    onClick={() => onOpenFile?.(file.id, '', file.title)}
+                  >
+                    {t('panel.openWrittenFile', { ns: 'chat', title: file.title })}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Footer: borderless ghost actions + muted timestamp on one compact row */}
+        {(hasAssistantFooterActions || shouldShowTimestamp) && (
+          <div
+            className={`flex items-center gap-2 ${
+              isUser
+                ? 'justify-end mt-1 px-0.5'
+                : hasAssistantFooterActions
+                  ? 'justify-between mt-1.5 -ml-1'
+                  : 'justify-start mt-1.5'
+            }`}
+          >
+            {hasAssistantFooterActions && (
+              <div
+                className={`flex items-center gap-0.5 transition-opacity duration-[var(--duration-instant)] ease-[var(--ease-standard)] ${
+                  hasActiveFooterState
+                    ? 'opacity-100'
+                    : 'opacity-100 md:opacity-50 md:group-hover/msg:opacity-100 md:group-focus-within/msg:opacity-100'
+                }`}
+              >
+                {copyableText && (
+                  <>
+                    <button
+                      type="button"
+                      data-testid="copy-message-button"
+                      onClick={() => { void handleCopyReply(); }}
+                      aria-label={copied
+                        ? t('message.copiedReply', { ns: 'chat', defaultValue: '已复制' })
+                        : t('message.copyReply', { ns: 'chat', defaultValue: '复制回复' })}
+                      title={copied
+                        ? t('message.copiedReply', { ns: 'chat', defaultValue: '已复制' })
+                        : t('message.copyReply', { ns: 'chat', defaultValue: '复制回复' })}
+                      className={`inline-flex items-center justify-center rounded-md border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-rail))] w-11 h-11 md:w-7 md:h-7 ${
+                        copied
+                          ? 'border-[hsl(var(--success)/0.35)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
+                          : 'border-transparent bg-transparent text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
+                      }`}
+                    >
+                      {copied ? (
+                        <Check key="copied" size={14} className="motion-icon-pop" />
+                      ) : (
+                        <Copy key="copy" size={14} />
+                      )}
+                    </button>
+                    <span role="status" aria-live="polite" className="sr-only">
+                      {copied ? t('message.copiedReply', { ns: 'chat', defaultValue: '已复制' }) : ''}
+                    </span>
+                  </>
+                )}
+                {shouldShowFeedbackActions && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!canSubmitFeedback) return;
+                        void onSubmitFeedback?.(message, 'up');
+                      }}
+                      disabled={isFeedbackDisabled}
+                      aria-pressed={selectedFeedbackVote === 'up'}
+                      aria-label={t('feedback.like', { ns: 'chat' })}
+                      title={!canSubmitFeedback
+                        ? t('feedback.pendingSave', { ns: 'chat' })
+                        : t('feedback.like', { ns: 'chat' })}
+                      className={`inline-flex items-center justify-center rounded-md border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-rail))] w-11 h-11 md:w-7 md:h-7 ${
+                        selectedFeedbackVote === 'up'
+                          ? 'border-[hsl(var(--success)/0.35)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
+                          : 'border-transparent bg-transparent text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
+                      } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-55' : ''}`}
+                    >
+                      <ThumbsUp key={selectedFeedbackVote === 'up' ? 'up-active' : 'up'} size={14} className={selectedFeedbackVote === 'up' ? 'motion-icon-pop' : undefined} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!canSubmitFeedback) return;
+                        void onSubmitFeedback?.(message, 'down');
+                      }}
+                      disabled={isFeedbackDisabled}
+                      aria-pressed={selectedFeedbackVote === 'down'}
+                      aria-label={t('feedback.dislike', { ns: 'chat' })}
+                      title={!canSubmitFeedback
+                        ? t('feedback.pendingSave', { ns: 'chat' })
+                        : t('feedback.dislike', { ns: 'chat' })}
+                      className={`inline-flex items-center justify-center rounded-md border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-rail))] w-11 h-11 md:w-7 md:h-7 ${
+                        selectedFeedbackVote === 'down'
+                          ? 'border-[hsl(var(--warning)/0.4)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]'
+                          : 'border-transparent bg-transparent text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
+                      } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-55' : ''}`}
+                    >
+                      <ThumbsDown key={selectedFeedbackVote === 'down' ? 'down-active' : 'down'} size={14} className={selectedFeedbackVote === 'down' ? 'motion-icon-pop' : undefined} />
+                    </button>
+                    {!canSubmitFeedback && (
+                      <span className="ml-1 text-xs text-[hsl(var(--text-secondary))]">
+                        {t('feedback.pendingSave', { ns: 'chat' })}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+            {shouldShowTimestamp && (
+              <div className="chat-timestamp shrink-0">
+                {formatTime(message.timestamp)}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1227,13 +1378,6 @@ export const MessageList = React.memo(
     scrollToBottom,
   }), [scrollToBottom]);
 
-  // Check if we should show AI avatar for stream items
-  const shouldShowAIAvatar = useMemo(() => {
-    if (!messages || messages.length === 0) return true; // No messages, show avatar
-    const lastMessage = messages[messages.length - 1];
-    return lastMessage.role !== 'assistant'; // Show avatar if last message is not from assistant
-  }, [messages]);
-
   // 检查是否应该显示 streamRenderItems
   // 因为 onComplete 中立即清空了 streamRenderItems，所以只需要简单检查是否有内容即可
   const safeStreamRenderItems = useMemo(
@@ -1283,28 +1427,13 @@ export const MessageList = React.memo(
 
       {/* 然后渲染流式内容 - 按服务端顺序直接追加在最后 */}
       {shouldShowStreamItems && (
-        <div key="stream-items" className={`flex py-2 ${isMobile ? 'flex-col gap-1.5' : 'items-start gap-3'}`}>
-          {/* AI Avatar - 只在第一条消息是 assistant 时显示 */}
-          {isMobile ? (
-            shouldShowAIAvatar ? (
-              <div className="shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center ring-2 ring-[hsl(var(--accent-primary)/0.3)]">
-                <Sparkles size={13} className="text-white" />
-              </div>
-            ) : null
-          ) : shouldShowAIAvatar ? (
-            <div className="shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center ring-2 ring-[hsl(var(--accent-primary)/0.3)]">
-              <Sparkles size={16} className="text-white" />
-            </div>
-          ) : (
-            <div className="shrink-0 w-8 h-8" />
-          )}
-
+        <div key="stream-items" className={`flex flex-col ${isMobile ? 'pt-1.5 pb-2.5' : 'pt-2 pb-3'}`}>
           {/* Stream items */}
-          <div className="flex-1 min-w-0 overflow-hidden w-full">
+          <div className="w-full min-w-0 overflow-hidden">
             <OrderedMessageItems items={safeStreamRenderItems} onUndo={onUndo} onRestoreDeletion={onRestoreDeletion} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={true} />
 
             {/* Timestamp */}
-            <div className={`text-xs text-[hsl(var(--text-secondary))] ${isMobile ? 'mt-2' : 'mt-3'}`}>
+            <div className="chat-timestamp mt-1.5">
               {formatTime(safeStreamRenderItems[safeStreamRenderItems.length - 1].timestamp)}
             </div>
           </div>

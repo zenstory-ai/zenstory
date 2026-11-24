@@ -1074,7 +1074,7 @@ export const SimpleEditor = ({
 
 
   return (
-    <div className="relative flex flex-col h-full bg-[hsl(var(--bg-primary))]" onKeyDown={handleKeyDown}>
+    <div className="relative flex flex-col h-full bg-[hsl(var(--bg-canvas))]" onKeyDown={handleKeyDown}>
       {/* Diff Review Toolbar - shown when in review mode */}
       {isReviewMode && diffReviewState && onAcceptAllEdits && onRejectAllEdits && onFinishReview && (
         <DiffToolbar
@@ -1096,8 +1096,8 @@ export const SimpleEditor = ({
       <div
         className={`shrink-0 px-4 sm:px-6 ${
           isReviewMode
-            ? 'bg-[hsl(var(--bg-primary))] pb-1.5 pt-2'
-            : 'bg-[hsl(var(--bg-secondary)/0.3)] py-4'
+            ? 'bg-[hsl(var(--bg-canvas))] pb-1.5 pt-2'
+            : 'bg-transparent pt-5 pb-3'
         }`}
       >
         <input
@@ -1179,7 +1179,7 @@ export const SimpleEditor = ({
 
       {/* Status bar - hide during review mode */}
       {!isReviewMode && (
-        <div className="shrink-0 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))]">
+        <div className="shrink-0 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--separator-color)/0.7)] bg-[hsl(var(--bg-canvas))]">
           <div className="flex items-center gap-2.5 text-xs text-[hsl(var(--text-secondary))] whitespace-nowrap">
             {/* Counts Chinese characters and English words only, so it reads lower than
                 platforms that count punctuation; say so on hover and on tap. */}

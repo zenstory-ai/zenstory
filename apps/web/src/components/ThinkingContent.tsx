@@ -118,43 +118,39 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
   }
 
   return (
-    <div className="max-w-full overflow-hidden rounded-xl border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary)/0.45)]">
-      {/* Header */}
+    <div className="max-w-full">
+      {/* Header - whisper-quiet borderless inline disclosure matching ReadOnlyToolGroup */}
       <button
         type="button"
         onClick={handleToggle}
         aria-expanded={isExpanded}
-        className={`w-full min-h-11 md:min-h-0 px-3 py-2 flex items-center justify-between gap-2 text-left hover:bg-[hsl(var(--bg-tertiary)/0.75)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))] ${
-          isExpanded ? 'rounded-t-xl' : 'rounded-xl'
-        }`}
+        className="inline-flex max-w-full min-h-11 md:min-h-7 -ml-1.5 items-center gap-1.5 rounded-lg px-2 py-1 text-left text-xs text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-tertiary)/0.75)] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--accent-primary))]"
         aria-label={isExpanded
           ? t('chat:thinking.collapse', '收起思考过程')
           : t('chat:thinking.expand', '展开思考过程')}
       >
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">
-            {t('chat:thinking.title')}
-          </span>
-          {isStreaming && (
-            <div className="flex items-center gap-0.5">
-              <span className="w-1 h-1 bg-[hsl(var(--text-secondary))] rounded-full animate-pulse"></span>
-              <span className="w-1 h-1 bg-[hsl(var(--text-secondary))] rounded-full animate-pulse" style={{ animationDelay: "0.2s" }}></span>
-              <span className="w-1 h-1 bg-[hsl(var(--text-secondary))] rounded-full animate-pulse" style={{ animationDelay: "0.4s" }}></span>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center shrink-0">
-          <ChevronDown
-            className={`w-3.5 h-3.5 text-[hsl(var(--text-secondary))] motion-chevron ${
-              isExpanded ? "rotate-180" : ""
-            }`}
-          />
-        </div>
+        <span className="truncate font-medium">
+          {t('chat:thinking.title')}
+        </span>
+        {isStreaming && (
+          <div className="flex items-center gap-0.5 shrink-0">
+            <span className="w-1 h-1 bg-[hsl(var(--text-tertiary))] rounded-full animate-pulse"></span>
+            <span className="w-1 h-1 bg-[hsl(var(--text-tertiary))] rounded-full animate-pulse" style={{ animationDelay: "0.2s" }}></span>
+            <span className="w-1 h-1 bg-[hsl(var(--text-tertiary))] rounded-full animate-pulse" style={{ animationDelay: "0.4s" }}></span>
+          </div>
+        )}
+        <ChevronDown
+          size={12}
+          aria-hidden="true"
+          className={`shrink-0 opacity-75 motion-chevron ${
+            isExpanded ? "rotate-180" : ""
+          }`}
+        />
       </button>
 
       {/* Content */}
-      <AnimatedCollapse open={isExpanded}>
-        <div className="border-t border-[hsl(var(--separator-color))] px-3 py-2.5">
+      <AnimatedCollapse open={isExpanded} fast>
+        <div className="mt-1.5 pl-3 border-l border-[hsl(var(--separator-color))] py-0.5">
           <div className="prose prose-xs max-w-none text-[hsl(var(--text-secondary))]">
             <LazyMarkdown>{displayContent}</LazyMarkdown>
           </div>

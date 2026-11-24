@@ -102,7 +102,7 @@ export const Header: React.FC<HeaderProps> = () => {
     150,
   );
   const { exportDrafts, loading: exportLoading } = useExport(currentProjectId);
-  const desktopIconButtonClass = "p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]";
+  const desktopIconButtonClass = "p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-rail))]";
   const mobileMenuId = "header-mobile-menu";
 
   const handleOpenBilling = (closeMobileMenu = false) => {
@@ -211,12 +211,12 @@ export const Header: React.FC<HeaderProps> = () => {
 
   return (
     <>
-      <header className="h-12 bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] flex items-center px-2 md:px-4 justify-between shrink-0">
+      <header className="h-12 bg-[hsl(var(--bg-rail))] border-b border-[hsl(var(--separator-color))] flex items-center px-2 md:px-4 justify-between shrink-0">
         {/* Left: Website Name and Project Switcher */}
         <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
           <button
             type="button"
-            className="flex min-h-[44px] min-w-[44px] items-center justify-start hover:bg-[hsl(var(--bg-tertiary))] rounded-lg px-1.5 py-1 md:px-0 md:py-0 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-start hover:bg-[hsl(var(--bg-tertiary))] rounded-lg px-1.5 py-1 md:px-0 md:py-0 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-rail))]"
             onClick={() => navigate("/dashboard")}
             aria-label={t('editor:header.goDashboard')}
             title={t('editor:header.goDashboard')}

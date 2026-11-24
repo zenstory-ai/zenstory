@@ -1361,4 +1361,109 @@ describe('MessageList', () => {
       await waitFor(() => expect(copyButtons[0]).toHaveAttribute('aria-label', 'message.copiedReply'))
     })
   })
+
+  describe('read-only tool progress grouping', () => {
+    it('folds >=2 consecutive successful read-only tools across adjacent tool_calls items while keeping writes, pending, and errors exposed', () => {
+      const ts = new Date('2026-11-24T03:00:00Z')
+      const displayItems = [
+        {
+          id: 'tc-1',
+          type: 'tool_calls' as const,
+          timestamp: ts,
+          toolCalls: [
+            { id: 'q1', tool_name: 'query_files', arguments: {}, status: 'success' as const, result: { files: [{ id: 'f1', title: '人物小传' }] } },
+          ],
+        },
+        {
+          id: 'tc-2',
+          type: 'tool_calls' as const,
+          timestamp: ts,
+          toolCalls: [
+            { id: 'q2', tool_name: 'query_files', arguments: {}, status: 'success' as const, result: { files: [{ id: 'f2', title: '大纲' }] } },
+            { id: 's1', tool_name: 'load_skill', arguments: { name: '去AI味' }, status: 'success' as const, result: { name: '去AI味' } },
+          ],
+        },
+        {
+          id: 'tc-3',
+          type: 'tool_calls' as const,
+          timestamp: ts,
+          toolCalls: [
+            { id: 'w1', tool_name: 'create_file', arguments: {}, status: 'success' as const, result: { id: 'f3', title: '第一章 雨夜' } },
+            { id: 'q3', tool_name: 'query_files', arguments: {}, status: 'error' as const, error: 'not found' },
+            { id: 'q4', tool_name: 'query_files', arguments: {}, status: 'success' as const, result: { files: [{ id: 'f4', title: '设定集' }] } },
+          ],
+        },
+      ]
+
+      render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
+
+      // 3 consecutive successful read-only calls collapse into 1 group; write, error, and trailing single read-only stay exposed
+      const groups = screen.getAllByTestId('readonly-tool-group')
+      expect(groups).toHaveLength(1)
+      const toggle = groups[0].querySelector('button[aria-expanded]')!
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+      // Write card and error card remain directly visible outside the group
+      expect(screen.getByText(/第一章 雨夜/)).toBeInTheDocument()
+      expect(screen.getByText('chat:tool.failed')).toBeInTheDocument()
+
+      // Clicking expands to reveal the grouped read-only ToolResultCards
+      fireEvent.click(toggle)
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('never folds pending read-only tools while streaming', () => {
+      const ts = new Date('2026-11-24T03:00:00Z')
+      const streamItems = [
+        {
+          id: 'live-tc',
+          type: 'tool_calls' as const,
+          timestamp: ts,
+          toolCalls: [
+            { id: 'p1', tool_name: 'query_files', arguments: {}, status: 'pending' as const },
+            { id: 'p2', tool_name: 'load_skill', arguments: { name: '古风润色' }, status: 'pending' as const },
+          ],
+        },
+      ]
+
+      render(<MessageList messages={[]} streamRenderItems={streamItems} />)
+      expect(screen.queryByTestId('readonly-tool-group')).not.toBeInTheDocument()
+    })
+
+    it('groups consecutive read-only legacy toolResults and renders RoundEndNote + mobile read-written-files chronologically after tool cards', () => {
+      const wrote = createMessage({
+        role: 'assistant',
+        content: '已微调第二章末段。',
+        backendMessageId: 'a-legacy-order',
+        toolResults: [
+          { id: 'r1', tool_name: 'query_files', arguments: {}, status: 'success', result: [{ id: 'f1', title: '大纲' }] },
+          { id: 'r2', tool_name: 'hybrid_search', arguments: {}, status: 'success', result: [{ id: 'f2', title: '卷宗' }] },
+          { id: 'w1', tool_name: 'edit_file', arguments: {}, status: 'success', result: { id: 'f3', title: '第二章 铜雀密信', applied_count: 1 } },
+        ],
+        stopOutcome: {
+          reason: 'completed',
+          charged: true,
+          savedOutput: true,
+          removedFiles: [],
+          writtenFiles: [{ id: 'f3', title: '第二章 铜雀密信', words: 2510 }],
+        },
+      })
+
+      render(
+        <MobileLayoutProvider isMobile>
+          <MessageList messages={[createMessage({ content: '帮我微调' }), wrote]} />
+        </MobileLayoutProvider>,
+      )
+
+      const readonlyGroup = screen.getByTestId('readonly-tool-group')
+      const editTitle = screen.getByText('第二章 铜雀密信')
+      const roundEnd = screen.getByTestId('round-end-note')
+      const readButton = screen.getByTestId('read-written-files')
+
+      // Read-only group precedes the edit card, and both precede the round-end receipt & mobile jump pill
+      expect(readonlyGroup.compareDocumentPosition(editTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(editTitle.compareDocumentPosition(roundEnd) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(editTitle.compareDocumentPosition(readButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+  })
 })

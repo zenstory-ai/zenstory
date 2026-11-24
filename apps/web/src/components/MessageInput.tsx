@@ -755,17 +755,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {attachedMaterials.map((material) => (
             <span
               key={material.id}
-              className={`inline-flex min-w-0 items-center gap-1 px-2 py-0.5 bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] rounded text-xs ${isFillLayout ? "shrink-0" : ""}`}
+              className={`inline-flex min-w-0 items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))] text-xs font-medium ${isFillLayout ? "shrink-0" : ""}`}
             >
               <FileText size={12} className="shrink-0" />
-              <span className="max-w-[100px] truncate">{material.title}</span>
+              <span className="max-w-[110px] truncate">{material.title}</span>
               <button
                 type="button"
                 onClick={() => {
                   removeMaterial(material.id);
                   textareaRef.current?.focus();
                 }}
-                className={`shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--accent-primary)/0.15)] rounded-sm ${isMobile ? "p-1 -m-1" : ""}`}
+                className={`shrink-0 opacity-70 hover:opacity-100 hover:text-[hsl(var(--error-text))] transition-opacity focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--accent-primary))] rounded-full ${isMobile ? "p-1 -m-1" : ""}`}
                 title={t("chat:input.remove")}
                 aria-label={t("chat:input.removeMaterial", { title: material.title })}
               >
@@ -783,7 +783,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {quotes.map((quote) => (
             <span
               key={quote.id}
-              className={`inline-flex min-w-0 items-center gap-1 px-2 py-0.5 bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning-text))] rounded text-xs ${isFillLayout ? "shrink-0" : ""}`}
+              className={`inline-flex min-w-0 items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.1)] text-[hsl(var(--warning-text))] text-xs font-medium ${isFillLayout ? "shrink-0" : ""}`}
               title={quote.text}
             >
               <Quote size={12} className="shrink-0" />
@@ -796,7 +796,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   removeQuote(quote.id);
                   textareaRef.current?.focus();
                 }}
-                className={`shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--warning)/0.15)] rounded-sm ${isMobile ? "p-1 -m-1" : ""}`}
+                className={`shrink-0 opacity-70 hover:opacity-100 hover:text-[hsl(var(--error-text))] transition-opacity focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--accent-primary))] rounded-full ${isMobile ? "p-1 -m-1" : ""}`}
                 title={t("chat:input.remove")}
                 aria-label={t("chat:input.removeQuote")}
               >
@@ -813,7 +813,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {matchedSkills.map((skill, index) => (
             <span
               key={index}
-              className={`inline-flex min-w-0 items-center gap-1 px-2 py-0.5 bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] rounded text-xs ${isFillLayout ? "shrink-0" : ""}`}
+              className={`inline-flex min-w-0 items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))] text-xs font-medium ${isFillLayout ? "shrink-0" : ""}`}
             >
               <Zap size={10} className="shrink-0" />
               <span className="max-w-[180px] truncate">{skill.name}</span>
@@ -831,10 +831,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {selectedSkills.map((skill) => (
             <span
               key={skill.id}
-              className={`inline-flex min-w-0 items-center gap-1 px-2 py-0.5 bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))] rounded text-xs ${isFillLayout ? "shrink-0" : ""}`}
+              className={`inline-flex min-w-0 items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] text-xs font-medium ${isFillLayout ? "shrink-0" : ""}`}
               data-testid="chat-selected-skill-chip"
             >
-              <Zap size={10} className="shrink-0" />
+              <Zap size={11} className="shrink-0 text-[hsl(var(--accent-primary))]" />
               <span className="max-w-[200px] truncate">{skill.name}</span>
               <button
                 type="button"
@@ -842,7 +842,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   removeSkill(skill.id);
                   textareaRef.current?.focus();
                 }}
-                className={`shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--success)/0.15)] rounded-sm ${isMobile ? "p-1 -m-1" : ""}`}
+                className={`shrink-0 opacity-70 hover:opacity-100 hover:text-[hsl(var(--error-text))] transition-opacity focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--accent-primary))] rounded-full ${isMobile ? "p-1 -m-1" : ""}`}
                 title={t("chat:input.remove")}
                 aria-label={t("chat:skill.removeSelected", { name: skill.name })}
               >
@@ -1017,20 +1017,27 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       ) : null}
 
-      {/* Input row */}
+      {/* Unified capsule composer: compact single-row on phones (preserves keyboard viewport), airy two-row on desktop */}
       <div
-        className={
-          isFillLayout
-            ? "flex flex-1 min-h-0 items-end gap-1.5"
-            : "flex items-end gap-1.5"
-        }
+        data-testid="chat-input-capsule"
+        className={`flex rounded-2xl border bg-[hsl(var(--bg-secondary))] shadow-[0_1px_3px_hsl(0_0%_0%/0.05)] dark:shadow-[0_2px_10px_hsl(0_0%_0%/0.24)] transition-[border-color,box-shadow,background-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${
+          isMobile ? "flex-row items-end gap-1 p-1" : "flex-col"
+        } ${
+          inputTooLong
+            ? "border-[hsl(var(--error)/0.65)] ring-1 ring-inset ring-[hsl(var(--error)/0.2)]"
+            : "border-[hsl(var(--border-color))] focus-within:border-[hsl(var(--accent-primary)/0.55)] focus-within:ring-1 focus-within:ring-inset focus-within:ring-[hsl(var(--accent-primary)/0.2)]"
+        } ${
+          isFillLayout ? "flex-1 min-h-0" : ""
+        }`}
         style={isFillLayout ? { minHeight: `${textareaMinHeightPx}px` } : undefined}
       >
-        {/* 语音输入按钮 */}
-        <VoiceInputButton
-          onResult={handleVoiceResult}
-          disabled={inputDisabled}
-        />
+        {isMobile && (
+          <VoiceInputButton
+            onResult={handleVoiceResult}
+            disabled={inputDisabled}
+            className="!border-0 !bg-transparent hover:!bg-[hsl(var(--bg-tertiary))] !rounded-full"
+          />
+        )}
 
         {/* data-testid: chat-input - Chat input textarea for chat interaction tests */}
         <textarea
@@ -1048,16 +1055,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           }}
           placeholder={displayPlaceholder}
           disabled={inputDisabled}
-          className={`flex-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl text-sm text-[hsl(var(--text-primary))] placeholder:text-sm placeholder:text-[hsl(var(--text-secondary))] outline-none resize-none overflow-y-auto transition-[border-color,box-shadow,background-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] disabled:opacity-50 focus:border-[hsl(var(--accent-primary)/0.6)] focus:shadow-[inset_0_1px_2px_hsl(0_0%_0%_/_0.05),_0_0_0_2px_hsl(var(--accent-primary)/0.15)] ${
-            isMobile ? 'px-3 py-2.5' : 'px-3 py-2'
+          className={`bg-transparent text-sm text-[hsl(var(--text-primary))] placeholder:text-sm placeholder:text-[hsl(var(--text-secondary))] outline-none resize-none overflow-y-auto disabled:opacity-50 ${
+            isMobile ? 'flex-1 min-w-0 px-2 py-2.5 text-base md:text-sm' : 'w-full px-3.5 pt-2.5 pb-1'
           } ${
-            isFillLayout ? "h-full min-h-0" : ""
+            isFillLayout ? "flex-1 min-h-0" : ""
           }`}
           style={
             isFillLayout
               ? {
                   minHeight: `${textareaMinHeightPx}px`,
-                  height: "100%",
                 }
               : {
                   minHeight: `${textareaMinHeightPx}px`,
@@ -1068,57 +1074,73 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           data-testid="chat-input"
         />
 
-        {steerActive && input.trim() ? (
-          <button
-            onClick={() => { void handleSteer(); }}
-            disabled={!input.trim() || steerPending || inputTooLong}
-            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.96] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
-            title={t("chat:input.steerButton")}
-            aria-label={t("chat:input.steerButton")}
-            data-testid="steer-button"
-          >
-            <Send key="steer-icon" size={16} className="motion-icon-pop" />
-          </button>
-        ) : onCancel && effectiveSendDisabled ? (
-          <button
-            onClick={handleCancel}
-            // While arming the button stays clickable (aria-disabled) so a press gets an answer.
-            disabled={isStopping}
-            aria-disabled={!stopArmed || isStopping}
-            className={`shrink-0 flex items-center justify-center rounded-xl transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.96] motion-reduce:active:scale-100 focus-visible:outline-none ${
-              !stopArmed || isStopping
-                // Muted while arming: secondary ink on the tertiary fill, hairline ring.
-                ? 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] shadow-[inset_0_0_0_1px_hsl(var(--border-color))] cursor-not-allowed focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))]'
-                // Same solid danger colors as ui/Button's danger variant.
-                : 'bg-[hsl(var(--danger-solid))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--danger-hover))] focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))]'
-            } ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
-            title={stopButtonLabel}
-            aria-label={stopButtonLabel}
-            data-testid="stop-button"
-          >
-            <Square key="stop-icon" size={14} fill="currentColor" className="motion-icon-pop" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!input.trim() || effectiveSendDisabled || inputTooLong}
-            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.96] disabled:active:scale-100 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] disabled:focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--bg-tertiary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
-            title={
-              inputTooLong
-                ? t("chat:input.tooLong", { count: input.length, max: MAX_AGENT_MESSAGE_CHARS })
-                : effectiveSendDisabled
-                  ? t("chat:input.sendDisabledBusy")
-                  : !input.trim()
-                    ? t("chat:input.sendDisabledEmpty")
-                    : t("chat:input.sendWithShortcut")
-            }
-            aria-label={t("common:send")}
-            data-testid="send-button"
-          >
-            <Send key="send-icon" size={16} className="motion-icon-pop" />
-          </button>
-        )}
+        {/* Action controls: inline trailing on phones, dedicated bottom bar on desktop */}
+        <div className={isMobile ? "shrink-0 flex items-center" : "shrink-0 flex items-center justify-between gap-2 px-2 pb-1.5 pt-0.5"}>
+          {!isMobile && (
+            <div className="flex items-center gap-1">
+              {/* 语音输入按钮 */}
+              <VoiceInputButton
+                onResult={handleVoiceResult}
+                disabled={inputDisabled}
+                className="!border-0 !bg-transparent hover:!bg-[hsl(var(--bg-tertiary))] !rounded-full"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5">
+            {steerActive && input.trim() ? (
+              <button
+                onClick={() => { void handleSteer(); }}
+                disabled={!input.trim() || steerPending || inputTooLong}
+                className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-full transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.95] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-secondary)),_0_0_0_4px_hsl(var(--accent-primary))] ${isMobile ? 'w-11 h-11' : 'w-8 h-8'}`}
+                title={t("chat:input.steerButton")}
+                aria-label={t("chat:input.steerButton")}
+                data-testid="steer-button"
+              >
+                <Send key="steer-icon" size={15} className="motion-icon-pop" />
+              </button>
+            ) : onCancel && effectiveSendDisabled ? (
+              <button
+                onClick={handleCancel}
+                // While arming the button stays clickable (aria-disabled) so a press gets an answer.
+                disabled={isStopping}
+                aria-disabled={!stopArmed || isStopping}
+                className={`shrink-0 flex items-center justify-center rounded-full transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.95] motion-reduce:active:scale-100 focus-visible:outline-none ${
+                  !stopArmed || isStopping
+                    // Muted while arming: secondary ink on the tertiary fill, hairline ring.
+                    ? 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] shadow-[inset_0_0_0_1px_hsl(var(--border-color))] cursor-not-allowed focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-secondary)),_0_0_0_4px_hsl(var(--accent-primary))]'
+                    // Same solid danger colors as ui/Button's danger variant.
+                    : 'bg-[hsl(var(--danger-solid))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--danger-hover))] focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-secondary)),_0_0_0_4px_hsl(var(--error))]'
+                } ${isMobile ? 'w-11 h-11' : 'w-8 h-8'}`}
+                title={stopButtonLabel}
+                aria-label={stopButtonLabel}
+                data-testid="stop-button"
+              >
+                <Square key="stop-icon" size={13} fill="currentColor" className="motion-icon-pop" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!input.trim() || effectiveSendDisabled || inputTooLong}
+                className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-full transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.95] disabled:active:scale-100 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-secondary)),_0_0_0_4px_hsl(var(--accent-primary))] disabled:focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-secondary)),_0_0_0_4px_hsl(var(--bg-tertiary))] ${isMobile ? 'w-11 h-11' : 'w-8 h-8'}`}
+                title={
+                  inputTooLong
+                    ? t("chat:input.tooLong", { count: input.length, max: MAX_AGENT_MESSAGE_CHARS })
+                    : effectiveSendDisabled
+                      ? t("chat:input.sendDisabledBusy")
+                      : !input.trim()
+                        ? t("chat:input.sendDisabledEmpty")
+                        : t("chat:input.sendWithShortcut")
+                }
+                aria-label={t("common:send")}
+                data-testid="send-button"
+              >
+                <Send key="send-icon" size={15} className="motion-icon-pop" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
