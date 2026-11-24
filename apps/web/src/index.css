@@ -207,11 +207,11 @@
     color-scheme: light;
     --bg-primary: 220 18% 98%;
     --bg-secondary: 0 0% 100%;
-    --bg-tertiary: 220 16% 93.5%;
+    --bg-tertiary: 220 16% 95%;
     --bg-card: 0 0% 100%; /* #ffffff */
-    --bg-rail: 220 20% 97.2%;
+    --bg-rail: 220 20% 97.5%;
     --bg-canvas: 0 0% 100%;
-    --chat-user-pill-bg: 220 18% 91.5%;
+    --chat-user-pill-bg: 220 18% 92%;
     --chat-user-pill-border: 220 15% 86%;
 
     --text-primary: 225 18% 16%;
@@ -2004,11 +2004,11 @@ code, pre, .font-mono {
         box-shadow: none;
     }
 
-    /* Timestamp styling */
+    /* Timestamp styling (full AA contrast over both --bg-rail light and dark) */
     .chat-timestamp {
         font-size: 0.6875rem;
         line-height: 1rem;
-        color: hsl(var(--text-tertiary) / 0.78);
+        color: hsl(var(--text-secondary));
         font-variant-numeric: tabular-nums;
     }
 
