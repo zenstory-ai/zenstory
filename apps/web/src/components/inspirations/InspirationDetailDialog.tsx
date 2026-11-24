@@ -257,12 +257,12 @@ function InspirationDetailDialogContent({
         >
           {copySuccess ? (
             <>
-              <Check className="w-4 h-4" />
+              <Check key="copied" className="w-4 h-4 motion-icon-pop" />
               {t("copied")}
             </>
           ) : (
             <>
-              <Copy className="w-4 h-4" />
+              <Copy key="copy" className="w-4 h-4" />
               {isCopying ? t("copying") : t("useThis")}
             </>
           )}

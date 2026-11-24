@@ -55,8 +55,10 @@ export const AdminLayout: React.FC = () => {
             <div
               ref={mobileSidebarRef}
               id="admin-mobile-navigation"
-              className={`fixed top-14 bottom-0 left-0 z-50 w-72 max-w-[88vw] border-r border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))] shadow-2xl transition-transform duration-[var(--duration-base)] ease-[var(--ease-out-expo)] motion-reduce:transition-none md:hidden ${
-                sidebarOpen ? "translate-x-0" : "-translate-x-full"
+              className={`fixed top-14 bottom-0 left-0 z-50 w-72 max-w-[88vw] border-r border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))] shadow-2xl transition-transform motion-reduce:transition-none md:hidden ${
+                sidebarOpen
+                  ? "translate-x-0 duration-[var(--duration-base)] ease-[var(--ease-out-expo)]"
+                  : "-translate-x-full duration-[var(--duration-fast)] ease-[var(--ease-in-expo)] pointer-events-none"
               }`}
               role="dialog"
               aria-modal="true"

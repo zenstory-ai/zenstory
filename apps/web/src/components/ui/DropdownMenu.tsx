@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useId, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { MoreHorizontal, type LucideIcon } from "lucide-react";
+import { useAnimatedPresence } from "../../hooks/useAnimatedPresence";
 
 export interface DropdownMenuItem {
   icon: LucideIcon;
@@ -30,6 +31,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
   menuTestId,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const { isMounted: isMenuMounted, isExiting: isMenuExiting } = useAnimatedPresence(isOpen, 130);
   const [loadingIndex, setLoadingIndex] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -218,11 +220,14 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
       </button>
 
       {/* Dropdown menu */}
-      {isOpen && (
+      {isMenuMounted && (
         <div
           id={menuId}
-          className="absolute right-0 top-full mt-1 w-max min-w-[160px] max-w-[calc(100vw-1rem)] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-md shadow-lg z-50 py-1 origin-top-right motion-popover-enter"
+          className={`absolute right-0 top-full mt-1 w-max min-w-[160px] max-w-[calc(100vw-1rem)] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-md shadow-lg z-50 py-1 origin-top-right ${
+            isMenuExiting ? "motion-popover-exit pointer-events-none" : "motion-popover-enter"
+          }`}
           role="menu"
+          aria-hidden={isMenuExiting ? true : undefined}
           onKeyDown={handleMenuKeyDown}
           data-testid={menuTestId}
         >

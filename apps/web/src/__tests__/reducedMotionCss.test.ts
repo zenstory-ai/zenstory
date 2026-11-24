@@ -11,9 +11,18 @@ describe('reduced-motion stylesheet contract', () => {
     expect(reducedMotion).toContain('.animate-pulse');
     expect(reducedMotion).toContain('.animate-scale-in');
     expect(reducedMotion).toContain('.motion-surface-enter');
+    expect(reducedMotion).toContain('.motion-surface-exit');
+    expect(reducedMotion).toContain('.motion-backdrop-exit');
     expect(reducedMotion).toContain('.motion-popover-enter');
+    expect(reducedMotion).toContain('.motion-popover-exit');
+    expect(reducedMotion).toContain('.motion-sheet-down-exit');
+    expect(reducedMotion).toContain('.motion-banner-exit');
     expect(reducedMotion).toContain('.motion-toast-enter');
     expect(reducedMotion).toContain('.motion-toast-exit');
+    expect(reducedMotion).toContain('.motion-error-shake');
+    expect(reducedMotion).toContain('.motion-content-reveal');
+    expect(reducedMotion).toContain('.motion-collapse');
+    expect(reducedMotion).toContain('.motion-segmented-indicator');
     expect(reducedMotion).toContain('--duration-instant: 0.01ms');
     expect(reducedMotion).toContain('--duration-fast: 0.01ms');
     expect(reducedMotion).toContain('--duration-base: 0.01ms');

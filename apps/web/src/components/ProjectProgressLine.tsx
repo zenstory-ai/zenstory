@@ -36,7 +36,7 @@ export const ProjectProgressLine: React.FC<ProjectProgressLineProps> = ({ progre
   return (
     <div
       data-testid="project-progress"
-      className="mb-2 flex items-center gap-1 text-xs text-[hsl(var(--text-secondary))]"
+      className="mb-2 flex items-center gap-1 text-xs tabular-nums text-[hsl(var(--text-secondary))]"
     >
       <PenLine className="w-3 h-3 shrink-0" />
       {progress.written_units > 0 ? (

@@ -11,6 +11,7 @@ import { SelectionToolbar } from "./SelectionToolbar";
 import { useTextQuote } from "../contexts/TextQuoteContext";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import { usePinchZoom } from "../hooks/useGestures";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import type { DiffReviewState } from "../types";
 import { SavedAgoLabel } from "./SavedAgoLabel";
 import { countWords } from "../lib/documentChunker";
@@ -193,6 +194,8 @@ export const SimpleEditor = ({
   // Selection toolbar state
   const [selectedText, setSelectedText] = useState("");
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
+  const isSelectionToolbarOpen = Boolean(selectedText && selectionPosition && fileId);
+  const { isMounted: isSelectionToolbarMounted } = useAnimatedPresence(isSelectionToolbarOpen, 120);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
@@ -1052,10 +1055,12 @@ export const SimpleEditor = ({
         />
       )}
 
-      {/* Streaming indicator banner */}
-      {isStreaming && !isReviewMode && (
-        <EditorStreamingBanner isWaitingForFirstToken={!displayContent} title={title} />
-      )}
+      {/* Streaming indicator banner (kept mounted for symmetric exit) */}
+      <EditorStreamingBanner
+        open={isStreaming && !isReviewMode}
+        isWaitingForFirstToken={!displayContent}
+        title={title}
+      />
       
       {/* Title bar */}
       <div
@@ -1146,20 +1151,20 @@ export const SimpleEditor = ({
               data-testid="editor-word-count"
               onClick={() => toast.info(t('editor:wordCountHint'))}
               title={t('editor:wordCountHint')}
-              className="max-md:min-h-11 cursor-help text-[hsl(var(--text-secondary))] underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
+              className="max-md:min-h-11 cursor-help tabular-nums text-[hsl(var(--text-secondary))] underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
             >
-              {t('editor:wordCount')} <strong className="text-[hsl(var(--text-primary))]">{countWords(displayContent)}</strong>
+              {t('editor:wordCount')} <strong className="tabular-nums text-[hsl(var(--text-primary))]">{countWords(displayContent)}</strong>
             </button>
             {/* One paragraph per non-empty line: manuscripts indent each paragraph instead of leaving blank lines. */}
-            <span data-testid="editor-paragraph-count">
-              {t('editor:paragraphCount')} <strong className="text-[hsl(var(--text-primary))]">{displayContent.split("\n").filter((line) => line.trim()).length}</strong>
+            <span data-testid="editor-paragraph-count" className="tabular-nums">
+              {t('editor:paragraphCount')} <strong className="tabular-nums text-[hsl(var(--text-primary))]">{displayContent.split("\n").filter((line) => line.trim()).length}</strong>
             </span>
             {/* Zoom indicator - only show when zoomed */}
             {zoom !== 1 && (
               <button
                 type="button"
                 onClick={resetZoom}
-                className="max-md:min-h-11 px-1.5 py-0.5 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+                className="max-md:min-h-11 px-1.5 py-0.5 rounded-lg tabular-nums text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 title={t('editor:resetZoom')}
               >
                 {Math.round(zoom * 100)}%
@@ -1266,9 +1271,10 @@ export const SimpleEditor = ({
         />
       )}
 
-      {/* Selection Toolbar */}
-      {selectedText && selectionPosition && fileId && (
+      {/* Selection Toolbar (mounted during symmetric exit in browsers, unmounted immediately in tests) */}
+      {isSelectionToolbarMounted && (
         <SelectionToolbar
+          open={isSelectionToolbarOpen}
           text={selectedText}
           position={selectionPosition}
           onAdd={handleAddQuote}

@@ -47,6 +47,7 @@ import { isPersistedUndoTarget, readFileEditUndoTarget, readWriteChapterOutcome,
 import { countWords } from '../lib/documentChunker';
 import { sanitizeAgentText } from '../lib/agentDisplayName';
 import { RememberedNotes } from './RememberedNotes';
+import { AnimatedDetails } from './ui/AnimatedCollapse';
 import { CHAT_CARD_INLINE_ACTION, CHAT_CARD_SURFACE } from './chatCardStyles';
 
 const quote = (text: string) => {
@@ -1035,21 +1036,27 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           )}
           
           {details && details.length > 0 && (
-            <details className="group mt-1.5" open={authorEditsTouched || authorDeletionRestored || undefined}>
-              <summary className="cursor-pointer select-none pl-6 min-h-11 md:min-h-0 -my-1.5 md:my-0 rounded text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] flex items-center gap-1 list-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden"
-                style={{ listStyle: 'none' }}
-              >
-                <svg
-                  className="w-3 h-3 shrink-0 motion-chevron group-open:rotate-90"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                {t('chat:tool.view_edit_details', { count: details.length })}
-              </summary>
-              <div className="space-y-2 mt-2 motion-disclosure-enter">
+            <AnimatedDetails
+              className="group mt-1.5"
+              defaultOpen={authorEditsTouched || authorDeletionRestored}
+              summaryClassName="cursor-pointer select-none pl-6 min-h-11 md:min-h-0 -my-1.5 md:my-0 rounded text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] flex items-center gap-1 list-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden"
+              summaryStyle={{ listStyle: 'none' }}
+              summary={(isDetailsOpen) => (
+                <>
+                  <svg
+                    className="w-3 h-3 shrink-0 motion-chevron group-open:rotate-90"
+                    style={!isDetailsOpen ? { transform: 'rotate(0deg)' } : undefined}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  {t('chat:tool.view_edit_details', { count: details.length })}
+                </>
+              )}
+            >
+              <div className="space-y-2 mt-2">
                 {details.map((detail, index) => (
                   <div key={index} className="rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary)/0.45)] p-2.5 text-xs">
                     <div className="flex items-center gap-1 mb-1">
@@ -1151,7 +1158,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                   </div>
                 ))}
               </div>
-            </details>
+            </AnimatedDetails>
           )}
         </div>
       );

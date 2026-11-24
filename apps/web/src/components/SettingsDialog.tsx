@@ -26,6 +26,7 @@ import { User, Settings, Moon, Sun, LogOut, CreditCard, Coins, Users, Key } from
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useMediaQuery';
+import { useSlidingIndicator } from '../hooks/useSlidingIndicator';
 import { normalizeLocale, switchLocale } from '../lib/i18n-helpers';
 import { pointsConfig } from '../config/points';
 import { referralConfig } from '../config/referral';
@@ -276,6 +277,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
       : []),
   ];
 
+  const { containerRef: navRef, indicatorRef: navIndicatorRef } = useSlidingIndicator<HTMLElement>(
+    activeTab,
+    [isOpen, isMobile, navItems.length, currentLanguage],
+  );
+
   const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex: number | null = null;
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
@@ -313,10 +319,18 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
           {/* Left navigation */}
           <div className={`${isMobile ? 'px-3 py-2 shrink-0' : 'w-44 p-3 shrink-0'}`}>
             <nav
-              className={`${isMobile ? 'flex overflow-x-auto scrollbar-none gap-1' : 'space-y-0.5'}`}
+              ref={navRef}
+              className={`group/seg relative ${isMobile ? 'flex overflow-x-auto scrollbar-none gap-1' : 'space-y-0.5'}`}
               role="tablist"
               aria-orientation={isMobile ? 'horizontal' : 'vertical'}
             >
+              <span
+                ref={navIndicatorRef}
+                aria-hidden="true"
+                data-animate="false"
+                data-testid="settings-tab-indicator"
+                className="pointer-events-none absolute top-0 left-0 rounded-lg bg-[hsl(var(--accent-primary)/0.15)] opacity-0 motion-segmented-indicator"
+              />
               {navItems.map((item, index) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -329,14 +343,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                     aria-selected={isActive}
                     aria-controls="settings-panel"
                     tabIndex={isActive ? 0 : -1}
+                    data-segment-active={isActive ? 'true' : undefined}
                     onClick={() => setActiveTab(item.id)}
                     onKeyDown={(event) => handleTabKeyDown(event, index)}
                     data-testid={`settings-tab-${item.id}`}
-                    className={`flex items-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
+                    className={`relative z-10 flex items-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
                       isMobile ? 'shrink-0 whitespace-nowrap gap-1.5 min-h-11 px-3 py-2 text-xs' : 'w-full gap-2 py-2 px-3 text-sm'
                     } rounded-lg ${
                       isActive
-                        ? 'bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] font-medium'
+                        ? 'bg-[hsl(var(--accent-primary)/0.15)] group-data-[indicator-ready=true]/seg:bg-transparent text-[hsl(var(--accent-primary))] font-medium'
                         : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] hover:text-[hsl(var(--text-primary))]'
                     }`}
                   >
@@ -502,7 +517,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                             : 'border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-hover))]'
                         }`}
                       >
-                        <item.icon className="w-4 h-4 mx-auto mb-1" />
+                        <item.icon
+                          key={theme === item.id ? `${item.id}-active` : item.id}
+                          className={`w-4 h-4 mx-auto mb-1 ${theme === item.id ? 'motion-icon-pop' : ''}`}
+                        />
                         <div className="text-[hsl(var(--text-primary))]">{item.label}</div>
                       </button>
                     ))}

@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { useDialogInteractions } from './dialogFocus';
 import { IconButton } from './IconButton';
 import { cn } from '../../lib/utils';
+import { useAnimatedPresence } from '../../hooks/useAnimatedPresence';
 
 /**
  * Props for the Modal component.
@@ -293,8 +294,10 @@ export const Modal: React.FC<ModalProps> & {
     },
   });
 
-  // Don't render if not open
-  if (!open) {
+  const { isMounted, isExiting } = useAnimatedPresence(open, 150);
+
+  // Don't render if not mounted
+  if (!isMounted) {
     return null;
   }
 
@@ -306,10 +309,14 @@ export const Modal: React.FC<ModalProps> & {
 
   const sizeClasses = getSizeClasses(size);
 
-  const overlayClasses = `viewport-overlay fixed inset-0 z-[1000] bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-4 sm:p-6 motion-backdrop-enter ${overlayClassName}`;
+  const overlayClasses = `viewport-overlay fixed inset-0 z-[1000] bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-4 sm:p-6 ${
+    isExiting ? 'motion-backdrop-exit pointer-events-none' : 'motion-backdrop-enter'
+  } ${overlayClassName}`;
 
   // `ui-sans-headings`: dialogs are control surfaces (portaled outside the dashboard's <main>).
-  const contentClasses = `ui-sans-headings bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] shadow-xl w-full ${sizeClasses} motion-surface-enter flex flex-col max-h-[90vh] ${className}`;
+  const contentClasses = `ui-sans-headings bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] shadow-xl w-full ${sizeClasses} ${
+    isExiting ? 'motion-surface-exit pointer-events-none' : 'motion-surface-enter'
+  } flex flex-col max-h-[90vh] ${className}`;
 
   const hasHorizontalPaddingOverride = Boolean(
     bodyClassName && /(?:^|\s)!?p(?:x|l|r)?-/.test(bodyClassName)
@@ -328,8 +335,9 @@ export const Modal: React.FC<ModalProps> & {
     <ModalContext.Provider value={contextValue}>
       <div
         className={overlayClasses}
-        onClick={handleBackdropClick}
+        onClick={isExiting ? undefined : handleBackdropClick}
         role="presentation"
+        aria-hidden={isExiting ? true : undefined}
       >
         <div
           ref={modalRef}

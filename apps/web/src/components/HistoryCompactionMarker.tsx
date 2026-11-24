@@ -4,6 +4,7 @@ import type { Components } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Layers, Loader2 } from 'lucide-react';
 import { LazyMarkdown } from './LazyMarkdown';
+import { AnimatedCollapse } from './ui/AnimatedCollapse';
 import { CHAT_CARD_SURFACE } from './chatCardStyles';
 import { formatCompactionSummary } from '../lib/compactionSummary';
 
@@ -114,21 +115,23 @@ export function HistoryCompactionMarker({ state, summary, startedAt }: {
       <p className="mt-1.5 text-center text-xs text-[hsl(var(--text-secondary))]">
         {t('compaction.doneHint', { ns: 'chat' })}
       </p>
-      {text && open && (
-        <div
-          id={summaryId}
-          className={`mt-2 min-w-0 max-w-full max-h-72 overflow-auto p-3 motion-disclosure-enter ${CHAT_CARD_SURFACE}`}
-        >
-          <div className="mb-1.5 text-xs font-medium text-[hsl(var(--text-secondary))]">
-            {t('compaction.summaryLabel', { ns: 'chat' })}
-          </div>
-          <LazyMarkdown
-            className="min-w-0 max-w-full break-words text-xs leading-relaxed text-[hsl(var(--text-primary))]"
-            components={summaryMarkdownComponents}
+      {text && (
+        <AnimatedCollapse open={open}>
+          <div
+            id={summaryId}
+            className={`mt-2 min-w-0 max-w-full max-h-72 overflow-auto p-3 ${CHAT_CARD_SURFACE}`}
           >
-            {text}
-          </LazyMarkdown>
-        </div>
+            <div className="mb-1.5 text-xs font-medium text-[hsl(var(--text-secondary))]">
+              {t('compaction.summaryLabel', { ns: 'chat' })}
+            </div>
+            <LazyMarkdown
+              className="min-w-0 max-w-full break-words text-xs leading-relaxed text-[hsl(var(--text-primary))]"
+              components={summaryMarkdownComponents}
+            >
+              {text}
+            </LazyMarkdown>
+          </div>
+        </AnimatedCollapse>
       )}
     </div>
   );

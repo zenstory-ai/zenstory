@@ -1379,6 +1379,15 @@ code, pre, .font-mono {
     }
 }
 
+@keyframes fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
 @keyframes scale-in {
     from {
         transform: translate3d(0, var(--motion-distance-sm), 0) scale(var(--motion-scale-subtle));
@@ -1387,6 +1396,17 @@ code, pre, .font-mono {
     to {
         transform: translate3d(0, 0, 0) scale(1);
         opacity: 1;
+    }
+}
+
+@keyframes scale-out {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, var(--motion-distance-sm), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
     }
 }
 
@@ -1401,6 +1421,17 @@ code, pre, .font-mono {
     }
 }
 
+@keyframes popover-out {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, calc(var(--motion-distance-xs) * -1), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+}
+
 @keyframes popover-in-up {
     from {
         transform: translate3d(0, var(--motion-distance-xs), 0) scale(var(--motion-scale-subtle));
@@ -1409,6 +1440,17 @@ code, pre, .font-mono {
     to {
         transform: translate3d(0, 0, 0) scale(1);
         opacity: 1;
+    }
+}
+
+@keyframes popover-out-up {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, var(--motion-distance-xs), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
     }
 }
 
@@ -1423,6 +1465,17 @@ code, pre, .font-mono {
     }
 }
 
+@keyframes popover-out-right {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(calc(var(--motion-distance-xs) * -1), 0, 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+}
+
 @keyframes sheet-down-in {
     from {
         transform: translate3d(0, calc(var(--motion-distance-sm) * -1), 0);
@@ -1431,6 +1484,17 @@ code, pre, .font-mono {
     to {
         transform: translate3d(0, 0, 0);
         opacity: 1;
+    }
+}
+
+@keyframes sheet-down-out {
+    from {
+        transform: translate3d(0, 0, 0);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, calc(var(--motion-distance-sm) * -1), 0);
+        opacity: 0;
     }
 }
 
@@ -1467,6 +1531,17 @@ code, pre, .font-mono {
     }
 }
 
+@keyframes banner-out {
+    from {
+        transform: translate3d(0, 0, 0);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, calc(var(--motion-distance-xs) * -1), 0);
+        opacity: 0;
+    }
+}
+
 @keyframes tab-panel-in {
     from {
         transform: translate3d(0, 3px, 0);
@@ -1475,6 +1550,17 @@ code, pre, .font-mono {
     to {
         transform: translate3d(0, 0, 0);
         opacity: 1;
+    }
+}
+
+@keyframes content-reveal {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 2px, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
     }
 }
 
@@ -1500,14 +1586,42 @@ code, pre, .font-mono {
     }
 }
 
+@keyframes error-shake {
+    0%, 100% {
+        transform: translate3d(0, 0, 0);
+    }
+    20% {
+        transform: translate3d(-3px, 0, 0);
+    }
+    45% {
+        transform: translate3d(3px, 0, 0);
+    }
+    70% {
+        transform: translate3d(-2px, 0, 0);
+    }
+    88% {
+        transform: translate3d(1px, 0, 0);
+    }
+}
+
 .animate-fade-in,
 .motion-backdrop-enter {
     animation: fade-in var(--duration-fast) var(--ease-standard) both;
 }
 
+.motion-backdrop-exit {
+    animation: fade-out var(--duration-fast) var(--ease-standard) forwards;
+    pointer-events: none;
+}
+
 .animate-scale-in,
 .motion-surface-enter {
     animation: scale-in var(--duration-base) var(--ease-out-expo) both;
+}
+
+.motion-surface-exit {
+    animation: scale-out var(--duration-fast) var(--ease-in-expo) forwards;
+    pointer-events: none;
 }
 
 .animate-slide-in-bottom,
@@ -1517,34 +1631,69 @@ code, pre, .font-mono {
 
 .motion-toast-exit {
     animation: toast-out-bottom var(--duration-fast) var(--ease-in-expo) forwards;
+    pointer-events: none;
 }
 
 .motion-popover-enter {
     animation: popover-in var(--duration-fast) var(--ease-out-expo) both;
 }
 
+.motion-popover-exit {
+    animation: popover-out 130ms var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
 .motion-popover-enter-up {
     animation: popover-in-up var(--duration-fast) var(--ease-out-expo) both;
+}
+
+.motion-popover-exit-up {
+    animation: popover-out-up 130ms var(--ease-in-expo) forwards;
+    pointer-events: none;
 }
 
 .motion-popover-enter-right {
     animation: popover-in-right var(--duration-fast) var(--ease-out-expo) both;
 }
 
+.motion-popover-exit-right {
+    animation: popover-out-right 130ms var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
 .motion-toolbar-enter {
     animation: popover-in-up var(--duration-fast) var(--ease-out-expo) both;
+}
+
+.motion-toolbar-exit {
+    animation: popover-out-up 120ms var(--ease-in-expo) forwards;
+    pointer-events: none;
 }
 
 .motion-sheet-down {
     animation: sheet-down-in var(--duration-base) var(--ease-out-expo) both;
 }
 
+.motion-sheet-down-exit {
+    animation: sheet-down-out var(--duration-fast) var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
 .motion-banner-enter {
     animation: banner-in var(--duration-base) var(--ease-out-expo) both;
 }
 
+.motion-banner-exit {
+    animation: banner-out var(--duration-fast) var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
 .motion-tab-panel {
     animation: tab-panel-in var(--duration-fast) var(--ease-out-expo) both;
+}
+
+.motion-content-reveal {
+    animation: content-reveal 180ms var(--ease-out-expo) both;
 }
 
 .motion-disclosure-enter {
@@ -1553,6 +1702,36 @@ code, pre, .font-mono {
 
 .motion-icon-pop {
     animation: icon-pop var(--duration-fast) var(--ease-spring-snappy) both;
+}
+
+.motion-error-shake {
+    animation: error-shake 220ms var(--ease-standard) both;
+}
+
+/* Smooth CSS Grid open/close height choreography */
+.motion-collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+        grid-template-rows var(--duration-base) var(--ease-out-expo),
+        opacity var(--duration-fast) var(--ease-standard);
+}
+
+.motion-collapse[data-open="true"] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+}
+
+.motion-collapse-fast {
+    transition:
+        grid-template-rows var(--duration-fast) var(--ease-out-expo),
+        opacity var(--duration-instant) var(--ease-standard);
+}
+
+.motion-collapse-inner {
+    min-height: 0;
+    overflow: hidden;
 }
 
 .motion-chevron {
@@ -1565,6 +1744,19 @@ code, pre, .font-mono {
 
 .motion-tab-indicator {
     transition: transform var(--duration-base) var(--ease-out-expo);
+}
+
+.motion-segmented-indicator {
+    transition:
+        transform var(--duration-base) var(--ease-out-expo),
+        width var(--duration-base) var(--ease-out-expo),
+        height var(--duration-base) var(--ease-out-expo),
+        opacity var(--duration-instant) var(--ease-standard);
+    will-change: transform;
+}
+
+.motion-segmented-indicator[data-animate="false"] {
+    transition: none;
 }
 
 .motion-progress-fill {
@@ -1645,28 +1837,42 @@ code, pre, .font-mono {
     .animate-celebration-pop,
     .celebration-piece,
     .motion-backdrop-enter,
+    .motion-backdrop-exit,
     .motion-surface-enter,
+    .motion-surface-exit,
     .motion-toast-enter,
     .motion-toast-exit,
     .motion-popover-enter,
+    .motion-popover-exit,
     .motion-popover-enter-up,
+    .motion-popover-exit-up,
     .motion-popover-enter-right,
+    .motion-popover-exit-right,
     .motion-toolbar-enter,
+    .motion-toolbar-exit,
     .motion-sheet-down,
+    .motion-sheet-down-exit,
     .motion-banner-enter,
+    .motion-banner-exit,
     .motion-tab-panel,
+    .motion-content-reveal,
     .motion-disclosure-enter,
-    .motion-icon-pop {
+    .motion-icon-pop,
+    .motion-error-shake {
         animation: none !important;
         will-change: auto;
     }
 
+    .motion-collapse,
+    .motion-collapse-fast,
     .motion-chevron,
     .motion-switch-thumb,
     .motion-tab-indicator,
+    .motion-segmented-indicator,
     .motion-progress-fill,
     .panel-resize-handle::after {
         transition-duration: 0.01ms !important;
+        will-change: auto;
     }
 }
 

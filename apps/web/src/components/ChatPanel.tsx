@@ -99,6 +99,7 @@ import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
 import { reportActivationEvent } from "../lib/activationEvents";
 import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { StreamActivityLine } from "./StreamActivityLine";
 import { createBodyWriteProgress, createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress";
 import { LeaveWhileGeneratingDialog } from "./LeaveWhileGeneratingDialog";
@@ -655,6 +656,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const shouldAutoScrollRef = useRef(true);
   const followLoadedHistoryUntilRef = useRef(0);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const { isMounted: isJumpToLatestMounted, isExiting: isJumpToLatestExiting } = useAnimatedPresence(
+    showJumpToLatest,
+    130,
+  );
   const autoScrollFrameRef = useRef<number | null>(null);
   const lastLoadedProjectRef = useRef<string | null>(null);
   const historyRequestSeqRef = useRef(0);
@@ -2903,7 +2908,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             </div>
             )
           ) : (
-            <div>
+            <div className="motion-content-reveal">
               {/* Chat messages */}
               <UndoneEditsContext.Provider value={undoneEdits}>
               <UndoBlockedContext.Provider value={undoBlocked}>
@@ -3066,12 +3071,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               )}
 
               {/* Jump-to-latest button (only when user scrolled away and new content arrives) */}
-              {showJumpToLatest && (
+              {isJumpToLatestMounted && (
                 <div className="sticky bottom-3 z-10 flex justify-center pointer-events-none">
                   <button
                     type="button"
                     onClick={handleJumpToLatest}
-                    className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] px-3 py-1.5 text-xs text-[hsl(var(--text-primary))] shadow-md hover:bg-[hsl(var(--bg-tertiary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
+                    aria-hidden={isJumpToLatestExiting ? true : undefined}
+                    className={`inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] px-3 py-1.5 text-xs text-[hsl(var(--text-primary))] shadow-md hover:bg-[hsl(var(--bg-tertiary))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${
+                      isJumpToLatestExiting
+                        ? "motion-popover-exit-up pointer-events-none"
+                        : "motion-popover-enter-up pointer-events-auto"
+                    }`}
                     aria-label={t('chat:panel.jumpToLatest')}
                     title={t('chat:panel.jumpToLatest')}
                   >
@@ -3139,13 +3149,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             />
           )}
           {/* Only once the round has ended: the 10th message is still being answered until then. */}
-          {aiSendBlocked && !isStreaming && !isThinking && (
-            <ChatQuotaCard
-              // The count is named only when the cached quota itself shows the day used up.
-              limit={quotaExhausted ? aiMessageQuota?.limit : undefined}
-              resetAt={aiMessageQuota?.reset_at ?? null}
-            />
-          )}
+          <ChatQuotaCard
+            open={aiSendBlocked && !isStreaming && !isThinking}
+            // The count is named only when the cached quota itself shows the day used up.
+            limit={quotaExhausted ? aiMessageQuota?.limit : undefined}
+            resetAt={aiMessageQuota?.reset_at ?? null}
+          />
           <MessageInput
             focusRequest={!isMobile || activePanel === "chat" ? chatFocusRequest : 0}
             onSend={handleSendMessage}

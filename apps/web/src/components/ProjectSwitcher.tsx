@@ -27,6 +27,7 @@ import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { useProject } from "../contexts/ProjectContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Button } from "./ui/Button";
@@ -107,6 +108,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
   } = useProject();
 
   const [isOpen, setIsOpen] = useState(false);
+  const { isMounted: isDropdownMounted, isExiting: isDropdownExiting } = useAnimatedPresence(isOpen, 130);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -326,9 +328,12 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       </button>
 
       {/* Dropdown Menu */}
-      {isOpen && (
+      {isDropdownMounted && (
         <div
-          className={`flex flex-col bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl shadow-lg z-50 overflow-hidden motion-popover-enter ${
+          aria-hidden={isDropdownExiting ? true : undefined}
+          className={`flex flex-col bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl shadow-lg z-50 overflow-hidden ${
+            isDropdownExiting ? "motion-popover-exit pointer-events-none" : "motion-popover-enter"
+          } ${
             isMobile
               // Pinned to the viewport: an ancestor-relative, translated panel
               // spilled off a 390px screen when the title was long.
