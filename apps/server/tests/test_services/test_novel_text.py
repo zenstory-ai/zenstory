@@ -5,6 +5,8 @@ import pytest
 
 from flows.utils.helpers.novel_parser import parse_novel_chapters, read_novel_text
 from services.material.novel_text import (
+    MAX_CHAPTER_CHARACTERS,
+    TARGET_SUBCHAPTER_CHARACTERS,
     NovelDecodeError,
     analyze_novel_bytes,
     decode_novel_bytes,
@@ -217,3 +219,183 @@ def test_stripped_control_characters_do_not_count_toward_chapter_length():
 
     # 99 characters after strip: merged into 第一章.
     assert len(split_novel_text(text)) == 2
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("§§§第一章 标题", (1, "标题")),
+        ("§§§第一章 标题 §§§", (1, "标题")),
+        ("§第二章 归来§", (2, "归来")),
+        ("# 第一章 开始", (1, "开始")),
+        ("### 第一章 标题 ###", (1, "标题")),
+        ("### Chapter 1", (1, "")),
+        ("### Chapter 12: The Gate ###", (12, "The Gate")),
+        ("☆、第一章 标题", (1, "标题")),
+        ("★. 第十二章 破晓", (12, "破晓")),
+        ("◆ 第一章 启程", (1, "启程")),
+        ("*** 第一章 标题 ***", (1, "标题")),
+        ("--- 第一章 标题 ---", (1, "标题")),
+        ("=== 第一章 标题 ===", (1, "标题")),
+        ("**第一章 标题**", (1, "标题")),
+        ("__第一章 标题__", (1, "标题")),
+        ("### **第一章 标题**", (1, "标题")),
+        ("正文 第一章 标题", (1, "标题")),
+        ("正文 第12章", (12, "")),
+        ("正文：第三章 风起", (3, "风起")),
+        ("《第一章》标题", (1, "标题")),
+        ("《第一章 标题》", (1, "标题")),
+        ("【第一章 标题】", (1, "标题")),
+        ("「第一章」标题", (1, "标题")),
+        ("『第一章』标题", (1, "标题")),
+        ("[第一章] 标题", (1, "标题")),
+        ("【第一章】【标题】", (1, "【标题】")),
+        ("第一卷 《第二章》 少年", (2, "少年")),
+        ("第一章 喵~", (1, "喵~")),
+        ("第一章 C#", (1, "C#")),
+    ],
+)
+def test_decorative_heading_markers_and_wrappers(line, expected):
+    assert extract_chapter_number(line) == expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "line",
+    [
+        "“第一章很好看”",
+        "‘第一章很好看’",
+        '"第一章很好看"',
+        "'第一章很好看'",
+        "\ufeff第二章 继续",
+        "\ufeff§§§第二章 继续",
+        "《第一章的秘密",
+        "【第一章》标题",
+        "**第一章的内容他早就背熟了。**",
+        "§§§第一章 标题。",
+        "***",
+        "===",
+        "§§§",
+        "正文内容第一章节选，这里超过四十个字" + "继续写下去" * 10,
+    ],
+)
+def test_decorative_heading_negative_cases_stay_body_text(line):
+    assert extract_chapter_number(line)[0] == 0
+
+
+@pytest.mark.unit
+def test_section_marker_book_and_decorated_volumes_split_cleanly():
+    text = "\n".join(
+        [
+            "§§§第一卷 初入江湖",
+            "§§§第一章 下山",
+            BODY,
+            "### 第二章 遇险 ###",
+            BODY,
+            "☆、第三章 破局",
+            BODY,
+            "正文 第四章 归来",
+            BODY,
+        ]
+    )
+
+    chapters = split_novel_text(text)
+
+    assert [(c["chapter_number"], c["title"]) for c in chapters] == [
+        (1, "下山"),
+        (2, "遇险"),
+        (3, "破局"),
+        (4, "归来"),
+    ]
+    assert all("第一卷" not in c["content"] for c in chapters)
+
+
+@pytest.mark.unit
+def test_oversized_chapter_splits_on_paragraph_boundaries_with_monotonic_numbers():
+    paragraph = "他推开门，院子里的雪已经积了半尺深，远处传来钟声，风吹过屋檐发出低沉的呜咽声。" * 5
+    # ~25,000 chars across ~125 paragraphs -> should split into balanced ~5k-6k parts.
+    oversized_body = "\n".join(f"第{i}段：{paragraph}" for i in range(125))
+    assert len(oversized_body) > MAX_CHAPTER_CHARACTERS
+
+    text = f"第一章 开端\n{BODY}\n第二章 巨章\n{oversized_body}\n第三章 尾声\n{BODY}"
+    chapters = split_novel_text(text)
+
+    assert len(chapters) > 3
+    # First and last normal chapters stay intact.
+    assert chapters[0]["title"] == "开端"
+    assert chapters[0]["chapter_number"] == 1
+    assert chapters[-1]["title"] == "尾声"
+
+    middle = chapters[1:-1]
+    total_parts = len(middle)
+    assert total_parts >= 4
+    assert [c["title"] for c in middle] == [
+        f"巨章（{idx}/{total_parts}）" for idx in range(1, total_parts + 1)
+    ]
+    for seg in middle:
+        assert len(seg["content"]) <= MAX_CHAPTER_CHARACTERS
+        # Paragraph boundaries preserved: every segment starts with "第" and ends with "。".
+        assert seg["content"].startswith("第")
+        assert seg["content"].endswith("。")
+
+    # Strictly monotonically increasing chapter numbers across the whole book.
+    numbers = [c["chapter_number"] for c in chapters]
+    assert numbers == sorted(numbers)
+    assert len(set(numbers)) == len(numbers)
+    assert chapters[-1]["chapter_number"] > middle[-1]["chapter_number"]
+
+
+@pytest.mark.unit
+def test_oversized_single_line_falls_back_to_sentence_and_hard_boundaries():
+    sentence = "风雪压低了屋檐，火塘里的木炭噼啪作响，他没有回头。"
+    long_sentence_line = sentence * 1_000  # 25,000 chars, single line with "。"
+    assert "\n" not in long_sentence_line
+    assert len(long_sentence_line) > MAX_CHAPTER_CHARACTERS
+
+    chapters_sent = split_novel_text(f"第一章 无换行长章\n{long_sentence_line}")
+    assert len(chapters_sent) >= 4
+    assert all(len(c["content"]) <= MAX_CHAPTER_CHARACTERS for c in chapters_sent)
+    assert all(c["content"].endswith("。") for c in chapters_sent)
+    assert "".join(c["content"] for c in chapters_sent) == long_sentence_line
+
+    hard_line = "字" * 25_000  # 25,000 chars, no newlines and no punctuation
+    chapters_hard = split_novel_text(f"第一章 无标点长章\n{hard_line}")
+    assert len(chapters_hard) >= 4
+    assert all(len(c["content"]) <= MAX_CHAPTER_CHARACTERS for c in chapters_hard)
+    assert "".join(c["content"] for c in chapters_hard) == hard_line
+    assert max(len(c["content"]) for c in chapters_hard) <= TARGET_SUBCHAPTER_CHARACTERS
+
+
+@pytest.mark.unit
+def test_chapter_at_exact_max_characters_boundary_is_not_split():
+    exact_body = "字" * MAX_CHAPTER_CHARACTERS
+    chapters = split_novel_text(f"第一章 边界\n{exact_body}")
+
+    assert len(chapters) == 1
+    assert chapters[0]["title"] == "边界"
+    assert len(chapters[0]["content"]) == MAX_CHAPTER_CHARACTERS
+
+
+@pytest.mark.unit
+def test_oversized_text_without_headings_still_yields_no_chapters():
+    assert split_novel_text("正文内容。" * 6_000) == []
+
+
+@pytest.mark.unit
+def test_truncate_novel_text_does_not_subsplit_oversized_chapters_for_free_trial():
+    oversized_body = "\n".join("长章正文内容测试。" * 20 for _ in range(130))
+    assert len(oversized_body) > MAX_CHAPTER_CHARACTERS
+    text = f"第一章 超长章\n{oversized_body}\n第二章 正常章\n{BODY}"
+
+    # Free-trial truncation keeps whole chapters intact so the API refuses >15k chars.
+    kept = truncate_novel_text(text, 3)
+    assert kept.total_chapters == 2
+    assert kept.kept_chapters == 2
+    assert not kept.truncated
+    assert len(kept.text) > MAX_CHAPTER_CHARACTERS
+
+    # While paid split_novel_text sub-splits the oversized chapter into balanced segments.
+    paid = split_novel_text(text)
+    assert len(paid) > 2
+    assert all(len(c["content"]) <= MAX_CHAPTER_CHARACTERS for c in paid)
