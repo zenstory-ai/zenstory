@@ -78,7 +78,7 @@ const SHARE_MODAL = {
 const DISCOVER_TAB = {
   searchInput: 'input[placeholder*="搜索"]',
   categoryButtons: '.flex.flex-wrap button',
-  skillCard: '[class*="rounded-xl"][class*="border"]',
+  skillCard: '[data-testid="public-skill-card"]',
   addButton: 'button:has-text("添加")',
   addedButton: 'button:has-text("已添加")',
 };
@@ -579,7 +579,7 @@ test.describe('Skills Management', () => {
     // Should be on discover tab by default
     await expect(page.locator('button:has-text("发现技能"), button:has-text("Discover")')).toHaveAttribute('class', /accent-primary|text-white/);
 
-    const publicSkillTitles = page.locator('div[class*="rounded-xl"][class*="border"] h3');
+    const publicSkillTitles = page.locator('[data-testid="public-skill-card"] h3');
     const emptyState = page.locator('text=/没有找到匹配的技能|还没有可发现的技能|暂无技能|no matching skills|no skills to discover/i').first();
 
     await expect

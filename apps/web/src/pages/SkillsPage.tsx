@@ -1630,7 +1630,7 @@ function PublicSkillCard({
   const instructions = fullInstructions ?? skill.instructions;
 
   return (
-    <div className={`flex flex-col h-full bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] transition-colors ${isMobile ? "p-3" : "p-5"}`}>
+    <div data-testid="public-skill-card" className={`flex flex-col h-full bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] transition-colors ${isMobile ? "p-3" : "p-5"}`}>
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <div className="w-8 h-8 rounded-lg bg-[hsl(var(--accent-primary)/0.08)] flex items-center justify-center shrink-0">
