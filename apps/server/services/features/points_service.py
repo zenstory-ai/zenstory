@@ -222,6 +222,7 @@ class PointsService:
         now = utcnow()
         transactions = session.exec(
             select(
+                PointsTransaction.id,
                 PointsTransaction.user_id,
                 PointsTransaction.amount,
                 PointsTransaction.created_at,
@@ -229,7 +230,7 @@ class PointsService:
                 PointsTransaction.is_expired,
             )
             .order_by(col(PointsTransaction.user_id).asc(), col(PointsTransaction.created_at).asc()),
-            execution_options={"yield_per": 1000},
+            execution_options={"yield_per": 256},
         )
         try:
             total_available = 0
