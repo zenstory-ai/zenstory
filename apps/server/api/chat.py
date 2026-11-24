@@ -21,7 +21,8 @@ from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import create_session, get_session
-from models import ChatMessage, ChatSession, Project, User
+from models import ChatMessage, ChatMessageUxSummary, ChatSession, Project, User
+from models.chat_message_ux_summary import has_chat_message_ux_summary_table
 from services.chat_feedback_service import chat_feedback_service
 from services.chat_session_service import latest_active_chat_session, lock_active_chat_session
 from services.core.auth_service import get_current_active_user
@@ -358,6 +359,10 @@ def clear_session(
             .where(ChatMessage.session_id == chat_session.id)
         ).one()
     )
+    if has_chat_message_ux_summary_table(session.connection()):
+        session.exec(
+            delete(ChatMessageUxSummary).where(ChatMessageUxSummary.session_id == chat_session.id)
+        )
     session.exec(
         delete(ChatMessage).where(ChatMessage.session_id == chat_session.id)
     )

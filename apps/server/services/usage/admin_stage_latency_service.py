@@ -323,45 +323,84 @@ def _compute_ai_draft_survival(
         .cte("candidate_draft_files")
     )
 
-    version_bounds = (
+    # Single-pass window scan over file_version per candidate draft (replaces
+    # 4 separate joins against file_version that read ~42k buffers / ~15s on 30d).
+    version_ranked = (
         select(
-            FileVersion.file_id.label("file_id"),
-            func.min(FileVersion.version_number).label("first_ver"),
-            func.max(FileVersion.version_number).label("latest_ver"),
+            candidate_files.c.file_id.label("file_id"),
+            candidate_files.c.file_deleted.label("file_deleted"),
+            candidate_files.c.project_deleted.label("project_deleted"),
+            FileVersion.change_source.label("change_source"),
+            FileVersion.change_type.label("change_type"),
+            func.coalesce(FileVersion.word_count, 0).label("word_count"),
+            func.row_number()
+            .over(
+                partition_by=FileVersion.file_id,
+                order_by=FileVersion.version_number.asc(),
+            )
+            .label("rn_asc"),
+            func.row_number()
+            .over(
+                partition_by=FileVersion.file_id,
+                order_by=FileVersion.version_number.desc(),
+            )
+            .label("rn_desc"),
         )
-        .join(candidate_files, candidate_files.c.file_id == FileVersion.file_id)
-        .group_by(FileVersion.file_id)
-        .cte("draft_version_bounds")
+        .select_from(candidate_files)
+        .join(FileVersion, FileVersion.file_id == candidate_files.c.file_id)
+        .cte("draft_version_ranked")
     )
 
-    user_coedit = (
-        select(FileVersion.file_id.label("file_id"))
-        .join(version_bounds, version_bounds.c.file_id == FileVersion.file_id)
-        .where(
-            FileVersion.version_number > version_bounds.c.first_ver,
-            FileVersion.change_source == CHANGE_SOURCE_USER,
-            FileVersion.change_type != CHANGE_TYPE_RESTORE,
+    per_file = (
+        select(
+            version_ranked.c.file_id.label("file_id"),
+            func.max(case((version_ranked.c.file_deleted.is_(True), 1), else_=0)).label("file_deleted"),
+            func.max(case((version_ranked.c.project_deleted.is_(True), 1), else_=0)).label(
+                "project_deleted"
+            ),
+            func.max(
+                case((version_ranked.c.rn_asc == 1, version_ranked.c.change_source))
+            ).label("first_source"),
+            func.max(
+                case((version_ranked.c.rn_asc == 1, version_ranked.c.word_count))
+            ).label("first_words"),
+            func.max(
+                case((version_ranked.c.rn_desc == 1, version_ranked.c.change_type))
+            ).label("latest_change_type"),
+            func.max(
+                case((version_ranked.c.rn_desc == 1, version_ranked.c.word_count))
+            ).label("latest_words"),
+            func.max(
+                case(
+                    (
+                        and_(
+                            version_ranked.c.rn_asc > 1,
+                            version_ranked.c.change_source == CHANGE_SOURCE_USER,
+                            version_ranked.c.change_type != CHANGE_TYPE_RESTORE,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("has_user_coedit"),
         )
-        .group_by(FileVersion.file_id)
-        .cte("draft_user_coedits")
+        .group_by(version_ranked.c.file_id)
+        .cte("draft_per_file_summary")
     )
-
-    first_fv = FileVersion.__table__.alias("first_fv")
-    latest_fv = FileVersion.__table__.alias("latest_fv")
 
     is_deleted_or_reverted = or_(
-        candidate_files.c.file_deleted.is_(True),
-        candidate_files.c.project_deleted.is_(True),
-        latest_fv.c.change_type == CHANGE_TYPE_RESTORE,
+        per_file.c.file_deleted == 1,
+        per_file.c.project_deleted == 1,
+        per_file.c.latest_change_type == CHANGE_TYPE_RESTORE,
         and_(
-            func.coalesce(latest_fv.c.word_count, 0) == 0,
-            func.coalesce(first_fv.c.word_count, 0) > 0,
+            func.coalesce(per_file.c.latest_words, 0) == 0,
+            func.coalesce(per_file.c.first_words, 0) > 0,
         ),
     )
 
     row = session.exec(
         select(
-            func.count(candidate_files.c.file_id).label("eligible"),
+            func.count(per_file.c.file_id).label("eligible"),
             func.coalesce(
                 func.sum(case((is_deleted_or_reverted, 1), else_=0)),
                 0,
@@ -369,31 +408,15 @@ def _compute_ai_draft_survival(
             func.coalesce(
                 func.sum(
                     case(
-                        (and_(~is_deleted_or_reverted, user_coedit.c.file_id.is_not(None)), 1),
+                        (and_(~is_deleted_or_reverted, per_file.c.has_user_coedit == 1), 1),
                         else_=0,
                     )
                 ),
                 0,
             ).label("co_edited"),
         )
-        .select_from(candidate_files)
-        .join(version_bounds, version_bounds.c.file_id == candidate_files.c.file_id)
-        .join(
-            first_fv,
-            and_(
-                first_fv.c.file_id == version_bounds.c.file_id,
-                first_fv.c.version_number == version_bounds.c.first_ver,
-            ),
-        )
-        .join(
-            latest_fv,
-            and_(
-                latest_fv.c.file_id == version_bounds.c.file_id,
-                latest_fv.c.version_number == version_bounds.c.latest_ver,
-            ),
-        )
-        .outerjoin(user_coedit, user_coedit.c.file_id == candidate_files.c.file_id)
-        .where(first_fv.c.change_source == CHANGE_SOURCE_AI)
+        .select_from(per_file)
+        .where(per_file.c.first_source == CHANGE_SOURCE_AI)
     ).one()
 
     eligible = int(row.eligible or 0)
