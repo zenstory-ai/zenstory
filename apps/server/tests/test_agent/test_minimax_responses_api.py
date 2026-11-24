@@ -809,3 +809,145 @@ def test_failover_diagnostics_cover_responses_params_and_httpx2():
         assert field in llm_failover._FAILURE_PARAMETER_FIELDS
     assert llm_failover.is_provider_unavailable(httpx2.ReadTimeout("timeout")) is True
     assert llm_failover.is_provider_unavailable(httpx2.ConnectError("connect")) is True
+
+
+# ---------------------------------------------------------------------------
+# 6. [P2] Responses API response.failed -> in-stream failover & upstream refund
+# ---------------------------------------------------------------------------
+
+
+def _make_failed_response(*, code: str = "internal_error", message: str = "upstream failure") -> dict:
+    base = _make_response(status="failed", text="", output_tokens=0).model_dump(mode="json")
+    base["error"] = {"code": code, "message": message}
+    return base
+
+
+@pytest.mark.asyncio
+async def test_responses_failed_pre_answer_fails_over_to_backup_without_tripping_circuit(monkeypatch):
+    """MiniMax /v1/responses response.failed(internal_error) before answer output must fail over
+    to the backup provider and pin the session without opening the global circuit."""
+    from agents import ModelSettings
+    from agents.models.interface import ModelTracing
+
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-mm")
+    monkeypatch.setenv("LLM_BACKUP_PROVIDER", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-ds")
+    monkeypatch.delenv("MINIMAX_API_SURFACE", raising=False)
+    monkeypatch.setattr(llm_failover, "LLM_CIRCUIT_FAILURE_THRESHOLD", 1)
+    sdk_model.reset_sdk_model_cache()
+    llm_failover.reset_failover_state()
+
+    failed_resp = _make_failed_response(code="internal_error", message="internal error")
+    mm_sse = _responses_sse_body([
+        {"type": "response.created", "sequence_number": 0, "response": _make_response(status="in_progress", text="", output_tokens=0).model_dump(mode="json")},
+        {"type": "response.reasoning_text.delta", "sequence_number": 1, "item_id": "rs_1", "output_index": 0, "content_index": 0, "delta": "先想一下"},
+        {"type": "response.failed", "sequence_number": 2, "response": failed_resp},
+    ])
+
+    ds_chunks = [
+        {"id": "c1", "object": "chat.completion.chunk", "created": 1, "model": "deepseek-flash", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "备源已接管"}, "finish_reason": None}]},
+        {"id": "c1", "object": "chat.completion.chunk", "created": 1, "model": "deepseek-flash", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
+    ]
+    ds_sse = "".join(f"data: {json.dumps(c, ensure_ascii=False)}\n\n" for c in ds_chunks) + "data: [DONE]\n\n"
+
+    calls = {"minimax": 0, "deepseek": 0}
+
+    async def handle_mm(_req: httpx.Request) -> httpx.Response:
+        calls["minimax"] += 1
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=mm_sse)
+
+    async def handle_ds(_req: httpx.Request) -> httpx.Response:
+        calls["deepseek"] += 1
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=ds_sse)
+
+    async with (
+        httpx.AsyncClient(transport=httpx.MockTransport(handle_mm)) as mm_http,
+        httpx.AsyncClient(transport=httpx.MockTransport(handle_ds)) as ds_http,
+    ):
+        clients = {
+            "minimax": AsyncOpenAI(api_key="sk-mm", base_url="https://mm.invalid/v1", http_client=mm_http, max_retries=0),
+            "deepseek": AsyncOpenAI(api_key="sk-ds", base_url="https://ds.invalid/v1", http_client=ds_http, max_retries=0),
+        }
+        monkeypatch.setattr(llm_providers, "get_async_client", lambda p: clients[p.name])
+        model = sdk_model.build_failover_chat_model("sess-resp-failed-fo")
+        events = [
+            ev
+            async for ev in model.stream_response(
+                "系统提示", [{"role": "user", "content": "写一段"}], ModelSettings(), [], None, [], ModelTracing.DISABLED
+            )
+        ]
+
+    assert calls == {"minimax": 1, "deepseek": 1}
+    assert model.served_provider_name == "deepseek"
+    assert model.unrecovered_provider_error is None
+    assert any(getattr(ev, "delta", None) == "备源已接管" for ev in events)
+    # Pinned for this session, while a different session still starts on primary (no global circuit trip)
+    assert llm_failover.ordered_providers("sess-resp-failed-fo")[0].name == "deepseek"
+    assert llm_failover.ordered_providers("sess-other-author")[0].name == "minimax"
+    sdk_model.reset_sdk_model_cache()
+    llm_failover.reset_failover_state()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error_code", "expected_stream_code"),
+    [
+        ("internal_error", ErrorCode.AGENT_UPSTREAM_UNAVAILABLE),
+        ("rate_limit_exceeded", ErrorCode.AGENT_UPSTREAM_RATE_LIMITED),
+    ],
+)
+async def test_responses_failed_unrecovered_is_classified_as_upstream_model_error_and_refunded(
+    monkeypatch, error_code, expected_stream_code
+):
+    """Unrecovered response.failed must NOT become ModelBehaviorError / non_model_error;
+    it emits retryable+refundable upstream error with error_source='model' for quota refund."""
+    from agent.core.stream_billing import StreamBillingTracker
+    from agent.openai_agents.runner import run_openai_agents_streaming_agent
+
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-test")
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    monkeypatch.delenv("MINIMAX_API_SURFACE", raising=False)
+    sdk_model.reset_sdk_model_cache()
+    llm_failover.reset_failover_state()
+
+    failed_resp = _make_failed_response(code=error_code, message="upstream boom")
+    sse_payload = _responses_sse_body([
+        {"type": "response.created", "sequence_number": 0, "response": _make_response(status="in_progress", text="", output_tokens=0).model_dump(mode="json")},
+        {"type": "response.failed", "sequence_number": 1, "response": failed_resp},
+    ])
+
+    async def handle(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse_payload)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http_client:
+        mock_client = AsyncOpenAI(
+            api_key="sk-test", base_url="https://mock.invalid/v1", http_client=http_client, max_retries=0
+        )
+        monkeypatch.setattr(llm_providers, "get_async_client", lambda _p: mock_client)
+        state = {"user_message": "继续写", "session_id": f"sess-fail-{error_code}"}
+        events = [
+            ev
+            async for ev in run_openai_agents_streaming_agent(state, "loop", "系统提示")  # type: ignore[arg-type]
+        ]
+
+    err_events = [ev for ev in events if ev.type == StreamEventType.ERROR]
+    assert len(err_events) == 1
+    data = err_events[0].data
+    assert data["code"] == expected_stream_code
+    assert data["retryable"] is True
+    assert data["refundable"] is True
+    assert data["error_source"] == "model"
+
+    tracker = StreamBillingTracker()
+    assert tracker.decide(
+        client_disconnected=False,
+        unexpected_exception=False,
+        provider_attempted=True,
+        terminal_model_failure=True,
+    ) == ("upstream_model_error", True)
+    sdk_model.reset_sdk_model_cache()
+    llm_failover.reset_failover_state()

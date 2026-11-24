@@ -9,7 +9,6 @@ Handles:
 
 import asyncio
 import json as json_module
-import re
 from datetime import datetime
 from typing import Any
 
@@ -25,27 +24,6 @@ from .chat_storage import (
     archive_pre_compaction_tool_calls_safe,
     display_events_have_thinking_content,
 )
-
-_HAN_CHAR_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
-_LATIN_WORD_RE = re.compile(r"[A-Za-z]{2,}")
-_URL_RE = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
-
-
-def detect_author_language(text: str | None) -> str | None:
-    """作者这条消息用的是中文还是英文；看不出来（选项字母、数字、链接）时返回 None。
-
-    汉字和英文词混写时按量比：一个英文词大致抵两个汉字（「把 POV 改成第一人称」是中文，
-    「Write chapter 3 where 苏晚 meets 沈砚」是英文）。
-    """
-    cleaned = _URL_RE.sub(" ", text or "")
-    han = len(_HAN_CHAR_RE.findall(cleaned))
-    words = len(_LATIN_WORD_RE.findall(cleaned))
-    if han == 0:
-        return "en" if words >= 2 else None
-    if words == 0:
-        return "zh"
-    return "zh" if han >= words * 2 else "en"
-
 
 logger = get_logger(__name__)
 
@@ -564,18 +542,19 @@ class MessageManager:
         return lang.startswith("en")
 
     def _build_language_section(self, force_en: bool) -> list[str]:
-        """回复语言规则：跟随作者最近一条消息，看不出来时才按界面语言。"""
+        """回复语言规则：完全由模型按作者最近一条消息判断，界面语言只在判断不了时兜底。"""
         if force_en:
             return [
                 "",
                 "## Reply language",
-                "- Write chat replies to the author in the language of the author's latest message: "
-                "Chinese when the author writes Chinese, English when the author writes English. "
-                "When the author switches language, switch with them; earlier replies do not decide it.",
-                "- When the latest message has no clear language (only an option letter, a number or a link), "
+                "- Write chat replies to the author in the exact language of the author's latest message "
+                "(whether Chinese, English, Vietnamese, Japanese, or any other language). "
+                "When the author switches language, switch with them immediately; earlier assistant replies "
+                "and the interface language do not override the author's latest message.",
+                "- When the latest message has no clear language (only an option letter, a number, or a link), "
                 "keep the language the author has been using in this conversation; if that is unclear too, "
                 "fall back to English (the author's interface language).",
-                "- Do not mix Chinese and English in one chat reply.",
+                "- Keep each chat reply in one consistent language unless quoting text from the manuscript.",
                 "- This rule covers chat replies only. File content (<file> blocks, edit_file text, "
                 "create_file content) stays in the manuscript's existing language; a new file follows "
                 "the language the author asked for or the language of the existing manuscript.",
@@ -583,31 +562,14 @@ class MessageManager:
         return [
             "",
             "## 回复语言",
-            "- 给作者的聊天回复用作者最近一条消息的语言：作者写中文就用中文，写英文就用英文；"
-            "作者换了语言就跟着换，之前的回复用的什么语言不算数。",
+            "- 给作者的聊天回复使用作者最近一条消息的语言（无论中文、英文、越南语、日语或其他任何语言）；"
+            "作者切换语言时立刻跟着切换，不要被之前的助手回复或界面语言带偏。",
             "- 作者最近一条消息看不出语言（只有选项字母、数字、链接）时，沿用作者在这段对话里一直用的语言；"
             "还判断不了就用中文（作者的界面语言）。",
+            "- 单条聊天回复保持语言一致，除非引用稿件原文。",
             "- 这条只管聊天回复。文件内容（<file> 正文、edit_file 文本、create_file 内容）保持稿件原有语言；"
             "新文件用作者要求的语言或已有稿件的语言。",
         ]
-
-    @staticmethod
-    def _build_author_language_line(author_message: str | None) -> list[str]:
-        """写明本轮作者消息的语言（判断不了时不写，交给上面的兜底规则）。"""
-        detected = detect_author_language(author_message)
-        if detected == "zh":
-            return [
-                "",
-                "## 本轮回复语言",
-                "本轮作者用中文写消息：这一轮给作者的所有回复都用中文。",
-            ]
-        if detected == "en":
-            return [
-                "",
-                "## Reply language for this turn",
-                "The author wrote this turn's message in English: reply to the author in English this turn.",
-            ]
-        return []
 
     def _build_metadata_section(
         self, metadata: dict[str, Any], force_en: bool
