@@ -411,6 +411,14 @@ export default function MaterialsPage() {
     }
   };
 
+  // Only show the header Pro button once loading finishes and when the page body does
+  // not already present a primary upgrade CTA (teaser without trial, or empty trial-used).
+  const showHeaderUpgrade =
+    !hasWorkspaceAccess &&
+    !isMaterialsLoading &&
+    !isMaterialsError &&
+    !((showTeaser && !trialAvailable) || (materials.length === 0 && trialUsed));
+
   return (
     <>
       {/* Header */}
@@ -440,7 +448,7 @@ export default function MaterialsPage() {
                   })
                 : t("materials:upload")}
             </Button>
-          ) : (
+          ) : showHeaderUpgrade ? (
             <Button
               variant="primary"
               size={actionSize}
@@ -449,7 +457,7 @@ export default function MaterialsPage() {
             >
               {proEntry.label}
             </Button>
-          )
+          ) : undefined
         }
       />
 

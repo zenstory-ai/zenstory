@@ -94,8 +94,8 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:nextStep.novel.message': '按大纲写第一章正文',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
   'home:pricingTeaser.viewPricing': '查看套餐权益',
-  'chat:input.placeholderQuotaExhausted': '先把想法写下来，额度恢复后再发。',
-  'chat:input.placeholderWhileProcessing': "AI 正在生成，你可以先输入，结束后再发送",
+  'chat:input.placeholderQuotaExhausted': '可先记下灵感，留在这里稍后发送…',
+  'chat:input.placeholderWhileProcessing': '正在写作中，可先记下新想法…',
   'chat:tool.undo_edit': '撤销这次修改',
   'chat:actions.undo': '撤销',
   'common:cancel': '取消',
@@ -844,7 +844,7 @@ describe('ChatPanel mount smoke', () => {
       await act(async () => {})
       expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
       expect(lastMessageInputProps().onBlockedSend).toBeTypeOf('function')
-      expect(lastMessageInputProps().placeholder).toBe('先把想法写下来，额度恢复后再发。')
+      expect(lastMessageInputProps().placeholder).toBe('可先记下灵感，留在这里稍后发送…')
       await act(async () => { await lastMessageInputProps().onSend('按大纲写第一章正文', []) })
       expect(mockStartStream).not.toHaveBeenCalled()
       expect(mockDraft.saveDraft).toHaveBeenCalledWith('按大纲写第一章正文')
@@ -2789,7 +2789,7 @@ describe('ChatPanel new-author flow', () => {
     await waitFor(() => expect(lastMessageInputProps().onBlockedSend).toBeTypeOf('function'))
     expect(lastMessageInputProps().sendDisabled).toBe(false)
     expect(screen.getByTestId('mock-input-textarea')).not.toBeDisabled()
-    expect(lastMessageInputProps().placeholder).toBe('先把想法写下来，额度恢复后再发。')
+    expect(lastMessageInputProps().placeholder).toBe('可先记下灵感，留在这里稍后发送…')
 
     act(() => lastMessageInputProps().onBlockedSend?.())
     expect(await screen.findByText('北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。')).toBeInTheDocument()
@@ -2803,7 +2803,7 @@ describe('ChatPanel new-author flow', () => {
     await waitFor(() => expect(testQueryClient.getQueryData(['subscription-quota', 'test-user'])).toBeDefined())
     await act(async () => {})
     expect(screen.queryByTestId('chat-quota-card')).not.toBeInTheDocument()
-    expect(lastMessageInputProps().placeholder).toBe("AI 正在生成，你可以先输入，结束后再发送")
+    expect(lastMessageInputProps().placeholder).toBe('正在写作中，可先记下新想法…')
 
     // The round ends (done): the panel re-renders idle.
     mockAgentStreamState.isStreaming = false

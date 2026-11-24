@@ -83,9 +83,13 @@ export function QuotaBadge({ compact = false }: QuotaBadgeProps = {}) {
   const badge = (
     <Badge
       variant={getVariant()}
-      className="whitespace-nowrap tabular-nums"
+      className={
+        compact
+          ? "whitespace-nowrap tabular-nums"
+          : "whitespace-nowrap tabular-nums gap-1.5 rounded-xl border border-transparent px-3 py-1.5 text-xs leading-5 font-medium"
+      }
       icon={
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <svg className={compact ? "w-3 h-3" : "w-3.5 h-3.5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
       }

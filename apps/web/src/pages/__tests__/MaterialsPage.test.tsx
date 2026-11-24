@@ -267,6 +267,17 @@ describe("MaterialsPage", () => {
     expect(mockList).not.toHaveBeenCalled();
   });
 
+  it("omits the header Pro button when the teaser card already renders it", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: false, max_chapters: 3 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const upgradeButtons = await screen.findAllByRole("button", { name: "开通 Pro" });
+    expect(upgradeButtons).toHaveLength(1);
+    expect(screen.queryByTestId("materials-header-upgrade")).not.toBeInTheDocument();
+  });
+
   it("renders the header Pro entry with the unified primary button style alongside the free trial", async () => {
     mockGetStatus.mockResolvedValue(freeStatus);
     mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
@@ -363,7 +374,7 @@ describe("MaterialsPage", () => {
     expect(await screen.findByTestId("materials-checkout-unavailable")).toHaveTextContent(
       "暂时不能在线付款。有兑换码的话，点「兑换码开通」就能开通 Pro。",
     );
-    expect(screen.getByTestId("materials-header-upgrade")).toHaveTextContent("兑换码开通");
+    expect(screen.queryByTestId("materials-header-upgrade")).not.toBeInTheDocument();
     const emptyState = screen.getByTestId("materials-trial-used-empty");
     expect(within(emptyState).queryByRole("button", { name: "开通 Pro" })).not.toBeInTheDocument();
 

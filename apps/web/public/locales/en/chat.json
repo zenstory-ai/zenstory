@@ -62,13 +62,13 @@
     "openWrittenFile": "Open “{{title}}”"
   },
   "input": {
-    "placeholder": "Tell the AI what to write",
-    "placeholderWhileProcessing": "AI is generating — you can type now and send when it finishes",
-    "placeholderQuotaExhausted": "Draft your idea now and send it once your messages reset.",
+    "placeholder": "What should we write or revise next…",
+    "placeholderWhileProcessing": "Writing… feel free to jot down your next thought",
+    "placeholderQuotaExhausted": "Jot down your idea here to send later…",
     "stop": "Stop generating",
     "stopping": "Stopping…",
     "stopArming": "Starting… you can stop in a moment",
-    "steerPlaceholder": "AI is generating — what you add applies at its next step",
+    "steerPlaceholder": "Writing… add a note anytime to steer the next step",
     "steerButton": "Add request",
     "steerSent": "Added — the AI will use it at the next step",
     "steerSentAsNextMessage": "This reply is wrapping up — your note will go out as the next message",
