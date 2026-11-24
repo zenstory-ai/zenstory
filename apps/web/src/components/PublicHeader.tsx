@@ -7,6 +7,7 @@ import { Button } from "./ui/Button";
 import { useAuth } from "../contexts/AuthContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useIsDesktop } from "../hooks/useMediaQuery";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { buildUpgradeUrl } from "../config/upgradeExperience";
 import { getUserDisplayName } from "../lib/userDisplayName";
 import { getWorkbenchHomeUrl } from "../lib/site-domain";
@@ -38,6 +39,11 @@ export function PublicHeader({
   const isAuthVariant = variant === "auth";
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showProductMenu, setShowProductMenu] = useState(false);
+  const { isMounted: isProductMenuMounted, isExiting: isProductMenuExiting } = useAnimatedPresence(showProductMenu, 130);
+  const { isMounted: isMobileMenuMounted, isExiting: isMobileMenuExiting } = useAnimatedPresence(
+    isCompactHeader && showMobileMenu && (variant === "dashboard" || variant === "home"),
+    150,
+  );
   const productMenuRef = useRef<HTMLDivElement>(null);
   const productMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const productMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -224,14 +230,18 @@ export function PublicHeader({
               aria-controls={productMenuId}
             >
               <span className="text-xs md:text-sm">{t('common:productMenu.title')}</span>
-              <ChevronDown size={12} className={`transition-transform ${showProductMenu ? 'rotate-180' : ''}`} />
+              <ChevronDown size={12} className={`motion-chevron ${showProductMenu ? 'rotate-180' : ''}`} />
             </button>
 
             {/* 下拉菜单 */}
-            {showProductMenu && (
+            {isProductMenuMounted && (
               <div
                 id={productMenuId}
-                className="absolute top-full left-0 mt-1 py-1 min-w-[130px] md:min-w-[140px] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg shadow-lg z-50"
+                aria-hidden={isProductMenuExiting ? true : undefined}
+                inert={isProductMenuExiting ? true : undefined}
+                className={`absolute top-full left-0 mt-1 py-1 min-w-[130px] md:min-w-[140px] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg shadow-lg z-50 origin-top-left ${
+                  isProductMenuExiting ? "motion-popover-exit pointer-events-none" : "motion-popover-enter"
+                }`}
                 role="menu"
                 aria-label={t('common:productMenu.title')}
                 onKeyDown={handleProductMenuKeyDown}
@@ -358,7 +368,11 @@ export function PublicHeader({
                 }
                 className="min-h-[44px] min-w-[44px] p-2 hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
               >
-                {showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                {showMobileMenu ? (
+                  <X key="close" className="w-5 h-5 motion-icon-pop" />
+                ) : (
+                  <Menu key="open" className="w-5 h-5 motion-icon-pop" />
+                )}
               </button>
             ) : null}
           </div>
@@ -366,10 +380,14 @@ export function PublicHeader({
       </header>
 
       {/* Mobile Dropdown Menu */}
-      {isCompactHeader && showMobileMenu && (variant === "dashboard" || variant === "home") && (
+      {isMobileMenuMounted && (
         <div
           id={mobileMenuId}
-          className="lg:hidden fixed top-12 left-0 right-0 max-h-[calc(100dvh-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40"
+          aria-hidden={isMobileMenuExiting ? true : undefined}
+          inert={isMobileMenuExiting ? true : undefined}
+          className={`lg:hidden fixed top-12 left-0 right-0 max-h-[calc(100dvh-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40 ${
+            isMobileMenuExiting ? "motion-sheet-down-exit pointer-events-none" : "motion-sheet-down"
+          }`}
         >
           <div className="flex flex-col p-2 gap-1" role="menu" aria-label={t("common:nav.mobileMenu", "移动端导航菜单")}>
             {variant === "home" && (

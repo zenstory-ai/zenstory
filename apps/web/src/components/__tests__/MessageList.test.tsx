@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MessageList, type Message, type MessageListRef } from '../MessageList'
 import { useEffect, useRef } from 'react'
 import { MobileLayoutProvider, useMobileLayout } from '../../contexts/MobileLayoutContext'
@@ -1336,6 +1336,29 @@ describe('MessageList', () => {
           div.textContent?.includes('Streaming content')
         )
       expect(streamItemsContainer).toBeTruthy()
+    })
+  })
+
+  describe('copy AI reply action', () => {
+    it('copies assistant reply text (stripping think tags) and shows reversible copied state', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText },
+        configurable: true,
+      })
+      const messages = [
+        createMessage({ role: 'user', content: '帮我写一段开场' }),
+        createMessage({ role: 'assistant', content: '</think>窗外雨声淅沥。[TASK_COMPLETE]' }),
+      ]
+      render(<MessageList messages={messages} />)
+
+      const copyButtons = screen.getAllByTestId('copy-message-button')
+      expect(copyButtons).toHaveLength(1)
+      expect(copyButtons[0]).toHaveAttribute('aria-label', 'message.copyReply')
+
+      fireEvent.click(copyButtons[0])
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith('窗外雨声淅沥。'))
+      await waitFor(() => expect(copyButtons[0]).toHaveAttribute('aria-label', 'message.copiedReply'))
     })
   })
 })

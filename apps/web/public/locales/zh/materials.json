@@ -25,6 +25,8 @@
   "upload": "上传小说",
   "viewMaterialDetail": "查看素材详情",
   "noMaterials": "还没有参考小说",
+  "searchPlaceholder": "搜索素材",
+  "noSearchResults": "没有找到匹配的素材，换个关键词试试",
   "uploadFirst": "上传第一本小说",
   "chapters": "章",
   "chapters_one": "章",
@@ -47,6 +49,7 @@
     "titlePlaceholder": "留空则使用文件名",
     "uploading": "上传中…",
     "upload": "上传并拆解",
+    "selectFileFirst": "请先选择一个 .txt 文件",
     "errors": {
       "invalidType": "仅支持上传 .txt 文件",
       "tooLarge": "文件超过 20MB，请拆分后再上传",
@@ -151,7 +154,8 @@
   "retrySuccess": "已重新开始拆解",
   "export": {
     "button": "导出拆解（TXT）",
-    "success": "拆解结果已导出为 TXT 文件"
+    "success": "拆解结果已导出为 TXT 文件",
+    "unavailableWhileProcessing": "拆解完成后可导出"
   },
   "toast": {
     "loadListFailed": "加载失败，请重试",

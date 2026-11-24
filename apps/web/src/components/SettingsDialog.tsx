@@ -26,6 +26,7 @@ import { User, Settings, Moon, Sun, LogOut, CreditCard, Coins, Users, Key } from
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useMediaQuery';
+import { useSlidingIndicator } from '../hooks/useSlidingIndicator';
 import { normalizeLocale, switchLocale } from '../lib/i18n-helpers';
 import { pointsConfig } from '../config/points';
 import { referralConfig } from '../config/referral';
@@ -276,6 +277,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
       : []),
   ];
 
+  const { containerRef: navRef, indicatorRef: navIndicatorRef } = useSlidingIndicator<HTMLElement>(
+    activeTab,
+    [isOpen, isMobile, navItems.length, currentLanguage],
+  );
+
   const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex: number | null = null;
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
@@ -313,10 +319,18 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
           {/* Left navigation */}
           <div className={`${isMobile ? 'px-3 py-2 shrink-0' : 'w-44 p-3 shrink-0'}`}>
             <nav
-              className={`${isMobile ? 'flex overflow-x-auto scrollbar-none gap-1' : 'space-y-0.5'}`}
+              ref={navRef}
+              className={`group/seg relative ${isMobile ? 'flex overflow-x-auto scrollbar-none gap-1' : 'space-y-0.5'}`}
               role="tablist"
               aria-orientation={isMobile ? 'horizontal' : 'vertical'}
             >
+              <span
+                ref={navIndicatorRef}
+                aria-hidden="true"
+                data-animate="false"
+                data-testid="settings-tab-indicator"
+                className="pointer-events-none absolute top-0 left-0 rounded-lg bg-[hsl(var(--accent-primary)/0.15)] opacity-0 motion-segmented-indicator"
+              />
               {navItems.map((item, index) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -329,14 +343,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                     aria-selected={isActive}
                     aria-controls="settings-panel"
                     tabIndex={isActive ? 0 : -1}
+                    data-segment-active={isActive ? 'true' : undefined}
                     onClick={() => setActiveTab(item.id)}
                     onKeyDown={(event) => handleTabKeyDown(event, index)}
                     data-testid={`settings-tab-${item.id}`}
-                    className={`flex items-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
+                    className={`relative z-10 flex items-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
                       isMobile ? 'shrink-0 whitespace-nowrap gap-1.5 min-h-11 px-3 py-2 text-xs' : 'w-full gap-2 py-2 px-3 text-sm'
                     } rounded-lg ${
                       isActive
-                        ? 'bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] font-medium'
+                        ? 'bg-[hsl(var(--accent-primary)/0.15)] group-data-[indicator-ready=true]/seg:bg-transparent text-[hsl(var(--accent-primary))] font-medium'
                         : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] hover:text-[hsl(var(--text-primary))]'
                     }`}
                   >
@@ -359,6 +374,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
             aria-labelledby={`settings-tab-${activeTab}`}
             tabIndex={0}
           >
+            <div key={activeTab} className="motion-tab-panel">
             {activeTab === 'profile' && (
               <div className="space-y-3">
                 {/* User card */}
@@ -412,7 +428,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                           void handleLanguageChange(lang as 'zh' | 'en');
                         }}
                         data-testid={`language-button-${lang}`}
-                        className={`p-2.5 rounded-lg border text-left text-sm transition-all ${
+                        className={`p-2.5 rounded-lg border text-left text-sm transition-[border-color,background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${
                           currentLanguage === lang
                             ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)]'
                             : 'border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-hover))]'
@@ -462,14 +478,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                       className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center p-2 -m-2 sm:p-0 sm:m-0 shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
                     >
                       <span
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${
                           analyticsEnabled
                             ? 'bg-[hsl(var(--accent-primary))]'
                             : 'bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))]'
                         }`}
                       >
                         <span
-                          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                          className={`inline-block h-4 w-4 rounded-full bg-white shadow motion-switch-thumb ${
                             analyticsEnabled ? 'translate-x-4' : 'translate-x-0.5'
                           }`}
                         />
@@ -495,13 +511,16 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                         aria-checked={theme === item.id}
                         onClick={() => setTheme(item.id as 'dark' | 'light')}
                         data-testid={`theme-button-${item.id}`}
-                        className={`p-2.5 rounded-lg border text-center text-sm transition-all ${
+                        className={`p-2.5 rounded-lg border text-center text-sm transition-[border-color,background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${
                           theme === item.id
                             ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)]'
                             : 'border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-hover))]'
                         }`}
                       >
-                        <item.icon className="w-4 h-4 mx-auto mb-1" />
+                        <item.icon
+                          key={theme === item.id ? `${item.id}-active` : item.id}
+                          className={`w-4 h-4 mx-auto mb-1 ${theme === item.id ? 'motion-icon-pop' : ''}`}
+                        />
                         <div className="text-[hsl(var(--text-primary))]">{item.label}</div>
                       </button>
                     ))}
@@ -534,7 +553,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                         className="group min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 p-2 sm:p-0 inline-flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
                       >
                         <span
-                          className={`w-7 h-7 rounded-full transition-transform group-hover:scale-110 ${
+                          className={`w-7 h-7 rounded-full transition-transform duration-[var(--duration-instant)] ease-[var(--ease-spring-snappy)] group-hover:scale-110 group-active:scale-95 motion-reduce:transition-none ${
                             accentColor === color ? 'ring-2 ring-offset-2 ring-offset-[hsl(var(--bg-card))]' : ''
                           }`}
                           style={{ backgroundColor: color, '--tw-ring-color': color } as React.CSSProperties}
@@ -580,7 +599,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
               <div className="relative">
                 {/* Skeleton overlay - only shown during initial load */}
                 <div
-                  className={`absolute inset-0 z-10 transition-opacity duration-200 ${
+                  className={`absolute inset-0 z-10 transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${
                     showPointsSkeleton ? 'opacity-100' : 'opacity-0 pointer-events-none'
                   }`}
                 >
@@ -589,7 +608,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
 
                 {/* Actual content - visible when not loading or when refetching */}
                 <div
-                  className={`space-y-4 transition-opacity duration-200 ${
+                  className={`space-y-4 transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${
                     showPointsSkeleton ? 'opacity-0' : 'opacity-100'
                   }`}
                 >
@@ -622,6 +641,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                 <InviteCodeList />
               </div>
             )}
+            </div>
           </div>
         </div>
       </Modal>

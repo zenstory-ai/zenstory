@@ -114,6 +114,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
         form={formId}
         size="touch"
         disabled={redeemMutation.isPending || !code.trim()}
+        title={!redeemMutation.isPending && !code.trim() ? t('settings:subscription.codeRequired', '请输入兑换码') : undefined}
       >
         {redeemMutation.isPending ? t('dashboard:billing.redeeming', '正在兑换…') : t('settings:subscription.redeem', '兑换')}
       </Button>
@@ -151,7 +152,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
           </div>
 
           {error && (
-            <div role="alert" className="mb-4 p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] text-sm rounded-xl">
+            <div key={error} role="alert" className="mb-4 p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] text-sm rounded-xl motion-error-shake">
               {error}
             </div>
           )}

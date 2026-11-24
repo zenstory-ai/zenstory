@@ -76,15 +76,15 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 const getVariantClasses = (variant: ButtonProps['variant']): string => {
   const variants = {
     primary:
-      'border-transparent! bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary-hover))] active:scale-[0.98] focus-visible:ring-[hsl(var(--accent-light))] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
+      'border-transparent! bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary-hover))] active:scale-[0.975] motion-reduce:active:scale-100 focus-visible:ring-[hsl(var(--accent-light))] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
     secondary:
-      'bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-tertiary))] active:scale-[0.98] focus-visible:ring-[hsl(var(--accent-primary)/0.5)] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
+      'bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-tertiary))] active:scale-[0.975] motion-reduce:active:scale-100 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
     ghost:
-      'border-transparent! text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] active:scale-[0.98] focus-visible:ring-[hsl(var(--accent-primary)/0.5)] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
+      'border-transparent! text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] active:scale-[0.975] motion-reduce:active:scale-100 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
     danger:
-      'border-transparent! bg-[hsl(var(--danger-solid))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--danger-hover))] active:scale-[0.98] focus-visible:ring-[hsl(var(--error)/0.5)] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
+      'border-transparent! bg-[hsl(var(--danger-solid))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--danger-hover))] active:scale-[0.975] motion-reduce:active:scale-100 focus-visible:ring-[hsl(var(--error)/0.5)] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
     outline:
-      'bg-transparent text-[hsl(var(--accent-primary))] border-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] active:scale-[0.98] focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
+      'bg-transparent text-[hsl(var(--accent-primary))] border-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] active:scale-[0.975] motion-reduce:active:scale-100 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-[hsl(var(--bg-secondary))]',
   };
   return variants[variant || 'primary'];
 };
@@ -178,7 +178,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   // `border` on every variant: a bordered secondary next to a primary keeps one height.
   // Borderless variants explicitly keep the base border transparent.
   const baseClasses =
-    'inline-flex items-center justify-center gap-2 border font-medium rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+    'inline-flex items-center justify-center gap-2 border font-medium rounded-xl transition-[transform,background-color,border-color,color,box-shadow] duration-[var(--duration-instant)] ease-[var(--ease-standard)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100';
 
   const variantClasses = getVariantClasses(variant);
   const sizeClasses = getSizeClasses(size);

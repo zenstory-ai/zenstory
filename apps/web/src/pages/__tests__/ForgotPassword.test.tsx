@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import zhAuth from '../../../public/locales/zh/auth.json'
 import { ApiError } from '../../lib/apiClient'
 
-const { mockNavigate, mockRequestCode, mockConfirm, mockToastSuccess, flags } = vi.hoisted(() => ({
+const { mockNavigate, mockLocationState, mockRequestCode, mockConfirm, mockToastSuccess, flags } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
+  mockLocationState: { current: null as { email?: string } | null },
   mockRequestCode: vi.fn(),
   mockConfirm: vi.fn(),
   mockToastSuccess: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('react-router-dom', async () => {
   return {
     ...actual,
     useNavigate: () => mockNavigate,
+    useLocation: () => ({ pathname: '/forgot-password', search: '', hash: '', state: mockLocationState.current, key: 'default' }),
     Link: ({ to, children }: { to: string; children?: React.ReactNode }) => <a href={to}>{children}</a>,
     Navigate: ({ to }: { to: string }) => <div data-testid="navigate">{to}</div>,
   }
@@ -92,6 +94,7 @@ function fillResetForm(code: string, password: string, confirm = password) {
 describe('ForgotPassword', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockLocationState.current = null
     flags.forgotPasswordEnabled = true
     mockRequestCode.mockResolvedValue({ message: 'ok' })
     mockConfirm.mockResolvedValue({ message: 'ok' })
@@ -157,7 +160,29 @@ describe('ForgotPassword', () => {
 
     expect(mockConfirm).toHaveBeenCalledWith(EMAIL, '123456', 'new-secret-2')
     expect(mockToastSuccess).toHaveBeenCalledWith('密码已重设，请用新密码登录')
-    expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true })
+    expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true, state: { identifier: EMAIL } })
+  })
+
+  it('prefills email handed over from login and supports password visibility toggles', async () => {
+    mockLocationState.current = { email: EMAIL }
+    render(<ForgotPassword />)
+
+    expect(screen.getByLabelText('注册邮箱')).toHaveValue(EMAIL)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '发送验证码' }))
+    })
+
+    const newPwdInput = screen.getByLabelText('新密码')
+    const confirmPwdInput = screen.getByLabelText('确认新密码')
+    expect(newPwdInput).toHaveAttribute('type', 'password')
+    expect(confirmPwdInput).toHaveAttribute('type', 'password')
+
+    const toggles = screen.getAllByRole('button', { name: '显示密码' })
+    expect(toggles).toHaveLength(2)
+    fireEvent.click(toggles[0])
+    expect(newPwdInput).toHaveAttribute('type', 'text')
+    fireEvent.click(toggles[1])
+    expect(confirmPwdInput).toHaveAttribute('type', 'text')
   })
 
   it('checks the new password locally before calling the API', async () => {

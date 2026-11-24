@@ -30,6 +30,7 @@
     "worldbuilding": "世界观"
   },
   "noSkillsFound": "没有找到匹配的技能，换个关键词或分类试试",
+  "clearFilters": "清除筛选",
   "official": "官方",
   "officialUsageHint": "官方技能添加后即可使用，AI 会在合适的时候调用。",
   "community": "社区",
@@ -66,7 +67,8 @@
     "instructions": "指令内容",
     "instructionsPlaceholder": "写下具体做法，AI 使用这个技能时会照着执行",
     "instructionsHint": "可以用标题、列表分条写清楚（支持 Markdown）",
-    "triggersTooLong": "标签最多 {{count}} 个，每个不超过 {{max}} 个字"
+    "triggersTooLong": "标签最多 {{count}} 个，每个不超过 {{max}} 个字",
+    "requiredFieldsHint": "请先填写技能名称和指令内容"
   },
   "deleteConfirm": {
     "title": "删除技能",

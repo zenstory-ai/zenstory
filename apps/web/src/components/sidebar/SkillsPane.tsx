@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { MAX_SELECTED_SKILLS, useSkillTrigger } from "../../contexts/SkillTriggerContext";
 import { skillsApi } from "../../lib/api";
@@ -22,8 +22,11 @@ import { Button } from "../ui/Button";
  */
 export const SkillsPane: React.FC = () => {
   const { t } = useTranslation(['editor', 'common']);
-  const { selectedSkills, selectSkill } = useSkillTrigger();
-  const selectedIds = new Set(selectedSkills.map((s) => s.id));
+  const { selectedSkills, selectSkill, removeSkill } = useSkillTrigger();
+  const selectedIds = useMemo(
+    () => new Set(selectedSkills.map((s) => s.id)),
+    [selectedSkills],
+  );
   const selectionFull = selectedSkills.length >= MAX_SELECTED_SKILLS;
 
   // Skills state
@@ -66,10 +69,14 @@ export const SkillsPane: React.FC = () => {
     setSelectedSkill(null);
   }, []);
 
-  // Handle use skill - select it for the next message
-  const handleUseSkill = useCallback((skill: Skill) => {
+  // Toggle skill selection for the next message (clicking again removes it)
+  const handleToggleSkill = useCallback((skill: Skill) => {
+    if (selectedIds.has(skill.id)) {
+      removeSkill(skill.id);
+      return;
+    }
     selectSkill({ id: skill.id, name: skill.name });
-  }, [selectSkill]);
+  }, [selectedIds, removeSkill, selectSkill]);
 
   return (
     <div className="w-full h-full text-sm overflow-auto p-2">
@@ -129,22 +136,24 @@ export const SkillsPane: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleUseSkill(skill)}
-                disabled={isSelected || selectionFull}
+                onClick={() => handleToggleSkill(skill)}
+                disabled={!isSelected && selectionFull}
                 aria-pressed={isSelected}
-                className={`p-1.5 rounded-lg max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center transition-all focus-visible:opacity-100 disabled:cursor-default ${
+                className={`p-1.5 rounded-lg max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center transition-all focus-visible:opacity-100 disabled:cursor-not-allowed ${
                   isSelected
-                    ? "opacity-100 text-[hsl(var(--accent-primary))]"
-                    : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 hover:bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] disabled:opacity-0"
+                    ? "opacity-100 text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.12)]"
+                    : selectionFull
+                      ? "opacity-0 group-hover:opacity-40 group-focus-within:opacity-40 [@media(hover:none)]:opacity-40 text-[hsl(var(--text-secondary))]"
+                      : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 hover:bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))]"
                 }`}
                 title={
                   isSelected
-                    ? t('editor:fileTree.skillSelected')
+                    ? t('editor:fileTree.removeSkill')
                     : selectionFull
                       ? t('editor:fileTree.skillSelectionFull', { max: MAX_SELECTED_SKILLS })
                       : t('editor:fileTree.useSkill')
                 }
-                aria-label={`${t('editor:fileTree.useSkill')}: ${skill.name}`}
+                aria-label={`${isSelected ? t('editor:fileTree.removeSkill') : t('editor:fileTree.useSkill')}: ${skill.name}`}
               >
                 {isSelected ? <Check size={14} /> : <Plus size={14} />}
               </button>
@@ -173,18 +182,31 @@ export const SkillsPane: React.FC = () => {
             </div>
           )}
           footer={(
-            <Button
-              size="md"
-              onClick={() => {
-                handleUseSkill(selectedSkill);
-                handleCloseModal();
-              }}
-              disabled={selectedIds.has(selectedSkill.id) || selectionFull}
-            >
-              {selectedIds.has(selectedSkill.id)
-                ? t('editor:fileTree.skillSelected')
-                : t('editor:fileTree.useSkill')}
-            </Button>
+            <div className="flex w-full items-center justify-end gap-3">
+              {!selectedIds.has(selectedSkill.id) && selectionFull && (
+                <span className="mr-auto text-xs text-[hsl(var(--text-secondary))]">
+                  {t('editor:fileTree.skillSelectionFull', { max: MAX_SELECTED_SKILLS })}
+                </span>
+              )}
+              <Button
+                size="touch"
+                variant={selectedIds.has(selectedSkill.id) ? "secondary" : "primary"}
+                onClick={() => {
+                  handleToggleSkill(selectedSkill);
+                  handleCloseModal();
+                }}
+                disabled={!selectedIds.has(selectedSkill.id) && selectionFull}
+                title={
+                  !selectedIds.has(selectedSkill.id) && selectionFull
+                    ? t('editor:fileTree.skillSelectionFull', { max: MAX_SELECTED_SKILLS })
+                    : undefined
+                }
+              >
+                {selectedIds.has(selectedSkill.id)
+                  ? t('editor:fileTree.removeSkill')
+                  : t('editor:fileTree.useSkill')}
+              </Button>
+            </div>
           )}
           size="md"
         >
@@ -195,22 +217,24 @@ export const SkillsPane: React.FC = () => {
             </p>
           )}
 
-          {/* Triggers */}
-          <div className="mb-4">
-            <h4 className="text-xs font-medium text-[hsl(var(--text-secondary))] uppercase mb-2">
-              {t('editor:fileTree.skillTriggers')}
-            </h4>
-            <div className="flex flex-wrap gap-1.5">
-              {selectedSkill.triggers.map((trigger, idx) => (
-                <span
-                  key={idx}
-                  className="px-2 py-1 text-xs bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] rounded"
-                >
-                  {trigger}
-                </span>
-              ))}
+          {/* Triggers — only shown when the skill defines triggers */}
+          {selectedSkill.triggers.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-xs font-medium text-[hsl(var(--text-secondary))] uppercase mb-2">
+                {t('editor:fileTree.skillTriggers')}
+              </h4>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedSkill.triggers.map((trigger, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2 py-1 text-xs bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] rounded"
+                  >
+                    {trigger}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Instructions (added official skills: not returned by the API) */}
           {selectedSkill.instructions_hidden ? (

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 
 /**
  * Self-contained elapsed-seconds timer so `SimpleEditor` does not re-render every second
@@ -34,11 +35,15 @@ const BannerElapsedLabel: React.FC = () => {
 };
 
 export const EditorStreamingBanner: React.FC<{
+  open?: boolean;
   isWaitingForFirstToken: boolean;
   title: string;
-}> = ({ isWaitingForFirstToken, title }) => {
+}> = ({ open = true, isWaitingForFirstToken, title }) => {
   const { t } = useTranslation(["editor"]);
+  const { isMounted, isExiting } = useAnimatedPresence(open, 150);
   const trimmedTitle = title.trim();
+
+  if (!isMounted) return null;
 
   const message = isWaitingForFirstToken
     ? trimmedTitle
@@ -49,7 +54,11 @@ export const EditorStreamingBanner: React.FC<{
   return (
     <div
       data-testid="editor-streaming-banner"
-      className="shrink-0 bg-[hsl(var(--accent-primary)/0.08)] px-4 sm:px-6 py-2.5 flex items-center gap-2.5 border-b border-[hsl(var(--accent-primary)/0.2)]"
+      aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
+      className={`shrink-0 bg-[hsl(var(--accent-primary)/0.08)] px-4 sm:px-6 py-2.5 flex items-center gap-2.5 border-b border-[hsl(var(--accent-primary)/0.2)] ${
+        isExiting ? "motion-banner-exit pointer-events-none" : "motion-banner-enter"
+      }`}
     >
       <Loader2
         size={16}

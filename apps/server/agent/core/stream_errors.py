@@ -121,6 +121,12 @@ def classify_stream_exception(exc: BaseException) -> StreamErrorInfo:
         return StreamErrorInfo(ErrorCode.AGENT_UPSTREAM_RATE_LIMITED, True, True)
     if status is not None and status >= 500:
         return StreamErrorInfo(ErrorCode.AGENT_UPSTREAM_UNAVAILABLE, True, True)
+    if status is None:
+        api_err_code = getattr(exc, "code", None)
+        if api_err_code == "rate_limit_exceeded":
+            return StreamErrorInfo(ErrorCode.AGENT_UPSTREAM_RATE_LIMITED, True, True)
+        if api_err_code in {"internal_error", "server_error"}:
+            return StreamErrorInfo(ErrorCode.AGENT_UPSTREAM_UNAVAILABLE, True, True)
     if _is_transport_failure(exc):
         return StreamErrorInfo(ErrorCode.AGENT_UPSTREAM_UNAVAILABLE, True, True)
     if status in {400, 413, 422} and _looks_like_context_overflow(exc):

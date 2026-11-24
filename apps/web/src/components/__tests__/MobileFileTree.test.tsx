@@ -475,4 +475,21 @@ describe('MobileFileTree', () => {
     }
   });
 
+  it('offers a one-click clear search recovery CTA when filtering yields zero matches', async () => {
+    mockGetTree.mockResolvedValue({
+      tree: [{ id: 'draft-1', title: '第一章', file_type: 'draft', parent_id: null, order: 0, content: '', metadata: null, children: [] }],
+    });
+
+    render(<MobileFileTree />);
+    expect(await screen.findByText('第一章')).toBeInTheDocument();
+
+    const searchInput = screen.getByTestId('search-input');
+    fireEvent.change(searchInput, { target: { value: '不存在的章节' } });
+    expect(screen.getByText('editor:fileTree.noSearchResults')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'common:clearSearch' }));
+    expect(searchInput).toHaveValue('');
+    expect(screen.getByText('第一章')).toBeInTheDocument();
+  });
+
 });

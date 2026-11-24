@@ -356,7 +356,7 @@ const UPLOAD_MODAL = {
   title: 'h2',
   dropzone: '.border-dashed',
   fileInput: 'input[type="file"]',
-  titleInput: 'input[type="text"]',
+  titleInput: '[role="dialog"] input[type="text"]',
   uploadButton: 'button:has-text("Upload"), button:has-text("上传"), button:has-text("上传并拆解")',
   cancelButton: 'button:has-text("Cancel"), button:has-text("取消")',
 }

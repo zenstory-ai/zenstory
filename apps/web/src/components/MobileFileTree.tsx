@@ -24,13 +24,13 @@ import { useMaterialAttachment, MAX_ATTACHED_MATERIALS } from "../contexts/Mater
 import { toast } from "../lib/toast";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Button } from "./ui/Button";
+import { AnimatedCollapse } from "./ui/AnimatedCollapse";
 import { FileSearchInput } from "./FileSearchInput";
 import { useFileSearch, type FileSearchResult } from "../hooks/useFileSearch";
 import { getCreateFileType, isMaterialFolder, useFileTree } from "../hooks/useFileTree";
 import SearchResultsDropdown from "./SearchResultsDropdown";
 import type { FileTreeNode } from "../types";
 import {
-  ChevronDown,
   ChevronRight,
   FileText,
   Users,
@@ -197,6 +197,16 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
    * @param e - The keyboard event
    */
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (isSearchFocused) {
+        setIsSearchFocused(false);
+      } else if (searchQuery) {
+        handleClearSearch();
+      }
+      return;
+    }
     if (!showSearchDropdown || searchResults.length === 0) return;
 
     switch (e.key) {
@@ -216,12 +226,8 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           handleSearchSelect(searchResults[selectedSearchIndex]);
         }
         break;
-      case "Escape":
-        e.preventDefault();
-        setIsSearchFocused(false);
-        break;
     }
-  }, [showSearchDropdown, searchResults, selectedSearchIndex, handleSearchSelect]);
+  }, [isSearchFocused, searchQuery, handleClearSearch, showSearchDropdown, searchResults, selectedSearchIndex, handleSearchSelect]);
 
   /**
    * Memoized filtered tree based on search query.
@@ -304,11 +310,13 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         >
           {/* Expand/collapse icon for folders */}
           {isFolder ? (
-            isExpanded ? (
-              <ChevronDown size={20} className="text-[hsl(var(--text-secondary))] shrink-0" />
-            ) : (
-              <ChevronRight size={20} className="text-[hsl(var(--text-secondary))] shrink-0" />
-            )
+            <ChevronRight
+              size={20}
+              aria-hidden="true"
+              className={`text-[hsl(var(--text-secondary))] shrink-0 motion-chevron ${
+                isExpanded ? "rotate-90" : ""
+              }`}
+            />
           ) : (
             <span className="w-5" />
           )}
@@ -390,8 +398,17 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
               title={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
               aria-label={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
             >
-              {isMaterialAttached(node.id) ? <Check size={18} /> : <MessageSquarePlus size={18} />}
+              {isMaterialAttached(node.id) ? (
+                <Check key="attached" size={18} className="motion-icon-pop" />
+              ) : (
+                <MessageSquarePlus key="attach" size={18} className="motion-icon-pop" />
+              )}
             </button>
+          )}
+
+          {/* Hairline separator before destructive delete when sibling action exists */}
+          {node.file_type === "snippet" && (
+            <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-[hsl(var(--separator-color))]" />
           )}
 
           {/* Delete button */}
@@ -419,6 +436,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
               onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                 if (e.key === "Enter") {
                   handleCreate(node.id);
                 } else if (e.key === "Escape") {
@@ -453,23 +471,24 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           </div>
         )}
 
-        {/* Children - only render if expanded */}
-        {isFolder && isExpanded && node.children && node.children.length > 0 && (
-          <div>
-            {node.children.map((child) => renderNode(child, depth + 1))}
-          </div>
-        )}
-
-        {/* Empty folder indicator */}
-        {isFolder && isExpanded && (!node.children || node.children.length === 0) && isCreating !== node.id && (
-          <div
-            className="px-4 py-3 text-[hsl(var(--text-secondary))] text-sm italic"
-            style={{ paddingLeft: `${28 + depth * 16}px` }}
-          >
-            {isMaterialFolder(node)
-              ? t('editor:fileTree.emptyMaterialFolder')
-              : t('editor:fileTree.emptyFolder')}
-          </div>
+        {/* Children & empty folder indicator with fast 160ms collapse */}
+        {isFolder && (
+          <AnimatedCollapse open={isExpanded} fast>
+            {node.children && node.children.length > 0 ? (
+              <div>
+                {node.children.map((child) => renderNode(child, depth + 1))}
+              </div>
+            ) : isCreating !== node.id ? (
+              <div
+                className="px-4 py-3 text-[hsl(var(--text-secondary))] text-sm italic"
+                style={{ paddingLeft: `${28 + depth * 16}px` }}
+              >
+                {isMaterialFolder(node)
+                  ? t('editor:fileTree.emptyMaterialFolder')
+                  : t('editor:fileTree.emptyFolder')}
+              </div>
+            ) : null}
+          </AnimatedCollapse>
         )}
       </div>
     );
@@ -587,9 +606,12 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
       {/* File tree list - scrollable */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden -webkit-overflow-scrolling-touch">
         {filteredTree.length === 0 && searchQuery && !showSearchDropdown ? (
-          <div className="flex flex-col items-center justify-center py-12 text-[hsl(var(--text-secondary))]">
-            <Search size={32} className="mb-2 opacity-30" />
+          <div className="flex flex-col items-center justify-center gap-3 py-12 px-4 text-center text-[hsl(var(--text-secondary))]">
+            <Search size={32} className="opacity-30" />
             <p className="text-sm">{t('editor:fileTree.noSearchResults')}</p>
+            <Button type="button" variant="secondary" size="touch" onClick={handleClearSearch}>
+              {t('common:clearSearch')}
+            </Button>
           </div>
         ) : (
           <div role="tree" aria-label={t('editor:sidebar.files')}>

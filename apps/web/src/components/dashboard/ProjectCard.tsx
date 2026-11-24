@@ -38,7 +38,7 @@ export function ProjectCard({
   return (
     <article
       onClick={onOpen}
-      className="group relative flex flex-col rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5 cursor-pointer transition-colors hover:border-[hsl(var(--accent-primary)/0.3)]"
+      className="group relative flex flex-col rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5 cursor-pointer transition-[border-color,box-shadow,background-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] hover:border-[hsl(var(--accent-primary)/0.3)] hover:shadow-sm"
       data-testid={testId}
     >
       <button

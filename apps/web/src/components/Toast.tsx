@@ -24,7 +24,12 @@ import { subscribeToast, type ToastEvent } from '../lib/toast';
  * @constant {number}
  */
 const TOAST_DURATION = 3000;
+const TOAST_EXIT_DURATION = 160;
 const MAX_VISIBLE_TOASTS = 3;
+
+interface RenderedToast extends ToastEvent {
+  exiting?: boolean;
+}
 
 /**
  * Container component for displaying toast notifications.
@@ -67,7 +72,16 @@ const MAX_VISIBLE_TOASTS = 3;
  * // - info: Blue background (hsl(var(--accent-primary)))
  */
 export function ToastContainer() {
-  const [toasts, setToasts] = useState<ToastEvent[]>([]);
+  const [toasts, setToasts] = useState<RenderedToast[]>([]);
+
+  /**
+   * Marks a toast as exiting so it plays its exit transition before unmounting.
+   */
+  const markExiting = useCallback((id: number) => {
+    setToasts((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, exiting: true } : t))
+    );
+  }, []);
 
   /**
    * Removes a toast from the active list by ID.
@@ -84,12 +98,16 @@ export function ToastContainer() {
 
     const unsubscribe = subscribeToast((toast) => {
       setToasts((prev) => {
-        const deduped = prev.some((item) => item.message === toast.message && item.type === toast.type);
+        const deduped = prev.some((item) => !item.exiting && item.message === toast.message && item.type === toast.type);
         if (deduped) return prev;
         return [...prev.slice(-(MAX_VISIBLE_TOASTS - 1)), toast];
       });
-      const timeoutId = setTimeout(() => remove(toast.id), TOAST_DURATION);
-      timeoutIds.push(timeoutId);
+      const exitTimeoutId = setTimeout(
+        () => markExiting(toast.id),
+        Math.max(0, TOAST_DURATION - TOAST_EXIT_DURATION),
+      );
+      const removeTimeoutId = setTimeout(() => remove(toast.id), TOAST_DURATION);
+      timeoutIds.push(exitTimeoutId, removeTimeoutId);
     });
 
     return () => {
@@ -97,7 +115,7 @@ export function ToastContainer() {
       // Clear all pending timeouts on unmount
       timeoutIds.forEach((id) => clearTimeout(id));
     };
-  }, [remove]);
+  }, [markExiting, remove]);
 
   // Don't render anything if no active toasts
   if (toasts.length === 0) return null;
@@ -110,7 +128,10 @@ export function ToastContainer() {
           role={t.type === 'error' ? 'alert' : 'status'}
           aria-live={t.type === 'error' ? 'assertive' : 'polite'}
           aria-atomic="true"
-          className={`pointer-events-auto max-w-[calc(100vw-2rem)] px-4 py-2 rounded-xl shadow-lg text-sm text-[hsl(var(--primary-foreground))] animate-slide-in-bottom ${
+          data-state={t.exiting ? 'exiting' : 'open'}
+          className={`pointer-events-auto max-w-[calc(100vw-2rem)] px-4 py-2 rounded-xl shadow-lg text-sm text-[hsl(var(--primary-foreground))] ${
+            t.exiting ? 'motion-toast-exit' : 'motion-toast-enter'
+          } ${
             t.type === 'error'
               ? 'bg-[hsl(var(--danger-solid))]'
               : t.type === 'success'

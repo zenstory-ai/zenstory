@@ -120,11 +120,11 @@ function DailyTable({ rows, showUsers }: { rows: UsageDailyRow[]; showUsers?: bo
                 <td className={numberCellClass}>{totalTokens(row).toLocaleString(locale)}</td>
                 <td className={cellClass}>
                   <div className="flex items-center gap-2">
-                    <div className="h-2 flex-1 rounded-full bg-[hsl(var(--bg-tertiary))]">
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-[hsl(var(--bg-tertiary))]">
                       {width > 0 && (
                         <div
-                          className="h-2 rounded-full bg-[hsl(var(--accent-primary))]"
-                          style={{ width: `${width}%` }}
+                          className="h-2 w-full rounded-full bg-[hsl(var(--accent-primary))] motion-progress-fill"
+                          style={{ transform: `scaleX(${Math.max(0, Math.min(100, width)) / 100})` }}
                         />
                       )}
                     </div>

@@ -30,6 +30,7 @@
     "worldbuilding": "Worldbuilding"
   },
   "noSkillsFound": "No matching skills. Try a different keyword or category.",
+  "clearFilters": "Clear filters",
   "official": "Official",
   "officialUsageHint": "Add official skills to use them. The AI calls them when they fit.",
   "community": "Community",
@@ -66,7 +67,8 @@
     "instructions": "Instructions",
     "instructionsPlaceholder": "Write out the method. The AI follows it when using this skill.",
     "instructionsHint": "Use headings and lists (Markdown supported)",
-    "triggersTooLong": "Up to {{count}} tags, each at most {{max}} characters"
+    "triggersTooLong": "Up to {{count}} tags, each at most {{max}} characters",
+    "requiredFieldsHint": "Enter a skill name and instructions first"
   },
   "deleteConfirm": {
     "title": "Delete Skill",

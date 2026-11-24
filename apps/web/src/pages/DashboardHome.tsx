@@ -26,6 +26,7 @@ import { useProject } from "../contexts/ProjectContext";
 import { useProjectsProgress } from "../hooks/useProjectsProgress";
 import type { ProjectType } from "../types";
 import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
+import { useSlidingIndicator } from "../hooks/useSlidingIndicator";
 import { parseUTCDate } from "../lib/dateUtils";
 import { UpgradePromptModal } from "../components/subscription/UpgradePromptModal";
 import { IdeaQuotaWallModal } from "../components/subscription/IdeaQuotaWallModal";
@@ -374,6 +375,11 @@ export default function DashboardHome() {
     }
   };
 
+  const { containerRef: typeTabsRef, indicatorRef: typeTabsIndicatorRef } = useSlidingIndicator<HTMLDivElement>(
+    activeTab,
+    [isMobile, availableProjectTypes.join(","), i18n.language],
+  );
+
   // One example premise, marked 「例如：」 so it never reads as text already filled in; the first
   // reply writes an opening from even a vague idea, so it needs no instructions about what to produce.
   const resolvedInspirationPlaceholder = t(`dashboard:inspiration.example.${activeTab}`);
@@ -413,12 +419,19 @@ export default function DashboardHome() {
             }}
           />
           {inspirationTooLong && (
-            <p id="dashboard-inspiration-too-long" role="alert" className="px-1 pb-3 text-sm text-[hsl(var(--error-text))]">
+            <p id="dashboard-inspiration-too-long" role="alert" className="px-1 pb-3 text-sm tabular-nums text-[hsl(var(--error-text))] motion-error-shake">
               {t('chat:input.tooLong', { count: inspiration.length, max: MAX_AGENT_MESSAGE_CHARS })}
             </p>
           )}
         <div className="dashboard-composer-footer">
-        <div className="flex flex-wrap items-center gap-1" data-testid="dashboard-project-type-tabs">
+        <div ref={typeTabsRef} className="group/seg relative flex flex-wrap items-center gap-1" data-testid="dashboard-project-type-tabs">
+          <span
+            ref={typeTabsIndicatorRef}
+            aria-hidden="true"
+            data-animate="false"
+            data-testid="dashboard-type-indicator"
+            className="pointer-events-none absolute top-0 left-0 rounded-lg bg-[hsl(var(--accent-primary)/0.15)] opacity-0 motion-segmented-indicator"
+          />
           {availableProjectTypes.map((type) => {
             const config = getTranslatedConfig(type);
             const isActive = activeTab === type;
@@ -428,14 +441,15 @@ export default function DashboardHome() {
                 type="button"
                 onClick={() => setActiveTab(type)}
                 aria-pressed={isActive}
+                data-segment-active={isActive ? "true" : undefined}
                 className={`
-                  dashboard-type-button flex items-center gap-2 rounded-lg font-medium transition-colors border-transparent! border touch-target
+                  relative z-10 dashboard-type-button flex items-center gap-2 rounded-lg font-medium transition-[color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.975] motion-reduce:active:scale-100 border-transparent! border touch-target
                   ${isMobile
                     ? "px-2.5 py-2 text-xs"
                     : "px-3 py-2 text-sm"
                   }
                   ${isActive
-                    ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] border-transparent!"
+                    ? "bg-[hsl(var(--accent-primary)/0.15)] group-data-[indicator-ready=true]/seg:bg-transparent text-[hsl(var(--accent-primary))] border-transparent!"
                     : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary)/0.5)] border-transparent"
                   }
                 `}
@@ -544,7 +558,22 @@ export default function DashboardHome() {
             )}
 
             {recentProjects.length === 0 && (
-              <DashboardEmptyState icon={Book} title={t('projects.noMatch')} description={t('projects.tryDifferent')} />
+              <DashboardEmptyState
+                icon={Book}
+                title={t('projects.noMatch')}
+                description={t('projects.tryDifferent')}
+                action={
+                  searchQuery ? (
+                    <Button
+                      variant="secondary"
+                      size={isMobile ? "touch" : "md"}
+                      onClick={() => setSearchQuery("")}
+                    >
+                      {t('common:clearSearch')}
+                    </Button>
+                  ) : undefined
+                }
+              />
             )}
 
             {/* Project Cards Grid */}

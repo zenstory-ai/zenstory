@@ -131,6 +131,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({
   onTabChange,
 }) => {
   const { t } = useTranslation(['editor']);
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab));
   return (
     <nav
       data-testid="bottom-tabs"
@@ -138,6 +139,17 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({
       role="tablist"
       aria-label={t('editor:bottomTabs.ariaLabel', '底部导航')}
     >
+      {/* GPU-composited sliding active tab indicator */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-0 left-0 h-0.5 z-10 flex justify-center motion-tab-indicator"
+        style={{
+          width: `${100 / tabs.length}%`,
+          transform: `translate3d(${activeIndex * 100}%, 0, 0)`,
+        }}
+      >
+        <span className="h-full w-10 rounded-full bg-[hsl(var(--accent-primary))]" />
+      </span>
       {tabs.map((tab, index) => {
         const isActive = activeTab === tab.id;
         const Icon = tab.icon;
@@ -158,9 +170,9 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({
               event.currentTarget.parentElement
                 ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
             }}
-            className={`mobile-bottom-tab relative flex-1 flex flex-col items-center justify-center gap-1 transition-[color,background-color,transform] duration-150 motion-reduce:transition-none min-h-[44px] no-select active:scale-95 motion-reduce:active:scale-100 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
+            className={`mobile-bottom-tab relative flex-1 flex flex-col items-center justify-center gap-1 transition-[color,background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] motion-reduce:transition-none min-h-[44px] no-select active:scale-95 motion-reduce:active:scale-100 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
               isActive
-                ? "text-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)] before:absolute before:top-0 before:inset-x-5 before:h-0.5 before:rounded-full before:bg-[hsl(var(--accent-primary))]"
+                ? "text-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)]"
                 : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] active:text-[hsl(var(--text-primary))]"
             }`}
             role="tab"

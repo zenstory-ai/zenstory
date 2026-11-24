@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertCircle } from 'lucide-react';
 import { Button } from './ui/Button';
 import { useDialogInteractions } from './ui/dialogFocus';
+import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
 
 export interface LeaveWhileGeneratingDialogProps {
   open: boolean;
@@ -51,7 +52,9 @@ export function LeaveWhileGeneratingDialog({
     initialFocusSelector: '[data-leave-dialog-stay]',
   });
 
-  if (!open) return null;
+  const { isMounted, isExiting } = useAnimatedPresence(open, 150);
+
+  if (!isMounted) return null;
 
   const title = unprotectedDraft ? t('editor:deletedFile.leaveTitle') : roundEnded
     ? t('chat:leaveWhileGenerating.endedTitle', { defaultValue: '这一轮已经结束' })
@@ -81,10 +84,20 @@ export function LeaveWhileGeneratingDialog({
   }
 
   return createPortal(
-    <div className="modal-overlay flex items-center justify-center p-4" onClick={onStay} role="presentation">
+    <div
+      className={`modal-overlay flex items-center justify-center p-4 ${
+        isExiting ? 'motion-backdrop-exit pointer-events-none' : 'motion-backdrop-enter'
+      }`}
+      onClick={isExiting ? undefined : onStay}
+      role="presentation"
+      aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
+    >
       <div
         ref={dialogRef}
-        className="modal ui-sans-headings w-full max-w-[400px] max-h-[calc(100dvh-2rem)] overflow-y-auto animate-scale-in"
+        className={`modal ui-sans-headings w-full max-w-[400px] max-h-[calc(100dvh-2rem)] overflow-y-auto ${
+          isExiting ? 'motion-surface-exit pointer-events-none' : 'motion-surface-enter'
+        }`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         tabIndex={-1}

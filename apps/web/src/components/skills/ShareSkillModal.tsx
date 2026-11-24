@@ -7,6 +7,7 @@ import { skillsApi } from "../../lib/api";
 import type { Skill } from "../../types";
 
 interface ShareSkillModalProps {
+  open?: boolean;
   skill: Skill;
   onClose: () => void;
   onSuccess: () => void;
@@ -22,6 +23,7 @@ const CATEGORIES = [
 ];
 
 export function ShareSkillModal({
+  open = true,
   skill,
   onClose,
   onSuccess,
@@ -71,7 +73,7 @@ export function ShareSkillModal({
 
   return (
     <Modal
-      open={true}
+      open={open}
       onClose={handleClose}
       title={t("skills:share.title")}
       size="md"

@@ -1,7 +1,7 @@
 """单循环 agent 每轮附在作者消息前的结构化上下文。
 
 只放这一轮请求本身带来的东西：项目信息与写作约定、作者正在看的文件、附加的文件、附加的素材库条目、
-引用的文字、作者选的技能、本轮回复语言；另附 <author_edits>：焦点、附加文件和本会话 AI 写过的正文文件里，
+引用的文字、作者选的技能；另附 <author_edits>：焦点、附加文件和本会话 AI 写过的正文文件里，
 作者在 AI 写过之后亲手改了哪几处（与图同一套 SessionLoader.author_edits_for_files，有文件数上限）。解析沿用 ContextAssembler 的既有解析器（归属校验、素材库
 格式化、渲染标注都一样），但不做优先级裁剪、检索片段和文件清单：项目里其他文件由模型用 query_files 查。
 """
@@ -50,7 +50,7 @@ def build_loop_turn_context(
     user_id: str | None,
     metadata: dict[str, Any] | None,
     language: str,
-    author_message: str,
+    author_message: str = "",  # noqa: ARG001 - kept for caller compatibility; reply language is decided by the model
     selected_skills: list[dict[str, Any]] | None = None,
     context_assembler: Any = None,
     chat_session_id: str | None = None,
@@ -129,7 +129,6 @@ def build_loop_turn_context(
                 has_selected_text=bool((selected_text or "").strip()),
             )
         )
-    parts.extend(manager._build_author_language_line(author_message))
     parts.append(TURN_CONTEXT_CLOSE)
     result.text = "\n".join(parts)
 

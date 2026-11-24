@@ -5,6 +5,7 @@
     "loadingHistory": "正在加载对话…",
     "aiMemory": "AI 记忆",
     "newSession": "新对话",
+    "alreadyNewSession": "当前已是新对话",
     "clearChat": "清空对话",
     "selectProject": "打开一个项目后即可开始对话",
     "loadingMessages": "正在加载对话…",
@@ -78,6 +79,11 @@
     "addToContext": "引用到对话",
     "quoteAdded": "已引用到对话",
     "remove": "移除",
+    "removeMaterial": "移除素材 {{title}}",
+    "removeQuote": "移除引用",
+    "sendWithShortcut": "发送 (Enter)",
+    "sendDisabledEmpty": "输入消息后发送",
+    "sendDisabledBusy": "请等待当前回复完成",
     "refresh": "换一批",
     "staticSuggestions": [
       "帮我构思一个穿越故事的核心冲突",
@@ -110,7 +116,9 @@
   },
   "message": {
     "aiEdit": "AI 修改: {{files}}{{extra}}",
-    "aiConversationAt": "AI 助手对话 - {{time}}"
+    "aiConversationAt": "AI 助手对话 - {{time}}",
+    "copyReply": "复制回复",
+    "copiedReply": "已复制"
   },
   "context": {
     "priority": {

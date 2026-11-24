@@ -1,5 +1,7 @@
+import { useRef } from "react";
 import type React from "react";
-import { Search } from "../icons";
+import { useTranslation } from "react-i18next";
+import { Search, X } from "../icons";
 
 /**
  * Props for the DashboardSearchBar component
@@ -68,20 +70,50 @@ export function DashboardSearchBar({
   onCompositionEnd,
   inputTestId,
 }: DashboardSearchBarProps) {
+  const { t } = useTranslation("common");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleClear = () => {
+    onChange("");
+    inputRef.current?.focus();
+  };
+
   return (
     <div className={`relative ${className || ""}`}>
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(var(--text-secondary))]" />
+      <Search
+        aria-hidden="true"
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(var(--text-secondary))]"
+      />
       <input
-        type="search"
+        ref={inputRef}
+        type="text"
+        role="searchbox"
         aria-label={placeholder}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && value && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
+            e.preventDefault();
+            onChange("");
+          }
+        }}
         onCompositionStart={onCompositionStart}
         onCompositionEnd={onCompositionEnd}
         data-testid={inputTestId}
-        className="w-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl min-h-[44px] pl-9 pr-4 text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary)/0.5)] focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.12)]"
+        className={`w-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl min-h-[44px] pl-9 text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary)/0.5)] focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.12)] ${value ? "pr-11" : "pr-4"}`}
       />
+      {value && (
+        <button
+          type="button"
+          onClick={handleClear}
+          aria-label={t("common:clearSearch")}
+          title={t("common:clearSearch")}
+          className="absolute right-0 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]"
+        >
+          <X className="w-4 h-4" aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }

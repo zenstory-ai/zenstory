@@ -31,7 +31,7 @@ import { MaterialPreview } from "./MaterialPreview";
 import { ImportMaterialDialog } from "./ImportMaterialDialog";
 import type { File, FileTreeNode, TreeNodeType } from "../types";
 import { FOLDER_TYPE_MAP } from "../lib/folderTypeMap";
-import { FileText, Users, BookOpen, Sparkles, Folder, FolderOpen, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload } from "lucide-react";
+import { FileText, Users, BookOpen, Sparkles, Folder, FolderOpen, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload, Plus } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { getUpgradePromptDefinition } from "../config/upgradeExperience";
@@ -198,6 +198,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
   // Creation loading state
   const [isCreating, setIsCreating] = useState<string | null>(null);
+  // Newly created file ID waiting for initial desktop title focus
+  const [newlyCreatedFileId, setNewlyCreatedFileId] = useState<string | null>(null);
 
   // Empty state more options toggle
   const [showMore, setShowMore] = useState(false);
@@ -938,7 +940,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       ]).map(({ snapshot, persisted }, index) => (
         <details key={`${snapshot.projectId}:${snapshot.fileId}:${index}`} open className="group min-w-0 shrink-0 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-6 py-3">
           <summary className="flex min-h-11 min-w-0 cursor-pointer list-none items-start gap-2 py-2 text-sm font-medium text-[hsl(var(--text-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden">
-            <ChevronDown size={16} aria-hidden="true" className="mt-0.5 shrink-0 -rotate-90 text-[hsl(var(--text-secondary))] group-open:rotate-0" />
+            <ChevronDown size={16} aria-hidden="true" className="mt-0.5 shrink-0 -rotate-90 text-[hsl(var(--text-secondary))] motion-chevron group-open:rotate-0" />
             <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t("editor:deletedFile.recovery", { title: snapshot.title })}</span>
           </summary>
           <div className="mt-1 space-y-3">
@@ -1496,7 +1498,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
    *
    * @param fileType - The type of file to create ('draft', 'outline', 'character', 'lore', 'script')
    */
-  const handleCreateFromEmptyState = useCallback(async (fileType: EmptyStateFileType) => {
+  const handleCreateFromEmptyState = useCallback(async (fileType: EmptyStateFileType, explicitParentId?: string) => {
     if (!currentProjectId) {
       toast.error(t('editor:error.noProject'));
       return;
@@ -1516,7 +1518,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     };
 
     try {
-      const parentId = await resolveCreateParentId(fileType);
+      const parentId = explicitParentId ?? await resolveCreateParentId(fileType);
       if (activeProjectIdRef.current !== currentProjectId) return;
       const newFile = await fileApi.create(currentProjectId, {
         title: defaultTitles[fileType],
@@ -1527,6 +1529,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
       if (activeProjectIdRef.current === currentProjectId) {
         triggerFileTreeRefresh();
+        setNewlyCreatedFileId(newFile.id);
         setSelectedItem({
           id: newFile.id,
           type: newFile.file_type,
@@ -1683,12 +1686,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
               className="w-full min-h-11 md:min-h-0 flex items-center justify-center gap-1.5 rounded-lg text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] group"
             >
               <span>{showMore ? t('editor:showLess') : t('editor:showMore')}</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${showMore ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 motion-chevron ${showMore ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Secondary Actions - collapsible */}
             {showMore && (
-              <div className="grid grid-cols-3 gap-3 animate-fade-in" style={{ animationDuration: '200ms' }}>
+              <div className="grid grid-cols-3 gap-3 motion-disclosure-enter">
                 {/* Create Character */}
                 <button
                   type="button"
@@ -1784,11 +1787,46 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
   // Render folder selected state
   if (selectedItem.type === "folder") {
+    const mappedType = FOLDER_TYPE_MAP[selectedItem.title];
+    const folderFileType: EmptyStateFileType =
+      mappedType === 'outline' ||
+      mappedType === 'character' ||
+      mappedType === 'lore' ||
+      mappedType === 'snippet' ||
+      mappedType === 'script' ||
+      mappedType === 'draft'
+        ? mappedType
+        : currentProject?.project_type === 'screenplay'
+          ? 'script'
+          : 'draft';
+    const folderCreateLabels: Record<EmptyStateFileType, string> = {
+      draft: t('editor:fileTree.newDraft'),
+      outline: t('editor:fileTree.newOutline'),
+      character: t('editor:fileTree.newCharacter'),
+      lore: t('editor:fileTree.newLore'),
+      snippet: t('editor:fileTree.newSnippet'),
+      script: t('editor:fileTree.newScript'),
+    };
     return renderWithUpgradeModal(
-      <div className="flex flex-col items-center justify-center h-full text-[hsl(var(--text-secondary))] gap-4">
-        <Folder size={48} className="opacity-50" />
-        <p className="text-sm">{t('editor:placeholder.folderSelected')}{selectedItem.title}</p>
-        <p className="text-xs">{t('editor:placeholder.folderHint')}</p>
+      <div className="flex flex-col items-center justify-center h-full text-[hsl(var(--text-secondary))] gap-3 p-6 text-center">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))]">
+          <Folder size={28} className="text-[hsl(var(--text-secondary))]" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-[hsl(var(--text-primary))]">{t('editor:placeholder.folderSelected')}{selectedItem.title}</p>
+          <p className="text-xs text-[hsl(var(--text-secondary))]">{t('editor:placeholder.folderHint')}</p>
+        </div>
+        <Button
+          type="button"
+          size={isMobile ? 'touch' : 'md'}
+          isLoading={isCreating === folderFileType}
+          leftIcon={<Plus className="w-4 h-4" />}
+          onClick={() => void handleCreateFromEmptyState(folderFileType, selectedItem.id)}
+          data-testid="folder-empty-create-button"
+          className="mt-1"
+        >
+          {folderCreateLabels[folderFileType]}
+        </Button>
       </div>
     );
   }
@@ -1852,6 +1890,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
       isChatStreaming: Boolean(isChatStreaming),
       // AI 正在编辑这份文件时挂起自动保存，避免过期整篇快照覆盖 AI 的改动
       isAiEditing: aiEditingFileId === file.id,
+      autoFocusTitle: !isMobile && newlyCreatedFileId === file.id,
+      onAutoFocusConsumed: newlyCreatedFileId === file.id ? () => setNewlyCreatedFileId(null) : undefined,
       onNaturalPolish: handleRequestNaturalPolish,
       // Diff review props
       diffReviewState: isInReviewMode ? diffReviewState : null,
