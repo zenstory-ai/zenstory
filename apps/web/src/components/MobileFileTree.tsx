@@ -197,6 +197,16 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
    * @param e - The keyboard event
    */
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (isSearchFocused) {
+        setIsSearchFocused(false);
+      } else if (searchQuery) {
+        handleClearSearch();
+      }
+      return;
+    }
     if (!showSearchDropdown || searchResults.length === 0) return;
 
     switch (e.key) {
@@ -216,12 +226,8 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           handleSearchSelect(searchResults[selectedSearchIndex]);
         }
         break;
-      case "Escape":
-        e.preventDefault();
-        setIsSearchFocused(false);
-        break;
     }
-  }, [showSearchDropdown, searchResults, selectedSearchIndex, handleSearchSelect]);
+  }, [isSearchFocused, searchQuery, handleClearSearch, showSearchDropdown, searchResults, selectedSearchIndex, handleSearchSelect]);
 
   /**
    * Memoized filtered tree based on search query.
@@ -400,6 +406,11 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
             </button>
           )}
 
+          {/* Hairline separator before destructive delete when sibling action exists */}
+          {node.file_type === "snippet" && (
+            <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-[hsl(var(--separator-color))]" />
+          )}
+
           {/* Delete button */}
           {!isFolder && (
             <button
@@ -425,6 +436,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
               onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                 if (e.key === "Enter") {
                   handleCreate(node.id);
                 } else if (e.key === "Escape") {
@@ -594,9 +606,12 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
       {/* File tree list - scrollable */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden -webkit-overflow-scrolling-touch">
         {filteredTree.length === 0 && searchQuery && !showSearchDropdown ? (
-          <div className="flex flex-col items-center justify-center py-12 text-[hsl(var(--text-secondary))]">
-            <Search size={32} className="mb-2 opacity-30" />
+          <div className="flex flex-col items-center justify-center gap-3 py-12 px-4 text-center text-[hsl(var(--text-secondary))]">
+            <Search size={32} className="opacity-30" />
             <p className="text-sm">{t('editor:fileTree.noSearchResults')}</p>
+            <Button type="button" variant="secondary" size="touch" onClick={handleClearSearch}>
+              {t('common:clearSearch')}
+            </Button>
           </div>
         ) : (
           <div role="tree" aria-label={t('editor:sidebar.files')}>

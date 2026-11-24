@@ -428,7 +428,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                           void handleLanguageChange(lang as 'zh' | 'en');
                         }}
                         data-testid={`language-button-${lang}`}
-                        className={`p-2.5 rounded-lg border text-left text-sm transition-[border-color,background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100 ${
+                        className={`p-2.5 rounded-lg border text-left text-sm transition-[border-color,background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${
                           currentLanguage === lang
                             ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)]'
                             : 'border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-hover))]'
@@ -511,7 +511,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                         aria-checked={theme === item.id}
                         onClick={() => setTheme(item.id as 'dark' | 'light')}
                         data-testid={`theme-button-${item.id}`}
-                        className={`p-2.5 rounded-lg border text-center text-sm transition-[border-color,background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100 ${
+                        className={`p-2.5 rounded-lg border text-center text-sm transition-[border-color,background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${
                           theme === item.id
                             ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)]'
                             : 'border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-hover))]'

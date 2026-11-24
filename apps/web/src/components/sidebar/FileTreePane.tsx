@@ -119,7 +119,18 @@ export const FileTreePane: React.FC = () => {
 
   const { isSearchOpen: isFileSearchOpen, openSearch, closeSearch } = useFileSearchContext();
 
-  const [fileSearchQuery, setFileSearchQuery] = useState('');
+  const [searchQueryState, setSearchQueryState] = useState<{ projectId: string | null; query: string }>({
+    projectId: currentProjectId,
+    query: '',
+  });
+  const fileSearchQuery =
+    searchQueryState.projectId === currentProjectId ? searchQueryState.query : '';
+  const setFileSearchQuery = useCallback(
+    (query: string) => {
+      setSearchQueryState({ projectId: currentProjectId, query });
+    },
+    [currentProjectId],
+  );
   const isSearchDropdownVisible = isFileSearchOpen && fileSearchQuery.length > 0;
   const { isMounted: isSearchDropdownMounted } = useAnimatedPresence(isSearchDropdownVisible, 130);
   const [searchSelection, setSearchSelection] = useState<{ projectId: string | null; index: number }>({
@@ -161,30 +172,39 @@ export const FileTreePane: React.FC = () => {
     closeSearch();
   }, [currentProjectId, clearFileSearch, closeSearch]);
 
-  // Focus search input when opened via keyboard shortcut
+  // Focus search input when opened via keyboard shortcut, blur when toggled closed
   useEffect(() => {
+    const searchInput = document.querySelector<HTMLInputElement>('[data-testid="file-search-input"]');
+    if (!searchInput) return;
     if (isFileSearchOpen) {
-      // Focus the search input by finding it in the DOM
-      const searchInput = document.querySelector('input[placeholder*="搜索"], input[placeholder*="search"]') as HTMLInputElement;
-      if (searchInput) {
-        searchInput.focus();
-      }
+      searchInput.focus();
+    } else if (document.activeElement === searchInput) {
+      searchInput.blur();
     }
   }, [isFileSearchOpen]);
 
   // Handle search result selection
   const handleSearchResultSelect = useCallback((result: { id: string; fileType: string; title: string }) => {
     handleSelect(result.id, result.fileType, result.title);
+    setFileSearchQuery('');
     closeSearch();
     clearFileSearch();
-  }, [clearFileSearch, handleSelect, closeSearch]);
+  }, [clearFileSearch, handleSelect, closeSearch, setFileSearchQuery]);
 
-  // Keyboard navigation for search results
+  // Keyboard navigation for search results (Escape always closes even with 0 results)
   useEffect(() => {
-    if (!isFileSearchOpen || fileSearchResults.length === 0) return;
+    if (!isFileSearchOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setFileSearchQuery('');
+        closeSearch();
+        clearFileSearch();
+        return;
+      }
+      if (fileSearchResults.length === 0) return;
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
@@ -204,17 +224,12 @@ export const FileTreePane: React.FC = () => {
             handleSearchResultSelect(fileSearchResults[selectedResultIndex]);
           }
           break;
-        case 'Escape':
-          e.preventDefault();
-          closeSearch();
-          clearFileSearch();
-          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFileSearchOpen, fileSearchResults, selectedResultIndex, setSelectedResultIndex, handleSearchResultSelect, clearFileSearch, closeSearch]);
+  }, [isFileSearchOpen, fileSearchResults, selectedResultIndex, setSelectedResultIndex, handleSearchResultSelect, clearFileSearch, closeSearch, setFileSearchQuery]);
 
   // Check if a folder is the draft folder
   const isDraftFolder = (node: FileTreeNode) => {
@@ -372,6 +387,7 @@ export const FileTreePane: React.FC = () => {
             {/* Add to chat button for snippets (materials) */}
             {node.file_type === "snippet" && (
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isMaterialAttached(node.id)) {
@@ -399,9 +415,15 @@ export const FileTreePane: React.FC = () => {
               </button>
             )}
 
+            {/* Hairline separator before destructive delete when sibling action exists */}
+            {node.file_type === "snippet" && (
+              <span aria-hidden="true" className="mx-0.5 h-3.5 w-px bg-[hsl(var(--separator-color))]" />
+            )}
+
             {/* Delete button (not for root folders) */}
             {!isFolder && (
               <button
+                type="button"
                 onClick={(e) => handleDelete(e, node.id, node.title)}
                 className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))]"
                 title={t('common:delete')}
@@ -439,6 +461,7 @@ export const FileTreePane: React.FC = () => {
                   onChange={(e) => setNewItemName(e.target.value)}
                   onBlur={cancelCreate}
                   onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                     if (e.key === "Enter") {
                       handleCreate(node.id);
                     } else if (e.key === "Escape") {

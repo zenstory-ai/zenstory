@@ -290,4 +290,58 @@ describe('ProjectSwitcher', () => {
     fireEvent.click(betaButton)
     expect(mockNavigate).toHaveBeenCalledWith('/project/project-2')
   })
+
+  it('hides the search box when there is only one project, closes on Escape, and clears stale search on reopen', async () => {
+    mockUseProject.mockReturnValue({
+      ...mockUseProject(),
+      projects: [{ id: 'project-1', name: 'Alpha' }],
+    })
+
+    const { rerender } = render(<ProjectSwitcher />)
+    const trigger = screen.getByRole('button', { name: /alpha/i })
+    fireEvent.click(trigger)
+    expect(screen.queryByPlaceholderText('Search projects')).not.toBeInTheDocument()
+
+    // Escape closes the dropdown and returns focus to the trigger
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() => {
+      expect(trigger).toHaveFocus()
+    })
+
+    // With multiple projects, search appears, can be cleared, and resets when closed
+    mockUseProject.mockReturnValue({
+      ...mockUseProject(),
+      projects: [
+        { id: 'project-1', name: 'Alpha' },
+        { id: 'project-2', name: 'Beta' },
+      ],
+    })
+    rerender(<ProjectSwitcher />)
+    fireEvent.click(trigger)
+    const searchInput = screen.getByPlaceholderText('Search projects')
+    fireEvent.change(searchInput, { target: { value: 'Beta' } })
+    // Only the trigger button says Alpha; the list row for Alpha is filtered out.
+    expect(screen.getAllByRole('button', { name: 'Alpha' })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Beta' })).toBeInTheDocument()
+
+    // Close and reopen: stale search is cleared so all projects show again
+    fireEvent.click(trigger)
+    fireEvent.click(trigger)
+    expect(screen.getByPlaceholderText('Search projects')).toHaveValue('')
+  })
+
+  it('ignores IME composing Enter during inline rename and does not autofocus search on mobile', () => {
+    mockIsMobile = true
+    render(<ProjectSwitcher />)
+
+    fireEvent.click(screen.getByRole('button', { name: /alpha/i }))
+    expect(screen.getByPlaceholderText('Search projects')).not.toHaveFocus()
+
+    fireEvent.click(screen.getAllByTitle('Edit project')[0]!)
+    const editInput = screen.getByDisplayValue('Alpha')
+    fireEvent.change(editInput, { target: { value: '中文' } })
+    fireEvent.keyDown(editInput, { key: 'Enter', keyCode: 229 })
+    expect(updateProject).not.toHaveBeenCalled()
+  })
 })

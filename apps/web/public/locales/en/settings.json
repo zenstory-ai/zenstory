@@ -100,7 +100,8 @@
       "deleteFailed": "Couldn’t delete the key. Please try again.",
       "regenerateFailed": "Couldn’t regenerate the key. Please try again.",
       "toggleFailed": "Couldn’t change the key status. Please try again.",
-      "nameRequired": "Please enter a name"
+      "nameRequired": "Please enter a name",
+      "permissionRequired": "Select at least one permission"
     },
     "emptyState": "Create a key, then follow the steps above to connect your AI agent.",
     "testConnection": "Test Connection",

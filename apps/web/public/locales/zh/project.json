@@ -9,6 +9,8 @@
     "notesDescription": "角色事实、情节安排和必须遵守的创作边界，一行一条",
     "save": "保存",
     "saving": "保存中…",
+    "noChanges": "没有未保存的修改",
+    "resolveConflictFirst": "请先解决写作约定冲突",
     "saveFailed": "保存失败，请重试",
     "loadFailed": "无法载入项目信息，请重试。",
     "retry": "重试",

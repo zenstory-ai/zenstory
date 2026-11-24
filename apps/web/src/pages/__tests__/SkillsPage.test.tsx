@@ -976,9 +976,14 @@ describe('SkillsPage', () => {
       vi.mocked(skillsApi.delete).mockRejectedValueOnce('boom')
       await openMySkills()
       const card = screen.getByText('Writing Assistant').closest('.group') as HTMLElement
-      const buttons = within(card).getAllByRole('button')
-      // 卡片按钮顺序：勾选、编辑、删除……
-      await userEvent.click(buttons[2])
+      const actions = within(card).getByTestId('skill-card-actions')
+      const actionLabels = within(actions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+      // Destructive delete sits alone at the trailing edge after frequent edit/share/export/expand actions.
+      expect(actionLabels[actionLabels.length - 1]).toBe('Delete Skill')
+      expect(actionLabels.indexOf('Delete Skill')).toBeGreaterThan(actionLabels.indexOf('skills:expand'))
+      await userEvent.click(within(actions).getByRole('button', { name: 'Delete Skill' }))
       await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
 
       await waitFor(() => {
@@ -1103,6 +1108,10 @@ describe('SkillsPage', () => {
 
       expect(await screen.findByText('No skills found')).toBeInTheDocument()
       expect(screen.queryByText('noDiscoverableSkills')).not.toBeInTheDocument()
+
+      // One-click reset restores empty search & category filters immediately
+      await userEvent.click(screen.getByRole('button', { name: 'skills:clearFilters' }))
+      expect(screen.getByTestId('public-skill-search')).toHaveValue('')
     })
 
     it('debounces the discover search and waits for IME composition to end', async () => {
@@ -1252,6 +1261,33 @@ describe('SkillsPage', () => {
         expect(toggle.getAttribute('aria-label')).toBeTruthy()
         expect(toggle).toHaveClass('min-h-11', 'min-w-11')
       }
+    })
+
+    it('isolates Remove at the trailing edge of AddedSkillCard and hides My Skills search when empty', async () => {
+      render(<SkillsPage />)
+      await userEvent.click(screen.getByRole('button', { name: /my skills/i }))
+      await screen.findByText('Plot Twist Generator')
+
+      const addedCard = screen.getByText('Plot Twist Generator').closest('.group') as HTMLElement
+      const addedActions = within(addedCard).getByTestId('skill-card-actions')
+      const addedLabels = within(addedActions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+      expect(addedLabels[addedLabels.length - 1]).toBe('Remove')
+      expect(addedLabels.indexOf('Remove')).toBeGreaterThan(addedLabels.indexOf('skills:expand'))
+
+      // Empty My Skills hides the search bar progressively
+      vi.mocked(skillsApi.mySkills).mockResolvedValueOnce({
+        user_skills: [],
+        added_skills: [],
+        total: 0,
+      })
+      const { unmount } = render(<SkillsPage />)
+      await userEvent.click(screen.getAllByRole('button', { name: /my skills/i })[1])
+      await waitFor(() => {
+        expect(screen.queryAllByPlaceholderText('Search my skills')).toHaveLength(1)
+      })
+      unmount()
     })
   })
 })

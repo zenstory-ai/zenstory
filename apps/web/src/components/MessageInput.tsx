@@ -566,6 +566,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       return;
     }
 
+    // Escape always dismisses the skill menu (even with 0 matches or while loading/failed)
+    if (showSkillMenu && e.key === "Escape") {
+      e.preventDefault();
+      setShowSkillMenu(false);
+      setSkillSearchQuery("");
+      setSelectedSkillIndex(0);
+      setInput("");
+      textareaRef.current?.focus();
+      return;
+    }
+
     // Handle skill menu navigation
     if (showSkillMenu && filteredSkills.length > 0) {
       if (e.key === "ArrowDown") {
@@ -585,14 +596,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
         pickSkillFromMenu(filteredSkills[selectedSkillIndex]);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setShowSkillMenu(false);
-        setSkillSearchQuery("");
-        setSelectedSkillIndex(0);
-        setInput("");
         return;
       }
     }
@@ -757,9 +760,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               <FileText size={12} className="shrink-0" />
               <span className="max-w-[100px] truncate">{material.title}</span>
               <button
-                onClick={() => removeMaterial(material.id)}
-                className="shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--accent-primary)/0.15)] rounded-sm"
+                type="button"
+                onClick={() => {
+                  removeMaterial(material.id);
+                  textareaRef.current?.focus();
+                }}
+                className={`shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--accent-primary)/0.15)] rounded-sm ${isMobile ? "p-1 -m-1" : ""}`}
                 title={t("chat:input.remove")}
+                aria-label={t("chat:input.removeMaterial", { title: material.title })}
               >
                 <X size={12} />
               </button>
@@ -783,9 +791,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 {quote.text.length > 50 ? `${quote.text.slice(0, 50)}…` : quote.text}
               </span>
               <button
-                onClick={() => removeQuote(quote.id)}
-                className="shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--warning)/0.15)] rounded-sm"
+                type="button"
+                onClick={() => {
+                  removeQuote(quote.id);
+                  textareaRef.current?.focus();
+                }}
+                className={`shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--warning)/0.15)] rounded-sm ${isMobile ? "p-1 -m-1" : ""}`}
                 title={t("chat:input.remove")}
+                aria-label={t("chat:input.removeQuote")}
               >
                 <X size={12} />
               </button>
@@ -825,7 +838,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               <span className="max-w-[200px] truncate">{skill.name}</span>
               <button
                 type="button"
-                onClick={() => removeSkill(skill.id)}
+                onClick={() => {
+                  removeSkill(skill.id);
+                  textareaRef.current?.focus();
+                }}
                 className={`shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--success)/0.15)] rounded-sm ${isMobile ? "p-1 -m-1" : ""}`}
                 title={t("chat:input.remove")}
                 aria-label={t("chat:skill.removeSelected", { name: skill.name })}
@@ -865,17 +881,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             ))
           )}
           </div>
-          <button
-            type="button"
-            onClick={refreshSuggestions}
-            disabled={isRefreshingSuggestions}
-            className="shrink-0 inline-flex items-center justify-center min-h-11 min-w-11 md:min-h-7 md:min-w-7 -my-1.5 md:my-0 p-1.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
-            title={t("chat:input.refresh")}
-            aria-label={t("chat:input.refresh")}
-            aria-busy={isRefreshingSuggestions}
-          >
-            <RefreshCw size={13} className={isRefreshingSuggestions ? "animate-spin" : ""} />
-          </button>
+          {onRefreshSuggestions && (
+            <button
+              type="button"
+              onClick={refreshSuggestions}
+              disabled={isRefreshingSuggestions}
+              className="shrink-0 inline-flex items-center justify-center min-h-11 min-w-11 md:min-h-7 md:min-w-7 -my-1.5 md:my-0 p-1.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
+              title={t("chat:input.refresh")}
+              aria-label={t("chat:input.refresh")}
+              aria-busy={isRefreshingSuggestions}
+            >
+              <RefreshCw size={13} className={isRefreshingSuggestions ? "animate-spin" : ""} />
+            </button>
+          )}
         </div>
       )}
 
@@ -1082,10 +1100,20 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           </button>
         ) : (
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={!input.trim() || effectiveSendDisabled || inputTooLong}
             className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.96] disabled:active:scale-100 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] disabled:focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--bg-tertiary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
-            title={t("common:send")}
+            title={
+              inputTooLong
+                ? t("chat:input.tooLong", { count: input.length, max: MAX_AGENT_MESSAGE_CHARS })
+                : effectiveSendDisabled
+                  ? t("chat:input.sendDisabledBusy")
+                  : !input.trim()
+                    ? t("chat:input.sendDisabledEmpty")
+                    : t("chat:input.sendWithShortcut")
+            }
+            aria-label={t("common:send")}
             data-testid="send-button"
           >
             <Send key="send-icon" size={16} className="motion-icon-pop" />

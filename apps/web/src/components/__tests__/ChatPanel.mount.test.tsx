@@ -1902,7 +1902,7 @@ describe('ChatPanel mount smoke', () => {
   })
 
   describe('新对话 pressed while the AI is writing', () => {
-    const newChatButton = () => screen.getByTitle('chat:panel.newSession')
+    const newChatButton = () => screen.getByRole('button', { name: 'chat:panel.newSession' })
 
     afterEach(() => {
       mockStop.mockReset()
@@ -2003,12 +2003,15 @@ describe('ChatPanel mount smoke', () => {
       expect(createNewSession).toHaveBeenCalledTimes(1)
       expect(getRecentMessages).toHaveBeenCalledTimes(1)
       expect(toast.error).not.toHaveBeenCalled()
-      expect(newChatButton()).toBeEnabled()
+      expect(newChatButton()).toHaveAttribute('aria-busy', 'false')
+      expect(newChatButton()).toHaveAttribute('title', 'chat:panel.alreadyNewSession')
+      expect(newChatButton()).toBeDisabled()
     })
 
     it('starts the new chat right away when nothing is generating', async () => {
+      withEarlierTurn()
       render(<ChatPanel />)
-      await waitFor(() => expect(screen.getByTestId('message-list')).toBeInTheDocument())
+      await screen.findByTestId('mock-message-list')
 
       fireEvent.click(newChatButton())
 
@@ -2688,6 +2691,7 @@ describe('ChatPanel new-author flow', () => {
     Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 400 })
     Object.defineProperty(scroller, 'scrollTop', { configurable: true, writable: true, value: 0 })
     fireEvent.scroll(scroller)
+    expect(screen.getByRole('button', { name: 'chat:panel.jumpToLatest' })).toBeInTheDocument()
     mockScrollToBottom.mockClear()
 
     await act(async () => { await lastMessageInputProps().onSend('继续写第二章', []) })
@@ -3655,15 +3659,48 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     expect(mockStartStream).not.toHaveBeenCalled()
   })
 
-  it('a chat the author starts with 新对话 keeps the suggestions', async () => {
+  it('disables 新对话 with an explanatory title on an already-empty idle chat and keeps starter cards intact', async () => {
     render(<ChatPanel />)
     await screen.findByTestId('starter-cards')
 
-    fireEvent.click(screen.getByTitle('chat:panel.newSession'))
+    const newChatBtn = screen.getByRole('button', { name: 'chat:panel.newSession' })
+    expect(newChatBtn).toBeDisabled()
+    expect(newChatBtn).toHaveAttribute('title', 'chat:panel.alreadyNewSession')
+    fireEvent.click(newChatBtn)
+    expect(createNewSession).not.toHaveBeenCalled()
+    expect(screen.getByTestId('starter-cards')).toBeInTheDocument()
+  })
+
+  it('a chat with earlier turns starts a new session with 新对话 and keeps suggestions', async () => {
+    withEarlierTurn()
+    render(<ChatPanel />)
+    await screen.findByTestId('mock-message-list')
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1))
+    localStorage.removeItem('zenstory_suggestions_cache_project-1')
+
+    const newChatBtn = screen.getByRole('button', { name: 'chat:panel.newSession' })
+    expect(newChatBtn).toBeEnabled()
+    fireEvent.click(newChatBtn)
 
     await waitFor(() => expect(createNewSession).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(2))
     expect(screen.queryByTestId('starter-cards')).not.toBeInTheDocument()
+  })
+
+  it('renders Jump-to-Latest outside the scrollable message-list with 44px mobile touch height', async () => {
+    withEarlierTurn()
+    render(<ChatPanel />)
+    await screen.findByTestId('mock-message-list')
+
+    const scroller = screen.getByTestId('message-list')
+    Object.defineProperty(scroller, 'scrollHeight', { value: 1200, configurable: true })
+    Object.defineProperty(scroller, 'clientHeight', { value: 400, configurable: true })
+    Object.defineProperty(scroller, 'scrollTop', { value: 100, writable: true, configurable: true })
+    fireEvent.scroll(scroller)
+
+    const jumpBtn = await screen.findByRole('button', { name: 'chat:panel.jumpToLatest' })
+    expect(scroller.contains(jumpBtn)).toBe(false)
+    expect(jumpBtn.className).toContain('min-h-11')
   })
 
   it('exposes a horizontal separator role on the desktop input resize handle and hides it on mobile', async () => {

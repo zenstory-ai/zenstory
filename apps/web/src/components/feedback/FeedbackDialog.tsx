@@ -189,6 +189,13 @@ export function FeedbackDialog({
               void handleSubmit();
             }}
             disabled={!canSubmit}
+            title={
+              !isSubmitting && issueTextLength === 0
+                ? t("feedback.issueRequired", "请先填写问题描述")
+                : !isSubmitting && issueCharsLeft < 0
+                  ? t("feedback.issueTooLong", "问题描述不能超过 2000 字")
+                  : undefined
+            }
             isLoading={isSubmitting}
             loadingText={t("feedback.submitting", "提交中…")}
           >

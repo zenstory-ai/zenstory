@@ -53,5 +53,23 @@ describe('SelectionToolbar', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenLastCalledWith(false);
+  });
+
+  it('exposes toolbar role with shortcut tooltip and requests focus restoration when Escape is pressed from inside the toolbar', () => {
+    const onAdd = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <SelectionToolbar text="selected" position={{ x: 200, y: 200 }} onAdd={onAdd} onClose={onClose} />,
+    );
+
+    expect(screen.getByRole('toolbar', { name: 'input.addToContext' })).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: 'input.addToContext' });
+    expect(button.getAttribute('title')).toMatch(/input\.addToContext \((⌘⇧Q|Ctrl\+Shift\+Q)\)/);
+
+    button.focus();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledWith(true);
   });
 });

@@ -372,6 +372,13 @@ function CreateKeyForm({
           type="submit"
           size={actionSize}
           disabled={!name.trim() || scopes.length === 0}
+          title={
+            !name.trim()
+              ? t('apiKeys.errors.nameRequired')
+              : scopes.length === 0
+                ? t('apiKeys.errors.permissionRequired')
+                : undefined
+          }
           isLoading={isSubmitting}
           loadingText={t('common.loading')}
         >
@@ -464,6 +471,7 @@ function KeyRow({
           label={t('apiKeys.regenerate')}
           icon={<RefreshCw size={16} />}
         />
+        <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[hsl(var(--separator-color))]" />
         <IconButton
           onClick={() => onDelete(apiKey)}
           label={t('apiKeys.delete')}

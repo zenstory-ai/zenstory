@@ -521,14 +521,35 @@ describe('Editor', () => {
     })
   })
 
-  it('renders folder selected state', () => {
+  it('renders folder selected state with a direct 1-click create action inside that folder', async () => {
+    vi.mocked(api.fileApi.create).mockResolvedValueOnce({
+      id: 'new-in-folder',
+      project_id: 'project-1',
+      title: 'New Character',
+      file_type: 'character',
+      parent_id: 'folder-char',
+      order: 0,
+      content: '',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    })
     mockProjectContext = createMockProjectContext({
-      selectedItem: { id: 'folder-1', type: 'folder', title: 'My Folder' },
+      selectedItem: { id: 'folder-char', type: 'folder', title: '角色' },
     })
     render(<Editor />)
-    // The component renders: {t('editor:placeholder.folderSelected')}{selectedItem.title}
-    // Which translates to "Folder selected: My Folder" (concatenated text)
-    expect(screen.getByText(/folder.*selected.*my folder/i)).toBeInTheDocument()
+    expect(screen.getByText(/folder.*selected.*角色/i)).toBeInTheDocument()
+
+    const createBtn = screen.getByTestId('folder-empty-create-button')
+    fireEvent.click(createBtn)
+    await waitFor(() => {
+      expect(api.fileApi.create).toHaveBeenCalledWith(
+        'project-1',
+        expect.objectContaining({
+          file_type: 'character',
+          parent_id: 'folder-char',
+        }),
+      )
+    })
   })
 
   it('reports an opened file for the new-user funnel with the layout and whether the AI is writing it', async () => {

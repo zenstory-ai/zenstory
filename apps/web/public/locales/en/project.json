@@ -9,6 +9,8 @@
     "notesDescription": "Character facts, plot commitments, and creative boundaries to follow, one per line",
     "save": "Save",
     "saving": "Saving…",
+    "noChanges": "No unsaved changes",
+    "resolveConflictFirst": "Resolve Writing Conventions conflict first",
     "saveFailed": "Couldn't save. Please try again.",
     "loadFailed": "Couldn't load project details. Please try again.",
     "retry": "Retry",

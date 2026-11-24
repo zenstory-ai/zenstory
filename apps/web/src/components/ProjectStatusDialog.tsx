@@ -376,6 +376,13 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
           <Button size="touch"
             onClick={() => void handleSave()}
             disabled={saving || loading || !project || !hasChanges || notesConflict}
+            title={
+              notesConflict
+                ? t('resolveConflictFirst')
+                : !saving && !loading && project && !hasChanges
+                  ? t('noChanges')
+                  : undefined
+            }
             className="w-full sm:w-auto"
             isLoading={saving}
             loadingText={t('saving')}

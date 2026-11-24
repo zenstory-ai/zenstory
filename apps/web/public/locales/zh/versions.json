@@ -24,6 +24,8 @@
   "selectedVersions": "已选择 {{count}} 个版本",
   "selectedVersions_one": "已选择 {{count}} 个版本",
   "selectedVersions_other": "已选择 {{count}} 个版本",
+  "selectOneMoreToCompare": "再选 1 个版本即可对比",
+  "clearSelection": "取消选择",
   "currentText": "当前内容",
   "latest": "最新",
   "wordCount": "{{count}} 字",

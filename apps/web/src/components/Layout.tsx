@@ -364,20 +364,21 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
 export const Layout: React.FC<LayoutProps> = ({ middle, right }) => {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
-  const { openSearch } = useFileSearchContext();
+  const { toggleSearch } = useFileSearchContext();
 
-  // Global keyboard shortcut for file search (Cmd+K on Mac, Ctrl+K on Windows/Linux)
+  // Global keyboard shortcut for file search (Cmd+K on Mac, Ctrl+K on Windows/Linux).
+  // Pressing it a second time toggles search closed.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        openSearch();
+        toggleSearch();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openSearch]);
+  }, [toggleSearch]);
 
   if (isMobile) {
     return (

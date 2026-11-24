@@ -97,6 +97,15 @@ describe('FileTreePane search navigation', () => {
     if (action === 'close') fireEvent.click(screen.getByRole('button', { name: 'Close results' }));
     expect(screen.queryByTestId('search-results')).not.toBeInTheDocument();
   });
+
+  it('closes and clears search on Escape even when search returns zero results', async () => {
+    mocks.results = [];
+    const input = await openSearch();
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByTestId('search-results')).not.toBeInTheDocument();
+    expect(input).toHaveValue('');
+    mocks.results = [{ id: 'draft-1', fileType: 'draft', title: 'Draft' }];
+  });
 });
 
 describe('FileTreePane request cancellation', () => {

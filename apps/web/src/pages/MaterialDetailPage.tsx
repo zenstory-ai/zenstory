@@ -725,6 +725,9 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
               onClick={() => void handleExport()}
               isLoading={isExporting}
               disabled={isActiveMaterialStatus(material.status)}
+              title={isActiveMaterialStatus(material.status)
+                ? t("materials:export.unavailableWhileProcessing", { defaultValue: "拆解完成后可导出" })
+                : undefined}
               leftIcon={<Download className="h-4 w-4" />}
               className={isMobile ? "w-full" : "shrink-0"}
             >
@@ -805,9 +808,19 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
                 searchActive={Boolean(searchQuery.trim())}
               />
               {searchQuery.trim() && searchComplete && filteredTree.length === 0 && (
-                <p className="px-2 py-5 text-sm text-[hsl(var(--text-secondary))]">
-                  {t("materials:detail.noSearchResults")}
-                </p>
+                <div className="px-2 py-5 space-y-2.5">
+                  <p className="text-sm text-[hsl(var(--text-secondary))]">
+                    {t("materials:detail.noSearchResults")}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size={isMobile ? "touch" : "sm"}
+                    onClick={() => setSearchQuery("")}
+                  >
+                    {t("common:clearSearch", { defaultValue: "清空搜索" })}
+                  </Button>
+                </div>
               )}
             </div>
           </aside>

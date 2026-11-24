@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Eye, EyeOff } from "lucide-react";
 import { LogoMark } from "../components/Logo";
 import { AlertCircle, Mail } from "../components/icons";
 import { PublicHeader } from "../components/PublicHeader";
@@ -18,11 +19,17 @@ type Step = "email" | "code" | "unavailable";
 export default function ForgotPassword() {
   const { t, i18n } = useTranslation(["auth"]);
   const navigate = useNavigate();
+  const location = useLocation();
   const [step, setStep] = useState<Step>("email");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => {
+    const handed = (location.state as { email?: unknown } | null)?.email;
+    return typeof handed === "string" ? handed : "";
+  });
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
@@ -117,7 +124,7 @@ export default function ForgotPassword() {
       await passwordResetApi.confirm(trimmedEmail, code, newPassword);
       if (!mountedRef.current) return;
       toast.success(t("auth:forgotPassword.success", "密码已重设，请用新密码登录"));
-      navigate("/login", { replace: true });
+      navigate("/login", { replace: true, state: { identifier: trimmedEmail } });
     }, t("auth:forgotPassword.resetFailed", "密码没有重设成功，请稍后重试"));
   };
 
@@ -256,20 +263,32 @@ export default function ForgotPassword() {
                   >
                     {t("auth:forgotPassword.newPasswordLabel", "新密码")}
                   </label>
-                  <input
-                    id="reset-new-password"
-                    type="password"
-                    value={newPassword}
-                    onChange={(event) => {
-                      setNewPassword(event.target.value);
-                      if (error) setError("");
-                    }}
-                    className="input min-h-11"
-                    placeholder={t("auth:forgotPassword.newPasswordPlaceholder", "至少 6 个字符")}
-                    autoComplete="new-password"
-                    minLength={6}
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <input
+                      id="reset-new-password"
+                      type={showNewPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(event) => {
+                        setNewPassword(event.target.value);
+                        if (error) setError("");
+                      }}
+                      className="input min-h-11 pr-11"
+                      placeholder={t("auth:forgotPassword.newPasswordPlaceholder", "至少 6 个字符")}
+                      autoComplete="new-password"
+                      minLength={6}
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword((prev) => !prev)}
+                      disabled={loading}
+                      aria-label={showNewPassword ? t("auth:register.hidePassword") : t("auth:register.showPassword")}
+                      aria-pressed={showNewPassword}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 min-h-11 min-w-11 flex items-center justify-center rounded-xl text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mb-6">
@@ -279,19 +298,31 @@ export default function ForgotPassword() {
                   >
                     {t("auth:forgotPassword.confirmPasswordLabel", "确认新密码")}
                   </label>
-                  <input
-                    id="reset-confirm-password"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(event) => {
-                      setConfirmPassword(event.target.value);
-                      if (error) setError("");
-                    }}
-                    className="input min-h-11"
-                    placeholder={t("auth:forgotPassword.confirmPasswordPlaceholder", "再输入一次新密码")}
-                    autoComplete="new-password"
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <input
+                      id="reset-confirm-password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(event) => {
+                        setConfirmPassword(event.target.value);
+                        if (error) setError("");
+                      }}
+                      className="input min-h-11 pr-11"
+                      placeholder={t("auth:forgotPassword.confirmPasswordPlaceholder", "再输入一次新密码")}
+                      autoComplete="new-password"
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      disabled={loading}
+                      aria-label={showConfirmPassword ? t("auth:register.hidePassword") : t("auth:register.showPassword")}
+                      aria-pressed={showConfirmPassword}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 min-h-11 min-w-11 flex items-center justify-center rounded-xl text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                    </button>
+                  </div>
                 </div>
 
                 <Button

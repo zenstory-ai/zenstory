@@ -5,6 +5,7 @@
     "loadingHistory": "Loading conversation…",
     "aiMemory": "AI Memory",
     "newSession": "New chat",
+    "alreadyNewSession": "Already in a new chat",
     "clearChat": "Clear Chat",
     "selectProject": "Open a project to start chatting",
     "loadingMessages": "Loading conversation…",
@@ -78,6 +79,11 @@
     "addToContext": "Quote in chat",
     "quoteAdded": "Quoted in chat",
     "remove": "Remove",
+    "removeMaterial": "Remove material {{title}}",
+    "removeQuote": "Remove quote",
+    "sendWithShortcut": "Send (Enter)",
+    "sendDisabledEmpty": "Type a message to send",
+    "sendDisabledBusy": "Wait for the current reply to finish",
     "refresh": "Shuffle",
     "staticSuggestions": [
       "Help me brainstorm the core conflict for a time-travel story",
@@ -110,7 +116,9 @@
   },
   "message": {
     "aiEdit": "AI Edit: {{files}}{{extra}}",
-    "aiConversationAt": "AI Assistant Conversation - {{time}}"
+    "aiConversationAt": "AI Assistant Conversation - {{time}}",
+    "copyReply": "Copy reply",
+    "copiedReply": "Copied"
   },
   "context": {
     "priority": {

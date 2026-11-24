@@ -309,4 +309,23 @@ describe('MaterialsPane', () => {
     fireEvent.click(screen.getAllByTitle('editor:fileTree.attachToChat')[0]!)
     expect(mockToastInfo).toHaveBeenCalledWith('editor:fileTree.maxMaterials')
   })
+
+  it('hides the batch-select toggle when access is denied and clears search via Escape or clear button', () => {
+    libraryState.accessDenied = true
+    const { rerender } = render(<MaterialsPane />)
+    expect(screen.queryByTitle('editor:fileTree.batchSelect')).not.toBeInTheDocument()
+
+    libraryState.accessDenied = false
+    rerender(<MaterialsPane />)
+    expect(screen.getByTitle('editor:fileTree.batchSelect')).toBeInTheDocument()
+
+    const search = screen.getByPlaceholderText('editor:fileTree.searchMaterials')
+    fireEvent.change(search, { target: { value: 'dragon' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common:clearSearch' }))
+    expect(search).toHaveValue('')
+
+    fireEvent.change(search, { target: { value: 'phoenix' } })
+    fireEvent.keyDown(search, { key: 'Escape' })
+    expect(search).toHaveValue('')
+  })
 })

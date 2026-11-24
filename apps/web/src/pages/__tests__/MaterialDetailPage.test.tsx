@@ -431,6 +431,12 @@ describe("MaterialDetailPage", () => {
     fireEvent.change(search, { target: { value: "secret-author-path" } });
     expect(await screen.findByText("materials:detail.noSearchResults")).toBeInTheDocument();
     expect(screen.queryByText("/private/secret-author-path")).not.toBeInTheDocument();
+
+    // One-click clear search recovery restores directory immediately
+    const clearButtons = screen.getAllByRole("button", { name: "common:clearSearch" });
+    fireEvent.click(clearButtons[clearButtons.length - 1]);
+    expect(search).toHaveValue("");
+    expect(screen.queryByText("materials:detail.noSearchResults")).not.toBeInTheDocument();
   });
 
   it("keeps the mobile directory state when visiting and leaving the whole-book overview", async () => {

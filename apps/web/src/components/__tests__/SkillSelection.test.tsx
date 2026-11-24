@@ -103,9 +103,14 @@ describe('Skill selection flow', () => {
     const row = screen.getByTestId('chat-selected-skill-row')
     expect(within(row).getByText('节奏控制')).toBeInTheDocument()
     expect(screen.getByTestId('chat-input')).toHaveValue('')
-    // Already selected → the pane button reflects the state and cannot add a duplicate
-    expect(selectButtonFor('节奏控制')).toHaveAttribute('aria-pressed', 'true')
+    // Already selected → the pane button reflects the state and clicking again removes it
+    const removeBtn = screen.getByRole('button', { name: 'editor:fileTree.removeSkill: 节奏控制' })
+    expect(removeBtn).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getAllByTestId('chat-selected-skill-chip')).toHaveLength(1)
+
+    await user.click(removeBtn)
+    expect(screen.queryByTestId('chat-selected-skill-row')).not.toBeInTheDocument()
+    expect(selectButtonFor('节奏控制')).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('opens an accessible modal that closes with Escape and restores focus', async () => {

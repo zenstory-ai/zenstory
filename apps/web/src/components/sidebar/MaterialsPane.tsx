@@ -51,7 +51,7 @@ type MaterialCountKey =
 export const MaterialsPane: React.FC = () => {
   const { t } = useTranslation(['editor', 'common', 'materials']);
   const { currentProjectId, triggerFileTreeRefresh } = useProject();
-  const { addMaterial, isMaterialAttached, isAtLimit, maxMaterials = 5 } = useMaterialAttachment();
+  const { addMaterial, removeMaterial, isMaterialAttached, isAtLimit, maxMaterials = 5 } = useMaterialAttachment();
   const materialLib = useMaterialLibraryContext();
   const isLibraryLoading = materialLib.isLoading || (materialLib.isFetching && materialLib.libraries.length === 0);
   const { refreshIfStale } = materialLib;
@@ -176,12 +176,15 @@ export const MaterialsPane: React.FC = () => {
     }
   }, [currentProjectId, triggerFileTreeRefresh, t]);
 
-  // Attach library material to chat
+  // Toggle library material attachment in chat (matches FileTreePane behavior)
   const handleAttachToChat = useCallback((novelId: number, entityType: MaterialEntityType, entityId: number, itemName: string) => {
-    // Use a virtual ID for library materials
     const virtualId = `lib_${novelId}_${entityType}_${entityId}`;
     if (isMaterialAttached?.(virtualId)) {
-      toast.info(t('editor:fileTree.alreadyAttached'));
+      if (removeMaterial) {
+        removeMaterial(virtualId);
+      } else {
+        toast.info(t('editor:fileTree.alreadyAttached'));
+      }
       return;
     }
     const added = addMaterial(virtualId, itemName, {
@@ -196,7 +199,7 @@ export const MaterialsPane: React.FC = () => {
           : t('editor:fileTree.maxMaterials', { max: maxMaterials }),
       );
     }
-  }, [addMaterial, isAtLimit, isMaterialAttached, maxMaterials, t]);
+  }, [addMaterial, removeMaterial, isAtLimit, isMaterialAttached, maxMaterials, t]);
 
   // Search timeout and request ordering refs
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -335,32 +338,55 @@ export const MaterialsPane: React.FC = () => {
             ({t('editor:fileTree.aiExtracted')})
           </span>
         </div>
-        <button
-          type="button"
-          onClick={toggleBatchMode}
-          aria-pressed={batchMode}
-          aria-label={batchMode ? t('common:cancel') : t('editor:fileTree.batchSelect')}
-          className={`p-1.5 rounded-lg max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center text-xs ${batchMode ? 'text-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.1)]' : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))]'} transition-colors`}
-          title={batchMode ? t('common:cancel') : t('editor:fileTree.batchSelect')}
-        >
-          {batchMode ? (
-            <X key="cancel" size={14} className="motion-icon-pop" />
-          ) : (
-            <Check key="batch" size={14} className="motion-icon-pop" />
-          )}
-        </button>
+        {!isLibraryLoading && !materialLib.accessDenied && !materialLib.error && materialLib.libraries.length > 0 && (
+          <button
+            type="button"
+            onClick={toggleBatchMode}
+            aria-pressed={batchMode}
+            aria-label={batchMode ? t('common:cancel') : t('editor:fileTree.batchSelect')}
+            className={`p-1.5 rounded-lg max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center text-xs ${batchMode ? 'text-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.1)]' : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))]'} transition-colors`}
+            title={batchMode ? t('common:cancel') : t('editor:fileTree.batchSelect')}
+          >
+            {batchMode ? (
+              <X key="cancel" size={14} className="motion-icon-pop" />
+            ) : (
+              <Check key="batch" size={14} className="motion-icon-pop" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Search input - only show when there are libraries */}
       {materialLib.libraries.length > 0 && (
         <div className="px-2 py-1 mb-2">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder={t('editor:fileTree.searchMaterials')}
-            className="w-full px-2 py-1 text-xs rounded border border-[hsl(var(--border-primary))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))]"
-          />
+          <div className="relative">
+            <input
+              type="text"
+              role="searchbox"
+              aria-label={t('editor:fileTree.searchMaterials')}
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && searchQuery && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
+                  e.preventDefault();
+                  handleSearch('');
+                }
+              }}
+              placeholder={t('editor:fileTree.searchMaterials')}
+              className={`w-full pl-2 py-1 text-xs rounded border border-[hsl(var(--border-primary))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] ${searchQuery ? 'pr-7' : 'pr-2'}`}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => handleSearch('')}
+                aria-label={t('common:clearSearch')}
+                title={t('common:clearSearch')}
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -383,7 +409,10 @@ export const MaterialsPane: React.FC = () => {
               {t('editor:fileTree.noSearchResults')}
             </div>
           ) : (
-            searchResults.map((result) => (
+            searchResults.map((result) => {
+              const virtualId = `lib_${result.novel_id}_${result.entity_type}_${result.entity_id}`;
+              const attached = Boolean(isMaterialAttached?.(virtualId));
+              return (
               <div
                 key={`${result.novel_id}:${result.entity_type}:${result.entity_id}`}
                 className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
@@ -394,18 +423,23 @@ export const MaterialsPane: React.FC = () => {
                   <div className="text-xs truncate">{result.name}</div>
                   <div className="text-xs text-[hsl(var(--text-secondary))] truncate">{result.novel_title}</div>
                 </div>
-                <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 flex items-center gap-0.5 transition-opacity">
+                <div className={`${attached ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100'} flex items-center gap-0.5 transition-opacity`}>
                   <button
                     type="button"
+                    aria-pressed={attached}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleAttachToChat(result.novel_id, result.entity_type, result.entity_id, result.name);
                     }}
-                    className="p-1.5 rounded max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors"
-                    title={t('editor:fileTree.attachToChat')}
-                    aria-label={t('editor:fileTree.attachToChat')}
+                    className={`p-1.5 rounded max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center transition-colors ${
+                      attached
+                        ? 'text-[hsl(var(--accent-primary))]'
+                        : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))]'
+                    }`}
+                    title={attached ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.attachToChat')}
+                    aria-label={attached ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.attachToChat')}
                   >
-                    <MessageSquarePlus size={14} />
+                    {attached ? <Check size={14} /> : <MessageSquarePlus size={14} />}
                   </button>
                   <button
                     type="button"
@@ -421,7 +455,8 @@ export const MaterialsPane: React.FC = () => {
                   </button>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
@@ -525,17 +560,27 @@ export const MaterialsPane: React.FC = () => {
                                     </button>
                                   </div>
                                 ) : (
-                                  items.map((item) => (
+                                  items.map((item) => {
+                                    const virtualId = `lib_${lib.id}_${type}_${item.id}`;
+                                    const attached = Boolean(isMaterialAttached?.(virtualId));
+                                    return (
                                     <div
                                       key={item.id}
                                       className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
                                       style={{ marginLeft: 24 }}
-                                      onClick={() => handleEntityClick(lib.id, type, item.id)}
+                                      onClick={() => {
+                                        if (batchMode) {
+                                          toggleItemSelection(lib.id, type, item.id);
+                                        } else {
+                                          handleEntityClick(lib.id, type, item.id);
+                                        }
+                                      }}
                                     >
                                       {batchMode && (
                                         <input
                                           type="checkbox"
                                           checked={selectedItems.has(`${lib.id}:${type}:${item.id}`)}
+                                          onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => {
                                             e.stopPropagation();
                                             toggleItemSelection(lib.id, type, item.id);
@@ -546,18 +591,23 @@ export const MaterialsPane: React.FC = () => {
                                       {!batchMode && <span className="w-3" />}
                                       <span className="flex-1 truncate text-xs">{item.name}</span>
                                       {!batchMode && (
-                                        <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 flex items-center gap-0.5 transition-opacity">
+                                        <div className={`${attached ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100'} flex items-center gap-0.5 transition-opacity`}>
                                           <button
                                             type="button"
+                                            aria-pressed={attached}
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               handleAttachToChat(lib.id, type, item.id, item.name);
                                             }}
-                                            className="p-1.5 rounded max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors"
-                                            title={t('editor:fileTree.attachToChat')}
-                                            aria-label={t('editor:fileTree.attachToChat')}
+                                            className={`p-1.5 rounded max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center transition-colors ${
+                                              attached
+                                                ? 'text-[hsl(var(--accent-primary))]'
+                                                : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))]'
+                                            }`}
+                                            title={attached ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.attachToChat')}
+                                            aria-label={attached ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.attachToChat')}
                                           >
-                                            <MessageSquarePlus size={14} />
+                                            {attached ? <Check size={14} /> : <MessageSquarePlus size={14} />}
                                           </button>
                                           <button
                                             type="button"
@@ -574,7 +624,8 @@ export const MaterialsPane: React.FC = () => {
                                         </div>
                                       )}
                                     </div>
-                                  ))
+                                    );
+                                  })
                                 )}
                               </div>
                             </AnimatedCollapse>
