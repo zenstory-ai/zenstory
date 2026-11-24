@@ -293,8 +293,8 @@ const SUGGESTION_CACHE_KEY_PREFIX = "zenstory_suggestions_cache_";
 const SUGGESTION_CACHE_TTL_MS = 10 * 60 * 1000;
 const SUGGESTION_INITIAL_TIMEOUT_MS = 1500;
 
-/** Minimum height of the chat input panel in pixels */
-const CHAT_INPUT_PANEL_MIN_HEIGHT_PX = 144;
+/** Minimum height of the chat input panel in pixels (fits handle + padding + accessories + two-row capsule) */
+const CHAT_INPUT_PANEL_MIN_HEIGHT_PX = 188;
 
 /** Maximum height of the chat input panel in pixels */
 const CHAT_INPUT_PANEL_MAX_HEIGHT_PX = 520;
