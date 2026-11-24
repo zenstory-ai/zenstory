@@ -181,16 +181,23 @@ def identify_story_frameworks_from_summaries(
 
     logger.info(f"获取到 {len(chapter_summaries)} 个章节摘要")
 
-    # 构建系统提示词（传递章节数以动态计算期望剧情数）
+    # 构建静态系统提示词（不注入 num_chapters 以命中前缀缓存，章节数与目标剧情数范围放入 user_message）
     from prompts import create_story_framework_identification_prompt
-    system_prompt = create_story_framework_identification_prompt(num_chapters=len(chapter_summaries))
+    system_prompt = create_story_framework_identification_prompt()
+
+    # 计算目标剧情数量范围（与 web_long/story_framework_identification.j2 模板公式一致）
+    num_chapters = len(chapter_summaries)
+    target_chapters_per_story = 12
+    min_stories = int(num_chapters / target_chapters_per_story * 0.7)
+    max_stories = int(num_chapters / target_chapters_per_story * 1.3)
 
     # 构建用户消息
     summaries_json = json.dumps(chapter_summaries, ensure_ascii=False, indent=2)
 
     user_message = f"""
 小说ID: {novel_id}
-章节数量: {len(chapter_summaries)}
+章节数量: {num_chapters}
+目标剧情数量范围: 根据当前章节数（{num_chapters}章），你应该识别出 {min_stories}-{max_stories} 个独立剧情（每个剧情平均跨越约 {target_chapters_per_story} 章，可根据实际情况灵活调整）。
 
 章节摘要:
 {summaries_json}

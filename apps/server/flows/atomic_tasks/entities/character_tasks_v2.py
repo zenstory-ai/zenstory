@@ -25,6 +25,7 @@ from flows.utils.helpers import (
 from prompts import (
     create_character_consolidation_prompt,
     create_character_mention_prompt,
+    format_character_consolidation_user_message,
 )
 
 
@@ -247,14 +248,13 @@ def build_character_entity_task(
             f"出现 {len(chapter_mentions)} 个章节, 范围 {chapter_range}"
         )
 
-    # 调用 LLM 生成完整描述
-    system_prompt = create_character_consolidation_prompt(
+    # 调用 LLM 生成完整描述（静态 system_prompt 命中前缀缓存，动态角色信息放入 user_message）
+    system_prompt = create_character_consolidation_prompt()
+    user_message = format_character_consolidation_user_message(
         character_name=character_name,
         chapter_mentions=chapter_mentions,
         chapter_range=chapter_range,
     )
-
-    user_message = "请根据上述信息生成完整的角色描述。"
 
     logger.info(f"[角色实体构建] 调用 LLM: character_name={character_name}")
 
