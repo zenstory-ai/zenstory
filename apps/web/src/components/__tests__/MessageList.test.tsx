@@ -177,18 +177,29 @@ describe('MessageList', () => {
       role: 'assistant',
       content: '开头写好了。',
       backendMessageId: 'a-2',
-      stopOutcome: { reason: 'completed', charged: true, savedOutput: true, removedFiles: [], writtenFiles: [{ title: '第一章', words: 812 }] },
+      stopOutcome: {
+        reason: 'completed',
+        charged: true,
+        savedOutput: true,
+        removedFiles: [],
+        writtenFiles: [
+          { id: 'f-1', title: '第一章', words: 812 },
+          { id: 'f-2', title: '第二章', words: 640 },
+        ],
+      },
     })
+    const onOpenFile = vi.fn()
     const view = render(
       <MobileLayoutProvider isMobile>
         <PanelProbe />
-        <MessageList messages={[createMessage({ content: '写个开头' }), wrote]} />
+        <MessageList messages={[createMessage({ content: '写个开头' }), wrote]} onOpenFile={onOpenFile} />
       </MobileLayoutProvider>,
     )
     fireEvent.click(screen.getByTestId('panel'))
     expect(screen.getByTestId('panel')).toHaveTextContent('chat')
 
     fireEvent.click(screen.getByTestId('read-written-files'))
+    expect(onOpenFile).toHaveBeenCalledWith('f-2', '', '第二章')
     expect(screen.getByTestId('panel')).toHaveTextContent('editor')
 
     // Only the latest round, and only on phones (desktop shows the editor beside the chat).

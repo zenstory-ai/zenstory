@@ -891,12 +891,17 @@ const Row = React.memo(function Row({
   const { t } = useTranslation(['chat']);
   const { isMobile, switchToEditor } = useMobileLayout();
   // Phones keep the chat in front while the AI writes; the latest round that wrote files offers
-  // the manuscript (the editor already follows the AI's writes).
+  // the manuscript and opens the latest written file (even after a reload or device switch).
   const showReadWritten = isMobile
     && nextRole === undefined
     && message.role === 'assistant'
     && message.stopOutcome?.reason === 'completed'
     && message.stopOutcome.writtenFiles.length > 0;
+  const readWrittenTarget = showReadWritten
+    ? [...(message.stopOutcome?.writtenFiles ?? [])]
+      .reverse()
+      .find((file): file is typeof file & { id: string } => Boolean(file.id))
+    : undefined;
   const displayContent =
     message.role === 'assistant' ? stripThinkTags(message.content) : message.content;
   const hasDisplayContent = Boolean(displayContent && displayContent.trim());
@@ -1123,7 +1128,12 @@ const Row = React.memo(function Row({
                 <button
                   type="button"
                   data-testid="read-written-files"
-                  onClick={switchToEditor}
+                  onClick={() => {
+                    if (readWrittenTarget && onOpenFile) {
+                      onOpenFile(readWrittenTarget.id, '', readWrittenTarget.title);
+                    }
+                    switchToEditor();
+                  }}
                   className="relative inline-flex shrink-0 items-center gap-1 h-8 rounded-full border border-[hsl(var(--accent-primary)/0.28)] bg-[hsl(var(--accent-primary)/0.12)] px-3 text-xs font-medium text-[hsl(var(--info-text))] hover:bg-[hsl(var(--accent-primary)/0.2)] transition-colors active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-rail))] before:content-[''] before:absolute before:-inset-y-1.5 before:inset-x-0"
                 >
                   <span>{t('chat:panel.readWrittenFiles')}</span>
