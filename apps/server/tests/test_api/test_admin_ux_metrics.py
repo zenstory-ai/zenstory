@@ -739,6 +739,7 @@ def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
 
     recorded_exec_options: list[dict] = []
     seen_tool_call_values: list[str | None] = []
+    ux_health_toast_queries: list[str] = []
     metadata_queries_with_tool_calls: list[str] = []
     original_exec = db_session.exec
 
@@ -750,6 +751,8 @@ def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
         sql_text = str(stmt)
         if "chat_message.message_metadata" in sql_text and "chat_message.tool_calls" in sql_text:
             metadata_queries_with_tool_calls.append(sql_text)
+        if "chat_message.message_metadata" in sql_text or "chat_message.tool_calls" in sql_text:
+            ux_health_toast_queries.append(sql_text)
         if "chat_message.tool_calls" in sql_text:
             # Intercept streamed tuples without altering yield_per semantics
             class _SpyResult:
@@ -766,15 +769,10 @@ def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
 
     monkeypatch.setattr(db_session, "exec", spy_exec)
     payload = get_ux_health_dashboard(db_session, days=7, now=NOW)
-    votes = list_chat_feedback_votes(db_session, days=7, vote="all", now=NOW)
+    # Fast path via chat_message_ux_summary must NEVER select message_metadata or tool_calls!
+    assert ux_health_toast_queries == []
 
-    # Bounded streaming was used on both endpoints (no unbounded .all() on chat_message)
-    assert any(opt.get("yield_per") == ux_svc._STREAM_CHAT_BATCH_SIZE for opt in recorded_exec_options)
-    assert any(opt.get("yield_per") == ux_svc._STREAM_SCALAR_BATCH_SIZE for opt in recorded_exec_options)
-    # Metadata scan never touches tool_calls; tool_calls scan filters out read-only and corrupt rows in SQL
-    assert metadata_queries_with_tool_calls == []
-    assert len(seen_tool_call_values) == 1
-    assert seen_tool_call_values[0] is not None
+    votes = list_chat_feedback_votes(db_session, days=7, vote="all", now=NOW)
 
     m = payload["current"]["metrics"]
     assert m["total_rounds"] == 3
@@ -787,6 +785,28 @@ def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
     assert m["feedback_up"] == 1
     assert m["feedback_down"] == 1
     assert votes["summary"]["total_votes"] == 2
+
+    # Simulate un-backfilled legacy rows by clearing chat_message_ux_summary:
+    # fallback path must stream via yield_per, keep metadata/tool_calls decoupled,
+    # skip read-only/corrupt tool_calls, and match summary metrics identically.
+    from sqlalchemy import delete as sa_delete
+
+    from models import ChatMessageUxSummary
+
+    original_exec(sa_delete(ChatMessageUxSummary))
+    db_session.commit()
+
+    recorded_exec_options.clear()
+    seen_tool_call_values.clear()
+    metadata_queries_with_tool_calls.clear()
+
+    unbackfilled_payload = get_ux_health_dashboard(db_session, days=7, now=NOW)
+    assert any(opt.get("yield_per") == ux_svc._STREAM_CHAT_BATCH_SIZE for opt in recorded_exec_options)
+    assert any(opt.get("yield_per") == ux_svc._STREAM_SCALAR_BATCH_SIZE for opt in recorded_exec_options)
+    assert metadata_queries_with_tool_calls == []
+    assert len(seen_tool_call_values) == 1
+    assert seen_tool_call_values[0] is not None
+    assert unbackfilled_payload["current"]["metrics"] == payload["current"]["metrics"]
 
     # Verify PostgreSQL projection path falls back cleanly on DataError (e.g. corrupt JSON row)
     monkeypatch.setattr(ux_svc, "_is_postgres_session", lambda _s: True)
@@ -804,6 +824,134 @@ def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
     fallback_payload = get_ux_health_dashboard(db_session, days=7, now=NOW)
     fallback_votes = list_chat_feedback_votes(db_session, days=7, vote="all", now=NOW)
 
-    assert pg_attempts == 2  # combined current+previous metadata window + chat_votes
+    assert pg_attempts == 2  # un-backfilled metadata window + chat_votes
     assert fallback_payload["current"]["metrics"] == payload["current"]["metrics"]
     assert fallback_votes["summary"] == votes["summary"]
+
+
+@pytest.mark.integration
+def test_chat_message_ux_summary_syncs_across_mutations_and_backfill(db_session: Session):
+    """chat_message_ux_summary stays in sync across insert, feedback, undo/restore, load_only, and backfill."""
+    from sqlalchemy import delete as sa_delete
+    from sqlalchemy.orm import load_only
+    from sqlmodel import select
+
+    from models import ChatMessageUxSummary
+    from services.chat_feedback_service import chat_feedback_service
+    from services.chat_tool_cards import record_delete_card_restored, record_edit_card_undone
+    from services.usage.chat_message_ux_summary_backfill import (
+        backfill_chat_message_ux_summaries,
+        count_pending_chat_message_ux_summaries,
+    )
+
+    writer = _user(db_session, "ux_sync_writer", NOW - timedelta(days=5))
+    proj, chat_sess = _project_and_session(db_session, writer, "Sync Novel", NOW - timedelta(days=3))
+    after_token = NOW - timedelta(hours=2)
+
+    msg = _assistant_message(
+        db_session,
+        chat_sess,
+        NOW - timedelta(hours=2),
+        metadata={"stop_reason": "end_turn"},
+        tool_calls=[
+            {
+                "id": "tc-edit-sync",
+                "name": "edit_file",
+                "status": "success",
+                "result": {
+                    "data": {
+                        "id": "file-1",
+                        "undo": {
+                            "before_version_number": 1,
+                            "expected_after_updated_at": after_token.isoformat(),
+                            "undone": False,
+                        },
+                    }
+                },
+            },
+            {
+                "id": "tc-del-sync",
+                "name": "delete_file",
+                "status": "success",
+                "result": {"id": "file-2", "mutation_applied": True, "restored": False},
+            },
+        ],
+    )
+
+    summary = db_session.get(ChatMessageUxSummary, msg.id)
+    assert summary is not None
+    assert summary.round_category == "healthy"
+    assert summary.feedback_vote is None
+    assert summary.ai_edit_cards == 1
+    assert summary.ai_edit_undone == 0
+    assert summary.ai_delete_cards == 1
+    assert summary.ai_delete_restored == 0
+
+    # 1. Feedback update syncs vote + preset
+    chat_feedback_service.submit_feedback(
+        session=db_session,
+        current_user=writer,
+        message_id=msg.id,
+        vote="down",
+        preset="too_slow",
+        comment="slow response",
+    )
+    db_session.expire_all()
+    summary = db_session.get(ChatMessageUxSummary, msg.id)
+    assert summary is not None
+    assert summary.feedback_vote == "down"
+    assert summary.feedback_preset == "too_slow"
+
+    # 2. Edit undo & delete restore card updates sync counters
+    assert record_edit_card_undone(
+        db_session,
+        user_id=writer.id,
+        project_id=proj.id,
+        file_id="file-1",
+        message_id=msg.id,
+        tool_use_id="tc-edit-sync",
+        before_version_number=1,
+        expected_after_updated_at=after_token,
+    )
+    assert record_delete_card_restored(
+        db_session,
+        user_id=writer.id,
+        project_id=proj.id,
+        file_id="file-2",
+        message_id=msg.id,
+        tool_use_id="tc-del-sync",
+    )
+    db_session.expire_all()
+    summary = db_session.get(ChatMessageUxSummary, msg.id)
+    assert summary is not None
+    assert summary.ai_edit_undone == 1
+    assert summary.ai_delete_restored == 1
+
+    # 3. Partial load_only update (chat_storage archival pattern) must not fail or corrupt summary
+    locked = db_session.exec(
+        select(ChatMessage)
+        .options(load_only(ChatMessage.id, ChatMessage.tool_calls))
+        .where(ChatMessage.id == msg.id)
+    ).one()
+    locked.tool_calls = locked.tool_calls  # no-op touch on load_only object
+    db_session.add(locked)
+    db_session.commit()
+
+    # 4. Deleting summary and running backfill restores identical row
+    db_session.exec(sa_delete(ChatMessageUxSummary))
+    db_session.commit()
+    assert count_pending_chat_message_ux_summaries(db_session.connection()) == 1
+    backfilled = backfill_chat_message_ux_summaries(db_session.connection(), batch_size=10)
+    db_session.commit()
+    assert backfilled == 1
+    assert count_pending_chat_message_ux_summaries(db_session.connection()) == 0
+
+    rebuilt = db_session.get(ChatMessageUxSummary, msg.id)
+    assert rebuilt is not None
+    assert rebuilt.round_category == "healthy"
+    assert rebuilt.feedback_vote == "down"
+    assert rebuilt.feedback_preset == "too_slow"
+    assert rebuilt.ai_edit_cards == 1
+    assert rebuilt.ai_edit_undone == 1
+    assert rebuilt.ai_delete_cards == 1
+    assert rebuilt.ai_delete_restored == 1

@@ -9,13 +9,14 @@ Reads existing PostgreSQL/SQLite tables without introducing new event ingestion:
 
 Performance design:
 - Current and prior periods are combined into single range queries where possible.
-- ``chat_message.tool_calls`` (large TOAST JSON) is never selected for round/feedback
-  classification; edit/delete card counting queries only messages with non-null
-  ``tool_calls`` containing card tool markers and aggregates via PostgreSQL JSONB
-  (with bounded ``yield_per`` Python fallback).
-- On PostgreSQL, ``message_metadata`` projection strips large ``display_events``
-  blobs in SQL before wire transfer (using ``::json`` with ``DataError`` fallback).
-- All row-scanning fallbacks stream with bounded ``yield_per`` batches.
+- Assistant round classification, feedback vote/preset, and edit/delete card counts
+  are read from the narrow, non-TOAST ``chat_message_ux_summary`` projection table
+  via SQL ``GROUP BY`` (never detoasting multi-GB ``chat_message.message_metadata``
+  or ``chat_message.tool_calls`` blobs).
+- Any un-backfilled legacy assistant rows (detected by a lightweight anti-join
+  against ``chat_message_ux_summary`` that touches zero TOAST columns) fall back
+  safely to bounded ``yield_per`` streaming with PostgreSQL JSON projection and
+  ``DataError`` handling.
 - ``file_version`` net words/chapters and W1 writer retention aggregate in SQL CTEs
   returning 1 row per period instead of shipping raw version/user rows to Python.
 - On PostgreSQL, latency percentiles and device splits push down to SQL.
@@ -26,14 +27,13 @@ Beijing calendar boundaries, matching ``admin_growth_service.py``.
 
 from __future__ import annotations
 
-import json
 import math
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, case, literal, literal_column, or_, text, union
+from sqlalchemy import and_, case, exists, literal, literal_column, or_, text, union
 from sqlalchemy.exc import DataError
 from sqlmodel import Session, col, func, select
 
@@ -47,6 +47,14 @@ from models.activation_event import (
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ACTIVATION_EVENT_FIRST_FILE_SAVED,
     ActivationEvent,
+)
+from models.chat_message_ux_summary import (
+    ChatMessageUxSummary,
+    classify_round,
+    count_tool_cards,
+    has_chat_message_ux_summary_table,
+    parse_json_dict,
+    parse_json_list,
 )
 from models.entities import ChatMessage, ChatSession, Project, User
 from models.file_model import CONTENT_FILE_TYPES, File
@@ -65,13 +73,11 @@ CHAT_VOTE_FILTERS = ("all", "up", "down")
 SLOW_TAIL_THRESHOLD_MS = 10_000
 TOP_DISLIKE_PRESET_LIMIT = 5
 
-_UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter"})
-_DELETE_CARD_TOOLS = frozenset({"delete_file"})
 _TOOL_CARD_MARKERS = ('"edit_file"', '"write_chapter"', '"delete_file"')
-_FAILED_CARD_STATUSES = frozenset({"error", "failed", "pending"})
 _STREAM_CHAT_BATCH_SIZE = 50
 _STREAM_PG_PROJECTED_BATCH_SIZE = 100
 _STREAM_SCALAR_BATCH_SIZE = 500
+_MISSING_ID_CHUNK_SIZE = 500
 
 # PostgreSQL 15+ JSON extraction expressions (compatible with PG 15/16/17; uses
 # ``json`` rather than ``jsonb`` so legacy ``\u0000`` escapes do not fail and no
@@ -106,7 +112,6 @@ _TTFV_EVENTS = (
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ACTIVATION_EVENT_FIRST_FILE_SAVED,
 )
-_RUNAWAY_STOP_REASONS = frozenset({"repetition_loop", "runaway_stop"})
 
 
 @dataclass(frozen=True)
@@ -199,24 +204,8 @@ def _delta_int(current: int | None, previous: int | None) -> int | None:
     return current - previous
 
 
-def _parse_json_dict(raw: str | None) -> dict[str, Any]:
-    if not raw:
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except (TypeError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
-
-
-def _parse_json_list(raw: str | None) -> list[Any]:
-    if not raw:
-        return []
-    try:
-        parsed = json.loads(raw)
-    except (TypeError, ValueError):
-        return []
-    return parsed if isinstance(parsed, list) else []
+_parse_json_dict = parse_json_dict
+_parse_json_list = parse_json_list
 
 
 def _parse_iso_utc(raw: Any) -> datetime | None:
@@ -233,95 +222,8 @@ def _beijing_day_iso(ts: datetime) -> str:
     return normalize_datetime_to_utc(ts).astimezone(BEIJING_TIMEZONE).date().isoformat()
 
 
-def _classify_round(metadata: dict[str, Any]) -> tuple[str, str | None]:
-    """Classify one assistant round from ``message_metadata``.
-
-    Returns ``(category, abnormal_reason)`` where ``category`` is one of
-    ``healthy``, ``user_stopped``, ``client_disconnected``, or ``abnormal``.
-    """
-    raw_stop_reason = metadata.get("stop_reason")
-    stop_reason = raw_stop_reason.strip() if isinstance(raw_stop_reason, str) else ""
-
-    stop_outcome = metadata.get("stop_outcome")
-    stop_outcome = stop_outcome if isinstance(stop_outcome, dict) else {}
-    raw_outcome_reason = stop_outcome.get("reason")
-    outcome_reason = raw_outcome_reason.strip() if isinstance(raw_outcome_reason, str) else ""
-
-    effective_reason = stop_reason or outcome_reason or "unknown"
-
-    if effective_reason == "user_stopped" or outcome_reason == "user_stopped":
-        return "user_stopped", None
-    if effective_reason == "client_disconnected" or outcome_reason == "client_disconnected":
-        return "client_disconnected", None
-
-    has_unexecuted_tool_text = bool(stop_outcome.get("unexecuted_tool_text"))
-    has_unwritten_files = bool(stop_outcome.get("unwritten_files"))
-    has_runaway_stop = (
-        bool(metadata.get("runaway_stop"))
-        or bool(stop_outcome.get("runaway_stop"))
-        or effective_reason in _RUNAWAY_STOP_REASONS
-    )
-
-    if (
-        effective_reason == "end_turn"
-        and not has_unexecuted_tool_text
-        and not has_unwritten_files
-        and not has_runaway_stop
-    ):
-        return "healthy", None
-
-    if effective_reason == "end_turn":
-        if has_unexecuted_tool_text:
-            return "abnormal", "unexecuted_tool_text"
-        if has_runaway_stop:
-            return "abnormal", "runaway_stop"
-        return "abnormal", "unwritten_files"
-
-    return "abnormal", effective_reason
-
-
-def _count_tool_cards(calls: list[Any]) -> tuple[int, int, int, int]:
-    """Count (edit_cards, edit_undone, delete_cards, delete_restored) for one message."""
-    edit_cards = 0
-    edit_undone = 0
-    delete_cards = 0
-    delete_restored = 0
-
-    for call in calls:
-        if not isinstance(call, dict):
-            continue
-        status = str(call.get("status") or "").strip().lower()
-        if status in _FAILED_CARD_STATUSES or call.get("error"):
-            continue
-        tool_name = call.get("name")
-        result = call.get("result")
-        data = (
-            result.get("data")
-            if isinstance(result, dict) and isinstance(result.get("data"), dict)
-            else result
-        )
-
-        if tool_name in _UNDOABLE_CARD_TOOLS and isinstance(data, dict):
-            undo = data.get("undo")
-            if isinstance(undo, dict):
-                edit_cards += 1
-                if undo.get("undone") is True:
-                    edit_undone += 1
-        elif tool_name in _DELETE_CARD_TOOLS:
-            if result is True:
-                delete_cards += 1
-            elif isinstance(data, dict) and "error" not in data:
-                applied = (
-                    data.get("mutation_applied") is True
-                    or data.get("restored") is True
-                    or data.get("deleted_at") is not None
-                )
-                if applied:
-                    delete_cards += 1
-                    if data.get("restored") is True:
-                        delete_restored += 1
-
-    return edit_cards, edit_undone, delete_cards, delete_restored
+_classify_round = classify_round
+_count_tool_cards = count_tool_cards
 
 
 def _extract_feedback(metadata: dict[str, Any]) -> dict[str, Any] | None:
@@ -547,25 +449,20 @@ def _empty_round_stats() -> dict[str, Any]:
     }
 
 
-def _query_tool_card_metrics_postgres(
+def _query_tool_card_metrics_postgres_for_ids(
     session: Session,
     current: UxPeriod,
-    previous: UxPeriod,
+    message_ids: list[str],
     round_stats: dict[str, dict[str, Any]],
     daily_buckets: dict[str, dict[str, Any]],
 ) -> bool:
-    """Aggregate AI edit undo & delete restore cards directly inside PostgreSQL JSONB.
-
-    Never transfers ``chat_message.tool_calls`` JSON text across the wire.
-    Returns False if malformed JSON is encountered so the caller can safely fall back.
-    """
+    """Aggregate AI edit undo & delete restore cards in PostgreSQL for un-backfilled IDs."""
     curr_start, curr_end = current.naive_bounds
-    prev_start, prev_end = previous.naive_bounds
     try:
         with session.begin_nested():
             rows = session.execute(
                 text(
-                    """
+                    r"""
                     WITH candidate_msgs AS (
                         SELECT
                             CASE
@@ -573,18 +470,11 @@ def _query_tool_card_metrics_postgres(
                                 ELSE 'previous'
                             END AS period_key,
                             to_char((cm.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS bj_day,
-                            cm.tool_calls::jsonb AS calls
+                            cm.tool_calls::json AS calls
                         FROM chat_message cm
-                        JOIN chat_session cs ON cs.id = cm.session_id
-                        JOIN "user" u ON u.id = cs.user_id
-                        WHERE u.is_superuser IS FALSE
-                          AND cm.role = 'assistant'
-                          AND (
-                              (cm.created_at >= :prev_start AND cm.created_at < :prev_end)
-                              OR (cm.created_at >= :curr_start AND cm.created_at < :curr_end)
-                          )
+                        WHERE cm.id = ANY(:ids)
                           AND cm.tool_calls IS NOT NULL
-                          AND left(btrim(cm.tool_calls), 1) = '['
+                          AND left(ltrim(cm.tool_calls, E' \t\r\n'), 1) = '['
                           AND (
                               strpos(cm.tool_calls, '"edit_file"') > 0
                               OR strpos(cm.tool_calls, '"write_chapter"') > 0
@@ -597,55 +487,66 @@ def _query_tool_card_metrics_postgres(
                             c.bj_day,
                             elem,
                             CASE
-                                WHEN jsonb_typeof(elem->'result') = 'object'
-                                     AND jsonb_typeof(elem->'result'->'data') = 'object'
+                                WHEN json_typeof(elem->'result') = 'object'
+                                     AND json_typeof(elem->'result'->'data') = 'object'
                                 THEN elem->'result'->'data'
                                 ELSE elem->'result'
                             END AS data
                         FROM candidate_msgs c
-                        CROSS JOIN LATERAL jsonb_array_elements(c.calls) AS elem
-                        WHERE jsonb_typeof(c.calls) = 'array'
-                          AND jsonb_typeof(elem) = 'object'
+                        CROSS JOIN LATERAL json_array_elements(c.calls) AS elem
+                        WHERE json_typeof(c.calls) = 'array'
+                          AND json_typeof(elem) = 'object'
                           AND lower(btrim(COALESCE(elem->>'status', ''))) NOT IN ('error', 'failed', 'pending')
                           AND (
-                              NOT (elem ? 'error')
-                              OR elem->'error' IN ('null'::jsonb, 'false'::jsonb, '""'::jsonb, '0'::jsonb, '[]'::jsonb, '{}'::jsonb)
+                              (elem->'error') IS NULL
+                              OR json_typeof(elem->'error') = 'null'
+                              OR (json_typeof(elem->'error') = 'boolean' AND (elem->>'error') = 'false')
+                              OR (json_typeof(elem->'error') = 'string' AND (elem->>'error') = '')
+                              OR (json_typeof(elem->'error') = 'number' AND (elem->>'error')::numeric = 0)
+                              OR (json_typeof(elem->'error') = 'array' AND json_array_length(elem->'error') = 0)
+                              OR (json_typeof(elem->'error') = 'object' AND (elem->'error')::text = '{}')
                           )
                     )
                     SELECT
                         period_key,
                         CASE WHEN period_key = 'current' THEN bj_day ELSE NULL END AS bj_day,
                         COUNT(*) FILTER (
-                            WHERE elem->>'name' IN ('edit_file', 'write_chapter')
-                              AND jsonb_typeof(data) = 'object'
-                              AND jsonb_typeof(data->'undo') = 'object'
+                            WHERE json_typeof(elem->'name') = 'string'
+                              AND (elem->>'name') IN ('edit_file', 'write_chapter')
+                              AND json_typeof(data) = 'object'
+                              AND json_typeof(data->'undo') = 'object'
                         ) AS edit_cards,
                         COUNT(*) FILTER (
-                            WHERE elem->>'name' IN ('edit_file', 'write_chapter')
-                              AND jsonb_typeof(data) = 'object'
-                              AND jsonb_typeof(data->'undo') = 'object'
-                              AND data->'undo'->'undone' = 'true'::jsonb
+                            WHERE json_typeof(elem->'name') = 'string'
+                              AND (elem->>'name') IN ('edit_file', 'write_chapter')
+                              AND json_typeof(data) = 'object'
+                              AND json_typeof(data->'undo') = 'object'
+                              AND json_typeof(data->'undo'->'undone') = 'boolean'
+                              AND (data->'undo'->>'undone') = 'true'
                         ) AS edit_undone,
                         COUNT(*) FILTER (
-                            WHERE elem->>'name' = 'delete_file'
+                            WHERE json_typeof(elem->'name') = 'string'
+                              AND (elem->>'name') = 'delete_file'
                               AND (
-                                  elem->'result' = 'true'::jsonb
+                                  (json_typeof(elem->'result') = 'boolean' AND (elem->>'result') = 'true')
                                   OR (
-                                      jsonb_typeof(data) = 'object'
-                                      AND NOT (data ? 'error')
+                                      json_typeof(data) = 'object'
+                                      AND (data->'error') IS NULL
                                       AND (
-                                          data->'mutation_applied' = 'true'::jsonb
-                                          OR data->'restored' = 'true'::jsonb
-                                          OR (data ? 'deleted_at' AND data->'deleted_at' <> 'null'::jsonb)
+                                          (json_typeof(data->'mutation_applied') = 'boolean' AND (data->>'mutation_applied') = 'true')
+                                          OR (json_typeof(data->'restored') = 'boolean' AND (data->>'restored') = 'true')
+                                          OR ((data->'deleted_at') IS NOT NULL AND json_typeof(data->'deleted_at') <> 'null')
                                       )
                                   )
                               )
                         ) AS delete_cards,
                         COUNT(*) FILTER (
-                            WHERE elem->>'name' = 'delete_file'
-                              AND jsonb_typeof(data) = 'object'
-                              AND NOT (data ? 'error')
-                              AND data->'restored' = 'true'::jsonb
+                            WHERE json_typeof(elem->'name') = 'string'
+                              AND (elem->>'name') = 'delete_file'
+                              AND json_typeof(data) = 'object'
+                              AND (data->'error') IS NULL
+                              AND json_typeof(data->'restored') = 'boolean'
+                              AND (data->>'restored') = 'true'
                         ) AS delete_restored
                     FROM expanded
                     GROUP BY 1, 2
@@ -654,8 +555,7 @@ def _query_tool_card_metrics_postgres(
                 {
                     "curr_start": curr_start,
                     "curr_end": curr_end,
-                    "prev_start": prev_start,
-                    "prev_end": prev_end,
+                    "ids": message_ids,
                 },
             ).all()
     except DataError:
@@ -679,20 +579,17 @@ def _query_tool_card_metrics_postgres(
     return True
 
 
-def _query_round_and_tool_metrics(
+def _merge_missing_round_and_tool_metrics(
     session: Session,
     current: UxPeriod,
     previous: UxPeriod,
+    missing_ids: list[str],
+    stats: dict[str, dict[str, Any]],
     daily_buckets: dict[str, dict[str, Any]],
-) -> dict[str, dict[str, Any]]:
+) -> None:
+    """Fallback scan strictly for assistant messages not yet present in ``chat_message_ux_summary``."""
     curr_start, curr_end = current.naive_bounds
     prev_start, prev_end = previous.naive_bounds
-
-    base_filters = (
-        User.is_superuser.is_(False),
-        ChatMessage.role == "assistant",
-        _two_period_condition(ChatMessage.created_at, curr_start, curr_end, prev_start, prev_end),
-    )
 
     def _run_metadata_scan(
         stmt: Any, *, yield_per: int
@@ -749,89 +646,302 @@ def _query_round_and_tool_metrics(
             rows.close()
         return scanned, day_deltas
 
-    # Query 2a: ONLY (created_at, message_metadata) — NEVER touch chat_message.tool_calls TOAST.
-    # On PostgreSQL, project only the 4 scalar/feedback fields in SQL to strip multi-MB display_events.
-    meta_result: tuple[dict[str, dict[str, Any]], dict[str, list[int]]] | None = None
-    if _is_postgres_session(session):
-        pg_meta_stmt = (
-            select(
+    for offset in range(0, len(missing_ids), _MISSING_ID_CHUNK_SIZE):
+        id_chunk = missing_ids[offset : offset + _MISSING_ID_CHUNK_SIZE]
+
+        # Metadata scan (never touches tool_calls).
+        meta_result: tuple[dict[str, dict[str, Any]], dict[str, list[int]]] | None = None
+        if _is_postgres_session(session):
+            pg_meta_stmt = select(
                 ChatMessage.created_at,
                 literal_column(_PG_PROJECTED_METADATA_SQL).label("projected_metadata"),
-            )
-            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-            .join(User, User.id == ChatSession.user_id)
-            .where(*base_filters)
-        )
-        try:
-            with session.begin_nested():
-                meta_result = _run_metadata_scan(
-                    pg_meta_stmt, yield_per=_STREAM_PG_PROJECTED_BATCH_SIZE
-                )
-        except DataError:
-            meta_result = None
+            ).where(col(ChatMessage.id).in_(id_chunk))
+            try:
+                with session.begin_nested():
+                    meta_result = _run_metadata_scan(
+                        pg_meta_stmt, yield_per=_STREAM_PG_PROJECTED_BATCH_SIZE
+                    )
+            except DataError:
+                meta_result = None
 
-    if meta_result is None:
-        portable_meta_stmt = (
-            select(
+        if meta_result is None:
+            portable_meta_stmt = select(
                 ChatMessage.created_at,
                 ChatMessage.message_metadata,
-            )
-            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-            .join(User, User.id == ChatSession.user_id)
-            .where(*base_filters)
+            ).where(col(ChatMessage.id).in_(id_chunk))
+            meta_result = _run_metadata_scan(portable_meta_stmt, yield_per=_STREAM_CHAT_BATCH_SIZE)
+
+        chunk_stats, day_deltas = meta_result
+        for key in ("current", "previous"):
+            dst = stats[key]
+            src = chunk_stats[key]
+            dst["total_rounds"] += src["total_rounds"]
+            dst["healthy_rounds"] += src["healthy_rounds"]
+            dst["user_stopped_rounds"] += src["user_stopped_rounds"]
+            dst["client_disconnected_rounds"] += src["client_disconnected_rounds"]
+            dst["abnormal_stop_rounds"] += src["abnormal_stop_rounds"]
+            dst["abnormal_reasons"].update(src["abnormal_reasons"])
+            dst["feedback_up"] += src["feedback_up"]
+            dst["feedback_down"] += src["feedback_down"]
+            dst["dislike_presets"].update(src["dislike_presets"])
+
+        for day_key, delta in day_deltas.items():
+            bucket = daily_buckets[day_key]
+            bucket["rounds"] += delta[0]
+            bucket["healthy_rounds"] += delta[1]
+            bucket["feedback_total"] += delta[2]
+            bucket["feedback_up"] += delta[3]
+
+        # Tool cards scan (strictly decoupled from message_metadata).
+        if _is_postgres(session) and _query_tool_card_metrics_postgres_for_ids(
+            session, current, id_chunk, stats, daily_buckets
+        ):
+            continue
+
+        tool_rows = session.exec(
+            select(
+                ChatMessage.created_at,
+                ChatMessage.tool_calls,
+            ).where(
+                col(ChatMessage.id).in_(id_chunk),
+                ChatMessage.tool_calls.is_not(None),
+                or_(*(col(ChatMessage.tool_calls).contains(marker) for marker in _TOOL_CARD_MARKERS)),
+            ),
+            execution_options={"yield_per": _STREAM_CHAT_BATCH_SIZE},
         )
-        meta_result = _run_metadata_scan(portable_meta_stmt, yield_per=_STREAM_CHAT_BATCH_SIZE)
+        try:
+            for created_at, raw_tool_calls in tool_rows:
+                period_key = _period_key_for_ts(
+                    created_at, curr_start, curr_end, prev_start, prev_end
+                )
+                if period_key is None:
+                    continue
+                calls = _parse_json_list(raw_tool_calls)
+                m_edit, m_undone, m_del, m_restored = _count_tool_cards(calls)
+                target = stats[period_key]
+                target["ai_edit_cards"] += m_edit
+                target["ai_edit_undone"] += m_undone
+                target["ai_delete_cards"] += m_del
+                target["ai_delete_restored"] += m_restored
+                if period_key == "current" and (m_edit or m_undone):
+                    bucket = daily_buckets.get(_beijing_day_iso(created_at))
+                    if bucket is not None:
+                        bucket["edit_cards"] += m_edit
+                        bucket["edit_undone"] += m_undone
+        finally:
+            tool_rows.close()
 
-    stats, day_deltas = meta_result
-    for day_key, delta in day_deltas.items():
-        bucket = daily_buckets[day_key]
-        bucket["rounds"] += delta[0]
-        bucket["healthy_rounds"] += delta[1]
-        bucket["feedback_total"] += delta[2]
-        bucket["feedback_up"] += delta[3]
 
-    # Query 2b: Tool cards (edit undo / delete restore) — restricted strictly to undoable/delete tools.
-    if _is_postgres(session) and _query_tool_card_metrics_postgres(
-        session, current, previous, stats, daily_buckets
-    ):
+def _query_round_and_tool_metrics(
+    session: Session,
+    current: UxPeriod,
+    previous: UxPeriod,
+    day_list: list[date],
+    daily_buckets: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    curr_start, curr_end = current.naive_bounds
+    prev_start, prev_end = previous.naive_bounds
+    stats = {"current": _empty_round_stats(), "previous": _empty_round_stats()}
+
+    if not has_chat_message_ux_summary_table(session.connection()):
+        missing_ids = list(
+            session.exec(
+                select(ChatMessage.id)
+                .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+                .join(User, User.id == ChatSession.user_id)
+                .where(
+                    User.is_superuser.is_(False),
+                    ChatMessage.role == "assistant",
+                    _two_period_condition(
+                        ChatMessage.created_at, curr_start, curr_end, prev_start, prev_end
+                    ),
+                )
+            ).all()
+        )
+        if missing_ids:
+            _merge_missing_round_and_tool_metrics(
+                session, current, previous, missing_ids, stats, daily_buckets
+            )
         return stats
 
-    tool_rows = session.exec(
-        select(
-            ChatMessage.created_at,
-            ChatMessage.tool_calls,
-        )
-        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .join(User, User.id == ChatSession.user_id)
-        .where(
-            *base_filters,
-            ChatMessage.tool_calls.is_not(None),
-            or_(*(col(ChatMessage.tool_calls).contains(marker) for marker in _TOOL_CARD_MARKERS)),
+    summary_window = _two_period_condition(
+        ChatMessageUxSummary.created_at, curr_start, curr_end, prev_start, prev_end
+    )
+    period_expr = case(
+        (
+            and_(
+                ChatMessageUxSummary.created_at >= curr_start,
+                ChatMessageUxSummary.created_at < curr_end,
+            ),
+            literal("current"),
         ),
-        execution_options={"yield_per": _STREAM_CHAT_BATCH_SIZE},
+        else_=literal("previous"),
+    )
+    day_expr = (
+        case(
+            (
+                and_(
+                    ChatMessageUxSummary.created_at >= curr_start,
+                    ChatMessageUxSummary.created_at < curr_end,
+                ),
+                beijing_day_bucket_case(
+                    ChatMessageUxSummary.created_at, day_list, end_utc=current.end
+                ),
+            ),
+            else_=literal(None),
+        )
+        if day_list
+        else literal(None)
     )
 
-    try:
-        for created_at, raw_tool_calls in tool_rows:
-            period_key = _period_key_for_ts(
-                created_at, curr_start, curr_end, prev_start, prev_end
+    # Query 2a: Zero-TOAST SQL aggregation over chat_message_ux_summary.
+    summary_rows = session.exec(
+        select(
+            period_expr.label("period_key"),
+            day_expr.label("bj_day"),
+            func.count(ChatMessageUxSummary.message_id).label("total_rounds"),
+            func.coalesce(
+                func.sum(case((ChatMessageUxSummary.round_category == "healthy", 1), else_=0)), 0
+            ).label("healthy_rounds"),
+            func.coalesce(
+                func.sum(case((ChatMessageUxSummary.round_category == "user_stopped", 1), else_=0)), 0
+            ).label("user_stopped_rounds"),
+            func.coalesce(
+                func.sum(
+                    case((ChatMessageUxSummary.round_category == "client_disconnected", 1), else_=0)
+                ),
+                0,
+            ).label("client_disconnected_rounds"),
+            func.coalesce(
+                func.sum(case((ChatMessageUxSummary.round_category == "abnormal", 1), else_=0)), 0
+            ).label("abnormal_stop_rounds"),
+            func.coalesce(func.sum(ChatMessageUxSummary.ai_edit_cards), 0).label("ai_edit_cards"),
+            func.coalesce(func.sum(ChatMessageUxSummary.ai_edit_undone), 0).label("ai_edit_undone"),
+            func.coalesce(func.sum(ChatMessageUxSummary.ai_delete_cards), 0).label("ai_delete_cards"),
+            func.coalesce(func.sum(ChatMessageUxSummary.ai_delete_restored), 0).label(
+                "ai_delete_restored"
+            ),
+            func.coalesce(
+                func.sum(case((ChatMessageUxSummary.feedback_vote == "up", 1), else_=0)), 0
+            ).label("feedback_up"),
+            func.coalesce(
+                func.sum(case((ChatMessageUxSummary.feedback_vote == "down", 1), else_=0)), 0
+            ).label("feedback_down"),
+        )
+        .join(ChatSession, ChatSession.id == ChatMessageUxSummary.session_id)
+        .join(User, User.id == ChatSession.user_id)
+        .where(
+            User.is_superuser.is_(False),
+            summary_window,
+        )
+        .group_by(period_expr, day_expr)
+    ).all()
+
+    has_abnormal_or_dislike = False
+    for row in summary_rows:
+        target = stats[row.period_key]
+        total_r = int(row.total_rounds or 0)
+        healthy_r = int(row.healthy_rounds or 0)
+        user_stopped_r = int(row.user_stopped_rounds or 0)
+        disconnected_r = int(row.client_disconnected_rounds or 0)
+        abnormal_r = int(row.abnormal_stop_rounds or 0)
+        edit_c = int(row.ai_edit_cards or 0)
+        edit_u = int(row.ai_edit_undone or 0)
+        del_c = int(row.ai_delete_cards or 0)
+        del_r = int(row.ai_delete_restored or 0)
+        fb_up = int(row.feedback_up or 0)
+        fb_down = int(row.feedback_down or 0)
+
+        target["total_rounds"] += total_r
+        target["healthy_rounds"] += healthy_r
+        target["user_stopped_rounds"] += user_stopped_r
+        target["client_disconnected_rounds"] += disconnected_r
+        target["abnormal_stop_rounds"] += abnormal_r
+        target["ai_edit_cards"] += edit_c
+        target["ai_edit_undone"] += edit_u
+        target["ai_delete_cards"] += del_c
+        target["ai_delete_restored"] += del_r
+        target["feedback_up"] += fb_up
+        target["feedback_down"] += fb_down
+        if abnormal_r > 0 or fb_down > 0:
+            has_abnormal_or_dislike = True
+
+        if row.period_key == "current" and row.bj_day:
+            bucket = daily_buckets.get(row.bj_day)
+            if bucket is not None:
+                bucket["rounds"] += total_r
+                bucket["healthy_rounds"] += healthy_r
+                bucket["edit_cards"] += edit_c
+                bucket["edit_undone"] += edit_u
+                bucket["feedback_up"] += fb_up
+                bucket["feedback_total"] += fb_up + fb_down
+
+    # Query 2b: Abnormal stop reasons & dislike presets (only when present).
+    if has_abnormal_or_dislike:
+        breakdown_rows = session.exec(
+            select(
+                period_expr.label("period_key"),
+                ChatMessageUxSummary.round_category,
+                ChatMessageUxSummary.abnormal_reason,
+                ChatMessageUxSummary.feedback_vote,
+                ChatMessageUxSummary.feedback_preset,
+                func.count(ChatMessageUxSummary.message_id).label("cnt"),
             )
-            if period_key is None:
-                continue
-            calls = _parse_json_list(raw_tool_calls)
-            m_edit, m_undone, m_del, m_restored = _count_tool_cards(calls)
+            .join(ChatSession, ChatSession.id == ChatMessageUxSummary.session_id)
+            .join(User, User.id == ChatSession.user_id)
+            .where(
+                User.is_superuser.is_(False),
+                summary_window,
+                or_(
+                    and_(
+                        ChatMessageUxSummary.round_category == "abnormal",
+                        ChatMessageUxSummary.abnormal_reason.is_not(None),
+                    ),
+                    and_(
+                        ChatMessageUxSummary.feedback_vote == "down",
+                        ChatMessageUxSummary.feedback_preset.is_not(None),
+                    ),
+                ),
+            )
+            .group_by(
+                period_expr,
+                ChatMessageUxSummary.round_category,
+                ChatMessageUxSummary.abnormal_reason,
+                ChatMessageUxSummary.feedback_vote,
+                ChatMessageUxSummary.feedback_preset,
+            )
+        ).all()
+        for period_key, round_category, abnormal_reason, feedback_vote, feedback_preset, cnt in breakdown_rows:
+            count_int = int(cnt or 0)
             target = stats[period_key]
-            target["ai_edit_cards"] += m_edit
-            target["ai_edit_undone"] += m_undone
-            target["ai_delete_cards"] += m_del
-            target["ai_delete_restored"] += m_restored
-            if period_key == "current" and (m_edit or m_undone):
-                bucket = daily_buckets.get(_beijing_day_iso(created_at))
-                if bucket is not None:
-                    bucket["edit_cards"] += m_edit
-                    bucket["edit_undone"] += m_undone
-    finally:
-        tool_rows.close()
+            if round_category == "abnormal" and abnormal_reason:
+                target["abnormal_reasons"][abnormal_reason] += count_int
+            if feedback_vote == "down" and feedback_preset:
+                target["dislike_presets"][feedback_preset] += count_int
+
+    # Query 2c: Lightweight anti-join check for any un-backfilled legacy assistant rows
+    # (touches zero TOAST columns; returns 0 rows once backfilled).
+    missing_ids = list(
+        session.exec(
+            select(ChatMessage.id)
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .join(User, User.id == ChatSession.user_id)
+            .where(
+                User.is_superuser.is_(False),
+                ChatMessage.role == "assistant",
+                _two_period_condition(
+                    ChatMessage.created_at, curr_start, curr_end, prev_start, prev_end
+                ),
+                ~exists(
+                    select(literal(1)).where(ChatMessageUxSummary.message_id == ChatMessage.id)
+                ),
+            )
+        ).all()
+    )
+    if missing_ids:
+        _merge_missing_round_and_tool_metrics(
+            session, current, previous, missing_ids, stats, daily_buckets
+        )
 
     return stats
 
@@ -1255,7 +1365,9 @@ def get_ux_health_dashboard(
 
     with admin_read_statement_timeout(session):
         llm_by_period = _query_llm_metrics(session, current, previous, day_list, daily_buckets)
-        rounds_by_period = _query_round_and_tool_metrics(session, current, previous, daily_buckets)
+        rounds_by_period = _query_round_and_tool_metrics(
+            session, current, previous, day_list, daily_buckets
+        )
         ttfv_by_period = _query_ttfv_minutes(session, current, previous)
         curr_w1_eligible, curr_w1_returning = _query_w1_retention(session, current)
         prev_w1_eligible, prev_w1_returning = _query_w1_retention(session, previous)

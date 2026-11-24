@@ -48,6 +48,7 @@ _FIRST_OUTPUT_EVENT_TYPES = frozenset({
 })
 _COMPLETED_EVENT_TYPE = "response.completed"
 _INCOMPLETE_EVENT_TYPE = "response.incomplete"
+_FAILED_EVENT_TYPE = "response.failed"
 _REASONING_DELTA_EVENT_TYPES = frozenset({
     "response.reasoning_text.delta",
     "response.reasoning_summary_text.delta",
@@ -64,7 +65,7 @@ _ANSWER_OUTPUT_EVENT_TYPES = frozenset({
 def _is_meaningful_stream_progress(event: Any) -> bool:
     """Whether ``event`` carries real generation progress (not an empty keepalive/lifecycle frame)."""
     event_type = getattr(event, "type", None)
-    if event_type in (_COMPLETED_EVENT_TYPE, _INCOMPLETE_EVENT_TYPE):
+    if event_type in (_COMPLETED_EVENT_TYPE, _INCOMPLETE_EVENT_TYPE, _FAILED_EVENT_TYPE):
         return True
     return event_type in _FIRST_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != ""
 
@@ -316,6 +317,53 @@ def _incomplete_max_output_tokens_to_completed(event: Any) -> Any | None:
         return SimpleNamespace(type=_COMPLETED_EVENT_TYPE, response=resp, sequence_number=seq)
 
 
+def _response_failed_to_api_error(event: Any, provider: ModelProvider) -> Exception | None:
+    """Convert a Responses API ``response.failed`` SSE event into an in-stream ``openai.APIError``.
+
+    ``OpenAIResponsesModel.stream_response`` raises ``ModelBehaviorError`` after yielding
+    ``response.failed``, which bypasses ``FailoverChatModel``'s in-stream failover and causes
+    ``StreamBillingTracker`` to treat upstream failures (such as MiniMax ``internal_error``)
+    as ``non_model_error`` instead of ``upstream_model_error``. Raising an in-stream
+    ``openai.APIError`` (``status_code=None``) routes it through the exact same pre-answer
+    failover, session-pinning, and refund path as Chat Completions stream errors.
+    """
+    if getattr(event, "type", None) != _FAILED_EVENT_TYPE:
+        return None
+    import httpx
+    import openai
+
+    resp = getattr(event, "response", None)
+    err = getattr(resp, "error", None)
+    code: str | None = None
+    message: str | None = None
+    if isinstance(err, dict):
+        raw_code = err.get("code")
+        raw_msg = err.get("message")
+        code = raw_code if isinstance(raw_code, str) and raw_code.strip() else None
+        message = raw_msg if isinstance(raw_msg, str) and raw_msg.strip() else None
+    elif err is not None:
+        raw_code = getattr(err, "code", None)
+        raw_msg = getattr(err, "message", None)
+        code = raw_code if isinstance(raw_code, str) and raw_code.strip() else None
+        message = raw_msg if isinstance(raw_msg, str) and raw_msg.strip() else None
+
+    err_payload: dict[str, str] = {}
+    if code is not None:
+        err_payload["code"] = code
+    if message is not None:
+        err_payload["message"] = message
+    body: dict[str, Any] | None = {"error": err_payload} if err_payload else None
+    url = f"{provider.base_url.rstrip('/')}/responses" if provider.base_url else "https://responses.local/v1/responses"
+    exc = openai.APIError(
+        message=f"Responses stream failed ({code or 'unknown'}): {message or 'upstream error'}",
+        request=httpx.Request("POST", url),
+        body=body,
+    )
+    if code is not None:
+        exc.code = code
+    return exc
+
+
 def _base_model_class() -> type:
     from agents.models.interface import Model
 
@@ -505,6 +553,9 @@ class FailoverChatModel:
                     )
                 ) as guarded_stream:
                     async for event in guarded_stream:
+                        failed_exc = _response_failed_to_api_error(event, provider)
+                        if failed_exc is not None:
+                            raise failed_exc
                         converted_cap = _incomplete_max_output_tokens_to_completed(event)
                         if converted_cap is not None:
                             self.last_response_output_capped = True
