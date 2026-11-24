@@ -46,11 +46,11 @@ import { MessageInput } from "./MessageInput";
 import { AlertTriangle, Sparkles, Loader2, Plus, Edit3, Database, ArrowDown } from "lucide-react";
 import { QuotaBadge } from "./subscription/QuotaBadge";
 import {
-  CHAT_CARD_PRIMARY_BUTTON,
   CHAT_CARD_SECONDARY_BUTTON,
   CHAT_CARD_SURFACE,
   CHAT_CARD_WARNING_SURFACE,
 } from "./chatCardStyles";
+import { Button } from "./ui/Button";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { IconButton } from "./ui/IconButton";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
@@ -3031,13 +3031,14 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                           <p className="text-xs leading-5 text-[hsl(var(--text-secondary))]">
                             {isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededHint') : t('chat:panel.quotaExceededHint')}
                           </p>
-                          <button
+                          <Button
                             type="button"
+                            variant="primary"
+                            size={isMobile ? "touch" : "sm"}
                             onClick={() => setShowQuotaUpgradeModal(true)}
-                            className={CHAT_CARD_PRIMARY_BUTTON}
                           >
                             {t('dashboard:billing.ctaUpgradePro')}
-                          </button>
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -3214,6 +3215,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             aiSuggestions={aiSuggestions}
             // While the card offers "write chapter 1", chips (AI or fallback) saying the same are dropped: one entry for it.
             hideSuggestion={showNextStep ? duplicatesNextStep : undefined}
+            hideSuggestions={aiSendBlocked && !isStreaming && !isThinking}
             suggestionDisplayState={staticFirstWork || !firstWork.isSuccess ? "ready" : suggestionDisplayState}
             onRefreshSuggestions={refreshSuggestionsNow}
             isRefreshingSuggestions={isRefreshingSuggestions}

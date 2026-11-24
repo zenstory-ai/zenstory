@@ -267,7 +267,7 @@ describe("MaterialsPage", () => {
     expect(mockList).not.toHaveBeenCalled();
   });
 
-  it("keeps one solid call to action when the trial is offered: the header Pro entry steps back", async () => {
+  it("renders the header Pro entry with the unified primary button style alongside the free trial", async () => {
     mockGetStatus.mockResolvedValue(freeStatus);
     mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
 
@@ -276,11 +276,8 @@ describe("MaterialsPage", () => {
     const trial = await screen.findByTestId("materials-trial-start");
     const headerUpgrade = screen.getByTestId("materials-header-upgrade");
     expect(headerUpgrade).toHaveTextContent("开通 Pro");
-
-    const solid = screen
-      .getAllByRole("button")
-      .filter((button) => button.className.includes("bg-[hsl(var(--primary))]"));
-    expect(solid).toEqual([trial]);
+    expect(headerUpgrade.className).toContain("bg-[hsl(var(--primary))]");
+    expect(trial.className).toContain("bg-[hsl(var(--primary))]");
   });
 
   it("shows a free author their trial book with a note that only the first chapters were broken down", async () => {

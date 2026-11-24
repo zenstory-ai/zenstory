@@ -36,7 +36,11 @@ test.describe('dashboard buttons and type', () => {
     expect(isTransparent((await borderTop(ghost)).color)).toBe(true);
 
     await page.goto('/dashboard/materials');
-    const secondary = page.getByTestId('materials-header-upgrade');
+    const headerUpgrade = page.getByTestId('materials-header-upgrade');
+    await expect(headerUpgrade).toBeVisible();
+    await expect(headerUpgrade).toHaveClass(/bg-\[hsl\(var\(--primary\)\)\]/);
+
+    const secondary = page.getByRole('button', { name: '查看套餐对比' });
     await expect(secondary).toBeVisible();
     const secondaryBorder = await borderTop(secondary);
     expect(secondaryBorder.width).toBe('1px');

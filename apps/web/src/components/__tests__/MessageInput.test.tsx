@@ -311,6 +311,14 @@ describe('MessageInput', () => {
     expect(screen.getByRole('button', { name: 'Suggestion 1' })).not.toHaveClass('min-h-11')
   })
 
+  it('hides the suggestion chips row when hideSuggestions is true', () => {
+    const aiSuggestions = ['Suggestion 1', 'Suggestion 2']
+    render(<MessageInput {...defaultProps} aiSuggestions={aiSuggestions} hideSuggestions />)
+
+    expect(screen.queryByText('Suggestion 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('Suggestion 2')).not.toBeInTheDocument()
+  })
+
   it('gives mobile suggestion chips a 44px touch target while keeping md+ compact', () => {
     render(
       <MobileLayoutProvider isMobile={true}>

@@ -441,11 +441,8 @@ export default function MaterialsPage() {
                 : t("materials:upload")}
             </Button>
           ) : (
-            // The page body always carries the main call to action for a free author
-            // (free trial, "开通 Pro" or the trial banner), so the header keeps a quieter
-            // secondary entry: never two solid buttons competing on one screen.
             <Button
-              variant="secondary"
+              variant="primary"
               size={actionSize}
               onClick={() => openUpgradePath("billing")}
               data-testid="materials-header-upgrade"

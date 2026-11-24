@@ -808,8 +808,8 @@ describe('SimpleEditor', () => {
     await waitFor(() => {
       expect(polishButton).toHaveAttribute('title', 'editor:naturalPolishTooltipFree');
     });
-    // Visible on the button itself, not only in the hover title.
-    expect(polishButton).toHaveTextContent('editor:naturalPolishCost');
+    // Cost stays in the hover tooltip instead of cluttering the compact editor footer button.
+    expect(polishButton).not.toHaveTextContent('editor:naturalPolishCost');
   });
 
   it('keeps the plain natural polish tooltip for unlimited plans', () => {
@@ -835,14 +835,15 @@ describe('SimpleEditor', () => {
     expect(screen.getByTestId('editor-paragraph-count')).toHaveTextContent('3');
   });
 
-  it('explains how words are counted on hover and on tap', () => {
+  it('keeps the word count explanation as a quiet hover title without a click toast', () => {
     const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
     renderPolishableEditor();
 
     const wordCount = screen.getByTestId('editor-word-count');
+    expect(wordCount.tagName).toBe('SPAN');
     expect(wordCount).toHaveAttribute('title', 'editor:wordCountHint');
     fireEvent.click(wordCount);
-    expect(toastInfoSpy).toHaveBeenCalledWith('editor:wordCountHint');
+    expect(toastInfoSpy).not.toHaveBeenCalled();
     toastInfoSpy.mockRestore();
   });
 

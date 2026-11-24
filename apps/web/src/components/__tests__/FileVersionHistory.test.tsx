@@ -172,8 +172,8 @@ describe('FileVersionHistory saved-state boundary', () => {
     fireEvent.click(await screen.findByTitle('rollback'))
     await confirmRestore()
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith('quota.limitDescription'))
-    expect(screen.getByTestId('upgrade-modal')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId('upgrade-modal')).toBeInTheDocument())
+    expect(toastError).not.toHaveBeenCalled()
   })
 
   it('shows a visible content preview when no external view callback is supplied', async () => {

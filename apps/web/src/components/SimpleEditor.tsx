@@ -1181,17 +1181,13 @@ export const SimpleEditor = ({
       {!isReviewMode && (
         <div className="shrink-0 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--separator-color)/0.7)] bg-[hsl(var(--bg-canvas))]">
           <div className="flex items-center gap-2.5 text-xs text-[hsl(var(--text-secondary))] whitespace-nowrap">
-            {/* Counts Chinese characters and English words only, so it reads lower than
-                platforms that count punctuation; say so on hover and on tap. */}
-            <button
-              type="button"
+            <span
               data-testid="editor-word-count"
-              onClick={() => toast.info(t('editor:wordCountHint'))}
               title={t('editor:wordCountHint')}
-              className="max-md:min-h-11 cursor-help tabular-nums text-[hsl(var(--text-secondary))] underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
+              className="tabular-nums text-[hsl(var(--text-secondary))]"
             >
               {t('editor:wordCount')} <strong className="tabular-nums text-[hsl(var(--text-primary))]">{countWords(displayContent)}</strong>
-            </button>
+            </span>
             {/* One paragraph per non-empty line: manuscripts indent each paragraph instead of leaving blank lines. */}
             <span data-testid="editor-paragraph-count" className="tabular-nums">
               {t('editor:paragraphCount')} <strong className="tabular-nums text-[hsl(var(--text-primary))]">{displayContent.split("\n").filter((line) => line.trim()).length}</strong>
@@ -1259,12 +1255,6 @@ export const SimpleEditor = ({
                   : selectedText
                     ? t("editor:naturalPolishSelection")
                     : t("editor:naturalPolish")}
-                {/* The cost is visible before the click; the hover title alone is easy to miss. */}
-                {isLimitedAiQuota && !isFlushingNaturalPolish && (
-                  <span className="text-[10px] text-[hsl(var(--text-secondary))]">
-                    {t("editor:naturalPolishCost")}
-                  </span>
-                )}
               </button>
             )}
 

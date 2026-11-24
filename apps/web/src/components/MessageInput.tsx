@@ -218,6 +218,8 @@ interface MessageInputProps {
   aiSuggestions?: string[];
   /** Chips (AI or fallback) to leave out, e.g. ones that repeat the next-step card. */
   hideSuggestion?: (suggestion: string) => boolean;
+  /** Suppress the entire suggestion chips row (e.g. while the daily AI quota card is shown). */
+  hideSuggestions?: boolean;
   /** Controls whether suggestion area is loading, ready with AI, or fallback static */
   suggestionDisplayState?: SuggestionDisplayState;
   /** Callback to trigger refresh of AI suggestions */
@@ -303,6 +305,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   placeholder,
   aiSuggestions = [],
   hideSuggestion,
+  hideSuggestions = false,
   suggestionDisplayState = aiSuggestions.length > 0 ? "ready" : "fallback",
   onRefreshSuggestions,
   isRefreshingSuggestions = false,
@@ -423,6 +426,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   );
   const isSuggestionLoading = suggestionDisplayState === "loading";
   const showSuggestionRow =
+    !hideSuggestions &&
     !input &&
     !inputDisabled &&
     !effectiveSendDisabled &&

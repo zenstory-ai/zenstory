@@ -131,13 +131,14 @@ export const Header: React.FC<HeaderProps> = () => {
       }
     } catch (error) {
       logger.error("Export failed", error);
-      toast.error(handleApiError(error));
       if (
         error instanceof ApiError &&
         error.errorCode === "ERR_QUOTA_EXPORT_FORMAT_RESTRICTED" &&
         exportUpgradePrompt.surface === "modal"
       ) {
         setShowExportUpgradeModal(true);
+      } else {
+        toast.error(handleApiError(error));
       }
     }
   };

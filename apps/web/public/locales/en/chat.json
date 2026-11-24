@@ -409,9 +409,9 @@
   "quotaCard": {
     "paidTitle": "Today’s AI message allowance is used up",
     "title": "You've used today's {{limit}} free AI messages",
-    "resetOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8). What you type stays in the box until then.",
-    "resetTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). What you type stays in the box until then.",
-    "resetLocal": "They come back on {{local}} your time (00:00 Beijing time). What you type stays in the box until then.",
+    "resetOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8).",
+    "resetTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8).",
+    "resetLocal": "They come back on {{local}} your time (00:00 Beijing time).",
     "upgradeHint": "To keep writing now, get Pro: no daily message limit."
   },
   "nextStep": {
