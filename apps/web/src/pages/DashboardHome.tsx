@@ -544,7 +544,22 @@ export default function DashboardHome() {
             )}
 
             {recentProjects.length === 0 && (
-              <DashboardEmptyState icon={Book} title={t('projects.noMatch')} description={t('projects.tryDifferent')} />
+              <DashboardEmptyState
+                icon={Book}
+                title={t('projects.noMatch')}
+                description={t('projects.tryDifferent')}
+                action={
+                  searchQuery ? (
+                    <Button
+                      variant="secondary"
+                      size={isMobile ? "touch" : "md"}
+                      onClick={() => setSearchQuery("")}
+                    >
+                      {t('common:clearSearch')}
+                    </Button>
+                  ) : undefined
+                }
+              />
             )}
 
             {/* Project Cards Grid */}

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation, Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Eye, EyeOff } from "lucide-react";
 import { LogoMark } from "../components/Logo";
 import { useAuth } from "../contexts/AuthContext";
 import { projectApi } from "../lib/api";
@@ -36,12 +37,14 @@ const GoogleIcon = () => (
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  // Registration hands over the address it found already registered.
-  const [identifier, setIdentifier] = useState(() => {
+  // Registration or password reset hands over the address so the user only types their password.
+  const [initialHandedIdentifier] = useState(() => {
     const handed = (location.state as { identifier?: unknown } | null)?.identifier;
     return typeof handed === "string" ? handed : "";
   });
+  const [identifier, setIdentifier] = useState(initialHandedIdentifier);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   // Set when the password was right but the email still needs verifying.
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
@@ -300,7 +303,7 @@ export const Login: React.FC = () => {
                 className="input min-h-11"
                 placeholder={t('auth:login.usernamePlaceholder')}
                 required
-                autoFocus
+                autoFocus={!initialHandedIdentifier}
                 data-testid="email-input"
                 autoComplete="username"
                 disabled={loading}
@@ -321,6 +324,7 @@ export const Login: React.FC = () => {
                 {authConfig.forgotPasswordEnabled && (
                   <Link
                     to="/forgot-password"
+                    state={trimmedIdentifier.includes("@") ? { email: trimmedIdentifier } : undefined}
                     className="inline-flex min-h-11 items-center rounded-lg px-2 -mr-2 text-sm text-[hsl(var(--accent-primary))] hover:text-[hsl(var(--accent-light))] transition-colors font-medium"
                   >
                     {t('auth:login.forgotPassword')}
@@ -328,24 +332,37 @@ export const Login: React.FC = () => {
                 )}
               </div>
               {/* data-testid: password-input - Password input field for login validation */}
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (error) setError("");
-                  setUnverifiedEmail(null);
-                }}
-                className="input min-h-11"
-                placeholder={t('auth:login.passwordPlaceholder')}
-                required
-                data-testid="password-input"
-                autoComplete="current-password"
-                disabled={loading}
-                aria-invalid={Boolean(error)}
-                aria-describedby={error ? "login-error" : undefined}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError("");
+                    setUnverifiedEmail(null);
+                  }}
+                  className="input min-h-11 pr-11"
+                  placeholder={t('auth:login.passwordPlaceholder')}
+                  required
+                  autoFocus={Boolean(initialHandedIdentifier)}
+                  data-testid="password-input"
+                  autoComplete="current-password"
+                  disabled={loading}
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "login-error" : undefined}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  disabled={loading}
+                  aria-label={showPassword ? t('auth:register.hidePassword') : t('auth:register.showPassword')}
+                  aria-pressed={showPassword}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 min-h-11 min-w-11 flex items-center justify-center rounded-xl text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                </button>
+              </div>
             </div>
 
             {/* Submit Button */}

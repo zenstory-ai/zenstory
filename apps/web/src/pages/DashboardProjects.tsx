@@ -102,8 +102,8 @@ export default function DashboardProjects() {
         }
       />
 
-      {/* Search and Filter */}
-      {!loading && !error && <div className={`flex ${isMobile ? "flex-col gap-3" : "items-center gap-4"} mb-6`}>
+      {/* Search and Filter — progressive disclosure: only show when there are projects to filter */}
+      {!loading && !error && projects.length > 0 && <div className={`flex ${isMobile ? "flex-col gap-3" : "items-center gap-4"} mb-6`}>
         <DashboardSearchBar
           value={searchQuery}
           onChange={setSearchQuery}
@@ -118,7 +118,7 @@ export default function DashboardProjects() {
       </div>}
 
       {/* Projects Count */}
-      {!loading && !error && <div className="text-sm text-[hsl(var(--text-secondary))] mb-4">
+      {!loading && !error && projects.length > 0 && <div className="text-sm text-[hsl(var(--text-secondary))] mb-4">
         {t('projects.count', { count: filteredProjects.length })}
       </div>}
 
@@ -145,6 +145,20 @@ export default function DashboardProjects() {
           icon={Book}
           title={searchQuery || filterType !== "all" ? t('projects.noMatch') : t('projects.empty')}
           description={searchQuery || filterType !== "all" ? t('projects.tryDifferent') : t('projects.emptyHintProjectsPage')}
+          action={
+            searchQuery || filterType !== "all" ? (
+              <Button
+                variant="secondary"
+                size={isMobile ? "touch" : "md"}
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterType("all");
+                }}
+              >
+                {t('projects.clearFilters')}
+              </Button>
+            ) : undefined
+          }
         />
       )}
 

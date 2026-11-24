@@ -143,6 +143,7 @@ function DashboardContent() {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setShowUserPanel(false);
+        userPanelTriggerRef.current?.focus();
       }
     };
 
@@ -348,6 +349,9 @@ function DashboardContent() {
             <div className="flex items-center justify-center">
               <button
                 ref={userPanelTriggerRef}
+                type="button"
+                aria-expanded={showUserPanel}
+                aria-haspopup="true"
                 onClick={() => setShowUserPanel((prev) => !prev)}
                 data-testid="dashboard-user-panel-toggle"
                 className="w-full flex flex-col items-center justify-center gap-1 px-2 py-2.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-all"
@@ -405,6 +409,9 @@ function DashboardContent() {
         <div className="p-3 border-t border-[hsl(var(--border-color))] relative">
           <button
             ref={userPanelTriggerRef}
+            type="button"
+            aria-expanded={showUserPanel}
+            aria-haspopup="true"
             onClick={() => setShowUserPanel((prev) => !prev)}
             data-testid="dashboard-user-panel-toggle"
             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border-transparent! border hover:bg-[hsl(var(--bg-tertiary)/0.45)] transition-all"

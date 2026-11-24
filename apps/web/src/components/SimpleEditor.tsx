@@ -32,6 +32,12 @@ const isNearBottom = (el: HTMLElement, thresholdPx = 32) => {
 
 const SIMPLE_EDITOR_MIN_HEIGHT_PX = 200;
 
+const isAppleSaveShortcutPlatform = (): boolean => {
+  if (typeof navigator === "undefined") return false;
+  const uaDataPlatform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
+  return /mac|iphone|ipad|ipod/i.test(uaDataPlatform || navigator.platform || "");
+};
+
 export type SaveOutcome = "saved" | "conflict" | "failed";
 export type SaveResult =
   | { outcome: "saved"; updatedAt: string }
@@ -1069,6 +1075,12 @@ export const SimpleEditor = ({
           type="text"
           value={title}
           onChange={handleTitleChange}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
+              e.preventDefault();
+              textareaRef.current?.focus();
+            }
+          }}
           disabled={readOnly || isStreaming || isReviewMode}
           placeholder={t('editor:placeholder.titlePlaceholder')}
           className={`w-full bg-transparent font-[family-name:var(--font-display)] font-bold text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none ${
@@ -1246,6 +1258,11 @@ export const SimpleEditor = ({
               type="button"
               onClick={() => void handleSave()}
               disabled={isSaving || !isDirty || readOnly || isStreaming}
+              title={
+                isDirty
+                  ? t('editor:saveWithShortcut', { shortcut: isAppleSaveShortcutPlatform() ? '⌘S' : 'Ctrl+S' })
+                  : t('editor:alreadySaved')
+              }
               className="max-md:min-h-11 px-2.5 py-1.5 text-xs bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap transition-colors"
             >
               <Save size={14} />

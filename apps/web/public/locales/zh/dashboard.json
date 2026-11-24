@@ -183,6 +183,7 @@
     "emptyHint": "点上方「开始创作」就能建好第一个项目，想法可以先空着。",
     "emptyHintProjectsPage": "点「新建项目」，开始写你的第一部作品吧。",
     "searchPlaceholder": "搜索项目",
+    "clearFilters": "清除筛选",
     "cancel": "取消",
     "cannotDeleteLast": "无法删除最后一个项目",
     "editName": "编辑项目名称",

@@ -252,4 +252,19 @@ describe('UserMenu', () => {
     capturedMutationOptions?.onError?.(new Error('Mobile check-in failure'))
     expect(mockToastError).toHaveBeenCalledTimes(2)
   })
+
+  it('restores focus to trigger on Escape and uses danger styling for logout', async () => {
+    render(<UserMenu />)
+    const trigger = screen.getByTestId('user-menu-button')
+    fireEvent.click(trigger)
+
+    const logoutBtn = screen.getByTestId('logout-button')
+    expect(logoutBtn.className).toContain('text-[hsl(var(--error-text))]')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByTestId('logout-button')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(trigger).toHaveFocus()
+    })
+  })
 })

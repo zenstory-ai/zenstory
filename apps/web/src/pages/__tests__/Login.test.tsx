@@ -197,6 +197,20 @@ describe("Login", () => {
     );
   });
 
+  it("toggles password visibility on login form", () => {
+    renderPage();
+    const passwordInput = screen.getByTestId("password-input");
+    expect(passwordInput).toHaveAttribute("type", "password");
+
+    const showBtn = screen.getByRole("button", { name: "auth:register.showPassword" });
+    fireEvent.click(showBtn);
+    expect(passwordInput).toHaveAttribute("type", "text");
+
+    const hideBtn = screen.getByRole("button", { name: "auth:register.hidePassword" });
+    fireEvent.click(hideBtn);
+    expect(passwordInput).toHaveAttribute("type", "password");
+  });
+
   it("passes normalized plan intent through Google login", () => {
     mockOAuthEnabled.google = true;
     renderPageAt("/login?plan=PRO");

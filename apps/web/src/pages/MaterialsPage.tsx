@@ -702,6 +702,7 @@ export default function MaterialsPage() {
           if (uploading) return;
           setShowUploadModal(false);
           setFile(null);
+          setTrialSelection(null);
           setTitle("");
           setError(null);
         }}
@@ -720,6 +721,7 @@ export default function MaterialsPage() {
                 if (uploading) return;
                 setShowUploadModal(false);
                 setFile(null);
+                setTrialSelection(null);
                 setTitle("");
                 setError(null);
               }}

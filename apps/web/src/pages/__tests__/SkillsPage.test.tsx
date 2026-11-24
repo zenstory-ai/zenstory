@@ -976,9 +976,13 @@ describe('SkillsPage', () => {
       vi.mocked(skillsApi.delete).mockRejectedValueOnce('boom')
       await openMySkills()
       const card = screen.getByText('Writing Assistant').closest('.group') as HTMLElement
-      const buttons = within(card).getAllByRole('button')
-      // 卡片按钮顺序：勾选、编辑、删除……
-      await userEvent.click(buttons[2])
+      const actions = within(card).getByTestId('skill-card-actions')
+      const actionLabels = within(actions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+      // Destructive delete sits after frequent edit/share/export actions so it is hard to misclick.
+      expect(actionLabels.indexOf('Delete Skill')).toBeGreaterThan(actionLabels.indexOf('Share Skill'))
+      await userEvent.click(within(actions).getByRole('button', { name: 'Delete Skill' }))
       await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
 
       await waitFor(() => {

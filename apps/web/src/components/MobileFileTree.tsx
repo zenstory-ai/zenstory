@@ -197,6 +197,12 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
    * @param e - The keyboard event
    */
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setIsSearchFocused(false);
+      return;
+    }
     if (!showSearchDropdown || searchResults.length === 0) return;
 
     switch (e.key) {
@@ -215,10 +221,6 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         if (searchResults[selectedSearchIndex]) {
           handleSearchSelect(searchResults[selectedSearchIndex]);
         }
-        break;
-      case "Escape":
-        e.preventDefault();
-        setIsSearchFocused(false);
         break;
     }
   }, [showSearchDropdown, searchResults, selectedSearchIndex, handleSearchSelect]);
@@ -419,6 +421,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
               onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                 if (e.key === "Enter") {
                   handleCreate(node.id);
                 } else if (e.key === "Escape") {

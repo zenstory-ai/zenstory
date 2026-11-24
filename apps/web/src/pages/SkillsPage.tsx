@@ -88,6 +88,7 @@ export default function SkillsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState<SkillFormData>(emptyForm);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingSkill, setDeletingSkill] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sharingSkill, setSharingSkill] = useState<Skill | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -414,6 +415,8 @@ export default function SkillsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (deletingSkill) return;
+    setDeletingSkill(true);
     try {
       await skillsApi.delete(id);
       await loadSkills();
@@ -421,6 +424,8 @@ export default function SkillsPage() {
     } catch (error) {
       logger.error("Failed to delete skill:", error);
       showSkillError(error, "skills:errors.deleteFailed");
+    } finally {
+      setDeletingSkill(false);
     }
   };
 
@@ -795,11 +800,14 @@ export default function SkillsPage() {
       {/* Delete Confirmation */}
       <ConfirmDialog
         open={!!deletingId}
-        onClose={() => setDeletingId(null)}
+        onClose={() => {
+          if (!deletingSkill) setDeletingId(null);
+        }}
         onConfirm={() => handleDelete(deletingId!)}
         title={t("skills:deleteConfirm.title")}
         message={t("skills:deleteConfirm.message")}
         variant="danger"
+        loading={deletingSkill}
         confirmLabel={t("common:delete")}
         cancelLabel={t("common:cancel")}
       />
@@ -879,12 +887,6 @@ function SkillCard({
         icon={<Pencil className="w-4 h-4" />}
       />
       <IconButton
-        onClick={onDelete}
-        label={t("skills:deleteConfirm.title")}
-        tone="danger"
-        icon={<Trash2 className="w-4 h-4" />}
-      />
-      <IconButton
         onClick={onShare}
         label={t("skills:share.title")}
         icon={<Share2 className="w-4 h-4" />}
@@ -892,6 +894,13 @@ function SkillCard({
       {onExport && (
         <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
       )}
+      <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[hsl(var(--separator-color))]" />
+      <IconButton
+        onClick={onDelete}
+        label={t("skills:deleteConfirm.title")}
+        tone="danger"
+        icon={<Trash2 className="w-4 h-4" />}
+      />
       <IconButton
         onClick={() => setExpanded(!expanded)}
         label={expanded ? t("skills:collapse") : t("skills:expand")}

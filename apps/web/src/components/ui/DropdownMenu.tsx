@@ -206,7 +206,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleTriggerKeyDown}
-        className="min-h-[44px] min-w-[44px] p-1.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+        className="flex items-center justify-center min-h-[44px] min-w-[44px] p-1.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
         title={triggerTitle}
         aria-label={triggerAriaLabel || triggerTitle}
         aria-expanded={isOpen}
@@ -248,7 +248,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
                   size={16}
                   className={`shrink-0 ${isLoading ? "animate-pulse" : ""}`}
                 />
-                <span className="min-w-0 break-words">{isLoading ? `${item.label}...` : item.label}</span>
+                <span className="min-w-0 break-words">{isLoading ? `${item.label}…` : item.label}</span>
               </button>
             );
           })}
