@@ -19,6 +19,7 @@ import { IconButton } from "../components/ui/IconButton";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useIsMobile, useIsTablet, useIsDesktop } from "../hooks/useMediaQuery";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { UserAvatar } from "../components/UserMenu";
 import { normalizeLocale, switchLocale } from "../lib/i18n-helpers";
@@ -62,6 +63,10 @@ function DashboardContent() {
   const isDesktop = useIsDesktop();
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const { isMounted: isMobileMenuMounted, isExiting: isMobileMenuExiting } = useAnimatedPresence(
+    isMobile && showMobileMenu,
+    150,
+  );
   const mobileMenuRef = useRef<HTMLElement | null>(null);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -77,6 +82,7 @@ function DashboardContent() {
     }
   }, [location.state, navigate, location.pathname]);
   const [showUserPanel, setShowUserPanel] = useState(false);
+  const { isMounted: isUserPanelMounted, isExiting: isUserPanelExiting } = useAnimatedPresence(showUserPanel, 130);
   const userPanelRef = useRef<HTMLDivElement | null>(null);
   const userPanelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const currentLanguage: 'zh' | 'en' = normalizeLocale(i18n.language || i18n.resolvedLanguage);
@@ -172,8 +178,14 @@ function DashboardContent() {
   const renderUserPanel = (alignment: 'desktop' | 'tablet') => (
     <div
       ref={userPanelRef}
-      className={`absolute w-72 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] shadow-xl z-[1200] pointer-events-auto p-3 space-y-3 ${
-        alignment === 'desktop' ? 'left-0 bottom-full mb-3' : 'left-full ml-2 bottom-0'
+      aria-hidden={isUserPanelExiting ? true : undefined}
+      inert={isUserPanelExiting ? true : undefined}
+      className={`absolute w-72 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] shadow-xl z-[1200] p-3 space-y-3 origin-bottom-left ${
+        isUserPanelExiting ? 'pointer-events-none' : 'pointer-events-auto'
+      } ${
+        alignment === 'desktop'
+          ? `left-0 bottom-full mb-3 ${isUserPanelExiting ? 'motion-popover-exit-up' : 'motion-popover-enter-up'}`
+          : `left-full ml-2 bottom-0 ${isUserPanelExiting ? 'motion-popover-exit-right' : 'motion-popover-enter-right'}`
       }`}
     >
       <div className="flex items-center gap-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary)/0.45)] p-2.5">
@@ -202,13 +214,18 @@ function DashboardContent() {
             <Sun className="w-3.5 h-3.5" />
             {t('settings:theme.mode')}
           </div>
-          <div className="inline-flex rounded-lg border border-[hsl(var(--border-color))] p-0.5 bg-[hsl(var(--bg-primary))]">
+          <div className="relative grid grid-cols-2 rounded-lg border border-[hsl(var(--border-color))] p-0.5 bg-[hsl(var(--bg-primary))]">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded bg-[hsl(var(--accent-primary)/0.18)] motion-tab-indicator"
+              style={{ transform: `translate3d(${theme === 'light' ? '100%' : '0%'}, 0, 0)` }}
+            />
             <button
               onClick={() => handleThemeSwitch('dark')}
               aria-label={t('settings:theme.dark')}
-              className={`${SEGMENT_CLASS} ${
+              className={`relative z-10 ${SEGMENT_CLASS} ${
                 theme === 'dark'
-                  ? 'bg-[hsl(var(--accent-primary)/0.18)] text-[hsl(var(--accent-primary))]'
+                  ? 'text-[hsl(var(--accent-primary))]'
                   : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]'
               }`}
               title={t('settings:theme.dark')}
@@ -218,9 +235,9 @@ function DashboardContent() {
             <button
               onClick={() => handleThemeSwitch('light')}
               aria-label={t('settings:theme.light')}
-              className={`${SEGMENT_CLASS} ${
+              className={`relative z-10 ${SEGMENT_CLASS} ${
                 theme === 'light'
-                  ? 'bg-[hsl(var(--accent-primary)/0.18)] text-[hsl(var(--accent-primary))]'
+                  ? 'text-[hsl(var(--accent-primary))]'
                   : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]'
               }`}
               title={t('settings:theme.light')}
@@ -235,16 +252,21 @@ function DashboardContent() {
             <Languages className="w-3.5 h-3.5" />
             {t('settings:language.label')}
           </div>
-          <div className="inline-flex rounded-lg border border-[hsl(var(--border-color))] p-0.5 bg-[hsl(var(--bg-primary))]">
+          <div className="relative grid grid-cols-2 rounded-lg border border-[hsl(var(--border-color))] p-0.5 bg-[hsl(var(--bg-primary))]">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded bg-[hsl(var(--accent-primary)/0.18)] motion-tab-indicator"
+              style={{ transform: `translate3d(${currentLanguage === 'en' ? '100%' : '0%'}, 0, 0)` }}
+            />
             <button
               onClick={() => {
                 void handleLanguageSwitch('zh');
               }}
               aria-label={t('common:a11y.switchToChinese')}
               data-testid="dashboard-quick-language-zh"
-              className={`${SEGMENT_CLASS} ${
+              className={`relative z-10 ${SEGMENT_CLASS} ${
                 currentLanguage === 'zh'
-                  ? 'bg-[hsl(var(--accent-primary)/0.18)] text-[hsl(var(--accent-primary))]'
+                  ? 'text-[hsl(var(--accent-primary))]'
                   : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]'
               }`}
             >
@@ -256,9 +278,9 @@ function DashboardContent() {
               }}
               aria-label={t('common:a11y.switchToEnglish')}
               data-testid="dashboard-quick-language-en"
-              className={`${SEGMENT_CLASS} ${
+              className={`relative z-10 ${SEGMENT_CLASS} ${
                 currentLanguage === 'en'
-                  ? 'bg-[hsl(var(--accent-primary)/0.18)] text-[hsl(var(--accent-primary))]'
+                  ? 'text-[hsl(var(--accent-primary))]'
                   : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]'
               }`}
             >
@@ -330,7 +352,7 @@ function DashboardContent() {
                 aria-label={t(item.labelKey)}
                 aria-current={activeNav === item.id ? "page" : undefined}
                 onClick={() => { setShowMobileMenu(false); setShowUserPanel(false); }}
-                className={`w-full flex items-center justify-center gap-2 px-2 py-3 rounded-lg transition-all touch-target ${
+                className={`w-full flex items-center justify-center gap-2 px-2 py-3 rounded-lg transition-[background-color,color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100 touch-target ${
                   activeNav === item.id
                     ? NAV_ACTIVE_CLASS
                     : "text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]"
@@ -350,7 +372,7 @@ function DashboardContent() {
                 ref={userPanelTriggerRef}
                 onClick={() => setShowUserPanel((prev) => !prev)}
                 data-testid="dashboard-user-panel-toggle"
-                className="w-full flex flex-col items-center justify-center gap-1 px-2 py-2.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-all"
+                className="w-full flex flex-col items-center justify-center gap-1 px-2 py-2.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-[background-color,color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100"
                 title={openUserPanelLabel}
                 aria-label={openUserPanelLabel}
               >
@@ -360,11 +382,11 @@ function DashboardContent() {
                   size={32}
                 />
                 <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform ${showUserPanel ? 'rotate-180' : ''}`}
+                  className={`w-3.5 h-3.5 motion-chevron ${showUserPanel ? 'rotate-180' : ''}`}
                 />
               </button>
             </div>
-            {showUserPanel && (
+            {isUserPanelMounted && (
               renderUserPanel('tablet')
             )}
           </div>
@@ -388,7 +410,7 @@ function DashboardContent() {
                 aria-label={t(item.labelKey)}
                 aria-current={activeNav === item.id ? "page" : undefined}
                 onClick={() => { setShowMobileMenu(false); setShowUserPanel(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-[background-color,color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100 ${
                   activeNav === item.id
                     ? NAV_ACTIVE_CLASS
                     : "text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]"
@@ -407,7 +429,7 @@ function DashboardContent() {
             ref={userPanelTriggerRef}
             onClick={() => setShowUserPanel((prev) => !prev)}
             data-testid="dashboard-user-panel-toggle"
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border-transparent! border hover:bg-[hsl(var(--bg-tertiary)/0.45)] transition-all"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border-transparent! border hover:bg-[hsl(var(--bg-tertiary)/0.45)] transition-[background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100"
             title={openUserPanelLabel}
             aria-label={openUserPanelLabel}
           >
@@ -424,9 +446,9 @@ function DashboardContent() {
                 {user?.email || ""}
               </div>
             </div>
-            <ChevronDown className={`w-4 h-4 text-[hsl(var(--text-secondary))] transition-transform ${showUserPanel ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 text-[hsl(var(--text-secondary))] motion-chevron ${showUserPanel ? 'rotate-180' : ''}`} />
           </button>
-          {showUserPanel && renderUserPanel('desktop')}
+          {isUserPanelMounted && renderUserPanel('desktop')}
         </div>
       </aside>
       )}
@@ -453,19 +475,27 @@ function DashboardContent() {
                 size="touch"
                 tone="strong"
                 className="-mr-2"
-                icon={showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                icon={showMobileMenu ? (
+                  <X key="close" className="w-5 h-5 motion-icon-pop" />
+                ) : (
+                  <Menu key="open" className="w-5 h-5 motion-icon-pop" />
+                )}
               />
             </div>
           </header>
         )}
 
         {/* Mobile Dropdown Menu */}
-        {isMobile && showMobileMenu && (
+        {isMobileMenuMounted && (
           <nav
             ref={mobileMenuRef}
             id="dashboard-mobile-navigation"
             aria-label={t('common:nav.mobileMenu')}
-            className="fixed top-12 left-0 right-0 max-h-[calc(100dvh-48px)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40"
+            aria-hidden={isMobileMenuExiting ? true : undefined}
+            inert={isMobileMenuExiting ? true : undefined}
+            className={`fixed top-12 left-0 right-0 max-h-[calc(100dvh-48px)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40 ${
+              isMobileMenuExiting ? "motion-sheet-down-exit pointer-events-none" : "motion-sheet-down"
+            }`}
           >
             <div className="flex flex-col p-2 gap-1">
               {navItems.map((item) => {
@@ -514,7 +544,11 @@ function DashboardContent() {
                   aria-label={t('common:a11y.toggleTheme')}
                   className="flex min-h-11 items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[hsl(var(--border-color))] text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 >
-                  {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                  {theme === 'dark' ? (
+                    <Sun key="sun" className="w-3.5 h-3.5 motion-icon-pop" />
+                  ) : (
+                    <Moon key="moon" className="w-3.5 h-3.5 motion-icon-pop" />
+                  )}
                   {theme === 'dark' ? t('settings:theme.light') : t('settings:theme.dark')}
                 </button>
                 <button

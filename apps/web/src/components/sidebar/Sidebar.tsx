@@ -32,9 +32,11 @@ export const Sidebar: React.FC = () => {
             </div>
           }
         >
-          {effectiveTab === 'files' && <FileTreePane />}
-          {effectiveTab === 'skills' && <SkillsPane />}
-          {effectiveTab === 'materials' && <MaterialsPane />}
+          <div key={effectiveTab} className="h-full motion-tab-panel">
+            {effectiveTab === 'files' && <FileTreePane />}
+            {effectiveTab === 'skills' && <SkillsPane />}
+            {effectiveTab === 'materials' && <MaterialsPane />}
+          </div>
         </Suspense>
       </div>
     </div>

@@ -91,12 +91,12 @@ export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) =>
           <button
             type="button"
             onClick={handleCopy}
-            className="min-h-[44px] min-w-[44px] p-2 rounded-lg transition-all bg-[hsl(var(--bg-tertiary))] hover:bg-[hsl(var(--accent-primary)/0.15)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] bg-[hsl(var(--bg-tertiary))] hover:bg-[hsl(var(--accent-primary)/0.15)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
             title={t('card.copyInviteCode')}
             aria-label={t('card.copyInviteCode')}
           >
             {copied ? (
-              <Check size={18} className="text-[hsl(var(--success-text))]" />
+              <Check size={18} className="text-[hsl(var(--success-text))] motion-icon-pop" />
             ) : (
               <Copy size={18} className="text-[hsl(var(--text-secondary))]" />
             )}
@@ -104,7 +104,7 @@ export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) =>
           <button
             type="button"
             onClick={handleShare}
-            className="min-h-[44px] min-w-[44px] p-2 rounded-lg transition-all bg-[hsl(var(--bg-tertiary))] hover:bg-[hsl(var(--accent-primary)/0.15)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] bg-[hsl(var(--bg-tertiary))] hover:bg-[hsl(var(--accent-primary)/0.15)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
             title={t('card.shareInviteCode')}
             aria-label={t('card.shareInviteCode')}
           >
@@ -118,7 +118,7 @@ export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) =>
         {/* Usage counter */}
         <div className={`flex items-center gap-1.5 ${isExhausted ? 'text-[hsl(var(--warning-text))]' : 'text-[hsl(var(--text-secondary))]'}`}>
           <span>{t('card.used')}</span>
-          <span className="font-semibold">{usageText}</span>
+          <span className="font-semibold tabular-nums">{usageText}</span>
         </div>
 
         {/* Status badge */}

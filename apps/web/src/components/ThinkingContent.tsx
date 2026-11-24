@@ -30,8 +30,9 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { LazyMarkdown } from "./LazyMarkdown";
+import { AnimatedCollapse } from "./ui/AnimatedCollapse";
 import { sanitizeThinkingForDisplay } from "../lib/thinkingDisplay";
 
 /**
@@ -143,22 +144,22 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
           )}
         </div>
         <div className="flex items-center shrink-0">
-          {isExpanded ? (
-            <ChevronUp className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />
-          ) : (
-            <ChevronDown className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />
-          )}
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-[hsl(var(--text-secondary))] motion-chevron ${
+              isExpanded ? "rotate-180" : ""
+            }`}
+          />
         </div>
       </button>
 
       {/* Content */}
-      {isExpanded && (
+      <AnimatedCollapse open={isExpanded}>
         <div className="border-t border-[hsl(var(--separator-color))] px-3 py-2.5">
           <div className="prose prose-xs max-w-none text-[hsl(var(--text-secondary))]">
             <LazyMarkdown>{displayContent}</LazyMarkdown>
           </div>
         </div>
-      )}
+      </AnimatedCollapse>
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
+import { AnimatedDetails } from "../components/ui/AnimatedCollapse";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { RedeemCodeModal } from "../components/subscription/RedeemCodeModal";
 import { PaymentCheckoutModal } from "../components/subscription/PaymentCheckoutModal";
@@ -156,6 +158,7 @@ export default function BillingPage() {
   // Preserve activation behavior for existing ?plan=pro links; no manual code entry is advertised.
   const isProPlanIntentReady = !isProPlanIntentHandled && !isPaymentOptionsLoading;
   const isPaymentModalOpen = showPaymentModal || (isProPlanIntentReady && showCheckoutButton);
+  const { isMounted: isPaymentModalMounted } = useAnimatedPresence(isPaymentModalOpen, 150);
   const isRedeemCodeModalOpen = isProPlanIntentReady && isCheckoutKnownOff;
 
   const usageItems = useMemo(
@@ -360,7 +363,7 @@ export default function BillingPage() {
             {t("common:noData", "暂无数据")}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 motion-content-reveal">
             {sortedPlans.map((plan) => {
               const isCurrent = status?.tier === plan.name;
               return (
@@ -377,7 +380,7 @@ export default function BillingPage() {
                       <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
                         {getLocalizedPlanDisplayName({ ...plan, tier: plan.name }, i18n.language)}
                       </h3>
-                      <div className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
+                      <div className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 tabular-nums">
                         {formatPlanPrice(plan)}
                       </div>
                     </div>
@@ -413,7 +416,7 @@ export default function BillingPage() {
                             <span>{metric.label}</span>
                           </div>
                           <span
-                            className={`font-medium ${
+                            className={`font-medium tabular-nums ${
                               included
                                 ? "text-[hsl(var(--text-primary))]"
                                 : "text-[hsl(var(--text-tertiary))]"
@@ -453,7 +456,7 @@ export default function BillingPage() {
             size={headerActionSize}
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 motion-content-reveal">
             {usageItems.map((item) => {
               const metric = quota?.[item.key];
               const progress = usageProgress(metric);
@@ -478,7 +481,7 @@ export default function BillingPage() {
                     <span className="text-[hsl(var(--text-secondary))]">{item.label}</span>
                     <span
                       data-testid={`billing-usage-${item.key}`}
-                      className={`font-semibold ${usageTextClass}`}
+                      className={`font-semibold tabular-nums ${usageTextClass}`}
                     >
                       {formatUsage(metric)}
                     </span>
@@ -487,8 +490,8 @@ export default function BillingPage() {
                     <div className="mt-2 h-1.5 rounded-full bg-[hsl(var(--bg-tertiary))] overflow-hidden">
                       <div
                         data-testid={`billing-usage-bar-${item.key}`}
-                        className={`h-full ${usageBarClass}`}
-                        style={{ width: `${progress}%` }}
+                        className={`h-full w-full motion-progress-fill ${usageBarClass}`}
+                        style={{ transform: `scaleX(${Math.max(0, Math.min(100, progress)) / 100})` }}
                       />
                     </div>
                   )}
@@ -517,11 +520,22 @@ export default function BillingPage() {
         )}
       </Card>
 
-      <details data-testid="billing-help" className="group border-t border-[hsl(var(--border-color))]">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-3 text-sm text-[hsl(var(--text-secondary))] rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden">
-          {t("dashboard:billing.helpAndSupport", "帮助与支持")}
-          <ChevronDown size={15} aria-hidden="true" className="group-open:rotate-180" />
-        </summary>
+      <AnimatedDetails
+        data-testid="billing-help"
+        className="group border-t border-[hsl(var(--border-color))]"
+        summaryClassName="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-3 text-sm text-[hsl(var(--text-secondary))] rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden"
+        summary={(isHelpOpen) => (
+          <>
+            {t("dashboard:billing.helpAndSupport", "帮助与支持")}
+            <ChevronDown
+              size={15}
+              aria-hidden="true"
+              className="motion-chevron group-open:rotate-180"
+              style={!isHelpOpen ? { transform: "rotate(0deg)" } : undefined}
+            />
+          </>
+        )}
+      >
         <div className="space-y-3 pb-3">
           <p
             className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-[hsl(var(--text-secondary))]"
@@ -537,7 +551,7 @@ export default function BillingPage() {
             </a>
           </p>
         </div>
-      </details>
+      </AnimatedDetails>
 
       <RedeemCodeModal
         isOpen={isRedeemCodeModalOpen}
@@ -546,9 +560,9 @@ export default function BillingPage() {
         }}
         source={effectiveUpgradeSource}
       />
-      {isPaymentModalOpen && (
+      {isPaymentModalMounted && (
         <PaymentCheckoutModal
-          isOpen
+          isOpen={isPaymentModalOpen}
           onClose={() => {
             setShowPaymentModal(false);
             setIsProPlanIntentHandled(true);

@@ -71,6 +71,20 @@ describe('BottomTabs', () => {
     expect(nav).not.toHaveClass('h-14')
   })
 
+  it('translates the sliding active indicator cleanly across tabs', () => {
+    const { rerender } = render(<BottomTabs activeTab="files" onTabChange={vi.fn()} />)
+    const nav = screen.getByTestId('bottom-tabs')
+    const indicator = nav.querySelector('.motion-tab-indicator') as HTMLElement | null
+    expect(indicator).not.toBeNull()
+    expect(indicator?.style.transform).toBe('translate3d(0%, 0, 0)')
+
+    rerender(<BottomTabs activeTab="editor" onTabChange={vi.fn()} />)
+    expect(indicator?.style.transform).toBe('translate3d(100%, 0, 0)')
+
+    rerender(<BottomTabs activeTab="chat" onTabChange={vi.fn()} />)
+    expect(indicator?.style.transform).toBe('translate3d(200%, 0, 0)')
+  })
+
   it('keeps .mobile-bottom-tab inside @layer components without unlayered utility overrides', () => {
     const css = readFileSync(resolve(__dirname, '../../index.css'), 'utf8')
     const layeredMatch = css.match(/@layer components\s*\{[\s\S]*?\.mobile-bottom-tab\s*\{([^}]*)\}/)

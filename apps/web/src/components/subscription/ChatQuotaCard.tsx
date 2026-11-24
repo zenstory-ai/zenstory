@@ -7,10 +7,13 @@ import { buildUpgradeUrl, getUpgradePromptDefinition } from "../../config/upgrad
 import { formatAiQuotaResetDay, formatAiQuotaResetLocal, aiQuotaPeriodKey } from "../../hooks/useAiMessageQuota";
 import { trackUpgradeClick } from "../../lib/upgradeAnalytics";
 import { CHAT_CARD_PRIMARY_BUTTON, CHAT_CARD_SURFACE } from "../chatCardStyles";
+import { useAnimatedPresence } from "../../hooks/useAnimatedPresence";
 
 const chatQuotaPrompt = getUpgradePromptDefinition("chat_quota_blocked");
 
 interface ChatQuotaCardProps {
+  /** Controls visibility with symmetric exit transition when kept mounted by parent. */
+  open?: boolean;
   /**
    * Today's free AI message allowance (3 on the free plan). Left out when the server
    * refused a round while the cached count still shows room: the card then names no count.
@@ -25,23 +28,28 @@ interface ChatQuotaCardProps {
  * waits, when it comes back, and the way to keep writing now. Only the daily message
  * count is ever named here.
  */
-export function ChatQuotaCard({ limit, resetAt }: ChatQuotaCardProps) {
+export function ChatQuotaCard({ open = true, limit, resetAt }: ChatQuotaCardProps) {
   const { t, i18n } = useTranslation(["chat", "dashboard"]);
   const { isMobile, activePanel } = useMobileLayout();
-  const { isPaid, resolved } = usePaidPlanWhenOpen(true);
+  const { isMounted, isExiting } = useAnimatedPresence(open, 150);
+  const { isPaid, resolved } = usePaidPlanWhenOpen(open);
   const canUpgrade = resolved && !isPaid;
-  const exposureRef = useUpgradeExposure({ enabled: canUpgrade && (!isMobile || activePanel === "chat"), source: chatQuotaPrompt.source, surface: "card", placement: "chat-input", period: aiQuotaPeriodKey(resetAt) });
+  const exposureRef = useUpgradeExposure({ enabled: open && canUpgrade && (!isMobile || activePanel === "chat"), source: chatQuotaPrompt.source, surface: "card", placement: "chat-input", period: aiQuotaPeriodKey(resetAt) });
   const resetDay = formatAiQuotaResetDay(resetAt, i18n?.language);
   const resetLocal = formatAiQuotaResetLocal(resetAt, i18n?.language);
 
-
+  if (!isMounted) return null;
 
   return (
     <div
       ref={exposureRef}
       data-testid="chat-quota-card"
       role="status"
-      className={`mb-2 p-3 ${CHAT_CARD_SURFACE}`}
+      aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
+      className={`mb-2 p-3 tabular-nums ${
+        isExiting ? "motion-banner-exit pointer-events-none" : "motion-banner-enter"
+      } ${CHAT_CARD_SURFACE}`}
     >
       <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-[hsl(var(--text-primary))]">
         <Clock size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-[hsl(var(--text-secondary))]" />

@@ -35,7 +35,10 @@ export function AnnouncementBanner({ accountId }: AnnouncementBannerProps) {
   } catch {
     // Storage can be unavailable; the in-memory dismissal below still works.
   }
-  if (dismissedPersistently || dismissedInSession === key) return null;
+  // Suppress already-dismissed banners on reload, while keeping in-session dismissals
+  // mounted so DashboardBanner can play its symmetric 150ms exit animation.
+  if (dismissedPersistently && dismissedInSession !== key) return null;
+  const isVisible = dismissedInSession !== key;
 
   const actionUrl = safeAnnouncementUrl(announcement.action_url);
   const dismiss = () => {
@@ -49,6 +52,7 @@ export function AnnouncementBanner({ accountId }: AnnouncementBannerProps) {
 
   return (
     <DashboardBanner
+      open={isVisible}
       regionLabel={t("banner.regionLabel", "站内公告")}
       icon={<Megaphone className="h-4 w-4" aria-hidden="true" />}
       title={announcement.title}

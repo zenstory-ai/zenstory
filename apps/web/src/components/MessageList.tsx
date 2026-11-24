@@ -22,6 +22,7 @@ import { User, Sparkles, Bot, AlertTriangle, CirclePause, ThumbsUp, ThumbsDown }
 import { LazyMarkdown } from './LazyMarkdown';
 import { ToolResultCard } from './ToolResultCard';
 import { Badge, type BadgeProps } from './ui/Badge';
+import { AnimatedCollapse } from './ui/AnimatedCollapse';
 import { ThinkingContent } from './ThinkingContent';
 import { HistoryCompactionMarker } from './HistoryCompactionMarker';
 import type { AgentContextItem, FileEditUndoTarget, IterationExhaustedLayer, ToolCall } from '../types';
@@ -480,7 +481,7 @@ const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) =>
         className="cursor-pointer select-none min-h-11 md:min-h-0 -my-1.5 md:my-0 rounded text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors flex items-center gap-1 w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
       >
         <svg
-          className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-3 h-3 shrink-0 motion-chevron ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -489,11 +490,11 @@ const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) =>
         </svg>
         <span>
           {t("context.label", { ns: "chat" })}
-          <span className="ml-1">({items.length})</span>
+          <span className="ml-1 tabular-nums">({items.length})</span>
         </span>
       </button>
 
-      {isOpen && (
+      <AnimatedCollapse open={isOpen}>
         <div className="mt-2 space-y-1.5">
           {items.map((item, index) => {
             return (
@@ -505,7 +506,7 @@ const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) =>
                   style={{ listStyle: 'none' }}
                 >
                   <svg
-                    className="w-3 h-3 text-[hsl(var(--text-secondary))] transition-transform duration-200 group-open:rotate-90 shrink-0"
+                    className="w-3 h-3 text-[hsl(var(--text-secondary))] motion-chevron group-open:rotate-90 shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -537,7 +538,7 @@ const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) =>
             );
           })}
         </div>
-      )}
+      </AnimatedCollapse>
     </div>
   );
 };
@@ -928,13 +929,13 @@ const Row = React.memo(function Row({
               title={!canSubmitFeedback
                 ? t('feedback.pendingSave', { ns: 'chat' })
                 : undefined}
-              className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
+              className={`inline-flex items-center justify-center rounded-lg border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
                 selectedFeedbackVote === 'up'
                   ? 'border-[hsl(var(--success)/0.45)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
                   : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
               } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
             >
-              <ThumbsUp size={14} />
+              <ThumbsUp key={selectedFeedbackVote === 'up' ? 'up-active' : 'up'} size={14} className={selectedFeedbackVote === 'up' ? 'motion-icon-pop' : undefined} />
             </button>
             <button
               type="button"
@@ -948,13 +949,13 @@ const Row = React.memo(function Row({
               title={!canSubmitFeedback
                 ? t('feedback.pendingSave', { ns: 'chat' })
                 : undefined}
-              className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
+              className={`inline-flex items-center justify-center rounded-lg border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
                 selectedFeedbackVote === 'down'
                   ? 'border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]'
                   : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
               } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
             >
-              <ThumbsDown size={14} />
+              <ThumbsDown key={selectedFeedbackVote === 'down' ? 'down-active' : 'down'} size={14} className={selectedFeedbackVote === 'down' ? 'motion-icon-pop' : undefined} />
             </button>
             {!canSubmitFeedback && (
               <span className="text-xs text-[hsl(var(--text-secondary))]">

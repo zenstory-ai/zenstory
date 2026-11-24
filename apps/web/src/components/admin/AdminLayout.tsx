@@ -44,18 +44,21 @@ export const AdminLayout: React.FC = () => {
           </aside>
         ) : (
           <>
-            {sidebarOpen && (
-              <div
-                className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden"
-                onClick={() => setSidebarOpen(false)}
-              />
-            )}
+            <div
+              aria-hidden="true"
+              className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none md:hidden ${
+                sidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+              }`}
+              onClick={() => setSidebarOpen(false)}
+            />
 
             <div
               ref={mobileSidebarRef}
               id="admin-mobile-navigation"
-              className={`fixed top-14 bottom-0 left-0 z-50 w-72 max-w-[88vw] border-r border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))] shadow-2xl transition-transform duration-200 ease-out md:hidden ${
-                sidebarOpen ? "translate-x-0" : "-translate-x-full"
+              className={`fixed top-14 bottom-0 left-0 z-50 w-72 max-w-[88vw] border-r border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))] shadow-2xl transition-transform motion-reduce:transition-none md:hidden ${
+                sidebarOpen
+                  ? "translate-x-0 duration-[var(--duration-base)] ease-[var(--ease-out-expo)]"
+                  : "-translate-x-full duration-[var(--duration-fast)] ease-[var(--ease-in-expo)] pointer-events-none"
               }`}
               role="dialog"
               aria-modal="true"

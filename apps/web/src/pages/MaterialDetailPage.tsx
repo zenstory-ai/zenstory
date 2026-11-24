@@ -9,6 +9,7 @@ import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { Button } from "../components/ui/Button";
 import { IconButton } from "../components/ui/IconButton";
 import { Badge } from "../components/ui/Badge";
+import { AnimatedCollapse } from "../components/ui/AnimatedCollapse";
 import {
   ChevronLeft,
   Folder,
@@ -20,7 +21,6 @@ import {
   Globe,
   Zap,
   ChevronRight,
-  ChevronDown,
   GitBranch,
   Users,
   Loader2,
@@ -705,7 +705,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
               <h1 id="material-title" className="heading-display break-words text-xl font-semibold tracking-tight text-[hsl(var(--text-primary))] md:text-2xl">
                 {material.title}
               </h1>
-              <p className="mt-0.5 text-xs text-[hsl(var(--text-secondary))]">
+              <p className="mt-0.5 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
                 {material.chapters_count == null ? "—" : material.chapters_count.toLocaleString(i18n.language)} {t("materials:detail.readableChapters")}
               </p>
             </div>
@@ -915,11 +915,10 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
             >
               {item.type === "folder" && (
                 <span className="shrink-0">
-                  {isExpanded ? (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  )}
+                  <ChevronRight
+                    aria-hidden="true"
+                    className={`w-3.5 h-3.5 motion-chevron ${isExpanded ? "rotate-90" : ""}`}
+                  />
                 </span>
               )}
               <span className="shrink-0">{getIcon(item.type, isExpanded)}</span>
@@ -928,38 +927,40 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[hsl(var(--accent-primary))]" />
               )}
               {item.type === "folder" && item.count !== undefined && (
-                <span className="text-xs text-[hsl(var(--text-tertiary))]">
+                <span className="text-xs tabular-nums text-[hsl(var(--text-tertiary))]">
                   {item.count.toLocaleString(i18n.language)}
                 </span>
               )}
             </button>
 
-            {item.type === "folder" && isExpanded && folderErrors.has(item.id) && (
-              <div role="alert" className="ml-8 space-y-2 py-2 text-xs text-[hsl(var(--error-text))]">
-                <p>{t("materials:detail.folderLoadError", { defaultValue: "加载失败。" })}</p>
-                <Button variant="secondary" size="touch" onClick={() => onRetryFolder(item.id)}>
-                  {t("common:retry", { defaultValue: "重试" })}
-                </Button>
-              </div>
-            )}
-            {item.type === "folder" && isExpanded && hasChildren && !folderErrors.has(item.id) && (
-              <FileTree
-                items={item.children!}
-                selectedKey={selectedKey}
-                expandedFolders={expandedFolders}
-                onItemClick={onItemClick}
-                loadingStates={loadingStates}
-                loadedStates={loadedStates}
-                folderErrors={folderErrors}
-                onRetryFolder={onRetryFolder}
-                searchActive={searchActive}
-                level={level + 1}
-              />
-            )}
-            {item.type === "folder" && isExpanded && loadedStates[item.id] && !loadingStates[item.id] && !hasChildren && !folderErrors.has(item.id) && (
-              <p className="ml-8 px-2 py-2 text-xs text-[hsl(var(--text-secondary))]">
-                {t("materials:detail.emptyFolder")}
-              </p>
+            {item.type === "folder" && (
+              <AnimatedCollapse open={isExpanded} fast>
+                {folderErrors.has(item.id) ? (
+                  <div role="alert" className="ml-8 space-y-2 py-2 text-xs text-[hsl(var(--error-text))]">
+                    <p>{t("materials:detail.folderLoadError", { defaultValue: "加载失败。" })}</p>
+                    <Button variant="secondary" size="touch" onClick={() => onRetryFolder(item.id)}>
+                      {t("common:retry", { defaultValue: "重试" })}
+                    </Button>
+                  </div>
+                ) : hasChildren ? (
+                  <FileTree
+                    items={item.children!}
+                    selectedKey={selectedKey}
+                    expandedFolders={expandedFolders}
+                    onItemClick={onItemClick}
+                    loadingStates={loadingStates}
+                    loadedStates={loadedStates}
+                    folderErrors={folderErrors}
+                    onRetryFolder={onRetryFolder}
+                    searchActive={searchActive}
+                    level={level + 1}
+                  />
+                ) : loadedStates[item.id] && !loadingStates[item.id] ? (
+                  <p className="ml-8 px-2 py-2 text-xs text-[hsl(var(--text-secondary))]">
+                    {t("materials:detail.emptyFolder")}
+                  </p>
+                ) : null}
+              </AnimatedCollapse>
             )}
           </div>
         );
@@ -1028,7 +1029,7 @@ function ContentDetail({ item }: ContentDetailProps) {
               {chapter.title}
             </h2>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[hsl(var(--text-secondary))]">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
             <span>{t("materials:detail.chapterNumber")}: {chapter.chapter_number}</span>
             <span>{t("materials:detail.wordCount")}: {chapter.word_count?.toLocaleString()}</span>
           </div>
@@ -1392,7 +1393,7 @@ function MaterialOverview({ material, folders, onCategoryClick }: MaterialOvervi
               onClick={() => onCategoryClick(folder.id)}
             >
               <span>{folder.title} ·</span>
-              <span>{folder.count === undefined ? "—" : folder.count.toLocaleString(i18n.language)}</span>
+              <span className="tabular-nums">{folder.count === undefined ? "—" : folder.count.toLocaleString(i18n.language)}</span>
             </button>
           ))}
         </div>
@@ -1401,7 +1402,7 @@ function MaterialOverview({ material, folders, onCategoryClick }: MaterialOvervi
       {sourceFacts.length > 0 && (
         <section className="material-overview-section" aria-labelledby={`${titleId}-source`}>
           <h3 id={`${titleId}-source`}>{t("materials:detail.sourceFacts")}</h3>
-          <dl className="material-overview-facts">
+          <dl className="material-overview-facts tabular-nums">
             {sourceFacts.map((fact) => (
               <div key={fact.label}>
                 <dt>{fact.label}</dt>

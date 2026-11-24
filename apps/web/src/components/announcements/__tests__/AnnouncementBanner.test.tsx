@@ -125,4 +125,63 @@ describe("AnnouncementBanner", () => {
     await screen.findByText("功能更新");
     expect(screen.queryByRole("link", { name: "查看详情" })).not.toBeInTheDocument();
   });
+
+  it("keeps DashboardBanner mounted during its 150ms exit on in-session dismiss while suppressing reloads", async () => {
+    const originalGetAnimations = document.getAnimations;
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(document, "getAnimations", {
+      writable: true,
+      configurable: true,
+      value: vi.fn(() => []),
+    });
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      configurable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+
+    try {
+      const first = renderBanner();
+      expect(await screen.findByText("功能更新")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "关闭公告" }));
+
+      // During the 150ms exit window in a real browser, the banner stays mounted in exiting state with inert
+      const exitingBanner = first.container.querySelector(".motion-banner-exit");
+      expect(exitingBanner).not.toBeNull();
+      expect(exitingBanner).toHaveAttribute("aria-hidden", "true");
+      expect(exitingBanner).toHaveAttribute("inert");
+
+      // After exit finishes, it unmounts cleanly
+      await waitFor(() => {
+        expect(screen.queryByText("功能更新")).not.toBeInTheDocument();
+      });
+      first.unmount();
+
+      // On reload (fresh mount with persisted localStorage key), it remains suppressed immediately
+      renderBanner();
+      await waitFor(() => expect(getCurrent).toHaveBeenCalledTimes(2));
+      expect(screen.queryByText("功能更新")).not.toBeInTheDocument();
+    } finally {
+      Object.defineProperty(document, "getAnimations", {
+        writable: true,
+        configurable: true,
+        value: originalGetAnimations,
+      });
+      Object.defineProperty(window, "matchMedia", {
+        writable: true,
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
 });

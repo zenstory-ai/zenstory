@@ -9,8 +9,8 @@ import { toast } from "../../lib/toast";
 import type { MaterialEntityType, MaterialSearchResult } from "../../lib/materialsApi";
 import { logger } from "../../lib/logger";
 import { MaterialsUpgradeNotice } from "../subscription/MaterialsUpgradePrompt";
+import { AnimatedCollapse } from "../ui/AnimatedCollapse";
 import {
-  ChevronDown,
   ChevronRight,
   BookOpen,
   Users,
@@ -343,7 +343,11 @@ export const MaterialsPane: React.FC = () => {
           className={`p-1.5 rounded-lg max-md:min-h-11 max-md:min-w-11 [@media(hover:none)]:min-h-11 [@media(hover:none)]:min-w-11 flex items-center justify-center text-xs ${batchMode ? 'text-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.1)]' : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))]'} transition-colors`}
           title={batchMode ? t('common:cancel') : t('editor:fileTree.batchSelect')}
         >
-          {batchMode ? <X size={14} /> : <Check size={14} />}
+          {batchMode ? (
+            <X key="cancel" size={14} className="motion-icon-pop" />
+          ) : (
+            <Check key="batch" size={14} className="motion-icon-pop" />
+          )}
         </button>
       </div>
 
@@ -453,11 +457,13 @@ export const MaterialsPane: React.FC = () => {
                   className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
                   onClick={() => materialLib.toggleNovel(lib.id)}
                 >
-                  {isNovelExpanded ? (
-                    <ChevronDown size={14} className="text-[hsl(var(--text-secondary))] shrink-0" />
-                  ) : (
-                    <ChevronRight size={14} className="text-[hsl(var(--text-secondary))] shrink-0" />
-                  )}
+                  <ChevronRight
+                    size={14}
+                    aria-hidden="true"
+                    className={`text-[hsl(var(--text-secondary))] shrink-0 motion-chevron ${
+                      isNovelExpanded ? "rotate-90" : ""
+                    }`}
+                  />
                   <span className="text-[hsl(var(--text-secondary))]">
                     <BookOpen size={14} />
                   </span>
@@ -465,8 +471,8 @@ export const MaterialsPane: React.FC = () => {
                 </div>
 
                 {/* Entity type categories */}
-                {isNovelExpanded && (
-                  <div className="mt-0.5">
+                <AnimatedCollapse open={isNovelExpanded} fast className="mt-0.5">
+                  <div>
                     {entityTypes
                       .filter(({ countKey }) => (lib.counts[countKey] || 0) > 0)
                       .map(({ type, countKey }) => {
@@ -484,23 +490,25 @@ export const MaterialsPane: React.FC = () => {
                               style={{ marginLeft: 12 }}
                               onClick={() => handleEntityTypeToggle(lib.id, type)}
                             >
-                              {isTypeExpanded ? (
-                                <ChevronDown size={12} className="text-[hsl(var(--text-secondary))] shrink-0" />
-                              ) : (
-                                <ChevronRight size={12} className="text-[hsl(var(--text-secondary))] shrink-0" />
-                              )}
+                              <ChevronRight
+                                size={12}
+                                aria-hidden="true"
+                                className={`text-[hsl(var(--text-secondary))] shrink-0 motion-chevron ${
+                                  isTypeExpanded ? "rotate-90" : ""
+                                }`}
+                              />
                               <span className="text-[hsl(var(--text-secondary))] shrink-0">
                                 {ENTITY_TYPE_ICONS[type]}
                               </span>
                               <span className="flex-1 truncate text-xs">{entityTypeLabels[type]}</span>
-                              <span className="text-[hsl(var(--text-secondary))] text-xs">
+                              <span className="text-[hsl(var(--text-secondary))] text-xs tabular-nums">
                                 {lib.counts[countKey] || 0}
                               </span>
                             </div>
 
                             {/* Entity items */}
-                            {isTypeExpanded && (
-                              <div className="mt-0.5">
+                            <AnimatedCollapse open={isTypeExpanded} fast className="mt-0.5">
+                              <div>
                                 {isLoadingItems ? (
                                   <div className="px-2 py-1 text-[hsl(var(--text-secondary))] text-xs italic" style={{ marginLeft: 24 }}>
                                     {t('common:loading')}
@@ -569,12 +577,12 @@ export const MaterialsPane: React.FC = () => {
                                   ))
                                 )}
                               </div>
-                            )}
+                            </AnimatedCollapse>
                           </div>
                         );
                       })}
                   </div>
-                )}
+                </AnimatedCollapse>
               </div>
             );
           })

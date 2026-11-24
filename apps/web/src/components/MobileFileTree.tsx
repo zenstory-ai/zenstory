@@ -24,13 +24,13 @@ import { useMaterialAttachment, MAX_ATTACHED_MATERIALS } from "../contexts/Mater
 import { toast } from "../lib/toast";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Button } from "./ui/Button";
+import { AnimatedCollapse } from "./ui/AnimatedCollapse";
 import { FileSearchInput } from "./FileSearchInput";
 import { useFileSearch, type FileSearchResult } from "../hooks/useFileSearch";
 import { getCreateFileType, isMaterialFolder, useFileTree } from "../hooks/useFileTree";
 import SearchResultsDropdown from "./SearchResultsDropdown";
 import type { FileTreeNode } from "../types";
 import {
-  ChevronDown,
   ChevronRight,
   FileText,
   Users,
@@ -304,11 +304,13 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         >
           {/* Expand/collapse icon for folders */}
           {isFolder ? (
-            isExpanded ? (
-              <ChevronDown size={20} className="text-[hsl(var(--text-secondary))] shrink-0" />
-            ) : (
-              <ChevronRight size={20} className="text-[hsl(var(--text-secondary))] shrink-0" />
-            )
+            <ChevronRight
+              size={20}
+              aria-hidden="true"
+              className={`text-[hsl(var(--text-secondary))] shrink-0 motion-chevron ${
+                isExpanded ? "rotate-90" : ""
+              }`}
+            />
           ) : (
             <span className="w-5" />
           )}
@@ -390,7 +392,11 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
               title={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
               aria-label={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
             >
-              {isMaterialAttached(node.id) ? <Check size={18} /> : <MessageSquarePlus size={18} />}
+              {isMaterialAttached(node.id) ? (
+                <Check key="attached" size={18} className="motion-icon-pop" />
+              ) : (
+                <MessageSquarePlus key="attach" size={18} className="motion-icon-pop" />
+              )}
             </button>
           )}
 
@@ -453,23 +459,24 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           </div>
         )}
 
-        {/* Children - only render if expanded */}
-        {isFolder && isExpanded && node.children && node.children.length > 0 && (
-          <div>
-            {node.children.map((child) => renderNode(child, depth + 1))}
-          </div>
-        )}
-
-        {/* Empty folder indicator */}
-        {isFolder && isExpanded && (!node.children || node.children.length === 0) && isCreating !== node.id && (
-          <div
-            className="px-4 py-3 text-[hsl(var(--text-secondary))] text-sm italic"
-            style={{ paddingLeft: `${28 + depth * 16}px` }}
-          >
-            {isMaterialFolder(node)
-              ? t('editor:fileTree.emptyMaterialFolder')
-              : t('editor:fileTree.emptyFolder')}
-          </div>
+        {/* Children & empty folder indicator with fast 160ms collapse */}
+        {isFolder && (
+          <AnimatedCollapse open={isExpanded} fast>
+            {node.children && node.children.length > 0 ? (
+              <div>
+                {node.children.map((child) => renderNode(child, depth + 1))}
+              </div>
+            ) : isCreating !== node.id ? (
+              <div
+                className="px-4 py-3 text-[hsl(var(--text-secondary))] text-sm italic"
+                style={{ paddingLeft: `${28 + depth * 16}px` }}
+              >
+                {isMaterialFolder(node)
+                  ? t('editor:fileTree.emptyMaterialFolder')
+                  : t('editor:fileTree.emptyFolder')}
+              </div>
+            ) : null}
+          </AnimatedCollapse>
         )}
       </div>
     );
