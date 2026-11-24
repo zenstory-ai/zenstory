@@ -1029,7 +1029,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         } ${
           isFillLayout ? "flex-1 min-h-0" : ""
         }`}
-        style={isFillLayout ? { minHeight: `${textareaMinHeightPx}px` } : undefined}
+        style={isFillLayout ? { minHeight: '110px' } : undefined}
       >
         {isMobile && (
           <VoiceInputButton
