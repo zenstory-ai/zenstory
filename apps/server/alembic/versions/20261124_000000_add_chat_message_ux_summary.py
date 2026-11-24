@@ -67,7 +67,7 @@ def upgrade():
             # so live chat_message traffic is never blocked behind a long transaction.
             with op.get_context().autocommit_block():
                 backfill_chat_message_ux_summaries(
-                    bind,
+                    op.get_bind(),
                     batch_size=DEFAULT_BACKFILL_BATCH_SIZE,
                     commit_each_batch=False,
                 )

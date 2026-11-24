@@ -407,6 +407,16 @@ def count_pending_chat_message_ux_summaries(connection: Connection) -> int:
     return int(result or 0)
 
 
+def _is_autocommit(connection: Connection) -> bool:
+    """Return True when the connection runs outside a SQL transaction block."""
+    if connection.get_execution_options().get("isolation_level") == "AUTOCOMMIT":
+        return True
+    try:
+        return connection.get_isolation_level() == "AUTOCOMMIT"
+    except Exception:
+        return False
+
+
 def backfill_chat_message_ux_summaries(
     connection: Connection,
     *,
@@ -420,6 +430,7 @@ def backfill_chat_message_ux_summaries(
     """
     effective_batch = max(1, int(batch_size))
     is_pg = connection.dialect.name == "postgresql"
+    autocommit = _is_autocommit(connection) if is_pg else False
     total_processed = 0
     batches = 0
 
@@ -435,14 +446,14 @@ def backfill_chat_message_ux_summaries(
             if not ids:
                 break
             try:
-                if commit_each_batch or not connection.in_transaction():
+                if commit_each_batch or autocommit or not connection.in_transaction():
                     connection.execute(_PG_INSERT_BATCH_SQL, {"ids": ids})
                 else:
                     with connection.begin_nested():
                         connection.execute(_PG_INSERT_BATCH_SQL, {"ids": ids})
                 batch_count = len(ids)
             except DataError:
-                if commit_each_batch and connection.in_transaction():
+                if commit_each_batch and not autocommit and connection.in_transaction():
                     connection.rollback()
                 batch_count = _python_backfill_batch(connection, ids, effective_batch)
         else:
@@ -450,7 +461,7 @@ def backfill_chat_message_ux_summaries(
             if batch_count == 0:
                 break
 
-        if commit_each_batch and connection.in_transaction():
+        if commit_each_batch and not autocommit and connection.in_transaction():
             connection.commit()
 
         total_processed += batch_count

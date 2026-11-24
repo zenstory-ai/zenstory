@@ -955,3 +955,53 @@ def test_chat_message_ux_summary_syncs_across_mutations_and_backfill(db_session:
     assert rebuilt.ai_edit_undone == 1
     assert rebuilt.ai_delete_cards == 1
     assert rebuilt.ai_delete_restored == 1
+
+
+def test_postgres_autocommit_backfill_skips_savepoint():
+    """Inside Alembic's autocommit_block(), SQLAlchemy reports in_transaction()=True
+    on a fake transaction while PostgreSQL is in AUTOCOMMIT; backfill must never emit SAVEPOINT."""
+    from types import SimpleNamespace
+
+    from services.usage.chat_message_ux_summary_backfill import backfill_chat_message_ux_summaries
+
+    executed_sql: list[str] = []
+    select_calls = 0
+
+    class _FakeResult:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def all(self):
+            return self._rows
+
+    class _FakePgAutocommitConnection:
+        dialect = SimpleNamespace(name="postgresql")
+
+        def get_execution_options(self):
+            return {"isolation_level": "AUTOCOMMIT"}
+
+        def get_isolation_level(self):
+            return "AUTOCOMMIT"
+
+        def in_transaction(self):
+            return True
+
+        def begin_nested(self):
+            raise AssertionError("SAVEPOINT must not be used in AUTOCOMMIT mode")
+
+        def execute(self, stmt, params=None):
+            nonlocal select_calls
+            sql = str(stmt)
+            executed_sql.append(sql)
+            if "SELECT cm.id" in sql:
+                select_calls += 1
+                return _FakeResult([("m1",), ("m2",)] if select_calls == 1 else [])
+            return _FakeResult([])
+
+    processed = backfill_chat_message_ux_summaries(
+        _FakePgAutocommitConnection(),  # type: ignore[arg-type]
+        batch_size=10,
+        commit_each_batch=False,
+    )
+    assert processed == 2
+    assert any("INSERT INTO chat_message_ux_summary" in sql for sql in executed_sql)
