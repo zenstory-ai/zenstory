@@ -1,14 +1,16 @@
-"""回复语言跟随作者最近一条消息，界面语言只在判断不了时兜底。"""
+"""回复语言由模型按作者最近一条消息自主判断，界面语言只在判断不了时兜底，不再用正则猜测注入。"""
 
 import pytest
 
-from agent.core.message_manager import MessageManager, detect_author_language
+from agent.core import message_manager
+from agent.core.message_manager import MessageManager
+from agent.loop.turn_context import build_loop_turn_context
 from models import Project, User
 
 pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
 
 
-def _create_manager(db_session) -> MessageManager:
+def _create_project_and_manager(db_session) -> tuple[Project, MessageManager]:
     owner = User(
         email="message-manager-lang@example.com",
         username="message_manager_lang",
@@ -23,53 +25,59 @@ def _create_manager(db_session) -> MessageManager:
     db_session.add(project)
     db_session.commit()
     db_session.refresh(project)
-    return MessageManager(project_id=project.id, user_id=owner.id)
+    return project, MessageManager(project_id=project.id, user_id=owner.id)
+
+
+@pytest.mark.unit
+def test_regex_author_language_heuristic_removed():
+    """Author reply language must be decided by the model directly, never by regex/character counting."""
+    assert not hasattr(message_manager, "detect_author_language")
+    assert not hasattr(MessageManager, "_build_author_language_line")
+
+
+@pytest.mark.unit
+def test_english_ui_system_prompt_supports_any_author_language_without_forcing_english(db_session):
+    _, manager = _create_project_and_manager(db_session)
+    prompt = manager.build_system_prompt(session=db_session, language="en")
+    assert "Reply in English even if the user writes in Chinese" not in prompt
+    assert "exact language of the author's latest message" in prompt
+    assert "any other language" in prompt
+    assert "fall back to English" in prompt
+
+
+@pytest.mark.unit
+def test_chinese_ui_system_prompt_supports_any_author_language(db_session):
+    _, manager = _create_project_and_manager(db_session)
+    prompt = manager.build_system_prompt(session=db_session, language="zh")
+    assert "作者最近一条消息的语言" in prompt
+    assert "其他任何语言" in prompt
+    assert "就用中文（作者的界面语言）" in prompt
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    ("text", "expected"),
+    "author_message",
     [
-        ("接着写第2章", "zh"),
-        ("好", "zh"),
-        ("把 POV 改成第一人称", "zh"),
-        ("Write chapter 1 from the outline", "en"),
-        ("Write chapter 3 where 苏晚 meets 沈砚", "en"),
-        ("B2", None),
-        ("https://example.com/a", None),
-        ("", None),
+        "Hãy viết tiếp chương 2 với không khí hồi hộp và tiết tấu chậm hơn.",
+        "Écris le début du chapitre 2 dans une ambiance pluvieuse.",
+        "Write the opening scene of a short story about a night-shift nurse.",
+        "接着写第2章",
+        "B",
     ],
 )
-def test_detect_author_language(text, expected):
-    assert detect_author_language(text) == expected
-
-
-@pytest.mark.unit
-def test_english_ui_with_chinese_message_does_not_force_english(db_session):
-    """英文界面、作者这一轮写中文：不再要求「作者写中文也用英文回」，并在本轮上下文写明本轮用中文。"""
-    manager = _create_manager(db_session)
-    prompt = manager.build_system_prompt(session=db_session, language="en")
-    turn_context = "\n".join(manager._build_author_language_line("接着写第2章"))
-    assert "Reply in English even if the user writes in Chinese" not in prompt
-    assert "本轮作者用中文写消息" in turn_context
-
-
-@pytest.mark.unit
-def test_chinese_ui_with_english_message_states_english(db_session):
-    """中文界面、英文作者：本轮上下文写明本轮用英文。"""
-    manager = _create_manager(db_session)
-    turn_context = "\n".join(
-        manager._build_author_language_line("Write the opening scene of a short story about a night-shift nurse.")
+def test_turn_context_does_not_inject_heuristic_language_override(db_session, author_message):
+    """Vietnamese, French, English, Chinese, and ambiguous turns must never get a regex-guessed
+    language directive in <turn_context>."""
+    project, _ = _create_project_and_manager(db_session)
+    turn_ctx = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=project.owner_id,
+        metadata={},
+        language="zh",
+        author_message=author_message,
     )
-    assert "wrote this turn's message in English" in turn_context
-    assert "reply to the author in English" in turn_context
-
-
-@pytest.mark.unit
-def test_unclear_message_falls_back_to_ui_language_rule(db_session):
-    manager = _create_manager(db_session)
-    prompt = manager.build_system_prompt(session=db_session, language="en")
-    turn_context = "\n".join(manager._build_author_language_line("B"))
-    assert "wrote this turn's message" not in turn_context
-    assert "本轮作者用中文写消息" not in turn_context
-    assert "fall back to English" in prompt
+    assert "wrote this turn's message in English" not in turn_ctx.text
+    assert "本轮作者用中文写消息" not in turn_ctx.text
+    assert "Reply language for this turn" not in turn_ctx.text
+    assert "本轮回复语言" not in turn_ctx.text

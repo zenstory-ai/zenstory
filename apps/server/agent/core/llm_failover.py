@@ -79,6 +79,12 @@ _MINIMAX_FAILURE_REASONS = {
     2069: "model_unavailable",
 }
 _FAILURE_CALL_SITES = frozenset({"agent", "agent_loop_compaction", "suggest", "polish", "material", "llm_client"})
+_RESPONSES_STREAM_ERROR_CODES: dict[str, tuple[str, str]] = {
+    "internal_error": ("server_error", "server_error"),
+    "server_error": ("server_error", "server_error"),
+    "rate_limit_exceeded": ("rate_limited", "rate_limited"),
+    "invalid_prompt": ("request_rejected", "input_rejected"),
+}
 _FAILURE_PARAMETER_FIELDS = frozenset({
     "model", "messages", "max_tokens", "max_completion_tokens", "temperature", "top_p",
     "tools", "tool_choice", "response_format", "stream", "stream_options", "thinking", "reasoning_effort",
@@ -135,7 +141,14 @@ def log_provider_failure(
     provider_code = None
     body = fields.get("body") if isinstance(exc, openai.APIError) else None
     base_resp = body.get("base_resp") if isinstance(body, dict) else None
-    if provider.name == "deepseek":
+    responses_err = body.get("error") if isinstance(body, dict) else None
+    responses_err_code = responses_err.get("code") if isinstance(responses_err, dict) else None
+    if isinstance(responses_err_code, str) and responses_err_code in _RESPONSES_STREAM_ERROR_CODES:
+        mapped_category, mapped_reason = _RESPONSES_STREAM_ERROR_CODES[responses_err_code]
+        if category == "unknown":
+            category = mapped_category
+        reason = mapped_reason
+    elif provider.name == "deepseek":
         reason = _DEEPSEEK_FAILURE_REASONS.get(status, "unknown")
     elif provider.name == "minimax":
         code = base_resp.get("status_code") if isinstance(base_resp, dict) else None
