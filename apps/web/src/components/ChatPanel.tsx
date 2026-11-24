@@ -46,11 +46,11 @@ import { MessageInput } from "./MessageInput";
 import { AlertTriangle, Sparkles, Loader2, Plus, Edit3, Database, ArrowDown } from "lucide-react";
 import { QuotaBadge } from "./subscription/QuotaBadge";
 import {
-  CHAT_CARD_PRIMARY_BUTTON,
   CHAT_CARD_SECONDARY_BUTTON,
   CHAT_CARD_SURFACE,
   CHAT_CARD_WARNING_SURFACE,
 } from "./chatCardStyles";
+import { Button } from "./ui/Button";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { IconButton } from "./ui/IconButton";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
@@ -99,6 +99,7 @@ import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
 import { reportActivationEvent } from "../lib/activationEvents";
 import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { StreamActivityLine } from "./StreamActivityLine";
 import { createBodyWriteProgress, createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress";
 import { LeaveWhileGeneratingDialog } from "./LeaveWhileGeneratingDialog";
@@ -292,8 +293,8 @@ const SUGGESTION_CACHE_KEY_PREFIX = "zenstory_suggestions_cache_";
 const SUGGESTION_CACHE_TTL_MS = 10 * 60 * 1000;
 const SUGGESTION_INITIAL_TIMEOUT_MS = 1500;
 
-/** Minimum height of the chat input panel in pixels */
-const CHAT_INPUT_PANEL_MIN_HEIGHT_PX = 144;
+/** Minimum height of the chat input panel in pixels (fits handle + padding + accessories + two-row capsule) */
+const CHAT_INPUT_PANEL_MIN_HEIGHT_PX = 188;
 
 /** Maximum height of the chat input panel in pixels */
 const CHAT_INPUT_PANEL_MAX_HEIGHT_PX = 520;
@@ -655,6 +656,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const shouldAutoScrollRef = useRef(true);
   const followLoadedHistoryUntilRef = useRef(0);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const { isMounted: isJumpToLatestMounted, isExiting: isJumpToLatestExiting } = useAnimatedPresence(
+    showJumpToLatest,
+    130,
+  );
   const autoScrollFrameRef = useRef<number | null>(null);
   const lastLoadedProjectRef = useRef<string | null>(null);
   const historyRequestSeqRef = useRef(0);
@@ -1658,6 +1663,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         return null;
       }
       setMessages([]);
+      shouldAutoScrollRef.current = true;
+      setShowJumpToLatest(false);
       setFeedbackPendingMessageId(null);
       setSessionRecoveryError(projectId);
       setSuggestionDisplayState("ready");
@@ -1716,6 +1723,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     // Reset chat UI state
     setMessages([]);
+    shouldAutoScrollRef.current = true;
+    setShowJumpToLatest(false);
     setFeedbackPendingMessageId(null);
     setEditProgress(null);
     // 旧项目的流式渲染残留（半截正文/工具卡片/技能芯片/冲突）不能带进新项目会话：
@@ -1792,6 +1801,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       shouldAutoScrollRef.current = nearBottom;
       if (nearBottom) {
         setShowJumpToLatest(false);
+      } else if (
+        messagesRef.current.length > 0 &&
+        scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight > 120
+      ) {
+        setShowJumpToLatest(true);
       }
     };
 
@@ -2403,6 +2417,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       historyRequestSeqRef.current += 1;
       setIsLoadingHistory(false);
       setMessages([]);
+      shouldAutoScrollRef.current = true;
+      setShowJumpToLatest(false);
       setFeedbackPendingMessageId(null);
       clearStreamItems();
       setMatchedSkills([]);
@@ -2777,7 +2793,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   if (!currentProjectId) {
     return (
       <>
-      <div className="h-full flex flex-col items-center justify-center text-[hsl(var(--text-secondary))] p-4 text-center">
+      <div className="h-full flex flex-col items-center justify-center bg-[hsl(var(--bg-rail))] text-[hsl(var(--text-secondary))] p-4 text-center">
         <Sparkles size={48} className="mb-4 opacity-50" />
         <p className="text-sm">{t('chat:panel.selectProject')}</p>
       </div>
@@ -2809,7 +2825,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   return (
     <div
       ref={chatPanelRef}
-      className={`flex flex-col h-full bg-[hsl(var(--bg-primary))] overflow-hidden ${isMobile ? 'pb-safe-or-2' : ''}`}
+      className={`flex flex-col h-full bg-[hsl(var(--bg-rail))] overflow-hidden ${isMobile ? 'pb-safe-or-2' : ''}`}
       style={{ maxHeight: '100%' }}
     >
       {/* Header */}
@@ -2837,30 +2853,49 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             label={t('chat:panel.aiMemory')}
             icon={<Database size={isMobile ? 18 : 16} />}
           />
-          <IconButton
-            onClick={requestNewChat}
-            disabled={isCreatingSession || newChatPending}
-            aria-busy={isCreatingSession}
-            size={isMobile ? 'touch' : 'md'}
-            label={t('chat:panel.newSession')}
-            icon={
-              isCreatingSession ? (
-                <>
-                  <Loader2 size={isMobile ? 18 : 16} className="animate-spin" />
-                  <span className="sr-only" role="status">{t("chat:panel.creatingSession")}</span>
-                </>
-              ) : (
-                <Plus size={isMobile ? 18 : 16} />
-              )
-            }
-          />
+          {(() => {
+            const isAlreadyEmptyNewChat =
+              !isLoadingHistory &&
+              messages.length === 0 &&
+              !isStreaming &&
+              !isThinking &&
+              !error &&
+              !userStop &&
+              !quotaRefund &&
+              sessionRecoveryError !== currentProjectId;
+            return (
+              <IconButton
+                onClick={requestNewChat}
+                disabled={isCreatingSession || newChatPending || isAlreadyEmptyNewChat}
+                aria-busy={isCreatingSession}
+                size={isMobile ? 'touch' : 'md'}
+                label={t('chat:panel.newSession')}
+                title={
+                  isAlreadyEmptyNewChat && !isCreatingSession && !newChatPending
+                    ? t('chat:panel.alreadyNewSession')
+                    : t('chat:panel.newSession')
+                }
+                icon={
+                  isCreatingSession ? (
+                    <>
+                      <Loader2 size={isMobile ? 18 : 16} className="animate-spin" />
+                      <span className="sr-only" role="status">{t("chat:panel.creatingSession")}</span>
+                    </>
+                  ) : (
+                    <Plus size={isMobile ? 18 : 16} />
+                  )
+                }
+              />
+            );
+          })()}
         </div>
       </div>
 
       {/* Messages - scrollable area */}
-      {/* data-testid: message-list - Message container for message display tests */}
-      <div ref={messagesScrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" data-testid="message-list">
-        <div className={`py-3 ${isMobile ? 'px-3 pb-2' : 'px-3'}`}>
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {/* data-testid: message-list - Message container for message display tests */}
+        <div ref={messagesScrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden chat-message-feed-fade" data-testid="message-list">
+        <div className={`pt-3.5 pb-6 ${isMobile ? 'px-3' : 'px-4'}`}>
           {sessionRecoveryError === currentProjectId && (
             <div role="alert" className={`mb-3 p-3 ${CHAT_CARD_SURFACE}`}>
               <p className="text-xs leading-5 text-[hsl(var(--text-primary))]">{t("chat:panel.sessionRecoveryFailed")}</p>
@@ -2903,7 +2938,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             </div>
             )
           ) : (
-            <div>
+            <div className="motion-content-reveal">
               {/* Chat messages */}
               <UndoneEditsContext.Provider value={undoneEdits}>
               <UndoBlockedContext.Provider value={undoBlocked}>
@@ -2938,9 +2973,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-[hsl(var(--bg-tertiary))] rounded-full h-1.5 overflow-hidden">
                         <div
-                          className="h-full bg-[hsl(var(--accent-primary))] transition-all duration-300"
+                          className="h-full w-full bg-[hsl(var(--accent-primary))] motion-progress-fill"
                           style={{
-                            width: `${(editProgress.completedEdits / editProgress.totalEdits) * 100}%`,
+                            transform: `scaleX(${editProgress.totalEdits > 0 ? Math.min(1, editProgress.completedEdits / editProgress.totalEdits) : 0})`,
                           }}
                         />
                       </div>
@@ -2996,13 +3031,14 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                           <p className="text-xs leading-5 text-[hsl(var(--text-secondary))]">
                             {isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededHint') : t('chat:panel.quotaExceededHint')}
                           </p>
-                          <button
+                          <Button
                             type="button"
+                            variant="primary"
+                            size={isMobile ? "touch" : "sm"}
                             onClick={() => setShowQuotaUpgradeModal(true)}
-                            className={CHAT_CARD_PRIMARY_BUTTON}
                           >
                             {t('dashboard:billing.ctaUpgradePro')}
-                          </button>
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -3065,24 +3101,32 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 </p>
               )}
 
-              {/* Jump-to-latest button (only when user scrolled away and new content arrives) */}
-              {showJumpToLatest && (
-                <div className="sticky bottom-3 z-10 flex justify-center pointer-events-none">
-                  <button
-                    type="button"
-                    onClick={handleJumpToLatest}
-                    className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] px-3 py-1.5 text-xs text-[hsl(var(--text-primary))] shadow-md hover:bg-[hsl(var(--bg-tertiary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
-                    aria-label={t('chat:panel.jumpToLatest')}
-                    title={t('chat:panel.jumpToLatest')}
-                  >
-                    <ArrowDown size={14} />
-                    {t('chat:panel.jumpToLatest')}
-                  </button>
-                </div>
-              )}
             </div>
           )}
         </div>
+        </div>
+
+        {/* Jump-to-latest button (overlay outside scroll flow so toggling never mutates scrollHeight) */}
+        {isJumpToLatestMounted && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center">
+            <button
+              type="button"
+              onClick={handleJumpToLatest}
+              aria-hidden={isJumpToLatestExiting ? true : undefined}
+              inert={isJumpToLatestExiting ? true : undefined}
+              className={`inline-flex min-h-11 md:min-h-0 items-center gap-1.5 rounded-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] px-3.5 py-2 md:px-3 md:py-1.5 text-xs text-[hsl(var(--text-primary))] shadow-md hover:bg-[hsl(var(--bg-tertiary))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${
+                isJumpToLatestExiting
+                  ? "motion-popover-exit-up pointer-events-none"
+                  : "motion-popover-enter-up pointer-events-auto"
+              }`}
+              aria-label={t('chat:panel.jumpToLatest')}
+              title={t('chat:panel.jumpToLatest')}
+            >
+              <ArrowDown size={14} />
+              {t('chat:panel.jumpToLatest')}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Input panel (resizable on desktop, fixed on mobile) */}
@@ -3103,7 +3147,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           <div
             role="separator"
             aria-orientation="horizontal"
-            className={`shrink-0 h-4 flex items-center justify-center select-none touch-none cursor-row-resize group border-t border-[hsl(var(--separator-color))] hover:bg-[hsl(var(--accent-primary)/0.08)] active:bg-[hsl(var(--accent-primary)/0.15)] ${resizeDragRef.current ? 'bg-[hsl(var(--accent-primary)/0.1)]' : ''}`}
+            className={`shrink-0 h-3.5 flex items-center justify-center select-none touch-none cursor-row-resize group border-t border-[hsl(var(--separator-color)/0.55)] hover:bg-[hsl(var(--accent-primary)/0.08)] active:bg-[hsl(var(--accent-primary)/0.15)] ${resizeDragRef.current ? 'bg-[hsl(var(--accent-primary)/0.1)]' : ''}`}
             onPointerDown={handleInputPanelResizeStart}
             onPointerMove={handleInputPanelResizeMove}
             onPointerUp={handleInputPanelResizeEnd}
@@ -3139,13 +3183,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             />
           )}
           {/* Only once the round has ended: the 10th message is still being answered until then. */}
-          {aiSendBlocked && !isStreaming && !isThinking && (
-            <ChatQuotaCard
-              // The count is named only when the cached quota itself shows the day used up.
-              limit={quotaExhausted ? aiMessageQuota?.limit : undefined}
-              resetAt={aiMessageQuota?.reset_at ?? null}
-            />
-          )}
+          <ChatQuotaCard
+            open={aiSendBlocked && !isStreaming && !isThinking}
+            // The count is named only when the cached quota itself shows the day used up.
+            limit={quotaExhausted ? aiMessageQuota?.limit : undefined}
+            resetAt={aiMessageQuota?.reset_at ?? null}
+          />
           <MessageInput
             focusRequest={!isMobile || activePanel === "chat" ? chatFocusRequest : 0}
             onSend={handleSendMessage}
@@ -3172,6 +3215,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             aiSuggestions={aiSuggestions}
             // While the card offers "write chapter 1", chips (AI or fallback) saying the same are dropped: one entry for it.
             hideSuggestion={showNextStep ? duplicatesNextStep : undefined}
+            hideSuggestions={aiSendBlocked && !isStreaming && !isThinking}
             suggestionDisplayState={staticFirstWork || !firstWork.isSuccess ? "ready" : suggestionDisplayState}
             onRefreshSuggestions={refreshSuggestionsNow}
             isRefreshingSuggestions={isRefreshingSuggestions}

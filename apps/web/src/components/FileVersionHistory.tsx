@@ -34,8 +34,10 @@ import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 const VERSION_PAGE_SIZE = 50;
 
 interface FileVersionHistoryProps {
+  open?: boolean;
   fileId: string;
   fileTitle: string;
+  hasUnsavedChanges?: boolean;
   onClose: () => void;
   onBeforeRollback?: () => void | Promise<void>;
   onRollback?: (versionNumber: number) => void | Promise<void>;
@@ -45,6 +47,7 @@ interface FileVersionHistoryProps {
 interface VersionRowProps {
   version: FileVersion;
   isCurrent: boolean;
+  canRollback: boolean;
   isSelected: boolean;
   isRollingBack: boolean;
   t: (key: string, params?: Record<string, unknown>) => string;
@@ -85,6 +88,7 @@ function getChangeTypeLabel(
 const VersionRow: React.FC<VersionRowProps> = ({
   version,
   isCurrent,
+  canRollback,
   isSelected,
   isRollingBack,
   t,
@@ -133,15 +137,17 @@ const VersionRow: React.FC<VersionRowProps> = ({
             label={t('viewContent')}
             icon={<FileText size={16} />}
           />
-          <IconButton
-            onClick={(e) => {
-              e.stopPropagation();
-              onRollback(version.version_number);
-            }}
-            label={t('rollback')}
-            icon={<RotateCcw size={16} />}
-            disabled={isRollingBack}
-          />
+          {canRollback && (
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                onRollback(version.version_number);
+              }}
+              label={t('rollback')}
+              icon={<RotateCcw size={16} />}
+              disabled={isRollingBack}
+            />
+          )}
         </div>
       </div>
 
@@ -180,8 +186,10 @@ const VersionRow: React.FC<VersionRowProps> = ({
 };
 
 export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
+  open = true,
   fileId,
   fileTitle,
+  hasUnsavedChanges = false,
   onClose,
   onBeforeRollback,
   onRollback,
@@ -277,6 +285,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   }, [fileId]);
 
   useEffect(() => {
+    if (!open) return;
     fileContextGenerationRef.current += 1;
     setVersions([]);
     setTotal(0);
@@ -295,7 +304,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       fileContextGenerationRef.current += 1;
       listRequestGenerationRef.current += 1;
     };
-  }, [loadVersions]);
+  }, [loadVersions, open]);
 
   useLayoutEffect(() => {
     if (listHidden) return;
@@ -361,9 +370,10 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       if (fileContextGeneration !== fileContextGenerationRef.current) return;
       if (!result.snapshot_created) {
         if (result.version_quota_exceeded) {
-          toast.error(translateRef.current('quota.limitDescription'));
           if (fileVersionUpgradePrompt.surface === "modal") {
             setShowUpgradeModal(true);
+          } else {
+            toast.error(translateRef.current('quota.limitDescription'));
           }
         } else {
           toast.error(translateRef.current('rollbackHistoryNotSaved', {
@@ -380,9 +390,10 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         err instanceof ApiError &&
         err.errorCode === "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
       ) {
-        toast.error(handleApiError(err));
         if (fileVersionUpgradePrompt.surface === "modal") {
           setShowUpgradeModal(true);
+        } else {
+          toast.error(handleApiError(err));
         }
         return;
       }
@@ -429,7 +440,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   return (
     <>
       <Modal
-        open={true}
+        open={open}
         onClose={handleClose}
         size="xl"
         className={`${showComparison || preview ? 'h-[min(80vh,720px)]' : 'max-h-[min(80vh,720px)]'} p-0 overflow-hidden`}
@@ -457,21 +468,38 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       {/* Selection actions */}
       {selectedVersions.length > 0 && (
       <div className="px-4 py-2 shrink-0 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-[hsl(var(--accent-primary))]">
-          {t('selectedVersions', { count: selectedVersions.length })}
-        </span>
-        {selectedVersions.length === 2 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-medium text-[hsl(var(--accent-primary))]">
+            {t('selectedVersions', { count: selectedVersions.length })}
+          </span>
+          {selectedVersions.length === 1 && (
+            <span className="text-[hsl(var(--text-secondary))]">
+              · {t('selectOneMoreToCompare', { defaultValue: '再选 1 个版本即可对比' })}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
           <Button
             type="button"
-            variant="primary"
+            variant="ghost"
             size={isMobile ? 'touch' : 'sm'}
-            onClick={handleCompare}
-            disabled={isComparing}
-            leftIcon={<GitCompare size={14} />}
+            onClick={() => setSelectedVersions([])}
           >
-            {isComparing ? t('comparing') : t('compare')}
+            {t('clearSelection', { defaultValue: '取消选择' })}
           </Button>
-        )}
+          {selectedVersions.length === 2 && (
+            <Button
+              type="button"
+              variant="primary"
+              size={isMobile ? 'touch' : 'sm'}
+              onClick={handleCompare}
+              disabled={isComparing}
+              leftIcon={<GitCompare size={14} />}
+            >
+              {isComparing ? t('comparing') : t('compare')}
+            </Button>
+          )}
+        </div>
       </div>
       )}
 
@@ -516,19 +544,23 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
               data-testid="version-list-rows"
               className="divide-y divide-[hsl(var(--border-color))]"
             >
-              {versions.map((version) => (
-                <VersionRow
-                  key={version.version_number}
-                  version={version}
-                  isCurrent={currentVersionNumber !== null && version.version_number === currentVersionNumber}
-                  isSelected={selectedVersions.includes(version.version_number)}
-                  isRollingBack={isRollingBack}
-                  t={t}
-                  onSelectVersion={handleSelectVersion}
-                  onViewContent={handleViewContent}
-                  onRollback={handleRollback}
-                />
-              ))}
+              {versions.map((version) => {
+                const isCurrent = currentVersionNumber !== null && version.version_number === currentVersionNumber;
+                return (
+                  <VersionRow
+                    key={version.version_number}
+                    version={version}
+                    isCurrent={isCurrent}
+                    canRollback={!isCurrent || hasUnsavedChanges}
+                    isSelected={selectedVersions.includes(version.version_number)}
+                    isRollingBack={isRollingBack}
+                    t={t}
+                    onSelectVersion={handleSelectVersion}
+                    onViewContent={handleViewContent}
+                    onRollback={handleRollback}
+                  />
+                );
+              })}
               {versions.length < total && (
                 <div className="p-3 flex flex-col items-center gap-2">
                   {pageError && <span role="alert" className="text-xs text-[hsl(var(--error-text))]">{pageError}</span>}
@@ -578,16 +610,18 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                 })}
               </span>
               <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size={isMobile ? 'touch' : 'sm'}
-                  onClick={() => handleRollback(preview.versionNumber)}
-                  disabled={isRollingBack}
-                  leftIcon={<RotateCcw size={14} />}
-                >
-                  {t('rollback')}
-                </Button>
+                {(currentVersionNumber !== preview.versionNumber || hasUnsavedChanges) && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size={isMobile ? 'touch' : 'sm'}
+                    onClick={() => handleRollback(preview.versionNumber)}
+                    disabled={isRollingBack}
+                    leftIcon={<RotateCcw size={14} />}
+                  >
+                    {t('rollback')}
+                  </Button>
+                )}
                 <IconButton
                   onClick={() => setPreview(null)}
                   label={t('closePreview', { defaultValue: '关闭预览' })}

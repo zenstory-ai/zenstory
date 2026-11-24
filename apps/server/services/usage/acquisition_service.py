@@ -26,6 +26,7 @@ from models.activation_event import ACTIVATION_EVENT_SIGNUP_SUCCESS, ActivationE
 from models.entities import User
 from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST, LLMUsageEvent, has_usage_tokens
 from models.payment import PaymentOrder
+from services.infra.admin_analytics_cache import admin_read_statement_timeout
 
 ACQUISITION_DAYS = (7, 14, 30, 90)
 MAX_SOURCE_ROWS = 30
@@ -136,44 +137,45 @@ def get_acquisition_stats(session: Session, *, days: int) -> dict[str, Any]:
     start, end = period_start.replace(tzinfo=None), now.replace(tzinfo=None)
     cohort = (User.is_superuser.is_(False), User.created_at >= start, User.created_at < end)
 
-    rows = session.exec(
-        select(User.id, ActivationEvent.event_metadata)
-        .join(
-            ActivationEvent,
-            (ActivationEvent.user_id == User.id)
-            & (ActivationEvent.event_name == ACTIVATION_EVENT_SIGNUP_SUCCESS),
-            isouter=True,
-        )
-        .where(*cohort)
-    ).all()
+    with admin_read_statement_timeout(session):
+        rows = session.exec(
+            select(User.id, ActivationEvent.event_metadata)
+            .join(
+                ActivationEvent,
+                (ActivationEvent.user_id == User.id)
+                & (ActivationEvent.event_name == ACTIVATION_EVENT_SIGNUP_SUCCESS),
+                isouter=True,
+            )
+            .where(*cohort)
+        ).all()
 
-    activated_ids = set(
-        session.exec(
-            select(func.distinct(User.id))
-            .join(LLMUsageEvent, LLMUsageEvent.user_id == User.id)
-            .where(
-                *cohort,
-                LLMUsageEvent.source != LLM_USAGE_SOURCE_SUGGEST,
-                LLMUsageEvent.is_backfilled.is_(False),
-                has_usage_tokens(LLMUsageEvent),
-                LLMUsageEvent.occurred_at >= User.created_at,
-                LLMUsageEvent.occurred_at < end,
-            )
-        ).all()
-    )
-    paid_ids = set(
-        session.exec(
-            select(func.distinct(User.id))
-            .join(PaymentOrder, PaymentOrder.user_id == User.id)
-            .where(
-                *cohort,
-                PaymentOrder.status == "paid",
-                PaymentOrder.paid_at.is_not(None),
-                PaymentOrder.paid_at >= User.created_at,
-                PaymentOrder.paid_at < end,
-            )
-        ).all()
-    )
+        activated_ids = set(
+            session.exec(
+                select(func.distinct(User.id))
+                .join(LLMUsageEvent, LLMUsageEvent.user_id == User.id)
+                .where(
+                    *cohort,
+                    LLMUsageEvent.source != LLM_USAGE_SOURCE_SUGGEST,
+                    LLMUsageEvent.is_backfilled.is_(False),
+                    has_usage_tokens(LLMUsageEvent),
+                    LLMUsageEvent.occurred_at >= User.created_at,
+                    LLMUsageEvent.occurred_at < end,
+                )
+            ).all()
+        )
+        paid_ids = set(
+            session.exec(
+                select(func.distinct(User.id))
+                .join(PaymentOrder, PaymentOrder.user_id == User.id)
+                .where(
+                    *cohort,
+                    PaymentOrder.status == "paid",
+                    PaymentOrder.paid_at.is_not(None),
+                    PaymentOrder.paid_at >= User.created_at,
+                    PaymentOrder.paid_at < end,
+                )
+            ).all()
+        )
 
     by_channel: dict[str, list[str]] = defaultdict(list)
     by_source: dict[tuple[str, str], list[str]] = defaultdict(list)

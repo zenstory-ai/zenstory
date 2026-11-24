@@ -75,16 +75,16 @@ describe('ProjectCard', () => {
     expect(onOpen).not.toHaveBeenCalled()
   })
 
-  it('explains the word count on tap without opening the project', () => {
+  it('renders the word count as quiet metadata without a tap toast so clicking opens the project', () => {
     const { onOpen } = renderCard()
 
     const words = screen.getByTestId('project-progress-words')
-    expect(words.tagName).toBe('BUTTON')
+    expect(words.tagName).toBe('SPAN')
     expect(words).toHaveAttribute('title', 'Counts Chinese characters and English words only')
     fireEvent.click(words)
 
-    expect(mockToastInfo).toHaveBeenCalledWith('Counts Chinese characters and English words only')
-    expect(onOpen).not.toHaveBeenCalled()
+    expect(mockToastInfo).not.toHaveBeenCalled()
+    expect(onOpen).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the outline-ready nudge as plain text, since it has no count to explain', () => {

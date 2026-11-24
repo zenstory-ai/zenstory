@@ -36,6 +36,7 @@ export function ChatVotesPanel({ isCompact }: { isCompact: boolean }) {
         page_size: PAGE_SIZE,
       }),
     staleTime: 30_000,
+    retry: false,
   });
 
   const items = data?.items ?? [];

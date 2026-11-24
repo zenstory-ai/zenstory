@@ -94,8 +94,8 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:nextStep.novel.message': '按大纲写第一章正文',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
   'home:pricingTeaser.viewPricing': '查看套餐权益',
-  'chat:input.placeholderQuotaExhausted': '先把想法写下来，额度恢复后再发。',
-  'chat:input.placeholderWhileProcessing': "AI 正在生成，你可以先输入，结束后再发送",
+  'chat:input.placeholderQuotaExhausted': '可先记下灵感，留在这里稍后发送…',
+  'chat:input.placeholderWhileProcessing': '正在写作中，可先记下新想法…',
   'chat:tool.undo_edit': '撤销这次修改',
   'chat:actions.undo': '撤销',
   'common:cancel': '取消',
@@ -844,7 +844,7 @@ describe('ChatPanel mount smoke', () => {
       await act(async () => {})
       expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
       expect(lastMessageInputProps().onBlockedSend).toBeTypeOf('function')
-      expect(lastMessageInputProps().placeholder).toBe('先把想法写下来，额度恢复后再发。')
+      expect(lastMessageInputProps().placeholder).toBe('可先记下灵感，留在这里稍后发送…')
       await act(async () => { await lastMessageInputProps().onSend('按大纲写第一章正文', []) })
       expect(mockStartStream).not.toHaveBeenCalled()
       expect(mockDraft.saveDraft).toHaveBeenCalledWith('按大纲写第一章正文')
@@ -1902,7 +1902,7 @@ describe('ChatPanel mount smoke', () => {
   })
 
   describe('新对话 pressed while the AI is writing', () => {
-    const newChatButton = () => screen.getByTitle('chat:panel.newSession')
+    const newChatButton = () => screen.getByRole('button', { name: 'chat:panel.newSession' })
 
     afterEach(() => {
       mockStop.mockReset()
@@ -2003,12 +2003,15 @@ describe('ChatPanel mount smoke', () => {
       expect(createNewSession).toHaveBeenCalledTimes(1)
       expect(getRecentMessages).toHaveBeenCalledTimes(1)
       expect(toast.error).not.toHaveBeenCalled()
-      expect(newChatButton()).toBeEnabled()
+      expect(newChatButton()).toHaveAttribute('aria-busy', 'false')
+      expect(newChatButton()).toHaveAttribute('title', 'chat:panel.alreadyNewSession')
+      expect(newChatButton()).toBeDisabled()
     })
 
     it('starts the new chat right away when nothing is generating', async () => {
+      withEarlierTurn()
       render(<ChatPanel />)
-      await waitFor(() => expect(screen.getByTestId('message-list')).toBeInTheDocument())
+      await screen.findByTestId('mock-message-list')
 
       fireEvent.click(newChatButton())
 
@@ -2688,6 +2691,7 @@ describe('ChatPanel new-author flow', () => {
     Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 400 })
     Object.defineProperty(scroller, 'scrollTop', { configurable: true, writable: true, value: 0 })
     fireEvent.scroll(scroller)
+    expect(screen.getByRole('button', { name: 'chat:panel.jumpToLatest' })).toBeInTheDocument()
     mockScrollToBottom.mockClear()
 
     await act(async () => { await lastMessageInputProps().onSend('继续写第二章', []) })
@@ -2785,7 +2789,7 @@ describe('ChatPanel new-author flow', () => {
     await waitFor(() => expect(lastMessageInputProps().onBlockedSend).toBeTypeOf('function'))
     expect(lastMessageInputProps().sendDisabled).toBe(false)
     expect(screen.getByTestId('mock-input-textarea')).not.toBeDisabled()
-    expect(lastMessageInputProps().placeholder).toBe('先把想法写下来，额度恢复后再发。')
+    expect(lastMessageInputProps().placeholder).toBe('可先记下灵感，留在这里稍后发送…')
 
     act(() => lastMessageInputProps().onBlockedSend?.())
     expect(await screen.findByText('北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。')).toBeInTheDocument()
@@ -2799,7 +2803,7 @@ describe('ChatPanel new-author flow', () => {
     await waitFor(() => expect(testQueryClient.getQueryData(['subscription-quota', 'test-user'])).toBeDefined())
     await act(async () => {})
     expect(screen.queryByTestId('chat-quota-card')).not.toBeInTheDocument()
-    expect(lastMessageInputProps().placeholder).toBe("AI 正在生成，你可以先输入，结束后再发送")
+    expect(lastMessageInputProps().placeholder).toBe('正在写作中，可先记下新想法…')
 
     // The round ends (done): the panel re-renders idle.
     mockAgentStreamState.isStreaming = false
@@ -3655,15 +3659,48 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     expect(mockStartStream).not.toHaveBeenCalled()
   })
 
-  it('a chat the author starts with 新对话 keeps the suggestions', async () => {
+  it('disables 新对话 with an explanatory title on an already-empty idle chat and keeps starter cards intact', async () => {
     render(<ChatPanel />)
     await screen.findByTestId('starter-cards')
 
-    fireEvent.click(screen.getByTitle('chat:panel.newSession'))
+    const newChatBtn = screen.getByRole('button', { name: 'chat:panel.newSession' })
+    expect(newChatBtn).toBeDisabled()
+    expect(newChatBtn).toHaveAttribute('title', 'chat:panel.alreadyNewSession')
+    fireEvent.click(newChatBtn)
+    expect(createNewSession).not.toHaveBeenCalled()
+    expect(screen.getByTestId('starter-cards')).toBeInTheDocument()
+  })
+
+  it('a chat with earlier turns starts a new session with 新对话 and keeps suggestions', async () => {
+    withEarlierTurn()
+    render(<ChatPanel />)
+    await screen.findByTestId('mock-message-list')
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1))
+    localStorage.removeItem('zenstory_suggestions_cache_project-1')
+
+    const newChatBtn = screen.getByRole('button', { name: 'chat:panel.newSession' })
+    expect(newChatBtn).toBeEnabled()
+    fireEvent.click(newChatBtn)
 
     await waitFor(() => expect(createNewSession).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(2))
     expect(screen.queryByTestId('starter-cards')).not.toBeInTheDocument()
+  })
+
+  it('renders Jump-to-Latest outside the scrollable message-list with 44px mobile touch height', async () => {
+    withEarlierTurn()
+    render(<ChatPanel />)
+    await screen.findByTestId('mock-message-list')
+
+    const scroller = screen.getByTestId('message-list')
+    Object.defineProperty(scroller, 'scrollHeight', { value: 1200, configurable: true })
+    Object.defineProperty(scroller, 'clientHeight', { value: 400, configurable: true })
+    Object.defineProperty(scroller, 'scrollTop', { value: 100, writable: true, configurable: true })
+    fireEvent.scroll(scroller)
+
+    const jumpBtn = await screen.findByRole('button', { name: 'chat:panel.jumpToLatest' })
+    expect(scroller.contains(jumpBtn)).toBe(false)
+    expect(jumpBtn.className).toContain('min-h-11')
   })
 
   it('exposes a horizontal separator role on the desktop input resize handle and hides it on mobile', async () => {

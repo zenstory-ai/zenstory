@@ -25,12 +25,23 @@ export const SidebarTabs: React.FC = () => {
     setActiveTab(tabId);
   };
 
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === effectiveActiveTab));
+
   return (
     <div
       role="tablist"
       aria-label={t('editor:sidebar.files')}
-      className="flex h-12 shrink-0 border-b border-[hsl(var(--separator-color))]"
+      className="relative flex h-12 shrink-0 border-b border-[hsl(var(--separator-color))]"
     >
+      {/* GPU-composited sliding active indicator */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-0 left-0 h-0.5 bg-[hsl(var(--accent-primary))] motion-tab-indicator"
+        style={{
+          width: `${100 / tabs.length}%`,
+          transform: `translate3d(${activeIndex * 100}%, 0, 0)`,
+        }}
+      />
       {tabs.map((tab) => {
         const isActive = effectiveActiveTab === tab.id;
         const Icon = tab.icon;
@@ -41,9 +52,9 @@ export const SidebarTabs: React.FC = () => {
             role="tab"
             aria-selected={isActive}
             onClick={() => handleTabClick(tab.id)}
-            className={`flex-1 flex flex-col items-center justify-center h-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
+            className={`flex-1 flex flex-col items-center justify-center h-full transition-[color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
               isActive
-                ? "text-[hsl(var(--accent-primary))] border-b-2 border-[hsl(var(--accent-primary))]"
+                ? "text-[hsl(var(--accent-primary))]"
                 : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
             }`}
           >

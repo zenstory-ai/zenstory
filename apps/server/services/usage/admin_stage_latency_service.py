@@ -7,7 +7,9 @@ metric failure never delays or breaks SSE delivery.
 
 Admin queries are customer-scoped (``User.is_superuser == False``) and aggregate
 over Beijing calendar days, matching ``admin_usage_service`` and
-``admin_growth_service``.
+``admin_growth_service``. On PostgreSQL, stage-latency percentiles and slow tails
+aggregate directly in SQL; 24h AI draft survival uses a single CTE query on both
+PostgreSQL and SQLite instead of materializing full version histories in Python.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta
 from typing import Any
 
+from sqlalchemy import and_, case, func, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -30,8 +33,9 @@ from models.file_version import (
     CHANGE_TYPE_RESTORE,
     FileVersion,
 )
+from services.infra.admin_analytics_cache import admin_read_statement_timeout
 from services.usage.admin_usage_service import Period, trailing_period
-from services.usage.pricing import BEIJING_TZ_NAME, beijing_today
+from services.usage.pricing import BEIJING_TZ_NAME, beijing_day_bucket_case, beijing_today
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -51,6 +55,11 @@ def _default_session_factory() -> Session:
 
 # Tests point this at their own database (see tests/conftest.py).
 _session_factory: SessionFactory = _default_session_factory
+
+
+def _is_postgres(session: Session) -> bool:
+    bind = session.get_bind()
+    return bind is not None and bind.dialect.name == "postgresql"
 
 
 def _bounded_str(value: Any, max_len: int) -> str | None:
@@ -234,7 +243,30 @@ def _slow_tail_distribution(values: list[int], *, include_p90: bool = False) -> 
     return payload
 
 
-def _device_slice(rows: list[AgentRoundMetric]) -> dict[str, Any]:
+def _empty_device_slice() -> dict[str, Any]:
+    return {
+        "rounds": 0,
+        "first_output_ms": {
+            "p50": None,
+            "p95": None,
+            "samples": 0,
+            "slow_count": 0,
+            "slow_rate": None,
+        },
+        "chapter_first_prose_ms": {
+            "p50": None,
+            "p90": None,
+            "p95": None,
+            "samples": 0,
+            "slow_count": 0,
+            "slow_rate": None,
+        },
+        "client_disconnected_rounds": 0,
+        "client_disconnected_rate": None,
+    }
+
+
+def _device_slice(rows: list[Any]) -> dict[str, Any]:
     total = len(rows)
     first_output = [r.first_output_ms for r in rows if r.first_output_ms is not None]
     chapter_prose = [r.chapter_first_prose_ms for r in rows if r.chapter_first_prose_ms is not None]
@@ -253,7 +285,7 @@ def _compute_ai_draft_survival(
     period: Period,
     now_naive_utc: datetime,
 ) -> dict[str, Any]:
-    """Compute 24h AI draft survival / co-edit rate from file + file_version.
+    """Compute 24h AI draft survival / co-edit rate in a single SQL CTE query.
 
     Includes customer-owned ``draft`` / ``script`` files created within the
     reporting window whose age is at least 24 hours (so every counted draft has
@@ -274,8 +306,12 @@ def _compute_ai_draft_survival(
             "observation_hours": DRAFT_SURVIVAL_OBSERVATION_HOURS,
         }
 
-    file_rows = session.exec(
-        select(File.id, File.is_deleted, Project.is_deleted.label("project_deleted"))
+    candidate_files = (
+        select(
+            File.id.label("file_id"),
+            File.is_deleted.label("file_deleted"),
+            Project.is_deleted.label("project_deleted"),
+        )
         .join(Project, Project.id == File.project_id)
         .join(User, User.id == Project.owner_id)
         .where(
@@ -284,67 +320,109 @@ def _compute_ai_draft_survival(
             File.created_at >= utc_start,
             File.created_at < eligible_end,
         )
-    ).all()
+        .cte("candidate_draft_files")
+    )
 
-    if not file_rows:
-        return {
-            "eligible_drafts": 0,
-            "survived_drafts": 0,
-            "co_edited_drafts": 0,
-            "deleted_or_reverted_drafts": 0,
-            "survival_rate": None,
-            "co_edit_rate": None,
-            "observation_hours": DRAFT_SURVIVAL_OBSERVATION_HOURS,
-        }
-
-    file_ids = [row.id for row in file_rows]
-    version_rows = session.exec(
+    # Single-pass window scan over file_version per candidate draft (replaces
+    # 4 separate joins against file_version that read ~42k buffers / ~15s on 30d).
+    version_ranked = (
         select(
-            FileVersion.file_id,
-            FileVersion.version_number,
-            FileVersion.change_type,
-            FileVersion.change_source,
-            FileVersion.word_count,
+            candidate_files.c.file_id.label("file_id"),
+            candidate_files.c.file_deleted.label("file_deleted"),
+            candidate_files.c.project_deleted.label("project_deleted"),
+            FileVersion.change_source.label("change_source"),
+            FileVersion.change_type.label("change_type"),
+            func.coalesce(FileVersion.word_count, 0).label("word_count"),
+            func.row_number()
+            .over(
+                partition_by=FileVersion.file_id,
+                order_by=FileVersion.version_number.asc(),
+            )
+            .label("rn_asc"),
+            func.row_number()
+            .over(
+                partition_by=FileVersion.file_id,
+                order_by=FileVersion.version_number.desc(),
+            )
+            .label("rn_desc"),
         )
-        .where(FileVersion.file_id.in_(file_ids))
-        .order_by(FileVersion.file_id.asc(), FileVersion.version_number.asc())
-    ).all()
+        .select_from(candidate_files)
+        .join(FileVersion, FileVersion.file_id == candidate_files.c.file_id)
+        .cte("draft_version_ranked")
+    )
 
-    versions_by_file: dict[str, list[Any]] = {}
-    for vrow in version_rows:
-        versions_by_file.setdefault(vrow.file_id, []).append(vrow)
-
-    eligible = 0
-    survived = 0
-    co_edited = 0
-    deleted_or_reverted = 0
-
-    for frow in file_rows:
-        versions = versions_by_file.get(frow.id)
-        if not versions:
-            continue
-        first_version = versions[0]
-        if first_version.change_source != CHANGE_SOURCE_AI:
-            continue
-
-        eligible += 1
-        latest_version = versions[-1]
-        is_deleted = bool(frow.is_deleted or frow.project_deleted)
-        is_reverted = (
-            latest_version.change_type == CHANGE_TYPE_RESTORE
-            or (int(latest_version.word_count or 0) == 0 and int(first_version.word_count or 0) > 0)
+    per_file = (
+        select(
+            version_ranked.c.file_id.label("file_id"),
+            func.max(case((version_ranked.c.file_deleted.is_(True), 1), else_=0)).label("file_deleted"),
+            func.max(case((version_ranked.c.project_deleted.is_(True), 1), else_=0)).label(
+                "project_deleted"
+            ),
+            func.max(
+                case((version_ranked.c.rn_asc == 1, version_ranked.c.change_source))
+            ).label("first_source"),
+            func.max(
+                case((version_ranked.c.rn_asc == 1, version_ranked.c.word_count))
+            ).label("first_words"),
+            func.max(
+                case((version_ranked.c.rn_desc == 1, version_ranked.c.change_type))
+            ).label("latest_change_type"),
+            func.max(
+                case((version_ranked.c.rn_desc == 1, version_ranked.c.word_count))
+            ).label("latest_words"),
+            func.max(
+                case(
+                    (
+                        and_(
+                            version_ranked.c.rn_asc > 1,
+                            version_ranked.c.change_source == CHANGE_SOURCE_USER,
+                            version_ranked.c.change_type != CHANGE_TYPE_RESTORE,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("has_user_coedit"),
         )
-        if is_deleted or is_reverted:
-            deleted_or_reverted += 1
-            continue
+        .group_by(version_ranked.c.file_id)
+        .cte("draft_per_file_summary")
+    )
 
-        survived += 1
-        has_user_co_edit = any(
-            v.change_source == CHANGE_SOURCE_USER and v.change_type != CHANGE_TYPE_RESTORE
-            for v in versions[1:]
+    is_deleted_or_reverted = or_(
+        per_file.c.file_deleted == 1,
+        per_file.c.project_deleted == 1,
+        per_file.c.latest_change_type == CHANGE_TYPE_RESTORE,
+        and_(
+            func.coalesce(per_file.c.latest_words, 0) == 0,
+            func.coalesce(per_file.c.first_words, 0) > 0,
+        ),
+    )
+
+    row = session.exec(
+        select(
+            func.count(per_file.c.file_id).label("eligible"),
+            func.coalesce(
+                func.sum(case((is_deleted_or_reverted, 1), else_=0)),
+                0,
+            ).label("deleted_or_reverted"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (and_(~is_deleted_or_reverted, per_file.c.has_user_coedit == 1), 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("co_edited"),
         )
-        if has_user_co_edit:
-            co_edited += 1
+        .select_from(per_file)
+        .where(per_file.c.first_source == CHANGE_SOURCE_AI)
+    ).one()
+
+    eligible = int(row.eligible or 0)
+    deleted_or_reverted = int(row.deleted_or_reverted or 0)
+    survived = max(eligible - deleted_or_reverted, 0)
+    co_edited = int(row.co_edited or 0)
 
     return {
         "eligible_drafts": eligible,
@@ -354,6 +432,258 @@ def _compute_ai_draft_survival(
         "survival_rate": _rate(survived, eligible),
         "co_edit_rate": _rate(co_edited, eligible),
         "observation_hours": DRAFT_SURVIVAL_OBSERVATION_HOURS,
+    }
+
+
+def _int_or_none(value: Any) -> int | None:
+    return int(value) if value is not None else None
+
+
+def _get_stage_latency_metrics_postgres(
+    session: Session,
+    period: Period,
+) -> dict[str, Any]:
+    utc_start, utc_end = period.utc_bounds
+
+    # 1. Overall + desktop/mobile/unknown split in one SQL scan using GROUPING SETS.
+    summary_rows = session.execute(
+        text(
+            """
+            SELECT
+                GROUPING(device_key) AS is_total,
+                device_key,
+                COUNT(*) AS rounds,
+                COUNT(m.prepare_context_ms) AS prep_samples,
+                percentile_disc(0.50) WITHIN GROUP (ORDER BY m.prepare_context_ms)
+                    FILTER (WHERE m.prepare_context_ms IS NOT NULL) AS prep_p50,
+                percentile_disc(0.95) WITHIN GROUP (ORDER BY m.prepare_context_ms)
+                    FILTER (WHERE m.prepare_context_ms IS NOT NULL) AS prep_p95,
+                COUNT(m.first_output_ms) AS fo_samples,
+                COUNT(*) FILTER (WHERE m.first_output_ms >= :slow_ms) AS fo_slow,
+                percentile_disc(0.50) WITHIN GROUP (ORDER BY m.first_output_ms)
+                    FILTER (WHERE m.first_output_ms IS NOT NULL) AS fo_p50,
+                percentile_disc(0.95) WITHIN GROUP (ORDER BY m.first_output_ms)
+                    FILTER (WHERE m.first_output_ms IS NOT NULL) AS fo_p95,
+                COUNT(m.chapter_first_prose_ms) AS cp_samples,
+                COUNT(*) FILTER (WHERE m.chapter_first_prose_ms >= :slow_ms) AS cp_slow,
+                percentile_disc(0.50) WITHIN GROUP (ORDER BY m.chapter_first_prose_ms)
+                    FILTER (WHERE m.chapter_first_prose_ms IS NOT NULL) AS cp_p50,
+                percentile_disc(0.90) WITHIN GROUP (ORDER BY m.chapter_first_prose_ms)
+                    FILTER (WHERE m.chapter_first_prose_ms IS NOT NULL) AS cp_p90,
+                percentile_disc(0.95) WITHIN GROUP (ORDER BY m.chapter_first_prose_ms)
+                    FILTER (WHERE m.chapter_first_prose_ms IS NOT NULL) AS cp_p95,
+                COUNT(m.first_body_persisted_ms) AS bp_samples,
+                percentile_disc(0.50) WITHIN GROUP (ORDER BY m.first_body_persisted_ms)
+                    FILTER (WHERE m.first_body_persisted_ms IS NOT NULL) AS bp_p50,
+                percentile_disc(0.95) WITHIN GROUP (ORDER BY m.first_body_persisted_ms)
+                    FILTER (WHERE m.first_body_persisted_ms IS NOT NULL) AS bp_p95,
+                COUNT(*) FILTER (WHERE m.file_body_pending_count > 0) AS pending_rounds,
+                COUNT(*) FILTER (WHERE m.leaked_tool_call_count > 0) AS leaked_rounds,
+                COUNT(*) FILTER (WHERE m.user_stopped IS TRUE) AS stopped_rounds,
+                COUNT(*) FILTER (WHERE m.client_disconnected IS TRUE) AS disconnected_rounds
+            FROM (
+                SELECT
+                    arm.*,
+                    CASE
+                        WHEN arm.is_mobile IS TRUE THEN 'mobile'
+                        WHEN arm.is_mobile IS FALSE THEN 'desktop'
+                        ELSE 'unknown'
+                    END AS device_key
+                FROM agent_round_metric arm
+                JOIN "user" u ON u.id = arm.user_id
+                WHERE u.is_superuser IS FALSE
+                  AND arm.occurred_at >= :utc_start
+                  AND arm.occurred_at < :utc_end
+            ) m
+            GROUP BY GROUPING SETS ((), (device_key))
+            """
+        ),
+        {"utc_start": utc_start, "utc_end": utc_end, "slow_ms": SLOW_TAIL_THRESHOLD_MS},
+    ).all()
+
+    overall = None
+    devices = {
+        "desktop": _empty_device_slice(),
+        "mobile": _empty_device_slice(),
+        "unknown": _empty_device_slice(),
+    }
+    for row in summary_rows:
+        if row.is_total == 1:
+            overall = row
+        elif row.device_key in devices:
+            rounds_count = int(row.rounds or 0)
+            fo_samples = int(row.fo_samples or 0)
+            fo_slow = int(row.fo_slow or 0)
+            cp_samples = int(row.cp_samples or 0)
+            cp_slow = int(row.cp_slow or 0)
+            disconnected = int(row.disconnected_rounds or 0)
+            devices[row.device_key] = {
+                "rounds": rounds_count,
+                "first_output_ms": {
+                    "p50": _int_or_none(row.fo_p50),
+                    "p95": _int_or_none(row.fo_p95),
+                    "samples": fo_samples,
+                    "slow_count": fo_slow,
+                    "slow_rate": _rate(fo_slow, fo_samples),
+                },
+                "chapter_first_prose_ms": {
+                    "p50": _int_or_none(row.cp_p50),
+                    "p90": _int_or_none(row.cp_p90),
+                    "p95": _int_or_none(row.cp_p95),
+                    "samples": cp_samples,
+                    "slow_count": cp_slow,
+                    "slow_rate": _rate(cp_slow, cp_samples),
+                },
+                "client_disconnected_rounds": disconnected,
+                "client_disconnected_rate": _rate(disconnected, rounds_count),
+            }
+
+    # 2. Daily breakdown in one SQL query.
+    day_expr = beijing_day_bucket_case(AgentRoundMetric.occurred_at, period.days)
+    daily_rows = session.exec(
+        select(
+            day_expr.label("day"),
+            func.count(AgentRoundMetric.id).label("rounds"),
+            func.percentile_disc(0.50)
+            .within_group(AgentRoundMetric.prepare_context_ms)
+            .filter(AgentRoundMetric.prepare_context_ms.is_not(None))
+            .label("prep_p50"),
+            func.percentile_disc(0.50)
+            .within_group(AgentRoundMetric.first_output_ms)
+            .filter(AgentRoundMetric.first_output_ms.is_not(None))
+            .label("fo_p50"),
+            func.percentile_disc(0.95)
+            .within_group(AgentRoundMetric.first_output_ms)
+            .filter(AgentRoundMetric.first_output_ms.is_not(None))
+            .label("fo_p95"),
+            func.count(AgentRoundMetric.first_output_ms).label("fo_samples"),
+            func.count(AgentRoundMetric.id)
+            .filter(AgentRoundMetric.first_output_ms >= SLOW_TAIL_THRESHOLD_MS)
+            .label("fo_slow"),
+            func.percentile_disc(0.50)
+            .within_group(AgentRoundMetric.chapter_first_prose_ms)
+            .filter(AgentRoundMetric.chapter_first_prose_ms.is_not(None))
+            .label("cp_p50"),
+            func.percentile_disc(0.95)
+            .within_group(AgentRoundMetric.chapter_first_prose_ms)
+            .filter(AgentRoundMetric.chapter_first_prose_ms.is_not(None))
+            .label("cp_p95"),
+            func.count(AgentRoundMetric.chapter_first_prose_ms).label("cp_samples"),
+            func.count(AgentRoundMetric.id)
+            .filter(AgentRoundMetric.chapter_first_prose_ms >= SLOW_TAIL_THRESHOLD_MS)
+            .label("cp_slow"),
+            func.count(AgentRoundMetric.id)
+            .filter(AgentRoundMetric.file_body_pending_count > 0)
+            .label("pending_rounds"),
+            func.count(AgentRoundMetric.id)
+            .filter(AgentRoundMetric.leaked_tool_call_count > 0)
+            .label("leaked_rounds"),
+            func.count(AgentRoundMetric.id)
+            .filter(AgentRoundMetric.user_stopped.is_(True))
+            .label("stopped_rounds"),
+            func.count(AgentRoundMetric.id)
+            .filter(AgentRoundMetric.client_disconnected.is_(True))
+            .label("disconnected_rounds"),
+        )
+        .join(User, User.id == AgentRoundMetric.user_id)
+        .where(
+            User.is_superuser.is_(False),
+            AgentRoundMetric.occurred_at >= utc_start,
+            AgentRoundMetric.occurred_at < utc_end,
+        )
+        .group_by(day_expr)
+    ).all()
+    by_day = {row.day: row for row in daily_rows}
+
+    daily: list[dict[str, Any]] = []
+    for day in period.days:
+        day_key = day.isoformat()
+        row = by_day.get(day_key)
+        if row is None:
+            daily.append(
+                {
+                    "date": day_key,
+                    "rounds": 0,
+                    "prepare_context_p50_ms": None,
+                    "first_output_p50_ms": None,
+                    "first_output_p95_ms": None,
+                    "first_output_slow_rate": None,
+                    "chapter_first_prose_p50_ms": None,
+                    "chapter_first_prose_p95_ms": None,
+                    "chapter_first_prose_slow_rate": None,
+                    "file_body_pending_rate": None,
+                    "leaked_tool_call_rate": None,
+                    "user_stopped_rate": None,
+                    "client_disconnected_rate": None,
+                }
+            )
+            continue
+        day_total = int(row.rounds or 0)
+        daily.append(
+            {
+                "date": day_key,
+                "rounds": day_total,
+                "prepare_context_p50_ms": _int_or_none(row.prep_p50),
+                "first_output_p50_ms": _int_or_none(row.fo_p50),
+                "first_output_p95_ms": _int_or_none(row.fo_p95),
+                "first_output_slow_rate": _rate(int(row.fo_slow or 0), int(row.fo_samples or 0)),
+                "chapter_first_prose_p50_ms": _int_or_none(row.cp_p50),
+                "chapter_first_prose_p95_ms": _int_or_none(row.cp_p95),
+                "chapter_first_prose_slow_rate": _rate(int(row.cp_slow or 0), int(row.cp_samples or 0)),
+                "file_body_pending_rate": _rate(int(row.pending_rounds or 0), day_total),
+                "leaked_tool_call_rate": _rate(int(row.leaked_rounds or 0), day_total),
+                "user_stopped_rate": _rate(int(row.stopped_rounds or 0), day_total),
+                "client_disconnected_rate": _rate(int(row.disconnected_rounds or 0), day_total),
+            }
+        )
+
+    total_rounds = int(overall.rounds or 0) if overall else 0
+    fo_samples = int(overall.fo_samples or 0) if overall else 0
+    fo_slow = int(overall.fo_slow or 0) if overall else 0
+    cp_samples = int(overall.cp_samples or 0) if overall else 0
+    cp_slow = int(overall.cp_slow or 0) if overall else 0
+    pending_rounds = int(overall.pending_rounds or 0) if overall else 0
+    leaked_rounds = int(overall.leaked_rounds or 0) if overall else 0
+    stopped_rounds = int(overall.stopped_rounds or 0) if overall else 0
+    disconnected_rounds = int(overall.disconnected_rounds or 0) if overall else 0
+
+    return {
+        "total_rounds": total_rounds,
+        "prepare_context_ms": {
+            "p50": _int_or_none(overall.prep_p50) if overall else None,
+            "p95": _int_or_none(overall.prep_p95) if overall else None,
+            "samples": int(overall.prep_samples or 0) if overall else 0,
+        },
+        "first_output_ms": {
+            "p50": _int_or_none(overall.fo_p50) if overall else None,
+            "p95": _int_or_none(overall.fo_p95) if overall else None,
+            "samples": fo_samples,
+            "slow_count": fo_slow,
+            "slow_rate": _rate(fo_slow, fo_samples),
+        },
+        "chapter_first_prose_ms": {
+            "p50": _int_or_none(overall.cp_p50) if overall else None,
+            "p90": _int_or_none(overall.cp_p90) if overall else None,
+            "p95": _int_or_none(overall.cp_p95) if overall else None,
+            "samples": cp_samples,
+            "slow_count": cp_slow,
+            "slow_rate": _rate(cp_slow, cp_samples),
+        },
+        "first_body_persisted_ms": {
+            "p50": _int_or_none(overall.bp_p50) if overall else None,
+            "p95": _int_or_none(overall.bp_p95) if overall else None,
+            "samples": int(overall.bp_samples or 0) if overall else 0,
+        },
+        "file_body_pending_rounds": pending_rounds,
+        "file_body_pending_rate": _rate(pending_rounds, total_rounds),
+        "leaked_tool_call_rounds": leaked_rounds,
+        "leaked_tool_call_rate": _rate(leaked_rounds, total_rounds),
+        "user_stopped_rounds": stopped_rounds,
+        "user_stopped_rate": _rate(stopped_rounds, total_rounds),
+        "client_disconnected_rounds": disconnected_rounds,
+        "client_disconnected_rate": _rate(disconnected_rounds, total_rounds),
+        "desktop_vs_mobile": devices,
+        "daily": daily,
     }
 
 
@@ -369,18 +699,44 @@ def get_stage_latency_metrics(
     period = trailing_period(days, reference_now)
     utc_start, utc_end = period.utc_bounds
 
-    rows = list(
-        session.exec(
-            select(AgentRoundMetric)
-            .join(User, User.id == AgentRoundMetric.user_id)
-            .where(
-                User.is_superuser.is_(False),
-                AgentRoundMetric.occurred_at >= utc_start,
-                AgentRoundMetric.occurred_at < utc_end,
-            )
-            .order_by(AgentRoundMetric.occurred_at.asc())
-        ).all()
-    )
+    with admin_read_statement_timeout(session):
+        survival = _compute_ai_draft_survival(session, period, now_naive_utc)
+
+        if _is_postgres(session):
+            agg = _get_stage_latency_metrics_postgres(session, period)
+            return {
+                "days": days,
+                "timezone": BEIJING_TZ_NAME,
+                "period_start": period.first_day.isoformat(),
+                "period_end": period.last_day.isoformat(),
+                "slow_threshold_ms": SLOW_TAIL_THRESHOLD_MS,
+                **agg,
+                "ai_draft_survival": survival,
+            }
+
+        # Lightweight column projection (avoid hydrating full AgentRoundMetric ORM entities).
+        rows = list(
+            session.exec(
+                select(
+                    AgentRoundMetric.occurred_at,
+                    AgentRoundMetric.is_mobile,
+                    AgentRoundMetric.prepare_context_ms,
+                    AgentRoundMetric.first_output_ms,
+                    AgentRoundMetric.chapter_first_prose_ms,
+                    AgentRoundMetric.first_body_persisted_ms,
+                    AgentRoundMetric.file_body_pending_count,
+                    AgentRoundMetric.leaked_tool_call_count,
+                    AgentRoundMetric.user_stopped,
+                    AgentRoundMetric.client_disconnected,
+                )
+                .join(User, User.id == AgentRoundMetric.user_id)
+                .where(
+                    User.is_superuser.is_(False),
+                    AgentRoundMetric.occurred_at >= utc_start,
+                    AgentRoundMetric.occurred_at < utc_end,
+                )
+            ).all()
+        )
 
     total_rounds = len(rows)
     prepare_context_values = [r.prepare_context_ms for r in rows if r.prepare_context_ms is not None]
@@ -397,7 +753,7 @@ def get_stage_latency_metrics(
     mobile_rows = [r for r in rows if r.is_mobile is True]
     unknown_rows = [r for r in rows if r.is_mobile is None]
 
-    rows_by_day: dict[str, list[AgentRoundMetric]] = {day.isoformat(): [] for day in period.days}
+    rows_by_day: dict[str, list[Any]] = {day.isoformat(): [] for day in period.days}
     for row in rows:
         day_key = beijing_today(row.occurred_at).isoformat()
         if day_key in rows_by_day:
@@ -460,6 +816,6 @@ def get_stage_latency_metrics(
             "mobile": _device_slice(mobile_rows),
             "unknown": _device_slice(unknown_rows),
         },
-        "ai_draft_survival": _compute_ai_draft_survival(session, period, now_naive_utc),
+        "ai_draft_survival": survival,
         "daily": daily,
     }

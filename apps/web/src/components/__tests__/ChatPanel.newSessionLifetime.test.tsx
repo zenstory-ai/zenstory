@@ -81,7 +81,7 @@ function mount(strict: boolean) {
   </ProjectProvider></AuthProvider></QueryClientProvider></I18nextProvider>
   return render(strict ? <StrictMode>{content}</StrictMode> : content)
 }
-const newButton = () => screen.getByTitle('New session')
+const newButton = () => screen.getByRole('button', { name: 'New session' })
 const has = (text: string) => (document.body.textContent ?? '').includes(text)
 const suggestionRequests = () => requests.filter(x => x.path === '/api/v1/agent/suggest')
 
@@ -128,7 +128,7 @@ beforeEach(async () => {
   })
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } })
   translations = createInstance()
-  const resources = { chat: { panel: { newSession: 'New session', creatingSession: 'Creating new chat', newSessionFailed: 'New chat could not be created', sessionRecoveryFailed: 'Current chat could not be synced', aiMemory: 'AI memory' }, input: { staticSuggestions: ['LOCAL FALLBACK', 'LOCAL FALLBACK TWO'] } }, common: { send: 'Send', cancel: 'Cancel', loading: 'Loading', retry: 'Retry' }, settings: {}, dashboard: {}, home: {}, editor: {}, versions: {} }
+  const resources = { chat: { panel: { newSession: 'New session', alreadyNewSession: 'Already in a new chat', creatingSession: 'Creating new chat', newSessionFailed: 'New chat could not be created', sessionRecoveryFailed: 'Current chat could not be synced', aiMemory: 'AI memory' }, input: { staticSuggestions: ['LOCAL FALLBACK', 'LOCAL FALLBACK TWO'] } }, common: { send: 'Send', cancel: 'Cancel', loading: 'Loading', retry: 'Retry' }, settings: {}, dashboard: {}, home: {}, editor: {}, versions: {} }
   await translations.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'chat', resources: { en: resources } })
 })
 
@@ -207,7 +207,9 @@ describe.each([false, true])('actual mounted ChatPanel new session rootStrict=%s
     expect(requests.filter(request => request.path === '/api/v1/agent/stream')).toHaveLength(0)
     expect(screen.getByTestId('chat-input')).toHaveValue('Keep this typed idea')
     session.settle(); await flush()
-    expect(newButton()).toBeEnabled()
+    expect(newButton()).toHaveAttribute('aria-busy', 'false')
+    expect(newButton()).toHaveAttribute('title', 'Already in a new chat')
+    expect(newButton()).toBeDisabled()
     expect(screen.getByTestId('chat-input')).toHaveValue('Keep this typed idea')
   })
 

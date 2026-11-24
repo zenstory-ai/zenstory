@@ -133,6 +133,8 @@ for (const theme of ['light', 'dark']) {
     for (const route of ['/dashboard', '/dashboard/skills', '/dashboard/billing', '/dashboard/materials']) {
       await page.goto(route);
       await expect(page.locator('h1')).toBeVisible();
+      // Wait for entry reveal animations (e.g. 180ms motion-content-reveal) to settle so axe measures final contrast.
+      await page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined))));
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
       expect(results.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([]);
     }

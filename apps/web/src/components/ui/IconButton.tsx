@@ -58,7 +58,7 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(f
       type={type}
       aria-label={label}
       title={title ?? label}
-      className={`inline-flex shrink-0 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] disabled:cursor-not-allowed disabled:opacity-50 ${SIZE_CLASSES[size]} ${TONE_CLASSES[tone]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-lg transition-[transform,background-color,color,opacity] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${SIZE_CLASSES[size]} ${TONE_CLASSES[tone]} ${className}`}
       {...props}
     >
       {icon}

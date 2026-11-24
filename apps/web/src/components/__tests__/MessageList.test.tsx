@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MessageList, type Message, type MessageListRef } from '../MessageList'
 import { useEffect, useRef } from 'react'
 import { MobileLayoutProvider, useMobileLayout } from '../../contexts/MobileLayoutContext'
@@ -177,18 +177,29 @@ describe('MessageList', () => {
       role: 'assistant',
       content: '开头写好了。',
       backendMessageId: 'a-2',
-      stopOutcome: { reason: 'completed', charged: true, savedOutput: true, removedFiles: [], writtenFiles: [{ title: '第一章', words: 812 }] },
+      stopOutcome: {
+        reason: 'completed',
+        charged: true,
+        savedOutput: true,
+        removedFiles: [],
+        writtenFiles: [
+          { id: 'f-1', title: '第一章', words: 812 },
+          { id: 'f-2', title: '第二章', words: 640 },
+        ],
+      },
     })
+    const onOpenFile = vi.fn()
     const view = render(
       <MobileLayoutProvider isMobile>
         <PanelProbe />
-        <MessageList messages={[createMessage({ content: '写个开头' }), wrote]} />
+        <MessageList messages={[createMessage({ content: '写个开头' }), wrote]} onOpenFile={onOpenFile} />
       </MobileLayoutProvider>,
     )
     fireEvent.click(screen.getByTestId('panel'))
     expect(screen.getByTestId('panel')).toHaveTextContent('chat')
 
     fireEvent.click(screen.getByTestId('read-written-files'))
+    expect(onOpenFile).toHaveBeenCalledWith('f-2', '', '第二章')
     expect(screen.getByTestId('panel')).toHaveTextContent('editor')
 
     // Only the latest round, and only on phones (desktop shows the editor beside the chat).
@@ -1336,6 +1347,134 @@ describe('MessageList', () => {
           div.textContent?.includes('Streaming content')
         )
       expect(streamItemsContainer).toBeTruthy()
+    })
+  })
+
+  describe('copy AI reply action', () => {
+    it('copies assistant reply text (stripping think tags) and shows reversible copied state', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText },
+        configurable: true,
+      })
+      const messages = [
+        createMessage({ role: 'user', content: '帮我写一段开场' }),
+        createMessage({ role: 'assistant', content: '</think>窗外雨声淅沥。[TASK_COMPLETE]' }),
+      ]
+      render(<MessageList messages={messages} />)
+
+      const copyButtons = screen.getAllByTestId('copy-message-button')
+      expect(copyButtons).toHaveLength(1)
+      expect(copyButtons[0]).toHaveAttribute('aria-label', 'message.copyReply')
+
+      fireEvent.click(copyButtons[0])
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith('窗外雨声淅沥。'))
+      await waitFor(() => expect(copyButtons[0]).toHaveAttribute('aria-label', 'message.copiedReply'))
+    })
+  })
+
+  describe('read-only tool progress grouping', () => {
+    it('folds >=2 consecutive successful read-only tools across adjacent tool_calls items while keeping writes, pending, and errors exposed', () => {
+      const ts = new Date('2026-11-24T03:00:00Z')
+      const displayItems = [
+        {
+          id: 'tc-1',
+          type: 'tool_calls' as const,
+          timestamp: ts,
+          toolCalls: [
+            { id: 'q1', tool_name: 'query_files', arguments: {}, status: 'success' as const, result: { files: [{ id: 'f1', title: '人物小传' }] } },
+          ],
+        },
+        {
+          id: 'tc-2',
+          type: 'tool_calls' as const,
+          timestamp: ts,
+          toolCalls: [
+            { id: 'q2', tool_name: 'query_files', arguments: {}, status: 'success' as const, result: { files: [{ id: 'f2', title: '大纲' }] } },
+            { id: 's1', tool_name: 'load_skill', arguments: { name: '去AI味' }, status: 'success' as const, result: { name: '去AI味' } },
+          ],
+        },
+        {
+          id: 'tc-3',
+          type: 'tool_calls' as const,
+          timestamp: ts,
+          toolCalls: [
+            { id: 'w1', tool_name: 'create_file', arguments: {}, status: 'success' as const, result: { id: 'f3', title: '第一章 雨夜' } },
+            { id: 'q3', tool_name: 'query_files', arguments: {}, status: 'error' as const, error: 'not found' },
+            { id: 'q4', tool_name: 'query_files', arguments: {}, status: 'success' as const, result: { files: [{ id: 'f4', title: '设定集' }] } },
+          ],
+        },
+      ]
+
+      render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
+
+      // 3 consecutive successful read-only calls collapse into 1 group; write, error, and trailing single read-only stay exposed
+      const groups = screen.getAllByTestId('readonly-tool-group')
+      expect(groups).toHaveLength(1)
+      const toggle = groups[0].querySelector('button[aria-expanded]')!
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+      // Write card and error card remain directly visible outside the group
+      expect(screen.getByText(/第一章 雨夜/)).toBeInTheDocument()
+      expect(screen.getByText('chat:tool.failed')).toBeInTheDocument()
+
+      // Clicking expands to reveal the grouped read-only ToolResultCards
+      fireEvent.click(toggle)
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('never folds pending read-only tools while streaming', () => {
+      const ts = new Date('2026-11-24T03:00:00Z')
+      const streamItems = [
+        {
+          id: 'live-tc',
+          type: 'tool_calls' as const,
+          timestamp: ts,
+          toolCalls: [
+            { id: 'p1', tool_name: 'query_files', arguments: {}, status: 'pending' as const },
+            { id: 'p2', tool_name: 'load_skill', arguments: { name: '古风润色' }, status: 'pending' as const },
+          ],
+        },
+      ]
+
+      render(<MessageList messages={[]} streamRenderItems={streamItems} />)
+      expect(screen.queryByTestId('readonly-tool-group')).not.toBeInTheDocument()
+    })
+
+    it('groups consecutive read-only legacy toolResults and renders RoundEndNote + mobile read-written-files chronologically after tool cards', () => {
+      const wrote = createMessage({
+        role: 'assistant',
+        content: '已微调第二章末段。',
+        backendMessageId: 'a-legacy-order',
+        toolResults: [
+          { id: 'r1', tool_name: 'query_files', arguments: {}, status: 'success', result: [{ id: 'f1', title: '大纲' }] },
+          { id: 'r2', tool_name: 'hybrid_search', arguments: {}, status: 'success', result: [{ id: 'f2', title: '卷宗' }] },
+          { id: 'w1', tool_name: 'edit_file', arguments: {}, status: 'success', result: { id: 'f3', title: '第二章 铜雀密信', applied_count: 1 } },
+        ],
+        stopOutcome: {
+          reason: 'completed',
+          charged: true,
+          savedOutput: true,
+          removedFiles: [],
+          writtenFiles: [{ id: 'f3', title: '第二章 铜雀密信', words: 2510 }],
+        },
+      })
+
+      render(
+        <MobileLayoutProvider isMobile>
+          <MessageList messages={[createMessage({ content: '帮我微调' }), wrote]} />
+        </MobileLayoutProvider>,
+      )
+
+      const readonlyGroup = screen.getByTestId('readonly-tool-group')
+      const editTitle = screen.getByText('第二章 铜雀密信')
+      const roundEnd = screen.getByTestId('round-end-note')
+      const readButton = screen.getByTestId('read-written-files')
+
+      // Read-only group precedes the edit card, and both precede the round-end receipt & mobile jump pill
+      expect(readonlyGroup.compareDocumentPosition(editTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(editTitle.compareDocumentPosition(roundEnd) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(editTitle.compareDocumentPosition(readButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
   })
 })

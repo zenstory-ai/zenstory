@@ -188,6 +188,7 @@
     "emptyHint": "Click \"Start Writing\" above to create your first project — no idea needed.",
     "emptyHintProjectsPage": "Click \"New Project\" to start your first book.",
     "searchPlaceholder": "Search projects",
+    "clearFilters": "Clear filters",
     "cancel": "Cancel",
     "cannotDeleteLast": "Cannot delete last project",
     "editName": "Edit project name",

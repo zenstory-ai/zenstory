@@ -197,14 +197,21 @@ class MaterialLLMClient:
         from services.usage.cost_budget import budget_attribution, material_trial_call
         from services.usage.llm_usage_service import LLMUsageAttribution, resolve_material_owner
         owner = None
+        resolved_novel_id: int | None = usage_novel_id
         trial_limit = None
         if usage_novel_id is not None or usage_chapter_id is not None:
             with create_prefect_session() as owner_session:
-                owner, novel_id = resolve_material_owner(
+                owner, resolved_novel_id = resolve_material_owner(
                     owner_session, novel_id=usage_novel_id, chapter_id=usage_chapter_id
                 )
-                if novel_id is not None:
-                    trial_limit = _trial_output_limit(owner_session, novel_id, trial_output_tokens)
+                if resolved_novel_id is not None:
+                    trial_limit = _trial_output_limit(owner_session, resolved_novel_id, trial_output_tokens)
+        session_id = kwargs.pop("session_id", None)
+        if session_id is None:
+            if resolved_novel_id is not None:
+                session_id = f"material:novel:{resolved_novel_id}"
+            elif usage_chapter_id is not None:
+                session_id = f"material:chapter:{usage_chapter_id}"
         if trial_limit is not None:
             # Reasoning would spend the capped output and truncate the JSON answer.
             kwargs["thinking_enabled"] = False
@@ -216,6 +223,7 @@ class MaterialLLMClient:
             # retries add their own attempts on top of these.
             response, provider = llm_failover.create_chat_completion(
                 call_site="material",
+                session_id=session_id,
                 timeout=settings.LLM_REQUEST_TIMEOUT_SECONDS,
                 max_retries=0 if trial_limit is not None else settings.LLM_SDK_MAX_RETRIES,
                 messages=full_messages,

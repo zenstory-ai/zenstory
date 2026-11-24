@@ -15,6 +15,7 @@ class PaymentOrder(SQLModel, table=True):
     __table_args__ = (
         Index("ix_payment_order_created_at", "created_at"),
         Index("ix_payment_order_status_created_at", "status", "created_at"),
+        Index("ix_payment_order_status_paid_at", "status", "paid_at"),
         UniqueConstraint("provider", "trade_no", name="uq_payment_order_provider_trade_no"),
     )
 

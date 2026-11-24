@@ -110,7 +110,12 @@ describe("AdminUserDetail", () => {
     expect(screen.getByRole("link", { name: "userDetail.viewUsage" })).toHaveAttribute(
       "href", "/admin/usage?user=user-1",
     );
-    expect(api.getPaymentOrders).toHaveBeenCalledWith({ user_id: "user-1", page: 1, page_size: 10 });
+    expect(api.getPaymentOrders).toHaveBeenCalledWith({
+      user_id: "user-1",
+      page: 1,
+      page_size: 10,
+      include_needs_attention_total: false,
+    });
     const membership = screen.getByRole("region", { name: "userDetail.subscription" });
     expect(within(membership).getByText("subscriptions.statusActive")).toBeInTheDocument();
   });

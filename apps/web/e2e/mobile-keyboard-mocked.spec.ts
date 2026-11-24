@@ -136,6 +136,9 @@ test('project search list and actions remain inside the keyboard viewport', asyn
   await page.goto('/project/responsive-project-0');
   await page.locator('header').getByText('小屏布局回归项目', { exact: true }).click();
   const input = page.getByPlaceholder('搜索项目', { exact: true });
+  // Mobile switcher deliberately avoids autoFocus on open so it does not hijack the virtual keyboard.
+  await expect(input).not.toBeFocused();
+  await input.click();
   await expect(input).toBeFocused();
   await keyboard(page, 400, 120);
   const dropdown = input.locator('xpath=ancestor::div[contains(@class,"rounded-xl")]');

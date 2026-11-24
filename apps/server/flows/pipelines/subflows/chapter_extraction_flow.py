@@ -43,6 +43,16 @@ def _elapsed_ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
 
+def _warmup_batches(items: list[Any], batch_size: int) -> list[list[Any]]:
+    """Run the first item alone to warm prompt-prefix cache, then fan out in batches."""
+    if not items:
+        return []
+    effective_batch = max(1, batch_size)
+    if effective_batch == 1 or len(items) < 2:
+        return [items[i : i + effective_batch] for i in range(0, len(items), effective_batch)]
+    return [items[:1], *[items[i : i + effective_batch] for i in range(1, len(items), effective_batch)]]
+
+
 def _raise_if_llm_account_failure(_capability: str, error: Exception) -> None:
     """模型供应商鉴权/余额故障或成本熔断：立即终止整次拆解并保留原始错误码。"""
     if is_llm_fatal_stop(error) or isinstance(error, MaterialPipelineError):
@@ -221,52 +231,51 @@ def chapter_extraction_flow(
         if stages.chapter_summaries:
             logger.info("任务1: 并行生成 %d 个章节摘要", len(summary_ids))
 
-            # 按并发上限分批提交，避免一次性堆积
-            summary_futures = []
-            batch = settings.MAX_CONCURRENT_CHAPTERS
-
-            with monitor.measure("chapter_summaries"):
-                for i in range(0, len(summary_ids), batch):
-                    for chapter_id in summary_ids[i:i+batch]:
-                        future = generate_chapter_summary_task.submit(chapter_id=chapter_id)
-                        summary_futures.append(future)
-
-            # 等待所有摘要生成完成（带错误处理）
+            # 首章先跑热缓存，再按并发上限分批提交，避免冷启动并发全 miss
             # 失败章节不写入任何摘要（不再用原文前 200 字冒充摘要），留给重试补跑。
             summary_results = []
             completed_chapter_ids = []
             failed_chapters = []
             summary_errors: list[Exception] = []
+            batch = max(1, settings.MAX_CONCURRENT_CHAPTERS)
+            processed_index = 0
 
-            for i, future in enumerate(summary_futures):
-                try:
-                    result = future.result()
-                    summary_results.append(result)
-                    completed_chapter_ids.append(result.get("chapter_id", summary_ids[i]))
-                except Exception as e:
-                    logger.error(
-                        f"章节 {summary_ids[i]} 摘要生成失败: {e}",
-                        exc_info=True
-                    )
-                    _raise_if_llm_account_failure("summaries", e)
-                    failed_chapters.append(summary_ids[i])
-                    summary_errors.append(e)
+            with monitor.measure("chapter_summaries"):
+                for wave in _warmup_batches(summary_ids, batch):
+                    wave_futures = [
+                        (chapter_id, generate_chapter_summary_task.submit(chapter_id=chapter_id))
+                        for chapter_id in wave
+                    ]
+                    for chapter_id, future in wave_futures:
+                        try:
+                            result = future.result()
+                            summary_results.append(result)
+                            completed_chapter_ids.append(result.get("chapter_id", chapter_id))
+                        except Exception as e:
+                            logger.error(
+                                f"章节 {chapter_id} 摘要生成失败: {e}",
+                                exc_info=True
+                            )
+                            _raise_if_llm_account_failure("summaries", e)
+                            failed_chapters.append(chapter_id)
+                            summary_errors.append(e)
 
-                if (i + 1) % batch == 0 or i == len(summary_futures) - 1:
-                    _sync_stage1_job_progress(
-                        novel_id,
-                        job_id=job_id,
-                        processed_chapters=baseline_completed + len(set(completed_chapter_ids)),
-                        stage_status="processing",
-                        payload={
-                            "summaries_completed": len(set(completed_chapter_ids)),
-                            "summary_failed": len(failed_chapters),
-                            "pending_chapters": len(summary_ids),
-                        },
-                        status="processing",
-                    )
+                        processed_index += 1
+                        if processed_index % batch == 0 or processed_index == len(summary_ids):
+                            _sync_stage1_job_progress(
+                                novel_id,
+                                job_id=job_id,
+                                processed_chapters=baseline_completed + len(set(completed_chapter_ids)),
+                                stage_status="processing",
+                                payload={
+                                    "summaries_completed": len(set(completed_chapter_ids)),
+                                    "summary_failed": len(failed_chapters),
+                                    "pending_chapters": len(summary_ids),
+                                },
+                                status="processing",
+                            )
 
-            _raise_if_all_failed("summaries", len(summary_futures), summary_errors)
+            _raise_if_all_failed("summaries", len(summary_ids), summary_errors)
 
             # 回写摘要
             update_futures = []
@@ -314,38 +323,35 @@ def chapter_extraction_flow(
         if stages.plots:
             logger.info("任务2: 并行提取 %d 个章节的情节点", len(plot_ids))
 
-            # 按并发上限分批提交
-            plot_futures = []
-            batch = settings.MAX_CONCURRENT_CHAPTERS
-
-            with monitor.measure("plot_extraction"):
-                for i in range(0, len(plot_ids), batch):
-                    for chapter_id in plot_ids[i:i+batch]:
-                        future = extract_chapter_plots_task.submit(chapter_id=chapter_id)
-                        plot_futures.append(future)
-
-            # 等待所有提取完成（带错误处理）
+            # 首章预热前缀缓存，再按并发上限分批提取（带错误处理）
             plot_results = []
             failed_plot_chapters = []
-
             plot_errors: list[Exception] = []
-            for i, future in enumerate(plot_futures):
-                try:
-                    result = future.result()
-                    plot_results.append(result)
-                except Exception as e:
-                    logger.error(
-                        f"章节 {plot_ids[i]} 情节点提取失败: {e}",
-                        exc_info=True
-                    )
-                    _raise_if_llm_account_failure("plots", e)
-                    failed_plot_chapters.append(plot_ids[i])
-                    plot_errors.append(e)
+            batch = max(1, settings.MAX_CONCURRENT_CHAPTERS)
 
-                    # 记录失败章节，但不阻塞流程
-                    # 后续可以通过检查点重试这些章节
+            with monitor.measure("plot_extraction"):
+                for wave in _warmup_batches(plot_ids, batch):
+                    wave_futures = [
+                        (chapter_id, extract_chapter_plots_task.submit(chapter_id=chapter_id))
+                        for chapter_id in wave
+                    ]
+                    for chapter_id, future in wave_futures:
+                        try:
+                            result = future.result()
+                            plot_results.append(result)
+                        except Exception as e:
+                            logger.error(
+                                f"章节 {chapter_id} 情节点提取失败: {e}",
+                                exc_info=True
+                            )
+                            _raise_if_llm_account_failure("plots", e)
+                            failed_plot_chapters.append(chapter_id)
+                            plot_errors.append(e)
 
-            _raise_if_all_failed("plots", len(plot_futures), plot_errors)
+                            # 记录失败章节，但不阻塞流程
+                            # 后续可以通过检查点重试这些章节
+
+            _raise_if_all_failed("plots", len(plot_ids), plot_errors)
 
             # 保存情节点（extract_chapter_plots_task 已完成 validate_plots_response 校验）
             save_futures = []
@@ -395,37 +401,35 @@ def chapter_extraction_flow(
         if stages.characters:
             logger.info("任务3: 并行提取 %d 个章节的角色提及", len(mention_ids))
 
-            # 提取角色提及（轻量级，仅本章信息）
-            mention_futures = []
-            batch = settings.MAX_CONCURRENT_CHAPTERS
-
-            with monitor.measure("character_mention_extraction"):
-                for i in range(0, len(mention_ids), batch):
-                    for chapter_id in mention_ids[i:i+batch]:
-                        future = extract_character_mentions_task.submit(chapter_id=chapter_id)
-                        mention_futures.append(future)
-
-            # 等待所有提及提取完成
+            # 提取角色提及（轻量级，仅本章信息；首章预热缓存后再分批并发）
             mention_results = []
             completed_mention_chapter_ids: list[int] = []
             mention_errors: list[Exception] = []
-            for i, future in enumerate(mention_futures):
-                try:
-                    result = future.result()
-                    mention_results.append(result)
-                    completed_mention_chapter_ids.append(
-                        result.get("chapter_id", mention_ids[i])
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"章节 {mention_ids[i]} 角色提及提取失败: {e}",
-                        exc_info=True
-                    )
-                    _raise_if_llm_account_failure("mentions", e)
-                    failed_mention_chapters.append(mention_ids[i])
-                    mention_errors.append(e)
+            batch = max(1, settings.MAX_CONCURRENT_CHAPTERS)
 
-            _raise_if_all_failed("mentions", len(mention_futures), mention_errors)
+            with monitor.measure("character_mention_extraction"):
+                for wave in _warmup_batches(mention_ids, batch):
+                    wave_futures = [
+                        (chapter_id, extract_character_mentions_task.submit(chapter_id=chapter_id))
+                        for chapter_id in wave
+                    ]
+                    for chapter_id, future in wave_futures:
+                        try:
+                            result = future.result()
+                            mention_results.append(result)
+                            completed_mention_chapter_ids.append(
+                                result.get("chapter_id", chapter_id)
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"章节 {chapter_id} 角色提及提取失败: {e}",
+                                exc_info=True
+                            )
+                            _raise_if_llm_account_failure("mentions", e)
+                            failed_mention_chapters.append(chapter_id)
+                            mention_errors.append(e)
+
+            _raise_if_all_failed("mentions", len(mention_ids), mention_errors)
 
             old_completed = set(checkpoint.get_completed_chapters("stage1", "mentions"))
             old_failed = set(checkpoint.get_failed_chapters("stage1", "mentions"))

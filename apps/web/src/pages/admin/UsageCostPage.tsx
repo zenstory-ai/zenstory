@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
@@ -120,11 +120,11 @@ function DailyTable({ rows, showUsers }: { rows: UsageDailyRow[]; showUsers?: bo
                 <td className={numberCellClass}>{totalTokens(row).toLocaleString(locale)}</td>
                 <td className={cellClass}>
                   <div className="flex items-center gap-2">
-                    <div className="h-2 flex-1 rounded-full bg-[hsl(var(--bg-tertiary))]">
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-[hsl(var(--bg-tertiary))]">
                       {width > 0 && (
                         <div
-                          className="h-2 rounded-full bg-[hsl(var(--accent-primary))]"
-                          style={{ width: `${width}%` }}
+                          className="h-2 w-full rounded-full bg-[hsl(var(--accent-primary))] motion-progress-fill"
+                          style={{ transform: `scaleX(${Math.max(0, Math.min(100, width)) / 100})` }}
                         />
                       )}
                     </div>
@@ -209,6 +209,7 @@ function ModelMetricsSection({ usageWindow }: { usageWindow: UsageWindow }) {
   const models = useQuery({
     queryKey: ["admin", "usage", "models", usageWindow, source],
     queryFn: () => adminApi.getUsageByModel(usageWindow, source || undefined),
+    retry: false,
   });
   const rows: ModelMetricsRow[] = models.data?.items ?? [];
   return (
@@ -381,6 +382,7 @@ function StageLatencySection() {
   const stageLatency = useQuery({
     queryKey: ["admin", "usage", "stage-latency", days],
     queryFn: () => adminApi.getUsageStageLatency(days),
+    retry: false,
   });
   const data = stageLatency.data;
   const isEmpty = Boolean(data && data.total_rounds === 0 && data.ai_draft_survival.eligible_drafts === 0);
@@ -583,16 +585,25 @@ export default function UsageCostPage() {
   const selectedUserId = searchParams.get("user");
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [detailDays, setDetailDays] = useState<UsageDetailDays>(7);
+  const forceRefreshSummaryRef = useRef(false);
 
   const summary = useQuery({
     queryKey: ["admin", "usage", "summary", usageWindow],
-    queryFn: () => adminApi.getUsageSummary(usageWindow),
+    queryFn: () => {
+      const refresh = forceRefreshSummaryRef.current;
+      forceRefreshSummaryRef.current = false;
+      return refresh
+        ? adminApi.getUsageSummary(usageWindow, { refresh: true })
+        : adminApi.getUsageSummary(usageWindow);
+    },
+    retry: false,
   });
   const users = useQuery({
     queryKey: ["admin", "usage", "users", usageWindow, sort, search, page],
     queryFn: () => adminApi.getUsageByUser({
       window: usageWindow, sort, search: search || undefined, page, page_size: PAGE_SIZE,
     }),
+    retry: false,
   });
   const detail = useQuery({
     queryKey: ["admin", "usage", "user-daily", selectedUserId, detailDays],
@@ -648,6 +659,7 @@ export default function UsageCostPage() {
             leftIcon={<RefreshCw className="h-4 w-4" />}
             disabled={summary.isFetching || users.isFetching || modelsFetching || stageLatencyFetching}
             onClick={() => {
+              forceRefreshSummaryRef.current = true;
               void summary.refetch();
               void users.refetch();
               void queryClient.invalidateQueries({ queryKey: ["admin", "usage", "models"] });

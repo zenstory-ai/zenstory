@@ -141,7 +141,7 @@ describe('actual Editor / SimpleEditor / history restore integration', () => {
 
     const first = render(<Editor />)
     await saveEdit('First edit', 1)
-    expect(toastError).toHaveBeenCalledWith('editor:saveVersionQuotaExceeded')
+    expect(toastError).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog', { name: 'editor:versionHistory.fileVersionLimitTitle' })).toBeInTheDocument()
     fireEvent.keyDown(document, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'editor:versionHistory.fileVersionLimitTitle' })).not.toBeInTheDocument())
@@ -152,7 +152,7 @@ describe('actual Editor / SimpleEditor / history restore integration', () => {
     const remounted = render(<Editor />)
     await saveEdit('Third edit', 3)
     expect(screen.queryByRole('dialog', { name: 'editor:versionHistory.fileVersionLimitTitle' })).not.toBeInTheDocument()
-    expect(toastError).toHaveBeenCalledTimes(1)
+    expect(toastError).not.toHaveBeenCalled()
     remounted.unmount()
 
     // Another account in the same tab gets its own reminder.
@@ -160,7 +160,7 @@ describe('actual Editor / SimpleEditor / history restore integration', () => {
     render(<Editor />)
     await saveEdit('Other account edit', 4)
     expect(screen.getByRole('dialog', { name: 'editor:versionHistory.fileVersionLimitTitle' })).toBeInTheDocument()
-    expect(toastError).toHaveBeenCalledTimes(2)
+    expect(toastError).not.toHaveBeenCalled()
   })
 
   it.each([true, false])('refreshes content/token without destroying omitted-history feedback (quota=%s)', async (quotaExceeded) => {

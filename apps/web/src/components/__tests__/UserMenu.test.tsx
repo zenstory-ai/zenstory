@@ -198,7 +198,10 @@ describe('UserMenu', () => {
     fireEvent.click(screen.getByTestId('check-in-button-mobile'))
     expect(mockMutate).toHaveBeenCalled()
 
-    fireEvent.click(screen.getByText('Log out'))
+    const logoutBtn = screen.getByRole('button', { name: 'Log out' })
+    expect(logoutBtn.className).toContain('text-[hsl(var(--error-text))]')
+    expect(logoutBtn.previousElementSibling?.className).toContain('bg-[hsl(var(--separator-color))]')
+    fireEvent.click(logoutBtn)
     expect(mockLogout).toHaveBeenCalled()
   })
 
@@ -219,7 +222,10 @@ describe('UserMenu', () => {
 
     rerender(<UserMenuMobile />)
     expect(screen.queryByText('Admin panel')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('Log out'))
+    const logoutBtn = screen.getByRole('button', { name: 'Log out' })
+    expect(logoutBtn.className).toContain('text-[hsl(var(--error-text))]')
+    expect(logoutBtn.previousElementSibling?.className).toContain('bg-[hsl(var(--separator-color))]')
+    fireEvent.click(logoutBtn)
     expect(mockLogout).toHaveBeenCalled()
   })
 
@@ -251,5 +257,20 @@ describe('UserMenu', () => {
 
     capturedMutationOptions?.onError?.(new Error('Mobile check-in failure'))
     expect(mockToastError).toHaveBeenCalledTimes(2)
+  })
+
+  it('restores focus to trigger on Escape and uses danger styling for logout', async () => {
+    render(<UserMenu />)
+    const trigger = screen.getByTestId('user-menu-button')
+    fireEvent.click(trigger)
+
+    const logoutBtn = screen.getByTestId('logout-button')
+    expect(logoutBtn.className).toContain('text-[hsl(var(--error-text))]')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByTestId('logout-button')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(trigger).toHaveFocus()
+    })
   })
 })

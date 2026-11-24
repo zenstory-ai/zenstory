@@ -5,7 +5,6 @@ import { MessageList, type Message } from '../MessageList'
 import type { StreamRenderItem } from '../../hooks/useChatStreaming'
 
 const markdownRenders = vi.hoisted(() => new Map<string, number>())
-const authContext = createContext<{ user: { username: string; avatar_url: string } | null }>({ user: null })
 const mobileContext = createContext({ isMobile: false })
 const languageContext = createContext('zh')
 
@@ -15,7 +14,6 @@ vi.mock('../LazyMarkdown', () => ({
     return <div>{children}</div>
   },
 }))
-vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => useContext(authContext) }))
 vi.mock('../../contexts/MobileLayoutContext', () => ({ useMobileLayout: () => useContext(mobileContext) }))
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -85,27 +83,25 @@ describe('MessageList history render isolation', () => {
     expect(container.querySelectorAll('.chat-timestamp')).toHaveLength(1)
     rerender(<MessageList messages={[a, { ...b, role: 'user' }, c]} />)
     expect(container.querySelectorAll('.chat-timestamp')).toHaveLength(3)
-    expect(container.querySelectorAll('.lucide-sparkles')).toHaveLength(2)
+    expect(container.querySelectorAll('.chat-message-bubble-user')).toHaveLength(1)
+    expect(container.querySelectorAll('.chat-message-bubble-ai')).toHaveLength(2)
   })
 
-  it('continues reacting to auth, mobile and language contexts without changing message references', () => {
+  it('continues reacting to mobile and language contexts without changing message references', () => {
     const messages = [message('user', { role: 'user', content: 'My prompt' }), message('reply')]
     const feedback = vi.fn()
     const view = (updated: boolean) => (
-      <authContext.Provider value={{ user: updated ? { username: 'Author', avatar_url: '/avatar.png' } : null }}>
-        <mobileContext.Provider value={{ isMobile: updated }}>
-          <languageContext.Provider value={updated ? 'en' : 'zh'}>
-            <MessageList messages={messages} onSubmitFeedback={feedback} />
-          </languageContext.Provider>
-        </mobileContext.Provider>
-      </authContext.Provider>
+      <mobileContext.Provider value={{ isMobile: updated }}>
+        <languageContext.Provider value={updated ? 'en' : 'zh'}>
+          <MessageList messages={messages} onSubmitFeedback={feedback} />
+        </languageContext.Provider>
+      </mobileContext.Provider>
     )
     const { container, rerender } = render(view(false))
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'zh:feedback.like' })).toBeInTheDocument()
+    expect(container.querySelector('.chat-message-bubble-user')).toHaveClass('py-2.5')
     rerender(view(true))
-    expect(screen.getByRole('img', { name: 'Author' })).toHaveAttribute('src', '/avatar.png')
     expect(screen.getByRole('button', { name: 'en:feedback.like' })).toBeInTheDocument()
-    expect(container.querySelector('.chat-message-bubble')?.closest('.flex.items-start')).toHaveClass('py-2')
+    expect(container.querySelector('.chat-message-bubble-user')).toHaveClass('py-2')
   })
 })

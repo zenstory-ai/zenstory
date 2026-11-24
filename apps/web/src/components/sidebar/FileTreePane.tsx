@@ -5,15 +5,16 @@ import { useMaterialAttachment, MAX_ATTACHED_MATERIALS } from "../../contexts/Ma
 import { toast } from "../../lib/toast";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Button } from "../ui/Button";
+import { AnimatedCollapse } from "../ui/AnimatedCollapse";
 import type { FileTreeNode } from "../../types";
 import { useFileSearch } from "../../hooks/useFileSearch";
+import { useAnimatedPresence } from "../../hooks/useAnimatedPresence";
 import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../../hooks/useDraftImport";
 import { getCreateFileType, isMaterialFolder, useFileTree } from "../../hooks/useFileTree";
 import { useFileSearchContext } from "../../contexts/FileSearchContext";
 import { FileSearchInput } from "../FileSearchInput";
 import SearchResultsDropdown from "../SearchResultsDropdown";
 import {
-  ChevronDown,
   ChevronRight,
   FileText,
   Users,
@@ -37,7 +38,8 @@ const DRAFT_FOLDER_NAMES = ["正文", "Drafts", "Draft"];
  * Returns whether the key is a tree navigation key.
  */
 function moveTreeFocus(row: HTMLElement, key: string): boolean {
-  const rows = Array.from(row.closest('[role="tree"]')?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? []);
+  const rows = Array.from(row.closest('[role="tree"]')?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? [])
+    .filter((item) => !item.closest('[data-exiting="true"]'));
   const index = rows.indexOf(row);
   const level = (item: HTMLElement | undefined) => Number(item?.getAttribute("aria-level"));
   let target: HTMLElement | undefined;
@@ -117,7 +119,20 @@ export const FileTreePane: React.FC = () => {
 
   const { isSearchOpen: isFileSearchOpen, openSearch, closeSearch } = useFileSearchContext();
 
-  const [fileSearchQuery, setFileSearchQuery] = useState('');
+  const [searchQueryState, setSearchQueryState] = useState<{ projectId: string | null; query: string }>({
+    projectId: currentProjectId,
+    query: '',
+  });
+  const fileSearchQuery =
+    searchQueryState.projectId === currentProjectId ? searchQueryState.query : '';
+  const setFileSearchQuery = useCallback(
+    (query: string) => {
+      setSearchQueryState({ projectId: currentProjectId, query });
+    },
+    [currentProjectId],
+  );
+  const isSearchDropdownVisible = isFileSearchOpen && fileSearchQuery.length > 0;
+  const { isMounted: isSearchDropdownMounted } = useAnimatedPresence(isSearchDropdownVisible, 130);
   const [searchSelection, setSearchSelection] = useState<{ projectId: string | null; index: number }>({
     projectId: currentProjectId,
     index: 0,
@@ -157,30 +172,39 @@ export const FileTreePane: React.FC = () => {
     closeSearch();
   }, [currentProjectId, clearFileSearch, closeSearch]);
 
-  // Focus search input when opened via keyboard shortcut
+  // Focus search input when opened via keyboard shortcut, blur when toggled closed
   useEffect(() => {
+    const searchInput = document.querySelector<HTMLInputElement>('[data-testid="file-search-input"]');
+    if (!searchInput) return;
     if (isFileSearchOpen) {
-      // Focus the search input by finding it in the DOM
-      const searchInput = document.querySelector('input[placeholder*="搜索"], input[placeholder*="search"]') as HTMLInputElement;
-      if (searchInput) {
-        searchInput.focus();
-      }
+      searchInput.focus();
+    } else if (document.activeElement === searchInput) {
+      searchInput.blur();
     }
   }, [isFileSearchOpen]);
 
   // Handle search result selection
   const handleSearchResultSelect = useCallback((result: { id: string; fileType: string; title: string }) => {
     handleSelect(result.id, result.fileType, result.title);
+    setFileSearchQuery('');
     closeSearch();
     clearFileSearch();
-  }, [clearFileSearch, handleSelect, closeSearch]);
+  }, [clearFileSearch, handleSelect, closeSearch, setFileSearchQuery]);
 
-  // Keyboard navigation for search results
+  // Keyboard navigation for search results (Escape always closes even with 0 results)
   useEffect(() => {
-    if (!isFileSearchOpen || fileSearchResults.length === 0) return;
+    if (!isFileSearchOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setFileSearchQuery('');
+        closeSearch();
+        clearFileSearch();
+        return;
+      }
+      if (fileSearchResults.length === 0) return;
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
@@ -200,17 +224,12 @@ export const FileTreePane: React.FC = () => {
             handleSearchResultSelect(fileSearchResults[selectedResultIndex]);
           }
           break;
-        case 'Escape':
-          e.preventDefault();
-          closeSearch();
-          clearFileSearch();
-          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFileSearchOpen, fileSearchResults, selectedResultIndex, setSelectedResultIndex, handleSearchResultSelect, clearFileSearch, closeSearch]);
+  }, [isFileSearchOpen, fileSearchResults, selectedResultIndex, setSelectedResultIndex, handleSearchResultSelect, clearFileSearch, closeSearch, setFileSearchQuery]);
 
   // Check if a folder is the draft folder
   const isDraftFolder = (node: FileTreeNode) => {
@@ -296,17 +315,13 @@ export const FileTreePane: React.FC = () => {
         >
           {/* Expand/collapse icon for folders */}
           {isFolder ? (
-            isExpanded ? (
-              <ChevronDown
-                size={14}
-                className="text-[hsl(var(--text-secondary))] shrink-0"
-              />
-            ) : (
-              <ChevronRight
-                size={14}
-                className="text-[hsl(var(--text-secondary))] shrink-0"
-              />
-            )
+            <ChevronRight
+              size={14}
+              aria-hidden="true"
+              className={`text-[hsl(var(--text-secondary))] shrink-0 motion-chevron ${
+                isExpanded ? "rotate-90" : ""
+              }`}
+            />
           ) : (
             <span className="w-3.5 shrink-0" /> /* Spacer for non-folders */
           )}
@@ -372,6 +387,7 @@ export const FileTreePane: React.FC = () => {
             {/* Add to chat button for snippets (materials) */}
             {node.file_type === "snippet" && (
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isMaterialAttached(node.id)) {
@@ -391,13 +407,23 @@ export const FileTreePane: React.FC = () => {
                 title={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
                 aria-label={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
               >
-                {isMaterialAttached(node.id) ? <Check size={14} /> : <MessageSquarePlus size={14} />}
+                {isMaterialAttached(node.id) ? (
+                  <Check key="attached" size={14} className="motion-icon-pop" />
+                ) : (
+                  <MessageSquarePlus key="attach" size={14} className="motion-icon-pop" />
+                )}
               </button>
+            )}
+
+            {/* Hairline separator before destructive delete when sibling action exists */}
+            {node.file_type === "snippet" && (
+              <span aria-hidden="true" className="mx-0.5 h-3.5 w-px bg-[hsl(var(--separator-color))]" />
             )}
 
             {/* Delete button (not for root folders) */}
             {!isFolder && (
               <button
+                type="button"
                 onClick={(e) => handleDelete(e, node.id, node.title)}
                 className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))]"
                 title={t('common:delete')}
@@ -420,8 +446,8 @@ export const FileTreePane: React.FC = () => {
         </div>
 
         {/* Children */}
-        {isFolder && isExpanded && (
-          <div role="group" className="mt-0.5">
+        {isFolder && (
+          <AnimatedCollapse open={isExpanded} fast role="group" className="mt-0.5">
             {/* New item input */}
             {isCreating === node.id && (
               <div
@@ -435,6 +461,7 @@ export const FileTreePane: React.FC = () => {
                   onChange={(e) => setNewItemName(e.target.value)}
                   onBlur={cancelCreate}
                   onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                     if (e.key === "Enter") {
                       handleCreate(node.id);
                     } else if (e.key === "Escape") {
@@ -464,7 +491,7 @@ export const FileTreePane: React.FC = () => {
                     : t('editor:fileTree.emptyFolder')}
                 </div>
               )}
-          </div>
+          </AnimatedCollapse>
         )}
       </div>
     );
@@ -542,13 +569,13 @@ export const FileTreePane: React.FC = () => {
         </div>
 
         {/* Search Results Dropdown */}
-        {isFileSearchOpen && fileSearchQuery && (
+        {isSearchDropdownMounted && (
           <SearchResultsDropdown
             results={fileSearchResults}
             selectedIndex={selectedResultIndex}
             onSelect={handleSearchResultSelect}
             onHover={setSelectedResultIndex}
-            visible={isFileSearchOpen && fileSearchQuery.length > 0}
+            visible={isSearchDropdownVisible}
             loading={isFileSearching}
             onClose={closeSearch}
           />

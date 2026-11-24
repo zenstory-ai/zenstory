@@ -33,6 +33,7 @@ export default function AcquisitionPage() {
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ["admin", "dashboard", "acquisition", days],
     queryFn: () => adminApi.getAcquisitionStats(days),
+    retry: false,
   });
 
   const channelLabel = (channel: AcquisitionChannel) =>

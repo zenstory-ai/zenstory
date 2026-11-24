@@ -57,23 +57,26 @@ describe('QuotaBadge compact', () => {
     expect(screen.getByText('4/10').closest('[aria-hidden="true"]')).not.toBeNull()
   })
 
-  it('turns the upgrade action into an icon button with an accessible name', async () => {
+  it('makes the compact quota pill itself an accessible upgrade button without an extra icon', async () => {
     mockGetQuota.mockResolvedValue(quotaResponse(10, 10))
 
     renderWithQuery(<QuotaBadge compact />)
 
     const upgrade = await screen.findByRole('button', { name: '开通 Pro' })
-    expect(upgrade).toHaveAttribute('title', '开通 Pro')
-    expect(upgrade.textContent).toBe('')
+    expect(upgrade).toHaveAttribute('data-testid', 'quota-badge-compact')
+    expect(upgrade).toHaveAttribute('title', '今日 AI 消息 10/10 条 · 开通 Pro')
+    expect(screen.getAllByRole('button')).toHaveLength(1)
   })
 
-  it('keeps the default full label when compact is not set', async () => {
+  it('keeps the default full label and renders a unified primary button when compact is not set', async () => {
     mockGetQuota.mockResolvedValue(quotaResponse(10, 10))
 
     renderWithQuery(<QuotaBadge />)
 
     expect(await screen.findByText('今日 AI 消息 10/10 条')).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: '开通 Pro' })).toHaveTextContent('开通 Pro')
+    const upgradeBtn = await screen.findByRole('button', { name: '开通 Pro' })
+    expect(upgradeBtn).toHaveTextContent('开通 Pro')
+    expect(upgradeBtn.className).toContain('bg-[hsl(var(--primary))]')
     expect(screen.queryByTestId('quota-badge-compact')).not.toBeInTheDocument()
   })
 })

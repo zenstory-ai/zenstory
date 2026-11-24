@@ -195,7 +195,7 @@ def test_multicurrency_creem_migration_round_trip(tmp_path: Path):
     engine.dispose()
 
     _alembic(db_url, "stamp", "head")
-    _alembic(db_url, "downgrade", "20261122_000000")
+    _alembic(db_url, "downgrade", "20261124_000000")
 
     engine = create_engine(db_url)
     po_cols = {c["name"] for c in inspect(engine).get_columns("payment_order")}
@@ -209,7 +209,7 @@ def test_multicurrency_creem_migration_round_trip(tmp_path: Path):
     )
     engine.dispose()
 
-    _alembic(db_url, "upgrade", "20261124_000000")
+    _alembic(db_url, "upgrade", "20261124_120000")
     engine = create_engine(db_url)
     po_cols = {c["name"] for c in inspect(engine).get_columns("payment_order")}
     plan_cols = {c["name"] for c in inspect(engine).get_columns("subscription_plan")}

@@ -18,6 +18,7 @@ import { createPortal } from 'react-dom';
 import { AlertTriangle, AlertCircle, Info } from 'lucide-react';
 import { Button } from './Button';
 import { useDialogInteractions } from './dialogFocus';
+import { useAnimatedPresence } from '../../hooks/useAnimatedPresence';
 
 /**
  * Props for the ConfirmDialog component.
@@ -214,19 +215,27 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     }
   };
 
-  if (!open) {
+  const { isMounted, isExiting } = useAnimatedPresence(open, 150);
+
+  if (!isMounted) {
     return null;
   }
 
   return createPortal(
     <div
-      className="modal-overlay viewport-overlay flex items-center justify-center p-4"
-      onClick={handleOverlayClick}
+      className={`modal-overlay viewport-overlay flex items-center justify-center p-4 ${
+        isExiting ? 'motion-backdrop-exit pointer-events-none' : 'motion-backdrop-enter'
+      }`}
+      onClick={isExiting ? undefined : handleOverlayClick}
       role="presentation"
+      aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
     >
       <div
         ref={dialogRef}
-        className="modal ui-sans-headings w-full max-w-[400px] max-h-[calc(100dvh-2rem)] overflow-y-auto animate-scale-in"
+        className={`modal ui-sans-headings w-full max-w-[400px] max-h-[calc(100dvh-2rem)] overflow-y-auto ${
+          isExiting ? 'motion-surface-exit pointer-events-none' : 'motion-surface-enter'
+        }`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         tabIndex={-1}

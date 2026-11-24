@@ -25,6 +25,8 @@
   "upload": "Upload Novel",
   "viewMaterialDetail": "View material details",
   "noMaterials": "No reference novels yet",
+  "searchPlaceholder": "Search materials",
+  "noSearchResults": "No matching materials. Try a different keyword.",
   "uploadFirst": "Upload your first novel",
   "chapters": "chapters",
   "chapters_one": "chapter",
@@ -47,6 +49,7 @@
     "titlePlaceholder": "Leave blank to use the file name",
     "uploading": "Uploading…",
     "upload": "Upload and decompose",
+    "selectFileFirst": "Select a .txt file first",
     "errors": {
       "invalidType": "Only .txt files are supported",
       "tooLarge": "The file is over 20MB. Split it and upload again.",
@@ -151,7 +154,8 @@
   "retrySuccess": "Breakdown restarted",
   "export": {
     "button": "Export breakdown (TXT)",
-    "success": "Breakdown exported as TXT"
+    "success": "Breakdown exported as TXT",
+    "unavailableWhileProcessing": "Available once breakdown finishes"
   },
   "toast": {
     "loadListFailed": "Couldn't load. Please retry.",

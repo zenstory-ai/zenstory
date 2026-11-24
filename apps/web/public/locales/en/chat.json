@@ -5,6 +5,7 @@
     "loadingHistory": "Loading conversation…",
     "aiMemory": "AI Memory",
     "newSession": "New chat",
+    "alreadyNewSession": "Already in a new chat",
     "clearChat": "Clear Chat",
     "selectProject": "Open a project to start chatting",
     "loadingMessages": "Loading conversation…",
@@ -61,13 +62,13 @@
     "openWrittenFile": "Open “{{title}}”"
   },
   "input": {
-    "placeholder": "Tell the AI what to write",
-    "placeholderWhileProcessing": "AI is generating — you can type now and send when it finishes",
-    "placeholderQuotaExhausted": "Draft your idea now and send it once your messages reset.",
+    "placeholder": "What should we write or revise next…",
+    "placeholderWhileProcessing": "Writing… feel free to jot down your next thought",
+    "placeholderQuotaExhausted": "Jot down your idea here to send later…",
     "stop": "Stop generating",
     "stopping": "Stopping…",
     "stopArming": "Starting… you can stop in a moment",
-    "steerPlaceholder": "AI is generating — what you add applies at its next step",
+    "steerPlaceholder": "Writing… add a note anytime to steer the next step",
     "steerButton": "Add request",
     "steerSent": "Added — the AI will use it at the next step",
     "steerSentAsNextMessage": "This reply is wrapping up — your note will go out as the next message",
@@ -78,6 +79,11 @@
     "addToContext": "Quote in chat",
     "quoteAdded": "Quoted in chat",
     "remove": "Remove",
+    "removeMaterial": "Remove material {{title}}",
+    "removeQuote": "Remove quote",
+    "sendWithShortcut": "Send (Enter)",
+    "sendDisabledEmpty": "Type a message to send",
+    "sendDisabledBusy": "Wait for the current reply to finish",
     "refresh": "Shuffle",
     "staticSuggestions": [
       "Help me brainstorm the core conflict for a time-travel story",
@@ -110,7 +116,9 @@
   },
   "message": {
     "aiEdit": "AI Edit: {{files}}{{extra}}",
-    "aiConversationAt": "AI Assistant Conversation - {{time}}"
+    "aiConversationAt": "AI Assistant Conversation - {{time}}",
+    "copyReply": "Copy reply",
+    "copiedReply": "Copied"
   },
   "context": {
     "priority": {
@@ -231,6 +239,9 @@
     "completed": "{{label}} completed",
     "query_description": "Find {{label}}",
     "query_files_default": "Find files",
+    "readonlyGroupSummary": "Checked {{count}} references",
+    "readonlyGroupSummary_one": "Checked {{count}} reference",
+    "readonlyGroupSummary_other": "Checked {{count}} references",
     "update_status_description": "Record project information",
     "edit_success": "Edit done",
     "edit_undone": "Undone",
@@ -398,9 +409,9 @@
   "quotaCard": {
     "paidTitle": "Today’s AI message allowance is used up",
     "title": "You've used today's {{limit}} free AI messages",
-    "resetOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8). What you type stays in the box until then.",
-    "resetTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). What you type stays in the box until then.",
-    "resetLocal": "They come back on {{local}} your time (00:00 Beijing time). What you type stays in the box until then.",
+    "resetOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8).",
+    "resetTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8).",
+    "resetLocal": "They come back on {{local}} your time (00:00 Beijing time).",
     "upgradeHint": "To keep writing now, get Pro: no daily message limit."
   },
   "nextStep": {

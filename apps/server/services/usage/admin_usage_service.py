@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
-from sqlalchemy import BigInteger, and_, case, cast, func, or_
+from sqlalchemy import BigInteger, and_, case, cast, func, or_, text
 from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
@@ -29,6 +29,7 @@ from models.llm_usage import (
     LLMUsageEvent,
     has_usage_tokens,
 )
+from services.infra.admin_analytics_cache import admin_read_statement_timeout
 from services.usage.pricing import (
     BEIJING_TZ_NAME,
     CHINA_PUBLIC_HOLIDAY_RANGES,
@@ -63,6 +64,11 @@ class Period:
     @property
     def utc_bounds(self) -> tuple[datetime, datetime]:
         return beijing_range_utc(self.first_day, self.last_day)
+
+
+def _is_postgres(session: Session) -> bool:
+    bind = session.get_bind()
+    return bind is not None and bind.dialect.name == "postgresql"
 
 
 def window_period(window: UsageWindow, now: datetime | None = None) -> Period:
@@ -194,18 +200,37 @@ def _day_bucket(period: Period) -> Any:
     return beijing_day_bucket_case(EVENTS.occurred_at, period.days)
 
 
-def _metrics(row: Any) -> dict[str, Any]:
-    peak = units_to_cny(row.peak_units)
-    offpeak = units_to_cny(row.offpeak_units)
+def _metrics_from_units(
+    *,
+    calls: int,
+    cache_hit_tokens: int,
+    cache_miss_tokens: int,
+    output_tokens: int,
+    peak_units: int,
+    offpeak_units: int,
+) -> dict[str, Any]:
+    peak = units_to_cny(peak_units)
+    offpeak = units_to_cny(offpeak_units)
     return {
-        "calls": int(row.calls or 0),
-        "cache_hit_tokens": int(row.cache_hit_tokens or 0),
-        "cache_miss_tokens": int(row.cache_miss_tokens or 0),
-        "output_tokens": int(row.output_tokens or 0),
+        "calls": calls,
+        "cache_hit_tokens": cache_hit_tokens,
+        "cache_miss_tokens": cache_miss_tokens,
+        "output_tokens": output_tokens,
         "cost_cny": format_cny(peak + offpeak),
         "peak_cost_cny": format_cny(peak),
         "offpeak_cost_cny": format_cny(offpeak),
     }
+
+
+def _metrics(row: Any) -> dict[str, Any]:
+    return _metrics_from_units(
+        calls=int(row.calls or 0),
+        cache_hit_tokens=int(row.cache_hit_tokens or 0),
+        cache_miss_tokens=int(row.cache_miss_tokens or 0),
+        output_tokens=int(row.output_tokens or 0),
+        peak_units=int(row.peak_units or 0),
+        offpeak_units=int(row.offpeak_units or 0),
+    )
 
 
 def _zero_metrics() -> dict[str, Any]:
@@ -218,6 +243,17 @@ def _zero_metrics() -> dict[str, Any]:
         "peak_cost_cny": format_cny(units_to_cny(0)),
         "offpeak_cost_cny": format_cny(units_to_cny(0)),
     }
+
+
+def _sum_rows_metrics(rows: list[Any]) -> dict[str, Any]:
+    return _metrics_from_units(
+        calls=sum(int(row.calls or 0) for row in rows),
+        cache_hit_tokens=sum(int(row.cache_hit_tokens or 0) for row in rows),
+        cache_miss_tokens=sum(int(row.cache_miss_tokens or 0) for row in rows),
+        output_tokens=sum(int(row.output_tokens or 0) for row in rows),
+        peak_units=sum(int(row.peak_units or 0) for row in rows),
+        offpeak_units=sum(int(row.offpeak_units or 0) for row in rows),
+    )
 
 
 def _daily_rows(
@@ -258,24 +294,16 @@ def _daily_rows(
     return result
 
 
-def _by_source(session: Session, period: Period, *, user_id: str | None = None) -> list[dict[str, Any]]:
+def _by_source_rows(session: Session, period: Period, *, user_id: str | None = None) -> list[Any]:
     query = select(EVENTS.source, *_aggregate_columns()).where(*_in_period(period))
     if user_id is not None:
         query = query.where(EVENTS.user_id == user_id)
-    rows = session.exec(query.group_by(EVENTS.source)).all()
+    return list(session.exec(query.group_by(EVENTS.source)).all())
+
+
+def _format_by_source(rows: list[Any]) -> list[dict[str, Any]]:
     items = [{"source": row.source, **_metrics(row)} for row in rows]
     return sorted(items, key=lambda item: (-float(item["cost_cny"]), item["source"]))
-
-
-def _totals(session: Session, period: Period, *, user_id: str | None = None) -> dict[str, Any]:
-    query = select(
-        *_aggregate_columns(),
-        func.count(func.distinct(EVENTS.user_id)).label("users"),
-    ).where(*_in_period(period))
-    if user_id is not None:
-        query = query.where(EVENTS.user_id == user_id)
-    row = session.exec(query).one()
-    return {"users": int(row.users or 0), **_metrics(row)}
 
 
 def _period_payload(period: Period) -> dict[str, Any]:
@@ -297,12 +325,27 @@ def get_usage_summary(
     session: Session, window: UsageWindow, *, now: datetime | None = None
 ) -> dict[str, Any]:
     period = window_period(window, now)
+    with admin_read_statement_timeout(session):
+        source_rows = _by_source_rows(session, period)
+        daily = _daily_rows(session, period, with_users=True)
+        # Single-day windows already computed exact distinct user count in daily[0].
+        if len(daily) == 1:
+            distinct_users = int(daily[0].get("users") or 0)
+        else:
+            distinct_users = int(
+                session.exec(
+                    select(func.count(func.distinct(EVENTS.user_id))).where(*_in_period(period))
+                ).one()
+                or 0
+            )
+
+    totals = {"users": distinct_users, **_sum_rows_metrics(source_rows)}
     return {
         "window": window,
         **_period_payload(period),
-        "totals": _totals(session, period),
-        "by_source": _by_source(session, period),
-        "daily": _daily_rows(session, period, with_users=True),
+        "totals": totals,
+        "by_source": _format_by_source(source_rows),
+        "daily": daily,
     }
 
 
@@ -327,12 +370,19 @@ def list_user_usage(
     last_used = func.max(EVENTS.occurred_at).label("last_used_at")
 
     conditions = list(_in_period(period))
-    if search and search.strip():
-        term = search.strip()
+    has_search = bool(search and search.strip())
+    if has_search:
+        term = (search or "").strip()
         pattern = f"%{term}%"
         conditions.append(
             or_(User.username.ilike(pattern), User.email.ilike(pattern), User.id == term)
         )
+
+    # Count distinct active users directly without evaluating cost/token CASE aggregations.
+    count_query = select(func.count(func.distinct(EVENTS.user_id))).select_from(LLMUsageEvent).join(
+        User, User.id == EVENTS.user_id
+    )
+    count_query = count_query.where(*conditions)
 
     base = (
         select(
@@ -348,7 +398,6 @@ def list_user_usage(
         .where(*conditions)
         .group_by(User.id, User.username, User.email)
     )
-    total = session.exec(select(func.count()).select_from(base.subquery())).one()
 
     if sort == "calls":
         order = [calls.desc(), cost_units.desc()]
@@ -359,9 +408,14 @@ def list_user_usage(
     # Deterministic tie-break so pages never overlap.
     order.append(User.id.asc())
 
-    rows = session.exec(
-        base.order_by(*order).offset((page - 1) * page_size).limit(page_size)
-    ).all()
+    with admin_read_statement_timeout(session):
+        total = int(session.exec(count_query).one() or 0)
+        rows = (
+            session.exec(base.order_by(*order).offset((page - 1) * page_size).limit(page_size)).all()
+            if total > 0
+            else []
+        )
+
     items = [
         {
             "user_id": row.user_id,
@@ -376,7 +430,7 @@ def list_user_usage(
         "window": window,
         **_period_payload(period),
         "items": items,
-        "total": int(total or 0),
+        "total": total,
         "page": page,
         "page_size": page_size,
     }
@@ -390,17 +444,18 @@ def get_user_daily_usage(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     period = trailing_period(days, now)
-    totals = _totals(session, period, user_id=user.id)
-    totals.pop("users", None)
+    with admin_read_statement_timeout(session):
+        source_rows = _by_source_rows(session, period, user_id=user.id)
+        daily = _daily_rows(session, period, user_id=user.id)
     return {
         "user_id": user.id,
         "username": user.username,
         "email": user.email,
         "days": days,
         **_period_payload(period),
-        "totals": totals,
-        "by_source": _by_source(session, period, user_id=user.id),
-        "daily": _daily_rows(session, period, user_id=user.id),
+        "totals": _sum_rows_metrics(source_rows),
+        "by_source": _format_by_source(source_rows),
+        "daily": daily,
     }
 
 
@@ -459,30 +514,149 @@ class _ModelTimings:
         }
 
 
+def _empty_timing_payload() -> dict[str, Any]:
+    return {
+        "latency_ms": {"p50": None, "p95": None, "samples": 0},
+        "ttft_ms": {"p50": None, "p95": None, "samples": 0},
+        "decode_tps": {"value": None, "samples": 0},
+    }
+
+
 def _outcome_count(outcome: str) -> Any:
     return func.coalesce(func.sum(case((EVENTS.outcome == outcome, 1), else_=0)), 0)
 
 
-def _model_metrics_row(counts: Any, timings: _ModelTimings) -> dict[str, Any]:
-    success = int(counts.success or 0)
-    finished = success + int(counts.error or 0) + int(counts.timeout or 0)
-    peak = units_to_cny(counts.peak_units)
-    offpeak = units_to_cny(counts.offpeak_units)
+def _model_metrics_row_from_counts(
+    *,
+    calls: int,
+    success: int,
+    error: int,
+    timeout: int,
+    cancelled: int,
+    not_recorded: int,
+    cache_hit_tokens: int,
+    cache_miss_tokens: int,
+    output_tokens: int,
+    peak_units: int,
+    offpeak_units: int,
+    timing_payload: dict[str, Any],
+) -> dict[str, Any]:
+    finished = success + error + timeout
+    peak = units_to_cny(peak_units)
+    offpeak = units_to_cny(offpeak_units)
     return {
-        "attempts": int(counts.calls or 0),
+        "attempts": calls,
         "success": success,
-        "error": int(counts.error or 0),
-        "timeout": int(counts.timeout or 0),
-        "cancelled": int(counts.cancelled or 0),
-        "not_recorded": int(counts.not_recorded or 0),
+        "error": error,
+        "timeout": timeout,
+        "cancelled": cancelled,
+        "not_recorded": not_recorded,
         # success / (success + error + timeout); cancelled and not-recorded attempts are left out.
         "success_rate": round(success / finished, 4) if finished else None,
-        **timings.payload(),
-        "cache_hit_tokens": int(counts.cache_hit_tokens or 0),
-        "cache_miss_tokens": int(counts.cache_miss_tokens or 0),
-        "output_tokens": int(counts.output_tokens or 0),
+        **timing_payload,
+        "cache_hit_tokens": cache_hit_tokens,
+        "cache_miss_tokens": cache_miss_tokens,
+        "output_tokens": output_tokens,
         "cost_cny": format_cny(peak + offpeak),
     }
+
+
+def _model_metrics_row(counts: Any, timing_payload: dict[str, Any]) -> dict[str, Any]:
+    return _model_metrics_row_from_counts(
+        calls=int(counts.calls or 0),
+        success=int(counts.success or 0),
+        error=int(counts.error or 0),
+        timeout=int(counts.timeout or 0),
+        cancelled=int(counts.cancelled or 0),
+        not_recorded=int(counts.not_recorded or 0),
+        cache_hit_tokens=int(counts.cache_hit_tokens or 0),
+        cache_miss_tokens=int(counts.cache_miss_tokens or 0),
+        output_tokens=int(counts.output_tokens or 0),
+        peak_units=int(counts.peak_units or 0),
+        offpeak_units=int(counts.offpeak_units or 0),
+        timing_payload=timing_payload,
+    )
+
+
+def _query_model_timings_postgres(
+    session: Session,
+    period: Period,
+    *,
+    source: str | None = None,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    start, end = period.utc_bounds
+    source_clause = "AND source = :source" if source is not None else ""
+    params: dict[str, Any] = {
+        "start": start,
+        "end": end,
+        "success": CALL_OUTCOME_SUCCESS,
+    }
+    if source is not None:
+        params["source"] = source
+
+    rows = session.execute(
+        text(
+            f"""
+            SELECT
+                GROUPING(model) AS is_total,
+                model,
+                COUNT(duration_ms) AS lat_samples,
+                percentile_disc(0.5) WITHIN GROUP (ORDER BY duration_ms) AS lat_p50,
+                percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms) AS lat_p95,
+                COUNT(ttft_ms) AS ttft_samples,
+                percentile_disc(0.5) WITHIN GROUP (ORDER BY ttft_ms)
+                    FILTER (WHERE ttft_ms IS NOT NULL) AS ttft_p50,
+                percentile_disc(0.95) WITHIN GROUP (ORDER BY ttft_ms)
+                    FILTER (WHERE ttft_ms IS NOT NULL) AS ttft_p95,
+                COALESCE(
+                    SUM(CAST(output_tokens AS BIGINT))
+                    FILTER (WHERE ttft_ms IS NOT NULL AND output_tokens > 0 AND duration_ms > ttft_ms),
+                    0
+                ) AS decode_tokens,
+                COALESCE(
+                    SUM(CAST(duration_ms - ttft_ms AS BIGINT))
+                    FILTER (WHERE ttft_ms IS NOT NULL AND output_tokens > 0 AND duration_ms > ttft_ms),
+                    0
+                ) AS decode_ms,
+                COUNT(*) FILTER (
+                    WHERE ttft_ms IS NOT NULL AND output_tokens > 0 AND duration_ms > ttft_ms
+                ) AS decode_samples
+            FROM llm_usage_event
+            WHERE occurred_at >= :start
+              AND occurred_at < :end
+              AND outcome = :success
+              AND duration_ms IS NOT NULL
+              {source_clause}
+            GROUP BY GROUPING SETS ((), (model))
+            """
+        ),
+        params,
+    ).all()
+
+    by_model: dict[str, dict[str, Any]] = {}
+    pooled = _empty_timing_payload()
+    for row in rows:
+        decode_ms = int(row.decode_ms or 0)
+        decode_tokens = int(row.decode_tokens or 0)
+        speed = round(decode_tokens * 1000 / decode_ms, 1) if decode_ms > 0 else None
+        payload = {
+            "latency_ms": {
+                "p50": int(row.lat_p50) if row.lat_p50 is not None else None,
+                "p95": int(row.lat_p95) if row.lat_p95 is not None else None,
+                "samples": int(row.lat_samples or 0),
+            },
+            "ttft_ms": {
+                "p50": int(row.ttft_p50) if row.ttft_p50 is not None else None,
+                "p95": int(row.ttft_p95) if row.ttft_p95 is not None else None,
+                "samples": int(row.ttft_samples or 0),
+            },
+            "decode_tps": {"value": speed, "samples": int(row.decode_samples or 0)},
+        }
+        if row.is_total == 1:
+            pooled = payload
+        else:
+            by_model[row.model] = payload
+    return by_model, pooled
 
 
 def get_model_metrics(
@@ -506,36 +680,64 @@ def get_model_metrics(
         _outcome_count(CALL_OUTCOME_CANCELLED).label("cancelled"),
         func.coalesce(func.sum(case((EVENTS.outcome.is_(None), 1), else_=0)), 0).label("not_recorded"),
     ]
-    by_model = {
-        row.model: row
-        for row in session.exec(select(EVENTS.model, *count_columns).where(*conditions).group_by(EVENTS.model)).all()
-    }
-    totals = session.exec(select(*count_columns).where(*conditions)).one()
 
-    # Percentiles need the individual answered attempts: two small integers per row of the window.
-    timings: dict[str, _ModelTimings] = {model: _ModelTimings([], []) for model in by_model}
-    pooled = _ModelTimings([], [])
-    timing_rows = session.exec(
-        select(EVENTS.model, EVENTS.duration_ms, EVENTS.ttft_ms, EVENTS.output_tokens).where(
-            *conditions,
-            EVENTS.outcome == CALL_OUTCOME_SUCCESS,
-            EVENTS.duration_ms.is_not(None),
+    with admin_read_statement_timeout(session):
+        by_model_rows = list(
+            session.exec(select(EVENTS.model, *count_columns).where(*conditions).group_by(EVENTS.model)).all()
         )
-    ).all()
-    for row in timing_rows:
-        duration = int(row.duration_ms)
-        ttft = int(row.ttft_ms) if row.ttft_ms is not None else None
-        output = int(row.output_tokens or 0)
-        # The three reads are separate statements: a row committed in between may name a new model.
-        timings.setdefault(row.model, _ModelTimings([], [])).add(duration, ttft, output)
-        pooled.add(duration, ttft, output)
+        by_model = {row.model: row for row in by_model_rows}
 
-    items = [{"model": model, **_model_metrics_row(row, timings[model])} for model, row in by_model.items()]
+        if _is_postgres(session):
+            timings_by_model, pooled_timing = _query_model_timings_postgres(
+                session, period, source=source
+            )
+        else:
+            timings: dict[str, _ModelTimings] = {model: _ModelTimings([], []) for model in by_model}
+            pooled = _ModelTimings([], [])
+            timing_rows = session.exec(
+                select(EVENTS.model, EVENTS.duration_ms, EVENTS.ttft_ms, EVENTS.output_tokens).where(
+                    *conditions,
+                    EVENTS.outcome == CALL_OUTCOME_SUCCESS,
+                    EVENTS.duration_ms.is_not(None),
+                )
+            ).all()
+            for row in timing_rows:
+                duration = int(row.duration_ms)
+                ttft = int(row.ttft_ms) if row.ttft_ms is not None else None
+                output = int(row.output_tokens or 0)
+                timings.setdefault(row.model, _ModelTimings([], [])).add(duration, ttft, output)
+                pooled.add(duration, ttft, output)
+            timings_by_model = {model: t.payload() for model, t in timings.items()}
+            pooled_timing = pooled.payload()
+
+    items = [
+        {
+            "model": model,
+            **_model_metrics_row(row, timings_by_model.get(model, _empty_timing_payload())),
+        }
+        for model, row in by_model.items()
+    ]
     items.sort(key=lambda item: (-item["attempts"], item["model"]))
+
+    totals_payload = _model_metrics_row_from_counts(
+        calls=sum(int(r.calls or 0) for r in by_model_rows),
+        success=sum(int(r.success or 0) for r in by_model_rows),
+        error=sum(int(r.error or 0) for r in by_model_rows),
+        timeout=sum(int(r.timeout or 0) for r in by_model_rows),
+        cancelled=sum(int(r.cancelled or 0) for r in by_model_rows),
+        not_recorded=sum(int(r.not_recorded or 0) for r in by_model_rows),
+        cache_hit_tokens=sum(int(r.cache_hit_tokens or 0) for r in by_model_rows),
+        cache_miss_tokens=sum(int(r.cache_miss_tokens or 0) for r in by_model_rows),
+        output_tokens=sum(int(r.output_tokens or 0) for r in by_model_rows),
+        peak_units=sum(int(r.peak_units or 0) for r in by_model_rows),
+        offpeak_units=sum(int(r.offpeak_units or 0) for r in by_model_rows),
+        timing_payload=pooled_timing,
+    )
+
     return {
         "window": window,
         **_period_payload(period),
         "source": source,
         "items": items,
-        "totals": _model_metrics_row(totals, pooled),
+        "totals": totals_payload,
     }

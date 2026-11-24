@@ -8,7 +8,7 @@ ZenStory 已有英文界面与公开美元定价展示（阶段 1），但收款
 
 ## Decision
 
-1. **增量数据库迁移（`apps/server/alembic/versions/20261124_000000_add_multicurrency_creem_payments.py`）**：
+1. **增量数据库迁移（`apps/server/alembic/versions/20261124_120000_add_multicurrency_creem_payments.py`）**：
    - `payment_order` 新增 `provider`（默认 `'zpay'`）、`currency`（默认 `'CNY'`）、`provider_checkout_id`（可空索引，存 Creem `ch_...` 会话 ID），并将唯一约束调整为 `(provider, trade_no)`。
    - `subscription_plan` 新增 `price_monthly_usd_cents`、`price_yearly_usd_cents`（默认 0，自动回填 `pro` 为 `999 / 7900`），同步暴露在 `/api/v1/subscription/catalog`、`/api/v1/subscription/plans` 与后台套餐管理接口。
 2. **渠道无关的幂等结算层（`apps/server/services/subscription/payment_fulfillment.py`）**：

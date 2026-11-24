@@ -19,7 +19,7 @@ export const Sidebar: React.FC = () => {
   const effectiveTab = activeTab === 'dashboard' ? 'files' : activeTab;
 
   return (
-    <div className="h-full flex flex-col bg-[hsl(var(--bg-primary))]">
+    <div className="h-full flex flex-col bg-[hsl(var(--bg-rail))]">
       {/* Tab navigation */}
       <SidebarTabs />
 
@@ -32,9 +32,11 @@ export const Sidebar: React.FC = () => {
             </div>
           }
         >
-          {effectiveTab === 'files' && <FileTreePane />}
-          {effectiveTab === 'skills' && <SkillsPane />}
-          {effectiveTab === 'materials' && <MaterialsPane />}
+          <div key={effectiveTab} className="h-full motion-tab-panel">
+            {effectiveTab === 'files' && <FileTreePane />}
+            {effectiveTab === 'skills' && <SkillsPane />}
+            {effectiveTab === 'materials' && <MaterialsPane />}
+          </div>
         </Suspense>
       </div>
     </div>

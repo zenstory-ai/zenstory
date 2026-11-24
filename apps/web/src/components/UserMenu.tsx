@@ -28,6 +28,7 @@ import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import { getUserDisplayName } from "../lib/userDisplayName";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 
 /**
  * Predefined colors for avatar background
@@ -209,7 +210,9 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const { isMounted: isMenuMounted, isExiting: isMenuExiting } = useAnimatedPresence(isOpen, 130);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const queryClient = useQueryClient();
 
   // Check-in status query
@@ -253,11 +256,14 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
     };
   }, [isOpen]);
 
-  // Close menu on escape key
+  // Close menu on escape key and restore focus to trigger
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
+        requestAnimationFrame(() => {
+          triggerRef.current?.focus();
+        });
       }
     };
 
@@ -298,6 +304,7 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
       {/* Avatar button */}
       {/* data-testid: user-menu-button - User menu trigger for user menu tests */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="flex min-h-[44px] min-w-[44px] items-center gap-1 px-2 hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
@@ -313,15 +320,21 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
         />
         <ChevronDown
           size={14}
-          className={`text-[hsl(var(--text-secondary))] transition-transform ${
+          className={`text-[hsl(var(--text-secondary))] motion-chevron ${
             isOpen ? "rotate-180" : ""
           }`}
         />
       </button>
 
       {/* Dropdown menu */}
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-56 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg shadow-lg z-50 overflow-hidden">
+      {isMenuMounted && (
+        <div
+          aria-hidden={isMenuExiting ? true : undefined}
+          inert={isMenuExiting ? true : undefined}
+          className={`absolute right-0 top-full mt-1 w-56 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg shadow-lg z-50 overflow-hidden origin-top-right ${
+            isMenuExiting ? "motion-popover-exit pointer-events-none" : "motion-popover-enter"
+          }`}
+        >
           {/* User info section */}
           <div className="px-3 py-3 border-b border-[hsl(var(--separator-color))]">
             <div className="flex items-center gap-3">
@@ -404,11 +417,13 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
               </span>
             </a>
 
+            <div className="my-1 border-t border-[hsl(var(--separator-color))]" role="separator" />
+
             {/* data-testid: logout-button - Logout button for logout tests */}
             <button
               type="button"
               onClick={handleLogout}
-              className="w-full min-h-[44px] px-3 py-2 text-left text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+              className="w-full min-h-[44px] px-3 py-2 text-left text-sm text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.1)] flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
               data-testid="logout-button"
             >
               <LogOut size={16} />
@@ -591,11 +606,13 @@ export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
         </span>
       </a>
 
+      <div className="h-px bg-[hsl(var(--separator-color))] mx-2 my-1" />
+
       {/* Logout button */}
       <button
         type="button"
         onClick={handleLogout}
-        className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+        className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.1)] rounded text-sm transition-colors text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
       >
         <LogOut size={18} />
         <span>{t('userMenu.logout')}</span>

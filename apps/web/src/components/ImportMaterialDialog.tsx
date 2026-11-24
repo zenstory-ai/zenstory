@@ -31,6 +31,7 @@ export const ImportMaterialDialog: React.FC<ImportMaterialDialogProps> = ({
   const { t } = useTranslation(['editor', 'common']);
   const fileNameId = useId();
   const targetFolderIdInput = useId();
+  const importFormId = useId();
   const { currentProjectId } = useProject();
   const [fileName, setFileName] = useState(preview.suggested_file_name);
   const [targetFolderId, setTargetFolderId] = useState<string | null>(null);
@@ -153,9 +154,9 @@ export const ImportMaterialDialog: React.FC<ImportMaterialDialogProps> = ({
             {t('editor:fileTree.importDialog.cancel')}
           </Button>
           <Button
-            type="button"
+            type="submit"
+            form={importFormId}
             size="touch"
-            onClick={handleSubmit}
             disabled={isSubmitting || !fileName.trim()}
             isLoading={isSubmitting}
             loadingText={t('common:loading')}
@@ -166,6 +167,16 @@ export const ImportMaterialDialog: React.FC<ImportMaterialDialogProps> = ({
       }
     >
       <Modal.Body className="space-y-4">
+        <form
+          id={importFormId}
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!isSubmitting && fileName.trim()) {
+              void handleSubmit();
+            }
+          }}
+        >
         {/* Error message */}
         {error && (
           <div role="alert" className="p-3 text-sm text-[hsl(var(--error-text))] bg-[hsl(var(--error)/0.1)] rounded-xl border border-[hsl(var(--error)/0.3)]">
@@ -218,6 +229,7 @@ export const ImportMaterialDialog: React.FC<ImportMaterialDialogProps> = ({
             </div>
           )}
         </div>
+        </form>
       </Modal.Body>
     </Modal>
   );

@@ -221,17 +221,18 @@ describe('DashboardProjects', () => {
     for (const project of mockProjects) {
       const card = screen.getByRole('button', { name: `Open project ${project.name}` }).closest('article')!
       const content = card.querySelector(':scope > .relative')
+      const header = content?.firstElementChild
       const footer = content?.lastElementChild
       const meta = footer?.lastElementChild
 
       expect(card).toHaveClass('flex', 'flex-col')
       expect(content).toHaveClass('flex', 'flex-1', 'flex-col')
-      // One bottom-anchored footer holds the progress line and the type/time row.
+      expect(header).toHaveTextContent('Novel')
+      // One bottom-anchored footer holds the progress and relative time row.
       expect(footer).toHaveClass('mt-auto')
       expect(footer).toHaveAttribute('data-testid', 'project-card-footer')
       expect(meta).toHaveClass('flex', 'items-center', 'justify-between')
       expect(meta?.children).toHaveLength(2)
-      expect(meta?.firstElementChild).toHaveTextContent('Novel')
       expect(meta?.lastElementChild).not.toBeEmptyDOMElement()
     }
   })
@@ -360,5 +361,32 @@ describe('DashboardProjects', () => {
 
     expect(screen.getAllByText('Novel').length).toBeGreaterThan(0)
     expect(screen.getByTitle('Delete project')).toBeInTheDocument()
+  })
+
+  it('hides search/filter controls when there are no projects and offers one-click filter reset on empty search', () => {
+    mockProjects = []
+    const { rerender } = render(<DashboardProjects />)
+
+    expect(screen.queryByLabelText('Project search')).not.toBeInTheDocument()
+    expect(screen.queryByText('0 projects')).not.toBeInTheDocument()
+
+    mockProjects = [
+      {
+        id: 'project-1',
+        name: 'Novel Alpha',
+        description: 'Primary draft',
+        project_type: 'novel',
+        updated_at: '2026-04-07T00:00:00Z',
+      },
+    ]
+    rerender(<DashboardProjects />)
+
+    fireEvent.change(screen.getByLabelText('Project search'), { target: { value: 'nonexistent' } })
+    expect(screen.getByText('No matching projects')).toBeInTheDocument()
+
+    const resetBtn = screen.getByRole('button', { name: 'projects.clearFilters' })
+    fireEvent.click(resetBtn)
+    expect(screen.getByLabelText('Project search')).toHaveValue('')
+    expect(screen.getByText('Novel Alpha')).toBeInTheDocument()
   })
 })

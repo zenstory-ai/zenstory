@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom'
 // Mock dependencies BEFORE importing Layout
 const mockOpenSearch = vi.fn()
 const mockCloseSearch = vi.fn()
+const mockToggleSearch = vi.fn()
 const mockSetActivePanel = vi.fn()
 const mockSwitchToEditor = vi.fn()
 
@@ -40,7 +41,7 @@ vi.mock('../../contexts/FileSearchContext', () => ({
     isSearchOpen: false,
     openSearch: mockOpenSearch,
     closeSearch: mockCloseSearch,
-    toggleSearch: vi.fn(),
+    toggleSearch: mockToggleSearch,
   }),
   FileSearchProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
@@ -214,13 +215,14 @@ describe('Layout', () => {
       expect(panels[2]).toHaveTextContent('Right Panel')
     })
 
-    it('listens for Cmd+K keyboard shortcut', async () => {
+    it('listens for Cmd+K keyboard shortcut and toggles search', async () => {
       renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       fireEvent.keyDown(window, { metaKey: true, key: 'k' })
+      fireEvent.keyDown(window, { metaKey: true, key: 'K' })
 
       await waitFor(() => {
-        expect(mockOpenSearch).toHaveBeenCalled()
+        expect(mockToggleSearch).toHaveBeenCalledTimes(2)
       })
     })
 
@@ -230,7 +232,7 @@ describe('Layout', () => {
       fireEvent.keyDown(window, { ctrlKey: true, key: 'k' })
 
       await waitFor(() => {
-        expect(mockOpenSearch).toHaveBeenCalled()
+        expect(mockToggleSearch).toHaveBeenCalled()
       })
     })
 
@@ -238,27 +240,27 @@ describe('Layout', () => {
       renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Clear any previous calls
-      mockOpenSearch.mockClear()
+      mockToggleSearch.mockClear()
 
       fireEvent.keyDown(window, { key: 'k' })
 
       // Wait a bit to ensure no call is made
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      expect(mockOpenSearch).not.toHaveBeenCalled()
+      expect(mockToggleSearch).not.toHaveBeenCalled()
     })
 
     it('does not trigger search on Cmd+other key', async () => {
       renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Clear any previous calls
-      mockOpenSearch.mockClear()
+      mockToggleSearch.mockClear()
 
       fireEvent.keyDown(window, { metaKey: true, key: 'p' })
 
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      expect(mockOpenSearch).not.toHaveBeenCalled()
+      expect(mockToggleSearch).not.toHaveBeenCalled()
     })
 
     it('does not render bottom tabs in desktop mode', () => {
@@ -399,7 +401,7 @@ describe('Layout', () => {
       fireEvent.keyDown(window, { metaKey: true, key: 'k' })
 
       await waitFor(() => {
-        expect(mockOpenSearch).toHaveBeenCalled()
+        expect(mockToggleSearch).toHaveBeenCalled()
       })
     })
 
@@ -409,7 +411,7 @@ describe('Layout', () => {
       fireEvent.keyDown(window, { ctrlKey: true, key: 'k' })
 
       await waitFor(() => {
-        expect(mockOpenSearch).toHaveBeenCalled()
+        expect(mockToggleSearch).toHaveBeenCalled()
       })
     })
 

@@ -34,7 +34,8 @@ export function RecentActivityList() {
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['admin', 'audit-logs', 'recent'],
-    queryFn: () => adminApi.getAuditLogs({ page: 1, page_size: 10 }),
+    queryFn: () => adminApi.getAuditLogs({ page: 1, page_size: 10, include_total: false }),
+    retry: false,
   });
 
   const items = data?.items || [];

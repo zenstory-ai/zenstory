@@ -448,11 +448,10 @@ describe('Header', () => {
       expect(mockToastSuccess).not.toHaveBeenCalled()
     })
 
-    it('shows upgrade modal when export format is plan-restricted', async () => {
+    it('shows upgrade modal without a duplicate error toast when export format is plan-restricted', async () => {
       mockCurrentProjectId = 'project-123'
       const exportError = new ApiError(402, 'ERR_QUOTA_EXPORT_FORMAT_RESTRICTED')
       mockExportDrafts.mockRejectedValueOnce(exportError)
-      mockHandleApiError.mockReturnValueOnce('Plan does not support this export format')
       render(<Header />)
 
       const exportButton = screen.getByTestId('download-icon').closest('button')
@@ -463,6 +462,7 @@ describe('Header', () => {
         expect(screen.getByRole('dialog')).toBeInTheDocument()
         expect(screen.getByText('升级专业版')).toBeInTheDocument()
       })
+      expect(mockToastError).not.toHaveBeenCalled()
     })
   })
 

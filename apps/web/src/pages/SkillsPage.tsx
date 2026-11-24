@@ -2,12 +2,13 @@ import { useId, useState, useEffect, useRef, useCallback } from "react";
 import type { ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { LazyMarkdown } from "../components/LazyMarkdown";
-import { Plus, Pencil, Trash2, Zap, Check, ChevronDown, ChevronUp, Share2, Compass, MinusCircle, Search, Square, CheckSquare, Download, Upload, AlertTriangle } from "../components/icons";
+import { Plus, Pencil, Trash2, Zap, Check, ChevronDown, Share2, Compass, MinusCircle, Search, Square, CheckSquare, Download, Upload, AlertTriangle } from "../components/icons";
 import { skillsApi, publicSkillsApi } from "../lib/api";
 import { ApiError } from "../lib/apiClient";
 import type { Skill, AddedSkill, CreateSkillRequest, UpdateSkillRequest, PublicSkill, SkillCategory, SkillShareStatus } from "../types";
 import { PUBLIC_SKILLS_PAGE_SIZE, PUBLIC_SKILLS_SEARCH_DEBOUNCE_MS, SKILL_FIELD_LIMITS } from "../config/skills";
 import { useIsMobile } from "../hooks/useMediaQuery";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { ShareSkillModal } from "../components/skills/ShareSkillModal";
 import { SkillResourcesSection } from "../components/skills/SkillResourcesSection";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
@@ -15,6 +16,7 @@ import { DashboardFilterPills } from "../components/dashboard/DashboardFilterPil
 import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
 import { Modal } from "../components/ui/Modal";
+import { AnimatedCollapse } from "../components/ui/AnimatedCollapse";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { IconButton } from "../components/ui/IconButton";
@@ -88,8 +90,15 @@ export default function SkillsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState<SkillFormData>(emptyForm);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingSkill, setDeletingSkill] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sharingSkill, setSharingSkill] = useState<Skill | null>(null);
+  const [lastSharingSkill, setLastSharingSkill] = useState<Skill | null>(null);
+  if (sharingSkill && sharingSkill !== lastSharingSkill) {
+    setLastSharingSkill(sharingSkill);
+  }
+  const { isMounted: isShareModalMounted } = useAnimatedPresence(Boolean(sharingSkill), 150);
+  const renderedSharingSkill = sharingSkill ?? lastSharingSkill;
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [mySkillsSearchQuery, setMySkillsSearchQuery] = useState("");
   const mySkillsSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -414,6 +423,8 @@ export default function SkillsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (deletingSkill) return;
+    setDeletingSkill(true);
     try {
       await skillsApi.delete(id);
       await loadSkills();
@@ -421,6 +432,8 @@ export default function SkillsPage() {
     } catch (error) {
       logger.error("Failed to delete skill:", error);
       showSkillError(error, "skills:errors.deleteFailed");
+    } finally {
+      setDeletingSkill(false);
     }
   };
 
@@ -623,6 +636,11 @@ export default function SkillsPage() {
           searchQuery={searchInput}
           appliedSearchQuery={searchQuery}
           setSearchQuery={setSearchInput}
+          onResetFilters={() => {
+            setSearchInput("");
+            setSearchQuery("");
+            setSelectedCategory("");
+          }}
           onSearchCompositionChange={setIsSearchComposing}
           loading={discoverLoading}
           hasError={discoverError}
@@ -664,6 +682,11 @@ export default function SkillsPage() {
               size="touch"
               onClick={handleSave}
               disabled={saving || !formData.name.trim() || !formData.instructions.trim()}
+              title={
+                !saving && (!formData.name.trim() || !formData.instructions.trim())
+                  ? t("skills:form.requiredFieldsHint")
+                  : undefined
+              }
               isLoading={saving}
               leftIcon={<Check className="w-4 h-4" />}
               className="flex-1"
@@ -795,11 +818,14 @@ export default function SkillsPage() {
       {/* Delete Confirmation */}
       <ConfirmDialog
         open={!!deletingId}
-        onClose={() => setDeletingId(null)}
+        onClose={() => {
+          if (!deletingSkill) setDeletingId(null);
+        }}
         onConfirm={() => handleDelete(deletingId!)}
         title={t("skills:deleteConfirm.title")}
         message={t("skills:deleteConfirm.message")}
         variant="danger"
+        loading={deletingSkill}
         confirmLabel={t("common:delete")}
         cancelLabel={t("common:cancel")}
       />
@@ -807,7 +833,9 @@ export default function SkillsPage() {
       {/* Batch Delete Confirmation */}
       <ConfirmDialog
         open={batchDeleting}
-        onClose={() => setBatchDeleting(false)}
+        onClose={() => {
+          if (!batchOperating) setBatchDeleting(false);
+        }}
         onConfirm={handleConfirmBatchDelete}
         title={t("skills:batch.deleteConfirmTitle")}
         message={t("skills:batch.deleteConfirmMessage", { count: selectedSkillIds.size })}
@@ -818,9 +846,10 @@ export default function SkillsPage() {
       />
 
       {/* Share Skill Modal */}
-      {sharingSkill && (
+      {isShareModalMounted && renderedSharingSkill && (
         <ShareSkillModal
-          skill={sharingSkill}
+          open={Boolean(sharingSkill)}
+          skill={renderedSharingSkill}
           onClose={() => setSharingSkill(null)}
           onSuccess={loadSkills}
           isMobile={isMobile}
@@ -879,12 +908,6 @@ function SkillCard({
         icon={<Pencil className="w-4 h-4" />}
       />
       <IconButton
-        onClick={onDelete}
-        label={t("skills:deleteConfirm.title")}
-        tone="danger"
-        icon={<Trash2 className="w-4 h-4" />}
-      />
-      <IconButton
         onClick={onShare}
         label={t("skills:share.title")}
         icon={<Share2 className="w-4 h-4" />}
@@ -896,7 +919,14 @@ function SkillCard({
         onClick={() => setExpanded(!expanded)}
         label={expanded ? t("skills:collapse") : t("skills:expand")}
         aria-expanded={expanded}
-        icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        icon={<ChevronDown className={`w-4 h-4 motion-chevron ${expanded ? "rotate-180" : ""}`} />}
+      />
+      <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[hsl(var(--separator-color))]" />
+      <IconButton
+        onClick={onDelete}
+        label={t("skills:deleteConfirm.title")}
+        tone="danger"
+        icon={<Trash2 className="w-4 h-4" />}
       />
     </div>
   );
@@ -966,10 +996,10 @@ function SkillCard({
       {isMobile && actions}
 
       {/* Instructions - Markdown rendered */}
-      {expanded && skill.instructions && (
-        <div className={`mt-3 pt-3 border-t border-[hsl(var(--border-color))]`}>
+      <AnimatedCollapse open={expanded && Boolean(skill.instructions)}>
+        <div className="mt-3 pt-3 border-t border-[hsl(var(--border-color))]">
           <div className="flex items-center gap-1.5 mb-2">
-            <span className={`text-xs font-medium text-[hsl(var(--text-tertiary))]`}>
+            <span className="text-xs font-medium text-[hsl(var(--text-tertiary))]">
               {t("form.instructions")}
             </span>
           </div>
@@ -977,7 +1007,7 @@ function SkillCard({
             <LazyMarkdown>{skill.instructions}</LazyMarkdown>
           </div>
         </div>
-      )}
+      </AnimatedCollapse>
     </div>
   );
 }
@@ -1058,13 +1088,15 @@ function MySkillsContent({
 
   return (
     <div>
-      {/* Search Box */}
-      <DashboardSearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placeholder={t("searchMySkillsPlaceholder")}
-        className="mb-6"
-      />
+      {/* Search Box — progressive disclosure: hidden when there are 0 skills and no active search */}
+      {(hasSkills || Boolean(searchQuery)) && (
+        <DashboardSearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={t("searchMySkillsPlaceholder")}
+          className="mb-6"
+        />
+      )}
 
       {hasError && <SkillListError onRetry={onRetry} />}
       {(!hasError || hasSkills) && <>
@@ -1142,7 +1174,11 @@ function MySkillsContent({
             title={searchQuery ? t("noSearchResults") : t("noUserSkills")}
             description={searchQuery ? undefined : t("noUserSkillsHint")}
             action={
-              !searchQuery && (
+              searchQuery ? (
+                <Button variant="secondary" size={isMobile ? "touch" : "sm"} onClick={() => setSearchQuery("")}>
+                  {t("common:clearSearch")}
+                </Button>
+              ) : (
                 <Button size={isMobile ? "touch" : "md"} onClick={onCreate}>
                   {t("createFirst")}
                 </Button>
@@ -1188,7 +1224,11 @@ function MySkillsContent({
             icon={Search}
             title={searchQuery ? t("noSearchResults") : t("noAddedSkills")}
             action={
-              !searchQuery && (
+              searchQuery ? (
+                <Button variant="secondary" size={isMobile ? "touch" : "sm"} onClick={() => setSearchQuery("")}>
+                  {t("common:clearSearch")}
+                </Button>
+              ) : (
                 <Button variant="secondary" size={isMobile ? "touch" : "md"} onClick={onSwitchToDiscover}>
                   {t("browsePublic")}
                 </Button>
@@ -1243,11 +1283,24 @@ function AddedSkillCard({
   // 官方技能的正文不对用户返回：不能导出，展开只显示完整描述和说明
   const hidden = !!skill.instructions_hidden;
 
+  const hasLeadingAction = Boolean((onExport && !hidden) || (!hidden && skill.instructions.trim()));
   const actions = (
     <div
       data-testid="skill-card-actions"
       className={isMobile ? "mt-2 flex items-center justify-end gap-1" : "flex items-center gap-1 shrink-0"}
     >
+      {onExport && !hidden && (
+        <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
+      )}
+      {!hidden && Boolean(skill.instructions.trim()) && <IconButton
+        onClick={() => setExpanded(!expanded)}
+        label={expanded ? t("skills:collapse") : t("skills:expand")}
+        aria-expanded={expanded}
+        icon={<ChevronDown className={`w-4 h-4 motion-chevron ${expanded ? "rotate-180" : ""}`} />}
+      />}
+      {hasLeadingAction && (
+        <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[hsl(var(--separator-color))]" />
+      )}
       <IconButton
         onClick={onRemove}
         disabled={removing}
@@ -1261,15 +1314,6 @@ function AddedSkillCard({
           )
         }
       />
-      {onExport && !hidden && (
-        <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
-      )}
-      {!hidden && Boolean(skill.instructions.trim()) && <IconButton
-        onClick={() => setExpanded(!expanded)}
-        label={expanded ? t("skills:collapse") : t("skills:expand")}
-        aria-expanded={expanded}
-        icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-      />}
     </div>
   );
   const localizedCategory = getLocalizedSkillCategory(skill.category, t);
@@ -1327,10 +1371,10 @@ function AddedSkillCard({
 
 
       {/* Instructions - Markdown rendered */}
-      {expanded && !hidden && skill.instructions && (
-        <div className={`mt-3 pt-3 border-t border-[hsl(var(--border-color))]`}>
+      <AnimatedCollapse open={expanded && !hidden && Boolean(skill.instructions)}>
+        <div className="mt-3 pt-3 border-t border-[hsl(var(--border-color))]">
           <div className="flex items-center gap-1.5 mb-2">
-            <span className={`text-xs font-medium text-[hsl(var(--text-tertiary))]`}>
+            <span className="text-xs font-medium text-[hsl(var(--text-tertiary))]">
               {t("form.instructions")}
             </span>
           </div>
@@ -1341,7 +1385,7 @@ function AddedSkillCard({
             <SkillResourcesSection skillId={skill.id} readOnly isMobile={isMobile} />
           </div>
         </div>
-      )}
+      </AnimatedCollapse>
     </div>
   );
 }
@@ -1385,6 +1429,7 @@ function DiscoverContent({
   searchQuery,
   appliedSearchQuery,
   setSearchQuery,
+  onResetFilters,
   onSearchCompositionChange,
   loading,
   hasError,
@@ -1408,6 +1453,7 @@ function DiscoverContent({
   /** The debounced query the current results were loaded with. */
   appliedSearchQuery: string;
   setSearchQuery: (q: string) => void;
+  onResetFilters: () => void;
   onSearchCompositionChange: (composing: boolean) => void;
   loading: boolean;
   hasError: boolean;
@@ -1484,6 +1530,11 @@ function DiscoverContent({
           <DashboardEmptyState
             icon={Compass}
             title={t("noSkillsFound")}
+            action={
+              <Button variant="secondary" size={isMobile ? "touch" : "md"} onClick={onResetFilters}>
+                {t("skills:clearFilters")}
+              </Button>
+            }
           />
         ) : (
           // Nothing was searched: the library itself is empty, not a failed search.
@@ -1579,7 +1630,7 @@ function PublicSkillCard({
   const instructions = fullInstructions ?? skill.instructions;
 
   return (
-    <div className={`flex flex-col h-full bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] transition-colors ${isMobile ? "p-3" : "p-5"}`}>
+    <div data-testid="public-skill-card" className={`flex flex-col h-full bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] transition-colors ${isMobile ? "p-3" : "p-5"}`}>
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <div className="w-8 h-8 rounded-lg bg-[hsl(var(--accent-primary)/0.08)] flex items-center justify-center shrink-0">
@@ -1607,7 +1658,7 @@ function PublicSkillCard({
           aria-expanded={expanded}
           className="min-h-11 shrink-0 whitespace-nowrap text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] flex items-center gap-1 transition-colors"
         >
-          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          <ChevronDown className={`w-3 h-3 motion-chevron ${expanded ? "rotate-180" : ""}`} />
           <span>{expanded ? t("collapse") : t("expand")}</span>
         </button>}
 
@@ -1636,7 +1687,7 @@ function PublicSkillCard({
       </div>
 
       {/* Expanded instructions */}
-      {canExpand && expanded && instructions && (
+      <AnimatedCollapse open={Boolean(canExpand && expanded && instructions)}>
         <div className="mt-3 pt-3 border-t border-[hsl(var(--border-color)/0.5)]">
           <div className="markdown-content bg-[hsl(var(--bg-tertiary))] rounded-xl p-3 text-xs max-h-48 overflow-y-auto">
             {loadingDetail ? (
@@ -1644,11 +1695,11 @@ function PublicSkillCard({
                 <div className="w-4 h-4 animate-spin rounded-full border-2 border-[hsl(var(--accent-primary))] border-t-transparent" />
               </div>
             ) : (
-              <LazyMarkdown>{instructions}</LazyMarkdown>
+              <LazyMarkdown>{instructions || ""}</LazyMarkdown>
             )}
           </div>
         </div>
-      )}
+      </AnimatedCollapse>
     </div>
   );
 }

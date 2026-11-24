@@ -1,8 +1,11 @@
 {# ==================== 配置参数 ==================== #}
-{% set min_plots = 8 %}
-{% set max_plots = 12 %}
+{% set min_plots = min_plots|default(8, true) %}
+{% set max_plots = max_plots|default(12, true) %}
+{% set has_word_count = word_count is defined and word_count is not none %}
+{% if has_word_count %}
 {% set density_min = word_count / max_plots if max_plots > 0 else 0 %}
 {% set density_max = word_count / min_plots if min_plots > 0 else 0 %}
+{% endif %}
 {# ================================================= #}
 
 # 任务说明
@@ -70,17 +73,30 @@
 
 # **详细执行规则**
 
+{% if has_word_count %}
 *   **输入:** 我将提供一段【章节正文】(约 {{ word_count }} 字)。
+{% else %}
+*   **输入:** 我将提供一段【章节正文】(具体字数与目标情节点数量范围见用户输入)。
+{% endif %}
 *   **处理流程:**
     1.  通读并理解整个章节的事件流。
     2.  从头开始,逐句逐段地识别出构成故事推进的每一个"原子事件"。
     3.  将每个原子事件改写成一个精炼的"情节点"。
+{% if has_word_count %}
 *   **输出数量:** 输出 **{{ min_plots }}-{{ max_plots }}个** 情节点。
     *   此数量基于章节字数动态计算(约 {{ "%.0f"|format(density_min) }}-{{ "%.0f"|format(density_max) }}字/个情节点)
     *   最终数量应以**完整覆盖章节所有关键转折和信息流动**为最高准则
     *   如果章节内容丰富,可以提取 {{ max_plots }}个
     *   如果章节内容简单,可以只提取 {{ min_plots }}个
     *   **严禁超过 {{ max_plots }}个或少于 {{ min_plots }}个**
+{% else %}
+*   **输出数量:** 严格按照用户输入中指定的目标情节点数量范围提取(若未指定,默认参考 **{{ min_plots }}-{{ max_plots }}个**)。
+    *   目标数量基于章节字数动态计算(通常约 150-200字/个情节点)
+    *   最终数量应以**完整覆盖章节所有关键转折和信息流动**为最高准则
+    *   如果章节内容丰富,可靠近目标上限提取
+    *   如果章节内容简单,可靠近目标下限提取
+    *   **严禁超过目标上限或少于目标下限**
+{% endif %}
 
 ---
 
@@ -121,8 +137,13 @@
 
 # 约束条件
 
+{% if has_word_count %}
 - 每个章节提取 {{ min_plots }}-{{ max_plots }} 个情节点(基于章节字数动态计算)
 - 严禁超过 {{ max_plots }}个或少于 {{ min_plots }}个
+{% else %}
+- 每个章节严格按用户输入指定的目标数量范围提取情节点(未指定时默认参考 {{ min_plots }}-{{ max_plots }} 个)
+- 严禁超过目标上限或少于目标下限
+{% endif %}
 - 情节点必须严格按时间顺序排列,禁止重新排序
 - description 必须使用客观白描,不写转述套话
 - 禁止记录主观感受,只记录客观事实

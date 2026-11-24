@@ -4,13 +4,17 @@ import { useUpgradeExposure } from "../../hooks/useUpgradeExposure";
 import { useTranslation } from "react-i18next";
 import { Clock } from "lucide-react";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../../config/upgradeExperience";
-import { formatAiQuotaResetDay, formatAiQuotaResetLocal, aiQuotaPeriodKey } from "../../hooks/useAiMessageQuota";
+import { formatAiQuotaResetDay, aiQuotaPeriodKey } from "../../hooks/useAiMessageQuota";
 import { trackUpgradeClick } from "../../lib/upgradeAnalytics";
-import { CHAT_CARD_PRIMARY_BUTTON, CHAT_CARD_SURFACE } from "../chatCardStyles";
+import { CHAT_CARD_SURFACE } from "../chatCardStyles";
+import { Button } from "../ui/Button";
+import { useAnimatedPresence } from "../../hooks/useAnimatedPresence";
 
 const chatQuotaPrompt = getUpgradePromptDefinition("chat_quota_blocked");
 
 interface ChatQuotaCardProps {
+  /** Controls visibility with symmetric exit transition when kept mounted by parent. */
+  open?: boolean;
   /**
    * Today's free AI message allowance (3 on the free plan). Left out when the server
    * refused a round while the cached count still shows room: the card then names no count.
@@ -25,23 +29,27 @@ interface ChatQuotaCardProps {
  * waits, when it comes back, and the way to keep writing now. Only the daily message
  * count is ever named here.
  */
-export function ChatQuotaCard({ limit, resetAt }: ChatQuotaCardProps) {
+export function ChatQuotaCard({ open = true, limit, resetAt }: ChatQuotaCardProps) {
   const { t, i18n } = useTranslation(["chat", "dashboard"]);
   const { isMobile, activePanel } = useMobileLayout();
-  const { isPaid, resolved } = usePaidPlanWhenOpen(true);
+  const { isMounted, isExiting } = useAnimatedPresence(open, 150);
+  const { isPaid, resolved } = usePaidPlanWhenOpen(open);
   const canUpgrade = resolved && !isPaid;
-  const exposureRef = useUpgradeExposure({ enabled: canUpgrade && (!isMobile || activePanel === "chat"), source: chatQuotaPrompt.source, surface: "card", placement: "chat-input", period: aiQuotaPeriodKey(resetAt) });
+  const exposureRef = useUpgradeExposure({ enabled: open && canUpgrade && (!isMobile || activePanel === "chat"), source: chatQuotaPrompt.source, surface: "card", placement: "chat-input", period: aiQuotaPeriodKey(resetAt) });
   const resetDay = formatAiQuotaResetDay(resetAt, i18n?.language);
-  const resetLocal = formatAiQuotaResetLocal(resetAt, i18n?.language);
 
-
+  if (!isMounted) return null;
 
   return (
     <div
       ref={exposureRef}
       data-testid="chat-quota-card"
       role="status"
-      className={`mb-2 p-3 ${CHAT_CARD_SURFACE}`}
+      aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
+      className={`mb-2 p-3 tabular-nums ${
+        isExiting ? "motion-banner-exit pointer-events-none" : "motion-banner-enter"
+      } ${CHAT_CARD_SURFACE}`}
     >
       <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-[hsl(var(--text-primary))]">
         <Clock size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-[hsl(var(--text-secondary))]" />
@@ -52,35 +60,30 @@ export function ChatQuotaCard({ limit, resetAt }: ChatQuotaCardProps) {
         </span>
       </p>
       <p className="mt-1 pl-[23px] text-xs leading-5 text-[hsl(var(--text-secondary))]">
-        {resetDay && resetLocal
-          ? t("chat:quotaCard.resetLocal", {
-              defaultValue: "北京时间 {{day}} 00:00 恢复，也就是你那里的 {{local}}。写好的内容会留在输入框里，到时再发。",
-              day: resetDay,
-              local: resetLocal,
-            })
-          : resetDay
+        {resetDay
           ? t("chat:quotaCard.resetOnDay", {
-              defaultValue: "北京时间 {{day}} 00:00 恢复。写好的内容会留在输入框里，到时再发。",
+              defaultValue: "北京时间 {{day}} 00:00 恢复。",
               day: resetDay,
             })
           : t("chat:quotaCard.resetTomorrow", {
-              defaultValue: "北京时间明天 00:00 恢复。写好的内容会留在输入框里，到时再发。",
+              defaultValue: "北京时间明天 00:00 恢复。",
             })}
         {" "}
         {canUpgrade && t("chat:quotaCard.upgradeHint", { defaultValue: "想现在接着写，可以开通 Pro，AI 消息不限条数。" })}
       </p>
       {canUpgrade && <div className="mt-2.5 pl-[23px]">
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size={isMobile ? "touch" : "sm"}
           data-testid="chat-quota-card-upgrade"
           onClick={() => {
             trackUpgradeClick(chatQuotaPrompt.source, "primary", "billing", "card");
             window.location.assign(buildUpgradeUrl(chatQuotaPrompt.billingPath, chatQuotaPrompt.source));
           }}
-          className={CHAT_CARD_PRIMARY_BUTTON}
         >
           {t("dashboard:billing.ctaUpgradePro", { defaultValue: "开通 Pro" })}
-        </button>
+        </Button>
       </div>}
     </div>
   );

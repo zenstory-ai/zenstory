@@ -19,6 +19,10 @@ from database import get_session
 from models import User, UserFeedback
 from services.admin_audit_service import admin_audit_service
 from services.core.auth_service import get_current_superuser
+from services.infra.admin_analytics_cache import (
+    DEFAULT_CACHE_TTL_SECONDS,
+    cached_admin_analytics,
+)
 from services.infra.upload_storage import (
     UploadNotFoundError,
     UploadReferenceError,
@@ -163,18 +167,17 @@ def list_feedback_admin(
             detail="source_page must be one of: dashboard, editor.",
         )
 
-    query = select(UserFeedback, User).join(User, col(User.id) == col(UserFeedback.user_id))
-
+    conditions = []
     if normalized_status:
-        query = query.where(UserFeedback.status == normalized_status)
+        conditions.append(UserFeedback.status == normalized_status)
 
     if normalized_source_page:
-        query = query.where(UserFeedback.source_page == normalized_source_page)
+        conditions.append(UserFeedback.source_page == normalized_source_page)
 
     normalized_search = (search or "").strip()
     if normalized_search:
         pattern = f"%{normalized_search}%"
-        query = query.where(
+        conditions.append(
             or_(
                 col(User.username).ilike(pattern),
                 col(User.email).ilike(pattern),
@@ -187,24 +190,85 @@ def list_feedback_admin(
             )
         )
 
+    def _build_count_query(extra_conditions: list | None = None):
+        stmt = select(func.count(UserFeedback.id)).select_from(UserFeedback)
+        if normalized_search:
+            stmt = stmt.join(User, col(User.id) == col(UserFeedback.user_id))
+        all_conds = [*conditions, *(extra_conditions or ())]
+        if all_conds:
+            stmt = stmt.where(*all_conds)
+        return stmt
+
+    query = select(UserFeedback, User).join(User, col(User.id) == col(UserFeedback.user_id))
+    if conditions:
+        query = query.where(*conditions)
+
+    def _has_valid_screenshot(screenshot_path: str | None, storage) -> bool:
+        if not screenshot_path:
+            return False
+        if screenshot_path.startswith("s3://"):
+            return storage.feedback_reference_exists(screenshot_path)
+        resolved_path, _ = _resolve_existing_feedback_screenshot(screenshot_path)
+        return resolved_path is not None
+
     storage = get_upload_storage_or_503()
     try:
+        has_path_cond = (col(UserFeedback.screenshot_path).is_not(None), col(UserFeedback.screenshot_path) != "")
+        no_path_cond = or_(col(UserFeedback.screenshot_path).is_(None), col(UserFeedback.screenshot_path) == "")
+
         if has_screenshot is None:
-            total = session.exec(select(func.count()).select_from(query.subquery())).one()
+            total = int(session.exec(_build_count_query()).one() or 0)
             rows = session.exec(
                 query.order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc()).offset(skip).limit(limit)
             ).all()
             items = [_to_admin_feedback_item(feedback, user, storage) for feedback, user in rows]
-        else:
-            # Actual screenshot availability includes filesystem/legacy-path resolution.
-            rows = session.exec(query.order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc())).all()
-            items = [_to_admin_feedback_item(feedback, user, storage) for feedback, user in rows]
-            if has_screenshot:
-                items = [item for item in items if item["has_screenshot"]]
+        elif has_screenshot is True:
+            # Restrict SQL scan strictly to rows with a non-empty screenshot_path.
+            path_query = select(UserFeedback.id, UserFeedback.screenshot_path).select_from(UserFeedback)
+            if normalized_search:
+                path_query = path_query.join(User, col(User.id) == col(UserFeedback.user_id))
+            path_rows = session.exec(
+                path_query.where(*conditions, *has_path_cond)
+                .order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc())
+            ).all()
+            valid_ids = [
+                fb_id for fb_id, sc_path in path_rows if _has_valid_screenshot(sc_path, storage)
+            ]
+            total = len(valid_ids)
+            page_ids = valid_ids[skip : skip + limit]
+            if page_ids:
+                page_rows = session.exec(
+                    select(UserFeedback, User)
+                    .join(User, col(User.id) == col(UserFeedback.user_id))
+                    .where(col(UserFeedback.id).in_(page_ids))
+                    .order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc())
+                ).all()
+                items = [_to_admin_feedback_item(feedback, user, storage) for feedback, user in page_rows]
             else:
-                items = [item for item in items if not item["has_screenshot"]]
-            total = len(items)
-            items = items[skip : skip + limit]
+                items = []
+        else:
+            # Rows without screenshot_path definitely have has_screenshot=False; only inspect
+            # the (typically small) subset with non-empty paths for missing/invalid files.
+            path_query = select(UserFeedback.id, UserFeedback.screenshot_path).select_from(UserFeedback)
+            if normalized_search:
+                path_query = path_query.join(User, col(User.id) == col(UserFeedback.user_id))
+            path_rows = session.exec(path_query.where(*conditions, *has_path_cond)).all()
+            broken_ids = [
+                fb_id for fb_id, sc_path in path_rows if not _has_valid_screenshot(sc_path, storage)
+            ]
+            effective_no_screenshot = (
+                or_(no_path_cond, col(UserFeedback.id).in_(broken_ids))
+                if broken_ids
+                else no_path_cond
+            )
+            total = int(session.exec(_build_count_query([effective_no_screenshot])).one() or 0)
+            rows = session.exec(
+                query.where(effective_no_screenshot)
+                .order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc())
+                .offset(skip)
+                .limit(limit)
+            ).all()
+            items = [_to_admin_feedback_item(feedback, user, storage) for feedback, user in rows]
     finally:
         getattr(storage, "close", lambda: None)()
 
@@ -230,6 +294,7 @@ def list_chat_votes_admin(
     vote: str = Query("all"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    refresh: bool = Query(False),
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -248,8 +313,17 @@ def list_chat_votes_admin(
             detail="vote must be one of: all, up, down.",
         )
 
-    payload = list_chat_feedback_votes(
-        session,
+    payload = cached_admin_analytics(
+        "feedback:chat_votes",
+        lambda: list_chat_feedback_votes(
+            session,
+            days=days,
+            vote=normalized_vote,
+            page=page,
+            page_size=page_size,
+        ),
+        ttl_seconds=60 if days == 7 else DEFAULT_CACHE_TTL_SECONDS,
+        refresh=refresh,
         days=days,
         vote=normalized_vote,
         page=page,

@@ -24,6 +24,8 @@
   "selectedVersions": "{{count}} version selected",
   "selectedVersions_one": "{{count}} version selected",
   "selectedVersions_other": "{{count}} versions selected",
+  "selectOneMoreToCompare": "Select 1 more version to compare",
+  "clearSelection": "Clear",
   "currentText": "Current text",
   "latest": "Latest",
   "wordCount": "{{count}} words",

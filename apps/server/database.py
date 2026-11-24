@@ -129,6 +129,18 @@ POSTGRES_PERFORMANCE_INDEX_SQL: tuple[str, ...] = (
         "CREATE INDEX IF NOT EXISTS ix_chat_message_session_created_at_desc "
         "ON chat_message (session_id, created_at DESC)"
     ),
+    # Admin UX metrics & chat votes partial indexes on assistant messages
+    (
+        "CREATE INDEX IF NOT EXISTS ix_chat_message_assistant_feedback_created_at "
+        "ON chat_message (created_at) "
+        "WHERE role = 'assistant' AND message_metadata IS NOT NULL "
+        "AND strpos(message_metadata, '\"feedback\"') > 0"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS ix_chat_message_assistant_tool_calls_created_at "
+        "ON chat_message (created_at) "
+        "WHERE role = 'assistant' AND tool_calls IS NOT NULL"
+    ),
     # Latest job lookup by novel
     (
         "CREATE INDEX IF NOT EXISTS ix_ingestion_jobs_novel_created_at_desc "

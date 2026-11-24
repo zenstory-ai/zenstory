@@ -2,21 +2,30 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Quote } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
 
 const VIEWPORT_MARGIN_PX = 12;
 const DEFAULT_HALF_WIDTH_PX = 72;
 const DEFAULT_HEIGHT_PX = 48;
 
 interface SelectionToolbarProps {
+  /** 是否可见（默认由 text 非空推导，传入后可保持挂载完成退场动画） */
+  open?: boolean;
   /** 选中的文本 */
   text: string;
   /** 工具栏位置 */
-  position: { x: number; y: number };
+  position: { x: number; y: number } | null;
   /** 添加引用回调 */
   onAdd: () => void;
-  /** 关闭回调 */
-  onClose: () => void;
+  /** 关闭回调（restoreFocus=true 表示通过 Escape 从工具栏内部退回编辑器） */
+  onClose: (restoreFocus?: boolean) => void;
 }
+
+const isAppleShortcutPlatform = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  const uaDataPlatform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
+  return /mac|iphone|ipad|ipod/i.test(uaDataPlatform || navigator.platform || '');
+};
 
 function clampToolbarPosition(
   position: { x: number; y: number },
@@ -40,6 +49,7 @@ function clampToolbarPosition(
 }
 
 export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
+  open,
   text,
   position,
   onAdd,
@@ -47,12 +57,20 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
 }) => {
   const { t } = useTranslation('chat');
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const isOpen = (open ?? Boolean(text)) && Boolean(text) && Boolean(position);
+  const { isMounted, isExiting } = useAnimatedPresence(isOpen, 120);
+  const [lastPosition, setLastPosition] = useState<{ x: number; y: number } | null>(position);
+  if (position && (lastPosition?.x !== position.x || lastPosition?.y !== position.y)) {
+    setLastPosition(position);
+  }
+  const activePosition = position ?? lastPosition;
   const [measuredSize, setMeasuredSize] = useState<{ width: number; height: number }>({
     width: 0,
     height: 0,
   });
 
   useLayoutEffect(() => {
+    if (!isOpen) return;
     const el = toolbarRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -63,10 +81,11 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
           : { width: rect.width, height: rect.height }
       );
     }
-  }, [text, position.x, position.y]);
+  }, [isOpen, text, activePosition?.x, activePosition?.y]);
 
   // 处理点击外部关闭
   useEffect(() => {
+    if (!isOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
         onClose();
@@ -82,56 +101,68 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
       clearTimeout(timer);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [onClose]);
+  }, [isOpen, onClose]);
 
-  // 处理 Escape 键关闭
+  // 处理 Escape 键关闭（不滚动页面、不打断光标，若焦点在工具栏内则温和交还给编辑器）
   useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        e.preventDefault();
+        e.stopPropagation();
+        const hadToolbarFocus = Boolean(
+          toolbarRef.current && toolbarRef.current.contains(document.activeElement),
+        );
+        onClose(hadToolbarFocus);
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [isOpen, onClose]);
 
   const handleAdd = () => {
     onAdd();
     onClose();
   };
 
-  // 如果没有选中文本，不渲染
-  if (!text) return null;
+  if (!isMounted || !activePosition) return null;
 
-  const clamped = clampToolbarPosition(position, measuredSize.width, measuredSize.height);
+  const clamped = clampToolbarPosition(activePosition, measuredSize.width, measuredSize.height);
+  const shortcutLabel = isAppleShortcutPlatform() ? '⌘⇧Q' : 'Ctrl+Shift+Q';
 
   return createPortal(
     <div
       ref={toolbarRef}
-      className="fixed z-50 animate-in fade-in zoom-in-95 duration-150"
+      role="toolbar"
+      aria-label={t('input.addToContext')}
+      aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
+      className={`fixed z-50 ${isExiting ? 'pointer-events-none' : ''}`}
       style={{
         left: clamped.x,
         top: clamped.y,
         transform: 'translate(-50%, -100%)',
       }}
     >
-      <div className="flex items-center gap-1 px-2 py-1.5 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-xl shadow-lg">
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="max-md:min-h-11 flex items-center gap-1.5 px-2.5 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
-          title={t('input.addToContext')}
-        >
-          <Quote size={14} />
-          <span>{t('input.addToContext')}</span>
-        </button>
+      <div className={`relative origin-bottom ${isExiting ? 'motion-toolbar-exit pointer-events-none' : 'motion-toolbar-enter'}`}>
+        <div className="flex items-center gap-1 px-2 py-1.5 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-xl shadow-lg">
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="max-md:min-h-11 flex items-center gap-1.5 px-2.5 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
+            title={`${t('input.addToContext')} (${shortcutLabel})`}
+          >
+            <Quote size={14} />
+            <span>{t('input.addToContext')}</span>
+          </button>
+        </div>
+        {/* 小三角指向选中文本 */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 w-2 h-2 bg-[hsl(var(--bg-secondary))] border-r border-b border-[hsl(var(--border-primary))] rotate-45"
+          style={{ bottom: -5 }}
+        />
       </div>
-      {/* 小三角指向选中文本 */}
-      <div
-        className="absolute left-1/2 -translate-x-1/2 w-2 h-2 bg-[hsl(var(--bg-secondary))] border-r border-b border-[hsl(var(--border-primary))] rotate-45"
-        style={{ bottom: -5 }}
-      />
     </div>,
     document.body
   );

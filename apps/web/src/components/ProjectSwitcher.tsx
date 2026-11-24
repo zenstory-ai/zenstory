@@ -18,15 +18,16 @@
  * @module components/ProjectSwitcher
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, Plus, Folder, Check, Trash2, Pencil } from "lucide-react";
+import { ChevronDown, Plus, Folder, Check, Trash2, Pencil, X } from "lucide-react";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { useProject } from "../contexts/ProjectContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Button } from "./ui/Button";
@@ -107,6 +108,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
   } = useProject();
 
   const [isOpen, setIsOpen] = useState(false);
+  const { isMounted: isDropdownMounted, isExiting: isDropdownExiting } = useAnimatedPresence(isOpen, 130);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -116,35 +118,67 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
   const [deletingProject, setDeletingProject] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
 
+  const closeDropdown = useCallback((returnFocus = false) => {
+    setIsOpen(false);
+    setSearchQuery("");
+    setIsCreating(false);
+    setNewProjectName("");
+    setEditingProjectId(null);
+    setEditingName("");
+    if (returnFocus) {
+      requestAnimationFrame(() => {
+        triggerRef.current?.focus();
+      });
+    }
+  }, []);
+
   /**
-   * Effect: Close dropdown when clicking outside.
+   * Effect: Close dropdown when clicking outside or pressing Escape.
    *
-   * Registers a mousedown event listener to detect clicks outside the dropdown.
-   * When detected, closes the dropdown and resets all editing states.
+   * Registers listeners only while the dropdown is open, resets transient
+   * search/editing state on close, and returns focus to the trigger on Escape.
    */
   useEffect(() => {
-    /**
-     * Handles click events outside the dropdown to close it.
-     * @param {MouseEvent} event - The mousedown event
-     */
+    if (!isOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
       if (
         dropdownRef.current &&
         !dropdownRef.current.contains(event.target as Node)
       ) {
-        setIsOpen(false);
-        setIsCreating(false);
-        setNewProjectName("");
-        setEditingProjectId(null);
-        setEditingName("");
+        closeDropdown();
       }
     };
 
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || pendingDeleteProjectId !== null) return;
+      if (editingProjectId) {
+        event.preventDefault();
+        setEditingProjectId(null);
+        setEditingName("");
+        return;
+      }
+      if (isCreating) {
+        event.preventDefault();
+        setIsCreating(false);
+        setNewProjectName("");
+        return;
+      }
+      event.preventDefault();
+      closeDropdown(true);
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen, editingProjectId, isCreating, pendingDeleteProjectId, closeDropdown]);
 
   /**
    * Effect: Focus edit input when editing starts.
@@ -169,7 +203,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
    */
   const handleSelectProject = (projectId: string) => {
     if (editingProjectId) return; // Don't switch while editing
-    setIsOpen(false);
+    closeDropdown();
     // The route updates ProjectContext after navigation is confirmed. Mutating
     // it here would discard the current editor before the leave guard runs.
     navigate(`/project/${projectId}`);
@@ -246,13 +280,14 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       }
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) {
-        toast.error(handleApiError(error));
         if (
           error instanceof ApiError &&
           error.errorCode === "ERR_QUOTA_PROJECTS_EXCEEDED" &&
           projectQuotaUpgradePrompt.surface === "modal"
         ) {
           setShowProjectQuotaUpgradeModal(true);
+        } else {
+          toast.error(handleApiError(error));
         }
       }
     }
@@ -306,9 +341,11 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       <div className="relative min-w-0 max-w-full" ref={dropdownRef}>
       {/* Trigger Button */}
       <button
+        ref={triggerRef}
         type="button"
         aria-expanded={isOpen}
-        onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="true"
+        onClick={() => (isOpen ? closeDropdown() : setIsOpen(true))}
         className="flex items-center gap-1.5 md:gap-2 min-h-11 md:min-h-0 px-2 py-1.5 md:px-3 hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-colors group min-w-0 max-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
       >
         <Folder size={16} className="text-[hsl(var(--text-secondary))] shrink-0" />
@@ -319,38 +356,71 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
         </div>
         <ChevronDown
           size={14}
-          className={`text-[hsl(var(--text-secondary))] transition-transform shrink-0 ${
+          className={`text-[hsl(var(--text-secondary))] motion-chevron shrink-0 ${
             isOpen ? "rotate-180" : ""
           }`}
         />
       </button>
 
       {/* Dropdown Menu */}
-      {isOpen && (
+      {isDropdownMounted && (
         <div
+          data-testid="project-switcher-dropdown"
+          aria-hidden={isDropdownExiting ? true : undefined}
+          inert={isDropdownExiting ? true : undefined}
           className={`flex flex-col bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl shadow-lg z-50 overflow-hidden ${
+            isDropdownExiting ? "motion-popover-exit pointer-events-none" : "motion-popover-enter"
+          } ${
             isMobile
               // Pinned to the viewport: an ancestor-relative, translated panel
               // spilled off a 390px screen when the title was long.
-              ? 'fixed left-4 right-4 top-12'
-              : 'absolute top-full mt-2 left-0 w-80 max-w-[calc(100vw-2rem)]'
+              ? 'fixed left-4 right-4 top-12 origin-top'
+              : 'absolute top-full mt-2 left-0 w-80 max-w-[calc(100vw-2rem)] origin-top-left'
           }`}
           style={{
             maxHeight: "calc(var(--app-viewport-height) - 100px)",
             ...(isMobile ? { top: "calc(var(--app-viewport-top) + 48px)" } : {}),
           }}
         >
-          {/* Search Input */}
-          <div className="shrink-0 p-3">
-            <input
-              type="text"
-              placeholder={t('editor:projectSwitcher.searchPlaceholder')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full min-w-0 bg-[hsl(var(--bg-tertiary))] rounded-lg px-3 py-2 text-sm text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.3)] transition-all"
-              autoFocus
-            />
-          </div>
+          {/* Search Input — hidden when there is 0 or 1 project; never hijack mobile keyboard on open */}
+          {(projects.length > 1 || searchQuery.length > 0) && (
+            <div className="shrink-0 p-3">
+              <div className="relative">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  role="searchbox"
+                  aria-label={t('editor:projectSwitcher.searchPlaceholder')}
+                  placeholder={t('editor:projectSwitcher.searchPlaceholder')}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape" && searchQuery && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSearchQuery("");
+                    }
+                  }}
+                  className={`w-full min-w-0 bg-[hsl(var(--bg-tertiary))] rounded-lg pl-3 py-2 text-sm text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.3)] transition-[box-shadow,background-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${searchQuery ? "pr-9" : "pr-3"}`}
+                  autoFocus={!isMobile}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                      searchInputRef.current?.focus();
+                    }}
+                    aria-label={t('common:clearSearch')}
+                    title={t('common:clearSearch')}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
+                  >
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Project List */}
           <div className="min-h-0 max-h-96 overflow-y-auto">
@@ -400,8 +470,12 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                           value={editingName}
                           onChange={(e) => setEditingName(e.target.value)}
                           onKeyDown={(e) => {
+                            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                             if (e.key === "Enter") handleSaveEdit();
-                            if (e.key === "Escape") handleCancelEdit();
+                            if (e.key === "Escape") {
+                              e.stopPropagation();
+                              handleCancelEdit();
+                            }
                           }}
                           onBlur={handleSaveEdit}
                           className="flex-1 min-w-0 bg-[hsl(var(--bg-primary))] border border-[hsl(var(--accent-primary))] rounded px-2 py-0.5 text-sm text-[hsl(var(--text-primary))] focus:outline-none"
@@ -465,11 +539,16 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                             onClick={(e) =>
                               project.id && handleRequestDeleteProject(project.id, e)
                             }
+                            aria-disabled={projects.length <= 1 || undefined}
                             // Hidden on desktop until hover or keyboard focus; always shown on touch.
                             className={
-                              isMobile
-                                ? "opacity-100"
-                                : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+                              projects.length <= 1
+                                ? isMobile
+                                  ? "opacity-40"
+                                  : "opacity-0 group-hover:opacity-40 focus-visible:opacity-40 [@media(hover:none)]:opacity-40"
+                                : isMobile
+                                  ? "opacity-100"
+                                  : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
                             }
                             tone="danger"
                             label={t('editor:projectSwitcher.deleteProject')}
@@ -494,8 +573,10 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                   onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                     if (e.key === "Enter") handleCreateProject();
                     if (e.key === "Escape") {
+                      e.stopPropagation();
                       setIsCreating(false);
                       setNewProjectName("");
                     }

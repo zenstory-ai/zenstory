@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
+import { useAnimatedPresence } from "../../hooks/useAnimatedPresence";
 
 /** Outlined action styling shared by every dashboard banner's optional button. */
 export const dashboardBannerActionClassName =
-  "mt-2 inline-flex min-h-11 shrink-0 items-center rounded-xl border border-[hsl(var(--accent-primary)/0.35)] px-3 text-sm font-medium text-[hsl(var(--accent-primary))] transition-colors hover:bg-[hsl(var(--accent-primary)/0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] sm:mt-0";
+  "mt-2 inline-flex min-h-11 shrink-0 items-center rounded-xl border border-[hsl(var(--accent-primary)/0.35)] px-3 text-sm font-medium text-[hsl(var(--accent-primary))] transition-[transform,background-color,border-color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] hover:bg-[hsl(var(--accent-primary)/0.08)] active:scale-[0.975] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] sm:mt-0";
 
 interface DashboardBannerProps {
+  open?: boolean;
   regionLabel: string;
   icon: ReactNode;
   title: string;
@@ -17,10 +19,17 @@ interface DashboardBannerProps {
 }
 
 /** The one lightweight banner slot on the dashboard home; callers own content and dismissal. */
-export function DashboardBanner({ regionLabel, icon, title, description, action, closeLabel, onClose }: DashboardBannerProps) {
+export function DashboardBanner({ open = true, regionLabel, icon, title, description, action, closeLabel, onClose }: DashboardBannerProps) {
+  const { isMounted, isExiting } = useAnimatedPresence(open, 150);
+  if (!isMounted) return null;
+
   return (
     <section
-      className="mb-5 flex items-start gap-3 rounded-2xl border border-[hsl(var(--accent-primary)/0.22)] bg-[hsl(var(--accent-primary)/0.07)] px-4 py-3.5 text-[hsl(var(--text-primary))] sm:items-center"
+      aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
+      className={`mb-5 flex items-start gap-3 rounded-2xl border border-[hsl(var(--accent-primary)/0.22)] bg-[hsl(var(--accent-primary)/0.07)] px-4 py-3.5 text-[hsl(var(--text-primary))] sm:items-center ${
+        isExiting ? "motion-banner-exit pointer-events-none" : "motion-banner-enter"
+      }`}
       aria-label={regionLabel}
     >
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--accent-primary)/0.13)] text-[hsl(var(--accent-primary))] sm:mt-0">

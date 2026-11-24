@@ -36,14 +36,12 @@ async function openProjectSwitcher(page: Page): Promise<{
   await expect(trigger).toBeVisible({ timeout: 10000 })
   await trigger.click()
 
-  const searchInput = page
-    .locator('input[placeholder="搜索项目"], input[placeholder="Search projects"]')
-    .first()
-  await expect(searchInput).toBeVisible({ timeout: 5000 })
+  const dropdown = page.getByTestId('project-switcher-dropdown')
+  await expect(dropdown).toBeVisible({ timeout: 5000 })
 
   return {
     trigger,
-    dropdown: searchInput.locator('xpath=ancestor::div[contains(@class,"absolute")]').first(),
+    dropdown,
   }
 }
 
@@ -296,8 +294,10 @@ test.describe('Projects', () => {
         .first()
     ).toBeVisible()
 
-    // Check for timestamp (clock icon)
-    await expect(ownedProjectCard.locator('svg.lucide-clock')).toBeVisible()
+    // Check for relative timestamp in the card footer
+    const timestamp = ownedProjectCard.getByTestId('project-card-footer').locator('span').last()
+    await expect(timestamp).toBeVisible()
+    await expect(timestamp).not.toHaveText('')
   })
 
   test('recent projects section shows project count', async ({ page }) => {
@@ -401,7 +401,7 @@ test.describe('Project Update', () => {
 
     // Find the edit input and change the name
     const updatedName = `已更新的项目名称${Date.now()}`
-    const editInput = page.locator('input[type="text"]').nth(1) // Second input (first is search)
+    const editInput = dropdown.locator('input[type="text"]:not([role="searchbox"])').first() // Second input (first is search)
     await editInput.fill(updatedName)
     await Promise.all([
       page.waitForResponse(
@@ -459,7 +459,7 @@ test.describe('Project Update', () => {
 
     // Change the name
     const updatedName = `已更新持久化${Date.now()}`
-    const editInput = page.locator('input[type="text"]').nth(1)
+    const editInput = dropdown.locator('input[type="text"]:not([role="searchbox"])').first()
     await editInput.fill(updatedName)
     const [renameResponse] = await Promise.all([
       page.waitForResponse((response) => {
@@ -525,7 +525,7 @@ test.describe('Project Update', () => {
     await editButton.click({ force: true })
 
     // Try to clear the name and save
-    const editInput = page.locator('input[type="text"]').nth(1)
+    const editInput = dropdown.locator('input[type="text"]:not([role="searchbox"])').first()
     await editInput.fill('')
     await editInput.press('Enter')
 
@@ -558,7 +558,7 @@ test.describe('Project Update', () => {
     await editButton.click({ force: true })
 
     // Type a new name but don't save
-    const editInput = page.locator('input[type="text"]').nth(1)
+    const editInput = dropdown.locator('input[type="text"]:not([role="searchbox"])').first()
     await editInput.fill('这个名称不应该保存')
 
     // Press Escape to cancel

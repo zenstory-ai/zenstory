@@ -102,8 +102,8 @@ export default function DashboardProjects() {
         }
       />
 
-      {/* Search and Filter */}
-      {!loading && !error && <div className={`flex ${isMobile ? "flex-col gap-3" : "items-center gap-4"} mb-6`}>
+      {/* Search and Filter — progressive disclosure: only show when there are projects to filter */}
+      {!loading && !error && projects.length > 0 && <div className={`flex ${isMobile ? "flex-col gap-3" : "items-center gap-4"} mb-6`}>
         <DashboardSearchBar
           value={searchQuery}
           onChange={setSearchQuery}
@@ -118,14 +118,14 @@ export default function DashboardProjects() {
       </div>}
 
       {/* Projects Count */}
-      {!loading && !error && <div className="text-sm text-[hsl(var(--text-secondary))] mb-4">
+      {!loading && !error && projects.length > 0 && <div className="text-sm tabular-nums text-[hsl(var(--text-secondary))] mb-4">
         {t('projects.count', { count: filteredProjects.length })}
       </div>}
 
       {loading && (
         <div role="status" data-testid="projects-loading" aria-label={t('common.loading')} className="grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((item) => (
-            <div key={item} className="h-32 animate-pulse rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]" />
+            <div key={item} className="h-32 skeleton-shimmer rounded-2xl border border-[hsl(var(--border-color))]" />
           ))}
         </div>
       )}
@@ -145,12 +145,26 @@ export default function DashboardProjects() {
           icon={Book}
           title={searchQuery || filterType !== "all" ? t('projects.noMatch') : t('projects.empty')}
           description={searchQuery || filterType !== "all" ? t('projects.tryDifferent') : t('projects.emptyHintProjectsPage')}
+          action={
+            searchQuery || filterType !== "all" ? (
+              <Button
+                variant="secondary"
+                size={isMobile ? "touch" : "md"}
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterType("all");
+                }}
+              >
+                {t('projects.clearFilters')}
+              </Button>
+            ) : undefined
+          }
         />
       )}
 
       {/* Project Cards Grid */}
       {!loading && !error && filteredProjects.length > 0 && (
-        <div className={`grid ${isMobile ? "grid-cols-1" : isTablet ? "grid-cols-2" : "lg:grid-cols-3"} gap-3.5`}>
+        <div className={`grid ${isMobile ? "grid-cols-1" : isTablet ? "grid-cols-2" : "lg:grid-cols-3"} gap-3.5 motion-content-reveal`}>
           {filteredProjects.map((project) => (
             <ProjectCard
               key={project.id}

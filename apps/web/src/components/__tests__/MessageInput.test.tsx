@@ -311,6 +311,14 @@ describe('MessageInput', () => {
     expect(screen.getByRole('button', { name: 'Suggestion 1' })).not.toHaveClass('min-h-11')
   })
 
+  it('hides the suggestion chips row when hideSuggestions is true', () => {
+    const aiSuggestions = ['Suggestion 1', 'Suggestion 2']
+    render(<MessageInput {...defaultProps} aiSuggestions={aiSuggestions} hideSuggestions />)
+
+    expect(screen.queryByText('Suggestion 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('Suggestion 2')).not.toBeInTheDocument()
+  })
+
   it('gives mobile suggestion chips a 44px touch target while keeping md+ compact', () => {
     render(
       <MobileLayoutProvider isMobile={true}>
@@ -970,5 +978,40 @@ describe('MessageInput refused send', () => {
 
     rerender(<MessageInput onSend={vi.fn()} refusedSend={{ seq: 1, message: '起始卡片的示例', skillIds: [] }} />)
     expect(selectSkill).not.toHaveBeenCalled()
+  })
+
+  it('dismisses the slash skill menu on Escape even with zero matching skills and explains disabled send state', async () => {
+    vi.mocked(skillsApi.list).mockResolvedValueOnce({ skills: [], total: 0 })
+    const user = userEvent.setup({ delay: null })
+    render(<MessageInput onSend={vi.fn()} />)
+
+    const sendButton = screen.getByTestId('send-button')
+    expect(sendButton).toBeDisabled()
+    expect(sendButton).toHaveAttribute('title', 'chat:input.sendDisabledEmpty')
+
+    const textarea = screen.getByPlaceholderText('chat:input.placeholder')
+    await user.type(textarea, '/nonexistent')
+    expect(await screen.findByText('chat:skill.noResults')).toBeInTheDocument()
+
+    fireEvent.keyDown(textarea, { key: 'Escape' })
+    expect(screen.queryByText('chat:skill.noResults')).not.toBeInTheDocument()
+    expect(textarea).toHaveValue('')
+    expect(textarea).toHaveFocus()
+  })
+
+  it('restores focus to textarea after removing a selected skill chip', async () => {
+    const removeSkill = vi.fn()
+    mockUseSkillTrigger.mockReturnValue({
+      selectedSkills: [{ id: 'skill-1', name: '场景节奏' }],
+      selectSkill: vi.fn(),
+      removeSkill,
+      clearSkills: vi.fn(),
+    })
+    render(<MessageInput onSend={vi.fn()} />)
+
+    const removeBtn = screen.getByRole('button', { name: 'chat:skill.removeSelected' })
+    fireEvent.click(removeBtn)
+    expect(removeSkill).toHaveBeenCalledWith('skill-1')
+    expect(screen.getByTestId('chat-input')).toHaveFocus()
   })
 })

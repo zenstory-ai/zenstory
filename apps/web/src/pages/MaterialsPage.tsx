@@ -13,6 +13,7 @@ import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
 import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
+import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { Modal } from "../components/ui/Modal";
 import { Button } from "../components/ui/Button";
 import { IconButton } from "../components/ui/IconButton";
@@ -40,6 +41,7 @@ export default function MaterialsPage() {
   const { t, i18n } = useTranslation(["materials", "common"]);
   const fileSelectButtonId = useId();
   const titleInputId = useId();
+  const uploadFormId = useId();
   const materialUploadUpgradePrompt = getUpgradePromptDefinition("material_upload_quota_blocked");
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -57,6 +59,7 @@ export default function MaterialsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Upload modal state
   const [file, setFile] = useState<File | null>(null);
@@ -408,6 +411,14 @@ export default function MaterialsPage() {
     }
   };
 
+  // Only show the header Pro button once loading finishes and when the page body does
+  // not already present a primary upgrade CTA (teaser without trial, or empty trial-used).
+  const showHeaderUpgrade =
+    !hasWorkspaceAccess &&
+    !isMaterialsLoading &&
+    !isMaterialsError &&
+    !((showTeaser && !trialAvailable) || (materials.length === 0 && trialUsed));
+
   return (
     <>
       {/* Header */}
@@ -428,6 +439,7 @@ export default function MaterialsPage() {
               size={actionSize}
               onClick={() => setShowUploadModal(true)}
               disabled={isMaterialsQuotaExhausted}
+              title={isMaterialsQuotaExhausted ? exhaustedMessage : undefined}
               leftIcon={<Upload className="w-4 h-4" />}
             >
               {isMaterialsQuotaExhausted
@@ -436,19 +448,16 @@ export default function MaterialsPage() {
                   })
                 : t("materials:upload")}
             </Button>
-          ) : (
-            // The page body always carries the main call to action for a free author
-            // (free trial, "开通 Pro" or the trial banner), so the header keeps a quieter
-            // secondary entry: never two solid buttons competing on one screen.
+          ) : showHeaderUpgrade ? (
             <Button
-              variant="secondary"
+              variant="primary"
               size={actionSize}
               onClick={() => openUpgradePath("billing")}
               data-testid="materials-header-upgrade"
             >
               {proEntry.label}
             </Button>
-          )
+          ) : undefined
         }
       />
 
@@ -597,7 +606,7 @@ export default function MaterialsPage() {
         <>
           {materialDecomposeQuota && hasWorkspaceAccess && (
             <div className="mb-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
-              <p className="text-sm font-medium text-[hsl(var(--text-primary))]">
+              <p className="text-sm font-medium tabular-nums text-[hsl(var(--text-primary))]">
                 {remainingDecompositions == null
                   ? t("common:unlimited", { defaultValue: "不限" })
                   : t("materials:quotaRemaining", {
@@ -655,7 +664,7 @@ export default function MaterialsPage() {
           )}
           {materialDecomposeQuota && hasWorkspaceAccess && (
             <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
-              <p className="text-sm font-medium text-[hsl(var(--text-primary))]">
+              <p className="text-sm font-medium tabular-nums text-[hsl(var(--text-primary))]">
                 {remainingDecompositions == null
                   ? t("common:unlimited", { defaultValue: "不限" })
                   : t("materials:quotaRemaining", {
@@ -671,27 +680,67 @@ export default function MaterialsPage() {
               )}
             </div>
           )}
-          <div className={`grid gap-3.5 ${isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"}`}>
-            {materials.map((material) => (
-              <MaterialCard
-                key={material.id}
-                material={material}
-                onClick={() => handleCardClick(material.id)}
-                onDelete={() => setDeletingId(material.id)}
-                onExport={() => handleExport(material)}
-                isExporting={exportingId === material.id}
-                onRetry={
-                  // Retrying charges a monthly breakdown: the free trial cannot retry.
-                  !hasWorkspaceAccess || isMaterialsQuotaExhausted
-                    ? undefined
-                    : () => handleRetry(material.id)
-                }
-                isRetrying={retryingId === material.id}
-                isMobile={isMobile}
-                showDeleteAction={showDeleteAction}
-              />
-            ))}
-          </div>
+          {materials.length >= 2 && (
+            <DashboardSearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder={t("materials:searchPlaceholder", { defaultValue: "搜索素材" })}
+              className="max-w-md"
+              inputTestId="materials-search-input"
+            />
+          )}
+          {(() => {
+            const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
+            const filteredMaterials = normalizedSearch
+              ? materials.filter(
+                  (material) =>
+                    material.title.toLocaleLowerCase().includes(normalizedSearch) ||
+                    (material.original_filename?.toLocaleLowerCase().includes(normalizedSearch) ?? false),
+                )
+              : materials;
+            if (filteredMaterials.length === 0 && normalizedSearch) {
+              return (
+                <DashboardEmptyState
+                  icon={BookOpen}
+                  title={t("materials:noSearchResults", {
+                    defaultValue: "没有找到匹配的素材，换个关键词试试",
+                  })}
+                  action={
+                    <Button
+                      variant="secondary"
+                      size={actionSize}
+                      onClick={() => setSearchQuery("")}
+                    >
+                      {t("common:clearSearch", { defaultValue: "清空搜索" })}
+                    </Button>
+                  }
+                />
+              );
+            }
+            return (
+              <div className={`grid gap-3.5 motion-content-reveal ${isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"}`}>
+                {filteredMaterials.map((material) => (
+                  <MaterialCard
+                    key={material.id}
+                    material={material}
+                    onClick={() => handleCardClick(material.id)}
+                    onDelete={() => setDeletingId(material.id)}
+                    onExport={() => handleExport(material)}
+                    isExporting={exportingId === material.id}
+                    onRetry={
+                      // Retrying charges a monthly breakdown: the free trial cannot retry.
+                      !hasWorkspaceAccess || isMaterialsQuotaExhausted
+                        ? undefined
+                        : () => handleRetry(material.id)
+                    }
+                    isRetrying={retryingId === material.id}
+                    isMobile={isMobile}
+                    showDeleteAction={showDeleteAction}
+                  />
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -702,6 +751,7 @@ export default function MaterialsPage() {
           if (uploading) return;
           setShowUploadModal(false);
           setFile(null);
+          setTrialSelection(null);
           setTitle("");
           setError(null);
         }}
@@ -720,6 +770,7 @@ export default function MaterialsPage() {
                 if (uploading) return;
                 setShowUploadModal(false);
                 setFile(null);
+                setTrialSelection(null);
                 setTitle("");
                 setError(null);
               }}
@@ -729,10 +780,11 @@ export default function MaterialsPage() {
               {t("common:cancel")}
             </Button>
             <Button
-              type="button"
+              type="submit"
+              form={uploadFormId}
               size="touch"
-              onClick={handleUpload}
               disabled={!file || uploading}
+              title={!file && !uploading ? t("materials:uploadModal.selectFileFirst", { defaultValue: "请先选择一个 .txt 文件" }) : undefined}
               isLoading={uploading}
               loadingText={t("materials:uploadModal.uploading")}
               leftIcon={<Upload className="w-4 h-4" />}
@@ -743,6 +795,15 @@ export default function MaterialsPage() {
           </>
         }
       >
+        <form
+          id={uploadFormId}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (file && !uploading) {
+              void handleUpload();
+            }
+          }}
+        >
         {trialAvailable && (
           <p data-testid="materials-trial-upload-note" className="mb-4 text-sm text-[hsl(var(--text-secondary))]">
             {t("materials:trialUploadNote", {
@@ -781,7 +842,7 @@ export default function MaterialsPage() {
                   <p className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
                     {file.name}
                   </p>
-                  <p className="text-xs text-[hsl(var(--text-tertiary))]">
+                  <p className="text-xs tabular-nums text-[hsl(var(--text-tertiary))]">
                     {(file.size / 1024).toFixed(1)} KB
                   </p>
                 </>
@@ -825,10 +886,11 @@ export default function MaterialsPage() {
 
         {/* Error Message */}
         {error && (
-          <div role="alert" className="mt-4 p-3 rounded-xl bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)]">
+          <div key={error} role="alert" className="mt-4 p-3 rounded-xl bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] motion-error-shake">
             <p className="text-sm text-[hsl(var(--error-text))]">{error}</p>
           </div>
         )}
+        </form>
       </Modal>
 
       {/* Delete Confirmation */}
@@ -983,7 +1045,7 @@ function MaterialCard({
 
         {/* Stats */}
         {(material.status === "completed" || material.status === "completed_with_errors") && (
-          <div className="flex items-center gap-4 text-xs text-[hsl(var(--text-secondary))]">
+          <div className="flex items-center gap-4 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
             <div className="flex items-center gap-1">
               <FileText className="w-3.5 h-3.5" />
               <span>{material.chapters_count || 0} {t("materials:chapters")}</span>

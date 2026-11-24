@@ -1,6 +1,5 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Sparkles } from "lucide-react";
 import { nextStepKind } from "../lib/nextStep";
 import {
   CHAT_CARD_PRIMARY_BUTTON,
@@ -58,46 +57,37 @@ export const StarterCards: React.FC<StarterCardsProps> = ({
       {t("chat:starter.quota", { count: remainingToday })}
     </p>
   );
-  const avatar = (
-    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--accent-primary)/0.12)] text-[hsl(var(--accent-primary))]">
-      <Sparkles size={14} />
-    </span>
-  );
-
   if (hasManuscript && onSendManuscript) {
     return (
       <section data-testid="starter-cards" data-variant="manuscript" aria-label={t("chat:starter.label")} className="mx-auto w-full max-w-md py-2">
-        <div className="flex items-start gap-2">
-          {avatar}
-          <div className="min-w-0 flex-1 space-y-2.5">
-            <div className="rounded-xl rounded-tl-sm bg-[hsl(var(--bg-tertiary))] px-3 py-2.5 text-sm leading-6 text-[hsl(var(--text-primary))]">
-              <p>{t("chat:starter.manuscript.title")}</p>
-              <p>{t("chat:starter.manuscript.body")}</p>
-            </div>
-            <div
-              data-testid="starter-manuscript"
-              data-highlighted={highlighted || undefined}
-              className={`space-y-2 rounded-xl transition-[box-shadow] duration-slow ${
-                highlighted ? "shadow-[0_0_0_3px_hsl(var(--accent-primary)/0.18)]" : ""
-              }`}
-            >
-              {MANUSCRIPT_STARTER_KINDS.map((requestKind) => {
-                const message = t(`chat:starter.manuscript.${requestKind}.${kind}`);
-                return (
-                  <button
-                    key={requestKind}
-                    type="button"
-                    data-testid={`starter-manuscript-${requestKind}`}
-                    onClick={() => onSendManuscript(message, requestKind)}
-                    className={`block w-full min-h-[44px] md:min-h-0 px-3 py-2.5 text-left text-sm leading-6 text-[hsl(var(--text-primary))] [overflow-wrap:anywhere] transition-colors hover:border-[hsl(var(--accent-primary)/0.45)] hover:bg-[hsl(var(--bg-tertiary)/0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${CHAT_CARD_SURFACE}`}
-                  >
-                    {message}
-                  </button>
-                );
-              })}
-            </div>
-            {quotaLine}
+        <div className="space-y-3">
+          <div className="space-y-1 text-sm leading-6">
+            <p className="font-medium text-[hsl(var(--text-primary))]">{t("chat:starter.manuscript.title")}</p>
+            <p className="text-[hsl(var(--text-secondary))]">{t("chat:starter.manuscript.body")}</p>
           </div>
+          <div
+            data-testid="starter-manuscript"
+            data-highlighted={highlighted || undefined}
+            className={`space-y-2 rounded-xl transition-[box-shadow] duration-slow ${
+              highlighted ? "shadow-[0_0_0_3px_hsl(var(--accent-primary)/0.18)]" : ""
+            }`}
+          >
+            {MANUSCRIPT_STARTER_KINDS.map((requestKind) => {
+              const message = t(`chat:starter.manuscript.${requestKind}.${kind}`);
+              return (
+                <button
+                  key={requestKind}
+                  type="button"
+                  data-testid={`starter-manuscript-${requestKind}`}
+                  onClick={() => onSendManuscript(message, requestKind)}
+                  className={`block w-full min-h-[44px] md:min-h-0 px-3 py-2.5 text-left text-sm leading-6 text-[hsl(var(--text-primary))] [overflow-wrap:anywhere] transition-colors hover:border-[hsl(var(--accent-primary)/0.45)] hover:bg-[hsl(var(--bg-tertiary)/0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${CHAT_CARD_SURFACE}`}
+                >
+                  {message}
+                </button>
+              );
+            })}
+          </div>
+          {quotaLine}
         </div>
       </section>
     );
@@ -105,50 +95,47 @@ export const StarterCards: React.FC<StarterCardsProps> = ({
 
   return (
     <section data-testid="starter-cards" data-variant="example" aria-label={t("chat:starter.label")} className="mx-auto w-full max-w-md py-2">
-      <div className="flex items-start gap-2">
-        {avatar}
-        <div className="min-w-0 flex-1 space-y-2.5">
-          <div className="rounded-xl rounded-tl-sm bg-[hsl(var(--bg-tertiary))] px-3 py-2.5 text-sm leading-6 text-[hsl(var(--text-primary))]">
-            <p>{t("chat:starter.greeting.title")}</p>
-            <p>{t("chat:starter.greeting.body")}</p>
-          </div>
+      <div className="space-y-3">
+        <div className="space-y-1 text-sm leading-6">
+          <p className="font-medium text-[hsl(var(--text-primary))]">{t("chat:starter.greeting.title")}</p>
+          <p className="text-[hsl(var(--text-secondary))]">{t("chat:starter.greeting.body")}</p>
+        </div>
 
-          <div data-testid="starter-example">
-            <p className="text-xs text-[hsl(var(--text-secondary))]">{t("chat:starter.example.hint")}</p>
-            <div
-              data-highlighted={highlighted || undefined}
-              className={`mt-1.5 rounded-xl border bg-[hsl(var(--accent-primary)/0.05)] p-3 transition-[border-color,box-shadow] duration-slow ${
-                highlighted
-                  ? "border-[hsl(var(--accent-primary))] shadow-[0_0_0_3px_hsl(var(--accent-primary)/0.18)]"
-                  : "border-[hsl(var(--accent-primary)/0.25)]"
-              }`}
-            >
-              <p data-testid="starter-message-text" className="text-sm leading-6 text-[hsl(var(--text-primary))]">
-                {example}
-              </p>
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  data-testid="starter-send"
-                  onClick={() => onSend(example)}
-                  className={CHAT_CARD_PRIMARY_BUTTON}
-                >
-                  {t("chat:starter.example.use")}
-                </button>
-                <button
-                  type="button"
-                  data-testid="starter-edit"
-                  onClick={() => onEdit(example)}
-                  className={CHAT_CARD_SECONDARY_BUTTON}
-                >
-                  {t("chat:starter.example.edit")}
-                </button>
-              </div>
+        <div data-testid="starter-example">
+          <p className="text-xs text-[hsl(var(--text-secondary))]">{t("chat:starter.example.hint")}</p>
+          <div
+            data-highlighted={highlighted || undefined}
+            className={`mt-1.5 rounded-xl border bg-[hsl(var(--accent-primary)/0.05)] p-3 transition-[border-color,box-shadow] duration-slow ${
+              highlighted
+                ? "border-[hsl(var(--accent-primary))] shadow-[0_0_0_3px_hsl(var(--accent-primary)/0.18)]"
+                : "border-[hsl(var(--accent-primary)/0.25)]"
+            }`}
+          >
+            <p data-testid="starter-message-text" className="text-sm leading-6 text-[hsl(var(--text-primary))]">
+              {example}
+            </p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                data-testid="starter-send"
+                onClick={() => onSend(example)}
+                className={CHAT_CARD_PRIMARY_BUTTON}
+              >
+                {t("chat:starter.example.use")}
+              </button>
+              <button
+                type="button"
+                data-testid="starter-edit"
+                onClick={() => onEdit(example)}
+                className={CHAT_CARD_SECONDARY_BUTTON}
+              >
+                {t("chat:starter.example.edit")}
+              </button>
             </div>
           </div>
-
-          {quotaLine}
         </div>
+
+        {quotaLine}
       </div>
     </section>
   );

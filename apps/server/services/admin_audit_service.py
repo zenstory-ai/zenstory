@@ -100,35 +100,57 @@ class AdminAuditService:
         return session.exec(query).all()
 
     def count_audit_logs(self, session: Session, *, resource_type: str | None = None, action: str | None = None) -> int:
-        query = self._filtered_query(None, resource_type, action, None)
-        return session.exec(select(func.count()).select_from(query.subquery())).one()
+        conditions = self._filter_conditions(None, resource_type, action, None)
+        query = select(func.count(AdminAuditLog.id)).select_from(AdminAuditLog)
+        if conditions:
+            query = query.where(*conditions)
+        return int(session.exec(query).one() or 0)
 
     @staticmethod
-    def _filtered_query(admin_user_id: str | None, resource_type: str | None, action: str | None, resource_id: str | None):
-        query = select(AdminAuditLog)
+    def _filter_conditions(
+        admin_user_id: str | None,
+        resource_type: str | None,
+        action: str | None,
+        resource_id: str | None,
+    ) -> list:
+        conditions = []
         normalized_action = action.strip().lower() if action else None
 
         if admin_user_id:
-            query = query.where(AdminAuditLog.admin_user_id == admin_user_id)
+            conditions.append(AdminAuditLog.admin_user_id == admin_user_id)
         if resource_type:
-            query = query.where(AdminAuditLog.resource_type == resource_type)
+            conditions.append(AdminAuditLog.resource_type == resource_type)
         if normalized_action:
             # Support UI shorthand filters such as "create"/"update"/"delete"
             # while keeping backwards compatibility for exact action names
             # like "update_subscription" or "adjust_points".
             shorthand_actions = {"create", "update", "delete", "approve", "reject"}
             if normalized_action in shorthand_actions:
-                query = query.where(
+                conditions.append(
                     or_(
                         AdminAuditLog.action == normalized_action,
                         AdminAuditLog.action.startswith(f"{normalized_action}_"),
                     )
                 )
             else:
-                query = query.where(AdminAuditLog.action == normalized_action)
+                conditions.append(AdminAuditLog.action == normalized_action)
         if resource_id:
-            query = query.where(AdminAuditLog.resource_id == resource_id)
+            conditions.append(AdminAuditLog.resource_id == resource_id)
 
+        return conditions
+
+    @classmethod
+    def _filtered_query(
+        cls,
+        admin_user_id: str | None,
+        resource_type: str | None,
+        action: str | None,
+        resource_id: str | None,
+    ):
+        query = select(AdminAuditLog)
+        conditions = cls._filter_conditions(admin_user_id, resource_type, action, resource_id)
+        if conditions:
+            query = query.where(*conditions)
         return query
 
 

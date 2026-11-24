@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -91,10 +91,18 @@ function formatCompactTokens(tokens: number): string {
 export default function UxHealthPage() {
   const { t } = useTranslation(["admin", "common"]);
   const [days, setDays] = useState<(typeof WINDOW_OPTIONS)[number]>(7);
+  const forceRefreshRef = useRef(false);
 
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ["admin", "dashboard", "ux-health", days],
-    queryFn: () => adminApi.getUxHealthDashboard(days),
+    queryFn: () => {
+      const force = forceRefreshRef.current;
+      forceRefreshRef.current = false;
+      return force
+        ? adminApi.getUxHealthDashboard(days, { refresh: true })
+        : adminApi.getUxHealthDashboard(days);
+    },
+    retry: false,
   });
 
   const errorText = error instanceof Error && error.message ? error.message : t("common:error");
@@ -140,6 +148,7 @@ export default function UxHealthPage() {
           size="touch"
           leftIcon={<RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />}
           onClick={() => {
+            forceRefreshRef.current = true;
             void refetch();
           }}
           disabled={isFetching}

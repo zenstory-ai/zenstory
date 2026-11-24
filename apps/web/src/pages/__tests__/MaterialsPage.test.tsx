@@ -267,7 +267,18 @@ describe("MaterialsPage", () => {
     expect(mockList).not.toHaveBeenCalled();
   });
 
-  it("keeps one solid call to action when the trial is offered: the header Pro entry steps back", async () => {
+  it("omits the header Pro button when the teaser card already renders it", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: false, max_chapters: 3 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const upgradeButtons = await screen.findAllByRole("button", { name: "开通 Pro" });
+    expect(upgradeButtons).toHaveLength(1);
+    expect(screen.queryByTestId("materials-header-upgrade")).not.toBeInTheDocument();
+  });
+
+  it("renders the header Pro entry with the unified primary button style alongside the free trial", async () => {
     mockGetStatus.mockResolvedValue(freeStatus);
     mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
 
@@ -276,11 +287,8 @@ describe("MaterialsPage", () => {
     const trial = await screen.findByTestId("materials-trial-start");
     const headerUpgrade = screen.getByTestId("materials-header-upgrade");
     expect(headerUpgrade).toHaveTextContent("开通 Pro");
-
-    const solid = screen
-      .getAllByRole("button")
-      .filter((button) => button.className.includes("bg-[hsl(var(--primary))]"));
-    expect(solid).toEqual([trial]);
+    expect(headerUpgrade.className).toContain("bg-[hsl(var(--primary))]");
+    expect(trial.className).toContain("bg-[hsl(var(--primary))]");
   });
 
   it("shows a free author their trial book with a note that only the first chapters were broken down", async () => {
@@ -366,7 +374,7 @@ describe("MaterialsPage", () => {
     expect(await screen.findByTestId("materials-checkout-unavailable")).toHaveTextContent(
       "暂时不能在线付款。有兑换码的话，点「兑换码开通」就能开通 Pro。",
     );
-    expect(screen.getByTestId("materials-header-upgrade")).toHaveTextContent("兑换码开通");
+    expect(screen.queryByTestId("materials-header-upgrade")).not.toBeInTheDocument();
     const emptyState = screen.getByTestId("materials-trial-used-empty");
     expect(within(emptyState).queryByRole("button", { name: "开通 Pro" })).not.toBeInTheDocument();
 
@@ -863,5 +871,50 @@ describe("MaterialsPage", () => {
 
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
+  it("shows search bar progressively for 2+ materials with 0-result clear recovery and explains disabled upload submit", async () => {
+    mockList.mockResolvedValueOnce([
+      {
+        id: "201",
+        title: "凡人修仙传",
+        original_filename: "fanren.txt",
+        status: "completed",
+        chapters_count: 12,
+        created_at: "2026-11-01T00:00:00Z",
+        updated_at: "2026-11-01T00:00:00Z",
+      },
+      {
+        id: "202",
+        title: "诡秘之主",
+        original_filename: "lotm.txt",
+        status: "completed",
+        chapters_count: 8,
+        created_at: "2026-11-02T00:00:00Z",
+        updated_at: "2026-11-02T00:00:00Z",
+      },
+    ]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+    expect(await screen.findByText("凡人修仙传")).toBeInTheDocument();
+
+    const search = screen.getByTestId("materials-search-input");
+    fireEvent.change(search, { target: { value: "诡秘" } });
+    expect(screen.getByText("诡秘之主")).toBeInTheDocument();
+    expect(screen.queryByText("凡人修仙传")).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "不存在的书" } });
+    expect(screen.getByText("没有找到匹配的素材，换个关键词试试")).toBeInTheDocument();
+
+    const clearButtons = screen.getAllByRole("button", { name: "清空搜索" });
+    fireEvent.click(clearButtons[clearButtons.length - 1]);
+    expect(search).toHaveValue("");
+    expect(screen.getByText("凡人修仙传")).toBeInTheDocument();
+
+    // Upload modal submit explains why it is disabled before a file is picked
+    fireEvent.click(screen.getByRole("button", { name: "materials:upload" }));
+    const submitBtn = screen.getByRole("button", { name: "materials:uploadModal.upload" });
+    expect(submitBtn).toBeDisabled();
+    expect(submitBtn).toHaveAttribute("title", "请先选择一个 .txt 文件");
   });
 });

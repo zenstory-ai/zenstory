@@ -808,8 +808,8 @@ describe('SimpleEditor', () => {
     await waitFor(() => {
       expect(polishButton).toHaveAttribute('title', 'editor:naturalPolishTooltipFree');
     });
-    // Visible on the button itself, not only in the hover title.
-    expect(polishButton).toHaveTextContent('editor:naturalPolishCost');
+    // Cost stays in the hover tooltip instead of cluttering the compact editor footer button.
+    expect(polishButton).not.toHaveTextContent('editor:naturalPolishCost');
   });
 
   it('keeps the plain natural polish tooltip for unlimited plans', () => {
@@ -835,14 +835,15 @@ describe('SimpleEditor', () => {
     expect(screen.getByTestId('editor-paragraph-count')).toHaveTextContent('3');
   });
 
-  it('explains how words are counted on hover and on tap', () => {
+  it('keeps the word count explanation as a quiet hover title without a click toast', () => {
     const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
     renderPolishableEditor();
 
     const wordCount = screen.getByTestId('editor-word-count');
+    expect(wordCount.tagName).toBe('SPAN');
     expect(wordCount).toHaveAttribute('title', 'editor:wordCountHint');
     fireEvent.click(wordCount);
-    expect(toastInfoSpy).toHaveBeenCalledWith('editor:wordCountHint');
+    expect(toastInfoSpy).not.toHaveBeenCalled();
     toastInfoSpy.mockRestore();
   });
 
@@ -1391,6 +1392,75 @@ describe('SimpleEditor', () => {
     expect(screen.getByTestId('editor-streaming-banner')).toHaveTextContent('editor:aiDraftingOpeningUntitled');
     expect(screen.getAllByText(/editor:aiDraftingOpeningUntitled/)).toHaveLength(1);
     expect(screen.getByTestId('editor-streaming-waiting')).toHaveTextContent('');
+  });
+
+  it('moves focus from title input to body textarea on Enter (ignoring IME) and explains save state in tooltip', () => {
+    const props = {
+      fileId: 'file-3',
+      title: 'Chapter 1',
+      content: 'Opening line',
+      onTitleChange: vi.fn(),
+      onContentChange: vi.fn(),
+      onSave: vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: 'saved-token' }),
+    };
+
+    render(<SimpleEditor {...props} />);
+    const titleInput = screen.getByPlaceholderText('editor:placeholder.titlePlaceholder');
+    const bodyTextarea = screen.getByRole('textbox', { name: 'editor:placeholder.contentPlaceholder' });
+    const saveButton = screen.getByRole('button', { name: 'editor:save' });
+
+    // Clean state explains why Save is disabled
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute('title', 'editor:alreadySaved');
+
+    // IME composing Enter in title must not steal focus
+    titleInput.focus();
+    fireEvent.keyDown(titleInput, { key: 'Enter', keyCode: 229 });
+    expect(titleInput).toHaveFocus();
+
+    // Confirmed Enter in title moves focus smoothly to the body textarea
+    fireEvent.keyDown(titleInput, { key: 'Enter' });
+    expect(bodyTextarea).toHaveFocus();
+
+    // Dirty state exposes the save shortcut in the tooltip
+    fireEvent.change(bodyTextarea, { target: { value: 'Opening line edited' } });
+    expect(saveButton).toBeEnabled();
+    expect(saveButton.getAttribute('title')).toMatch(/^editor:saveWithShortcut:/);
+  });
+
+  it('auto-focuses and selects title input for freshly created files and explains streaming save disablement', async () => {
+    const onAutoFocusConsumed = vi.fn();
+    const { rerender } = render(
+      <SimpleEditor
+        fileId="file-new"
+        title="新建章节"
+        content=""
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: 't1' })}
+        autoFocusTitle={true}
+        onAutoFocusConsumed={onAutoFocusConsumed}
+      />,
+    );
+
+    const titleInput = screen.getByPlaceholderText('editor:placeholder.titlePlaceholder') as HTMLInputElement;
+    await waitFor(() => expect(titleInput).toHaveFocus());
+    expect(onAutoFocusConsumed).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <SimpleEditor
+        fileId="file-new"
+        title="新建章节"
+        content="正文"
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: 't1' })}
+        isStreaming={true}
+      />,
+    );
+    const saveButton = screen.getByRole('button', { name: 'editor:save' });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute('title', 'editor:saveUnavailableStreaming');
   });
 
 });

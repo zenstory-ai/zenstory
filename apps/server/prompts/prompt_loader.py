@@ -213,28 +213,67 @@ create_storyline_extraction_prompt = _create_compat_function("storyline_extracti
 # ==================== 特殊兼容函数（需要自定义签名）====================
 
 def create_character_consolidation_prompt(
-    character_name: str,
-    chapter_mentions: list,
-    chapter_range: str,
+    character_name: str | None = None,
+    chapter_mentions: list | None = None,
+    chapter_range: str | None = None,
     novel_type: str = "web_long",
-    **kwargs
+    **kwargs,
 ) -> str:
     """创建角色汇总 Prompt（兼容旧接口）
 
+    当不传动态参数时，返回 100% 静态的 system prompt 以便命中前缀缓存；
+    动态角色信息建议通过 format_character_consolidation_user_message 放入 user message。
+
     Args:
-        character_name: 角色名
-        chapter_mentions: 各章节的提及记录
-        chapter_range: 出现章节范围
+        character_name: 角色名（可选，旧接口兼容）
+        chapter_mentions: 各章节的提及记录（可选，旧接口兼容）
+        chapter_range: 出现章节范围（可选，旧接口兼容）
         novel_type: 小说类型
         **kwargs: 其他可选参数
     """
+    template_kwargs: dict[str, Any] = dict(kwargs)
+    if character_name is not None:
+        template_kwargs["character_name"] = character_name
+    if chapter_mentions is not None:
+        template_kwargs["chapter_mentions"] = chapter_mentions
+    if chapter_range is not None:
+        template_kwargs["chapter_range"] = chapter_range
+
     return get_prompt(
         "character_consolidation",
         novel_type=novel_type,
-        character_name=character_name,
-        chapter_mentions=chapter_mentions,
-        chapter_range=chapter_range,
-        **kwargs
+        **template_kwargs,
+    )
+
+
+def format_character_consolidation_user_message(
+    character_name: str,
+    chapter_mentions: list[dict[str, Any]],
+    chapter_range: str,
+) -> str:
+    """格式化角色汇总任务的用户消息（避免动态角色信息破坏 system prompt 前缀缓存）
+
+    Args:
+        character_name: 角色名
+        chapter_mentions: 各章节的提及记录列表
+        chapter_range: 出现章节范围
+
+    Returns:
+        格式化的用户消息
+    """
+    mention_lines = [
+        f"- 第{mention.get('chapter_number', '')}章({mention.get('chapter_importance', 'minor')}): "
+        f"{mention.get('chapter_description', '')}"
+        for mention in chapter_mentions
+    ]
+    mentions_block = "\n".join(mention_lines)
+    return (
+        f"# 输入信息\n"
+        f"**角色名**: {character_name}\n"
+        f"**出现章节**: {chapter_range}\n\n"
+        f"**各章节的局部描述**:\n"
+        f"{mentions_block}\n\n"
+        f"请根据上述信息生成完整的角色描述。"
     )
 
 
@@ -313,5 +352,6 @@ __all__ = [
     "create_story_framework_identification_prompt",
     "create_plot_aggregation_prompt",
     "create_storyline_extraction_prompt",
+    "format_character_consolidation_user_message",
     "format_cross_chunk_merge_user_message",
 ]
