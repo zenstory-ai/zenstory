@@ -19,9 +19,9 @@ const projectB = responsiveProjects[1].id;
 const token0 = '2026-10-06T10:00:00.000Z';
 const textarea = (page: Page) => page.locator('[data-editor-scroll-container="true"] textarea');
 const titleInput = (page: Page) => page.getByPlaceholder("Enter title");
-// The fixture account is on the free plan, so Humanize shows its message cost on the button.
-const humanizeLabel = { en: 'Humanize · 1 msg', zh: '去AI味 · 用 1 条' } as const;
-const humanizeSelectionLabel = { en: 'Humanize (Selection) · 1 msg', zh: '去AI味（选区） · 用 1 条' } as const;
+// The fixture account is on the free plan; message cost stays in the button title tooltip.
+const humanizeLabel = { en: 'Humanize', zh: '去AI味' } as const;
+const humanizeSelectionLabel = { en: 'Humanize (Selection)', zh: '去AI味（选区）' } as const;
 const puts = (f: Fixture) => f.requests.filter(r => r.method === 'PUT');
 const wordCount = (text: string) => (text.match(/[\u4e00-\u9fa5]/g) || []).length + (text.match(/[a-zA-Z]+/g) || []).length;
 
