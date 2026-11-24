@@ -110,7 +110,13 @@ export const AdminUserDetail: React.FC = () => {
   });
   const ordersQuery = useQuery({
     queryKey: ["admin", "payment-orders", "user", userId],
-    queryFn: () => adminApi.getPaymentOrders({ user_id: userId, page: 1, page_size: RECENT_LIMIT }),
+    queryFn: () =>
+      adminApi.getPaymentOrders({
+        user_id: userId,
+        page: 1,
+        page_size: RECENT_LIMIT,
+        include_needs_attention_total: false,
+      }),
     enabled: Boolean(userId),
   });
 

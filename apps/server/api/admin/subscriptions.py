@@ -100,12 +100,13 @@ def list_subscriptions(
         .outerjoin(SubscriptionPlan, SubscriptionPlan.id == UserSubscription.plan_id)
     )
 
+    conditions = []
     if search and search.strip():
         pattern = f"%{search.strip()}%"
-        query = query.where(or_(User.username.ilike(pattern), User.email.ilike(pattern)))
+        conditions.append(or_(User.username.ilike(pattern), User.email.ilike(pattern)))
 
     if normalized_status == "active":
-        query = query.where(
+        conditions.append(
             or_(
                 UserSubscription.id.is_(None),
                 and_(
@@ -115,7 +116,7 @@ def list_subscriptions(
             )
         )
     elif normalized_status == "expired":
-        query = query.where(
+        conditions.append(
             and_(
                 UserSubscription.id.is_not(None),
                 or_(
@@ -128,16 +129,21 @@ def list_subscriptions(
             )
         )
     elif normalized_status == "cancelled":
-        query = query.where(
+        conditions.append(
             and_(
                 UserSubscription.id.is_not(None),
                 UserSubscription.status.in_(["cancelled", "canceled"]),
             )
         )
 
-    total = session.exec(
-        select(func.count()).select_from(query.subquery())
-    ).one()
+    count_query = select(func.count(User.id)).select_from(User)
+    if normalized_status is not None:
+        count_query = count_query.outerjoin(UserSubscription, UserSubscription.user_id == User.id)
+    if conditions:
+        count_query = count_query.where(*conditions)
+        query = query.where(*conditions)
+
+    total = int(session.exec(count_query).one() or 0)
 
     rows = session.exec(
         query.order_by(col(User.created_at).desc(), col(User.id).desc())

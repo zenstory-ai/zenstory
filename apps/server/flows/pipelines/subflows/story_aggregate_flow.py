@@ -44,6 +44,16 @@ def _elapsed_ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
 
+def _warmup_batches(items: list[Any], batch_size: int) -> list[list[Any]]:
+    """Run the first item alone to warm prompt-prefix cache, then fan out in batches."""
+    if not items:
+        return []
+    effective_batch = max(1, batch_size)
+    if effective_batch == 1 or len(items) < 2:
+        return [items[i : i + effective_batch] for i in range(0, len(items), effective_batch)]
+    return [items[:1], *[items[i : i + effective_batch] for i in range(1, len(items), effective_batch)]]
+
+
 # 并发任务运行器
 RUNTIME_TASK_RUNNER = ConcurrentTaskRunner(max_workers=settings.MAX_CONCURRENT_WORKFLOWS)
 
@@ -172,19 +182,17 @@ def story_aggregate_flow(
                 chunking_info.get("chunk_count", 0),
             )
 
-            # 2.2 聚合情节点为剧情（真正的分批并行处理）
+            # 2.2 聚合情节点为剧情（首项预热前缀缓存 + 分批并行处理）
             if story_frameworks:
                 logger.info("开始分批并行聚合 %d 个剧情框架", len(story_frameworks))
 
-                # 修复: 真正的分批处理 - 每批提交后等待完成,避免资源耗尽
-                batch_size = settings.MAX_CONCURRENT_WORKFLOWS
-                total_batches = (len(story_frameworks) + batch_size - 1) // batch_size
+                batch_size = max(1, settings.MAX_CONCURRENT_WORKFLOWS)
+                indexed_frameworks = list(enumerate(story_frameworks, 1))
+                batches = _warmup_batches(indexed_frameworks, batch_size)
+                total_batches = len(batches)
                 story_errors: list[Exception] = []
 
-                for batch_idx in range(0, len(story_frameworks), batch_size):
-                    batch_num = batch_idx // batch_size + 1
-                    batch_frameworks = story_frameworks[batch_idx:batch_idx + batch_size]
-
+                for batch_num, batch_frameworks in enumerate(batches, 1):
                     logger.info(
                         "处理批次 %d/%d: %d 个剧情框架",
                         batch_num, total_batches, len(batch_frameworks)
@@ -193,7 +201,7 @@ def story_aggregate_flow(
                     # 提交当前批次的任务
                     batch_futures = []
                     with monitor.measure(f"aggregate_stories_batch_{batch_num}"):
-                        for idx, framework in enumerate(batch_frameworks, batch_idx + 1):
+                        for idx, framework in batch_frameworks:
                             future = aggregate_plots_for_story_framework.submit(
                                 story_framework=framework,
                                 novel_id=novel_id,

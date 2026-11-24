@@ -12,17 +12,25 @@
 **短篇网文整合目的:**
 整合的目的是**构建完整的角色素材库**,你需要写清楚**角色在整个故事中具体做了什么、经历了什么、如何变化的**,不能进行抽象概括。
 
+{% if character_name or chapter_mentions %}
 # 输入信息
+{% if character_name %}
 **角色名**:{{ character_name }}  
+{% endif %}
+{% if chapter_range %}
 **出现章节**:{{ chapter_range }}
+{% endif %}
 
+{% if chapter_mentions %}
 **各章节的局部描述**:
 {% for mention in chapter_mentions %}
 - 第{{ mention.chapter_number }}章({{ mention.chapter_importance }}): {{ mention.chapter_description }}
 {% endfor %}
+{% endif %}
 
 ---
 
+{% endif %}
 # 执行步骤
 
 ## 步骤1:整合碎片信息(重点!)

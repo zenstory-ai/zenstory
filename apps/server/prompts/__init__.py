@@ -43,6 +43,7 @@ Prompt 模块 - Jinja2 模板化方案
 - storyline_extraction: 剧情线提炼
 
 辅助函数 (仍需要 Python 实现):
+- format_character_consolidation_user_message: 角色汇总用户消息格式化辅助函数
 - format_cross_chunk_merge_user_message: 跨块合并消息格式化辅助函数
 """
 
@@ -61,6 +62,7 @@ from .prompt_loader import (
     create_relationship_extraction_prompt,
     create_story_framework_identification_prompt,
     create_storyline_extraction_prompt,
+    format_character_consolidation_user_message,
     format_cross_chunk_merge_user_message,
     get_prompt,
 )
@@ -86,5 +88,6 @@ __all__ = [
     "create_plot_aggregation_prompt",
     "create_storyline_extraction_prompt",
     # 辅助函数
+    "format_character_consolidation_user_message",
     "format_cross_chunk_merge_user_message",
 ]

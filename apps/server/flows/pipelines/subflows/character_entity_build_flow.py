@@ -33,6 +33,16 @@ def _elapsed_ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
 
+def _warmup_batches(items: list[Any], batch_size: int) -> list[list[Any]]:
+    """Run the first item alone to warm prompt-prefix cache, then fan out in batches."""
+    if not items:
+        return []
+    effective_batch = max(1, batch_size)
+    if effective_batch == 1 or len(items) < 2:
+        return [items[i : i + effective_batch] for i in range(0, len(items), effective_batch)]
+    return [items[:1], *[items[i : i + effective_batch] for i in range(1, len(items), effective_batch)]]
+
+
 @flow(
     name="character_entity_build_flow",
     retries=0,  # 见 novel_ingestion_v3：流程级重试会与用户重试并跑
@@ -157,51 +167,47 @@ def character_entity_build_flow(
             f"[角色实体构建流程] 重要角色列表: {important_characters[:10]}..."
         )
 
-        # 按角色维度并行构建实体
+        # 按角色维度并行构建实体（首个角色先跑预热前缀缓存，再按并发上限分批扇出）
         logger.info(f"[角色实体构建流程] 并行构建 {len(important_characters)} 个角色实体")
 
-        entity_futures = []
-        character_future_map = {}  # 映射 future -> character_name
-        batch = settings.MAX_CONCURRENT_CHAPTERS
-
-        with monitor.measure("character_entity_build"):
-            for i in range(0, len(important_characters), batch):
-                for character_name in important_characters[i:i+batch]:
-                    future = build_character_entity_task.submit(
-                        novel_id=novel_id,
-                        character_name=character_name,
-                    )
-                    entity_futures.append(future)
-                    character_future_map[future] = character_name
-
-        # 等待所有构建完成
         entity_results = []
         failed_characters = []
         entity_errors: list[Exception] = []
         skipped_characters = []  # 无提及记录的角色
+        batch = max(1, settings.MAX_CONCURRENT_CHAPTERS)
 
-        for future in entity_futures:
-            try:
-                result = future.result()
-                entity_results.append(result)
-
-                # 记录无提及记录的角色（不应该发生，但做防御性处理）
-                if result.get("status") == "no_mentions":
-                    character_name = character_future_map.get(future, result.get("character_name", "unknown"))
-                    skipped_characters.append(character_name)
-                    logger.warning(
-                        f"角色 {character_name} 无提及记录（不应该发生，可能是数据不一致）"
+        with monitor.measure("character_entity_build"):
+            for wave in _warmup_batches(important_characters, batch):
+                wave_futures = [
+                    (
+                        character_name,
+                        build_character_entity_task.submit(
+                            novel_id=novel_id,
+                            character_name=character_name,
+                        ),
                     )
-            except Exception as e:
-                character_name = character_future_map.get(future, "unknown")
-                logger.error(
-                    f"角色 {character_name} 实体构建失败: {e}",
-                    exc_info=True
-                )
-                if is_llm_fatal_stop(e) or isinstance(e, MaterialPipelineError):
-                    raise
-                failed_characters.append(character_name)
-                entity_errors.append(e)
+                    for character_name in wave
+                ]
+                for character_name, future in wave_futures:
+                    try:
+                        result = future.result()
+                        entity_results.append(result)
+
+                        # 记录无提及记录的角色（不应该发生，但做防御性处理）
+                        if result.get("status") == "no_mentions":
+                            skipped_characters.append(character_name)
+                            logger.warning(
+                                f"角色 {character_name} 无提及记录（不应该发生，可能是数据不一致）"
+                            )
+                    except Exception as e:
+                        logger.error(
+                            f"角色 {character_name} 实体构建失败: {e}",
+                            exc_info=True
+                        )
+                        if is_llm_fatal_stop(e) or isinstance(e, MaterialPipelineError):
+                            raise
+                        failed_characters.append(character_name)
+                        entity_errors.append(e)
 
         if important_characters and len(failed_characters) == len(important_characters):
             code = (

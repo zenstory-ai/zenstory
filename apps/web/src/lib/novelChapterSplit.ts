@@ -13,8 +13,9 @@
 
 // Chapters shorter than this are merged into a neighbour.
 const MIN_CHAPTER_LENGTH = 100;
-// A heading is a short line.
+// A heading is a short line; allow a slightly wider raw budget for decorative wrappers.
 const MAX_HEADING_LENGTH = 40;
+const MAX_RAW_HEADING_LENGTH = 60;
 const SENTENCE_ENDINGS = ["。", "，", ",", "；", ";"];
 
 // Python str.isspace(): no U+FEFF (JS trim strips it), plus \x1c-\x1f and U+0085.
@@ -24,6 +25,27 @@ const WS = `[${PY_WS_CHARS}]`;
 const ANY = "[^\\n]";
 const LEADING_WS_RE = new RegExp(`^${WS}+`, "u");
 const TRAILING_WS_RE = new RegExp(`${WS}+$`, "u");
+
+// Decorative markers/wrappers emitted by Chinese TXT/e-book exporters and Markdown.
+// Intentionally excludes U+FEFF and dialogue quotes (“”‘’"').
+const DECORATIVE_WRAPPER_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ["**", "**"],
+  ["__", "__"],
+  ["【", "】"],
+  ["《", "》"],
+  ["「", "」"],
+  ["『", "』"],
+  ["[", "]"],
+];
+const LEADING_DECORATIVE_RE = new RegExp(
+  `^(?:§+|#+|[*☆★◆◇●○■□▲△▼▽▶▸※•·\\-—_=~>]+(?:[、.．])?)${WS}*`,
+  "u",
+);
+const TRAILING_DECORATIVE_RE = new RegExp(
+  `(?:${WS}*[§#*☆★◆◇●○■□▲△▼▽▶▸※•·\\-—_=~>]{2,}|${WS}+[§#*☆★◆◇●○■□▲△▼▽▶▸※•·=]+|${WS}*[§☆★◆◇●○■□▲△▼▽▶▸※•·]+)$`,
+  "u",
+);
+const ZHENGWEN_PREFIX_RE = new RegExp(`^正文[${PY_WS_CHARS}:：、.．·\\-—]+`, "u");
 
 /** Python's str.strip() / str.rstrip(). */
 export function pyStrip(text: string): string {
@@ -36,8 +58,16 @@ function pyRstrip(text: string): string {
 const NUM = "[零〇一二两兩三四五六七八九十百千万萬0-9０-９]+";
 const VOLUME_PREFIX = `(?:第${NUM}[卷部集篇]|卷${NUM})`;
 
+const BRACKET_PAIRS: Record<string, string> = {
+  "【": "】",
+  "《": "》",
+  "「": "」",
+  "『": "』",
+  "[": "]",
+};
+
 const CHINESE_CHAPTER_RE = new RegExp(
-  `^(?:${VOLUME_PREFIX}[^第]{0,20}?${WS}*)?【?第(${NUM})(?:[章节節]|回(?!合))】?${WS}*[:：、.．]?${WS}*(${ANY}*)$`,
+  `^(?:${VOLUME_PREFIX}[^第]{0,20}?${WS}*)?([【《「『\\[])?第(${NUM})(?:[章节節]|回(?!合))([】》」』\\]])?${WS}*[:：、.．]?${WS}*(${ANY}*)$`,
   "u",
 );
 const VOLUME_ONLY_RE = new RegExp(
@@ -73,14 +103,83 @@ export function countCharacters(text: string): number {
   return text.length - (pairs ? pairs.length : 0);
 }
 
-function isHeading(line: string): boolean {
-  if (countCharacters(line) > MAX_HEADING_LENGTH) return false;
-  if (SENTENCE_ENDINGS.some((ending) => line.endsWith(ending))) return false;
+function endsWithSentenceEnding(line: string): boolean {
+  return SENTENCE_ENDINGS.some((ending) => line.endsWith(ending));
+}
+
+function normalizeHeadingLine(line: string): string {
+  let current = line;
+  while (current) {
+    let unwrapped = false;
+    for (const [open, close] of DECORATIVE_WRAPPER_PAIRS) {
+      if (
+        current.startsWith(open) &&
+        current.endsWith(close) &&
+        current.length > open.length + close.length
+      ) {
+        const inner = current.slice(open.length, -close.length);
+        if (!inner.includes(close)) {
+          current = pyStrip(inner);
+          unwrapped = true;
+          break;
+        }
+      }
+    }
+    if (unwrapped) continue;
+
+    const withoutLeading = pyStrip(current.replace(LEADING_DECORATIVE_RE, ""));
+    if (withoutLeading !== current) {
+      current = withoutLeading;
+      continue;
+    }
+
+    const withoutTrailing = pyStrip(current.replace(TRAILING_DECORATIVE_RE, ""));
+    if (withoutTrailing !== current) {
+      current = withoutTrailing;
+      continue;
+    }
+
+    const withoutZhengwen = pyStrip(current.replace(ZHENGWEN_PREFIX_RE, ""));
+    if (withoutZhengwen !== current) {
+      current = withoutZhengwen;
+      continue;
+    }
+
+    break;
+  }
+  return current;
+}
+
+function headingCandidate(line: string): string | null {
+  if (!line || countCharacters(line) > MAX_RAW_HEADING_LENGTH || endsWithSentenceEnding(line)) {
+    return null;
+  }
+  const normalized = normalizeHeadingLine(line);
+  if (
+    !normalized ||
+    countCharacters(normalized) > MAX_HEADING_LENGTH ||
+    endsWithSentenceEnding(normalized)
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
+function matchesChineseChapter(candidate: string): boolean {
+  const match = CHINESE_CHAPTER_RE.exec(candidate);
+  if (!match) return false;
+  const open = match[1];
+  const close = match[3];
+  if (!open && !close) return true;
+  return Boolean(open && close && BRACKET_PAIRS[open] === close);
+}
+
+function isHeading(candidate: string): boolean {
   return (
-    CHINESE_CHAPTER_RE.test(line) ||
-    ENGLISH_CHAPTER_RE.test(line) ||
-    NUMBERED_RE.test(line) ||
-    SPECIAL_RE.test(line)
+    matchesChineseChapter(candidate) ||
+    ENGLISH_CHAPTER_RE.test(candidate) ||
+    NUMBERED_RE.test(candidate) ||
+    SPECIAL_RE.test(candidate)
   );
 }
 
@@ -103,10 +202,11 @@ function chapterStartLines(lines: string[]): number[] {
       if (target.length > 0) target.push("");
       return;
     }
-    if (VOLUME_ONLY_RE.test(line) && countCharacters(line) <= MAX_HEADING_LENGTH) {
+    const candidate = headingCandidate(line);
+    if (candidate !== null && VOLUME_ONLY_RE.test(candidate)) {
       return;
     }
-    if (!isHeading(line)) {
+    if (candidate === null || !isHeading(candidate)) {
       (current ? current.lines : preamble).push(line);
       return;
     }

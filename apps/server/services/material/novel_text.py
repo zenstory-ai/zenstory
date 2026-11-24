@@ -8,6 +8,7 @@ worker can decode and split into the same chapters.
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -40,19 +41,65 @@ _ENCODING_ALIASES = {
 # Chapters shorter than this are merged into a neighbour instead of being
 # sent to the LLM on their own (e.g. "请假条" or "上架感言" notes).
 MIN_CHAPTER_LENGTH = 100
+# Oversized chapters (e.g. books whose non-standard headings were missed or
+# mega-chapters) are split into balanced sub-chapters in split_novel_text so
+# downstream LLM prompts stay within budget. Free-trial truncation never
+# sub-splits chapters (chapters over the trial limit are refused, never cut).
+MAX_CHAPTER_CHARACTERS = 20_000
+TARGET_SUBCHAPTER_CHARACTERS = 6_000
 # A heading is a short line; longer lines are body text even if they start
-# with "1、" or "第三章".
+# with "1、" or "第三章". Allow room for decorative prefixes/wrappers before
+# normalization while still rejecting body paragraphs in O(1).
 MAX_HEADING_LENGTH = 40
+MAX_RAW_HEADING_LENGTH = 60
 # Headings never end like a sentence.
 _SENTENCE_ENDINGS = ("。", "，", ",", "；", ";")
+
+# Matching outer decorative wrappers stripped iteratively from heading lines.
+# Never include dialogue quotation marks (“”‘’"') or U+FEFF.
+_DECORATIVE_WRAPPER_PAIRS: tuple[tuple[str, str], ...] = (
+    ("**", "**"),
+    ("__", "__"),
+    ("【", "】"),
+    ("《", "》"),
+    ("「", "」"),
+    ("『", "』"),
+    ("[", "]"),
+)
+_BRACKET_PAIRS: dict[str, str] = {
+    "【": "】",
+    "《": "》",
+    "「": "」",
+    "『": "』",
+    "[": "]",
+}
+# Leading decorative prefixes commonly emitted by Chinese TXT/e-book exporters
+# and Markdown (§§§, ###, ☆、, ◆, ***, ---, etc.). Never strips U+FEFF or quotes.
+_LEADING_DECORATIVE_RE = re.compile(
+    r"^(?:§+|#+|[*☆★◆◇●○■□▲△▼▽▶▸※•·\-—_=~>]+(?:[、.．])?)\s*"
+)
+# Trailing decorative markers (e.g. ###, ***, §§§, ===, ---, " ☆", "§").
+# Preserves single trailing characters like "~" or "#" when attached to a word
+# (e.g. "喵~", "C#").
+_TRAILING_DECORATIVE_RE = re.compile(
+    r"(?:\s*[§#*☆★◆◇●○■□▲△▼▽▶▸※•·\-—_=~>]{2,}"
+    r"|\s+[§#*☆★◆◇●○■□▲△▼▽▶▸※•·=]+"
+    r"|\s*[§☆★◆◇●○■□▲△▼▽▶▸※•·]+)$"
+)
+# Optional "正文" volume-label prefix before a chapter/volume heading
+# (e.g. "正文 第一章 标题", "正文 第12章").
+_ZHENGWEN_PREFIX_RE = re.compile(r"^正文[\s:：、.．·\-—]+")
+_SENTENCE_UNIT_RE = re.compile(r"[^。！？!?；;]*[。！？!?；;]|[^。！？!?；;]+$")
 
 _NUM = r"[零〇一二两兩三四五六七八九十百千万萬0-9０-９]+"
 _VOLUME_PREFIX = rf"(?:第{_NUM}[卷部集篇]|卷{_NUM})"
 
 # 第X章 / 第X节 / 第X回 (optionally prefixed by 第X卷 on the same line, or
-# wrapped in 【】). "第一回合" is body text, not a heading.
+# wrapped in matching decorative brackets like 【第五章】标题 / 《第一章》标题).
+# "第一回合" is body text, not a heading.
 _CHINESE_CHAPTER_RE = re.compile(
-    rf"^(?:{_VOLUME_PREFIX}[^第]{{0,20}}?\s*)?【?第({_NUM})(?:[章节節]|回(?!合))】?"
+    rf"^(?:{_VOLUME_PREFIX}[^第]{{0,20}}?\s*)?"
+    rf"([【《「『\[])?第({_NUM})(?:[章节節]|回(?!合))([】》」』\]])?"
     r"\s*[:：、.．]?\s*(.*)$"
 )
 # A volume line without a chapter on it ("第一卷 风起云涌") separates
@@ -192,27 +239,83 @@ class _Heading:
     prologue: bool = False
 
 
+def _normalize_heading_line(line: str) -> str:
+    """Strip decorative prefixes, outer wrappers, and trailing markers from a stripped line."""
+    current = line
+    while current:
+        before = current
+        for open_tok, close_tok in _DECORATIVE_WRAPPER_PAIRS:
+            if (
+                current.startswith(open_tok)
+                and current.endswith(close_tok)
+                and len(current) > len(open_tok) + len(close_tok)
+            ):
+                inner = current[len(open_tok) : -len(close_tok)]
+                if close_tok not in inner:
+                    current = inner.strip()
+                    break
+        if current != before:
+            continue
+
+        stripped = _LEADING_DECORATIVE_RE.sub("", current, count=1).strip()
+        if stripped != current:
+            current = stripped
+            continue
+
+        stripped = _TRAILING_DECORATIVE_RE.sub("", current, count=1).strip()
+        if stripped != current:
+            current = stripped
+            continue
+
+        stripped = _ZHENGWEN_PREFIX_RE.sub("", current, count=1).strip()
+        if stripped != current:
+            current = stripped
+            continue
+
+        break
+    return current
+
+
+def _heading_candidate(line: str) -> str | None:
+    """Return normalized heading candidate for ``line`` (already stripped), or None."""
+    if not line or len(line) > MAX_RAW_HEADING_LENGTH or line.endswith(_SENTENCE_ENDINGS):
+        return None
+    normalized = _normalize_heading_line(line)
+    if (
+        not normalized
+        or len(normalized) > MAX_HEADING_LENGTH
+        or normalized.endswith(_SENTENCE_ENDINGS)
+    ):
+        return None
+    return normalized
+
+
 def _parse_heading(line: str) -> _Heading | None:
     """Return the heading on ``line`` (already stripped), or None for body text."""
-    if len(line) > MAX_HEADING_LENGTH or line.endswith(_SENTENCE_ENDINGS):
+    candidate = _heading_candidate(line)
+    if candidate is None:
         return None
 
-    match = _CHINESE_CHAPTER_RE.match(line)
+    match = _CHINESE_CHAPTER_RE.match(candidate)
     if match:
-        return _Heading(chinese_num_to_int(match.group(1)), match.group(2).strip())
+        open_br, num_token, close_br, title = match.groups()
+        if (open_br is None and close_br is None) or (
+            open_br is not None and _BRACKET_PAIRS.get(open_br) == close_br
+        ):
+            return _Heading(chinese_num_to_int(num_token), title.strip())
 
-    match = _ENGLISH_CHAPTER_RE.match(line)
+    match = _ENGLISH_CHAPTER_RE.match(candidate)
     if match:
         return _Heading(_english_number(match.group(1)), match.group(2).strip())
 
-    match = _NUMBERED_RE.match(line)
+    match = _NUMBERED_RE.match(candidate)
     if match:
         return _Heading(int(match.group(1)), (match.group(2) or "").strip())
 
-    match = _SPECIAL_RE.match(line)
+    match = _SPECIAL_RE.match(candidate)
     if match:
         keyword = match.group(1)
-        title = line if match.group(2) else keyword
+        title = candidate if match.group(2) else keyword
         return _Heading(None, title, prologue=keyword in _PROLOGUE_WORDS)
 
     return None
@@ -253,7 +356,8 @@ def _split_lines(
                 target.append("")
             continue
 
-        if _VOLUME_ONLY_RE.match(line) and len(line) <= MAX_HEADING_LENGTH:
+        candidate = _heading_candidate(line)
+        if candidate is not None and _VOLUME_ONLY_RE.match(candidate):
             continue
 
         heading = _parse_heading(line)
@@ -331,25 +435,223 @@ def _normalized_lines(text: str) -> list[str]:
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
 
 
+def _hard_split_text(text: str, chunk_size: int) -> list[str]:
+    return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+
+def _pack_segments(
+    units: list[str],
+    *,
+    joiner: str,
+    max_characters: int,
+    target_characters: int,
+    min_segment_length: int = MIN_CHAPTER_LENGTH,
+) -> list[str]:
+    """Pack atomic units into balanced non-empty segments each <= ``max_characters``."""
+    non_empty = [u for u in units if u] if not joiner else units
+    if not non_empty:
+        return []
+
+    joiner_len = len(joiner)
+    unit_lengths = [len(u) for u in non_empty]
+    total_len = sum(unit_lengths) + joiner_len * max(0, len(non_empty) - 1)
+    if total_len <= max_characters:
+        joined = joiner.join(non_empty).strip()
+        return [joined] if joined else []
+
+    remaining_parts = max(2, math.ceil(total_len / target_characters))
+    remaining_chars = total_len
+
+    segments: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    seg_target = remaining_chars / remaining_parts
+
+    for idx, unit in enumerate(non_empty):
+        unit_len = unit_lengths[idx]
+        step_chars = unit_len + (joiner_len if idx < len(non_empty) - 1 else 0)
+
+        if not current:
+            if not unit.strip():
+                remaining_chars -= step_chars
+                continue
+            seg_target = remaining_chars / remaining_parts
+            current.append(unit)
+            current_len = unit_len
+            remaining_chars -= step_chars
+            continue
+
+        candidate_len = current_len + joiner_len + unit_len
+        should_flush = candidate_len > max_characters or (
+            remaining_parts > 1
+            and current_len >= min_segment_length
+            and candidate_len > seg_target
+            and (candidate_len - seg_target) > (seg_target - current_len)
+        )
+        if should_flush:
+            segment = joiner.join(current).strip()
+            if segment:
+                segments.append(segment)
+                remaining_parts = max(1, remaining_parts - 1)
+            if unit.strip():
+                seg_target = remaining_chars / remaining_parts
+                current = [unit]
+                current_len = unit_len
+            else:
+                current = []
+                current_len = 0
+            remaining_chars -= step_chars
+            continue
+
+        current.append(unit)
+        current_len = candidate_len
+        remaining_chars -= step_chars
+
+    if current:
+        segment = joiner.join(current).strip()
+        if segment:
+            segments.append(segment)
+
+    if (
+        len(segments) >= 2
+        and len(segments[-1]) < min_segment_length
+        and len(segments[-2]) + joiner_len + len(segments[-1]) <= max_characters
+    ):
+        tail = segments.pop()
+        segments[-1] = f"{segments[-1]}{joiner}{tail}".strip()
+
+    return segments
+
+
+def _split_oversized_line(
+    line: str,
+    *,
+    max_characters: int,
+    target_characters: int,
+) -> list[str]:
+    """Split a single line longer than ``max_characters`` at sentence boundaries, then hard chunks."""
+    part_count = max(2, math.ceil(len(line) / target_characters))
+    hard_chunk = min(max_characters, max(1, math.ceil(len(line) / part_count)))
+
+    units: list[str] = []
+    for sentence in _SENTENCE_UNIT_RE.findall(line):
+        if len(sentence) <= max_characters:
+            units.append(sentence)
+        else:
+            units.extend(_hard_split_text(sentence, hard_chunk))
+    return _pack_segments(
+        units,
+        joiner="",
+        max_characters=max_characters,
+        target_characters=target_characters,
+    )
+
+
+def _split_oversized_content(
+    content: str,
+    *,
+    max_characters: int,
+    target_characters: int,
+) -> list[str]:
+    if len(content) <= max_characters:
+        return [content]
+
+    units: list[str] = []
+    for line in content.split("\n"):
+        if len(line) <= max_characters:
+            units.append(line)
+        else:
+            units.extend(
+                _split_oversized_line(
+                    line,
+                    max_characters=max_characters,
+                    target_characters=target_characters,
+                )
+            )
+    segments = _pack_segments(
+        units,
+        joiner="\n",
+        max_characters=max_characters,
+        target_characters=target_characters,
+    )
+    return segments or [content]
+
+
+def _split_oversized_chapters(
+    chapters: list[dict[str, Any]],
+    *,
+    max_characters: int,
+    target_characters: int,
+) -> list[dict[str, Any]]:
+    if not any(len(ch["content"]) > max_characters for ch in chapters):
+        return chapters
+
+    result: list[dict[str, Any]] = []
+    prev_number: int | None = None
+    for chapter in chapters:
+        segments = _split_oversized_content(
+            chapter["content"],
+            max_characters=max_characters,
+            target_characters=target_characters,
+        )
+        base_number = chapter["chapter_number"]
+        if len(segments) == 1:
+            number = base_number if prev_number is None else max(base_number, prev_number + 1)
+            prev_number = number
+            result.append({**chapter, "chapter_number": number})
+            continue
+
+        total_parts = len(segments)
+        base_title = chapter["title"]
+        for part_idx, segment in enumerate(segments, start=1):
+            candidate_number = base_number + part_idx - 1
+            number = (
+                candidate_number
+                if prev_number is None
+                else max(candidate_number, prev_number + 1)
+            )
+            prev_number = number
+            result.append(
+                {
+                    "chapter_number": number,
+                    "title": f"{base_title}（{part_idx}/{total_parts}）",
+                    "original_title_line": chapter["original_title_line"],
+                    "content": segment,
+                }
+            )
+    return result
+
+
 def split_novel_text(
     text: str,
     min_chapter_length: int = MIN_CHAPTER_LENGTH,
+    *,
+    max_chapter_characters: int = MAX_CHAPTER_CHARACTERS,
+    target_subchapter_characters: int = TARGET_SUBCHAPTER_CHARACTERS,
 ) -> list[dict[str, Any]]:
     """
     Split novel text into chapters.
 
-    - Recognises 第X章/节/回 (also after 第X卷 on the same line, or in 【】),
-      Chapter N, "N. 标题", and 楔子/序章/尾声/番外 style headings.
+    - Recognises 第X章/节/回 (also after 第X卷 on the same line, or in matching
+      brackets/decorative wrappers/prefixes), Chapter N, "N. 标题", and
+      楔子/序章/尾声/番外 style headings.
     - Volume-only lines are separators, not content.
     - Text before the first heading becomes a prologue chapter when it is long
       enough; a text without any heading yields no chapters.
     - Chapters shorter than ``min_chapter_length`` are merged into the previous
       chapter (or the next one when they come first) instead of being dropped.
+    - Chapters longer than ``max_chapter_characters`` are split into balanced
+      segments targeting ``target_subchapter_characters`` with strictly
+      monotonic ``chapter_number``s.
     """
     chapters = _split_lines(_normalized_lines(text), min_chapter_length)
     for chapter in chapters:
         chapter.pop("start_line", None)
-    return chapters
+    return _split_oversized_chapters(
+        chapters,
+        max_characters=max_chapter_characters,
+        target_characters=target_subchapter_characters,
+    )
 
 
 @dataclass(frozen=True)
@@ -401,7 +703,9 @@ def analyze_novel_bytes(data: bytes) -> NovelTextAnalysis:
 
 
 __all__ = [
+    "MAX_CHAPTER_CHARACTERS",
     "MIN_CHAPTER_LENGTH",
+    "TARGET_SUBCHAPTER_CHARACTERS",
     "NovelDecodeError",
     "NovelTextAnalysis",
     "NovelTruncation",

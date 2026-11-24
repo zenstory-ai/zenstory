@@ -668,7 +668,7 @@ def test_agent_round_metric_alembic_upgrade_and_downgrade_round_trip(tmp_path: P
     SQLModel.metadata.create_all(engine)
     engine.dispose()
 
-    _alembic(db_url, "stamp", "head")
+    _alembic(db_url, "stamp", REVISION)
     _alembic(db_url, "downgrade", "-1")
 
     engine = create_engine(db_url)
@@ -682,7 +682,7 @@ def test_agent_round_metric_alembic_upgrade_and_downgrade_round_trip(tmp_path: P
         assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == DOWN_REVISION
     engine.dispose()
 
-    _alembic(db_url, "upgrade", "head")
+    _alembic(db_url, "upgrade", REVISION)
     engine = create_engine(db_url)
     inspector = inspect(engine)
     assert "agent_round_metric" in inspector.get_table_names()

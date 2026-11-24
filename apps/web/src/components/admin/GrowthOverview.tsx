@@ -11,6 +11,7 @@ export function GrowthOverview({ days }: { days: 7 | 14 | 30 }) {
   const query = useQuery({
     queryKey: ['admin', 'dashboard', 'growth', days],
     queryFn: () => adminApi.getGrowthDashboard(days),
+    retry: false,
   });
   const percent = (value: number | null) => value === null ? '—' : `${(value * 100).toFixed(1)}%`;
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;

@@ -12,7 +12,7 @@ Defines SQLModel entities for:
 
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, Column, text
+from sqlalchemy import JSON, BigInteger, Column, Index, text
 from sqlmodel import Field, SQLModel
 
 from .utils import generate_uuid
@@ -78,6 +78,9 @@ class RedemptionCode(SQLModel, table=True):
     """
 
     __tablename__ = "redemption_code"
+    __table_args__ = (
+        Index("ix_redemption_code_created_at_id", "created_at", "id"),
+    )
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     code: str = Field(unique=True, index=True)
@@ -142,6 +145,9 @@ class SubscriptionHistory(SQLModel, table=True):
     """
 
     __tablename__ = "subscription_history"
+    __table_args__ = (
+        Index("ix_subscription_history_created_at", "created_at"),
+    )
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     user_id: str = Field(foreign_key="user.id", index=True)
@@ -164,6 +170,9 @@ class AdminAuditLog(SQLModel, table=True):
     """
 
     __tablename__ = "admin_audit_log"
+    __table_args__ = (
+        Index("ix_admin_audit_log_created_at_id", "created_at", "id"),
+    )
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     admin_user_id: str = Field(foreign_key="user.id", index=True)

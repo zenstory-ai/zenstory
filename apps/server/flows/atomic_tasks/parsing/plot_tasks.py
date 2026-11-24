@@ -58,7 +58,7 @@ def extract_chapter_plots_task(
             raise ValueError(f"章节 {chapter_id} 不存在")
 
         novel_id = ch.novel_id
-        chapter_content = ch.original_content
+        chapter_content = ch.original_content or ""
         chapter_title = ch.title
 
         logger.info(
@@ -69,17 +69,17 @@ def extract_chapter_plots_task(
     # 动态计算情节点数量范围（基于章节字数）
     word_count = len(chapter_content)
     min_plots, max_plots = calculate_plots_range(word_count)
+    density_min = word_count / max_plots if max_plots > 0 else 0
+    density_max = word_count / min_plots if min_plots > 0 else 0
 
-    # 构建系统提示词（注入动态范围）
-    system_prompt = create_plot_extraction_prompt(
-        min_plots=min_plots,
-        max_plots=max_plots,
-        word_count=word_count,
-    )
+    # 构建静态系统提示词（跨章节保持一致以命中前缀缓存，动态范围放入 user_message）
+    system_prompt = create_plot_extraction_prompt()
 
     # 调用 LLM
     user_message = f"""
 章节标题: {chapter_title}
+章节字数: 约 {word_count} 字
+目标情节点数量范围: {min_plots}-{max_plots} 个（约 {density_min:.0f}-{density_max:.0f} 字/个情节点，严禁超过 {max_plots} 个或少于 {min_plots} 个）
 
 章节内容:
 {chapter_content}

@@ -30,6 +30,7 @@ def list_audit_logs(
     page_size: int = Query(50, ge=1, le=200, description="Items per page"),
     resource_type: str | None = Query(None, description="Filter by resource type"),
     action: str | None = Query(None, description="Filter by action"),
+    include_total: bool = Query(True, description="Include full matching count"),
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -57,8 +58,16 @@ def list_audit_logs(
     )
 
     actor_ids = {log.admin_user_id for log in logs}
-    actors = session.exec(select(User).where(User.id.in_(actor_ids))).all() if actor_ids else []
-    actor_names = {user.id: user.username for user in actors}
+    actor_names = (
+        dict(session.exec(select(User.id, User.username).where(User.id.in_(actor_ids))).all())
+        if actor_ids
+        else {}
+    )
+    total = (
+        admin_audit_service.count_audit_logs(session, resource_type=resource_type, action=action)
+        if include_total
+        else len(logs)
+    )
     return AuditLogListResponse(
         items=[AuditLogResponse(
             **log.model_dump(exclude={"admin_user_id"}),
@@ -67,5 +76,5 @@ def list_audit_logs(
         ) for log in logs],
         page=page,
         page_size=page_size,
-        total=admin_audit_service.count_audit_logs(session, resource_type=resource_type, action=action),
+        total=total,
     )

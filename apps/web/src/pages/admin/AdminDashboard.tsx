@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Users, FolderOpen, Lightbulb, CreditCard, RefreshCw } from 'lucide-react';
@@ -32,10 +32,22 @@ export default function AdminDashboard() {
   const [selectedWindowDays, setSelectedWindowDays] = useState<(typeof WINDOW_OPTIONS)[number]>(7);
   const [showAllUpgradeSources, setShowAllUpgradeSources] = useState(false);
   const [showAllConversionSources, setShowAllConversionSources] = useState(false);
+  const forceRefreshStatsRef = useRef(false);
+  const forceRefreshActivationRef = useRef(false);
+  const forceRefreshConversionRef = useRef(false);
+  const forceRefreshFunnelRef = useRef(false);
 
   const { data: stats, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['admin', 'dashboard', 'stats'],
-    queryFn: adminApi.getDashboardStats,
+    queryFn: () => {
+      const refresh = forceRefreshStatsRef.current;
+      forceRefreshStatsRef.current = false;
+      return adminApi.getDashboardStats({
+        includeCommercialization: false,
+        ...(refresh ? { refresh: true } : {}),
+      });
+    },
+    retry: false,
   });
   const {
     data: activationFunnel,
@@ -45,7 +57,14 @@ export default function AdminDashboard() {
     refetch: refetchActivationFunnel,
   } = useQuery({
     queryKey: ['admin', 'dashboard', 'activation-funnel', selectedWindowDays],
-    queryFn: () => adminApi.getActivationFunnel(selectedWindowDays),
+    queryFn: () => {
+      const refresh = forceRefreshActivationRef.current;
+      forceRefreshActivationRef.current = false;
+      return refresh
+        ? adminApi.getActivationFunnel(selectedWindowDays, { refresh: true })
+        : adminApi.getActivationFunnel(selectedWindowDays);
+    },
+    retry: false,
   });
   const {
     data: upgradeConversion,
@@ -55,7 +74,14 @@ export default function AdminDashboard() {
     refetch: refetchUpgradeConversion,
   } = useQuery({
     queryKey: ['admin', 'dashboard', 'upgrade-conversion', selectedWindowDays],
-    queryFn: () => adminApi.getUpgradeConversionStats(selectedWindowDays),
+    queryFn: () => {
+      const refresh = forceRefreshConversionRef.current;
+      forceRefreshConversionRef.current = false;
+      return refresh
+        ? adminApi.getUpgradeConversionStats(selectedWindowDays, { refresh: true })
+        : adminApi.getUpgradeConversionStats(selectedWindowDays);
+    },
+    retry: false,
   });
   const {
     data: upgradeFunnel,
@@ -65,7 +91,14 @@ export default function AdminDashboard() {
     refetch: refetchUpgradeFunnel,
   } = useQuery({
     queryKey: ['admin', 'dashboard', 'upgrade-funnel', selectedWindowDays],
-    queryFn: () => adminApi.getUpgradeFunnelStats(selectedWindowDays),
+    queryFn: () => {
+      const refresh = forceRefreshFunnelRef.current;
+      forceRefreshFunnelRef.current = false;
+      return refresh
+        ? adminApi.getUpgradeFunnelStats(selectedWindowDays, { refresh: true })
+        : adminApi.getUpgradeFunnelStats(selectedWindowDays);
+    },
+    retry: false,
   });
   const queryErrorText = error instanceof Error && error.message
     ? error.message
@@ -114,6 +147,10 @@ export default function AdminDashboard() {
           size="touch"
           leftIcon={<RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />}
           onClick={() => {
+            forceRefreshStatsRef.current = true;
+            forceRefreshActivationRef.current = true;
+            forceRefreshConversionRef.current = true;
+            forceRefreshFunnelRef.current = true;
             void Promise.all([queryClient.invalidateQueries({queryKey: ['admin', 'dashboard', 'growth']}), refetch(), refetchActivationFunnel(), refetchUpgradeFunnel(), refetchUpgradeConversion()]);
           }}
           disabled={isRefreshing}

@@ -19,7 +19,7 @@ import json
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import event, inspect
+from sqlalchemy import Index, event, inspect
 from sqlmodel import Field, Relationship, SQLModel
 
 from utils.text_metrics import count_words
@@ -43,6 +43,10 @@ class File(SQLModel, table=True):
     The file_type field distinguishes the semantic meaning, and metadata
     stores type-specific attributes.
     """
+
+    __table_args__ = (
+        Index("ix_file_type_created_at", "file_type", "created_at"),
+    )
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     project_id: str = Field(foreign_key="project.id", index=True)

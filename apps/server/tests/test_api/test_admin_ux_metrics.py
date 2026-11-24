@@ -739,6 +739,7 @@ def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
 
     recorded_exec_options: list[dict] = []
     seen_tool_call_values: list[str | None] = []
+    metadata_queries_with_tool_calls: list[str] = []
     original_exec = db_session.exec
 
     def spy_exec(stmt, *args, **kwargs):
@@ -747,12 +748,14 @@ def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
             recorded_exec_options.append(dict(opts))
         result = original_exec(stmt, *args, **kwargs)
         sql_text = str(stmt)
-        if "card_tool_calls" in sql_text:
+        if "chat_message.message_metadata" in sql_text and "chat_message.tool_calls" in sql_text:
+            metadata_queries_with_tool_calls.append(sql_text)
+        if "chat_message.tool_calls" in sql_text:
             # Intercept streamed tuples without altering yield_per semantics
             class _SpyResult:
                 def __iter__(self_inner):
                     for row in result:
-                        seen_tool_call_values.append(row[2])
+                        seen_tool_call_values.append(row[1])
                         yield row
 
                 def close(self_inner):
@@ -768,9 +771,10 @@ def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
     # Bounded streaming was used on both endpoints (no unbounded .all() on chat_message)
     assert any(opt.get("yield_per") == ux_svc._STREAM_CHAT_BATCH_SIZE for opt in recorded_exec_options)
     assert any(opt.get("yield_per") == ux_svc._STREAM_SCALAR_BATCH_SIZE for opt in recorded_exec_options)
-    # Read-only query_files row and corrupt row had NULL projected for tool_calls by SQL CASE
-    assert seen_tool_call_values.count(None) == 2
-    assert sum(1 for v in seen_tool_call_values if v is not None) == 1
+    # Metadata scan never touches tool_calls; tool_calls scan filters out read-only and corrupt rows in SQL
+    assert metadata_queries_with_tool_calls == []
+    assert len(seen_tool_call_values) == 1
+    assert seen_tool_call_values[0] is not None
 
     m = payload["current"]["metrics"]
     assert m["total_rounds"] == 3
@@ -800,6 +804,6 @@ def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
     fallback_payload = get_ux_health_dashboard(db_session, days=7, now=NOW)
     fallback_votes = list_chat_feedback_votes(db_session, days=7, vote="all", now=NOW)
 
-    assert pg_attempts == 3  # current window + previous window + chat_votes
+    assert pg_attempts == 2  # combined current+previous metadata window + chat_votes
     assert fallback_payload["current"]["metrics"] == payload["current"]["metrics"]
     assert fallback_votes["summary"] == votes["summary"]

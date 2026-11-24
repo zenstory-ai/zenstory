@@ -337,6 +337,7 @@ async function getPaymentOrders(params: {
   needs_attention?: boolean;
   search?: string;
   user_id?: string;
+  include_needs_attention_total?: boolean;
 } = {}): Promise<PaymentOrdersListResponse> {
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
@@ -346,6 +347,9 @@ async function getPaymentOrders(params: {
   if (params.needs_attention) query.set("needs_attention", "true");
   if (params.search) query.set("search", params.search);
   if (params.user_id) query.set("user_id", params.user_id);
+  if (params.include_needs_attention_total === false) {
+    query.set("include_needs_attention_total", "false");
+  }
   return api.get<PaymentOrdersListResponse>(`${ADMIN_BASE}/payment-orders?${query.toString()}`);
 }
 
@@ -539,8 +543,12 @@ export interface StageLatencyResponse {
   daily: StageLatencyDailyRow[];
 }
 
-async function getUsageSummary(window: UsageWindow): Promise<UsageSummaryResponse> {
-  return api.get<UsageSummaryResponse>(`${ADMIN_BASE}/usage/summary?window=${window}`);
+async function getUsageSummary(
+  window: UsageWindow,
+  options?: { refresh?: boolean }
+): Promise<UsageSummaryResponse> {
+  const suffix = options?.refresh ? "&refresh=true" : "";
+  return api.get<UsageSummaryResponse>(`${ADMIN_BASE}/usage/summary?window=${window}${suffix}`);
 }
 
 async function getUsageByUser(params: {
@@ -560,15 +568,21 @@ async function getUsageByUser(params: {
 
 async function getUsageByModel(
   window: UsageWindow,
-  source?: UsageSource
+  source?: UsageSource,
+  options?: { refresh?: boolean }
 ): Promise<ModelMetricsResponse> {
   const query = new URLSearchParams({ window });
   if (source) query.set("source", source);
+  if (options?.refresh) query.set("refresh", "true");
   return api.get<ModelMetricsResponse>(`${ADMIN_BASE}/usage/models?${query.toString()}`);
 }
 
-async function getUsageStageLatency(days: UsageDetailDays = 7): Promise<StageLatencyResponse> {
-  return api.get<StageLatencyResponse>(`${ADMIN_BASE}/usage/stage-latency?days=${days}`);
+async function getUsageStageLatency(
+  days: UsageDetailDays = 7,
+  options?: { refresh?: boolean }
+): Promise<StageLatencyResponse> {
+  const suffix = options?.refresh ? "&refresh=true" : "";
+  return api.get<StageLatencyResponse>(`${ADMIN_BASE}/usage/stage-latency?days=${days}${suffix}`);
 }
 
 async function getUserDailyUsage(
@@ -597,12 +611,14 @@ async function getAuditLogs(params?: {
   page_size?: number;
   resource_type?: string;
   action?: string;
+  include_total?: boolean;
 }): Promise<AuditLogsResponse> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", String(params.page));
   if (params?.page_size) searchParams.set("page_size", String(params.page_size));
   if (params?.resource_type) searchParams.set("resource_type", params.resource_type);
   if (params?.action) searchParams.set("action", params.action);
+  if (params?.include_total === false) searchParams.set("include_total", "false");
 
   const payload = await api.get<Omit<AuditLogsResponse, "items"> & { items: RawAuditLog[] }>(
     `${ADMIN_BASE}/audit-logs?${searchParams.toString()}`
@@ -618,37 +634,74 @@ async function getAuditLogs(params?: {
 
 // ==================== Dashboard Stats API ====================
 
-async function getGrowthDashboard(days: 7 | 14 | 30 = 7): Promise<GrowthDashboard> {
-  return api.get<GrowthDashboard>(`${ADMIN_BASE}/dashboard/growth?days=${days}`);
+async function getGrowthDashboard(
+  days: 7 | 14 | 30 = 7,
+  options?: { refresh?: boolean }
+): Promise<GrowthDashboard> {
+  const suffix = options?.refresh ? "&refresh=true" : "";
+  return api.get<GrowthDashboard>(`${ADMIN_BASE}/dashboard/growth?days=${days}${suffix}`);
 }
 
-async function getUxHealthDashboard(days: 7 | 14 | 30 = 7): Promise<UxHealthDashboard> {
-  return api.get<UxHealthDashboard>(`${ADMIN_BASE}/dashboard/ux-health?days=${days}`);
+async function getUxHealthDashboard(
+  days: 7 | 14 | 30 = 7,
+  options?: { refresh?: boolean }
+): Promise<UxHealthDashboard> {
+  const suffix = options?.refresh ? "&refresh=true" : "";
+  return api.get<UxHealthDashboard>(`${ADMIN_BASE}/dashboard/ux-health?days=${days}${suffix}`);
 }
 
-async function getAcquisitionStats(days: 7 | 14 | 30 | 90 = 30): Promise<AcquisitionStats> {
-  return api.get<AcquisitionStats>(`${ADMIN_BASE}/dashboard/acquisition?days=${days}`);
+async function getAcquisitionStats(
+  days: 7 | 14 | 30 | 90 = 30,
+  options?: { refresh?: boolean }
+): Promise<AcquisitionStats> {
+  const suffix = options?.refresh ? "&refresh=true" : "";
+  return api.get<AcquisitionStats>(`${ADMIN_BASE}/dashboard/acquisition?days=${days}${suffix}`);
 }
 
-async function getDashboardStats(): Promise<DashboardStats> {
-  return api.get<DashboardStats>(`${ADMIN_BASE}/dashboard/stats`);
+async function getDashboardStats(options?: {
+  includeCommercialization?: boolean;
+  refresh?: boolean;
+}): Promise<DashboardStats> {
+  const params = new URLSearchParams();
+  if (options?.includeCommercialization === false) {
+    params.set("include_commercialization", "false");
+  }
+  if (options?.refresh) {
+    params.set("refresh", "true");
+  }
+  const suffix = params.toString();
+  return api.get<DashboardStats>(
+    suffix ? `${ADMIN_BASE}/dashboard/stats?${suffix}` : `${ADMIN_BASE}/dashboard/stats`
+  );
 }
 
-async function getActivationFunnel(days = 7): Promise<ActivationFunnelStats> {
+async function getActivationFunnel(
+  days = 7,
+  options?: { refresh?: boolean }
+): Promise<ActivationFunnelStats> {
+  const suffix = options?.refresh ? "&refresh=true" : "";
   return api.get<ActivationFunnelStats>(
-    `${ADMIN_BASE}/dashboard/activation-funnel?days=${clampWindowDays(days)}`
+    `${ADMIN_BASE}/dashboard/activation-funnel?days=${clampWindowDays(days)}${suffix}`
   );
 }
 
-async function getUpgradeConversionStats(days = 7): Promise<UpgradeConversionStats> {
+async function getUpgradeConversionStats(
+  days = 7,
+  options?: { refresh?: boolean }
+): Promise<UpgradeConversionStats> {
+  const suffix = options?.refresh ? "&refresh=true" : "";
   return api.get<UpgradeConversionStats>(
-    `${ADMIN_BASE}/dashboard/upgrade-conversion?days=${clampWindowDays(days)}`
+    `${ADMIN_BASE}/dashboard/upgrade-conversion?days=${clampWindowDays(days)}${suffix}`
   );
 }
 
-async function getUpgradeFunnelStats(days = 7): Promise<UpgradeFunnelStats> {
+async function getUpgradeFunnelStats(
+  days = 7,
+  options?: { refresh?: boolean }
+): Promise<UpgradeFunnelStats> {
+  const suffix = options?.refresh ? "&refresh=true" : "";
   return api.get<UpgradeFunnelStats>(
-    `${ADMIN_BASE}/dashboard/upgrade-funnel?days=${clampWindowDays(days)}`
+    `${ADMIN_BASE}/dashboard/upgrade-funnel?days=${clampWindowDays(days)}${suffix}`
   );
 }
 

@@ -68,6 +68,7 @@ def list_payment_orders(
     payment_method: Literal["alipay"] | None = None,
     search: str | None = Query(default=None, max_length=100),
     user_id: str | None = Query(default=None, max_length=64),
+    include_needs_attention_total: bool = Query(default=True),
     _current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -85,7 +86,8 @@ def list_payment_orders(
         conditions.append(PaymentOrder.payment_method == payment_method)
     if user_id:
         conditions.append(PaymentOrder.user_id == user_id)
-    if search and search.strip():
+    has_search = bool(search and search.strip())
+    if has_search:
         pattern = f"%{search.strip()}%"
         conditions.append(
             or_(
@@ -97,16 +99,25 @@ def list_payment_orders(
         )
 
     base = select(PaymentOrder, User).join(User, User.id == PaymentOrder.user_id)
-    count = select(func.count()).select_from(PaymentOrder).join(
-        User, User.id == PaymentOrder.user_id
-    )
+    count = select(func.count(PaymentOrder.id)).select_from(PaymentOrder)
+    if has_search:
+        count = count.join(User, User.id == PaymentOrder.user_id)
     if conditions:
         base = base.where(*conditions)
         count = count.where(*conditions)
-    total = session.exec(count).one()
-    needs_attention_total = session.exec(
-        select(func.count()).select_from(PaymentOrder).where(NEEDS_ATTENTION_CONDITION)
-    ).one()
+    total = int(session.exec(count).one() or 0)
+    needs_attention_total = (
+        int(
+            session.exec(
+                select(func.count(PaymentOrder.id))
+                .select_from(PaymentOrder)
+                .where(NEEDS_ATTENTION_CONDITION)
+            ).one()
+            or 0
+        )
+        if include_needs_attention_total
+        else 0
+    )
     rows = session.exec(
         base.order_by(col(PaymentOrder.created_at).desc(), col(PaymentOrder.id).desc())
         .offset((page - 1) * page_size)

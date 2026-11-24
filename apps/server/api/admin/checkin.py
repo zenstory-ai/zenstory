@@ -106,14 +106,10 @@ def get_check_in_records(
 
     Requires superuser privileges.
     """
-    base_query = select(CheckInRecord)
-
+    count_query = select(func.count(CheckInRecord.id)).select_from(CheckInRecord)
     if user_id_filter:
-        base_query = base_query.where(CheckInRecord.user_id == user_id_filter)
-
-    # Get total count
-    count_query = select(func.count()).select_from(base_query.subquery())
-    total = session.exec(count_query).one()
+        count_query = count_query.where(CheckInRecord.user_id == user_id_filter)
+    total = int(session.exec(count_query).one() or 0)
 
     # Apply pagination
     query = (

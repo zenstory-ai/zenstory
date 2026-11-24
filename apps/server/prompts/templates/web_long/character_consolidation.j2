@@ -8,17 +8,25 @@
 # 任务定位
 你是角色档案构建专家。你的任务是:**将碎片化的章节信息整合成连贯的角色档案**。
 
+{% if character_name or chapter_mentions %}
 # 输入信息
+{% if character_name %}
 **角色名**:{{ character_name }}  
+{% endif %}
+{% if chapter_range %}
 **出现章节**:{{ chapter_range }}
+{% endif %}
 
+{% if chapter_mentions %}
 **各章节的局部描述**:
 {% for mention in chapter_mentions %}
 - 第{{ mention.chapter_number }}章({{ mention.chapter_importance }}): {{ mention.chapter_description }}
 {% endfor %}
+{% endif %}
 
 ---
 
+{% endif %}
 # 执行步骤
 
 ## 步骤1:整合碎片信息

@@ -6,6 +6,7 @@ This module contains referral management endpoints for admin operations.
 import logging
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from sqlalchemy import and_, case
 from sqlmodel import Session, col, func, select
 
 from database import get_session
@@ -47,36 +48,59 @@ def get_referral_stats(
 
     Requires superuser privileges.
     """
-    # Total codes
-    total_codes = session.exec(select(func.count()).select_from(InviteCode)).one()
-
-    # Active codes
-    active_codes = session.exec(
-        select(func.count()).select_from(InviteCode).where(InviteCode.is_active == True)
+    # Codes (1 query)
+    code_row = session.exec(
+        select(
+            func.count(InviteCode.id).label("total"),
+            func.coalesce(func.sum(case((InviteCode.is_active.is_(True), 1), else_=0)), 0).label("active"),
+        )
     ).one()
+    total_codes = int(code_row.total or 0)
+    active_codes = int(code_row.active or 0)
 
-    # Total referrals
-    total_referrals = session.exec(select(func.count()).select_from(Referral)).one()
-
-    # Successful referrals (COMPLETED or REWARDED status)
-    successful_referrals = session.exec(
-        select(func.count()).select_from(Referral)
-        .where(Referral.status.in_([REFERRAL_STATUS_COMPLETED, REFERRAL_STATUS_REWARDED]))
+    # Referrals (1 query)
+    ref_row = session.exec(
+        select(
+            func.count(Referral.id).label("total"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Referral.status.in_([REFERRAL_STATUS_COMPLETED, REFERRAL_STATUS_REWARDED]), 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("successful"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Referral.status == REFERRAL_STATUS_COMPLETED,
+                                Referral.inviter_rewarded.is_(False),
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("pending_rewards"),
+        )
     ).one()
-
-    # Pending rewards (referrals completed but not yet rewarded)
-    pending_rewards = session.exec(
-        select(func.count()).select_from(Referral)
-        .where(Referral.status == REFERRAL_STATUS_COMPLETED)
-        .where(Referral.inviter_rewarded == False)
-    ).one()
+    total_referrals = int(ref_row.total or 0)
+    successful_referrals = int(ref_row.successful or 0)
+    pending_rewards = int(ref_row.pending_rewards or 0)
 
     # Total points awarded from referrals
-    total_points = session.exec(
-        select(func.coalesce(func.sum(UserReward.amount), 0))
-        .where(UserReward.source == "referral")
-        .where(UserReward.reward_type == "points")
-    ).one() or 0
+    total_points = int(
+        session.exec(
+            select(func.coalesce(func.sum(UserReward.amount), 0))
+            .where(UserReward.source == "referral")
+            .where(UserReward.reward_type == "points")
+        ).one()
+        or 0
+    )
 
     log_with_context(
         logger,
@@ -160,13 +184,14 @@ def get_invite_codes(
     Requires superuser privileges.
     """
     query = select(InviteCode)
+    count_query = select(func.count(InviteCode.id)).select_from(InviteCode)
 
     if is_active_filter is not None:
         query = query.where(InviteCode.is_active == is_active_filter)
+        count_query = count_query.where(InviteCode.is_active == is_active_filter)
 
     # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
-    total = session.exec(count_query).one()
+    total = int(session.exec(count_query).one() or 0)
 
     # Apply pagination
     query = query.order_by(col(InviteCode.created_at).desc(), col(InviteCode.id).desc())
@@ -224,8 +249,10 @@ def get_referral_rewards(
     query = select(UserReward).where(UserReward.source == "referral")
 
     # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
-    total = session.exec(count_query).one()
+    count_query = select(func.count(UserReward.id)).select_from(UserReward).where(
+        UserReward.source == "referral"
+    )
+    total = int(session.exec(count_query).one() or 0)
 
     # Apply pagination
     query = query.order_by(col(UserReward.created_at).desc(), col(UserReward.id).desc())

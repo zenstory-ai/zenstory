@@ -128,6 +128,24 @@ describe("prepareMaterialUpload for the free trial", () => {
     expect(prepared).toEqual({ error: null, trial: { totalChapters: 2, keptChapters: 1 } });
   });
 
+  it("recognises decorative-prefixed chapters like §§§第一章 for free-trial pre-check", async () => {
+    const body = sentence.repeat(Math.ceil(2_800 / sentence.length)).slice(0, 2_800);
+    const text = Array.from({ length: 60 }, (_, index) => `§§§第${index + 1}章 雾港\n${body}`).join("\n");
+    const file = new File([text], "decorated-book.txt", { type: "text/plain" });
+
+    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 3, trialMaxCharacters: 15_000 });
+
+    expect(prepared).toEqual({ error: null, trial: { totalChapters: 60, keptChapters: 3 } });
+  });
+
+  it("refuses a trial upload with an oversized chapter over 20k chars instead of sub-splitting it", async () => {
+    const file = new File([wholeBook(3, 25_000)], "oversized-trial.txt", { type: "text/plain" });
+
+    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 3, trialMaxCharacters: 15_000 });
+
+    expect(prepared.error).toBe("materials:uploadModal.errors.trialTooManyCharacters");
+  });
+
   it("points a trial author at the first chapters when the file is over 20MB", async () => {
     const file = new File(["x"], "big.txt", { type: "text/plain" });
     Object.defineProperty(file, "size", { value: MATERIALS_UPLOAD_MAX_BYTES + 1 });
