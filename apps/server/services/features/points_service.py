@@ -13,10 +13,8 @@ import os
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from itertools import groupby
-from typing import Any, cast
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import QueryableAttribute, load_only
 from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import beijing_date, normalize_datetime_to_utc, utcnow
@@ -220,19 +218,18 @@ class PointsService:
         return _calculate_balance(transactions, now=now)
 
     def get_available_points_stats(self, session: Session) -> tuple[int, int]:
-        """Return current available points and positive-wallet count in one scan."""
+        """Return current available points and positive-wallet count in one index-ordered scan."""
         now = utcnow()
         transactions = session.exec(
-            select(PointsTransaction)
-            .options(load_only(
-                *(cast(QueryableAttribute[Any], field) for field in (
-                    PointsTransaction.id, PointsTransaction.user_id,
-                    PointsTransaction.amount, PointsTransaction.created_at,
-                    PointsTransaction.expires_at, PointsTransaction.is_expired,
-                ))
-            ))
+            select(
+                PointsTransaction.user_id,
+                PointsTransaction.amount,
+                PointsTransaction.created_at,
+                PointsTransaction.expires_at,
+                PointsTransaction.is_expired,
+            )
             .order_by(col(PointsTransaction.user_id).asc(), col(PointsTransaction.created_at).asc()),
-            execution_options={"yield_per": 256},
+            execution_options={"yield_per": 1000},
         )
         try:
             total_available = 0

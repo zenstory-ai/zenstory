@@ -99,15 +99,17 @@ def list_codes(
     Requires superuser privileges.
     """
     query = select(RedemptionCode)
+    count_query = select(func.count(RedemptionCode.id)).select_from(RedemptionCode)
 
     if tier:
         query = query.where(RedemptionCode.tier == tier)
+        count_query = count_query.where(RedemptionCode.tier == tier)
     if is_active is not None:
         query = query.where(RedemptionCode.is_active == is_active)
+        count_query = count_query.where(RedemptionCode.is_active == is_active)
 
     # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
-    total = session.exec(count_query).one()
+    total = int(session.exec(count_query).one() or 0)
 
     # Apply pagination
     query = query.order_by(col(RedemptionCode.created_at).desc(), col(RedemptionCode.id).desc())

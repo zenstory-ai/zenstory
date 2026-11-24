@@ -29,6 +29,10 @@ PROJECT_TYPE_SCREENPLAY = "screenplay" # Screenplay / mini-drama
 class User(SQLModel, table=True):
     """User account model."""
 
+    __table_args__ = (
+        Index("ix_user_created_at_id", "created_at", "id"),
+    )
+
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     username: str = Field(index=True, unique=True)
     email: str = Field(index=True, unique=True)
@@ -184,6 +188,9 @@ class ChatMessage(SQLModel, table=True):
     """
 
     __tablename__ = "chat_message"
+    __table_args__ = (
+        Index("ix_chat_message_role_created_at", "role", "created_at"),
+    )
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     session_id: str = Field(foreign_key="chat_session.id", index=True)

@@ -6,6 +6,7 @@ This module contains points management endpoints for admin operations.
 import logging
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from sqlalchemy import and_, case
 from sqlmodel import Session, func, select
 
 from core.error_codes import ErrorCode
@@ -16,6 +17,7 @@ from models.points import PointsTransaction
 from services.admin_audit_service import admin_audit_service
 from services.core.auth_service import get_current_superuser
 from services.features.points_service import points_service
+from services.infra.admin_analytics_cache import admin_read_statement_timeout, cached_admin_analytics
 from utils.logger import get_logger, log_with_context
 
 from .schemas import (
@@ -45,6 +47,7 @@ def _resolve_user_identifier(session: Session, identifier: str) -> User | None:
 
 @router.get("/points/stats", response_model=PointsStatsResponse)
 def get_points_stats(
+    refresh: bool = Query(False),
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -53,43 +56,61 @@ def get_points_stats(
 
     Requires superuser privileges.
     """
-    # Total points issued (sum of all positive transactions)
-    total_issued = session.exec(
-        select(func.coalesce(func.sum(PointsTransaction.amount), 0))
-        .where(PointsTransaction.amount > 0)
-    ).one() or 0
+    def _compute() -> dict[str, int]:
+        with admin_read_statement_timeout(session):
+            sums = session.exec(
+                select(
+                    func.coalesce(
+                        func.sum(case((PointsTransaction.amount > 0, PointsTransaction.amount), else_=0)),
+                        0,
+                    ).label("issued"),
+                    func.coalesce(
+                        func.sum(case((PointsTransaction.amount < 0, -PointsTransaction.amount), else_=0)),
+                        0,
+                    ).label("spent"),
+                    func.coalesce(
+                        func.sum(
+                            case(
+                                (
+                                    and_(
+                                        PointsTransaction.is_expired.is_(True),
+                                        PointsTransaction.amount > 0,
+                                    ),
+                                    PointsTransaction.amount,
+                                ),
+                                else_=0,
+                            )
+                        ),
+                        0,
+                    ).label("expired"),
+                )
+            ).one()
+            # Active users with points (users with non-expired positive balance)
+            _, users_with_balance = points_service.get_available_points_stats(session)
+        return {
+            "total_points_issued": int(sums.issued or 0),
+            "total_points_spent": int(sums.spent or 0),
+            "total_points_expired": int(sums.expired or 0),
+            "active_users_with_points": int(users_with_balance or 0),
+        }
 
-    # Total points spent (absolute value of negative transactions)
-    total_spent = abs(session.exec(
-        select(func.coalesce(func.sum(PointsTransaction.amount), 0))
-        .where(PointsTransaction.amount < 0)
-    ).one() or 0)
-
-    # Total points expired
-    total_expired = session.exec(
-        select(func.coalesce(func.sum(PointsTransaction.amount), 0))
-        .where(PointsTransaction.is_expired == True)
-        .where(PointsTransaction.amount > 0)
-    ).one() or 0
-
-    # Active users with points (users with non-expired positive balance)
-    _, users_with_balance = points_service.get_available_points_stats(session)
+    payload = cached_admin_analytics(
+        "points:stats",
+        _compute,
+        ttl_seconds=60,
+        refresh=refresh,
+    )
 
     log_with_context(
         logger,
         logging.INFO,
         "Retrieved points stats",
         user_id=current_user.id,
-        total_issued=total_issued,
-        total_spent=total_spent,
+        total_issued=payload["total_points_issued"],
+        total_spent=payload["total_points_spent"],
     )
 
-    return PointsStatsResponse(
-        total_points_issued=total_issued,
-        total_points_spent=total_spent,
-        total_points_expired=total_expired,
-        active_users_with_points=users_with_balance,
-    )
+    return PointsStatsResponse(**payload)
 
 
 @router.get("/points/{user_id}", response_model=AdminPointsBalance)

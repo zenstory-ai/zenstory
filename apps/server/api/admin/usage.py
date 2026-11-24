@@ -12,6 +12,11 @@ from core.error_handler import APIException
 from database import get_session
 from models.entities import User
 from services.core.auth_service import get_current_superuser
+from services.infra.admin_analytics_cache import (
+    DEFAULT_CACHE_TTL_SECONDS,
+    LONG_WINDOW_CACHE_TTL_SECONDS,
+    cached_admin_analytics,
+)
 from services.usage.admin_stage_latency_service import (
     STAGE_LATENCY_DAYS,
     get_stage_latency_metrics,
@@ -218,25 +223,43 @@ class StageLatencyResponse(BaseModel):
 @router.get("/summary", response_model=UsageSummaryResponse)
 def usage_summary(
     window: UsageWindowParam = "today",
+    refresh: bool = Query(default=False),
     _current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
-    return get_usage_summary(session, window)
+    ttl = 300 if window == "yesterday" else (60 if window == "today" else DEFAULT_CACHE_TTL_SECONDS)
+    return cached_admin_analytics(
+        "usage:summary",
+        lambda: get_usage_summary(session, window),
+        ttl_seconds=ttl,
+        refresh=refresh,
+        window=window,
+    )
 
 
 @router.get("/models", response_model=ModelMetricsResponse)
 def usage_by_model(
     window: UsageWindowParam = "today",
     source: UsageSourceParam | None = None,
+    refresh: bool = Query(default=False),
     _current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
-    return get_model_metrics(session, window, source=source)
+    ttl = 300 if window == "yesterday" else (60 if window == "today" else DEFAULT_CACHE_TTL_SECONDS)
+    return cached_admin_analytics(
+        "usage:models",
+        lambda: get_model_metrics(session, window, source=source),
+        ttl_seconds=ttl,
+        refresh=refresh,
+        window=window,
+        source=source,
+    )
 
 
 @router.get("/stage-latency", response_model=StageLatencyResponse)
 def usage_stage_latency(
     days: int = Query(default=7),
+    refresh: bool = Query(default=False),
     _current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -246,7 +269,14 @@ def usage_stage_latency(
             status_code=422,
             detail="days must be 7, 14 or 30",
         )
-    return get_stage_latency_metrics(session, days)
+    ttl = DEFAULT_CACHE_TTL_SECONDS if days == 7 else LONG_WINDOW_CACHE_TTL_SECONDS
+    return cached_admin_analytics(
+        "usage:stage_latency",
+        lambda: get_stage_latency_metrics(session, days),
+        ttl_seconds=ttl,
+        refresh=refresh,
+        days=days,
+    )
 
 
 @router.get("/users", response_model=UserUsageListResponse)

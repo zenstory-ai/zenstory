@@ -8,7 +8,7 @@ Defines SQLModel entities for:
 
 from datetime import date, datetime
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Index, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from .utils import generate_uuid
@@ -25,6 +25,9 @@ class PointsTransaction(SQLModel, table=True):
     """
 
     __tablename__ = "points_transaction"
+    __table_args__ = (
+        Index("ix_points_transaction_user_id_created_at", "user_id", "created_at"),
+    )
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     user_id: str = Field(foreign_key="user.id", index=True)

@@ -10,6 +10,7 @@ Defines all SQLModel entities for the referral/invite system:
 
 from datetime import datetime
 
+from sqlalchemy import Index
 from sqlmodel import Field, SQLModel
 
 from .utils import generate_uuid
@@ -78,6 +79,9 @@ class Referral(SQLModel, table=True):
     """
 
     __tablename__ = "referral"
+    __table_args__ = (
+        Index("ix_referral_created_at", "created_at"),
+    )
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     inviter_id: str = Field(

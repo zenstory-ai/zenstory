@@ -40,6 +40,12 @@ class UpgradeFunnelEvent(SQLModel, table=True):
             "action",
             "occurred_at",
         ),
+        Index(
+            "ix_upgrade_funnel_event_user_source_created",
+            "user_id",
+            "source",
+            "created_at",
+        ),
     )
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
