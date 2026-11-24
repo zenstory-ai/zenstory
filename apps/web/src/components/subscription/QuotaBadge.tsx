@@ -54,11 +54,11 @@ export function QuotaBadge({ compact = false }: QuotaBadgeProps = {}) {
 
   if (!quota) return null;
 
-  const getVariant = (): 'success' | 'warning' | 'error' | 'info' => {
+  const getVariant = (): 'neutral' | 'warning' | 'error' | 'info' => {
     if (stage === 'blocked') return 'error';
     if (stage === 'reminder_80') return 'warning';
     if (stage === 'reminder_50') return 'info';
-    return 'success';
+    return 'neutral';
   };
 
   const shouldShowUpgradeAction = stage !== "normal" && !isUnlimited && canUpgrade;

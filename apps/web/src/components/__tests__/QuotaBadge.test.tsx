@@ -50,7 +50,7 @@ describe('QuotaBadge', () => {
     vi.clearAllMocks()
   })
 
-  it('renders normal quota usage with success variant', async () => {
+  it('renders normal quota usage with neutral variant', async () => {
     mockGetQuota.mockResolvedValue({
       ai_conversations: {
         used: 4,
@@ -67,7 +67,7 @@ describe('QuotaBadge', () => {
 
     const usage = await screen.findByText('今日 AI 消息 4/10 条')
     expect(usage).toBeInTheDocument()
-    expect(usage.parentElement?.className).toContain('bg-[hsl(var(--success)/0.15)]')
+    expect(usage.parentElement?.className).toContain('bg-[hsl(var(--bg-tertiary))]')
   })
 
   it('renders warning variant when usage reaches 80%', async () => {

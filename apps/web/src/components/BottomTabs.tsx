@@ -135,7 +135,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({
   return (
     <nav
       data-testid="bottom-tabs"
-      className="fixed bottom-0 left-0 right-0 min-h-14 bg-[hsl(var(--bg-secondary))] border-t border-[hsl(var(--separator-color))] flex z-50 safe-area-bottom overflow-x-hidden"
+      className="fixed bottom-0 left-0 right-0 min-h-14 bg-[hsl(var(--bg-rail))] border-t border-[hsl(var(--separator-color))] flex z-50 safe-area-bottom overflow-x-hidden"
       role="tablist"
       aria-label={t('editor:bottomTabs.ariaLabel', '底部导航')}
     >
