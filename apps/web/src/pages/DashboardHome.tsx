@@ -214,13 +214,14 @@ export default function DashboardHome() {
     } catch (error) {
       setPendingDeleteProjectId(null);
       if (!(error instanceof ApiError && error.status === 401)) {
-        toast.error(handleApiError(error));
         if (
           error instanceof ApiError &&
           error.errorCode === "ERR_QUOTA_PROJECTS_EXCEEDED" &&
           projectQuotaUpgradePrompt.surface === "modal"
         ) {
           setShowProjectQuotaUpgradeModal(true);
+        } else {
+          toast.error(handleApiError(error));
         }
       }
     } finally {
@@ -283,13 +284,14 @@ export default function DashboardHome() {
       navigate(created.length ? `/project/${project.id}?file=${encodeURIComponent(created[0].id)}` : `/project/${project.id}`);
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) {
-        toast.error(handleApiError(error));
         if (
           error instanceof ApiError &&
           error.errorCode === "ERR_QUOTA_PROJECTS_EXCEEDED" &&
           projectQuotaUpgradePrompt.surface === "modal"
         ) {
           setShowProjectQuotaUpgradeModal(true);
+        } else {
+          toast.error(handleApiError(error));
         }
       }
     } finally {
@@ -361,13 +363,14 @@ export default function DashboardHome() {
       navigate(`/project/${projectId}`);
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) {
-        toast.error(handleApiError(error));
         if (
           error instanceof ApiError &&
           error.errorCode === "ERR_QUOTA_PROJECTS_EXCEEDED" &&
           projectQuotaUpgradePrompt.surface === "modal"
         ) {
           setShowProjectQuotaUpgradeModal(true);
+        } else {
+          toast.error(handleApiError(error));
         }
       }
     } finally {
@@ -399,7 +402,7 @@ export default function DashboardHome() {
         ideaGoesHere={Boolean(startInFirstWork)} onCreated={refreshProjects} />
 
       {/* One surface owns the idea, its format and the creation action. */}
-      <div className="dashboard-composer mb-10" data-testid="dashboard-composer">
+      <div className="dashboard-composer" data-testid="dashboard-composer">
           <textarea
             placeholder={resolvedInspirationPlaceholder}
             data-testid="dashboard-inspiration-input"
@@ -480,7 +483,10 @@ export default function DashboardHome() {
             onSelect={setInspiration}
           />
         )}
-        {/* Authors who arrive with a manuscript start from it instead of an idea. */}
+      </div>
+
+      {/* Authors who arrive with a manuscript start from it instead of an idea. */}
+      <div className="mt-3 mb-8 flex items-center justify-start">
         <input
           ref={draftInputRef}
           type="file"
@@ -496,7 +502,7 @@ export default function DashboardHome() {
           data-testid="dashboard-import-drafts"
           onClick={() => draftInputRef.current?.click()}
           disabled={isQuickCreating || isImportingDrafts}
-          className="mt-1 inline-flex min-h-[44px] md:min-h-0 md:py-1 items-center gap-1.5 rounded-md px-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-50"
+          className="inline-flex min-h-[44px] md:min-h-0 md:py-1.5 items-center gap-1.5 rounded-lg px-2 text-xs text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-colors disabled:opacity-50"
         >
           <Upload className="h-3.5 w-3.5 shrink-0" />
           {t('importDrafts')}

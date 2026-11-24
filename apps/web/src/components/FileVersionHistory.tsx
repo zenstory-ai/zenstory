@@ -370,9 +370,10 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       if (fileContextGeneration !== fileContextGenerationRef.current) return;
       if (!result.snapshot_created) {
         if (result.version_quota_exceeded) {
-          toast.error(translateRef.current('quota.limitDescription'));
           if (fileVersionUpgradePrompt.surface === "modal") {
             setShowUpgradeModal(true);
+          } else {
+            toast.error(translateRef.current('quota.limitDescription'));
           }
         } else {
           toast.error(translateRef.current('rollbackHistoryNotSaved', {
@@ -389,9 +390,10 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         err instanceof ApiError &&
         err.errorCode === "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
       ) {
-        toast.error(handleApiError(err));
         if (fileVersionUpgradePrompt.surface === "modal") {
           setShowUpgradeModal(true);
+        } else {
+          toast.error(handleApiError(err));
         }
         return;
       }

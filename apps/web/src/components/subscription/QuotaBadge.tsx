@@ -1,13 +1,13 @@
 import { aiQuotaPeriodKey } from "../../hooks/useAiMessageQuota";
 import { useMobileLayout } from "../../contexts/MobileLayoutContext";
+import { useIsMobile } from "../../hooks/useMediaQuery";
 import { usePaidPlanWhenOpen } from "../../hooks/usePaidPlanWhenOpen";
 import { useUpgradeExposure } from "../../hooks/useUpgradeExposure";
 import { useQuery } from '@tanstack/react-query';
-import { Sparkles } from "lucide-react";
 import { subscriptionApi, subscriptionQueryKeys } from '../../lib/subscriptionApi';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '../ui/Badge';
-import { IconButton } from '../ui/IconButton';
+import { Button } from '../ui/Button';
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../../config/upgradeExperience";
 import { trackUpgradeClick } from "../../lib/upgradeAnalytics";
 import {
@@ -43,6 +43,7 @@ export function QuotaBadge({ compact = false }: QuotaBadgeProps = {}) {
   const stagedSource = buildStagedUpgradeSource(settingsUpgradePrompt.source, stage);
 
   const { isMobile, activePanel } = useMobileLayout();
+  const isNarrowViewport = useIsMobile();
   const { isPaid, resolved } = usePaidPlanWhenOpen(Boolean(quota) && stage !== "normal" && !isUnlimited);
   const canUpgrade = resolved && !isPaid;
   const exposureRef = useUpgradeExposure({
@@ -82,9 +83,13 @@ export function QuotaBadge({ compact = false }: QuotaBadgeProps = {}) {
   const badge = (
     <Badge
       variant={getVariant()}
-      className="whitespace-nowrap tabular-nums"
+      className={
+        compact
+          ? "whitespace-nowrap tabular-nums"
+          : "whitespace-nowrap tabular-nums gap-1.5 rounded-xl border border-transparent px-3 py-1.5 text-xs leading-5 font-medium"
+      }
       icon={
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <svg className={compact ? "w-3 h-3" : "w-3.5 h-3.5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
       }
@@ -98,36 +103,44 @@ export function QuotaBadge({ compact = false }: QuotaBadgeProps = {}) {
       {compact ? (
         // Not a live region: the counter rarely changes, and role="status"
         // would compete with the page's real status announcements. Screen readers
-        // get the full wording; the bare digits are visual only.
-        <span
-          data-testid="quota-badge-compact"
-          title={usageLabel}
-          className="inline-flex"
-        >
-          <span className="sr-only">{usageLabel}</span>
-          <span aria-hidden="true" className="inline-flex">{badge}</span>
-        </span>
-      ) : badge}
-      {shouldShowUpgradeAction && (
-        compact ? (
-          <IconButton
-            onClick={handleUpgradeClick}
-            label={upgradeLabel}
-            icon={<Sparkles size={14} aria-hidden="true" />}
-            tone="plain"
-            className="text-[hsl(var(--accent-primary))]"
-          />
-        ) : (
+        // get the full wording; the bare digits are visual only. When an upgrade
+        // is offered, the compact pill itself is the control so the narrow chat
+        // header never carries an unlabeled extra icon.
+        shouldShowUpgradeAction ? (
           <button
             type="button"
+            data-testid="quota-badge-compact"
             onClick={handleUpgradeClick}
-            title={upgradeLabel}
+            title={`${usageLabel} · ${upgradeLabel}`}
             aria-label={upgradeLabel}
-            className="inline-flex min-h-11 md:min-h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-3 text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))] hover:underline"
+            className="inline-flex min-h-11 min-w-11 md:min-h-0 md:min-w-0 items-center justify-center rounded-full transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-rail))]"
           >
-            {t('subscription.upgradeNow', '开通 Pro')}
+            <span className="sr-only">{usageLabel}</span>
+            <span aria-hidden="true" className="inline-flex">{badge}</span>
           </button>
+        ) : (
+          <span
+            data-testid="quota-badge-compact"
+            title={usageLabel}
+            className="inline-flex"
+          >
+            <span className="sr-only">{usageLabel}</span>
+            <span aria-hidden="true" className="inline-flex">{badge}</span>
+          </span>
         )
+      ) : badge}
+      {shouldShowUpgradeAction && !compact && (
+        <Button
+          type="button"
+          variant="primary"
+          size={isNarrowViewport ? "touch" : "sm"}
+          onClick={handleUpgradeClick}
+          title={upgradeLabel}
+          aria-label={upgradeLabel}
+          className="shrink-0 whitespace-nowrap"
+        >
+          {t('subscription.upgradeNow', '开通 Pro')}
+        </Button>
       )}
     </div>
   );

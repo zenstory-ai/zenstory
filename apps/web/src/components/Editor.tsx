@@ -1019,9 +1019,10 @@ const EditorComponent: React.FC<EditorProps> = () => {
         error instanceof ApiError &&
         error.errorCode === "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
       ) {
-        toast.error(handleApiError(error));
         if (fileVersionUpgradePrompt.surface === "modal") {
           setShowFileVersionUpgradeModal(true);
+        } else {
+          toast.error(handleApiError(error));
         }
         return { outcome: "failed" };
       }
@@ -1116,9 +1117,10 @@ const EditorComponent: React.FC<EditorProps> = () => {
       claimAutoUpgradePrompt(currentUserId, fileVersionUpgradePrompt.source)
     ) {
       // 正文已保存，只是版本快照没生成——提示升级，不能报成保存失败。
-      toast.error(t('editor:saveVersionQuotaExceeded'));
       if (fileVersionUpgradePrompt.surface === "modal") {
         setShowFileVersionUpgradeModal(true);
+      } else {
+        toast.error(t('editor:saveVersionQuotaExceeded'));
       }
     }
 

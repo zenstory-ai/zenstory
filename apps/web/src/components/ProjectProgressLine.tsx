@@ -1,8 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { PenLine } from "lucide-react";
 import type { ProjectProgress } from "../types";
-import { toast } from "../lib/toast";
 
 interface ProjectProgressLineProps {
   progress: ProjectProgress | undefined;
@@ -36,24 +34,16 @@ export const ProjectProgressLine: React.FC<ProjectProgressLineProps> = ({ progre
   return (
     <div
       data-testid="project-progress"
-      className="mb-2 flex items-center gap-1 text-xs tabular-nums text-[hsl(var(--text-secondary))]"
+      className="flex min-w-0 items-center text-xs tabular-nums text-[hsl(var(--text-secondary))]"
     >
-      <PenLine className="w-3 h-3 shrink-0" />
       {progress.written_units > 0 ? (
-        // Same count as the editor: Chinese characters and English words, no punctuation.
-        // Phones have no hover, so a tap says it too (and does not open the project).
-        <button
-          type="button"
+        <span
           data-testid="project-progress-words"
-          onClick={(e) => {
-            e.stopPropagation();
-            toast.info(t("editor:wordCountHint"));
-          }}
           title={t("editor:wordCountHint")}
-          className="-my-2 min-w-0 cursor-help truncate py-2 text-left underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
+          className="min-w-0 truncate"
         >
           {label}
-        </button>
+        </span>
       ) : (
         <span className="truncate">{label}</span>
       )}

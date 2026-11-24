@@ -280,13 +280,14 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       }
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) {
-        toast.error(handleApiError(error));
         if (
           error instanceof ApiError &&
           error.errorCode === "ERR_QUOTA_PROJECTS_EXCEEDED" &&
           projectQuotaUpgradePrompt.surface === "modal"
         ) {
           setShowProjectQuotaUpgradeModal(true);
+        } else {
+          toast.error(handleApiError(error));
         }
       }
     }

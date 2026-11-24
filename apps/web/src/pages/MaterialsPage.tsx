@@ -411,6 +411,14 @@ export default function MaterialsPage() {
     }
   };
 
+  // Only show the header Pro button once loading finishes and when the page body does
+  // not already present a primary upgrade CTA (teaser without trial, or empty trial-used).
+  const showHeaderUpgrade =
+    !hasWorkspaceAccess &&
+    !isMaterialsLoading &&
+    !isMaterialsError &&
+    !((showTeaser && !trialAvailable) || (materials.length === 0 && trialUsed));
+
   return (
     <>
       {/* Header */}
@@ -440,19 +448,16 @@ export default function MaterialsPage() {
                   })
                 : t("materials:upload")}
             </Button>
-          ) : (
-            // The page body always carries the main call to action for a free author
-            // (free trial, "开通 Pro" or the trial banner), so the header keeps a quieter
-            // secondary entry: never two solid buttons competing on one screen.
+          ) : showHeaderUpgrade ? (
             <Button
-              variant="secondary"
+              variant="primary"
               size={actionSize}
               onClick={() => openUpgradePath("billing")}
               data-testid="materials-header-upgrade"
             >
               {proEntry.label}
             </Button>
-          )
+          ) : undefined
         }
       />
 
