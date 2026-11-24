@@ -11,6 +11,7 @@ ZPAY_NOTIFY_PATH = "/api/v1/payments/zpay/notify"
 CREEM_LIVE_API_BASE = "https://api.creem.io/v1"
 CREEM_TEST_API_BASE = "https://test-api.creem.io/v1"
 CREEM_WEBHOOK_PATH = "/api/v1/payments/creem/webhook"
+PAYMENT_RETURN_PATH = "/dashboard/billing/payment-return"
 CREEM_ALLOWED_CHECKOUT_HOSTS = frozenset({"creem.io", "www.creem.io"})
 CREEM_TEST_KEY_PREFIX = "creem_test_"
 CREEM_PRODUCT_ID_PREFIX = "prod_"
@@ -135,7 +136,15 @@ class CreemSettings:
 
     @property
     def return_url_valid(self) -> bool:
-        return _valid_callback_url(self.return_url)
+        return not self.return_url_problems()
+
+    def return_url_problems(self) -> list[str]:
+        """Why Creem could not return the buyer to the frontend PaymentReturnPage."""
+        if not _valid_callback_url(self.return_url):
+            return ["CREEM_RETURN_URL must be an https URL without query or credentials"]
+        if urlsplit(self.return_url).path != PAYMENT_RETURN_PATH:
+            return [f"CREEM_RETURN_URL path must be exactly {PAYMENT_RETURN_PATH}"]
+        return []
 
     def product_id_for_cycle(self, cycle: str) -> str | None:
         if cycle == "month":
@@ -165,8 +174,7 @@ class CreemSettings:
             and self.product_id_pro_month == self.product_id_pro_year
         ):
             problems.append("CREEM_PRODUCT_ID_PRO_MONTH and CREEM_PRODUCT_ID_PRO_YEAR must differ")
-        if not self.return_url_valid:
-            problems.append("CREEM_RETURN_URL must be an https URL without query or credentials")
+        problems.extend(self.return_url_problems())
         return problems
 
     @property
@@ -199,7 +207,7 @@ def _default_creem_return_url(frontend_url: str | None) -> str:
     if zpay_return:
         return zpay_return
     if frontend_url:
-        return f"{frontend_url.rstrip('/')}/dashboard/billing/return"
+        return f"{frontend_url.rstrip('/')}{PAYMENT_RETURN_PATH}"
     return ""
 
 
