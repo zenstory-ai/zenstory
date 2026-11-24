@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Index
+from sqlalchemy import Column, Index, String, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 from .utils import generate_uuid
@@ -15,11 +15,21 @@ class PaymentOrder(SQLModel, table=True):
     __table_args__ = (
         Index("ix_payment_order_created_at", "created_at"),
         Index("ix_payment_order_status_created_at", "status", "created_at"),
+        UniqueConstraint("provider", "trade_no", name="uq_payment_order_provider_trade_no"),
     )
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
+    provider: str = Field(
+        default="zpay",
+        sa_column=Column(String(16), nullable=False, server_default=text("'zpay'")),
+    )
+    currency: str = Field(
+        default="CNY",
+        sa_column=Column(String(8), nullable=False, server_default=text("'CNY'")),
+    )
     out_trade_no: str = Field(unique=True, index=True, max_length=32)
-    trade_no: str | None = Field(default=None, unique=True, index=True, max_length=64)
+    trade_no: str | None = Field(default=None, index=True, max_length=64)
+    provider_checkout_id: str | None = Field(default=None, index=True, max_length=64)
     user_id: str = Field(foreign_key="user.id", index=True)
     plan_name: str = Field(max_length=32)
     plan_display_name: str

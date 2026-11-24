@@ -507,10 +507,14 @@
     "failureReason": "异常原因",
     "details": "详情",
     "alipay": "支付宝",
+    "card": "银行卡 (USD)",
     "total": "共 {{count}} 笔订单",
     "status": {
       "pending": "待支付",
-      "paid": "已支付"
+      "paid": "已支付",
+      "refunded": "已退款",
+      "disputed": "争议/拒付",
+      "failed": "创建失败"
     },
     "fulfillment": {
       "pending": "待开通",

@@ -1,17 +1,19 @@
 """SQLite round-trip coverage for the payment order migration."""
 
+import json
 import os
 import shutil
 import subprocess
 import sys
+import uuid
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
-from sqlmodel import Session, SQLModel, select
+from sqlmodel import SQLModel
 
 import models  # noqa: F401
-from models.subscription import SubscriptionPlan
 
 SERVER_DIR = Path(__file__).resolve().parents[2]
 REVISION = "20261005_120000"
@@ -93,9 +95,33 @@ PRODUCTION_PRO_FEATURES = {
 
 
 def _pro_features(engine) -> dict:
-    with Session(engine) as session:
-        plan = session.exec(select(SubscriptionPlan).where(SubscriptionPlan.name == "pro")).one()
-        return dict(plan.features)
+    with engine.connect() as conn:
+        raw = conn.execute(
+            text("SELECT features FROM subscription_plan WHERE name = 'pro'")
+        ).scalar_one()
+        return json.loads(raw) if isinstance(raw, str) else dict(raw)
+
+
+def _insert_historical_plan(engine, *, name: str, display_name: str, monthly: int, yearly: int, features: dict) -> None:
+    now = datetime.utcnow().isoformat(sep=" ")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO subscription_plan "
+                "(id, name, display_name, price_monthly_cents, price_yearly_cents, features, is_active, created_at, updated_at) "
+                "VALUES (:id, :name, :display_name, :monthly, :yearly, :features, 1, :created_at, :updated_at)"
+            ),
+            {
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "display_name": display_name,
+                "monthly": monthly,
+                "yearly": yearly,
+                "features": json.dumps(features),
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
 
 
 @pytest.mark.integration
@@ -111,27 +137,22 @@ def test_upgrade_source_and_pro_backfill_round_trip(tmp_path: Path):
     engine = create_engine(db_url)
     columns = {column["name"] for column in inspect(engine).get_columns("payment_order")}
     assert "upgrade_source" not in columns
-    with Session(engine) as session:
-        session.add(
-            SubscriptionPlan(
-                name="pro",
-                display_name="专业版",
-                price_monthly_cents=4900,
-                price_yearly_cents=39900,
-                # An operator-set value must survive the backfill.
-                features={**PRODUCTION_PRO_FEATURES, "inspiration_copies_monthly": 250},
-            )
-        )
-        session.add(
-            SubscriptionPlan(
-                name="free",
-                display_name="免费试用",
-                price_monthly_cents=0,
-                price_yearly_cents=0,
-                features={"max_projects": 3},
-            )
-        )
-        session.commit()
+    _insert_historical_plan(
+        engine,
+        name="pro",
+        display_name="专业版",
+        monthly=4900,
+        yearly=39900,
+        features={**PRODUCTION_PRO_FEATURES, "inspiration_copies_monthly": 250},
+    )
+    _insert_historical_plan(
+        engine,
+        name="free",
+        display_name="免费试用",
+        monthly=0,
+        yearly=0,
+        features={"max_projects": 3},
+    )
     engine.dispose()
 
     _alembic(db_url, "upgrade", PRO_BACKFILL_REVISION)
@@ -145,9 +166,11 @@ def test_upgrade_source_and_pro_backfill_round_trip(tmp_path: Path):
         "custom_skills": 20,
         "inspiration_copies_monthly": 250,
     }
-    with Session(engine) as session:
-        free = session.exec(select(SubscriptionPlan).where(SubscriptionPlan.name == "free")).one()
-        assert free.features == {"max_projects": 3}
+    with engine.connect() as conn:
+        raw_free = conn.execute(
+            text("SELECT features FROM subscription_plan WHERE name = 'free'")
+        ).scalar_one()
+        assert (json.loads(raw_free) if isinstance(raw_free, str) else raw_free) == {"max_projects": 3}
     engine.dispose()
 
     # Freeze this round trip at the historical backfill. Later revisions may
@@ -160,4 +183,41 @@ def test_upgrade_source_and_pro_backfill_round_trip(tmp_path: Path):
     columns = {column["name"] for column in inspect(engine).get_columns("payment_order")}
     assert "upgrade_source" in columns
     assert _pro_features(engine) == upgraded
+    engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_multicurrency_creem_migration_round_trip(tmp_path: Path):
+    db_url = f"sqlite:///{tmp_path / 'creem-migration.db'}"
+    engine = create_engine(db_url)
+    SQLModel.metadata.create_all(engine)
+    engine.dispose()
+
+    _alembic(db_url, "stamp", "head")
+    _alembic(db_url, "downgrade", "20261122_000000")
+
+    engine = create_engine(db_url)
+    po_cols = {c["name"] for c in inspect(engine).get_columns("payment_order")}
+    plan_cols = {c["name"] for c in inspect(engine).get_columns("subscription_plan")}
+    assert "provider" not in po_cols
+    assert "currency" not in po_cols
+    assert "provider_checkout_id" not in po_cols
+    assert "price_monthly_usd_cents" not in plan_cols
+    _insert_historical_plan(
+        engine, name="pro", display_name="专业版", monthly=4900, yearly=39900, features=PRODUCTION_PRO_FEATURES
+    )
+    engine.dispose()
+
+    _alembic(db_url, "upgrade", "20261124_000000")
+    engine = create_engine(db_url)
+    po_cols = {c["name"] for c in inspect(engine).get_columns("payment_order")}
+    plan_cols = {c["name"] for c in inspect(engine).get_columns("subscription_plan")}
+    assert {"provider", "currency", "provider_checkout_id"} <= po_cols
+    assert {"price_monthly_usd_cents", "price_yearly_usd_cents"} <= plan_cols
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT price_monthly_usd_cents, price_yearly_usd_cents FROM subscription_plan WHERE name = 'pro'")
+        ).one()
+        assert tuple(row) == (999, 7900)
     engine.dispose()

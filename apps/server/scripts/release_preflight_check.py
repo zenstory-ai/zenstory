@@ -58,6 +58,33 @@ def _check_zpay_configuration() -> bool:
     )
 
 
+def creem_preflight_problems() -> list[str] | None:
+    """Creem problems for this environment, or None when checkout is disabled."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from config.payment_settings import get_creem_settings
+
+    settings = get_creem_settings()
+    if not settings.enabled:
+        return None
+    problems = settings.configuration_problems()
+    environment = os.getenv("ENVIRONMENT", "").strip().lower()
+    if environment == "production" and settings.test_mode:
+        problems.append("CREEM_TEST_MODE must be false in production")
+    return problems
+
+
+def _check_creem_configuration() -> bool:
+    problems = creem_preflight_problems()
+    if problems is None:
+        _print_result(True, "Creem checkout configuration", "disabled")
+        return True
+    return _print_result(
+        not problems,
+        "Creem checkout configuration",
+        "configured" if not problems else "; ".join(problems),
+    )
+
+
 STORAGE_REASON_HINTS = {
     "signature": "request signature rejected; the secret usually no longer matches the bucket credentials",
     "auth": "access denied or unknown access key; check the key id and bucket permissions",
@@ -272,6 +299,7 @@ def main() -> int:
     )
 
     all_ok &= _check_zpay_configuration()
+    all_ok &= _check_creem_configuration()
     all_ok &= _check_upload_storage(probe=args.probe_upload_storage, strict=args.strict)
 
     versions_dir = Path(__file__).resolve().parent.parent / "alembic" / "versions"

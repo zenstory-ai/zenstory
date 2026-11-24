@@ -31,6 +31,8 @@ export interface SubscriptionPlan {
   display_name_en?: string;
   price_monthly_cents: number;
   price_yearly_cents: number;
+  price_monthly_usd_cents?: number;
+  price_yearly_usd_cents?: number;
   features: SubscriptionFeatures;
   /** Admin plans only: the resolved entitlements users get (defaults filled, export formats normalized). */
   effective_features?: SubscriptionFeatures;
@@ -65,6 +67,8 @@ export interface SubscriptionCatalogTier {
   display_name_en?: string;
   price_monthly_cents: number;
   price_yearly_cents: number;
+  price_monthly_usd_cents?: number;
+  price_yearly_usd_cents?: number;
   recommended: boolean;
   summary_key: string;
   target_user_key: string;

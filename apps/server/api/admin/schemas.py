@@ -260,6 +260,8 @@ class AdminPlanResponse(BaseModel):
     display_name_en: str | None = None
     price_monthly_cents: int
     price_yearly_cents: int
+    price_monthly_usd_cents: int = 0
+    price_yearly_usd_cents: int = 0
     stripe_price_id_monthly: str | None = None
     stripe_price_id_yearly: str | None = None
     features: dict[str, Any]
@@ -275,6 +277,8 @@ class PlanUpdateRequest(BaseModel):
     display_name_en: str | None = None
     price_monthly_cents: Annotated[StrictInt, Field(ge=0)] | None = None
     price_yearly_cents: Annotated[StrictInt, Field(ge=0)] | None = None
+    price_monthly_usd_cents: Annotated[StrictInt, Field(ge=0)] | None = None
+    price_yearly_usd_cents: Annotated[StrictInt, Field(ge=0)] | None = None
     features: SubscriptionFeatures | None = None
     is_active: bool | None = None
 
@@ -511,6 +515,8 @@ class GrowthMetricsResponse(BaseModel):
     cohort_activation_rate: float | None
     paid_orders: int
     revenue_cents: int
+    revenue_usd_cents: int = 0
+    revenue_by_currency: dict[str, int] = Field(default_factory=dict)
     paid_users: int
     cohort_paid_users: int
     signup_to_paid_rate: float | None

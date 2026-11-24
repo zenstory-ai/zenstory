@@ -507,10 +507,14 @@
     "failureReason": "Failure reason",
     "details": "Details",
     "alipay": "Alipay",
+    "card": "Card (USD)",
     "total": "{{count}} orders",
     "status": {
       "pending": "Awaiting payment",
-      "paid": "Paid"
+      "paid": "Paid",
+      "refunded": "Refunded",
+      "disputed": "Disputed",
+      "failed": "Failed"
     },
     "fulfillment": {
       "pending": "Pending",

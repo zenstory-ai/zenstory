@@ -8,9 +8,10 @@ import { Button } from '../ui/Button'
 import { paymentApi, paymentQueryKeys } from '../../lib/paymentApi'
 import { ApiError } from '../../lib/apiClient'
 import { trackEvent } from '../../lib/analytics'
-import { formatYuan, getYearlySavings } from '../../lib/subscriptionEntitlements'
+import { formatCurrency, getYearlySavings } from '../../lib/subscriptionEntitlements'
 import { subscriptionApi } from '../../lib/subscriptionApi'
-import type { PaymentCycle, PaymentCheckout } from '../../types/payment'
+import { PRO_USD_PRICE_CENTS, usesUsdPricing } from '../../config/usdPricing'
+import type { PaymentCycle, PaymentCheckout, PaymentMethod } from '../../types/payment'
 
 // Codes whose errors: translation tells the buyer what to do next.
 const PAYMENT_ERROR_CODES = new Set([
@@ -44,8 +45,29 @@ function paymentErrorCode(cause: unknown): string | null {
 }
 
 const ZPAY_CHECKOUT_ACTION = 'https://zpayz.cn/submit.php'
+const CREEM_ALLOWED_HOSTS = new Set(['creem.io', 'www.creem.io'])
+
+function isAllowedCreemCheckoutUrl(action: string): boolean {
+  try {
+    const parsed = new URL(action)
+    return parsed.protocol === 'https:'
+      && CREEM_ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())
+      && !parsed.username
+      && !parsed.password
+  } catch {
+    return false
+  }
+}
 
 function submitPaymentCheckout(checkout: PaymentCheckout): void {
+  if (checkout.method === 'GET') {
+    if (!isAllowedCreemCheckoutUrl(checkout.action)) {
+      throw new Error('Invalid payment checkout destination')
+    }
+    window.location.assign(checkout.action)
+    return
+  }
+
   if (checkout.action !== ZPAY_CHECKOUT_ACTION || checkout.method !== 'POST') {
     throw new Error('Invalid payment checkout destination')
   }
@@ -77,6 +99,8 @@ interface PaymentCheckoutModalProps {
   initialCycle?: PaymentCycle
   monthlyPriceCents?: number
   yearlyPriceCents?: number
+  monthlyUsdPriceCents?: number
+  yearlyUsdPriceCents?: number
   /** Upgrade entry that led here; stored on the order for paid-conversion attribution. */
   upgradeSource?: string
   /** The buyer already has Pro: the purchase extends it, so say "renew". */
@@ -94,6 +118,8 @@ export function PaymentCheckoutModal({
   initialCycle = 'month',
   monthlyPriceCents,
   yearlyPriceCents,
+  monthlyUsdPriceCents,
+  yearlyUsdPriceCents,
   upgradeSource: rawUpgradeSource,
   isRenewal = false,
   redeemEntry = 'billing-page',
@@ -102,13 +128,15 @@ export function PaymentCheckoutModal({
     ? rawUpgradeSource
     : undefined
   const { t, i18n } = useTranslation(['dashboard', 'common', 'errors'])
+  const preferCard = usesUsdPricing(i18n.language)
   const { data: benefitCatalog, isPending: isCatalogPending } = useQuery({
     queryKey: ['public-subscription-catalog'],
     queryFn: () => subscriptionApi.getCatalog(),
     staleTime: 60_000,
     enabled: isOpen,
   })
-  const entitlements = benefitCatalog?.tiers.find(plan => plan.name === 'pro')?.entitlements
+  const proCatalog = benefitCatalog?.tiers.find(plan => plan.name === 'pro')
+  const entitlements = proCatalog?.entitlements
   const aiLimit = entitlements?.ai_conversations_per_day
   const projectLimit = entitlements?.active_projects_limit
   const materialLimit = entitlements?.material_decompositions_monthly
@@ -121,9 +149,10 @@ export function PaymentCheckoutModal({
       : typeof materialLimit === 'number' && materialLimit > 0 ? t('dashboard:billing.paymentMaterialsFinite', '每月 {{limit}} 次素材拆解', { limit: materialLimit }) : null,
   ].filter(Boolean)
   const [cycle, setCycle] = useState<PaymentCycle>(initialCycle)
+  const [selectedMethodOverride, setSelectedMethodOverride] = useState<PaymentMethod | null>(null)
   const [error, setError] = useState('')
-  // Set once the order exists and the form is submitted: until the browser has
-  // left the page another click would create a second order.
+  // Set once the order exists and the checkout redirect is triggered: until the
+  // browser has left the page another click would create a second order.
   const [redirecting, setRedirecting] = useState(false)
   const paymentUnavailableText = redeemEntry === 'on-page'
     ? t('dashboard:billing.paymentUnavailableOnPage', '暂时无法在线支付，请稍后重试。如需帮助，可在本页底部查看客服联系方式。')
@@ -146,11 +175,37 @@ export function PaymentCheckoutModal({
     retry: false,
   })
 
+  const availableMethods = optionsQuery.data?.enabled === true
+    ? optionsQuery.data.payment_methods.filter((m): m is PaymentMethod => m === 'alipay' || m === 'card')
+    : []
+  const defaultMethod: PaymentMethod = preferCard
+    ? (availableMethods.includes('card') ? 'card' : (availableMethods[0] ?? 'card'))
+    : (availableMethods.includes('alipay') ? 'alipay' : (availableMethods[0] ?? 'alipay'))
+  const paymentMethod: PaymentMethod =
+    selectedMethodOverride && availableMethods.includes(selectedMethodOverride)
+      ? selectedMethodOverride
+      : defaultMethod
+  const isCardSelected = paymentMethod === 'card'
+  const selectedCurrency = isCardSelected ? 'USD' : 'CNY'
+  const selectedProvider = isCardSelected ? 'creem' : 'zpay'
+
+  const resolvedMonthlyUsd = monthlyUsdPriceCents
+    ?? (proCatalog?.price_monthly_usd_cents && proCatalog.price_monthly_usd_cents > 0
+      ? proCatalog.price_monthly_usd_cents
+      : PRO_USD_PRICE_CENTS.month)
+  const resolvedYearlyUsd = yearlyUsdPriceCents
+    ?? (proCatalog?.price_yearly_usd_cents && proCatalog.price_yearly_usd_cents > 0
+      ? proCatalog.price_yearly_usd_cents
+      : PRO_USD_PRICE_CENTS.year)
+
+  const activeMonthlyCents = isCardSelected ? resolvedMonthlyUsd : monthlyPriceCents
+  const activeYearlyCents = isCardSelected ? resolvedYearlyUsd : yearlyPriceCents
+
   const createOrder = useMutation({
     mutationFn: () => paymentApi.createOrder({
       plan_name: 'pro',
       cycle,
-      payment_method: 'alipay',
+      payment_method: paymentMethod,
       ...(upgradeSource ? { upgrade_source: upgradeSource } : {}),
     }),
     onSuccess: ({ order, checkout }) => {
@@ -160,15 +215,29 @@ export function PaymentCheckoutModal({
         trackEvent('checkout_redirected', {
           cycle: order.cycle,
           out_trade_no: order.out_trade_no,
+          payment_method: paymentMethod,
+          provider: order.provider ?? selectedProvider,
+          currency: order.currency ?? selectedCurrency,
           upgrade_source: upgradeSource,
         })
       } catch {
-        setError(t('dashboard:billing.paymentInvalidCheckout', '无法跳转到支付宝，请刷新页面后重试'))
+        setError(
+          isCardSelected
+            ? t('dashboard:billing.paymentInvalidCheckoutCard', '无法跳转到支付页面，请刷新页面后重试')
+            : t('dashboard:billing.paymentInvalidCheckout', '无法跳转到支付宝，请刷新页面后重试'),
+        )
       }
     },
     onError: (cause: unknown) => {
       const code = paymentErrorCode(cause)
-      trackEvent('checkout_failed', { cycle, error_code: code ?? 'unknown', upgrade_source: upgradeSource })
+      trackEvent('checkout_failed', {
+        cycle,
+        payment_method: paymentMethod,
+        provider: selectedProvider,
+        currency: selectedCurrency,
+        error_code: code ?? 'unknown',
+        upgrade_source: upgradeSource,
+      })
       const fallback = t('dashboard:billing.paymentCreateFailed', '暂时无法创建订单，请稍后重试')
       if (code === VALIDATION_ERROR_CODE) {
         setError(t('dashboard:billing.paymentPageOutdated', '页面已更新，请刷新页面后重试'))
@@ -181,24 +250,30 @@ export function PaymentCheckoutModal({
     },
   })
   const isBusy = createOrder.isPending || redirecting
-  const yearlySavings = getYearlySavings(monthlyPriceCents, yearlyPriceCents)
-  const selectedPrice = cycle === 'month' ? monthlyPriceCents : yearlyPriceCents
+  const yearlySavings = getYearlySavings(activeMonthlyCents, activeYearlyCents)
+  const selectedPrice = cycle === 'month' ? activeMonthlyCents : activeYearlyCents
   const hasSelectedPrice = typeof selectedPrice === 'number' && Number.isSafeInteger(selectedPrice) && selectedPrice > 0
 
-  const alipayEnabled = optionsQuery.data?.enabled === true
-    && optionsQuery.data.payment_methods.includes('alipay')
-  const isUnavailable = optionsQuery.isError || (!optionsQuery.isLoading && !alipayEnabled)
+  const methodEnabled = availableMethods.includes(paymentMethod)
+  const isUnavailable = optionsQuery.isError || (!optionsQuery.isLoading && availableMethods.length === 0)
 
   const handlePay = () => {
-    if (!alipayEnabled || !hasSelectedPrice || isBusy) return
+    if (!methodEnabled || !hasSelectedPrice || isBusy) return
     setError('')
-    trackEvent('checkout_started', { cycle, upgrade_source: upgradeSource })
+    trackEvent('checkout_started', {
+      cycle,
+      payment_method: paymentMethod,
+      provider: selectedProvider,
+      currency: selectedCurrency,
+      upgrade_source: upgradeSource,
+    })
     createOrder.mutate()
   }
 
   const handleClose = () => {
     if (isBusy) return
     setCycle(initialCycle)
+    setSelectedMethodOverride(null)
     setError('')
     onClose()
   }
@@ -208,13 +283,17 @@ export function PaymentCheckoutModal({
       <Button size="touch" variant="secondary" onClick={handleClose} disabled={isBusy}>
         {t('common:cancel', '取消')}
       </Button>
-      <Button size="touch" onClick={handlePay} disabled={!alipayEnabled || !hasSelectedPrice || isBusy || optionsQuery.isLoading}>
+      <Button size="touch" onClick={handlePay} disabled={!methodEnabled || !hasSelectedPrice || isBusy || optionsQuery.isLoading}>
         {redirecting
-          ? t('dashboard:billing.paymentRedirecting', "正在前往支付宝…")
+          ? (isCardSelected
+            ? t('dashboard:billing.paymentRedirectingCard', '正在前往安全收银台…')
+            : t('dashboard:billing.paymentRedirecting', '正在前往支付宝…'))
           : createOrder.isPending
-          ? t('dashboard:billing.paymentCreating', "正在创建订单…")
+          ? t('dashboard:billing.paymentCreating', '正在创建订单…')
           : hasSelectedPrice
-          ? t('dashboard:billing.goToPayAmount', '去支付 {{price}}', { price: formatYuan(selectedPrice, i18n.language) })
+          ? t('dashboard:billing.goToPayAmount', '去支付 {{price}}', {
+              price: formatCurrency(selectedPrice, selectedCurrency, i18n.language),
+            })
           : t('dashboard:billing.goToPay', '去支付')}
       </Button>
     </>
@@ -239,7 +318,7 @@ export function PaymentCheckoutModal({
           <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '购买时长')}>
             {(['month', 'year'] as PaymentCycle[]).map((item) => {
               const selected = cycle === item
-              const itemPrice = item === 'month' ? monthlyPriceCents : yearlyPriceCents
+              const itemPrice = item === 'month' ? activeMonthlyCents : activeYearlyCents
               const savings = item === 'year' ? yearlySavings : null
               return (
                 <button
@@ -265,12 +344,14 @@ export function PaymentCheckoutModal({
                   </span>
                   {typeof itemPrice === 'number' && Number.isSafeInteger(itemPrice) && itemPrice > 0 && (
                     <span className="mt-1 block text-xl font-semibold text-[hsl(var(--text-primary))]">
-                      {formatYuan(itemPrice, i18n.language)}
+                      {formatCurrency(itemPrice, selectedCurrency, i18n.language)}
                     </span>
                   )}
                   {savings ? (
                     <span className="mt-0.5 block text-xs text-[hsl(var(--accent-primary))]">
-                      {t('dashboard:billing.yearlyEquivalent', '折合 {{price}}/月', { price: formatYuan(savings.monthlyEquivalent, i18n.language) })}
+                      {t('dashboard:billing.yearlyEquivalent', '折合 {{price}}/月', {
+                        price: formatCurrency(savings.monthlyEquivalent, selectedCurrency, i18n.language),
+                      })}
                     </span>
                   ) : (
                     item === 'month' && (
@@ -291,17 +372,61 @@ export function PaymentCheckoutModal({
           </div>
 
           <div className="rounded-xl border border-[hsl(var(--border-color))] p-3">
-            <div className="flex items-center gap-2 text-[hsl(var(--text-primary))]">
-              <CreditCard className="h-4 w-4 text-[#1677ff]" />
-              <span className="font-medium">{t('dashboard:billing.alipay', '支付宝')}</span>
-            </div>
+            {availableMethods.length > 1 ? (
+              <div
+                className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                role="radiogroup"
+                aria-label={t('dashboard:billing.paymentMethodLabel', '支付方式')}
+              >
+                {(preferCard ? (['card', 'alipay'] as PaymentMethod[]) : (['alipay', 'card'] as PaymentMethod[])).map((method) => {
+                  const selected = paymentMethod === method
+                  return (
+                    <button
+                      key={method}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={isBusy}
+                      onClick={() => {
+                        setSelectedMethodOverride(method)
+                        setError('')
+                      }}
+                      className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                        selected
+                          ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)] font-medium text-[hsl(var(--text-primary))]'
+                          : 'border-[hsl(var(--border-color))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <CreditCard className={`h-4 w-4 ${method === 'alipay' ? 'text-[#1677ff]' : 'text-[hsl(var(--accent-primary))]'}`} />
+                        <span>
+                          {method === 'card'
+                            ? t('dashboard:billing.cardUsd', '银行卡 (USD)')
+                            : t('dashboard:billing.alipayCny', '支付宝 (CNY)')}
+                        </span>
+                      </span>
+                      {selected && <Check className="h-4 w-4 shrink-0 text-[hsl(var(--accent-primary))]" />}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-[hsl(var(--text-primary))]">
+                <CreditCard className={`h-4 w-4 ${isCardSelected ? 'text-[hsl(var(--accent-primary))]' : 'text-[#1677ff]'}`} />
+                <span className="font-medium">
+                  {isCardSelected
+                    ? t('dashboard:billing.cardUsd', '银行卡 (USD)')
+                    : t('dashboard:billing.alipay', '支付宝')}
+                </span>
+              </div>
+            )}
             <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
               {t('dashboard:billing.paymentNoAutoRenew', '一次性付款，不会自动续费。到期前续费，时长会接在当前到期日之后。')}
             </p>
           </div>
 
           {optionsQuery.isLoading && (
-            <p role="status" className="text-sm text-[hsl(var(--text-secondary))]">{t('common:loading', "加载中…")}</p>
+            <p role="status" className="text-sm text-[hsl(var(--text-secondary))]">{t('common:loading', '加载中…')}</p>
           )}
           {!hasSelectedPrice && (
             <p role={isCatalogPending ? 'status' : 'alert'} className="text-sm text-[hsl(var(--text-secondary))]">

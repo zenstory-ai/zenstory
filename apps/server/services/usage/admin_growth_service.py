@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import case
 from sqlmodel import Session, func, select
 
 from config.datetime_utils import (
@@ -27,7 +28,7 @@ from services.usage.pricing import beijing_day_bucket_case
 
 GROWTH_DAYS = (7, 14, 30)
 GRANT_ACTIONS = ("created", "upgraded", "renewed")
-PAID_SOURCE = "zpay"
+PAID_SOURCES = frozenset({"zpay", "creem"})
 
 
 @dataclass(frozen=True)
@@ -130,12 +131,26 @@ def _metrics(
     paid_row = session.exec(
         select(
             func.count(PaymentOrder.id).label("orders"),
-            func.coalesce(func.sum(PaymentOrder.amount_cents), 0).label("revenue_cents"),
+            func.coalesce(
+                func.sum(case((PaymentOrder.currency == "CNY", PaymentOrder.amount_cents), else_=0)),
+                0,
+            ).label("revenue_cny_cents"),
+            func.coalesce(
+                func.sum(case((PaymentOrder.currency == "USD", PaymentOrder.amount_cents), else_=0)),
+                0,
+            ).label("revenue_usd_cents"),
             func.count(func.distinct(PaymentOrder.user_id)).label("users"),
         )
         .join(User, User.id == PaymentOrder.user_id)
         .where(*paid_conditions)
     ).one()
+    revenue_cny_cents = int(paid_row.revenue_cny_cents or 0)
+    revenue_usd_cents = int(paid_row.revenue_usd_cents or 0)
+    revenue_by_currency: dict[str, int] = {}
+    if revenue_cny_cents > 0:
+        revenue_by_currency["CNY"] = revenue_cny_cents
+    if revenue_usd_cents > 0:
+        revenue_by_currency["USD"] = revenue_usd_cents
 
     cohort_paid_users = int(
         session.exec(
@@ -170,7 +185,7 @@ def _metrics(
     grant_events = 0
     for record in grant_rows:
         channel = _grant_source(record)
-        if channel == PAID_SOURCE:
+        if channel in PAID_SOURCES:
             continue
         grant_events += 1
         grant_user_ids.add(record.user_id)
@@ -190,7 +205,9 @@ def _metrics(
         "cohort_activated_users": cohort_activated_users,
         "cohort_activation_rate": _rate(cohort_activated_users, new_users),
         "paid_orders": int(paid_row.orders or 0),
-        "revenue_cents": int(paid_row.revenue_cents or 0),
+        "revenue_cents": revenue_cny_cents,
+        "revenue_usd_cents": revenue_usd_cents,
+        "revenue_by_currency": revenue_by_currency,
         "paid_users": int(paid_row.users or 0),
         "cohort_paid_users": cohort_paid_users,
         "signup_to_paid_rate": _rate(cohort_paid_users, new_users),
@@ -216,6 +233,8 @@ def _empty_daily(day: date) -> dict[str, Any]:
         "cohort_activation_rate": None,
         "paid_orders": 0,
         "revenue_cents": 0,
+        "revenue_usd_cents": 0,
+        "revenue_by_currency": {},
         "paid_users": 0,
         "cohort_paid_users": 0,
         "signup_to_paid_rate": None,
@@ -295,7 +314,14 @@ def _daily(session: Session, current: GrowthPeriod, *, days: int) -> list[dict[s
         select(
             paid_day.label("day"),
             func.count(PaymentOrder.id).label("orders"),
-            func.coalesce(func.sum(PaymentOrder.amount_cents), 0).label("revenue_cents"),
+            func.coalesce(
+                func.sum(case((PaymentOrder.currency == "CNY", PaymentOrder.amount_cents), else_=0)),
+                0,
+            ).label("revenue_cny_cents"),
+            func.coalesce(
+                func.sum(case((PaymentOrder.currency == "USD", PaymentOrder.amount_cents), else_=0)),
+                0,
+            ).label("revenue_usd_cents"),
             func.count(func.distinct(PaymentOrder.user_id)).label("users"),
         )
         .join(User, User.id == PaymentOrder.user_id)
@@ -311,8 +337,15 @@ def _daily(session: Session, current: GrowthPeriod, *, days: int) -> list[dict[s
     for row in payment_rows:
         if row.day in by_day:
             entry = by_day[row.day]
+            cny = int(row.revenue_cny_cents or 0)
+            usd = int(row.revenue_usd_cents or 0)
             entry["paid_orders"] = int(row.orders or 0)
-            entry["revenue_cents"] = int(row.revenue_cents or 0)
+            entry["revenue_cents"] = cny
+            entry["revenue_usd_cents"] = usd
+            if cny > 0:
+                entry["revenue_by_currency"]["CNY"] = cny
+            if usd > 0:
+                entry["revenue_by_currency"]["USD"] = usd
             entry["paid_users"] = int(row.users or 0)
 
     cohort_payment_rows = session.exec(
@@ -360,7 +393,7 @@ def _daily(session: Session, current: GrowthPeriod, *, days: int) -> list[dict[s
             continue
         source = event_metadata.get("source") if isinstance(event_metadata, dict) else None
         channel = source.strip() if isinstance(source, str) and source.strip() else "other"
-        if channel == PAID_SOURCE:
+        if channel in PAID_SOURCES:
             continue
         entry["grant_upgrade_events"] += 1
         grant_users[local_day].add(user_id)
@@ -389,7 +422,7 @@ DEFINITIONS = {
     "cohort_activation_rate": "New-user cohort with a non-backfilled LLM usage event after signup, divided by new users; null when there are no signups.",
     "paid": "Payment orders with status=paid and paid_at in the period; pending, refunded, missing paid_at, and plan grants are excluded.",
     "signup_to_paid_rate": "Distinct new-user cohort members with a confirmed payment after signup, divided by new users; null when there are no signups.",
-    "grants": "Non-free subscription history events whose source is not zpay; shown separately from revenue.",
+    "grants": "Non-free subscription history events whose source is not a payment provider (zpay/creem); shown separately from revenue.",
 }
 
 

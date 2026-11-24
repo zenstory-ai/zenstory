@@ -208,7 +208,11 @@ class LoggingMiddleware:
     ) -> tuple[dict[str, Any], Receive]:
         """Prepare request logging info and a receive wrapper for optional body capture."""
         query_params = sanitize_query_params(request.query_params.multi_items())
-        if request.url.path == "/api/v1/payments/zpay/notify":
+        is_payment_callback = request.url.path in {
+            "/api/v1/payments/zpay/notify",
+            "/api/v1/payments/creem/webhook",
+        }
+        if is_payment_callback:
             query_params = "[redacted payment callback]"
 
         info = {
@@ -224,7 +228,7 @@ class LoggingMiddleware:
         async def passthrough_receive() -> Message:
             return await receive()
 
-        if LOG_REQUEST_BODY and request.method in ["POST", "PUT", "PATCH"]:
+        if LOG_REQUEST_BODY and not is_payment_callback and request.method in ["POST", "PUT", "PATCH"]:
             content_type = request.headers.get("content-type", "").lower()
             if self._should_skip_body_logging(content_type):
                 info["request_body"] = f"[Skipped body logging for content type: {content_type or 'unknown'}]"

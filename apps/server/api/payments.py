@@ -1,4 +1,4 @@
-"""User-facing Zpay checkout and payment notification endpoints."""
+"""User-facing Zpay & Creem checkout and payment notification endpoints."""
 
 import logging
 from datetime import datetime
@@ -9,11 +9,12 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlmodel import Session
 
-from config.payment_settings import get_payment_settings
+from config.payment_settings import get_creem_settings, get_payment_settings
 from database import get_session
 from middleware.rate_limit import check_rate_limit
 from models.entities import User
 from services.core.auth_service import get_current_active_user
+from services.subscription.creem_service import creem_service
 from services.subscription.zpay_service import (
     CallbackError,
     PaymentError,
@@ -38,6 +39,14 @@ ALERTING_CALLBACK_REASONS = frozenset({
     "duplicate_trade_no",
     "order_state_conflict",
     "fulfillment_failed",
+    "refund_processing_failed",
+    "mode_mismatch",
+    "not_configured",
+})
+TRANSIENT_WEBHOOK_REASONS = frozenset({
+    "fulfillment_failed",
+    "refund_processing_failed",
+    "processing",
     "not_configured",
 })
 PAYMENT_ERROR_CODES = {
@@ -59,12 +68,12 @@ def log_sync_failure(exc: PaymentSyncError, *, out_trade_no: str, actor: str) ->
     fields = {"reason": exc.reason, "out_trade_no": out_trade_no, "actor": actor}
     if exc.reason == "fulfillment_failed":
         logger.exception(
-            "Zpay order sync could not grant the subscription",
+            "Payment order sync could not grant the subscription",
             extra={"custom_fields": fields},
         )
         return
     level = logging.WARNING if exc.reason in SYNC_ERROR_STATUS else logging.ERROR
-    log_with_context(logger, level, "Zpay order sync failed", **fields)
+    log_with_context(logger, level, "Payment order sync failed", **fields)
 
 
 def sync_error_status(exc: PaymentSyncError) -> int:
@@ -73,7 +82,7 @@ def sync_error_status(exc: PaymentSyncError) -> int:
 
 class PaymentOptionsResponse(BaseModel):
     enabled: bool
-    payment_methods: list[Literal["alipay"]]
+    payment_methods: list[Literal["alipay", "card"]]
 
 
 class PaymentOrderCreateRequest(BaseModel):
@@ -82,7 +91,7 @@ class PaymentOrderCreateRequest(BaseModel):
 
     plan_name: Literal["pro"]
     cycle: Literal["month", "year"]
-    payment_method: Literal["alipay"]
+    payment_method: Literal["alipay", "card"]
     upgrade_source: str | None = Field(
         default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_:-]+$"
     )
@@ -92,6 +101,8 @@ class PaymentOrderResponse(BaseModel):
     # Columns are free-form strings in the DB (operators may hand-edit a row, e.g.
     # mark a refund); plain str keeps one odd row from failing a whole list.
     id: str
+    provider: str = "zpay"
+    currency: str = "CNY"
     out_trade_no: str
     trade_no: str | None
     user_id: str
@@ -111,7 +122,7 @@ class PaymentOrderResponse(BaseModel):
 
 class CheckoutResponse(BaseModel):
     action: str
-    method: Literal["POST"]
+    method: Literal["POST", "GET"]
     fields: dict[str, str]
 
 
@@ -122,8 +133,17 @@ class PaymentOrderCreateResponse(BaseModel):
 
 @router.get("/options", response_model=PaymentOptionsResponse)
 def get_payment_options():
-    enabled = get_payment_settings().checkout_enabled
-    return {"enabled": enabled, "payment_methods": ["alipay"] if enabled else []}
+    zpay_enabled = get_payment_settings().checkout_enabled
+    creem_enabled = get_creem_settings().checkout_enabled
+    payment_methods: list[Literal["alipay", "card"]] = []
+    if zpay_enabled:
+        payment_methods.append("alipay")
+    if creem_enabled:
+        payment_methods.append("card")
+    return {
+        "enabled": bool(payment_methods),
+        "payment_methods": payment_methods,
+    }
 
 
 @router.post("/orders", response_model=PaymentOrderCreateResponse)
@@ -146,15 +166,27 @@ def create_payment_order(
             detail="ERR_PAYMENT_RATE_LIMITED",
         )
     try:
-        order, checkout = zpay_service.create_order(
-            session,
-            user_id=current_user.id,
-            plan_name=payload.plan_name,
-            cycle=payload.cycle,
-            payment_method=payload.payment_method,
-            settings=get_payment_settings(),
-            upgrade_source=payload.upgrade_source,
-        )
+        if payload.payment_method == "card":
+            order, checkout = creem_service.create_order(
+                session,
+                user_id=current_user.id,
+                user_email=current_user.email,
+                plan_name=payload.plan_name,
+                cycle=payload.cycle,
+                payment_method=payload.payment_method,
+                settings=get_creem_settings(),
+                upgrade_source=payload.upgrade_source,
+            )
+        else:
+            order, checkout = zpay_service.create_order(
+                session,
+                user_id=current_user.id,
+                plan_name=payload.plan_name,
+                cycle=payload.cycle,
+                payment_method=payload.payment_method,
+                settings=get_payment_settings(),
+                upgrade_source=payload.upgrade_source,
+            )
     except PaymentError as exc:
         unavailable = str(exc) == "Online payment is unavailable"
         raise HTTPException(
@@ -193,7 +225,7 @@ def sync_payment_order(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
 ):
-    """Ask Zpay whether the caller's own order was paid and settle it if so."""
+    """Ask the order's payment provider whether it was paid and settle it if so."""
     allowed, _remaining = check_rate_limit(
         request,
         f"payment_order_sync:{current_user.id}",
@@ -209,7 +241,10 @@ def sync_payment_order(
     order = _get_own_order_or_404(session, current_user, out_trade_no)
     order_id = order.id
     try:
-        zpay_service.sync_order(session, order, get_payment_settings())
+        if order.provider == "creem":
+            creem_service.sync_order(session, order, get_creem_settings())
+        else:
+            zpay_service.sync_order(session, order, get_payment_settings())
     except PaymentSyncError as exc:
         log_sync_failure(exc, out_trade_no=out_trade_no, actor="user")
         raise HTTPException(
@@ -244,3 +279,36 @@ def zpay_notify(request: Request, session: Session = Depends(get_session)):
         _log_callback_rejection(exc, params)
         return PlainTextResponse("fail")
     return PlainTextResponse("success" if success else "fail")
+
+
+@router.post("/creem/webhook")
+async def creem_webhook(request: Request, session: Session = Depends(get_session)):
+    raw_body = await request.body()
+    signature = request.headers.get("creem-signature")
+    try:
+        return creem_service.handle_webhook(
+            session,
+            raw_body=raw_body,
+            signature=signature,
+            settings=get_creem_settings(),
+        )
+    except CallbackError as exc:
+        level = logging.ERROR if exc.reason in ALERTING_CALLBACK_REASONS else logging.WARNING
+        if exc.reason in {"fulfillment_failed", "refund_processing_failed"}:
+            logger.exception(
+                "Creem webhook processing failed",
+                extra={"custom_fields": {"reason": exc.reason}},
+            )
+        else:
+            log_with_context(logger, level, "Creem webhook rejected", reason=exc.reason)
+        if exc.reason == "invalid_signature":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_signature"
+            ) from None
+        if exc.reason in TRANSIENT_WEBHOOK_REASONS:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="webhook_retry"
+            ) from None
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="webhook_rejected"
+        ) from None
