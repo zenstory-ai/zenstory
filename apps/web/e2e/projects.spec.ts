@@ -294,8 +294,10 @@ test.describe('Projects', () => {
         .first()
     ).toBeVisible()
 
-    // Check for timestamp (clock icon)
-    await expect(ownedProjectCard.locator('svg.lucide-clock')).toBeVisible()
+    // Check for relative timestamp in the card footer
+    const timestamp = ownedProjectCard.getByTestId('project-card-footer').locator('span').last()
+    await expect(timestamp).toBeVisible()
+    await expect(timestamp).not.toHaveText('')
   })
 
   test('recent projects section shows project count', async ({ page }) => {
