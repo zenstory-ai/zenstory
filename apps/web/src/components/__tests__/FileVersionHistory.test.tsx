@@ -530,7 +530,11 @@ describe('FileVersionHistory current-text marker and restore confirmation', () =
     fireEvent.keyDown(row, { key: 'Enter' })
 
     expect(await screen.findByText('selectedVersions')).toBeInTheDocument()
+    expect(screen.getByText(/selectOneMoreToCompare/)).toBeInTheDocument()
     expect(row.isConnected).toBe(true)
     expect(document.activeElement).toBe(row)
+
+    fireEvent.click(screen.getByRole('button', { name: 'clearSelection' }))
+    expect(screen.queryByText('selectedVersions')).not.toBeInTheDocument()
   })
 })

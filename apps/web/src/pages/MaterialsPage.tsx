@@ -13,6 +13,7 @@ import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
 import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
+import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { Modal } from "../components/ui/Modal";
 import { Button } from "../components/ui/Button";
 import { IconButton } from "../components/ui/IconButton";
@@ -57,6 +58,7 @@ export default function MaterialsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Upload modal state
   const [file, setFile] = useState<File | null>(null);
@@ -428,6 +430,7 @@ export default function MaterialsPage() {
               size={actionSize}
               onClick={() => setShowUploadModal(true)}
               disabled={isMaterialsQuotaExhausted}
+              title={isMaterialsQuotaExhausted ? exhaustedMessage : undefined}
               leftIcon={<Upload className="w-4 h-4" />}
             >
               {isMaterialsQuotaExhausted
@@ -671,27 +674,67 @@ export default function MaterialsPage() {
               )}
             </div>
           )}
-          <div className={`grid gap-3.5 ${isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"}`}>
-            {materials.map((material) => (
-              <MaterialCard
-                key={material.id}
-                material={material}
-                onClick={() => handleCardClick(material.id)}
-                onDelete={() => setDeletingId(material.id)}
-                onExport={() => handleExport(material)}
-                isExporting={exportingId === material.id}
-                onRetry={
-                  // Retrying charges a monthly breakdown: the free trial cannot retry.
-                  !hasWorkspaceAccess || isMaterialsQuotaExhausted
-                    ? undefined
-                    : () => handleRetry(material.id)
-                }
-                isRetrying={retryingId === material.id}
-                isMobile={isMobile}
-                showDeleteAction={showDeleteAction}
-              />
-            ))}
-          </div>
+          {materials.length >= 2 && (
+            <DashboardSearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder={t("materials:searchPlaceholder", { defaultValue: "搜索素材" })}
+              className="max-w-md"
+              inputTestId="materials-search-input"
+            />
+          )}
+          {(() => {
+            const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
+            const filteredMaterials = normalizedSearch
+              ? materials.filter(
+                  (material) =>
+                    material.title.toLocaleLowerCase().includes(normalizedSearch) ||
+                    (material.original_filename?.toLocaleLowerCase().includes(normalizedSearch) ?? false),
+                )
+              : materials;
+            if (filteredMaterials.length === 0 && normalizedSearch) {
+              return (
+                <DashboardEmptyState
+                  icon={BookOpen}
+                  title={t("materials:noSearchResults", {
+                    defaultValue: "没有找到匹配的素材，换个关键词试试",
+                  })}
+                  action={
+                    <Button
+                      variant="secondary"
+                      size={actionSize}
+                      onClick={() => setSearchQuery("")}
+                    >
+                      {t("common:clearSearch", { defaultValue: "清空搜索" })}
+                    </Button>
+                  }
+                />
+              );
+            }
+            return (
+              <div className={`grid gap-3.5 ${isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"}`}>
+                {filteredMaterials.map((material) => (
+                  <MaterialCard
+                    key={material.id}
+                    material={material}
+                    onClick={() => handleCardClick(material.id)}
+                    onDelete={() => setDeletingId(material.id)}
+                    onExport={() => handleExport(material)}
+                    isExporting={exportingId === material.id}
+                    onRetry={
+                      // Retrying charges a monthly breakdown: the free trial cannot retry.
+                      !hasWorkspaceAccess || isMaterialsQuotaExhausted
+                        ? undefined
+                        : () => handleRetry(material.id)
+                    }
+                    isRetrying={retryingId === material.id}
+                    isMobile={isMobile}
+                    showDeleteAction={showDeleteAction}
+                  />
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -735,6 +778,7 @@ export default function MaterialsPage() {
               size="touch"
               onClick={handleUpload}
               disabled={!file || uploading}
+              title={!file && !uploading ? t("materials:uploadModal.selectFileFirst", { defaultValue: "请先选择一个 .txt 文件" }) : undefined}
               isLoading={uploading}
               loadingText={t("materials:uploadModal.uploading")}
               leftIcon={<Upload className="w-4 h-4" />}

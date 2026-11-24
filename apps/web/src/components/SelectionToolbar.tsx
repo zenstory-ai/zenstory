@@ -14,9 +14,15 @@ interface SelectionToolbarProps {
   position: { x: number; y: number };
   /** 添加引用回调 */
   onAdd: () => void;
-  /** 关闭回调 */
-  onClose: () => void;
+  /** 关闭回调（restoreFocus=true 表示通过 Escape 从工具栏内部退回编辑器） */
+  onClose: (restoreFocus?: boolean) => void;
 }
+
+const isAppleShortcutPlatform = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  const uaDataPlatform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
+  return /mac|iphone|ipad|ipod/i.test(uaDataPlatform || navigator.platform || '');
+};
 
 function clampToolbarPosition(
   position: { x: number; y: number },
@@ -84,11 +90,16 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
     };
   }, [onClose]);
 
-  // 处理 Escape 键关闭
+  // 处理 Escape 键关闭（不滚动页面、不打断光标，若焦点在工具栏内则温和交还给编辑器）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        e.preventDefault();
+        e.stopPropagation();
+        const hadToolbarFocus = Boolean(
+          toolbarRef.current && toolbarRef.current.contains(document.activeElement),
+        );
+        onClose(hadToolbarFocus);
       }
     };
 
@@ -105,10 +116,13 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
   if (!text) return null;
 
   const clamped = clampToolbarPosition(position, measuredSize.width, measuredSize.height);
+  const shortcutLabel = isAppleShortcutPlatform() ? '⌘⇧Q' : 'Ctrl+Shift+Q';
 
   return createPortal(
     <div
       ref={toolbarRef}
+      role="toolbar"
+      aria-label={t('input.addToContext')}
       className="fixed z-50 animate-in fade-in zoom-in-95 duration-150"
       style={{
         left: clamped.x,
@@ -121,7 +135,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
           type="button"
           onClick={handleAdd}
           className="max-md:min-h-11 flex items-center gap-1.5 px-2.5 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
-          title={t('input.addToContext')}
+          title={`${t('input.addToContext')} (${shortcutLabel})`}
         >
           <Quote size={14} />
           <span>{t('input.addToContext')}</span>

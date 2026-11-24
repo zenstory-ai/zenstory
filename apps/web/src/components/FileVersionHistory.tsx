@@ -457,21 +457,38 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       {/* Selection actions */}
       {selectedVersions.length > 0 && (
       <div className="px-4 py-2 shrink-0 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-[hsl(var(--accent-primary))]">
-          {t('selectedVersions', { count: selectedVersions.length })}
-        </span>
-        {selectedVersions.length === 2 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-medium text-[hsl(var(--accent-primary))]">
+            {t('selectedVersions', { count: selectedVersions.length })}
+          </span>
+          {selectedVersions.length === 1 && (
+            <span className="text-[hsl(var(--text-secondary))]">
+              · {t('selectOneMoreToCompare', { defaultValue: '再选 1 个版本即可对比' })}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
           <Button
             type="button"
-            variant="primary"
+            variant="ghost"
             size={isMobile ? 'touch' : 'sm'}
-            onClick={handleCompare}
-            disabled={isComparing}
-            leftIcon={<GitCompare size={14} />}
+            onClick={() => setSelectedVersions([])}
           >
-            {isComparing ? t('comparing') : t('compare')}
+            {t('clearSelection', { defaultValue: '取消选择' })}
           </Button>
-        )}
+          {selectedVersions.length === 2 && (
+            <Button
+              type="button"
+              variant="primary"
+              size={isMobile ? 'touch' : 'sm'}
+              onClick={handleCompare}
+              disabled={isComparing}
+              leftIcon={<GitCompare size={14} />}
+            >
+              {isComparing ? t('comparing') : t('compare')}
+            </Button>
+          )}
+        </div>
       </div>
       )}
 

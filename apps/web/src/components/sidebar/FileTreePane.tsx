@@ -387,6 +387,7 @@ export const FileTreePane: React.FC = () => {
             {/* Add to chat button for snippets (materials) */}
             {node.file_type === "snippet" && (
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isMaterialAttached(node.id)) {
@@ -410,9 +411,15 @@ export const FileTreePane: React.FC = () => {
               </button>
             )}
 
+            {/* Hairline separator before destructive delete when sibling action exists */}
+            {node.file_type === "snippet" && (
+              <span aria-hidden="true" className="mx-0.5 h-3.5 w-px bg-[hsl(var(--separator-color))]" />
+            )}
+
             {/* Delete button (not for root folders) */}
             {!isFolder && (
               <button
+                type="button"
                 onClick={(e) => handleDelete(e, node.id, node.title)}
                 className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))]"
                 title={t('common:delete')}

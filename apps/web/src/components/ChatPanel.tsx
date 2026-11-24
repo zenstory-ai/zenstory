@@ -1658,6 +1658,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         return null;
       }
       setMessages([]);
+      shouldAutoScrollRef.current = true;
+      setShowJumpToLatest(false);
       setFeedbackPendingMessageId(null);
       setSessionRecoveryError(projectId);
       setSuggestionDisplayState("ready");
@@ -1716,6 +1718,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     // Reset chat UI state
     setMessages([]);
+    shouldAutoScrollRef.current = true;
+    setShowJumpToLatest(false);
     setFeedbackPendingMessageId(null);
     setEditProgress(null);
     // 旧项目的流式渲染残留（半截正文/工具卡片/技能芯片/冲突）不能带进新项目会话：
@@ -1792,6 +1796,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       shouldAutoScrollRef.current = nearBottom;
       if (nearBottom) {
         setShowJumpToLatest(false);
+      } else if (
+        messagesRef.current.length > 0 &&
+        scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight > 120
+      ) {
+        setShowJumpToLatest(true);
       }
     };
 
@@ -2403,6 +2412,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       historyRequestSeqRef.current += 1;
       setIsLoadingHistory(false);
       setMessages([]);
+      shouldAutoScrollRef.current = true;
+      setShowJumpToLatest(false);
       setFeedbackPendingMessageId(null);
       clearStreamItems();
       setMatchedSkills([]);

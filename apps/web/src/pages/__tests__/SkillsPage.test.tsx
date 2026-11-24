@@ -1107,6 +1107,10 @@ describe('SkillsPage', () => {
 
       expect(await screen.findByText('No skills found')).toBeInTheDocument()
       expect(screen.queryByText('noDiscoverableSkills')).not.toBeInTheDocument()
+
+      // One-click reset restores empty search & category filters immediately
+      await userEvent.click(screen.getByRole('button', { name: 'skills:clearFilters' }))
+      expect(screen.getByTestId('public-skill-search')).toHaveValue('')
     })
 
     it('debounces the discover search and waits for IME composition to end', async () => {

@@ -864,4 +864,49 @@ describe("MaterialsPage", () => {
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByRole("button", { name: "重试" })).toBeInTheDocument();
   });
+
+  it("shows search bar progressively for 2+ materials with 0-result clear recovery and explains disabled upload submit", async () => {
+    mockList.mockResolvedValueOnce([
+      {
+        id: "201",
+        title: "凡人修仙传",
+        original_filename: "fanren.txt",
+        status: "completed",
+        chapters_count: 12,
+        created_at: "2026-11-01T00:00:00Z",
+        updated_at: "2026-11-01T00:00:00Z",
+      },
+      {
+        id: "202",
+        title: "诡秘之主",
+        original_filename: "lotm.txt",
+        status: "completed",
+        chapters_count: 8,
+        created_at: "2026-11-02T00:00:00Z",
+        updated_at: "2026-11-02T00:00:00Z",
+      },
+    ]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+    expect(await screen.findByText("凡人修仙传")).toBeInTheDocument();
+
+    const search = screen.getByTestId("materials-search-input");
+    fireEvent.change(search, { target: { value: "诡秘" } });
+    expect(screen.getByText("诡秘之主")).toBeInTheDocument();
+    expect(screen.queryByText("凡人修仙传")).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "不存在的书" } });
+    expect(screen.getByText("没有找到匹配的素材，换个关键词试试")).toBeInTheDocument();
+
+    const clearButtons = screen.getAllByRole("button", { name: "清空搜索" });
+    fireEvent.click(clearButtons[clearButtons.length - 1]);
+    expect(search).toHaveValue("");
+    expect(screen.getByText("凡人修仙传")).toBeInTheDocument();
+
+    // Upload modal submit explains why it is disabled before a file is picked
+    fireEvent.click(screen.getByRole("button", { name: "materials:upload" }));
+    const submitBtn = screen.getByRole("button", { name: "materials:uploadModal.upload" });
+    expect(submitBtn).toBeDisabled();
+    expect(submitBtn).toHaveAttribute("title", "请先选择一个 .txt 文件");
+  });
 });

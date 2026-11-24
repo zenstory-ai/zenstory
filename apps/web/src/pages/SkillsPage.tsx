@@ -628,6 +628,11 @@ export default function SkillsPage() {
           searchQuery={searchInput}
           appliedSearchQuery={searchQuery}
           setSearchQuery={setSearchInput}
+          onResetFilters={() => {
+            setSearchInput("");
+            setSearchQuery("");
+            setSelectedCategory("");
+          }}
           onSearchCompositionChange={setIsSearchComposing}
           loading={discoverLoading}
           hasError={discoverError}
@@ -669,6 +674,11 @@ export default function SkillsPage() {
               size="touch"
               onClick={handleSave}
               disabled={saving || !formData.name.trim() || !formData.instructions.trim()}
+              title={
+                !saving && (!formData.name.trim() || !formData.instructions.trim())
+                  ? t("skills:form.requiredFieldsHint")
+                  : undefined
+              }
               isLoading={saving}
               leftIcon={<Check className="w-4 h-4" />}
               className="flex-1"
@@ -815,7 +825,9 @@ export default function SkillsPage() {
       {/* Batch Delete Confirmation */}
       <ConfirmDialog
         open={batchDeleting}
-        onClose={() => setBatchDeleting(false)}
+        onClose={() => {
+          if (!batchOperating) setBatchDeleting(false);
+        }}
         onConfirm={handleConfirmBatchDelete}
         title={t("skills:batch.deleteConfirmTitle")}
         message={t("skills:batch.deleteConfirmMessage", { count: selectedSkillIds.size })}
@@ -1151,7 +1163,11 @@ function MySkillsContent({
             title={searchQuery ? t("noSearchResults") : t("noUserSkills")}
             description={searchQuery ? undefined : t("noUserSkillsHint")}
             action={
-              !searchQuery && (
+              searchQuery ? (
+                <Button variant="secondary" size={isMobile ? "touch" : "sm"} onClick={() => setSearchQuery("")}>
+                  {t("common:clearSearch")}
+                </Button>
+              ) : (
                 <Button size={isMobile ? "touch" : "md"} onClick={onCreate}>
                   {t("createFirst")}
                 </Button>
@@ -1197,7 +1213,11 @@ function MySkillsContent({
             icon={Search}
             title={searchQuery ? t("noSearchResults") : t("noAddedSkills")}
             action={
-              !searchQuery && (
+              searchQuery ? (
+                <Button variant="secondary" size={isMobile ? "touch" : "sm"} onClick={() => setSearchQuery("")}>
+                  {t("common:clearSearch")}
+                </Button>
+              ) : (
                 <Button variant="secondary" size={isMobile ? "touch" : "md"} onClick={onSwitchToDiscover}>
                   {t("browsePublic")}
                 </Button>
@@ -1257,6 +1277,12 @@ function AddedSkillCard({
       data-testid="skill-card-actions"
       className={isMobile ? "mt-2 flex items-center justify-end gap-1" : "flex items-center gap-1 shrink-0"}
     >
+      {onExport && !hidden && (
+        <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
+      )}
+      {onExport && !hidden && (
+        <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[hsl(var(--separator-color))]" />
+      )}
       <IconButton
         onClick={onRemove}
         disabled={removing}
@@ -1270,9 +1296,6 @@ function AddedSkillCard({
           )
         }
       />
-      {onExport && !hidden && (
-        <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
-      )}
       {!hidden && Boolean(skill.instructions.trim()) && <IconButton
         onClick={() => setExpanded(!expanded)}
         label={expanded ? t("skills:collapse") : t("skills:expand")}
@@ -1394,6 +1417,7 @@ function DiscoverContent({
   searchQuery,
   appliedSearchQuery,
   setSearchQuery,
+  onResetFilters,
   onSearchCompositionChange,
   loading,
   hasError,
@@ -1417,6 +1441,7 @@ function DiscoverContent({
   /** The debounced query the current results were loaded with. */
   appliedSearchQuery: string;
   setSearchQuery: (q: string) => void;
+  onResetFilters: () => void;
   onSearchCompositionChange: (composing: boolean) => void;
   loading: boolean;
   hasError: boolean;
@@ -1493,6 +1518,11 @@ function DiscoverContent({
           <DashboardEmptyState
             icon={Compass}
             title={t("noSkillsFound")}
+            action={
+              <Button variant="secondary" size={isMobile ? "touch" : "md"} onClick={onResetFilters}>
+                {t("skills:clearFilters")}
+              </Button>
+            }
           />
         ) : (
           // Nothing was searched: the library itself is empty, not a failed search.

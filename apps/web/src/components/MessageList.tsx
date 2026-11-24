@@ -14,11 +14,12 @@
  *
  * @module components/MessageList
  */
-import React, { useMemo, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import type { TFunction } from 'i18next';
 import type { StreamRenderItem } from '../hooks/useChatStreaming';
 import { useTranslation } from 'react-i18next';
-import { User, Sparkles, Bot, AlertTriangle, CirclePause, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { User, Sparkles, Bot, AlertTriangle, CirclePause, ThumbsUp, ThumbsDown, Copy, Check } from 'lucide-react';
+import { toast } from '../lib/toast';
 import { LazyMarkdown } from './LazyMarkdown';
 import { ToolResultCard } from './ToolResultCard';
 import { Badge, type BadgeProps } from './ui/Badge';
@@ -789,6 +790,41 @@ const Row = React.memo(function Row({
   const selectedFeedbackVote = message.feedback?.vote;
   const isFeedbackDisabled = isFeedbackPending || !canSubmitFeedback;
 
+  const copyableText = useMemo(() => {
+    if (message.role !== 'assistant') return '';
+    if (hasDisplayItems && orderedDisplayItems) {
+      return orderedDisplayItems
+        .filter((item): item is StreamRenderItem & { content: string } => item.type === 'content' && Boolean(item.content))
+        .map((item) => stripThinkTags(item.content).trim())
+        .filter(Boolean)
+        .join('\n\n');
+    }
+    return displayContent ? displayContent.trim() : '';
+  }, [message.role, hasDisplayItems, orderedDisplayItems, displayContent]);
+
+  const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
+  const handleCopyReply = useCallback(async () => {
+    if (!copyableText) return;
+    try {
+      await navigator.clipboard.writeText(copyableText);
+      setCopied(true);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => {
+        copyTimerRef.current = null;
+        setCopied(false);
+      }, 2000);
+    } catch {
+      toast.error(t('copyFailed', { ns: 'common', defaultValue: '复制失败，请手动复制' }));
+    }
+  }, [copyableText, t]);
+
   // Check if this is a consecutive message from the same role
   const isConsecutiveSameRole = previousRole === message.role;
   const isLastInRoleGroup = nextRole !== message.role;
@@ -914,52 +950,81 @@ const Row = React.memo(function Row({
           </div>
         )}
 
-        {shouldShowFeedbackActions && (
+        {(shouldShowFeedbackActions || Boolean(copyableText)) && (
           <div className="mt-2 flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                if (!canSubmitFeedback) return;
-                void onSubmitFeedback?.(message, 'up');
-              }}
-              disabled={isFeedbackDisabled}
-              aria-pressed={selectedFeedbackVote === 'up'}
-              aria-label={t('feedback.like', { ns: 'chat' })}
-              title={!canSubmitFeedback
-                ? t('feedback.pendingSave', { ns: 'chat' })
-                : undefined}
-              className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
-                selectedFeedbackVote === 'up'
-                  ? 'border-[hsl(var(--success)/0.45)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
-                  : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
-              } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
-            >
-              <ThumbsUp size={14} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!canSubmitFeedback) return;
-                void onSubmitFeedback?.(message, 'down');
-              }}
-              disabled={isFeedbackDisabled}
-              aria-pressed={selectedFeedbackVote === 'down'}
-              aria-label={t('feedback.dislike', { ns: 'chat' })}
-              title={!canSubmitFeedback
-                ? t('feedback.pendingSave', { ns: 'chat' })
-                : undefined}
-              className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
-                selectedFeedbackVote === 'down'
-                  ? 'border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]'
-                  : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
-              } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
-            >
-              <ThumbsDown size={14} />
-            </button>
-            {!canSubmitFeedback && (
-              <span className="text-xs text-[hsl(var(--text-secondary))]">
-                {t('feedback.pendingSave', { ns: 'chat' })}
-              </span>
+            {copyableText && (
+              <>
+                <button
+                  type="button"
+                  data-testid="copy-message-button"
+                  onClick={() => { void handleCopyReply(); }}
+                  aria-label={copied
+                    ? t('message.copiedReply', { ns: 'chat', defaultValue: '已复制' })
+                    : t('message.copyReply', { ns: 'chat', defaultValue: '复制回复' })}
+                  title={copied
+                    ? t('message.copiedReply', { ns: 'chat', defaultValue: '已复制' })
+                    : t('message.copyReply', { ns: 'chat', defaultValue: '复制回复' })}
+                  className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
+                    copied
+                      ? 'border-[hsl(var(--success)/0.45)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
+                      : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
+                  }`}
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+                <span role="status" aria-live="polite" className="sr-only">
+                  {copied ? t('message.copiedReply', { ns: 'chat', defaultValue: '已复制' }) : ''}
+                </span>
+              </>
+            )}
+            {shouldShowFeedbackActions && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canSubmitFeedback) return;
+                    void onSubmitFeedback?.(message, 'up');
+                  }}
+                  disabled={isFeedbackDisabled}
+                  aria-pressed={selectedFeedbackVote === 'up'}
+                  aria-label={t('feedback.like', { ns: 'chat' })}
+                  title={!canSubmitFeedback
+                    ? t('feedback.pendingSave', { ns: 'chat' })
+                    : t('feedback.like', { ns: 'chat' })}
+                  className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
+                    selectedFeedbackVote === 'up'
+                      ? 'border-[hsl(var(--success)/0.45)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
+                      : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
+                  } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
+                >
+                  <ThumbsUp size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canSubmitFeedback) return;
+                    void onSubmitFeedback?.(message, 'down');
+                  }}
+                  disabled={isFeedbackDisabled}
+                  aria-pressed={selectedFeedbackVote === 'down'}
+                  aria-label={t('feedback.dislike', { ns: 'chat' })}
+                  title={!canSubmitFeedback
+                    ? t('feedback.pendingSave', { ns: 'chat' })
+                    : t('feedback.dislike', { ns: 'chat' })}
+                  className={`inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-11 h-11 md:w-8 md:h-8 ${
+                    selectedFeedbackVote === 'down'
+                      ? 'border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]'
+                      : 'border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
+                  } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
+                >
+                  <ThumbsDown size={14} />
+                </button>
+                {!canSubmitFeedback && (
+                  <span className="text-xs text-[hsl(var(--text-secondary))]">
+                    {t('feedback.pendingSave', { ns: 'chat' })}
+                  </span>
+                )}
+              </>
             )}
           </div>
         )}

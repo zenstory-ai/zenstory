@@ -1427,4 +1427,39 @@ describe('SimpleEditor', () => {
     expect(saveButton.getAttribute('title')).toMatch(/^editor:saveWithShortcut:/);
   });
 
+  it('auto-focuses and selects title input for freshly created files and explains streaming save disablement', async () => {
+    const onAutoFocusConsumed = vi.fn();
+    const { rerender } = render(
+      <SimpleEditor
+        fileId="file-new"
+        title="新建章节"
+        content=""
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: 't1' })}
+        autoFocusTitle={true}
+        onAutoFocusConsumed={onAutoFocusConsumed}
+      />,
+    );
+
+    const titleInput = screen.getByPlaceholderText('editor:placeholder.titlePlaceholder') as HTMLInputElement;
+    await waitFor(() => expect(titleInput).toHaveFocus());
+    expect(onAutoFocusConsumed).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <SimpleEditor
+        fileId="file-new"
+        title="新建章节"
+        content="正文"
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: 't1' })}
+        isStreaming={true}
+      />,
+    );
+    const saveButton = screen.getByRole('button', { name: 'editor:save' });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute('title', 'editor:saveUnavailableStreaming');
+  });
+
 });

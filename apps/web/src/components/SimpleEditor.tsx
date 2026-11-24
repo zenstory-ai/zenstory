@@ -128,6 +128,9 @@ interface SimpleEditorProps {
     fileTitle?: string;
     selectedText?: string;
   }) => void;
+  /** Focus and select the title field once on mount/open for freshly created files (desktop only). */
+  autoFocusTitle?: boolean;
+  onAutoFocusConsumed?: () => void;
   // Diff review props
   diffReviewState?: DiffReviewState | null;
   onAcceptEdit?: (editId: string) => void;
@@ -163,6 +166,8 @@ export const SimpleEditor = ({
   isAiEditing = false,
   recoveredDraft,
   onNaturalPolish,
+  autoFocusTitle = false,
+  onAutoFocusConsumed,
   // Diff review props
   diffReviewState,
   onAcceptEdit,
@@ -199,6 +204,7 @@ export const SimpleEditor = ({
   // Selection toolbar state
   const [selectedText, setSelectedText] = useState("");
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
@@ -620,9 +626,25 @@ export const SimpleEditor = ({
     }, 300);
   }, [getSelectionPosition]);
 
-  // Close selection toolbar
-  const closeSelectionToolbar = useCallback(() => {
+  // Focus & select the default title of a freshly created file on desktop so the author can rename & press Enter to write immediately
+  useEffect(() => {
+    if (!autoFocusTitle || readOnly || isStreaming || isReviewMode) return;
+    const input = titleInputRef.current;
+    if (!input) return;
+    const frame = requestAnimationFrame(() => {
+      input.focus({ preventScroll: true });
+      input.select();
+      onAutoFocusConsumed?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [autoFocusTitle, fileId, readOnly, isStreaming, isReviewMode, onAutoFocusConsumed]);
+
+  // Close selection toolbar without disturbing scroll or selection
+  const closeSelectionToolbar = useCallback((restoreFocus?: boolean) => {
     setSelectionPosition(null);
+    if (restoreFocus) {
+      textareaRef.current?.focus({ preventScroll: true });
+    }
   }, []);
 
   // Add quote from selection
@@ -1072,6 +1094,7 @@ export const SimpleEditor = ({
         }`}
       >
         <input
+          ref={titleInputRef}
           type="text"
           value={title}
           onChange={handleTitleChange}
@@ -1259,9 +1282,13 @@ export const SimpleEditor = ({
               onClick={() => void handleSave()}
               disabled={isSaving || !isDirty || readOnly || isStreaming}
               title={
-                isDirty
-                  ? t('editor:saveWithShortcut', { shortcut: isAppleSaveShortcutPlatform() ? '⌘S' : 'Ctrl+S' })
-                  : t('editor:alreadySaved')
+                isStreaming
+                  ? t('editor:saveUnavailableStreaming')
+                  : isSaving
+                    ? t('editor:saving')
+                    : isDirty
+                      ? t('editor:saveWithShortcut', { shortcut: isAppleSaveShortcutPlatform() ? '⌘S' : 'Ctrl+S' })
+                      : t('editor:alreadySaved')
               }
               className="max-md:min-h-11 px-2.5 py-1.5 text-xs bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap transition-colors"
             >

@@ -2688,6 +2688,7 @@ describe('ChatPanel new-author flow', () => {
     Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 400 })
     Object.defineProperty(scroller, 'scrollTop', { configurable: true, writable: true, value: 0 })
     fireEvent.scroll(scroller)
+    expect(screen.getByRole('button', { name: 'chat:panel.jumpToLatest' })).toBeInTheDocument()
     mockScrollToBottom.mockClear()
 
     await act(async () => { await lastMessageInputProps().onSend('继续写第二章', []) })

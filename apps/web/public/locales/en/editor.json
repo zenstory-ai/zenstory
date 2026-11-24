@@ -195,6 +195,7 @@
   "save": "Save",
   "saveWithShortcut": "Save ({{shortcut}})",
   "alreadySaved": "All changes saved",
+  "saveUnavailableStreaming": "AI is writing; save once finished",
   "saveFailed": "Save your changes before switching files.",
   "saveStaleWrite": "The AI just edited this file. The latest version is loaded — review it and save again.",
   "saveStaleWriteConflict": "This file changed elsewhere. Your text is safe. The comparison lists the newer copy's changes: accept one to use it, reject it to keep yours. Where both changed the same passage, yours is kept by default.",
