@@ -364,6 +364,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       {/* Dropdown Menu */}
       {isDropdownMounted && (
         <div
+          data-testid="project-switcher-dropdown"
           aria-hidden={isDropdownExiting ? true : undefined}
           inert={isDropdownExiting ? true : undefined}
           className={`flex flex-col bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl shadow-lg z-50 overflow-hidden ${

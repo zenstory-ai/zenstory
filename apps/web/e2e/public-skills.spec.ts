@@ -16,7 +16,7 @@ import { TEST_USERS } from './config'
 const DISCOVER = {
   searchInput: 'input[placeholder*="搜索"]',
   categoryButtons: '.flex.flex-wrap.gap-2 button, .flex.gap-2 button',
-  skillCard: 'div[class*="rounded-xl"][class*="border"]',
+  skillCard: '[data-testid="public-skill-card"]',
   addButton: 'button:has-text("添加")',
   addedBadge: 'button:has-text("已添加")',
   officialBadge: 'span:has-text("官方")',
