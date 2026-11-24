@@ -137,4 +137,77 @@ describe("AnimatedCollapse and AnimatedDetails", () => {
     expect(details).not.toHaveAttribute("open");
     expect(screen.queryByText("Disclosure body")).not.toBeInTheDocument();
   });
+
+  it("marks data-settled once open transition settles (releasing overflow clip for focus rings) and clears on close", () => {
+    const { container, rerender } = render(
+      <AnimatedCollapse open={false}>
+        <button type="button">Focusable child</button>
+      </AnimatedCollapse>,
+    );
+
+    rerender(
+      <AnimatedCollapse open={true}>
+        <button type="button">Focusable child</button>
+      </AnimatedCollapse>,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper).not.toHaveAttribute("data-settled");
+
+    // Expand starts after double rAF, still animating (not yet settled)
+    act(() => {
+      vi.advanceTimersByTime(32);
+    });
+    expect(wrapper).toHaveAttribute("data-open", "true");
+    expect(wrapper).not.toHaveAttribute("data-settled");
+
+    // Once transition settles (fallback timer or transitionend), data-settled="true" is set
+    act(() => {
+      vi.advanceTimersByTime(280);
+    });
+    expect(wrapper).toHaveAttribute("data-settled", "true");
+
+    // Closing clears data-settled immediately and sets inert + aria-hidden during exit
+    rerender(
+      <AnimatedCollapse open={false}>
+        <button type="button">Focusable child</button>
+      </AnimatedCollapse>,
+    );
+    expect(wrapper).not.toHaveAttribute("data-settled");
+    expect(wrapper).toHaveAttribute("aria-hidden", "true");
+    expect(wrapper).toHaveAttribute("inert");
+  });
+
+  it("sets data-settled immediately when open under prefers-reduced-motion", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      configurable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes("prefers-reduced-motion"),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+
+    const { container, rerender } = render(
+      <AnimatedCollapse open={false}>
+        <button type="button">Instant child</button>
+      </AnimatedCollapse>,
+    );
+
+    rerender(
+      <AnimatedCollapse open={true}>
+        <button type="button">Instant child</button>
+      </AnimatedCollapse>,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper).toHaveAttribute("data-open", "true");
+    expect(wrapper).toHaveAttribute("data-settled", "true");
+  });
 });

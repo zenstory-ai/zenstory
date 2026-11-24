@@ -1734,6 +1734,10 @@ code, pre, .font-mono {
     overflow: hidden;
 }
 
+.motion-collapse[data-open="true"][data-settled="true"] > .motion-collapse-inner {
+    overflow: visible;
+}
+
 .motion-chevron {
     transition: transform var(--duration-fast) var(--ease-out-expo);
 }

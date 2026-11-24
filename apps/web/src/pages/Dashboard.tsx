@@ -179,6 +179,7 @@ function DashboardContent() {
     <div
       ref={userPanelRef}
       aria-hidden={isUserPanelExiting ? true : undefined}
+      inert={isUserPanelExiting ? true : undefined}
       className={`absolute w-72 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] shadow-xl z-[1200] p-3 space-y-3 origin-bottom-left ${
         isUserPanelExiting ? 'pointer-events-none' : 'pointer-events-auto'
       } ${
@@ -491,6 +492,7 @@ function DashboardContent() {
             id="dashboard-mobile-navigation"
             aria-label={t('common:nav.mobileMenu')}
             aria-hidden={isMobileMenuExiting ? true : undefined}
+            inert={isMobileMenuExiting ? true : undefined}
             className={`fixed top-12 left-0 right-0 max-h-[calc(100dvh-48px)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40 ${
               isMobileMenuExiting ? "motion-sheet-down-exit pointer-events-none" : "motion-sheet-down"
             }`}

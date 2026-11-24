@@ -3077,6 +3077,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     type="button"
                     onClick={handleJumpToLatest}
                     aria-hidden={isJumpToLatestExiting ? true : undefined}
+                    inert={isJumpToLatestExiting ? true : undefined}
                     className={`inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] px-3 py-1.5 text-xs text-[hsl(var(--text-primary))] shadow-md hover:bg-[hsl(var(--bg-tertiary))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${
                       isJumpToLatestExiting
                         ? "motion-popover-exit-up pointer-events-none"

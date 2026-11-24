@@ -8,6 +8,7 @@ import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { AnimatedDetails } from "../components/ui/AnimatedCollapse";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { RedeemCodeModal } from "../components/subscription/RedeemCodeModal";
 import { PaymentCheckoutModal } from "../components/subscription/PaymentCheckoutModal";
@@ -157,6 +158,7 @@ export default function BillingPage() {
   // Preserve activation behavior for existing ?plan=pro links; no manual code entry is advertised.
   const isProPlanIntentReady = !isProPlanIntentHandled && !isPaymentOptionsLoading;
   const isPaymentModalOpen = showPaymentModal || (isProPlanIntentReady && showCheckoutButton);
+  const { isMounted: isPaymentModalMounted } = useAnimatedPresence(isPaymentModalOpen, 150);
   const isRedeemCodeModalOpen = isProPlanIntentReady && isCheckoutKnownOff;
 
   const usageItems = useMemo(
@@ -558,9 +560,9 @@ export default function BillingPage() {
         }}
         source={effectiveUpgradeSource}
       />
-      {isPaymentModalOpen && (
+      {isPaymentModalMounted && (
         <PaymentCheckoutModal
-          isOpen
+          isOpen={isPaymentModalOpen}
           onClose={() => {
             setShowPaymentModal(false);
             setIsProPlanIntentHandled(true);

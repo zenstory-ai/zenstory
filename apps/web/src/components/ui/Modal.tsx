@@ -338,6 +338,7 @@ export const Modal: React.FC<ModalProps> & {
         onClick={isExiting ? undefined : handleBackdropClick}
         role="presentation"
         aria-hidden={isExiting ? true : undefined}
+        inert={isExiting ? true : undefined}
       >
         <div
           ref={modalRef}

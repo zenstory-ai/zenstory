@@ -228,6 +228,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
           }`}
           role="menu"
           aria-hidden={isMenuExiting ? true : undefined}
+          inert={isMenuExiting ? true : undefined}
           onKeyDown={handleMenuKeyDown}
           data-testid={menuTestId}
         >

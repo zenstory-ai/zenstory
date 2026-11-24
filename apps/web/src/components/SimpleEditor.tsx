@@ -191,6 +191,8 @@ export const SimpleEditor = ({
   // autosave is scheduled again on the new token (see the baseline effect).
   const [autosaveNudge, setAutosaveNudge] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const isVersionHistoryOpen = showVersionHistory && Boolean(fileId);
+  const { isMounted: isVersionHistoryMounted } = useAnimatedPresence(isVersionHistoryOpen, 150);
   // Selection toolbar state
   const [selectedText, setSelectedText] = useState("");
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
@@ -1261,8 +1263,9 @@ export const SimpleEditor = ({
       )}
 
       {/* Version History Modal */}
-      {showVersionHistory && fileId && (
+      {isVersionHistoryMounted && fileId && (
         <FileVersionHistory
+          open={isVersionHistoryOpen}
           fileId={fileId}
           fileTitle={title}
           onClose={() => setShowVersionHistory(false)}

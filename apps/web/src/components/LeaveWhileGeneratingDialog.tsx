@@ -91,6 +91,7 @@ export function LeaveWhileGeneratingDialog({
       onClick={isExiting ? undefined : onStay}
       role="presentation"
       aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
     >
       <div
         ref={dialogRef}

@@ -24,6 +24,8 @@ interface AnimatedCollapseProps {
  * - Keeps collapsed children unmounted when closed (preserving keyboard navigation,
  *   lazy rendering, and DOM absence assertions).
  * - Animates height + opacity smoothly on both expand and collapse in real browsers.
+ * - Releases `overflow: hidden` once settled open (`data-settled="true"`) so outward
+ *   keyboard focus rings (`focus-visible:ring-2` / `outline-offset`) are never clipped.
  * - Immediately interruptible on rapid double-toggles; instant under reduced motion.
  */
 export const AnimatedCollapse: React.FC<AnimatedCollapseProps> = ({
@@ -38,14 +40,19 @@ export const AnimatedCollapse: React.FC<AnimatedCollapseProps> = ({
   const durationMs = fast ? 160 : 240;
   const { isMounted, isExiting } = useAnimatedPresence(open, durationMs);
   const [expanded, setExpanded] = useState(() => open);
+  const [settled, setSettled] = useState(() => open);
   const [prevOpen, setPrevOpen] = useState(open);
 
   if (open !== prevOpen) {
     setPrevOpen(open);
     if (!open) {
       setExpanded(false);
+      setSettled(false);
     } else if (!canAnimatePresence()) {
       setExpanded(true);
+      setSettled(true);
+    } else {
+      setSettled(false);
     }
   }
 
@@ -53,6 +60,7 @@ export const AnimatedCollapse: React.FC<AnimatedCollapseProps> = ({
     if (!open || expanded) return;
     if (!canAnimatePresence()) {
       setExpanded(true); // eslint-disable-line react-hooks/set-state-in-effect
+      setSettled(true);
       return;
     }
     let frame2 = 0;
@@ -67,16 +75,36 @@ export const AnimatedCollapse: React.FC<AnimatedCollapseProps> = ({
     };
   }, [open, expanded]);
 
+  useEffect(() => {
+    if (!open || !expanded || settled) return;
+    if (!canAnimatePresence()) {
+      setSettled(true); // eslint-disable-line react-hooks/set-state-in-effect
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setSettled(true);
+    }, durationMs + 40);
+    return () => window.clearTimeout(timer);
+  }, [open, expanded, settled, durationMs]);
+
   if (!isMounted) return null;
+
+  const isOpenActive = expanded && !isExiting;
 
   return (
     <div
       id={id}
       role={role}
-      data-open={expanded && !isExiting ? "true" : "false"}
+      data-open={isOpenActive ? "true" : "false"}
+      data-settled={isOpenActive && settled ? "true" : undefined}
       data-exiting={isExiting ? "true" : undefined}
       aria-hidden={isExiting ? true : undefined}
       inert={isExiting ? true : undefined}
+      onTransitionEnd={(e) => {
+        if (e.target === e.currentTarget && e.propertyName === "grid-template-rows" && isOpenActive) {
+          setSettled(true);
+        }
+      }}
       className={`motion-collapse ${fast ? "motion-collapse-fast" : ""} ${isExiting ? "pointer-events-none" : ""} ${className}`}
     >
       <div className={`motion-collapse-inner ${innerClassName}`}>{children}</div>
@@ -97,7 +125,8 @@ interface AnimatedDetailsProps {
 
 /**
  * Native `<details>`/`<summary>` disclosure with smooth CSS Grid open/close height
- * choreography. Preserves `<details open>` DOM semantics and instant close in jsdom/reduced-motion.
+ * choreography. Preserves `<details open>` DOM semantics, releases `overflow: hidden`
+ * when settled open for outward focus rings, and closes instantly in tests/reduced-motion.
  */
 export const AnimatedDetails: React.FC<AnimatedDetailsProps> = ({
   defaultOpen = false,
@@ -112,6 +141,7 @@ export const AnimatedDetails: React.FC<AnimatedDetailsProps> = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const { isMounted, isExiting } = useAnimatedPresence(isOpen, 240);
   const [expanded, setExpanded] = useState(defaultOpen);
+  const [settled, setSettled] = useState(defaultOpen);
   const [prevOpen, setPrevOpen] = useState(isOpen);
   const detailsRef = useRef<HTMLDetailsElement>(null);
 
@@ -119,8 +149,12 @@ export const AnimatedDetails: React.FC<AnimatedDetailsProps> = ({
     setPrevOpen(isOpen);
     if (!isOpen) {
       setExpanded(false);
+      setSettled(false);
     } else if (!canAnimatePresence()) {
       setExpanded(true);
+      setSettled(true);
+    } else {
+      setSettled(false);
     }
   }
 
@@ -135,6 +169,7 @@ export const AnimatedDetails: React.FC<AnimatedDetailsProps> = ({
     if (!isOpen || expanded) return;
     if (!canAnimatePresence()) {
       setExpanded(true); // eslint-disable-line react-hooks/set-state-in-effect
+      setSettled(true);
       return;
     }
     let frame2 = 0;
@@ -148,6 +183,20 @@ export const AnimatedDetails: React.FC<AnimatedDetailsProps> = ({
       if (frame2) cancelAnimationFrame(frame2);
     };
   }, [isOpen, expanded]);
+
+  useEffect(() => {
+    if (!isOpen || !expanded || settled) return;
+    if (!canAnimatePresence()) {
+      setSettled(true); // eslint-disable-line react-hooks/set-state-in-effect
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setSettled(true);
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, expanded, settled]);
+
+  const isOpenActive = expanded && !isExiting;
 
   return (
     <details
@@ -168,9 +217,15 @@ export const AnimatedDetails: React.FC<AnimatedDetailsProps> = ({
       </summary>
       {isMounted && (
         <div
-          data-open={expanded && !isExiting ? "true" : "false"}
+          data-open={isOpenActive ? "true" : "false"}
+          data-settled={isOpenActive && settled ? "true" : undefined}
           aria-hidden={isExiting ? true : undefined}
           inert={isExiting ? true : undefined}
+          onTransitionEnd={(e) => {
+            if (e.target === e.currentTarget && e.propertyName === "grid-template-rows" && isOpenActive) {
+              setSettled(true);
+            }
+          }}
           className={`motion-collapse ${isExiting ? "pointer-events-none" : ""}`}
         >
           <div className={`motion-collapse-inner ${contentClassName}`}>{children}</div>

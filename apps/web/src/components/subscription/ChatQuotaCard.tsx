@@ -46,6 +46,7 @@ export function ChatQuotaCard({ open = true, limit, resetAt }: ChatQuotaCardProp
       data-testid="chat-quota-card"
       role="status"
       aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
       className={`mb-2 p-3 tabular-nums ${
         isExiting ? "motion-banner-exit pointer-events-none" : "motion-banner-enter"
       } ${CHAT_CARD_SURFACE}`}

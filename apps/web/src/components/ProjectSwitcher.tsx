@@ -331,6 +331,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       {isDropdownMounted && (
         <div
           aria-hidden={isDropdownExiting ? true : undefined}
+          inert={isDropdownExiting ? true : undefined}
           className={`flex flex-col bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl shadow-lg z-50 overflow-hidden ${
             isDropdownExiting ? "motion-popover-exit pointer-events-none" : "motion-popover-enter"
           } ${

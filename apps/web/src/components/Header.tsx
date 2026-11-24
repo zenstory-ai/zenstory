@@ -331,6 +331,7 @@ export const Header: React.FC<HeaderProps> = () => {
           />
           <div
             aria-hidden={isMobileMenuExiting ? true : undefined}
+            inert={isMobileMenuExiting ? true : undefined}
             className={`md:hidden absolute top-12 left-0 right-0 max-h-[calc(var(--app-viewport-height)-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-[60] ${
               isMobileMenuExiting ? "motion-sheet-down-exit pointer-events-none" : "motion-sheet-down"
             }`}

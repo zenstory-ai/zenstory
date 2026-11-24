@@ -35,7 +35,9 @@ export function AnnouncementBanner({ accountId }: AnnouncementBannerProps) {
   } catch {
     // Storage can be unavailable; the in-memory dismissal below still works.
   }
-  if (dismissedPersistently) return null;
+  // Suppress already-dismissed banners on reload, while keeping in-session dismissals
+  // mounted so DashboardBanner can play its symmetric 150ms exit animation.
+  if (dismissedPersistently && dismissedInSession !== key) return null;
   const isVisible = dismissedInSession !== key;
 
   const actionUrl = safeAnnouncementUrl(announcement.action_url);

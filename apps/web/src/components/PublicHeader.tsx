@@ -238,6 +238,7 @@ export function PublicHeader({
               <div
                 id={productMenuId}
                 aria-hidden={isProductMenuExiting ? true : undefined}
+                inert={isProductMenuExiting ? true : undefined}
                 className={`absolute top-full left-0 mt-1 py-1 min-w-[130px] md:min-w-[140px] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg shadow-lg z-50 origin-top-left ${
                   isProductMenuExiting ? "motion-popover-exit pointer-events-none" : "motion-popover-enter"
                 }`}
@@ -383,6 +384,7 @@ export function PublicHeader({
         <div
           id={mobileMenuId}
           aria-hidden={isMobileMenuExiting ? true : undefined}
+          inert={isMobileMenuExiting ? true : undefined}
           className={`lg:hidden fixed top-12 left-0 right-0 max-h-[calc(100dvh-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40 ${
             isMobileMenuExiting ? "motion-sheet-down-exit pointer-events-none" : "motion-sheet-down"
           }`}

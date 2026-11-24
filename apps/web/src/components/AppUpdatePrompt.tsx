@@ -39,6 +39,7 @@ export function AppUpdatePrompt() {
       role={required ? "alert" : "status"}
       aria-live={required ? "assertive" : "polite"}
       aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
       className={`fixed inset-x-4 bottom-[calc(8.5rem+env(safe-area-inset-bottom))] z-[1090] flex items-start gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-3 text-[hsl(var(--text-primary))] shadow-lg md:inset-x-auto md:bottom-4 md:right-4 md:w-96 ${
         isExiting ? "motion-banner-exit pointer-events-none" : "motion-banner-enter"
       }`}

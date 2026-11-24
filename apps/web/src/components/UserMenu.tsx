@@ -325,6 +325,7 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
       {isMenuMounted && (
         <div
           aria-hidden={isMenuExiting ? true : undefined}
+          inert={isMenuExiting ? true : undefined}
           className={`absolute right-0 top-full mt-1 w-56 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg shadow-lg z-50 overflow-hidden origin-top-right ${
             isMenuExiting ? "motion-popover-exit pointer-events-none" : "motion-popover-enter"
           }`}

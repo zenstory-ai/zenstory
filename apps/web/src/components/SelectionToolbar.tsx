@@ -123,6 +123,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
     <div
       ref={toolbarRef}
       aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
       className={`fixed z-50 ${isExiting ? 'pointer-events-none' : ''}`}
       style={{
         left: clamped.x,

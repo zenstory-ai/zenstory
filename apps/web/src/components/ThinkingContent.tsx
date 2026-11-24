@@ -30,7 +30,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { LazyMarkdown } from "./LazyMarkdown";
 import { AnimatedCollapse } from "./ui/AnimatedCollapse";
 import { sanitizeThinkingForDisplay } from "../lib/thinkingDisplay";
@@ -144,11 +144,11 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
           )}
         </div>
         <div className="flex items-center shrink-0">
-          {isExpanded ? (
-            <ChevronUp key="up" className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))] motion-icon-pop" />
-          ) : (
-            <ChevronDown key="down" className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))] motion-icon-pop" />
-          )}
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-[hsl(var(--text-secondary))] motion-chevron ${
+              isExpanded ? "rotate-180" : ""
+            }`}
+          />
         </div>
       </button>
 

@@ -26,6 +26,7 @@ export function DashboardBanner({ open = true, regionLabel, icon, title, descrip
   return (
     <section
       aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
       className={`mb-5 flex items-start gap-3 rounded-2xl border border-[hsl(var(--accent-primary)/0.22)] bg-[hsl(var(--accent-primary)/0.07)] px-4 py-3.5 text-[hsl(var(--text-primary))] sm:items-center ${
         isExiting ? "motion-banner-exit pointer-events-none" : "motion-banner-enter"
       }`}
