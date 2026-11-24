@@ -35,7 +35,7 @@ export function AppUpdatePrompt() {
     <div
       role={required ? "alert" : "status"}
       aria-live={required ? "assertive" : "polite"}
-      className="fixed inset-x-4 bottom-[calc(8.5rem+env(safe-area-inset-bottom))] z-[1090] flex items-start gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-3 text-[hsl(var(--text-primary))] shadow-lg md:inset-x-auto md:bottom-4 md:right-4 md:w-96"
+      className="fixed inset-x-4 bottom-[calc(8.5rem+env(safe-area-inset-bottom))] z-[1090] flex items-start gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-3 text-[hsl(var(--text-primary))] shadow-lg motion-banner-enter md:inset-x-auto md:bottom-4 md:right-4 md:w-96"
     >
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--accent-primary)/0.13)] text-[hsl(var(--accent-primary))]">
         <RefreshCw className="h-4 w-4" aria-hidden="true" />

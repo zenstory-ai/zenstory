@@ -313,7 +313,7 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
         />
         <ChevronDown
           size={14}
-          className={`text-[hsl(var(--text-secondary))] transition-transform ${
+          className={`text-[hsl(var(--text-secondary))] motion-chevron ${
             isOpen ? "rotate-180" : ""
           }`}
         />
@@ -321,7 +321,7 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
 
       {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-56 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg shadow-lg z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-1 w-56 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg shadow-lg z-50 overflow-hidden origin-top-right motion-popover-enter">
           {/* User info section */}
           <div className="px-3 py-3 border-b border-[hsl(var(--separator-color))]">
             <div className="flex items-center gap-3">

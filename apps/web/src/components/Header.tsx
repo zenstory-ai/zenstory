@@ -97,7 +97,7 @@ export const Header: React.FC<HeaderProps> = () => {
   const mobileMenuToggleRef = useRef<HTMLButtonElement>(null);
   const isMobile = useIsMobile();
   const { exportDrafts, loading: exportLoading } = useExport(currentProjectId);
-  const desktopIconButtonClass = "p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]";
+  const desktopIconButtonClass = "p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]";
   const mobileMenuId = "header-mobile-menu";
 
   const handleOpenBilling = (closeMobileMenu = false) => {
@@ -313,12 +313,12 @@ export const Header: React.FC<HeaderProps> = () => {
       {isMobile && showMobileMenu && (
         <>
           <div
-            className="md:hidden fixed inset-0 top-12 bg-black/25 z-[55]"
+            className="md:hidden fixed inset-0 top-12 bg-black/25 z-[55] motion-backdrop-enter"
             aria-hidden="true"
             data-testid="mobile-menu-backdrop"
             onClick={() => setShowMobileMenu(false)}
           />
-          <div className="md:hidden absolute top-12 left-0 right-0 max-h-[calc(var(--app-viewport-height)-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-[60]">
+          <div className="md:hidden absolute top-12 left-0 right-0 max-h-[calc(var(--app-viewport-height)-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-[60] motion-sheet-down">
             <div
               id={mobileMenuId}
               className="flex flex-col p-2 gap-1"

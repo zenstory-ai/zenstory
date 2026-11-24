@@ -100,7 +100,7 @@ export function HistoryCompactionMarker({ state, summary, startedAt }: {
             <ChevronDown
               size={13}
               aria-hidden="true"
-              className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+              className={`shrink-0 motion-chevron ${open ? 'rotate-180' : ''}`}
             />
           </button>
         ) : (
@@ -117,7 +117,7 @@ export function HistoryCompactionMarker({ state, summary, startedAt }: {
       {text && open && (
         <div
           id={summaryId}
-          className={`mt-2 min-w-0 max-w-full max-h-72 overflow-auto p-3 ${CHAT_CARD_SURFACE}`}
+          className={`mt-2 min-w-0 max-w-full max-h-72 overflow-auto p-3 motion-disclosure-enter ${CHAT_CARD_SURFACE}`}
         >
           <div className="mb-1.5 text-xs font-medium text-[hsl(var(--text-secondary))]">
             {t('compaction.summaryLabel', { ns: 'chat' })}

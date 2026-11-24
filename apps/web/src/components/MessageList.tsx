@@ -480,7 +480,7 @@ const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) =>
         className="cursor-pointer select-none min-h-11 md:min-h-0 -my-1.5 md:my-0 rounded text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors flex items-center gap-1 w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
       >
         <svg
-          className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-3 h-3 shrink-0 motion-chevron ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -489,12 +489,12 @@ const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) =>
         </svg>
         <span>
           {t("context.label", { ns: "chat" })}
-          <span className="ml-1">({items.length})</span>
+          <span className="ml-1 tabular-nums">({items.length})</span>
         </span>
       </button>
 
       {isOpen && (
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-2 space-y-1.5 motion-disclosure-enter">
           {items.map((item, index) => {
             return (
               <details
@@ -505,7 +505,7 @@ const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) =>
                   style={{ listStyle: 'none' }}
                 >
                   <svg
-                    className="w-3 h-3 text-[hsl(var(--text-secondary))] transition-transform duration-200 group-open:rotate-90 shrink-0"
+                    className="w-3 h-3 text-[hsl(var(--text-secondary))] motion-chevron group-open:rotate-90 shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"

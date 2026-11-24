@@ -172,8 +172,10 @@ function DashboardContent() {
   const renderUserPanel = (alignment: 'desktop' | 'tablet') => (
     <div
       ref={userPanelRef}
-      className={`absolute w-72 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] shadow-xl z-[1200] pointer-events-auto p-3 space-y-3 ${
-        alignment === 'desktop' ? 'left-0 bottom-full mb-3' : 'left-full ml-2 bottom-0'
+      className={`absolute w-72 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] shadow-xl z-[1200] pointer-events-auto p-3 space-y-3 origin-bottom-left ${
+        alignment === 'desktop'
+          ? 'left-0 bottom-full mb-3 motion-popover-enter-up'
+          : 'left-full ml-2 bottom-0 motion-popover-enter-right'
       }`}
     >
       <div className="flex items-center gap-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary)/0.45)] p-2.5">
@@ -330,7 +332,7 @@ function DashboardContent() {
                 aria-label={t(item.labelKey)}
                 aria-current={activeNav === item.id ? "page" : undefined}
                 onClick={() => { setShowMobileMenu(false); setShowUserPanel(false); }}
-                className={`w-full flex items-center justify-center gap-2 px-2 py-3 rounded-lg transition-all touch-target ${
+                className={`w-full flex items-center justify-center gap-2 px-2 py-3 rounded-lg transition-[background-color,color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100 touch-target ${
                   activeNav === item.id
                     ? NAV_ACTIVE_CLASS
                     : "text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]"
@@ -350,7 +352,7 @@ function DashboardContent() {
                 ref={userPanelTriggerRef}
                 onClick={() => setShowUserPanel((prev) => !prev)}
                 data-testid="dashboard-user-panel-toggle"
-                className="w-full flex flex-col items-center justify-center gap-1 px-2 py-2.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-all"
+                className="w-full flex flex-col items-center justify-center gap-1 px-2 py-2.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-[background-color,color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100"
                 title={openUserPanelLabel}
                 aria-label={openUserPanelLabel}
               >
@@ -360,7 +362,7 @@ function DashboardContent() {
                   size={32}
                 />
                 <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform ${showUserPanel ? 'rotate-180' : ''}`}
+                  className={`w-3.5 h-3.5 motion-chevron ${showUserPanel ? 'rotate-180' : ''}`}
                 />
               </button>
             </div>
@@ -388,7 +390,7 @@ function DashboardContent() {
                 aria-label={t(item.labelKey)}
                 aria-current={activeNav === item.id ? "page" : undefined}
                 onClick={() => { setShowMobileMenu(false); setShowUserPanel(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-[background-color,color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100 ${
                   activeNav === item.id
                     ? NAV_ACTIVE_CLASS
                     : "text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]"
@@ -407,7 +409,7 @@ function DashboardContent() {
             ref={userPanelTriggerRef}
             onClick={() => setShowUserPanel((prev) => !prev)}
             data-testid="dashboard-user-panel-toggle"
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border-transparent! border hover:bg-[hsl(var(--bg-tertiary)/0.45)] transition-all"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border-transparent! border hover:bg-[hsl(var(--bg-tertiary)/0.45)] transition-[background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100"
             title={openUserPanelLabel}
             aria-label={openUserPanelLabel}
           >
@@ -424,7 +426,7 @@ function DashboardContent() {
                 {user?.email || ""}
               </div>
             </div>
-            <ChevronDown className={`w-4 h-4 text-[hsl(var(--text-secondary))] transition-transform ${showUserPanel ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 text-[hsl(var(--text-secondary))] motion-chevron ${showUserPanel ? 'rotate-180' : ''}`} />
           </button>
           {showUserPanel && renderUserPanel('desktop')}
         </div>
@@ -465,7 +467,7 @@ function DashboardContent() {
             ref={mobileMenuRef}
             id="dashboard-mobile-navigation"
             aria-label={t('common:nav.mobileMenu')}
-            className="fixed top-12 left-0 right-0 max-h-[calc(100dvh-48px)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40"
+            className="fixed top-12 left-0 right-0 max-h-[calc(100dvh-48px)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40 motion-sheet-down"
           >
             <div className="flex flex-col p-2 gap-1">
               {navItems.map((item) => {

@@ -109,29 +109,31 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
   return createPortal(
     <div
       ref={toolbarRef}
-      className="fixed z-50 animate-in fade-in zoom-in-95 duration-150"
+      className="fixed z-50"
       style={{
         left: clamped.x,
         top: clamped.y,
         transform: 'translate(-50%, -100%)',
       }}
     >
-      <div className="flex items-center gap-1 px-2 py-1.5 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-xl shadow-lg">
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="max-md:min-h-11 flex items-center gap-1.5 px-2.5 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
-          title={t('input.addToContext')}
-        >
-          <Quote size={14} />
-          <span>{t('input.addToContext')}</span>
-        </button>
+      <div className="relative origin-bottom motion-toolbar-enter">
+        <div className="flex items-center gap-1 px-2 py-1.5 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-xl shadow-lg">
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="max-md:min-h-11 flex items-center gap-1.5 px-2.5 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
+            title={t('input.addToContext')}
+          >
+            <Quote size={14} />
+            <span>{t('input.addToContext')}</span>
+          </button>
+        </div>
+        {/* 小三角指向选中文本 */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 w-2 h-2 bg-[hsl(var(--bg-secondary))] border-r border-b border-[hsl(var(--border-primary))] rotate-45"
+          style={{ bottom: -5 }}
+        />
       </div>
-      {/* 小三角指向选中文本 */}
-      <div
-        className="absolute left-1/2 -translate-x-1/2 w-2 h-2 bg-[hsl(var(--bg-secondary))] border-r border-b border-[hsl(var(--border-primary))] rotate-45"
-        style={{ bottom: -5 }}
-      />
     </div>,
     document.body
   );

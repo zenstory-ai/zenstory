@@ -148,10 +148,12 @@ const SwipeableSuggestionChip: React.FC<SwipeableSuggestionChipProps> = ({
       type="button"
       onClick={onClick}
       aria-label={suggestion}
-      className={`shrink-0 border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] rounded-full text-xs whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'px-3 py-1.5 min-h-11 md:min-h-[32px]' : 'px-2.5 py-1'} ${isDismissing ? 'opacity-0 h-0 py-0 my-0 overflow-hidden' : ''}`}
+      className={`shrink-0 border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] rounded-full text-xs whitespace-nowrap transition-[background-color,color,border-color,opacity] duration-[var(--duration-instant)] ease-[var(--ease-standard)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'px-3 py-1.5 min-h-11 md:min-h-[32px]' : 'px-2.5 py-1'} ${isDismissing ? 'opacity-0 h-0 py-0 my-0 overflow-hidden' : ''}`}
       style={{
-        transform: `translateX(${translateX}px)`,
-        transition: isDismissing ? 'transform 0.2s ease-out, opacity 0.2s ease-out' : 'none',
+        transform: `translate3d(${translateX}px, 0, 0)`,
+        transition: isDismissing
+          ? 'transform var(--duration-fast) var(--ease-out-expo), opacity var(--duration-fast) var(--ease-standard)'
+          : 'none',
       }}
     >
       {suggestion}

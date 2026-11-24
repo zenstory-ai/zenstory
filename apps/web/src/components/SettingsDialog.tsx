@@ -359,6 +359,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
             aria-labelledby={`settings-tab-${activeTab}`}
             tabIndex={0}
           >
+            <div key={activeTab} className="motion-tab-panel">
             {activeTab === 'profile' && (
               <div className="space-y-3">
                 {/* User card */}
@@ -412,7 +413,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                           void handleLanguageChange(lang as 'zh' | 'en');
                         }}
                         data-testid={`language-button-${lang}`}
-                        className={`p-2.5 rounded-lg border text-left text-sm transition-all ${
+                        className={`p-2.5 rounded-lg border text-left text-sm transition-[border-color,background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100 ${
                           currentLanguage === lang
                             ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)]'
                             : 'border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-hover))]'
@@ -462,14 +463,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                       className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center p-2 -m-2 sm:p-0 sm:m-0 shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
                     >
                       <span
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${
                           analyticsEnabled
                             ? 'bg-[hsl(var(--accent-primary))]'
                             : 'bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))]'
                         }`}
                       >
                         <span
-                          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                          className={`inline-block h-4 w-4 rounded-full bg-white shadow motion-switch-thumb ${
                             analyticsEnabled ? 'translate-x-4' : 'translate-x-0.5'
                           }`}
                         />
@@ -495,7 +496,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                         aria-checked={theme === item.id}
                         onClick={() => setTheme(item.id as 'dark' | 'light')}
                         data-testid={`theme-button-${item.id}`}
-                        className={`p-2.5 rounded-lg border text-center text-sm transition-all ${
+                        className={`p-2.5 rounded-lg border text-center text-sm transition-[border-color,background-color,transform] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.985] motion-reduce:active:scale-100 ${
                           theme === item.id
                             ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)]'
                             : 'border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-hover))]'
@@ -534,7 +535,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                         className="group min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 p-2 sm:p-0 inline-flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
                       >
                         <span
-                          className={`w-7 h-7 rounded-full transition-transform group-hover:scale-110 ${
+                          className={`w-7 h-7 rounded-full transition-transform duration-[var(--duration-instant)] ease-[var(--ease-spring-snappy)] group-hover:scale-110 group-active:scale-95 motion-reduce:transition-none ${
                             accentColor === color ? 'ring-2 ring-offset-2 ring-offset-[hsl(var(--bg-card))]' : ''
                           }`}
                           style={{ backgroundColor: color, '--tw-ring-color': color } as React.CSSProperties}
@@ -580,7 +581,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
               <div className="relative">
                 {/* Skeleton overlay - only shown during initial load */}
                 <div
-                  className={`absolute inset-0 z-10 transition-opacity duration-200 ${
+                  className={`absolute inset-0 z-10 transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${
                     showPointsSkeleton ? 'opacity-100' : 'opacity-0 pointer-events-none'
                   }`}
                 >
@@ -589,7 +590,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
 
                 {/* Actual content - visible when not loading or when refetching */}
                 <div
-                  className={`space-y-4 transition-opacity duration-200 ${
+                  className={`space-y-4 transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${
                     showPointsSkeleton ? 'opacity-0' : 'opacity-100'
                   }`}
                 >
@@ -622,6 +623,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                 <InviteCodeList />
               </div>
             )}
+            </div>
           </div>
         </div>
       </Modal>

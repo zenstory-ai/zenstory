@@ -10,7 +10,6 @@ import type { MaterialEntityType, MaterialSearchResult } from "../../lib/materia
 import { logger } from "../../lib/logger";
 import { MaterialsUpgradeNotice } from "../subscription/MaterialsUpgradePrompt";
 import {
-  ChevronDown,
   ChevronRight,
   BookOpen,
   Users,
@@ -453,11 +452,13 @@ export const MaterialsPane: React.FC = () => {
                   className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
                   onClick={() => materialLib.toggleNovel(lib.id)}
                 >
-                  {isNovelExpanded ? (
-                    <ChevronDown size={14} className="text-[hsl(var(--text-secondary))] shrink-0" />
-                  ) : (
-                    <ChevronRight size={14} className="text-[hsl(var(--text-secondary))] shrink-0" />
-                  )}
+                  <ChevronRight
+                    size={14}
+                    aria-hidden="true"
+                    className={`text-[hsl(var(--text-secondary))] shrink-0 motion-chevron ${
+                      isNovelExpanded ? "rotate-90" : ""
+                    }`}
+                  />
                   <span className="text-[hsl(var(--text-secondary))]">
                     <BookOpen size={14} />
                   </span>
@@ -466,7 +467,7 @@ export const MaterialsPane: React.FC = () => {
 
                 {/* Entity type categories */}
                 {isNovelExpanded && (
-                  <div className="mt-0.5">
+                  <div className="mt-0.5 motion-disclosure-enter">
                     {entityTypes
                       .filter(({ countKey }) => (lib.counts[countKey] || 0) > 0)
                       .map(({ type, countKey }) => {
@@ -484,23 +485,25 @@ export const MaterialsPane: React.FC = () => {
                               style={{ marginLeft: 12 }}
                               onClick={() => handleEntityTypeToggle(lib.id, type)}
                             >
-                              {isTypeExpanded ? (
-                                <ChevronDown size={12} className="text-[hsl(var(--text-secondary))] shrink-0" />
-                              ) : (
-                                <ChevronRight size={12} className="text-[hsl(var(--text-secondary))] shrink-0" />
-                              )}
+                              <ChevronRight
+                                size={12}
+                                aria-hidden="true"
+                                className={`text-[hsl(var(--text-secondary))] shrink-0 motion-chevron ${
+                                  isTypeExpanded ? "rotate-90" : ""
+                                }`}
+                              />
                               <span className="text-[hsl(var(--text-secondary))] shrink-0">
                                 {ENTITY_TYPE_ICONS[type]}
                               </span>
                               <span className="flex-1 truncate text-xs">{entityTypeLabels[type]}</span>
-                              <span className="text-[hsl(var(--text-secondary))] text-xs">
+                              <span className="text-[hsl(var(--text-secondary))] text-xs tabular-nums">
                                 {lib.counts[countKey] || 0}
                               </span>
                             </div>
 
                             {/* Entity items */}
                             {isTypeExpanded && (
-                              <div className="mt-0.5">
+                              <div className="mt-0.5 motion-disclosure-enter">
                                 {isLoadingItems ? (
                                   <div className="px-2 py-1 text-[hsl(var(--text-secondary))] text-xs italic" style={{ marginLeft: 24 }}>
                                     {t('common:loading')}

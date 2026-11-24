@@ -153,7 +153,7 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
 
       {/* Content */}
       {isExpanded && (
-        <div className="border-t border-[hsl(var(--separator-color))] px-3 py-2.5">
+        <div className="border-t border-[hsl(var(--separator-color))] px-3 py-2.5 motion-disclosure-enter">
           <div className="prose prose-xs max-w-none text-[hsl(var(--text-secondary))]">
             <LazyMarkdown>{displayContent}</LazyMarkdown>
           </div>

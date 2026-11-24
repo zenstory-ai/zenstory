@@ -91,7 +91,7 @@ export function DashboardFilterPills<T extends string>({
             onClick={() => onChange(option.value)}
             aria-pressed={isActive}
             className={`
-              shrink-0 whitespace-nowrap flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors
+              shrink-0 whitespace-nowrap flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.975] motion-reduce:active:scale-100
               ${isMobile ? "min-h-11" : "min-h-8"}
               ${isActive
                 ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]"

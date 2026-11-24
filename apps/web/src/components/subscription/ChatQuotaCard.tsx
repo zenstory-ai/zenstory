@@ -41,7 +41,7 @@ export function ChatQuotaCard({ limit, resetAt }: ChatQuotaCardProps) {
       ref={exposureRef}
       data-testid="chat-quota-card"
       role="status"
-      className={`mb-2 p-3 ${CHAT_CARD_SURFACE}`}
+      className={`mb-2 p-3 motion-banner-enter ${CHAT_CARD_SURFACE}`}
     >
       <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-[hsl(var(--text-primary))]">
         <Clock size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-[hsl(var(--text-secondary))]" />

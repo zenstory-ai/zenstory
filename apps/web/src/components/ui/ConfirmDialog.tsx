@@ -220,13 +220,13 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   return createPortal(
     <div
-      className="modal-overlay viewport-overlay flex items-center justify-center p-4"
+      className="modal-overlay viewport-overlay flex items-center justify-center p-4 motion-backdrop-enter"
       onClick={handleOverlayClick}
       role="presentation"
     >
       <div
         ref={dialogRef}
-        className="modal ui-sans-headings w-full max-w-[400px] max-h-[calc(100dvh-2rem)] overflow-y-auto animate-scale-in"
+        className="modal ui-sans-headings w-full max-w-[400px] max-h-[calc(100dvh-2rem)] overflow-y-auto motion-surface-enter"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         tabIndex={-1}

@@ -94,8 +94,7 @@ const SPLIT_LAYOUT_PRESETS: Record<SplitLayoutVariant, SplitLayoutPreset> = {
   },
 };
 
-const SEPARATOR_CLASS =
-  "w-px bg-[hsl(var(--separator-color))] hover:bg-[hsl(var(--accent-primary)/0.5)] transition-all hover:w-1";
+const SEPARATOR_CLASS = "panel-resize-handle";
 
 /**
  * Three-panel resizable workbench layout for desktop (>= 1024px) and tablet (768px-1023px).
@@ -265,7 +264,7 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
           id="files-panel"
           ref={filesPanelRef}
           onScroll={handleScroll('files')}
-          className={`absolute inset-x-0 top-0 overflow-auto bg-[hsl(var(--bg-primary))] transition-opacity duration-200 ${
+          className={`absolute inset-x-0 top-0 overflow-auto bg-[hsl(var(--bg-primary))] transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none ${
             activePanel === "files" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
           }`}
           style={{ bottom: mobilePanelBottomInset }}
@@ -282,7 +281,7 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
           id="editor-panel"
           ref={editorPanelRef}
           onScroll={handleScroll('editor')}
-          className={`absolute inset-x-0 top-0 overflow-hidden bg-[hsl(var(--bg-primary))] transition-opacity duration-200 ${
+          className={`absolute inset-x-0 top-0 overflow-hidden bg-[hsl(var(--bg-primary))] transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none ${
             activePanel === "editor" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
           }`}
           style={{ bottom: mobilePanelBottomInset }}
@@ -299,7 +298,7 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
           id="chat-panel"
           ref={chatPanelRef}
           onScroll={handleScroll('chat')}
-          className={`absolute inset-x-0 top-0 overflow-hidden bg-[hsl(var(--bg-primary))] transition-opacity duration-200 ${
+          className={`absolute inset-x-0 top-0 overflow-hidden bg-[hsl(var(--bg-primary))] transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none ${
             activePanel === "chat" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
           }`}
           style={{ bottom: mobilePanelBottomInset }}

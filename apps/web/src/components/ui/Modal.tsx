@@ -306,10 +306,10 @@ export const Modal: React.FC<ModalProps> & {
 
   const sizeClasses = getSizeClasses(size);
 
-  const overlayClasses = `viewport-overlay fixed inset-0 z-[1000] bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-4 sm:p-6 ${overlayClassName}`;
+  const overlayClasses = `viewport-overlay fixed inset-0 z-[1000] bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-4 sm:p-6 motion-backdrop-enter ${overlayClassName}`;
 
   // `ui-sans-headings`: dialogs are control surfaces (portaled outside the dashboard's <main>).
-  const contentClasses = `ui-sans-headings bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] shadow-xl w-full ${sizeClasses} animate-scale-in flex flex-col max-h-[90vh] ${className}`;
+  const contentClasses = `ui-sans-headings bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] shadow-xl w-full ${sizeClasses} motion-surface-enter flex flex-col max-h-[90vh] ${className}`;
 
   const hasHorizontalPaddingOverride = Boolean(
     bodyClassName && /(?:^|\s)!?p(?:x|l|r)?-/.test(bodyClassName)

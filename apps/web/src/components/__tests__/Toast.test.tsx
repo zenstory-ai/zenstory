@@ -25,17 +25,27 @@ describe('ToastContainer', () => {
     expect(screen.getByText('Ready')).toHaveAttribute('aria-atomic', 'true')
   })
 
-  it('renders toast messages and auto-dismisses them', async () => {
+  it('renders toast messages, transitions through exiting state, and auto-dismisses at 3000ms', async () => {
     render(<ToastContainer />)
 
     act(() => {
       toast.success('Saved successfully')
     })
 
-    expect(screen.getByText('Saved successfully')).toBeInTheDocument()
+    const toastEl = screen.getByText('Saved successfully')
+    expect(toastEl).toBeInTheDocument()
+    expect(toastEl).toHaveAttribute('data-state', 'open')
+    expect(toastEl.className).toContain('motion-toast-enter')
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000)
+      await vi.advanceTimersByTimeAsync(2850)
+    })
+
+    expect(screen.getByText('Saved successfully')).toHaveAttribute('data-state', 'exiting')
+    expect(screen.getByText('Saved successfully').className).toContain('motion-toast-exit')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150)
     })
 
     expect(screen.queryByText('Saved successfully')).not.toBeInTheDocument()

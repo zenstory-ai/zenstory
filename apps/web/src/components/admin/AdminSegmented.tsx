@@ -16,7 +16,7 @@ export function AdminSegmented<T extends string | number>({
           type="button"
           aria-pressed={value === option}
           onClick={() => onChange(option)}
-          className={`min-h-11 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+          className={`min-h-11 rounded-lg px-3 py-1.5 text-sm transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.975] motion-reduce:active:scale-100 ${
             value === option
               ? "bg-[hsl(var(--accent-primary)/0.14)] font-semibold text-[var(--admin-accent-text)]"
               : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"

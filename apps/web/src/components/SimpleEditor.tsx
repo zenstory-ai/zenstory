@@ -1228,15 +1228,15 @@ export const SimpleEditor = ({
 
             {/* Save status */}
             {isSaving ? (
-              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1 whitespace-nowrap">
+              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1 whitespace-nowrap tabular-nums">
                 <Clock size={12} className="animate-spin" />
                 {t('editor:saving')}
               </span>
             ) : isDirty ? (
-              <span className="text-xs text-[hsl(var(--warning-text))] whitespace-nowrap">{t('editor:unsaved')}</span>
+              <span className="text-xs text-[hsl(var(--warning-text))] whitespace-nowrap motion-banner-enter">{t('editor:unsaved')}</span>
             ) : lastSaved ? (
-              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1 whitespace-nowrap">
-                <Check size={12} className="text-[hsl(var(--success-text))]" />
+              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1 whitespace-nowrap tabular-nums">
+                <Check size={12} className="text-[hsl(var(--success-text))] motion-icon-pop" />
                 <SavedAgoLabel savedAt={lastSaved} />
               </span>
             ) : null}
@@ -1246,7 +1246,7 @@ export const SimpleEditor = ({
               type="button"
               onClick={() => void handleSave()}
               disabled={isSaving || !isDirty || readOnly || isStreaming}
-              className="max-md:min-h-11 px-2.5 py-1.5 text-xs bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap transition-colors"
+              className="max-md:min-h-11 px-2.5 py-1.5 text-xs bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center gap-1.5 whitespace-nowrap transition-[transform,background-color,opacity] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.975] motion-reduce:active:scale-100"
             >
               <Save size={14} />
               {t('editor:save')}

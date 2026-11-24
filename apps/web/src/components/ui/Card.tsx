@@ -240,7 +240,9 @@ export const Card: React.FC<CardProps> = ({
   const roundedClasses = getRoundedClasses(rounded);
 
   // Hoverable classes
-  const hoverableClasses = hoverable ? 'transition-shadow hover:shadow-md cursor-pointer' : '';
+  const hoverableClasses = hoverable
+    ? 'transition-[box-shadow,border-color,background-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] hover:shadow-md cursor-pointer'
+    : '';
 
   // Show skeleton when loading
   if (isLoading) {

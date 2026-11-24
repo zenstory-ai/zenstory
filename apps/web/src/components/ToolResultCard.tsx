@@ -1040,7 +1040,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 style={{ listStyle: 'none' }}
               >
                 <svg
-                  className="w-3 h-3 shrink-0 transition-transform duration-200 group-open:rotate-90"
+                  className="w-3 h-3 shrink-0 motion-chevron group-open:rotate-90"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -1049,7 +1049,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 </svg>
                 {t('chat:tool.view_edit_details', { count: details.length })}
               </summary>
-              <div className="space-y-2 mt-2">
+              <div className="space-y-2 mt-2 motion-disclosure-enter">
                 {details.map((detail, index) => (
                   <div key={index} className="rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary)/0.45)] p-2.5 text-xs">
                     <div className="flex items-center gap-1 mb-1">

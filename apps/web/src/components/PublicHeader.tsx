@@ -224,14 +224,14 @@ export function PublicHeader({
               aria-controls={productMenuId}
             >
               <span className="text-xs md:text-sm">{t('common:productMenu.title')}</span>
-              <ChevronDown size={12} className={`transition-transform ${showProductMenu ? 'rotate-180' : ''}`} />
+              <ChevronDown size={12} className={`motion-chevron ${showProductMenu ? 'rotate-180' : ''}`} />
             </button>
 
             {/* 下拉菜单 */}
             {showProductMenu && (
               <div
                 id={productMenuId}
-                className="absolute top-full left-0 mt-1 py-1 min-w-[130px] md:min-w-[140px] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg shadow-lg z-50"
+                className="absolute top-full left-0 mt-1 py-1 min-w-[130px] md:min-w-[140px] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg shadow-lg z-50 origin-top-left motion-popover-enter"
                 role="menu"
                 aria-label={t('common:productMenu.title')}
                 onKeyDown={handleProductMenuKeyDown}
@@ -369,7 +369,7 @@ export function PublicHeader({
       {isCompactHeader && showMobileMenu && (variant === "dashboard" || variant === "home") && (
         <div
           id={mobileMenuId}
-          className="lg:hidden fixed top-12 left-0 right-0 max-h-[calc(100dvh-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40"
+          className="lg:hidden fixed top-12 left-0 right-0 max-h-[calc(100dvh-3rem)] overflow-y-auto bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40 motion-sheet-down"
         >
           <div className="flex flex-col p-2 gap-1" role="menu" aria-label={t("common:nav.mobileMenu", "移动端导航菜单")}>
             {variant === "home" && (

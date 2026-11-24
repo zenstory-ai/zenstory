@@ -20,7 +20,6 @@ import {
   Globe,
   Zap,
   ChevronRight,
-  ChevronDown,
   GitBranch,
   Users,
   Loader2,
@@ -915,11 +914,10 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
             >
               {item.type === "folder" && (
                 <span className="shrink-0">
-                  {isExpanded ? (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  )}
+                  <ChevronRight
+                    aria-hidden="true"
+                    className={`w-3.5 h-3.5 motion-chevron ${isExpanded ? "rotate-90" : ""}`}
+                  />
                 </span>
               )}
               <span className="shrink-0">{getIcon(item.type, isExpanded)}</span>
@@ -928,7 +926,7 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[hsl(var(--accent-primary))]" />
               )}
               {item.type === "folder" && item.count !== undefined && (
-                <span className="text-xs text-[hsl(var(--text-tertiary))]">
+                <span className="text-xs tabular-nums text-[hsl(var(--text-tertiary))]">
                   {item.count.toLocaleString(i18n.language)}
                 </span>
               )}

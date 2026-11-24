@@ -30,7 +30,6 @@ import { getCreateFileType, isMaterialFolder, useFileTree } from "../hooks/useFi
 import SearchResultsDropdown from "./SearchResultsDropdown";
 import type { FileTreeNode } from "../types";
 import {
-  ChevronDown,
   ChevronRight,
   FileText,
   Users,
@@ -304,11 +303,13 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         >
           {/* Expand/collapse icon for folders */}
           {isFolder ? (
-            isExpanded ? (
-              <ChevronDown size={20} className="text-[hsl(var(--text-secondary))] shrink-0" />
-            ) : (
-              <ChevronRight size={20} className="text-[hsl(var(--text-secondary))] shrink-0" />
-            )
+            <ChevronRight
+              size={20}
+              aria-hidden="true"
+              className={`text-[hsl(var(--text-secondary))] shrink-0 motion-chevron ${
+                isExpanded ? "rotate-90" : ""
+              }`}
+            />
           ) : (
             <span className="w-5" />
           )}

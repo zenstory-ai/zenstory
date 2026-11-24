@@ -13,7 +13,6 @@ import { useFileSearchContext } from "../../contexts/FileSearchContext";
 import { FileSearchInput } from "../FileSearchInput";
 import SearchResultsDropdown from "../SearchResultsDropdown";
 import {
-  ChevronDown,
   ChevronRight,
   FileText,
   Users,
@@ -296,17 +295,13 @@ export const FileTreePane: React.FC = () => {
         >
           {/* Expand/collapse icon for folders */}
           {isFolder ? (
-            isExpanded ? (
-              <ChevronDown
-                size={14}
-                className="text-[hsl(var(--text-secondary))] shrink-0"
-              />
-            ) : (
-              <ChevronRight
-                size={14}
-                className="text-[hsl(var(--text-secondary))] shrink-0"
-              />
-            )
+            <ChevronRight
+              size={14}
+              aria-hidden="true"
+              className={`text-[hsl(var(--text-secondary))] shrink-0 motion-chevron ${
+                isExpanded ? "rotate-90" : ""
+              }`}
+            />
           ) : (
             <span className="w-3.5 shrink-0" /> /* Spacer for non-folders */
           )}

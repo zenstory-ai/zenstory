@@ -206,7 +206,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleTriggerKeyDown}
-        className="min-h-[44px] min-w-[44px] p-1.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+        className="min-h-[44px] min-w-[44px] p-1.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
         title={triggerTitle}
         aria-label={triggerAriaLabel || triggerTitle}
         aria-expanded={isOpen}
@@ -221,7 +221,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
       {isOpen && (
         <div
           id={menuId}
-          className="absolute right-0 top-full mt-1 w-max min-w-[160px] max-w-[calc(100vw-1rem)] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-md shadow-lg z-50 py-1"
+          className="absolute right-0 top-full mt-1 w-max min-w-[160px] max-w-[calc(100vw-1rem)] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-md shadow-lg z-50 py-1 origin-top-right motion-popover-enter"
           role="menu"
           onKeyDown={handleMenuKeyDown}
           data-testid={menuTestId}

@@ -4,7 +4,7 @@ import { IconButton } from "../ui/IconButton";
 
 /** Outlined action styling shared by every dashboard banner's optional button. */
 export const dashboardBannerActionClassName =
-  "mt-2 inline-flex min-h-11 shrink-0 items-center rounded-xl border border-[hsl(var(--accent-primary)/0.35)] px-3 text-sm font-medium text-[hsl(var(--accent-primary))] transition-colors hover:bg-[hsl(var(--accent-primary)/0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] sm:mt-0";
+  "mt-2 inline-flex min-h-11 shrink-0 items-center rounded-xl border border-[hsl(var(--accent-primary)/0.35)] px-3 text-sm font-medium text-[hsl(var(--accent-primary))] transition-[transform,background-color,border-color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] hover:bg-[hsl(var(--accent-primary)/0.08)] active:scale-[0.975] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] sm:mt-0";
 
 interface DashboardBannerProps {
   regionLabel: string;
@@ -20,7 +20,7 @@ interface DashboardBannerProps {
 export function DashboardBanner({ regionLabel, icon, title, description, action, closeLabel, onClose }: DashboardBannerProps) {
   return (
     <section
-      className="mb-5 flex items-start gap-3 rounded-2xl border border-[hsl(var(--accent-primary)/0.22)] bg-[hsl(var(--accent-primary)/0.07)] px-4 py-3.5 text-[hsl(var(--text-primary))] sm:items-center"
+      className="mb-5 flex items-start gap-3 rounded-2xl border border-[hsl(var(--accent-primary)/0.22)] bg-[hsl(var(--accent-primary)/0.07)] px-4 py-3.5 text-[hsl(var(--text-primary))] motion-banner-enter sm:items-center"
       aria-label={regionLabel}
     >
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--accent-primary)/0.13)] text-[hsl(var(--accent-primary))] sm:mt-0">

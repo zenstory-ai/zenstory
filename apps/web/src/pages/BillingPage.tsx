@@ -478,7 +478,7 @@ export default function BillingPage() {
                     <span className="text-[hsl(var(--text-secondary))]">{item.label}</span>
                     <span
                       data-testid={`billing-usage-${item.key}`}
-                      className={`font-semibold ${usageTextClass}`}
+                      className={`font-semibold tabular-nums ${usageTextClass}`}
                     >
                       {formatUsage(metric)}
                     </span>
@@ -487,8 +487,8 @@ export default function BillingPage() {
                     <div className="mt-2 h-1.5 rounded-full bg-[hsl(var(--bg-tertiary))] overflow-hidden">
                       <div
                         data-testid={`billing-usage-bar-${item.key}`}
-                        className={`h-full ${usageBarClass}`}
-                        style={{ width: `${progress}%` }}
+                        className={`h-full w-full motion-progress-fill ${usageBarClass}`}
+                        style={{ transform: `scaleX(${Math.max(0, Math.min(100, progress)) / 100})` }}
                       />
                     </div>
                   )}
@@ -520,9 +520,9 @@ export default function BillingPage() {
       <details data-testid="billing-help" className="group border-t border-[hsl(var(--border-color))]">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-3 text-sm text-[hsl(var(--text-secondary))] rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden">
           {t("dashboard:billing.helpAndSupport", "帮助与支持")}
-          <ChevronDown size={15} aria-hidden="true" className="group-open:rotate-180" />
+          <ChevronDown size={15} aria-hidden="true" className="motion-chevron group-open:rotate-180" />
         </summary>
-        <div className="space-y-3 pb-3">
+        <div className="space-y-3 pb-3 motion-disclosure-enter">
           <p
             className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-[hsl(var(--text-secondary))]"
             data-testid="billing-support-email"

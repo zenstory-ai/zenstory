@@ -49,7 +49,7 @@ export const EditorStreamingBanner: React.FC<{
   return (
     <div
       data-testid="editor-streaming-banner"
-      className="shrink-0 bg-[hsl(var(--accent-primary)/0.08)] px-4 sm:px-6 py-2.5 flex items-center gap-2.5 border-b border-[hsl(var(--accent-primary)/0.2)]"
+      className="shrink-0 bg-[hsl(var(--accent-primary)/0.08)] px-4 sm:px-6 py-2.5 flex items-center gap-2.5 border-b border-[hsl(var(--accent-primary)/0.2)] motion-banner-enter"
     >
       <Loader2
         size={16}

@@ -81,10 +81,10 @@ export function LeaveWhileGeneratingDialog({
   }
 
   return createPortal(
-    <div className="modal-overlay flex items-center justify-center p-4" onClick={onStay} role="presentation">
+    <div className="modal-overlay flex items-center justify-center p-4 motion-backdrop-enter" onClick={onStay} role="presentation">
       <div
         ref={dialogRef}
-        className="modal ui-sans-headings w-full max-w-[400px] max-h-[calc(100dvh-2rem)] overflow-y-auto animate-scale-in"
+        className="modal ui-sans-headings w-full max-w-[400px] max-h-[calc(100dvh-2rem)] overflow-y-auto motion-surface-enter"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         tabIndex={-1}

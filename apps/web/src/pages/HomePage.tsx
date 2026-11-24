@@ -318,7 +318,7 @@ export default function HomePage() {
                   </div>
                   
                   {/* Scene content with transition */}
-                  <div data-testid="home-demo-scene" className={prefersReducedMotion ? 'opacity-100' : `transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
+                  <div data-testid="home-demo-scene" className={prefersReducedMotion ? 'opacity-100' : `transition-opacity duration-[var(--duration-base)] ease-[var(--ease-standard)] ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
                     {renderSceneContent(SCENES[activeScene].id)}
                   </div>
                 </div>
@@ -423,10 +423,10 @@ export default function HomePage() {
                 }}
                 onFocus={handleGetStartedHover}
                 onPointerEnter={handleGetStartedHover}
-                className="group relative flex h-full w-full flex-col text-left p-4 md:p-5 rounded-xl bg-[hsl(var(--bg-primary))] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.5)] hover:shadow-[0_0_40px_rgba(74,158,255,0.15)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
+                className="group relative flex h-full w-full flex-col text-left p-4 md:p-5 rounded-xl bg-[hsl(var(--bg-primary))] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.5)] hover:shadow-[0_0_40px_rgba(74,158,255,0.15)] hover:-translate-y-0.5 active:scale-[0.99] motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100 transition-[transform,border-color,box-shadow] duration-[var(--duration-base)] ease-[var(--ease-out-expo)] cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
               >
                 <div data-card-slot="header" className="mb-4 md:mb-5 flex min-h-12 items-start justify-between gap-3">
-                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] flex items-center justify-center group-hover:scale-105 motion-reduce:group-hover:scale-100 transition-transform duration-[var(--duration-fast)] ease-[var(--ease-out-expo)]">
                     <item.icon className="w-5 h-5 md:w-6 md:h-6 text-[hsl(var(--text-primary))]" />
                   </div>
                   <div aria-hidden={!item.popular} className={`px-2 md:px-3 py-1 md:py-1.5 rounded-full bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))] text-[10px] md:text-[11px] font-bold flex items-center gap-0.5 md:gap-1 ${item.popular ? '' : 'invisible'}`}>
@@ -488,8 +488,8 @@ export default function HomePage() {
               const featureTitle = t(`home:whyChoose.${item.key}.title`);
               const featureDesc = t(`home:whyChoose.${item.key}.description`);
               return (
-              <div key={i} className="group p-4 md:p-6 rounded-xl bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.3)] hover:shadow-[0_0_30px_rgba(74,158,255,0.1)] hover:-translate-y-1 transition-all duration-300">
-                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center mb-3 md:mb-4 group-hover:scale-110 group-hover:bg-[hsl(var(--accent-primary)/0.15)] transition-all duration-300">
+              <div key={i} className="group p-4 md:p-6 rounded-xl bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.3)] hover:shadow-[0_0_30px_rgba(74,158,255,0.1)] hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 transition-[transform,border-color,box-shadow] duration-[var(--duration-base)] ease-[var(--ease-out-expo)]">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center mb-3 md:mb-4 group-hover:scale-105 motion-reduce:group-hover:scale-100 group-hover:bg-[hsl(var(--accent-primary)/0.15)] transition-[transform,background-color] duration-[var(--duration-fast)] ease-[var(--ease-out-expo)]">
                   <item.icon className="w-5 h-5 md:w-6 md:h-6 text-[hsl(var(--accent-primary))]" />
                 </div>
                 <h3 className="text-base md:text-lg font-bold text-[hsl(var(--text-primary))] mb-1.5 md:mb-2">{featureTitle}</h3>

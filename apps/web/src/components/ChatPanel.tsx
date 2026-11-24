@@ -2938,9 +2938,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-[hsl(var(--bg-tertiary))] rounded-full h-1.5 overflow-hidden">
                         <div
-                          className="h-full bg-[hsl(var(--accent-primary))] transition-all duration-300"
+                          className="h-full w-full bg-[hsl(var(--accent-primary))] motion-progress-fill"
                           style={{
-                            width: `${(editProgress.completedEdits / editProgress.totalEdits) * 100}%`,
+                            transform: `scaleX(${editProgress.totalEdits > 0 ? Math.min(1, editProgress.completedEdits / editProgress.totalEdits) : 0})`,
                           }}
                         />
                       </div>
