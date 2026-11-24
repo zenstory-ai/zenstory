@@ -30,7 +30,7 @@ def _configure_creem_env(monkeypatch: pytest.MonkeyPatch, *, test_mode: bool = T
     monkeypatch.setenv("CREEM_WEBHOOK_SECRET", secret)
     monkeypatch.setenv("CREEM_PRODUCT_ID_PRO_MONTH", "prod_month_test_123")
     monkeypatch.setenv("CREEM_PRODUCT_ID_PRO_YEAR", "prod_year_test_456")
-    monkeypatch.setenv("CREEM_RETURN_URL", "https://app-preview.zenstory.ai/dashboard/billing/return")
+    monkeypatch.setenv("CREEM_RETURN_URL", "https://app-preview.zenstory.ai/dashboard/billing/payment-return")
     monkeypatch.setenv("ZPAY_ENABLED", "false")
     return {"api_key": api_key, "secret": secret}
 
@@ -452,4 +452,45 @@ def test_creem_preflight_blocks_test_mode_in_production(monkeypatch: pytest.Monk
     assert any("CREEM_TEST_MODE must be false in production" in p for p in problems)
 
     monkeypatch.setenv("ENVIRONMENT", "staging")
+    assert creem_preflight_problems() == []
+
+
+def test_creem_default_return_url_uses_payment_return_route(monkeypatch: pytest.MonkeyPatch):
+    from config.payment_settings import PAYMENT_RETURN_PATH, get_creem_settings
+
+    monkeypatch.delenv("CREEM_RETURN_URL", raising=False)
+    monkeypatch.delenv("ZPAY_RETURN_URL", raising=False)
+    monkeypatch.setenv("FRONTEND_URL", "https://app.zenstory.ai/")
+
+    settings = get_creem_settings()
+    assert settings.return_url == f"https://app.zenstory.ai{PAYMENT_RETURN_PATH}"
+    assert settings.return_url == "https://app.zenstory.ai/dashboard/billing/payment-return"
+    assert settings.return_url_valid is True
+
+    monkeypatch.setenv("ZPAY_RETURN_URL", "https://app-preview.zenstory.ai/dashboard/billing/payment-return")
+    assert get_creem_settings().return_url == "https://app-preview.zenstory.ai/dashboard/billing/payment-return"
+
+    monkeypatch.setenv("CREEM_RETURN_URL", "https://custom.zenstory.ai/dashboard/billing/payment-return")
+    assert get_creem_settings().return_url == "https://custom.zenstory.ai/dashboard/billing/payment-return"
+
+
+def test_creem_preflight_rejects_wrong_return_url_path(monkeypatch: pytest.MonkeyPatch):
+    from config.payment_settings import get_creem_settings
+
+    _configure_creem_env(monkeypatch, test_mode=False)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("CREEM_RETURN_URL", "https://app.zenstory.ai/dashboard/billing/return")
+
+    settings = get_creem_settings()
+    assert settings.return_url_valid is False
+    assert settings.checkout_configured is False
+    assert settings.checkout_enabled is False
+    problems = creem_preflight_problems()
+    assert problems is not None
+    assert any(
+        "CREEM_RETURN_URL path must be exactly /dashboard/billing/payment-return" in p
+        for p in problems
+    )
+
+    monkeypatch.setenv("CREEM_RETURN_URL", "https://app.zenstory.ai/dashboard/billing/payment-return")
     assert creem_preflight_problems() == []
