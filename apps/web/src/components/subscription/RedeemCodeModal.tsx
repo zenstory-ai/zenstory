@@ -152,7 +152,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
           </div>
 
           {error && (
-            <div role="alert" className="mb-4 p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] text-sm rounded-xl">
+            <div key={error} role="alert" className="mb-4 p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] text-sm rounded-xl motion-error-shake">
               {error}
             </div>
           )}

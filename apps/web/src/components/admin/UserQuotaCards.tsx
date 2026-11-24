@@ -34,7 +34,7 @@ const QuotaCard: React.FC<{
         </div>
         <div className="min-w-0">
           <h3 className="font-medium text-[hsl(var(--text-primary))]">{title}</h3>
-          <p className="text-sm text-[hsl(var(--text-secondary))]">
+          <p className="text-sm tabular-nums text-[hsl(var(--text-secondary))]">
             {unlimited
               ? t("quota.usedUnlimited", { used: counter.used })
               : `${counter.used} / ${counter.limit}`}
@@ -44,8 +44,8 @@ const QuotaCard: React.FC<{
       {!unlimited && (
         <div className="h-2 bg-[hsl(var(--bg-tertiary))] rounded-full overflow-hidden">
           <div
-            className={`h-full ${barColor(percentage)} transition-all`}
-            style={{ width: `${Math.min(100, percentage)}%` }}
+            className={`h-full w-full motion-progress-fill ${barColor(percentage)}`}
+            style={{ transform: `scaleX(${Math.max(0, Math.min(100, percentage)) / 100})` }}
           />
         </div>
       )}

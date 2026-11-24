@@ -223,10 +223,11 @@ export const Login: React.FC = () => {
         <div className="bg-[hsl(var(--bg-secondary))] rounded-2xl p-6 sm:p-8 shadow-lg border border-[hsl(var(--border-color))]">
           {error && (
             <div
+              key={error}
               id="login-error"
               role="alert"
               aria-live="assertive"
-              className="bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded-xl p-4 mb-6"
+              className="bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded-xl p-4 mb-6 motion-error-shake"
             >
               <p className="text-[hsl(var(--error-text))] text-sm">{error}</p>
               {unverifiedEmail !== null && (

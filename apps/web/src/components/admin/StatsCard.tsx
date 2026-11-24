@@ -66,7 +66,7 @@ export function StatsCard({
       padding="responsive"
       className="h-full border bg-[hsl(var(--bg-secondary))]"
     >
-      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4 motion-content-reveal">
         <IconWrapper size="2xl" variant="primary" rounded="md">
           {icon}
         </IconWrapper>

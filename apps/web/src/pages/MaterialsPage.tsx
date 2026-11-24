@@ -601,7 +601,7 @@ export default function MaterialsPage() {
         <>
           {materialDecomposeQuota && hasWorkspaceAccess && (
             <div className="mb-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
-              <p className="text-sm font-medium text-[hsl(var(--text-primary))]">
+              <p className="text-sm font-medium tabular-nums text-[hsl(var(--text-primary))]">
                 {remainingDecompositions == null
                   ? t("common:unlimited", { defaultValue: "不限" })
                   : t("materials:quotaRemaining", {
@@ -659,7 +659,7 @@ export default function MaterialsPage() {
           )}
           {materialDecomposeQuota && hasWorkspaceAccess && (
             <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
-              <p className="text-sm font-medium text-[hsl(var(--text-primary))]">
+              <p className="text-sm font-medium tabular-nums text-[hsl(var(--text-primary))]">
                 {remainingDecompositions == null
                   ? t("common:unlimited", { defaultValue: "不限" })
                   : t("materials:quotaRemaining", {
@@ -713,7 +713,7 @@ export default function MaterialsPage() {
               );
             }
             return (
-              <div className={`grid gap-3.5 ${isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"}`}>
+              <div className={`grid gap-3.5 motion-content-reveal ${isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"}`}>
                 {filteredMaterials.map((material) => (
                   <MaterialCard
                     key={material.id}
@@ -837,7 +837,7 @@ export default function MaterialsPage() {
                   <p className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
                     {file.name}
                   </p>
-                  <p className="text-xs text-[hsl(var(--text-tertiary))]">
+                  <p className="text-xs tabular-nums text-[hsl(var(--text-tertiary))]">
                     {(file.size / 1024).toFixed(1)} KB
                   </p>
                 </>
@@ -881,7 +881,7 @@ export default function MaterialsPage() {
 
         {/* Error Message */}
         {error && (
-          <div role="alert" className="mt-4 p-3 rounded-xl bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)]">
+          <div key={error} role="alert" className="mt-4 p-3 rounded-xl bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] motion-error-shake">
             <p className="text-sm text-[hsl(var(--error-text))]">{error}</p>
           </div>
         )}
@@ -1040,7 +1040,7 @@ function MaterialCard({
 
         {/* Stats */}
         {(material.status === "completed" || material.status === "completed_with_errors") && (
-          <div className="flex items-center gap-4 text-xs text-[hsl(var(--text-secondary))]">
+          <div className="flex items-center gap-4 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
             <div className="flex items-center gap-1">
               <FileText className="w-3.5 h-3.5" />
               <span>{material.chapters_count || 0} {t("materials:chapters")}</span>

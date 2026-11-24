@@ -11,6 +11,7 @@ import { SelectionToolbar } from "./SelectionToolbar";
 import { useTextQuote } from "../contexts/TextQuoteContext";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import { usePinchZoom } from "../hooks/useGestures";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import type { DiffReviewState } from "../types";
 import { SavedAgoLabel } from "./SavedAgoLabel";
 import { countWords } from "../lib/documentChunker";
@@ -201,10 +202,14 @@ export const SimpleEditor = ({
   // autosave is scheduled again on the new token (see the baseline effect).
   const [autosaveNudge, setAutosaveNudge] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const isVersionHistoryOpen = showVersionHistory && Boolean(fileId);
+  const { isMounted: isVersionHistoryMounted } = useAnimatedPresence(isVersionHistoryOpen, 150);
   // Selection toolbar state
   const [selectedText, setSelectedText] = useState("");
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const isSelectionToolbarOpen = Boolean(selectedText && selectionPosition && fileId);
+  const { isMounted: isSelectionToolbarMounted } = useAnimatedPresence(isSelectionToolbarOpen, 120);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
@@ -1080,10 +1085,12 @@ export const SimpleEditor = ({
         />
       )}
 
-      {/* Streaming indicator banner */}
-      {isStreaming && !isReviewMode && (
-        <EditorStreamingBanner isWaitingForFirstToken={!displayContent} title={title} />
-      )}
+      {/* Streaming indicator banner (kept mounted for symmetric exit) */}
+      <EditorStreamingBanner
+        open={isStreaming && !isReviewMode}
+        isWaitingForFirstToken={!displayContent}
+        title={title}
+      />
       
       {/* Title bar */}
       <div
@@ -1181,20 +1188,20 @@ export const SimpleEditor = ({
               data-testid="editor-word-count"
               onClick={() => toast.info(t('editor:wordCountHint'))}
               title={t('editor:wordCountHint')}
-              className="max-md:min-h-11 cursor-help text-[hsl(var(--text-secondary))] underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
+              className="max-md:min-h-11 cursor-help tabular-nums text-[hsl(var(--text-secondary))] underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
             >
-              {t('editor:wordCount')} <strong className="text-[hsl(var(--text-primary))]">{countWords(displayContent)}</strong>
+              {t('editor:wordCount')} <strong className="tabular-nums text-[hsl(var(--text-primary))]">{countWords(displayContent)}</strong>
             </button>
             {/* One paragraph per non-empty line: manuscripts indent each paragraph instead of leaving blank lines. */}
-            <span data-testid="editor-paragraph-count">
-              {t('editor:paragraphCount')} <strong className="text-[hsl(var(--text-primary))]">{displayContent.split("\n").filter((line) => line.trim()).length}</strong>
+            <span data-testid="editor-paragraph-count" className="tabular-nums">
+              {t('editor:paragraphCount')} <strong className="tabular-nums text-[hsl(var(--text-primary))]">{displayContent.split("\n").filter((line) => line.trim()).length}</strong>
             </span>
             {/* Zoom indicator - only show when zoomed */}
             {zoom !== 1 && (
               <button
                 type="button"
                 onClick={resetZoom}
-                className="max-md:min-h-11 px-1.5 py-0.5 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+                className="max-md:min-h-11 px-1.5 py-0.5 rounded-lg tabular-nums text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 title={t('editor:resetZoom')}
               >
                 {Math.round(zoom * 100)}%
@@ -1263,15 +1270,15 @@ export const SimpleEditor = ({
 
             {/* Save status */}
             {isSaving ? (
-              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1 whitespace-nowrap">
+              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1 whitespace-nowrap tabular-nums">
                 <Clock size={12} className="animate-spin" />
                 {t('editor:saving')}
               </span>
             ) : isDirty ? (
-              <span className="text-xs text-[hsl(var(--warning-text))] whitespace-nowrap">{t('editor:unsaved')}</span>
+              <span className="text-xs text-[hsl(var(--warning-text))] whitespace-nowrap motion-banner-enter">{t('editor:unsaved')}</span>
             ) : lastSaved ? (
-              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1 whitespace-nowrap">
-                <Check size={12} className="text-[hsl(var(--success-text))]" />
+              <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1 whitespace-nowrap tabular-nums">
+                <Check size={12} className="text-[hsl(var(--success-text))] motion-icon-pop" />
                 <SavedAgoLabel savedAt={lastSaved} />
               </span>
             ) : null}
@@ -1290,7 +1297,7 @@ export const SimpleEditor = ({
                       ? t('editor:saveWithShortcut', { shortcut: isAppleSaveShortcutPlatform() ? '⌘S' : 'Ctrl+S' })
                       : t('editor:alreadySaved')
               }
-              className="max-md:min-h-11 px-2.5 py-1.5 text-xs bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap transition-colors"
+              className="max-md:min-h-11 px-2.5 py-1.5 text-xs bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:bg-[hsl(var(--primary-hover))] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center gap-1.5 whitespace-nowrap transition-[transform,background-color,opacity] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.975] motion-reduce:active:scale-100"
             >
               <Save size={14} />
               {t('editor:save')}
@@ -1300,8 +1307,9 @@ export const SimpleEditor = ({
       )}
 
       {/* Version History Modal */}
-      {showVersionHistory && fileId && (
+      {isVersionHistoryMounted && fileId && (
         <FileVersionHistory
+          open={isVersionHistoryOpen}
           fileId={fileId}
           fileTitle={title}
           hasUnsavedChanges={isDirty}
@@ -1311,9 +1319,10 @@ export const SimpleEditor = ({
         />
       )}
 
-      {/* Selection Toolbar */}
-      {selectedText && selectionPosition && fileId && (
+      {/* Selection Toolbar (mounted during symmetric exit in browsers, unmounted immediately in tests) */}
+      {isSelectionToolbarMounted && (
         <SelectionToolbar
+          open={isSelectionToolbarOpen}
           text={selectedText}
           position={selectionPosition}
           onAdd={handleAddQuote}

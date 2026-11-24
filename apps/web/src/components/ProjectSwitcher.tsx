@@ -27,6 +27,7 @@ import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { useProject } from "../contexts/ProjectContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Button } from "./ui/Button";
@@ -107,6 +108,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
   } = useProject();
 
   const [isOpen, setIsOpen] = useState(false);
+  const { isMounted: isDropdownMounted, isExiting: isDropdownExiting } = useAnimatedPresence(isOpen, 130);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -353,21 +355,25 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
         </div>
         <ChevronDown
           size={14}
-          className={`text-[hsl(var(--text-secondary))] transition-transform shrink-0 ${
+          className={`text-[hsl(var(--text-secondary))] motion-chevron shrink-0 ${
             isOpen ? "rotate-180" : ""
           }`}
         />
       </button>
 
       {/* Dropdown Menu */}
-      {isOpen && (
+      {isDropdownMounted && (
         <div
+          aria-hidden={isDropdownExiting ? true : undefined}
+          inert={isDropdownExiting ? true : undefined}
           className={`flex flex-col bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl shadow-lg z-50 overflow-hidden ${
+            isDropdownExiting ? "motion-popover-exit pointer-events-none" : "motion-popover-enter"
+          } ${
             isMobile
               // Pinned to the viewport: an ancestor-relative, translated panel
               // spilled off a 390px screen when the title was long.
-              ? 'fixed left-4 right-4 top-12'
-              : 'absolute top-full mt-2 left-0 w-80 max-w-[calc(100vw-2rem)]'
+              ? 'fixed left-4 right-4 top-12 origin-top'
+              : 'absolute top-full mt-2 left-0 w-80 max-w-[calc(100vw-2rem)] origin-top-left'
           }`}
           style={{
             maxHeight: "calc(var(--app-viewport-height) - 100px)",
@@ -393,7 +399,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                       setSearchQuery("");
                     }
                   }}
-                  className={`w-full min-w-0 bg-[hsl(var(--bg-tertiary))] rounded-lg pl-3 py-2 text-sm text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.3)] transition-all ${searchQuery ? "pr-9" : "pr-3"}`}
+                  className={`w-full min-w-0 bg-[hsl(var(--bg-tertiary))] rounded-lg pl-3 py-2 text-sm text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.3)] transition-[box-shadow,background-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${searchQuery ? "pr-9" : "pr-3"}`}
                   autoFocus={!isMobile}
                 />
                 {searchQuery && (

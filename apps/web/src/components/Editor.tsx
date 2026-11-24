@@ -940,7 +940,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       ]).map(({ snapshot, persisted }, index) => (
         <details key={`${snapshot.projectId}:${snapshot.fileId}:${index}`} open className="group min-w-0 shrink-0 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-6 py-3">
           <summary className="flex min-h-11 min-w-0 cursor-pointer list-none items-start gap-2 py-2 text-sm font-medium text-[hsl(var(--text-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden">
-            <ChevronDown size={16} aria-hidden="true" className="mt-0.5 shrink-0 -rotate-90 text-[hsl(var(--text-secondary))] group-open:rotate-0" />
+            <ChevronDown size={16} aria-hidden="true" className="mt-0.5 shrink-0 -rotate-90 text-[hsl(var(--text-secondary))] motion-chevron group-open:rotate-0" />
             <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t("editor:deletedFile.recovery", { title: snapshot.title })}</span>
           </summary>
           <div className="mt-1 space-y-3">
@@ -1686,12 +1686,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
               className="w-full min-h-11 md:min-h-0 flex items-center justify-center gap-1.5 rounded-lg text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] group"
             >
               <span>{showMore ? t('editor:showLess') : t('editor:showMore')}</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${showMore ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 motion-chevron ${showMore ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Secondary Actions - collapsible */}
             {showMore && (
-              <div className="grid grid-cols-3 gap-3 animate-fade-in" style={{ animationDuration: '200ms' }}>
+              <div className="grid grid-cols-3 gap-3 motion-disclosure-enter">
                 {/* Create Character */}
                 <button
                   type="button"

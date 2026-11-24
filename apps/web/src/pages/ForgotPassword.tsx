@@ -166,10 +166,11 @@ export default function ForgotPassword() {
           <div className="bg-[hsl(var(--bg-secondary))] rounded-2xl p-6 sm:p-8 shadow-lg border border-[hsl(var(--border-color))]">
             {error && (
               <div
+                key={error}
                 id="forgot-password-error"
                 role="alert"
                 aria-live="assertive"
-                className="bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded-xl p-4 mb-6 flex items-start gap-3"
+                className="bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded-xl p-4 mb-6 flex items-start gap-3 motion-error-shake"
               >
                 <AlertCircle className="w-5 h-5 text-[hsl(var(--error-text))] flex-shrink-0 mt-0.5" />
                 <p className="text-[hsl(var(--error-text))] text-sm break-words">{error}</p>

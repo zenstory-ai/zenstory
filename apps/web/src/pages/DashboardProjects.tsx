@@ -118,14 +118,14 @@ export default function DashboardProjects() {
       </div>}
 
       {/* Projects Count */}
-      {!loading && !error && projects.length > 0 && <div className="text-sm text-[hsl(var(--text-secondary))] mb-4">
+      {!loading && !error && projects.length > 0 && <div className="text-sm tabular-nums text-[hsl(var(--text-secondary))] mb-4">
         {t('projects.count', { count: filteredProjects.length })}
       </div>}
 
       {loading && (
         <div role="status" data-testid="projects-loading" aria-label={t('common.loading')} className="grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((item) => (
-            <div key={item} className="h-32 animate-pulse rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]" />
+            <div key={item} className="h-32 skeleton-shimmer rounded-2xl border border-[hsl(var(--border-color))]" />
           ))}
         </div>
       )}
@@ -164,7 +164,7 @@ export default function DashboardProjects() {
 
       {/* Project Cards Grid */}
       {!loading && !error && filteredProjects.length > 0 && (
-        <div className={`grid ${isMobile ? "grid-cols-1" : isTablet ? "grid-cols-2" : "lg:grid-cols-3"} gap-3.5`}>
+        <div className={`grid ${isMobile ? "grid-cols-1" : isTablet ? "grid-cols-2" : "lg:grid-cols-3"} gap-3.5 motion-content-reveal`}>
           {filteredProjects.map((project) => (
             <ProjectCard
               key={project.id}

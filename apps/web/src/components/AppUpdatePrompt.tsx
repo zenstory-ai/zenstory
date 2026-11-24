@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { RefreshCw } from "lucide-react";
 import { Button } from "./ui/Button";
 import { dismissAppUpdate, getAppUpdateState, subscribeAppUpdate } from "../lib/appUpdate";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 
 const isProjectPath = (pathname: string) => pathname.startsWith("/project/");
 
@@ -27,7 +28,9 @@ export function AppUpdatePrompt() {
     window.location.reload();
   }, [pathname]);
 
-  if (!available) return null;
+  const { isMounted, isExiting } = useAnimatedPresence(available, 160);
+
+  if (!isMounted) return null;
 
   return (
     // Below 768px (the mobile workspace with bottom tabs) it sits above the tabs,
@@ -35,7 +38,11 @@ export function AppUpdatePrompt() {
     <div
       role={required ? "alert" : "status"}
       aria-live={required ? "assertive" : "polite"}
-      className="fixed inset-x-4 bottom-[calc(8.5rem+env(safe-area-inset-bottom))] z-[1090] flex items-start gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-3 text-[hsl(var(--text-primary))] shadow-lg md:inset-x-auto md:bottom-4 md:right-4 md:w-96"
+      aria-hidden={isExiting ? true : undefined}
+      inert={isExiting ? true : undefined}
+      className={`fixed inset-x-4 bottom-[calc(8.5rem+env(safe-area-inset-bottom))] z-[1090] flex items-start gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-3 text-[hsl(var(--text-primary))] shadow-lg md:inset-x-auto md:bottom-4 md:right-4 md:w-96 ${
+        isExiting ? "motion-banner-exit pointer-events-none" : "motion-banner-enter"
+      }`}
     >
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--accent-primary)/0.13)] text-[hsl(var(--accent-primary))]">
         <RefreshCw className="h-4 w-4" aria-hidden="true" />

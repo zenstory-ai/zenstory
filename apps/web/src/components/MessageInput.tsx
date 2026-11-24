@@ -148,10 +148,12 @@ const SwipeableSuggestionChip: React.FC<SwipeableSuggestionChipProps> = ({
       type="button"
       onClick={onClick}
       aria-label={suggestion}
-      className={`shrink-0 border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] rounded-full text-xs whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'px-3 py-1.5 min-h-11 md:min-h-[32px]' : 'px-2.5 py-1'} ${isDismissing ? 'opacity-0 h-0 py-0 my-0 overflow-hidden' : ''}`}
+      className={`shrink-0 border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] rounded-full text-xs whitespace-nowrap transition-[background-color,color,border-color,opacity] duration-[var(--duration-instant)] ease-[var(--ease-standard)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'px-3 py-1.5 min-h-11 md:min-h-[32px]' : 'px-2.5 py-1'} ${isDismissing ? 'opacity-0 h-0 py-0 my-0 overflow-hidden' : ''}`}
       style={{
-        transform: `translateX(${translateX}px)`,
-        transition: isDismissing ? 'transform 0.2s ease-out, opacity 0.2s ease-out' : 'none',
+        transform: `translate3d(${translateX}px, 0, 0)`,
+        transition: isDismissing
+          ? 'transform var(--duration-fast) var(--ease-out-expo), opacity var(--duration-fast) var(--ease-standard)'
+          : 'none',
       }}
     >
       {suggestion}
@@ -1004,7 +1006,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       {inputTooLong ? (
         <div
           id={inputLengthErrorId}
-          className="shrink-0 px-1 text-xs text-[hsl(var(--error-text))]"
+          className="shrink-0 px-1 text-xs tabular-nums text-[hsl(var(--error-text))] motion-error-shake"
           role="alert"
           data-testid="chat-input-too-long"
         >
@@ -1046,7 +1048,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           }}
           placeholder={displayPlaceholder}
           disabled={inputDisabled}
-          className={`flex-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl text-sm text-[hsl(var(--text-primary))] placeholder:text-sm placeholder:text-[hsl(var(--text-secondary))] outline-none resize-none overflow-y-auto transition-all disabled:opacity-50 focus:border-[hsl(var(--accent-primary)/0.6)] focus:shadow-[inset_0_1px_2px_hsl(0_0%_0%_/_0.05),_0_0_0_2px_hsl(var(--accent-primary)/0.15)] ${
+          className={`flex-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl text-sm text-[hsl(var(--text-primary))] placeholder:text-sm placeholder:text-[hsl(var(--text-secondary))] outline-none resize-none overflow-y-auto transition-[border-color,box-shadow,background-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] disabled:opacity-50 focus:border-[hsl(var(--accent-primary)/0.6)] focus:shadow-[inset_0_1px_2px_hsl(0_0%_0%_/_0.05),_0_0_0_2px_hsl(var(--accent-primary)/0.15)] ${
             isMobile ? 'px-3 py-2.5' : 'px-3 py-2'
           } ${
             isFillLayout ? "h-full min-h-0" : ""
@@ -1070,12 +1072,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <button
             onClick={() => { void handleSteer(); }}
             disabled={!input.trim() || steerPending || inputTooLong}
-            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
+            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.96] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
             title={t("chat:input.steerButton")}
             aria-label={t("chat:input.steerButton")}
             data-testid="steer-button"
           >
-            <Send size={16} />
+            <Send key="steer-icon" size={16} className="motion-icon-pop" />
           </button>
         ) : onCancel && effectiveSendDisabled ? (
           <button
@@ -1083,7 +1085,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             // While arming the button stays clickable (aria-disabled) so a press gets an answer.
             disabled={isStopping}
             aria-disabled={!stopArmed || isStopping}
-            className={`shrink-0 flex items-center justify-center rounded-xl transition-colors focus-visible:outline-none ${
+            className={`shrink-0 flex items-center justify-center rounded-xl transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.96] motion-reduce:active:scale-100 focus-visible:outline-none ${
               !stopArmed || isStopping
                 // Muted while arming: secondary ink on the tertiary fill, hairline ring.
                 ? 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] shadow-[inset_0_0_0_1px_hsl(var(--border-color))] cursor-not-allowed focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))]'
@@ -1094,14 +1096,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             aria-label={stopButtonLabel}
             data-testid="stop-button"
           >
-            <Square size={14} fill="currentColor" />
+            <Square key="stop-icon" size={14} fill="currentColor" className="motion-icon-pop" />
           </button>
         ) : (
           <button
             type="button"
             onClick={handleSubmit}
             disabled={!input.trim() || effectiveSendDisabled || inputTooLong}
-            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] disabled:focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--bg-tertiary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
+            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.96] disabled:active:scale-100 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] disabled:focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--bg-tertiary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
             title={
               inputTooLong
                 ? t("chat:input.tooLong", { count: input.length, max: MAX_AGENT_MESSAGE_CHARS })
@@ -1114,7 +1116,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             aria-label={t("common:send")}
             data-testid="send-button"
           >
-            <Send size={16} />
+            <Send key="send-icon" size={16} className="motion-icon-pop" />
           </button>
         )}
       </div>

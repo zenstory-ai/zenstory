@@ -5,15 +5,16 @@ import { useMaterialAttachment, MAX_ATTACHED_MATERIALS } from "../../contexts/Ma
 import { toast } from "../../lib/toast";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Button } from "../ui/Button";
+import { AnimatedCollapse } from "../ui/AnimatedCollapse";
 import type { FileTreeNode } from "../../types";
 import { useFileSearch } from "../../hooks/useFileSearch";
+import { useAnimatedPresence } from "../../hooks/useAnimatedPresence";
 import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../../hooks/useDraftImport";
 import { getCreateFileType, isMaterialFolder, useFileTree } from "../../hooks/useFileTree";
 import { useFileSearchContext } from "../../contexts/FileSearchContext";
 import { FileSearchInput } from "../FileSearchInput";
 import SearchResultsDropdown from "../SearchResultsDropdown";
 import {
-  ChevronDown,
   ChevronRight,
   FileText,
   Users,
@@ -37,7 +38,8 @@ const DRAFT_FOLDER_NAMES = ["正文", "Drafts", "Draft"];
  * Returns whether the key is a tree navigation key.
  */
 function moveTreeFocus(row: HTMLElement, key: string): boolean {
-  const rows = Array.from(row.closest('[role="tree"]')?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? []);
+  const rows = Array.from(row.closest('[role="tree"]')?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? [])
+    .filter((item) => !item.closest('[data-exiting="true"]'));
   const index = rows.indexOf(row);
   const level = (item: HTMLElement | undefined) => Number(item?.getAttribute("aria-level"));
   let target: HTMLElement | undefined;
@@ -129,6 +131,8 @@ export const FileTreePane: React.FC = () => {
     },
     [currentProjectId],
   );
+  const isSearchDropdownVisible = isFileSearchOpen && fileSearchQuery.length > 0;
+  const { isMounted: isSearchDropdownMounted } = useAnimatedPresence(isSearchDropdownVisible, 130);
   const [searchSelection, setSearchSelection] = useState<{ projectId: string | null; index: number }>({
     projectId: currentProjectId,
     index: 0,
@@ -311,17 +315,13 @@ export const FileTreePane: React.FC = () => {
         >
           {/* Expand/collapse icon for folders */}
           {isFolder ? (
-            isExpanded ? (
-              <ChevronDown
-                size={14}
-                className="text-[hsl(var(--text-secondary))] shrink-0"
-              />
-            ) : (
-              <ChevronRight
-                size={14}
-                className="text-[hsl(var(--text-secondary))] shrink-0"
-              />
-            )
+            <ChevronRight
+              size={14}
+              aria-hidden="true"
+              className={`text-[hsl(var(--text-secondary))] shrink-0 motion-chevron ${
+                isExpanded ? "rotate-90" : ""
+              }`}
+            />
           ) : (
             <span className="w-3.5 shrink-0" /> /* Spacer for non-folders */
           )}
@@ -407,7 +407,11 @@ export const FileTreePane: React.FC = () => {
                 title={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
                 aria-label={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
               >
-                {isMaterialAttached(node.id) ? <Check size={14} /> : <MessageSquarePlus size={14} />}
+                {isMaterialAttached(node.id) ? (
+                  <Check key="attached" size={14} className="motion-icon-pop" />
+                ) : (
+                  <MessageSquarePlus key="attach" size={14} className="motion-icon-pop" />
+                )}
               </button>
             )}
 
@@ -442,8 +446,8 @@ export const FileTreePane: React.FC = () => {
         </div>
 
         {/* Children */}
-        {isFolder && isExpanded && (
-          <div role="group" className="mt-0.5">
+        {isFolder && (
+          <AnimatedCollapse open={isExpanded} fast role="group" className="mt-0.5">
             {/* New item input */}
             {isCreating === node.id && (
               <div
@@ -487,7 +491,7 @@ export const FileTreePane: React.FC = () => {
                     : t('editor:fileTree.emptyFolder')}
                 </div>
               )}
-          </div>
+          </AnimatedCollapse>
         )}
       </div>
     );
@@ -565,13 +569,13 @@ export const FileTreePane: React.FC = () => {
         </div>
 
         {/* Search Results Dropdown */}
-        {isFileSearchOpen && fileSearchQuery && (
+        {isSearchDropdownMounted && (
           <SearchResultsDropdown
             results={fileSearchResults}
             selectedIndex={selectedResultIndex}
             onSelect={handleSearchResultSelect}
             onHover={setSelectedResultIndex}
-            visible={isFileSearchOpen && fileSearchQuery.length > 0}
+            visible={isSearchDropdownVisible}
             loading={isFileSearching}
             onClose={closeSearch}
           />

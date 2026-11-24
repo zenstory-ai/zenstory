@@ -1,4 +1,5 @@
 import { useIsMobile } from "../../hooks/useMediaQuery";
+import { useSlidingIndicator } from "../../hooks/useSlidingIndicator";
 
 /**
  * Option type for filter pills
@@ -77,9 +78,23 @@ export function DashboardFilterPills<T extends string>({
   className,
 }: DashboardFilterPillsProps<T>) {
   const isMobile = useIsMobile();
+  const { containerRef, indicatorRef } = useSlidingIndicator<HTMLDivElement>(value, [
+    isMobile,
+    options.map((o) => `${o.value}:${o.label}`).join(","),
+  ]);
 
   return (
-    <div className={`flex max-w-full items-center gap-2 overflow-x-auto pb-1 ${className || ""}`}>
+    <div
+      ref={containerRef}
+      className={`group/seg relative inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-1 scrollbar-none ${className || ""}`}
+    >
+      <span
+        ref={indicatorRef}
+        aria-hidden="true"
+        data-animate="false"
+        data-testid="filter-pill-indicator"
+        className="pointer-events-none absolute top-0 left-0 rounded-lg bg-[hsl(var(--accent-primary)/0.15)] opacity-0 motion-segmented-indicator"
+      />
       {options.map((option) => {
         const isActive = value === option.value;
         const Icon = option.icon;
@@ -90,12 +105,13 @@ export function DashboardFilterPills<T extends string>({
             type="button"
             onClick={() => onChange(option.value)}
             aria-pressed={isActive}
+            data-segment-active={isActive ? "true" : undefined}
             className={`
-              shrink-0 whitespace-nowrap flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors
+              relative z-10 shrink-0 whitespace-nowrap flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-[transform,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.975] motion-reduce:active:scale-100
               ${isMobile ? "min-h-11" : "min-h-8"}
               ${isActive
-                ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]"
-                : "bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
+                ? "bg-[hsl(var(--accent-primary)/0.15)] group-data-[indicator-ready=true]/seg:bg-transparent text-[hsl(var(--accent-primary))]"
+                : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
               }
             `}
           >

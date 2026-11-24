@@ -297,16 +297,16 @@ Line 3`
     expect(screen.getByText(/Line 1/)).toBeInTheDocument()
   })
 
-  it('shows chevron icon pointing up when expanded', () => {
+  it('rotates chevron icon upward when expanded', () => {
     localStorage.setItem(EXPANDED_KEY, 'true')
     render(<ThinkingContent content="Thinking" />)
 
-    // Check for chevron icon
+    // Single rotating chevron rotates 180deg when expanded
     const button = screen.getByRole('button')
     const chevron = button.querySelector('svg')
     expect(chevron).toBeInTheDocument()
-    // Check it's the up chevron by checking the path
-    expect(chevron?.innerHTML).toContain('m18 15-6-6-6 6')
+    expect(chevron?.getAttribute('class')).toContain('motion-chevron')
+    expect(chevron?.getAttribute('class')).toContain('rotate-180')
   })
 
   it('shows chevron icon pointing down when collapsed', async () => {
@@ -316,7 +316,7 @@ Line 3`
     const button = screen.getByRole('button')
     const chevron = button.querySelector('svg')
     expect(chevron).toBeInTheDocument()
-    // Check it's the down chevron by checking the path
-    expect(chevron?.innerHTML).toContain('m6 9 6 6 6-6')
+    expect(chevron?.getAttribute('class')).toContain('motion-chevron')
+    expect(chevron?.getAttribute('class')).not.toContain('rotate-180')
   })
 })

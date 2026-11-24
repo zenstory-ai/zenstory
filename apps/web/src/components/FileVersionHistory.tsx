@@ -34,6 +34,7 @@ import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 const VERSION_PAGE_SIZE = 50;
 
 interface FileVersionHistoryProps {
+  open?: boolean;
   fileId: string;
   fileTitle: string;
   hasUnsavedChanges?: boolean;
@@ -185,6 +186,7 @@ const VersionRow: React.FC<VersionRowProps> = ({
 };
 
 export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
+  open = true,
   fileId,
   fileTitle,
   hasUnsavedChanges = false,
@@ -283,6 +285,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   }, [fileId]);
 
   useEffect(() => {
+    if (!open) return;
     fileContextGenerationRef.current += 1;
     setVersions([]);
     setTotal(0);
@@ -301,7 +304,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       fileContextGenerationRef.current += 1;
       listRequestGenerationRef.current += 1;
     };
-  }, [loadVersions]);
+  }, [loadVersions, open]);
 
   useLayoutEffect(() => {
     if (listHidden) return;
@@ -435,7 +438,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   return (
     <>
       <Modal
-        open={true}
+        open={open}
         onClose={handleClose}
         size="xl"
         className={`${showComparison || preview ? 'h-[min(80vh,720px)]' : 'max-h-[min(80vh,720px)]'} p-0 overflow-hidden`}

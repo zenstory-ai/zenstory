@@ -2,12 +2,13 @@ import { useId, useState, useEffect, useRef, useCallback } from "react";
 import type { ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { LazyMarkdown } from "../components/LazyMarkdown";
-import { Plus, Pencil, Trash2, Zap, Check, ChevronDown, ChevronUp, Share2, Compass, MinusCircle, Search, Square, CheckSquare, Download, Upload, AlertTriangle } from "../components/icons";
+import { Plus, Pencil, Trash2, Zap, Check, ChevronDown, Share2, Compass, MinusCircle, Search, Square, CheckSquare, Download, Upload, AlertTriangle } from "../components/icons";
 import { skillsApi, publicSkillsApi } from "../lib/api";
 import { ApiError } from "../lib/apiClient";
 import type { Skill, AddedSkill, CreateSkillRequest, UpdateSkillRequest, PublicSkill, SkillCategory, SkillShareStatus } from "../types";
 import { PUBLIC_SKILLS_PAGE_SIZE, PUBLIC_SKILLS_SEARCH_DEBOUNCE_MS, SKILL_FIELD_LIMITS } from "../config/skills";
 import { useIsMobile } from "../hooks/useMediaQuery";
+import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { ShareSkillModal } from "../components/skills/ShareSkillModal";
 import { SkillResourcesSection } from "../components/skills/SkillResourcesSection";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
@@ -15,6 +16,7 @@ import { DashboardFilterPills } from "../components/dashboard/DashboardFilterPil
 import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
 import { Modal } from "../components/ui/Modal";
+import { AnimatedCollapse } from "../components/ui/AnimatedCollapse";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { IconButton } from "../components/ui/IconButton";
@@ -91,6 +93,12 @@ export default function SkillsPage() {
   const [deletingSkill, setDeletingSkill] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sharingSkill, setSharingSkill] = useState<Skill | null>(null);
+  const [lastSharingSkill, setLastSharingSkill] = useState<Skill | null>(null);
+  if (sharingSkill && sharingSkill !== lastSharingSkill) {
+    setLastSharingSkill(sharingSkill);
+  }
+  const { isMounted: isShareModalMounted } = useAnimatedPresence(Boolean(sharingSkill), 150);
+  const renderedSharingSkill = sharingSkill ?? lastSharingSkill;
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [mySkillsSearchQuery, setMySkillsSearchQuery] = useState("");
   const mySkillsSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -838,9 +846,10 @@ export default function SkillsPage() {
       />
 
       {/* Share Skill Modal */}
-      {sharingSkill && (
+      {isShareModalMounted && renderedSharingSkill && (
         <ShareSkillModal
-          skill={sharingSkill}
+          open={Boolean(sharingSkill)}
+          skill={renderedSharingSkill}
           onClose={() => setSharingSkill(null)}
           onSuccess={loadSkills}
           isMobile={isMobile}
@@ -910,7 +919,7 @@ function SkillCard({
         onClick={() => setExpanded(!expanded)}
         label={expanded ? t("skills:collapse") : t("skills:expand")}
         aria-expanded={expanded}
-        icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        icon={<ChevronDown className={`w-4 h-4 motion-chevron ${expanded ? "rotate-180" : ""}`} />}
       />
       <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[hsl(var(--separator-color))]" />
       <IconButton
@@ -987,10 +996,10 @@ function SkillCard({
       {isMobile && actions}
 
       {/* Instructions - Markdown rendered */}
-      {expanded && skill.instructions && (
-        <div className={`mt-3 pt-3 border-t border-[hsl(var(--border-color))]`}>
+      <AnimatedCollapse open={expanded && Boolean(skill.instructions)}>
+        <div className="mt-3 pt-3 border-t border-[hsl(var(--border-color))]">
           <div className="flex items-center gap-1.5 mb-2">
-            <span className={`text-xs font-medium text-[hsl(var(--text-tertiary))]`}>
+            <span className="text-xs font-medium text-[hsl(var(--text-tertiary))]">
               {t("form.instructions")}
             </span>
           </div>
@@ -998,7 +1007,7 @@ function SkillCard({
             <LazyMarkdown>{skill.instructions}</LazyMarkdown>
           </div>
         </div>
-      )}
+      </AnimatedCollapse>
     </div>
   );
 }
@@ -1287,7 +1296,7 @@ function AddedSkillCard({
         onClick={() => setExpanded(!expanded)}
         label={expanded ? t("skills:collapse") : t("skills:expand")}
         aria-expanded={expanded}
-        icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        icon={<ChevronDown className={`w-4 h-4 motion-chevron ${expanded ? "rotate-180" : ""}`} />}
       />}
       {hasLeadingAction && (
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[hsl(var(--separator-color))]" />
@@ -1362,10 +1371,10 @@ function AddedSkillCard({
 
 
       {/* Instructions - Markdown rendered */}
-      {expanded && !hidden && skill.instructions && (
-        <div className={`mt-3 pt-3 border-t border-[hsl(var(--border-color))]`}>
+      <AnimatedCollapse open={expanded && !hidden && Boolean(skill.instructions)}>
+        <div className="mt-3 pt-3 border-t border-[hsl(var(--border-color))]">
           <div className="flex items-center gap-1.5 mb-2">
-            <span className={`text-xs font-medium text-[hsl(var(--text-tertiary))]`}>
+            <span className="text-xs font-medium text-[hsl(var(--text-tertiary))]">
               {t("form.instructions")}
             </span>
           </div>
@@ -1376,7 +1385,7 @@ function AddedSkillCard({
             <SkillResourcesSection skillId={skill.id} readOnly isMobile={isMobile} />
           </div>
         </div>
-      )}
+      </AnimatedCollapse>
     </div>
   );
 }
@@ -1649,7 +1658,7 @@ function PublicSkillCard({
           aria-expanded={expanded}
           className="min-h-11 shrink-0 whitespace-nowrap text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] flex items-center gap-1 transition-colors"
         >
-          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          <ChevronDown className={`w-3 h-3 motion-chevron ${expanded ? "rotate-180" : ""}`} />
           <span>{expanded ? t("collapse") : t("expand")}</span>
         </button>}
 
@@ -1678,7 +1687,7 @@ function PublicSkillCard({
       </div>
 
       {/* Expanded instructions */}
-      {canExpand && expanded && instructions && (
+      <AnimatedCollapse open={Boolean(canExpand && expanded && instructions)}>
         <div className="mt-3 pt-3 border-t border-[hsl(var(--border-color)/0.5)]">
           <div className="markdown-content bg-[hsl(var(--bg-tertiary))] rounded-xl p-3 text-xs max-h-48 overflow-y-auto">
             {loadingDetail ? (
@@ -1686,11 +1695,11 @@ function PublicSkillCard({
                 <div className="w-4 h-4 animate-spin rounded-full border-2 border-[hsl(var(--accent-primary))] border-t-transparent" />
               </div>
             ) : (
-              <LazyMarkdown>{instructions}</LazyMarkdown>
+              <LazyMarkdown>{instructions || ""}</LazyMarkdown>
             )}
           </div>
         </div>
-      )}
+      </AnimatedCollapse>
     </div>
   );
 }

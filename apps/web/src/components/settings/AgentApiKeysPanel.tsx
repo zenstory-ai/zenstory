@@ -113,9 +113,9 @@ function CommandLine({ command }: { command: string }) {
         type="button"
         onClick={handleCopy}
         aria-label={copied ? t('apiKeys.copied') : t('apiKeys.copy')}
-        className={`${COPY_TOUCH_TARGET} shrink-0 p-1 rounded-md hover:bg-[hsl(var(--bg-hover))] transition-colors text-[hsl(var(--text-secondary))]`}
+        className={`${COPY_TOUCH_TARGET} shrink-0 p-1 rounded-md hover:bg-[hsl(var(--bg-hover))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 text-[hsl(var(--text-secondary))]`}
       >
-        {copied ? <Check size={12} className="text-[hsl(var(--success-text))]" /> : <Copy size={12} />}
+        {copied ? <Check size={12} className="text-[hsl(var(--success-text))] motion-icon-pop" /> : <Copy size={12} />}
       </button>
       <CopiedStatus copied={copied} />
     </div>
@@ -228,9 +228,9 @@ function KeyCreatedModal({
             type="button"
             onClick={handleCopy}
             aria-label={copied ? t('apiKeys.copied') : t('apiKeys.copyKey')}
-            className={`${COPY_TOUCH_TARGET} shrink-0 p-1.5 rounded-lg hover:bg-[hsl(var(--bg-hover))] transition-colors text-[hsl(var(--text-secondary))]`}
+            className={`${COPY_TOUCH_TARGET} shrink-0 p-1.5 rounded-lg hover:bg-[hsl(var(--bg-hover))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 text-[hsl(var(--text-secondary))]`}
           >
-            {copied ? <Check size={14} className="text-[hsl(var(--success-text))]" /> : <Copy size={14} />}
+            {copied ? <Check size={14} className="text-[hsl(var(--success-text))] motion-icon-pop" /> : <Copy size={14} />}
           </button>
           <CopiedStatus copied={copied} />
         </div>
@@ -440,10 +440,10 @@ function KeyRow({
             type="button"
             onClick={handleCopyPrefix}
             aria-label={copiedPrefix ? t('apiKeys.copied') : t('apiKeys.copyPrefix')}
-            className={`${COPY_TOUCH_TARGET} p-0.5 rounded hover:bg-[hsl(var(--bg-hover))] transition-colors`}
+            className={`${COPY_TOUCH_TARGET} p-0.5 rounded hover:bg-[hsl(var(--bg-hover))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100`}
           >
             {copiedPrefix ? (
-              <Check size={11} className="text-[hsl(var(--success-text))]" />
+              <Check size={11} className="text-[hsl(var(--success-text))] motion-icon-pop" />
             ) : (
               <Copy size={11} />
             )}
