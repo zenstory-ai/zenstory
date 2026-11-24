@@ -263,6 +263,16 @@ export function formatUsd(cents: number, language: string | undefined): string {
   })}`;
 }
 
+export function formatCurrency(
+  cents: number,
+  currency: string | undefined,
+  language: string | undefined,
+): string {
+  return currency?.toUpperCase() === "USD"
+    ? formatUsd(cents, language)
+    : formatYuan(cents, language);
+}
+
 export interface SubscriptionFeatureRow {
   key: string;
   label: string;

@@ -155,8 +155,10 @@ export const AdminUserDetail: React.FC = () => {
     return plan ? getLocalizedPlanDisplayName(plan, i18n.language) : name;
   };
   const locale = getLocaleCode();
-  const formatAmount = (cents: number) =>
-    `¥${(cents / 100).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatAmount = (cents: number, currency?: string) => {
+    const symbol = currency?.toUpperCase() === "USD" ? "$" : "¥";
+    return `${symbol}${(cents / 100).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   const openSubscriptionEditor = () => {
     setSubscriptionForm({ plan_name: currentPlanName, duration_days: 0, status: currentStatus });
@@ -417,7 +419,7 @@ export const AdminUserDetail: React.FC = () => {
                   <span className="text-[hsl(var(--text-primary))]">{order.plan_display_name}</span>
                   <span className="ml-2 font-mono text-xs text-[hsl(var(--text-secondary))]">{order.out_trade_no}</span>
                 </span>
-                <span className="text-[hsl(var(--text-primary))]">{formatAmount(order.amount_cents)}</span>
+                <span className="text-[hsl(var(--text-primary))]">{formatAmount(order.amount_cents, order.currency)}</span>
                 <span className="text-[hsl(var(--text-secondary))]">
                   {t(`paymentOrders.status.${order.status}`, order.status)} · {t(`paymentOrders.fulfillment.${order.fulfillment_status}`, order.fulfillment_status)}
                 </span>

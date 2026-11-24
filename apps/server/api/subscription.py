@@ -63,6 +63,8 @@ class SubscriptionPlanResponse(BaseModel):
     display_name_en: str | None = None
     price_monthly_cents: int
     price_yearly_cents: int
+    price_monthly_usd_cents: int = 0
+    price_yearly_usd_cents: int = 0
     features: dict
     is_active: bool
 
@@ -97,6 +99,8 @@ class SubscriptionCatalogPlanResponse(BaseModel):
     display_name_en: str | None = None
     price_monthly_cents: int
     price_yearly_cents: int
+    price_monthly_usd_cents: int = 0
+    price_yearly_usd_cents: int = 0
     recommended: bool = False
     summary_key: str
     target_user_key: str
@@ -267,6 +271,8 @@ def _build_catalog_plan(plan: SubscriptionPlan) -> SubscriptionCatalogPlanRespon
         display_name_en=plan.display_name_en,
         price_monthly_cents=plan.price_monthly_cents,
         price_yearly_cents=plan.price_yearly_cents,
+        price_monthly_usd_cents=plan.price_monthly_usd_cents,
+        price_yearly_usd_cents=plan.price_yearly_usd_cents,
         recommended=bool(preset["recommended"]),
         summary_key=str(preset["summary_key"]),
         target_user_key=str(preset["target_user_key"]),
@@ -314,6 +320,8 @@ def _build_plan_response(plan: SubscriptionPlan) -> SubscriptionPlanResponse:
         display_name_en=plan.display_name_en,
         price_monthly_cents=plan.price_monthly_cents,
         price_yearly_cents=plan.price_yearly_cents,
+        price_monthly_usd_cents=plan.price_monthly_usd_cents,
+        price_yearly_usd_cents=plan.price_yearly_usd_cents,
         features=_normalize_plan_features_for_response(plan.features, plan.name),
         is_active=plan.is_active,
     )

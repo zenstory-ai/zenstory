@@ -537,6 +537,7 @@ export interface UserQuotaDetail {
 export interface GrowthMetrics {
   new_users: number; ai_active_users: number; cohort_activated_users: number;
   cohort_activation_rate: number | null; paid_orders: number; revenue_cents: number;
+  revenue_usd_cents?: number; revenue_by_currency?: Record<string, number>;
   paid_users: number; cohort_paid_users: number; signup_to_paid_rate: number | null;
   grant_upgrade_events: number; grant_upgrade_users: number;
   grant_channels: Array<{ channel: string; events: number; users: number }>;

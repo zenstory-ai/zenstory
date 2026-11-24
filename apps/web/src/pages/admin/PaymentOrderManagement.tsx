@@ -30,7 +30,7 @@ export default function PaymentOrderManagement() {
   const queryClient = useQueryClient();
   const isDesktop = useIsDesktop();
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<"" | "pending" | "paid">("");
+  const [status, setStatus] = useState<"" | "pending" | "paid" | "refunded" | "disputed">("");
   const [fulfillment, setFulfillment] = useState<FulfillmentFilter>("");
   const [needsAttention, setNeedsAttention] = useState(false);
   const [searchInput, setSearchInput] = useState("");
@@ -72,16 +72,26 @@ export default function PaymentOrderManagement() {
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const locale = getLocaleCode();
   const formatDate = (value: string | null) => value ? parseUTCDate(value).toLocaleString(locale) : "-";
-  const formatAmount = (cents: number) => `¥${(cents / 100).toLocaleString(locale, {
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  })}`;
+  const formatAmount = (cents: number, currency?: string) => {
+    const symbol = currency?.toUpperCase() === "USD" ? "$" : "¥";
+    return `${symbol}${(cents / 100).toLocaleString(locale, {
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
+    })}`;
+  };
+  const paymentMethodLabel = (method: string) => {
+    if (method === "alipay") return t("paymentOrders.alipay");
+    if (method === "card") return t("paymentOrders.card");
+    return method;
+  };
   // Unknown values (e.g. a hand-edited row) fall back to the raw string.
   const paymentStatus = (order: AdminPaymentOrder) => t(`paymentOrders.status.${order.status}`, order.status);
   const fulfillmentStatus = (order: AdminPaymentOrder) =>
     t(`paymentOrders.fulfillment.${order.fulfillment_status}`, order.fulfillment_status);
   const cycleLabel = (order: AdminPaymentOrder) => t(`paymentOrders.cycles.${order.cycle}`, order.cycle);
   const isPaidNotFulfilled = (order: AdminPaymentOrder) =>
-    (order.status === "paid" && order.fulfillment_status !== "succeeded") || order.fulfillment_status === "failed";
+    (order.status === "paid" && order.fulfillment_status !== "succeeded")
+    || order.fulfillment_status === "failed"
+    || order.status === "disputed";
   const openDetails = (order: AdminPaymentOrder) => {
     detailsRequestRef.current += 1;
     setSyncMessage(null);
@@ -127,6 +137,8 @@ export default function PaymentOrderManagement() {
           <option value="">{t("paymentOrders.allStatus")}</option>
           <option value="pending">{t("paymentOrders.status.pending")}</option>
           <option value="paid">{t("paymentOrders.status.paid")}</option>
+          <option value="refunded">{t("paymentOrders.status.refunded")}</option>
+          <option value="disputed">{t("paymentOrders.status.disputed")}</option>
         </AdminSelect>
         <AdminSelect fullWidth aria-label={t("paymentOrders.fulfillmentStatus")} value={fulfillment} onChange={(event) => {
           setFulfillment(event.target.value as FulfillmentFilter); setPage(1);
@@ -157,8 +169,8 @@ export default function PaymentOrderManagement() {
                 <td className={`${columnClass} font-mono text-xs`}>{order.out_trade_no}</td>
                 <td className={columnClass}><div><AdminUserLink userId={order.user_id}>{order.username || order.user_id}</AdminUserLink></div><div className="text-xs text-[hsl(var(--text-secondary))]">{order.email}</div></td>
                 <td className={columnClass}><div>{order.plan_display_name}</div><div className="text-xs text-[hsl(var(--text-secondary))]">{cycleLabel(order)}</div></td>
-                <td className={`${columnClass} whitespace-nowrap`}>{formatAmount(order.amount_cents)}</td>
-                <td className={columnClass}>{order.payment_method === "alipay" ? t("paymentOrders.alipay") : order.payment_method}</td>
+                <td className={`${columnClass} whitespace-nowrap`}>{formatAmount(order.amount_cents, order.currency)}</td>
+                <td className={columnClass}>{paymentMethodLabel(order.payment_method)}</td>
                 <td className={columnClass}>{paymentStatus(order)}</td>
                 <td className={columnClass}><span className={isPaidNotFulfilled(order) ? "text-[hsl(var(--error-text))]" : ""}>{fulfillmentStatus(order)}</span></td>
                 <td className={`${columnClass} whitespace-nowrap`}>{formatDate(order.created_at)}</td>
@@ -174,7 +186,7 @@ export default function PaymentOrderManagement() {
                   <AdminUserLink userId={order.user_id}>{order.username || order.user_id}</AdminUserLink>
                   <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">{order.email}</p>
                 </div>
-                <span className="shrink-0 text-sm font-semibold tabular-nums">{formatAmount(order.amount_cents)}</span>
+                <span className="shrink-0 text-sm font-semibold tabular-nums">{formatAmount(order.amount_cents, order.currency)}</span>
               </div>
               <p className="break-words text-sm">{order.plan_display_name} · {cycleLabel(order)}</p>
               <dl className="grid grid-cols-2 gap-3 text-xs">
@@ -207,7 +219,7 @@ export default function PaymentOrderManagement() {
               ["orderNumber", selectedOrder.out_trade_no], ["providerOrderNumber", selectedOrder.trade_no ?? "-"],
               ["user", <><AdminUserLink userId={selectedOrder.user_id}>{selectedOrder.username || selectedOrder.user_id}</AdminUserLink> · {selectedOrder.email}</>],
               ["plan", `${selectedOrder.plan_display_name} · ${cycleLabel(selectedOrder)}`],
-              ["amount", formatAmount(selectedOrder.amount_cents)], ["paymentMethod", t("paymentOrders.alipay")],
+              ["amount", formatAmount(selectedOrder.amount_cents, selectedOrder.currency)], ["paymentMethod", paymentMethodLabel(selectedOrder.payment_method)],
               ["paymentStatus", paymentStatus(selectedOrder)], ["fulfillmentStatus", fulfillmentStatus(selectedOrder)],
               ["createdAt", formatDate(selectedOrder.created_at)], ["paidAt", formatDate(selectedOrder.paid_at)],
               ["fulfilledAt", formatDate(selectedOrder.fulfilled_at)], ["failureReason", selectedOrder.failure_reason ?? "-"],

@@ -12,7 +12,7 @@ Defines SQLModel entities for:
 
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, Column, Index, text
+from sqlalchemy import JSON, BigInteger, Column, Index, Integer, text
 from sqlmodel import Field, SQLModel
 
 from .utils import generate_uuid
@@ -34,6 +34,12 @@ class SubscriptionPlan(SQLModel, table=True):
     display_name_en: str | None = None
     price_monthly_cents: int = 0
     price_yearly_cents: int = 0
+    price_monthly_usd_cents: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default=text("0"))
+    )
+    price_yearly_usd_cents: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default=text("0"))
+    )
     # Stripe fields (future)
     stripe_price_id_monthly: str | None = None
     stripe_price_id_yearly: str | None = None

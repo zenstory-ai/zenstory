@@ -422,7 +422,7 @@ def test_chat_message_ux_summary_alembic_round_trip(tmp_path: Path):
         )
     engine.dispose()
 
-    _alembic(db_url, "upgrade", "head")
+    _alembic(db_url, "upgrade", UX_SUMMARY_REVISION)
     engine = create_engine(db_url)
     inspector = inspect(engine)
     assert inspector.has_table("chat_message_ux_summary")

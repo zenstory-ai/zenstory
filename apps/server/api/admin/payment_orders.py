@@ -12,7 +12,7 @@ from api.payments import (
     log_sync_failure,
     sync_error_status,
 )
-from config.payment_settings import get_payment_settings
+from config.payment_settings import get_creem_settings, get_payment_settings
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
@@ -20,6 +20,7 @@ from models.entities import User
 from models.payment import PaymentOrder
 from services.admin_audit_service import admin_audit_service
 from services.core.auth_service import get_current_superuser
+from services.subscription.creem_service import creem_service
 from services.subscription.zpay_service import (
     NEEDS_ATTENTION_CONDITION,
     PaymentSyncError,
@@ -62,10 +63,10 @@ def _admin_order_payload(session: Session, order: PaymentOrder) -> dict[str, obj
 def list_payment_orders(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    status: Literal["pending", "paid"] | None = None,
+    status: Literal["pending", "paid", "refunded", "disputed", "failed"] | None = None,
     fulfillment_status: Literal["pending", "succeeded", "failed"] | None = None,
     needs_attention: bool = False,
-    payment_method: Literal["alipay"] | None = None,
+    payment_method: Literal["alipay", "card"] | None = None,
     search: str | None = Query(default=None, max_length=100),
     user_id: str | None = Query(default=None, max_length=64),
     include_needs_attention_total: bool = Query(default=True),
@@ -159,7 +160,10 @@ def sync_payment_order(
     error: PaymentSyncError | None = None
     outcome = None
     try:
-        outcome = zpay_service.sync_order(session, order, get_payment_settings())
+        if order.provider == "creem":
+            outcome = creem_service.sync_order(session, order, get_creem_settings())
+        else:
+            outcome = zpay_service.sync_order(session, order, get_payment_settings())
     except PaymentSyncError as exc:
         log_sync_failure(exc, out_trade_no=out_trade_no, actor="admin")
         error = exc

@@ -290,6 +290,70 @@ class SubscriptionService:
             commit=commit,
         )
 
+    def deduct_refunded_days(
+        self,
+        session: Session,
+        *,
+        user_id: str,
+        plan_name: str,
+        duration_days: int,
+        metadata: dict | None = None,
+        commit: bool = True,
+    ) -> UserSubscription | None:
+        """
+        Deduct refunded days from a user's active subscription, never earlier than now.
+
+        If the subscription's remaining period drops to or before now, end it at now
+        and mark its status cancelled so the user immediately reverts to free limits.
+        """
+        self._lock_user_for_subscription_mutation(session, user_id)
+        now = utcnow()
+        existing_sub = self._get_user_subscription_for_update(session, user_id)
+        if not existing_sub:
+            self._log_history(session, user_id, "refunded", plan_name, now, now, metadata)
+            if commit:
+                session.commit()
+            else:
+                session.flush()
+            return None
+
+        plan = self.get_plan_by_id(session, existing_sub.plan_id)
+        if plan and plan.name == plan_name:
+            period_end = existing_sub.current_period_end
+            if period_end.tzinfo is None:
+                from datetime import UTC
+                period_end = period_end.replace(tzinfo=UTC)
+            deducted_end = period_end - timedelta(days=max(duration_days, 0))
+            if deducted_end <= now:
+                new_end = now
+                existing_sub.status = "cancelled"
+            else:
+                new_end = deducted_end
+            existing_sub.current_period_end = new_end
+            existing_sub.updated_at = now
+            session.add(existing_sub)
+            history_start = existing_sub.current_period_start
+            history_end = new_end
+        else:
+            history_start = now
+            history_end = now
+
+        self._log_history(
+            session,
+            user_id,
+            "refunded",
+            plan_name,
+            history_start,
+            history_end,
+            metadata,
+        )
+        if commit:
+            session.commit()
+            session.refresh(existing_sub)
+        else:
+            session.flush()
+        return existing_sub
+
     def _log_history(
         self,
         session: Session,

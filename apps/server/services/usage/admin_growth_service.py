@@ -33,8 +33,17 @@ from services.usage.pricing import beijing_day_bucket_case
 
 GROWTH_DAYS = (7, 14, 30)
 GRANT_ACTIONS = ("created", "upgraded", "renewed")
-PAID_SOURCE = "zpay"
+PAID_SOURCES = frozenset({"zpay", "creem"})
 _PREV_BUCKET = "__previous__"
+
+
+def _revenue_by_currency_map(cny_cents: int, usd_cents: int) -> dict[str, int]:
+    totals: dict[str, int] = {}
+    if cny_cents:
+        totals["CNY"] = cny_cents
+    if usd_cents:
+        totals["USD"] = usd_cents
+    return totals
 
 
 @dataclass(frozen=True)
@@ -100,6 +109,8 @@ def _empty_daily(day: date) -> dict[str, Any]:
         "cohort_activation_rate": None,
         "paid_orders": 0,
         "revenue_cents": 0,
+        "revenue_usd_cents": 0,
+        "revenue_by_currency": {},
         "paid_users": 0,
         "cohort_paid_users": 0,
         "signup_to_paid_rate": None,
@@ -124,7 +135,7 @@ DEFINITIONS = {
     "cohort_activation_rate": "New-user cohort with a non-backfilled LLM usage event after signup, divided by new users; null when there are no signups.",
     "paid": "Payment orders with status=paid and paid_at in the period; pending, refunded, missing paid_at, and plan grants are excluded.",
     "signup_to_paid_rate": "Distinct new-user cohort members with a confirmed payment after signup, divided by new users; null when there are no signups.",
-    "grants": "Non-free subscription history events whose source is not zpay; shown separately from revenue.",
+    "grants": "Non-free subscription history events whose source is not a payment provider (zpay/creem); shown separately from revenue.",
 }
 
 
@@ -167,6 +178,7 @@ def get_growth_dashboard(
     prev_cohort_activated = 0
     prev_paid_orders = 0
     prev_revenue_cents = 0
+    prev_revenue_usd_cents = 0
     prev_paid_users = 0
     curr_paid_users = 0
     prev_cohort_paid = 0
@@ -266,11 +278,14 @@ def get_growth_dashboard(
 
         # 5. Paid orders & revenue (current daily + previous total including distinct paid_users)
         paid_bucket = _day_or_prev_bucket(PaymentOrder.paid_at, current, previous, day_list=day_list)
+        cny_amount_expr = case((PaymentOrder.currency == "CNY", PaymentOrder.amount_cents), else_=0)
+        usd_amount_expr = case((PaymentOrder.currency == "USD", PaymentOrder.amount_cents), else_=0)
         payment_rows = session.exec(
             select(
                 paid_bucket.label("bucket"),
                 func.count(PaymentOrder.id).label("orders"),
-                func.coalesce(func.sum(PaymentOrder.amount_cents), 0).label("revenue_cents"),
+                func.coalesce(func.sum(cny_amount_expr), 0).label("revenue_cny_cents"),
+                func.coalesce(func.sum(usd_amount_expr), 0).label("revenue_usd_cents"),
                 func.count(func.distinct(PaymentOrder.user_id)).label("users"),
             )
             .join(User, User.id == PaymentOrder.user_id)
@@ -283,14 +298,19 @@ def get_growth_dashboard(
             .group_by(paid_bucket)
         ).all()
         for row in payment_rows:
+            cny_cents = int(row.revenue_cny_cents or 0)
+            usd_cents = int(row.revenue_usd_cents or 0)
             if row.bucket == _PREV_BUCKET:
                 prev_paid_orders = int(row.orders or 0)
-                prev_revenue_cents = int(row.revenue_cents or 0)
+                prev_revenue_cents = cny_cents
+                prev_revenue_usd_cents = usd_cents
                 prev_paid_users = int(row.users or 0)
             elif row.bucket in by_day:
                 entry = by_day[row.bucket]
                 entry["paid_orders"] = int(row.orders or 0)
-                entry["revenue_cents"] = int(row.revenue_cents or 0)
+                entry["revenue_cents"] = cny_cents
+                entry["revenue_usd_cents"] = usd_cents
+                entry["revenue_by_currency"] = _revenue_by_currency_map(cny_cents, usd_cents)
                 entry["paid_users"] = int(row.users or 0)
 
         # 6. Current period distinct paid users (non-additive across days)
@@ -364,7 +384,7 @@ def get_growth_dashboard(
     for created_at, user_id, event_metadata in grant_rows:
         source = event_metadata.get("source") if isinstance(event_metadata, dict) else None
         channel = source.strip() if isinstance(source, str) and source.strip() else "other"
-        if channel == PAID_SOURCE:
+        if channel in PAID_SOURCES:
             continue
 
         naive_ts = created_at.replace(tzinfo=None) if created_at.tzinfo is not None else created_at
@@ -402,6 +422,7 @@ def get_growth_dashboard(
     curr_cohort_activated = sum(entry["cohort_activated_users"] for entry in entries)
     curr_paid_orders = sum(entry["paid_orders"] for entry in entries)
     curr_revenue_cents = sum(entry["revenue_cents"] for entry in entries)
+    curr_revenue_usd_cents = sum(entry["revenue_usd_cents"] for entry in entries)
     curr_cohort_paid = sum(entry["cohort_paid_users"] for entry in entries)
 
     current_metrics = {
@@ -411,6 +432,8 @@ def get_growth_dashboard(
         "cohort_activation_rate": _rate(curr_cohort_activated, curr_new_users),
         "paid_orders": curr_paid_orders,
         "revenue_cents": curr_revenue_cents,
+        "revenue_usd_cents": curr_revenue_usd_cents,
+        "revenue_by_currency": _revenue_by_currency_map(curr_revenue_cents, curr_revenue_usd_cents),
         "paid_users": curr_paid_users,
         "cohort_paid_users": curr_cohort_paid,
         "signup_to_paid_rate": _rate(curr_cohort_paid, curr_new_users),
@@ -425,6 +448,8 @@ def get_growth_dashboard(
         "cohort_activation_rate": _rate(prev_cohort_activated, prev_new_users),
         "paid_orders": prev_paid_orders,
         "revenue_cents": prev_revenue_cents,
+        "revenue_usd_cents": prev_revenue_usd_cents,
+        "revenue_by_currency": _revenue_by_currency_map(prev_revenue_cents, prev_revenue_usd_cents),
         "paid_users": prev_paid_users,
         "cohort_paid_users": prev_cohort_paid,
         "signup_to_paid_rate": _rate(prev_cohort_paid, prev_new_users),

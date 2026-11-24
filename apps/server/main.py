@@ -69,12 +69,13 @@ from core.error_handler import (
     integrity_error_handler,
     validation_exception_handler,
 )
-from config.payment_settings import get_payment_settings
+from config.payment_settings import get_creem_settings, get_payment_settings
 from database import dispose_async_engine, init_db
 from middleware.body_size_limit import BodySizeLimitMiddleware
 from middleware.logging_middleware import LoggingMiddleware
 from services.infra.readiness_service import check_readiness
 from services.skill_md_service import skill_md_service
+from services.subscription.creem_service import creem_service
 from services.subscription.zpay_service import zpay_service
 
 @asynccontextmanager
@@ -83,6 +84,7 @@ async def lifespan(_app: FastAPI):
     await init_db()
     await dispose_async_engine()
     zpay_service.log_configuration_status(get_payment_settings())
+    creem_service.log_configuration_status(get_creem_settings())
     log_with_context(
         logger,
         logging.INFO,

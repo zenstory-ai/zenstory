@@ -100,7 +100,15 @@ export default function PricingPage() {
   const showUsdPricing = usesUsdPricing(i18n.language);
   const getDisplayPrices = (plan: (typeof sortedPlans)[number]) =>
     showUsdPricing && plan.name === "pro"
-      ? { monthly: PRO_USD_PRICE_CENTS.month, yearly: PRO_USD_PRICE_CENTS.year, format: formatUsd }
+      ? {
+          monthly: plan.price_monthly_usd_cents && plan.price_monthly_usd_cents > 0
+            ? plan.price_monthly_usd_cents
+            : PRO_USD_PRICE_CENTS.month,
+          yearly: plan.price_yearly_usd_cents && plan.price_yearly_usd_cents > 0
+            ? plan.price_yearly_usd_cents
+            : PRO_USD_PRICE_CENTS.year,
+          format: formatUsd,
+        }
       : { monthly: plan.price_monthly_cents, yearly: plan.price_yearly_cents, format: formatYuan };
 
   const formatPrice = (plan: (typeof sortedPlans)[number], cycle: BillingCycle): string => {
@@ -410,6 +418,8 @@ export default function PricingPage() {
           initialCycle={billingCycle}
           monthlyPriceCents={proPlan?.price_monthly_cents}
           yearlyPriceCents={proPlan?.price_yearly_cents}
+          monthlyUsdPriceCents={proPlan?.price_monthly_usd_cents}
+          yearlyUsdPriceCents={proPlan?.price_yearly_usd_cents}
           isRenewal={isProUser}
         />
       )}

@@ -46,15 +46,16 @@ logger = get_logger(__name__)
 
 router = APIRouter(tags=["admin-dashboard"])
 CONVERSION_ACTIONS = {"created", "upgraded", "renewed"}
-# SubscriptionHistory.event_metadata.source -> conversion channel. Only "zpay" is
-# money received; the rest are grants and must not read as paid conversions.
+# SubscriptionHistory.event_metadata.source -> conversion channel. Only payment
+# providers ("zpay", "creem") are money received; the rest are grants.
 CONVERSION_CHANNELS = {
     "zpay": "zpay",
+    "creem": "creem",
     "redemption_code": "redemption_code",
     "points_redemption": "points_redemption",
     "admin_update": "admin_update",
 }
-PAID_CONVERSION_CHANNELS = frozenset({"zpay"})
+PAID_CONVERSION_CHANNELS = frozenset({"zpay", "creem"})
 # Upgrade-entry sources shown when the free daily AI message limit is used up
 # (the chat card and the quota badge's blocked state).
 AI_QUOTA_WALL_SOURCES = ("chat_quota_blocked", "settings_subscription_upgrade:blocked")

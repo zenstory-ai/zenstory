@@ -214,7 +214,22 @@ describe("PaymentOrderManagement", () => {
       isLoading: false, isFetching: false, isError: false, refetch,
     });
     render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
-    expect(screen.getByText("paymentOrders.status.refunded")).toBeInTheDocument();
-    expect(screen.getByText("wxpay")).toBeInTheDocument();
+    const rows = screen.getAllByRole("row");
+    expect(within(rows[1]).getByText("paymentOrders.status.refunded")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("wxpay")).toBeInTheDocument();
+  });
+
+  it("formats USD Creem card orders with dollar sign and card label", () => {
+    queryMock.mockReturnValue({
+      data: {
+        items: [{ ...order, provider: "creem", currency: "USD", amount_cents: 999, payment_method: "card", status: "paid" }],
+        total: 1,
+      },
+      isLoading: false, isFetching: false, isError: false, refetch,
+    });
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
+    const rows = screen.getAllByRole("row");
+    expect(within(rows[1]).getByText("$9.99")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("paymentOrders.card")).toBeInTheDocument();
   });
 });

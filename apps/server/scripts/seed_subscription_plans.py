@@ -71,6 +71,8 @@ def seed_plans(force: bool = False):
                 display_name_en="Pro",
                 price_monthly_cents=4900,  # 49 CNY
                 price_yearly_cents=39900,  # 399 CNY
+                price_monthly_usd_cents=999,  # $9.99 USD
+                price_yearly_usd_cents=7900,  # $79.00 USD
                 features=PRO_PLAN_FEATURES,
                 is_active=True
             )
@@ -87,6 +89,8 @@ def seed_plans(force: bool = False):
                 display_name_en="Pro",
                 price_monthly_cents=4900,  # 49 CNY
                 price_yearly_cents=39900,  # 399 CNY
+                price_monthly_usd_cents=999,  # $9.99 USD
+                price_yearly_usd_cents=7900,  # $79.00 USD
                 features=PRO_PLAN_FEATURES,
                 is_active=True
             )

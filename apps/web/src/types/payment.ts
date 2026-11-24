@@ -1,20 +1,33 @@
 export type PaymentCycle = 'month' | 'year'
 
-export type PaymentMethod = 'alipay'
+export type PaymentMethod = 'alipay' | 'card'
+
+export type PaymentProvider = 'zpay' | 'creem' | (string & {})
+
+export type PaymentCurrency = 'CNY' | 'USD' | (string & {})
 
 // The backend returns the stored string as-is; values outside these unions
 // (e.g. a row an operator edited by hand) must render, not crash.
-export type PaymentOrderStatus = 'pending' | 'paid' | (string & {})
+export type PaymentOrderStatus = 'pending' | 'paid' | 'refunded' | 'disputed' | 'failed' | (string & {})
 
 export type PaymentFulfillmentStatus = 'pending' | 'succeeded' | 'failed' | (string & {})
+
+export interface PaymentMethodOption {
+  method: PaymentMethod
+  provider: PaymentProvider
+  currency: PaymentCurrency
+}
 
 export interface PaymentOptions {
   enabled: boolean
   payment_methods: PaymentMethod[]
+  methods?: PaymentMethodOption[]
 }
 
 export interface PaymentOrder {
   id: string
+  provider?: PaymentProvider
+  currency?: PaymentCurrency
   out_trade_no: string
   trade_no: string | null
   user_id: string
@@ -22,7 +35,7 @@ export interface PaymentOrder {
   plan_display_name: string
   cycle: PaymentCycle
   amount_cents: number
-  payment_method: PaymentMethod
+  payment_method: PaymentMethod | (string & {})
   status: PaymentOrderStatus
   fulfillment_status: PaymentFulfillmentStatus
   created_at: string
@@ -34,7 +47,7 @@ export interface PaymentOrder {
 
 export interface PaymentCheckout {
   action: string
-  method: 'POST'
+  method: 'POST' | 'GET'
   fields: Record<string, string>
 }
 

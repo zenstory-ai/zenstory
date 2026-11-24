@@ -220,9 +220,20 @@ describe('PaymentCheckoutModal', () => {
       plan_name: 'pro', cycle: 'month', payment_method: 'alipay', upgrade_source: 'pricing_page_primary',
     })
     expect(submit).toHaveBeenCalledTimes(1)
-    expect(trackEvent).toHaveBeenCalledWith('checkout_started', { cycle: 'month', upgrade_source: 'pricing_page_primary' })
+    expect(trackEvent).toHaveBeenCalledWith('checkout_started', {
+      cycle: 'month',
+      payment_method: 'alipay',
+      provider: 'zpay',
+      currency: 'CNY',
+      upgrade_source: 'pricing_page_primary',
+    })
     expect(trackEvent).toHaveBeenCalledWith('checkout_redirected', {
-      cycle: 'month', out_trade_no: 'ZP3', upgrade_source: 'pricing_page_primary',
+      cycle: 'month',
+      out_trade_no: 'ZP3',
+      payment_method: 'alipay',
+      provider: 'zpay',
+      currency: 'CNY',
+      upgrade_source: 'pricing_page_primary',
     })
 
     act(() => {

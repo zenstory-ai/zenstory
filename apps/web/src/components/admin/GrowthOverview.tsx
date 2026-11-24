@@ -14,7 +14,15 @@ export function GrowthOverview({ days }: { days: 7 | 14 | 30 }) {
     retry: false,
   });
   const percent = (value: number | null) => value === null ? '—' : `${(value * 100).toFixed(1)}%`;
-  const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  const moneyCny = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  const moneyUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const formatRevenue = (row: Pick<GrowthMetrics, 'revenue_cents' | 'revenue_usd_cents'>) => {
+    const cny = row.revenue_cents ?? 0;
+    const usd = row.revenue_usd_cents ?? 0;
+    if (usd > 0 && cny > 0) return `${moneyCny(cny)} + ${moneyUsd(usd)}`;
+    if (usd > 0) return moneyUsd(usd);
+    return moneyCny(cny);
+  };
   const data = query.data;
   const metrics = data?.current.metrics;
   const prior = data?.previous.metrics;
@@ -28,10 +36,11 @@ export function GrowthOverview({ days }: { days: 7 | 14 | 30 }) {
     { key: 'signup_to_paid_rate', title: 'paidRate', icon: CreditCard, format: percent },
     { key: 'paid_users', title: 'paidUsers', icon: Users },
     { key: 'paid_orders', title: 'orders', icon: CreditCard },
-    { key: 'revenue_cents', title: 'revenue', icon: Coins, format: (value: number | null) => money(value ?? 0) },
+    { key: 'revenue_cents', title: 'revenue', icon: Coins },
     { key: 'grant_upgrade_users', title: 'grants', icon: Gift },
   ] as const;
   const value = (row: GrowthMetrics, card: typeof cards[number]) => {
+    if (card.key === 'revenue_cents') return formatRevenue(row);
     const number = row[card.key];
     return 'format' in card ? card.format(number) : number ?? '—';
   };
@@ -60,7 +69,7 @@ export function GrowthOverview({ days }: { days: 7 | 14 | 30 }) {
                 </tr></thead>
                 <tbody>{data?.daily.map(row => <tr key={row.date} className="border-t border-[hsl(var(--separator-color))]">
                   <th scope="row" className="text-left py-2 font-normal">{row.date}</th>
-                  {[row.new_users, row.ai_active_users, row.paid_orders, money(row.revenue_cents)].map((cell, index) =>
+                  {[row.new_users, row.ai_active_users, row.paid_orders, formatRevenue(row)].map((cell, index) =>
                     <td className="text-right px-2 py-2 tabular-nums" key={index}>{cell}</td>)}
                 </tr>)}</tbody>
               </table>

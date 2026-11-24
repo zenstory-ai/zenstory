@@ -16,12 +16,14 @@ import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import { paymentApi, paymentQueryKeys } from "../lib/paymentApi";
 import {
   filterAvailableMetrics,
+  formatUsd,
   formatYuan,
   getEntitlementMetricDefinitions,
   getLocalizedPlanDisplayName,
   getSubscriptionStatusLine,
   getYearlySavings,
 } from "../lib/subscriptionEntitlements";
+import { PRO_USD_PRICE_CENTS, usesUsdPricing } from "../config/usdPricing";
 import type { QuotaResponse, SubscriptionCatalogTier } from "../types/subscription";
 import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackUpgradeClick, trackUpgradeConversion, trackUpgradeExpose } from "../lib/upgradeAnalytics";
@@ -183,22 +185,43 @@ export default function BillingPage() {
     [i18n.language, t, sortedPlans]
   );
 
-  const formatPrice = (cents: number, cycle: "month" | "year"): string => {
+  const showUsdPricing = usesUsdPricing(i18n.language)
+    && (paymentOptions?.payment_methods?.includes("card") ?? false);
+
+  const getDisplayPrices = (plan: SubscriptionCatalogTier) =>
+    showUsdPricing && plan.name === "pro"
+      ? {
+          monthly: plan.price_monthly_usd_cents && plan.price_monthly_usd_cents > 0
+            ? plan.price_monthly_usd_cents
+            : PRO_USD_PRICE_CENTS.month,
+          yearly: plan.price_yearly_usd_cents && plan.price_yearly_usd_cents > 0
+            ? plan.price_yearly_usd_cents
+            : PRO_USD_PRICE_CENTS.year,
+          format: formatUsd,
+        }
+      : { monthly: plan.price_monthly_cents, yearly: plan.price_yearly_cents, format: formatYuan };
+
+  const formatPrice = (
+    cents: number,
+    cycle: "month" | "year",
+    formatter: (c: number, lang: string | undefined) => string = formatYuan,
+  ): string => {
     if (cents === 0) return t("dashboard:billing.free", "免费");
     const unit = cycle === "month" ? t("dashboard:billing.perMonth", "/月") : t("dashboard:billing.perYear", "/年");
-    return `${formatYuan(cents, i18n.language)}${unit}`;
+    return `${formatter(cents, i18n.language)}${unit}`;
   };
 
   const formatPlanPrice = (plan: SubscriptionCatalogTier): string => {
-    const monthly = formatPrice(plan.price_monthly_cents, "month");
-    if (plan.price_monthly_cents === 0 && plan.price_yearly_cents === 0) return monthly;
-    const yearly = formatPrice(plan.price_yearly_cents, "year");
-    const savings = getYearlySavings(plan.price_monthly_cents, plan.price_yearly_cents);
+    const prices = getDisplayPrices(plan);
+    const monthly = formatPrice(prices.monthly, "month", prices.format);
+    if (prices.monthly === 0 && prices.yearly === 0) return monthly;
+    const yearly = formatPrice(prices.yearly, "year", prices.format);
+    const savings = getYearlySavings(prices.monthly, prices.yearly);
     if (!savings) return `${monthly} · ${yearly}`;
     return t("dashboard:billing.priceWithYearlyOffer", "{{monthly}}，或 {{yearly}}（折合 {{equivalent}}/月，省 {{percent}}%）", {
       monthly,
       yearly,
-      equivalent: formatYuan(savings.monthlyEquivalent, i18n.language),
+      equivalent: prices.format(savings.monthlyEquivalent, i18n.language),
       percent: savings.percent,
     });
   };
@@ -570,6 +593,8 @@ export default function BillingPage() {
           initialCycle={paymentCycle}
           monthlyPriceCents={proPlan?.price_monthly_cents}
           yearlyPriceCents={proPlan?.price_yearly_cents}
+          monthlyUsdPriceCents={proPlan?.price_monthly_usd_cents}
+          yearlyUsdPriceCents={proPlan?.price_yearly_usd_cents}
           upgradeSource={checkoutSource}
           isRenewal={isPaidTier}
           redeemEntry="on-page"

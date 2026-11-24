@@ -101,6 +101,8 @@ def update_plan(
         "display_name_en": plan.display_name_en,
         "price_monthly_cents": plan.price_monthly_cents,
         "price_yearly_cents": plan.price_yearly_cents,
+        "price_monthly_usd_cents": plan.price_monthly_usd_cents,
+        "price_yearly_usd_cents": plan.price_yearly_usd_cents,
         "features": plan.features,
         "is_active": plan.is_active,
     }
@@ -114,6 +116,10 @@ def update_plan(
         plan.price_monthly_cents = request.price_monthly_cents
     if request.price_yearly_cents is not None:
         plan.price_yearly_cents = request.price_yearly_cents
+    if request.price_monthly_usd_cents is not None:
+        plan.price_monthly_usd_cents = request.price_monthly_usd_cents
+    if request.price_yearly_usd_cents is not None:
+        plan.price_yearly_usd_cents = request.price_yearly_usd_cents
     if features is not None:
         plan.features = features
     if request.is_active is not None:
@@ -129,6 +135,8 @@ def update_plan(
         "display_name_en": plan.display_name_en,
         "price_monthly_cents": plan.price_monthly_cents,
         "price_yearly_cents": plan.price_yearly_cents,
+        "price_monthly_usd_cents": plan.price_monthly_usd_cents,
+        "price_yearly_usd_cents": plan.price_yearly_usd_cents,
         "features": plan.features,
         "is_active": plan.is_active,
     }

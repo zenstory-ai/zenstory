@@ -332,8 +332,9 @@ export interface PaymentOrderSyncResponse {
 async function getPaymentOrders(params: {
   page?: number;
   page_size?: number;
-  status?: "pending" | "paid";
+  status?: "pending" | "paid" | "refunded" | "disputed" | "failed";
   fulfillment_status?: "pending" | "succeeded" | "failed";
+  payment_method?: "alipay" | "card";
   needs_attention?: boolean;
   search?: string;
   user_id?: string;
@@ -344,6 +345,7 @@ async function getPaymentOrders(params: {
   if (params.page_size) query.set("page_size", String(params.page_size));
   if (params.status) query.set("status", params.status);
   if (params.fulfillment_status) query.set("fulfillment_status", params.fulfillment_status);
+  if (params.payment_method) query.set("payment_method", params.payment_method);
   if (params.needs_attention) query.set("needs_attention", "true");
   if (params.search) query.set("search", params.search);
   if (params.user_id) query.set("user_id", params.user_id);
