@@ -401,7 +401,10 @@ test('file history restore confirmation opens above the history modal and comple
   const f = await fixture(page);
   await openA(page);
   await page.getByRole('button', { name: 'Versions', exact: true }).click();
-  await page.getByRole('button', { name: 'Restore this version', exact: true }).nth(1).click();
+  const restoreButtons = page.getByRole('button', { name: 'Restore this version', exact: true });
+  // Clean current v2 omits the redundant restore action; only older v1 offers restore.
+  await expect(restoreButtons).toHaveCount(1);
+  await restoreButtons.first().click();
   const confirmDialog = page.getByRole('dialog').filter({ hasText: 'Restore version 1?' });
   await expect(confirmDialog).toBeVisible();
   const confirm = confirmDialog.getByRole('button', { name: 'Restore', exact: true });
