@@ -2848,29 +2848,48 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             label={t('chat:panel.aiMemory')}
             icon={<Database size={isMobile ? 18 : 16} />}
           />
-          <IconButton
-            onClick={requestNewChat}
-            disabled={isCreatingSession || newChatPending}
-            aria-busy={isCreatingSession}
-            size={isMobile ? 'touch' : 'md'}
-            label={t('chat:panel.newSession')}
-            icon={
-              isCreatingSession ? (
-                <>
-                  <Loader2 size={isMobile ? 18 : 16} className="animate-spin" />
-                  <span className="sr-only" role="status">{t("chat:panel.creatingSession")}</span>
-                </>
-              ) : (
-                <Plus size={isMobile ? 18 : 16} />
-              )
-            }
-          />
+          {(() => {
+            const isAlreadyEmptyNewChat =
+              !isLoadingHistory &&
+              messages.length === 0 &&
+              !isStreaming &&
+              !isThinking &&
+              !error &&
+              !userStop &&
+              !quotaRefund &&
+              sessionRecoveryError !== currentProjectId;
+            return (
+              <IconButton
+                onClick={requestNewChat}
+                disabled={isCreatingSession || newChatPending || isAlreadyEmptyNewChat}
+                aria-busy={isCreatingSession}
+                size={isMobile ? 'touch' : 'md'}
+                label={t('chat:panel.newSession')}
+                title={
+                  isAlreadyEmptyNewChat && !isCreatingSession && !newChatPending
+                    ? t('chat:panel.alreadyNewSession')
+                    : t('chat:panel.newSession')
+                }
+                icon={
+                  isCreatingSession ? (
+                    <>
+                      <Loader2 size={isMobile ? 18 : 16} className="animate-spin" />
+                      <span className="sr-only" role="status">{t("chat:panel.creatingSession")}</span>
+                    </>
+                  ) : (
+                    <Plus size={isMobile ? 18 : 16} />
+                  )
+                }
+              />
+            );
+          })()}
         </div>
       </div>
 
       {/* Messages - scrollable area */}
-      {/* data-testid: message-list - Message container for message display tests */}
-      <div ref={messagesScrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" data-testid="message-list">
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {/* data-testid: message-list - Message container for message display tests */}
+        <div ref={messagesScrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" data-testid="message-list">
         <div className={`py-3 ${isMobile ? 'px-3 pb-2' : 'px-3'}`}>
           {sessionRecoveryError === currentProjectId && (
             <div role="alert" className={`mb-3 p-3 ${CHAT_CARD_SURFACE}`}>
@@ -3076,24 +3095,26 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 </p>
               )}
 
-              {/* Jump-to-latest button (only when user scrolled away and new content arrives) */}
-              {showJumpToLatest && (
-                <div className="sticky bottom-3 z-10 flex justify-center pointer-events-none">
-                  <button
-                    type="button"
-                    onClick={handleJumpToLatest}
-                    className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] px-3 py-1.5 text-xs text-[hsl(var(--text-primary))] shadow-md hover:bg-[hsl(var(--bg-tertiary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
-                    aria-label={t('chat:panel.jumpToLatest')}
-                    title={t('chat:panel.jumpToLatest')}
-                  >
-                    <ArrowDown size={14} />
-                    {t('chat:panel.jumpToLatest')}
-                  </button>
-                </div>
-              )}
             </div>
           )}
         </div>
+        </div>
+
+        {/* Jump-to-latest button (overlay outside scroll flow so toggling never mutates scrollHeight) */}
+        {showJumpToLatest && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center">
+            <button
+              type="button"
+              onClick={handleJumpToLatest}
+              className="pointer-events-auto inline-flex min-h-11 md:min-h-0 items-center gap-1.5 rounded-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] px-3.5 py-2 md:px-3 md:py-1.5 text-xs text-[hsl(var(--text-primary))] shadow-md hover:bg-[hsl(var(--bg-tertiary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
+              aria-label={t('chat:panel.jumpToLatest')}
+              title={t('chat:panel.jumpToLatest')}
+            >
+              <ArrowDown size={14} />
+              {t('chat:panel.jumpToLatest')}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Input panel (resizable on desktop, fixed on mobile) */}

@@ -5,6 +5,7 @@
     "loadingHistory": "Loading conversation…",
     "aiMemory": "AI Memory",
     "newSession": "New chat",
+    "alreadyNewSession": "Already in a new chat",
     "clearChat": "Clear Chat",
     "selectProject": "Open a project to start chatting",
     "loadingMessages": "Loading conversation…",

@@ -42,16 +42,31 @@ describe('FileVersionHistory saved-state boundary', () => {
   })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('allows restoring the version that matches the current text', async () => {
+  it('allows restoring the version that matches the current text when there are unsaved changes', async () => {
     getVersions.mockResolvedValue({ total:1, versions:[version(3)], current_version_number: 3 })
     rollback.mockResolvedValue({})
     const onRollback=vi.fn()
-    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} onRollback={onRollback} />)
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" hasUnsavedChanges onClose={vi.fn()} onRollback={onRollback} />)
     expect(await screen.findByText('currentText')).toBeInTheDocument()
     fireEvent.click(screen.getByTitle('rollback'))
     await confirmRestore()
     await waitFor(()=>expect(rollback).toHaveBeenCalledWith('file-1',3))
     await waitFor(()=>expect(onRollback).toHaveBeenCalledWith(3))
+  })
+
+  it('hides row and preview restore controls on the current version when there are no unsaved changes', async () => {
+    getVersions.mockResolvedValue({ total: 2, versions: [version(3), version(2)], current_version_number: 3 })
+    getVersionContent.mockResolvedValue({ content: 'Saved v3 text', version_number: 3 })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    expect(await screen.findByText('currentText')).toBeInTheDocument()
+
+    // Only v2 (non-current) should expose a row rollback button
+    expect(screen.getAllByTitle('rollback')).toHaveLength(1)
+
+    // Opening preview for v3 (current) should also omit the restore button
+    fireEvent.click(screen.getAllByTitle('viewContent')[0])
+    const preview = await screen.findByTestId('version-preview')
+    expect(within(preview).queryByRole('button', { name: 'rollback' })).not.toBeInTheDocument()
   })
 
   it('still allows closing before restore submission and cancels the pending preparation', async () => {

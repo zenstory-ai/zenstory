@@ -115,5 +115,13 @@ describe('SkillsPane', () => {
     expect(useBtn).toHaveAttribute('title', 'editor:fileTree.skillSelectionFull:3');
     expect(useBtn.className).toContain('group-hover:opacity-40');
     expect(useBtn.className).not.toContain('disabled:opacity-0');
+
+    // Opening the detail modal at 3/3 also explains why the touch-sized Use button is disabled
+    fireEvent.click(screen.getByRole('button', { name: 'Dialogue Polish' }));
+    const modalUse = await screen.findByRole('button', { name: 'editor:fileTree.useSkill' });
+    expect(modalUse).toBeDisabled();
+    expect(modalUse).toHaveAttribute('title', 'editor:fileTree.skillSelectionFull:3');
+    expect(modalUse.className).toContain('min-h-[44px]');
+    expect(screen.getByText('editor:fileTree.skillSelectionFull:3')).toBeInTheDocument();
   });
 });

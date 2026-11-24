@@ -41,6 +41,7 @@ export default function MaterialsPage() {
   const { t, i18n } = useTranslation(["materials", "common"]);
   const fileSelectButtonId = useId();
   const titleInputId = useId();
+  const uploadFormId = useId();
   const materialUploadUpgradePrompt = getUpgradePromptDefinition("material_upload_quota_blocked");
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -774,9 +775,9 @@ export default function MaterialsPage() {
               {t("common:cancel")}
             </Button>
             <Button
-              type="button"
+              type="submit"
+              form={uploadFormId}
               size="touch"
-              onClick={handleUpload}
               disabled={!file || uploading}
               title={!file && !uploading ? t("materials:uploadModal.selectFileFirst", { defaultValue: "请先选择一个 .txt 文件" }) : undefined}
               isLoading={uploading}
@@ -789,6 +790,15 @@ export default function MaterialsPage() {
           </>
         }
       >
+        <form
+          id={uploadFormId}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (file && !uploading) {
+              void handleUpload();
+            }
+          }}
+        >
         {trialAvailable && (
           <p data-testid="materials-trial-upload-note" className="mb-4 text-sm text-[hsl(var(--text-secondary))]">
             {t("materials:trialUploadNote", {
@@ -875,6 +885,7 @@ export default function MaterialsPage() {
             <p className="text-sm text-[hsl(var(--error-text))]">{error}</p>
           </div>
         )}
+        </form>
       </Modal>
 
       {/* Delete Confirmation */}

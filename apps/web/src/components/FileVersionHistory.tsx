@@ -36,6 +36,7 @@ const VERSION_PAGE_SIZE = 50;
 interface FileVersionHistoryProps {
   fileId: string;
   fileTitle: string;
+  hasUnsavedChanges?: boolean;
   onClose: () => void;
   onBeforeRollback?: () => void | Promise<void>;
   onRollback?: (versionNumber: number) => void | Promise<void>;
@@ -45,6 +46,7 @@ interface FileVersionHistoryProps {
 interface VersionRowProps {
   version: FileVersion;
   isCurrent: boolean;
+  canRollback: boolean;
   isSelected: boolean;
   isRollingBack: boolean;
   t: (key: string, params?: Record<string, unknown>) => string;
@@ -85,6 +87,7 @@ function getChangeTypeLabel(
 const VersionRow: React.FC<VersionRowProps> = ({
   version,
   isCurrent,
+  canRollback,
   isSelected,
   isRollingBack,
   t,
@@ -133,15 +136,17 @@ const VersionRow: React.FC<VersionRowProps> = ({
             label={t('viewContent')}
             icon={<FileText size={16} />}
           />
-          <IconButton
-            onClick={(e) => {
-              e.stopPropagation();
-              onRollback(version.version_number);
-            }}
-            label={t('rollback')}
-            icon={<RotateCcw size={16} />}
-            disabled={isRollingBack}
-          />
+          {canRollback && (
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                onRollback(version.version_number);
+              }}
+              label={t('rollback')}
+              icon={<RotateCcw size={16} />}
+              disabled={isRollingBack}
+            />
+          )}
         </div>
       </div>
 
@@ -182,6 +187,7 @@ const VersionRow: React.FC<VersionRowProps> = ({
 export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   fileId,
   fileTitle,
+  hasUnsavedChanges = false,
   onClose,
   onBeforeRollback,
   onRollback,
@@ -533,19 +539,23 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
               data-testid="version-list-rows"
               className="divide-y divide-[hsl(var(--border-color))]"
             >
-              {versions.map((version) => (
-                <VersionRow
-                  key={version.version_number}
-                  version={version}
-                  isCurrent={currentVersionNumber !== null && version.version_number === currentVersionNumber}
-                  isSelected={selectedVersions.includes(version.version_number)}
-                  isRollingBack={isRollingBack}
-                  t={t}
-                  onSelectVersion={handleSelectVersion}
-                  onViewContent={handleViewContent}
-                  onRollback={handleRollback}
-                />
-              ))}
+              {versions.map((version) => {
+                const isCurrent = currentVersionNumber !== null && version.version_number === currentVersionNumber;
+                return (
+                  <VersionRow
+                    key={version.version_number}
+                    version={version}
+                    isCurrent={isCurrent}
+                    canRollback={!isCurrent || hasUnsavedChanges}
+                    isSelected={selectedVersions.includes(version.version_number)}
+                    isRollingBack={isRollingBack}
+                    t={t}
+                    onSelectVersion={handleSelectVersion}
+                    onViewContent={handleViewContent}
+                    onRollback={handleRollback}
+                  />
+                );
+              })}
               {versions.length < total && (
                 <div className="p-3 flex flex-col items-center gap-2">
                   {pageError && <span role="alert" className="text-xs text-[hsl(var(--error-text))]">{pageError}</span>}
@@ -595,16 +605,18 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                 })}
               </span>
               <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size={isMobile ? 'touch' : 'sm'}
-                  onClick={() => handleRollback(preview.versionNumber)}
-                  disabled={isRollingBack}
-                  leftIcon={<RotateCcw size={14} />}
-                >
-                  {t('rollback')}
-                </Button>
+                {(currentVersionNumber !== preview.versionNumber || hasUnsavedChanges) && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size={isMobile ? 'touch' : 'sm'}
+                    onClick={() => handleRollback(preview.versionNumber)}
+                    disabled={isRollingBack}
+                    leftIcon={<RotateCcw size={14} />}
+                  >
+                    {t('rollback')}
+                  </Button>
+                )}
                 <IconButton
                   onClick={() => setPreview(null)}
                   label={t('closePreview', { defaultValue: '关闭预览' })}

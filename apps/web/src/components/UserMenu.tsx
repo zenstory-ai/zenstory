@@ -598,11 +598,13 @@ export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
         </span>
       </a>
 
+      <div className="h-px bg-[hsl(var(--separator-color))] mx-2 my-1" />
+
       {/* Logout button */}
       <button
         type="button"
         onClick={handleLogout}
-        className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+        className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.1)] rounded text-sm transition-colors text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
       >
         <LogOut size={18} />
         <span>{t('userMenu.logout')}</span>

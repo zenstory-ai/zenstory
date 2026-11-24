@@ -906,18 +906,18 @@ function SkillCard({
       {onExport && (
         <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
       )}
+      <IconButton
+        onClick={() => setExpanded(!expanded)}
+        label={expanded ? t("skills:collapse") : t("skills:expand")}
+        aria-expanded={expanded}
+        icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+      />
       <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[hsl(var(--separator-color))]" />
       <IconButton
         onClick={onDelete}
         label={t("skills:deleteConfirm.title")}
         tone="danger"
         icon={<Trash2 className="w-4 h-4" />}
-      />
-      <IconButton
-        onClick={() => setExpanded(!expanded)}
-        label={expanded ? t("skills:collapse") : t("skills:expand")}
-        aria-expanded={expanded}
-        icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       />
     </div>
   );
@@ -1079,13 +1079,15 @@ function MySkillsContent({
 
   return (
     <div>
-      {/* Search Box */}
-      <DashboardSearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placeholder={t("searchMySkillsPlaceholder")}
-        className="mb-6"
-      />
+      {/* Search Box — progressive disclosure: hidden when there are 0 skills and no active search */}
+      {(hasSkills || Boolean(searchQuery)) && (
+        <DashboardSearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={t("searchMySkillsPlaceholder")}
+          className="mb-6"
+        />
+      )}
 
       {hasError && <SkillListError onRetry={onRetry} />}
       {(!hasError || hasSkills) && <>
@@ -1272,6 +1274,7 @@ function AddedSkillCard({
   // 官方技能的正文不对用户返回：不能导出，展开只显示完整描述和说明
   const hidden = !!skill.instructions_hidden;
 
+  const hasLeadingAction = Boolean((onExport && !hidden) || (!hidden && skill.instructions.trim()));
   const actions = (
     <div
       data-testid="skill-card-actions"
@@ -1280,7 +1283,13 @@ function AddedSkillCard({
       {onExport && !hidden && (
         <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
       )}
-      {onExport && !hidden && (
+      {!hidden && Boolean(skill.instructions.trim()) && <IconButton
+        onClick={() => setExpanded(!expanded)}
+        label={expanded ? t("skills:collapse") : t("skills:expand")}
+        aria-expanded={expanded}
+        icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+      />}
+      {hasLeadingAction && (
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[hsl(var(--separator-color))]" />
       )}
       <IconButton
@@ -1296,12 +1305,6 @@ function AddedSkillCard({
           )
         }
       />
-      {!hidden && Boolean(skill.instructions.trim()) && <IconButton
-        onClick={() => setExpanded(!expanded)}
-        label={expanded ? t("skills:collapse") : t("skills:expand")}
-        aria-expanded={expanded}
-        icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-      />}
     </div>
   );
   const localizedCategory = getLocalizedSkillCategory(skill.category, t);

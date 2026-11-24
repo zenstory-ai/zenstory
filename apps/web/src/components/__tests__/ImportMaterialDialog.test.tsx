@@ -268,5 +268,45 @@ describe("ImportMaterialDialog", () => {
     expect(screen.getByLabelText("editor:fileTree.importDialog.targetFolder")).toBeInTheDocument();
     const confirmBtn = screen.getByRole("button", { name: "editor:fileTree.importDialog.confirm" });
     expect(confirmBtn).toHaveClass("bg-[hsl(var(--primary))]", "text-[hsl(var(--primary-foreground))]");
+    expect(confirmBtn).toHaveAttribute("type", "submit");
+  });
+
+  it("submits when pressing Enter inside the file name form", async () => {
+    vi.mocked(materialsApi.importToProject).mockResolvedValue({
+      file_id: "file-9",
+      folder_name: "Characters",
+    } as never);
+    const onSuccess = vi.fn();
+    render(
+      <ImportMaterialDialog
+        isOpen
+        onClose={vi.fn()}
+        preview={{
+          title: "Preview",
+          markdown: "content",
+          novel_title: "Novel",
+          suggested_file_type: "character",
+          suggested_folder_name: "Characters",
+          suggested_file_name: "Hero",
+        }}
+        novelId={1}
+        entityType="characters"
+        entityId={1}
+        onSuccess={onSuccess}
+      />
+    );
+
+    const fileNameInput = screen.getByLabelText("editor:fileTree.importDialog.fileName");
+    fireEvent.submit(fileNameInput.closest("form")!);
+
+    await waitFor(() => {
+      expect(materialsApi.importToProject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project_id: "project-1",
+          file_name: "Hero",
+        })
+      );
+    });
+    expect(onSuccess).toHaveBeenCalledWith("file-9", "Characters");
   });
 });

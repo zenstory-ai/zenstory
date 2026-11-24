@@ -67,10 +67,14 @@ describe('FeedbackDialog', () => {
       <FeedbackDialog open onClose={onClose} sourcePage="editor" sourceRoute="/project/test-id" />
     )
 
+    const submitBtn = screen.getByRole('button', { name: '提交反馈' })
+    expect(submitBtn).toBeDisabled()
+    expect(submitBtn).toHaveAttribute('title', '请先填写问题描述')
+
     fireEvent.change(screen.getByLabelText(/问题描述/), {
       target: { value: '   Header button style looks broken.   ' },
     })
-    fireEvent.click(screen.getByRole('button', { name: '提交反馈' }))
+    fireEvent.click(submitBtn)
 
     await waitFor(() => {
       expect(mockSubmit).toHaveBeenCalledWith({

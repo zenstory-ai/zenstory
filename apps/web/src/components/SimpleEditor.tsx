@@ -1304,6 +1304,7 @@ export const SimpleEditor = ({
         <FileVersionHistory
           fileId={fileId}
           fileTitle={title}
+          hasUnsavedChanges={isDirty}
           onClose={() => setShowVersionHistory(false)}
           onBeforeRollback={prepareHistoryRollback}
           onRollback={handleRollback}

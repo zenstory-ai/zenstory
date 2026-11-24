@@ -182,19 +182,31 @@ export const SkillsPane: React.FC = () => {
             </div>
           )}
           footer={(
-            <Button
-              size="md"
-              variant={selectedIds.has(selectedSkill.id) ? "secondary" : "primary"}
-              onClick={() => {
-                handleToggleSkill(selectedSkill);
-                handleCloseModal();
-              }}
-              disabled={!selectedIds.has(selectedSkill.id) && selectionFull}
-            >
-              {selectedIds.has(selectedSkill.id)
-                ? t('editor:fileTree.removeSkill')
-                : t('editor:fileTree.useSkill')}
-            </Button>
+            <div className="flex w-full items-center justify-end gap-3">
+              {!selectedIds.has(selectedSkill.id) && selectionFull && (
+                <span className="mr-auto text-xs text-[hsl(var(--text-secondary))]">
+                  {t('editor:fileTree.skillSelectionFull', { max: MAX_SELECTED_SKILLS })}
+                </span>
+              )}
+              <Button
+                size="touch"
+                variant={selectedIds.has(selectedSkill.id) ? "secondary" : "primary"}
+                onClick={() => {
+                  handleToggleSkill(selectedSkill);
+                  handleCloseModal();
+                }}
+                disabled={!selectedIds.has(selectedSkill.id) && selectionFull}
+                title={
+                  !selectedIds.has(selectedSkill.id) && selectionFull
+                    ? t('editor:fileTree.skillSelectionFull', { max: MAX_SELECTED_SKILLS })
+                    : undefined
+                }
+              >
+                {selectedIds.has(selectedSkill.id)
+                  ? t('editor:fileTree.removeSkill')
+                  : t('editor:fileTree.useSkill')}
+              </Button>
+            </div>
           )}
           size="md"
         >

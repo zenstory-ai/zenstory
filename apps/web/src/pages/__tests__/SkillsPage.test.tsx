@@ -980,8 +980,9 @@ describe('SkillsPage', () => {
       const actionLabels = within(actions)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label'))
-      // Destructive delete sits after frequent edit/share/export actions so it is hard to misclick.
-      expect(actionLabels.indexOf('Delete Skill')).toBeGreaterThan(actionLabels.indexOf('Share Skill'))
+      // Destructive delete sits alone at the trailing edge after frequent edit/share/export/expand actions.
+      expect(actionLabels[actionLabels.length - 1]).toBe('Delete Skill')
+      expect(actionLabels.indexOf('Delete Skill')).toBeGreaterThan(actionLabels.indexOf('skills:expand'))
       await userEvent.click(within(actions).getByRole('button', { name: 'Delete Skill' }))
       await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
 
@@ -1260,6 +1261,33 @@ describe('SkillsPage', () => {
         expect(toggle.getAttribute('aria-label')).toBeTruthy()
         expect(toggle).toHaveClass('min-h-11', 'min-w-11')
       }
+    })
+
+    it('isolates Remove at the trailing edge of AddedSkillCard and hides My Skills search when empty', async () => {
+      render(<SkillsPage />)
+      await userEvent.click(screen.getByRole('button', { name: /my skills/i }))
+      await screen.findByText('Plot Twist Generator')
+
+      const addedCard = screen.getByText('Plot Twist Generator').closest('.group') as HTMLElement
+      const addedActions = within(addedCard).getByTestId('skill-card-actions')
+      const addedLabels = within(addedActions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+      expect(addedLabels[addedLabels.length - 1]).toBe('Remove')
+      expect(addedLabels.indexOf('Remove')).toBeGreaterThan(addedLabels.indexOf('skills:expand'))
+
+      // Empty My Skills hides the search bar progressively
+      vi.mocked(skillsApi.mySkills).mockResolvedValueOnce({
+        user_skills: [],
+        added_skills: [],
+        total: 0,
+      })
+      const { unmount } = render(<SkillsPage />)
+      await userEvent.click(screen.getAllByRole('button', { name: /my skills/i })[1])
+      await waitFor(() => {
+        expect(screen.queryAllByPlaceholderText('Search my skills')).toHaveLength(1)
+      })
+      unmount()
     })
   })
 })

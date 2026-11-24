@@ -198,7 +198,10 @@ describe('UserMenu', () => {
     fireEvent.click(screen.getByTestId('check-in-button-mobile'))
     expect(mockMutate).toHaveBeenCalled()
 
-    fireEvent.click(screen.getByText('Log out'))
+    const logoutBtn = screen.getByRole('button', { name: 'Log out' })
+    expect(logoutBtn.className).toContain('text-[hsl(var(--error-text))]')
+    expect(logoutBtn.previousElementSibling?.className).toContain('bg-[hsl(var(--separator-color))]')
+    fireEvent.click(logoutBtn)
     expect(mockLogout).toHaveBeenCalled()
   })
 
@@ -219,7 +222,10 @@ describe('UserMenu', () => {
 
     rerender(<UserMenuMobile />)
     expect(screen.queryByText('Admin panel')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('Log out'))
+    const logoutBtn = screen.getByRole('button', { name: 'Log out' })
+    expect(logoutBtn.className).toContain('text-[hsl(var(--error-text))]')
+    expect(logoutBtn.previousElementSibling?.className).toContain('bg-[hsl(var(--separator-color))]')
+    fireEvent.click(logoutBtn)
     expect(mockLogout).toHaveBeenCalled()
   })
 

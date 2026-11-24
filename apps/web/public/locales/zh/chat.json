@@ -5,6 +5,7 @@
     "loadingHistory": "正在加载对话…",
     "aiMemory": "AI 记忆",
     "newSession": "新对话",
+    "alreadyNewSession": "当前已是新对话",
     "clearChat": "清空对话",
     "selectProject": "打开一个项目后即可开始对话",
     "loadingMessages": "正在加载对话…",
