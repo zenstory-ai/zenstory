@@ -575,7 +575,7 @@ class CreemService:
         )
         if not order:
             raise CallbackError("unknown_order")
-        record_dispute(session, order=order, dispute_id=dispute_id)
+        record_dispute(session, order=order, dispute_id=dispute_id, trade_no=trade_no)
 
     def sync_order(
         self, session: Session, order: PaymentOrder, settings: CreemSettings

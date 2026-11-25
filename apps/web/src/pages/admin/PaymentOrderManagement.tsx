@@ -229,7 +229,7 @@ export default function PaymentOrderManagement() {
               <dd className="min-w-0 break-words text-[hsl(var(--text-primary))]">{value}</dd>
             </div>)}
           </dl>
-          {selectedOrder.fulfillment_status !== "succeeded" && (
+          {selectedOrder.fulfillment_status !== "succeeded" && selectedOrder.status !== "refunded" && (
             <div className="space-y-2 border-t border-[hsl(var(--separator-color))] pt-3">
               <p className="text-xs text-[hsl(var(--text-secondary))]">{t("paymentOrders.syncHint")}</p>
               <Button

@@ -192,6 +192,9 @@ def settle_paid_order(
             .where(
                 PaymentOrder.id == order_id,
                 PaymentOrder.status.in_(("pending", "paid")),
+                PaymentOrder.refunded_at.is_(None),
+                PaymentOrder.refunded_amount_cents == 0,
+                PaymentOrder.disputed_at.is_(None),
                 or_(PaymentOrder.trade_no.is_(None), PaymentOrder.trade_no == trade_no),
             )
             .values(
@@ -514,6 +517,7 @@ def record_dispute(
     *,
     order: PaymentOrder,
     dispute_id: str | None = None,
+    trade_no: str | None = None,
 ) -> bool:
     """
     Record a dispute so it surfaces in the admin needs-attention queue.
@@ -534,6 +538,7 @@ def record_dispute(
 
     reason = f"disputed:{dispute_id}"[:100] if dispute_id else "disputed"
     now = utcnow()
+    next_trade_no = row.trade_no or trade_no
     if row.status == "refunded" or row.refunded_at is not None:
         next_status = "refunded"
     elif row.status in ("pending", "paid", "disputed"):
@@ -542,19 +547,24 @@ def record_dispute(
         session.rollback()
         raise CallbackError("order_state_conflict")
 
-    updated = session.exec(
-        update(PaymentOrder)
-        .where(PaymentOrder.id == order_id)
-        .values(
-            status=next_status,
-            disputed_at=row.disputed_at or now,
-            failure_reason=reason,
+    try:
+        updated = session.exec(
+            update(PaymentOrder)
+            .where(PaymentOrder.id == order_id)
+            .values(
+                status=next_status,
+                disputed_at=row.disputed_at or now,
+                failure_reason=reason,
+                trade_no=next_trade_no,
+            )
         )
-    )
-    if updated.rowcount != 1:
+        if updated.rowcount != 1:
+            session.rollback()
+            raise CallbackError("order_state_conflict")
+        session.commit()
+    except IntegrityError as exc:
         session.rollback()
-        raise CallbackError("order_state_conflict")
-    session.commit()
+        raise CallbackError("duplicate_trade_no") from exc
     log_with_context(
         logger,
         logging.ERROR,
@@ -562,7 +572,7 @@ def record_dispute(
         provider=row.provider,
         payment_order_id=order_id,
         out_trade_no=row.out_trade_no,
-        trade_no=row.trade_no,
+        trade_no=next_trade_no,
         dispute_id=dispute_id,
         order_status=next_status,
     )
