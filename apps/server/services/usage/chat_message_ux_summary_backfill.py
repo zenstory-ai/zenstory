@@ -111,6 +111,8 @@ _PG_INSERT_BATCH_SQL = text(
                         CASE MIN(
                             CASE
                                 WHEN json_typeof(card->'limit') = 'string'
+                                     AND btrim(card->>'limit') = 'server_draining' THEN -1
+                                WHEN json_typeof(card->'limit') = 'string'
                                      AND btrim(card->>'limit') = 'wall_clock' THEN 0
                                 WHEN json_typeof(card->'layer') = 'string'
                                      AND btrim(card->>'layer') = 'unexecuted_tool_text' THEN 1
@@ -123,6 +125,7 @@ _PG_INSERT_BATCH_SQL = text(
                                 ELSE 5
                             END
                         )
+                            WHEN -1 THEN 'server_draining'
                             WHEN 0 THEN 'run_deadline_exceeded'
                             WHEN 1 THEN 'unexecuted_tool_text'
                             WHEN 2 THEN 'empty_file_correction'

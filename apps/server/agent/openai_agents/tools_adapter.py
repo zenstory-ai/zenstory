@@ -389,6 +389,12 @@ def build_agent_function_tools(
                 return failure_breaker.short_circuit_text(_tool_name)
             if read_guard is not None and read_guard.is_open:
                 return read_guard.short_circuit_text(_tool_name)
+            if edit_guard is not None and edit_guard.spin_limit_reached:
+                if _tool_name == "edit_file":
+                    spin_plan = edit_guard.plan(_tool_name, raw_arguments)
+                    if spin_plan.blocked_output is not None:
+                        return spin_plan.blocked_output
+                return edit_guard.short_circuit_text(_tool_name, raw_arguments)
             overdue = req_ctx.overdue_file_bodies() if req_ctx is not None else []
             cancelled_id = (
                 # 复用的已有剧集可能已有正文，不算「取消本请求建的空文件」。

@@ -1428,7 +1428,7 @@ def _create_file_sync(
         # 空文件，后置位的把先置位的覆盖掉——先建的空文件从此没有任何指针。
         # 因此这里先 try_reserve 占坑，落库后再 bind 真实 file_id。
         reservation: str | None = None
-        if not content and not empty_by_request:
+        if not content and not empty_by_request and parsed.file_type != "folder":
             reservation = f"reserve-{uuid4().hex}"
             acquired, blocking_title = req_ctx.try_reserve_pending_empty_file(
                 reservation, title

@@ -69,8 +69,12 @@ def iteration_exhausted_abnormal_reason(metadata: dict[str, Any]) -> str | None:
         if not isinstance(card, dict) or card.get("type") != "iteration_exhausted":
             continue
         raw_limit = card.get("limit")
-        if isinstance(raw_limit, str) and raw_limit.strip() == "wall_clock":
-            return "run_deadline_exceeded"
+        if isinstance(raw_limit, str):
+            normalized_limit = raw_limit.strip()
+            if normalized_limit == "server_draining":
+                return "server_draining"
+            if normalized_limit == "wall_clock":
+                return "run_deadline_exceeded"
         raw_layer = card.get("layer")
         layer = raw_layer.strip() if isinstance(raw_layer, str) else ""
         priority, reason = _ITERATION_EXHAUSTED_LAYER_PRIORITY.get(layer, (5, "iteration_exhausted"))

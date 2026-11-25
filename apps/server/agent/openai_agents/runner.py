@@ -11,10 +11,9 @@ import time
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
-from agent.core.events import WALL_CLOCK_LIMIT
+from agent.core.events import SERVER_DRAINING_LIMIT, WALL_CLOCK_LIMIT
 from agent.core.output_truncation import OUTPUT_TRUNCATED_HISTORY
 from agent.core.run_meter import AgentRunMeter, TimingOutcome
-from agent.core.server_drain import is_draining
 from agent.core.stream_errors import (
     MODEL_CALL_LIMIT_ERROR_TYPE,
     REPETITION_LOOP_STOP_REASON,
@@ -69,6 +68,8 @@ MODEL_CALL_BUDGET_STOP_REASON = "model_call_budget_exhausted"
 MAX_TURNS_STOP_REASON = "max_turns_exceeded"
 # 接近请求墙钟时限、按提醒收尾（与 service 在时限取消时落库的 stop_reason 相同）。
 RUN_DEADLINE_STOP_REASON = "run_deadline_exceeded"
+# 计划内发布交接（SIGTERM 排空）触发的软着陆 stop_reason（与 round_outcome 同名一致）。
+SERVER_DRAINING_STOP_REASON = "server_draining"
 # 重复读取守卫判定无进展、结束本轮时的 stop_reason（与 ERROR 事件 data.reason 相同）。
 NO_PROGRESS_STOP = NO_PROGRESS_STOP_REASON
 # 多少新字符检查一次重复（find_repetition_start 每次扫描整次调用的回复）。
@@ -164,6 +165,7 @@ SOFT_LANDING_TURNS = 3
 LANDING_LIMIT_MAX_TURNS = "max_turns"
 LANDING_LIMIT_MODEL_CALL_BUDGET = "model_call_budget"
 LANDING_LIMIT_WALL_CLOCK = WALL_CLOCK_LIMIT
+LANDING_LIMIT_SERVER_DRAINING = SERVER_DRAINING_LIMIT
 # 收尾提醒：正文用 write_chapter（资料文件用 create_file）建好后等 <file>。
 LOOP_SOFT_LANDING_PROMPT = (
     "[系统提醒] 本轮工具调用即将达到上限（本次之后最多还能调用模型 {remaining} 次）。"
@@ -207,6 +209,7 @@ def _stop_run_after_tools(
     failure_breaker: ToolFailureBreaker | None = None,
     run_meter: AgentRunMeter | None = None,
     read_guard: RepeatReadGuard | None = None,
+    edit_guard: RepeatEditGuard | None = None,
 ) -> Any:
     """SDK 的 tool_use_behavior 回调：本轮工具跑完后，需要停下时立即结束当前 run。
 
@@ -252,6 +255,11 @@ def _stop_run_after_tools(
     if run_meter is not None and run_meter.wall_clock_landing_exhausted:
         return ToolsToFinalOutputResult(is_final_output=True, final_output="")
 
+    # 连续/累计 edit_repeat_limit 软跳过达到上限（模型无视微调上限提示反复重试）：
+    # 同步干净结束当前 run，避免对着守卫空转到 540s 墙钟上限。
+    if edit_guard is not None and edit_guard.spin_limit_reached:
+        return ToolsToFinalOutputResult(is_final_output=True, final_output="")
+
     return ToolsToFinalOutputResult(is_final_output=False, final_output=None)
 
 
@@ -290,6 +298,8 @@ class _ModelCallCountingFilter:
         self.landing_injected = False
         # 最近一次收尾提醒是哪个上限触发的（LANDING_LIMIT_*）；没有提醒时为 None。
         self.landing_limit: str | None = None
+        # 收尾提醒是否因计划内发布排空（is_draining）触发。
+        self.draining_landing = False
 
     def _remaining_calls(self) -> tuple[int, str]:
         """本次之后还能发起的模型调用数，以及先到的那个上限。"""
@@ -327,6 +337,8 @@ class _ModelCallCountingFilter:
             reminder = {"role": "user", "content": LOOP_SOFT_LANDING_PROMPT.format(remaining=remaining)}
         else:
             self.landing_limit = LANDING_LIMIT_WALL_CLOCK
+            if self._run_meter.is_draining_stop or self._run_meter.server_draining:
+                self.draining_landing = True
             self._run_meter.record_wall_clock_landing_call()
             reminder = {"role": "user", "content": LOOP_TIME_LANDING_PROMPT}
         return ModelInputData(
@@ -726,6 +738,7 @@ def _build_agent(
             failure_breaker=failure_breaker,
             run_meter=run_meter,
             read_guard=read_guard,
+            edit_guard=edit_guard,
         ),
     )
 
@@ -865,6 +878,7 @@ async def run_openai_agents_streaming_agent(
     if not continuing:
         read_guard.begin_agent_run()
     no_progress_stopped = False
+    edit_spin_stopped = False
     # 模型在一次调用里把一大段原样再写一遍（循环）：立即停下这次 run（见 find_repetition_start）。
     repetition_stopped = False
     # 等 <file> 正文时模型开头直接吐出泄漏的 tool_call 协议头：立即早停并转入 FILE_BODY_RESUME 纠偏。
@@ -956,7 +970,7 @@ async def run_openai_agents_streaming_agent(
         # 外层计数器给请求级模型调用预算记账（每次模型调用前调用一次），并在
         # 接近 max_turns 时追加收尾提醒（软着陆）。
         turn_filter = _ModelCallCountingFilter(
-            IntraRunToolOutputTrimmer(),
+            IntraRunToolOutputTrimmer(run_meter=run_meter),
             run_meter,
             max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
         )
@@ -1009,7 +1023,7 @@ async def run_openai_agents_streaming_agent(
             async for sdk_event in sdk_events:
                 if (
                     failure_stopped or budget_stopped or no_progress_stopped
-                    or repetition_stopped or leaked_tool_call_stopped
+                    or edit_spin_stopped or repetition_stopped or leaked_tool_call_stopped
                 ) and _is_new_model_turn_event(sdk_event):
                     # 兜底护栏：正常情况下 tool_use_behavior 已经让 run-loop 在终态
                     # 出现的那一刻结束，走不到这里。一旦走到（工具改名、SDK 行为
@@ -1212,6 +1226,11 @@ async def run_openai_agents_streaming_agent(
                     if read_guard.is_open and not no_progress_stopped:
                         # 无进展停止同样由 tool_use_behavior 同步生效，这里是第二道保险。
                         no_progress_stopped = True
+                        _safe_cancel(result, "after_turn")
+
+                    if edit_guard.spin_limit_reached and not edit_spin_stopped:
+                        # 连续 edit_repeat_limit 软跳过早停由 tool_use_behavior 同步生效，这里是第二道保险。
+                        edit_spin_stopped = True
                         _safe_cancel(result, "after_turn")
 
                     if run_meter.exhausted and not budget_stopped:
@@ -1419,15 +1438,23 @@ async def run_openai_agents_streaming_agent(
             and turn_filter is not None
             and turn_filter.landing_limit == LANDING_LIMIT_WALL_CLOCK
         )
+        draining_landed = time_landed and (
+            bool(turn_filter is not None and turn_filter.draining_landing)
+            or run_meter.is_draining_stop
+            or run_meter.server_draining
+        )
         exhausted_stop_reason = (
             MODEL_CALL_BUDGET_STOP_REASON
             if budget_landed
+            else SERVER_DRAINING_STOP_REASON
+            if draining_landed
             else RUN_DEADLINE_STOP_REASON
             if time_landed
             else MAX_TURNS_STOP_REASON
         )
         defer_wall_clock = (
             time_landed
+            and not draining_landed
             and run_policy is not None
             and run_policy.defer_wall_clock_soft_landing
         )
@@ -1435,10 +1462,15 @@ async def run_openai_agents_streaming_agent(
             # 三种收尾分开记：「tool-call turn cap」里多数是时限收尾，混在一起看不出真正撞上
             # max_turns 的有多少。时限收尾带已用时长和是否在为发布交接收尾。
             if time_landed:
-                exhausted_log = "Agent run soft-landed near the wall-clock limit"
+                exhausted_log = (
+                    "Agent run soft-landed for planned server drain"
+                    if draining_landed
+                    else "Agent run soft-landed near the wall-clock limit"
+                )
                 limit_fields: dict[str, Any] = {
                     "elapsed_s": round(run_meter.elapsed_s(), 1),
-                    "server_draining": is_draining(),
+                    "server_draining": draining_landed,
+                    "wall_clock_landing_exhausted": run_meter.wall_clock_landing_exhausted,
                 }
             elif budget_landed:
                 exhausted_log = "Agent run soft-landed at the request model-call budget"
@@ -1468,10 +1500,15 @@ async def run_openai_agents_streaming_agent(
                     "iterations_used": run_meter.model_calls,
                     "max_iterations": run_meter.max_model_calls,
                     "reason": (
-                        "这一轮的时间快用完了，AI 先写下了阶段总结。"
+                        "服务正在更新重启，AI 先写下了阶段总结。"
+                        "任务可能还没做完，回复「继续」就能接着做。"
+                        if draining_landed
+                        else "这一轮的时间快用完了，AI 先写下了阶段总结。"
                         "任务可能还没做完，回复「继续」就能接着做。"
                     ),
                     "last_agent": None,
+                    "wall_clock_landing_exhausted": run_meter.wall_clock_landing_exhausted,
+                    **({"server_draining": True} if draining_landed else {}),
                 }
             elif budget_landed:
                 exhausted_data = {
@@ -1497,7 +1534,9 @@ async def run_openai_agents_streaming_agent(
                 }
             # 前端据此选卡片文案：时限收尾时模型可能已经做完，只是收尾提醒让它写了总结。
             exhausted_data["limit"] = (
-                LANDING_LIMIT_WALL_CLOCK
+                LANDING_LIMIT_SERVER_DRAINING
+                if draining_landed
+                else LANDING_LIMIT_WALL_CLOCK
                 if time_landed
                 else LANDING_LIMIT_MODEL_CALL_BUDGET
                 if budget_landed
@@ -1508,6 +1547,25 @@ async def run_openai_agents_streaming_agent(
                 run_policy.deferred_wall_clock_exhausted = exhausted_data
             else:
                 yield StreamEvent(type=StreamEventType.ITERATION_EXHAUSTED, data=exhausted_data)
+
+        if edit_guard.spin_limit_reached and not turns_exhausted:
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "RepeatEditGuard spin limit reached; stopping agent run cleanly",
+                agent_type=agent_type,
+                blocked_edits=edit_guard.blocked_edits,
+                model_turns=model_turns,
+            )
+            if response_length == 0:
+                closing_text = (
+                    "Previous edits have been saved, so I'm stopping here. "
+                    "Let me know if there's a specific spot you'd like changed."
+                    if english
+                    else "之前的修改都已保存，本轮先停在这里；如需继续调整，请直接说明要改的位置。"
+                )
+                response_length += len(closing_text)
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": closing_text})
 
         usage = _usage_dict_from_result(result)
         run_stop_reason = (

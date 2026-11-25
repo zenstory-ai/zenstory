@@ -21,6 +21,7 @@ from utils.text_metrics import count_words
 from .constants import coerce_bool
 from .core.author_facing_text import rewrite_not_saved_notice
 from .core.events import (
+    SERVER_DRAINING_LIMIT,
     WALL_CLOCK_LIMIT,
     content_end_event,
     content_event,
@@ -43,7 +44,12 @@ from .core.events import (
 from .core.events import (
     StreamEvent as SSEEvent,
 )
-from .core.round_outcome import RUN_DEADLINE_STOP_REASON, RunOutcome, tool_result_status
+from .core.round_outcome import (
+    RUN_DEADLINE_STOP_REASON,
+    SERVER_DRAINING_STOP_REASON,
+    RunOutcome,
+    tool_result_status,
+)
 from .core.run_meter import AgentRunMeter
 from .core.stream_errors import REPETITION_LOOP_STOP_REASON, error_message_for, stream_error_from_event_data
 from .core.stream_processor import (
@@ -568,7 +574,11 @@ class StreamAdapter:
 
         elif event_type == StreamEventType.ITERATION_EXHAUSTED:
             # Iteration limit reached
-            if data.get("limit") == WALL_CLOCK_LIMIT:
+            limit = data.get("limit")
+            if limit == SERVER_DRAINING_LIMIT:
+                # 计划内发布交接（SIGTERM 排空）暂停卡：与墙钟超时区分，避免失控误报。
+                self._last_message_stop_reason = SERVER_DRAINING_STOP_REASON
+            elif limit == WALL_CLOCK_LIMIT:
                 # 时限暂停卡（runner 的时限收尾或循环收尾）：这一轮落可「继续」的时限原因。
                 self._last_message_stop_reason = RUN_DEADLINE_STOP_REASON
             if data.get("layer") == "unexecuted_tool_text" and self.config.run_meter is not None:
@@ -579,9 +589,19 @@ class StreamAdapter:
                 max_iterations=data.get("max_iterations", 0),
                 reason=data.get("reason", ""),
                 last_agent=data.get("last_agent"),
-                limit=data.get("limit"),
+                limit=limit,
                 unfinished_files=_card_files(data.get("unfinished_files")),
                 rolled_back_files=_card_files(data.get("rolled_back_files")),
+                wall_clock_landing_exhausted=(
+                    data.get("wall_clock_landing_exhausted")
+                    if isinstance(data.get("wall_clock_landing_exhausted"), bool)
+                    else None
+                ),
+                server_draining=(
+                    data.get("server_draining")
+                    if isinstance(data.get("server_draining"), bool)
+                    else None
+                ),
             )
 
         elif event_type_value == StreamEventType.STEERING_RECEIVED.value:
@@ -747,7 +767,11 @@ class StreamAdapter:
 
             # Handle file edit。即便状态被降级为 error（全部编辑失败），
             # 也要把逐条失败事件发出去，让用户看到「哪几处没改成」。
-            if tool_name == "edit_file":
+            # 被 RepeatEditGuard 软跳过（guard_skipped=True）的调用未执行，不发假 file_edit 事件。
+            if tool_name == "edit_file" and not (
+                (isinstance(result_data, dict) and result_data.get("guard_skipped") is True)
+                or (isinstance(parsed_result, dict) and parsed_result.get("guard_skipped") is True)
+            ):
                 async for event in self._handle_edit_file_result(result_data):
                     yield event
 

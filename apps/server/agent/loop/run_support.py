@@ -63,6 +63,29 @@ WRAP_UP_CARD_REASON_EN = (
     "This round is almost out of time, so the next step was not started. "
     "The task may not be finished; reply \"continue\" to pick it up."
 )
+UNIT_CHECKPOINT_CARD_REASON = (
+    "本轮已保存阶段成果并在单元边界暂停交接。剩余任务回复「继续」就能接着完成。"
+)
+UNIT_CHECKPOINT_CARD_REASON_EN = (
+    "This round saved a completed unit and paused cleanly at a checkpoint. "
+    "Reply \"continue\" to pick up the remaining work."
+)
+UNIT_CHECKPOINT_TEXT = "\n\n{named}已保存，先停在这个节点交接；回复「继续」我接着完成剩余部分。"
+UNIT_CHECKPOINT_TEXT_FALLBACK = "\n\n当前阶段成果已保存，先停在这个节点交接；回复「继续」我接着完成剩余部分。"
+UNIT_CHECKPOINT_TEXT_NO_MESSAGES_LEFT = "\n\n{named}已保存，先停在这个节点交接，已经写好的内容都保留了。"
+UNIT_CHECKPOINT_TEXT_NO_MESSAGES_LEFT_FALLBACK = "\n\n当前阶段成果已保存，先停在这个节点交接，已经写好的内容都保留了。"
+UNIT_CHECKPOINT_TEXT_EN = (
+    "\n\n{named} saved; pausing cleanly at this checkpoint. Reply \"continue\" and I'll pick up the rest."
+)
+UNIT_CHECKPOINT_TEXT_FALLBACK_EN = (
+    "\n\nCurrent progress is saved; pausing cleanly at this checkpoint. Reply \"continue\" and I'll pick up the rest."
+)
+UNIT_CHECKPOINT_TEXT_NO_MESSAGES_LEFT_EN = (
+    "\n\n{named} saved; pausing cleanly at this checkpoint. Everything written so far is kept."
+)
+UNIT_CHECKPOINT_TEXT_NO_MESSAGES_LEFT_FALLBACK_EN = (
+    "\n\nCurrent progress is saved; pausing cleanly at this checkpoint. Everything written so far is kept."
+)
 
 
 def _ai_messages_left_today(user_id: str) -> bool | None:
@@ -90,6 +113,35 @@ async def wrap_up_text(
     if messages_left is False:
         return WRAP_UP_TEXT_NO_MESSAGES_LEFT_EN if english else WRAP_UP_TEXT_NO_MESSAGES_LEFT
     return WRAP_UP_TEXT_EN if english else WRAP_UP_TEXT
+
+
+async def unit_checkpoint_text(
+    english: bool,
+    *,
+    saved_titles: list[str] | None = None,
+    request_context: AgentRequestContext | None = None,
+) -> str:
+    """单元边界交接说明：列出已保存单元并尊重当日剩余额度。"""
+    user_id = request_context.user_id if request_context is not None else None
+    messages_left = await asyncio.to_thread(_ai_messages_left_today, user_id) if user_id else None
+    cleaned = [t.strip() for t in (saved_titles or []) if isinstance(t, str) and t.strip()]
+    if messages_left is False:
+        if not cleaned:
+            return (
+                UNIT_CHECKPOINT_TEXT_NO_MESSAGES_LEFT_FALLBACK_EN
+                if english
+                else UNIT_CHECKPOINT_TEXT_NO_MESSAGES_LEFT_FALLBACK
+            )
+        named = ", ".join(f'"{t}"' for t in cleaned) if english else "、".join(f"《{t}》" for t in cleaned)
+        template = (
+            UNIT_CHECKPOINT_TEXT_NO_MESSAGES_LEFT_EN if english else UNIT_CHECKPOINT_TEXT_NO_MESSAGES_LEFT
+        )
+        return template.format(named=named)
+    if not cleaned:
+        return UNIT_CHECKPOINT_TEXT_FALLBACK_EN if english else UNIT_CHECKPOINT_TEXT_FALLBACK
+    named = ", ".join(f'"{t}"' for t in cleaned) if english else "、".join(f"《{t}》" for t in cleaned)
+    template = UNIT_CHECKPOINT_TEXT_EN if english else UNIT_CHECKPOINT_TEXT
+    return template.format(named=named)
 
 
 # 续跑说明里附上的实际字数是程序事实（编辑器统计）；文案逐字沿用。
