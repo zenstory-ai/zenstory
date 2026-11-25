@@ -54,7 +54,7 @@ NEEDS_ATTENTION_CONDITION = or_(
     PaymentOrder.status.in_(("pending", "paid")) & (PaymentOrder.fulfillment_status == "failed"),
     PaymentOrder.status == "disputed",
     PaymentOrder.disputed_at.is_not(None),
-    (PaymentOrder.status == "paid") & (PaymentOrder.refunded_amount_cents > 0),
+    PaymentOrder.status.in_(("pending", "paid")) & (PaymentOrder.refunded_amount_cents > 0),
 )
 
 
@@ -268,11 +268,24 @@ def settle_paid_order(
             commit=False,
         )
         fulfilled_at = utcnow()
-        final_failure_reason = (
-            claimed_order.failure_reason
-            if (claimed_order.refunded_amount_cents or 0) > 0
-            else None
-        )
+        if (claimed_order.refunded_amount_cents or 0) > 0:
+            if (
+                claimed_order.disputed_at is not None
+                or claimed_order.failure_reason == AMOUNT_MISMATCH_FAILURE_REASON
+            ):
+                final_failure_reason = claimed_order.failure_reason
+            else:
+                threshold = (
+                    claimed_order.paid_amount_cents
+                    if (
+                        claimed_order.paid_amount_cents is not None
+                        and claimed_order.paid_amount_cents > 0
+                    )
+                    else claimed_order.amount_cents
+                )
+                final_failure_reason = f"partial_refund:{claimed_order.refunded_amount_cents}/{threshold}"[:100]
+        else:
+            final_failure_reason = None
         session.exec(
             update(PaymentOrder)
             .where(PaymentOrder.id == order_id)

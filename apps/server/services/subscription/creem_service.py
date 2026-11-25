@@ -393,18 +393,18 @@ class CreemService:
                     headers={"x-api-key": settings.api_key},
                 )
         except httpx.HTTPError:
-            return None
+            raise PaymentSyncError("provider_unavailable") from None
         if response.status_code != 200:
-            return None
+            raise PaymentSyncError("provider_unavailable")
         try:
             data = response.json()
         except ValueError:
-            return None
+            raise PaymentSyncError("provider_invalid_response") from None
         if not isinstance(data, dict):
-            return None
+            raise PaymentSyncError("provider_invalid_response")
         items = data.get("items")
         if not isinstance(items, list):
-            return None
+            raise PaymentSyncError("provider_invalid_response")
         for item in items:
             if not isinstance(item, dict):
                 continue

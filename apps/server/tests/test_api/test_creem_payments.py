@@ -1336,7 +1336,18 @@ async def test_creem_partial_refund_before_settlement_converges_and_stays_in_nee
         )
     ).status_code == 200
 
-    # Late checkout.completed settles payment, preserves partial refund state, and enters needs_attention.
+    # Pending order with partial refund must already surface in needs_attention.
+    attn_pending = await client.get("/api/admin/payment-orders", headers=admin_headers, params={"needs_attention": "true"})
+    assert any(item["out_trade_no"] == otn and item["status"] == "pending" for item in attn_pending.json()["items"])
+
+    # Simulate a stale transient failure_reason before retryable settlement succeeds:
+    # settle_paid_order must recompute failure_reason to partial_refund:400/999 rather than keeping the stale failure.
+    db_order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == otn)).one()
+    db_order.failure_reason = "subscription_fulfillment_failed"
+    db_session.add(db_order)
+    db_session.commit()
+
+    # Late checkout.completed settles payment, recomputes partial_refund reason, and stays in needs_attention.
     late_paid = json.dumps({
         "id": "evt_h3_paid",
         "eventType": "checkout.completed",
@@ -1381,4 +1392,66 @@ async def test_creem_partial_refund_before_settlement_converges_and_stays_in_nee
         )
     ).status_code == 200
     db_session.expire_all()
+    assert subscription_service.get_effective_paid_plan(db_session, user.id) is None
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("tx_failure", ["http_error", "status_503", "bad_json"])
+async def test_creem_sync_transaction_lookup_errors_return_502_without_mutating_order(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch, tx_failure: str
+):
+    _configure_creem_env(monkeypatch, test_mode=True)
+    _ensure_pro_plan_usd(db_session)
+    user = _make_user(db_session, f"creem_txerr_{tx_failure}")
+    auth_headers = await _login(client, user.username)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            body = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(
+                200,
+                json={
+                    "id": f"ch_txerr_{tx_failure}",
+                    "object": "checkout",
+                    "product": body["product_id"],
+                    "status": "pending",
+                    "checkout_url": f"https://www.creem.io/test/checkout/{body['product_id']}/ch_txerr_{tx_failure}",
+                    "mode": "test",
+                },
+            )
+        if request.url.path.endswith("/transactions/search"):
+            if tx_failure == "http_error":
+                raise httpx.ConnectError("creem unreachable")
+            if tx_failure == "status_503":
+                return httpx.Response(503, text="upstream unavailable")
+            return httpx.Response(200, content=b"not-json")
+        return httpx.Response(
+            200,
+            json={
+                "id": f"ch_txerr_{tx_failure}",
+                "object": "checkout",
+                "product": "prod_month_test_123",
+                "status": "completed",
+                "order": f"ord_txerr_{tx_failure}",
+                "mode": "test",
+            },
+        )
+
+    monkeypatch.setattr(creem_service, "http_transport", httpx.MockTransport(handler))
+    r = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    otn = r.json()["order"]["out_trade_no"]
+
+    sync_resp = await client.post(f"/api/v1/payments/orders/{otn}/sync", headers=auth_headers)
+    assert sync_resp.status_code == 502
+
+    db_session.expire_all()
+    order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == otn)).one()
+    assert order.status == "pending"
+    assert order.fulfillment_status == "pending"
+    assert order.failure_reason is None
+    assert order.trade_no is None
     assert subscription_service.get_effective_paid_plan(db_session, user.id) is None
