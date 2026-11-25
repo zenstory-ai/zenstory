@@ -55,8 +55,7 @@ async function layoutStyles(page: Page, saveLabel = 'Save') {
 }
 
 async function fixture(page: Page, content = '你好 world\n\n第二段 story', locale: 'en' | 'zh' = 'en'): Promise<Fixture> {
-  await mockResponsiveApp(page);
-  await page.addInitScript(locale => localStorage.setItem('zenstory-language', locale), locale);
+  await mockResponsiveApp(page, null, 'free', locale);
   let release = () => {};
   const gate = new Promise<void>(resolve => { release = resolve; });
   const files: Record<string, FakeFile> = {};

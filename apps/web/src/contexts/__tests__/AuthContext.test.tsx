@@ -1,7 +1,7 @@
 import { renderHook, act, waitFor, render, screen, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ReactNode } from 'react'
+import { ReactNode, StrictMode } from 'react'
 import i18next from 'i18next'
 import { AuthIdentityQueryBoundary, AuthProvider, useAuth, User } from '../AuthContext'
 import * as api from '@/lib/api'
@@ -1499,6 +1499,115 @@ describe('AuthContext', () => {
 
       // Empty string is falsy, so user should be null
       expect(result.current.user).toBe(null)
+    })
+  })
+
+  describe('account ui_language backfill deduplication', () => {
+    it('sends PUT /api/auth/me/preferences exactly once under StrictMode and racing background /api/auth/me', async () => {
+      const previousLanguage = i18next.language
+      Object.defineProperty(i18next, 'language', { value: 'en-US', configurable: true })
+
+      try {
+        const cachedUser = createMockUser({ id: 'backfill-user-1', ui_language: null })
+        localStorage.setItem('access_token', 'valid-token')
+        localStorage.setItem('refresh_token', 'valid-refresh')
+        localStorage.setItem('user', JSON.stringify(cachedUser))
+        localStorage.setItem('auth_validated_at', String(Date.now()))
+
+        let resolveMe!: (value: unknown) => void
+        const mePromise = new Promise(resolve => { resolveMe = resolve })
+        const preferencePuts: Array<{ body: string | null }> = []
+
+        mockFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/api/auth/me')) {
+            return mePromise
+          }
+          if (url.endsWith('/api/auth/me/preferences') && init?.method === 'PUT') {
+            preferencePuts.push({ body: typeof init.body === 'string' ? init.body : null })
+            return { ok: true, status: 200, json: async () => ({ ui_language: 'en' }) }
+          }
+          return { ok: true, status: 200, json: async () => ({}) }
+        })
+
+        const strictWrapper = ({ children }: { children: ReactNode }) => (
+          <StrictMode>
+            <AuthProvider>{children}</AuthProvider>
+          </StrictMode>
+        )
+
+        const { result, rerender } = renderHook(() => useAuth(), { wrapper: strictWrapper })
+
+        await waitFor(() => {
+          expect(preferencePuts).toHaveLength(1)
+        })
+        expect(JSON.parse(preferencePuts[0].body ?? '{}')).toEqual({ ui_language: 'en' })
+        expect(result.current.user?.ui_language).toBe('en')
+        expect(JSON.parse(localStorage.getItem('user') ?? '{}').ui_language).toBe('en')
+
+        // Background /api/auth/me returns stale ui_language: null (e.g. raced ahead of PUT).
+        await act(async () => {
+          resolveMe({
+            ok: true,
+            status: 200,
+            json: async () => createMockUser({ id: 'backfill-user-1', ui_language: null }),
+          })
+          await Promise.resolve()
+        })
+        rerender()
+        await new Promise(resolve => setTimeout(resolve, 20))
+
+        expect(preferencePuts).toHaveLength(1)
+        expect(result.current.user?.ui_language).toBe('en')
+        expect(JSON.parse(localStorage.getItem('user') ?? '{}').ui_language).toBe('en')
+      } finally {
+        Object.defineProperty(i18next, 'language', { value: previousLanguage, configurable: true })
+      }
+    })
+
+    it('sends zero preference PUTs when account already has ui_language, and backfills once per distinct null account', async () => {
+      const previousLanguage = i18next.language
+      Object.defineProperty(i18next, 'language', { value: 'en', configurable: true })
+
+      try {
+        const preferencePuts: Array<{ url: string; body: string | null }> = []
+        mockFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/api/auth/me/preferences') && init?.method === 'PUT') {
+            preferencePuts.push({ url, body: typeof init.body === 'string' ? init.body : null })
+            return { ok: true, status: 200, json: async () => ({ ui_language: 'en' }) }
+          }
+          return { ok: true, status: 200, json: async () => ({}) }
+        })
+
+        // Account A already has saved ui_language -> zero PUTs.
+        vi.mocked(api.authApi.login).mockResolvedValueOnce(
+          createMockAuthResponse({ id: 'user-saved', ui_language: 'en' }),
+        )
+        const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        await act(async () => {
+          await result.current.login('saved@example.com', 'password')
+        })
+        await new Promise(resolve => setTimeout(resolve, 20))
+        expect(preferencePuts).toHaveLength(0)
+
+        // Sign out and sign in as Account B with ui_language: null -> exactly one PUT.
+        act(() => {
+          result.current.logout()
+        })
+        vi.mocked(api.authApi.login).mockResolvedValueOnce(
+          createMockAuthResponse({ id: 'user-null-b', ui_language: null }),
+        )
+        await act(async () => {
+          await result.current.login('nullb@example.com', 'password')
+        })
+        await waitFor(() => expect(preferencePuts).toHaveLength(1))
+        expect(JSON.parse(preferencePuts[0].body ?? '{}')).toEqual({ ui_language: 'en' })
+      } finally {
+        Object.defineProperty(i18next, 'language', { value: previousLanguage, configurable: true })
+      }
     })
   })
 })

@@ -48,7 +48,7 @@ let originalStorage: Storage
 let originalSessionStorage: Storage
 let originalOverflow: string
 const user = { id: 'fixture-user', username: 'local', email: 'fixture@example.invalid', email_verified: true, is_active: true, is_superuser: false,
-  created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' }
+  ui_language: 'en', created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' }
 const project = (id: string) => ({ id, name: `Project ${id}`, user_id: user.id, project_type: 'novel', status: 'draft', genre: 'fantasy', word_count: 0,
   created_at: '2026-10-01T00:00:00Z', updated_at: id === 'a' ? '2026-10-06T00:00:00Z' : '2026-10-05T00:00:00Z' })
 const history = (id: string) => [{ id: `${id}-history`, session_id: `${id}-old-session`, role: 'user', content: `${id.toUpperCase()} HISTORY KEEP`, created_at: '2026-10-06T00:00:00Z' }]

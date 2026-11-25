@@ -31,7 +31,7 @@ const json = (body: unknown) => new Response(JSON.stringify(body), {
   headers: { 'Content-Type': 'application/json' },
 });
 const account = (id: string) => ({ id, username: id, email: `${id}@example.invalid`,
-  email_verified: true, is_active: true, is_superuser: false,
+  email_verified: true, is_active: true, is_superuser: false, ui_language: 'en',
   created_at: '2026-10-14T00:00:00Z', updated_at: '2026-10-14T00:00:00Z' });
 const pending = { status: 'pending', project_id: null, file_id: null, available: false,
   static_guidance: false, opened_at: null, first_manual_write_at: null, first_ai_requested_at: null };

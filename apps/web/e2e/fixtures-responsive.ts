@@ -10,6 +10,7 @@ const material = { id: 'responsive-material', user_id: responsiveUser.id, title:
 const skill = { id: 'responsive-skill', name: '长标题技能：人物行动与剧情的因果关系', description: '用具体行动检查角色选择，不覆盖原有设定。', triggers: ['人物'], instructions: '# 角色行动\n保持作者意图，检查行动和后果。', source: 'user', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2026-10-04T00:00:00Z' };
 const publicSkill = { ...skill, id: 'responsive-public-skill', instructions: '', instructions_hidden: true, source: 'official', category: 'Writing', tags: ['角色'], author_id: null, status: 'approved', add_count: 42 };
 export async function mockResponsiveApp(page: Page, saved: number | null = null, tier: 'free' | 'pro' = 'free', language: 'zh' | 'en' = 'zh') {
+    const user = { ...responsiveUser, ui_language: language };
     await page.addInitScript(({ user, saved, language }) => {
         localStorage.setItem('zenstory-language', language);
         localStorage.setItem('user', JSON.stringify(user));
@@ -18,15 +19,15 @@ export async function mockResponsiveApp(page: Page, saved: number | null = null,
         localStorage.setItem('auth_validated_at', String(Date.now()));
         if (saved !== null)
             localStorage.setItem('zenstory_chat_input_panel_height_px', String(saved));
-    }, { user: responsiveUser, saved, language });
-    await mockResponsiveApi(page, tier);
+    }, { user, saved, language });
+    await mockResponsiveApi(page, tier, language);
 }
-export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free') {
+export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free', language?: 'zh' | 'en') {
     await page.route('**/api/**', async (route) => {
         const path = new URL(route.request().url()).pathname;
         let data: unknown = [];
         if (path === '/api/auth/me')
-            data = responsiveUser;
+            data = language ? { ...responsiveUser, ui_language: language } : responsiveUser;
         else if (path === '/api/announcements/current')
             data = null;
         else if (path === '/api/v1/workspace/first-work' && route.request().method() === 'GET')

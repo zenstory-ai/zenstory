@@ -162,6 +162,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const previousUserIdRef = React.useRef<string | null>(null);
   const authGenerationRef = React.useRef(0);
+  // Tracks the language already synced (backfilled or switched) for the current signed-in user
+  // so StrictMode double-mounts or a racing background /api/auth/me response with null ui_language
+  // never trigger duplicate PUT /api/auth/me/preferences requests for the same account.
+  const syncedLanguageRef = React.useRef<{ userId: string; language: string } | null>(null);
 
   const ownsSession = React.useCallback((generation: number, accessToken: string, refreshToken: string | null) => (
     authGenerationRef.current === generation &&
@@ -210,8 +214,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               if (response.ok) {
                 const serverUser = await response.json();
                 if (!ownsSession(generation, accessToken, refreshToken)) return;
-                setUser(serverUser);
-                saveUserCache(serverUser);
+                const synced = syncedLanguageRef.current;
+                const hydratedUser =
+                  !supportedAccountLanguage(serverUser?.ui_language) &&
+                  synced &&
+                  synced.userId === serverUser?.id
+                    ? { ...serverUser, ui_language: synced.language }
+                    : serverUser;
+                setUser(hydratedUser);
+                saveUserCache(hydratedUser);
               } else if ((response.status === 401 || response.status === 403) && ownsOriginalSession()) {
                 clearAuthState(setUser, 'background_validation_failed');
               }
@@ -306,13 +317,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signedInUserId = user?.id;
   const accountLanguage = user?.ui_language;
   const rememberAccountLanguage = React.useCallback((language: string) => {
+    if (signedInUserId) {
+      syncedLanguageRef.current = { userId: signedInUserId, language };
+    }
     setUserState(current => (current ? { ...current, ui_language: language } : current));
     const cached = getValidCachedUser();
     if (cached && cached.id === signedInUserId) saveUserCache({ ...cached, ui_language: language });
   }, [signedInUserId]);
   useEffect(() => {
-    if (!signedInUserId) return;
-    return syncAccountLanguage(i18next, accountLanguage, rememberAccountLanguage);
+    if (!signedInUserId) {
+      syncedLanguageRef.current = null;
+      return;
+    }
+    const effectiveAccountLanguage =
+      supportedAccountLanguage(accountLanguage) ??
+      (syncedLanguageRef.current?.userId === signedInUserId
+        ? syncedLanguageRef.current.language
+        : accountLanguage);
+    return syncAccountLanguage(i18next, effectiveAccountLanguage, rememberAccountLanguage);
   }, [signedInUserId, accountLanguage, rememberAccountLanguage]);
 
   useEffect(() => {
