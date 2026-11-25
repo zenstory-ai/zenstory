@@ -21,6 +21,7 @@ from services.core.auth_service import (
     get_refresh_token_expires_at,
 )
 from services.core.registration_email_policy import ensure_registration_email_allowed
+from services.features.persona_onboarding_service import get_onboarding_required_for_auth
 from services.features.referral_service import complete_pending_referral_for_invitee
 from services.features.user_preference_service import get_ui_language, normalize_ui_language
 from services.features.verification_service import (
@@ -192,6 +193,7 @@ async def verify_email(
             "created_at": normalize_datetime_to_utc(user.created_at),
             "updated_at": normalize_datetime_to_utc(user.updated_at),
             "ui_language": await asyncio.to_thread(get_ui_language, session, user.id),
+            "onboarding_required": await asyncio.to_thread(get_onboarding_required_for_auth, session, user),
         }
     }
 

@@ -1,14 +1,16 @@
-"""Parity tests between GET /api/auth/me (and login/refresh) `onboarding_required` and GET /api/v1/persona/onboarding."""
+"""Parity tests between auth endpoints (/me, /login, /refresh, /verify-email) `onboarding_required` and GET /api/v1/persona/onboarding."""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session
 
+from api import verification
 from config.datetime_utils import utcnow
 from models import User, UserPersonaProfile, WorkspaceOnboarding
 from services.core.auth_service import hash_password
@@ -21,12 +23,13 @@ async def _create_user(
     email: str,
     created_at: datetime,
     password: str = "password123",
+    email_verified: bool = True,
 ) -> User:
     user = User(
         username=username,
         email=email,
         hashed_password=hash_password(password),
-        email_verified=True,
+        email_verified=email_verified,
         is_active=True,
         created_at=created_at,
         updated_at=created_at,
@@ -241,3 +244,50 @@ async def test_auth_me_degrades_gracefully_when_onboarding_lookup_fails(
     assert response.status_code == 200
     assert response.json()["username"] == "parity_db_error_user"
     assert response.json()["onboarding_required"] is None
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("username", "age_days", "expected"),
+    [
+        ("parity_verify_new", 1, True),
+        ("parity_verify_aged", 30, False),
+    ],
+)
+async def test_verify_email_includes_onboarding_required_matching_persona_onboarding(
+    client: AsyncClient,
+    db_session: Session,
+    monkeypatch,
+    username: str,
+    age_days: int,
+    expected: bool,
+):
+    rollout_at = (utcnow() - timedelta(days=2)).isoformat().replace("+00:00", "Z")
+    monkeypatch.setenv("PERSONA_ONBOARDING_ROLLOUT_AT", rollout_at)
+    monkeypatch.setenv("PERSONA_ONBOARDING_NEW_USER_WINDOW_DAYS", "7")
+    monkeypatch.setenv("FIRST_WORK_ONBOARDING_ROLLOUT_PERCENT", "0")
+    monkeypatch.setattr(verification, "verify_code", AsyncMock(return_value=(True, None)))
+
+    email = f"{username}@example.com"
+    await _create_user(
+        db_session,
+        username=username,
+        email=email,
+        created_at=utcnow() - timedelta(days=age_days),
+        email_verified=False,
+    )
+
+    verify_resp = await client.post(
+        "/api/auth/verify-email",
+        json={"email": email, "code": "123456"},
+    )
+    assert verify_resp.status_code == 200
+    verify_payload = verify_resp.json()
+    assert verify_payload["user"]["email_verified"] is True
+    assert verify_payload["user"]["onboarding_required"] is expected
+
+    token = verify_payload["access_token"]
+    persona_resp = (await client.get("/api/v1/persona/onboarding", headers=_auth_headers(token))).json()
+    me_resp = (await client.get("/api/auth/me", headers=_auth_headers(token))).json()
+    assert verify_payload["user"]["onboarding_required"] == persona_resp["required"]
+    assert verify_payload["user"]["onboarding_required"] == me_resp["onboarding_required"]
