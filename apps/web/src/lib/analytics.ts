@@ -47,6 +47,7 @@ let isEnabled = false;
 let posthogClient: PostHog | null = null;
 let pendingInitPromise: Promise<void> | null = null;
 let scheduledInit: ScheduledInitHandle | null = null;
+let resolveScheduledInit: (() => void) | null = null;
 let pendingOperations: Array<(client: PostHog) => void> = [];
 let initGeneration = 0;
 let lastPageViewKey: string | null = null;
@@ -250,11 +251,12 @@ async function loadAndInitializePostHog(
   generation: number,
   env: AnalyticsEnv,
   apiKey: string,
+  ignoreOptOut: boolean,
 ): Promise<void> {
   try {
     const module = await import("posthog-js");
     const client = module.default;
-    if (generation !== initGeneration || !isEnabled || readOptOut()) {
+    if (generation !== initGeneration || !isEnabled || (!ignoreOptOut && readOptOut())) {
       return;
     }
 
@@ -333,11 +335,14 @@ export function setAnalyticsOptOut(optOut: boolean): void {
 
   if (optOut) {
     initGeneration += 1;
+    const settleScheduled = resolveScheduledInit;
+    resolveScheduledInit = null;
     scheduledInit?.cancel();
     scheduledInit = null;
     pendingOperations = [];
     isEnabled = false;
     pendingInitPromise = null;
+    settleScheduled?.();
     if (posthogClient) posthogClient.opt_out_capturing();
     return;
   }
@@ -424,16 +429,19 @@ export function initAnalytics(
     host: getAnalyticsHost(env),
   });
 
+  const ignoreOptOut = Boolean(options.ignoreOptOut);
   const shouldDefer = options.defer !== false;
   if (shouldDefer) {
     pendingInitPromise = new Promise<void>((resolve) => {
+      resolveScheduledInit = resolve;
       scheduledInit = scheduleAfterFirstPaint(() => {
         scheduledInit = null;
-        void loadAndInitializePostHog(generation, env, apiKey).finally(resolve);
+        resolveScheduledInit = null;
+        void loadAndInitializePostHog(generation, env, apiKey, ignoreOptOut).finally(resolve);
       });
     });
   } else {
-    pendingInitPromise = loadAndInitializePostHog(generation, env, apiKey);
+    pendingInitPromise = loadAndInitializePostHog(generation, env, apiKey, ignoreOptOut);
   }
 
   return true;

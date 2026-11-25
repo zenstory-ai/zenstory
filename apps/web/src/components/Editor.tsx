@@ -389,6 +389,9 @@ const EditorComponent: React.FC<EditorProps> = () => {
       const outcome = await editorFlushRef.current();
       if (generation !== loadGenerationRef.current) return;
       if (outcome !== "saved") {
+        if (currentProjectId && selectedItem?.id) {
+          consumePreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id);
+        }
         toast.error(translateRef.current('editor:saveFailed'));
         restoredSelectionRef.current = currentFile.id;
         setSelectedItem({id:currentFile.id,type:currentFile.file_type,title:currentFile.title});
