@@ -267,6 +267,7 @@ describe('Layout', () => {
       renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(screen.queryByTestId('bottom-tabs')).not.toBeInTheDocument()
+      expect(document.getElementById('files-panel')).toBeNull()
     })
   })
 
@@ -344,9 +345,17 @@ describe('Layout', () => {
       expect(document.getElementById('chat-panel')).toHaveAttribute('inert')
     })
 
-    it('shows files panel when activePanel is files', () => {
+    it('shows files panel when activePanel is files', async () => {
       mockActivePanel = 'files'
       renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
+
+      // Lazy-loaded MobileFileTree resolves inside #files-panel
+      const filesPanel = document.getElementById('files-panel')
+      expect(filesPanel).not.toBeNull()
+      expect(filesPanel).toHaveAttribute('aria-hidden', 'false')
+      await waitFor(() => {
+        expect(filesPanel?.querySelector('.animate-spin')).toBeNull()
+      })
 
       // Files panel in mobile layout uses MobileFileTree, not the left prop
       // Check that inactive panels are hidden (aria-hidden)

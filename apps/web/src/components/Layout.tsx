@@ -13,13 +13,17 @@
  *
  * @module components/Layout
  */
-import React, { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
+import { Loader2 } from "lucide-react";
 import { Header } from "./Header";
 import { BottomTabs } from "./BottomTabs";
 import type { MobilePanel } from "./BottomTabs";
 import { Sidebar } from "./sidebar/Sidebar";
-import { MobileFileTree } from "./MobileFileTree";
+
+const MobileFileTree = lazy(() =>
+  import("./MobileFileTree").then((m) => ({ default: m.MobileFileTree })),
+);
 import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
 import { useScrollMemory } from "../hooks/useScrollMemory";
 import { useSwipeGestures } from "../hooks/useGestures";
@@ -273,7 +277,15 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
           role="tabpanel"
           inert={activePanel !== "files" ? true : undefined}
         >
-          <MobileFileTree />
+          <Suspense
+            fallback={
+              <div className="h-full flex items-center justify-center text-[hsl(var(--text-secondary))]">
+                <Loader2 size={24} className="animate-spin" />
+              </div>
+            }
+          >
+            <MobileFileTree />
+          </Suspense>
         </div>
 
         {/* Editor Panel - always mounted */}

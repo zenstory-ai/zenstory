@@ -10,7 +10,7 @@
  *
  * @module components/Editor
  */
-import React, { useState, useEffect, useCallback, useRef, useMemo, useContext } from "react";
+import React, { lazy, Suspense, useState, useEffect, useCallback, useRef, useMemo, useContext } from "react";
 import { QueryClientContext } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useProject } from "../contexts/ProjectContext";
@@ -28,8 +28,13 @@ import { Button } from "./ui/Button";
 import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../hooks/useDraftImport";
 import { SimpleEditor } from "./SimpleEditor";
 import type { SaveOutcome, SaveResult, SaveSubmission } from "./SimpleEditor";
-import { MaterialPreview } from "./MaterialPreview";
-import { ImportMaterialDialog } from "./ImportMaterialDialog";
+
+const MaterialPreview = lazy(() =>
+  import("./MaterialPreview").then((m) => ({ default: m.MaterialPreview })),
+);
+const ImportMaterialDialog = lazy(() =>
+  import("./ImportMaterialDialog").then((m) => ({ default: m.ImportMaterialDialog })),
+);
 import type { File, FileTreeNode, TreeNodeType } from "../types";
 import { FOLDER_TYPE_MAP } from "../lib/folderTypeMap";
 import { FileText, Users, BookOpen, Sparkles, Folder, FolderOpen, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload, Plus } from "lucide-react";
@@ -1576,52 +1581,63 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const previewEntityInfo = materialLib.previewEntityInfo;
     return renderWithUpgradeModal(
       <>
-        <MaterialPreview
-          preview={materialLib.preview}
-          isLoading={materialLib.isPreviewLoading}
-          onAddToProject={() => setImportDialogOpen(true)}
-          onAttachToChat={() => {
-            if (!materialLib.preview) return;
-            const virtualId = `lib_${previewEntityInfo.novelId}_${previewEntityInfo.entityType}_${previewEntityInfo.entityId}`;
-            if (isMaterialAttached?.(virtualId)) {
-              toast.info(t('editor:fileTree.alreadyAttached'));
-              return;
-            }
-            const added = addMaterial(
-              virtualId,
-              materialLib.preview.title,
-              {
-                novelId: previewEntityInfo.novelId,
-                entityType: previewEntityInfo.entityType,
-                entityId: previewEntityInfo.entityId,
-              }
-            );
-            if (!added) {
-              toast.info(
-                isAtLimit === false
-                  ? t('editor:fileTree.alreadyAttached')
-                  : t('editor:fileTree.maxMaterials', { max: maxMaterials }),
-              );
-              return;
-            }
-            materialLib.clearPreview();
-          }}
-          onBack={() => materialLib.clearPreview()}
-        />
-        {importDialogOpen && materialLib.preview && (
-          <ImportMaterialDialog
-            isOpen={importDialogOpen}
-            onClose={() => setImportDialogOpen(false)}
+        <Suspense
+          fallback={
+            <div className="flex flex-col items-center justify-center h-full gap-4">
+              <LoadingSpinner size="lg" color="primary" />
+              <p className="text-sm text-[hsl(var(--text-secondary))]">{t('common:loading')}</p>
+            </div>
+          }
+        >
+          <MaterialPreview
             preview={materialLib.preview}
-            novelId={previewEntityInfo.novelId}
-            entityType={previewEntityInfo.entityType}
-            entityId={previewEntityInfo.entityId}
-            onSuccess={() => {
-              setImportDialogOpen(false);
+            isLoading={materialLib.isPreviewLoading}
+            onAddToProject={() => setImportDialogOpen(true)}
+            onAttachToChat={() => {
+              if (!materialLib.preview) return;
+              const virtualId = `lib_${previewEntityInfo.novelId}_${previewEntityInfo.entityType}_${previewEntityInfo.entityId}`;
+              if (isMaterialAttached?.(virtualId)) {
+                toast.info(t('editor:fileTree.alreadyAttached'));
+                return;
+              }
+              const added = addMaterial(
+                virtualId,
+                materialLib.preview.title,
+                {
+                  novelId: previewEntityInfo.novelId,
+                  entityType: previewEntityInfo.entityType,
+                  entityId: previewEntityInfo.entityId,
+                }
+              );
+              if (!added) {
+                toast.info(
+                  isAtLimit === false
+                    ? t('editor:fileTree.alreadyAttached')
+                    : t('editor:fileTree.maxMaterials', { max: maxMaterials }),
+                );
+                return;
+              }
               materialLib.clearPreview();
-              triggerFileTreeRefresh();
             }}
+            onBack={() => materialLib.clearPreview()}
           />
+        </Suspense>
+        {importDialogOpen && materialLib.preview && (
+          <Suspense fallback={null}>
+            <ImportMaterialDialog
+              isOpen={importDialogOpen}
+              onClose={() => setImportDialogOpen(false)}
+              preview={materialLib.preview}
+              novelId={previewEntityInfo.novelId}
+              entityType={previewEntityInfo.entityType}
+              entityId={previewEntityInfo.entityId}
+              onSuccess={() => {
+                setImportDialogOpen(false);
+                materialLib.clearPreview();
+                triggerFileTreeRefresh();
+              }}
+            />
+          </Suspense>
         )}
       </>
     );
