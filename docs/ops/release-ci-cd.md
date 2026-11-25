@@ -373,12 +373,12 @@ separate SSE/write/accounting checks in
 receipt does not itself certify provider source binding or uninterrupted SSE.
 
 Prefect process-worker shutdown does not wait for active flow processes in the
-pinned 3.6.28 version. Before a production worker release, pause `zenstory-pool`,
+pinned 3.7.2 version. Before a production worker release, pause `zenstory-pool`,
 confirm there are no pending/running/cancelling/paused flows or processing
 ingestion jobs, and only then promote the tag. New submissions queue while the
 pool is paused. Confirm the replacement worker heartbeat and resume the pool
 only after the old deployment is REMOVED; a longer Railway drain window alone
 does not protect flows. An online replacement by itself is insufficient.
 Deployment registration invokes each named YAML configuration separately with
-its configured pool, because Prefect 3.6.28 ignores CLI overrides in multi-deploy
+its configured pool, because Prefect 3.7.2 ignores CLI overrides in multi-deploy
 mode. Staging uses `zenstory-staging-pool`; production retains `zenstory-pool`.

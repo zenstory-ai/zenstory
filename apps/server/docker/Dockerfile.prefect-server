@@ -14,7 +14,7 @@ ENV MALLOC_ARENA_MAX=2
 # satisfying Prefect's declared `fastapi<1.0.0` range. 0.123.7 is covered by the
 # compatibility contract in CI.
 RUN pip install --no-cache-dir \
-    prefect==3.6.29 \
+    prefect==3.7.2 \
     asyncpg \
     psycopg2-binary \
     importlib-metadata \

@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
-PREFECT_VERSION = "3.6.29"
+PREFECT_VERSION = "3.7.2"
 FASTAPI_VERSION = "0.123.7"
 
 
