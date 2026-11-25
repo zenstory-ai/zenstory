@@ -24,7 +24,11 @@ for (const language of ['zh', 'en']) {
         await page.route('**/api/**', route => {
           const request = route.request();
           if (request.method() !== 'GET') writes.push(request.url());
-          return route.fulfill({ json: request.url().includes('/subscription/catalog') ? catalog : null });
+          if (request.url().includes('/subscription/catalog')) return route.fulfill({ json: catalog });
+          if (request.url().includes('/payments/options')) {
+            return route.fulfill({ json: { enabled: true, payment_methods: ['alipay', 'card'] } });
+          }
+          return route.fulfill({ json: null });
         });
         await page.goto('/pricing');
         const yearly = page.getByRole('radio', { name: language === 'zh' ? /年付/ : /Yearly/ });
