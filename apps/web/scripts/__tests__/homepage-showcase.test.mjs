@@ -300,6 +300,9 @@ test('hero connects a visible original passage to an honestly labelled game deta
   const scene = item.chain.scene
   assert.equal(createHash('sha256').update(readFileSync(join(publicRoot, scene.file))).digest('hex'), scene.asset_sha256, 'the local art must match its source receipt')
   assert.equal(scene.asset_sha256, scene.source_sha256, 'the game environment art must remain unmodified')
+  if (scene.webp) {
+    assert.equal(createHash('sha256').update(readFileSync(join(publicRoot, scene.webp))).digest('hex'), scene.webp_sha256, 'the WebP hero variant must match its receipt')
+  }
   for (const [lang, html] of Object.entries(pages)) {
     const hero = html.slice(html.indexOf('<main'), html.indexOf('<section'))
     const figure = hero.slice(hero.indexOf('<figure class="stage">'), hero.indexOf('</figure>'))
@@ -307,7 +310,10 @@ test('hero connects a visible original passage to an honestly labelled game deta
     assert.match(figure, /<blockquote\b[^>]*lang="zh-Hant"/)
     assert.match(textOf(figure), lang === 'zh' ? /原画/ : /art/i)
     assert.ok(figure.includes(`src="${item.chain.scene.file}"`), `${lang}: use the project’s actual environment art, not a synthetic brand image`)
-    assert.doesNotMatch(figure, /story-game-battle\.jpg|wukong\.webp/, `${lang}: no raw battle HUD or floating character in the hero`)
+    if (scene.webp) {
+      assert.ok(figure.includes(`<picture><source srcset="${scene.webp}" type="image/webp"><img `), `${lang}: serve the WebP variant via <picture> with the unmodified JPEG fallback`)
+    }
+    assert.doesNotMatch(figure, /story-game-battle\.(?:jpg|webp)|wukong\.webp/, `${lang}: no raw battle HUD or floating character in the hero`)
     assert.ok(anchors(hero).some(({ href }) => href === item.chain.scene.source), `${lang}: cropped presentation must retain its full original source`)
   }
 })
