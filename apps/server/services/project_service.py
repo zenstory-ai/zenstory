@@ -57,13 +57,15 @@ def project_metadata_write_lock(project_id: str) -> Iterator[None]:
 
 
 def resolve_template_lang(accept_language: str | None) -> str:
-    """从 Accept-Language 取第一个语言的主标签（'zh-CN,zh;q=0.9' -> 'zh'），缺省 zh。
+    """从 Accept-Language 解析模板语言：遵循 core.i18n.resolve_accept_language 规则。
 
-    未知语言不在这里报错：模板查找会回落到中文模板。
+    - 头部缺失/空白 -> 'zh'（兼容无头调用）
+    - 命中支持的语言 -> 'zh' 或 'en'
+    - 头部存在但无支持语言 -> 'en'
     """
-    if not accept_language:
-        return _DEFAULT_LANG
-    return accept_language.split(",")[0].split("-")[0].strip() or _DEFAULT_LANG
+    from core.i18n import resolve_accept_language
+
+    return resolve_accept_language(accept_language)
 
 
 def create_project_with_default_folders(

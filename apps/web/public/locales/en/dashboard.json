@@ -153,7 +153,9 @@
     "paymentProjectsUnlimited": "Unlimited projects",
     "paymentProjectsFinite": "Up to {{limit}} projects",
     "paymentMaterialsUnlimited": "Unlimited material breakdowns",
-    "paymentMaterialsFinite": "{{limit}} material breakdowns per month"
+    "paymentMaterialsFinite": "{{limit}} material breakdowns per month",
+    "alternativePaymentCardHint": "International users can pay in USD by card ({{price}}/month)",
+    "alternativePaymentAlipayHint": "Alipay (CNY) is available for mainland China"
   },
   "renewalReminder": {
     "regionLabel": "Pro renewal reminder",

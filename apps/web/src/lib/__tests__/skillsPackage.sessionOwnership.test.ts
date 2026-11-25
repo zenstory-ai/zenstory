@@ -192,7 +192,7 @@ afterEach(async () => {
 })
 
 describe.each(['import', 'export'] as const)('actual skill package %s ownership', surface => {
-  it.each(['en', null])('current200 keeps payload/download and language %s', async language => {
+  it.each(['en', 'zh', null])('current200 keeps payload/download and language %s', async language => {
     if (language) localStorage.setItem('zenstory-language', language)
     else localStorage.removeItem('zenstory-language')
     const before = storage()
@@ -200,7 +200,7 @@ describe.each(['import', 'export'] as const)('actual skill package %s ownership'
     await assertSuccess(await start(surface), surface)
     expect(records).toHaveLength(1)
     expect(records[0].authorization).toBe(`Bearer ${pair('a').accessToken}`)
-    expect(records[0].language).toBe(language ?? 'zh')
+    expect(records[0].language).toBe(language ?? 'en')
     expect(storage()).toEqual(before)
   })
 

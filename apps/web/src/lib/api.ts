@@ -27,7 +27,7 @@ import type {
   VersionComparison,
   VersionContentResponse,
 } from "../types";
-import { api, ApiError, authenticatedFetch, getApiBase, readApiError } from "./apiClient";
+import { api, ApiError, authenticatedFetch, getApiBase, getCurrentRequestLanguage, readApiError } from "./apiClient";
 import { downloadBlob } from "./downloadBlob";
 import { getLocale } from "./i18n-helpers";
 import { parseContentDispositionFilename } from "./contentDisposition";
@@ -131,11 +131,15 @@ export const authApi = {
     return response.json();
   },
 
-  resendVerification: async (email: string) => {
+  resendVerification: async (email: string, language?: 'zh' | 'en') => {
+    const resolvedLanguage = language ?? getCurrentRequestLanguage();
     const response = await fetch(`${getApiBase()}/api/auth/resend-verification`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Language': resolvedLanguage,
+      },
+      body: JSON.stringify({ email, language: resolvedLanguage }),
     });
     if (!response.ok) {
       throw await readApiError(response);

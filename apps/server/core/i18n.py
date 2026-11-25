@@ -8,29 +8,19 @@ from fastapi import Header
 
 SUPPORTED_LANGUAGES: list[str] = ['zh', 'en']
 DEFAULT_LANGUAGE: str = 'zh'
+UNSUPPORTED_FALLBACK_LANGUAGE: str = 'en'
 
 
-def get_accept_language(accept_language: str = Header(None)) -> str:
+def resolve_accept_language(accept_language: str | None) -> str:
     """
-    FastAPI 依赖函数,从 Accept-Language 头部解析语言代码
+    从 Accept-Language 头部解析支持的语言代码。
 
-    Args:
-        accept_language: Accept-Language 头部值,格式如 "zh-CN,zh;q=0.9,en;q=0.8"
-
-    Returns:
-        支持的语言代码 ('zh' 或 'en'),如果不支持或未提供则返回 DEFAULT_LANGUAGE
-
-    Examples:
-        >>> get_accept_language("zh-CN,zh;q=0.9,en;q=0.8")
-        'zh'
-        >>> get_accept_language("en-US,en;q=0.9")
-        'en'
-        >>> get_accept_language("fr-FR,fr;q=0.9")
-        'zh'  # 不支持的语言返回默认值
-        >>> get_accept_language(None)
-        'zh'  # 未提供时返回默认值
+    规则：
+    - 头部缺失或为空白 -> 保持 DEFAULT_LANGUAGE ('zh')，兼容老客户端与支付回调等无头调用；
+    - 头部存在且命中支持的语言 -> 返回第一个命中的主语言 ('zh' 或 'en')；
+    - 头部存在但无任何支持的语言 -> 回退 UNSUPPORTED_FALLBACK_LANGUAGE ('en')。
     """
-    if not accept_language:
+    if not accept_language or not accept_language.strip():
         return DEFAULT_LANGUAGE
 
     # 解析 Accept-Language 头部
@@ -48,5 +38,28 @@ def get_accept_language(accept_language: str = Header(None)) -> str:
         if primary_lang in SUPPORTED_LANGUAGES:
             return primary_lang
 
-    # 如果没有支持的语言,返回默认值
-    return DEFAULT_LANGUAGE
+    # 提供了 Accept-Language 但没有任何支持的语言，回退英文
+    return UNSUPPORTED_FALLBACK_LANGUAGE
+
+
+def get_accept_language(accept_language: str | None = Header(None)) -> str:
+    """
+    FastAPI 依赖函数,从 Accept-Language 头部解析语言代码
+
+    Args:
+        accept_language: Accept-Language 头部值,格式如 "zh-CN,zh;q=0.9,en;q=0.8"
+
+    Returns:
+        支持的语言代码 ('zh' 或 'en')；头部存在但无支持语言时返回 'en'，完全未提供时返回 'zh'
+
+    Examples:
+        >>> get_accept_language("zh-CN,zh;q=0.9,en;q=0.8")
+        'zh'
+        >>> get_accept_language("en-US,en;q=0.9")
+        'en'
+        >>> get_accept_language("fr-FR,fr;q=0.9")
+        'en'  # 有头部但不支持时回退英文
+        >>> get_accept_language(None)
+        'zh'  # 未提供头部时保持默认中文
+    """
+    return resolve_accept_language(accept_language)

@@ -2,14 +2,14 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
-from core.i18n import get_accept_language
+from core.i18n import resolve_accept_language
 from core.messages import get_message
 from database import get_session
 from models import RefreshTokenRecord, User
@@ -22,7 +22,7 @@ from services.core.auth_service import (
 )
 from services.core.registration_email_policy import ensure_registration_email_allowed
 from services.features.referral_service import complete_pending_referral_for_invitee
-from services.features.user_preference_service import get_ui_language
+from services.features.user_preference_service import get_ui_language, normalize_ui_language
 from services.features.verification_service import (
     get_code_ttl,
     get_remaining_cooldown,
@@ -42,12 +42,12 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 class VerifyEmailRequest(BaseModel):
     email: EmailStr
     code: str
-    language: str | None = "zh"  # Default to Chinese
+    language: str | None = None
 
 
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
-    language: str | None = "zh"  # Default to Chinese
+    language: str | None = None
 
 
 @router.post("/verify-email")
@@ -200,7 +200,7 @@ async def verify_email(
 async def resend_verification(
     request: ResendVerificationRequest,
     session: Session = Depends(get_session),
-    accept_language: str = Depends(get_accept_language)
+    raw_accept_language: str | None = Header(None, alias="Accept-Language"),
 ):
     """
     Resend verification code to email.
@@ -208,9 +208,22 @@ async def resend_verification(
     - Checks cooldown (60 seconds between resends)
     - Sends new verification code
     """
+    accept_language = resolve_accept_language(raw_accept_language)
     normalized_email = normalize_email_identity(str(request.email))
     # Verified accounts get no mail here anyway, so refusing every state reveals nothing.
     ensure_registration_email_allowed(normalized_email, entry="resend_verification")
+
+    # Read preferred UI language before acquiring the account row lock so an optional
+    # preference lookup never executes inside the locked transaction window.
+    def _lookup_account_language_unlocked() -> tuple[str | None, str | None]:
+        candidate_id = session.exec(
+            select(User.id).where(email_identity_matches(User.email, normalized_email))
+        ).first()
+        if not candidate_id:
+            return None, None
+        return candidate_id, normalize_ui_language(get_ui_language(session, candidate_id))
+
+    pref_user_id, pref_account_lang = await asyncio.to_thread(_lookup_account_language_unlocked)
 
     # Keep address ownership stable until sending finishes. A correction must
     # invalidate this code before releasing the old unique email address.
@@ -244,8 +257,15 @@ async def resend_verification(
             detail={"retry_after_seconds": remaining_cooldown},
         )
 
-    # Send verification code
-    language = request.language or "zh"
+    # Send verification code: account ui_language -> explicit request language -> Accept-Language -> 'en'
+    account_lang = pref_account_lang if pref_user_id == user.id else None
+    body_lang = normalize_ui_language(request.language)
+    header_lang = (
+        resolve_accept_language(raw_accept_language)
+        if raw_accept_language and raw_accept_language.strip()
+        else None
+    )
+    language = account_lang or body_lang or header_lang or "en"
     try:
         success, error = await send_verification_code(normalized_email, language=language)
     except InvalidRecipientError:

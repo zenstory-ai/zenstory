@@ -152,10 +152,43 @@ describe('PaymentCheckoutModal dual-currency Creem + Zpay checkout', () => {
     })
   })
 
-  it('defaults to Alipay CNY in Chinese when both methods are enabled', async () => {
+  it('defaults to Alipay CNY in Chinese when both methods are enabled and switches to USD card on selection', async () => {
     currentLang = 'zh-CN'
     renderModal()
     const payBtn = screen.getByRole('button', { name: /¥49/ })
     await waitFor(() => expect(payBtn).toBeEnabled())
+    expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('¥399')
+
+    fireEvent.click(screen.getByRole('radio', { name: /银行卡 \(USD\)/ }))
+    expect(screen.getByRole('button', { name: /\$9\.99/ })).toBeEnabled()
+    expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('$79')
+  })
+
+  it('shows only Alipay CNY prices when only alipay is enabled in English', async () => {
+    currentLang = 'en'
+    getOptionsMock.mockResolvedValue({ enabled: true, payment_methods: ['alipay'] })
+    renderModal()
+    const payBtn = await screen.findByRole('button', { name: /¥49/ })
+    await waitFor(() => expect(payBtn).toBeEnabled())
+    expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('¥399')
+    expect(screen.queryByRole('radiogroup', { name: '支付方式' })).not.toBeInTheDocument()
+  })
+
+  it('shows only Card USD prices when only card is enabled in Chinese', async () => {
+    currentLang = 'zh-CN'
+    getOptionsMock.mockResolvedValue({ enabled: true, payment_methods: ['card'] })
+    renderModal()
+    const payBtn = await screen.findByRole('button', { name: /\$9\.99/ })
+    await waitFor(() => expect(payBtn).toBeEnabled())
+    expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('$79')
+    expect(screen.queryByRole('radiogroup', { name: '支付方式' })).not.toBeInTheDocument()
+  })
+
+  it('defaults to Card USD for non-Chinese non-English locales when both methods are enabled', async () => {
+    currentLang = 'ja'
+    renderModal()
+    const payBtn = await screen.findByRole('button', { name: /\$9\.99/ })
+    await waitFor(() => expect(payBtn).toBeEnabled())
+    expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('$79')
   })
 })

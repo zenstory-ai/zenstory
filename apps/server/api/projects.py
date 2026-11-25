@@ -205,14 +205,9 @@ def list_project_templates(
     """Get all available project templates.
 
     Supports language selection via Accept-Language header (e.g., 'zh' or 'en').
-    Defaults to Chinese if not specified.
+    Unsupported header values fall back to English; omitted header defaults to Chinese.
     """
-    # Parse Accept-Language header (e.g., 'zh-CN,zh;q=0.9,en;q=0.8' -> 'zh')
-    lang = "zh"  # Default to Chinese
-    if accept_language:
-        # Extract first language code
-        lang = accept_language.split(",")[0].split("-")[0]
-
+    lang = resolve_template_lang(accept_language)
     return get_project_templates_config(lang)
 
 

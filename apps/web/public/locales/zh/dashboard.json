@@ -153,7 +153,9 @@
     "paymentProjectsUnlimited": "项目不限",
     "paymentProjectsFinite": "最多 {{limit}} 个项目",
     "paymentMaterialsUnlimited": "素材拆解不限次数",
-    "paymentMaterialsFinite": "每月 {{limit}} 次素材拆解"
+    "paymentMaterialsFinite": "每月 {{limit}} 次素材拆解",
+    "alternativePaymentCardHint": "海外用户可使用银行卡以美元支付（{{price}}/月）",
+    "alternativePaymentAlipayHint": "中国大陆用户可使用支付宝以人民币支付"
   },
   "renewalReminder": {
     "regionLabel": "Pro 到期提醒",

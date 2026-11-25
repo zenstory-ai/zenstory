@@ -219,3 +219,50 @@ def test_old_address_remains_reserved_until_its_code_is_invalidated(monkeypatch)
         release.set()
         SQLModel.metadata.drop_all(engine, tables=[User.__table__])
         engine.dispose()
+
+
+def test_get_ui_language_failure_under_row_lock_preserves_for_update_lock():
+    """A failing preference read inside a locked transaction must roll back only its savepoint."""
+    from sqlalchemy.exc import OperationalError
+
+    from services.features.user_preference_service import get_ui_language
+
+    url = os.environ["ZENSTORY_TEST_POSTGRES_URL"]
+    assert database.is_postgres and url == os.environ["DATABASE_URL"]
+    engine = create_engine(url, connect_args={"options": "-c lock_timeout=12000 -c statement_timeout=15000"})
+    # Deliberately omit UserPreference table so get_ui_language raises SQLAlchemyError.
+    SQLModel.metadata.create_all(engine, tables=[User.__table__])
+    try:
+        with Session(engine) as seed:
+            user = User(
+                username="pref-lock-writer",
+                email="pref-lock@example.com",
+                email_verified=False,
+                hashed_password=hash_password("OwnedPassword1!"),
+            )
+            seed.add(user)
+            seed.commit()
+            user_id = user.id
+
+        with Session(engine) as holder, Session(engine) as contender:
+            locked_user = holder.exec(
+                select(User).where(User.id == user_id).with_for_update()
+            ).one()
+            assert locked_user.id == user_id
+
+            # Must swallow the missing-table error via savepoint without releasing the outer FOR UPDATE lock.
+            assert get_ui_language(holder, user_id) is None
+
+            # Verify the outer transaction is still healthy and still owns the row lock.
+            with pytest.raises(OperationalError):
+                contender.exec(
+                    select(User).where(User.id == user_id).with_for_update(nowait=True)
+                ).one()
+            contender.rollback()
+
+            # Holder's outer transaction remains usable (not in PostgreSQL aborted state).
+            assert holder.exec(select(User.email).where(User.id == user_id)).one() == "pref-lock@example.com"
+            holder.rollback()
+    finally:
+        SQLModel.metadata.drop_all(engine, tables=[User.__table__])
+        engine.dispose()

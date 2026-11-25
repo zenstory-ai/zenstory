@@ -49,6 +49,10 @@ vi.mock('../apiClient', async importOriginal => {
     tryRefreshToken: vi.fn(),
     ApiError: MockApiError,
     apiErrorFromPayload,
+    getCurrentRequestLanguage: () => {
+      const stored = (localStorage.getItem('zenstory-language') || '').split('-')[0].toLowerCase()
+      return stored === 'zh' || stored === 'en' ? stored : 'en'
+    },
     readApiError: async (response: Response) => {
       let errorData: unknown = null
       try {
@@ -240,6 +244,29 @@ describe('api', () => {
         expect(failure).toBeInstanceOf(ApiError)
         expect((failure as ApiError).message).toBe('ERR_AUTH_VERIFICATION_COOLDOWN')
         expect((failure as ApiError).details).toEqual({ retry_after_seconds: 42 })
+      })
+
+      it('includes the active language in body and Accept-Language header', async () => {
+        localStorage.setItem('zenstory-language', 'en')
+        const fetchMock = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ message: 'Verification code resent', email: 'pending@example.com' }),
+        })
+        global.fetch = fetchMock
+
+        await authApi.resendVerification('pending@example.com')
+
+        expect(fetchMock).toHaveBeenCalledWith(
+          expect.stringContaining('/api/auth/resend-verification'),
+          expect.objectContaining({
+            method: 'POST',
+            headers: expect.objectContaining({
+              'Content-Type': 'application/json',
+              'Accept-Language': 'en',
+            }),
+            body: JSON.stringify({ email: 'pending@example.com', language: 'en' }),
+          }),
+        )
       })
     })
 

@@ -12,8 +12,8 @@
  * - `?lang=` (sent by zenstory.ai links) or the stored preference, persisted to localStorage
  *
  * Supported Languages:
- * - Chinese (Simplified): 'zh' - Default/fallback language
- * - English: 'en'
+ * - English: 'en' - Default/fallback language for browsers
+ * - Chinese (Simplified): 'zh' - Fallback for crawlers to keep indexed pages stable
  *
  * Translation Namespaces:
  * - common: Shared UI elements, buttons, labels
@@ -64,7 +64,8 @@ const CRAWLER_USER_AGENT = /bot|crawl|spider|slurp|facebookexternalhit|inspectio
  * Which language the app opens in. Detection order: an explicit `?lang=` (zenstory.ai links carry the
  * language of the page the visitor came from), then the preference stored in localStorage, then the
  * browser's languages (people only, not crawlers). A browser language the app does not support falls
- * back to Chinese. The detected language is cached, so the choice outlives the first page.
+ * back to English; crawlers skip `navigator` and keep Chinese fallback so already-indexed pages stay
+ * in one stable language. The detected language is cached, so the choice outlives the first page.
  *
  * Regional codes are reduced to the language (`zh-CN` → `zh`) before matching: i18next takes the first
  * exact match, so otherwise Edge's `['zh-CN', 'en', …]` on Chinese Windows would open in English.
@@ -84,11 +85,23 @@ export function languageDetectionFor(userAgent: string) {
 export const languageDetection = languageDetectionFor(navigator.userAgent);
 
 export const languageOptions = {
-  /** Default language when detection fails */
-  fallbackLng: 'zh',
+  /** Default language when browser detection fails */
+  fallbackLng: 'en',
   /** Languages with available translations */
   supportedLngs: ['zh', 'en'],
 };
+
+/**
+ * Resolve i18next options for a given user agent.
+ * Crawlers do not read `navigator.languages` and must still fall back to `'zh'`
+ * so already-indexed Chinese pages (and static `<html lang="zh-CN">` shells) keep a stable language.
+ */
+export function languageOptionsFor(userAgent: string) {
+  return {
+    ...languageOptions,
+    fallbackLng: CRAWLER_USER_AGENT.test(userAgent) ? 'zh' : languageOptions.fallbackLng,
+  };
+}
 
 i18n
   // One lazy bundle per language, shared across all namespace reads
@@ -98,7 +111,7 @@ i18n
   // React integration for hooks and components
   .use(initReactI18next)
   .init({
-    ...languageOptions,
+    ...languageOptionsFor(navigator.userAgent),
 
     /**
      * Translation namespaces for organizing content.

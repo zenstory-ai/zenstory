@@ -247,3 +247,60 @@ async def test_new_registration_fails_closed_when_orphan_invalidation_is_unavail
     assert response.status_code == 503
     assert db_session.exec(select(User)).all() == []
     delivery.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("account_lang", "body_lang", "accept_language", "expected_lang"),
+    [
+        ("en", None, "zh-CN", "en"),
+        ("zh", None, "en-US", "zh"),
+        ("en", "zh", "zh-CN", "en"),
+        (None, "zh", "en-US", "zh"),
+        (None, None, "zh-CN,zh;q=0.9", "zh"),
+        (None, None, "ja", "en"),
+        (None, None, None, "en"),
+    ],
+)
+async def test_resend_verification_email_language_priority(
+    client,
+    db_session,
+    monkeypatch,
+    account_lang: str | None,
+    body_lang: str | None,
+    accept_language: str | None,
+    expected_lang: str,
+):
+    """Email language resolves: account ui_language -> request language -> Accept-Language -> 'en'."""
+    from api import verification as verification_api
+    from services.features.user_preference_service import set_ui_language
+
+    user = User(
+        username=f"resend-lang-{expected_lang}-{abs(hash((account_lang, body_lang, accept_language))) % 10000}",
+        email=f"resend-lang-{abs(hash((account_lang, body_lang, accept_language))) % 10000}@example.com",
+        hashed_password=hash_password("OwnedPassword1!"),
+        email_verified=False,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    if account_lang:
+        set_ui_language(db_session, user.id, account_lang)
+        db_session.commit()
+
+    captured: list[str] = []
+
+    async def fake_send(email: str, language: str = "zh"):
+        captured.append(language)
+        return True, None
+
+    monkeypatch.setattr(verification_api, "send_verification_code", fake_send)
+
+    payload: dict[str, str] = {"email": user.email}
+    if body_lang is not None:
+        payload["language"] = body_lang
+    headers = {"Accept-Language": accept_language} if accept_language is not None else {}
+
+    response = await client.post("/api/auth/resend-verification", json=payload, headers=headers)
+    assert response.status_code == 200
+    assert captured == [expected_lang]
