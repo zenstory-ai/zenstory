@@ -59,7 +59,7 @@ def test_agent_runtime_thinking_guard_and_compaction_defaults(monkeypatch):
         assert reloaded.AGENT_PRE_ANSWER_THINKING_MAX_S == 180.0
         assert reloaded.AGENT_PRE_ANSWER_THINKING_MAX_CHARS == 64_000
         assert reloaded.AGENT_MODEL_CALL_MAX_DURATION_S == 300.0
-        assert reloaded.AGENT_LOOP_COMPACT_AT_TOKENS == 300_000
+        assert reloaded.AGENT_LOOP_COMPACT_AT_TOKENS == 240_000
         # Explicitly omitted pending risk audit on wrap-up output cap.
         assert not hasattr(reloaded, "AGENT_WALL_CLOCK_WRAP_UP_MAX_OUTPUT_TOKENS")
 

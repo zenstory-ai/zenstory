@@ -407,6 +407,7 @@ class SessionLoader:
         page_rows = SESSION_WRITTEN_FILES_PAGE_ROWS * 2
         query = (
             select(
+                ChatMessage.id,
                 ChatMessage.role,
                 ChatMessage.tool_calls,
                 ChatMessage.created_at,
@@ -428,9 +429,10 @@ class SessionLoader:
             rows = session.exec(query.offset(page_index * page_rows).limit(page_rows)).all()
             if not rows:
                 break
-            for role, tool_calls_raw, row_created_at, metadata_raw in rows:
+            for row_id, role, tool_calls_raw, row_created_at, metadata_raw in rows:
                 meta = self._parse_json_value(metadata_raw)
-                has_compaction = isinstance(meta, dict) and valid_compaction(meta) is not None
+                compaction = valid_compaction(meta) if isinstance(meta, dict) else None
+                has_compaction = compaction is not None
                 if role == "user":
                     if has_compaction:
                         # 压缩发生在这一条未得到助手回复的轮次开始前：更早的轮次已被折叠进摘要。
@@ -439,6 +441,10 @@ class SessionLoader:
                     continue
 
                 if has_compaction:
+                    if compaction is not None and compaction["covers_through_message_id"] == row_id:
+                        # 轮后异步压缩覆盖了本行自身：本行及更早行的工具结果均已折叠进摘要，立即停扫。
+                        hit_compaction = True
+                        break
                     # 压缩发生在本轮开始前：本行的工具调用仍在压缩后历史里，更早的行不再扫描。
                     hit_compaction = True
 

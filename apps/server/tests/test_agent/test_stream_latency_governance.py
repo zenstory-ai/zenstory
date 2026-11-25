@@ -8,11 +8,20 @@ Covers:
 2. Compact `<project_files>` manifest inside `<turn_context>` (`turn_context.py`):
    deterministic ordering, bounded 150-file cap with `... (+N more)` footer,
    TOAST-safe metadata-only query (never reading `File.content`), and prefix-cache stability.
+3. Post-turn async background history compaction (`service.py`, `compaction.py`,
+   `history.py`, `session_loader.py`):
+   non-blocking post-`done` background execution reusing hot wire prefix,
+   self-covering compaction anchor & prefix stability into subsequent turns,
+   in-flight deduplication/joining when the next turn arrives early,
+   synchronous pre-run fallback, error/cost-cap isolation, and server-drain skip.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+from contextlib import ExitStack
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -25,6 +34,14 @@ from sqlmodel import Session
 from agent.core.events import EventType
 from agent.core.stream_billing import StreamBillingTracker
 from agent.core.workflow_events import StreamEvent, StreamEventType
+from agent.loop import wire_prefix_cache
+from agent.loop.compaction import (
+    CompactionOutcome,
+    get_inflight_compaction,
+    reset_inflight_compactions,
+)
+from agent.loop.history import load_loop_history
+from agent.loop.prompts import SUMMARY_PREFIX
 from agent.loop.turn_context import (
     PROJECT_FILES_CLOSE,
     PROJECT_FILES_MANIFEST_MAX_FILES,
@@ -38,6 +55,8 @@ from agent.openai_agents.runner import (
     run_openai_agents_streaming_agent,
 )
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+from core.error_codes import ErrorCode
+from core.error_handler import APIException
 from models import ChatMessage, ChatSession, File, Project, User
 from models.file_model import stamp_word_count
 from services.core.auth_service import hash_password
@@ -583,3 +602,566 @@ async def test_project_files_manifest_preserves_static_prefix_across_turns(db_se
     assert PROJECT_FILES_OPEN in captured[0]["user_message"] and ch1.id in captured[0]["user_message"]
     assert ch2.id not in captured[0]["user_message"]
     assert ch1.id in captured[1]["user_message"] and ch2.id in captured[1]["user_message"]
+
+
+# ---------------------------------------------------------------------------
+# 3. Post-turn async background history compaction + deduplication + fallback
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_post_turn_compaction_runs_after_done_and_next_turn_skips_sync_compaction(
+    db_session: Session, monkeypatch
+):
+    """Turn 1 emits `done` without waiting on compaction; Turn 2 reads pre-computed summary with 0ms sync wait."""
+    from agent.core.session_loader import SessionLoader
+    from agent.service import AgentService
+
+    reset_inflight_compactions()
+    try:
+        user, project, chat = _make_user_project(db_session)
+        ch1 = File(project_id=project.id, title="第1章", file_type="draft", content="第一章正文。")
+        db_session.add(ch1)
+        db_session.commit()
+
+        gate = asyncio.Event()
+        compact_started = asyncio.Event()
+        compact_calls: list[dict[str, Any]] = []
+
+        async def fake_compact(history, **kwargs):
+            compact_calls.append(
+                {
+                    "items": list(history.items),
+                    "last_message_id": history.last_message_id,
+                    "author_messages": list(history.author_messages),
+                    "last_prompt_tokens": history.last_prompt_tokens,
+                    "request_context": kwargs.get("request_context"),
+                }
+            )
+            compact_started.set()
+            await gate.wait()
+            record = {
+                "summary": "后台预压缩交接摘要：第一章已完成。",
+                "covers_through_message_id": history.last_message_id,
+                "kept_author_messages": list(history.author_messages),
+                "created_at": "2026-11-25T16:00:00",
+            }
+            items = [
+                *[{"role": "user", "content": m} for m in history.author_messages],
+                {"role": "user", "content": f"{SUMMARY_PREFIX}{record['summary']}"},
+            ]
+            return CompactionOutcome(record=record, items=items, usage={"input_tokens": 320_000, "output_tokens": 800})
+
+        wire_items_turn1 = [
+            {"role": "user", "content": "<turn_context>ctx</turn_context>\n\n写第一章"},
+            {"role": "assistant", "content": "第一章写完了。"},
+        ]
+        captured_turn2_history: list[dict[str, Any]] = []
+        turn_index = [0]
+
+        def fake_loop(state, **_kwargs):
+            turn_index[0] += 1
+            if turn_index[0] == 1:
+                state["run_meter"].last_prompt_tokens = 350_000
+                state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+                state["run_items"] = list(wire_items_turn1)
+            else:
+                captured_turn2_history.extend(state.get("history_items") or [])
+                state["run_meter"].last_prompt_tokens = 18_000
+                state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+                state["run_items"] = [*list(state.get("history_items") or []), {"role": "user", "content": "写第二章"}, {"role": "assistant", "content": "第二章写好了。"}]
+
+            async def stream():
+                if turn_index[0] == 1:
+                    yield StreamEvent(
+                        type=StreamEventType.TOOL_USE,
+                        data={"id": "c1", "name": "query_files", "status": "complete", "input": {"id": ch1.id}},
+                    )
+                    yield StreamEvent(
+                        type=StreamEventType.TOOL_RESULT,
+                        data={
+                            "tool_use_id": "c1",
+                            "name": "query_files",
+                            "result": json.dumps({"status": "success", "data": {"id": ch1.id, "content": ch1.content}}),
+                        },
+                    )
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"第{turn_index[0]}轮回复。"})
+                yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+            return stream()
+
+        invalidated_sessions: list[str] = []
+        monkeypatch.setattr(wire_prefix_cache, "invalidate_wire_prefix", lambda sid: invalidated_sessions.append(sid) or True)
+
+        with ExitStack() as stack:
+            stack.enter_context(patch("agent.service.compact_history", side_effect=fake_compact))
+            stack.enter_context(patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop))
+            stack.enter_context(
+                patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind()))
+            )
+
+            # Turn 1 finishes and yields `done` while background compaction is still blocked on `gate`!
+            chunks_1 = [
+                chunk
+                async for chunk in AgentService().process_stream(
+                    project_id=project.id,
+                    user_id=user.id,
+                    message="写第一章",
+                    session=db_session,
+                    session_id=chat.id,
+                )
+            ]
+            events_1 = _parse_sse_chunks(chunks_1)
+            done_events_1 = [data for ev, data in events_1 if ev == "done"]
+            assert len(done_events_1) == 1
+            assistant_id_1 = done_events_1[0]["assistant_message_id"]
+            assert assistant_id_1
+
+            # Background compaction is running in-flight & tracked in background_cleanup_tasks.
+            await asyncio.wait_for(compact_started.wait(), timeout=2.0)
+            inflight = get_inflight_compaction(chat.id)
+            assert inflight is not None
+            assert inflight.covers_through_message_id == assistant_id_1
+            assert inflight.task in AgentService.background_cleanup_tasks
+
+            # Duplicate scheduling on same session is strictly rejected.
+            dup = AgentService._schedule_post_turn_compaction(
+                session_id=chat.id,
+                project_id=project.id,
+                user_id=user.id,
+                assistant_message_id=assistant_id_1,
+                system_prompt="sys",
+                last_prompt_tokens=350_000,
+                author_messages=["写第一章"],
+                completed_wire_items=wire_items_turn1,
+            )
+            assert dup is None
+
+            # Let background compaction finish and persist onto assistant_id_1.
+            gate.set()
+            bg_res = await asyncio.wait_for(inflight.task, timeout=2.0)
+            assert bg_res.persisted is True
+            assert len(compact_calls) == 1
+            assert compact_calls[0]["items"] == wire_items_turn1
+            assert compact_calls[0]["last_message_id"] == assistant_id_1
+            assert compact_calls[0]["request_context"].user_id == user.id
+            assert chat.id in invalidated_sessions
+
+            # Verify persisted metadata on Turn 1's assistant row.
+            db_session.expire_all()
+            row_1 = db_session.get(ChatMessage, assistant_id_1)
+            assert row_1 is not None
+            meta_1 = json.loads(row_1.message_metadata or "{}")
+            assert meta_1["compaction"]["covers_through_message_id"] == assistant_id_1
+            assert meta_1["compaction"]["summary"] == "后台预压缩交接摘要：第一章已完成。"
+            assert meta_1["display_events"][-1] == {"type": "history_compacted", "data": {}}
+
+            # Session read snapshots must stop before self-covering post-turn compaction row.
+            snapshots = SessionLoader(project_id=project.id, user_id=user.id).session_read_snapshots(
+                db_session, chat_session_id=chat.id
+            )
+            assert snapshots == {}
+
+            # Turn 2 loads the pre-computed compaction directly with ZERO sync compaction call!
+            chunks_2 = [
+                chunk
+                async for chunk in AgentService().process_stream(
+                    project_id=project.id,
+                    user_id=user.id,
+                    message="写第二章",
+                    session=db_session,
+                    session_id=chat.id,
+                )
+            ]
+            events_2 = _parse_sse_chunks(chunks_2)
+            assert len(compact_calls) == 1  # No second compaction call!
+            assert not any(ev == "history_compacted" for ev, _ in events_2)
+            assert captured_turn2_history == [
+                {"role": "user", "content": "写第一章"},
+                {"role": "user", "content": f"{SUMMARY_PREFIX}后台预压缩交接摘要：第一章已完成。"},
+            ]
+
+            # Turn 3 history rebuild preserves the exact byte-identical compacted prefix + Turn 2 rows!
+            db_session.expire_all()
+            turn3_history = load_loop_history(
+                db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id
+            )
+            assert turn3_history.compacted is True
+            assert turn3_history.compacted_at_tail is False
+            assert turn3_history.last_prompt_tokens == 18_000
+            assert turn3_history.items[:2] == captured_turn2_history
+            assert turn3_history.items[2] == {"role": "user", "content": "写第二章"}
+            assert turn3_history.items[3] == {"role": "assistant", "content": "第2轮回复。"}
+    finally:
+        reset_inflight_compactions()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_next_turn_joins_inflight_background_compaction_without_duplicate_call(db_session: Session):
+    """If Turn 2 arrives before Turn 1's background compaction finishes, Turn 2 awaits it instead of duplicating."""
+    from agent.service import AgentService
+
+    reset_inflight_compactions()
+    try:
+        user, project, chat = _make_user_project(db_session)
+        gate = asyncio.Event()
+        compact_started = asyncio.Event()
+        compact_count = [0]
+
+        async def fake_compact(history, **_kwargs):
+            compact_count[0] += 1
+            compact_started.set()
+            await gate.wait()
+            record = {
+                "summary": "在途复用交接摘要。",
+                "covers_through_message_id": history.last_message_id,
+                "kept_author_messages": list(history.author_messages),
+                "created_at": "2026-11-25T16:05:00",
+            }
+            items = [
+                *[{"role": "user", "content": m} for m in history.author_messages],
+                {"role": "user", "content": f"{SUMMARY_PREFIX}{record['summary']}"},
+            ]
+            return CompactionOutcome(record=record, items=items)
+
+        captured_turn2: list[dict[str, Any]] = []
+        turn_no = [0]
+
+        def fake_loop(state, **_kwargs):
+            turn_no[0] += 1
+            if turn_no[0] == 1:
+                state["run_meter"].last_prompt_tokens = 340_000
+                state["run_items"] = [
+                    {"role": "user", "content": "第一轮"},
+                    {"role": "assistant", "content": "第一轮完成"},
+                ]
+            else:
+                captured_turn2.extend(state.get("history_items") or [])
+                state["run_meter"].last_prompt_tokens = 15_000
+
+            async def stream():
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"回复{turn_no[0]}"})
+                yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+            return stream()
+
+        with ExitStack() as stack:
+            stack.enter_context(patch("agent.service.compact_history", side_effect=fake_compact))
+            stack.enter_context(patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop))
+            stack.enter_context(
+                patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind()))
+            )
+
+            # Finish Turn 1; background compaction starts and blocks on `gate`.
+            _ = [
+                c
+                async for c in AgentService().process_stream(
+                    project_id=project.id,
+                    user_id=user.id,
+                    message="第一轮",
+                    session=db_session,
+                    session_id=chat.id,
+                )
+            ]
+            await asyncio.wait_for(compact_started.wait(), timeout=2.0)
+
+            async def run_turn_2():
+                return [
+                    c
+                    async for c in AgentService().process_stream(
+                        project_id=project.id,
+                        user_id=user.id,
+                        message="第二轮紧接着来",
+                        session=db_session,
+                        session_id=chat.id,
+                    )
+                ]
+
+            turn2_task = asyncio.create_task(run_turn_2())
+            await asyncio.sleep(0.05)
+            # Still only 1 compaction call in flight!
+            assert compact_count[0] == 1
+            gate.set()
+            chunks_2 = await asyncio.wait_for(turn2_task, timeout=3.0)
+
+        assert compact_count[0] == 1
+        events_2 = _parse_sse_chunks(chunks_2)
+        assert any(ev == "history_compacted" for ev, _ in events_2)
+        assert captured_turn2 == [
+            {"role": "user", "content": "第一轮"},
+            {"role": "user", "content": f"{SUMMARY_PREFIX}在途复用交接摘要。"},
+        ]
+    finally:
+        reset_inflight_compactions()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_sync_fallback_runs_when_over_threshold_session_has_no_precomputed_compaction(db_session: Session):
+    """Sessions already above threshold in DB without a pre-computed compaction still compact synchronously."""
+    from agent.service import AgentService
+
+    reset_inflight_compactions()
+    user, project, chat = _make_user_project(db_session)
+    base = datetime(2026, 11, 25, 10, 0, 0)
+    db_session.add(ChatMessage(session_id=chat.id, role="user", content="旧轮请求", created_at=base))
+    old_asst = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="旧轮回复",
+        created_at=base + timedelta(seconds=1),
+        message_metadata=json.dumps(
+            {
+                "engine": "loop",
+                "prompt_tokens": 360_000,
+                "display_events": [{"type": "content", "content": "旧轮回复"}],
+            },
+            ensure_ascii=False,
+        ),
+    )
+    db_session.add(old_asst)
+    db_session.commit()
+
+    sync_mock = AsyncMock(
+        return_value=CompactionOutcome(
+            record={
+                "summary": "同步兜底摘要",
+                "covers_through_message_id": old_asst.id,
+                "kept_author_messages": ["旧轮请求"],
+                "created_at": "2026-11-25T16:10:00",
+            },
+            items=[
+                {"role": "user", "content": "旧轮请求"},
+                {"role": "user", "content": f"{SUMMARY_PREFIX}同步兜底摘要"},
+            ],
+        )
+    )
+
+    def fake_loop(state, **_kwargs):
+        state["run_meter"].last_prompt_tokens = 20_000
+
+        async def stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "新回复"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return stream()
+
+    with (
+        patch("agent.service.compact_history", sync_mock),
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
+        patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind())),
+    ):
+        chunks = [
+            c
+            async for c in AgentService().process_stream(
+                project_id=project.id,
+                user_id=user.id,
+                message="继续",
+                session=db_session,
+                session_id=chat.id,
+            )
+        ]
+
+    events = _parse_sse_chunks(chunks)
+    assert sync_mock.await_count == 1
+    assert any(ev == "history_compacted" for ev, _ in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+@pytest.mark.parametrize(
+    "exc",
+    [
+        APIException(error_code=ErrorCode.QUOTA_AI_DAILY_COST_EXCEEDED, status_code=402),
+        RuntimeError("synthetic compaction crash"),
+    ],
+)
+async def test_background_compaction_errors_never_fail_or_block_done_frame(db_session: Session, exc: Exception):
+    """Cost-cap APIException or unexpected errors in background compaction never affect the user's SSE `done` frame."""
+    from agent.service import AgentService
+
+    reset_inflight_compactions()
+    try:
+        user, project, chat = _make_user_project(db_session)
+
+        def fake_loop(state, **_kwargs):
+            state["run_meter"].last_prompt_tokens = 350_000
+            state["run_items"] = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "ok"}]
+
+            async def stream():
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": "正文已完成。"})
+                yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+            return stream()
+
+        with (
+            patch("agent.service.compact_history", AsyncMock(side_effect=exc)),
+            patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
+            patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind())),
+        ):
+            chunks = [
+                c
+                async for c in AgentService().process_stream(
+                    project_id=project.id,
+                    user_id=user.id,
+                    message="继续写",
+                    session=db_session,
+                    session_id=chat.id,
+                )
+            ]
+            events = _parse_sse_chunks(chunks)
+            assert any(ev == "done" for ev, _ in events)
+            assert not any(ev == "error" for ev, _ in events)
+
+            inflight = get_inflight_compaction(chat.id)
+            if inflight is not None:
+                res = await asyncio.wait_for(inflight.task, timeout=2.0)
+                assert res.persisted is False
+                assert res.outcome.record is None
+            assert get_inflight_compaction(chat.id) is None
+    finally:
+        reset_inflight_compactions()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_post_turn_compaction_skipped_during_server_drain():
+    """During SIGTERM deploy drain, optional post-turn background compaction is skipped cleanly."""
+    from agent.service import AgentService
+
+    reset_inflight_compactions()
+    with patch("agent.service.is_draining", return_value=True):
+        task = AgentService._schedule_post_turn_compaction(
+            session_id="sess-drain",
+            project_id="proj-1",
+            user_id="user-1",
+            assistant_message_id="msg-1",
+            system_prompt="sys",
+            last_prompt_tokens=350_000,
+            author_messages=["写第一章"],
+            completed_wire_items=[{"role": "user", "content": "a"}, {"role": "assistant", "content": "b"}],
+        )
+    assert task is None
+    assert get_inflight_compaction("sess-drain") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_post_turn_compaction_skips_output_truncated_and_preserves_trailing_truncations(db_session: Session):
+    """Unclean `output_truncated` rounds must NOT trigger post-turn compaction or erase trailing_output_truncations."""
+    from agent.openai_agents.runner import OUTPUT_TRUNCATED_STOP_REASON
+    from agent.service import AgentService
+
+    reset_inflight_compactions()
+    try:
+        user, project, chat = _make_user_project(db_session)
+        compact_mock = AsyncMock()
+
+        def fake_loop(state, **_kwargs):
+            state["run_meter"].last_prompt_tokens = 360_000
+            state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+            state["run_items"] = [{"role": "user", "content": "继续写"}, {"role": "assistant", "content": "写到一半"}]
+
+            async def stream():
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": "写到一半"})
+                yield StreamEvent(
+                    type=StreamEventType.MESSAGE_END,
+                    data={"stop_reason": OUTPUT_TRUNCATED_STOP_REASON},
+                )
+
+            return stream()
+
+        with (
+            patch("agent.service.compact_history", compact_mock),
+            patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
+            patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind())),
+        ):
+            chunks = [
+                c
+                async for c in AgentService().process_stream(
+                    project_id=project.id,
+                    user_id=user.id,
+                    message="继续写",
+                    session=db_session,
+                    session_id=chat.id,
+                )
+            ]
+
+        events = _parse_sse_chunks(chunks)
+        assert any(ev == "done" for ev, _ in events)
+        assert get_inflight_compaction(chat.id) is None
+        assert compact_mock.await_count == 0
+
+        db_session.expire_all()
+        reloaded = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+        assert reloaded.compacted is False
+        assert reloaded.trailing_output_truncations == 1
+    finally:
+        reset_inflight_compactions()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_post_turn_compaction_skips_when_late_steering_drained_before_save(db_session: Session):
+    """If late steering arrived right before save, post-turn compaction must skip rather than summarizing stale wire items."""
+    from agent.service import AgentService
+
+    reset_inflight_compactions()
+    try:
+        user, project, chat = _make_user_project(db_session)
+        compact_mock = AsyncMock()
+
+        def fake_loop(state, **_kwargs):
+            state["run_meter"].last_prompt_tokens = 360_000
+            state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+            state["run_items"] = [{"role": "user", "content": "写第一章"}, {"role": "assistant", "content": "第一章完成"}]
+
+            async def stream():
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": "第一章完成"})
+                yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+            return stream()
+
+        late_msg = SimpleNamespace(id="steer-late-1", content="顺便把主角名字改成林沉")
+        drain_calls = [0]
+
+        async def fake_drain_and_seal(_session_id, _run_id):
+            drain_calls[0] += 1
+            return [late_msg] if drain_calls[0] == 1 else []
+
+        with (
+            patch("agent.service.compact_history", compact_mock),
+            patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
+            patch("agent.service.drain_and_seal_steering_async", side_effect=fake_drain_and_seal),
+            patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind())),
+        ):
+            chunks = [
+                c
+                async for c in AgentService().process_stream(
+                    project_id=project.id,
+                    user_id=user.id,
+                    message="写第一章",
+                    session=db_session,
+                    session_id=chat.id,
+                )
+            ]
+
+        events = _parse_sse_chunks(chunks)
+        assert any(ev == "done" for ev, _ in events)
+        assert get_inflight_compaction(chat.id) is None
+        assert compact_mock.await_count == 0
+
+        db_session.expire_all()
+        reloaded = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+        assert reloaded.compacted is False
+        assert "顺便把主角名字改成林沉" in reloaded.author_messages
+    finally:
+        reset_inflight_compactions()

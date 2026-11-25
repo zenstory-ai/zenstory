@@ -73,17 +73,17 @@ def _seed_user_project_file(db_session: Session) -> tuple[User, Project, File]:
 
 
 @pytest.mark.unit
-def test_compaction_default_threshold_is_300k_measured_tokens():
-    """默认在实测 300k prompt_tokens 触发轮间压缩，不等到 600k。"""
+def test_compaction_default_threshold_is_240k_measured_tokens():
+    """默认在实测 240k prompt_tokens 触发轮间压缩，堵住 229k–299k 亚阈值起跳缺口。"""
     below = LoopHistory(
         items=[{"role": "user", "content": "写第1章"}],
         last_message_id="m1",
-        last_prompt_tokens=280_000,
+        last_prompt_tokens=220_000,
     )
     above = LoopHistory(
         items=[{"role": "user", "content": "写第1章"}],
         last_message_id="m1",
-        last_prompt_tokens=310_000,
+        last_prompt_tokens=250_000,
     )
     assert should_compact(below) is False
     assert should_compact(above) is True

@@ -176,7 +176,7 @@ def test_should_compact_includes_current_turn_extra_tokens():
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
-async def test_agent_service_compacts_before_crossing_300k_with_current_turn_context(db_session: Session):
+async def test_agent_service_compacts_before_crossing_default_threshold_with_current_turn_context(db_session: Session):
     from agent.service import AgentService
 
     user, project = _make_user_and_project(db_session, "turn_ctx_compact")
@@ -193,7 +193,7 @@ async def test_agent_service_compacts_before_crossing_300k_with_current_turn_con
             role="assistant",
             content="第1章已写完。",
             created_at=base + timedelta(seconds=1),
-            message_metadata=json.dumps({"engine": "loop", "prompt_tokens": 295_000}),
+            message_metadata=json.dumps({"engine": "loop", "prompt_tokens": 235_000}),
         )
     )
     db_session.commit()
@@ -218,7 +218,7 @@ async def test_agent_service_compacts_before_crossing_300k_with_current_turn_con
 
         return _gen()
 
-    # ~10k Chinese chars -> ~6,500 provider tokens; 295,000 + 6,500 > 300,000 -> must compact!
+    # ~10k Chinese chars -> ~6,500 provider tokens; 235,000 + 6,500 > 240,000 -> must compact!
     long_prompt = "请结合以下设定续写下一章。" * 850
     with (
         patch("agent.service.compact_history", compact_mock),

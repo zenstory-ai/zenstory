@@ -18,8 +18,9 @@ Status: implemented
 
 在严守零自然语言关键词/正则规则、保住前缀缓存与计费/退还契约的前提下，先行落地零冲突核心护栏（Wave 2 将完成 `runner.py` / `service.py` 接线）：
 
-1. **环境变量可配的单调用思考/时长护栏**（`config/agent_runtime.py`、`agent/openai_agents/model.py`、`agent/openai_agents/usage_hooks.py`）：
-   - 新增可经环境变量覆盖（设为 `0` 关闭）的默认阈值：`AGENT_PRE_ANSWER_THINKING_MAX_S=180.0`、`AGENT_PRE_ANSWER_THINKING_MAX_CHARS=64_000`、`AGENT_MODEL_CALL_MAX_DURATION_S=300.0`（基于 7,747 次线上 MiniMax 调用反事实校准：健康 `end_turn` 调用误杀率仅 `0.20%`、活跃正文流误杀 `0.00%`，同时 `100%` 截住 542s 纯思考截断与 4/4 次 780s 硬超时）；经风险审计确认，**拒绝引入**收尾期 `max_output_tokens=16_384` 硬上限，避免思考吃光预算导致 0 总结或截断 `<file>`。`AGENT_LOOP_COMPACT_AT_TOKENS` 维持 `300_000` 默认值不变。
+1. **环境变量可配的单调用思考/时长护栏与 240k 压缩阈值**（`config/agent_runtime.py`、`agent/openai_agents/model.py`、`agent/openai_agents/usage_hooks.py`）：
+   - 新增可经环境变量覆盖（设为 `0` 关闭）的默认阈值：`AGENT_PRE_ANSWER_THINKING_MAX_S=180.0`、`AGENT_PRE_ANSWER_THINKING_MAX_CHARS=64_000`、`AGENT_MODEL_CALL_MAX_DURATION_S=300.0`（基于 7,747 次线上 MiniMax 调用反事实校准：健康 `end_turn` 调用误杀率仅 `0.20%`、活跃正文流误杀 `0.00%`，同时 `100%` 截住 542s 纯思考截断与 4/4 次 780s 硬超时）；经风险审计确认，**拒绝引入**收尾期 `max_output_tokens=16_384` 硬上限，避免思考吃光预算导致 0 总结或截断 `<file>`。
+   - 将 `AGENT_LOOP_COMPACT_AT_TOKENS` 默认值由 `300_000` 调整为 `240_000`（避开 150k 过度压缩悬崖，同时关闭 229k–299k 亚阈值起跳缺口）。
    - 在 `FailoverChatModel.stream_response` 与 `_iter_with_idle_timeout` 中执行结构化截停：未产出正文/工具参数前若思考耗时或字符数触顶，或单次调用总耗时触顶，立即经 `aclosing` 关闭上游流（保证 `_BudgetedAsyncStream` 触发取消态成本结算）、记录 `CALL_OUTCOME_TIMEOUT` 耗时与 `last_stream_cutoff_reason`、置 `last_response_output_capped=True`，**不触发备源 failover / 熔断 / 会话固定**，并合成 `ResponseCompletedEvent` 无缝衔接现有 `runner.py` 出口（未出正文时进入 `output_truncated`，已出正文时保留流过文字并带 `output_capped=True` 供断点续写）。
 2. **`IntraRunToolOutputTrimmer` 收尾期禁裁与峰值 `max_prompt_tokens` / 排空辅助**（`agent/openai_agents/intra_run_trimmer.py`、`agent/core/run_meter.py`、`agent/openai_agents/usage_hooks.py`）：
    - `IntraRunToolOutputTrimmer` 新增可选 `run_meter` 参数；一旦 `run_meter.past_wrap_up` 或 `run_meter.wall_clock_landing_injected` 为真，严格跳过裁剪原样返回（兼容未传 `run_meter` 的旧调用方，Wave 2 在 `runner.py` 传入 `run_meter=run_meter`）。
@@ -45,7 +46,7 @@ Status: implemented
 
 ## Consequences
 
-- **收益**：消除单调用 542s 纯思考挂起与击穿 240s 收尾余量的硬超时隐患；堵住 `RepeatReadGuard` 跨模式循环绕过；`runaway_stop` 指标立即从 96/97 误报恢复为高信噪比真实失控信号；所有阈值均支持环境变量热调优或置 `0` 紧急关闭。
+- **收益**：消除单调用 542s 纯思考挂起与击穿 240s 收尾余量的硬超时隐患；堵住 `RepeatReadGuard` 跨模式循环绕过与 229k–299k 亚阈值压缩漏网；`runaway_stop` 指标立即从 96/97 误报恢复为高信噪比真实失控信号；所有阈值均支持环境变量热调优或置 `0` 紧急关闭。
 - **代价与后续接线**：
-  - Wave 2 已完成全部跨文件接线：`runner.py` 传入 `IntraRunToolOutputTrimmer(run_meter=run_meter)`、墙钟软着陆透传 `wall_clock_landing_exhausted` 与 `server_draining`（`stream_adapter.py` / `chat_message_ux_summary.py` / `service.py` 同步识别 `server_draining`）；`service.py` 落库 `run_meter.effective_prompt_tokens`；`repeat_edit_guard.py` / `tools_adapter.py` / `runner.py` 新增 `>=3` 次 `edit_repeat_limit` 软跳过干净早停；`engine.py` 新增 5 分钟单元边界结构化检查点（`AGENT_UNIT_CHECKPOINT_AFTER_S=300`）。
-  - 默认思考/时长截停阈值（`180s` / `64_000` 字符 / `300s`）与单元检查点阈值均支持环境变量热调优或置 `0` 紧急关闭。
+  - Wave 2 已完成全部跨文件接线：`runner.py` 传入 `IntraRunToolOutputTrimmer(run_meter=run_meter)`、墙钟软着陆透传 `wall_clock_landing_exhausted` 与 `server_draining`（`stream_adapter.py` / `chat_message_ux_summary.py` / `service.py` 同步识别 `server_draining`）；`service.py` 落库 `run_meter.effective_prompt_tokens` 并新增高思考（`>=60k` 估算 reasoning token）轮后后台压缩；`repeat_edit_guard.py` / `tools_adapter.py` / `runner.py` 新增 `>=3` 次 `edit_repeat_limit` 软跳过干净早停；`engine.py` 新增 5 分钟单元边界结构化检查点（`AGENT_UNIT_CHECKPOINT_AFTER_S=300`）。
+  - 默认思考/时长截停阈值（`180s` / `64_000` 字符 / `300s`）与单元检查点/高思考压缩阈值均支持环境变量热调优或置 `0` 紧急关闭。

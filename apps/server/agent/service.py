@@ -57,6 +57,7 @@ from .core.message_manager import (
 )
 from .core.round_outcome import RUN_DEADLINE_STOP_REASON, SERVER_DRAINING_STOP_REASON, RunOutcome
 from .core.run_meter import AgentRunMeter
+from .core.server_drain import is_draining
 from .core.session_loader import SessionLoader
 from .core.steering import (
     _RUN_HEARTBEAT_INTERVAL_S,
@@ -67,7 +68,18 @@ from .core.steering import (
 )
 from .core.stream_errors import classify_stream_exception, log_stream_exception
 from .core.writing_state import WritingState
-from .loop.compaction import compact_history, should_compact, skipped_record
+from .loop.compaction import (
+    SKIPPED_PROVIDER_ERROR,
+    CompactionOutcome,
+    PostTurnCompactionResult,
+    compact_history,
+    get_inflight_compaction,
+    persist_post_turn_compaction_sync,
+    register_inflight_compaction,
+    should_compact,
+    should_compact_post_turn,
+    skipped_record,
+)
 from .loop.engine import run_loop_agent_streaming
 from .loop.history import (
     LOOP_ENGINE_METADATA_VALUE,
@@ -76,6 +88,7 @@ from .loop.history import (
     effective_history_provider_tokens,
     estimate_provider_items_tokens,
     estimate_provider_text_tokens,
+    estimate_wire_reasoning_tokens,
     load_loop_history,
     row_metadata,
     valid_compaction,
@@ -368,6 +381,193 @@ class AgentService:
                 )
 
         task.add_done_callback(_log_task_result)
+        return task
+
+    @classmethod
+    def _schedule_post_turn_compaction(
+        cls,
+        *,
+        session_id: str,
+        project_id: str,
+        user_id: str,
+        assistant_message_id: str,
+        system_prompt: str,
+        last_prompt_tokens: int,
+        author_messages: list[str],
+        completed_wire_items: list[Any] | None,
+        reasoning_tokens: int = 0,
+    ) -> asyncio.Task[PostTurnCompactionResult] | None:
+        """在轮次干净结束并准备发出 ``done`` 后，将历史压缩移至后台异步执行。
+
+        - 复用刚结束轮次的 ``completed_wire_items``（热 KV 缓存）或回退从 DB 重建历史；
+        - 按 ``session_id`` 原子去重，防止同一会话并发发起重复压缩；
+        - 挂入 ``background_cleanup_tasks`` 以便优雅关机 drain 等待；
+        - 任何模型/配额/数据库错误均在后台吞并记日志，绝不阻塞或破坏用户的 SSE ``done`` 帧。
+        """
+        if is_draining():
+            log_with_context(
+                logger,
+                20,  # INFO
+                "Skipping post-turn background compaction during server drain",
+                session_id=session_id,
+                assistant_message_id=assistant_message_id,
+            )
+            return None
+        if get_inflight_compaction(session_id) is not None:
+            log_with_context(
+                logger,
+                20,  # INFO
+                "Skipping duplicate post-turn background compaction: already in flight",
+                session_id=session_id,
+                assistant_message_id=assistant_message_id,
+            )
+            return None
+
+        wire_snapshot = (
+            list(completed_wire_items)
+            if is_well_formed_wire_prefix(completed_wire_items)
+            else None
+        )
+        author_snapshot = list(author_messages)
+
+        async def _run_post_turn_compaction() -> PostTurnCompactionResult:
+            # 让当前协程先完成 `yield done_event(...).to_sse()`，不抢占 done 帧冲刷。
+            await asyncio.sleep(0)
+            if wire_snapshot is not None:
+                bg_history = LoopHistory(
+                    items=wire_snapshot,
+                    last_prompt_tokens=last_prompt_tokens,
+                    last_message_id=assistant_message_id,
+                    author_messages=author_snapshot,
+                )
+            else:
+                def _load_db_history() -> LoopHistory:
+                    with create_session() as read_db:
+                        return load_loop_history(
+                            read_db,
+                            project_id=project_id,
+                            user_id=user_id,
+                            chat_session_id=session_id,
+                        )
+
+                try:
+                    bg_history = await asyncio.to_thread(_load_db_history)
+                except Exception as exc:  # noqa: BLE001 - background compaction must never raise
+                    log_with_context(
+                        logger,
+                        30,  # WARNING
+                        "Post-turn background compaction failed to load DB history",
+                        session_id=session_id,
+                        assistant_message_id=assistant_message_id,
+                        error_type=type(exc).__name__,
+                    )
+                    return PostTurnCompactionResult(
+                        outcome=CompactionOutcome(skipped=SKIPPED_PROVIDER_ERROR),
+                        persisted=False,
+                    )
+                if (
+                    not bg_history.items
+                    or bg_history.compacted_at_tail
+                    or bg_history.last_message_id != assistant_message_id
+                ):
+                    return PostTurnCompactionResult(outcome=CompactionOutcome(), persisted=False)
+                if bg_history.last_prompt_tokens < last_prompt_tokens:
+                    bg_history.last_prompt_tokens = last_prompt_tokens
+
+            bg_request_context = AgentRequestContext(
+                session=None,
+                user_id=user_id,
+                project_id=project_id,
+                session_id=session_id,
+            )
+            try:
+                with bg_request_context.bind_cost_budget_user():
+                    outcome = await compact_history(
+                        bg_history,
+                        system_prompt=system_prompt,
+                        session_id=session_id,
+                        request_context=bg_request_context,
+                    )
+            except Exception as exc:  # noqa: BLE001 - APIException / transient errors must not crash background task
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Post-turn background compaction failed; next turn will fall back cleanly",
+                    session_id=session_id,
+                    assistant_message_id=assistant_message_id,
+                    error_type=type(exc).__name__,
+                )
+                return PostTurnCompactionResult(
+                    outcome=CompactionOutcome(skipped=SKIPPED_PROVIDER_ERROR),
+                    persisted=False,
+                )
+            finally:
+                bg_request_context.clear()
+
+            if outcome.record is not None:
+                try:
+                    persisted = await asyncio.to_thread(
+                        persist_post_turn_compaction_sync,
+                        session_id=session_id,
+                        project_id=project_id,
+                        user_id=user_id,
+                        assistant_message_id=assistant_message_id,
+                        record=outcome.record,
+                        session_factory=create_session,
+                    )
+                except Exception as exc:  # noqa: BLE001 - fail open; next turn falls back cleanly
+                    log_with_context(
+                        logger,
+                        30,  # WARNING
+                        "Post-turn background compaction failed to persist summary",
+                        session_id=session_id,
+                        assistant_message_id=assistant_message_id,
+                        error_type=type(exc).__name__,
+                    )
+                    persisted = False
+                return PostTurnCompactionResult(outcome=outcome, persisted=persisted)
+
+            if outcome.skipped:
+                try:
+                    await asyncio.to_thread(
+                        persist_post_turn_compaction_sync,
+                        session_id=session_id,
+                        project_id=project_id,
+                        user_id=user_id,
+                        assistant_message_id=assistant_message_id,
+                        skipped=skipped_record(bg_history, outcome.skipped),
+                        session_factory=create_session,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    log_with_context(
+                        logger,
+                        30,  # WARNING
+                        "Post-turn background compaction failed to persist skip record",
+                        session_id=session_id,
+                        assistant_message_id=assistant_message_id,
+                        error_type=type(exc).__name__,
+                    )
+            return PostTurnCompactionResult(outcome=outcome, persisted=False)
+
+        task: asyncio.Task[PostTurnCompactionResult] = cls._schedule_background_cleanup(
+            _run_post_turn_compaction(),
+            description="post_turn_history_compaction",
+            session_id=session_id,
+        )
+        registered = register_inflight_compaction(session_id, assistant_message_id, task)
+        if registered is None:
+            task.cancel()
+            return None
+        log_with_context(
+            logger,
+            20,  # INFO
+            "Scheduled post-turn background history compaction",
+            session_id=session_id,
+            assistant_message_id=assistant_message_id,
+            last_prompt_tokens=last_prompt_tokens,
+            reasoning_tokens=reasoning_tokens,
+            reused_wire_prefix=wire_snapshot is not None,
+        )
         return task
 
     def _resolve_or_create_chat_session_id(
@@ -1236,7 +1436,13 @@ class AgentService:
                 loop_history, loop_turn, selected_skills, system_prompt = self._prepare_loop_turn(
                     session, **loop_kwargs
                 )
-            if user_id and session_id and loop_history.last_message_id and not retry_carried_compaction:
+            if (
+                user_id
+                and session_id
+                and loop_history.last_message_id
+                and not retry_carried_compaction
+                and not loop_history.compacted_at_tail
+            ):
                 expected_provider_key: str | None = None
                 try:
                     ordered_providers = await llm_failover.aordered_providers(session_id)
@@ -1378,40 +1584,67 @@ class AgentService:
                     compaction_usage: dict[str, int] | None = None
                     current_turn_tokens = estimate_provider_text_tokens(user_content)
                     if should_compact(loop_history, extra_tokens=current_turn_tokens):
-                        # 轮与轮之间压缩历史（不在工具循环中途）：摘要不可用时照常带完整历史跑这一轮。
-                        # 作者能看到这一步：先发「正在压缩对话…」，成功后变成会话里的「对话已压缩」标记
-                        # （记进 display_events，刷新后在同一位置回放，摘要读本轮的 compaction 记录）；
-                        # 没压缩成时只发一条收起它的进度提示，不落库。
+                        # 轮与轮之间压缩历史（不在工具循环中途）：
+                        # 若上一轮的轮后异步压缩仍在途且覆盖同一条最后消息，直接复用在途结果，
+                        # 防止同一会话并发发起重复压缩；否则走原有同步压缩兜底。
                         yield thinking_event(
                             "Compacting conversation…" if force_en else "正在压缩对话…",
                             step=HISTORY_COMPACTION_STEP,
                         ).to_sse()
-                        from services.usage.cost_budget import on_model_transport_start
-
-                        transport_scope = (
-                            on_model_transport_start(run_outcome.mark_provider_attempted)
-                            if run_outcome is not None
-                            else contextlib.nullcontext()
+                        inflight_compaction = get_inflight_compaction(session_id)
+                        joined_inflight = (
+                            inflight_compaction is not None
+                            and inflight_compaction.covers_through_message_id == loop_history.last_message_id
                         )
-                        with run_meter.measure_stage("compaction"), transport_scope:
-                            outcome = await compact_history(
-                                loop_history,
-                                system_prompt=system_prompt,
-                                session_id=session_id,
-                                run_meter=run_meter,
-                                request_context=request_context,
+                        if joined_inflight and inflight_compaction is not None:
+                            with run_meter.measure_stage("compaction"):
+                                try:
+                                    bg_result = await asyncio.shield(inflight_compaction.task)
+                                except asyncio.CancelledError:
+                                    raise
+                                except Exception as exc:  # noqa: BLE001 - fail open to skipped
+                                    log_with_context(
+                                        logger,
+                                        30,  # WARNING
+                                        "In-flight post-turn compaction failed while awaited by next turn",
+                                        session_id=session_id,
+                                        error_type=type(exc).__name__,
+                                    )
+                                    bg_result = PostTurnCompactionResult(
+                                        outcome=CompactionOutcome(skipped=SKIPPED_PROVIDER_ERROR),
+                                        persisted=False,
+                                    )
+                            outcome = bg_result.outcome
+                            persisted_on_prior_row = bg_result.persisted
+                        else:
+                            from services.usage.cost_budget import on_model_transport_start
+
+                            transport_scope = (
+                                on_model_transport_start(run_outcome.mark_provider_attempted)
+                                if run_outcome is not None
+                                else contextlib.nullcontext()
                             )
-                        compaction_usage = outcome.usage
+                            with run_meter.measure_stage("compaction"), transport_scope:
+                                outcome = await compact_history(
+                                    loop_history,
+                                    system_prompt=system_prompt,
+                                    session_id=session_id,
+                                    run_meter=run_meter,
+                                    request_context=request_context,
+                                )
+                            persisted_on_prior_row = False
+                        compaction_usage = None if joined_inflight else outcome.usage
                         if outcome.record is not None and outcome.items is not None:
-                            loop_compaction_record = outcome.record
+                            if not persisted_on_prior_row:
+                                loop_compaction_record = outcome.record
+                                assistant_display_events.append({"type": "history_compacted", "data": {}})
                             writing_state["history_items"] = outcome.items
                             # 压缩成功后前几轮的工具结果已折叠进摘要，撤销仅来自此前轮次的会话快照结转。
                             if loop_turn.session_carried_snapshot_ids:
                                 request_context.drop_initial_read_snapshots(loop_turn.session_carried_snapshot_ids)
-                            assistant_display_events.append({"type": "history_compacted", "data": {}})
                             yield history_compacted_event(outcome.record["summary"]).to_sse()
                         else:
-                            if outcome.skipped:
+                            if outcome.skipped and not persisted_on_prior_row:
                                 loop_compaction_skipped = skipped_record(loop_history, outcome.skipped)
                             yield thinking_event(
                                 "Couldn't compact the conversation; continuing as is"
@@ -1714,6 +1947,70 @@ class AgentService:
                     if user_id and session_id and history_saved and not stored_wire_prefix:
                         await ainvalidate_wire_prefix(session_id)
                     if pending_done_payload is not None:
+                        if (
+                            user_id
+                            and session_id
+                            and assistant_message_id
+                            and history_saved
+                            and not had_stream_error
+                            and not request_failed
+                            and not stream_cancelled
+                            and (run_outcome is None or not run_outcome.stop_kind)
+                            and loop_compaction_record is None
+                            and assistant_stop_reason in _WIRE_PREFIX_CACHEABLE_STOP_REASONS
+                            and not _has_blocking_wire_prefix_status_cards(assistant_status_cards)
+                            and not late_steering_before_save
+                            and not has_unconsumed_steering
+                            and not has_pending_file_state
+                        ):
+                            peak_prompt_tokens = int(run_meter.effective_prompt_tokens or 0)
+                            wire_reasoning_tokens = estimate_wire_reasoning_tokens(completed_wire_items)
+                            if isinstance(loop_compaction_skipped, dict):
+                                post_skipped_at = int(loop_compaction_skipped.get("at_prompt_tokens") or 0)
+                                post_skipped_reason = loop_compaction_skipped.get("reason")
+                            else:
+                                post_skipped_at = loop_history.compaction_skipped_at_tokens
+                                post_skipped_reason = loop_history.compaction_skipped_reason
+                            if should_compact_post_turn(
+                                last_prompt_tokens=peak_prompt_tokens,
+                                skipped_at_tokens=post_skipped_at,
+                                skipped_reason=post_skipped_reason if isinstance(post_skipped_reason, str) else None,
+                                reasoning_tokens=wire_reasoning_tokens,
+                            ):
+                                post_turn_authors = [
+                                    *loop_history.author_messages,
+                                    *(
+                                        text
+                                        for text in (message, *consumed_steering)
+                                        if isinstance(text, str) and text.strip()
+                                    ),
+                                ]
+                                try:
+                                    self._schedule_post_turn_compaction(
+                                        session_id=session_id,
+                                        project_id=project_id,
+                                        user_id=user_id,
+                                        assistant_message_id=assistant_message_id,
+                                        system_prompt=system_prompt,
+                                        last_prompt_tokens=peak_prompt_tokens,
+                                        author_messages=post_turn_authors,
+                                        completed_wire_items=(
+                                            completed_wire_items
+                                            if wire_prefix_skip_reason is None
+                                            and isinstance(completed_wire_items, list)
+                                            else None
+                                        ),
+                                        reasoning_tokens=wire_reasoning_tokens,
+                                    )
+                                except Exception as exc:  # noqa: BLE001 - never block or fail done frame
+                                    log_with_context(
+                                        logger,
+                                        30,  # WARNING
+                                        "Failed to schedule post-turn background compaction",
+                                        session_id=session_id,
+                                        assistant_message_id=assistant_message_id,
+                                        error_type=type(exc).__name__,
+                                    )
                         yield done_event(
                             assistant_message_id=assistant_message_id,
                             session_id=session_id,

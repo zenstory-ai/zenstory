@@ -139,7 +139,18 @@ AGENT_MODEL_CALL_MAX_DURATION_S = _get_non_negative_float_env(
 # the last model call of the previous turn (measured, cached tokens included) exceeds this,
 # the next turn first writes a handoff summary with the same model; the history loader then
 # replays recent author messages + the summary instead of everything before it.
-AGENT_LOOP_COMPACT_AT_TOKENS = get_int_env("AGENT_LOOP_COMPACT_AT_TOKENS", 300_000)
+# Lowered from 300k -> 240k to close the 229k–299k sub-threshold launch gap where single turns
+# grew +80k–293k mid-run without crossing the 150k over-compaction cliff.
+AGENT_LOOP_COMPACT_AT_TOKENS = get_int_env("AGENT_LOOP_COMPACT_AT_TOKENS", 240_000)
+# Post-turn background compaction also triggers when accumulated reasoning items in
+# completed_wire_items exceed this estimated provider token count (even if total prompt_tokens
+# is below AGENT_LOOP_COMPACT_AT_TOKENS) so dead thinking is not cached in wire_prefix_cache
+# for 20 minutes. Set to 0 to disable.
+AGENT_LOOP_COMPACT_REASONING_TOKENS = get_int_env(
+    "AGENT_LOOP_COMPACT_REASONING_TOKENS",
+    60_000,
+    minimum=0,
+)
 # Token budget for the most recent original author messages kept verbatim after compaction.
 AGENT_LOOP_COMPACT_KEEP_USER_TOKENS = get_int_env("AGENT_LOOP_COMPACT_KEEP_USER_TOKENS", 20_000)
 # Output cap of the summary call (reasoning tokens count against it).

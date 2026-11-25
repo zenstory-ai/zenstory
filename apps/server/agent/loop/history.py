@@ -42,6 +42,7 @@ _INTERRUPTED_ROUND_NOTES = {
     "client_disconnected": "（这一轮没做完：连接中断了。）",
     "cancelled": "（这一轮没做完：连接中断了。）",
     "run_deadline_exceeded": "（这一轮没做完：时间用完了。）",
+    "server_draining": "（这一轮没做完：服务更新重启，请接着完成。）",
     "max_turns_exceeded": "（这一轮没做完：工具调用轮数到了上限。）",
     "model_call_budget_exhausted": "（这一轮没做完：模型调用次数到了上限。）",
 }
@@ -74,6 +75,9 @@ class LoopHistory:
     last_message_id: str | None = None
     # 是否用到了已有的压缩点。
     compacted: bool = False
+    # 压缩点是否直接覆盖到会话最后一行（如轮后异步压缩写回刚结束的 assistant 行）：
+    # 为 True 时不应用上一轮未压缩的 Redis wire_prefix_cache 覆盖已压缩历史。
+    compacted_at_tail: bool = False
     # 历史里作者的原话（按时间先后，不含系统插入的摘要消息）：本轮压缩时从中保留最近的几条。
     author_messages: list[str] = field(default_factory=list)
     # 最近一次没压缩成时的实测输入 token 与原因；之后有成功的压缩点时清零。
@@ -144,6 +148,19 @@ def estimate_provider_items_tokens(items: list[dict[str, Any]]) -> int:
         for key in ("content", "summary", "arguments", "output"):
             total += _provider_content_tokens(item.get(key))
         total += 4
+    return total
+
+
+def estimate_wire_reasoning_tokens(items: Any) -> int:
+    """估算 SDK wire-format 输入项中累计 reasoning 项的供应商 token 数。"""
+    if not isinstance(items, list):
+        return 0
+    total = 0
+    for item in items:
+        if not isinstance(item, dict) or item.get("type") != "reasoning":
+            continue
+        for key in ("content", "summary", "reasoning", "reasoning_content"):
+            total += _provider_content_tokens(item.get(key))
     return total
 
 
@@ -537,7 +554,9 @@ def _legacy_row_items(loader: Any, row: Any, *, latest_assistant: bool = False) 
 
 
 # 这些 stop_reason 已有「这一轮没做完」的说明，同一原因的工具轮数卡（layer=tool_call）不再重复。
-_NOTED_TOOL_CALL_STOPS = frozenset({"max_turns_exceeded", "run_deadline_exceeded", "model_call_budget_exhausted"})
+_NOTED_TOOL_CALL_STOPS = frozenset(
+    {"max_turns_exceeded", "run_deadline_exceeded", "server_draining", "model_call_budget_exhausted"}
+)
 
 
 def _status_cards_to_replay(status_cards: list[Any], stop_reason: Any, *, has_text: bool) -> list[Any]:
@@ -696,8 +715,25 @@ def load_loop_history(
                 if row.role == "user":
                     kept_tokens_seen += estimate_provider_text_tokens(str(row.content or ""))
                 continue
-            after_rows.append(row)
             metadata = row_metadata(row)
+            # 轮后异步压缩把压缩点直接写回刚结束的 assistant 行自身（covers_through_message_id == row.id）：
+            # 先于 after_rows 与压缩前 prompt_tokens 读数识别该自覆盖锚点，使下一轮直接从摘要起步。
+            if compaction is None:
+                self_compaction = valid_compaction(metadata)
+                if self_compaction is not None and self_compaction["covers_through_message_id"] == row.id:
+                    compaction = self_compaction
+                    stored_kept = stored_kept_messages(compaction)
+                    covered_reached = True
+                    if not measured_seen:
+                        measured_seen = True
+                    if stored_kept is not None:
+                        stop = True
+                        break
+                    before_rows.append(row)
+                    if row.role == "user":
+                        kept_tokens_seen += estimate_provider_text_tokens(str(row.content or ""))
+                    continue
+            after_rows.append(row)
             if row.role == "assistant":
                 if truncation_streak_open:
                     if metadata.get("stop_reason") == OUTPUT_TRUNCATED_REASON:
@@ -725,6 +761,7 @@ def load_loop_history(
     items: list[dict[str, Any]] = []
     if compaction is not None and covered_reached:
         result.compacted = True
+        result.compacted_at_tail = not after_rows
         if stored_kept is not None:
             kept = [{"role": "user", "content": content} for content in stored_kept]
         else:

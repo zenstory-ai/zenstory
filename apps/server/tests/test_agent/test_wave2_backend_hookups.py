@@ -14,6 +14,7 @@ Covers all 9 Wave 2 hookups:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from datetime import UTC, datetime
@@ -29,7 +30,15 @@ from agent.core.request_context import AgentRequestContext
 from agent.core.round_outcome import RUN_DEADLINE_STOP_REASON, SERVER_DRAINING_STOP_REASON, RunOutcome
 from agent.core.run_meter import MAX_WALL_CLOCK_LANDING_CALLS, AgentRunMeter
 from agent.core.workflow_events import StreamEvent, StreamEventType
+from agent.loop import compaction as compaction_mod
 from agent.loop import engine as engine_mod
+from agent.loop.compaction import (
+    CompactionOutcome,
+    get_inflight_compaction,
+    reset_inflight_compactions,
+    should_compact_post_turn,
+)
+from agent.loop.history import estimate_wire_reasoning_tokens
 from agent.loop.ui_actions import OFFICIAL_NATURAL_POLISH_SKILL_NAME, UI_ACTION_NATURAL_POLISH
 from agent.openai_agents import runner as runner_mod
 from agent.openai_agents.repeat_edit_guard import (
@@ -293,7 +302,10 @@ async def test_service_persists_effective_untrimmed_prompt_tokens(db_session: Se
         return stream()
 
     service = AgentService()
-    with patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop):
+    with (
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
+        patch("agent.service.should_compact_post_turn", return_value=False),
+    ):
         _ = [
             frame
             async for frame in service.process_stream(
@@ -624,6 +636,124 @@ async def test_engine_does_not_continue_after_edit_spin_early_stop(monkeypatch):
     assert runs_called == 1
     assert not any(ev.type == StreamEventType.ERROR for ev in events)
     assert not any(ev.type == StreamEventType.ITERATION_EXHAUSTED for ev in events)
+
+
+# ---------------------------------------------------------------------------
+# 8. service.py + history.py + compaction.py (high-reasoning post-turn compaction)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_estimate_wire_reasoning_tokens_and_should_compact_post_turn(monkeypatch):
+    """Accumulated reasoning items >= 60k estimated tokens trigger post-turn compaction even when prompt_tokens < 240k."""
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_COMPACT_AT_TOKENS", 240_000)
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_COMPACT_REASONING_TOKENS", 60_000)
+
+    # ~100k Chinese chars -> ~65k provider tokens (> 60k threshold)
+    heavy_wire_items = [
+        {"role": "user", "content": "写第一章"},
+        {"type": "reasoning", "content": [{"type": "reasoning_text", "text": "思" * 100_000}]},
+        {"role": "assistant", "content": "第一章正文"},
+    ]
+    light_wire_items = [
+        {"role": "user", "content": "写第一章"},
+        {"type": "reasoning", "content": [{"type": "reasoning_text", "text": "简短思考"}]},
+        {"role": "assistant", "content": "第一章正文"},
+    ]
+
+    heavy_tokens = estimate_wire_reasoning_tokens(heavy_wire_items)
+    light_tokens = estimate_wire_reasoning_tokens(light_wire_items)
+    assert heavy_tokens >= 60_000
+    assert light_tokens < 1_000
+
+    # Prompt under 240k (120k), heavy reasoning -> triggers post-turn compaction!
+    assert should_compact_post_turn(last_prompt_tokens=120_000, reasoning_tokens=heavy_tokens) is True
+    # Prompt under 240k (120k), light reasoning -> does NOT trigger!
+    assert should_compact_post_turn(last_prompt_tokens=120_000, reasoning_tokens=light_tokens) is False
+    # Disabled via threshold=0 -> does NOT trigger!
+    assert should_compact_post_turn(
+        last_prompt_tokens=120_000, reasoning_tokens=heavy_tokens, reasoning_threshold=0
+    ) is False
+    # Respects non-provider-error backoff
+    assert should_compact_post_turn(
+        last_prompt_tokens=120_000,
+        reasoning_tokens=heavy_tokens,
+        skipped_at_tokens=120_000,
+        skipped_reason=compaction_mod.SKIPPED_EMPTY_OR_TRUNCATED,
+    ) is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_service_triggers_post_turn_compaction_on_high_reasoning_under_240k(db_session: Session, monkeypatch):
+    """End-to-end: clean turn with 130k prompt_tokens (<240k) and >60k wire reasoning schedules background compaction."""
+    reset_inflight_compactions()
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_COMPACT_AT_TOKENS", 240_000)
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_COMPACT_REASONING_TOKENS", 60_000)
+    try:
+        user, project, chat = _make_user_project_session(db_session, "high_reasoning")
+        compact_called = asyncio.Event()
+        compact_mock = AsyncMock(
+            return_value=CompactionOutcome(
+                record={
+                    "summary": "交接摘要",
+                    "covers_through_message_id": "placeholder",
+                    "kept_author_messages": ["分析剧情"],
+                    "created_at": datetime.now(UTC).isoformat(),
+                },
+                items=[{"role": "assistant", "content": "交接摘要"}],
+            )
+        )
+
+        async def _compact_side_effect(history, **_kwargs):
+            compact_called.set()
+            res = await compact_mock(history)
+            res.record["covers_through_message_id"] = history.last_message_id
+            return res
+
+        def fake_loop(state, **_kwargs):
+            state["run_meter"].record_prompt_tokens(130_000)  # well under 240k!
+            state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+            state["run_items"] = [
+                {"role": "user", "content": "分析剧情"},
+                {"type": "reasoning", "content": [{"type": "reasoning_text", "text": "推" * 100_000}]},
+                {"role": "assistant", "content": "剧情分析完成。"},
+            ]
+
+            async def stream():
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": "剧情分析完成。"})
+                yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+            return stream()
+
+        service = AgentService()
+        with (
+            patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
+            patch("agent.service.compact_history", side_effect=_compact_side_effect),
+            patch("agent.service.persist_post_turn_compaction_sync", return_value=True),
+            patch("agent.service.astore_wire_prefix", AsyncMock(return_value=True)),
+        ):
+            frames = [
+                frame
+                async for frame in service.process_stream(
+                    project_id=project.id,
+                    user_id=user.id,
+                    message="分析剧情",
+                    session=db_session,
+                    session_id=chat.id,
+                )
+            ]
+            assert any(_parse_sse_frame(f)[0] == "done" for f in frames)
+            inflight = get_inflight_compaction(chat.id)
+            if inflight is not None:
+                await asyncio.wait_for(inflight.task, timeout=2.0)
+            else:
+                await asyncio.wait_for(compact_called.wait(), timeout=2.0)
+
+        assert compact_mock.await_count == 1
+    finally:
+        reset_inflight_compactions()
 
 
 # ---------------------------------------------------------------------------

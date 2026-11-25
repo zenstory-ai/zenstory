@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -60,6 +62,105 @@ class CompactionOutcome:
     items: list[dict[str, Any]] | None = None
     usage: dict[str, int] | None = None
     skipped: str | None = None
+
+
+@dataclass
+class PostTurnCompactionResult:
+    """轮后后台压缩任务的完成结果（用于下一轮到达时直接复用在途任务）。"""
+
+    outcome: CompactionOutcome
+    persisted: bool = False
+
+
+@dataclass
+class InFlightCompaction:
+    """进程内同一会话正在运行的轮后后台压缩句柄。"""
+
+    session_id: str
+    covers_through_message_id: str
+    task: asyncio.Task[PostTurnCompactionResult]
+
+
+# 按 session_id 追踪正在运行的轮后异步压缩任务，防止同一会话并发触发多次压缩。
+_INFLIGHT_COMPACTIONS: dict[str, InFlightCompaction] = {}
+
+
+def get_inflight_compaction(session_id: str | None) -> InFlightCompaction | None:
+    """返回指定会话仍在运行中的轮后后台压缩任务，没有或已结束则返回 None。"""
+    if not session_id:
+        return None
+    entry = _INFLIGHT_COMPACTIONS.get(session_id)
+    if entry is None:
+        return None
+    if entry.task.done():
+        _INFLIGHT_COMPACTIONS.pop(session_id, None)
+        return None
+    return entry
+
+
+def register_inflight_compaction(
+    session_id: str,
+    covers_through_message_id: str,
+    task: asyncio.Task[PostTurnCompactionResult],
+) -> InFlightCompaction | None:
+    """登记会话级在途后台压缩；若该会话已有未完成的压缩任务则拒绝登记并返回 None。"""
+    if get_inflight_compaction(session_id) is not None:
+        return None
+    entry = InFlightCompaction(
+        session_id=session_id,
+        covers_through_message_id=covers_through_message_id,
+        task=task,
+    )
+    _INFLIGHT_COMPACTIONS[session_id] = entry
+
+    def _cleanup(_done: asyncio.Task[Any]) -> None:
+        if _INFLIGHT_COMPACTIONS.get(session_id) is entry:
+            _INFLIGHT_COMPACTIONS.pop(session_id, None)
+
+    task.add_done_callback(_cleanup)
+    return entry
+
+
+def reset_inflight_compactions() -> None:
+    """清空进程内后台压缩追踪表（仅供测试隔离使用）。"""
+    _INFLIGHT_COMPACTIONS.clear()
+
+
+def should_compact_post_turn(
+    *,
+    last_prompt_tokens: int,
+    threshold: int | None = None,
+    retry_growth: int | None = None,
+    skipped_at_tokens: int = 0,
+    skipped_reason: str | None = None,
+    reasoning_tokens: int = 0,
+    reasoning_threshold: int | None = None,
+) -> bool:
+    """判断刚结束的轮次是否应在 ``done`` 发出后于后台预压缩历史。
+
+    满足以下任一条件且未处于模型输出不可用的退避区间内时返回 True（瞬时 ``provider_error`` 不触发退避）：
+    1. 本轮实测输入 token（含峰值）达到 ``AGENT_LOOP_COMPACT_AT_TOKENS``（``>=``）；
+    2. 本轮 ``completed_wire_items`` 中累计 ``reasoning`` 项估算 token 达到
+       ``AGENT_LOOP_COMPACT_REASONING_TOKENS``（即使总 prompt_tokens 尚未达到 240k，
+       也主动在后台压掉死思考，避免在 ``wire_prefix_cache`` 中缓存 20 分钟）。
+    """
+    from config import agent_runtime
+
+    limit = agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS if threshold is None else threshold
+    r_limit = (
+        agent_runtime.AGENT_LOOP_COMPACT_REASONING_TOKENS
+        if reasoning_threshold is None
+        else reasoning_threshold
+    )
+    prompt_exceeded = last_prompt_tokens > 0 and last_prompt_tokens >= limit
+    reasoning_exceeded = r_limit > 0 and reasoning_tokens >= r_limit
+    if not prompt_exceeded and not reasoning_exceeded:
+        return False
+    if skipped_at_tokens > 0 and skipped_reason != SKIPPED_PROVIDER_ERROR:
+        growth = agent_runtime.AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS if retry_growth is None else retry_growth
+        retry_at = min(skipped_at_tokens + growth, _MAX_SKIPPED_RETRY_CEILING_TOKENS)
+        return last_prompt_tokens >= retry_at
+    return True
 
 
 # 退避目标的硬封顶：防止存量老会话在 ~96 万 token 处记下 skipped 后要求涨到 >100 万（物理不可能）才重试。
@@ -453,3 +554,93 @@ async def compact_history(
         duration_ms=duration_ms,
     )
     return CompactionOutcome(record=record, items=items, usage=usage or None)
+
+
+def persist_post_turn_compaction_sync(
+    *,
+    session_id: str,
+    project_id: str,
+    user_id: str,
+    assistant_message_id: str,
+    record: dict[str, Any] | None = None,
+    skipped: dict[str, Any] | None = None,
+    session_factory: Any = None,
+) -> bool:
+    """将轮后异步压缩结果写回刚结束的 assistant 行，并归档压缩前查询载荷、失效旧 wire prefix。
+
+    幂等保护：目标行已存在有效 ``compaction`` 时不覆盖；仅当目标行仍是会话最新行时才
+    失效 Redis wire-prefix 缓存，避免误删后续新轮次写入的前缀缓存。
+    """
+    from sqlalchemy import desc
+    from sqlmodel import select
+
+    from agent.core.chat_storage import archive_pre_compaction_tool_calls_safe
+    from agent.loop.history import row_metadata, valid_compaction
+    from agent.loop.wire_prefix_cache import invalidate_wire_prefix
+    from database import create_session
+    from models import ChatMessage, ChatSession
+
+    if not (session_id and project_id and user_id and assistant_message_id):
+        return False
+    if record is None and skipped is None:
+        return False
+
+    make_session = session_factory or create_session
+    with make_session() as db:
+        chat_session = db.get(ChatSession, session_id)
+        if (
+            chat_session is None
+            or chat_session.user_id != user_id
+            or chat_session.project_id != project_id
+        ):
+            return False
+        row = db.get(ChatMessage, assistant_message_id)
+        if row is None or row.session_id != session_id or row.role != "assistant":
+            return False
+
+        meta = row_metadata(row)
+        if valid_compaction(meta) is not None:
+            return False
+
+        if record is not None:
+            meta["compaction"] = record
+            meta.pop("compaction_skipped", None)
+            display_events = meta.get("display_events")
+            if isinstance(display_events, list):
+                if (
+                    not display_events
+                    or not isinstance(display_events[-1], dict)
+                    or display_events[-1].get("type") != "history_compacted"
+                ):
+                    display_events.append({"type": "history_compacted", "data": {}})
+            else:
+                meta["display_events"] = [{"type": "history_compacted", "data": {}}]
+        elif skipped is not None:
+            if isinstance(meta.get("compaction_skipped"), dict):
+                return False
+            meta["compaction_skipped"] = skipped
+
+        row.message_metadata = json.dumps(meta, ensure_ascii=False)
+        db.add(row)
+        db.commit()
+
+        if record is not None:
+            covers_id = str(record.get("covers_through_message_id") or assistant_message_id)
+            archive_pre_compaction_tool_calls_safe(
+                db,
+                chat_session_id=session_id,
+                covers_through_message_id=covers_id,
+            )
+            latest_id = db.exec(
+                select(ChatMessage.id)
+                .where(
+                    ChatMessage.session_id == session_id,
+                    ChatMessage.role.in_(("user", "assistant")),
+                )
+                .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+                .limit(1)
+            ).first()
+            if latest_id == assistant_message_id:
+                invalidate_wire_prefix(session_id)
+            return True
+        return False
