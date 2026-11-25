@@ -86,8 +86,8 @@ def test_execute_update_plan_normalizes_task_alias_fields(monkeypatch):
 
 
 @pytest.mark.unit
-def test_execute_update_plan_rejects_multiple_in_progress(monkeypatch):
-    """Only one in_progress task is allowed per save batch."""
+def test_execute_update_plan_normalizes_multiple_in_progress(monkeypatch):
+    """Extra in_progress tasks are auto-normalized to pending with a concise warning."""
     service = _mock_task_board(monkeypatch, previous_tasks=[])
     ops = ProjectOperations(session=MagicMock(), user_id="user-1")
     tasks = [
@@ -97,13 +97,28 @@ def test_execute_update_plan_rejects_multiple_in_progress(monkeypatch):
 
     result = ops.execute_update_plan(session_id="sess-2", tasks=tasks)
 
-    assert result["status"] == "ignored"
-    assert result["reason"] == "validation_rejected"
-    assert "2 个任务为 in_progress" in result["error"]
-    assert "只能保留一个" in result["error"]
-    assert "pending" in result["error"]
-    assert "完整 tasks" in result["error"]
-    service.save_tasks.assert_not_called()
+    assert result["status"] == "success"
+    assert "2 个任务为 in_progress" in result["warning"]
+    assert "pending" in result["warning"]
+    assert result["task_summary"] == {
+        "total": 2,
+        "pending": 1,
+        "in_progress": 1,
+        "done": 0,
+    }
+    assert result["tasks"] == [
+        {"task": "任务1", "status": "in_progress"},
+        {"task": "任务2", "status": "pending"},
+    ]
+    service.save_tasks.assert_called_once_with(
+        "sess-2",
+        [
+            {"task": "任务1", "status": "in_progress"},
+            {"task": "任务2", "status": "pending"},
+        ],
+        user_id=None,
+        project_id=None,
+    )
 
 
 @pytest.mark.unit

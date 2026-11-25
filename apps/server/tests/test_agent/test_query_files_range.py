@@ -49,7 +49,6 @@ def test_start_char_slices_long_file_but_returns_short_file_full():
 
 
 @pytest.mark.parametrize(("args", "message"), [
-    ({"section": "第9章"}, "没有找到"),
     ({"section": "第1章"}, "多个标题"),  # two 第1章 headings
     ({"tail_chars": 0}, "正整数"),
     ({"start_char": 999}, "超出正文长度"),
@@ -59,6 +58,19 @@ def test_unreadable_ranges_are_errors_not_guesses(args, message):
     body = "第1章 上\n甲\n第1章 下\n乙"
     with pytest.raises(ContentRangeError, match=message):
         apply_content_range({"id": "f", "content": body}, args)
+
+
+def test_missing_section_errors_on_long_file_but_returns_full_text_on_short_file():
+    short_body = "第1章 上\n甲\n第2章 下\n乙"
+    row = apply_content_range({"id": "f", "content": short_body}, {"section": "第9章"})
+    assert row["content"] == short_body
+    assert row["content_partial"] is False
+    assert row["content_range"] == {"start": 0, "end": len(short_body)}
+    assert "未找到" in row["note"]
+
+    long_body = "第1章 上\n" + ("甲" * 15000) + "\n第2章 下\n乙"
+    with pytest.raises(ContentRangeError, match="没有找到"):
+        apply_content_range({"id": "f", "content": long_body}, {"section": "第9章"})
 
 
 def test_whole_file_range_is_not_marked_partial():

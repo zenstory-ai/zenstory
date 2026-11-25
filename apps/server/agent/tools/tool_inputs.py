@@ -483,9 +483,8 @@ class EditFileInput(_ToolInputModel):
     continue_on_error: CoercedBool = Field(
         default=False,
         description=(
-            "同文件多处独立修改时合并为一次 edit_file 并传 continue_on_error=true"
-            "（跳过失败项，其余照常生效，结果 failed_edits 列出失败项供补改；仅超过 30 处或后项依赖前项时拆分）。"
-            "默认 false：任一处失败整体回滚，整批都仍待修改，不可只补失败项。"
+            "多处独立修改（edits>1）默认按 continue_on_error=true 执行（跳过失败项，其余照常生效，failed_edits 列出待补项；"
+            "超过 30 处或后项依赖前项时拆分）；单条默认 false，显式传 false 时任一处失败整体回滚，整批都仍待修改。"
         ),
     )
 
@@ -501,6 +500,12 @@ class EditFileInput(_ToolInputModel):
             normalized["edits"] = []
         elif normalized.get("edits") is None and "operations" in normalized:
             normalized["edits"] = normalized["operations"]
+        if (
+            ("continue_on_error" not in normalized or normalized.get("continue_on_error") is None)
+            and isinstance(normalized.get("edits"), list)
+            and len(normalized["edits"]) > 1
+        ):
+            normalized["continue_on_error"] = True
         return normalized
 
     @field_validator("id", mode="before")
@@ -668,7 +673,7 @@ class QueryFilesInput(_ToolInputModel):
     )
     section: StrictOptionalStr = Field(
         default=None,
-        description="按 id 读取时只读这个章节/分集：标题文字，如「第3章」「第十集」「Chapter 3」；读到下一个同级标题为止",
+        description="按 id 读多章合集/大纲时只读该标题段（如「第3章」「卷四」「Chapter 3」）；单章 draft 正文无内部标题，勿传 section，直接按 id 读全文",
     )
     tail_chars: OptionalNonBoolInt = Field(
         default=None,
