@@ -1378,19 +1378,21 @@ describe('AuthContext', () => {
       expect(result.current.user).toBe(initialRef)
     })
 
-    it('clears optimistic session when background /api/auth/me returns 401', async () => {
+    it('clears optimistic session when background /api/auth/me returns 401 and refresh fails', async () => {
       const cachedUser = createMockUser({ id: 'revoked-user', onboarding_required: false })
       const unexpiredJwt = makeJwt({
         sub: 'revoked-user',
         exp: Math.floor(Date.now() / 1000) + 3600,
       })
       localStorage.setItem('access_token', unexpiredJwt)
-      localStorage.setItem('refresh_token', 'revoked-refresh')
+      localStorage.setItem('refresh_token', 'revoked-bg-refresh')
       localStorage.setItem('user', JSON.stringify(cachedUser))
       localStorage.setItem('auth_validated_at', String(Date.now() - 60 * 60 * 1000))
 
       let resolveMe!: (value: unknown) => void
-      mockFetch.mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+      mockFetch
+        .mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+        .mockResolvedValueOnce({ ok: false, status: 401 })
 
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
       await waitFor(() => {
@@ -1408,6 +1410,135 @@ describe('AuthContext', () => {
       expect(localStorage.getItem('access_token')).toBeNull()
       expect(localStorage.getItem('refresh_token')).toBeNull()
       expect(localStorage.getItem('user')).toBeNull()
+    })
+
+    it('recovers via token refresh when background /api/auth/me returns 401 for a clock-skewed valid session', async () => {
+      const cachedUser = createMockUser({ id: 'skewed-user', onboarding_required: false })
+      const refreshedUser = createMockUser({ id: 'skewed-user', username: 'skewed-fresh', onboarding_required: false })
+      const unexpiredJwt = makeJwt({
+        sub: 'skewed-user',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      })
+      localStorage.setItem('access_token', unexpiredJwt)
+      localStorage.setItem('refresh_token', 'skewed-bg-refresh')
+      localStorage.setItem('user', JSON.stringify(cachedUser))
+      localStorage.setItem('auth_validated_at', String(Date.now() - 60 * 60 * 1000))
+
+      let resolveMe!: (value: unknown) => void
+      mockFetch
+        .mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: 'rotated-access-token',
+            refresh_token: 'rotated-refresh-token',
+            user: refreshedUser,
+          }),
+        })
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+        expect(result.current.user).toEqual(cachedUser)
+      })
+
+      await act(async () => {
+        resolveMe({ ok: false, status: 401 })
+      })
+
+      await waitFor(() => {
+        expect(result.current.user).toEqual(refreshedUser)
+      })
+      expect(localStorage.getItem('access_token')).toBe('rotated-access-token')
+      expect(localStorage.getItem('refresh_token')).toBe('rotated-refresh-token')
+    })
+
+    it('clears optimistic session immediately on background 403 without attempting refresh', async () => {
+      const cachedUser = createMockUser({ id: 'forbidden-user', onboarding_required: false })
+      const unexpiredJwt = makeJwt({
+        sub: 'forbidden-user',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      })
+      localStorage.setItem('access_token', unexpiredJwt)
+      localStorage.setItem('refresh_token', 'forbidden-bg-refresh')
+      localStorage.setItem('user', JSON.stringify(cachedUser))
+      localStorage.setItem('auth_validated_at', String(Date.now() - 60 * 60 * 1000))
+
+      let resolveMe!: (value: unknown) => void
+      mockFetch.mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+      await waitFor(() => expect(result.current.user).toEqual(cachedUser))
+
+      await act(async () => {
+        resolveMe({ ok: false, status: 403 })
+      })
+
+      await waitFor(() => expect(result.current.user).toBeNull())
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(localStorage.getItem('access_token')).toBeNull()
+    })
+
+    it('refuses optimistic boot when JWT exp is within the 60s expiry leeway', async () => {
+      const cachedUser = createMockUser({ id: 'near-expiry-user', onboarding_required: false })
+      const nearExpiryJwt = makeJwt({
+        sub: 'near-expiry-user',
+        exp: Math.floor(Date.now() / 1000) + 30,
+      })
+      localStorage.setItem('access_token', nearExpiryJwt)
+      localStorage.setItem('refresh_token', 'near-expiry-refresh')
+      localStorage.setItem('user', JSON.stringify(cachedUser))
+      localStorage.setItem('auth_validated_at', String(Date.now()))
+
+      let resolveMe!: (value: unknown) => void
+      mockFetch.mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+
+      // Must block until server validates/refreshes instead of booting optimistically.
+      expect(result.current.loading).toBe(true)
+      expect(result.current.user).toBeNull()
+
+      await act(async () => {
+        resolveMe({ ok: true, status: 200, json: async () => cachedUser })
+      })
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+        expect(result.current.user).toEqual(cachedUser)
+      })
+    })
+
+    it('refuses optimistic boot when JWT sub does not match cached user id', async () => {
+      const cachedUser = createMockUser({ id: 'cached-user-a', onboarding_required: false })
+      const mismatchedJwt = makeJwt({
+        sub: 'different-user-b',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      })
+      const actualServerUser = createMockUser({ id: 'different-user-b', username: 'user-b', onboarding_required: false })
+      localStorage.setItem('access_token', mismatchedJwt)
+      localStorage.setItem('refresh_token', 'mismatched-sub-refresh')
+      localStorage.setItem('user', JSON.stringify(cachedUser))
+      localStorage.setItem('auth_validated_at', String(Date.now()))
+
+      let resolveMe!: (value: unknown) => void
+      mockFetch.mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+
+      // Must NOT render cached user A when the JWT belongs to user B.
+      expect(result.current.loading).toBe(true)
+      expect(result.current.user).toBeNull()
+
+      await act(async () => {
+        resolveMe({ ok: true, status: 200, json: async () => actualServerUser })
+      })
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+        expect(result.current.user).toEqual(actualServerUser)
+      })
     })
 
     it('blocks and refreshes when JWT exp is expired even if auth_validated_at is recent', async () => {

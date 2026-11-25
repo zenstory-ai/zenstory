@@ -79,8 +79,12 @@ export const AuthIdentityQueryBoundary: React.FC<{ children: ReactNode }> = ({ c
   return <React.Fragment key={identity ?? 'anonymous'}>{children}</React.Fragment>;
 };
 
-// Cache TTL: 5 minutes (conservative to balance performance and security)
+// Cache TTL: 5 minutes (fallback for non-JWT opaque tokens in legacy/test fixtures)
 const AUTH_CACHE_TTL_MS = 5 * 60 * 1000;
+// Clock-skew / in-flight expiry leeway for optimistic JWT boot (seconds).
+// Tokens expiring within this window take the blocking validation/refresh path
+// instead of booting optimistically into a burst of doomed 401 requests.
+const OPTIMISTIC_JWT_EXPIRY_LEEWAY_SEC = 60;
 
 // Cache keys
 const CACHE_KEYS = {
@@ -143,10 +147,10 @@ const parseCachedUser = (): User | null => {
 };
 
 // Return cached user eligible for optimistic returning-user boot:
-// - For real JWT access tokens: allow instant render whenever the JWT `exp` claim
-//   is still unexpired (and `sub` matches cached user if present), even past the
-//   5-minute AUTH_CACHE_TTL_MS, while /api/auth/me revalidates in the background.
-//   Expired or claim-less JWTs fall back to blocking validation/refresh.
+// - For real JWT access tokens: require an unexpired `exp` claim with clock-skew
+//   leeway AND a string `sub` matching `cachedUser.id`, allowing instant render
+//   even past AUTH_CACHE_TTL_MS while /api/auth/me revalidates in the background.
+//   Expired, near-expiry, claim-less, or mismatched JWTs fall back to blocking validation/refresh.
 // - For non-JWT opaque tokens (legacy/test fixtures): fall back to AUTH_CACHE_TTL_MS.
 const getOptimisticCachedUser = (accessToken: string): User | null => {
   const cachedUser = parseCachedUser();
@@ -155,10 +159,14 @@ const getOptimisticCachedUser = (accessToken: string): User | null => {
   const claims = readJwtClaims(accessToken);
   if (claims) {
     const nowSec = Date.now() / 1000;
-    if (typeof claims.exp !== 'number' || !Number.isFinite(claims.exp) || claims.exp <= nowSec) {
+    if (
+      typeof claims.exp !== 'number' ||
+      !Number.isFinite(claims.exp) ||
+      claims.exp <= nowSec + OPTIMISTIC_JWT_EXPIRY_LEEWAY_SEC
+    ) {
       return null;
     }
-    if (typeof claims.sub === 'string' && claims.sub && claims.sub !== cachedUser.id) {
+    if (typeof claims.sub !== 'string' || claims.sub !== cachedUser.id) {
       return null;
     }
     return cachedUser;
@@ -298,8 +306,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 // user-dependent effects (e.g. ProjectProvider) don't refetch redundantly.
                 setUserState((current) => (current && isDeepEqual(current, hydratedUser) ? current : hydratedUser));
                 saveUserCache(hydratedUser);
-              } else if ((response.status === 401 || response.status === 403) && ownsOriginalSession()) {
+              } else if (response.status === 403 && ownsOriginalSession()) {
                 clearAuthState(setUser, 'background_validation_failed');
+              } else if (response.status === 401 && ownsOriginalSession()) {
+                // Attempt single-flight token refresh first so clock-skewed or just-expired
+                // sessions recover seamlessly; definitively revoked sessions fail refresh and
+                // have their storage cleared inside tryRefreshTokenSingleFlight.
+                if (refreshToken) {
+                  const refreshed = await attemptTokenRefresh(
+                    setUser,
+                    () => authGenerationRef.current === generation,
+                  );
+                  if (!refreshed && ownsOriginalSession()) {
+                    setUser(null);
+                  }
+                } else {
+                  clearAuthState(setUser, 'background_validation_failed');
+                }
               }
             } catch (error) {
               logger.warn('[Auth] Background validation failed (network error):', error);
