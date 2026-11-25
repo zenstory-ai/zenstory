@@ -140,3 +140,41 @@ async def test_only_if_unset_backfills_missing_or_null_without_overwriting_saved
     assert resp.status_code == 200
     assert resp.json() == {"ui_language": "en"}
     assert (await client.get("/api/auth/me", headers=headers)).json()["ui_language"] == "en"
+
+
+@pytest.mark.integration
+def test_get_ui_language_failure_preserves_outer_transaction(db_session):
+    """A failing preference read inside an open transaction must roll back only its savepoint."""
+    from sqlalchemy.exc import OperationalError
+
+    from services.core.auth_service import hash_password
+    from services.features.user_preference_service import get_ui_language
+
+    user = User(
+        username="savepoint_user",
+        email="savepoint_user@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=False,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.flush()
+    assert db_session.in_transaction()
+
+    original_get = db_session.get
+
+    def failing_get(entity, ident, *args, **kwargs):
+        if entity.__name__ == "UserPreference":
+            raise OperationalError("SELECT * FROM user_preference", {}, Exception("table missing"))
+        return original_get(entity, ident, *args, **kwargs)
+
+    db_session.get = failing_get  # type: ignore[method-assign]
+    try:
+        assert get_ui_language(db_session, user.id) is None
+    finally:
+        db_session.get = original_get  # type: ignore[method-assign]
+
+    # Outer transaction and uncommitted flush remain intact.
+    assert db_session.in_transaction()
+    db_session.commit()
+    assert db_session.exec(select(User).where(User.email == "savepoint_user@example.com")).first() is not None

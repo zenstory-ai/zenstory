@@ -19,11 +19,21 @@ def normalize_ui_language(value: str | None) -> str | None:
 
 
 def get_ui_language(session: Session, user_id: str) -> str | None:
-    """The saved language, or None. Sign-in and /me read it: a database problem here must not fail them."""
+    """The saved language, or None. Sign-in and /me read it: a database problem here must not fail them.
+
+    Uses a savepoint when already inside a transaction so a read failure rolls back
+    only this lookup and preserves any outer transaction or row locks (e.g. FOR UPDATE).
+    """
+    in_tx = session.in_transaction()
     try:
-        preference = session.get(UserPreference, user_id)
+        if in_tx:
+            with session.begin_nested():
+                preference = session.get(UserPreference, user_id)
+        else:
+            preference = session.get(UserPreference, user_id)
     except SQLAlchemyError as exc:
-        session.rollback()
+        if not in_tx:
+            session.rollback()
         log_with_context(
             logger,
             logging.WARNING,

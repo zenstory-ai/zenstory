@@ -213,6 +213,18 @@ async def resend_verification(
     # Verified accounts get no mail here anyway, so refusing every state reveals nothing.
     ensure_registration_email_allowed(normalized_email, entry="resend_verification")
 
+    # Read preferred UI language before acquiring the account row lock so an optional
+    # preference lookup never executes inside the locked transaction window.
+    def _lookup_account_language_unlocked() -> tuple[str | None, str | None]:
+        candidate_id = session.exec(
+            select(User.id).where(email_identity_matches(User.email, normalized_email))
+        ).first()
+        if not candidate_id:
+            return None, None
+        return candidate_id, normalize_ui_language(get_ui_language(session, candidate_id))
+
+    pref_user_id, pref_account_lang = await asyncio.to_thread(_lookup_account_language_unlocked)
+
     # Keep address ownership stable until sending finishes. A correction must
     # invalidate this code before releasing the old unique email address.
     user = await asyncio.to_thread(lambda: session.exec(
@@ -246,7 +258,7 @@ async def resend_verification(
         )
 
     # Send verification code: account ui_language -> explicit request language -> Accept-Language -> 'en'
-    account_lang = normalize_ui_language(await asyncio.to_thread(get_ui_language, session, user.id))
+    account_lang = pref_account_lang if pref_user_id == user.id else None
     body_lang = normalize_ui_language(request.language)
     header_lang = (
         resolve_accept_language(raw_accept_language)
