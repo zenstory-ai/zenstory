@@ -1477,4 +1477,123 @@ describe('MessageList', () => {
       expect(editTitle.compareDocumentPosition(readButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
   })
+
+  describe('active streaming thinking and tool-arg status UX', () => {
+    it('passes isStreaming=true only to the latest active thinking block, not earlier completed ones', () => {
+      const ts = new Date('2026-11-25T10:00:00Z')
+      const streamItems = [
+        { id: 'think-1', type: 'thinking_content' as const, content: '先读一遍大纲，确认人物动机', timestamp: ts },
+        {
+          id: 'tool-1',
+          type: 'tool_calls' as const,
+          toolCalls: [
+            { id: 'tc-1', tool_name: 'query_files', arguments: {}, status: 'success' as const, result: { files: [] } },
+          ],
+          timestamp: ts,
+        },
+        { id: 'think-2', type: 'thinking_content' as const, content: '大纲已读完，准备构思第二章冲突', timestamp: ts },
+      ]
+
+      render(<MessageList messages={[]} streamRenderItems={streamItems} />)
+
+      const thinkingButtons = screen.getAllByRole('button', { name: 'chat:thinking.expand' })
+      expect(thinkingButtons).toHaveLength(2)
+      // Earlier thinking block is finalized: no pulsing dots, no live preview.
+      expect(thinkingButtons[0].querySelectorAll('.animate-pulse')).toHaveLength(0)
+      expect(thinkingButtons[0].textContent).not.toContain('先读一遍大纲')
+      // Latest active thinking block pulses and shows its live rolling preview.
+      expect(thinkingButtons[1].querySelectorAll('.animate-pulse')).toHaveLength(3)
+      expect(thinkingButtons[1].textContent).toContain('大纲已读完，准备构思第二章冲突')
+    })
+
+    it('stops pulsing an earlier thinking block once prose, tool calls, or tool-arg prep status follows it', () => {
+      const ts = new Date('2026-11-25T10:00:00Z')
+      const { rerender } = render(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 'think-1', type: 'thinking_content' as const, content: '构思修改方案', timestamp: ts },
+            // Empty content placeholder must not prematurely finalize thinking.
+            { id: 'empty-seg', type: 'content' as const, content: '', timestamp: ts },
+          ]}
+        />,
+      )
+
+      let thinkingButton = screen.getByRole('button', { name: 'chat:thinking.expand' })
+      expect(thinkingButton.querySelectorAll('.animate-pulse')).toHaveLength(3)
+      expect(screen.getByTestId('thinking-live-preview')).toHaveTextContent('构思修改方案')
+
+      // Once a transient tool-arg preparation status arrives after thinking, thinking stops pulsing.
+      rerender(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 'think-1', type: 'thinking_content' as const, content: '构思修改方案', timestamp: ts },
+            { id: 'prep-1', type: 'thinking_status' as const, content: '正在准备编辑文件…', transient: true, timestamp: ts },
+          ]}
+        />,
+      )
+      thinkingButton = screen.getByRole('button', { name: 'chat:thinking.expand' })
+      expect(thinkingButton.querySelectorAll('.animate-pulse')).toHaveLength(0)
+      expect(screen.queryByTestId('thinking-live-preview')).not.toBeInTheDocument()
+      expect(screen.getByTestId('active-thinking-status')).toHaveTextContent('正在准备编辑文件…')
+
+      // Once visible prose arrives, thinking stays finalized too.
+      rerender(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 'think-1', type: 'thinking_content' as const, content: '构思修改方案', timestamp: ts },
+            { id: 'seg-1', type: 'content' as const, content: '好的，我来修改这一段。', timestamp: ts },
+          ]}
+        />,
+      )
+      thinkingButton = screen.getByRole('button', { name: 'chat:thinking.expand' })
+      expect(thinkingButton.querySelectorAll('.animate-pulse')).toHaveLength(0)
+      expect(screen.queryByTestId('thinking-live-preview')).not.toBeInTheDocument()
+    })
+
+    it('collapses consecutive transient tool-arg preparation updates in place while preserving non-transient statuses', () => {
+      const ts = new Date('2026-11-25T10:00:00Z')
+      const { rerender } = render(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 'handoff-1', type: 'thinking_status' as const, content: '接下来由内容创作者继续', timestamp: ts },
+            { id: 'prep-1', type: 'thinking_status' as const, content: '正在准备编辑文件…', transient: true, timestamp: ts },
+            { id: 'prep-2', type: 'thinking_status' as const, content: '正在准备编辑文件…（已生成 1,500 字）', transient: true, timestamp: ts },
+            { id: 'prep-3', type: 'thinking_status' as const, content: '正在准备编辑文件…（已生成 3,000 字）', transient: true, timestamp: ts },
+          ]}
+        />,
+      )
+
+      // Non-transient handoff stays visible alongside the single collapsed live prep status.
+      expect(screen.getByText('接下来由内容创作者继续')).toBeInTheDocument()
+      expect(screen.queryByText('正在准备编辑文件…')).not.toBeInTheDocument()
+      expect(screen.queryByText('正在准备编辑文件…（已生成 1,500 字）')).not.toBeInTheDocument()
+      const activeStatus = screen.getByTestId('active-thinking-status')
+      expect(activeStatus).toHaveTextContent('正在准备编辑文件…（已生成 3,000 字）')
+      expect(activeStatus.querySelector('.animate-spin')).toBeInTheDocument()
+
+      // Once tool_calls starts, the prep status is no longer active/spinning.
+      rerender(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 'handoff-1', type: 'thinking_status' as const, content: '接下来由内容创作者继续', timestamp: ts },
+            { id: 'prep-1', type: 'thinking_status' as const, content: '正在准备编辑文件…', transient: true, timestamp: ts },
+            { id: 'prep-3', type: 'thinking_status' as const, content: '正在准备编辑文件…（已生成 3,000 字）', transient: true, timestamp: ts },
+            {
+              id: 'tool-1',
+              type: 'tool_calls' as const,
+              toolCalls: [{ id: 'tc-1', tool_name: 'edit_file', arguments: {}, status: 'pending' as const }],
+              timestamp: ts,
+            },
+          ]}
+        />,
+      )
+      expect(screen.queryByTestId('active-thinking-status')).not.toBeInTheDocument()
+      expect(screen.getByText('正在准备编辑文件…（已生成 3,000 字）')).toBeInTheDocument()
+    })
+  })
 })
