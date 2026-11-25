@@ -20,7 +20,7 @@ from services.core.auth_service import get_current_superuser
 from services.subscription.defaults import FIXED_PLAN_FEATURES
 from utils.logger import get_logger, log_with_context
 
-from .schemas import AdminPlanResponse, PlanUpdateRequest
+from .schemas import AdminPlanResponse, AdminPlanUpdateResponse, PlanUpdateRequest
 
 logger = get_logger(__name__)
 
@@ -61,7 +61,7 @@ def list_plans(
     ]
 
 
-@router.put("/plans/{plan_id}", response_model=SubscriptionPlan)
+@router.put("/plans/{plan_id}", response_model=AdminPlanUpdateResponse)
 def update_plan(
     plan_id: str,
     request: PlanUpdateRequest,
@@ -151,6 +151,29 @@ def update_plan(
         session.rollback()
         raise
 
+    warnings: list[str] = []
+    usd_price_changed = (
+        plan.price_monthly_usd_cents != old_value["price_monthly_usd_cents"]
+        or plan.price_yearly_usd_cents != old_value["price_yearly_usd_cents"]
+    )
+    if plan.name == "pro" and usd_price_changed:
+        warning_msg = (
+            "Pro USD price changed in DB; update matching Creem product prices "
+            "to prevent paid orders from failing with amount_mismatch."
+        )
+        warnings.append(warning_msg)
+        log_with_context(
+            logger,
+            logging.WARNING,
+            warning_msg,
+            user_id=current_user.id,
+            plan_id=plan_id,
+            old_monthly_usd_cents=old_value["price_monthly_usd_cents"],
+            new_monthly_usd_cents=plan.price_monthly_usd_cents,
+            old_yearly_usd_cents=old_value["price_yearly_usd_cents"],
+            new_yearly_usd_cents=plan.price_yearly_usd_cents,
+        )
+
     log_with_context(
         logger,
         logging.INFO,
@@ -160,4 +183,4 @@ def update_plan(
         plan_name=plan.name,
     )
 
-    return plan
+    return AdminPlanUpdateResponse(**plan.model_dump(), warnings=warnings)

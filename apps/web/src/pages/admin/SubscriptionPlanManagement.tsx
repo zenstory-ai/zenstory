@@ -139,6 +139,8 @@ export const SubscriptionPlanManagement: React.FC = () => {
     display_name_en: "",
     price_monthly_cents: 0,
     price_yearly_cents: 0,
+    price_monthly_usd_cents: 0,
+    price_yearly_usd_cents: 0,
     is_active: true,
     featuresJson: "",
   });
@@ -167,16 +169,21 @@ export const SubscriptionPlanManagement: React.FC = () => {
         display_name_en?: string;
         price_monthly_cents?: number;
         price_yearly_cents?: number;
+        price_monthly_usd_cents?: number;
+        price_yearly_usd_cents?: number;
         is_active?: boolean;
         features?: Record<string, unknown>;
       };
     }) => adminApi.updatePlan(planId, data),
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "plans"] });
       setShowEditModal(false);
       setEditingPlan(null);
       setJsonError(null);
-      toast.success(t("plans.updateSuccess"));
+      const changedUsd =
+        variables.data.price_monthly_usd_cents !== undefined
+        || variables.data.price_yearly_usd_cents !== undefined;
+      toast.success(changedUsd ? t("plans.usdPriceSyncToast") : t("plans.updateSuccess"));
     },
     onError: () => {
       toast.error(t("plans.updateFailed"));
@@ -193,6 +200,8 @@ export const SubscriptionPlanManagement: React.FC = () => {
       display_name_en: plan.display_name_en || "",
       price_monthly_cents: plan.price_monthly_cents,
       price_yearly_cents: plan.price_yearly_cents,
+      price_monthly_usd_cents: plan.price_monthly_usd_cents ?? 0,
+      price_yearly_usd_cents: plan.price_yearly_usd_cents ?? 0,
       is_active: plan.is_active,
       featuresJson: JSON.stringify(editableFeatures, null, 2),
     });
@@ -239,6 +248,13 @@ export const SubscriptionPlanManagement: React.FC = () => {
       features.inspiration_copies_monthly = -1;
     }
 
+    const usdPriceChanged =
+      editingPlan.name === "pro"
+      && (
+        editFormData.price_monthly_usd_cents !== (editingPlan.price_monthly_usd_cents ?? 0)
+        || editFormData.price_yearly_usd_cents !== (editingPlan.price_yearly_usd_cents ?? 0)
+      );
+
     updateMutation.mutate({
       planId: editingPlan.id,
       data: {
@@ -246,6 +262,12 @@ export const SubscriptionPlanManagement: React.FC = () => {
         display_name_en: editFormData.display_name_en || undefined,
         price_monthly_cents: editFormData.price_monthly_cents,
         price_yearly_cents: editFormData.price_yearly_cents,
+        ...(usdPriceChanged
+          ? {
+              price_monthly_usd_cents: editFormData.price_monthly_usd_cents,
+              price_yearly_usd_cents: editFormData.price_yearly_usd_cents,
+            }
+          : {}),
         is_active: editFormData.is_active,
         features,
       },
@@ -410,6 +432,69 @@ export const SubscriptionPlanManagement: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {editingPlan.name === "pro" && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="admin-plans-monthlyPriceUsd" className="block text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
+                        {t("plans.monthlyPriceUsd")}
+                      </label>
+                      <div className="relative">
+                        <input id="admin-plans-monthlyPriceUsd"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editFormData.price_monthly_usd_cents / 100}
+                          onChange={(e) =>
+                            setEditFormData({
+                              ...editFormData,
+                              price_monthly_usd_cents: Math.round((parseFloat(e.target.value) || 0) * 100),
+                            })
+                          }
+                          className="w-full px-3 py-2.5 min-h-11 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary))] text-[hsl(var(--text-primary))] pr-12"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-secondary))]">
+                          USD
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label htmlFor="admin-plans-yearlyPriceUsd" className="block text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
+                        {t("plans.yearlyPriceUsd")}
+                      </label>
+                      <div className="relative">
+                        <input id="admin-plans-yearlyPriceUsd"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editFormData.price_yearly_usd_cents / 100}
+                          onChange={(e) =>
+                            setEditFormData({
+                              ...editFormData,
+                              price_yearly_usd_cents: Math.round((parseFloat(e.target.value) || 0) * 100),
+                            })
+                          }
+                          className="w-full px-3 py-2.5 min-h-11 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary))] text-[hsl(var(--text-primary))] pr-12"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-secondary))]">
+                          USD
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {(editFormData.price_monthly_usd_cents !== (editingPlan.price_monthly_usd_cents ?? 0)
+                    || editFormData.price_yearly_usd_cents !== (editingPlan.price_yearly_usd_cents ?? 0)) && (
+                    <p
+                      role="alert"
+                      className="flex items-start gap-2 rounded-lg border border-[hsl(var(--warning)/0.4)] bg-[hsl(var(--warning)/0.1)] px-3 py-2 text-xs text-[hsl(var(--warning-text))]"
+                    >
+                      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                      <span>{t("plans.usdPriceSyncWarning")}</span>
+                    </p>
+                  )}
+                </div>
+              )}
 
               <TouchCheckbox
                 checked={editFormData.is_active}

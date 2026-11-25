@@ -58,7 +58,77 @@ def _check_zpay_configuration() -> bool:
     )
 
 
-def creem_preflight_problems() -> list[str] | None:
+def _verify_creem_products_against_db(
+    settings,
+    *,
+    http_client=None,
+    session=None,
+) -> list[str]:
+    """Verify configured Creem product prices/currency match the DB pro plan USD prices."""
+    from sqlmodel import select
+
+    from database import get_session
+    from models.subscription import SubscriptionPlan
+    from services.subscription.creem_service import creem_service
+    from services.subscription.payment_fulfillment import PaymentSyncError
+
+    problems: list[str] = []
+    owned_gen = None
+    db = session
+    if db is None:
+        owned_gen = get_session()
+        db = next(owned_gen)
+    try:
+        pro_plan = db.exec(
+            select(SubscriptionPlan).where(
+                SubscriptionPlan.name == "pro",
+                SubscriptionPlan.is_active.is_(True),
+            )
+        ).first()
+    except Exception as exc:
+        return [f"could not read DB pro plan for Creem product verification ({type(exc).__name__})"]
+    finally:
+        if owned_gen is not None:
+            owned_gen.close()
+
+    if pro_plan is None:
+        return ["active 'pro' subscription_plan row not found in DB for Creem price check"]
+
+    checks = [
+        ("month", settings.product_id_pro_month, pro_plan.price_monthly_usd_cents),
+        ("year", settings.product_id_pro_year, pro_plan.price_yearly_usd_cents),
+    ]
+    for cycle, product_id, db_cents in checks:
+        if db_cents <= 0:
+            problems.append(f"DB pro plan {cycle} USD price is not positive ({db_cents})")
+            continue
+        try:
+            product = creem_service.query_remote_product(product_id, settings, client=http_client)
+        except PaymentSyncError as exc:
+            problems.append(f"Creem {cycle} product {product_id} lookup failed ({exc.reason})")
+            continue
+        if product is None:
+            problems.append(f"Creem {cycle} product {product_id} not found (404)")
+            continue
+        remote_price = product.get("price")
+        remote_currency = str(product.get("currency") or "").strip().upper()
+        remote_status = str(product.get("status") or "").strip().lower()
+        if remote_status and remote_status != "active":
+            problems.append(f"Creem {cycle} product {product_id} status is '{remote_status}', expected 'active'")
+        if remote_currency != "USD" or remote_price != db_cents:
+            problems.append(
+                f"Creem {cycle} product {product_id} ({remote_currency or '<unset>'} {remote_price}) "
+                f"does not match DB pro plan (USD {db_cents})"
+            )
+    return problems
+
+
+def creem_preflight_problems(
+    *,
+    verify_products: bool = False,
+    http_client=None,
+    session=None,
+) -> list[str] | None:
     """Creem problems for this environment, or None when checkout is disabled."""
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from config.payment_settings import get_creem_settings
@@ -70,18 +140,33 @@ def creem_preflight_problems() -> list[str] | None:
     environment = os.getenv("ENVIRONMENT", "").strip().lower()
     if environment == "production" and settings.test_mode:
         problems.append("CREEM_TEST_MODE must be false in production")
+    if verify_products and not problems:
+        problems.extend(
+            _verify_creem_products_against_db(
+                settings,
+                http_client=http_client,
+                session=session,
+            )
+        )
     return problems
 
 
-def _check_creem_configuration() -> bool:
-    problems = creem_preflight_problems()
+def _check_creem_configuration(*, verify_products: bool = False) -> bool:
+    problems = creem_preflight_problems(verify_products=verify_products)
     if problems is None:
         _print_result(True, "Creem checkout configuration", "disabled")
         return True
+    detail = (
+        "configured (products matched DB USD prices)"
+        if not problems and verify_products
+        else "configured"
+        if not problems
+        else "; ".join(problems)
+    )
     return _print_result(
         not problems,
         "Creem checkout configuration",
-        "configured" if not problems else "; ".join(problems),
+        detail,
     )
 
 
@@ -216,6 +301,11 @@ def main() -> int:
         action="store_true",
         help="Write, read back and delete one synthetic object in the configured S3 bucket",
     )
+    parser.add_argument(
+        "--verify-creem-products",
+        action="store_true",
+        help="Verify configured Creem product prices/currency via GET /v1/products against DB pro plan",
+    )
     args = parser.parse_args()
 
     _load_dotenv_if_available()
@@ -299,7 +389,7 @@ def main() -> int:
     )
 
     all_ok &= _check_zpay_configuration()
-    all_ok &= _check_creem_configuration()
+    all_ok &= _check_creem_configuration(verify_products=args.strict or args.verify_creem_products)
     all_ok &= _check_upload_storage(probe=args.probe_upload_storage, strict=args.strict)
 
     versions_dir = Path(__file__).resolve().parent.parent / "alembic" / "versions"

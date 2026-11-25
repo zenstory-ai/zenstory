@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, Index, String, UniqueConstraint, text
+from sqlalchemy import Column, Index, Integer, String, Text, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 from .utils import generate_uuid
@@ -48,3 +48,13 @@ class PaymentOrder(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     paid_at: datetime | None = None
     fulfilled_at: datetime | None = None
+    refunded_at: datetime | None = None
+    refunded_amount_cents: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default=text("0")),
+    )
+    refund_ids: str | None = Field(
+        default=None,
+        sa_column=Column(Text, nullable=True),
+    )
+    disputed_at: datetime | None = None

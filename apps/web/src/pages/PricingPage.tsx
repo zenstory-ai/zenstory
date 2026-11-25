@@ -8,6 +8,7 @@ import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
+import { paymentApi, paymentQueryKeys } from "../lib/paymentApi";
 import { cn } from "../lib/utils";
 import {
   filterAvailableMetrics,
@@ -97,7 +98,15 @@ export default function PricingPage() {
     ? t("dashboard:billing.ctaRenewPro", "续费 Pro")
     : t("dashboard:billing.ctaUpgradePro", "开通 Pro");
 
-  const showUsdPricing = usesUsdPricing(i18n.language);
+  const { data: paymentOptions } = useQuery({
+    queryKey: paymentQueryKeys.options(),
+    queryFn: () => paymentApi.getOptions(),
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  const showUsdPricing = usesUsdPricing(i18n.language)
+    && (paymentOptions?.payment_methods?.includes("card") ?? false);
   const getDisplayPrices = (plan: (typeof sortedPlans)[number]) =>
     showUsdPricing && plan.name === "pro"
       ? {

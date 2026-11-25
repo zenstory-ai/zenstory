@@ -29,6 +29,7 @@ from services.subscription.payment_fulfillment import (
     SyncOutcome,
     new_out_trade_no,
     record_dispute,
+    record_paid_amount_mismatch,
     record_refund,
     settle_paid_order,
 )
@@ -109,6 +110,34 @@ def _extract_amount(obj: dict[str, Any], order_obj: dict[str, Any] | None) -> in
                 parsed = _parse_amount_cents(source.get(key))
                 if parsed is not None:
                     return parsed
+    return None
+
+
+def _extract_refund_amount(obj: dict[str, Any]) -> int | None:
+    """Extract refund amount from the refund object itself (never from nested order.amount)."""
+    for key in ("refund_amount", "amount"):
+        parsed = _parse_amount_cents(obj.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _extract_out_trade_no(obj: dict[str, Any]) -> str | None:
+    """Look for our out_trade_no in request_id or metadata on top-level or nested order/checkout."""
+    candidates: list[dict[str, Any]] = [obj]
+    for nested_key in ("checkout", "order", "transaction"):
+        nested = obj.get(nested_key)
+        if isinstance(nested, dict):
+            candidates.append(nested)
+    for source in candidates:
+        req_id = _extract_id(source.get("request_id"))
+        if req_id:
+            return req_id
+        metadata = source.get("metadata")
+        if isinstance(metadata, dict):
+            meta_otn = _extract_id(metadata.get("out_trade_no"))
+            if meta_otn:
+                return meta_otn
     return None
 
 
@@ -303,6 +332,46 @@ class CreemService:
             raise PaymentSyncError("provider_invalid_response")
         return data
 
+    def query_remote_product(
+        self,
+        product_id: str,
+        settings: CreemSettings,
+        *,
+        client: httpx.Client | None = None,
+    ) -> dict[str, Any] | None:
+        url = f"{settings.api_base_url}/products"
+        try:
+            if client is not None:
+                response = client.get(
+                    url,
+                    params={"product_id": product_id},
+                    headers={"x-api-key": settings.api_key},
+                )
+            else:
+                with httpx.Client(
+                    timeout=CREEM_HTTP_TIMEOUT,
+                    transport=self.http_transport,
+                    follow_redirects=False,
+                ) as owned_client:
+                    response = owned_client.get(
+                        url,
+                        params={"product_id": product_id},
+                        headers={"x-api-key": settings.api_key},
+                    )
+        except httpx.HTTPError:
+            raise PaymentSyncError("provider_unavailable") from None
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise PaymentSyncError("provider_unavailable")
+        try:
+            data = response.json()
+        except ValueError:
+            raise PaymentSyncError("provider_invalid_response") from None
+        if not isinstance(data, dict):
+            raise PaymentSyncError("provider_invalid_response")
+        return data
+
     def _find_creem_order(
         self,
         session: Session,
@@ -442,6 +511,17 @@ class CreemService:
             )
             session.commit()
 
+        if order.currency.upper() != currency.upper() or order.amount_cents != amount_cents:
+            record_paid_amount_mismatch(
+                session,
+                order=order,
+                trade_no=trade_no,
+                actual_amount_cents=amount_cents,
+                actual_currency=currency,
+                channel="webhook",
+            )
+            raise CallbackError("amount_mismatch")
+
         settle_paid_order(
             session,
             provider="creem",
@@ -459,20 +539,40 @@ class CreemService:
         if refund_status and refund_status not in {"succeeded", "completed", "refunded"}:
             return
         refund_id = _extract_id(obj.get("id"))
+        out_trade_no = _extract_out_trade_no(obj)
         trade_no = _extract_id(obj.get("order"))
         checkout_id = _extract_id(obj.get("checkout"))
-        order = self._find_creem_order(session, trade_no=trade_no, checkout_id=checkout_id)
+        refund_amount_cents = _extract_refund_amount(obj)
+        order = self._find_creem_order(
+            session,
+            out_trade_no=out_trade_no,
+            trade_no=trade_no,
+            checkout_id=checkout_id,
+        )
         if not order:
             raise CallbackError("unknown_order")
-        record_refund(session, order=order, refund_id=refund_id, channel="webhook")
+        record_refund(
+            session,
+            order=order,
+            refund_id=refund_id,
+            refund_amount_cents=refund_amount_cents,
+            trade_no=trade_no,
+            channel="webhook",
+        )
 
     def _handle_dispute_created(self, session: Session, obj: dict[str, Any]) -> None:
         dispute_id = _extract_id(obj.get("id"))
+        out_trade_no = _extract_out_trade_no(obj)
         trade_no = _extract_id(obj.get("order"))
         if not trade_no and isinstance(obj.get("transaction"), dict):
             trade_no = _extract_id(obj["transaction"].get("order"))
         checkout_id = _extract_id(obj.get("checkout"))
-        order = self._find_creem_order(session, trade_no=trade_no, checkout_id=checkout_id)
+        order = self._find_creem_order(
+            session,
+            out_trade_no=out_trade_no,
+            trade_no=trade_no,
+            checkout_id=checkout_id,
+        )
         if not order:
             raise CallbackError("unknown_order")
         record_dispute(session, order=order, dispute_id=dispute_id)
@@ -522,6 +622,19 @@ class CreemService:
             if not expected_product or remote_product_id != expected_product:
                 raise PaymentSyncError("order_mismatch")
             amount_cents = order.amount_cents
+        elif currency.upper() != order.currency.upper() or amount_cents != order.amount_cents:
+            try:
+                record_paid_amount_mismatch(
+                    session,
+                    order=order,
+                    trade_no=trade_no,
+                    actual_amount_cents=amount_cents,
+                    actual_currency=currency,
+                    channel="query",
+                )
+            except CallbackError as exc:
+                raise PaymentSyncError(exc.reason) from exc
+            raise PaymentSyncError("amount_mismatch")
 
         try:
             settle_paid_order(

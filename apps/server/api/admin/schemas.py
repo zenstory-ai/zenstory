@@ -271,6 +271,26 @@ class AdminPlanResponse(BaseModel):
     updated_at: datetime
 
 
+class AdminPlanUpdateResponse(BaseModel):
+    """Updated subscription plan plus any operator warnings (e.g. Creem USD price sync)."""
+
+    id: str
+    name: str
+    display_name: str
+    display_name_en: str | None = None
+    price_monthly_cents: int
+    price_yearly_cents: int
+    price_monthly_usd_cents: int = 0
+    price_yearly_usd_cents: int = 0
+    stripe_price_id_monthly: str | None = None
+    stripe_price_id_yearly: str | None = None
+    features: dict[str, Any]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    warnings: list[str] = Field(default_factory=list)
+
+
 class PlanUpdateRequest(BaseModel):
     """Request body for updating a subscription plan"""
     display_name: str | None = None

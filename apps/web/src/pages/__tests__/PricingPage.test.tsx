@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetCatalog = vi.fn();
 const mockGetStatus = vi.fn();
+const mockGetPaymentOptions = vi.fn();
 const { trackEventMock } = vi.hoisted(() => ({
   trackEventMock: vi.fn(),
 }));
@@ -63,6 +64,15 @@ vi.mock("../../lib/subscriptionApi", () => ({
   },
   subscriptionQueryKeys: {
     status: () => ["subscription-status", "test-user"],
+  },
+}));
+
+vi.mock("../../lib/paymentApi", () => ({
+  paymentApi: {
+    getOptions: () => mockGetPaymentOptions(),
+  },
+  paymentQueryKeys: {
+    options: () => ["payment-options"],
   },
 }));
 
@@ -191,6 +201,7 @@ describe("PricingPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetStatus.mockResolvedValue({ tier: "free", status: "active" });
+    mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["alipay", "card"] });
     mockUser = null;
     mockLoading = false;
     mockLanguage = "zh-CN";
@@ -286,8 +297,9 @@ describe("PricingPage", () => {
     });
   });
 
-  it("prices Pro in USD for English readers and takes the annual saving from the USD prices", async () => {
+  it("prices Pro in USD for English readers when card payment is enabled and takes the annual saving from the USD prices", async () => {
     mockLanguage = "en";
+    mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["alipay", "card"] });
     mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
 
     render(<PricingPage />, { wrapper: createWrapper() });
@@ -298,6 +310,18 @@ describe("PricingPage", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: /年付/ }));
     expect(await screen.findByText("$79/年")).toBeInTheDocument();
+  });
+
+  it("keeps CNY pricing for English readers when card payment is not enabled", async () => {
+    mockLanguage = "en";
+    mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["alipay"] });
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+
+    render(<PricingPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText("¥49/月")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /年付/ })).toHaveTextContent("省 32%");
+    expect(screen.queryByText(/\$9\.99/)).not.toBeInTheDocument();
   });
 
   it("covers difference-only filter behavior", async () => {

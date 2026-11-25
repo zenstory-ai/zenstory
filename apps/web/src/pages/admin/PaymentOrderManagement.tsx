@@ -90,7 +90,7 @@ export default function PaymentOrderManagement() {
   const cycleLabel = (order: AdminPaymentOrder) => t(`paymentOrders.cycles.${order.cycle}`, order.cycle);
   const isPaidNotFulfilled = (order: AdminPaymentOrder) =>
     (order.status === "paid" && order.fulfillment_status !== "succeeded")
-    || order.fulfillment_status === "failed"
+    || ((order.status === "pending" || order.status === "paid") && order.fulfillment_status === "failed")
     || order.status === "disputed";
   const openDetails = (order: AdminPaymentOrder) => {
     detailsRequestRef.current += 1;

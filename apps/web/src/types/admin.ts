@@ -224,6 +224,8 @@ export interface PlanUpdateRequest {
   display_name_en?: string;
   price_monthly_cents?: number;
   price_yearly_cents?: number;
+  price_monthly_usd_cents?: number;
+  price_yearly_usd_cents?: number;
   features?: Record<string, unknown>;
   is_active?: boolean;
 }
