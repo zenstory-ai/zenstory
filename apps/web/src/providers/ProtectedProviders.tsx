@@ -11,6 +11,7 @@ import { SkillTriggerProvider } from "../contexts/SkillTriggerContext";
  * 用于 Dashboard、项目编辑器等需要认证的路由
  * 包含：
  * - ProjectProvider: 项目管理
+ * - MaterialLibraryProvider: 素材库状态（按需懒激活，未打开素材面板时不发请求）
  * - MaterialAttachmentProvider: 要素管理
  * - TextQuoteProvider: 文本引用管理
  *

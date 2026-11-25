@@ -53,13 +53,18 @@ export const MaterialsPane: React.FC = () => {
   const { currentProjectId, triggerFileTreeRefresh } = useProject();
   const { addMaterial, removeMaterial, isMaterialAttached, isAtLimit, maxMaterials = 5 } = useMaterialAttachment();
   const materialLib = useMaterialLibraryContext();
-  const isLibraryLoading = materialLib.isLoading || (materialLib.isFetching && materialLib.libraries.length === 0);
-  const { refreshIfStale } = materialLib;
+  const isLibraryLoading =
+    materialLib.isActivated === false ||
+    materialLib.isLoading ||
+    (materialLib.isFetching && materialLib.libraries.length === 0);
+  const { activate, refreshIfStale } = materialLib;
 
-  // Decompositions may have finished since the summary was cached.
+  // Activate on-demand library queries when the Materials pane opens, and
+  // refresh if decompositions may have finished since the summary was cached.
   useEffect(() => {
+    activate?.();
     refreshIfStale();
-  }, [refreshIfStale]);
+  }, [activate, refreshIfStale]);
 
   // Entity lists state
   const [entityLists, setEntityLists] = useState<Record<string, { id: number; name: string }[]>>({});

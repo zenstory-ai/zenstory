@@ -23,7 +23,21 @@ export interface PreviewEntityInfo {
   entityId: number;
 }
 
+export interface UseMaterialLibraryOptions {
+  /**
+   * Whether entitlement and summary queries run immediately on mount.
+   * Defaults to `true` when called directly; `MaterialLibraryProvider` passes
+   * `false` so protected routes do not query materials APIs until a Materials
+   * consumer activates the library.
+   */
+  enabled?: boolean;
+}
+
 export interface MaterialLibraryState {
+  /** Whether on-demand loading has been activated for this library instance. */
+  isActivated: boolean;
+  /** Activate lazy entitlement & summary queries (idempotent). */
+  activate: () => void;
   /** All completed material libraries */
   libraries: LibrarySummaryItem[];
   /** Loading state for library list */
@@ -58,7 +72,13 @@ export interface MaterialLibraryState {
   clearPreview: () => void;
 }
 
-export function useMaterialLibrary(): MaterialLibraryState {
+export function useMaterialLibrary({ enabled = true }: UseMaterialLibraryOptions = {}): MaterialLibraryState {
+  const [activated, setActivated] = useState(enabled);
+  const isActive = enabled || activated;
+  const activate = useCallback(() => {
+    setActivated(true);
+  }, []);
+
   const [expandedNovels, setExpandedNovels] = useState<Set<number>>(new Set());
   const [expandedTypes, setExpandedTypes] = useState<Map<string, boolean>>(new Map());
   const [preview, setPreview] = useState<MaterialPreviewResponse | null>(null);
@@ -69,9 +89,12 @@ export function useMaterialLibrary(): MaterialLibraryState {
   const previewSeqRef = useRef(0);
 
   // Entitlement first: free plans never request the paid summary endpoint.
+  // Gated by `isActive` so mounting MaterialLibraryProvider on /dashboard or
+  // /project/:id (files tab) makes zero API calls until Materials is opened.
   const { data: subscriptionStatus, isLoading: isAccessLoading } = useQuery({
     queryKey: subscriptionQueryKeys.status(),
     queryFn: () => subscriptionApi.getStatus(),
+    enabled: isActive,
   });
   const paidAccess = hasMaterialsLibraryAccess(
     subscriptionStatus?.features as Record<string, unknown> | undefined,
@@ -81,7 +104,7 @@ export function useMaterialLibrary(): MaterialLibraryState {
   const { data: quota, isLoading: isQuotaLoading } = useQuery({
     queryKey: subscriptionQueryKeys.quota(),
     queryFn: () => subscriptionApi.getQuota(),
-    enabled: paidAccess === false,
+    enabled: isActive && paidAccess === false,
   });
   const access =
     paidAccess === false && quota?.material_trial?.used === true ? true : paidAccess;
@@ -92,11 +115,13 @@ export function useMaterialLibrary(): MaterialLibraryState {
     staleTime: 5 * 60 * 1000, // 5 minutes
     // Unknown entitlement (status failed to load) still tries; a 402 then
     // switches the UI to the upgrade notice instead of an error.
-    enabled: !isAccessLoading && !(paidAccess === false && isQuotaLoading) && access !== false,
+    enabled: isActive && !isAccessLoading && !(paidAccess === false && isQuotaLoading) && access !== false,
     retry: (failureCount, retryError) =>
       !isFeatureNotIncludedError(retryError) && failureCount < 1,
   });
-  const accessDenied = access === false || isFeatureNotIncludedError(error);
+  const isResolvingTrialQuota = paidAccess === false && isQuotaLoading;
+  const accessDenied =
+    isActive && !isResolvingTrialQuota && (access === false || isFeatureNotIncludedError(error));
 
   const toggleNovel = useCallback((novelId: number) => {
     setExpandedNovels(prev => {
@@ -158,21 +183,31 @@ export function useMaterialLibrary(): MaterialLibraryState {
   }, []);
 
   const handleRefetch = useCallback(async () => {
+    if (!isActive) {
+      setActivated(true);
+      return;
+    }
     await refetch();
-  }, [refetch]);
+  }, [isActive, refetch]);
 
   const refreshIfStale = useCallback(() => {
+    if (!isActive) {
+      setActivated(true);
+      return;
+    }
     if (accessDenied || !dataUpdatedAt) return;
     if (Date.now() - dataUpdatedAt > SUMMARY_REFRESH_AFTER_MS) {
       void refetch();
     }
-  }, [accessDenied, dataUpdatedAt, refetch]);
+  }, [isActive, accessDenied, dataUpdatedAt, refetch]);
 
   return {
-    libraries: accessDenied ? [] : data ?? [],
-    isLoading: Boolean(isAccessLoading || isLoading),
-    isFetching: Boolean(isFetching),
-    error: accessDenied ? null : (error as Error | null),
+    isActivated: isActive,
+    activate,
+    libraries: !isActive || accessDenied ? [] : data ?? [],
+    isLoading: Boolean(isActive && (isAccessLoading || isResolvingTrialQuota || isLoading)),
+    isFetching: Boolean(isActive && isFetching),
+    error: !isActive || accessDenied ? null : (error as Error | null),
     accessDenied,
     refetch: handleRefetch,
     refreshIfStale,
