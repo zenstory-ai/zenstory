@@ -34,10 +34,23 @@ from agent.openai_agents.repeat_read_guard import GUARD_ERROR_TYPES
 # 第 2 次（原样重试）在错误里附上「别再原样重试」的提示，第 3 次仍旧失败就停。
 MAX_IDENTICAL_TOOL_FAILURES = 3
 
-# 一次请求内累计失败多少次后熔断（不要求参数/错误相同），兜住「每次换一点
-# 参数但始终失败」的乱试。正常的纠错（例如 edit_file 片段不唯一后换更长片段）
+# 一次请求内连续未推进（无跨文件有效写入）累计失败多少次后熔断（不要求参数/错误相同），
+# 兜住「每次换一点参数但始终失败」的乱试。正常的纠错（例如 edit_file 片段不唯一后换更长片段）
 # 一般一两次就能成功，10 次远高于正常恢复所需。
 MAX_TOOL_FAILURES_PER_REQUEST = 10
+
+# 一次请求内即使穿插了跨文件有效写入，累计失败达到该倍数（默认 3 * 10 = 30）也强制熔断，
+# 防止多文件交替空转无限循环。
+MAX_LIFETIME_TOOL_FAILURES_MULTIPLIER = 3
+
+# 允许作为「跨文件有效写入推进」重置连续失败计数的写工具。
+_MUTATION_TOOL_NAMES: frozenset[str] = frozenset({
+    "edit_file",
+    "create_file",
+    "write_chapter",
+    "rename_file",
+    "delete_file",
+})
 
 # 同一条模型回复里并列发出多个流式 create_file / write_chapter 时，第 1 个占住待写槽位，
 # 同批其余调用在模型看到 awaiting_body 之前就被同步挡回（pending_empty_file_unwritten）。
@@ -158,22 +171,62 @@ def _error_fingerprint(payload: dict[str, Any]) -> str:
     return text
 
 
-def _parse_error_payload(output_text: str) -> dict[str, Any] | None:
-    """工具输出是否是失败结果；是则返回解析后的 payload。
-
-    项目工具统一以 {"status": "error", "error": ...} 报错（mcp_tools、tool_error_text）；其余 status 都不算失败。
-    """
+def _parse_json_dict(output_text: str) -> dict[str, Any] | None:
     if not output_text:
         return None
     try:
         payload = json.loads(output_text)
     except (json.JSONDecodeError, TypeError):
         return None
-    if not isinstance(payload, dict):
-        return None
-    if payload.get("status") == "error":
+    return payload if isinstance(payload, dict) else None
+
+
+def _parse_error_payload(output_text: str) -> dict[str, Any] | None:
+    """工具输出是否是失败结果；是则返回解析后的 payload。
+
+    项目工具统一以 {"status": "error", "error": ...} 报错（mcp_tools、tool_error_text）；其余 status 都不算失败。
+    """
+    payload = _parse_json_dict(output_text)
+    if payload is not None and payload.get("status") == "error":
         return payload
     return None
+
+
+def _is_guard_skipped_payload(payload: dict[str, Any] | None) -> bool:
+    """RepeatEditGuard 的软跳过回执：既不计为失败，也不当作有效写入清零连续失败或恢复族。"""
+    if payload is None:
+        return False
+    if payload.get("guard_skipped") is True:
+        return True
+    if str(payload.get("status") or "").strip().lower() == "skipped":
+        return True
+    return payload.get("error_type") in EDIT_GUARD_ERROR_TYPES
+
+
+def _verified_mutated_file_id(
+    tool_name: str,
+    raw_arguments: str,
+    payload: dict[str, Any] | None,
+) -> str:
+    """工具结果代表一次真实落盘的文件改动时返回目标 file_id，否则返回空串。
+
+    未写正文的空占位（awaiting_body=True）、无改动回执（mutation_applied=False）、
+    全失败（all_failed=True）与纯只读/元数据工具都不算有效文件改动。
+    """
+    if tool_name not in _MUTATION_TOOL_NAMES or payload is None:
+        return ""
+    status = str(payload.get("status") or "").strip().lower()
+    if status not in {"success", "partial"}:
+        return ""
+    if payload.get("guard_skipped") is True or payload.get("mutation_applied") is False:
+        return ""
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    if data.get("all_failed") is True or data.get("awaiting_body") is True:
+        return ""
+    if data.get("mutation_applied") is False:
+        return ""
+    raw_id = data.get("id") or payload.get("id") or _file_id_from_arguments(raw_arguments)
+    return raw_id.strip() if isinstance(raw_id, str) and raw_id.strip() else ""
 
 
 def _preview(text: str) -> str:
@@ -246,30 +299,49 @@ class ToolFailureBreaker:
 
     max_identical_failures: int = MAX_IDENTICAL_TOOL_FAILURES
     max_failures_per_request: int = MAX_TOOL_FAILURES_PER_REQUEST
+    max_lifetime_failures: int | None = None
     total_failures: int = 0
+    consecutive_failures: int = 0
     trip: ToolFailureTrip | None = None
     _streaks: dict[tuple[str, str], _CallStreak] = field(default_factory=dict)
     _recovery_families: dict[tuple[str, str, str], int] = field(default_factory=dict)
+    _last_mutated_file_id: str = ""
 
     @property
     def is_open(self) -> bool:
         return self.trip is not None
 
+    @property
+    def lifetime_failure_cap(self) -> int:
+        if self.max_lifetime_failures is not None:
+            return self.max_lifetime_failures
+        return self.max_failures_per_request * MAX_LIFETIME_TOOL_FAILURES_MULTIPLIER
+
     def observe(self, tool_name: str, raw_arguments: str, output_text: str) -> str:
         """记录一次工具结果，返回交给模型的输出（重复失败时附带不要原样重试的提示）。"""
         key = (tool_name, _normalize_arguments(raw_arguments))
-        payload = _parse_error_payload(output_text)
+        raw_payload = _parse_json_dict(output_text)
+        if _is_guard_skipped_payload(raw_payload):
+            return output_text
+        payload = raw_payload if raw_payload is not None and raw_payload.get("status") == "error" else None
         if payload is not None and payload.get("error_type") in (
             GUARD_ERROR_TYPES | EDIT_GUARD_ERROR_TYPES | _PARALLEL_BATCH_ORDERING_ERROR_TYPES
         ):
             return output_text
         if payload is None:
-            # 同一调用成功：它的连续失败计数清零。累计失败数不清零——那是整次请求的兜底。
+            # 同一调用成功：它的连续失败计数清零。
             self._streaks.pop(key, None)
             _clear_recovery_families(self._recovery_families, tool_name, raw_arguments)
+            # 跨文件的真实有效写入（非空占位、非无改动）推进了批量任务，重置连续失败计数；
+            # 同文件重复写入不重置，防止单文件交替空转；total_failures 仍单调递增并受 lifetime_failure_cap 兜底。
+            mutated_file_id = _verified_mutated_file_id(tool_name, raw_arguments, raw_payload)
+            if mutated_file_id and mutated_file_id != self._last_mutated_file_id:
+                self.consecutive_failures = 0
+                self._last_mutated_file_id = mutated_file_id
             return output_text
 
         self.total_failures += 1
+        self.consecutive_failures += 1
         streak: _CallStreak | None = None
         if payload.get("error_type") not in _ORDERING_ERROR_TYPES:
             fingerprint = _error_fingerprint(payload)
@@ -290,7 +362,7 @@ class ToolFailureBreaker:
         last_error = _preview(str(payload.get("error") or ""))
         if self.trip is None:
             # 只有无效文件 id 这一族提前熔断（模型在猜 id）。同一文件的锚点失败只附恢复提示、
-            # 计入请求累计上限：生产 11-01～03 这类失败多是长 old 差一两个字、大批编辑整批回滚，
+            # 计入连续/累计失败上限：生产 11-01～03 这类失败多是长 old 差一两个字、大批编辑整批回滚，
             # 改前 78% 之后都在同一文件上改成功了，三次即停反而掐断能自己恢复的轮次。
             if recovery_key == _FILE_NOT_FOUND_FAMILY and recovery_count >= self.max_identical_failures:
                 self.trip = ToolFailureTrip(
@@ -312,12 +384,20 @@ class ToolFailureBreaker:
                     threshold=self.max_identical_failures,
                     last_error=last_error,
                 )
-            elif self.total_failures >= self.max_failures_per_request:
+            elif self.consecutive_failures >= self.max_failures_per_request:
+                self.trip = ToolFailureTrip(
+                    reason=TRIP_REASON_TOTAL,
+                    tool_name=tool_name,
+                    failures=self.consecutive_failures,
+                    threshold=self.max_failures_per_request,
+                    last_error=last_error,
+                )
+            elif self.total_failures >= self.lifetime_failure_cap:
                 self.trip = ToolFailureTrip(
                     reason=TRIP_REASON_TOTAL,
                     tool_name=tool_name,
                     failures=self.total_failures,
-                    threshold=self.max_failures_per_request,
+                    threshold=self.lifetime_failure_cap,
                     last_error=last_error,
                 )
 
@@ -382,6 +462,7 @@ def _with_recovery_hint(output_text: str, error_type: str, count: int, threshold
 
 __all__ = [
     "MAX_IDENTICAL_TOOL_FAILURES",
+    "MAX_LIFETIME_TOOL_FAILURES_MULTIPLIER",
     "MAX_TOOL_FAILURES_PER_REQUEST",
     "TRIP_REASON_IDENTICAL",
     "TRIP_REASON_RECOVERY",

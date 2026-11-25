@@ -107,17 +107,20 @@ def test_post_write_chapter_second_hint_and_third_block(monkeypatch):
         assert str(POST_WRITE_HINT_AT) in out2["edit_hint"]
         assert guard.hinted_edits == 1
 
-        # 3rd clean edit is blocked synchronously with word_count
+        # 3rd clean edit is soft-skipped synchronously with word_count (non-error status)
         args3 = _edit_args("ch1", [{"op": "replace", "old": "甲" * 20, "new": "丁" * 10}])
         plan3 = guard.plan("edit_file", args3)
         assert plan3.blocked_output is not None
         out3 = json.loads(plan3.blocked_output)
-        assert out3["status"] == "error"
+        assert out3["status"] == "skipped"
+        assert out3["guard_skipped"] is True
+        assert out3["reason"] == "post_write_limit"
         assert out3["error_type"] == EDIT_REPEAT_LIMIT_ERROR_TYPE
+        assert "error" not in out3
         assert out3["mutation_applied"] is False
         assert out3["edits_applied"] == 0
         assert out3["word_count"] == 2210
-        assert "2210" in out3["error"]
+        assert "2210" in out3["message"]
         assert guard.blocked_edits == 1
         assert POST_WRITE_BLOCK_AT == 3
 
@@ -160,13 +163,16 @@ def test_existing_file_fourth_hint_and_fifth_micro_shaving_block():
                 assert "edit_hint" in out
                 assert "write_chapter" in out["edit_hint"]
 
-        # 5th call: consecutive_micro_calls == 4 >= 2 -> blocked!
+        # 5th call: consecutive_micro_calls == 4 >= 2 -> soft-skipped!
         args5 = _edit_args("ex1", [{"op": "replace", "old": "新" * 30, "new": "改" * 20}])
         plan5 = guard.plan("edit_file", args5)
         assert plan5.blocked_output is not None
         out5 = json.loads(plan5.blocked_output)
-        assert out5["status"] == "error"
+        assert out5["status"] == "skipped"
+        assert out5["guard_skipped"] is True
+        assert out5["reason"] == "existing_micro_loop"
         assert out5["error_type"] == EDIT_REPEAT_LIMIT_ERROR_TYPE
+        assert "error" not in out5
         assert out5["word_count"] == wc
         assert EXISTING_MICRO_BLOCK_AT == 5
         assert guard.blocked_edits == 1
@@ -237,11 +243,13 @@ async def test_edit_repeat_limit_excluded_from_tool_failure_breaker_and_adapter(
             assert r2["status"] == "success" and "edit_hint" in r2
             assert executed == 2
 
-            # Repeated blocked calls (even 12x with identical args) NEVER trip ToolFailureBreaker!
+            # Repeated soft-skipped calls (even 12x with identical args) NEVER trip ToolFailureBreaker!
             for _ in range(12):
                 rb = json.loads(await tools["edit_file"].on_invoke_tool(req_ctx, raw))
-                assert rb["status"] == "error"
+                assert rb["status"] == "skipped"
+                assert rb["guard_skipped"] is True
                 assert rb["error_type"] == EDIT_REPEAT_LIMIT_ERROR_TYPE
+                assert rb["mutation_applied"] is False
                 assert rb["word_count"] == 2030
 
             assert executed == 2, "blocked edits must never invoke underlying tool handler"
@@ -464,3 +472,126 @@ def test_multi_file_edits_across_ten_files_tracked_independently():
 
     assert guard.blocked_edits == 0
     assert guard.hinted_edits == 0
+
+
+@pytest.mark.unit
+def test_post_write_allows_one_bulk_self_check_revision_before_post_write_limit():
+    """Newly written chapter: a bulk revision (>=6 edits) is allowed even after 2 small edits;
+    a 2nd bulk revision or any further small edit is then soft-skipped cleanly."""
+    req_ctx = AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
+    )
+    try:
+        req_ctx.mark_chapter_body_saved("ch1", "第1章 雨夜", "draft")
+        guard = RepeatEditGuard(request_context=req_ctx)
+
+        small = _edit_args("ch1", [{"op": "replace", "old": "旧句", "new": "新句"}])
+        out1 = _run_edit(guard, small, _edit_ok("ch1", new_length=2200, new_word_count=2150))
+        out2 = _run_edit(guard, small, _edit_ok("ch1", new_length=2190, new_word_count=2140))
+        assert out1["status"] == "success" and out2["status"] == "success"
+        assert "edit_hint" in out2
+
+        # 3rd call is a bulk self-check batch (>= BULK_EDIT_MIN_ITEMS): MUST be allowed!
+        bulk = _edit_args(
+            "ch1",
+            [{"op": "replace", "old": f"旧段{i}", "new": f"新段{i}"} for i in range(BULK_EDIT_MIN_ITEMS + 3)],
+            continue_on_error=True,
+        )
+        out_bulk = _run_edit(guard, bulk, _edit_ok("ch1", new_length=2260, new_word_count=2210, edits_applied=9))
+        assert out_bulk["status"] == "success"
+        assert guard.blocked_edits == 0
+
+        # 2nd bulk revision on the same newly written chapter hits post_write_limit (bounded!).
+        out_bulk2 = _run_edit(guard, bulk, _edit_ok("ch1", new_length=2270, new_word_count=2220, edits_applied=9))
+        assert out_bulk2["status"] == "skipped"
+        assert out_bulk2["guard_skipped"] is True
+        assert out_bulk2["reason"] == "post_write_limit"
+        assert out_bulk2["mutation_applied"] is False
+        assert out_bulk2["word_count"] == 2210
+        assert guard.blocked_edits == 1
+    finally:
+        req_ctx.clear()
+
+
+@pytest.mark.unit
+def test_post_write_bulk_first_preserves_small_edit_budget_and_stays_bounded():
+    """Doing the 1 allowed bulk revision first still leaves the normal 2 small edits before soft-skip."""
+    req_ctx = AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
+    )
+    try:
+        req_ctx.mark_chapter_body_saved("ch1", "第1章 雨夜", "draft")
+        guard = RepeatEditGuard(request_context=req_ctx)
+
+        bulk = _edit_args(
+            "ch1",
+            [{"op": "replace", "old": f"旧{i}", "new": f"新{i}"} for i in range(BULK_EDIT_MIN_ITEMS)],
+        )
+        small = _edit_args("ch1", [{"op": "replace", "old": "微调前", "new": "微调后"}])
+
+        out_bulk = _run_edit(guard, bulk, _edit_ok("ch1", new_length=2300, new_word_count=2250, edits_applied=6))
+        assert out_bulk["status"] == "success"
+        assert "edit_hint" not in out_bulk
+
+        out_s1 = _run_edit(guard, small, _edit_ok("ch1", new_length=2301, new_word_count=2251))
+        out_s2 = _run_edit(guard, small, _edit_ok("ch1", new_length=2302, new_word_count=2252))
+        assert out_s1["status"] == "success" and "edit_hint" not in out_s1
+        assert out_s2["status"] == "success" and "edit_hint" in out_s2
+
+        out_s3 = _run_edit(guard, small, _edit_ok("ch1", new_length=2303, new_word_count=2253))
+        assert out_s3["status"] == "skipped"
+        assert out_s3["guard_skipped"] is True
+        assert out_s3["error_type"] == EDIT_REPEAT_LIMIT_ERROR_TYPE
+        assert guard.blocked_edits == 1
+    finally:
+        req_ctx.clear()
+
+
+@pytest.mark.unit
+def test_soft_skip_status_does_not_pollute_error_card_telemetry_or_reset_breaker_streaks():
+    """Soft-skip maps to non-error status in round_outcome/telemetry, does not count as a write,
+    and neither increments nor resets ToolFailureBreaker failure streaks."""
+    from agent.core.round_outcome import tool_result_status
+
+    req_ctx = AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
+    )
+    try:
+        req_ctx.mark_chapter_body_saved("ch1", "第1章", "draft")
+        guard = RepeatEditGuard(request_context=req_ctx)
+        small = _edit_args("ch1", [{"op": "replace", "old": "旧", "new": "新"}])
+        _run_edit(guard, small, _edit_ok("ch1", new_length=2000, new_word_count=1950))
+        _run_edit(guard, small, _edit_ok("ch1", new_length=1995, new_word_count=1945))
+        skipped_text = guard.plan("edit_file", small).blocked_output
+        assert skipped_text is not None
+        skipped = json.loads(skipped_text)
+
+        # StreamAdapter / ChatMessage.tool_calls status is non-error ("success") with no leaked raw error text.
+        card_status, card_data = tool_result_status("edit_file", skipped)
+        assert card_status == "success"
+        assert card_data["guard_skipped"] is True
+        assert card_data["mutation_applied"] is False
+        assert "error" not in skipped
+
+        # ToolFailureBreaker treats soft-skip as neutral: does NOT clear an active file_not_found family!
+        breaker = ToolFailureBreaker()
+        for bad_id in ("bad-1", "bad-2"):
+            breaker.observe(
+                "edit_file",
+                _edit_args(bad_id, [{"op": "replace", "old": "x", "new": "y"}]),
+                _edit_err("file_not_found"),
+            )
+        assert breaker.total_failures == 2 and not breaker.is_open
+
+        assert breaker.observe("edit_file", small, skipped_text) == skipped_text
+        assert breaker.total_failures == 2 and not breaker.is_open
+
+        # 3rd file_not_found STILL trips recovery family immediately (soft-skip did not clear it).
+        breaker.observe(
+            "edit_file",
+            _edit_args("bad-3", [{"op": "replace", "old": "x", "new": "y"}]),
+            _edit_err("file_not_found"),
+        )
+        assert breaker.is_open and breaker.trip.reason == "repeated_recoverable_tool_failure"
+    finally:
+        req_ctx.clear()
