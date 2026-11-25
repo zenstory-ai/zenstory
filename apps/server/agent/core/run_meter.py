@@ -81,6 +81,8 @@ class AgentRunMeter:
     leaked_tool_call_count: int = 0
     # 最近一次模型调用的输入 token（含命中缓存的部分）：单循环 agent 据此决定下一轮前是否压缩历史。
     last_prompt_tokens: int = 0
+    # 本轮所有模型调用的输入 token 峰值（防末尾调用触发 IntraRunToolOutputTrimmer 后掩盖真实未裁剪前缀大小）。
+    max_prompt_tokens: int = 0
     _stage_timings: dict[TimingStage, dict[str, float | int]] = field(default_factory=dict)
     _tool_failures: dict[str, _ToolFailureStats] = field(default_factory=dict)
 
@@ -107,6 +109,28 @@ class AgentRunMeter:
 
     def elapsed_s(self) -> float:
         return time.monotonic() - self.started_at
+
+    def record_prompt_tokens(self, prompt_tokens: int) -> None:
+        """Record measured input tokens for a model call, keeping both latest and round peak."""
+        if isinstance(prompt_tokens, int) and not isinstance(prompt_tokens, bool) and prompt_tokens > 0:
+            self.last_prompt_tokens = prompt_tokens
+            if prompt_tokens > self.max_prompt_tokens:
+                self.max_prompt_tokens = prompt_tokens
+
+    @property
+    def effective_prompt_tokens(self) -> int:
+        """Higher of latest and peak measured prompt tokens across the round."""
+        return max(self.last_prompt_tokens, self.max_prompt_tokens)
+
+    @property
+    def server_draining(self) -> bool:
+        """Whether the process is currently draining for a planned deploy/shutdown."""
+        return is_draining()
+
+    @property
+    def is_draining_stop(self) -> bool:
+        """Whether wrap-up was triggered by a planned deploy drain before the wall-clock cap."""
+        return is_draining() and self.elapsed_s() < self.wrap_up_after_s
 
     @property
     def past_wrap_up(self) -> bool:

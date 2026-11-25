@@ -128,6 +128,7 @@ class IntraRunToolOutputTrimmer:
         min_compact_chars: int = DEFAULT_MIN_COMPACT_CHARS,
         preview_chars: int = DEFAULT_PREVIEW_CHARS,
         trimmable_tools: frozenset[str] | None = None,
+        run_meter: Any = None,
     ) -> None:
         if max_input_chars < 1:
             raise ValueError(f"max_input_chars must be >= 1, got {max_input_chars}")
@@ -142,14 +143,28 @@ class IntraRunToolOutputTrimmer:
         self.min_compact_chars = min_compact_chars
         self.preview_chars = preview_chars
         self.trimmable_tools = DEFAULT_TRIMMABLE_TOOLS if trimmable_tools is None else frozenset(trimmable_tools)
+        self._run_meter = run_meter
+
+    def _is_past_wrap_up(self) -> bool:
+        """Whether the current run is already in wall-clock/drain wrap-up.
+
+        Trimming during wrap-up shatters a warm prefix cache solely to produce a short
+        handoff summary and risks under-reporting ``prompt_tokens`` on the final call.
+        """
+        if self._run_meter is None:
+            return False
+        return bool(
+            getattr(self._run_meter, "past_wrap_up", False)
+            or getattr(self._run_meter, "wall_clock_landing_injected", False)
+        )
 
     @property
     def target_chars(self) -> int:
         return int(self.max_input_chars * self.target_ratio)
 
     def trim_items(self, items: list[Any], *, instructions_chars: int = 0) -> list[Any]:
-        """按安全阀预算折叠超预算的旧工具载荷；未超预算时原样返回同一个 ``items`` 对象。"""
-        if not items:
+        """按安全阀预算折叠超预算的旧工具载荷；未超预算或已进入收尾期时原样返回同一个 ``items`` 对象。"""
+        if not items or self._is_past_wrap_up():
             return items
 
         chars_before = self._input_chars(items) + max(0, instructions_chars)

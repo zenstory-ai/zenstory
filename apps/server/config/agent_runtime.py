@@ -9,6 +9,18 @@ import os
 
 from config.env import get_int_env
 
+
+def _get_non_negative_float_env(name: str, default: float) -> float:
+    """Read a non-negative float env var (0 disables the guard; negative/invalid falls back)."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if value >= 0 else default
+
 # Iteration budgets. These caps ARE cost controls: one request is charged one quota unit
 # no matter how many model calls it makes, and every extra turn re-sends the whole growing
 # context (2026-10 incident: agents re-read the same files until the 100-turn cap, twice in
@@ -94,6 +106,26 @@ AGENT_DRAIN_SHUTDOWN_BUDGET_S = get_int_env("AGENT_DRAIN_SHUTDOWN_BUDGET_S", 290
 
 # Interval between SSE keep-alive comment frames (": ping") while streaming.
 AGENT_SSE_HEARTBEAT_INTERVAL_S = get_int_env("AGENT_SSE_HEARTBEAT_INTERVAL_S", 15)
+
+# Per-call structural stream guards (agent/openai_agents/model.py):
+# Catch single-call thinking marathons that keep resetting the idle timeout without emitting
+# answer text or tool arguments (e.g. 542s pure-thinking calls or 270–383s calls that blow
+# past the 240s wrap-up window into the 780s hard timeout). Defaults calibrated on 7,747 live
+# MiniMax calls (0.20% healthy-call FP, 0.00% active prose kills, 100% catch on 542s truncation
+# and 4/4 hard 780s timeouts). Set any threshold to 0 to disable.
+AGENT_PRE_ANSWER_THINKING_MAX_S = _get_non_negative_float_env(
+    "AGENT_PRE_ANSWER_THINKING_MAX_S",
+    180.0,
+)
+AGENT_PRE_ANSWER_THINKING_MAX_CHARS = get_int_env(
+    "AGENT_PRE_ANSWER_THINKING_MAX_CHARS",
+    64_000,
+    minimum=0,
+)
+AGENT_MODEL_CALL_MAX_DURATION_S = _get_non_negative_float_env(
+    "AGENT_MODEL_CALL_MAX_DURATION_S",
+    300.0,
+)
 
 # Loop history compaction (agent/loop/compaction.py), between turns only. When the prompt of
 # the last model call of the previous turn (measured, cached tokens included) exceeds this,

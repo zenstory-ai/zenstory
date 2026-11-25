@@ -69,7 +69,7 @@ class UsageMeteringMixin:
         schedule_llm_usage_record(self._attribution, model=model, usage=usage, timing=timing)
         prompt_tokens = getattr(usage, "input_tokens", None)
         if self._run_meter is not None and isinstance(prompt_tokens, int) and prompt_tokens > 0:
-            self._run_meter.last_prompt_tokens = prompt_tokens
+            self._run_meter.record_prompt_tokens(prompt_tokens)
         # Observation only: an exception in on_llm_end would fail the whole SDK run.
         try:
             take_thinking = getattr(sdk_model, "take_thinking_before_answer", None)
@@ -80,9 +80,10 @@ class UsageMeteringMixin:
                 reasoning_tokens = getattr(getattr(usage, "output_tokens_details", None), "reasoning_tokens", None)
                 output_tokens = getattr(usage, "output_tokens", None)
                 key_slot = getattr(sdk_model, "served_key_slot", None)
+                cutoff_reason = getattr(sdk_model, "last_stream_cutoff_reason", None)
                 log_thinking_before_answer(
                     model,
-                    outcome="completed",
+                    outcome=cutoff_reason if isinstance(cutoff_reason, str) and cutoff_reason else "completed",
                     thinking_chars=thinking[0],
                     first_answer_ms=thinking[1],
                     duration_ms=getattr(timing, "duration_ms", None),
