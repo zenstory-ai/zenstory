@@ -209,9 +209,11 @@ async def test_single_version_reads_defer_only_the_ownership_body(version_projec
         "latest": f"/api/v1/files/{file_id}/versions/latest",
         "agent": f"/api/v1/agent/files/{file_id}/versions/{number}",
     }
-    headers = {"X-Agent-API-Key": key} if route == "agent" else {
-        "Authorization": "Bearer " + create_access_token({"sub": user_id})
-    }
+    headers = {"Accept-Encoding": "identity"}
+    if route == "agent":
+        headers["X-Agent-API-Key"] = key
+    else:
+        headers["Authorization"] = "Bearer " + create_access_token({"sub": user_id})
     expected = metadata[number - 1].copy()
     requested = f"\u3000\u3000第一行。\n第二行第{number}版🙂\n"
     if route == "content":
@@ -234,6 +236,7 @@ async def test_single_version_reads_defer_only_the_ownership_body(version_projec
     assert response.status_code == 200, response.text
     assert response.json() == expected
     assert response.headers["content-type"] == "application/json"
+    assert "content-encoding" not in response.headers
     assert response.headers["content-length"] == str(len(response.content))
     assert sessions and all(state == {"cold": True, "closed": True} for state in sessions)
     with Session(engine) as check:
