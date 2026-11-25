@@ -109,6 +109,10 @@ export async function bootstrapAdminSession(page: Page) {
   }, adminUser);
 
   await page.route('**/api/auth/me', (route) => json(route, adminUser));
+  await page.route('**/api/auth/me/preferences', (route) => {
+    const payload = route.request().postDataJSON() as { ui_language?: string } | null;
+    return json(route, { ui_language: payload?.ui_language ?? 'zh' });
+  });
   await page.route('**/api/auth/refresh', (route) => json(route, { access_token: 'mock-access-token', refresh_token: 'mock-refresh-token', user: adminUser }));
   await page.route('**/api/v1/projects**', (route) => json(route, []));
   // The materials library checks the plan before requesting the summary.

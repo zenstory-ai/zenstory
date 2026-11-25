@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const user = { id: 'skill-preview-user', username: 'writer', email: 'writer@example.com', email_verified: true, is_active: true, is_superuser: false };
+const user = { id: 'skill-preview-user', username: 'writer', email: 'writer@example.com', email_verified: true, is_active: true, is_superuser: false, ui_language: 'zh' };
 const base = { category: 'writing', tags: [], author_id: null, status: 'approved', created_at: '2026-10-13T00:00:00Z', add_count: 32 };
 const official = { ...base, id: 'official-1', name: '创建角色', source: 'official', description: '用欲望、顾虑和关系建立人物。', instructions: 'Official instruction content', instructions_truncated: true };
 const community = { ...base, id: 'community-1', name: '对白节奏', source: 'community', description: '检查对白的节奏和人物声音。', instructions: 'Community preview', instructions_truncated: true };
