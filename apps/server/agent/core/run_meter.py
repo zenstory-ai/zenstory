@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -62,6 +62,8 @@ class AgentRunMeter:
     wall_clock_landing_calls: int = 0
     # 最近一次模型调用实际用的模型（主备切换后可能是备用供应商的模型）。
     last_served_model: str | None = None
+    # 可选实时回调：模型开始服务时立即通知调用方（如实时更新 run_report["model"]，防止断线时丢失）。
+    on_served_model: Callable[[str], None] | None = field(default=None, repr=False)
     # 最近一次模型调用的 provider:model:key_slot 标识，用于校验跨轮 wire-prefix 缓存归属。
     last_served_provider_key: str | None = None
     # 请求开始的时刻（monotonic）：到 wrap_up_after_s 就提醒收尾、不再开新的 agent run。
@@ -113,6 +115,8 @@ class AgentRunMeter:
 
     def record_served_model(self, model: str) -> None:
         self.last_served_model = model
+        if self.on_served_model is not None and model:
+            self.on_served_model(model)
 
     def record_served_provider(self, provider: Any) -> None:
         from agent.loop.wire_prefix_cache import provider_cache_key

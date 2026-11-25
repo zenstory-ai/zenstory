@@ -1005,3 +1005,155 @@ def test_postgres_autocommit_backfill_skips_savepoint():
     )
     assert processed == 2
     assert any("INSERT INTO chat_message_ux_summary" in sql for sql in executed_sql)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("metadata", "expected"),
+    [
+        # Clean completion stays healthy
+        ({"stop_reason": "end_turn", "stop_outcome": {"reason": "completed"}}, ("healthy", None)),
+        # Collaboration 12-iteration cap with stop_reason='end_turn' must NOT be healthy
+        (
+            {
+                "stop_reason": "end_turn",
+                "stop_outcome": {"reason": "incomplete", "charged": True, "saved_output": True},
+                "status_cards": [
+                    {"type": "iteration_exhausted", "layer": "collaboration", "iterationsUsed": 12, "maxIterations": 12}
+                ],
+            },
+            ("abnormal", "iteration_exhausted"),
+        ),
+        # Empty-file correction exhaustion (even after rollback leaves no unwritten_files)
+        (
+            {
+                "stop_reason": "end_turn",
+                "stop_outcome": {"reason": "incomplete", "charged": True, "saved_output": False},
+                "status_cards": [
+                    {
+                        "type": "iteration_exhausted",
+                        "layer": "empty_file_correction",
+                        "rolledBackFiles": [{"id": "f1", "title": "第1章"}],
+                    }
+                ],
+            },
+            ("abnormal", "empty_file_correction"),
+        ),
+        # Wall-clock pause card under end_turn maps to run_deadline_exceeded
+        (
+            {
+                "stop_reason": "end_turn",
+                "status_cards": [
+                    {"type": "iteration_exhausted", "layer": "collaboration", "limit": "wall_clock"}
+                ],
+            },
+            ("abnormal", "run_deadline_exceeded"),
+        ),
+        # Unexecuted tool text card even if stop_outcome was not persisted
+        (
+            {
+                "stop_reason": "end_turn",
+                "status_cards": [{"type": "iteration_exhausted", "layer": "unexecuted_tool_text"}],
+            },
+            ("abnormal", "unexecuted_tool_text"),
+        ),
+        # Tool call layer card under end_turn maps to max_turns_exceeded
+        (
+            {
+                "stop_reason": "end_turn",
+                "status_cards": [{"type": "iteration_exhausted", "layer": "tool_call"}],
+            },
+            ("abnormal", "max_turns_exceeded"),
+        ),
+        # Incomplete stop_outcome without status cards still counts as abnormal
+        (
+            {"stop_reason": "end_turn", "stop_outcome": {"reason": "incomplete"}},
+            ("abnormal", "incomplete"),
+        ),
+        # Unwritten files without exhaustion cards keeps unwritten_files reason
+        (
+            {
+                "stop_reason": "end_turn",
+                "stop_outcome": {"reason": "incomplete", "unwritten_files": [{"id": "f1", "title": "Ch1"}]},
+            },
+            ("abnormal", "unwritten_files"),
+        ),
+    ],
+)
+def test_classify_round_marks_iteration_exhausted_and_incomplete_rounds_abnormal(metadata, expected):
+    from models.chat_message_ux_summary import classify_round
+
+    assert classify_round(metadata) == expected
+
+
+@pytest.mark.integration
+def test_ux_health_dashboard_and_fallback_classify_iteration_exhausted_as_abnormal(
+    db_session: Session,
+):
+    """End-to-end verification across chat_message_ux_summary fast path and un-backfilled fallback."""
+    from sqlalchemy import delete as sa_delete
+
+    from models import ChatMessageUxSummary
+
+    writer = _user(db_session, "ux_exhausted_writer", NOW - timedelta(days=5))
+    _, chat_sess = _project_and_session(db_session, writer, "Exhausted Novel", NOW - timedelta(days=2))
+
+    # 1. Clean healthy end_turn
+    _assistant_message(
+        db_session,
+        chat_sess,
+        NOW - timedelta(hours=3),
+        metadata={"stop_reason": "end_turn", "stop_outcome": {"reason": "completed"}},
+    )
+    # 2. Collaboration cap hit (0-char chat text + iteration_exhausted card, stop_reason='end_turn')
+    collab_msg = _assistant_message(
+        db_session,
+        chat_sess,
+        NOW - timedelta(hours=2),
+        content="",
+        metadata={
+            "stop_reason": "end_turn",
+            "stop_outcome": {"reason": "incomplete", "charged": True, "saved_output": True},
+            "status_cards": [
+                {"type": "iteration_exhausted", "layer": "collaboration", "iterationsUsed": 12, "maxIterations": 12}
+            ],
+        },
+    )
+    # 3. Empty file correction exhaustion (stop_reason='end_turn')
+    empty_msg = _assistant_message(
+        db_session,
+        chat_sess,
+        NOW - timedelta(hours=1),
+        content="",
+        metadata={
+            "stop_reason": "end_turn",
+            "stop_outcome": {"reason": "incomplete", "charged": True, "saved_output": False},
+            "status_cards": [
+                {"type": "iteration_exhausted", "layer": "empty_file_correction", "rolledBackFiles": []}
+            ],
+        },
+    )
+
+    collab_summary = db_session.get(ChatMessageUxSummary, collab_msg.id)
+    empty_summary = db_session.get(ChatMessageUxSummary, empty_msg.id)
+    assert collab_summary is not None
+    assert collab_summary.round_category == "abnormal"
+    assert collab_summary.abnormal_reason == "iteration_exhausted"
+    assert empty_summary is not None
+    assert empty_summary.round_category == "abnormal"
+    assert empty_summary.abnormal_reason == "empty_file_correction"
+
+    fast_payload = get_ux_health_dashboard(db_session, days=7, now=NOW)
+    m = fast_payload["current"]["metrics"]
+    assert m["total_rounds"] == 3
+    assert m["healthy_rounds"] == 1
+    assert m["abnormal_stop_rounds"] == 2
+    reasons = {item["reason"]: item["count"] for item in m["abnormal_stops"]}
+    assert reasons == {"iteration_exhausted": 1, "empty_file_correction": 1}
+
+    # Clear summary table -> un-backfilled fallback path must produce identical metrics
+    db_session.exec(sa_delete(ChatMessageUxSummary))
+    db_session.commit()
+    fallback_payload = get_ux_health_dashboard(db_session, days=7, now=NOW)
+    assert fallback_payload["current"]["metrics"] == fast_payload["current"]["metrics"]
+

@@ -3,7 +3,11 @@
 import asyncio
 from typing import Any
 
-from services.usage.cost_budget import reserve_model_call, settle_model_call
+from services.usage.cost_budget import (
+    reserve_model_call,
+    settle_cancelled_stream_call,
+    settle_model_call,
+)
 from utils.sanitize import (
     sanitize_chat_messages,
     sanitize_responses_input,
@@ -15,6 +19,76 @@ _RESPONSES_TERMINAL_USAGE_EVENTS = frozenset({
     "response.incomplete",
     "response.failed",
 })
+_RESPONSES_OUTPUT_DELTA_EVENTS = frozenset({
+    "response.output_text.delta",
+    "response.reasoning_text.delta",
+    "response.reasoning_summary_text.delta",
+    "response.refusal.delta",
+    "response.function_call_arguments.delta",
+})
+# Strong references to background cancelled-stream settlement tasks so GC never
+# drops them before commit; awaited on graceful shutdown via drain_pending_cost_settlements.
+_pending_cancelled_settlements: set[asyncio.Task[Any]] = set()
+
+
+async def drain_pending_cost_settlements() -> None:
+    """Wait for any in-flight cancelled-stream cost settlement tasks to finish."""
+    tasks = [task for task in _pending_cancelled_settlements if not task.done()]
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+def _utf8_bytes(value: Any) -> int:
+    return len(value.encode("utf-8")) if isinstance(value, str) and value else 0
+
+
+def _extract_chunk_output_bytes(chunk: Any) -> int:
+    """Count UTF-8 bytes of generated output in a Responses or Chat Completions stream chunk."""
+    chunk_type = getattr(chunk, "type", None)
+    if chunk_type in _RESPONSES_OUTPUT_DELTA_EVENTS:
+        return _utf8_bytes(getattr(chunk, "delta", None))
+    choices = getattr(chunk, "choices", None)
+    if not isinstance(choices, list) or not choices:
+        return 0
+    total = 0
+    for choice in choices:
+        delta = choice.get("delta") if isinstance(choice, dict) else getattr(choice, "delta", None)
+        if delta is None:
+            continue
+        if isinstance(delta, dict):
+            total += _utf8_bytes(delta.get("content"))
+            total += _utf8_bytes(delta.get("reasoning_content"))
+            total += _utf8_bytes(delta.get("reasoning"))
+            total += _utf8_bytes(delta.get("refusal"))
+            tool_calls = delta.get("tool_calls")
+        else:
+            total += _utf8_bytes(getattr(delta, "content", None))
+            total += _utf8_bytes(getattr(delta, "reasoning_content", None))
+            total += _utf8_bytes(getattr(delta, "reasoning", None))
+            total += _utf8_bytes(getattr(delta, "refusal", None))
+            tool_calls = getattr(delta, "tool_calls", None)
+        if isinstance(tool_calls, list):
+            for tc in tool_calls:
+                fn = tc.get("function") if isinstance(tc, dict) else getattr(tc, "function", None)
+                if isinstance(fn, dict):
+                    total += _utf8_bytes(fn.get("name"))
+                    total += _utf8_bytes(fn.get("arguments"))
+                elif fn is not None:
+                    total += _utf8_bytes(getattr(fn, "name", None))
+                    total += _utf8_bytes(getattr(fn, "arguments", None))
+    return total
+
+
+def _has_complete_usage_fields(usage: Any) -> bool:
+    from services.usage.llm_usage_service import _int_field
+
+    prompt = _int_field(usage, "prompt_tokens")
+    if prompt is None:
+        prompt = _int_field(usage, "input_tokens")
+    output = _int_field(usage, "completion_tokens")
+    if output is None:
+        output = _int_field(usage, "output_tokens")
+    return prompt is not None and output is not None
 
 
 def _extract_chunk_usage(chunk: Any) -> Any:
@@ -46,17 +120,55 @@ class _BudgetedAsyncStream:
     def __init__(self, stream: Any, reservation: Any):
         self._stream = stream
         self._reservation = reservation
+        self._streamed_output_bytes = 0
+        self._usage_settled = False
+        self._cancelled_settlement_task: asyncio.Task[Any] | None = None
 
     def __getattr__(self, name):
         return getattr(self._stream, name)
 
+    def _schedule_cancelled_settlement(self) -> asyncio.Task[Any] | None:
+        """Schedule conservative settlement once when a stream closes without terminal usage.
+
+        Non-awaiting so it is safe to call inside async generator ``finally`` blocks
+        (including ``GeneratorExit`` and ``CancelledError`` paths).
+        """
+        if self._reservation is None or self._usage_settled:
+            return None
+        if self._cancelled_settlement_task is not None:
+            return self._cancelled_settlement_task
+        output_bytes = self._streamed_output_bytes
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            settle_cancelled_stream_call(self._reservation, streamed_output_bytes=output_bytes)
+            self._usage_settled = True
+            return None
+        task = loop.create_task(
+            asyncio.to_thread(
+                settle_cancelled_stream_call,
+                self._reservation,
+                streamed_output_bytes=output_bytes,
+            )
+        )
+        self._cancelled_settlement_task = task
+        _pending_cancelled_settlements.add(task)
+        task.add_done_callback(_pending_cancelled_settlements.discard)
+        return task
+
     def __aiter__(self):
         async def chunks():
-            async for chunk in self._stream:
-                usage = _extract_chunk_usage(chunk)
-                if usage is not None:
-                    await asyncio.to_thread(settle_model_call, self._reservation, usage)
-                yield chunk
+            try:
+                async for chunk in self._stream:
+                    self._streamed_output_bytes += _extract_chunk_output_bytes(chunk)
+                    usage = _extract_chunk_usage(chunk)
+                    if usage is not None:
+                        await asyncio.to_thread(settle_model_call, self._reservation, usage)
+                        if _has_complete_usage_fields(usage):
+                            self._usage_settled = True
+                    yield chunk
+            finally:
+                self._schedule_cancelled_settlement()
 
         return chunks()
 
@@ -67,7 +179,14 @@ class _BudgetedAsyncStream:
         await self.close()
 
     async def close(self):
-        await self._stream.close()
+        try:
+            close_fn = getattr(self._stream, "close", None) or getattr(self._stream, "aclose", None)
+            if callable(close_fn):
+                await close_fn()
+        finally:
+            task = self._schedule_cancelled_settlement()
+            if task is not None and not task.done():
+                await asyncio.shield(task)
 
 
 class _BudgetedAsyncAPIResponse:
@@ -136,16 +255,34 @@ class _BudgetedSyncStream:
     def __init__(self, stream: Any, reservation: Any):
         self._stream = stream
         self._reservation = reservation
+        self._streamed_output_bytes = 0
+        self._usage_settled = False
+        self._cancelled_settled = False
 
     def __getattr__(self, name):
         return getattr(self._stream, name)
 
+    def _settle_if_unsettled(self) -> None:
+        if self._reservation is None or self._usage_settled or self._cancelled_settled:
+            return
+        self._cancelled_settled = True
+        settle_cancelled_stream_call(
+            self._reservation,
+            streamed_output_bytes=self._streamed_output_bytes,
+        )
+
     def __iter__(self):
-        for chunk in self._stream:
-            usage = _extract_chunk_usage(chunk)
-            if usage is not None:
-                settle_model_call(self._reservation, usage)
-            yield chunk
+        try:
+            for chunk in self._stream:
+                self._streamed_output_bytes += _extract_chunk_output_bytes(chunk)
+                usage = _extract_chunk_usage(chunk)
+                if usage is not None:
+                    settle_model_call(self._reservation, usage)
+                    if _has_complete_usage_fields(usage):
+                        self._usage_settled = True
+                yield chunk
+        finally:
+            self._settle_if_unsettled()
 
     def __enter__(self):
         return self
@@ -154,7 +291,12 @@ class _BudgetedSyncStream:
         self.close()
 
     def close(self):
-        self._stream.close()
+        try:
+            close_fn = getattr(self._stream, "close", None)
+            if callable(close_fn):
+                close_fn()
+        finally:
+            self._settle_if_unsettled()
 
 
 def _install_async_responses_guard(client: Any, original_with_options: Any) -> None:
