@@ -167,7 +167,7 @@ const REACT_VENDOR_PACKAGES = new Set([
 const UI_VENDOR_PACKAGES = new Set(['lucide-react', 'clsx', 'tailwind-merge'])
 const STATE_VENDOR_PACKAGES = new Set(['zustand', '@tanstack/react-query', '@tanstack/query-core'])
 const I18N_VENDOR_PACKAGES = new Set(['i18next', 'react-i18next', 'i18next-browser-languagedetector'])
-const UTILS_VENDOR_PACKAGES = new Set(['diff-match-patch', 'axios'])
+const UTILS_VENDOR_PACKAGES = new Set(['diff-match-patch'])
 const MARKDOWN_VENDOR_PACKAGES = new Set([
   'react-markdown',
   'remark-gfm',
