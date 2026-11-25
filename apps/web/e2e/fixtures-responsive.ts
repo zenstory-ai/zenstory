@@ -9,17 +9,18 @@ const messages = [{ id: 'message-1', role: 'assistant', content: '', created_at:
 const material = { id: 'responsive-material', user_id: responsiveUser.id, title: '素材标题：很长的人物选择与情节发展', original_filename: 'source.txt', file_size: 12000, status: 'completed', total_chapters: 25, chapters_count: 25, characters_count: 1, story_lines_count: 0, golden_fingers_count: 0, has_world_view: false, created_at: '2025-01-01T00:00:00Z', updated_at: '2026-10-04T00:00:00Z' };
 const skill = { id: 'responsive-skill', name: '长标题技能：人物行动与剧情的因果关系', description: '用具体行动检查角色选择，不覆盖原有设定。', triggers: ['人物'], instructions: '# 角色行动\n保持作者意图，检查行动和后果。', source: 'user', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2026-10-04T00:00:00Z' };
 const publicSkill = { ...skill, id: 'responsive-public-skill', instructions: '', instructions_hidden: true, source: 'official', category: 'Writing', tags: ['角色'], author_id: null, status: 'approved', add_count: 42 };
-export async function mockResponsiveApp(page: Page, saved: number | null = null, tier: 'free' | 'pro' = 'free', language: 'zh' | 'en' = 'zh') {
-    const user = { ...responsiveUser, ui_language: language };
-    await page.addInitScript(({ user, saved, language }) => {
-        localStorage.setItem('zenstory-language', language);
+export async function mockResponsiveApp(page: Page, saved: number | null = null, tier: 'free' | 'pro' = 'free', language?: 'zh' | 'en') {
+    const initialLanguage = language ?? 'zh';
+    const user = language ? { ...responsiveUser, ui_language: language } : responsiveUser;
+    await page.addInitScript(({ user, saved, initialLanguage }) => {
+        localStorage.setItem('zenstory-language', initialLanguage);
         localStorage.setItem('user', JSON.stringify(user));
         localStorage.setItem('access_token', 'local-responsive-fixture');
         localStorage.setItem('refresh_token', 'local-responsive-fixture');
         localStorage.setItem('auth_validated_at', String(Date.now()));
         if (saved !== null)
             localStorage.setItem('zenstory_chat_input_panel_height_px', String(saved));
-    }, { user, saved, language });
+    }, { user, saved, initialLanguage });
     await mockResponsiveApi(page, tier, language);
 }
 export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free', language?: 'zh' | 'en') {

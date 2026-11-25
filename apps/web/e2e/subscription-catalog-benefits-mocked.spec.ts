@@ -1,12 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { mockResponsiveApp } from './fixtures-responsive';
 
-for (const language of ['zh', 'en']) {
+for (const language of ['zh', 'en'] as const) {
   for (const width of [390, 768, 1440]) {
     test(`catalog benefits stay consistent in ${language} at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
-      await mockResponsiveApp(page);
-      await page.addInitScript(lang => localStorage.setItem('zenstory-language', lang), language);
+      await mockResponsiveApp(page, null, 'free', language);
       await page.route('**/api/v1/subscription/catalog', route => route.fulfill({ json: { version: 'fixture', tiers: ['free', 'pro'].map(name => ({
         id: name, name, display_name: name, display_name_en: name, price_monthly_cents: name === 'pro' ? 4900 : 0, price_yearly_cents: name === 'pro' ? 39900 : 0, recommended: name === 'pro', summary_key: name === 'pro' ? 'creator' : 'starter', target_user_key: name === 'pro' ? 'daily_writer' : 'explorer',
         entitlements: { ai_conversations_per_day: name === 'pro' ? -1 : 3, active_projects_limit: name === 'pro' ? -1 : 3, material_decompositions_monthly: name === 'pro' ? 7 : 0, file_versions_per_file: name === 'pro' ? 42 : 10, custom_skills_limit: name === 'pro' ? 20 : 3 },

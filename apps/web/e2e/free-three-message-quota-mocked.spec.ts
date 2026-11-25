@@ -55,11 +55,10 @@ test('lowering the free allowance preserves existing usage and the Beijing reset
 });
 
 for (const width of [320, 390, 768, 1920]) {
-  for (const language of ['zh', 'en']) {
+  for (const language of ['zh', 'en'] as const) {
     test(`three-message quota upgrade controls fit ${width}px in ${language}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 844 });
-      await mockResponsiveApp(page);
-      await page.addInitScript(lang => localStorage.setItem('zenstory-language', lang), language);
+      await mockResponsiveApp(page, null, 'free', language);
       await page.route('**/api/**', async route => {
         const path = new URL(route.request().url()).pathname;
         if (path.endsWith('/subscription/quota')) {
