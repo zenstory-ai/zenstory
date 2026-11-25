@@ -36,6 +36,7 @@ from .core.events import (
     iteration_exhausted_event,
     skill_matched_event,
     thinking_content_event,
+    thinking_event,
     tool_call_event,
     tool_result_event,
 )
@@ -453,6 +454,13 @@ class StreamAdapter:
                 yield sse_event
 
         elif event_type == StreamEventType.THINKING:
+            # Lightweight transient status updates (e.g. tool-argument streaming progress)
+            # map to SSE `thinking` frames rather than persisted `thinking_content` blocks.
+            status_message = data.get("message")
+            if isinstance(status_message, str) and status_message:
+                step = data.get("step")
+                yield thinking_event(status_message, step=step if isinstance(step, str) else None)
+                return
             # Thinking content
             thinking_text = data.get("thinking", "")
             if thinking_text:
