@@ -90,8 +90,15 @@ vi.mock('../../contexts/ThemeContext', () => ({
 }))
 
 vi.mock('../../components/SettingsDialog', () => ({
-  SettingsDialog: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="settings-dialog">Settings Dialog</div> : null,
+  SettingsDialog: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
+    isOpen
+      ? (
+        <div data-testid="settings-dialog">
+          Settings Dialog
+          <button type="button" onClick={onClose}>Close Settings</button>
+        </div>
+      )
+      : null,
 }))
 
 vi.mock('../../components/UserMenu', () => ({
@@ -284,5 +291,20 @@ describe('Dashboard user panel and quick switches', () => {
     } finally {
       mockIsSuperuser = false
     }
+  })
+
+  it('lazy-loads SettingsDialog only when opened from the user panel and closes it cleanly', async () => {
+    renderDashboard()
+    expect(screen.queryByTestId('settings-dialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open user settings panel' }))
+    fireEvent.click(screen.getByTestId('dashboard-open-settings-button'))
+
+    expect(await screen.findByTestId('settings-dialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Settings' }))
+    await waitFor(() => {
+      expect(screen.queryByTestId('settings-dialog')).not.toBeInTheDocument()
+    })
   })
 })

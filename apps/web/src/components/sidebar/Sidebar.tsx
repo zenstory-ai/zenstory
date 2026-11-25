@@ -1,10 +1,15 @@
-import React, { Suspense } from "react";
+import React, { lazy, Suspense } from "react";
 import { useSidebarStore } from "../../stores/sidebarStore";
 import { SidebarTabs } from "./SidebarTabs";
 import { FileTreePane } from "./FileTreePane";
-import { SkillsPane } from "./SkillsPane";
-import { MaterialsPane } from "./MaterialsPane";
 import { Loader2 } from "lucide-react";
+
+const SkillsPane = lazy(() =>
+  import("./SkillsPane").then((m) => ({ default: m.SkillsPane })),
+);
+const MaterialsPane = lazy(() =>
+  import("./MaterialsPane").then((m) => ({ default: m.MaterialsPane })),
+);
 
 /**
  * Sidebar - Main sidebar container with tabbed navigation

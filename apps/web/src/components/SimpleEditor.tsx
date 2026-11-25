@@ -1,11 +1,16 @@
-import { useState, useEffect, useRef, useCallback, useContext } from "react";
+import { lazy, Suspense, useState, useEffect, useRef, useCallback, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { QueryClientContext } from "@tanstack/react-query";
 import { Save, Clock, Check, History, Sparkles, Loader2 } from "lucide-react";
 import type { FileUpdateVersionIntent } from "../lib/api";
-import { FileVersionHistory } from "./FileVersionHistory";
-import { DiffReviewSplitView } from "./DiffReviewSplitView";
 import { DiffToolbar } from "./DiffToolbar";
+
+const FileVersionHistory = lazy(() =>
+  import("./FileVersionHistory").then((m) => ({ default: m.FileVersionHistory })),
+);
+const DiffReviewSplitView = lazy(() =>
+  import("./DiffReviewSplitView").then((m) => ({ default: m.DiffReviewSplitView })),
+);
 import { EditorStreamingBanner, EditorStreamingCanvasWaiting } from "./EditorStreamingWaiting";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { useTextQuote } from "../contexts/TextQuoteContext";
@@ -1121,14 +1126,22 @@ export const SimpleEditor = ({
 
       {/* Content area - switch between normal editor and diff review */}
       {isReviewMode && diffReviewState && onAcceptEdit && onRejectEdit && onResetEdit ? (
-        <DiffReviewSplitView
-          originalContent={diffReviewState.originalContent}
-          modifiedContent={diffReviewState.modifiedContent}
-          pendingEdits={diffReviewState.pendingEdits}
-          onAcceptEdit={onAcceptEdit}
-          onRejectEdit={onRejectEdit}
-          onResetEdit={onResetEdit}
-        />
+        <Suspense
+          fallback={
+            <div className="flex-1 flex items-center justify-center text-[hsl(var(--text-secondary))]">
+              <Loader2 size={24} className="animate-spin" />
+            </div>
+          }
+        >
+          <DiffReviewSplitView
+            originalContent={diffReviewState.originalContent}
+            modifiedContent={diffReviewState.modifiedContent}
+            pendingEdits={diffReviewState.pendingEdits}
+            onAcceptEdit={onAcceptEdit}
+            onRejectEdit={onRejectEdit}
+            onResetEdit={onResetEdit}
+          />
+        </Suspense>
       ) : (
         <div
           ref={contentAreaRef}
@@ -1298,15 +1311,17 @@ export const SimpleEditor = ({
 
       {/* Version History Modal */}
       {isVersionHistoryMounted && fileId && (
-        <FileVersionHistory
-          open={isVersionHistoryOpen}
-          fileId={fileId}
-          fileTitle={title}
-          hasUnsavedChanges={isDirty}
-          onClose={() => setShowVersionHistory(false)}
-          onBeforeRollback={prepareHistoryRollback}
-          onRollback={handleRollback}
-        />
+        <Suspense fallback={null}>
+          <FileVersionHistory
+            open={isVersionHistoryOpen}
+            fileId={fileId}
+            fileTitle={title}
+            hasUnsavedChanges={isDirty}
+            onClose={() => setShowVersionHistory(false)}
+            onBeforeRollback={prepareHistoryRollback}
+            onRollback={handleRollback}
+          />
+        </Suspense>
       )}
 
       {/* Selection Toolbar (mounted during symmetric exit in browsers, unmounted immediately in tests) */}

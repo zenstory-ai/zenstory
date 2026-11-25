@@ -26,7 +26,7 @@ import { claimAutoUpgradePrompt } from "../lib/upgradeTriggerStrategy";
  */
 import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
 import { clearFileRemoved, hasAnyUnprotectedDeletedDraft, notifyFileRemoved, subscribeDeletedDraftProtection } from "../lib/fileRemovalEvents";
-import React, { useState, useRef, useEffect, useCallback, useMemo, useSyncExternalStore } from "react";
+import React, { lazy, Suspense, useState, useRef, useEffect, useCallback, useMemo, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useProject } from "../contexts/ProjectContext";
@@ -90,7 +90,6 @@ import { parseUTCDate } from "../lib/dateUtils";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
-import { ProjectStatusDialog } from "./ProjectStatusDialog";
 import { appendDraftForProject, useDraftPersistence } from "../hooks/useDraftPersistence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ChatQuotaCard } from "./subscription/ChatQuotaCard";
@@ -102,10 +101,16 @@ import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
 import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { StreamActivityLine } from "./StreamActivityLine";
 import { createBodyWriteProgress, createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress";
-import { LeaveWhileGeneratingDialog } from "./LeaveWhileGeneratingDialog";
 import { useQuotaRefreshAfterLeave } from "../hooks/useQuotaRefreshAfterLeave";
 import { exhaustionLeftFilesUnfinished, formatRoundDelivery, hasSubstantiveDisplayItems, parseIterationExhaustedFiles, parseRoundStopOutcome, type RoundWrittenFile } from "../lib/chatRoundEnd";
 import type { QuotaResponse } from "../types/subscription";
+
+const ProjectStatusDialog = lazy(() =>
+  import("./ProjectStatusDialog").then((m) => ({ default: m.ProjectStatusDialog })),
+);
+const LeaveWhileGeneratingDialog = lazy(() =>
+  import("./LeaveWhileGeneratingDialog").then((m) => ({ default: m.LeaveWhileGeneratingDialog })),
+);
 
 const clampNumber = (value: number, min: number, max: number): number => {
   return Math.min(max, Math.max(min, value));
@@ -2527,6 +2532,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   // round through the server and start the new chat once its stream has closed, so the round
   // is an author stop under the usual refund rule.
   const [newChatConfirmOpen, setNewChatConfirmOpen] = useState(false);
+  const { isMounted: isLeaveDialogMounted } = useAnimatedPresence(leaveGuard.leavePending, 180);
+  const { isMounted: isNewChatConfirmMounted } = useAnimatedPresence(newChatConfirmOpen, 180);
   const handleNewSessionRef = useRef(handleNewSession);
   useEffect(() => {
     handleNewSessionRef.current = handleNewSession;
@@ -2778,17 +2785,19 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     return () => window.removeEventListener("resize", clampToMax);
   }, [getMaxInputPanelHeight]);
 
-  const leaveConfirmation = (
-    <LeaveWhileGeneratingDialog
-      open={leaveGuard.leavePending}
-      unprotectedDraft={unprotectedDeletedDraft}
-      roundEnded={unprotectedDeletedDraft ? !isStreaming : leaveGuard.roundEnded}
-      producedOutput={roundProgressRef.current.producedOutput}
-      showDailyCount={showDailyCount}
-      onStay={leaveGuard.cancelLeave}
-      onLeave={handleConfirmLeave}
-    />
-  );
+  const leaveConfirmation = isLeaveDialogMounted ? (
+    <Suspense fallback={null}>
+      <LeaveWhileGeneratingDialog
+        open={leaveGuard.leavePending}
+        unprotectedDraft={unprotectedDeletedDraft}
+        roundEnded={unprotectedDeletedDraft ? !isStreaming : leaveGuard.roundEnded}
+        producedOutput={roundProgressRef.current.producedOutput}
+        showDailyCount={showDailyCount}
+        onStay={leaveGuard.cancelLeave}
+        onLeave={handleConfirmLeave}
+      />
+    </Suspense>
+  ) : null;
 
   if (!currentProjectId) {
     return (
@@ -3270,24 +3279,30 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       {leaveConfirmation}
 
       {/* 新对话 mid-round stops this round first. */}
-      <LeaveWhileGeneratingDialog
-        intent="newChat"
-        open={newChatConfirmOpen}
-        roundEnded={newChatConfirmOpen && !isStreaming}
-        producedOutput={roundProgressRef.current.producedOutput}
-        showDailyCount={showDailyCount}
-        onStay={() => setNewChatConfirmOpen(false)}
-        onLeave={confirmNewChat}
-      />
+      {isNewChatConfirmMounted && (
+        <Suspense fallback={null}>
+          <LeaveWhileGeneratingDialog
+            intent="newChat"
+            open={newChatConfirmOpen}
+            roundEnded={newChatConfirmOpen && !isStreaming}
+            producedOutput={roundProgressRef.current.producedOutput}
+            showDailyCount={showDailyCount}
+            onStay={() => setNewChatConfirmOpen(false)}
+            onLeave={confirmNewChat}
+          />
+        </Suspense>
+      )}
 
       {/* AI Memory Dialog */}
       {showAIMemory && currentProjectId && (
-        <ProjectStatusDialog
-          isOpen={showAIMemory}
-          onClose={() => setShowAIMemory(false)}
-          projectId={currentProjectId}
-          initialSection={aiMemoryInitialSection}
-        />
+        <Suspense fallback={null}>
+          <ProjectStatusDialog
+            isOpen={showAIMemory}
+            onClose={() => setShowAIMemory(false)}
+            projectId={currentProjectId}
+            initialSection={aiMemoryInitialSection}
+          />
+        </Suspense>
       )}
     </div>
   );
