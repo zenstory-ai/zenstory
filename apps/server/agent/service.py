@@ -800,7 +800,19 @@ class AgentService:
             if not run_heartbeat_task.done():
                 run_heartbeat_task.cancel()
 
-        run_meter = AgentRunMeter(timing_origin=run_started_monotonic)
+        def _record_live_model(model_name: str) -> None:
+            if run_report is not None and model_name:
+                run_report["model"] = model_name
+
+        if run_report is not None:
+            run_report.setdefault("model", primary_model_name())
+            if session_id:
+                run_report.setdefault("session_id", session_id)
+
+        run_meter = AgentRunMeter(
+            timing_origin=run_started_monotonic,
+            on_served_model=_record_live_model if run_report is not None else None,
+        )
         context_timing_recorded = False
 
         # Initialize tracking variables before try block for exception safety
@@ -1229,6 +1241,8 @@ class AgentService:
                     ordered_providers = await llm_failover.aordered_providers(session_id)
                     if ordered_providers:
                         expected_provider_key = provider_cache_key(ordered_providers[0])
+                        if run_report is not None and not run_meter.last_served_model and ordered_providers[0].model:
+                            run_report["model"] = ordered_providers[0].model
                 except Exception:  # noqa: BLE001 - fail open to DB history
                     expected_provider_key = None
                 if expected_provider_key:
@@ -1355,6 +1369,8 @@ class AgentService:
                     # Process through workflow stream
                     run_meter.record_stage("prepare_context", (time.monotonic() - run_started_monotonic) * 1000)
                     context_timing_recorded = True
+                    if run_report is not None:
+                        run_report.update(run_meter.timing_report())
                     compaction_usage: dict[str, int] | None = None
                     current_turn_tokens = estimate_provider_text_tokens(user_content)
                     if should_compact(loop_history, extra_tokens=current_turn_tokens):
@@ -1938,10 +1954,19 @@ class AgentService:
 
             total_duration = int((utcnow() - start_time).total_seconds() * 1000)
             if run_report is not None:
+                from models.chat_message_ux_summary import iteration_exhausted_abnormal_reason
+
                 usage_summary = assistant_usage if isinstance(assistant_usage, dict) else {}
+                metric_stop_reason = assistant_stop_reason
+                if metric_stop_reason == "end_turn" and assistant_status_cards:
+                    exhausted_reason = iteration_exhausted_abnormal_reason(
+                        {"status_cards": assistant_status_cards}
+                    )
+                    if exhausted_reason is not None:
+                        metric_stop_reason = exhausted_reason
                 run_report.update(
                     {
-                        "model": run_meter.last_served_model or primary_model_name(),
+                        "model": run_meter.last_served_model or run_report.get("model") or primary_model_name(),
                         "input_tokens": usage_summary.get("input_tokens", 0),
                         "output_tokens": usage_summary.get("output_tokens", 0),
                         "cache_read_tokens": usage_summary.get("cache_read_tokens", 0),
@@ -1952,7 +1977,7 @@ class AgentService:
                         "llm_duration_ms": round(run_meter.llm_duration_ms, 1),
                         **run_meter.timing_report(),
                         "duration_ms": total_duration,
-                        "stop_reason": assistant_stop_reason,
+                        "stop_reason": metric_stop_reason,
                         "tool_calls_count": len(all_tool_calls),
                         "response_length": len(assistant_response),
                         "session_id": session_id,

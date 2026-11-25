@@ -7,6 +7,7 @@ zenstory API - Main application entry point
 
 # Load environment variables from .env file FIRST
 import asyncio
+import gzip
 import hashlib
 import logging
 import os
@@ -30,7 +31,9 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
+from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from api.activation import router as activation_router
 from api.admin import router as admin_router
@@ -103,13 +106,152 @@ async def lifespan(_app: FastAPI):
 
     # Refunds, round outcomes and partial-history saves of ended streams run in background tasks.
     await wait_for_stream_cleanup(min(30.0, max(0.0, shutdown_budget_remaining_s() - 5)))
-    # Usage-ledger rows are written by background tasks; let in-flight ones land.
+    # Usage-ledger rows and cancelled-stream cost settlements run in background tasks;
+    # let in-flight ones land before process exit.
     from services.usage.llm_usage_service import drain_pending_usage_records
+    from services.usage.model_call_guard import drain_pending_cost_settlements
 
     try:
-        await asyncio.wait_for(drain_pending_usage_records(), timeout=5)
+        await asyncio.wait_for(
+            asyncio.gather(drain_pending_usage_records(), drain_pending_cost_settlements()),
+            timeout=5,
+        )
     except TimeoutError:
-        logger.warning("Timed out after 5s draining pending usage records on shutdown")
+        logger.warning("Timed out after 5s draining pending usage/cost records on shutdown")
+
+
+_UNCOMPRESSIBLE_EXACT_CONTENT_TYPES = frozenset({
+    "text/event-stream",
+    "application/zip",
+    "application/gzip",
+    "application/x-gzip",
+    "application/pdf",
+    "application/octet-stream",
+})
+_UNCOMPRESSIBLE_PREFIXES = (
+    "audio/",
+    "video/",
+    "application/vnd.openxmlformats-officedocument.",
+)
+
+
+def _accepts_gzip(accept_encoding: str) -> bool:
+    """Return True when the client's Accept-Encoding header permits gzip (q != 0)."""
+    for raw_part in accept_encoding.split(","):
+        part = raw_part.strip().lower()
+        if not part:
+            continue
+        encoding, *params = (piece.strip() for piece in part.split(";"))
+        if encoding != "gzip":
+            continue
+        q_val = 1.0
+        for param in params:
+            if param.startswith("q="):
+                try:
+                    q_val = float(param[2:].strip())
+                except ValueError:
+                    q_val = 0.0
+        if q_val > 0.0:
+            return True
+    return False
+
+
+def _is_uncompressible_content_type(content_type: str) -> bool:
+    """Return True for SSE streams and already-compressed binary media types."""
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    if not media_type:
+        return False
+    if media_type in _UNCOMPRESSIBLE_EXACT_CONTENT_TYPES:
+        return True
+    if media_type.startswith("image/") and media_type != "image/svg+xml":
+        return True
+    return media_type.startswith(_UNCOMPRESSIBLE_PREFIXES)
+
+
+class SSESafeGZipMiddleware:
+    """ASGI GZip middleware that strictly bypasses SSE and streaming responses.
+
+    Unlike Starlette's stock ``GZipMiddleware``, this middleware:
+    - Immediately forwards ``http.response.start`` for ``text/event-stream`` and
+      already-compressed binary responses without holding headers until the first chunk.
+    - Never compresses or buffers any multi-chunk streaming response (``more_body=True``).
+    - Compresses complete non-streaming responses (JSON, plain text, HTML, SVG) >=
+      ``minimum_size`` bytes with ``compresslevel`` and sets ``Vary: Accept-Encoding``.
+    """
+
+    def __init__(self, app: ASGIApp, minimum_size: int = 500, compresslevel: int = 6) -> None:
+        self.app = app
+        self.minimum_size = minimum_size
+        self.compresslevel = compresslevel
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request_headers = Headers(scope=scope)
+        accepts_gzip = _accepts_gzip(request_headers.get("accept-encoding", ""))
+        initial_message: Message | None = None
+        started = False
+        passthrough = False
+
+        async def send_wrapper(message: Message) -> None:
+            nonlocal initial_message, started, passthrough
+
+            message_type = message["type"]
+            if message_type == "http.response.start":
+                status = int(message.get("status", 200))
+                headers = Headers(raw=message.get("headers", []))
+                if (
+                    status < 200
+                    or status in {204, 304}
+                    or "content-encoding" in headers
+                    or _is_uncompressible_content_type(headers.get("content-type", ""))
+                ):
+                    passthrough = True
+                    started = True
+                    await send(message)
+                    return
+                initial_message = {**message, "headers": list(message.get("headers", []))}
+                return
+
+            if message_type == "http.response.body":
+                if passthrough:
+                    await send(message)
+                    return
+                if not started:
+                    started = True
+                    assert initial_message is not None
+                    more_body = bool(message.get("more_body", False))
+                    body = message.get("body", b"")
+                    if more_body:
+                        # Any streaming response bypasses compression completely so chunks flush immediately.
+                        passthrough = True
+                        await send(initial_message)
+                        await send(message)
+                        return
+                    if len(body) >= self.minimum_size:
+                        mutable = MutableHeaders(raw=initial_message["headers"])
+                        mutable.add_vary_header("Accept-Encoding")
+                        if accepts_gzip:
+                            compressed = gzip.compress(body, compresslevel=self.compresslevel)
+                            if len(compressed) < len(body):
+                                mutable["Content-Encoding"] = "gzip"
+                                mutable["Content-Length"] = str(len(compressed))
+                                message = {**message, "body": compressed}
+                    await send(initial_message)
+                    await send(message)
+                    return
+                await send(message)
+                return
+
+            if not started and initial_message is not None:
+                started = True
+                passthrough = True
+                await send(initial_message)
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
 
 
 # Create FastAPI app
@@ -128,10 +270,11 @@ app.add_exception_handler(IntegrityError, integrity_error_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
 # Middleware order: the last one added is the outermost, so requests flow
-# CORS -> Logging -> BodySizeLimit -> app. Logging sits inside CORS so even
-# 500s it produces carry CORS headers, and outside the body limit so 413s are
-# logged with a request id.
+# CORS -> Logging -> GZip -> BodySizeLimit -> app. Logging sits inside CORS so even
+# 500s it produces carry CORS headers, and outside GZip/BodySizeLimit so 413s and
+# compressed wire sizes are logged with a request id.
 app.add_middleware(BodySizeLimitMiddleware)
+app.add_middleware(SSESafeGZipMiddleware, minimum_size=500, compresslevel=6)
 app.add_middleware(LoggingMiddleware)
 
 # Configure CORS
@@ -162,6 +305,7 @@ app.add_middleware(
     # to server logs, and the download filename the export endpoints send
     # (cross-origin JS cannot read Content-Disposition unless it is exposed).
     expose_headers=["X-Request-ID", "X-Trace-ID", "X-Agent-Run-ID", "Content-Disposition"],
+    max_age=7200,
 )
 
 if is_production_like and not all_origins:

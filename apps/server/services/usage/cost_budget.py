@@ -45,6 +45,9 @@ from services.usage.pricing import (
 
 FREE_DAILY_BUDGET_UNITS = 1_500_000_000
 MATERIAL_TRIAL_BUDGET_UNITS = 100_000_000  # 1 CNY, per account, for life.
+# Conservative in-flight output headroom when a streaming response is closed/cancelled
+# before emitting a terminal usage event (covers tokens buffered on the provider/TCP stack).
+CANCELLED_STREAM_OUTPUT_BUFFER_TOKENS = 2_048
 COST_LIMIT_CODE = "ERR_QUOTA_AI_DAILY_COST_EXCEEDED"
 UNAVAILABLE_CODE = "ERR_AI_COST_BUDGET_UNAVAILABLE"
 _attribution: ContextVar[Any] = ContextVar("ai_cost_attribution", default=None)
@@ -257,6 +260,10 @@ class Reservation:
     started_at: datetime
     # Price table of the model the reservation was made for (settlement uses it).
     pricing_version: str | None = None
+    # Worst-case input & output token bounds used when reserving so a cancelled
+    # streaming call can reconcile conservatively instead of staying permanently NULL.
+    input_upper_bound: int | None = None
+    max_output_tokens: int | None = None
 
 
 def _commit_reservation(
@@ -269,6 +276,8 @@ def _commit_reservation(
     quota: UsageQuota | None,
     *,
     charges_daily: bool = True,
+    input_upper_bound: int | None = None,
+    max_output_tokens: int | None = None,
 ) -> Reservation:
     record = AICostReservation(
         id=uuid.uuid4().hex,
@@ -284,7 +293,13 @@ def _commit_reservation(
         session.add(quota)
     session.add(record)
     session.commit()
-    return Reservation(record.id, started, pricing_version)
+    return Reservation(
+        record.id,
+        started,
+        pricing_version,
+        input_upper_bound=input_upper_bound,
+        max_output_tokens=max_output_tokens,
+    )
 
 
 def reserve_model_call(
@@ -335,7 +350,8 @@ def reserve_model_call(
                 # Set explicit output bound; DeepSeek thinking default can be 64K.
                 maximum = 65_536
                 payload[output_key] = maximum
-            upper = cost_units("peak", 0, _input_upper_bound(payload), maximum, pricing_version=pricing_version)
+            input_upper = _input_upper_bound(payload)
+            upper = cost_units("peak", 0, input_upper, maximum, pricing_version=pricing_version)
             day = beijing_today(started)
             quota = None
             if trial_limit is not None:
@@ -350,7 +366,16 @@ def reserve_model_call(
             if paid:
                 # Upgraded during the trial: only the lifetime total applies.
                 return _commit_reservation(
-                    session, user_id, day, upper, started, pricing_version, quota, charges_daily=False
+                    session,
+                    user_id,
+                    day,
+                    upper,
+                    started,
+                    pricing_version,
+                    quota,
+                    charges_daily=False,
+                    input_upper_bound=input_upper,
+                    max_output_tokens=maximum,
                 )
             # Portable upsert, then lock this user's day. SQLite has its writer
             # lock already; PostgreSQL locks the inserted/conflicting row.
@@ -426,7 +451,17 @@ def reserve_model_call(
                 raise _error(COST_LIMIT_CODE, 402)
             bucket.charged_units += upper
             session.add(bucket)
-            reservation = _commit_reservation(session, user_id, day, upper, started, pricing_version, quota)
+            reservation = _commit_reservation(
+                session,
+                user_id,
+                day,
+                upper,
+                started,
+                pricing_version,
+                quota,
+                input_upper_bound=input_upper,
+                max_output_tokens=maximum,
+            )
             if initialized:
                 _log_budget(
                     "AI free daily cost budget initialized",
@@ -502,4 +537,72 @@ def settle_model_call(reservation: Reservation | None, usage: Any) -> None:
 
         log_with_context(
             get_logger(__name__), 40, "AI cost reservation settlement failed", reservation_id=reservation.id
+        )
+
+
+def settle_cancelled_stream_call(
+    reservation: Reservation | None,
+    *,
+    streamed_output_bytes: int = 0,
+) -> None:
+    """Conservatively settle a streaming reservation closed before any terminal usage event.
+
+    Preserves the ¥15 free daily cost backstop and never touches free material trials:
+    - Input remains priced at 100% cache_miss using the strict UTF-8 byte upper bound
+      recorded at reservation time (never assumes prompt caching).
+    - Output uses observed streamed UTF-8 bytes (>= actual output tokens) plus a
+      conservative in-flight buffer (``CANCELLED_STREAM_OUTPUT_BUFFER_TOKENS``), capped
+      at the call's reserved ``max_output_tokens``.
+    - Uses the call's actual Beijing price band (``price_band(reservation.started_at)``)
+      and never exceeds ``record.reserved_units``.
+    - Idempotent: a reservation already settled by exact usage is left untouched.
+    """
+    if (
+        reservation is None
+        or reservation.input_upper_bound is None
+        or reservation.max_output_tokens is None
+    ):
+        return
+    safe_output_bytes = max(0, int(streamed_output_bytes))
+    estimated_output = min(
+        reservation.max_output_tokens,
+        safe_output_bytes + CANCELLED_STREAM_OUTPUT_BUFFER_TOKENS,
+    )
+    estimated = cost_units(
+        price_band(reservation.started_at),
+        0,
+        reservation.input_upper_bound,
+        estimated_output,
+        **({"pricing_version": reservation.pricing_version} if reservation.pricing_version else {}),
+    )
+    try:
+        with _factory() as session:
+            _begin_locked(session)
+            record = session.exec(
+                select(AICostReservation).where(AICostReservation.id == reservation.id).with_for_update()
+            ).one()
+            if record.settled_units is not None or record.charges_trial:
+                return
+            settled = min(record.reserved_units, estimated)
+            difference = settled - record.reserved_units
+            if record.charges_daily:
+                bucket = session.exec(
+                    select(AICostDailyBudget)
+                    .where(AICostDailyBudget.user_id == record.user_id, AICostDailyBudget.day == record.day)
+                    .with_for_update()
+                ).one()
+                bucket.charged_units = max(0, bucket.charged_units + difference)
+                session.add(bucket)
+            record.settled_units = settled
+            session.add(record)
+            session.commit()
+    except Exception:
+        # Reservation remains fully charged if conservative reconciliation cannot persist.
+        from utils.logger import get_logger, log_with_context
+
+        log_with_context(
+            get_logger(__name__),
+            40,
+            "AI cancelled-stream cost reservation settlement failed",
+            reservation_id=reservation.id,
         )

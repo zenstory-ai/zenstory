@@ -105,6 +105,41 @@ _PG_INSERT_BATCH_SQL = text(
             END AS meta_runaway_stop,
             CASE
                 WHEN b.meta IS NOT NULL AND json_typeof(b.meta) = 'object'
+                     AND json_typeof(b.meta->'status_cards') = 'array'
+                THEN (
+                    SELECT
+                        CASE MIN(
+                            CASE
+                                WHEN json_typeof(card->'limit') = 'string'
+                                     AND btrim(card->>'limit') = 'wall_clock' THEN 0
+                                WHEN json_typeof(card->'layer') = 'string'
+                                     AND btrim(card->>'layer') = 'unexecuted_tool_text' THEN 1
+                                WHEN json_typeof(card->'layer') = 'string'
+                                     AND btrim(card->>'layer') = 'empty_file_correction' THEN 2
+                                WHEN json_typeof(card->'layer') = 'string'
+                                     AND btrim(card->>'layer') = 'tool_call' THEN 3
+                                WHEN json_typeof(card->'layer') = 'string'
+                                     AND btrim(card->>'layer') = 'collaboration' THEN 4
+                                ELSE 5
+                            END
+                        )
+                            WHEN 0 THEN 'run_deadline_exceeded'
+                            WHEN 1 THEN 'unexecuted_tool_text'
+                            WHEN 2 THEN 'empty_file_correction'
+                            WHEN 3 THEN 'max_turns_exceeded'
+                            WHEN 4 THEN 'iteration_exhausted'
+                            WHEN 5 THEN 'iteration_exhausted'
+                            ELSE NULL
+                        END
+                    FROM json_array_elements(b.meta->'status_cards') AS card
+                    WHERE json_typeof(card) = 'object'
+                      AND json_typeof(card->'type') = 'string'
+                      AND (card->>'type') = 'iteration_exhausted'
+                )
+                ELSE NULL
+            END AS iteration_exhausted_reason,
+            CASE
+                WHEN b.meta IS NOT NULL AND json_typeof(b.meta) = 'object'
                      AND json_typeof(b.meta->'feedback') = 'object'
                      AND json_typeof(b.meta->'feedback'->'vote') = 'string'
                      AND (b.meta->'feedback'->>'vote') IN ('up', 'down')
@@ -177,6 +212,8 @@ _PG_INSERT_BATCH_SQL = text(
                      AND NOT re.has_unexecuted_tool_text
                      AND NOT re.has_unwritten_files
                      AND NOT eff.has_runaway_stop
+                     AND re.iteration_exhausted_reason IS NULL
+                     AND re.outcome_reason <> 'incomplete'
                 THEN 'healthy'
                 ELSE 'abnormal'
             END AS round_category,
@@ -187,12 +224,16 @@ _PG_INSERT_BATCH_SQL = text(
                      AND NOT re.has_unexecuted_tool_text
                      AND NOT re.has_unwritten_files
                      AND NOT eff.has_runaway_stop
+                     AND re.iteration_exhausted_reason IS NULL
+                     AND re.outcome_reason <> 'incomplete'
                 THEN NULL
                 WHEN eff.effective_reason = 'end_turn' THEN
                     CASE
                         WHEN re.has_unexecuted_tool_text THEN 'unexecuted_tool_text'
                         WHEN eff.has_runaway_stop THEN 'runaway_stop'
-                        ELSE 'unwritten_files'
+                        WHEN re.iteration_exhausted_reason IS NOT NULL THEN re.iteration_exhausted_reason
+                        WHEN re.has_unwritten_files THEN 'unwritten_files'
+                        ELSE 'incomplete'
                     END
                 ELSE left(eff.effective_reason, 128)
             END AS abnormal_reason

@@ -50,6 +50,36 @@ def parse_json_list(raw: str | None) -> list[Any]:
     return parsed if isinstance(parsed, list) else []
 
 
+_ITERATION_EXHAUSTED_LAYER_PRIORITY = {
+    "unexecuted_tool_text": (1, "unexecuted_tool_text"),
+    "empty_file_correction": (2, "empty_file_correction"),
+    "tool_call": (3, "max_turns_exceeded"),
+    "collaboration": (4, "iteration_exhausted"),
+}
+
+
+def iteration_exhausted_abnormal_reason(metadata: dict[str, Any]) -> str | None:
+    """Return a bounded abnormal reason when ``status_cards`` contains an ``iteration_exhausted`` card."""
+    cards = metadata.get("status_cards")
+    if not isinstance(cards, list):
+        return None
+    best_priority: int | None = None
+    best_reason: str | None = None
+    for card in cards:
+        if not isinstance(card, dict) or card.get("type") != "iteration_exhausted":
+            continue
+        raw_limit = card.get("limit")
+        if isinstance(raw_limit, str) and raw_limit.strip() == "wall_clock":
+            return "run_deadline_exceeded"
+        raw_layer = card.get("layer")
+        layer = raw_layer.strip() if isinstance(raw_layer, str) else ""
+        priority, reason = _ITERATION_EXHAUSTED_LAYER_PRIORITY.get(layer, (5, "iteration_exhausted"))
+        if best_priority is None or priority < best_priority:
+            best_priority = priority
+            best_reason = reason
+    return best_reason
+
+
 def classify_round(metadata: dict[str, Any]) -> tuple[str, str | None]:
     """Classify one assistant round from ``message_metadata``.
 
@@ -78,12 +108,16 @@ def classify_round(metadata: dict[str, Any]) -> tuple[str, str | None]:
         or bool(stop_outcome.get("runaway_stop"))
         or effective_reason in _RUNAWAY_STOP_REASONS
     )
+    exhausted_reason = iteration_exhausted_abnormal_reason(metadata)
+    is_incomplete_outcome = outcome_reason == "incomplete"
 
     if (
         effective_reason == "end_turn"
         and not has_unexecuted_tool_text
         and not has_unwritten_files
         and not has_runaway_stop
+        and exhausted_reason is None
+        and not is_incomplete_outcome
     ):
         return "healthy", None
 
@@ -92,7 +126,11 @@ def classify_round(metadata: dict[str, Any]) -> tuple[str, str | None]:
             return "abnormal", "unexecuted_tool_text"
         if has_runaway_stop:
             return "abnormal", "runaway_stop"
-        return "abnormal", "unwritten_files"
+        if exhausted_reason is not None:
+            return "abnormal", exhausted_reason
+        if has_unwritten_files:
+            return "abnormal", "unwritten_files"
+        return "abnormal", "incomplete"
 
     return "abnormal", effective_reason[:_MAX_LABEL_LEN]
 

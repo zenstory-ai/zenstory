@@ -91,6 +91,7 @@ CASE
         'stop_reason', (chat_message.message_metadata::json)->'stop_reason',
         'stop_outcome', (chat_message.message_metadata::json)->'stop_outcome',
         'runaway_stop', (chat_message.message_metadata::json)->'runaway_stop',
+        'status_cards', (chat_message.message_metadata::json)->'status_cards',
         'feedback', (chat_message.message_metadata::json)->'feedback'
     )::text
     ELSE NULL
