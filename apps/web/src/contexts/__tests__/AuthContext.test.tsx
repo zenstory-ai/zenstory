@@ -2,6 +2,7 @@ import { renderHook, act, waitFor, render, screen, fireEvent } from '@testing-li
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ReactNode } from 'react'
+import i18next from 'i18next'
 import { AuthIdentityQueryBoundary, AuthProvider, useAuth, User } from '../AuthContext'
 import * as api from '@/lib/api'
 import { trackEvent } from '@/lib/analytics'
@@ -816,6 +817,30 @@ describe('AuthContext', () => {
       })
 
       expect(window.location.href).toMatch(/^https:\/\/localhost:8000\/api\/auth\/google/)
+    })
+
+    it('passes normalized current UI language to Google OAuth endpoint', async () => {
+      const previousLanguage = i18next.language
+      Object.defineProperty(i18next, 'language', { value: 'en-US', configurable: true })
+      try {
+        const { result } = renderHook(() => useAuth(), {
+          wrapper: createWrapper(),
+        })
+
+        await waitFor(() => {
+          expect(result.current.loading).toBe(false)
+        })
+
+        act(() => {
+          result.current.googleLogin()
+        })
+
+        const redirected = new URL(window.location.href)
+        expect(redirected.pathname).toBe('/api/auth/google')
+        expect(redirected.searchParams.get('lang')).toBe('en')
+      } finally {
+        Object.defineProperty(i18next, 'language', { value: previousLanguage, configurable: true })
+      }
     })
   })
 

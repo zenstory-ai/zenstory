@@ -35,6 +35,7 @@ from services.core.auth_service import (
 from services.core.registration_email_policy import is_registration_email_blocked
 from services.features.activation_event_service import activation_event_service
 from services.features.referral_service import create_referral as create_referral_service
+from services.features.user_preference_service import normalize_ui_language, set_ui_language
 from services.subscription.subscription_service import subscription_service
 from services.usage.acquisition_service import normalize_acquisition
 from utils.email_identity import email_identity_matches, normalize_email_identity
@@ -172,6 +173,7 @@ def _should_use_secure_cookie() -> bool:
 
 
 OAUTH_STATE_ACQUISITION_KEY = "acq"
+OAUTH_STATE_LANG_KEY = "lang"
 
 
 def _parse_acquisition_param(raw: str | None) -> dict | None:
@@ -245,6 +247,7 @@ async def google_oauth_login(
     invite: str | None = Query(None, description="Alias for invite_code"),
     code: str | None = Query(None, description="Alias for invite_code"),
     acq: str | None = Query(None, max_length=1024, description="First-touch acquisition (JSON)"),
+    lang: str | None = Query(None, max_length=32, description="Preferred UI language for new user registration"),
 ):
     """
     Initiate Google OAuth flow.
@@ -296,6 +299,11 @@ async def google_oauth_login(
     acquisition = _parse_acquisition_param(acq)
     if acquisition:
         state_payload[OAUTH_STATE_ACQUISITION_KEY] = json.dumps(acquisition, separators=(",", ":"))
+
+    # Preferred UI language rides in the state so a new OAuth account persists ui_language.
+    normalized_lang = normalize_ui_language(lang)
+    if normalized_lang:
+        state_payload[OAUTH_STATE_LANG_KEY] = normalized_lang
 
     params["state"] = _encode_oauth_state(state_payload)
     auth_url = f"{GOOGLE_AUTH_URL}?{urllib.parse.urlencode(params)}"
@@ -698,6 +706,23 @@ async def google_oauth_callback(
                 error=str(e),
                 error_type=type(e).__name__,
             )
+
+        # Persist initial UI language for newly created OAuth accounts. Never blocks login.
+        oauth_lang = normalize_ui_language(state_payload.get(OAUTH_STATE_LANG_KEY))
+        if oauth_lang:
+            try:
+                set_ui_language(session, new_user.id, oauth_lang)
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                log_with_context(
+                    logger,
+                    logging.WARNING,
+                    "Failed to persist initial UI language (oauth)",
+                    user_id=new_user.id,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
 
         is_new_user = True
         user = new_user

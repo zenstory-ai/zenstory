@@ -13,7 +13,7 @@ import { getLocale } from '../lib/i18n-helpers';
 import { saveOAuthPlanIntent, type PlanIntent } from '../lib/authFlow';
 import { clearPendingUpgradeFunnelEvents } from '../lib/upgradeAnalytics';
 import { claimPreferredProjectType } from '../lib/preferredProjectType';
-import { syncAccountLanguage } from '../lib/accountLanguage';
+import { supportedAccountLanguage, syncAccountLanguage } from '../lib/accountLanguage';
 
 export interface User {
   id: string;
@@ -474,6 +474,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (acquisition) {
       // Recorded on the account if this Google sign-in creates one.
       url.searchParams.set('acq', JSON.stringify(acquisition));
+    }
+    const currentLanguage = supportedAccountLanguage(i18next.language);
+    if (currentLanguage) {
+      // Recorded on the account if this Google sign-in creates one.
+      url.searchParams.set('lang', currentLanguage);
     }
 
     window.location.href = url.toString();
