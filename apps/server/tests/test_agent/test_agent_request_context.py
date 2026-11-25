@@ -282,8 +282,8 @@ async def test_real_sdk_runner_stops_on_overdue_file_body_via_run_context_wrappe
                 ResponseFunctionToolCall(
                     id="fc-overdue",
                     call_id="call-overdue-1",
-                    name="query_files",
-                    arguments="{}",
+                    name="edit_file",
+                    arguments='{"id": "file-pending-1", "edits": []}',
                     type="function_call",
                     status="completed",
                 )
@@ -543,31 +543,31 @@ async def test_failover_chat_model_is_decoupled_from_request_context_and_overdue
 
     tools = {t.name: t for t in build_agent_function_tools()}
     overdue_out = json.loads(
-        await tools["query_files"].on_invoke_tool(
+        await tools["edit_file"].on_invoke_tool(
             SimpleNamespace(context=ctx_overdue, tool_call_id="call-ov"),
-            "{}",
+            '{"id": "file-1", "edits": []}',
         )
     )
     assert overdue_out["status"] == "error"
     assert overdue_out["error_type"] == "file_body_pending"
 
     # Clean request is NOT blocked by ctx_overdue's pending file!
-    mock_query = AsyncMock(
-        return_value={"content": [{"type": "text", "text": '{"status":"success","data":[]}'}]}
+    mock_edit = AsyncMock(
+        return_value={"content": [{"type": "text", "text": '{"status":"success","data":{}}'}]}
     )
     with patch.dict(
         "agent.openai_agents.tools_adapter.TOOL_FUNCTIONS",
-        {"query_files": mock_query},
+        {"edit_file": mock_edit},
     ):
         fresh_tools = {t.name: t for t in build_agent_function_tools()}
         clean_out = json.loads(
-            await fresh_tools["query_files"].on_invoke_tool(
+            await fresh_tools["edit_file"].on_invoke_tool(
                 SimpleNamespace(context=ctx_clean, tool_call_id="call-cl"),
-                "{}",
+                '{"id": "file-2", "edits": []}',
             )
         )
     assert clean_out["status"] == "success"
-    assert mock_query.await_args.kwargs["request_context"] is ctx_clean
+    assert mock_edit.await_args.kwargs["request_context"] is ctx_clean
 
     # _stop_run_after_tools checks ctx.context independently for each wrapper.
     stop_res = runner_module._stop_run_after_tools(

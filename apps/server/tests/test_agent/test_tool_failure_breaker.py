@@ -399,6 +399,156 @@ def test_parallel_batch_pending_empty_file_unwritten_never_counts_toward_failure
     assert breaker.total_failures == 0
 
 
+@pytest.mark.unit
+def test_cross_file_batch_misses_after_distinct_file_successes_do_not_trip_circuit_open():
+    """Reproduces production session f45e9352: 24-chapter batch with Turn 1 (1 miss + 23 distinct
+    file successes) followed by Turn 2 (9 anchor_not_found misses + 15 successes) must NOT trip
+    circuit_open at total_failures=10."""
+    breaker = ToolFailureBreaker()
+
+    # Turn 1: ch-1 misses, ch-2..ch-24 succeed with verified mutations.
+    breaker.observe(
+        "edit_file",
+        json.dumps({"id": "ch-1", "edits": [{"op": "replace", "old": "\n\n ", "new": "\n\n"}]}),
+        _error("找不到要替换的原文片段", error_type="anchor_not_found"),
+    )
+    for idx in range(2, 25):
+        breaker.observe(
+            "edit_file",
+            json.dumps({"id": f"ch-{idx}", "edits": [{"op": "replace", "old": "\n\n ", "new": "\n\n"}]}),
+            json.dumps({"status": "success", "mutation_applied": True, "data": {"id": f"ch-{idx}"}}),
+        )
+    assert breaker.total_failures == 1
+    assert breaker.consecutive_failures == 0
+    assert not breaker.is_open
+
+    # Turn 2: ch-1..ch-9 miss (9 misses -> total_failures reaches 10, but consecutive_failures is 9 < 10!).
+    for idx in range(1, 10):
+        breaker.observe(
+            "edit_file",
+            json.dumps({"id": f"ch-{idx}", "edits": [{"op": "replace", "old": "  ", "new": ""}]}),
+            _error("找不到要替换的原文片段", error_type="anchor_not_found"),
+        )
+    assert breaker.total_failures == 10
+    assert breaker.consecutive_failures == 9
+    assert not breaker.is_open
+
+    # ch-10..ch-24 succeed -> resets consecutive_failures back to 0.
+    for idx in range(10, 25):
+        breaker.observe(
+            "edit_file",
+            json.dumps({"id": f"ch-{idx}", "edits": [{"op": "replace", "old": "  ", "new": ""}]}),
+            json.dumps({"status": "success", "mutation_applied": True, "data": {"id": f"ch-{idx}"}}),
+        )
+    assert breaker.consecutive_failures == 0
+    assert not breaker.is_open
+
+
+@pytest.mark.unit
+def test_lifetime_failure_cap_still_stops_cross_file_alternating_spin():
+    """Alternating failures and distinct-file successes cannot spin indefinitely:
+    total_failures still hits lifetime_failure_cap (3 * max_failures_per_request = 30)."""
+    breaker = ToolFailureBreaker()
+    assert breaker.lifetime_failure_cap == MAX_TOOL_FAILURES_PER_REQUEST * 3
+
+    for round_idx in range(15):
+        # 2 misses + 1 verified mutation on a distinct file per cycle -> consecutive stays <= 2,
+        # but total_failures grows to 30 and trips TRIP_REASON_TOTAL as a hard safety ceiling.
+        for miss_idx in range(2):
+            breaker.observe(
+                "edit_file",
+                json.dumps({"id": f"ch-{round_idx}-{miss_idx}", "edits": [{"op": "replace", "old": "x", "new": "y"}]}),
+                _error("找不到片段", error_type="anchor_not_found"),
+            )
+        if breaker.is_open:
+            break
+        breaker.observe(
+            "edit_file",
+            json.dumps({"id": f"ok-{round_idx}", "edits": [{"op": "replace", "old": "a", "new": "b"}]}),
+            json.dumps({"status": "success", "mutation_applied": True, "data": {"id": f"ok-{round_idx}"}}),
+        )
+
+    assert breaker.is_open
+    assert breaker.trip is not None
+    assert breaker.trip.reason == TRIP_REASON_TOTAL
+    assert breaker.trip.failures == breaker.lifetime_failure_cap
+    assert breaker.trip.threshold == breaker.lifetime_failure_cap
+
+
+@pytest.mark.unit
+def test_non_distinct_or_non_mutating_successes_do_not_reset_consecutive_failures():
+    """Reads, metadata updates, awaiting_body placeholders, no-op edits, and repeat edits on the
+    same file must NOT reset consecutive_failures."""
+    breaker = ToolFailureBreaker()
+    # First verified edit on file-1 sets _last_mutated_file_id = "file-1".
+    breaker.observe(
+        "edit_file",
+        json.dumps({"id": "file-1", "edits": [{"op": "replace", "old": "a", "new": "b"}]}),
+        json.dumps({"status": "success", "mutation_applied": True, "data": {"id": "file-1"}}),
+    )
+
+    non_progress_calls = [
+        ("query_files", '{"id": "file-2"}', json.dumps({"status": "success", "data": [{"id": "file-2"}]})),
+        ("update_project", '{"current_phase": "写"}', json.dumps({"status": "success", "data": {"id": "p1"}})),
+        (
+            "create_file",
+            '{"title": "新章", "file_type": "outline"}',
+            json.dumps({"status": "success", "mutation_applied": True, "data": {"id": "f-empty", "awaiting_body": True}}),
+        ),
+        (
+            "edit_file",
+            '{"id": "file-2", "edits": []}',
+            json.dumps({"status": "success", "mutation_applied": False, "data": {"id": "file-2"}}),
+        ),
+        (
+            "edit_file",
+            '{"id": "file-1", "edits": [{"op": "replace", "old": "c", "new": "d"}]}',
+            json.dumps({"status": "success", "mutation_applied": True, "data": {"id": "file-1"}}),
+        ),
+    ]
+
+    for idx in range(MAX_TOOL_FAILURES_PER_REQUEST):
+        breaker.observe(
+            "edit_file",
+            json.dumps({"id": f"target-{idx}", "edits": [{"op": "replace", "old": f"o{idx}", "new": "n"}]}),
+            _error("找不到片段", error_type="anchor_not_found"),
+        )
+        if idx < MAX_TOOL_FAILURES_PER_REQUEST - 1:
+            tname, targs, tout = non_progress_calls[idx % len(non_progress_calls)]
+            breaker.observe(tname, targs, tout)
+            assert not breaker.is_open
+
+    assert breaker.is_open
+    assert breaker.trip is not None
+    assert breaker.trip.reason == TRIP_REASON_TOTAL
+    assert breaker.trip.failures == MAX_TOOL_FAILURES_PER_REQUEST
+
+
+@pytest.mark.unit
+def test_identical_and_file_not_found_protections_remain_strict_after_batch_successes():
+    """Distinct-file batch progress never weakens MAX_IDENTICAL_TOOL_FAILURES=3 or file_not_found=3."""
+    breaker_id = ToolFailureBreaker()
+    breaker_nf = ToolFailureBreaker()
+
+    for idx in range(20):
+        ok_out = json.dumps({"status": "success", "mutation_applied": True, "data": {"id": f"ch-{idx}"}})
+        ok_args = json.dumps({"id": f"ch-{idx}", "edits": [{"op": "replace", "old": "a", "new": "b"}]})
+        breaker_id.observe("edit_file", ok_args, ok_out)
+        breaker_nf.observe("edit_file", ok_args, ok_out)
+
+    for _ in range(MAX_IDENTICAL_TOOL_FAILURES):
+        breaker_id.observe("edit_file", EDIT_ARGS, _error("database is locked"))
+    assert breaker_id.is_open and breaker_id.trip.reason == TRIP_REASON_IDENTICAL
+
+    for idx in range(MAX_IDENTICAL_TOOL_FAILURES):
+        breaker_nf.observe(
+            "edit_file",
+            json.dumps({"id": f"missing-uuid-{idx}", "edits": [{"op": "append", "text": "x"}]}),
+            _error("文件不存在或已删除", error_type="file_not_found"),
+        )
+    assert breaker_nf.is_open and breaker_nf.trip.reason == TRIP_REASON_RECOVERY
+
+
 # ---------------------------------------------------------------------------
 # 接线：工具回调与 tool_use_behavior
 # ---------------------------------------------------------------------------
