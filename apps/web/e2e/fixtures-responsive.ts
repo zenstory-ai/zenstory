@@ -29,6 +29,10 @@ export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free
         let data: unknown = [];
         if (path === '/api/auth/me')
             data = language ? { ...responsiveUser, ui_language: language } : responsiveUser;
+        else if (path === '/api/auth/me/preferences') {
+            const payload = route.request().postDataJSON() as { ui_language?: string } | null;
+            data = { ui_language: payload?.ui_language ?? language ?? 'zh' };
+        }
         else if (path === '/api/announcements/current')
             data = null;
         else if (path === '/api/v1/workspace/first-work' && route.request().method() === 'GET')

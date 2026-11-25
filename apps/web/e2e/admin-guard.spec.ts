@@ -18,6 +18,15 @@ async function bootstrapSession(page: import('@playwright/test').Page, user: {
     });
   });
 
+  await page.route('**/api/auth/me/preferences', async (route) => {
+    const payload = route.request().postDataJSON() as { ui_language?: string } | null;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ui_language: payload?.ui_language ?? 'zh' }),
+    });
+  });
+
   await page.route('**/api/auth/refresh', async (route) => {
     await route.fulfill({
       status: 200,

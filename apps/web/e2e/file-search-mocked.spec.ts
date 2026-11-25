@@ -5,7 +5,7 @@ for (const width of [390, 1440]) {
   for (const action of ['select', 'clear']) {
   test(`file search preserves ranking, paths, limit and ${action} at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
-    await mockResponsiveApp(page);
+    await mockResponsiveApp(page, null, 'free', 'zh');
     const projectId = responsiveProjects[0].id;
     const suffixes = ['章节十', '章节二', 'Alpha', 'alpha', 'é', 'e\u0301', '😀', '!draft', 'file2', 'file10'];
     const titles = ['needle', ...Array.from({ length: 70 }, (_, index) => `needle ${suffixes[index % suffixes.length]} ${index}`), 'xneedle tail'];
