@@ -1042,3 +1042,79 @@ async def test_admin_updating_pro_usd_price_returns_creem_sync_warning(
     )
     assert resp2.status_code == 200
     assert resp2.json()["warnings"] == []
+
+
+@pytest.mark.integration
+async def test_creem_sync_amount_mismatch_and_preflight_error_branches(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    _configure_creem_env(monkeypatch, test_mode=True)
+    monkeypatch.setenv("ENVIRONMENT", "staging")
+    _ensure_pro_plan_usd(db_session)
+    user = _make_user(db_session, "creem_sync_mm_user")
+    auth_headers = await _login(client, user.username)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            body = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(
+                200,
+                json={
+                    "id": "ch_sync_mm",
+                    "object": "checkout",
+                    "product": body["product_id"],
+                    "status": "pending",
+                    "checkout_url": "https://checkout.creem.io/test/checkout/prod_month_test_123/ch_sync_mm",
+                    "mode": "test",
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "id": "ch_sync_mm",
+                "object": "checkout",
+                "product": "prod_month_test_123",
+                "status": "completed",
+                "mode": "test",
+                "order": {"id": "ord_sync_mm", "amount": 1599, "currency": "USD"},
+            },
+        )
+
+    monkeypatch.setattr(creem_service, "http_transport", httpx.MockTransport(handler))
+    create_resp = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    out_trade_no = create_resp.json()["order"]["out_trade_no"]
+
+    sync_resp = await client.post(f"/api/v1/payments/orders/{out_trade_no}/sync", headers=auth_headers)
+    assert sync_resp.status_code == 409
+
+    db_session.expire_all()
+    order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == out_trade_no)).one()
+    assert order.status == "paid"
+    assert order.trade_no == "ord_sync_mm"
+    assert order.fulfillment_status == "failed"
+    assert order.failure_reason == "amount_mismatch"
+
+    # Cover preflight product verification error branches (404, inactive, 500, invalid JSON).
+    def err_handler(request: httpx.Request) -> httpx.Response:
+        pid = request.url.params.get("product_id", "")
+        if pid == "prod_month_test_123":
+            return httpx.Response(404)
+        return httpx.Response(200, json={"id": pid, "price": 7900, "currency": "USD", "status": "archived"})
+
+    with httpx.Client(transport=httpx.MockTransport(err_handler)) as http_client:
+        problems = creem_preflight_problems(verify_products=True, http_client=http_client, session=db_session)
+        assert problems is not None
+        assert any("not found (404)" in p for p in problems)
+        assert any("archived" in p for p in problems)
+
+    def transport_err_handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(502)
+
+    with httpx.Client(transport=httpx.MockTransport(transport_err_handler)) as http_client:
+        problems = creem_preflight_problems(verify_products=True, http_client=http_client, session=db_session)
+        assert problems is not None
+        assert any("provider_unavailable" in p for p in problems)

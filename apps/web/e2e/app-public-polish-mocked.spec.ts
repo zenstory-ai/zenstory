@@ -108,3 +108,26 @@ for (const language of ['zh', 'en']) {
     });
   }
 }
+
+test('public pricing falls back to CNY in English when card checkout is unavailable', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.addInitScript(() => {
+    localStorage.setItem('zenstory-language', 'en');
+    localStorage.setItem('zenstory-theme', 'light');
+  });
+  await page.route('**/api/**', route => {
+    const request = route.request();
+    if (request.url().includes('/subscription/catalog')) return route.fulfill({ json: catalog });
+    if (request.url().includes('/payments/options')) {
+      return route.fulfill({ json: { enabled: true, payment_methods: ['alipay'] } });
+    }
+    return route.fulfill({ json: null });
+  });
+  await page.goto('/pricing');
+  await expect(page.getByText('¥49/month', { exact: true })).toBeVisible();
+  await expect(page.getByText('$9.99/month', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/32%/)).toHaveCount(1);
+  await page.getByRole('radio', { name: /Yearly/ }).click();
+  await expect(page.getByText('¥399/year', { exact: true })).toBeVisible();
+  await expect(page.getByText('$79/year', { exact: true })).toHaveCount(0);
+});
