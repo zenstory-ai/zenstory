@@ -14,8 +14,9 @@ const mockToggleNovel = vi.fn()
 const mockToggleEntityType = vi.fn()
 const mockLoadPreview = vi.fn()
 const mockAddMaterial = vi.fn()
+const mockActivate = vi.fn()
 const mockRefreshIfStale = vi.fn()
-const libraryState = vi.hoisted(() => ({ accessDenied: false }))
+const libraryState = vi.hoisted(() => ({ accessDenied: false, isActivated: true }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -50,6 +51,8 @@ vi.mock('../../subscription/MaterialsUpgradePrompt', () => ({
 
 vi.mock('../../../contexts/MaterialLibraryContext', () => ({
   useMaterialLibraryContext: () => ({
+    isActivated: libraryState.isActivated,
+    activate: mockActivate,
     isLoading: false,
     isFetching: false,
     error: null,
@@ -112,6 +115,7 @@ describe('MaterialsPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     libraryState.accessDenied = false
+    libraryState.isActivated = true
     mockAddMaterial.mockReturnValue(true)
     mockGetEntityNavigation.mockResolvedValue([
       { id: 1, name: 'Hero' },
@@ -135,10 +139,20 @@ describe('MaterialsPane', () => {
     expect(screen.queryByText('materials:libraryLoadFailed')).not.toBeInTheDocument()
   })
 
-  it('refreshes a stale library summary when the pane mounts', () => {
+  it('activates lazy loading and refreshes a stale library summary when the pane mounts', () => {
     render(<MaterialsPane />)
 
+    expect(mockActivate).toHaveBeenCalled()
     expect(mockRefreshIfStale).toHaveBeenCalled()
+  })
+
+  it('renders the loading state before on-demand activation completes instead of flashing empty state', () => {
+    libraryState.isActivated = false
+
+    render(<MaterialsPane />)
+
+    expect(screen.getByText('common:loading')).toBeInTheDocument()
+    expect(screen.queryByText('editor:fileTree.referenceLibraryEmpty')).not.toBeInTheDocument()
   })
 
   it('loads only the opened navigation category and preserves preview, attach, and import actions', async () => {

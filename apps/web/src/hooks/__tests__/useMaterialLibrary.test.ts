@@ -592,6 +592,8 @@ describe('useMaterialLibrary', () => {
     it('returns all expected properties', () => {
       const { result } = renderHook(() => useMaterialLibrary())
 
+      expect(result.current).toHaveProperty('isActivated')
+      expect(result.current).toHaveProperty('activate')
       expect(result.current).toHaveProperty('libraries')
       expect(result.current).toHaveProperty('isLoading')
       expect(result.current).toHaveProperty('error')
@@ -604,6 +606,52 @@ describe('useMaterialLibrary', () => {
       expect(result.current).toHaveProperty('isPreviewLoading')
       expect(result.current).toHaveProperty('loadPreview')
       expect(result.current).toHaveProperty('clearPreview')
+    })
+  })
+
+  describe('on-demand activation', () => {
+    type QueryArgs = { queryKey: readonly unknown[]; enabled?: boolean }
+
+    it('keeps subscription status, quota, and summary queries disabled until activate() is called', () => {
+      const { result } = renderHook(() => useMaterialLibrary({ enabled: false }))
+
+      expect(result.current.isActivated).toBe(false)
+      expect(result.current.isLoading).toBe(false)
+      expect(result.current.accessDenied).toBe(false)
+
+      const initialCalls = mockUseQuery.mock.calls.map(([args]) => args as QueryArgs)
+      expect(initialCalls.find((c) => c.queryKey[0] === 'subscription-status')?.enabled).toBe(false)
+      expect(initialCalls.find((c) => c.queryKey[0] === 'subscription-quota')?.enabled).toBe(false)
+      expect(initialCalls.find((c) => c.queryKey[0] === 'material-library-summary')?.enabled).toBe(false)
+
+      mockUseQuery.mockClear()
+      act(() => {
+        result.current.activate()
+      })
+
+      expect(result.current.isActivated).toBe(true)
+      const activeCalls = mockUseQuery.mock.calls.map(([args]) => args as QueryArgs)
+      expect(activeCalls.find((c) => c.queryKey[0] === 'subscription-status')?.enabled).toBe(true)
+    })
+
+    it('activates via refreshIfStale() without prematurely bypassing entitlement gating', () => {
+      const refetchMock = vi.fn()
+      mockUseQuery.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: null,
+        refetch: refetchMock,
+      })
+
+      const { result } = renderHook(() => useMaterialLibrary({ enabled: false }))
+      expect(result.current.isActivated).toBe(false)
+
+      act(() => {
+        result.current.refreshIfStale()
+      })
+
+      expect(result.current.isActivated).toBe(true)
+      expect(refetchMock).not.toHaveBeenCalled()
     })
   })
 })
