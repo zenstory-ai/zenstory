@@ -19,6 +19,7 @@ const mockSave = vi.fn();
 const mockToastError = vi.fn();
 const mockInitializeFirstWork = vi.fn();
 const mockRequestChatOnOpen = vi.fn();
+const mockSetOnboardingRequired = vi.fn();
 let mockIsMobile = false;
 let mockUser: { id: string } | null = { id: "user-onboarding-1" };
 let mockLocationState: { from?: { pathname?: string; search?: string; hash?: string } } | null = {
@@ -50,6 +51,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("../../contexts/AuthContext", () => ({
   useAuth: () => ({
     user: mockUser,
+    setOnboardingRequired: mockSetOnboardingRequired,
   }),
 }));
 
@@ -181,6 +183,7 @@ describe("OnboardingPersonaPage", () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith("/dashboard/projects", { replace: true });
     });
+    expect(mockSetOnboardingRequired).toHaveBeenCalledWith(false);
     expect(getPreferredProjectType(mockUser?.id)).toBe("short");
     expect(mockReportActivationEvent).toHaveBeenCalledWith("user-onboarding-1", { event_name: "persona_submitted", skipped: false });
     expect(queryClient.getQueryData(["persona-onboarding", "user-onboarding-1"])).toMatchObject({
@@ -274,6 +277,7 @@ describe("OnboardingPersonaPage", () => {
       });
     });
     expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true });
+    expect(mockSetOnboardingRequired).toHaveBeenCalledWith(false);
     expect(getPreferredProjectType(mockUser?.id)).toBeNull();
     expect(mockReportActivationEvent).toHaveBeenCalledWith("user-onboarding-1", { event_name: "persona_submitted", skipped: true });
   });

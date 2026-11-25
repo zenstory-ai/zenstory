@@ -120,7 +120,7 @@ function SampleLine({ line, script }: { line: string; script: boolean }) {
 
 export default function OnboardingPersonaPage() {
   const { t, i18n } = useTranslation(["onboarding", "common"]);
-  const { user } = useAuth();
+  const { user, setOnboardingRequired } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -271,6 +271,7 @@ export default function OnboardingPersonaPage() {
         skipped: profile.skipped,
       });
       queryClient.setQueryData(personaQueryKey, result);
+      setOnboardingRequired?.(Boolean(result.required));
       trackEvent("persona_submitted", { skipped: profile.skipped, project_type: choice?.type });
       // New-user funnel (server side, once per account): the persona screen was answered or skipped.
       void reportActivationEvent(user.id, { event_name: "persona_submitted", skipped: profile.skipped });

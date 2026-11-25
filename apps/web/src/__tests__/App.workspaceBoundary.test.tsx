@@ -18,9 +18,13 @@ vi.mock('../components/ChatPanel', () => {
   workspaceLoads.push('ChatPanel');
   return { ChatPanel: () => null };
 });
+vi.mock('../providers/ProtectedProviders', () => {
+  workspaceLoads.push('ProtectedProviders');
+  return { ProtectedProviders: ({ children }: { children: unknown }) => children };
+});
 
 describe('public App module load boundary', () => {
-  it('does not evaluate the project workbench when loading the public router', async () => {
+  it('does not evaluate the project workbench or ProtectedProviders when loading the public router', async () => {
     const { default: App } = await import('../App');
     expect(App).toBeTypeOf('function');
     expect(workspaceLoads).toEqual([]);

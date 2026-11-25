@@ -2,14 +2,17 @@ import { useQuery } from '@tanstack/react-query';
 import { firstWorkApi, firstWorkQueryKey, type FirstWorkState } from '../lib/firstWorkApi';
 import type { ProjectType } from '../types';
 
+// Cache first-work state across tab/project switches; actual progress mutations
+// (initialize, open, manual/AI completion, project creation) explicitly update or invalidate the query.
+export const FIRST_WORK_STALE_TIME_MS = 5 * 60 * 1000;
+
 export function useFirstWork(userId: string | null) {
   return useQuery({
     queryKey: firstWorkQueryKey(userId),
     queryFn: firstWorkApi.get,
     enabled: Boolean(userId),
     retry: false,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: FIRST_WORK_STALE_TIME_MS,
   });
 }
 

@@ -11,7 +11,6 @@ import { SEOProvider } from "./providers/SEOProvider";
 import { AuthIdentityQueryBoundary, AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { FileSearchProvider } from "./contexts/FileSearchContext";
-import { ProtectedProviders } from "./providers/ProtectedProviders";
 import { ToastContainer } from "./components/Toast";
 import { RouteChangeTracker } from "./components/RouteChangeTracker";
 import { AppUpdatePrompt } from "./components/AppUpdatePrompt";
@@ -34,6 +33,13 @@ import { inspirationsConfig } from "./config/inspirations";
 import { useVisualViewport } from "./hooks/useVisualViewport";
 
 // 懒加载路由组件 - 按需加载，减少首屏 bundle 大小
+const ProtectedProviders = lazyRoute<{ children: React.ReactNode }>(
+  async () => {
+    const { ProtectedProviders: Component } = await import("./providers/ProtectedProviders");
+    return { default: Component };
+  },
+  "ProtectedProviders",
+);
 const ProjectEditor = lazyRoute(() => import("./pages/ProjectEditor"), "ProjectEditor");
 const HomePage = lazyRoute(() => import("./pages/HomePage"), "HomePage");
 const Dashboard = lazyRoute(() => import("./pages/Dashboard"), "Dashboard");
@@ -87,10 +93,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isOnboardingRoute = location.pathname.startsWith("/onboarding/persona");
   const isAdminRoute = location.pathname.startsWith("/admin");
   const shouldCheckOnboarding = Boolean(user && !loading && !isOnboardingRoute && !isAdminRoute);
+  // Auth responses (/api/auth/me, /login, /refresh) include `onboarding_required` directly so
+  // returning and newly-signed-in users skip a blocking serial GET /api/v1/persona/onboarding.
+  // Fall back to the persona endpoint only when the field is absent (e.g. legacy cache or rolling deploy).
+  const hasKnownOnboardingState = typeof user?.onboarding_required === "boolean";
+  const shouldFetchOnboarding = Boolean(shouldCheckOnboarding && !hasKnownOnboardingState);
   const onboardingState = useQuery({
     queryKey: personaOnboardingQueryKey(user?.id ?? "anonymous"),
     queryFn: onboardingPersonaApi.getState,
-    enabled: shouldCheckOnboarding,
+    enabled: shouldFetchOnboarding,
   });
   const signedInId = user?.id;
   React.useEffect(() => {
@@ -107,11 +118,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" state={{ from: location, ...(owner ? { [RETURN_OWNER_KEY]: owner } : {}) }} replace />;
   }
 
-  if (shouldCheckOnboarding && onboardingState.isPending) {
+  if (shouldFetchOnboarding && onboardingState.isPending) {
     return <PageLoader />;
   }
 
-  if (shouldCheckOnboarding && onboardingState.isError) {
+  if (shouldFetchOnboarding && onboardingState.isError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[hsl(var(--bg-primary))] p-4">
         <div className="w-full max-w-sm rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-6 text-center" role="alert">
@@ -125,7 +136,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (shouldCheckOnboarding && onboardingState.data?.required) {
+  const onboardingRequired = hasKnownOnboardingState
+    ? Boolean(user.onboarding_required)
+    : Boolean(onboardingState.data?.required);
+
+  if (shouldCheckOnboarding && onboardingRequired) {
     const search = location.search || window.location.search;
     const hash = location.hash || window.location.hash;
 

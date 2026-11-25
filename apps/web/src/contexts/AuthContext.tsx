@@ -28,6 +28,8 @@ export interface User {
   updated_at: string;
   /** Interface language saved on the account; null until the user signs up with or switches to one. */
   ui_language?: string | null;
+  /** Whether persona onboarding is still required (mirrors GET /api/v1/persona/onboarding). */
+  onboarding_required?: boolean | null;
   subscription?: UserSubscription;
   quota?: UsageQuota;
 }
@@ -46,6 +48,7 @@ export interface AuthContextType {
   verifyEmail: (email: string, code: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   googleLogin: (options?: { inviteCode?: string; redirectUrl?: string; planIntent?: PlanIntent | null }) => void;
+  setOnboardingRequired: (required: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -105,29 +108,85 @@ const saveUserCache = (userData: User) => {
   }
 };
 
-// Helper to read cached user if valid (within TTL)
-const getValidCachedUser = (): User | null => {
+// Decode JWT payload claims locally for optimistic boot expiry checks.
+// The server remains authoritative and always verifies signatures via /api/auth/me.
+const readJwtClaims = (token: string | null): Record<string, unknown> | null => {
+  try {
+    if (!token) return null;
+    const parts = token.split('.');
+    if (parts.length !== 3 || !parts[1]) return null;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    const claims: unknown = JSON.parse(atob(padded));
+    return claims && typeof claims === 'object' && !Array.isArray(claims)
+      ? (claims as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+// Parse cached user object from localStorage without enforcing cache TTL.
+const parseCachedUser = (): User | null => {
   try {
     const cachedUserStr = localStorage.getItem(CACHE_KEYS.USER);
-    const lastValidatedStr = localStorage.getItem(CACHE_KEYS.VALIDATED_AT);
-
-    if (!cachedUserStr || !lastValidatedStr) {
+    if (!cachedUserStr) return null;
+    const parsed = JSON.parse(cachedUserStr) as User | null;
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.id !== 'string' || !parsed.id) {
       return null;
     }
-
-    const lastValidated = parseInt(lastValidatedStr, 10);
-    const now = Date.now();
-
-    // Check if cache is still within TTL
-    if (now - lastValidated < AUTH_CACHE_TTL_MS) {
-      return JSON.parse(cachedUserStr) as User;
-    }
-
-    return null;
+    return parsed;
   } catch {
     logger.warn('[Auth] Failed to read user cache (corrupted data)');
     return null;
   }
+};
+
+// Return cached user eligible for optimistic returning-user boot:
+// - For real JWT access tokens: allow instant render whenever the JWT `exp` claim
+//   is still unexpired (and `sub` matches cached user if present), even past the
+//   5-minute AUTH_CACHE_TTL_MS, while /api/auth/me revalidates in the background.
+//   Expired or claim-less JWTs fall back to blocking validation/refresh.
+// - For non-JWT opaque tokens (legacy/test fixtures): fall back to AUTH_CACHE_TTL_MS.
+const getOptimisticCachedUser = (accessToken: string): User | null => {
+  const cachedUser = parseCachedUser();
+  if (!cachedUser) return null;
+
+  const claims = readJwtClaims(accessToken);
+  if (claims) {
+    const nowSec = Date.now() / 1000;
+    if (typeof claims.exp !== 'number' || !Number.isFinite(claims.exp) || claims.exp <= nowSec) {
+      return null;
+    }
+    if (typeof claims.sub === 'string' && claims.sub && claims.sub !== cachedUser.id) {
+      return null;
+    }
+    return cachedUser;
+  }
+
+  const lastValidatedStr = localStorage.getItem(CACHE_KEYS.VALIDATED_AT);
+  if (!lastValidatedStr) return null;
+
+  const lastValidated = parseInt(lastValidatedStr, 10);
+  if (!Number.isFinite(lastValidated)) return null;
+
+  return Date.now() - lastValidated < AUTH_CACHE_TTL_MS ? cachedUser : null;
+};
+
+const isDeepEqual = (a: unknown, b: unknown): boolean => {
+  if (Object.is(a, b)) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, idx) => isDeepEqual(item, b[idx]));
+  }
+  const aObj = a as Record<string, unknown>;
+  const bObj = b as Record<string, unknown>;
+  const keys = new Set([...Object.keys(aObj), ...Object.keys(bObj)]);
+  for (const key of keys) {
+    if (!isDeepEqual(aObj[key], bObj[key])) return false;
+  }
+  return true;
 };
 
 // Helper to attempt token refresh
@@ -166,6 +225,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // so StrictMode double-mounts or a racing background /api/auth/me response with null ui_language
   // never trigger duplicate PUT /api/auth/me/preferences requests for the same account.
   const syncedLanguageRef = React.useRef<{ userId: string; language: string } | null>(null);
+  // Tracks local onboarding state updates (e.g. completing/skipping onboarding) so an earlier
+  // in-flight background /api/auth/me response cannot revert onboarding_required back to true.
+  const onboardingSeqRef = React.useRef(0);
+  const onboardingOverrideRef = React.useRef<{ userId: string; required: boolean; seq: number } | null>(null);
 
   const ownsSession = React.useCallback((generation: number, accessToken: string, refreshToken: string | null) => (
     authGenerationRef.current === generation &&
@@ -194,17 +257,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return;
         }
 
-        // Check for valid cached user (within TTL)
-        const cachedUser = getValidCachedUser();
+        // Check for cached user eligible for optimistic returning-user boot
+        const cachedUser = getOptimisticCachedUser(accessToken);
 
         if (cachedUser) {
-          // Cache hit and valid - immediately set user for fast initial render
-          logger.log('[Auth] Using cached user (within TTL)');
+          // Cache hit with unexpired token - immediately set user for fast initial render
+          logger.log('[Auth] Using cached user for optimistic boot');
           setUser(cachedUser);
           setLoading(false);
 
-          // Validate token in background to ensure freshness
+          // Validate token in background to ensure freshness & enforce server revocation
           // This doesn't block the UI - user sees cached data immediately
+          const fetchStartOnboardingSeq = onboardingSeqRef.current;
           void (async () => {
             try {
               const response = await fetch(`${getApiBase()}/api/auth/me`, {
@@ -215,13 +279,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 const serverUser = await response.json();
                 if (!ownsSession(generation, accessToken, refreshToken)) return;
                 const synced = syncedLanguageRef.current;
-                const hydratedUser =
+                let hydratedUser: User =
                   !supportedAccountLanguage(serverUser?.ui_language) &&
                   synced &&
                   synced.userId === serverUser?.id
                     ? { ...serverUser, ui_language: synced.language }
                     : serverUser;
-                setUser(hydratedUser);
+                const onboardingOverride = onboardingOverrideRef.current;
+                if (
+                  onboardingOverride &&
+                  onboardingOverride.userId === hydratedUser?.id &&
+                  onboardingOverride.seq > fetchStartOnboardingSeq
+                ) {
+                  hydratedUser = { ...hydratedUser, onboarding_required: onboardingOverride.required };
+                }
+                claimPreferredProjectType(hydratedUser.id, { currentTabOnly: true });
+                // Keep object identity stable when nothing changed so downstream
+                // user-dependent effects (e.g. ProjectProvider) don't refetch redundantly.
+                setUserState((current) => (current && isDeepEqual(current, hydratedUser) ? current : hydratedUser));
                 saveUserCache(hydratedUser);
               } else if ((response.status === 401 || response.status === 403) && ownsOriginalSession()) {
                 clearAuthState(setUser, 'background_validation_failed');
@@ -322,13 +397,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!signedInUserId || signedInUserIdRef.current !== signedInUserId) return;
     syncedLanguageRef.current = { userId: signedInUserId, language };
     setUserState(current => (current && current.id === signedInUserId ? { ...current, ui_language: language } : current));
-    const cached = getValidCachedUser();
+    const cached = parseCachedUser();
     if (cached && cached.id === signedInUserId) saveUserCache({ ...cached, ui_language: language });
   }, [signedInUserId]);
+  const setOnboardingRequired = React.useCallback((required: boolean) => {
+    const activeUserId = signedInUserIdRef.current;
+    if (!activeUserId) return;
+    const seq = ++onboardingSeqRef.current;
+    onboardingOverrideRef.current = { userId: activeUserId, required, seq };
+    setUserState(current => (
+      current && current.id === activeUserId && current.onboarding_required !== required
+        ? { ...current, onboarding_required: required }
+        : current
+    ));
+    const cached = parseCachedUser();
+    if (cached && cached.id === activeUserId) {
+      saveUserCache({ ...cached, onboarding_required: required });
+    }
+  }, []);
   useEffect(() => {
     if (!signedInUserId) {
       syncedLanguageRef.current = null;
+      onboardingOverrideRef.current = null;
       return;
+    }
+    if (onboardingOverrideRef.current && onboardingOverrideRef.current.userId !== signedInUserId) {
+      onboardingOverrideRef.current = null;
     }
     const effectiveAccountLanguage =
       supportedAccountLanguage(accountLanguage) ??
@@ -513,7 +607,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, handleOAuthCallback, verifyEmail, resendVerification, googleLogin }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, handleOAuthCallback, verifyEmail, resendVerification, googleLogin, setOnboardingRequired }}>
       {children}
     </AuthContext.Provider>
   );

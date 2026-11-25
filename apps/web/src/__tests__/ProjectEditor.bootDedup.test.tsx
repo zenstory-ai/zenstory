@@ -425,4 +425,105 @@ describe("ProjectEditor boot API deduplication", () => {
       expect(peekPreloadedFile(queryClient, "user-1", "project-1", fileB.id)).toBeNull();
     });
   });
+
+  it("mounts Layout/Editor/ChatPanel and restores last-opened file in parallel while GET /projects is still loading", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let rev = 0;
+
+    setLastOpenedFile("user-1", "project-1", sampleFile.id);
+    mocks.fileGet.mockResolvedValue(sampleFile);
+
+    // ProjectContext has adopted the route's projectId while GET /api/v1/projects is still in flight.
+    mocks.project.loading = true;
+    mocks.project.projects = [];
+    mocks.project.currentProject = null;
+    mocks.project.currentProjectId = "project-1";
+
+    const renderTree = () => (
+      <QueryClientProvider client={queryClient}>
+        <ProjectRevContext.Provider value={rev++}>
+          <MemoryRouter initialEntries={["/project/project-1"]}>
+            <Routes>
+              <Route path="/project/:projectId" element={<ProjectEditor />} />
+            </Routes>
+          </MemoryRouter>
+        </ProjectRevContext.Provider>
+      </QueryClientProvider>
+    );
+
+    const holder: { view?: ReturnType<typeof render> } = {};
+    mocks.setSelectedItem.mockImplementation((item: SelectedItem | null) => {
+      mocks.project.selectedItem = item;
+      holder.view?.rerender(renderTree());
+    });
+
+    const view = render(renderTree());
+    holder.view = view;
+
+    // Workspace mounts immediately without waiting for GET /api/v1/projects!
+    expect(screen.getByTestId("workbench-layout")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("page-loader")).not.toBeInTheDocument();
+    expect(mocks.refreshProjects).not.toHaveBeenCalled();
+
+    // Last-opened file loads and populates Editor while projects is STILL loading.
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        sampleFile.content,
+      );
+    });
+    expect(mocks.fileGet).toHaveBeenCalledTimes(1);
+
+    // Projects list resolves later with matching project: stays mounted with zero duplicate fetches.
+    act(() => {
+      mocks.project.loading = false;
+      mocks.project.projects = [sampleProject];
+      mocks.project.currentProject = sampleProject;
+      view.rerender(renderTree());
+    });
+
+    expect(screen.getByTestId("workbench-layout")).toBeInTheDocument();
+    expect(mocks.fileGet).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshProjects).not.toHaveBeenCalled();
+  });
+
+  it("falls back cleanly to not-found UI when a parallel-booted route project does not exist", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let rev = 0;
+
+    // Optimistically adopted route projectId while GET /api/v1/projects is in flight.
+    mocks.project.loading = true;
+    mocks.project.projects = [];
+    mocks.project.currentProject = null;
+    mocks.project.currentProjectId = "missing-project";
+
+    const renderTree = () => (
+      <QueryClientProvider client={queryClient}>
+        <ProjectRevContext.Provider value={rev++}>
+          <MemoryRouter initialEntries={["/project/missing-project"]}>
+            <Routes>
+              <Route path="/project/:projectId" element={<ProjectEditor />} />
+            </Routes>
+          </MemoryRouter>
+        </ProjectRevContext.Provider>
+      </QueryClientProvider>
+    );
+
+    const view = render(renderTree());
+    expect(screen.getByTestId("workbench-layout")).toBeInTheDocument();
+
+    // Initial projects fetch resolves without "missing-project" -> triggers one refresh retry, then shows not-found.
+    act(() => {
+      mocks.project.loading = false;
+      mocks.project.projects = [sampleProject];
+      mocks.project.currentProject = null;
+      view.rerender(renderTree());
+    });
+
+    await waitFor(() => {
+      expect(mocks.refreshProjects).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("projectNotFound")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("workbench-layout")).not.toBeInTheDocument();
+  });
 });

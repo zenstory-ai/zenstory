@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   auth: {
-    user: null as { id: string; email_verified?: boolean; email?: string } | null,
+    user: null as { id: string; email_verified?: boolean; email?: string; onboarding_required?: boolean | null } | null,
     loading: false,
   },
   initialPath: "/",
@@ -463,6 +463,28 @@ describe("App route guards", () => {
       expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
     });
     expect(state.personaGetState).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows authenticated users through without calling /persona/onboarding when auth user carries onboarding_required=false", async () => {
+    state.auth.user = { id: "user-fast-path", onboarding_required: false };
+
+    renderAppAt("/dashboard");
+
+    await waitFor(() => {
+      expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
+    });
+    expect(state.personaGetState).not.toHaveBeenCalled();
+  });
+
+  it("redirects immediately to onboarding without calling /persona/onboarding when auth user carries onboarding_required=true", async () => {
+    state.auth.user = { id: "user-new-fast-path", onboarding_required: true };
+
+    renderAppAt("/dashboard?tab=recent#draft");
+
+    await waitFor(() => {
+      expect(screen.getByText("Onboarding Persona Page")).toBeInTheDocument();
+    });
+    expect(state.personaGetState).not.toHaveBeenCalled();
   });
 
   it("waits for late server persona state instead of redirecting from missing local data", async () => {

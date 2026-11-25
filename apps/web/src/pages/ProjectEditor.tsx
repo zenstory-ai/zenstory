@@ -32,28 +32,36 @@ export default function ProjectEditor() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = React.useContext(QueryClientContext);
-  const { setCurrentProjectId, currentProject, loading, error, refreshProjects, projects, selectedItem, setSelectedItem } = useProject();
+  const { setCurrentProjectId, currentProject, currentProjectId, loading, error, refreshProjects, projects, selectedItem, setSelectedItem } = useProject();
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { t } = useTranslation();
 
   const [isEnsuring, setIsEnsuring] = React.useState(false);
   const [notFound, setNotFound] = React.useState(false);
+  const [refreshSettledCount, setRefreshSettledCount] = React.useState(0);
   const attemptedRefreshRef = React.useRef<string | null>(null);
   const selectedFromQueryRef = React.useRef<string | null>(null);
   const restoreAttemptedRef = React.useRef<string | null>(null);
   const selectedItemRef = React.useRef(selectedItem ?? null);
   selectedItemRef.current = selectedItem ?? null;
 
-  const isRouteProjectActive = Boolean(currentProject && projectId && currentProject.id === projectId);
+  // `isRouteProjectIdActive` turns true as soon as ProjectContext adopts the route's projectId
+  // (even while GET /api/v1/projects is still in flight), enabling parallel boot of files/tree,
+  // chat/recent, and the last-opened/linked file. `isRouteProjectConfirmed` waits for the project
+  // list to confirm the project exists (used for analytics, first-work open tracking, and 404).
+  const isRouteProjectIdActive = Boolean(
+    projectId && (currentProjectId === projectId || currentProject?.id === projectId),
+  );
+  const isRouteProjectConfirmed = Boolean(currentProject && projectId && currentProject.id === projectId);
   const currentProjectType = currentProject?.project_type;
   // New-user funnel: the route's project resolved and the workspace renders (once per project).
   const trackedOpenRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!isRouteProjectActive || !projectId || trackedOpenRef.current === projectId) return;
+    if (!isRouteProjectConfirmed || !projectId || trackedOpenRef.current === projectId) return;
     trackedOpenRef.current = projectId;
     trackEvent("project_opened", { project_id: projectId, project_type: currentProjectType });
-  }, [isRouteProjectActive, projectId, currentProjectType]);
+  }, [isRouteProjectConfirmed, projectId, currentProjectType]);
 
   // Reset per projectId
   React.useEffect(() => {
@@ -66,7 +74,7 @@ export default function ProjectEditor() {
   // Remember the open file so reopening this project lands on it.
   const selectedFileId = selectedItem && selectedItem.type !== "folder" ? selectedItem.id : null;
   React.useEffect(() => {
-    if (!userId || !projectId || !isRouteProjectActive || !selectedFileId) return;
+    if (!userId || !projectId || !isRouteProjectConfirmed || !selectedFileId) return;
     setLastOpenedFile(userId, projectId, selectedFileId);
 
     // A file link chooses the entry file once. After the author opens another
@@ -77,13 +85,13 @@ export default function ProjectEditor() {
       searchParams.delete("file");
       navigate({ pathname: location.pathname, search: searchParams.toString(), hash: location.hash }, { replace: true });
     }
-  }, [isRouteProjectActive, location.hash, location.pathname, location.search, navigate, projectId, selectedFileId, userId]);
+  }, [isRouteProjectConfirmed, location.hash, location.pathname, location.search, navigate, projectId, selectedFileId, userId]);
 
   // Reopen the last file when the project is entered without a ?file= link and
-  // nothing is selected yet. The id is re-validated: it may have been deleted
-  // or moved to another project since.
+  // nothing is selected yet. Runs in parallel with GET /api/v1/projects once
+  // ProjectContext adopts the route's projectId; the id is re-validated by fileApi.get.
   React.useEffect(() => {
-    if (!userId || !projectId || !isRouteProjectActive) return;
+    if (!userId || !projectId || !isRouteProjectIdActive) return;
     if (new URLSearchParams(location.search).get("file")) return;
     if (restoreAttemptedRef.current === projectId) return;
     if (selectedItemRef.current) return;
@@ -134,14 +142,14 @@ export default function ProjectEditor() {
         restoreAttemptedRef.current = null;
       }
     };
-  }, [isRouteProjectActive, location.search, projectId, queryClient, setSelectedItem, userId]);
+  }, [isRouteProjectIdActive, location.search, projectId, queryClient, setSelectedItem, userId]);
 
   // Select target file from query parameter: /project/:projectId?file=:fileId
   React.useEffect(() => {
-    // Wait until the route's project is active. On a direct link the provider
-    // can briefly expose the previously selected project; selecting the file
+    // Wait until ProjectContext has adopted the route's projectId. On a direct link the
+    // provider can briefly expose the previously selected project; selecting the file
     // during that window is then cleared by setCurrentProjectId().
-    if (!currentProject || !projectId || currentProject.id !== projectId) return;
+    if (!isRouteProjectIdActive || !projectId) return;
 
     const searchParams = new URLSearchParams(location.search);
     const fileId = searchParams.get("file");
@@ -188,9 +196,9 @@ export default function ProjectEditor() {
     return () => {
       cancelled = true;
     };
-  }, [currentProject, location.search, projectId, queryClient, setSelectedItem, userId]);
+  }, [isRouteProjectIdActive, location.search, projectId, queryClient, setSelectedItem, userId]);
 
-  // Ensure project exists in ProjectContext before rendering editor
+  // Ensure project exists in ProjectContext and keep route projectId synced
   React.useEffect(() => {
     let cancelled = false;
 
@@ -229,7 +237,10 @@ export default function ProjectEditor() {
       try {
         await refreshProjects();
       } finally {
-        if (!cancelled) setIsEnsuring(false);
+        if (!cancelled) {
+          setIsEnsuring(false);
+          setRefreshSettledCount((count) => count + 1);
+        }
       }
     };
 
@@ -238,12 +249,7 @@ export default function ProjectEditor() {
     return () => {
       cancelled = true;
     };
-  }, [projectId, projects, loading, error, refreshProjects, setCurrentProjectId]);
-
-  // Show loading state while projects are being fetched or ensuring project exists
-  if (loading || isEnsuring) {
-    return <PageLoader />;
-  }
+  }, [projectId, projects, loading, error, refreshProjects, setCurrentProjectId, refreshSettledCount]);
 
   // Show error state
   if (error) {
@@ -258,11 +264,7 @@ export default function ProjectEditor() {
   }
 
   // Avoid immediate redirect: show a not-found screen after one refresh attempt
-  if (!currentProject) {
-    if (!notFound) {
-      return <PageLoader />;
-    }
-
+  if (!loading && !isEnsuring && !isRouteProjectConfirmed && notFound) {
     return (
       <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex flex-col items-center justify-center gap-4">
         <div className="text-[hsl(var(--text-primary))]">{t('projectNotFound')}</div>
@@ -270,13 +272,14 @@ export default function ProjectEditor() {
           <Button
             className="max-md:min-h-11"
             onClick={async () => {
-              attemptedRefreshRef.current = null;
+              attemptedRefreshRef.current = projectId ?? null;
               setNotFound(false);
               setIsEnsuring(true);
               try {
                 await refreshProjects();
               } finally {
                 setIsEnsuring(false);
+                setRefreshSettledCount((count) => count + 1);
               }
             }}
           >
@@ -290,9 +293,20 @@ export default function ProjectEditor() {
     );
   }
 
+  // Mount workspace optimistically as soon as ProjectContext has adopted the route's projectId,
+  // allowing files/tree, chat/recent, and last-opened file fetches to run in parallel with
+  // GET /api/v1/projects. Keep PageLoader while waiting for projectId adoption, during a
+  // missing-project refresh retry (isEnsuring), or while settling not-found after projects resolved.
+  const canMountWorkspace = Boolean(
+    projectId && isRouteProjectIdActive && (loading || isRouteProjectConfirmed) && !isEnsuring,
+  );
+  if (!canMountWorkspace) {
+    return <PageLoader />;
+  }
+
   return (
     <>
-    <FirstWorkOpenTracker userId={userId} projectId={isRouteProjectActive ? projectId ?? null : null} />
+    <FirstWorkOpenTracker userId={userId} projectId={isRouteProjectConfirmed ? projectId ?? null : null} />
     <Layout
       middle={(
         // ph-no-capture: manuscript text must never reach analytics capture.

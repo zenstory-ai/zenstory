@@ -1304,6 +1304,185 @@ describe('AuthContext', () => {
       // Should have fallen back to server validation
       expect(result.current.user).toEqual(mockUser)
     })
+
+    const makeJwt = (payload: Record<string, unknown>) => {
+      const encode = (obj: Record<string, unknown>) =>
+        btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+      return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}.sig`
+    }
+
+    it('boots optimistically past 5-min TTL when cached user has an unexpired JWT and updates fields from background /me', async () => {
+      const cachedUser = createMockUser({ id: 'jwt-user-1', onboarding_required: false })
+      const updatedServerUser = createMockUser({
+        id: 'jwt-user-1',
+        username: 'updated-name',
+        onboarding_required: true,
+      })
+      const unexpiredJwt = makeJwt({
+        sub: 'jwt-user-1',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      })
+
+      // Cache timestamp is 2 hours old (well past 5-min AUTH_CACHE_TTL_MS).
+      localStorage.setItem('access_token', unexpiredJwt)
+      localStorage.setItem('refresh_token', 'valid-refresh')
+      localStorage.setItem('user', JSON.stringify(cachedUser))
+      localStorage.setItem('auth_validated_at', String(Date.now() - 2 * 60 * 60 * 1000))
+
+      let resolveMe!: (value: unknown) => void
+      mockFetch.mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+
+      // Renders cached user immediately without blocking on /api/auth/me!
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+        expect(result.current.user).toEqual(cachedUser)
+      })
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+
+      // Background /api/auth/me resolves with updated onboarding_required and username.
+      await act(async () => {
+        resolveMe({ ok: true, status: 200, json: async () => updatedServerUser })
+      })
+
+      await waitFor(() => {
+        expect(result.current.user).toEqual(updatedServerUser)
+      })
+      expect(JSON.parse(localStorage.getItem('user') || '{}')).toEqual(updatedServerUser)
+    })
+
+    it('keeps user reference stable when background /me returns unchanged data', async () => {
+      const cachedUser = createMockUser({ id: 'stable-user', onboarding_required: false })
+      const unexpiredJwt = makeJwt({
+        sub: 'stable-user',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      })
+      localStorage.setItem('access_token', unexpiredJwt)
+      localStorage.setItem('refresh_token', 'valid-refresh')
+      localStorage.setItem('user', JSON.stringify(cachedUser))
+      localStorage.setItem('auth_validated_at', String(Date.now() - 60 * 60 * 1000))
+
+      let resolveMe!: (value: unknown) => void
+      mockFetch.mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      const initialRef = result.current.user
+
+      await act(async () => {
+        resolveMe({ ok: true, status: 200, json: async () => ({ ...cachedUser }) })
+        await Promise.resolve()
+      })
+
+      expect(result.current.user).toBe(initialRef)
+    })
+
+    it('clears optimistic session when background /api/auth/me returns 401', async () => {
+      const cachedUser = createMockUser({ id: 'revoked-user', onboarding_required: false })
+      const unexpiredJwt = makeJwt({
+        sub: 'revoked-user',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      })
+      localStorage.setItem('access_token', unexpiredJwt)
+      localStorage.setItem('refresh_token', 'revoked-refresh')
+      localStorage.setItem('user', JSON.stringify(cachedUser))
+      localStorage.setItem('auth_validated_at', String(Date.now() - 60 * 60 * 1000))
+
+      let resolveMe!: (value: unknown) => void
+      mockFetch.mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+        expect(result.current.user).toEqual(cachedUser)
+      })
+
+      await act(async () => {
+        resolveMe({ ok: false, status: 401 })
+      })
+
+      await waitFor(() => {
+        expect(result.current.user).toBeNull()
+      })
+      expect(localStorage.getItem('access_token')).toBeNull()
+      expect(localStorage.getItem('refresh_token')).toBeNull()
+      expect(localStorage.getItem('user')).toBeNull()
+    })
+
+    it('blocks and refreshes when JWT exp is expired even if auth_validated_at is recent', async () => {
+      const cachedUser = createMockUser({ id: 'expired-jwt-user', onboarding_required: false })
+      const expiredJwt = makeJwt({
+        sub: 'expired-jwt-user',
+        exp: Math.floor(Date.now() / 1000) - 60,
+      })
+      localStorage.setItem('access_token', expiredJwt)
+      localStorage.setItem('refresh_token', 'valid-refresh')
+      localStorage.setItem('user', JSON.stringify(cachedUser))
+      localStorage.setItem('auth_validated_at', String(Date.now()))
+
+      let resolveMe!: (value: unknown) => void
+      mockFetch
+        .mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: 'fresh-access',
+            refresh_token: 'fresh-refresh',
+            user: cachedUser,
+          }),
+        })
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+
+      // Must NOT render cached user optimistically when JWT is expired!
+      expect(result.current.loading).toBe(true)
+      expect(result.current.user).toBeNull()
+
+      await act(async () => {
+        resolveMe({ ok: false, status: 401 })
+      })
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+        expect(result.current.user).toEqual(cachedUser)
+      })
+      expect(localStorage.getItem('access_token')).toBe('fresh-access')
+    })
+
+    it('updates onboarding_required immediately via setOnboardingRequired and resists stale background /me', async () => {
+      const cachedUser = createMockUser({ id: 'onboard-user', onboarding_required: true })
+      const unexpiredJwt = makeJwt({
+        sub: 'onboard-user',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      })
+      localStorage.setItem('access_token', unexpiredJwt)
+      localStorage.setItem('refresh_token', 'valid-refresh')
+      localStorage.setItem('user', JSON.stringify(cachedUser))
+      localStorage.setItem('auth_validated_at', String(Date.now() - 60 * 60 * 1000))
+
+      let resolveMe!: (value: unknown) => void
+      mockFetch.mockReturnValueOnce(new Promise(resolve => { resolveMe = resolve }))
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+      await waitFor(() => expect(result.current.user?.onboarding_required).toBe(true))
+
+      act(() => {
+        result.current.setOnboardingRequired(false)
+      })
+      expect(result.current.user?.onboarding_required).toBe(false)
+      expect(JSON.parse(localStorage.getItem('user') || '{}').onboarding_required).toBe(false)
+
+      // Earlier in-flight /api/auth/me finishes with stale onboarding_required: true.
+      await act(async () => {
+        resolveMe({ ok: true, status: 200, json: async () => cachedUser })
+        await Promise.resolve()
+      })
+
+      expect(result.current.user?.onboarding_required).toBe(false)
+      expect(JSON.parse(localStorage.getItem('user') || '{}').onboarding_required).toBe(false)
+    })
   })
 
   // ========================================

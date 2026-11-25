@@ -48,6 +48,7 @@ from services.core.auth_service import (
 from services.core.registration_email_policy import ensure_registration_email_allowed
 from services.features import password_reset_service
 from services.features.activation_event_service import activation_event_service
+from services.features.persona_onboarding_service import get_onboarding_required_for_auth
 from services.features.referral_service import create_referral as create_referral_service
 from services.features.registration_recovery_service import correct_registration_email
 from services.features.user_preference_service import get_ui_language, normalize_ui_language, set_ui_language
@@ -113,6 +114,8 @@ class UserResponse(BaseModel):
     updated_at: datetime
     # Interface language saved on the account (follows the user across devices); None until known.
     ui_language: str | None = None
+    # Matches GET /api/v1/persona/onboarding `required` so protected routes avoid a serial boot gate.
+    onboarding_required: bool | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -859,6 +862,7 @@ async def login(
             "created_at": normalize_datetime_to_utc(user.created_at),
             "updated_at": normalize_datetime_to_utc(user.updated_at),
             "ui_language": get_ui_language(session, user.id),
+            "onboarding_required": get_onboarding_required_for_auth(session, user),
         }
     }
 
@@ -1072,13 +1076,17 @@ def refresh_token(
             "created_at": normalize_datetime_to_utc(user.created_at),
             "updated_at": normalize_datetime_to_utc(user.updated_at),
             "ui_language": get_ui_language(session, user.id),
+            "onboarding_required": get_onboarding_required_for_auth(session, user),
         }
     }
 
 
 def _user_response(session: Session, user: User) -> UserResponse:
     return UserResponse.model_validate(user).model_copy(
-        update={"ui_language": get_ui_language(session, user.id)}
+        update={
+            "ui_language": get_ui_language(session, user.id),
+            "onboarding_required": get_onboarding_required_for_auth(session, user),
+        }
     )
 
 
