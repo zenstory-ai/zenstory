@@ -12,7 +12,7 @@ CREEM_LIVE_API_BASE = "https://api.creem.io/v1"
 CREEM_TEST_API_BASE = "https://test-api.creem.io/v1"
 CREEM_WEBHOOK_PATH = "/api/v1/payments/creem/webhook"
 PAYMENT_RETURN_PATH = "/dashboard/billing/payment-return"
-CREEM_ALLOWED_CHECKOUT_HOSTS = frozenset({"creem.io", "www.creem.io"})
+CREEM_ALLOWED_CHECKOUT_HOSTS = frozenset({"creem.io", "www.creem.io", "checkout.creem.io"})
 CREEM_TEST_KEY_PREFIX = "creem_test_"
 CREEM_PRODUCT_ID_PREFIX = "prod_"
 

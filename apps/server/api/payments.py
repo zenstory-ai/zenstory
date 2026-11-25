@@ -35,6 +35,7 @@ ALERTING_CALLBACK_REASONS = frozenset({
     "invalid_signature",
     "unknown_order",
     "order_mismatch",
+    "amount_mismatch",
     "trade_mismatch",
     "duplicate_trade_no",
     "order_state_conflict",

@@ -279,4 +279,31 @@ describe("SubscriptionPlanManagement", () => {
     expect(screen.queryByText("plans.featuresDetail.writing_credits_monthly")).not.toBeInTheDocument();
     expect(screen.queryByText("plans.featuresDetail.agent_runs_monthly")).not.toBeInTheDocument();
   });
+
+  it("warns and submits USD price changes when editing Pro USD prices", () => {
+    useQueryMock.mockReturnValue({
+      data: [{ ...plan, price_monthly_usd_cents: 999, price_yearly_usd_cents: 7900 }],
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<SubscriptionPlanManagement />);
+    fireEvent.click(screen.getByRole("button", { name: "plans.edit" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("plans.monthlyPriceUsd"), { target: { value: "12.99" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("plans.usdPriceSyncWarning");
+
+    fireEvent.click(screen.getByRole("button", { name: "plans.save" }));
+    expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({
+      planId: "plan-pro",
+      data: expect.objectContaining({
+        price_monthly_usd_cents: 1299,
+        price_yearly_usd_cents: 7900,
+      }),
+    }));
+  });
 });

@@ -45,7 +45,7 @@ function paymentErrorCode(cause: unknown): string | null {
 }
 
 const ZPAY_CHECKOUT_ACTION = 'https://zpayz.cn/submit.php'
-const CREEM_ALLOWED_HOSTS = new Set(['creem.io', 'www.creem.io'])
+const CREEM_ALLOWED_HOSTS = new Set(['creem.io', 'www.creem.io', 'checkout.creem.io'])
 
 function isAllowedCreemCheckoutUrl(action: string): boolean {
   try {

@@ -43,13 +43,18 @@ SyncOutcome = Literal["already_fulfilled", "fulfilled", "unpaid", "not_found"]
 
 CYCLE_DAYS = {"month": 30, "year": 365}
 FULFILLMENT_FAILURE_REASON = "subscription_fulfillment_failed"
+AMOUNT_MISMATCH_FAILURE_REASON = "amount_mismatch"
+AMOUNT_UNVERIFIED_FAILURE_REASON = "amount_unverified"
 
-# Paid orders whose entitlement is not (yet) granted, or disputed orders:
-# the admin "needs attention" view.
+# Paid orders whose entitlement is not (yet) granted, pending/paid fulfillment
+# failures, partially refunded paid orders, or disputed orders (even if already
+# refunded): the admin "needs attention" view.
 NEEDS_ATTENTION_CONDITION = or_(
     (PaymentOrder.status == "paid") & (PaymentOrder.fulfillment_status != "succeeded"),
-    PaymentOrder.fulfillment_status == "failed",
+    PaymentOrder.status.in_(("pending", "paid")) & (PaymentOrder.fulfillment_status == "failed"),
     PaymentOrder.status == "disputed",
+    PaymentOrder.disputed_at.is_not(None),
+    PaymentOrder.status.in_(("pending", "paid")) & (PaymentOrder.refunded_amount_cents > 0),
 )
 
 
@@ -180,6 +185,9 @@ def settle_paid_order(
     if order.trade_no and order.trade_no != trade_no:
         raise CallbackError("trade_mismatch")
 
+    if order.failure_reason == AMOUNT_MISMATCH_FAILURE_REASON:
+        raise CallbackError("amount_mismatch")
+
     order_id = order.id
     paid_at = order.paid_at or utcnow()
     try:
@@ -188,12 +196,16 @@ def settle_paid_order(
             .where(
                 PaymentOrder.id == order_id,
                 PaymentOrder.status.in_(("pending", "paid")),
+                PaymentOrder.refunded_at.is_(None),
+                PaymentOrder.disputed_at.is_(None),
+                PaymentOrder.failure_reason.is_distinct_from(AMOUNT_MISMATCH_FAILURE_REASON),
                 or_(PaymentOrder.trade_no.is_(None), PaymentOrder.trade_no == trade_no),
             )
             .values(
                 status="paid",
                 trade_no=trade_no,
                 paid_at=paid_at,
+                paid_amount_cents=amount_cents,
             )
         )
         session.commit()
@@ -212,8 +224,11 @@ def settle_paid_order(
             PaymentOrder.status == "paid",
             PaymentOrder.trade_no == trade_no,
             PaymentOrder.fulfillment_status.in_(("pending", "failed")),
+            PaymentOrder.refunded_at.is_(None),
+            PaymentOrder.disputed_at.is_(None),
+            PaymentOrder.failure_reason.is_distinct_from(AMOUNT_MISMATCH_FAILURE_REASON),
         )
-        .values(fulfillment_status="processing", failure_reason=None)
+        .values(fulfillment_status="processing")
     )
     if claim.rowcount != 1:
         session.rollback()
@@ -226,10 +241,14 @@ def settle_paid_order(
             and refreshed.trade_no == trade_no
         ):
             return True
+        if refreshed and refreshed.failure_reason == AMOUNT_MISMATCH_FAILURE_REASON:
+            raise CallbackError("amount_mismatch")
+        if refreshed and (refreshed.refunded_at is not None or refreshed.disputed_at is not None):
+            raise CallbackError("order_state_conflict")
         raise CallbackError("processing")
 
     try:
-        claimed_order = session.get(PaymentOrder, order_id)
+        claimed_order = reload_order(session, order_id)
         if not claimed_order:
             raise RuntimeError("payment_order_missing")
         metadata: dict[str, object] = {
@@ -249,13 +268,31 @@ def settle_paid_order(
             commit=False,
         )
         fulfilled_at = utcnow()
+        if (claimed_order.refunded_amount_cents or 0) > 0:
+            if (
+                claimed_order.disputed_at is not None
+                or claimed_order.failure_reason == AMOUNT_MISMATCH_FAILURE_REASON
+            ):
+                final_failure_reason = claimed_order.failure_reason
+            else:
+                threshold = (
+                    claimed_order.paid_amount_cents
+                    if (
+                        claimed_order.paid_amount_cents is not None
+                        and claimed_order.paid_amount_cents > 0
+                    )
+                    else claimed_order.amount_cents
+                )
+                final_failure_reason = f"partial_refund:{claimed_order.refunded_amount_cents}/{threshold}"[:100]
+        else:
+            final_failure_reason = None
         session.exec(
             update(PaymentOrder)
             .where(PaymentOrder.id == order_id)
             .values(
                 fulfillment_status="succeeded",
                 fulfilled_at=fulfilled_at,
-                failure_reason=None,
+                failure_reason=final_failure_reason,
             )
         )
         session.commit()
@@ -281,54 +318,297 @@ def settle_paid_order(
     return True
 
 
+def record_paid_amount_mismatch(
+    session: Session,
+    *,
+    order: PaymentOrder,
+    trade_no: str,
+    actual_amount_cents: int,
+    actual_currency: str,
+    channel: str = "webhook",
+) -> bool:
+    """
+    Persist payment evidence when a provider confirms payment for a verified
+    order/product whose charged amount or currency differs from our DB snapshot.
+
+    The order is marked paid + paid_amount_cents + fulfillment_status=failed
+    (failure_reason='amount_mismatch') so it surfaces in the admin
+    needs-attention queue without granting Pro.
+    """
+    begin_serialized_write(session)
+    order_id = order.id
+    paid_at = order.paid_at or utcnow()
+    try:
+        updated = session.exec(
+            update(PaymentOrder)
+            .where(
+                PaymentOrder.id == order_id,
+                PaymentOrder.status.in_(("pending", "paid")),
+                PaymentOrder.fulfillment_status != "succeeded",
+                PaymentOrder.refunded_at.is_(None),
+                PaymentOrder.disputed_at.is_(None),
+                or_(PaymentOrder.trade_no.is_(None), PaymentOrder.trade_no == trade_no),
+            )
+            .values(
+                status="paid",
+                trade_no=trade_no,
+                paid_at=paid_at,
+                paid_amount_cents=actual_amount_cents,
+                fulfillment_status="failed",
+                failure_reason=AMOUNT_MISMATCH_FAILURE_REASON,
+            )
+        )
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        record_fulfillment_failure(session, order_id, reason="duplicate_trade_no")
+        raise CallbackError("duplicate_trade_no") from exc
+
+    log_with_context(
+        logger,
+        logging.ERROR,
+        "Payment amount or currency mismatch recorded for manual review",
+        provider=order.provider,
+        payment_order_id=order_id,
+        out_trade_no=order.out_trade_no,
+        trade_no=trade_no,
+        expected_amount_cents=order.amount_cents,
+        actual_amount_cents=actual_amount_cents,
+        expected_currency=order.currency,
+        actual_currency=actual_currency,
+        settled_via=channel,
+        recorded=updated.rowcount == 1,
+    )
+    return updated.rowcount == 1
+
+
+def record_paid_amount_unverified(
+    session: Session,
+    *,
+    order: PaymentOrder,
+    trade_no: str,
+    channel: str = "query",
+) -> bool:
+    """
+    Persist payment evidence when provider sync confirms completion but cannot
+    return an authoritative charged amount/currency. Enters needs-attention
+    without granting Pro.
+    """
+    begin_serialized_write(session)
+    order_id = order.id
+    paid_at = order.paid_at or utcnow()
+    try:
+        updated = session.exec(
+            update(PaymentOrder)
+            .where(
+                PaymentOrder.id == order_id,
+                PaymentOrder.status.in_(("pending", "paid")),
+                PaymentOrder.fulfillment_status != "succeeded",
+                PaymentOrder.refunded_at.is_(None),
+                PaymentOrder.disputed_at.is_(None),
+                PaymentOrder.failure_reason.is_distinct_from(AMOUNT_MISMATCH_FAILURE_REASON),
+                or_(PaymentOrder.trade_no.is_(None), PaymentOrder.trade_no == trade_no),
+            )
+            .values(
+                status="paid",
+                trade_no=trade_no,
+                paid_at=paid_at,
+                fulfillment_status="failed",
+                failure_reason=AMOUNT_UNVERIFIED_FAILURE_REASON,
+            )
+        )
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        record_fulfillment_failure(session, order_id, reason="duplicate_trade_no")
+        raise CallbackError("duplicate_trade_no") from exc
+
+    log_with_context(
+        logger,
+        logging.ERROR,
+        "Payment sync completed without authoritative amount; recorded for manual review",
+        provider=order.provider,
+        payment_order_id=order_id,
+        out_trade_no=order.out_trade_no,
+        trade_no=trade_no,
+        settled_via=channel,
+        recorded=updated.rowcount == 1,
+    )
+    return updated.rowcount == 1
+
+
 def record_refund(
     session: Session,
     *,
     order: PaymentOrder,
     refund_id: str | None = None,
+    refund_amount_cents: int | None = None,
+    trade_no: str | None = None,
     channel: str = "webhook",
 ) -> bool:
     """
-    Atomically mark a paid order as refunded and deduct its granted days once.
+    Atomically record a partial or full refund and deduct granted days at most once.
 
-    Replaying the same refund event is a safe no-op.
+    Uses ``FOR UPDATE`` with ``populate_existing=True`` plus compare-and-set
+    ``UPDATE`` predicates so concurrent webhooks/settlements always read
+    post-lock state and can never lose partial-refund increments or skip day
+    revocation.
     """
     begin_serialized_write(session)
     order_id = order.id
-    updated = session.exec(
-        update(PaymentOrder)
-        .where(
-            PaymentOrder.id == order_id,
-            PaymentOrder.status.in_(("paid", "disputed")),
-        )
-        .values(status="refunded")
+    row = session.exec(
+        select(PaymentOrder)
+        .where(PaymentOrder.id == order_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).first()
+    if not row:
+        session.rollback()
+        raise CallbackError("unknown_order")
+
+    if row.refunded_at is not None:
+        session.rollback()
+        return True
+
+    if row.fulfillment_status == "processing":
+        session.rollback()
+        raise CallbackError("processing")
+
+    seen_ids = [item for item in (row.refund_ids or "").split(",") if item]
+    if refund_id and refund_id in seen_ids:
+        session.rollback()
+        return True
+
+    if row.status not in ("pending", "paid", "disputed"):
+        session.rollback()
+        raise CallbackError("order_state_conflict")
+
+    refund_threshold = (
+        row.paid_amount_cents
+        if (row.paid_amount_cents is not None and row.paid_amount_cents > 0)
+        else row.amount_cents
     )
+    effective_refund = refund_threshold if refund_amount_cents is None else refund_amount_cents
+    if effective_refund <= 0:
+        session.rollback()
+        raise CallbackError("invalid_payload")
+
+    prev_refunded_cents = row.refunded_amount_cents or 0
+    new_total = prev_refunded_cents + effective_refund
+    if refund_id:
+        seen_ids.append(refund_id)
+    serialized_ids = ",".join(seen_ids) or None
+    next_trade_no = row.trade_no or trade_no
+
+    if new_total < refund_threshold:
+        preserve_reason = (
+            row.disputed_at is not None
+            or row.failure_reason == AMOUNT_MISMATCH_FAILURE_REASON
+        )
+        partial_reason = (
+            row.failure_reason
+            if preserve_reason
+            else f"partial_refund:{new_total}/{refund_threshold}"[:100]
+        )
+        try:
+            updated = session.exec(
+                update(PaymentOrder)
+                .where(
+                    PaymentOrder.id == order_id,
+                    PaymentOrder.refunded_at.is_(None),
+                    PaymentOrder.status == row.status,
+                    PaymentOrder.refunded_amount_cents == prev_refunded_cents,
+                    PaymentOrder.fulfillment_status == row.fulfillment_status,
+                )
+                .values(
+                    refunded_amount_cents=new_total,
+                    refund_ids=serialized_ids,
+                    failure_reason=partial_reason,
+                    trade_no=next_trade_no,
+                )
+            )
+            if updated.rowcount != 1:
+                session.rollback()
+                raise CallbackError("processing")
+            session.commit()
+        except CallbackError:
+            raise
+        except IntegrityError as exc:
+            session.rollback()
+            raise CallbackError("duplicate_trade_no") from exc
+        except Exception as exc:
+            session.rollback()
+            raise CallbackError("refund_processing_failed") from exc
+
+        log_with_context(
+            logger,
+            logging.WARNING,
+            "Payment order partially refunded; awaiting full refund or manual review",
+            provider=row.provider,
+            payment_order_id=order_id,
+            out_trade_no=row.out_trade_no,
+            trade_no=next_trade_no,
+            refund_id=refund_id,
+            refund_amount_cents=effective_refund,
+            cumulative_refunded_cents=new_total,
+            order_amount_cents=refund_threshold,
+        )
+        return True
+
+    if row.disputed_at is not None:
+        next_failure_reason = row.failure_reason
+    elif row.status == "pending":
+        next_failure_reason = "refunded_before_settlement"
+    else:
+        next_failure_reason = None
+
+    now = utcnow()
+    try:
+        updated = session.exec(
+            update(PaymentOrder)
+            .where(
+                PaymentOrder.id == order_id,
+                PaymentOrder.refunded_at.is_(None),
+                PaymentOrder.status == row.status,
+                PaymentOrder.refunded_amount_cents == prev_refunded_cents,
+                PaymentOrder.fulfillment_status == row.fulfillment_status,
+            )
+            .values(
+                status="refunded",
+                refunded_at=now,
+                refunded_amount_cents=min(new_total, refund_threshold),
+                refund_ids=serialized_ids,
+                failure_reason=next_failure_reason,
+                trade_no=next_trade_no,
+            )
+        )
+    except IntegrityError as exc:
+        session.rollback()
+        raise CallbackError("duplicate_trade_no") from exc
+
     if updated.rowcount != 1:
         session.rollback()
         refreshed = reload_order(session, order_id)
         session.rollback()
-        if refreshed and refreshed.status == "refunded":
+        if refreshed and refreshed.refunded_at is not None:
             return True
-        raise CallbackError("order_state_conflict")
+        raise CallbackError("processing")
 
     try:
-        refreshed = session.get(PaymentOrder, order_id)
-        if not refreshed:
-            raise RuntimeError("payment_order_missing")
-        if refreshed.fulfillment_status == "succeeded":
+        if row.fulfillment_status == "succeeded":
             metadata: dict[str, object] = {
-                "source": refreshed.provider,
+                "source": row.provider,
                 "payment_order_id": order_id,
                 "settled_via": channel,
-                "currency": refreshed.currency,
+                "currency": row.currency,
             }
             if refund_id:
                 metadata["refund_id"] = refund_id
             subscription_service.deduct_refunded_days(
                 session,
-                user_id=refreshed.user_id,
-                plan_name=refreshed.plan_name,
-                duration_days=refreshed.duration_days,
+                user_id=row.user_id,
+                plan_name=row.plan_name,
+                duration_days=row.duration_days,
                 metadata=metadata,
                 commit=False,
             )
@@ -341,11 +621,12 @@ def record_refund(
         logger,
         logging.INFO,
         "Payment order refunded",
-        provider=order.provider,
+        provider=row.provider,
         payment_order_id=order_id,
-        out_trade_no=order.out_trade_no,
-        trade_no=order.trade_no,
+        out_trade_no=row.out_trade_no,
+        trade_no=next_trade_no,
         refund_id=refund_id,
+        cumulative_refunded_cents=min(new_total, refund_threshold),
     )
     return True
 
@@ -355,31 +636,76 @@ def record_dispute(
     *,
     order: PaymentOrder,
     dispute_id: str | None = None,
+    trade_no: str | None = None,
 ) -> bool:
-    """Mark an order disputed so it surfaces in the admin needs-attention queue."""
+    """
+    Record a dispute so it surfaces in the admin needs-attention queue.
+
+    Uses ``FOR UPDATE`` with ``populate_existing=True`` plus compare-and-set
+    on ``status`` and ``refunded_at`` so a concurrent full refund can never be
+    overwritten back to ``'disputed'``.
+    """
     begin_serialized_write(session)
     order_id = order.id
+    row = session.exec(
+        select(PaymentOrder)
+        .where(PaymentOrder.id == order_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).first()
+    if not row:
+        session.rollback()
+        raise CallbackError("unknown_order")
+
     reason = f"disputed:{dispute_id}"[:100] if dispute_id else "disputed"
-    updated = session.exec(
-        update(PaymentOrder)
-        .where(
-            PaymentOrder.id == order_id,
-            PaymentOrder.status.in_(("paid", "refunded", "disputed")),
-        )
-        .values(status="disputed", failure_reason=reason)
-    )
-    if updated.rowcount != 1:
+    now = utcnow()
+    next_trade_no = row.trade_no or trade_no
+    if row.status == "refunded" or row.refunded_at is not None:
+        next_status = "refunded"
+    elif row.status in ("pending", "paid", "disputed"):
+        next_status = "disputed"
+    else:
         session.rollback()
         raise CallbackError("order_state_conflict")
-    session.commit()
+
+    cas_refunded = (
+        PaymentOrder.refunded_at.is_(None)
+        if row.refunded_at is None
+        else PaymentOrder.refunded_at == row.refunded_at
+    )
+    try:
+        updated = session.exec(
+            update(PaymentOrder)
+            .where(
+                PaymentOrder.id == order_id,
+                PaymentOrder.status == row.status,
+                cas_refunded,
+            )
+            .values(
+                status=next_status,
+                disputed_at=row.disputed_at or now,
+                failure_reason=reason,
+                trade_no=next_trade_no,
+            )
+        )
+        if updated.rowcount != 1:
+            session.rollback()
+            raise CallbackError("processing")
+        session.commit()
+    except CallbackError:
+        raise
+    except IntegrityError as exc:
+        session.rollback()
+        raise CallbackError("duplicate_trade_no") from exc
     log_with_context(
         logger,
         logging.ERROR,
         "Payment order disputed",
-        provider=order.provider,
+        provider=row.provider,
         payment_order_id=order_id,
-        out_trade_no=order.out_trade_no,
-        trade_no=order.trade_no,
+        out_trade_no=row.out_trade_no,
+        trade_no=next_trade_no,
         dispute_id=dispute_id,
+        order_status=next_status,
     )
     return True

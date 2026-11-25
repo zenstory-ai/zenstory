@@ -90,7 +90,7 @@ export default function PaymentOrderManagement() {
   const cycleLabel = (order: AdminPaymentOrder) => t(`paymentOrders.cycles.${order.cycle}`, order.cycle);
   const isPaidNotFulfilled = (order: AdminPaymentOrder) =>
     (order.status === "paid" && order.fulfillment_status !== "succeeded")
-    || order.fulfillment_status === "failed"
+    || ((order.status === "pending" || order.status === "paid") && order.fulfillment_status === "failed")
     || order.status === "disputed";
   const openDetails = (order: AdminPaymentOrder) => {
     detailsRequestRef.current += 1;
@@ -229,7 +229,7 @@ export default function PaymentOrderManagement() {
               <dd className="min-w-0 break-words text-[hsl(var(--text-primary))]">{value}</dd>
             </div>)}
           </dl>
-          {selectedOrder.fulfillment_status !== "succeeded" && (
+          {selectedOrder.fulfillment_status !== "succeeded" && selectedOrder.status !== "refunded" && (
             <div className="space-y-2 border-t border-[hsl(var(--separator-color))] pt-3">
               <p className="text-xs text-[hsl(var(--text-secondary))]">{t("paymentOrders.syncHint")}</p>
               <Button

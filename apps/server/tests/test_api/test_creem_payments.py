@@ -177,19 +177,20 @@ async def test_creem_checkout_webhook_fulfillment_idempotency_and_refund_revocat
     )
     assert bad_sig_resp.status_code == 401
 
-    # Tampered amount is rejected with 400.
-    tampered = json.loads(raw_body)
-    tampered["object"]["order"]["amount"] = 100
-    tampered_bytes = json.dumps(tampered).encode("utf-8")
-    tampered_resp = await client.post(
+    # Wrong product_id is rejected with 400 without marking the order paid.
+    wrong_product = json.loads(raw_body)
+    wrong_product["object"]["product"]["id"] = "prod_year_test_456"
+    wrong_product["object"]["order"]["product"] = "prod_year_test_456"
+    wrong_product_bytes = json.dumps(wrong_product).encode("utf-8")
+    wrong_product_resp = await client.post(
         "/api/v1/payments/creem/webhook",
-        content=tampered_bytes,
+        content=wrong_product_bytes,
         headers={
-            "creem-signature": sign_creem_payload(tampered_bytes, cfg["secret"]),
+            "creem-signature": sign_creem_payload(wrong_product_bytes, cfg["secret"]),
             "Content-Type": "application/json",
         },
     )
-    assert tampered_resp.status_code == 400
+    assert wrong_product_resp.status_code == 400
 
     # Valid checkout.completed fulfills Pro once; replay is idempotent.
     sig = sign_creem_payload(raw_body, cfg["secret"])
@@ -287,6 +288,23 @@ async def test_creem_sync_compensation_and_dispute_needs_attention(
                     "status": "pending",
                     "checkout_url": "https://creem.io/test/checkout/prod_year_test_456/ch_sync_001",
                     "mode": "test",
+                },
+            )
+        if request.method == "GET" and request.url.path.endswith("/transactions/search"):
+            assert request.url.params.get("order_id") == "ord_creem_sync_001"
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": "tran_sync_001",
+                            "type": "payment",
+                            "amount": 7900,
+                            "amount_paid": 7900,
+                            "currency": "USD",
+                            "order": "ord_creem_sync_001",
+                        }
+                    ]
                 },
             )
         if request.method == "GET":
@@ -494,3 +512,946 @@ def test_creem_preflight_rejects_wrong_return_url_path(monkeypatch: pytest.Monke
 
     monkeypatch.setenv("CREEM_RETURN_URL", "https://app.zenstory.ai/dashboard/billing/payment-return")
     assert creem_preflight_problems() == []
+
+
+@pytest.mark.integration
+async def test_creem_refund_dispute_refund_sequence_does_not_double_deduct(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    cfg = _configure_creem_env(monkeypatch, test_mode=True)
+    _ensure_pro_plan_usd(db_session)
+    user = _make_user(db_session, "creem_double_deduct_guard")
+    admin = _make_user(db_session, "creem_double_deduct_admin", admin=True)
+    auth_headers = await _login(client, user.username)
+    admin_headers = await _login(client, admin.username)
+    seq = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seq["n"] += 1
+        body = json.loads(request.content.decode("utf-8"))
+        cid = f"ch_dd_{seq['n']}"
+        return httpx.Response(
+            200,
+            json={
+                "id": cid,
+                "object": "checkout",
+                "product": body["product_id"],
+                "status": "pending",
+                "checkout_url": f"https://checkout.creem.io/test/checkout/{body['product_id']}/{cid}",
+                "mode": "test",
+            },
+        )
+
+    monkeypatch.setattr(creem_service, "http_transport", httpx.MockTransport(handler))
+
+    # Buy two monthly Pro orders so the user has ~60 days of Pro.
+    orders = []
+    for i in (1, 2):
+        resp = await client.post(
+            "/api/v1/payments/orders",
+            headers=auth_headers,
+            json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+        )
+        assert resp.status_code == 200
+        # Also proves checkout.creem.io host is accepted by backend validation.
+        assert resp.json()["checkout"]["action"].startswith("https://checkout.creem.io/")
+        out_trade_no = resp.json()["order"]["out_trade_no"]
+        orders.append((out_trade_no, f"ch_dd_{i}", f"ord_dd_{i}"))
+        wh = {
+            "id": f"evt_dd_paid_{i}",
+            "eventType": "checkout.completed",
+            "object": {
+                "id": f"ch_dd_{i}",
+                "status": "completed",
+                "request_id": out_trade_no,
+                "mode": "test",
+                "product": {"id": "prod_month_test_123"},
+                "order": {
+                    "id": f"ord_dd_{i}",
+                    "status": "paid",
+                    "amount": 999,
+                    "currency": "USD",
+                    "product": "prod_month_test_123",
+                },
+            },
+        }
+        raw = json.dumps(wh).encode("utf-8")
+        r = await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=raw,
+            headers={"creem-signature": sign_creem_payload(raw, cfg["secret"]), "Content-Type": "application/json"},
+        )
+        assert r.status_code == 200
+
+    db_session.expire_all()
+    sub = db_session.exec(select(UserSubscription).where(UserSubscription.user_id == user.id)).one()
+    assert 59 <= (sub.current_period_end - utcnow().replace(tzinfo=None)).days <= 60
+
+    # 1. Refund order 1 -> deducts 30 days once (~30 days remain).
+    ref1 = json.dumps({
+        "id": "evt_dd_ref_1",
+        "eventType": "refund.created",
+        "object": {
+            "id": "ref_dd_1",
+            "status": "succeeded",
+            "mode": "test",
+            "refund_amount": 999,
+            "order": {"id": "ord_dd_1", "status": "refunded"},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=ref1,
+            headers={"creem-signature": sign_creem_payload(ref1, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    # 2. Dispute arrives for already-refunded order 1 -> keeps status='refunded', sets disputed_at & needs_attention.
+    disp = json.dumps({
+        "id": "evt_dd_disp_1",
+        "eventType": "dispute.created",
+        "object": {
+            "id": "disp_dd_1",
+            "mode": "test",
+            "order": {"id": "ord_dd_1"},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=disp,
+            headers={"creem-signature": sign_creem_payload(disp, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    db_session.expire_all()
+    order1 = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == orders[0][0])).one()
+    assert order1.status == "refunded"
+    assert order1.refunded_at is not None
+    assert order1.disputed_at is not None
+    assert order1.failure_reason == "disputed:disp_dd_1"
+
+    attn = await client.get("/api/admin/payment-orders", headers=admin_headers, params={"needs_attention": "true"})
+    assert attn.status_code == 200
+    assert any(item["out_trade_no"] == orders[0][0] for item in attn.json()["items"])
+
+    # 3. Second refund.created (new refund ID!) after dispute -> must NOT deduct another 30 days.
+    ref2 = json.dumps({
+        "id": "evt_dd_ref_2",
+        "eventType": "refund.created",
+        "object": {
+            "id": "ref_dd_2",
+            "status": "succeeded",
+            "mode": "test",
+            "refund_amount": 999,
+            "order": {"id": "ord_dd_1", "status": "refunded"},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=ref2,
+            headers={"creem-signature": sign_creem_payload(ref2, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    db_session.expire_all()
+    sub_after = db_session.exec(select(UserSubscription).where(UserSubscription.user_id == user.id)).one()
+    remaining_days = (sub_after.current_period_end - utcnow().replace(tzinfo=None)).days
+    assert sub_after.status == "active"
+    assert 29 <= remaining_days <= 30
+
+
+@pytest.mark.integration
+async def test_creem_amount_mismatch_persists_paid_failed_and_refund_clears_needs_attention(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    cfg = _configure_creem_env(monkeypatch, test_mode=True)
+    _ensure_pro_plan_usd(db_session)
+    user = _make_user(db_session, "creem_mismatch_user")
+    admin = _make_user(db_session, "creem_mismatch_admin", admin=True)
+    auth_headers = await _login(client, user.username)
+    admin_headers = await _login(client, admin.username)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={
+                "id": "ch_mm_001",
+                "object": "checkout",
+                "product": body["product_id"],
+                "status": "pending",
+                "checkout_url": "https://www.creem.io/test/checkout/prod_month_test_123/ch_mm_001",
+                "mode": "test",
+            },
+        )
+
+    monkeypatch.setattr(creem_service, "http_transport", httpx.MockTransport(handler))
+    create_resp = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    assert create_resp.status_code == 200
+    out_trade_no = create_resp.json()["order"]["out_trade_no"]
+
+    # Valid signature & product_id, but Creem charged $12.99 instead of DB $9.99.
+    mismatch_raw = json.dumps({
+        "id": "evt_mm_001",
+        "eventType": "checkout.completed",
+        "object": {
+            "id": "ch_mm_001",
+            "status": "completed",
+            "request_id": out_trade_no,
+            "mode": "test",
+            "product": {"id": "prod_month_test_123"},
+            "order": {
+                "id": "ord_mm_001",
+                "status": "paid",
+                "amount": 1299,
+                "currency": "USD",
+                "product": "prod_month_test_123",
+            },
+        },
+    }).encode("utf-8")
+    resp = await client.post(
+        "/api/v1/payments/creem/webhook",
+        content=mismatch_raw,
+        headers={"creem-signature": sign_creem_payload(mismatch_raw, cfg["secret"]), "Content-Type": "application/json"},
+    )
+    assert resp.status_code == 400
+
+    db_session.expire_all()
+    order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == out_trade_no)).one()
+    assert order.status == "paid"
+    assert order.trade_no == "ord_mm_001"
+    assert order.paid_at is not None
+    assert order.fulfillment_status == "failed"
+    assert order.failure_reason == "amount_mismatch"
+    assert subscription_service.get_effective_paid_plan(db_session, user.id) is None
+
+    attn_before = await client.get("/api/admin/payment-orders", headers=admin_headers, params={"needs_attention": "true"})
+    assert any(item["out_trade_no"] == out_trade_no for item in attn_before.json()["items"])
+
+    # Refunding a failed-fulfillment paid order clears it from needs_attention.
+    ref_raw = json.dumps({
+        "id": "evt_mm_ref_001",
+        "eventType": "refund.created",
+        "object": {
+            "id": "ref_mm_001",
+            "status": "succeeded",
+            "mode": "test",
+            "refund_amount": 1299,
+            "order": {"id": "ord_mm_001", "status": "refunded"},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=ref_raw,
+            headers={"creem-signature": sign_creem_payload(ref_raw, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    db_session.expire_all()
+    order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == out_trade_no)).one()
+    assert order.status == "refunded"
+    assert order.refunded_at is not None
+    attn_after = await client.get("/api/admin/payment-orders", headers=admin_headers, params={"needs_attention": "true"})
+    assert not any(item["out_trade_no"] == out_trade_no for item in attn_after.json()["items"])
+
+
+@pytest.mark.integration
+async def test_creem_partial_refund_waits_for_full_cumulative_amount_before_revoking(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    cfg = _configure_creem_env(monkeypatch, test_mode=True)
+    _ensure_pro_plan_usd(db_session)
+    user = _make_user(db_session, "creem_partial_user")
+    admin = _make_user(db_session, "creem_partial_admin", admin=True)
+    auth_headers = await _login(client, user.username)
+    admin_headers = await _login(client, admin.username)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={
+                "id": "ch_part_001",
+                "object": "checkout",
+                "product": body["product_id"],
+                "status": "pending",
+                "checkout_url": "https://www.creem.io/test/checkout/prod_month_test_123/ch_part_001",
+                "mode": "test",
+            },
+        )
+
+    monkeypatch.setattr(creem_service, "http_transport", httpx.MockTransport(handler))
+    create_resp = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    out_trade_no = create_resp.json()["order"]["out_trade_no"]
+
+    paid_raw = json.dumps({
+        "id": "evt_part_paid",
+        "eventType": "checkout.completed",
+        "object": {
+            "id": "ch_part_001",
+            "status": "completed",
+            "request_id": out_trade_no,
+            "mode": "test",
+            "product": {"id": "prod_month_test_123"},
+            "order": {"id": "ord_part_001", "status": "paid", "amount": 999, "currency": "USD", "product": "prod_month_test_123"},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=paid_raw,
+            headers={"creem-signature": sign_creem_payload(paid_raw, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    # Partial refund #1 ($4.00 of $9.99): does NOT revoke Pro, surfaces in needs_attention.
+    part1_raw = json.dumps({
+        "id": "evt_part_ref_1",
+        "eventType": "refund.created",
+        "object": {
+            "id": "ref_part_1",
+            "status": "succeeded",
+            "mode": "test",
+            "refund_amount": 400,
+            "order": {"id": "ord_part_001", "amount": 999},
+        },
+    }).encode("utf-8")
+    part1_sig = sign_creem_payload(part1_raw, cfg["secret"])
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=part1_raw,
+            headers={"creem-signature": part1_sig, "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+    # Replaying the same partial refund ID must not double-count.
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=part1_raw,
+            headers={"creem-signature": part1_sig, "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    db_session.expire_all()
+    order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == out_trade_no)).one()
+    assert order.status == "paid"
+    assert order.refunded_at is None
+    assert order.refunded_amount_cents == 400
+    assert order.failure_reason == "partial_refund:400/999"
+    assert subscription_service.get_effective_paid_plan(db_session, user.id) is not None
+
+    attn_partial = await client.get("/api/admin/payment-orders", headers=admin_headers, params={"needs_attention": "true"})
+    assert any(item["out_trade_no"] == out_trade_no for item in attn_partial.json()["items"])
+
+    # Partial refund #2 ($5.99 -> cumulative $9.99): revokes Pro and clears needs_attention.
+    part2_raw = json.dumps({
+        "id": "evt_part_ref_2",
+        "eventType": "refund.created",
+        "object": {
+            "id": "ref_part_2",
+            "status": "succeeded",
+            "mode": "test",
+            "refund_amount": 599,
+            "order": {"id": "ord_part_001", "amount": 999},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=part2_raw,
+            headers={"creem-signature": sign_creem_payload(part2_raw, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    db_session.expire_all()
+    order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == out_trade_no)).one()
+    assert order.status == "refunded"
+    assert order.refunded_at is not None
+    assert order.refunded_amount_cents == 999
+    assert subscription_service.get_effective_paid_plan(db_session, user.id) is None
+
+    attn_done = await client.get("/api/admin/payment-orders", headers=admin_headers, params={"needs_attention": "true"})
+    assert not any(item["out_trade_no"] == out_trade_no for item in attn_done.json()["items"])
+
+
+@pytest.mark.integration
+async def test_creem_early_refund_or_dispute_on_pending_order_blocks_late_settlement(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    cfg = _configure_creem_env(monkeypatch, test_mode=True)
+    _ensure_pro_plan_usd(db_session)
+    user = _make_user(db_session, "creem_early_event_user")
+    auth_headers = await _login(client, user.username)
+    seq = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seq["n"] += 1
+        body = json.loads(request.content.decode("utf-8"))
+        cid = f"ch_early_{seq['n']}"
+        return httpx.Response(
+            200,
+            json={
+                "id": cid,
+                "object": "checkout",
+                "product": body["product_id"],
+                "status": "pending",
+                "checkout_url": f"https://www.creem.io/test/checkout/{body['product_id']}/{cid}",
+                "mode": "test",
+            },
+        )
+
+    monkeypatch.setattr(creem_service, "http_transport", httpx.MockTransport(handler))
+
+    # Case 1: refund.created arrives before checkout.completed.
+    r1 = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    otn1 = r1.json()["order"]["out_trade_no"]
+    early_ref = json.dumps({
+        "id": "evt_early_ref",
+        "eventType": "refund.created",
+        "object": {
+            "id": "ref_early_1",
+            "status": "succeeded",
+            "mode": "test",
+            "refund_amount": 999,
+            "checkout": {"id": "ch_early_1"},
+            "order": {"id": "ord_early_1"},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=early_ref,
+            headers={"creem-signature": sign_creem_payload(early_ref, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    late_paid1 = json.dumps({
+        "id": "evt_late_paid_1",
+        "eventType": "checkout.completed",
+        "object": {
+            "id": "ch_early_1",
+            "status": "completed",
+            "request_id": otn1,
+            "mode": "test",
+            "product": {"id": "prod_month_test_123"},
+            "order": {"id": "ord_early_1", "status": "paid", "amount": 999, "currency": "USD", "product": "prod_month_test_123"},
+        },
+    }).encode("utf-8")
+    late_resp1 = await client.post(
+        "/api/v1/payments/creem/webhook",
+        content=late_paid1,
+        headers={"creem-signature": sign_creem_payload(late_paid1, cfg["secret"]), "Content-Type": "application/json"},
+    )
+    assert late_resp1.status_code == 400
+    db_session.expire_all()
+    assert subscription_service.get_effective_paid_plan(db_session, user.id) is None
+
+    # Case 2: dispute.created arrives before checkout.completed.
+    r2 = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    otn2 = r2.json()["order"]["out_trade_no"]
+    early_disp = json.dumps({
+        "id": "evt_early_disp",
+        "eventType": "dispute.created",
+        "object": {
+            "id": "disp_early_1",
+            "mode": "test",
+            "checkout": {"id": "ch_early_2"},
+            "order": {"id": "ord_early_2"},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=early_disp,
+            headers={"creem-signature": sign_creem_payload(early_disp, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    late_paid2 = json.dumps({
+        "id": "evt_late_paid_2",
+        "eventType": "checkout.completed",
+        "object": {
+            "id": "ch_early_2",
+            "status": "completed",
+            "request_id": otn2,
+            "mode": "test",
+            "product": {"id": "prod_month_test_123"},
+            "order": {"id": "ord_early_2", "status": "paid", "amount": 999, "currency": "USD", "product": "prod_month_test_123"},
+        },
+    }).encode("utf-8")
+    late_resp2 = await client.post(
+        "/api/v1/payments/creem/webhook",
+        content=late_paid2,
+        headers={"creem-signature": sign_creem_payload(late_paid2, cfg["secret"]), "Content-Type": "application/json"},
+    )
+    assert late_resp2.status_code == 400
+    db_session.expire_all()
+    assert subscription_service.get_effective_paid_plan(db_session, user.id) is None
+
+
+@pytest.mark.integration
+def test_creem_preflight_verifies_products_against_db_usd_prices(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    _configure_creem_env(monkeypatch, test_mode=True)
+    monkeypatch.setenv("ENVIRONMENT", "staging")
+    _ensure_pro_plan_usd(db_session)
+
+    prices = {"prod_month_test_123": (999, "USD"), "prod_year_test_456": (7900, "USD")}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        pid = request.url.params.get("product_id", "")
+        price, currency = prices[pid]
+        return httpx.Response(200, json={"id": pid, "price": price, "currency": currency, "status": "active"})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        assert creem_preflight_problems(verify_products=True, http_client=http_client, session=db_session) == []
+
+        prices["prod_month_test_123"] = (1299, "USD")
+        problems = creem_preflight_problems(verify_products=True, http_client=http_client, session=db_session)
+        assert problems is not None
+        assert any("prod_month_test_123" in p and "1299" in p and "999" in p for p in problems)
+
+
+@pytest.mark.integration
+async def test_admin_updating_pro_usd_price_returns_creem_sync_warning(
+    client: AsyncClient, db_session: Session
+):
+    plan = _ensure_pro_plan_usd(db_session)
+    admin = _make_user(db_session, "creem_plan_warn_admin", admin=True)
+    admin_headers = await _login(client, admin.username)
+
+    resp = await client.put(
+        f"/api/admin/plans/{plan.id}",
+        headers=admin_headers,
+        json={"price_monthly_usd_cents": 1299},
+    )
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["price_monthly_usd_cents"] == 1299
+    assert any("Creem" in w and "amount_mismatch" in w for w in payload["warnings"])
+
+    # Updating a non-USD field emits no Creem warning.
+    resp2 = await client.put(
+        f"/api/admin/plans/{plan.id}",
+        headers=admin_headers,
+        json={"display_name": "专业版 Pro"},
+    )
+    assert resp2.status_code == 200
+    assert resp2.json()["warnings"] == []
+
+
+@pytest.mark.integration
+async def test_creem_sync_amount_mismatch_and_preflight_error_branches(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    _configure_creem_env(monkeypatch, test_mode=True)
+    monkeypatch.setenv("ENVIRONMENT", "staging")
+    _ensure_pro_plan_usd(db_session)
+    user = _make_user(db_session, "creem_sync_mm_user")
+    auth_headers = await _login(client, user.username)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            body = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(
+                200,
+                json={
+                    "id": "ch_sync_mm",
+                    "object": "checkout",
+                    "product": body["product_id"],
+                    "status": "pending",
+                    "checkout_url": "https://checkout.creem.io/test/checkout/prod_month_test_123/ch_sync_mm",
+                    "mode": "test",
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "id": "ch_sync_mm",
+                "object": "checkout",
+                "product": "prod_month_test_123",
+                "status": "completed",
+                "mode": "test",
+                "order": {"id": "ord_sync_mm", "amount": 1599, "currency": "USD"},
+            },
+        )
+
+    monkeypatch.setattr(creem_service, "http_transport", httpx.MockTransport(handler))
+    create_resp = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    out_trade_no = create_resp.json()["order"]["out_trade_no"]
+
+    sync_resp = await client.post(f"/api/v1/payments/orders/{out_trade_no}/sync", headers=auth_headers)
+    assert sync_resp.status_code == 409
+
+    db_session.expire_all()
+    order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == out_trade_no)).one()
+    assert order.status == "paid"
+    assert order.trade_no == "ord_sync_mm"
+    assert order.fulfillment_status == "failed"
+    assert order.failure_reason == "amount_mismatch"
+
+    # Cover preflight product verification error branches (404, inactive, 500, invalid JSON).
+    def err_handler(request: httpx.Request) -> httpx.Response:
+        pid = request.url.params.get("product_id", "")
+        if pid == "prod_month_test_123":
+            return httpx.Response(404)
+        return httpx.Response(200, json={"id": pid, "price": 7900, "currency": "USD", "status": "archived"})
+
+    with httpx.Client(transport=httpx.MockTransport(err_handler)) as http_client:
+        problems = creem_preflight_problems(verify_products=True, http_client=http_client, session=db_session)
+        assert problems is not None
+        assert any("not found (404)" in p for p in problems)
+        assert any("archived" in p for p in problems)
+
+    def transport_err_handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(502)
+
+    with httpx.Client(transport=httpx.MockTransport(transport_err_handler)) as http_client:
+        problems = creem_preflight_problems(verify_products=True, http_client=http_client, session=db_session)
+        assert problems is not None
+        assert any("provider_unavailable" in p for p in problems)
+
+
+@pytest.mark.integration
+async def test_creem_sync_blocks_amount_mismatch_and_unverified_amounts(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    cfg = _configure_creem_env(monkeypatch, test_mode=True)
+    _ensure_pro_plan_usd(db_session)
+    user = _make_user(db_session, "creem_high2_user")
+    admin = _make_user(db_session, "creem_high2_admin", admin=True)
+    auth_headers = await _login(client, user.username)
+    admin_headers = await _login(client, admin.username)
+    seq = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            seq["n"] += 1
+            body = json.loads(request.content.decode("utf-8"))
+            cid = f"ch_h2_{seq['n']}"
+            return httpx.Response(
+                200,
+                json={
+                    "id": cid,
+                    "object": "checkout",
+                    "product": body["product_id"],
+                    "status": "pending",
+                    "checkout_url": f"https://www.creem.io/test/checkout/{body['product_id']}/{cid}",
+                    "mode": "test",
+                },
+            )
+        if request.url.path.endswith("/transactions/search"):
+            return httpx.Response(200, json={"items": []})
+        cid = request.url.params.get("checkout_id", "")
+        return httpx.Response(
+            200,
+            json={
+                "id": cid,
+                "object": "checkout",
+                "product": "prod_month_test_123",
+                "status": "completed",
+                "order": f"ord_{cid}",
+                "mode": "test",
+            },
+        )
+
+    monkeypatch.setattr(creem_service, "http_transport", httpx.MockTransport(handler))
+
+    # Case 1 (HIGH-2): Webhook marks amount_mismatch -> subsequent /sync must NOT grant Pro.
+    r1 = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    otn1 = r1.json()["order"]["out_trade_no"]
+    mm_raw = json.dumps({
+        "id": "evt_h2_mm",
+        "eventType": "checkout.completed",
+        "object": {
+            "id": "ch_h2_1",
+            "status": "completed",
+            "request_id": otn1,
+            "mode": "test",
+            "product": {"id": "prod_month_test_123"},
+            "order": {"id": "ord_ch_h2_1", "status": "paid", "amount": 800, "currency": "USD", "product": "prod_month_test_123"},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=mm_raw,
+            headers={"creem-signature": sign_creem_payload(mm_raw, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 400
+
+    sync1 = await client.post(f"/api/v1/payments/orders/{otn1}/sync", headers=auth_headers)
+    assert sync1.status_code == 409
+    db_session.expire_all()
+    order1 = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == otn1)).one()
+    assert order1.status == "paid"
+    assert order1.paid_amount_cents == 800
+    assert order1.fulfillment_status == "failed"
+    assert order1.failure_reason == "amount_mismatch"
+    assert subscription_service.get_effective_paid_plan(db_session, user.id) is None
+
+    # MEDIUM-1: Undercharged mismatch order ($8.00 vs $9.99): partial refund ($4.00) preserves
+    # failure_reason='amount_mismatch'; full refund of paid_amount_cents ($8.00) completes refund.
+    part_ref = json.dumps({
+        "id": "evt_m1_part",
+        "eventType": "refund.created",
+        "object": {"id": "ref_m1_1", "status": "succeeded", "mode": "test", "refund_amount": 400, "order": {"id": "ord_ch_h2_1"}},
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=part_ref,
+            headers={"creem-signature": sign_creem_payload(part_ref, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+    db_session.expire_all()
+    order1 = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == otn1)).one()
+    assert order1.status == "paid"
+    assert order1.refunded_amount_cents == 400
+    assert order1.failure_reason == "amount_mismatch"
+
+    rest_ref = json.dumps({
+        "id": "evt_m1_rest",
+        "eventType": "refund.created",
+        "object": {"id": "ref_m1_2", "status": "succeeded", "mode": "test", "refund_amount": 400, "order": {"id": "ord_ch_h2_1"}},
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=rest_ref,
+            headers={"creem-signature": sign_creem_payload(rest_ref, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+    db_session.expire_all()
+    order1 = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == otn1)).one()
+    assert order1.status == "refunded"
+    assert order1.refunded_at is not None
+    assert order1.refunded_amount_cents == 800
+    attn1 = await client.get("/api/admin/payment-orders", headers=admin_headers, params={"needs_attention": "true"})
+    assert not any(item["out_trade_no"] == otn1 for item in attn1.json()["items"])
+
+    # Case 2 (HIGH-2): Sync runs before webhook, checkout returns bare order ID and
+    # /transactions/search returns no amount -> never trusts order.amount_cents, records amount_unverified.
+    r2 = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    otn2 = r2.json()["order"]["out_trade_no"]
+    sync2 = await client.post(f"/api/v1/payments/orders/{otn2}/sync", headers=auth_headers)
+    assert sync2.status_code == 409
+    db_session.expire_all()
+    order2 = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == otn2)).one()
+    assert order2.status == "paid"
+    assert order2.trade_no == "ord_ch_h2_2"
+    assert order2.fulfillment_status == "failed"
+    assert order2.failure_reason == "amount_unverified"
+    assert subscription_service.get_effective_paid_plan(db_session, user.id) is None
+    attn2 = await client.get("/api/admin/payment-orders", headers=admin_headers, params={"needs_attention": "true"})
+    assert any(item["out_trade_no"] == otn2 for item in attn2.json()["items"])
+
+
+@pytest.mark.integration
+async def test_creem_partial_refund_before_settlement_converges_and_stays_in_needs_attention(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    """HIGH-3: A partial refund arriving before checkout.completed must not strand the pending order."""
+    cfg = _configure_creem_env(monkeypatch, test_mode=True)
+    _ensure_pro_plan_usd(db_session)
+    user = _make_user(db_session, "creem_high3_user")
+    admin = _make_user(db_session, "creem_high3_admin", admin=True)
+    auth_headers = await _login(client, user.username)
+    admin_headers = await _login(client, admin.username)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={
+                "id": "ch_h3_1",
+                "object": "checkout",
+                "product": body["product_id"],
+                "status": "pending",
+                "checkout_url": "https://www.creem.io/test/checkout/prod_month_test_123/ch_h3_1",
+                "mode": "test",
+            },
+        )
+
+    monkeypatch.setattr(creem_service, "http_transport", httpx.MockTransport(handler))
+    r = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    otn = r.json()["order"]["out_trade_no"]
+
+    # Partial refund arrives while order is still pending.
+    early_partial = json.dumps({
+        "id": "evt_h3_p1",
+        "eventType": "refund.created",
+        "object": {
+            "id": "ref_h3_1",
+            "status": "succeeded",
+            "mode": "test",
+            "refund_amount": 400,
+            "checkout": {"id": "ch_h3_1"},
+            "order": {"id": "ord_h3_1"},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=early_partial,
+            headers={"creem-signature": sign_creem_payload(early_partial, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    # Pending order with partial refund must already surface in needs_attention.
+    attn_pending = await client.get("/api/admin/payment-orders", headers=admin_headers, params={"needs_attention": "true"})
+    assert any(item["out_trade_no"] == otn and item["status"] == "pending" for item in attn_pending.json()["items"])
+
+    # Simulate a stale transient failure_reason before retryable settlement succeeds:
+    # settle_paid_order must recompute failure_reason to partial_refund:400/999 rather than keeping the stale failure.
+    db_order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == otn)).one()
+    db_order.failure_reason = "subscription_fulfillment_failed"
+    db_session.add(db_order)
+    db_session.commit()
+
+    # Late checkout.completed settles payment, recomputes partial_refund reason, and stays in needs_attention.
+    late_paid = json.dumps({
+        "id": "evt_h3_paid",
+        "eventType": "checkout.completed",
+        "object": {
+            "id": "ch_h3_1",
+            "status": "completed",
+            "request_id": otn,
+            "mode": "test",
+            "product": {"id": "prod_month_test_123"},
+            "order": {"id": "ord_h3_1", "status": "paid", "amount": 999, "currency": "USD", "product": "prod_month_test_123"},
+        },
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=late_paid,
+            headers={"creem-signature": sign_creem_payload(late_paid, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+
+    db_session.expire_all()
+    order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == otn)).one()
+    assert order.status == "paid"
+    assert order.paid_amount_cents == 999
+    assert order.fulfillment_status == "succeeded"
+    assert order.refunded_amount_cents == 400
+    assert order.failure_reason == "partial_refund:400/999"
+    attn = await client.get("/api/admin/payment-orders", headers=admin_headers, params={"needs_attention": "true"})
+    assert any(item["out_trade_no"] == otn for item in attn.json()["items"])
+
+    # Remaining refund completes full revocation.
+    rest_ref = json.dumps({
+        "id": "evt_h3_p2",
+        "eventType": "refund.created",
+        "object": {"id": "ref_h3_2", "status": "succeeded", "mode": "test", "refund_amount": 599, "order": {"id": "ord_h3_1"}},
+    }).encode("utf-8")
+    assert (
+        await client.post(
+            "/api/v1/payments/creem/webhook",
+            content=rest_ref,
+            headers={"creem-signature": sign_creem_payload(rest_ref, cfg["secret"]), "Content-Type": "application/json"},
+        )
+    ).status_code == 200
+    db_session.expire_all()
+    assert subscription_service.get_effective_paid_plan(db_session, user.id) is None
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("tx_failure", ["http_error", "status_503", "bad_json"])
+async def test_creem_sync_transaction_lookup_errors_return_502_without_mutating_order(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch, tx_failure: str
+):
+    _configure_creem_env(monkeypatch, test_mode=True)
+    _ensure_pro_plan_usd(db_session)
+    user = _make_user(db_session, f"creem_txerr_{tx_failure}")
+    auth_headers = await _login(client, user.username)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            body = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(
+                200,
+                json={
+                    "id": f"ch_txerr_{tx_failure}",
+                    "object": "checkout",
+                    "product": body["product_id"],
+                    "status": "pending",
+                    "checkout_url": f"https://www.creem.io/test/checkout/{body['product_id']}/ch_txerr_{tx_failure}",
+                    "mode": "test",
+                },
+            )
+        if request.url.path.endswith("/transactions/search"):
+            if tx_failure == "http_error":
+                raise httpx.ConnectError("creem unreachable")
+            if tx_failure == "status_503":
+                return httpx.Response(503, text="upstream unavailable")
+            return httpx.Response(200, content=b"not-json")
+        return httpx.Response(
+            200,
+            json={
+                "id": f"ch_txerr_{tx_failure}",
+                "object": "checkout",
+                "product": "prod_month_test_123",
+                "status": "completed",
+                "order": f"ord_txerr_{tx_failure}",
+                "mode": "test",
+            },
+        )
+
+    monkeypatch.setattr(creem_service, "http_transport", httpx.MockTransport(handler))
+    r = await client.post(
+        "/api/v1/payments/orders",
+        headers=auth_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "card"},
+    )
+    otn = r.json()["order"]["out_trade_no"]
+
+    sync_resp = await client.post(f"/api/v1/payments/orders/{otn}/sync", headers=auth_headers)
+    assert sync_resp.status_code == 502
+
+    db_session.expire_all()
+    order = db_session.exec(select(PaymentOrder).where(PaymentOrder.out_trade_no == otn)).one()
+    assert order.status == "pending"
+    assert order.fulfillment_status == "pending"
+    assert order.failure_reason is None
+    assert order.trade_no is None
+    assert subscription_service.get_effective_paid_plan(db_session, user.id) is None

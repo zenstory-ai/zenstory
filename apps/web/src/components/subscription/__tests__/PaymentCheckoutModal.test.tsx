@@ -136,6 +136,22 @@ describe('PaymentCheckoutModal dual-currency Creem + Zpay checkout', () => {
     expect(assignSpy).not.toHaveBeenCalled()
   })
 
+  it('accepts checkout.creem.io as an allowlisted redirect host on GET checkout', async () => {
+    createOrderMock.mockResolvedValue({
+      order: { id: 'ord-3', out_trade_no: '202611240000003', cycle: 'month', payment_method: 'card' },
+      checkout: { action: 'https://checkout.creem.io/test/checkout/prod_123/ch_789', method: 'GET', fields: {} },
+    })
+
+    renderModal()
+    const payBtn = screen.getByRole('button', { name: /\$9\.99/ })
+    await waitFor(() => expect(payBtn).toBeEnabled())
+    fireEvent.click(payBtn)
+
+    await waitFor(() => {
+      expect(assignSpy).toHaveBeenCalledWith('https://checkout.creem.io/test/checkout/prod_123/ch_789')
+    })
+  })
+
   it('defaults to Alipay CNY in Chinese when both methods are enabled', async () => {
     currentLang = 'zh-CN'
     renderModal()

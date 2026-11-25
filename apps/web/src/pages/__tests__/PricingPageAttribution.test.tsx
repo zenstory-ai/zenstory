@@ -53,6 +53,15 @@ vi.mock("../../lib/subscriptionApi", () => ({
   },
 }));
 
+vi.mock("../../lib/paymentApi", () => ({
+  paymentApi: {
+    getOptions: () => Promise.resolve({ enabled: true, payment_methods: ["alipay", "card"] }),
+  },
+  paymentQueryKeys: {
+    options: () => ["payment-options"],
+  },
+}));
+
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
   return {
