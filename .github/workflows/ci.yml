@@ -386,6 +386,7 @@ jobs:
           tests/test_services/test_tree_delete_traversal_postgres.py \
           tests/test_services/test_file_upload_postgres.py \
           tests/test_services/test_persisted_order_bounds_postgres.py \
+          tests/test_services/test_payment_fulfillment_concurrency_postgres.py \
           tests/test_agent/test_snapshot_mutation_postgres.py
 
     - name: Run flow tests

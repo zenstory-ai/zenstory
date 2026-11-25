@@ -236,7 +236,7 @@ def test_refund_dispute_hardening_migration_round_trip(tmp_path: Path):
 
     engine = create_engine(db_url)
     po_cols = {c["name"] for c in inspect(engine).get_columns("payment_order")}
-    assert not ({"refunded_at", "refunded_amount_cents", "refund_ids", "disputed_at"} & po_cols)
+    assert not ({"paid_amount_cents", "refunded_at", "refunded_amount_cents", "refund_ids", "disputed_at"} & po_cols)
     now = datetime.utcnow().isoformat(sep=" ")
     with engine.begin() as conn:
         conn.execute(
@@ -256,24 +256,26 @@ def test_refund_dispute_hardening_migration_round_trip(tmp_path: Path):
     _alembic(db_url, "upgrade", "20261124_180000")
     engine = create_engine(db_url)
     po_cols = {c["name"] for c in inspect(engine).get_columns("payment_order")}
-    assert {"refunded_at", "refunded_amount_cents", "refund_ids", "disputed_at"} <= po_cols
+    assert {"paid_amount_cents", "refunded_at", "refunded_amount_cents", "refund_ids", "disputed_at"} <= po_cols
     with engine.connect() as conn:
         ref_row = conn.execute(
-            text("SELECT refunded_at, refunded_amount_cents, disputed_at FROM payment_order WHERE id = 'ord-ref'")
+            text("SELECT paid_amount_cents, refunded_at, refunded_amount_cents, disputed_at FROM payment_order WHERE id = 'ord-ref'")
         ).one()
-        assert ref_row[0] is not None
-        assert ref_row[1] == 999
-        assert ref_row[2] is None
+        assert ref_row[0] == 999
+        assert ref_row[1] is not None
+        assert ref_row[2] == 999
+        assert ref_row[3] is None
         disp_row = conn.execute(
-            text("SELECT refunded_at, refunded_amount_cents, disputed_at FROM payment_order WHERE id = 'ord-disp'")
+            text("SELECT paid_amount_cents, refunded_at, refunded_amount_cents, disputed_at FROM payment_order WHERE id = 'ord-disp'")
         ).one()
-        assert disp_row[0] is None
-        assert disp_row[1] == 0
-        assert disp_row[2] is not None
+        assert disp_row[0] == 999
+        assert disp_row[1] is None
+        assert disp_row[2] == 0
+        assert disp_row[3] is not None
     engine.dispose()
 
     _alembic(db_url, "downgrade", "20261124_120000")
     engine = create_engine(db_url)
     po_cols = {c["name"] for c in inspect(engine).get_columns("payment_order")}
-    assert not ({"refunded_at", "refunded_amount_cents", "refund_ids", "disputed_at"} & po_cols)
+    assert not ({"paid_amount_cents", "refunded_at", "refunded_amount_cents", "refund_ids", "disputed_at"} & po_cols)
     engine.dispose()

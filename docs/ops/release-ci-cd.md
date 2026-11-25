@@ -304,11 +304,13 @@ variables (service `server`):
 
 2. After the new deployment is live, inside it, to exercise the deployed code
    and process environment (pass `--deployment-instance` if more than one
-   instance is listed):
+   instance is listed; add `--verify-creem-products` inside the container when
+   `CREEM_ENABLED=true` to also verify Creem `GET /v1/products` prices/currency
+   against the active DB `pro` plan):
 
    ```sh
    railway ssh --service server --environment production -- \
-     python scripts/release_preflight_check.py --strict --probe-upload-storage
+     python scripts/release_preflight_check.py --strict --probe-upload-storage --verify-creem-products
    ```
 
 3. After any bucket credential or `UPLOAD_*` variable change, including a

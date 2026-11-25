@@ -389,7 +389,7 @@ def main() -> int:
     )
 
     all_ok &= _check_zpay_configuration()
-    all_ok &= _check_creem_configuration(verify_products=args.strict or args.verify_creem_products)
+    all_ok &= _check_creem_configuration(verify_products=args.verify_creem_products)
     all_ok &= _check_upload_storage(probe=args.probe_upload_storage, strict=args.strict)
 
     versions_dir = Path(__file__).resolve().parent.parent / "alembic" / "versions"

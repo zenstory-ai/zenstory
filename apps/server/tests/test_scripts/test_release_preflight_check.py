@@ -153,3 +153,43 @@ def test_strict_release_requires_an_explicit_proxy_hop_count(preflight, monkeypa
 
     assert preflight.main() == exit_code
     assert f"[{'PASS' if hops else 'FAIL'}] TRUSTED_PROXY_HOPS" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(("extra_args", "expected_verify"), [([], False), (["--verify-creem-products"], True)])
+def test_strict_release_with_creem_enabled_keeps_product_probe_opt_in(
+    preflight, monkeypatch, capsys, extra_args, expected_verify
+):
+    """--strict validates Creem env config offline; DB/API product probe requires --verify-creem-products."""
+    seen: list[bool] = []
+    for name, value in {
+        "ENVIRONMENT": "production",
+        "TRUSTED_PROXY_HOPS": "2",
+        "JWT_SECRET_KEY": "x" * 40,
+        "CORS_ORIGINS": "https://app.zenstory.ai",
+        "RATE_LIMIT_BACKEND": "redis",
+        "ZPAY_ENABLED": "false",
+        "CREEM_ENABLED": "true",
+        "CREEM_TEST_MODE": "false",
+        "CREEM_API_KEY": "creem_live_secret_key_for_test",
+        "CREEM_WEBHOOK_SECRET": "whsec_live_secret_for_test",
+        "CREEM_PRODUCT_ID_PRO_MONTH": "prod_live_month_123",
+        "CREEM_PRODUCT_ID_PRO_YEAR": "prod_live_year_456",
+        "CREEM_RETURN_URL": "https://app.zenstory.ai/dashboard/billing/payment-return",
+    }.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(preflight, "_load_dotenv_if_available", lambda: None)
+    monkeypatch.setattr(preflight, "upload_storage_preflight", lambda **_kwargs: (True, "synthetic"))
+    monkeypatch.setattr(
+        preflight,
+        "_verify_creem_products_against_db",
+        lambda *_args, **_kwargs: seen.append(True) or [],
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        ["release_preflight_check.py", "--strict", "--probe-upload-storage", *extra_args],
+    )
+
+    assert preflight.main() == 0
+    assert bool(seen) is expected_verify
+    out = capsys.readouterr().out
+    assert "[PASS] Creem checkout configuration:" in out

@@ -37,6 +37,7 @@ class PaymentOrder(SQLModel, table=True):
     product_name: str = Field(max_length=100)
     cycle: str = Field(max_length=16)
     amount_cents: int
+    paid_amount_cents: int | None = None
     duration_days: int
     payment_method: str = Field(max_length=16)
     status: str = Field(default="pending", max_length=16, index=True)

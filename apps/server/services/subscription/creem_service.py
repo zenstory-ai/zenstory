@@ -22,6 +22,7 @@ from config.payment_settings import (
 from models.payment import PaymentOrder
 from models.subscription import SubscriptionPlan
 from services.subscription.payment_fulfillment import (
+    AMOUNT_MISMATCH_FAILURE_REASON,
     CYCLE_DAYS,
     CallbackError,
     PaymentError,
@@ -30,6 +31,7 @@ from services.subscription.payment_fulfillment import (
     new_out_trade_no,
     record_dispute,
     record_paid_amount_mismatch,
+    record_paid_amount_unverified,
     record_refund,
     settle_paid_order,
 )
@@ -372,6 +374,45 @@ class CreemService:
             raise PaymentSyncError("provider_invalid_response")
         return data
 
+    def query_remote_transaction(
+        self,
+        order_id: str,
+        settings: CreemSettings,
+    ) -> dict[str, Any] | None:
+        """Fetch payment transaction details (authoritative amount/currency) for a Creem order ID."""
+        url = f"{settings.api_base_url}/transactions/search"
+        try:
+            with httpx.Client(
+                timeout=CREEM_HTTP_TIMEOUT,
+                transport=self.http_transport,
+                follow_redirects=False,
+            ) as client:
+                response = client.get(
+                    url,
+                    params={"order_id": order_id},
+                    headers={"x-api-key": settings.api_key},
+                )
+        except httpx.HTTPError:
+            return None
+        if response.status_code != 200:
+            return None
+        try:
+            data = response.json()
+        except ValueError:
+            return None
+        if not isinstance(data, dict):
+            return None
+        items = data.get("items")
+        if not isinstance(items, list):
+            return None
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            tx_type = str(item.get("type") or "").strip().lower()
+            if not tx_type or tx_type == "payment":
+                return item
+        return None
+
     def _find_creem_order(
         self,
         session: Session,
@@ -583,6 +624,10 @@ class CreemService:
         """Compensate a missed Creem webhook by querying GET /v1/checkouts."""
         if order.fulfillment_status == "succeeded":
             return "already_fulfilled"
+        if order.failure_reason == AMOUNT_MISMATCH_FAILURE_REASON:
+            raise PaymentSyncError("amount_mismatch")
+        if order.refunded_at is not None or order.disputed_at is not None:
+            raise PaymentSyncError("order_state_conflict")
         if not settings.credentials_configured:
             raise PaymentSyncError("not_configured")
         if not order.provider_checkout_id:
@@ -613,16 +658,33 @@ class CreemService:
         except CallbackError as exc:
             raise PaymentSyncError(exc.reason) from exc
 
-        currency = _extract_currency(remote, order_obj) or order.currency
+        currency = _extract_currency(remote, order_obj)
         amount_cents = _extract_amount(remote, order_obj)
-        if amount_cents is None:
-            # GET /v1/checkouts returns order as a string ID on some Creem versions;
-            # only settle if the verified product_id matched the order's cycle.
-            expected_product = settings.product_id_for_cycle(order.cycle)
-            if not expected_product or remote_product_id != expected_product:
-                raise PaymentSyncError("order_mismatch")
-            amount_cents = order.amount_cents
-        elif currency.upper() != order.currency.upper() or amount_cents != order.amount_cents:
+        if amount_cents is None or not currency:
+            # When GET /v1/checkouts returns order as a bare string ID, look up
+            # the authoritative charged amount/currency from /v1/transactions/search.
+            tx = self.query_remote_transaction(trade_no, settings)
+            if tx is not None:
+                if amount_cents is None:
+                    amount_cents = _extract_amount(tx, None)
+                if not currency:
+                    currency = _extract_currency(tx, None)
+
+        if amount_cents is None or not currency:
+            # Never trust our local order.amount_cents when the provider did not
+            # confirm the charged amount/currency: record evidence for manual review.
+            try:
+                record_paid_amount_unverified(
+                    session,
+                    order=order,
+                    trade_no=trade_no,
+                    channel="query",
+                )
+            except CallbackError as exc:
+                raise PaymentSyncError(exc.reason) from exc
+            raise PaymentSyncError("amount_unverified")
+
+        if currency.upper() != order.currency.upper() or amount_cents != order.amount_cents:
             try:
                 record_paid_amount_mismatch(
                     session,
