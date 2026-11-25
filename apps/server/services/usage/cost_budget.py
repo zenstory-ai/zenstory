@@ -121,7 +121,7 @@ def set_context_user_id(user_id: str | None) -> None:
 
 def current_user_id() -> str | None:
     explicit = _attribution.get()
-    if explicit is not None:
+    if explicit is not None and explicit.user_id:
         return explicit.user_id
     return _context_user_id.get()
 

@@ -93,11 +93,11 @@ def _fake_session():
 
 
 @pytest.mark.unit
-def test_chapter_summary_task_requests_json_object_on_the_wire(monkeypatch):
+def test_chapter_summary_task_uses_low_reasoning_without_json_object_lock(monkeypatch):
     seen: dict = {}
     logger = MagicMock()
     response = llm_mod.LLMResponse(
-        content='{"summary": "这是一个完全合成的章节摘要。它只用于验证任务是否把 JSON 对象格式约束传到模型请求，不包含任何真实作品内容。为了通过现有长度校验，这里再补充一段无意义的测试文字。"}',
+        content='{"summary": "这是一个完全合成的章节摘要。它只用于验证任务不再通过 response_format 锁死 DeepSeek，而是使用低思考强度交由主模型路由与现有 JSON 修复校验处理。为了通过现有长度校验，这里补充一段无意义的测试文字。"}',
         usage={},
         model="test-model",
         finish_reason="stop",
@@ -127,7 +127,58 @@ def test_chapter_summary_task_requests_json_object_on_the_wire(monkeypatch):
     result = chapter_mod.generate_chapter_summary_task.fn(31)
 
     assert result["chapter_id"] == 31
-    assert seen["response_format"] == {"type": "json_object"}
+    assert "response_format" not in seen
+    assert seen["reasoning_effort"] == "low"
+
+
+@pytest.mark.unit
+def test_chapter_summary_routes_to_minimax_primary_and_fails_over_to_deepseek(monkeypatch):
+    endpoints = _configure(
+        monkeypatch,
+        primary="minimax",
+        primary_model="MiniMax-M3.1-Flash",
+        backup="deepseek",
+        backup_model="deepseek-flash",
+    )
+    valid_json = '{"summary": "这是一段用于验证章节摘要主用路由与备源切换的合成摘要内容，包含足够的长度以通过现有章节摘要数据校验器，没有任何真实作品正文。"}'
+    endpoints["primary"].script = [_ok(content=valid_json, model="MiniMax-M3.1-Flash"), _status_error(503)]
+    endpoints["backup"].script = [_ok(content=valid_json, model="deepseek-flash")]
+
+    logger = MagicMock()
+    monkeypatch.setattr(prefect_decorators, "get_run_logger", lambda: logger)
+    monkeypatch.setattr(chapter_mod, "get_run_logger", lambda: logger)
+    monkeypatch.setattr(chapter_mod, "get_db_session", _fake_session)
+    monkeypatch.setattr(chapter_mod, "create_chapter_summary_prompt", lambda: "return JSON")
+    monkeypatch.setattr(
+        chapter_mod.ChaptersService,
+        "get_chapter_core_fields",
+        lambda *_args: {"content": "synthetic chapter", "title": "title", "number": 1},
+    )
+    import flows.database_session as dbs
+    import services.usage.llm_usage_service as usage_mod
+
+    monkeypatch.setattr(dbs, "create_prefect_session", _fake_session)
+    monkeypatch.setattr(usage_mod, "resolve_material_owner", lambda *_a, **_kw: ("user-1", 10))
+    monkeypatch.setattr(llm_mod, "_trial_output_limit", lambda *_a, **_kw: None)
+    monkeypatch.setattr(llm_mod, "_meter_material_call", MagicMock())
+    client = llm_mod.MaterialLLMClient.__new__(llm_mod.MaterialLLMClient)
+    client.max_tokens = 2048
+    client.temperature = 0.2
+    monkeypatch.setattr(llm_mod, "_material_llm_client", client)
+
+    # 1) Normal call goes to MiniMax primary with reasoning_effort="low"
+    res1 = chapter_mod.generate_chapter_summary_task.fn(31)
+    assert res1["chapter_id"] == 31
+    assert len(endpoints["primary"].calls) == 1
+    assert endpoints["primary"].calls[0]["reasoning_effort"] == "low"
+    assert "response_format" not in endpoints["primary"].calls[0]
+    assert endpoints["backup"].calls == []
+
+    # 2) Primary 503 fails over cleanly to DeepSeek backup
+    res2 = chapter_mod.generate_chapter_summary_task.fn(32)
+    assert res2["chapter_id"] == 32
+    assert len(endpoints["backup"].calls) == 1
+    assert endpoints["backup"].calls[0]["reasoning_effort"] == "low"
 
 
 @pytest.mark.unit

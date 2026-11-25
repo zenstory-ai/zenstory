@@ -612,6 +612,7 @@ async def test_compaction_uses_responses_api_with_session_cache_key_and_retries_
     for req in calls:
         assert req["instructions"] == "静态系统提示"
         assert req["store"] is False
+        assert req["stream"] is True
         assert req["prompt_cache_key"] == "zs:sess-compact-1"
         assert req["reasoning"] == {"effort": "high"}
         assert req["tools"] and all(t["type"] == "function" for t in req["tools"])
@@ -950,4 +951,187 @@ async def test_responses_failed_unrecovered_is_classified_as_upstream_model_erro
         terminal_model_failure=True,
     ) == ("upstream_model_error", True)
     sdk_model.reset_sdk_model_cache()
+    llm_failover.reset_failover_state()
+
+
+# ---------------------------------------------------------------------------
+# 7. [P0] Streaming compaction collection, request_context attribution, budget guard & pin TTL
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_default_session_pin_ttl_and_empty_attribution_budget_fallback(monkeypatch):
+    from services.usage import cost_budget
+    from services.usage.llm_usage_service import LLMUsageAttribution
+
+    monkeypatch.delenv("LLM_SESSION_PIN_TTL_S", raising=False)
+    assert llm_failover.get_int_env("LLM_SESSION_PIN_TTL_S", 300) == 300
+    assert llm_failover.LLM_SESSION_PIN_TTL_S == 300
+
+    # An empty attribution (user_id=None) must NOT shadow the bound ambient user_id.
+    cost_budget.set_context_user_id("free-user-ctx")
+    try:
+        with cost_budget.budget_attribution(LLMUsageAttribution(user_id=None, source="agent")):
+            assert cost_budget.current_user_id() == "free-user-ctx"
+        with cost_budget.budget_attribution(LLMUsageAttribution(user_id="explicit-user", source="agent")):
+            assert cost_budget.current_user_id() == "explicit-user"
+    finally:
+        cost_budget.set_context_user_id(None)
+
+
+@pytest.mark.asyncio
+async def test_compaction_streaming_collects_terminal_response_and_meters_request_context(monkeypatch):
+    from services.usage import llm_usage_service
+
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    monkeypatch.delenv("MINIMAX_API_SURFACE", raising=False)
+    llm_failover.reset_failover_state()
+
+    terminal_response = _make_response(
+        text="## 交接摘要\n- 已通过流式 Responses 完成压缩",
+        input_tokens=310_000,
+        cached_tokens=295_000,
+        output_tokens=1_200,
+    )
+
+    async def _event_stream():
+        yield SimpleNamespace(type="response.created")
+        yield SimpleNamespace(type="response.reasoning_text.delta", delta="整理前文脉络")
+        yield SimpleNamespace(type="response.output_text.delta", delta="## 交接摘要")
+        yield SimpleNamespace(type="response.completed", response=terminal_response)
+
+    calls: list[dict] = []
+
+    async def fake_responses_create(**kwargs):
+        calls.append(kwargs)
+        return _event_stream()
+
+    recorded: list[dict] = []
+
+    def fake_schedule(attribution, *, model, usage=None, tokens=None, timing=None):
+        recorded.append({"attribution": attribution, "model": model, "usage": usage, "timing": timing})
+
+    monkeypatch.setattr(llm_usage_service, "schedule_llm_usage_record", fake_schedule)
+    fake_client = SimpleNamespace(
+        responses=SimpleNamespace(create=fake_responses_create),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock())),
+    )
+    monkeypatch.setattr(llm_providers, "get_async_client", lambda _p: fake_client)
+
+    req_ctx = SimpleNamespace(user_id="user-compact-1", project_id="proj-compact-1")
+    history = LoopHistory(
+        items=[{"role": "user", "content": "继续写下一章"}, {"role": "assistant", "content": "好的。"}],
+        last_prompt_tokens=320_000,
+        last_message_id="msg-50",
+        author_messages=["继续写下一章"],
+    )
+
+    outcome = await compaction.compact_history(
+        history,
+        system_prompt="静态系统提示",
+        session_id="sess-stream-compact",
+        request_context=req_ctx,  # type: ignore[arg-type]
+    )
+
+    assert outcome.record is not None
+    assert outcome.record["summary"] == "## 交接摘要\n- 已通过流式 Responses 完成压缩"
+    assert len(calls) == 1
+    assert calls[0]["stream"] is True
+    assert calls[0]["prompt_cache_key"] == "zs:sess-stream-compact"
+    assert len(recorded) == 1
+    assert recorded[0]["attribution"].user_id == "user-compact-1"
+    assert recorded[0]["attribution"].project_id == "proj-compact-1"
+    assert recorded[0]["model"] == "MiniMax-M3.1-Flash"
+    assert recorded[0]["usage"] is terminal_response.usage
+    assert recorded[0]["timing"].outcome == "success"
+    llm_failover.reset_failover_state()
+
+
+@pytest.mark.asyncio
+async def test_compaction_streaming_failover_pre_answer_vs_post_answer_and_truncated_stream(monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.setenv("LLM_BACKUP_PROVIDER", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek")
+    monkeypatch.delenv("MINIMAX_API_SURFACE", raising=False)
+    llm_failover.reset_failover_state()
+
+    failed_event = SimpleNamespace(
+        type="response.failed",
+        response=SimpleNamespace(error={"code": "internal_error", "message": "boom"}),
+    )
+
+    async def pre_answer_failed_stream():
+        yield SimpleNamespace(type="response.created")
+        yield SimpleNamespace(type="response.reasoning_text.delta", delta="先梳理")
+        yield failed_event
+
+    async def post_answer_failed_stream():
+        yield SimpleNamespace(type="response.created")
+        yield SimpleNamespace(type="response.output_text.delta", delta="已经开始输出摘要")
+        yield failed_event
+
+    async def truncated_stream():
+        yield SimpleNamespace(type="response.created")
+        yield SimpleNamespace(type="response.reasoning_text.delta", delta="断流前思考")
+
+    ds_calls: list[dict] = []
+
+    async def ds_chat_create(**kwargs):
+        ds_calls.append(kwargs)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="备源兜底摘要"), finish_reason="stop")],
+            usage={"prompt_tokens": 500, "completion_tokens": 50, "total_tokens": 550},
+        )
+
+    history = LoopHistory(
+        items=[{"role": "user", "content": "写第2章"}, {"role": "assistant", "content": "写完了。"}],
+        last_prompt_tokens=320_000,
+        last_message_id="msg-60",
+        author_messages=["写第2章"],
+    )
+
+    # 1) Pre-answer response.failed -> fails over to DeepSeek
+    async def mm_pre(**_kwargs):
+        return pre_answer_failed_stream()
+
+    clients = {
+        "minimax": SimpleNamespace(responses=SimpleNamespace(create=mm_pre)),
+        "deepseek": SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=ds_chat_create))),
+    }
+    monkeypatch.setattr(llm_providers, "get_async_client", lambda p: clients[p.name])
+    outcome1 = await compaction.compact_history(history, system_prompt="系统提示", session_id="sess-pre-fail")
+    assert outcome1.record is not None
+    assert outcome1.record["summary"] == "备源兜底摘要"
+    assert len(ds_calls) == 1
+
+    # 2) Post-answer response.failed -> MUST NOT fail over (no duplicate generation), skips compaction
+    llm_failover.reset_failover_state()
+    ds_calls.clear()
+
+    async def mm_post(**_kwargs):
+        return post_answer_failed_stream()
+
+    clients["minimax"] = SimpleNamespace(responses=SimpleNamespace(create=mm_post))
+    outcome2 = await compaction.compact_history(history, system_prompt="系统提示", session_id="sess-post-fail")
+    assert outcome2.record is None
+    assert outcome2.skipped == compaction.SKIPPED_PROVIDER_ERROR
+    assert len(ds_calls) == 0
+
+    # 3) Prematurely ended stream without terminal event -> fails over to DeepSeek
+    llm_failover.reset_failover_state()
+    ds_calls.clear()
+
+    async def mm_trunc(**_kwargs):
+        return truncated_stream()
+
+    clients["minimax"] = SimpleNamespace(responses=SimpleNamespace(create=mm_trunc))
+    outcome3 = await compaction.compact_history(history, system_prompt="系统提示", session_id="sess-trunc-fail")
+    assert outcome3.record is not None
+    assert outcome3.record["summary"] == "备源兜底摘要"
+    assert len(ds_calls) == 1
     llm_failover.reset_failover_state()

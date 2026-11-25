@@ -2,6 +2,8 @@
 
 Status: implemented
 
+后续：章节摘要不再发送 `response_format={"type":"json_object"}` 锁死 DeepSeek，改为走主备路由（`reasoning_effort="low"`）配合既有 `extract_json_from_response` / `json_repair` 与隐私安全解析日志；`llm_failover` 的协议级 `json_object` 过滤保护与隐私日志边界保持不变。见 [2026-11-25 降低 DeepSeek 支出](../architecture/2026-11-25-reduce-deepseek-failover-and-summary-cost.md)。
+
 ## Problem
 
 章节摘要提示词要求 JSON，但实际请求没有 `response_format`。近期只读审计发现 5 个章节摘要收到非 JSON 响应；不能由此证明全部素材失败都来自这一原因。另一个可复现缺陷是解析异常包含模型响应，任务又记录 preview、解析结果或原始异常，Prefect 会把异常写入失败状态；API 的日志 formatter 无法保护这条链路。

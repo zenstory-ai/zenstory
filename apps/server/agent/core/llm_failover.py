@@ -30,6 +30,7 @@ configured or fails.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import threading
 import time
@@ -46,7 +47,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-LLM_SESSION_PIN_TTL_S = get_int_env("LLM_SESSION_PIN_TTL_S", 1800)
+LLM_SESSION_PIN_TTL_S = get_int_env("LLM_SESSION_PIN_TTL_S", 300)
 LLM_CIRCUIT_FAILURE_THRESHOLD = get_int_env("LLM_CIRCUIT_FAILURE_THRESHOLD", 3)
 LLM_CIRCUIT_FAILURE_WINDOW_S = get_int_env("LLM_CIRCUIT_FAILURE_WINDOW_S", 60)
 LLM_CIRCUIT_OPEN_S = get_int_env("LLM_CIRCUIT_OPEN_S", 120)
@@ -741,6 +742,138 @@ def _responses_call_kwargs(
     return call
 
 
+_STREAM_COLLECT_PROGRESS_EVENTS = frozenset({
+    "response.output_text.delta",
+    "response.reasoning_text.delta",
+    "response.reasoning_summary_text.delta",
+    "response.refusal.delta",
+    "response.function_call_arguments.delta",
+    "response.completed",
+    "response.incomplete",
+    "response.failed",
+})
+_STREAM_COLLECT_ANSWER_EVENTS = frozenset({
+    "response.output_text.delta",
+    "response.refusal.delta",
+    "response.function_call_arguments.delta",
+})
+
+
+def _responses_failed_event_error(event: Any, provider: ModelProvider) -> Exception:
+    import httpx
+    import openai
+
+    resp = getattr(event, "response", None)
+    err = getattr(resp, "error", None)
+    code: str | None = None
+    message: str | None = None
+    if isinstance(err, dict):
+        raw_code, raw_msg = err.get("code"), err.get("message")
+        code = raw_code if isinstance(raw_code, str) and raw_code.strip() else None
+        message = raw_msg if isinstance(raw_msg, str) and raw_msg.strip() else None
+    elif err is not None:
+        raw_code, raw_msg = getattr(err, "code", None), getattr(err, "message", None)
+        code = raw_code if isinstance(raw_code, str) and raw_code.strip() else None
+        message = raw_msg if isinstance(raw_msg, str) and raw_msg.strip() else None
+    err_payload: dict[str, str] = {}
+    if code is not None:
+        err_payload["code"] = code
+    if message is not None:
+        err_payload["message"] = message
+    body: dict[str, Any] | None = {"error": err_payload} if err_payload else None
+    url = f"{provider.base_url.rstrip('/')}/responses" if provider.base_url else "https://responses.local/v1/responses"
+    exc = openai.APIError(
+        message=f"Responses stream failed ({code or 'unknown'}): {message or 'upstream error'}",
+        request=httpx.Request("POST", url),
+        body=body,
+    )
+    if code is not None:
+        exc.code = code
+    return exc
+
+
+class _StreamCollectError(Exception):
+    """Carries whether answer output had already started before a stream failure."""
+
+    def __init__(self, exc: BaseException, *, answer_started: bool) -> None:
+        super().__init__(str(exc))
+        self.exc = exc
+        self.answer_started = answer_started
+
+
+async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) -> Any:
+    """Drain a streaming ``responses.create(stream=True)`` call into its terminal ``Response``.
+
+    Avoids non-streaming read timeouts on long cached-prefill generations (such as
+    300k-token loop compaction) while enforcing the provider's idle-delta timeout and
+    preserving pre-answer failover semantics.
+    """
+    if not hasattr(raw_stream, "__aiter__"):
+        return raw_stream
+    import httpx
+    import openai
+
+    idle_timeout_s = provider.kind.read_timeout_s()
+    idle_deadline = time.monotonic() + idle_timeout_s
+    answer_started = False
+    final_response: Any = None
+    aiter = raw_stream.__aiter__()
+    try:
+        while True:
+            remaining = idle_deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(f"{provider.name} stream produced no output for {idle_timeout_s:g}s")
+            cm = asyncio.timeout(remaining)
+            try:
+                async with cm:
+                    event = await aiter.__anext__()
+            except StopAsyncIteration:
+                break
+            except TimeoutError:
+                if cm.expired():
+                    raise TimeoutError(
+                        f"{provider.name} stream produced no output for {idle_timeout_s:g}s"
+                    ) from None
+                raise
+            event_type = getattr(event, "type", None)
+            delta = getattr(event, "delta", None)
+            if event_type in _STREAM_COLLECT_PROGRESS_EVENTS and (
+                event_type in {"response.completed", "response.incomplete", "response.failed"}
+                or delta != ""
+            ):
+                idle_deadline = time.monotonic() + idle_timeout_s
+            if event_type in _STREAM_COLLECT_ANSWER_EVENTS and delta != "":
+                answer_started = True
+            if event_type == "response.failed":
+                raise _responses_failed_event_error(event, provider)
+            if event_type in {"response.completed", "response.incomplete"}:
+                final_response = getattr(event, "response", None)
+                break
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        raise _StreamCollectError(exc, answer_started=answer_started) from exc
+    finally:
+        aclose = getattr(aiter, "aclose", None)
+        if callable(aclose):
+            with contextlib.suppress(Exception):
+                await aclose()
+        close = getattr(raw_stream, "close", None)
+        if callable(close):
+            with contextlib.suppress(Exception):
+                await close()
+    if final_response is None:
+        url = f"{provider.base_url.rstrip('/')}/responses" if provider.base_url else "https://responses.local/v1/responses"
+        raise _StreamCollectError(
+            openai.APIConnectionError(
+                message=f"{provider.name} Responses stream ended before a terminal response event",
+                request=httpx.Request("POST", url),
+            ),
+            answer_started=answer_started,
+        )
+    return final_response
+
+
 async def acreate_response(
     *,
     call_site: str,
@@ -751,15 +884,19 @@ async def acreate_response(
     attempt_sink: dict[str, Any] | None = None,
     max_retries: int | None = None,
     chat_kwargs_builder: Callable[[ModelProvider], dict[str, Any]] | None = None,
+    stream_collect: bool = False,
     **kwargs: Any,
 ) -> tuple[Any, ModelProvider]:
     """``responses.create`` on Responses providers, falling back to ``chat.completions.create``.
 
     Used by ``agent/loop/compaction.py`` so MiniMax compaction stays on ``/v1/responses`` with
     the session's ``prompt_cache_key`` while mid-call failover to a Chat Completions backup
-    (e.g. DeepSeek) builds Chat Completions kwargs via ``chat_kwargs_builder``.
+    (e.g. DeepSeek) builds Chat Completions kwargs via ``chat_kwargs_builder``. When
+    ``stream_collect=True``, Responses providers stream SSE tokens and return the terminal
+    ``Response`` object (with full usage metering and pre-answer failover) to avoid hitting
+    the non-streaming read timeout on long generations.
     """
-    if kwargs.get("stream"):
+    if kwargs.get("stream") and not stream_collect:
         usage_attribution = None
     ordered = await aordered_providers(session_id, thinking_enabled=thinking_enabled)
     key_cooled = False
@@ -771,16 +908,24 @@ async def acreate_response(
             attempt_sink["provider"] = provider.name
             attempt_sink["model"] = provider.model
         attempt_started = time.monotonic()
+        answer_started = False
+        used_stream_collect = bool(stream_collect and provider.uses_responses_api)
         try:
             if provider.uses_responses_api:
-                response = await client.responses.create(
-                    **_responses_call_kwargs(
-                        provider,
-                        kwargs,
-                        thinking_enabled=thinking_enabled,
-                        reasoning_effort=reasoning_effort,
-                        session_id=session_id,
-                    )
+                req_kwargs = _responses_call_kwargs(
+                    provider,
+                    kwargs,
+                    thinking_enabled=thinking_enabled,
+                    reasoning_effort=reasoning_effort,
+                    session_id=session_id,
+                )
+                if used_stream_collect:
+                    req_kwargs["stream"] = True
+                raw_response = await client.responses.create(**req_kwargs)
+                response = (
+                    await _collect_responses_stream(raw_response, provider)
+                    if used_stream_collect
+                    else raw_response
                 )
             else:
                 if chat_kwargs_builder is None:
@@ -799,13 +944,29 @@ async def acreate_response(
         except asyncio.CancelledError as exc:
             _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
             raise
-        except Exception as exc:
+        except Exception as raw_exc:
+            if isinstance(raw_exc, _StreamCollectError):
+                exc = raw_exc.exc
+                answer_started = raw_exc.answer_started
+            else:
+                exc = raw_exc
             _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
-            log_provider_failure(provider, exc, call_site=call_site)
-            if not is_provider_unavailable(exc):
-                raise
-            key_cooled = await arecord_failure(provider, session_id, exc) or key_cooled
-            if index + 1 >= len(ordered):
+            log_provider_failure(
+                provider,
+                exc,
+                call_site=call_site,
+                phase="stream" if used_stream_collect else "request",
+            )
+            can_failover = False
+            if is_provider_unavailable(exc):
+                key_cooled = await arecord_failure(provider, session_id, exc) or key_cooled
+                can_failover = not answer_started
+            elif used_stream_collect and is_in_stream_error(exc):
+                await apin_session_to_other(provider, session_id)
+                can_failover = not answer_started
+            if not can_failover or index + 1 >= len(ordered):
+                if isinstance(raw_exc, _StreamCollectError):
+                    raise exc from None
                 raise
             log_failover(provider, ordered[index + 1], call_site=call_site)
             continue
