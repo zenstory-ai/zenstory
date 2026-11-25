@@ -98,6 +98,95 @@ function appVersionManifest(): Plugin {
   }
 }
 
+/**
+ * Keeps the index.html API preconnect hint aligned with VITE_API_BASE_URL when
+ * building for non-production HTTPS origins (e.g. staging preview), while
+ * preserving the default `https://api.zenstory.ai` production hint.
+ */
+function apiPreconnectPlugin(): Plugin {
+  const defaultOrigin = 'https://api.zenstory.ai'
+  let targetOrigin = defaultOrigin
+  const raw = process.env.VITE_API_BASE_URL?.trim()
+  if (raw) {
+    try {
+      const parsed = new URL(raw)
+      if (parsed.protocol === 'https:') {
+        targetOrigin = parsed.origin
+      }
+    } catch {
+      // Fall back to default production API origin.
+    }
+  }
+  return {
+    name: 'zenstory-api-preconnect',
+    transformIndexHtml(html) {
+      if (targetOrigin === defaultOrigin) return html
+      return html.replace(
+        `<link rel="preconnect" href="${defaultOrigin}" crossorigin />`,
+        `<link rel="preconnect" href="${targetOrigin}" crossorigin />`,
+      )
+    },
+  }
+}
+
+const REACT_VENDOR_PACKAGES = new Set([
+  'react',
+  'react-dom',
+  'scheduler',
+  'react-router',
+  'react-router-dom',
+])
+const UI_VENDOR_PACKAGES = new Set(['lucide-react', 'clsx', 'tailwind-merge'])
+const STATE_VENDOR_PACKAGES = new Set(['zustand', '@tanstack/react-query', '@tanstack/query-core'])
+const I18N_VENDOR_PACKAGES = new Set(['i18next', 'react-i18next', 'i18next-browser-languagedetector'])
+const UTILS_VENDOR_PACKAGES = new Set(['diff-match-patch', 'axios'])
+const MARKDOWN_VENDOR_PACKAGES = new Set([
+  'react-markdown',
+  'remark-gfm',
+  'remark-parse',
+  'remark-rehype',
+  'unified',
+  'vfile',
+  'vfile-message',
+  'property-information',
+  'markdown-table',
+])
+
+function npmPackageName(id: string): string | null {
+  const normalized = id.replace(/\\/g, '/')
+  const marker = '/node_modules/'
+  const idx = normalized.lastIndexOf(marker)
+  if (idx === -1) return null
+  const rest = normalized.slice(idx + marker.length)
+  if (!rest || rest.startsWith('.pnpm/')) return null
+  const parts = rest.split('/')
+  if (parts[0].startsWith('@') && parts.length >= 2) {
+    return `${parts[0]}/${parts[1]}`
+  }
+  return parts[0]
+}
+
+function resolveManualChunk(id: string): string | undefined {
+  const pkg = npmPackageName(id)
+  if (!pkg) return undefined
+  if (REACT_VENDOR_PACKAGES.has(pkg)) return 'react-vendor'
+  if (UI_VENDOR_PACKAGES.has(pkg)) return 'ui-vendor'
+  if (STATE_VENDOR_PACKAGES.has(pkg)) return 'state-vendor'
+  if (I18N_VENDOR_PACKAGES.has(pkg)) return 'i18n-vendor'
+  if (UTILS_VENDOR_PACKAGES.has(pkg)) return 'utils-vendor'
+  if (pkg === 'posthog-js') return 'posthog-vendor'
+  if (
+    MARKDOWN_VENDOR_PACKAGES.has(pkg) ||
+    pkg.startsWith('micromark') ||
+    pkg.startsWith('mdast-') ||
+    pkg.startsWith('hast-') ||
+    pkg.startsWith('unist-')
+  ) {
+    return 'markdown-vendor'
+  }
+  return undefined
+}
+
 const apiProxyTarget = (process.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
 const allowedHosts = (process.env.VITE_ALLOWED_HOSTS || 'localhost,127.0.0.1')
   .split(',')
@@ -109,6 +198,7 @@ export default defineConfig({
   plugins: [
     localeBundlePlugin(path.resolve(__dirname, 'public/locales')),
     react(),
+    apiPreconnectPlugin(),
     appVersionManifest(),
     sitemapPlugin({
       // 从环境变量读取 hostname,开发环境用 localhost
@@ -162,28 +252,7 @@ export default defineConfig({
     // 代码分割配置
     rollupOptions: {
       output: {
-        manualChunks: {
-          // React 核心库分离 - 缓存利用率高
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-
-          // UI 库分离 - 首页不需要的库
-          'ui-vendor': ['lucide-react', 'clsx', 'tailwind-merge'],
-
-          // 状态管理分离 - Dashboard 需要但首页不需要
-          'state-vendor': ['zustand', '@tanstack/react-query'],
-
-          // Editor 库分离 - 首页不需要
-          'editor-vendor': ['@tiptap/react', '@tiptap/starter-kit'],
-
-          // i18n 库分离
-          'i18n-vendor': ['i18next', 'react-i18next'],
-
-          // Markdown 渲染库分离
-          'markdown-vendor': ['react-markdown', 'remark-gfm'],
-
-          // 工具库分离
-          'utils-vendor': ['diff-match-patch', 'axios'],
-        },
+        manualChunks: resolveManualChunk,
       },
     },
 
