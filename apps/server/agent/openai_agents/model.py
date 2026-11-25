@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from agent.core import llm_failover, llm_providers
 from agent.core.llm_providers import ModelProvider
+from config import agent_runtime
 from utils.logger import get_logger, log_with_context
 
 if TYPE_CHECKING:
@@ -62,6 +63,36 @@ _ANSWER_OUTPUT_EVENT_TYPES = frozenset({
 })
 
 
+# Structured reasons when FailoverChatModel aborts a stalled/runaway stream early
+# (distinct from upstream transport/idle TimeoutError so cutoffs never trigger provider
+# failover, circuit opens, or session pinning).
+STREAM_CUTOFF_PRE_ANSWER_THINKING_TIME = "pre_answer_thinking_timeout"
+STREAM_CUTOFF_PRE_ANSWER_THINKING_CHARS = "pre_answer_thinking_chars"
+STREAM_CUTOFF_CALL_MAX_DURATION = "model_call_max_duration"
+
+
+class _StreamGuardCutoff(Exception):
+    """Internal control signal raised when a per-call thinking/duration guard fires."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+@dataclasses.dataclass
+class _PreAnswerGuardClock:
+    """Per-attempt mutable clock state shared safely with ``_iter_with_idle_timeout``."""
+
+    pre_answer_max_s: float
+    answered: bool = False
+    thinking_started_at: float | None = None
+
+    def deadline(self) -> float | None:
+        if self.answered or self.pre_answer_max_s <= 0 or self.thinking_started_at is None:
+            return None
+        return self.thinking_started_at + self.pre_answer_max_s
+
+
 def _is_meaningful_stream_progress(event: Any) -> bool:
     """Whether ``event`` carries real generation progress (not an empty keepalive/lifecycle frame)."""
     event_type = getattr(event, "type", None)
@@ -74,8 +105,11 @@ async def _iter_with_idle_timeout(
     stream: AsyncIterator[Any],
     idle_timeout_s: float,
     provider_name: str,
+    *,
+    call_deadline: float | None = None,
+    get_pre_answer_deadline: Callable[[], float | None] | None = None,
 ) -> AsyncIterator[Any]:
-    """Yield events from ``stream``, timing out if no meaningful delta arrives within ``idle_timeout_s``.
+    """Yield events from ``stream``, enforcing idle timeout and optional per-call/thinking deadlines.
 
     httpx's read timeout only measures silence between raw TCP bytes, so an upstream
     endpoint that stalls mid-stream while emitting SSE keepalives or empty deltas can
@@ -83,16 +117,37 @@ async def _iter_with_idle_timeout(
     between non-empty text/reasoning/tool deltas catches those stalls cleanly and hands
     control back to ``FailoverChatModel`` (which can still fail over while ``answered``
     is False).
+
+    Optional ``call_deadline`` and ``get_pre_answer_deadline`` enforce structural
+    per-call wall-clock and pre-answer thinking time caps even while reasoning deltas
+    keep arriving; they raise ``_StreamGuardCutoff`` so ``FailoverChatModel`` converts
+    them into a clean capped completion rather than failing over to the backup provider.
     """
     aiter = stream.__aiter__()
     idle_deadline = time.monotonic() + idle_timeout_s
     try:
         while True:
-            remaining = idle_deadline - time.monotonic()
+            now = time.monotonic()
+            deadline = idle_deadline
+            deadline_kind = "idle"
+
+            pre_answer_deadline = (
+                get_pre_answer_deadline() if get_pre_answer_deadline is not None else None
+            )
+            if pre_answer_deadline is not None and pre_answer_deadline < deadline:
+                deadline = pre_answer_deadline
+                deadline_kind = STREAM_CUTOFF_PRE_ANSWER_THINKING_TIME
+            if call_deadline is not None and call_deadline < deadline:
+                deadline = call_deadline
+                deadline_kind = STREAM_CUTOFF_CALL_MAX_DURATION
+
+            remaining = deadline - now
             if remaining <= 0:
-                raise TimeoutError(
-                    f"{provider_name} stream produced no output for {idle_timeout_s:g}s"
-                )
+                if deadline_kind == "idle":
+                    raise TimeoutError(
+                        f"{provider_name} stream produced no output for {idle_timeout_s:g}s"
+                    )
+                raise _StreamGuardCutoff(deadline_kind)
             cm = asyncio.timeout(remaining)
             try:
                 async with cm:
@@ -101,9 +156,11 @@ async def _iter_with_idle_timeout(
                 break
             except TimeoutError:
                 if cm.expired():
-                    raise TimeoutError(
-                        f"{provider_name} stream produced no output for {idle_timeout_s:g}s"
-                    ) from None
+                    if deadline_kind == "idle":
+                        raise TimeoutError(
+                            f"{provider_name} stream produced no output for {idle_timeout_s:g}s"
+                        ) from None
+                    raise _StreamGuardCutoff(deadline_kind) from None
                 raise
             if _is_meaningful_stream_progress(event):
                 idle_deadline = time.monotonic() + idle_timeout_s
@@ -364,6 +421,95 @@ def _response_failed_to_api_error(event: Any, provider: ModelProvider) -> Except
     return exc
 
 
+def _build_cutoff_completed_event(
+    provider: ModelProvider,
+    *,
+    answer_text: str,
+    sequence_number: int,
+) -> Any:
+    """Build a synthetic ``ResponseCompletedEvent`` after a structural stream cutoff.
+
+    Integrates cleanly with ``openai-agents`` ``run_single_turn_streamed`` and ZenStory's
+    existing ``runner.py`` output-cap handling without raising ``ModelBehaviorError``:
+    - When ``answer_text`` is empty (pre-answer thinking cutoff or no prose streamed),
+      ``output=[]`` causes ``runner.py`` (``last_response_output_capped=True`` +
+      ``_last_response_is_thinking_only=True``) to emit ``stop_reason="output_truncated"``.
+    - When prose text already streamed before the per-call wall-clock cap, preserving it
+      in ``output`` lets ``runner.py`` emit ``OUTPUT_CAPPED_KEY=True`` so the loop engine
+      saves and resumes partial ``<file>`` bodies from the cut point.
+    """
+    try:
+        from openai.types.responses import (
+            Response,
+            ResponseCompletedEvent,
+            ResponseOutputMessage,
+            ResponseOutputText,
+        )
+
+        output: list[Any] = []
+        if answer_text.strip():
+            output.append(
+                ResponseOutputMessage(
+                    id="msg_stream_cutoff",
+                    type="message",
+                    role="assistant",
+                    status="incomplete",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text",
+                            text=answer_text,
+                            annotations=[],
+                        )
+                    ],
+                )
+            )
+        resp = Response.model_construct(
+            id="resp_stream_cutoff",
+            created_at=time.time(),
+            model=provider.model,
+            object="response",
+            output=output,
+            parallel_tool_calls=True,
+            tool_choice="auto",
+            tools=[],
+            status="incomplete",
+            incomplete_details={"reason": "max_output_tokens"},
+            usage=None,
+        )
+        return ResponseCompletedEvent(
+            type=_COMPLETED_EVENT_TYPE,
+            response=resp,
+            sequence_number=sequence_number,
+        )
+    except Exception:  # noqa: BLE001 - lightweight stub fallback when openai types unavailable
+        from types import SimpleNamespace
+
+        output_stub: list[Any] = []
+        if answer_text.strip():
+            output_stub.append(
+                SimpleNamespace(
+                    id="msg_stream_cutoff",
+                    type="message",
+                    role="assistant",
+                    status="incomplete",
+                    content=[SimpleNamespace(type="output_text", text=answer_text, annotations=[])],
+                )
+            )
+        resp_stub = SimpleNamespace(
+            id="resp_stream_cutoff",
+            model=provider.model,
+            output=output_stub,
+            status="incomplete",
+            incomplete_details={"reason": "max_output_tokens"},
+            usage=None,
+        )
+        return SimpleNamespace(
+            type=_COMPLETED_EVENT_TYPE,
+            response=resp_stub,
+            sequence_number=sequence_number,
+        )
+
+
 def _base_model_class() -> type:
     from agents.models.interface import Model
 
@@ -407,9 +553,11 @@ class FailoverChatModel:
         # exhausted or disallowed; read by runner.py to classify terminal model failures.
         self._unrecovered_provider_error: BaseException | None = None
         # True when the latest streamed Responses call ended with
-        # ``response.incomplete(reason="max_output_tokens")`` and was adapted to a capped
-        # completion so runner.py can handle truncation without a fatal ModelBehaviorError.
+        # ``response.incomplete(reason="max_output_tokens")`` or a structural stream cutoff
+        # so runner.py can handle truncation cleanly without a fatal ModelBehaviorError.
         self.last_response_output_capped: bool = False
+        # Structured reason when a per-call thinking/duration guard aborted the latest stream.
+        self.last_stream_cutoff_reason: str | None = None
 
     @property
     def unrecovered_provider_error(self) -> BaseException | None:
@@ -471,6 +619,7 @@ class FailoverChatModel:
         self._call_timing = None
         self._unrecovered_provider_error = None
         self.last_response_output_capped = False
+        self.last_stream_cutoff_reason = None
         for index, provider in enumerate(ordered):
             attempt_started = time.monotonic()
             effective_input = (
@@ -519,6 +668,10 @@ class FailoverChatModel:
         self._thinking_before_answer = None
         self._unrecovered_provider_error = None
         self.last_response_output_capped = False
+        self.last_stream_cutoff_reason = None
+        pre_answer_max_s = agent_runtime.AGENT_PRE_ANSWER_THINKING_MAX_S
+        pre_answer_max_chars = agent_runtime.AGENT_PRE_ANSWER_THINKING_MAX_CHARS
+        call_max_duration_s = agent_runtime.AGENT_MODEL_CALL_MAX_DURATION_S
         for index, provider in enumerate(ordered):
             # Events before the first output or completion (``response.created``,
             # ``output_item.added``) are held back: until output reaches the runner,
@@ -528,11 +681,20 @@ class FailoverChatModel:
             answered = False
             attempt_started = time.monotonic()
             ttft_ms: int | None = None
-            # Observation only: how long the call thought before its first answer output.
+            # Structural pre-answer thinking & per-call duration guard tracking.
             thinking_chars = 0
+            guard_clock = _PreAnswerGuardClock(pre_answer_max_s=pre_answer_max_s)
             first_answer_ms: int | None = None
+            answer_text_parts: list[str] = []
+            last_sequence_number = 0
+            cutoff_reason: str | None = None
             completed = False
             self.last_response_output_capped = False
+            self.last_stream_cutoff_reason = None
+            call_deadline = (
+                attempt_started + call_max_duration_s if call_max_duration_s > 0 else None
+            )
+
             effective_input = (
                 input
                 if provider.uses_responses_api
@@ -545,60 +707,88 @@ class FailoverChatModel:
                 raw_stream = _sdk_model_for(provider).stream_response(
                     system_instructions, effective_input, effective_settings, *args, **kwargs
                 )
-                async with contextlib.aclosing(
-                    _iter_with_idle_timeout(
-                        raw_stream,
-                        provider.kind.read_timeout_s(),
-                        provider.name,
-                    )
-                ) as guarded_stream:
-                    async for event in guarded_stream:
-                        failed_exc = _response_failed_to_api_error(event, provider)
-                        if failed_exc is not None:
-                            raise failed_exc
-                        converted_cap = _incomplete_max_output_tokens_to_completed(event)
-                        if converted_cap is not None:
-                            self.last_response_output_capped = True
-                            event = converted_cap
-                        event_type = getattr(event, "type", None)
-                        # An empty delta (openai-agents 0.17.6 emits one for a role chunk with
-                        # ``content: ""``) is not output yet.
-                        if (
-                            ttft_ms is None
-                            and event_type in _FIRST_OUTPUT_EVENT_TYPES
-                            and getattr(event, "delta", None) != ""
-                        ):
-                            from services.usage.llm_usage_service import elapsed_ms
-
-                            ttft_ms = elapsed_ms(attempt_started)
-                        if event_type in _ANSWER_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != "":
-                            if not answered:
+                try:
+                    async with contextlib.aclosing(
+                        _iter_with_idle_timeout(
+                            raw_stream,
+                            provider.kind.read_timeout_s(),
+                            provider.name,
+                            call_deadline=call_deadline,
+                            get_pre_answer_deadline=guard_clock.deadline,
+                        )
+                    ) as guarded_stream:
+                        async for event in guarded_stream:
+                            failed_exc = _response_failed_to_api_error(event, provider)
+                            if failed_exc is not None:
+                                raise failed_exc
+                            converted_cap = _incomplete_max_output_tokens_to_completed(event)
+                            if converted_cap is not None:
+                                self.last_response_output_capped = True
+                                event = converted_cap
+                            event_type = getattr(event, "type", None)
+                            seq = getattr(event, "sequence_number", None)
+                            if isinstance(seq, int):
+                                last_sequence_number = seq
+                            # An empty delta (openai-agents 0.17.6 emits one for a role chunk with
+                            # ``content: ""``) is not output yet.
+                            if (
+                                ttft_ms is None
+                                and event_type in _FIRST_OUTPUT_EVENT_TYPES
+                                and getattr(event, "delta", None) != ""
+                            ):
                                 from services.usage.llm_usage_service import elapsed_ms
 
-                                first_answer_ms = elapsed_ms(attempt_started)
-                            answered = True
-                        elif event_type in _REASONING_DELTA_EVENT_TYPES and not answered:
-                            delta = getattr(event, "delta", None)
-                            thinking_chars += len(delta) if isinstance(delta, str) else 0
-                        if event_type == _COMPLETED_EVENT_TYPE:
-                            # Timed when the provider finished, before the SDK consumes the event.
-                            completed = True
-                            self._succeeded(attempt_started, ttft_ms)
-                            self._thinking_before_answer = (thinking_chars, first_answer_ms)
-                        if not started:
-                            if ttft_ms is None and not completed:
-                                preamble.append(event)
-                                continue
-                            started = True
-                            self._served(provider)
-                            for held in preamble:
-                                yield held
-                            preamble.clear()
-                        yield event
-                        if converted_cap is not None:
-                            # Stop before OpenAIResponsesModel.stream_response raises
-                            # ModelBehaviorError after yielding response.incomplete.
-                            break
+                                ttft_ms = elapsed_ms(attempt_started)
+                            if event_type in _ANSWER_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != "":
+                                if not answered:
+                                    from services.usage.llm_usage_service import elapsed_ms
+
+                                    first_answer_ms = elapsed_ms(attempt_started)
+                                answered = True
+                                guard_clock.answered = True
+                                if event_type == "response.output_text.delta":
+                                    delta = getattr(event, "delta", None)
+                                    if isinstance(delta, str) and delta:
+                                        answer_text_parts.append(delta)
+                            elif event_type in _REASONING_DELTA_EVENT_TYPES and not answered:
+                                delta = getattr(event, "delta", None)
+                                if isinstance(delta, str) and delta:
+                                    if guard_clock.thinking_started_at is None:
+                                        guard_clock.thinking_started_at = time.monotonic()
+                                    thinking_chars += len(delta)
+                            if event_type == _COMPLETED_EVENT_TYPE:
+                                # Timed when the provider finished, before the SDK consumes the event.
+                                completed = True
+                                self._succeeded(attempt_started, ttft_ms)
+                                self._thinking_before_answer = (thinking_chars, first_answer_ms)
+                            if not started:
+                                if ttft_ms is None and not completed:
+                                    preamble.append(event)
+                                    continue
+                                started = True
+                                self._served(provider)
+                                for held in preamble:
+                                    yield held
+                                preamble.clear()
+                            yield event
+                            if converted_cap is not None:
+                                # Stop before OpenAIResponsesModel.stream_response raises
+                                # ModelBehaviorError after yielding response.incomplete.
+                                break
+                            if not completed:
+                                now = time.monotonic()
+                                if not answered and guard_clock.thinking_started_at is not None:
+                                    if pre_answer_max_chars > 0 and thinking_chars >= pre_answer_max_chars:
+                                        cutoff_reason = STREAM_CUTOFF_PRE_ANSWER_THINKING_CHARS
+                                        break
+                                    if pre_answer_max_s > 0 and (now - guard_clock.thinking_started_at) >= pre_answer_max_s:
+                                        cutoff_reason = STREAM_CUTOFF_PRE_ANSWER_THINKING_TIME
+                                        break
+                                if call_max_duration_s > 0 and (now - attempt_started) >= call_max_duration_s:
+                                    cutoff_reason = STREAM_CUTOFF_CALL_MAX_DURATION
+                                    break
+                except _StreamGuardCutoff as guard_exc:
+                    cutoff_reason = guard_exc.reason
             except (asyncio.CancelledError, GeneratorExit) as exc:
                 if not completed:
                     self._record_failed_attempt(provider, attempt_started, exc, ttft_ms)
@@ -652,6 +842,42 @@ class FailoverChatModel:
                 if llm_failover.is_upstream_provider_error(exc):
                     self._unrecovered_provider_error = exc
                 raise
+            if cutoff_reason is not None and not completed:
+                from models.llm_usage import CALL_OUTCOME_TIMEOUT
+                from services.usage.llm_usage_service import CallTiming, elapsed_ms
+
+                completed = True
+                self.last_response_output_capped = True
+                self.last_stream_cutoff_reason = cutoff_reason
+                self._call_timing = CallTiming(CALL_OUTCOME_TIMEOUT, elapsed_ms(attempt_started), ttft_ms)
+                self._thinking_before_answer = (thinking_chars, first_answer_ms)
+                answer_text = "".join(answer_text_parts)
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "LLM stream aborted by structural thinking/duration guard",
+                    provider=provider.name,
+                    model=provider.model,
+                    key_slot=provider.key_slot,
+                    cutoff_reason=cutoff_reason,
+                    answered=answered,
+                    thinking_chars=thinking_chars,
+                    answer_chars=len(answer_text),
+                    duration_ms=self._call_timing.duration_ms,
+                    ttft_ms=ttft_ms,
+                )
+                if not started:
+                    started = True
+                    self._served(provider)
+                    for held in preamble:
+                        yield held
+                    preamble.clear()
+                yield _build_cutoff_completed_event(
+                    provider,
+                    answer_text=answer_text,
+                    sequence_number=last_sequence_number + 1,
+                )
+                return
             if not started:
                 self._served(provider)
                 for held in preamble:

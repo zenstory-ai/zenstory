@@ -149,8 +149,18 @@ _round_outcome_tasks: set[asyncio.Task[Any]] = set()
 # 每轮指标落库任务（非阻塞、失败不影响 SSE）：持有强引用，关机前短暂等待。
 _round_metric_tasks: set[asyncio.Task[Any]] = set()
 _UI_ACTION_RE = re.compile(r"^[a-z0-9_-]{1,32}$")
-_RUNAWAY_ERROR_REASONS = frozenset({"no_progress", "repetition_loop"})
-_RUNAWAY_ERROR_CODES = frozenset({ErrorCode.AGENT_MODEL_CALL_LIMIT})
+_RUNAWAY_ERROR_REASONS = frozenset({
+    "no_progress",
+    "repetition_loop",
+    "tool_failure_circuit_open",
+})
+_RUNAWAY_ERROR_CODES = frozenset({
+    ErrorCode.AGENT_MODEL_CALL_LIMIT,
+    ErrorCode.AGENT_NO_PROGRESS,
+    ErrorCode.AGENT_REPETITION_LOOP,
+    ErrorCode.AGENT_TOOL_FAILURE_LIMIT,
+})
+_SERVER_DRAINING_LIMIT = "server_draining"
 
 
 @dataclass
@@ -521,10 +531,17 @@ class _AgentStreamSettlement:
         elif isinstance(frame, str) and frame.startswith("event: iteration_exhausted\n"):
             _, card_data = _parse_sse(frame)
             if isinstance(card_data, dict):
-                if card_data.get("limit") == WALL_CLOCK_LIMIT:
+                limit = card_data.get("limit")
+                if limit in (WALL_CLOCK_LIMIT, _SERVER_DRAINING_LIMIT):
                     self.wall_clock_card_seen = True
                 if card_data.get("layer") == "tool_call":
-                    self.runaway_stop = True
+                    if limit == _SERVER_DRAINING_LIMIT or card_data.get("server_draining") is True:
+                        pass
+                    elif limit == WALL_CLOCK_LIMIT:
+                        if card_data.get("wall_clock_landing_exhausted") is True:
+                            self.runaway_stop = True
+                    else:
+                        self.runaway_stop = True
         elif isinstance(frame, str) and frame.startswith("event: error\n"):
             _, err_data = _parse_sse(frame)
             if isinstance(err_data, dict) and (

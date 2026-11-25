@@ -56,6 +56,10 @@ WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "write_chapter", "e
 READ_HINT_AT = 2
 READ_WARN_AT = 3
 READ_BLOCK_AT = 4
+# 同一未修改文件跨所有读取模式（full / section / range / tail / query / summary）的
+# 单次 run 累计上限：防止交替变换 start_char / section / query 绕过单键拦截。
+FILE_TOTAL_READ_WARN_AT = 5
+FILE_TOTAL_READ_BLOCK_AT = 6
 # 一次请求内被拦下的读取累计多少次判定为无进展、结束本轮。
 MAX_BLOCKED_READS_PER_REQUEST = 3
 
@@ -287,6 +291,16 @@ class RepeatReadGuard:
             return self._plan_direct_read(raw_arguments)
         return ReadPlan(arguments=raw_arguments)
 
+    def _file_total_reads(self, file_id: str) -> int:
+        """同一 agent run 内对同一未修改文件跨所有模式的累计成功读取次数。"""
+        return sum(count for key, count in self._read_counts.items() if key[1] == file_id)
+
+    def _is_key_blocked(self, key: ReadKey) -> bool:
+        return (
+            self._read_counts.get(key, 0) + 1 >= READ_BLOCK_AT
+            or self._file_total_reads(key[1]) + 1 >= FILE_TOTAL_READ_BLOCK_AT
+        )
+
     def _plan_direct_read(self, raw_arguments: str) -> ReadPlan:
         args, parse_error, _ = parse_json_object(raw_arguments or "")
         if parse_error is not None or not isinstance(args, dict):
@@ -294,8 +308,8 @@ class RepeatReadGuard:
         keys, truncated_ids = _read_keys_and_truncated(args)
         if not keys:
             return ReadPlan(arguments=raw_arguments)
-        allowed = [key for key in keys if self._read_counts.get(key, 0) + 1 < READ_BLOCK_AT]
-        blocked = [key for key in keys if self._read_counts.get(key, 0) + 1 >= READ_BLOCK_AT]
+        allowed = [key for key in keys if not self._is_key_blocked(key)]
+        blocked = [key for key in keys if self._is_key_blocked(key)]
         if blocked and not allowed:
             if len(blocked) == 1:
                 label = self._register_blocked(blocked[0])
@@ -358,17 +372,25 @@ class RepeatReadGuard:
         return label
 
     def _blocked_message(self, label: str, key: ReadKey) -> str:
-        what = "全文" if key[2] == "full" else ("这一段内容" if _is_range_key(key) else "摘要")
         remaining = max(self.max_blocked_reads - self.blocked_reads, 0)
         tail = (
             f"再有 {remaining} 次重复读取被拦下，本轮将被自动终止。"
             if remaining
             else "重复读取次数已达上限，本轮即将终止。"
         )
+        if self._read_counts.get(key, 0) + 1 >= READ_BLOCK_AT:
+            what = "全文" if key[2] == "full" else ("这一段内容" if _is_range_key(key) else "摘要")
+            return (
+                f"文件{label}的{what}本次运行中已读取 {READ_BLOCK_AT - 1} 次且之后未被修改，"
+                "内容就在本次运行之前的工具结果里，本次读取未执行。"
+                "不要再读取它：请直接根据已读内容完成任务并输出结果；"
+                f"如果确实缺少信息，请停止调用工具并向用户说明缺什么。{tail}"
+            )
+        total_reads = self._file_total_reads(key[1])
         return (
-            f"文件{label}的{what}本次运行中已读取 {READ_BLOCK_AT - 1} 次且之后未被修改，"
-            "内容就在本次运行之前的工具结果里，本次读取未执行。"
-            "不要再读取它：请直接根据已读内容完成任务并输出结果；"
+            f"文件{label}本次运行中已通过不同范围或方式累计读取 {total_reads} 次且之后未被修改，"
+            "已达单文件读取上限，本次读取未执行。"
+            "不要继续分段或换关键词反复读取它：请直接根据已读内容完成任务并输出结果；"
             f"如果确实缺少信息，请停止调用工具并向用户说明缺什么。{tail}"
         )
 
@@ -435,6 +457,7 @@ class RepeatReadGuard:
 
         key_by_id = {key[1]: key for key in keys}
         max_count = 0
+        max_total_count = 0
         hints: list[str] = []
         recorded_any = False
         for row in data:
@@ -452,10 +475,13 @@ class RepeatReadGuard:
                 is_full and row.get("content_truncated") is True
             )
             count = self._record_read(key, title, complete=complete)
+            total_count = self._file_total_reads(key[1])
             recorded_any = True
             if count > max_count:
                 max_count = count
-            hint = self._hint_for(key, count)
+            if total_count > max_total_count:
+                max_total_count = total_count
+            hint = self._hint_for(key, count, total_count=total_count)
             if hint is not None:
                 hints.append(f"{self._file_label(key[1])}：{hint}" if len(keys) > 1 else hint)
 
@@ -465,8 +491,8 @@ class RepeatReadGuard:
         if not hints and not blocked_ids and not truncated_ids:
             return output_text
         hinted = dict(payload)
-        if max_count >= READ_HINT_AT:
-            hinted["repeated_reads"] = max_count
+        if max_count >= READ_HINT_AT or max_total_count >= FILE_TOTAL_READ_WARN_AT:
+            hinted["repeated_reads"] = max(max_count, max_total_count) if max_total_count >= FILE_TOTAL_READ_WARN_AT else max_count
         if blocked_ids:
             hinted["blocked_ids"] = blocked_ids
             skipped_labels = "、".join(self._file_label(fid) for fid in blocked_ids)
@@ -547,7 +573,7 @@ class RepeatReadGuard:
         is_full = key[2] == "full" or _is_range_key(key)
         if complete and is_full and file_id not in self.files_read:
             self.files_read[file_id] = self._titles.get(file_id, title)
-        if count >= READ_HINT_AT:
+        if count >= READ_HINT_AT or self._file_total_reads(file_id) >= FILE_TOTAL_READ_WARN_AT:
             self.duplicate_reads += 1
         return count
 
@@ -558,25 +584,30 @@ class RepeatReadGuard:
         if not file_id:
             return
         # 文件被改过：之后再读是在看新内容，不算重复。
-        for key in [key for key in self._read_counts if key[1] == file_id]:
-            del self._read_counts[key]
+        self._forget_reads(file_id)
         self.files_written[file_id] = self._titles.get(file_id, title)
 
-    def _hint_for(self, key: ReadKey, count: int) -> str | None:
+    def _hint_for(self, key: ReadKey, count: int, *, total_count: int = 0) -> str | None:
         if key[2] == "full":
             base = _READ_HINT_TEXT
         elif _is_range_key(key):
             base = _RANGE_READ_HINT_TEXT
         else:
             base = _SUMMARY_READ_HINT_TEXT
-        if count == READ_HINT_AT:
-            return base
         if count >= READ_WARN_AT:
             return (
                 f"警告：{base}这是第 {count} 次读取同一内容；"
                 "下一次重复读取将被拒绝执行。请立即基于已读内容产出结果，"
                 "若缺少信息请停止调用工具并向用户说明。"
             )
+        if total_count >= FILE_TOTAL_READ_WARN_AT:
+            return (
+                f"警告：该文件本次运行中已通过不同范围或方式累计读取 {total_count} 次且之后未被修改；"
+                "下一次读取将被拒绝执行。请直接复用已读结果完成任务，"
+                "若缺少信息请停止调用工具并向用户说明。"
+            )
+        if count == READ_HINT_AT:
+            return base
         return None
 
     def _file_label(self, file_id: str) -> str:
@@ -621,6 +652,8 @@ def _blocked_error_text(
 
 
 __all__ = [
+    "FILE_TOTAL_READ_BLOCK_AT",
+    "FILE_TOTAL_READ_WARN_AT",
     "GUARD_ERROR_TYPES",
     "MAX_BLOCKED_READS_PER_REQUEST",
     "NO_PROGRESS_STOP_REASON",
