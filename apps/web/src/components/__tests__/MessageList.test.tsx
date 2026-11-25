@@ -958,6 +958,111 @@ describe('MessageList', () => {
     expect(container.textContent).toMatch(/第1章 开篇/)
   })
 
+  it('hides guard_skipped and edit_repeat_limit soft-skipped edit_file cards regardless of call.status', () => {
+    const timestamp = new Date()
+    const realEdit = {
+      id: 'tool-real-edit',
+      tool_name: 'edit_file',
+      arguments: { id: 'ch-1' },
+      status: 'success' as const,
+      result: { id: 'ch-1', title: '第1章 开篇', edits_applied: 1, mutation_applied: true },
+    }
+    const softSkippedEdit = {
+      id: 'tool-repeat-skip',
+      tool_name: 'edit_file',
+      arguments: { id: 'ch-2' },
+      status: 'success' as const,
+      result: {
+        status: 'skipped',
+        guard_skipped: true,
+        error_type: 'edit_repeat_limit',
+        id: 'ch-2',
+        title: '被跳过的微调',
+        edits_applied: 0,
+        mutation_applied: false,
+        user_message: '这一步的细微调整已跳过，之前的修改都已保存。',
+      },
+    }
+    const guardSkippedOnly = {
+      id: 'tool-guard-skip-only',
+      tool_name: 'edit_file',
+      arguments: { id: 'ch-3' },
+      status: 'success' as const,
+      result: { data: { guard_skipped: true, title: '嵌套跳过' } },
+    }
+    const repeatLimitSuccess = {
+      id: 'tool-repeat-success',
+      tool_name: 'edit_file',
+      arguments: { id: 'ch-4' },
+      status: 'success' as const,
+      result: { error_type: 'edit_repeat_limit', title: '重复限制无标记' },
+    }
+
+    const displayItems = [
+      {
+        id: 'tools-skip',
+        type: 'tool_calls' as const,
+        toolCalls: [realEdit, softSkippedEdit, guardSkippedOnly, repeatLimitSuccess],
+        timestamp,
+      },
+    ]
+
+    // Live stream
+    const { container, rerender } = render(<MessageList messages={[]} streamRenderItems={displayItems} />)
+    expect(screen.getAllByText('chat:tool.edit_success')).toHaveLength(1)
+    expect(container.textContent).toContain('第1章 开篇')
+    expect(container.textContent).not.toContain('被跳过的微调')
+    expect(container.textContent).not.toContain('嵌套跳过')
+    expect(container.textContent).not.toContain('重复限制无标记')
+    expect(container.textContent).not.toContain('这一步的细微调整已跳过')
+
+    // Saved displayItems
+    rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '已完成修改。', displayItems })]} />)
+    expect(screen.getAllByText('chat:tool.edit_success')).toHaveLength(1)
+    expect(container.textContent).toContain('第1章 开篇')
+    expect(container.textContent).not.toContain('被跳过的微调')
+
+    // Saved legacy toolCalls
+    rerender(
+      <MessageList
+        messages={[createMessage({
+          role: 'assistant',
+          content: '',
+          toolCalls: [realEdit, softSkippedEdit, guardSkippedOnly, repeatLimitSuccess],
+        })]}
+      />,
+    )
+    expect(screen.getAllByText('chat:tool.edit_success')).toHaveLength(1)
+    expect(container.textContent).toContain('第1章 开篇')
+    expect(container.textContent).not.toContain('被跳过的微调')
+
+    // Saved legacy toolResults
+    rerender(
+      <MessageList
+        messages={[createMessage({
+          role: 'assistant',
+          content: '',
+          toolResults: [realEdit, softSkippedEdit, guardSkippedOnly, repeatLimitSuccess],
+        })]}
+      />,
+    )
+    expect(screen.getAllByText('chat:tool.edit_success')).toHaveLength(1)
+    expect(container.textContent).toContain('第1章 开篇')
+    expect(container.textContent).not.toContain('被跳过的微调')
+
+    // Assistant message containing only a guard-skipped edit renders nothing
+    rerender(
+      <MessageList
+        messages={[createMessage({
+          role: 'assistant',
+          content: '',
+          toolResults: [softSkippedEdit],
+        })]}
+      />,
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('labels citations by the real file type and shows the quoted file name', () => {
     const streamRenderItems = [
       {
