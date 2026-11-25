@@ -814,6 +814,31 @@ class _ReadSnapshots:
                 return []
             return list(spans)
 
+    def known_file_ids(self, *, limit: int = 5) -> list[str]:
+        """Return known file IDs in this request, prioritizing most recent reads/writes then initial focus files."""
+        with self._lock:
+            recent: list[tuple[int, str]] = []
+            for kind in ("written", "read", "range"):
+                for file_id, (seq, _content) in self._sources[kind].items():
+                    if file_id:
+                        recent.append((seq, file_id))
+            recent.sort(key=lambda item: item[0], reverse=True)
+            ordered: list[str] = []
+            seen: set[str] = set()
+            for _seq, file_id in recent:
+                if file_id not in seen:
+                    seen.add(file_id)
+                    ordered.append(file_id)
+                    if len(ordered) >= limit:
+                        return ordered
+            for file_id in self._sources["initial"]:
+                if file_id and file_id not in seen:
+                    seen.add(file_id)
+                    ordered.append(file_id)
+                    if len(ordered) >= limit:
+                        return ordered
+            return ordered
+
 
 @dataclasses.dataclass
 class AgentRequestContext:
@@ -845,6 +870,7 @@ class AgentRequestContext:
     notes_append_allowed: bool = False
     author_message: str | None = None
     author_steering: list[str] | None = None
+    ui_action: str | None = None
     inflight_tool_writes: list[tuple[str, Any]] | None = None
     pending_empty_file_state: _PendingEmptyFileState = dataclasses.field(
         default_factory=_PendingEmptyFileState
@@ -959,6 +985,12 @@ class AgentRequestContext:
         """模型通过范围读取看到的字符区间列表；未范围读取或快照已变更时返回空列表。"""
         if isinstance(self.read_snapshots, _ReadSnapshots):
             return self.read_snapshots.seen_spans(str(file_id or ""))
+        return []
+
+    def known_file_ids(self, *, limit: int = 5) -> list[str]:
+        """本请求已知的文件 ID（优先最近读写的文件，其次本轮上下文/焦点文件）。"""
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            return self.read_snapshots.known_file_ids(limit=limit)
         return []
 
     def discard_pending_read(self, file_id: str) -> None:
