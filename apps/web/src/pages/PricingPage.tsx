@@ -110,10 +110,16 @@ export default function PricingPage() {
   const isCardAvailable = availablePaymentMethods.includes("card");
   const isAlipayAvailable = availablePaymentMethods.includes("alipay");
   const isUsdDefaultLocale = usesUsdPricing(i18n.language);
-  const showUsdPricing = isUsdDefaultLocale && isCardAvailable;
-  const alternativePaymentHint = !isUsdDefaultLocale && isCardAvailable
-    ? t("dashboard:billing.alternativePaymentCardHint", "海外用户可使用银行卡以美元支付（$9.99/月）")
-    : isUsdDefaultLocale && isAlipayAvailable
+  const showUsdPricing = isCardAvailable && (isUsdDefaultLocale || !isAlipayAvailable);
+  const monthlyUsdCents =
+    proPlan?.price_monthly_usd_cents && proPlan.price_monthly_usd_cents > 0
+      ? proPlan.price_monthly_usd_cents
+      : PRO_USD_PRICE_CENTS.month;
+  const alternativePaymentHint = !showUsdPricing && isCardAvailable
+    ? t("dashboard:billing.alternativePaymentCardHint", "海外用户可使用银行卡以美元支付（{{price}}/月）", {
+        price: formatUsd(monthlyUsdCents, i18n.language),
+      })
+    : showUsdPricing && isAlipayAvailable
       ? t("dashboard:billing.alternativePaymentAlipayHint", "Alipay (CNY) is available for mainland China")
       : null;
   const getDisplayPrices = (plan: (typeof sortedPlans)[number]) =>

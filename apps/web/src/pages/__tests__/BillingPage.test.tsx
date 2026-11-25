@@ -710,6 +710,42 @@ describe('BillingPage', () => {
     expect(screen.queryByTestId('billing-alternative-payment-hint')).not.toBeInTheDocument()
     zhAlipayOnly.unmount()
 
+    // zh + only card -> USD pricing and no alternative card hint
+    currentLanguage = 'zh-CN'
+    paymentOptionsResponse = { data: { enabled: true, payment_methods: ['card'] }, isLoading: false }
+    const zhCardOnly = render(<BillingPage />)
+    expect(screen.getByText('$9.99/month, or $79/year (≈$6.58/month, save 34%)')).toBeInTheDocument()
+    expect(screen.queryByTestId('billing-alternative-payment-hint')).not.toBeInTheDocument()
+    zhCardOnly.unmount()
+
+    // zh + catalog USD price override -> interpolated in alternative card hint
+    currentLanguage = 'zh-CN'
+    catalogResponse = {
+      ...catalogResponse,
+      data: {
+        tiers: [
+          {
+            id: 'pro',
+            name: 'pro',
+            display_name: 'Pro',
+            price_monthly_cents: 1900,
+            price_yearly_cents: 19000,
+            price_monthly_usd_cents: 1299,
+            price_yearly_usd_cents: 9900,
+            recommended: true,
+            project_limit: 50,
+          },
+          { id: 'free', name: 'free', display_name: 'Free', price_monthly_cents: 0, price_yearly_cents: 0, recommended: false, project_limit: 3 },
+        ],
+      },
+    }
+    paymentOptionsResponse = { data: { enabled: true, payment_methods: ['alipay', 'card'] }, isLoading: false }
+    const zhCatalogUsd = render(<BillingPage />)
+    expect(screen.getByTestId('billing-alternative-payment-hint')).toHaveTextContent(
+      '海外用户可使用银行卡以美元支付（$12.99/月）',
+    )
+    zhCatalogUsd.unmount()
+
     // en + only card -> no hint
     currentLanguage = 'en-US'
     paymentOptionsResponse = { data: { enabled: true, payment_methods: ['card'] }, isLoading: false }

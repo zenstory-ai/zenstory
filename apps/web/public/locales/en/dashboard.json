@@ -154,7 +154,7 @@
     "paymentProjectsFinite": "Up to {{limit}} projects",
     "paymentMaterialsUnlimited": "Unlimited material breakdowns",
     "paymentMaterialsFinite": "{{limit}} material breakdowns per month",
-    "alternativePaymentCardHint": "International users can pay in USD by card ($9.99/month)",
+    "alternativePaymentCardHint": "International users can pay in USD by card ({{price}}/month)",
     "alternativePaymentAlipayHint": "Alipay (CNY) is available for mainland China"
   },
   "renewalReminder": {
