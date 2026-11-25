@@ -548,13 +548,28 @@ const ReadOnlyToolGroup: React.FC<ReadOnlyToolGroupProps> = ({
   );
 };
 
+const isGuardSkippedResult = (result: Record<string, unknown> | undefined): boolean => {
+  if (!result) return false;
+  if (result.guard_skipped === true) return true;
+  const nested = result.data && typeof result.data === 'object'
+    ? (result.data as Record<string, unknown>)
+    : undefined;
+  return nested?.guard_skipped === true;
+};
+
 /**
- * The cards the author sees: no control-flow calls, and no write-order refusals (the server sent the
- * model back to write a created file's text first; nothing about the author's work failed).
+ * The cards the author sees: no control-flow calls, no internal ordering/repeat-edit refusals,
+ * and no guard-skipped no-op calls (the server steered the model without mutating the author's
+ * work, regardless of whether the persisted tool status is `error` or `success`).
  */
 const visibleToolCalls = (calls: ToolCall[] | undefined): ToolCall[] =>
-  (calls ?? []).filter((call) => !CONTROL_FLOW_TOOL_NAMES.has(call.tool_name)
-    && !(call.status === 'error' && isInternalOrderingRefusal(call.result as Record<string, unknown> | undefined)));
+  (calls ?? []).filter((call) => {
+    if (CONTROL_FLOW_TOOL_NAMES.has(call.tool_name)) return false;
+    const result = call.result && typeof call.result === 'object'
+      ? (call.result as Record<string, unknown>)
+      : undefined;
+    return !isInternalOrderingRefusal(result) && !isGuardSkippedResult(result);
+  });
 
 const toolCardPayload = (tc: { result?: unknown; arguments?: unknown }): Record<string, unknown> =>
   tc.result && typeof tc.result === 'object'
