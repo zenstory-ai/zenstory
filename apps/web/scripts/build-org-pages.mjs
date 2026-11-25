@@ -410,9 +410,9 @@ for (const item of showcases) {
   for (const field of ['title', 'kind', 'description', 'input', 'output']) for (const lang of LANGS) assert.ok(item[field]?.[lang]?.trim(), `Missing showcase ${field}`)
   if (item.video) {
     assert.match(item.video.url, /^https:\/\/github\.com\/user-attachments\/assets\/[a-f0-9-]{36}$/, 'Invalid showcase video source')
-    assert.match(item.video.poster, /^\/org\/demos\/[a-z0-9-]+\.jpg$/, 'Invalid video poster')
+    assert.match(item.video.poster, /^\/org\/demos\/[a-z0-9-]+\.(?:jpg|webp)$/, 'Invalid video poster')
   } else {
-    assert.match(item.image.file, /^\/org\/demos\/[a-z0-9-]+\.jpg$/, 'Invalid showcase image')
+    assert.match(item.image.file, /^\/org\/demos\/[a-z0-9-]+\.(?:jpg|webp)$/, 'Invalid showcase image')
     for (const lang of LANGS) assert.ok(item.image.alt?.[lang]?.trim(), 'Missing showcase image description')
   }
   if (item.chain) {
@@ -425,6 +425,7 @@ for (const item of showcases) {
     assert.ok(Array.isArray(files) && files.length && files.every((file) => typeof file === 'string' && file.trim()), 'Invalid showcase chain files')
     for (const asset of [result, figure, scene]) {
       assert.match(asset?.file ?? '', /^\/org\/demos\/[a-z0-9-]+\.(?:jpg|webp)$/, 'Invalid showcase chain asset')
+      if (asset.webp) assert.match(asset.webp, /^\/org\/demos\/[a-z0-9-]+\.webp$/, 'Invalid showcase chain webp')
       assert.ok(Number.isInteger(asset.width) && Number.isInteger(asset.height) && LANGS.every((lang) => asset.alt?.[lang]?.trim()), 'Invalid showcase chain asset')
     }
     assert.ok(item.demo, 'The hero case needs a playable demo')
@@ -452,7 +453,10 @@ const showcaseCards = () => showcases.filter((item) => !item.chain).map((item) =
   </article>`
 }).join('')
 
-const chainImage = (asset, { eager = false, cls = '' } = {}) => `<img${cls ? ` class="${cls}"` : ''} src="${esc(asset.file)}" width="${asset.width}" height="${asset.height}" alt="${esc(pick(asset.alt))}" loading="${eager ? 'eager' : 'lazy'}" decoding="async"${eager ? ' fetchpriority="high"' : ''}>`
+const chainImage = (asset, { eager = false, cls = '' } = {}) => {
+  const img = `<img${cls ? ` class="${cls}"` : ''} src="${esc(asset.file)}" width="${asset.width}" height="${asset.height}" alt="${esc(pick(asset.alt))}" loading="${eager ? 'eager' : 'lazy'}" decoding="async"${eager ? ' fetchpriority="high"' : ''}>`
+  return asset.webp ? `<picture><source srcset="${esc(asset.webp)}" type="image/webp">${img}</picture>` : img
+}
 /** One source-to-world composition; a labelled crop never replaces the full, pinned source. */
 const heroStage = () => {
   const item = showcases.find((s) => s.chain)
