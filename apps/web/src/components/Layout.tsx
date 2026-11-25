@@ -14,7 +14,7 @@
  * @module components/Layout
  */
 import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
-import { Panel, Group, Separator } from "react-resizable-panels";
+import { Panel, Group, Separator, type GroupImperativeHandle } from "react-resizable-panels";
 import { Loader2 } from "lucide-react";
 import { Header } from "./Header";
 import { BottomTabs } from "./BottomTabs";
@@ -73,12 +73,20 @@ const isEditableActiveElement = (element: Element | null): boolean => {
 };
 
 type SplitLayoutVariant = "desktop" | "tablet";
+type LayoutMode = "mobile" | SplitLayoutVariant;
+
+const SPLIT_PANEL_IDS = {
+  sidebar: "workbench-sidebar",
+  editor: "workbench-editor",
+  chat: "workbench-chat",
+} as const;
 
 interface SplitLayoutPreset {
   containerClassName: string;
   sidebar: { defaultSize: string; minSize: number | string };
   editor: { defaultSize: string; minSize: string };
   chat: { defaultSize: string; minSize: number };
+  layout: Record<string, number>;
 }
 
 const SPLIT_LAYOUT_PRESETS: Record<SplitLayoutVariant, SplitLayoutPreset> = {
@@ -88,6 +96,11 @@ const SPLIT_LAYOUT_PRESETS: Record<SplitLayoutVariant, SplitLayoutPreset> = {
     sidebar: { defaultSize: "20%", minSize: 180 },
     editor: { defaultSize: "48%", minSize: "30%" },
     chat: { defaultSize: "32%", minSize: 300 },
+    layout: {
+      [SPLIT_PANEL_IDS.sidebar]: 20,
+      [SPLIT_PANEL_IDS.editor]: 48,
+      [SPLIT_PANEL_IDS.chat]: 32,
+    },
   },
   tablet: {
     containerClassName:
@@ -95,86 +108,78 @@ const SPLIT_LAYOUT_PRESETS: Record<SplitLayoutVariant, SplitLayoutPreset> = {
     sidebar: { defaultSize: "25%", minSize: "20%" },
     editor: { defaultSize: "40%", minSize: "30%" },
     chat: { defaultSize: "35%", minSize: 280 },
+    layout: {
+      [SPLIT_PANEL_IDS.sidebar]: 25,
+      [SPLIT_PANEL_IDS.editor]: 40,
+      [SPLIT_PANEL_IDS.chat]: 35,
+    },
   },
 };
 
+const MOBILE_CONTAINER_CLASS =
+  "viewport-shell h-dvh overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] flex flex-col fixed inset-0";
+const MOBILE_PANEL_BASE_CLASS =
+  "absolute inset-x-0 top-0 bg-[hsl(var(--bg-primary))] transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none";
 const SEPARATOR_CLASS = "panel-resize-handle";
 
-/**
- * Three-panel resizable workbench layout for desktop (>= 1024px) and tablet (768px-1023px).
- */
-const SplitWorkbenchLayout: React.FC<LayoutProps & { variant: SplitLayoutVariant }> = ({
-  variant,
-  middle,
-  right,
-}) => {
-  const preset = SPLIT_LAYOUT_PRESETS[variant];
-
-  return (
-    <div className={preset.containerClassName} data-testid="app-layout">
-      <Header />
-      <main className="flex-1 overflow-hidden min-h-0">
-        <Group key={variant} orientation="horizontal" className="h-full">
-          <Panel defaultSize={preset.sidebar.defaultSize} minSize={preset.sidebar.minSize}>
-            <Sidebar />
-          </Panel>
-          <Separator className={SEPARATOR_CLASS} />
-          <Panel defaultSize={preset.editor.defaultSize} minSize={preset.editor.minSize}>
-            {/* data-testid: editor-panel - Editor panel for content editing tests */}
-            <div className="h-full overflow-hidden" data-testid="editor-panel">{middle}</div>
-          </Panel>
-          <Separator className={SEPARATOR_CLASS} />
-          <Panel defaultSize={preset.chat.defaultSize} minSize={preset.chat.minSize}>
-            {/* data-testid: chat-panel - Chat panel for AI interaction tests */}
-            <div className="h-full overflow-hidden" data-testid="chat-panel">{right}</div>
-          </Panel>
-        </Group>
-      </main>
-    </div>
-  );
-};
+const getMobilePanelClassName = (isActive: boolean, overflowClass: "overflow-auto" | "overflow-hidden"): string =>
+  `${MOBILE_PANEL_BASE_CLASS} ${overflowClass} ${
+    isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+  }`;
 
 /**
- * Mobile single-panel layout with bottom tab navigation.
+ * Unified responsive workbench layout for mobile (< 768px), tablet (768px-1023px),
+ * and desktop (>= 1024px).
  *
- * Renders a mobile-optimized layout with:
- * - Single visible panel at a time (files, editor, or chat)
- * - Bottom tab navigation for panel switching
- * - Swipe gestures for navigating between panels
- * - Scroll position memory when switching panels
- * - All panels mounted but hidden (preserves state)
- *
- * Panel Navigation:
- * - Swipe left: files → editor → chat
- * - Swipe right: chat → editor → files
- * - Tap bottom tabs for direct navigation
- *
- * @param props - Component props
- * @param props.middle - Editor content to display in editor panel
- * @param props.right - Chat content to display in chat panel
- * @returns The mobile layout JSX element
- *
- * @example
- * <MobileLayoutContent
- *   middle={<Editor />}
- *   right={<ChatPanel />}
- * />
+ * Keeps a single stable React tree (`Group > Panel > wrapper`) across every breakpoint
+ * so resizing or rotating across 768px or 1024px never unmounts `middle` (Editor) or
+ * `right` (ChatPanel) and never aborts an active AI stream.
  */
-const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
+const WorkbenchLayoutContent: React.FC<
+  LayoutProps & { isMobile: boolean; splitVariant: SplitLayoutVariant }
+> = ({ isMobile, splitVariant, middle, right }) => {
   const { activePanel, setActivePanel } = useMobileLayout();
   const { currentProjectId } = useProject();
-  const { saveScrollPosition, restoreScrollPosition } = useScrollMemory(currentProjectId || 'default');
+  const { saveScrollPosition, restoreScrollPosition } = useScrollMemory(currentProjectId || "default");
   const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false);
+  const groupRef = useRef<GroupImperativeHandle | null>(null);
   const filesPanelRef = useRef<HTMLDivElement>(null);
   const editorPanelRef = useRef<HTMLDivElement>(null);
   const chatPanelRef = useRef<HTMLDivElement>(null);
+
+  const preset = SPLIT_LAYOUT_PRESETS[splitVariant];
+  const layoutMode: LayoutMode = isMobile ? "mobile" : splitVariant;
+  const previousLayoutModeRef = useRef<LayoutMode>(layoutMode);
+  const mobileKeyboardOpen = isMobile && isMobileKeyboardOpen;
+
+  // Apply tablet/desktop default panel proportions imperatively when crossing
+  // breakpoints (mobile -> split or tablet <-> desktop) without remounting Group.
+  useEffect(() => {
+    const previousMode = previousLayoutModeRef.current;
+    previousLayoutModeRef.current = layoutMode;
+
+    if (isMobile || previousMode === layoutMode) {
+      return;
+    }
+
+    try {
+      groupRef.current?.setLayout(SPLIT_LAYOUT_PRESETS[splitVariant].layout);
+    } catch {
+      // Group imperative handle can be unavailable in detached/mocked trees.
+    }
+  }, [isMobile, layoutMode, splitVariant]);
+
   // Opened from the dashboard with an idea (the first message is about to be sent) or just
   // created there without one (the starter cards are the next step): land on the AI tab
   // instead of the empty editor.
   useLayoutEffect(() => {
-    if (hasPendingInspiration(currentProjectId) || takeChatOnOpen(currentProjectId)) setActivePanel("chat");
-  }, [currentProjectId, setActivePanel]);
-  const mobilePanelBottomInset = isMobileKeyboardOpen
+    if (!isMobile) return;
+    if (hasPendingInspiration(currentProjectId) || takeChatOnOpen(currentProjectId)) {
+      setActivePanel("chat");
+    }
+  }, [currentProjectId, isMobile, setActivePanel]);
+
+  const mobilePanelBottomInset = mobileKeyboardOpen
     ? "0px"
     : `calc(${MOBILE_BOTTOM_TABS_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px))`;
 
@@ -206,9 +211,12 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
 
   // Track visual viewport changes on mobile to avoid keyboard/input overlap.
   useEffect(() => {
-    const getViewportHeight = () => window.visualViewport
-      ? window.visualViewport.height * window.visualViewport.scale
-      : window.innerHeight;
+    if (!isMobile) return;
+
+    const getViewportHeight = () =>
+      window.visualViewport
+        ? window.visualViewport.height * window.visualViewport.scale
+        : window.innerHeight;
     let baselineViewportHeight = getViewportHeight();
 
     const updateMobileViewportState = () => {
@@ -243,106 +251,139 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
       document.removeEventListener("focusin", updateMobileViewportState);
       document.removeEventListener("focusout", updateMobileViewportState);
     };
-  }, []);
+  }, [isMobile]);
 
-  // Restore scroll when panel becomes active
+  // Restore scroll when panel becomes active on mobile
   useEffect(() => {
-    const refs: Record<string, React.RefObject<HTMLDivElement | null>> = {
+    if (!isMobile) return;
+    const refs: Record<MobilePanel, React.RefObject<HTMLDivElement | null>> = {
       files: filesPanelRef,
       editor: editorPanelRef,
       chat: chatPanelRef,
     };
     restoreScrollPosition(activePanel, refs[activePanel]?.current || null);
-  }, [activePanel, currentProjectId, restoreScrollPosition]);
+  }, [activePanel, currentProjectId, isMobile, restoreScrollPosition]);
 
-  const handleScroll = useCallback((panelId: string) => (e: React.UIEvent<HTMLDivElement>) => {
-    saveScrollPosition(panelId, e.currentTarget.scrollTop);
-  }, [saveScrollPosition]);
+  const handleScroll = useCallback(
+    (panelId: string) => (e: React.UIEvent<HTMLDivElement>) => {
+      saveScrollPosition(panelId, e.currentTarget.scrollTop);
+    },
+    [saveScrollPosition]
+  );
 
-  // Render all panels with visibility toggle (preserves state)
-  const renderContent = () => {
-    return (
-      <div className="h-full relative" {...bind()}>
-        {/* Files Panel - always mounted */}
-        <div
-          id="files-panel"
-          ref={filesPanelRef}
-          onScroll={handleScroll('files')}
-          className={`absolute inset-x-0 top-0 overflow-auto bg-[hsl(var(--bg-primary))] transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none ${
-            activePanel === "files" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-          }`}
-          style={{ bottom: mobilePanelBottomInset }}
-          aria-hidden={activePanel !== "files"}
-          aria-labelledby="files-tab"
-          role="tabpanel"
-          inert={activePanel !== "files" ? true : undefined}
-        >
-          <Suspense
-            fallback={
-              <div className="h-full flex items-center justify-center text-[hsl(var(--text-secondary))]">
-                <Loader2 size={24} className="animate-spin" />
-              </div>
-            }
-          >
-            <MobileFileTree />
-          </Suspense>
-        </div>
-
-        {/* Editor Panel - always mounted */}
-        <div
-          id="editor-panel"
-          ref={editorPanelRef}
-          onScroll={handleScroll('editor')}
-          className={`absolute inset-x-0 top-0 overflow-hidden bg-[hsl(var(--bg-primary))] transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none ${
-            activePanel === "editor" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-          }`}
-          style={{ bottom: mobilePanelBottomInset }}
-          aria-hidden={activePanel !== "editor"}
-          aria-labelledby="editor-tab"
-          role="tabpanel"
-          inert={activePanel !== "editor" ? true : undefined}
-        >
-          {middle}
-        </div>
-
-        {/* Chat Panel - always mounted */}
-        <div
-          id="chat-panel"
-          ref={chatPanelRef}
-          onScroll={handleScroll('chat')}
-          className={`absolute inset-x-0 top-0 overflow-hidden bg-[hsl(var(--bg-primary))] transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none ${
-            activePanel === "chat" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-          }`}
-          style={{ bottom: mobilePanelBottomInset }}
-          aria-hidden={activePanel !== "chat"}
-          aria-labelledby="chat-tab"
-          role="tabpanel"
-          inert={activePanel !== "chat" ? true : undefined}
-        >
-          {right}
-        </div>
-      </div>
-    );
-  };
+  const containerClassName = isMobile ? MOBILE_CONTAINER_CLASS : preset.containerClassName;
+  const mainClassName = isMobile
+    ? `flex-1 overflow-hidden min-h-0 ${mobileKeyboardOpen ? "pb-safe-or-2" : "pb-14 safe-area-bottom"}`
+    : "flex-1 overflow-hidden min-h-0";
 
   return (
-    <div
-      className="viewport-shell h-dvh overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] flex flex-col fixed inset-0"
-    >
-      {/* Header */}
+    <div className={containerClassName} data-testid="app-layout">
       <Header />
 
-      {/* Main content area - account for bottom tabs height (56px) */}
-      <main
-        className={`flex-1 overflow-hidden min-h-0 ${
-          isMobileKeyboardOpen ? "pb-safe-or-2" : "pb-14 safe-area-bottom"
-        }`}
-      >
-        {renderContent()}
+      <main className={mainClassName}>
+        <Group
+          groupRef={groupRef}
+          orientation="horizontal"
+          disabled={isMobile}
+          disableCursor={isMobile}
+          className={isMobile ? "h-full relative" : "h-full"}
+          {...(isMobile ? bind() : undefined)}
+        >
+          <Panel
+            id={SPLIT_PANEL_IDS.sidebar}
+            defaultSize={isMobile ? undefined : preset.sidebar.defaultSize}
+            minSize={isMobile ? "0%" : preset.sidebar.minSize}
+          >
+            <div
+              id={isMobile ? "files-panel" : undefined}
+              ref={filesPanelRef}
+              onScroll={isMobile ? handleScroll("files") : undefined}
+              className={
+                isMobile
+                  ? getMobilePanelClassName(activePanel === "files", "overflow-auto")
+                  : "h-full overflow-hidden"
+              }
+              style={isMobile ? { bottom: mobilePanelBottomInset } : undefined}
+              aria-hidden={isMobile ? activePanel !== "files" : undefined}
+              aria-labelledby={isMobile ? "files-tab" : undefined}
+              role={isMobile ? "tabpanel" : undefined}
+              inert={isMobile && activePanel !== "files" ? true : undefined}
+            >
+              {isMobile ? (
+                <Suspense
+                  fallback={
+                    <div className="h-full flex items-center justify-center text-[hsl(var(--text-secondary))]">
+                      <Loader2 size={24} className="animate-spin" />
+                    </div>
+                  }
+                >
+                  <MobileFileTree />
+                </Suspense>
+              ) : (
+                <Sidebar />
+              )}
+            </div>
+          </Panel>
+
+          {!isMobile && <Separator className={SEPARATOR_CLASS} />}
+
+          <Panel
+            id={SPLIT_PANEL_IDS.editor}
+            defaultSize={isMobile ? undefined : preset.editor.defaultSize}
+            minSize={isMobile ? "0%" : preset.editor.minSize}
+          >
+            {/* data-testid: editor-panel - Editor panel for content editing tests */}
+            <div
+              id={isMobile ? "editor-panel" : undefined}
+              data-testid={isMobile ? undefined : "editor-panel"}
+              ref={editorPanelRef}
+              onScroll={isMobile ? handleScroll("editor") : undefined}
+              className={
+                isMobile
+                  ? getMobilePanelClassName(activePanel === "editor", "overflow-hidden")
+                  : "h-full overflow-hidden"
+              }
+              style={isMobile ? { bottom: mobilePanelBottomInset } : undefined}
+              aria-hidden={isMobile ? activePanel !== "editor" : undefined}
+              aria-labelledby={isMobile ? "editor-tab" : undefined}
+              role={isMobile ? "tabpanel" : undefined}
+              inert={isMobile && activePanel !== "editor" ? true : undefined}
+            >
+              {middle}
+            </div>
+          </Panel>
+
+          {!isMobile && <Separator className={SEPARATOR_CLASS} />}
+
+          <Panel
+            id={SPLIT_PANEL_IDS.chat}
+            defaultSize={isMobile ? undefined : preset.chat.defaultSize}
+            minSize={isMobile ? "0%" : preset.chat.minSize}
+          >
+            {/* data-testid: chat-panel - Chat panel for AI interaction tests */}
+            <div
+              id={isMobile ? "chat-panel" : undefined}
+              data-testid={isMobile ? undefined : "chat-panel"}
+              ref={chatPanelRef}
+              onScroll={isMobile ? handleScroll("chat") : undefined}
+              className={
+                isMobile
+                  ? getMobilePanelClassName(activePanel === "chat", "overflow-hidden")
+                  : "h-full overflow-hidden"
+              }
+              style={isMobile ? { bottom: mobilePanelBottomInset } : undefined}
+              aria-hidden={isMobile ? activePanel !== "chat" : undefined}
+              aria-labelledby={isMobile ? "chat-tab" : undefined}
+              role={isMobile ? "tabpanel" : undefined}
+              inert={isMobile && activePanel !== "chat" ? true : undefined}
+            >
+              {right}
+            </div>
+          </Panel>
+        </Group>
       </main>
 
-      {/* Bottom navigation */}
-      {!isMobileKeyboardOpen && (
+      {isMobile && !mobileKeyboardOpen && (
         <BottomTabs activeTab={activePanel} onTabChange={setActivePanel} />
       )}
     </div>
@@ -352,8 +393,9 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
 /**
  * Main Layout component that provides responsive application structure.
  *
- * Automatically switches between desktop and mobile layouts based on screen size:
- * - Desktop (>= 768px): Three-panel layout with resizable panels
+ * Automatically switches between desktop/tablet split layout and mobile single-panel
+ * layout based on screen size without unmounting editor or chat subtrees:
+ * - Desktop (>= 1024px) & Tablet (768px-1023px): Three-panel resizable layout
  * - Mobile (< 768px): Single-panel layout with bottom tabs
  *
  * Both layouts include:
@@ -364,7 +406,7 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
  * @param props - Component props
  * @param props.middle - Editor content (required)
  * @param props.right - Chat panel content (required)
- * @returns The appropriate layout JSX element based on screen size
+ * @returns The responsive layout JSX element
  *
  * @example
  * // Typical usage in App.tsx
@@ -392,18 +434,11 @@ export const Layout: React.FC<LayoutProps> = ({ middle, right }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleSearch]);
 
-  if (isMobile) {
-    return (
-      <MobileLayoutProvider isMobile={true}>
-        <MobileLayoutContent middle={middle} right={right} />
-      </MobileLayoutProvider>
-    );
-  }
-
   return (
-    <MobileLayoutProvider isMobile={false}>
-      <SplitWorkbenchLayout
-        variant={isTablet ? "tablet" : "desktop"}
+    <MobileLayoutProvider isMobile={isMobile}>
+      <WorkbenchLayoutContent
+        isMobile={isMobile}
+        splitVariant={isTablet ? "tablet" : "desktop"}
         middle={middle}
         right={right}
       />
