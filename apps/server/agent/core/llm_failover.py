@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import os
 import threading
 import time
@@ -751,6 +752,11 @@ _STREAM_COLLECT_PROGRESS_EVENTS = frozenset({
     "response.completed",
     "response.incomplete",
     "response.failed",
+    "error",
+})
+_STREAM_COLLECT_REASONING_EVENTS = frozenset({
+    "response.reasoning_text.delta",
+    "response.reasoning_summary_text.delta",
 })
 _STREAM_COLLECT_ANSWER_EVENTS = frozenset({
     "response.output_text.delta",
@@ -763,8 +769,10 @@ def _responses_failed_event_error(event: Any, provider: ModelProvider) -> Except
     import httpx
     import openai
 
-    resp = getattr(event, "response", None)
-    err = getattr(resp, "error", None)
+    event_type = getattr(event, "type", None)
+    # ResponseErrorEvent carries code/message directly on the event;
+    # ResponseFailedEvent nests them under event.response.error.
+    err = event if event_type == "error" else getattr(getattr(event, "response", None), "error", None)
     code: str | None = None
     message: str | None = None
     if isinstance(err, dict):
@@ -793,12 +801,13 @@ def _responses_failed_event_error(event: Any, provider: ModelProvider) -> Except
 
 
 class _StreamCollectError(Exception):
-    """Carries whether answer output had already started before a stream failure."""
+    """Carries stream progress flags across a failed streaming collection."""
 
-    def __init__(self, exc: BaseException, *, answer_started: bool) -> None:
+    def __init__(self, exc: BaseException, *, answer_started: bool, reasoning_started: bool = False) -> None:
         super().__init__(str(exc))
         self.exc = exc
         self.answer_started = answer_started
+        self.reasoning_started = reasoning_started
 
 
 async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) -> Any:
@@ -816,6 +825,7 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
     idle_timeout_s = provider.kind.read_timeout_s()
     idle_deadline = time.monotonic() + idle_timeout_s
     answer_started = False
+    reasoning_started = False
     final_response: Any = None
     aiter = raw_stream.__aiter__()
     try:
@@ -838,13 +848,15 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
             event_type = getattr(event, "type", None)
             delta = getattr(event, "delta", None)
             if event_type in _STREAM_COLLECT_PROGRESS_EVENTS and (
-                event_type in {"response.completed", "response.incomplete", "response.failed"}
+                event_type in {"response.completed", "response.incomplete", "response.failed", "error"}
                 or delta != ""
             ):
                 idle_deadline = time.monotonic() + idle_timeout_s
+            if event_type in _STREAM_COLLECT_REASONING_EVENTS and delta != "":
+                reasoning_started = True
             if event_type in _STREAM_COLLECT_ANSWER_EVENTS and delta != "":
                 answer_started = True
-            if event_type == "response.failed":
+            if event_type in {"response.failed", "error"}:
                 raise _responses_failed_event_error(event, provider)
             if event_type in {"response.completed", "response.incomplete"}:
                 final_response = getattr(event, "response", None)
@@ -852,16 +864,22 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
     except asyncio.CancelledError:
         raise
     except Exception as exc:
-        raise _StreamCollectError(exc, answer_started=answer_started) from exc
+        raise _StreamCollectError(
+            exc, answer_started=answer_started, reasoning_started=reasoning_started
+        ) from exc
     finally:
         aclose = getattr(aiter, "aclose", None)
         if callable(aclose):
             with contextlib.suppress(Exception):
-                await aclose()
+                res = aclose()
+                if inspect.isawaitable(res):
+                    await res
         close = getattr(raw_stream, "close", None)
         if callable(close):
             with contextlib.suppress(Exception):
-                await close()
+                res = close()
+                if inspect.isawaitable(res):
+                    await res
     if final_response is None:
         url = f"{provider.base_url.rstrip('/')}/responses" if provider.base_url else "https://responses.local/v1/responses"
         raise _StreamCollectError(
@@ -870,6 +888,7 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
                 request=httpx.Request("POST", url),
             ),
             answer_started=answer_started,
+            reasoning_started=reasoning_started,
         )
     return final_response
 
@@ -909,6 +928,7 @@ async def acreate_response(
             attempt_sink["model"] = provider.model
         attempt_started = time.monotonic()
         answer_started = False
+        reasoning_started = False
         used_stream_collect = bool(stream_collect and provider.uses_responses_api)
         try:
             if provider.uses_responses_api:
@@ -948,6 +968,7 @@ async def acreate_response(
             if isinstance(raw_exc, _StreamCollectError):
                 exc = raw_exc.exc
                 answer_started = raw_exc.answer_started
+                reasoning_started = raw_exc.reasoning_started
             else:
                 exc = raw_exc
             _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
@@ -968,7 +989,12 @@ async def acreate_response(
                 if isinstance(raw_exc, _StreamCollectError):
                     raise exc from None
                 raise
-            log_failover(provider, ordered[index + 1], call_site=call_site)
+            log_failover(
+                provider,
+                ordered[index + 1],
+                call_site=call_site,
+                after_reasoning=reasoning_started,
+            )
             continue
         _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
         if not key_cooled:

@@ -81,6 +81,7 @@ def failure_outcome(exc: BaseException) -> str | None:
     only wraps timeouts while sending), so both count as ``timeout``.
     """
     import httpx
+    import httpx2
     import openai
 
     from core.error_handler import APIException
@@ -90,7 +91,7 @@ def failure_outcome(exc: BaseException) -> str | None:
         return None
     if isinstance(exc, asyncio.CancelledError | GeneratorExit):
         return CALL_OUTCOME_CANCELLED
-    if isinstance(exc, TimeoutError | httpx.TimeoutException | openai.APITimeoutError):
+    if isinstance(exc, TimeoutError | httpx.TimeoutException | httpx2.TimeoutException | openai.APITimeoutError):
         return CALL_OUTCOME_TIMEOUT
     return CALL_OUTCOME_ERROR
 

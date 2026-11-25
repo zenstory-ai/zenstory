@@ -1134,4 +1134,142 @@ async def test_compaction_streaming_failover_pre_answer_vs_post_answer_and_trunc
     assert outcome3.record is not None
     assert outcome3.record["summary"] == "备源兜底摘要"
     assert len(ds_calls) == 1
+
+    # 4) ResponseErrorEvent (type="error") before answer -> fails over to DeepSeek
+    llm_failover.reset_failover_state()
+    ds_calls.clear()
+
+    async def error_event_stream():
+        yield SimpleNamespace(type="response.created")
+        yield SimpleNamespace(type="error", code="server_error", message="upstream error event")
+
+    async def mm_err_event(**_kwargs):
+        return error_event_stream()
+
+    clients["minimax"] = SimpleNamespace(responses=SimpleNamespace(create=mm_err_event))
+    outcome4 = await compaction.compact_history(history, system_prompt="系统提示", session_id="sess-err-event")
+    assert outcome4.record is not None
+    assert outcome4.record["summary"] == "备源兜底摘要"
+    assert len(ds_calls) == 1
+
+    # 5) Idle stall exceeding read_timeout_s -> raises TimeoutError & fails over to DeepSeek
+    import asyncio
+
+    llm_failover.reset_failover_state()
+    ds_calls.clear()
+    monkeypatch.setenv("MINIMAX_CLIENT_TIMEOUT_S", "0.05")
+
+    async def stalled_stream():
+        yield SimpleNamespace(type="response.created")
+        await asyncio.sleep(0.3)
+
+    async def mm_stall(**_kwargs):
+        return stalled_stream()
+
+    clients["minimax"] = SimpleNamespace(responses=SimpleNamespace(create=mm_stall))
+    outcome5 = await compaction.compact_history(history, system_prompt="系统提示", session_id="sess-stall-fail")
+    assert outcome5.record is not None
+    assert outcome5.record["summary"] == "备源兜底摘要"
+    assert len(ds_calls) == 1
+    llm_failover.reset_failover_state()
+
+
+@pytest.mark.asyncio
+async def test_compaction_streaming_end_to_end_real_sdk_cost_guard_and_httpx2_timeout(db_session, monkeypatch):
+    """End-to-end wire proof with real AsyncOpenAI + install_async_cost_guard + httpx2.MockTransport."""
+    import httpx2
+
+    from models.llm_usage import CALL_OUTCOME_TIMEOUT
+    from services.usage import llm_usage_service
+
+    # Verify httpx2.ReadTimeout (raised by openai 3.x) maps to CALL_OUTCOME_TIMEOUT.
+    assert llm_usage_service.failure_outcome(httpx2.ReadTimeout("stream stalled")) == CALL_OUTCOME_TIMEOUT
+
+    account = _make_user(db_session, "compact_wire_free")
+    monkeypatch.setattr(budget, "utcnow", lambda: NOW)
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-minimax")
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    monkeypatch.delenv("MINIMAX_API_SURFACE", raising=False)
+    llm_failover.reset_failover_state()
+
+    captured_bodies: list[dict] = []
+    recorded: list[dict] = []
+    completed = _make_response(
+        text="## 交接摘要\n- 真实 SDK 流式压缩完成",
+        input_tokens=1_000_100,
+        cached_tokens=1_000_000,
+        output_tokens=100,
+    )
+    sse_payload = _responses_sse_body([
+        {
+            "type": "response.created",
+            "sequence_number": 0,
+            "response": _make_response(status="in_progress", text="", output_tokens=0).model_dump(mode="json"),
+        },
+        {
+            "type": "response.output_text.delta",
+            "sequence_number": 1,
+            "item_id": "msg_1",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "## 交接摘要\n- 真实 SDK 流式压缩完成",
+            "logprobs": [],
+        },
+        {"type": "response.completed", "sequence_number": 2, "response": completed.model_dump(mode="json")},
+    ])
+
+    async def handle(req: httpx2.Request) -> httpx2.Response:
+        captured_bodies.append(json.loads(req.content))
+        return httpx2.Response(200, headers={"content-type": "text/event-stream"}, content=sse_payload)
+
+    def fake_schedule(attribution, *, model, usage=None, tokens=None, timing=None):
+        recorded.append({"attribution": attribution, "model": model, "usage": usage, "timing": timing})
+
+    monkeypatch.setattr(llm_usage_service, "schedule_llm_usage_record", fake_schedule)
+
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handle)) as http_client:
+        sdk_client = install_async_cost_guard(
+            AsyncOpenAI(
+                api_key="sk-minimax",
+                base_url="https://mock.invalid/v1",
+                http_client=http_client,
+                max_retries=2,
+            )
+        )
+        monkeypatch.setattr(llm_providers, "get_async_client", lambda _p: sdk_client)
+
+        req_ctx = SimpleNamespace(user_id=account.id, project_id="proj-wire-1")
+        history = LoopHistory(
+            items=[{"role": "user", "content": "继续写"}, {"role": "assistant", "content": "已写完。"}],
+            last_prompt_tokens=320_000,
+            last_message_id="msg-wire-1",
+            author_messages=["继续写"],
+        )
+
+        outcome = await compaction.compact_history(
+            history,
+            system_prompt="静态系统提示",
+            session_id="sess-wire-compact",
+            request_context=req_ctx,  # type: ignore[arg-type]
+        )
+
+    assert outcome.record is not None
+    assert outcome.record["summary"] == "## 交接摘要\n- 真实 SDK 流式压缩完成"
+    assert len(captured_bodies) == 1
+    assert captured_bodies[0]["stream"] is True
+    assert captured_bodies[0]["store"] is False
+    assert captured_bodies[0]["prompt_cache_key"] == "zs:sess-wire-compact"
+    assert captured_bodies[0]["reasoning"] == {"effort": "high"}
+    assert len(recorded) == 1
+    assert recorded[0]["attribution"].user_id == account.id
+    assert recorded[0]["attribution"].project_id == "proj-wire-1"
+    assert recorded[0]["timing"].outcome == "success"
+
+    db_session.expire_all()
+    reservation = db_session.exec(select(AICostReservation)).one()
+    bucket = db_session.exec(select(AICostDailyBudget)).one()
+    # MiniMax M3.1-Flash: 1M hit (10M units) + 100 miss (10k units) + 100 out (40k units) = 10,050,000
+    assert reservation.settled_units == bucket.charged_units == 10_050_000
     llm_failover.reset_failover_state()
