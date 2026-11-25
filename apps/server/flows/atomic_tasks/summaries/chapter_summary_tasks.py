@@ -75,7 +75,7 @@ def generate_chapter_summary_task(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_chapter_id=chapter_id,
-        response_format={"type": "json_object"},
+        reasoning_effort="low",
     )
 
     # 提取 JSON

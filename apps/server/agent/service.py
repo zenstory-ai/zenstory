@@ -1375,7 +1375,11 @@ class AgentService:
                         )
                         with run_meter.measure_stage("compaction"), transport_scope:
                             outcome = await compact_history(
-                                loop_history, system_prompt=system_prompt, session_id=session_id, run_meter=run_meter
+                                loop_history,
+                                system_prompt=system_prompt,
+                                session_id=session_id,
+                                run_meter=run_meter,
+                                request_context=request_context,
                             )
                         compaction_usage = outcome.usage
                         if outcome.record is not None and outcome.items is not None:

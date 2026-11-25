@@ -35,6 +35,7 @@ from .history import (
 from .prompts import COMPACT_PROMPT
 
 if TYPE_CHECKING:
+    from agent.core.request_context import AgentRequestContext
     from agent.core.run_meter import AgentRunMeter
 
 logger = get_logger(__name__)
@@ -270,6 +271,7 @@ async def compact_history(
     session_id: str | None,
     keep_user_tokens: int | None = None,
     run_meter: AgentRunMeter | None = None,
+    request_context: AgentRequestContext | None = None,
 ) -> CompactionOutcome:
     """写交接摘要并给出压缩后的历史；摘要不可用时返回 skipped，历史保持原样。
 
@@ -282,7 +284,7 @@ async def compact_history(
     from core.error_handler import APIException
     from services.usage.cost_budget import budget_attribution
 
-    attribution = agent_usage_attribution()
+    attribution = agent_usage_attribution(request_context)
     input_budget = AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS
 
     def _trim_for_budget(budget_tokens: int) -> list[dict[str, Any]]:
@@ -350,6 +352,7 @@ async def compact_history(
                         usage_attribution=attribution,
                         max_retries=0,
                         chat_kwargs_builder=_build_chat_fallback,
+                        stream_collect=True,
                         instructions=system_prompt,
                         input=resp_input,
                         tools=_responses_tools(),

@@ -10,12 +10,21 @@ from utils.sanitize import (
     sanitize_responses_text,
 )
 
+_RESPONSES_TERMINAL_USAGE_EVENTS = frozenset({
+    "response.completed",
+    "response.incomplete",
+    "response.failed",
+})
+
 
 def _extract_chunk_usage(chunk: Any) -> Any:
     """Extract usage from Chat Completions chunks or Responses terminal events."""
     usage = getattr(chunk, "usage", None)
     if usage is not None:
         return usage
+    chunk_type = getattr(chunk, "type", None)
+    if chunk_type is not None and chunk_type not in _RESPONSES_TERMINAL_USAGE_EVENTS:
+        return None
     response = getattr(chunk, "response", None)
     if response is not None:
         return getattr(response, "usage", None)
