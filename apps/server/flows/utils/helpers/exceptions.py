@@ -10,7 +10,46 @@ class DeepNovelException(Exception):
 
 class LLMAPIError(DeepNovelException):
     """LLM API 调用错误"""
-    pass
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        failure_reason: str | None = None,
+        http_status: int | None = None,
+        provider_error_code: int | None = None,
+    ):
+        super().__init__(message)
+        self.failure_reason = failure_reason
+        self.http_status = http_status
+        self.provider_error_code = provider_error_code
+
+    def __reduce__(self):
+        return (
+            _rebuild_llm_api_error,
+            (
+                self.__class__,
+                str(self),
+                self.failure_reason,
+                self.http_status,
+                self.provider_error_code,
+            ),
+        )
+
+
+def _rebuild_llm_api_error(
+    cls: type[LLMAPIError],
+    message: str,
+    failure_reason: str | None,
+    http_status: int | None,
+    provider_error_code: int | None,
+) -> LLMAPIError:
+    return cls(
+        message,
+        failure_reason=failure_reason,
+        http_status=http_status,
+        provider_error_code=provider_error_code,
+    )
 
 
 class ValidationError(DeepNovelException):
@@ -25,16 +64,73 @@ class LLMNonRetryableError(LLMAPIError):
     账号级故障，整次拆解应立即失败而不是逐章空转。
     """
 
-    def __init__(self, message: str, error_code: str | None = None):
-        super().__init__(message)
+    def __init__(
+        self,
+        message: str,
+        error_code: str | None = None,
+        *,
+        failure_reason: str | None = None,
+        http_status: int | None = None,
+        provider_error_code: int | None = None,
+    ):
+        super().__init__(
+            message,
+            failure_reason=failure_reason,
+            http_status=http_status,
+            provider_error_code=provider_error_code,
+        )
         self.error_code = error_code
 
     def __reduce__(self):
-        return (self.__class__, (str(self), self.error_code))
+        return (
+            _rebuild_llm_non_retryable_error,
+            (
+                self.__class__,
+                str(self),
+                self.error_code,
+                self.failure_reason,
+                self.http_status,
+                self.provider_error_code,
+            ),
+        )
+
+
+def _rebuild_llm_non_retryable_error(
+    cls: type[LLMNonRetryableError],
+    message: str,
+    error_code: str | None,
+    failure_reason: str | None,
+    http_status: int | None,
+    provider_error_code: int | None,
+) -> LLMNonRetryableError:
+    return cls(
+        message,
+        error_code,
+        failure_reason=failure_reason,
+        http_status=http_status,
+        provider_error_code=provider_error_code,
+    )
 
 
 class LLMOutputError(LLMNonRetryableError):
     """LLM 输出无法解析为预期的 JSON。"""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str | None = None,
+        *,
+        failure_reason: str | None = "invalid_llm_output",
+        http_status: int | None = None,
+        provider_error_code: int | None = None,
+    ):
+        super().__init__(
+            message,
+            error_code,
+            failure_reason=failure_reason,
+            http_status=http_status,
+            provider_error_code=provider_error_code,
+        )
 
 
 def is_retryable_exception(exc: BaseException | None) -> bool:

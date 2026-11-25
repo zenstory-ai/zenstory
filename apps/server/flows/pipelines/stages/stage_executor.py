@@ -20,7 +20,11 @@ from core.error_codes import ErrorCode
 from flows.database_session import get_prefect_db_session
 from flows.pipelines.helpers import ProgressPublisher, ResultBuilder
 from flows.utils.helpers.exceptions import is_llm_fatal_stop
-from services.material.job_errors import MaterialPipelineError
+from services.material.job_errors import (
+    MaterialPipelineError,
+    build_partial_completion_error_details,
+    classify_material_exception,
+)
 
 META_EXTRACTION_ERROR = "Metadata extraction failed"
 META_EXTRACTION_ERROR_CODE = "ERR_MATERIAL_META_EXTRACTION_FAILED"
@@ -128,6 +132,7 @@ class StageExecutor:
             "error_code": None,
             "retry_available": False,
         }
+        self._meta_failure_detail: dict[str, Any] | None = None
 
     def record_enabled_stages(self) -> dict[str, bool]:
         """记录本次运行的阶段：INFO 日志 + 写入 IngestionJob.stage_progress["enabled_stages"]。
@@ -219,6 +224,7 @@ class StageExecutor:
             "failed_count": failed_count,
             "failed_chapters": stage1_result.get("failed_chapters", []),
             "failed_mention_chapters": stage1_result.get("failed_mention_chapters", []),
+            "chapter_failures": stage1_result.get("chapter_failures", []),
             "completed_chapter_ids": stage1_result.get("completed_chapter_ids", []),
             "failed_chapter_ids": stage1_result.get("failed_chapter_ids", []),
             "completed_plot_chapter_ids": stage1_result.get("completed_plot_chapter_ids", []),
@@ -396,6 +402,7 @@ class StageExecutor:
             stage1_result,
             story_result,
             character_entity_result,
+            relationship_result,
         )
 
         # 构建最终结果（使用 ResultBuilder）
@@ -456,6 +463,11 @@ class StageExecutor:
             is_llm_fatal_stop(error) or isinstance(error, MaterialPipelineError)
         ):
             raise error
+        self._meta_failure_detail = (
+            classify_material_exception(error)
+            if isinstance(error, BaseException)
+            else {"reason": "unexpected_error", "error_type": "Exception"}
+        )
         self._meta_extraction.update(
             executed=True,
             succeeded=False,
@@ -469,6 +481,7 @@ class StageExecutor:
             if self._meta_extraction.get("succeeded") is not False:
                 self._record_meta_failure("metadata persistence failed")
             return
+        self._meta_failure_detail = None
         self._meta_extraction.update(
             executed=True,
             succeeded=True,
@@ -676,6 +689,7 @@ class StageExecutor:
                     "stories_count": stage2a_data.get("stories_count", 0),
                     "storylines_count": stage2a_data.get("storylines_count", 0),
                     "failed_stories": stage2a_data.get("failed_stories", []),
+                    "story_failure_reasons": stage2a_data.get("story_failure_reasons", {}),
                     "status": stage2a_data.get("status", "completed"),
                     "executed_capabilities": stage2a_data.get("executed_capabilities", []),
                     "_executed": False,
@@ -701,6 +715,7 @@ class StageExecutor:
                     "updated_count": stage2c_data.get("updated_count", 0),
                     "failed_count": stage2c_data.get("failed_count", 0),
                     "failed_characters": stage2c_data.get("failed_characters", []),
+                    "character_failure_reasons": stage2c_data.get("character_failure_reasons", {}),
                     "status": stage2c_data.get("status", "completed"),
                     "executed_capabilities": stage2c_data.get("executed_capabilities", []),
                     "_executed": False,
@@ -776,6 +791,7 @@ class StageExecutor:
             "stories_count": story_result.get("stories_count", 0),
             "storylines_count": story_result.get("storylines_count", 0),
             "failed_stories": story_result.get("failed_stories", []),
+            "story_failure_reasons": story_result.get("story_failure_reasons", {}),
             "status": story_result.get("status", "completed"),
             "executed_capabilities": story_result.get("executed_capabilities", []),
         }
@@ -790,6 +806,7 @@ class StageExecutor:
             "updated_count": character_entity_result.get("updated_count", 0),
             "failed_count": character_entity_result.get("failed_count", 0),
             "failed_characters": character_entity_result.get("failed_characters", []),
+            "character_failure_reasons": character_entity_result.get("character_failure_reasons", {}),
             "status": character_entity_result.get("status", "completed"),
             "executed_capabilities": character_entity_result.get("executed_capabilities", []),
         }
@@ -949,11 +966,23 @@ class StageExecutor:
         stage1_result: dict[str, Any] | None,
         story_result: dict[str, Any],
         character_entity_result: dict[str, Any],
+        relationship_result: dict[str, Any] | None = None,
     ) -> None:
         """
         更新 IngestionJob 最终状态（终态写库失败不能静默吞下）
         """
         from services.material.ingestion_jobs_service import IngestionJobsService
+
+        error_details: dict[str, Any] | None = None
+        if final_status == "completed_with_errors":
+            error_details = build_partial_completion_error_details(
+                chapter_ids=self.chapter_ids,
+                stage1_result=stage1_result,
+                story_result=story_result,
+                character_entity_result=character_entity_result,
+                relationship_result=relationship_result,
+                meta_failure_detail=self._meta_failure_detail,
+            )
 
         with get_prefect_db_session() as session:
             svc = IngestionJobsService()
@@ -973,6 +1002,7 @@ class StageExecutor:
                         if final_status == "completed_with_errors"
                         else None
                     ),
+                    error_details=error_details,
                     stage_data={
                         "chapters_total": len(self.chapter_ids),
                         "failed_count": (stage1_result or {}).get("failed_count", 0)
