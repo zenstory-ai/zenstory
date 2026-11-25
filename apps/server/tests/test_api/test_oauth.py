@@ -697,3 +697,166 @@ async def test_google_oauth_new_user_login_survives_activation_record_failure(
     assert db_session.exec(
         select(User).where(User.email == "oauth_activation_fail@example.com")
     ).first() is not None
+
+
+@pytest.mark.integration
+async def test_google_oauth_login_normalizes_lang_param_in_state(client: AsyncClient, monkeypatch):
+    """Supported lang values are normalized into OAuth state; missing or invalid values are omitted."""
+    monkeypatch.setattr("api.oauth.GOOGLE_CLIENT_ID", "test-client-id")
+    monkeypatch.setattr("api.oauth.GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
+
+    def _state_payload(resp) -> dict:
+        assert resp.status_code in [302, 307]
+        parsed = urllib.parse.urlparse(resp.headers.get("location", ""))
+        state = urllib.parse.parse_qs(parsed.query).get("state", [None])[0]
+        assert state is not None
+        return _decode_state(state)
+
+    en_resp = await client.get("/api/auth/google", params={"lang": "en-US"})
+    assert _state_payload(en_resp).get("lang") == "en"
+
+    zh_resp = await client.get("/api/auth/google", params={"lang": "zh-CN"})
+    assert _state_payload(zh_resp).get("lang") == "zh"
+
+    invalid_resp = await client.get("/api/auth/google", params={"lang": "fr"})
+    assert "lang" not in _state_payload(invalid_resp)
+
+    omitted_resp = await client.get("/api/auth/google")
+    assert "lang" not in _state_payload(omitted_resp)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("state_extra", "email", "expected_lang"),
+    [
+        ({"lang": "en-US"}, "oauth_lang_en@example.com", "en"),
+        ({}, "oauth_lang_none@example.com", None),
+        ({"lang": "ja"}, "oauth_lang_invalid@example.com", None),
+    ],
+)
+async def test_google_oauth_callback_persists_ui_language_for_new_user(
+    client: AsyncClient,
+    db_session,
+    monkeypatch,
+    state_extra: dict[str, str],
+    email: str,
+    expected_lang: str | None,
+):
+    """New OAuth users persist normalized ui_language when provided; missing/invalid values are ignored."""
+    from sqlmodel import select
+
+    from api.oauth import OAUTH_STATE_COOKIE_NAME, _encode_oauth_state
+    from models import User
+    from services.features.user_preference_service import get_ui_language
+
+    class _DummyResponse:
+        def __init__(self, status_code: int, payload: dict):
+            self.status_code = status_code
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    class _DummyAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return _DummyResponse(200, {"access_token": "google-access-token"})
+
+        async def get(self, *args, **kwargs):
+            return _DummyResponse(200, {"email": email, "name": "OAuth Lang User"})
+
+    monkeypatch.setenv("AUTH_REGISTER_INVITE_CODE_OPTIONAL", "true")
+    monkeypatch.setattr("api.oauth.httpx.AsyncClient", _DummyAsyncClient)
+    monkeypatch.setattr("api.oauth.GOOGLE_CLIENT_ID", "test-client-id")
+    monkeypatch.setattr("api.oauth.GOOGLE_CLIENT_SECRET", "test-client-secret")
+    monkeypatch.setattr("api.oauth.GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
+
+    nonce = f"oauth-lang-nonce-{email}"
+    state = _encode_oauth_state({"nonce": nonce, **state_extra})
+    response = await client.get(
+        "/api/auth/google/callback",
+        params={"code": "dummy-code", "state": state},
+        headers={"Cookie": f"{OAUTH_STATE_COOKIE_NAME}={nonce}"},
+    )
+    assert response.status_code in [302, 307]
+    fragment = urllib.parse.parse_qs(urllib.parse.urlparse(response.headers["location"]).fragment)
+    assert fragment.get("new_user") == ["1"]
+
+    user = db_session.exec(select(User).where(User.email == email)).first()
+    assert user is not None
+    assert get_ui_language(db_session, user.id) == expected_lang
+
+
+@pytest.mark.integration
+async def test_google_oauth_callback_does_not_overwrite_existing_user_ui_language(
+    client: AsyncClient, db_session, monkeypatch
+):
+    """Returning OAuth users keep their saved ui_language regardless of OAuth state lang."""
+    from api.oauth import OAUTH_STATE_COOKIE_NAME, _encode_oauth_state
+    from models import User
+    from services.core.auth_service import hash_password
+    from services.features.user_preference_service import get_ui_language, set_ui_language
+
+    existing = User(
+        username="oauth_existing_lang_user",
+        email="oauth_existing_lang@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(existing)
+    db_session.commit()
+    db_session.refresh(existing)
+    set_ui_language(db_session, existing.id, "zh")
+    db_session.commit()
+
+    class _DummyResponse:
+        def __init__(self, status_code: int, payload: dict):
+            self.status_code = status_code
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    class _DummyAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return _DummyResponse(200, {"access_token": "google-access-token"})
+
+        async def get(self, *args, **kwargs):
+            return _DummyResponse(
+                200,
+                {"email": "oauth_existing_lang@example.com", "name": "Existing User"},
+            )
+
+    monkeypatch.setattr("api.oauth.httpx.AsyncClient", _DummyAsyncClient)
+    monkeypatch.setattr("api.oauth.GOOGLE_CLIENT_ID", "test-client-id")
+    monkeypatch.setattr("api.oauth.GOOGLE_CLIENT_SECRET", "test-client-secret")
+    monkeypatch.setattr("api.oauth.GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
+
+    nonce = "oauth-existing-lang-nonce"
+    state = _encode_oauth_state({"nonce": nonce, "lang": "en"})
+    response = await client.get(
+        "/api/auth/google/callback",
+        params={"code": "dummy-code", "state": state},
+        headers={"Cookie": f"{OAUTH_STATE_COOKIE_NAME}={nonce}"},
+    )
+    assert response.status_code in [302, 307]
+    db_session.expire_all()
+    assert get_ui_language(db_session, existing.id) == "zh"

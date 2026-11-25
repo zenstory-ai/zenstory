@@ -1160,6 +1160,7 @@ class UserPreferencesResponse(BaseModel):
 
 class UpdateUserPreferencesRequest(BaseModel):
     ui_language: str = Field(min_length=2, max_length=16)
+    only_if_unset: bool = False
 
 
 @router.put("/me/preferences", response_model=UserPreferencesResponse)
@@ -1168,16 +1169,30 @@ def update_current_user_preferences(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
 ):
-    """Store the interface language the user switched to; unsupported values are ignored."""
+    """Store the interface language; unsupported values are ignored.
+
+    When `only_if_unset=True`, only writes when no supported language is stored yet
+    and always returns the actual stored value.
+    """
     if normalize_ui_language(request.ui_language) is None:
         return UserPreferencesResponse(ui_language=get_ui_language(session, current_user.id))
     try:
-        stored = set_ui_language(session, current_user.id, request.ui_language)
+        stored = set_ui_language(
+            session,
+            current_user.id,
+            request.ui_language,
+            only_if_unset=request.only_if_unset,
+        )
         session.commit()
     except IntegrityError:
-        # Two first saves raced to create the row: the other one won, so update it.
+        # Two first saves raced to create the row: the other one won.
         session.rollback()
-        stored = set_ui_language(session, current_user.id, request.ui_language)
+        stored = set_ui_language(
+            session,
+            current_user.id,
+            request.ui_language,
+            only_if_unset=request.only_if_unset,
+        )
         session.commit()
     return UserPreferencesResponse(ui_language=stored)
 

@@ -84,3 +84,59 @@ def test_staging_an_unsupported_language_reads_nothing(db_session):
     session = MagicMock()
     assert set_ui_language(session, "user-1", "fr") is None
     assert session.method_calls == []
+
+
+@pytest.mark.integration
+async def test_only_if_unset_backfills_missing_or_null_without_overwriting_saved_language(
+    client: AsyncClient, db_session
+):
+    """Backfill writes when absent or NULL, and returns the existing value untouched when already set."""
+    from models import UserPreference
+
+    headers = await _login_headers(client, db_session, "only_if_unset_user")
+    user = db_session.exec(select(User).where(User.username == "only_if_unset_user")).one()
+
+    # No preference row yet -> writes 'en' and returns 'en'.
+    resp = await client.put(
+        "/api/auth/me/preferences",
+        headers=headers,
+        json={"ui_language": "en-US", "only_if_unset": True},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"ui_language": "en"}
+    assert (await client.get("/api/auth/me", headers=headers)).json()["ui_language"] == "en"
+
+    # Already set to 'en' -> only_if_unset='zh' must NOT overwrite it, and returns actual 'en'.
+    resp = await client.put(
+        "/api/auth/me/preferences",
+        headers=headers,
+        json={"ui_language": "zh-CN", "only_if_unset": True},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"ui_language": "en"}
+    assert (await client.get("/api/auth/me", headers=headers)).json()["ui_language"] == "en"
+
+    # Explicit switch (only_if_unset omitted / False) still overwrites to 'zh'.
+    resp = await client.put(
+        "/api/auth/me/preferences",
+        headers=headers,
+        json={"ui_language": "zh"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"ui_language": "zh"}
+
+    # Row exists with NULL ui_language -> only_if_unset writes the new language.
+    pref = db_session.get(UserPreference, user.id)
+    assert pref is not None
+    pref.ui_language = None
+    db_session.add(pref)
+    db_session.commit()
+
+    resp = await client.put(
+        "/api/auth/me/preferences",
+        headers=headers,
+        json={"ui_language": "en", "only_if_unset": True},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"ui_language": "en"}
+    assert (await client.get("/api/auth/me", headers=headers)).json()["ui_language"] == "en"

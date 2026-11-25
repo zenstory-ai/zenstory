@@ -40,7 +40,7 @@ const target = 'https://app.zenstory.ai/offline-return'
 function account(id: string, revision = '0') {
   return { access_token: `offline-access-${id}-${revision}`, refresh_token: `offline-refresh-${id}-${revision}`, user: {
     id, username: id, email: `${id}@example.invalid`, email_verified: true, is_active: true, is_superuser: false,
-    created_at: '2020-01-01T00:00:00Z', updated_at: '2026-10-06T00:00:00Z',
+    ui_language: 'en', created_at: '2020-01-01T00:00:00Z', updated_at: '2026-10-06T00:00:00Z',
   } }
 }
 const a = account('A'), rotatedA = account('A', '1'), b = account('B')

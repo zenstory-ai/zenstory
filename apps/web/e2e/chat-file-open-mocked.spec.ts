@@ -10,11 +10,10 @@ const body = (page: Page) => page.locator('[data-editor-scroll-container="true"]
 const chat = (page: Page) => page.getByTestId('message-list');
 
 async function fixture(page: Page, locale: 'zh' | 'en', theme: 'light' | 'dark') {
-  await mockResponsiveApp(page);
-  await page.addInitScript(({ locale, theme }) => {
-    localStorage.setItem('zenstory-language', locale);
+  await mockResponsiveApp(page, null, 'free', locale);
+  await page.addInitScript(({ theme }) => {
     localStorage.setItem('zenstory-theme', theme);
-  }, { locale, theme });
+  }, { theme });
   const makeFile = (id: string, title: string) => ({ id, title, project_id: projectId, file_type: 'draft', content: `${id} saved body`, parent_id: 'draft-folder', order: 0, metadata: null, created_at: token, updated_at: token });
   const files = { A: makeFile('A', 'Current draft'), B: makeFile('B', longTitle) };
   const calls = [

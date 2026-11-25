@@ -12,11 +12,10 @@ test('tablet header offers the full-text export and no outline export', async ({
   await expect(page.getByTestId('header-more-actions-menu')).not.toContainText('大纲');
 });
 
-for (const locale of ['zh', 'en']) {
+for (const locale of ['zh', 'en'] as const) {
 test(`phone header export action keeps its icon and label intact in ${locale}`, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 1024 });
-  await mockResponsiveApp(page);
-  await page.addInitScript(locale => localStorage.setItem('zenstory-language', locale), locale);
+  await mockResponsiveApp(page, null, 'free', locale);
   await page.goto('/project/responsive-project-0');
 
   await page.locator('[aria-controls="header-mobile-menu"]').click();

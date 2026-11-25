@@ -31,7 +31,7 @@ vi.mock('../../lib/analytics', () => ({ identifyUser: vi.fn(), resetAnalytics: v
   trackEvent: vi.fn(), captureException: vi.fn() }));
 
 const user: User = { id: 'persona-hydration-A', username: 'offline-author', email: 'offline@example.test',
-  email_verified: true, is_active: true, is_superuser: false,
+  email_verified: true, is_active: true, is_superuser: false, ui_language: 'zh',
   created_at: '2026-10-06T00:00:00Z', updated_at: '2026-10-06T00:00:00Z' };
 const profile: PersonaOnboardingProfile = { version: 1, completed_at: '2026-10-06T00:00:00Z',
   selected_personas: ['explorer'], selected_goals: ['monetize'], experience_level: 'intermediate', skipped: false };
