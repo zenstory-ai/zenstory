@@ -103,15 +103,86 @@ describe('ThinkingContent', () => {
     })
   })
 
-  it('is collapsed by default for a new author and does not write storage on mount', () => {
-    render(<ThinkingContent content="Thinking process" isStreaming />)
+  it('is collapsed by default for a new author, shows a live rolling preview while streaming, and does not write storage on mount', () => {
+    const { container } = render(<ThinkingContent content="First sentence. Latest thinking step" isStreaming />)
 
-    expect(screen.queryByText('Thinking process')).not.toBeInTheDocument()
-    // The title and the streaming animation stay visible while collapsed.
+    // Still collapsed by default: full prose panel is not expanded.
+    expect(container.querySelector('.prose')).not.toBeInTheDocument()
+    // The title, streaming dots, and single-line collapsed preview stay visible while streaming.
     expect(screen.getByText('chat:thinking.title')).toBeInTheDocument()
+    const preview = screen.getByTestId('thinking-live-preview')
+    expect(preview).toHaveTextContent('Latest thinking step')
+    expect(preview.className).toContain('truncate')
+    expect(preview.className).toContain('min-w-0')
     expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button').querySelectorAll('.animate-pulse')).toHaveLength(3)
     expect(localStorage.getItem(EXPANDED_KEY)).toBeNull()
+  })
+
+  it('updates the collapsed preview as reasoning streams and reverts to clean header when streaming finishes', () => {
+    const { rerender } = render(
+      <ThinkingContent
+        content={'### 分析\n1. 先读大纲。\n2. 正在核对 **林舟** 的出场线索，并用 edit_file 准备修改'}
+        isStreaming
+      />,
+    )
+
+    // Latest non-empty line with markdown stripped and internal tool names sanitized.
+    expect(screen.getByTestId('thinking-live-preview')).toHaveTextContent('正在核对 林舟 的出场线索，并用 编辑文件 准备修改')
+
+    // Rolls forward to the newest clause when a single sentence grows long.
+    rerender(
+      <ThinkingContent
+        content="首先我需要确认林舟在第一章的动机，其次检查苏晚的出场时间，但私下里却在秘密联络边关旧部，接下来我要检查第二章里这段伏笔有没有回收"
+        isStreaming
+      />,
+    )
+    expect(screen.getByTestId('thinking-live-preview')).toHaveTextContent('接下来我要检查第二章里这段伏笔有没有回收')
+
+    // Once streaming finishes, preview and pulsing dots disappear, reverting to the quiet collapsed header.
+    rerender(
+      <ThinkingContent
+        content="首先我需要确认林舟在第一章的动机，接下来我要检查第二章里这段伏笔有没有回收"
+        isStreaming={false}
+      />,
+    )
+    expect(screen.queryByTestId('thinking-live-preview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button').querySelectorAll('.animate-pulse')).toHaveLength(0)
+    expect(screen.getByText('chat:thinking.title')).toBeInTheDocument()
+  })
+
+  it('expands cleanly on click while streaming, hiding the header preview while open', async () => {
+    const user = userEvent.setup()
+    render(<ThinkingContent content={'第一句。\n第二句正在推演中'} isStreaming />)
+
+    expect(screen.getByTestId('thinking-live-preview')).toHaveTextContent('第二句正在推演中')
+
+    const button = screen.getByRole('button')
+    await act(async () => {
+      await user.click(button)
+    })
+
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByTestId('thinking-live-preview')).not.toBeInTheDocument()
+    expect(screen.getByText(/第一句/)).toBeInTheDocument()
+    expect(screen.getByText(/第二句正在推演中/)).toBeInTheDocument()
+
+    // Collapsing back while still streaming restores the live preview cleanly.
+    await act(async () => {
+      await user.click(button)
+    })
+    await waitFor(() => {
+      expect(button).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.getByTestId('thinking-live-preview')).toHaveTextContent('第二句正在推演中')
+    })
+  })
+
+  it('falls back cleanly without a preview span when streaming content has only punctuation or code fences', () => {
+    render(<ThinkingContent content={'```\n---\n...'} isStreaming />)
+
+    expect(screen.getByText('chat:thinking.title')).toBeInTheDocument()
+    expect(screen.queryByTestId('thinking-live-preview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button').querySelectorAll('.animate-pulse')).toHaveLength(3)
   })
 
   it('ignores the legacy key that the old panel wrote as "true" on every mount', () => {

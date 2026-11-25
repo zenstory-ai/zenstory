@@ -18,7 +18,7 @@ import React, { useMemo, useRef, useState, useEffect, forwardRef, useImperativeH
 import type { TFunction } from 'i18next';
 import type { StreamRenderItem } from '../hooks/useChatStreaming';
 import { useTranslation } from 'react-i18next';
-import { Sparkles, Bot, AlertTriangle, CirclePause, ThumbsUp, ThumbsDown, Copy, Check, ChevronDown, Search, ArrowRight } from 'lucide-react';
+import { Sparkles, Bot, AlertTriangle, CirclePause, ThumbsUp, ThumbsDown, Copy, Check, ChevronDown, Search, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from '../lib/toast';
 import { LazyMarkdown } from './LazyMarkdown';
 import { ToolResultCard } from './ToolResultCard';
@@ -689,6 +689,21 @@ function OrderedMessageItems({ items, onUndo, onRestoreDeletion, onOpenFile, onO
           continue;
         }
         merged.push({ ...item, toolCalls: visible });
+      } else if (item.type === 'thinking_status' && item.transient) {
+        const content = item.content?.trim();
+        if (!content) continue;
+        const prev = merged[merged.length - 1];
+        if (prev && prev.type === 'thinking_status' && prev.transient) {
+          // Update consecutive transient progress statuses (e.g. tool-arg preparation updates)
+          // in place using the first item's key so the status pill transitions smoothly without stacking or flicker.
+          merged[merged.length - 1] = {
+            ...prev,
+            content,
+            timestamp: item.timestamp,
+          };
+          continue;
+        }
+        merged.push({ ...item, content });
       } else {
         merged.push(item);
       }
@@ -696,14 +711,45 @@ function OrderedMessageItems({ items, onUndo, onRestoreDeletion, onOpenFile, onO
     return merged;
   }, [items]);
 
+  // Only the last visibly rendered item in an active stream is still live.
+  // Earlier thinking blocks stop pulsing as soon as a newer step (tool prep, tool call, prose, or new thinking) starts.
+  let lastActiveIndex = -1;
+  if (isStreaming) {
+    for (let i = normalizedItems.length - 1; i >= 0; i -= 1) {
+      const candidate = normalizedItems[i];
+      const isVisible =
+        (candidate.type === 'thinking_status' && Boolean(candidate.content?.trim()))
+        || (candidate.type === 'history_compaction' && Boolean(candidate.compactionState))
+        || (candidate.type === 'thinking_content' && Boolean(candidate.content?.trim()))
+        || (candidate.type === 'content' && Boolean(candidate.content && stripThinkTags(candidate.content).trim()))
+        || (candidate.type === 'tool_calls' && Boolean(candidate.toolCalls?.length))
+        || (candidate.type === 'context' && Boolean(candidate.items?.length))
+        || (candidate.type === 'agent_selected' && Boolean(agentLabel(candidate.agentType, candidate.agentName)))
+        || (candidate.type === 'iteration_exhausted' && candidate.layer !== 'empty_file_correction')
+        || candidate.type === 'workflow_stopped'
+        || candidate.type === 'workflow_complete';
+      if (isVisible) {
+        lastActiveIndex = i;
+        break;
+      }
+    }
+  }
+
   return <>
-  {normalizedItems.map((item) => {
+  {normalizedItems.map((item, index) => {
     if (item.type === 'thinking_status' && item.content) {
       // 1. thinking 事件 - 轻量状态小标签（不透明文字 token）
+      const isActiveStatus = isStreaming && index === lastActiveIndex && Boolean(item.transient);
       return (
         <div key={item.id} className="mb-2">
-          <div className={`inline-block rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] text-xs ${isMobile ? 'px-2.5 py-0.5' : 'px-2.5 py-1'}`}>
-            {item.content}
+          <div
+            data-testid={isActiveStatus ? 'active-thinking-status' : undefined}
+            className={`inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] text-xs ${isMobile ? 'px-2.5 py-0.5' : 'px-2.5 py-1'}`}
+          >
+            {isActiveStatus && (
+              <Loader2 size={12} aria-hidden="true" className="shrink-0 animate-spin motion-reduce:animate-none" />
+            )}
+            <span className="min-w-0 break-words tabular-nums">{item.content}</span>
           </div>
         </div>
       );
@@ -718,10 +764,11 @@ function OrderedMessageItems({ items, onUndo, onRestoreDeletion, onOpenFile, onO
         />
       );
     } else if (item.type === 'thinking_content' && item.content) {
-      // 2. thinking_content - 思考过程，可折叠
+      // 2. thinking_content - 思考过程，可折叠（仅最新且未被后续步骤接管的思考块保持活跃流式态）
+      const isActiveThinking = isStreaming && index === lastActiveIndex;
       return (
         <div key={item.id} className={isMobile ? 'mb-2' : 'mb-2.5'}>
-          <ThinkingContent content={item.content} isStreaming={isStreaming} />
+          <ThinkingContent content={item.content} isStreaming={isActiveThinking} />
         </div>
       );
     } else if (item.type === 'content' && item.content) {

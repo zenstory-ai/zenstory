@@ -60,4 +60,56 @@ describe('StreamActivityLine', () => {
     expect(screen.queryByText(/chat:activity\.(preparing|writing)Body/)).not.toBeInTheDocument()
     expect(screen.getByText('chat:activity.elapsed:{"seconds":2}')).toBeInTheDocument()
   })
+
+  it('renders live tool-argument preparation status cleanly without being masked by generic elapsed copy', () => {
+    vi.useFakeTimers()
+    let liveStatus: string | null = '正在准备编辑文件…'
+    render(<StreamActivityLine startedAt={Date.now()} statusText={() => liveStatus} />)
+
+    expect(screen.getByTestId('stream-activity-stage')).toHaveTextContent('正在准备编辑文件…')
+    expect(screen.getByText('chat:activity.seconds:{"seconds":0}')).toBeInTheDocument()
+    expect(screen.queryByText(/chat:activity\.elapsed/)).not.toBeInTheDocument()
+
+    // Progress heartbeat updates smoothly in place on tick.
+    liveStatus = '正在准备编辑文件…\n  （已生成 1,500 字）'
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(screen.getByTestId('stream-activity-stage')).toHaveTextContent('正在准备编辑文件… （已生成 1,500 字）')
+    expect(screen.getByText('chat:activity.seconds:{"seconds":1}')).toBeInTheDocument()
+
+    // Empty/cleared status falls back cleanly to generic elapsed copy.
+    liveStatus = '   '
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(screen.queryByTestId('stream-activity-stage')).not.toBeInTheDocument()
+    expect(screen.getByText('chat:activity.elapsed:{"seconds":2}')).toBeInTheDocument()
+  })
+
+  it('prefers active bodyWrite progress over generic statusText and updates string statusText immediately', () => {
+    vi.useFakeTimers()
+    let snapshot: { title: string; words: number } | null = { title: '第二章', words: 420 }
+    const { rerender } = render(
+      <StreamActivityLine
+        startedAt={Date.now()}
+        bodyWrite={() => snapshot}
+        statusText="正在准备编辑文件…"
+      />,
+    )
+
+    expect(screen.getByTestId('stream-activity-stage')).toHaveTextContent(
+      'chat:activity.writingBodyWords:{"title":"第二章","count":420,"words":"420"}',
+    )
+
+    snapshot = null
+    rerender(
+      <StreamActivityLine
+        startedAt={Date.now()}
+        bodyWrite={() => snapshot}
+        statusText="正在准备检索文件…"
+      />,
+    )
+    expect(screen.getByTestId('stream-activity-stage')).toHaveTextContent('正在准备检索文件…')
+  })
 })

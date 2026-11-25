@@ -74,6 +74,86 @@ const readStoredExpanded = (): boolean => {
   }
 };
 
+const PREVIEW_MAX_CLAUSE_TARGET = 48;
+const CODE_FENCE_LINE = /^\s*```/;
+const HORIZONTAL_RULE_LINE = /^\s*[-*_]{3,}\s*$/;
+const PUNCTUATION_ONLY = /^[\s.,;:!?。，；：！？…·\-—–()（）【】[\]「」『』“”‘’"']+$/;
+
+/**
+ * Strips block/inline markdown syntax from a single reasoning line so it reads
+ * cleanly inside a one-line collapsed preview.
+ */
+function stripInlineMarkdownForPreview(line: string): string {
+  return line
+    .replace(/^\s*(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)、]\s*)+/, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/^[*_~`#]+|[*_~`#]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Extracts a subtle single-line rolling preview of the latest non-empty
+ * sentence or clause from sanitized reasoning text while streaming.
+ */
+function extractThinkingPreview(displayContent: string): string {
+  if (!displayContent) return "";
+
+  const lines = displayContent.split(/\r?\n/);
+  let latestLine = "";
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const raw = lines[i];
+    if (CODE_FENCE_LINE.test(raw) || HORIZONTAL_RULE_LINE.test(raw)) continue;
+    const cleaned = stripInlineMarkdownForPreview(raw);
+    if (cleaned && !PUNCTUATION_ONLY.test(cleaned)) {
+      latestLine = cleaned;
+      break;
+    }
+  }
+  if (!latestLine) return "";
+
+  const sentences = latestLine
+    .split(/(?<=[。！？!?；;])|(?<=[.])\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && !PUNCTUATION_ONLY.test(part));
+
+  if (sentences.length === 0) return latestLine;
+
+  let candidate = sentences[sentences.length - 1];
+  // Avoid flashing a 1-character fragment right after a period while streaming token-by-token.
+  if (candidate.length < 2 && sentences.length >= 2) {
+    candidate = sentences[sentences.length - 2];
+  }
+
+  if (candidate.length > PREVIEW_MAX_CLAUSE_TARGET) {
+    const clauses = candidate
+      .split(/(?<=[，,：:])/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0 && !PUNCTUATION_ONLY.test(part));
+    if (clauses.length > 1) {
+      let rolling = clauses[clauses.length - 1];
+      if (rolling.length < 2 && clauses.length >= 2) {
+        rolling = clauses[clauses.length - 2];
+      } else {
+        for (let i = clauses.length - 2; i >= 0; i -= 1) {
+          const next = `${clauses[i]}${rolling}`;
+          if (next.length > PREVIEW_MAX_CLAUSE_TARGET) break;
+          rolling = next;
+        }
+      }
+      return rolling;
+    }
+  }
+
+  return candidate;
+}
+
 /**
  * Renders a collapsible panel displaying AI thinking/reasoning content.
  *
@@ -112,6 +192,11 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
     [content, t],
   );
 
+  const livePreview = useMemo(
+    () => (isStreaming && !isExpanded ? extractThinkingPreview(displayContent) : ""),
+    [isStreaming, isExpanded, displayContent],
+  );
+
   // Return null if nothing is left to show
   if (!displayContent || displayContent.trim().length === 0) {
     return null;
@@ -129,15 +214,28 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
           ? t('chat:thinking.collapse', '收起思考过程')
           : t('chat:thinking.expand', '展开思考过程')}
       >
-        <span className="truncate font-medium">
+        <span className="shrink-0 font-medium">
           {t('chat:thinking.title')}
         </span>
         {isStreaming && (
-          <div className="flex items-center gap-0.5 shrink-0">
-            <span className="w-1 h-1 bg-[hsl(var(--text-tertiary))] rounded-full animate-pulse"></span>
-            <span className="w-1 h-1 bg-[hsl(var(--text-tertiary))] rounded-full animate-pulse" style={{ animationDelay: "0.2s" }}></span>
-            <span className="w-1 h-1 bg-[hsl(var(--text-tertiary))] rounded-full animate-pulse" style={{ animationDelay: "0.4s" }}></span>
+          <div className="flex items-center gap-0.5 shrink-0" aria-hidden="true">
+            <span className="w-1 h-1 bg-[hsl(var(--text-tertiary))] rounded-full animate-pulse motion-reduce:animate-none"></span>
+            <span className="w-1 h-1 bg-[hsl(var(--text-tertiary))] rounded-full animate-pulse motion-reduce:animate-none" style={{ animationDelay: "0.2s" }}></span>
+            <span className="w-1 h-1 bg-[hsl(var(--text-tertiary))] rounded-full animate-pulse motion-reduce:animate-none" style={{ animationDelay: "0.4s" }}></span>
           </div>
+        )}
+        {livePreview && (
+          <>
+            <span aria-hidden="true" className="shrink-0 text-[hsl(var(--text-tertiary))]">
+              ·
+            </span>
+            <span
+              data-testid="thinking-live-preview"
+              className="min-w-0 truncate font-normal text-[hsl(var(--text-tertiary))]"
+            >
+              {livePreview}
+            </span>
+          </>
         )}
         <ChevronDown
           size={12}
