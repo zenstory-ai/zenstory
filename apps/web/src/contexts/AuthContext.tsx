@@ -315,12 +315,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // A switch updates the signed-in user and its cache at once, so a reload inside the cache
   // window does not bring back the previous language.
   const signedInUserId = user?.id;
+  const signedInUserIdRef = React.useRef<string | undefined>(signedInUserId);
+  signedInUserIdRef.current = signedInUserId;
   const accountLanguage = user?.ui_language;
   const rememberAccountLanguage = React.useCallback((language: string) => {
-    if (signedInUserId) {
-      syncedLanguageRef.current = { userId: signedInUserId, language };
-    }
-    setUserState(current => (current ? { ...current, ui_language: language } : current));
+    if (!signedInUserId || signedInUserIdRef.current !== signedInUserId) return;
+    syncedLanguageRef.current = { userId: signedInUserId, language };
+    setUserState(current => (current && current.id === signedInUserId ? { ...current, ui_language: language } : current));
     const cached = getValidCachedUser();
     if (cached && cached.id === signedInUserId) saveUserCache({ ...cached, ui_language: language });
   }, [signedInUserId]);
@@ -334,7 +335,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       (syncedLanguageRef.current?.userId === signedInUserId
         ? syncedLanguageRef.current.language
         : accountLanguage);
-    return syncAccountLanguage(i18next, effectiveAccountLanguage, rememberAccountLanguage);
+    return syncAccountLanguage(
+      i18next,
+      effectiveAccountLanguage,
+      rememberAccountLanguage,
+      () => signedInUserIdRef.current === signedInUserId,
+    );
   }, [signedInUserId, accountLanguage, rememberAccountLanguage]);
 
   useEffect(() => {

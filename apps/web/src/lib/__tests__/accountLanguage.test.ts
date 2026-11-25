@@ -46,26 +46,47 @@ describe('interface language on the account', () => {
     expect(put).toHaveBeenCalledTimes(1);
   });
 
-  it.each([null, undefined, 'fr'])('backfills an empty or unsupported account language (%s) immediately', async (missing) => {
-    put.mockResolvedValue({});
+  it.each([null, undefined, 'fr'])('backfills an empty or unsupported account language (%s) immediately with only_if_unset', async (missing) => {
+    put.mockResolvedValue({ ui_language: 'en' });
     const i18n = await instance('en-US');
     const onSwitched = vi.fn();
 
     const stop = syncAccountLanguage(i18n, missing, onSwitched);
     expect(onSwitched).toHaveBeenCalledWith('en');
-    await vi.waitFor(() => expect(put).toHaveBeenCalledWith('/api/auth/me/preferences', { ui_language: 'en' }));
+    await vi.waitFor(() =>
+      expect(put).toHaveBeenCalledWith('/api/auth/me/preferences', { ui_language: 'en', only_if_unset: true }),
+    );
 
     await i18n.changeLanguage('zh');
     expect(onSwitched).toHaveBeenCalledWith('zh');
     await vi.waitFor(() => expect(put).toHaveBeenCalledTimes(2));
-    expect(put.mock.calls.map(call => call[1])).toEqual([{ ui_language: 'en' }, { ui_language: 'zh' }]);
+    expect(put.mock.calls.map(call => call[1])).toEqual([
+      { ui_language: 'en', only_if_unset: true },
+      { ui_language: 'zh' },
+    ]);
+    stop();
+  });
+
+  it('adopts the server-stored language when only_if_unset returns an existing preference', async () => {
+    put.mockResolvedValueOnce({ ui_language: 'zh' });
+    const i18n = await instance('en');
+    const onSwitched = vi.fn();
+
+    const stop = syncAccountLanguage(i18n, null, onSwitched);
+    await vi.waitFor(() => expect(i18n.language).toBe('zh'));
+    expect(onSwitched).toHaveBeenLastCalledWith('zh');
+    // Adopting the server-returned language must NOT trigger a second PUT.
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(put).toHaveBeenCalledWith('/api/auth/me/preferences', { ui_language: 'en', only_if_unset: true });
     stop();
   });
 
   it('serializes backfill ahead of a subsequent language switch in the same queue', async () => {
     let finishBackfill: () => void = () => {};
-    put.mockImplementationOnce(() => new Promise<void>(resolve => { finishBackfill = resolve; }));
-    put.mockResolvedValue({});
+    put.mockImplementationOnce(() => new Promise<{ ui_language: string }>(resolve => {
+      finishBackfill = () => resolve({ ui_language: 'en' });
+    }));
+    put.mockResolvedValue({ ui_language: 'zh' });
     const i18n = await instance('en');
     const stop = syncAccountLanguage(i18n, null);
 
@@ -73,7 +94,12 @@ describe('interface language on the account', () => {
     await vi.waitFor(() => expect(put).toHaveBeenCalledTimes(1));
     finishBackfill();
     await vi.waitFor(() => expect(put).toHaveBeenCalledTimes(2));
-    expect(put.mock.calls.map(call => call[1])).toEqual([{ ui_language: 'en' }, { ui_language: 'zh' }]);
+    expect(put.mock.calls.map(call => call[1])).toEqual([
+      { ui_language: 'en', only_if_unset: true },
+      { ui_language: 'zh' },
+    ]);
+    // Late backfill response must not revert the user's explicit switch to 'zh'.
+    expect(i18n.language).toBe('zh');
     stop();
   });
 

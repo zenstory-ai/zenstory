@@ -1541,7 +1541,7 @@ describe('AuthContext', () => {
         await waitFor(() => {
           expect(preferencePuts).toHaveLength(1)
         })
-        expect(JSON.parse(preferencePuts[0].body ?? '{}')).toEqual({ ui_language: 'en' })
+        expect(JSON.parse(preferencePuts[0].body ?? '{}')).toEqual({ ui_language: 'en', only_if_unset: true })
         expect(result.current.user?.ui_language).toBe('en')
         expect(JSON.parse(localStorage.getItem('user') ?? '{}').ui_language).toBe('en')
 
@@ -1604,8 +1604,46 @@ describe('AuthContext', () => {
           await result.current.login('nullb@example.com', 'password')
         })
         await waitFor(() => expect(preferencePuts).toHaveLength(1))
-        expect(JSON.parse(preferencePuts[0].body ?? '{}')).toEqual({ ui_language: 'en' })
+        expect(JSON.parse(preferencePuts[0].body ?? '{}')).toEqual({ ui_language: 'en', only_if_unset: true })
       } finally {
+        Object.defineProperty(i18next, 'language', { value: previousLanguage, configurable: true })
+      }
+    })
+
+    it('adopts server-stored ui_language when only_if_unset backfill discovers an existing value', async () => {
+      const previousLanguage = i18next.language
+      const changeLanguageSpy = vi.spyOn(i18next, 'changeLanguage').mockResolvedValue(i18next.t)
+      Object.defineProperty(i18next, 'language', { value: 'en', configurable: true })
+
+      try {
+        const preferencePuts: Array<{ body: string | null }> = []
+        mockFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/api/auth/me/preferences') && init?.method === 'PUT') {
+            preferencePuts.push({ body: typeof init.body === 'string' ? init.body : null })
+            // Simulates /api/auth/me having returned null transiently while DB already holds 'zh'.
+            return { ok: true, status: 200, json: async () => ({ ui_language: 'zh' }) }
+          }
+          return { ok: true, status: 200, json: async () => ({}) }
+        })
+
+        vi.mocked(api.authApi.login).mockResolvedValueOnce(
+          createMockAuthResponse({ id: 'user-transient-null', ui_language: null }),
+        )
+        const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() })
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        await act(async () => {
+          await result.current.login('transient@example.com', 'password')
+        })
+
+        await waitFor(() => expect(result.current.user?.ui_language).toBe('zh'))
+        expect(preferencePuts).toHaveLength(1)
+        expect(JSON.parse(preferencePuts[0].body ?? '{}')).toEqual({ ui_language: 'en', only_if_unset: true })
+        expect(changeLanguageSpy).toHaveBeenCalledWith('zh')
+        expect(JSON.parse(localStorage.getItem('user') ?? '{}').ui_language).toBe('zh')
+      } finally {
+        changeLanguageSpy.mockRestore()
         Object.defineProperty(i18next, 'language', { value: previousLanguage, configurable: true })
       }
     })

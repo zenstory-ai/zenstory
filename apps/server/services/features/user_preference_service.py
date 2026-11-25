@@ -35,8 +35,18 @@ def get_ui_language(session: Session, user_id: str) -> str | None:
     return preference.ui_language if preference else None
 
 
-def set_ui_language(session: Session, user_id: str, language: str | None) -> str | None:
-    """Stage a supported language and return it; an unsupported value changes nothing and returns None.
+def set_ui_language(
+    session: Session,
+    user_id: str,
+    language: str | None,
+    *,
+    only_if_unset: bool = False,
+) -> str | None:
+    """Stage a supported language and return the resulting stored value.
+
+    An unsupported value changes nothing and returns None. When `only_if_unset=True`,
+    an already-stored supported language is preserved untouched and returned instead
+    of being overwritten (protects against client backfill after a transient read failure).
 
     Adds to the caller's session without committing or reading anything else, so sign-up can keep
     it in its own transaction.
@@ -45,6 +55,10 @@ def set_ui_language(session: Session, user_id: str, language: str | None) -> str
     if normalized is None:
         return None
     preference = session.get(UserPreference, user_id)
+    if only_if_unset and preference is not None:
+        existing = normalize_ui_language(preference.ui_language)
+        if existing is not None:
+            return existing
     if preference is None:
         preference = UserPreference(user_id=user_id)
     preference.ui_language = normalized
