@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom/vitest';
-import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -49,24 +48,11 @@ function FilesTabConsumer() {
 }
 
 function DeferredPaneHarness() {
-  const [openMaterials, setOpenMaterials] = useState(false);
   return (
     <MaterialLibraryProvider>
       <FilesTabConsumer />
-      <button type="button" onClick={() => setOpenMaterials(true)}>
-        Switch To Materials Tab
-      </button>
-      {openMaterials && <AutoActivatingConsumer />}
     </MaterialLibraryProvider>
   );
-}
-
-function AutoActivatingConsumer() {
-  const lib = useMaterialLibraryContext();
-  if (!lib.isActivated) {
-    lib.activate();
-  }
-  return <span data-testid="pane-count">{lib.libraries.length}</span>;
 }
 
 describe('MaterialLibraryProvider on-demand loading', () => {

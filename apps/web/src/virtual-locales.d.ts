@@ -48,32 +48,12 @@ declare module 'virtual:zenstory-locale-en-materials' {
   export default resource;
 }
 
-declare module 'virtual:zenstory-locale-zh-onboarding' {
-  const resource: import('i18next').ResourceKey;
-  export default resource;
-}
-
-declare module 'virtual:zenstory-locale-en-onboarding' {
-  const resource: import('i18next').ResourceKey;
-  export default resource;
-}
-
 declare module 'virtual:zenstory-locale-zh-privacy' {
   const resource: import('i18next').ResourceKey;
   export default resource;
 }
 
 declare module 'virtual:zenstory-locale-en-privacy' {
-  const resource: import('i18next').ResourceKey;
-  export default resource;
-}
-
-declare module 'virtual:zenstory-locale-zh-referral' {
-  const resource: import('i18next').ResourceKey;
-  export default resource;
-}
-
-declare module 'virtual:zenstory-locale-en-referral' {
   const resource: import('i18next').ResourceKey;
   export default resource;
 }

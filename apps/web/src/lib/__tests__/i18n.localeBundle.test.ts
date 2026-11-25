@@ -40,7 +40,13 @@ describe('translation locale bundle backend', () => {
     // Switch to en: core + previously requested lazy namespaces load cleanly
     await instance.changeLanguage('en');
     expect(instance.t('language.en')).toBe('EN');
+    // ProtectedRoute reads `onboarding:errors.loadFailed` without declaring the
+    // namespace, so `onboarding` must stay in core for English fallback parity.
+    expect(instance.t('onboarding:errors.loadFailed')).toBe(
+      'Couldn’t load. Check your connection and try again.',
+    );
     expect(instance.hasResourceBundle('en', 'common')).toBe(true);
+    expect(instance.hasResourceBundle('en', 'referral')).toBe(true);
     expect(instance.hasResourceBundle('en', 'docs')).toBe(true);
     expect(instance.hasResourceBundle('en', 'admin')).toBe(true);
     expect(instance.hasResourceBundle('en', 'skills')).toBe(false);

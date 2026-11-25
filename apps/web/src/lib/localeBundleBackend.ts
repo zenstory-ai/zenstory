@@ -26,9 +26,7 @@ const defaultLazyLoaders: LazyNamespaceLoaders = {
     docs: async () => (await import('virtual:zenstory-locale-zh-docs')).default,
     inspirations: async () => (await import('virtual:zenstory-locale-zh-inspirations')).default,
     materials: async () => (await import('virtual:zenstory-locale-zh-materials')).default,
-    onboarding: async () => (await import('virtual:zenstory-locale-zh-onboarding')).default,
     privacy: async () => (await import('virtual:zenstory-locale-zh-privacy')).default,
-    referral: async () => (await import('virtual:zenstory-locale-zh-referral')).default,
     skills: async () => (await import('virtual:zenstory-locale-zh-skills')).default,
   },
   en: {
@@ -36,9 +34,7 @@ const defaultLazyLoaders: LazyNamespaceLoaders = {
     docs: async () => (await import('virtual:zenstory-locale-en-docs')).default,
     inspirations: async () => (await import('virtual:zenstory-locale-en-inspirations')).default,
     materials: async () => (await import('virtual:zenstory-locale-en-materials')).default,
-    onboarding: async () => (await import('virtual:zenstory-locale-en-onboarding')).default,
     privacy: async () => (await import('virtual:zenstory-locale-en-privacy')).default,
-    referral: async () => (await import('virtual:zenstory-locale-en-referral')).default,
     skills: async () => (await import('virtual:zenstory-locale-en-skills')).default,
   },
 };

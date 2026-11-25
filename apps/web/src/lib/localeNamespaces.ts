@@ -3,11 +3,13 @@
  *
  * - CORE_LOCALE_NAMESPACES: bundled into `virtual:zenstory-locale-{lang}-core`
  *   and loaded upfront on initial boot. Includes every namespace requested on
- *   initial `/dashboard` or `/project/:id` render (plus imperative `errors` and
- *   tiny modal namespaces that mount without a local Suspense boundary).
+ *   initial `/dashboard` or `/project/:id` render, imperative/undeclared
+ *   prefixes (`errors`, `onboarding` in `ProtectedRoute`), and tiny modal
+ *   namespaces that mount without a local Suspense boundary (`points`,
+ *   `project`, `referral`).
  * - LAZY_LOCALE_NAMESPACES: each emitted as its own code-split virtual module
- *   `virtual:zenstory-locale-{lang}-{ns}` and fetched on demand when a route or
- *   Suspense-wrapped pane requests it.
+ *   `virtual:zenstory-locale-{lang}-{ns}` and fetched on demand when a lazy
+ *   route or Suspense-wrapped pane (`Sidebar` → `MaterialsPane`) requests it.
  */
 export const LOCALE_LANGUAGES = ['zh', 'en'] as const;
 export type LocaleLanguage = (typeof LOCALE_LANGUAGES)[number];
@@ -21,8 +23,10 @@ export const CORE_LOCALE_NAMESPACES = [
   'editor',
   'errors',
   'home',
+  'onboarding',
   'points',
   'project',
+  'referral',
   'settings',
   'versions',
 ] as const;
@@ -32,9 +36,7 @@ export const LAZY_LOCALE_NAMESPACES = [
   'docs',
   'inspirations',
   'materials',
-  'onboarding',
   'privacy',
-  'referral',
   'skills',
 ] as const;
 
