@@ -2,25 +2,12 @@
  * LazyMarkdown - A lazy-loaded wrapper for react-markdown with remark-gfm support.
  *
  * This component reduces initial bundle size by dynamically importing
- * react-markdown and remark-gfm only when they are needed.
- *
- * @example
- * ```tsx
- * import { LazyMarkdown } from './LazyMarkdown';
- *
- * function MyComponent() {
- *   return (
- *     <LazyMarkdown className="prose dark:prose-invert">
- *       # Hello World
- *       - List item 1
- *       - List item 2
- *     </LazyMarkdown>
- *   );
- * }
- * ```
+ * react-markdown and remark-gfm only when they are needed, while caching the
+ * remark-gfm plugin at module scope and memoizing plugin arrays so mounted
+ * chat bubbles never double-parse on initial render or parent re-renders.
  */
 
-import React, { Suspense, useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect, useMemo } from 'react';
 import type { Components, Options } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { lazyRoute } from '../lib/chunkRecovery';
@@ -30,8 +17,40 @@ import { prepareCjkEmphasis, remarkStripCjkEmphasisMarkers } from "../lib/cjkEmp
 type RemarkPlugins = NonNullable<Options['remarkPlugins']>;
 type RehypePlugins = NonNullable<Options['rehypePlugins']>;
 
-// Lazy load react-markdown to reduce initial bundle size
-const ReactMarkdown = lazyRoute(() => import('react-markdown'), 'react-markdown');
+const EMPTY_REMARK_PLUGINS: RemarkPlugins = [];
+
+let cachedGfmPlugin: RemarkPlugins[number] | null = null;
+let gfmLoadPromise: Promise<RemarkPlugins[number] | null> | null = null;
+
+function loadGfmPlugin(): Promise<RemarkPlugins[number] | null> {
+  if (cachedGfmPlugin) return Promise.resolve(cachedGfmPlugin);
+  if (!gfmLoadPromise) {
+    gfmLoadPromise = import('remark-gfm')
+      .then((module) => {
+        cachedGfmPlugin = module.default;
+        return cachedGfmPlugin;
+      })
+      .catch((error) => {
+        gfmLoadPromise = null;
+        logger.error('Failed to load remark-gfm:', error);
+        return null;
+      });
+  }
+  return gfmLoadPromise;
+}
+
+// Lazy load react-markdown in parallel with remark-gfm so the GFM plugin is
+// already cached by the time the first ReactMarkdown render commits.
+const ReactMarkdown = lazyRoute(
+  async () => {
+    const [markdownModule] = await Promise.all([
+      import('react-markdown'),
+      loadGfmPlugin(),
+    ]);
+    return markdownModule;
+  },
+  'react-markdown',
+);
 
 /**
  * Props for the LazyMarkdown component.
@@ -66,45 +85,42 @@ function MarkdownFallback({ className }: { className?: string }) {
 
 /**
  * LazyMarkdown component that lazy loads react-markdown and remark-gfm.
- *
- * Features:
- * - Reduces initial bundle size by code-splitting markdown dependencies
- * - Supports GitHub Flavored Markdown (GFM) via remark-gfm
- * - Fully compatible with existing react-markdown usage patterns
- * - Shows loading fallback while dependencies load
- *
- * @param props - The component props
- * @returns A lazy-loaded markdown renderer
  */
 export function LazyMarkdown({
   children,
   className,
   components,
-  remarkPlugins = [],
+  remarkPlugins = EMPTY_REMARK_PLUGINS,
   rehypePlugins,
   skipHtml,
 }: LazyMarkdownProps) {
-  // State to hold the dynamically loaded remark-gfm plugin
-  const [gfmPlugin, setGfmPlugin] = useState<RemarkPlugins[number] | null>(null);
+  const [gfmPlugin, setGfmPlugin] = useState<RemarkPlugins[number] | null>(() => cachedGfmPlugin);
 
-  // Load remark-gfm plugin on mount
   useEffect(() => {
-    import('remark-gfm')
-      .then((module) => {
-        setGfmPlugin(() => module.default);
-      })
-      .catch((error) => {
-        logger.error('Failed to load remark-gfm:', error);
-      });
-  }, []);
+    if (gfmPlugin) return;
+    let cancelled = false;
+    void loadGfmPlugin().then((plugin) => {
+      if (!cancelled && plugin) {
+        setGfmPlugin(() => plugin);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [gfmPlugin]);
 
   // Combine GFM plugin with any additional remark plugins. The CJK marker strip
   // pairs with `prepareCjkEmphasis` below (bold beside 《》“” etc.).
-  const allRemarkPlugins: RemarkPlugins = [
-    ...(gfmPlugin ? [gfmPlugin] : []),
-    ...remarkPlugins,
-    remarkStripCjkEmphasisMarkers,
-  ];
+  const allRemarkPlugins = useMemo<RemarkPlugins>(
+    () => [
+      ...(gfmPlugin ? [gfmPlugin] : []),
+      ...remarkPlugins,
+      remarkStripCjkEmphasisMarkers,
+    ],
+    [gfmPlugin, remarkPlugins],
+  );
+
+  const preparedChildren = useMemo(() => prepareCjkEmphasis(children), [children]);
 
   return (
     <Suspense fallback={<MarkdownFallback className={className} />}>
@@ -115,7 +131,7 @@ export function LazyMarkdown({
           components={components}
           skipHtml={skipHtml}
         >
-          {prepareCjkEmphasis(children)}
+          {preparedChildren}
         </ReactMarkdown>
       </div>
     </Suspense>

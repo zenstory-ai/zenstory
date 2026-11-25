@@ -1,5 +1,4 @@
-import posthog from "posthog-js";
-import type { CaptureResult } from "posthog-js";
+import type { CaptureResult, PostHog } from "posthog-js";
 import logger from "./logger";
 import type { User } from "../contexts/AuthContext";
 import { parseEnvBoolean } from "../config/env";
@@ -21,10 +20,16 @@ interface AnalyticsInitStatus {
   reason?: "disabled_flag" | "missing_key" | "opted_out";
 }
 
+interface ScheduledInitHandle {
+  cancel: () => void;
+}
+
 const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 const PAGE_VIEW_EVENT = "page_view";
 const PAGEVIEW_DEDUPE_WINDOW_MS = 1000;
 const ANALYTICS_OPT_OUT_STORAGE_KEY = "zenstory:analytics-opt-out";
+const IDLE_INIT_TIMEOUT_MS = 2000;
+const MAX_PENDING_OPERATIONS = 100;
 
 /**
  * Query parameters allowed to leave the browser in analytics URLs. Everything
@@ -38,14 +43,19 @@ const UNTRACKED_PATH_PREFIXES = ["/auth/callback"];
 /** PostHog properties holding a bare path. */
 const PATH_PROPERTY_KEYS = new Set(["$pathname", "$prev_pageview_pathname", "$initial_pathname"]);
 
-let isInitialized = false;
+let isEnabled = false;
+let posthogClient: PostHog | null = null;
+let pendingInitPromise: Promise<void> | null = null;
+let scheduledInit: ScheduledInitHandle | null = null;
+let pendingOperations: Array<(client: PostHog) => void> = [];
+let initGeneration = 0;
 let lastPageViewKey: string | null = null;
 let lastPageViewAt = 0;
 let lastInitEnv: AnalyticsEnv | null = null;
 
 declare global {
   interface Window {
-    __zenstoryPosthog?: typeof posthog;
+    __zenstoryPosthog?: PostHog;
     __zenstoryAnalyticsStatus?: AnalyticsInitStatus;
   }
 }
@@ -194,6 +204,117 @@ export function isAnalyticsOptedOut(): boolean {
   return readOptOut();
 }
 
+function scheduleAfterFirstPaint(callback: () => void): ScheduledInitHandle {
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(callback, { timeout: IDLE_INIT_TIMEOUT_MS });
+    return {
+      cancel: () => {
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(id);
+        }
+      },
+    };
+  }
+  const timer = setTimeout(callback, 0);
+  return {
+    cancel: () => clearTimeout(timer),
+  };
+}
+
+function enqueueOperation(operation: (client: PostHog) => void): void {
+  if (posthogClient) {
+    operation(posthogClient);
+    return;
+  }
+  if (!isEnabled) return;
+  if (pendingOperations.length >= MAX_PENDING_OPERATIONS) {
+    pendingOperations.shift();
+  }
+  pendingOperations.push(operation);
+}
+
+function flushPendingOperations(client: PostHog): void {
+  if (pendingOperations.length === 0) return;
+  const queued = pendingOperations;
+  pendingOperations = [];
+  for (const op of queued) {
+    try {
+      op(client);
+    } catch (error) {
+      logger.warn("[analytics] Failed to flush queued analytics operation", error);
+    }
+  }
+}
+
+async function loadAndInitializePostHog(
+  generation: number,
+  env: AnalyticsEnv,
+  apiKey: string,
+): Promise<void> {
+  try {
+    const module = await import("posthog-js");
+    const client = module.default;
+    if (generation !== initGeneration || !isEnabled || readOptOut()) {
+      return;
+    }
+
+    client.init(
+      apiKey,
+      {
+        api_host: getAnalyticsHost(env),
+        defaults: "2026-01-30",
+        internal_or_test_user_hostname: undefined,
+        person_profiles: "identified_only",
+        autocapture: false,
+        capture_pageview: false,
+        disable_session_recording: true,
+        // Pin every DOM-derived capture off locally so a PostHog project
+        // setting cannot start sending manuscript or chat text.
+        capture_dead_clicks: false,
+        capture_heatmaps: false,
+        rageclick: false,
+        mask_all_text: true,
+        mask_all_element_attributes: true,
+        before_send: sanitizeCaptureResult,
+        request_batching: !env.DEV,
+      } as unknown as Parameters<PostHog["init"]>[1],
+    );
+    // PostHog persists opt_out_capturing() in its own storage key, so a browser
+    // that opted out and then reloaded would stay silenced after the switch was
+    // turned back on. Our flag is the only source of truth: reaching this point
+    // means the viewer has not opted out, so clear any stale PostHog opt-out.
+    if (client.has_opted_out_capturing()) {
+      client.opt_in_capturing();
+    }
+    client.startExceptionAutocapture();
+    posthogClient = client;
+
+    if (env.DEV) {
+      window.__zenstoryPosthog = client;
+    }
+
+    logger.info("[analytics] PostHog initialized", {
+      host: getAnalyticsHost(env),
+    });
+
+    flushPendingOperations(client);
+  } catch (error) {
+    if (generation === initGeneration) {
+      isEnabled = false;
+      pendingOperations = [];
+    }
+    logger.warn("[analytics] Failed to load PostHog SDK", error);
+  }
+}
+
+/**
+ * Resolves once any scheduled or in-flight PostHog initialization settles.
+ * Primarily useful in tests and lifecycle checks.
+ */
+export function whenAnalyticsReady(): Promise<void> {
+  return pendingInitPromise ?? Promise.resolve();
+}
+
 /**
  * Viewer-controlled analytics switch (Settings > General). Opting out stops
  * all PostHog capture (events and error tracking) and is remembered per
@@ -211,13 +332,21 @@ export function setAnalyticsOptOut(optOut: boolean): void {
   }
 
   if (optOut) {
-    if (isInitialized) posthog.opt_out_capturing();
+    initGeneration += 1;
+    scheduledInit?.cancel();
+    scheduledInit = null;
+    pendingOperations = [];
+    isEnabled = false;
+    pendingInitPromise = null;
+    if (posthogClient) posthogClient.opt_out_capturing();
     return;
   }
-  if (isInitialized) {
-    posthog.opt_in_capturing();
+
+  if (posthogClient) {
+    isEnabled = true;
+    posthogClient.opt_in_capturing();
   } else if (lastInitEnv) {
-    initAnalytics(lastInitEnv, { ignoreOptOut: true });
+    initAnalytics(lastInitEnv, { ignoreOptOut: true, defer: false });
   }
 }
 
@@ -239,9 +368,9 @@ function setAnalyticsStatus(status: AnalyticsInitStatus): void {
 
 export function initAnalytics(
   env: AnalyticsEnv = import.meta.env,
-  options: { ignoreOptOut?: boolean } = {},
+  options: { ignoreOptOut?: boolean; defer?: boolean } = {},
 ): boolean {
-  if (isInitialized) return true;
+  if (isEnabled) return true;
   lastInitEnv = env;
 
   const enabledFlag = parseEnvBoolean(env.VITE_POSTHOG_ENABLED, false);
@@ -287,65 +416,45 @@ export function initAnalytics(
     return false;
   }
 
-  posthog.init(
-    apiKey,
-    {
-      api_host: getAnalyticsHost(env),
-      defaults: "2026-01-30",
-      internal_or_test_user_hostname: undefined,
-      person_profiles: "identified_only",
-      autocapture: false,
-      capture_pageview: false,
-      disable_session_recording: true,
-      // Pin every DOM-derived capture off locally so a PostHog project
-      // setting cannot start sending manuscript or chat text.
-      capture_dead_clicks: false,
-      capture_heatmaps: false,
-      rageclick: false,
-      mask_all_text: true,
-      mask_all_element_attributes: true,
-      before_send: sanitizeCaptureResult,
-      request_batching: !env.DEV,
-    } as unknown as Parameters<typeof posthog.init>[1]
-  );
-  // PostHog persists opt_out_capturing() in its own storage key, so a browser
-  // that opted out and then reloaded would stay silenced after the switch was
-  // turned back on. Our flag is the only source of truth: reaching this point
-  // means the viewer has not opted out, so clear any stale PostHog opt-out.
-  if (posthog.has_opted_out_capturing()) {
-    posthog.opt_in_capturing();
-  }
-  posthog.startExceptionAutocapture();
-  isInitialized = true;
+  isEnabled = true;
+  const generation = ++initGeneration;
   setAnalyticsStatus({
     enabled: true,
     hasKey: true,
     host: getAnalyticsHost(env),
   });
-  if (env.DEV) {
-    window.__zenstoryPosthog = posthog;
-  }
 
-  logger.info("[analytics] PostHog initialized", {
-    host: getAnalyticsHost(env),
-  });
+  const shouldDefer = options.defer !== false;
+  if (shouldDefer) {
+    pendingInitPromise = new Promise<void>((resolve) => {
+      scheduledInit = scheduleAfterFirstPaint(() => {
+        scheduledInit = null;
+        void loadAndInitializePostHog(generation, env, apiKey).finally(resolve);
+      });
+    });
+  } else {
+    pendingInitPromise = loadAndInitializePostHog(generation, env, apiKey);
+  }
 
   return true;
 }
 
 export function trackEvent(eventName: string, properties: AnalyticsProperties = {}): void {
-  if (!isInitialized) return;
+  if (!isEnabled) return;
   const normalizedEventName = eventName.trim();
   if (!normalizedEventName) return;
 
-  posthog.capture(normalizedEventName, sanitizeAnalyticsProperties({
+  const payload = sanitizeAnalyticsProperties({
     ...getCommonProperties(),
     ...properties,
-  }));
+  });
+  enqueueOperation((client) => {
+    client.capture(normalizedEventName, payload);
+  });
 }
 
 export function trackPageView(properties: AnalyticsProperties = {}): void {
-  if (!isInitialized) return;
+  if (!isEnabled) return;
 
   const path = window.location.pathname;
   if (UNTRACKED_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))) return;
@@ -362,29 +471,36 @@ export function trackPageView(properties: AnalyticsProperties = {}): void {
 }
 
 export function identifyUser(user: Pick<User, "id" | "email" | "username" | "is_superuser">): void {
-  if (!isInitialized) return;
+  if (!isEnabled) return;
 
-  posthog.identify(user.id, {
-    is_superuser: user.is_superuser,
+  const userId = user.id;
+  const traits = { is_superuser: user.is_superuser };
+  enqueueOperation((client) => {
+    client.identify(userId, traits);
   });
 }
 
 export function resetAnalytics(): void {
-  if (!isInitialized) return;
+  if (!isEnabled) return;
 
-  posthog.reset(true);
   lastPageViewKey = null;
   lastPageViewAt = 0;
+  enqueueOperation((client) => {
+    client.reset(true);
+  });
 }
 
 export function captureException(
   error: unknown,
-  additionalProperties: AnalyticsProperties = {}
+  additionalProperties: AnalyticsProperties = {},
 ): void {
-  if (!isInitialized) return;
+  if (!isEnabled) return;
 
-  posthog.captureException(error, sanitizeAnalyticsProperties({
+  const payload = sanitizeAnalyticsProperties({
     ...getCommonProperties(),
     ...additionalProperties,
-  }));
+  });
+  enqueueOperation((client) => {
+    client.captureException(error, payload);
+  });
 }
