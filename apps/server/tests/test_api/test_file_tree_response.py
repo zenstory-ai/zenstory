@@ -67,7 +67,7 @@ class TreeProbe:
         self.session.commit()
         assert self.session.exec(text("PRAGMA foreign_key_check")).all() == []
 
-    async def get(self, *, include_content=False, raise_errors=False, project_id=None):
+    async def get(self, *, include_content=False, raise_errors=False, project_id=None, headers=None):
         statements = []
 
         def observe(_connection, _cursor, statement, _parameters, _context, _many):
@@ -88,6 +88,7 @@ class TreeProbe:
                     params={} if include_content is None else {
                         "include_content": str(include_content).lower(),
                     },
+                    headers=headers,
                 )
             return response, statements
         finally:
@@ -410,7 +411,10 @@ async def test_shallow_raw_json_parity_and_headers(tree_probe, metadata, include
         _row(tree_probe.project.id, "second-root", order=10),
     ]
     tree_probe.seed(rows)
-    response, statements = await tree_probe.get(include_content=include_content)
+    response, statements = await tree_probe.get(
+        include_content=include_content,
+        headers={"Accept-Encoding": "identity"},
+    )
     assert response.status_code == 200
     _assert_projection(statements, include_content)
     expected_nodes = [{
@@ -429,6 +433,7 @@ async def test_shallow_raw_json_parity_and_headers(tree_probe, metadata, include
     assert response.content == raw
     assert response.json() == expected
     assert response.headers["content-type"] == "application/json"
+    assert "content-encoding" not in response.headers
     assert int(response.headers["content-length"]) == len(raw)
     _record(record_property, {
         "shape": "exact shallow JSON parity", "include_content": include_content,
