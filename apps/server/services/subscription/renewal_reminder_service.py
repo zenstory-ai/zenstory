@@ -16,6 +16,7 @@ from models.entities import User
 from models.payment import PaymentOrder
 from models.subscription import SubscriptionHistory, SubscriptionPlan, UserSubscription
 from models.user_preference import UserPreference
+from services.features.user_preference_service import normalize_ui_language
 from services.infra.email_client import (
     RENEWAL_STAGE_AFTER_EXPIRY as STAGE_AFTER_EXPIRY,
 )
@@ -70,6 +71,44 @@ def _naive_utc(value: datetime) -> datetime:
     return normalize_datetime_to_utc(value).replace(tzinfo=None)
 
 
+def _resolve_reminder_language(
+    session: Session,
+    user_id: str,
+    ui_language: str | None,
+) -> str:
+    """Resolve renewal email language when there is no HTTP request context.
+
+    Priority:
+    1. Saved account `user_preference.ui_language` ('zh' / 'en').
+    2. Latest paid order checkout currency/provider (USD / Creem -> 'en').
+    3. Otherwise keep 'zh' so legacy CNY/Alipay subscribers without ui_language
+       do not suddenly receive English renewal emails.
+    """
+    normalized = normalize_ui_language(ui_language)
+    if normalized:
+        return normalized
+
+    latest_paid_order = session.exec(
+        select(PaymentOrder)
+        .where(
+            PaymentOrder.user_id == user_id,
+            PaymentOrder.status == "paid",
+        )
+        .order_by(
+            PaymentOrder.paid_at.desc(),
+            PaymentOrder.created_at.desc(),
+            PaymentOrder.id.desc(),
+        )
+    ).first()
+    if latest_paid_order is not None:
+        currency = (latest_paid_order.currency or "").upper()
+        provider = (latest_paid_order.provider or "").lower()
+        if currency == "USD" or provider == "creem":
+            return "en"
+
+    return "zh"
+
+
 def _find_candidates(session: Session, stage: str, today: date) -> list[_Candidate]:
     start, end = _beijing_day_window(today + timedelta(days=_STAGE_DAY_OFFSETS[stage]))
     paid_order = select(PaymentOrder.id).where(
@@ -100,7 +139,7 @@ def _find_candidates(session: Session, stage: str, today: date) -> list[_Candida
             user_id=user.id,
             email=user.email,
             period_end=subscription.current_period_end,
-            language="en" if (ui_language or "").startswith("en") else "zh",
+            language=_resolve_reminder_language(session, user.id, ui_language),
         )
         for subscription, user, ui_language in rows
     ]

@@ -178,3 +178,51 @@ def test_english_readers_get_the_english_email(db_session, pro, sender):
     run(db_session)
 
     assert sender.call_args.args[0]["subject"] == "Your ZenStory Pro ends on November 7"
+
+
+def test_null_ui_language_infers_english_for_usd_creem_orders_and_keeps_zh_for_cny(db_session, pro, sender):
+    usd_user = author(db_session, pro, "usd_buyer", datetime(2026, 11, 7, 4, 0), paid=False, language=None)
+    db_session.add(
+        PaymentOrder(
+            out_trade_no="order-usd-creem-1",
+            user_id=usd_user.id,
+            plan_name="pro",
+            plan_display_name="Pro",
+            product_name="ZenStory Pro",
+            cycle="month",
+            amount_cents=999,
+            currency="USD",
+            provider="creem",
+            duration_days=30,
+            payment_method="card",
+            status="paid",
+        )
+    )
+    zh_pref_usd = author(db_session, pro, "zh_pref_usd", datetime(2026, 11, 7, 4, 0), paid=False, language="zh")
+    db_session.add(
+        PaymentOrder(
+            out_trade_no="order-usd-creem-2",
+            user_id=zh_pref_usd.id,
+            plan_name="pro",
+            plan_display_name="Pro",
+            product_name="ZenStory Pro",
+            cycle="month",
+            amount_cents=999,
+            currency="USD",
+            provider="creem",
+            duration_days=30,
+            payment_method="card",
+            status="paid",
+        )
+    )
+    author(db_session, pro, "legacy_cny", datetime(2026, 11, 7, 4, 0), paid=True, language=None)
+    db_session.commit()
+
+    run(db_session)
+
+    sent = recipients(sender)
+    assert sent["usd_buyer@example.com"]["subject"] == "Your ZenStory Pro ends on November 7"
+    # Saved ui_language takes priority over order currency.
+    assert sent["zh_pref_usd@example.com"]["subject"] == "你的 ZenStory Pro 将在11月7日到期"
+    # Legacy CNY/Alipay orders with NULL ui_language stay Chinese.
+    assert sent["legacy_cny@example.com"]["subject"] == "你的 ZenStory Pro 将在11月7日到期"

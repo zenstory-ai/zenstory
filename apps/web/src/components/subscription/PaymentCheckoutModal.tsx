@@ -198,8 +198,12 @@ export function PaymentCheckoutModal({
       ? proCatalog.price_yearly_usd_cents
       : PRO_USD_PRICE_CENTS.year)
 
-  const activeMonthlyCents = isCardSelected ? resolvedMonthlyUsd : monthlyPriceCents
-  const activeYearlyCents = isCardSelected ? resolvedYearlyUsd : yearlyPriceCents
+  const activeMonthlyCents = isCardSelected
+    ? resolvedMonthlyUsd
+    : (monthlyPriceCents ?? proCatalog?.price_monthly_cents)
+  const activeYearlyCents = isCardSelected
+    ? resolvedYearlyUsd
+    : (yearlyPriceCents ?? proCatalog?.price_yearly_cents)
 
   const createOrder = useMutation({
     mutationFn: () => paymentApi.createOrder({
@@ -378,7 +382,9 @@ export function PaymentCheckoutModal({
                 role="radiogroup"
                 aria-label={t('dashboard:billing.paymentMethodLabel', '支付方式')}
               >
-                {(preferCard ? (['card', 'alipay'] as PaymentMethod[]) : (['alipay', 'card'] as PaymentMethod[])).map((method) => {
+                {(preferCard ? (['card', 'alipay'] as PaymentMethod[]) : (['alipay', 'card'] as PaymentMethod[]))
+                  .filter((method) => availableMethods.includes(method))
+                  .map((method) => {
                   const selected = paymentMethod === method
                   return (
                     <button

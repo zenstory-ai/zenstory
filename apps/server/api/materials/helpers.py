@@ -8,6 +8,7 @@ from sqlmodel import Session
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
+from core.i18n import resolve_accept_language
 from database import create_session
 from models.material_models import IngestionJob, Novel
 from services.material.ingestion_jobs_service import IngestionJobsService
@@ -18,10 +19,7 @@ logger = get_logger(__name__)
 
 def _resolve_lang(accept_language: str | None) -> str:
     """Resolve supported language code from Accept-Language header."""
-    if not accept_language:
-        return "zh"
-    lang = accept_language.split(",")[0].split("-")[0].strip().lower()
-    return "en" if lang == "en" else "zh"
+    return resolve_accept_language(accept_language)
 
 
 def _get_novel_or_404(session: Session, novel_id: int, user_id: str) -> Novel:

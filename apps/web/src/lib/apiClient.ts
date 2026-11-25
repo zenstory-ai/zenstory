@@ -22,8 +22,30 @@
  * ```
  */
 
+import i18next from 'i18next';
 import { resolveApiErrorMessage, toUserErrorMessage } from './errorHandler';
 import { logger } from './logger';
+
+/**
+ * Resolve the active UI language for request headers (`Accept-Language`) and
+ * email language parameters. Prefers live `i18next.language`, falls back to
+ * `localStorage('zenstory-language')`, and defaults to `'en'` (matching i18n fallback).
+ */
+export function getCurrentRequestLanguage(): 'zh' | 'en' {
+  const active = (i18next.language || '').split('-')[0].toLowerCase();
+  if (active === 'zh' || active === 'en') {
+    return active;
+  }
+  try {
+    const stored = (localStorage.getItem('zenstory-language') || '').split('-')[0].toLowerCase();
+    if (stored === 'zh' || stored === 'en') {
+      return stored;
+    }
+  } catch {
+    // Ignore storage access errors.
+  }
+  return 'en';
+}
 
 const API_BASE_RAW = import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.PROD
@@ -578,7 +600,7 @@ export async function authenticatedFetch(
 
   const baseHeaders: Record<string, string> = {};
   if (options.includeLanguage) {
-    baseHeaders['Accept-Language'] = localStorage.getItem('zenstory-language') || 'zh';
+    baseHeaders['Accept-Language'] = getCurrentRequestLanguage();
   }
   if (init.headers) {
     if (init.headers instanceof Headers) {

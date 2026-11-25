@@ -322,6 +322,47 @@ describe("PricingPage", () => {
     expect(await screen.findByText("¥49/月")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /年付/ })).toHaveTextContent("省 32%");
     expect(screen.queryByText(/\$9\.99/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("pricing-alternative-payment-hint")).toHaveTextContent(
+      "Alipay (CNY) is available for mainland China"
+    );
+  });
+
+  it("shows cross-currency payment hints based on UI language and enabled payment methods", async () => {
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+
+    // zh + card available -> international card USD hint
+    mockLanguage = "zh-CN";
+    mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["alipay", "card"] });
+    const zhBoth = render(<PricingPage />, { wrapper: createWrapper() });
+    expect(await screen.findByTestId("pricing-alternative-payment-hint")).toHaveTextContent(
+      "海外用户可使用银行卡以美元支付（$9.99/月）"
+    );
+    zhBoth.unmount();
+
+    // zh + only alipay -> no card hint
+    mockLanguage = "zh-CN";
+    mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["alipay"] });
+    const zhAlipayOnly = render(<PricingPage />, { wrapper: createWrapper() });
+    await screen.findByText("¥49/月");
+    expect(screen.queryByTestId("pricing-alternative-payment-hint")).not.toBeInTheDocument();
+    zhAlipayOnly.unmount();
+
+    // en + only card -> no alipay hint
+    mockLanguage = "en";
+    mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["card"] });
+    const enCardOnly = render(<PricingPage />, { wrapper: createWrapper() });
+    expect(await screen.findByText("$9.99/月")).toBeInTheDocument();
+    expect(screen.queryByTestId("pricing-alternative-payment-hint")).not.toBeInTheDocument();
+    enCardOnly.unmount();
+
+    // non-zh non-en (ja) + card enabled -> USD pricing + alipay hint when alipay available
+    mockLanguage = "ja";
+    mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["alipay", "card"] });
+    render(<PricingPage />, { wrapper: createWrapper() });
+    expect(await screen.findByText("$9.99/月")).toBeInTheDocument();
+    expect(screen.getByTestId("pricing-alternative-payment-hint")).toHaveTextContent(
+      "Alipay (CNY) is available for mainland China"
+    );
   });
 
   it("covers difference-only filter behavior", async () => {

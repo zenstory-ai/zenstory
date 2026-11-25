@@ -185,8 +185,17 @@ export default function BillingPage() {
     [i18n.language, t, sortedPlans]
   );
 
-  const showUsdPricing = usesUsdPricing(i18n.language)
-    && (paymentOptions?.payment_methods?.includes("card") ?? false);
+  const availablePaymentMethods =
+    paymentOptions?.enabled === true ? paymentOptions.payment_methods : [];
+  const isCardAvailable = availablePaymentMethods.includes("card");
+  const isAlipayAvailable = availablePaymentMethods.includes("alipay");
+  const isUsdDefaultLocale = usesUsdPricing(i18n.language);
+  const showUsdPricing = isUsdDefaultLocale && isCardAvailable;
+  const alternativePaymentHint = !isUsdDefaultLocale && isCardAvailable
+    ? t("dashboard:billing.alternativePaymentCardHint", "海外用户可使用银行卡以美元支付（$9.99/月）")
+    : isUsdDefaultLocale && isAlipayAvailable
+      ? t("dashboard:billing.alternativePaymentAlipayHint", "Alipay (CNY) is available for mainland China")
+      : null;
 
   const getDisplayPrices = (plan: SubscriptionCatalogTier) =>
     showUsdPricing && plan.name === "pro"
@@ -455,6 +464,14 @@ export default function BillingPage() {
               );
             })}
           </div>
+        )}
+        {!isCatalogPendingState && !isCatalogFailed && sortedPlans.length > 0 && alternativePaymentHint && (
+          <p
+            data-testid="billing-alternative-payment-hint"
+            className="mt-3 text-xs text-[hsl(var(--text-secondary))]"
+          >
+            {alternativePaymentHint}
+          </p>
         )}
       </Card>
 

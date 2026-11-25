@@ -72,6 +72,7 @@ from config.agent_runtime import (
 )
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
+from core.i18n import resolve_accept_language
 from database import create_session, get_session
 from middleware.rate_limit import (
     get_client_ip,
@@ -1336,7 +1337,7 @@ async def stream_request(
         language=accept_language,
     )
 
-    lang = (accept_language or "").split(",")[0].split("-")[0].strip().lower() or "zh"
+    lang = resolve_accept_language(accept_language)
 
     # 预扣额度前检查账号任务名额；明确满额才拒绝，Redis 故障由名额层放行。
     account_slot = await _acquire_account_slot(user_id, body.project_id)
@@ -1669,7 +1670,7 @@ async def suggest_next_action(
         return SuggestResponse(suggestions=[])
 
     service = get_suggest_service()
-    lang = (accept_language or "").split(",")[0].split("-")[0].strip().lower() or "zh"
+    lang = resolve_accept_language(accept_language)
 
     suggestions = await service.generate_suggestions(
         session=session,

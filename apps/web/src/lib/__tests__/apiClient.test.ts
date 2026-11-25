@@ -673,8 +673,9 @@ describe('apiClient', () => {
       expect(callArgs[1].headers['Accept-Language']).toBe('zh')
     })
 
-    it('defaults to zh language if not set', async () => {
+    it('uses active i18next language for Accept-Language and defaults to en if unset', async () => {
       vi.resetModules()
+      const i18next = (await import('i18next')).default
       const { apiCall } = await import('../apiClient')
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -682,10 +683,22 @@ describe('apiClient', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      await apiCall('/api/v1/test')
+      const previousLanguage = i18next.language
+      try {
+        Object.defineProperty(i18next, 'language', { value: undefined, configurable: true })
+        await apiCall('/api/v1/test')
+        expect(mockFetch.mock.calls[0][1].headers['Accept-Language']).toBe('en')
 
-      const callArgs = mockFetch.mock.calls[0]
-      expect(callArgs[1].headers['Accept-Language']).toBe('zh')
+        Object.defineProperty(i18next, 'language', { value: 'zh-CN', configurable: true })
+        await apiCall('/api/v1/test')
+        expect(mockFetch.mock.calls[1][1].headers['Accept-Language']).toBe('zh')
+
+        Object.defineProperty(i18next, 'language', { value: 'en-US', configurable: true })
+        await apiCall('/api/v1/test')
+        expect(mockFetch.mock.calls[2][1].headers['Accept-Language']).toBe('en')
+      } finally {
+        Object.defineProperty(i18next, 'language', { value: previousLanguage, configurable: true })
+      }
     })
 
     it('handles 401 with token refresh retry', async () => {
