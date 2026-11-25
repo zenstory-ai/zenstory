@@ -28,7 +28,7 @@ from agent.core.author_facing_text import (
     rewrite_not_saved_notice,
     text_contains_cjk,
 )
-from agent.core.events import UNEXECUTED_TOOL_TEXT_LAYER, WALL_CLOCK_LIMIT
+from agent.core.events import SERVER_DRAINING_LIMIT, UNEXECUTED_TOOL_TEXT_LAYER, WALL_CLOCK_LIMIT
 from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
 from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
 from agent.core.run_meter import AgentRunMeter
@@ -48,6 +48,7 @@ from agent.openai_agents.runner import (
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 from agent.tools.registry import LOOP_AGENT_TYPE, LOOP_TOOL_NAMES
 from agent.tools.tool_context import AgentRequestContext
+from config import agent_runtime
 from config.agent_runtime import AGENT_COLLABORATION_MAX_ITERATIONS
 from utils.logger import get_logger, log_with_context
 
@@ -446,6 +447,38 @@ def _can_soft_land_self_check(
     )
 
 
+def _should_unit_checkpoint(
+    run_meter: AgentRunMeter,
+    req_ctx: AgentRequestContext,
+    read_guard: RepeatReadGuard,
+    *,
+    resumed_correction: bool,
+    pending_cut_continuation: bool,
+    has_pending_steering: bool,
+) -> bool:
+    """在单元边界（run 与 run 之间）判断是否触发 5 分钟结构化交接检查点。
+
+    仅当已耗时 >= AGENT_UNIT_CHECKPOINT_AFTER_S（默认 300s）且已有实质产出落库
+    （已保存至少 1 篇正文文件，或已写入至少 3 份文件），同时不存在进行中的空文件纠偏、
+    截断残稿续写、未保存替换或待消费插话时才触发；短单章轮次与现有测试零干扰。
+    """
+    threshold_s = agent_runtime.AGENT_UNIT_CHECKPOINT_AFTER_S
+    if threshold_s <= 0 or run_meter.elapsed_s() < threshold_s:
+        return False
+    if (
+        resumed_correction
+        or pending_cut_continuation
+        or has_pending_steering
+        or req_ctx.has_pending_empty_file()
+        or bool(req_ctx.unsaved_chapter_replacement_ids())
+    ):
+        return False
+    return (
+        len(req_ctx.saved_content_body_ids()) >= 1
+        or len(read_guard.files_written) >= 3
+    )
+
+
 async def run_loop_agent_streaming(
     state: WritingState,
     *,
@@ -474,6 +507,7 @@ async def run_loop_agent_streaming(
         state["run_meter"] = AgentRunMeter()
     run_meter: AgentRunMeter = state["run_meter"]
     read_guard: RepeatReadGuard = state["repeat_read_guard"]
+    edit_guard: RepeatEditGuard = state["repeat_edit_guard"]
     system_prompt = str(state.get("system_prompt") or "")
     initial_user_message = str(state.get("user_message") or "")
     drop_english_narration = text_contains_cjk(state.get("router_message") or state.get("user_message"))
@@ -502,6 +536,7 @@ async def run_loop_agent_streaming(
     accumulated_text = ""
     terminated = False
     pending_self_check = False
+    pending_cut_continuation = False
     followup_ended_on_file = False
     followup_saved_titles: list[str] = []
     try:
@@ -538,6 +573,7 @@ async def run_loop_agent_streaming(
                     for task_event in task_events:
                         yield task_event
                 # 请求时间快用完：不再开新的 run，停在已经完成的部分（同图层收尾的暂停卡）。
+                draining_stop = run_meter.is_draining_stop or run_meter.server_draining
                 yield StreamEvent(
                     type=StreamEventType.TEXT,
                     data={"text": await run_support.wrap_up_text(english, request_context=req_ctx)},
@@ -550,6 +586,83 @@ async def run_loop_agent_streaming(
                         "max_iterations": max_runs,
                         "reason": run_support.WRAP_UP_CARD_REASON_EN if english else run_support.WRAP_UP_CARD_REASON,
                         "last_agent": None,
+                        "limit": SERVER_DRAINING_LIMIT if draining_stop else WALL_CLOCK_LIMIT,
+                        **({"server_draining": True} if draining_stop else {}),
+                    },
+                )
+                terminated = True
+                break
+            if runs > 0 and _should_unit_checkpoint(
+                run_meter,
+                req_ctx,
+                read_guard,
+                resumed_correction=resumed_correction,
+                pending_cut_continuation=pending_cut_continuation,
+                has_pending_steering=bool(state.get("pending_steering")),
+            ):
+                task_events, has_incomplete = await task_board_completion.auto_finalize_task_board_on_completion(
+                    read_guard, request_context=req_ctx
+                )
+                if pending_self_check and not has_incomplete:
+                    log_with_context(
+                        logger,
+                        20,  # INFO
+                        "Loop agent finishing cleanly at unit-boundary checkpoint (all tasks complete)",
+                        runs=runs,
+                        elapsed_s=round(run_meter.elapsed_s(), 1),
+                        saved_content_bodies=len(req_ctx.saved_content_body_ids()),
+                        files_written=len(read_guard.files_written),
+                    )
+                    if followup_ended_on_file:
+                        yield StreamEvent(
+                            type=StreamEventType.TEXT,
+                            data={
+                                "text": run_support.wrap_up_self_check_skipped_text(
+                                    english, followup_saved_titles
+                                )
+                            },
+                        )
+                    for task_event in task_events:
+                        yield task_event
+                    terminated = True
+                    break
+                for task_event in task_events:
+                    yield task_event
+                log_with_context(
+                    logger,
+                    20,  # INFO
+                    "Loop agent stopping cleanly at unit-boundary structural checkpoint",
+                    runs=runs,
+                    elapsed_s=round(run_meter.elapsed_s(), 1),
+                    saved_content_bodies=len(req_ctx.saved_content_body_ids()),
+                    files_written=len(read_guard.files_written),
+                    has_incomplete_tasks=has_incomplete,
+                )
+                checkpoint_titles = followup_saved_titles or [
+                    t for t in req_ctx.saved_bodies_this_request().values() if isinstance(t, str) and t.strip()
+                ]
+                yield StreamEvent(
+                    type=StreamEventType.TEXT,
+                    data={
+                        "text": await run_support.unit_checkpoint_text(
+                            english,
+                            saved_titles=checkpoint_titles,
+                            request_context=req_ctx,
+                        )
+                    },
+                )
+                yield StreamEvent(
+                    type=StreamEventType.ITERATION_EXHAUSTED,
+                    data={
+                        "layer": "collaboration",
+                        "iterations_used": runs,
+                        "max_iterations": max_runs,
+                        "reason": (
+                            run_support.UNIT_CHECKPOINT_CARD_REASON_EN
+                            if english
+                            else run_support.UNIT_CHECKPOINT_CARD_REASON
+                        ),
+                        "last_agent": None,
                         "limit": WALL_CLOCK_LIMIT,
                     },
                 )
@@ -559,6 +672,7 @@ async def run_loop_agent_streaming(
             in_self_check = pending_self_check
             run_saved_titles = list(followup_saved_titles)
             pending_self_check = False
+            pending_cut_continuation = False
             followup_ended_on_file = False
             followup_saved_titles = []
             unexecuted_this_run = False
@@ -694,6 +808,15 @@ async def run_loop_agent_streaming(
                 terminated = True
                 break
 
+            if edit_guard.spin_limit_reached and not req_ctx.has_pending_empty_file():
+                task_events, _ = await task_board_completion.auto_finalize_task_board_on_completion(
+                    read_guard, request_context=req_ctx
+                )
+                for task_event in task_events:
+                    yield task_event
+                terminated = True
+                break
+
             if req_ctx.has_pending_empty_file():
                 can_correct = (
                     runs < max_runs
@@ -788,6 +911,7 @@ async def run_loop_agent_streaming(
                 # 这次 run 停在没闭合的 <file> 正文上、最后一次响应撞上输出上限、正文按截断补全保存了：
                 # 是被截断，不是写完，不说「已保存，请自查」。
                 followup, cut_notice = await _body_cut_followup(cut_bodies, read_guard, english, req_ctx)
+                pending_cut_continuation = True
                 yield cut_notice
             elif not req_ctx.has_pending_empty_file() and (
                 new_saved or ((bool(create_ids - failed_ids) or run_resumed) and ended_on_file)

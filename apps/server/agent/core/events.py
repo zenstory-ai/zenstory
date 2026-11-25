@@ -378,6 +378,8 @@ def skill_matched_event(
 # iteration_exhausted 的 limit：请求时间快用完了（runner 的时限收尾、循环收尾、墙钟硬超时且已有写入）。
 # 前端据此显示「这一轮先做到这里」与继续按钮；StreamAdapter 据此把这一轮记成可「继续」的时限截停。
 WALL_CLOCK_LIMIT = "wall_clock"
+# 计划内发布交接（SIGTERM 排空）触发的收尾暂停卡：与墙钟超时区分，避免失控告警误报。
+SERVER_DRAINING_LIMIT = "server_draining"
 # iteration_exhausted 的一层：回复里有写成文字的完整工具调用、它没有执行（见
 # loop.completion_evidence.unexecuted_tool_protocol）。不带 limit，不改 stop_reason，不是失控停止。
 UNEXECUTED_TOOL_TEXT_LAYER = "unexecuted_tool_text"
@@ -397,6 +399,8 @@ def iteration_exhausted_event(
     limit: str | None = None,
     unfinished_files: list[dict[str, str]] | None = None,
     rolled_back_files: list[dict[str, str]] | None = None,
+    wall_clock_landing_exhausted: bool | None = None,
+    server_draining: bool | None = None,
 ) -> StreamEvent:
     """Create an iteration_exhausted event when iteration limit is reached."""
     data: dict[str, Any] = {
@@ -413,6 +417,10 @@ def iteration_exhausted_event(
         data["unfinished_files"] = _exhausted_file_items(unfinished_files)
     if rolled_back_files is not None:
         data["rolled_back_files"] = _exhausted_file_items(rolled_back_files)
+    if wall_clock_landing_exhausted is not None:
+        data["wall_clock_landing_exhausted"] = bool(wall_clock_landing_exhausted)
+    if server_draining is not None:
+        data["server_draining"] = bool(server_draining)
     return StreamEvent(type=EventType.ITERATION_EXHAUSTED, data=data)
 
 

@@ -1344,12 +1344,19 @@ async def test_pending_body_guard_and_stop_hook_enforce_two_reply_protocol_witho
         tools=build_agent_function_tools(),
         tool_use_behavior=_stop_run_after_tools,
     )
-    # Model ignores prompt and tries to call query_files instead of writing <file> body.
+    # Model ignores prompt and tries to call conflicting write tool edit_file instead of writing <file> body.
     replies.append({
         "role": "assistant",
         "content": None,
         "tool_calls": [
-            {"id": "call_rogue", "type": "function", "function": {"name": "query_files", "arguments": "{}"}},
+            {
+                "id": "call_rogue",
+                "type": "function",
+                "function": {
+                    "name": "edit_file",
+                    "arguments": '{"id":"f1","edits":[{"op":"replace","old":"a","new":"b"}]}',
+                },
+            },
         ],
     })
     hooks = build_agent_run_hooks("MiniMax-M3.1-Flash", request_context=request_tools)

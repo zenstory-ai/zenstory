@@ -82,6 +82,11 @@ EXISTING_HARD_BLOCK_AT = 8
 # chapter, remind the model to consider write_chapter instead of piecemeal edits.
 CUMULATIVE_REWRITE_HINT_RATIO = 0.6
 
+# Total edit_repeat_limit soft-skips in a single request before triggering a clean
+# synchronous early stop via runner._stop_run_after_tools so the model cannot spin
+# against the guard until the 540s wall-clock cap.
+MAX_BLOCKED_EDITS_PER_REQUEST = 3
+
 _SELF_READ_RECOVERY_ERROR_TYPES: frozenset[str] = frozenset({"anchor_not_found", "stale_content"})
 _CHAPTER_FILE_TYPES: frozenset[str] = frozenset({"draft", "script", ""})
 
@@ -267,6 +272,41 @@ class RepeatEditGuard:
     guarded_self_reads: int = 0
     _files: dict[str, _FileEditState] = field(default_factory=dict)
     _allow_self_read: set[str] = field(default_factory=set)
+
+    @property
+    def spin_limit_reached(self) -> bool:
+        """Whether repeated ``edit_repeat_limit`` soft-skips reached the early-stop cap."""
+        return self.blocked_edits >= MAX_BLOCKED_EDITS_PER_REQUEST
+
+    def short_circuit_text(self, tool_name: str, raw_arguments: str = "") -> str:
+        """Return a non-error soft-skip payload for trailing tool calls once spin_limit_reached."""
+        file_id = ""
+        word_count: int | None = None
+        if raw_arguments:
+            args, parse_error, _ = parse_json_object(raw_arguments, tool_name=tool_name)
+            if parse_error is None and isinstance(args, dict):
+                file_id = _extract_file_id(args)
+                if file_id:
+                    word_count = self._current_word_count(file_id, self._files.get(file_id))
+        payload: dict[str, Any] = {
+            "status": "skipped",
+            "guard_skipped": True,
+            "reason": "edit_spin_limit",
+            "message": (
+                f"本轮已多次触达连续微调上限，{tool_name} 未执行。"
+                "之前的修改均已保存，请直接向作者简短说明已完成的结果。"
+            ),
+            "error_type": EDIT_REPEAT_LIMIT_ERROR_TYPE,
+            "tool_name": tool_name,
+            "edits_applied": 0,
+            "mutation_applied": False,
+            "user_message": "这一步的细微调整已跳过，之前的修改都已保存。",
+        }
+        if file_id:
+            payload["id"] = file_id
+        if word_count is not None:
+            payload["word_count"] = word_count
+        return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
     # ------------------------------------------------------------------ plan
     def plan(self, tool_name: str, raw_arguments: str) -> EditPlan:
@@ -679,6 +719,7 @@ __all__ = [
     "EXISTING_HINT_AT",
     "EXISTING_MICRO_BLOCK_AT",
     "EXISTING_MICRO_STREAK_MIN",
+    "MAX_BLOCKED_EDITS_PER_REQUEST",
     "MICRO_EDIT_MAX_ITEMS",
     "MICRO_EDIT_MAX_NET_DELTA",
     "POST_WRITE_BLOCK_AT",

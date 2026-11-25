@@ -57,5 +57,5 @@ Status: implemented
 
 - **收益**：系统性消除 48h 审计中约半数以上可预防工具失败与整批回滚（`update_project` 误拒、`edit_file` 批量回滚/假 `no_change`/未读格式误拒、`source_text` 插话盲区与长粘贴重试、`natural_polish` 技能资源 100% 报错、`query_files(section)` 标题与单章误用），显著降低无效模型往返与延迟。
 - **代价与后续接线**：
-  - `AgentRequestContext.ui_action` 已就绪，需 Wave 2 在 `apps/server/agent/service.py` 构造 `AgentRequestContext` 时补一行 `ui_action=ui_action` 透传。
+  - Wave 2 已完成 `service.py` 构造 `AgentRequestContext` 时的 `ui_action=ui_action` 透传、`mcp_tools.py` 待写 `<file>` 期间允许 `create_file(file_type="folder")` 建目录，以及 `stream_adapter.py` 对 `guard_skipped=True` 的 `edit_file` 跳过假 `file_edit_*` 事件。
   - 短文件上 `section` 未命中不再报错而返回全文（同时写入全文快照）；超长文件与多标题歧义仍严格报错。

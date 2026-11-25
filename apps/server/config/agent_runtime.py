@@ -94,6 +94,14 @@ AGENT_RUN_WALL_CLOCK_TIMEOUT_S = get_int_env("AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 7
 AGENT_RUN_WRAP_UP_AFTER_S = get_int_env(
     "AGENT_RUN_WRAP_UP_AFTER_S", max(60, AGENT_RUN_WALL_CLOCK_TIMEOUT_S - 240)
 )
+# Between runs/units in the single-loop engine, once elapsed time reaches this threshold AND
+# substantive output is already saved (>=1 content body or >=3 written files), hand off cleanly
+# at the unit boundary instead of grinding another ~4 minutes into the 540s wall-clock cap.
+# Set to 0 to disable.
+AGENT_UNIT_CHECKPOINT_AFTER_S = _get_non_negative_float_env(
+    "AGENT_UNIT_CHECKPOINT_AFTER_S",
+    300.0,
+)
 
 # Deploy handover (agent/core/server_drain.py): after SIGTERM, Uvicorn keeps open
 # requests for --timeout-graceful-shutdown (295 s) and Railway kills the process at

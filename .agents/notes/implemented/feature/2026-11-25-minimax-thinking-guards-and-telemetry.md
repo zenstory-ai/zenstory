@@ -47,5 +47,5 @@ Status: implemented
 
 - **收益**：消除单调用 542s 纯思考挂起与击穿 240s 收尾余量的硬超时隐患；堵住 `RepeatReadGuard` 跨模式循环绕过；`runaway_stop` 指标立即从 96/97 误报恢复为高信噪比真实失控信号；所有阈值均支持环境变量热调优或置 `0` 紧急关闭。
 - **代价与后续接线**：
-  - Wave 2 需在 `runner.py` 补接 3 处轻量调用：`IntraRunToolOutputTrimmer(run_meter=run_meter)`、墙钟软着陆卡透传 `wall_clock_landing_exhausted=run_meter.wall_clock_landing_exhausted` 与 `server_draining`（`is_draining_stop` → `stop_reason="server_draining"` / `limit="server_draining"`）；在 `service.py:841` 将 `run_meter.last_prompt_tokens` 切换为 `run_meter.effective_prompt_tokens`。
-  - 默认思考/时长截停阈值（`180s` / `64_000` 字符 / `300s`）仍可通过环境变量热调优或置 `0` 紧急关闭。
+  - Wave 2 已完成全部跨文件接线：`runner.py` 传入 `IntraRunToolOutputTrimmer(run_meter=run_meter)`、墙钟软着陆透传 `wall_clock_landing_exhausted` 与 `server_draining`（`stream_adapter.py` / `chat_message_ux_summary.py` / `service.py` 同步识别 `server_draining`）；`service.py` 落库 `run_meter.effective_prompt_tokens`；`repeat_edit_guard.py` / `tools_adapter.py` / `runner.py` 新增 `>=3` 次 `edit_repeat_limit` 软跳过干净早停；`engine.py` 新增 5 分钟单元边界结构化检查点（`AGENT_UNIT_CHECKPOINT_AFTER_S=300`）。
+  - 默认思考/时长截停阈值（`180s` / `64_000` 字符 / `300s`）与单元检查点阈值均支持环境变量热调优或置 `0` 紧急关闭。

@@ -38,6 +38,7 @@ from .core.account_run_limit import AccountRunSlot
 from .core.events import (
     HISTORY_COMPACTION_SKIPPED_STEP,
     HISTORY_COMPACTION_STEP,
+    SERVER_DRAINING_LIMIT,
     WALL_CLOCK_LIMIT,
     context_event,
     done_event,
@@ -54,7 +55,7 @@ from .core.message_manager import (
     has_substantive_display_events,
     normalize_assistant_display_events,
 )
-from .core.round_outcome import RUN_DEADLINE_STOP_REASON, RunOutcome
+from .core.round_outcome import RUN_DEADLINE_STOP_REASON, SERVER_DRAINING_STOP_REASON, RunOutcome
 from .core.run_meter import AgentRunMeter
 from .core.session_loader import SessionLoader
 from .core.steering import (
@@ -108,12 +109,12 @@ RETRY_UNANSWERED_METADATA_KEY = "retry_unanswered"
 
 # Stop reasons whose clean completion (or soft-landing) produces a reusable wire-prefix cache entry.
 _WIRE_PREFIX_CACHEABLE_STOP_REASONS = frozenset(
-    {"end_turn", RUN_DEADLINE_STOP_REASON, MAX_TURNS_STOP_REASON}
+    {"end_turn", RUN_DEADLINE_STOP_REASON, SERVER_DRAINING_STOP_REASON, MAX_TURNS_STOP_REASON}
 )
 # Clean soft-landing pause cards that do NOT taint wire_prefix_cache (as long as no empty files
 # were left unfinished or rolled back).
 _WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LAYERS = frozenset({"tool_call", "collaboration"})
-_WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LIMITS = frozenset({WALL_CLOCK_LIMIT, "max_turns"})
+_WIRE_PREFIX_CLEAN_SOFT_LAND_CARD_LIMITS = frozenset({WALL_CLOCK_LIMIT, SERVER_DRAINING_LIMIT, "max_turns"})
 
 
 def _has_blocking_wire_prefix_status_cards(status_cards: list[dict[str, Any]]) -> bool:
@@ -835,10 +836,10 @@ class AgentService:
         retry_carried_compaction: dict[str, Any] = {}
 
         def _loop_extra_metadata() -> dict[str, Any] | None:
-            """单循环 agent 的 assistant 行：引擎标记、最后一次模型调用的输入 token、压缩点。"""
+            """单循环 agent 的 assistant 行：引擎标记、峰值/最后一次模型调用的输入 token、压缩点。"""
             return {
                 "engine": LOOP_ENGINE_METADATA_VALUE,
-                "prompt_tokens": run_meter.last_prompt_tokens or None,
+                "prompt_tokens": run_meter.effective_prompt_tokens or None,
                 "compaction": loop_compaction_record,
                 "compaction_skipped": loop_compaction_skipped,
             }
@@ -1325,6 +1326,9 @@ class AgentService:
                 # 作者原话标识应用内对话并提供上下文，不授予删除、整份覆盖或改名权限。
                 author_message=message,
                 author_steering=consumed_steering,
+                # 当轮经服务端校验的结构化 UI 动作（例如 ui_action="natural_polish" 时允许
+                # read_skill_resource 读取官方 PublicSkill('去AI味') 资源）。
+                ui_action=ui_action,
                 # 本轮开始时模型看到的正文：edit_file 拒绝基于旧正文的修改（作者生成期间又改了）。
                 read_snapshots=loop_turn.read_snapshots,
                 # 截停后还在线程里的写工具登记在 run_outcome 上，收尾时等它们的真实结果。

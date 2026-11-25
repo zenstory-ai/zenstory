@@ -34,6 +34,7 @@ from agent.core.account_run_limit import (
     acquire_account_run_slot,
 )
 from agent.core.events import (
+    SERVER_DRAINING_LIMIT,
     WALL_CLOCK_LIMIT,
     EventType,
     StreamEvent,
@@ -160,7 +161,7 @@ _RUNAWAY_ERROR_CODES = frozenset({
     ErrorCode.AGENT_REPETITION_LOOP,
     ErrorCode.AGENT_TOOL_FAILURE_LIMIT,
 })
-_SERVER_DRAINING_LIMIT = "server_draining"
+_SERVER_DRAINING_LIMIT = SERVER_DRAINING_LIMIT
 
 
 @dataclass

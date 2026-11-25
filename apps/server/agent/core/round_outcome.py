@@ -37,6 +37,8 @@ STOP_KIND_CLIENT_DISCONNECTED = "client_disconnected"
 STOP_KINDS: frozenset[str] = frozenset({STOP_KIND_USER_STOPPED, STOP_KIND_CLIENT_DISCONNECTED})
 # 时限截停落库的 stop_reason（与 runner 的同名原因一致；作者回复「继续」可以接着做）。
 RUN_DEADLINE_STOP_REASON = "run_deadline_exceeded"
+# 计划内发布交接（SIGTERM 排空）软着陆落库的 stop_reason：与墙钟超时区分，避免误报失控。
+SERVER_DRAINING_STOP_REASON = "server_draining"
 # 正常收尾的写入回执（不是停止）：只由真实提交结果生成，见 RoundWrittenFiles.completion_receipt。
 ROUND_KIND_COMPLETED = "completed"
 # 写终态时可以被停止原因覆盖的 stop_reason：没有原因、或本来就是取消类的原因。
