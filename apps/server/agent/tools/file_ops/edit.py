@@ -8,6 +8,7 @@ Supports fuzzy and approximate text matching for robust editing even when
 the LLM provides slightly different text.
 """
 
+import re
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
@@ -311,6 +312,61 @@ def _exact_spans(content: str, sub: str, limit: int = 3) -> list[tuple[int, int]
             break
         spans.append((k, k + len(sub)))
         start = k + len(sub)
+    return spans
+
+
+_INLINE_WS_CHARS = " \t\u3000"
+_INLINE_WS_SPLIT_RE = re.compile(r"[ \t\u3000]+")
+_LINE_SPLIT_RE = re.compile(r"\r\n|\r|\n")
+_NORM_LINE_SEP_PATTERN = r"[ \t\u3000]*(?:\r\n|\r|\n)(?:[ \t\u3000]*(?:\r\n|\r|\n))*[ \t\u3000]*"
+
+
+def _locate_normalized_exact_spans(
+    content: str,
+    pattern: str,
+    *,
+    max_matches: int = 20,
+) -> list[tuple[int, int]]:
+    """Deterministic whitespace/newline/double-quote-normalized match.
+
+    Allows CRLF/LF and blank-line count differences (``\\n`` vs ``\\n\\n``),
+    horizontal whitespace/indentation differences, and double-quote style
+    equivalence (via ``fold_double_quotes``), while keeping every other
+    character and punctuation mark verbatim and NEVER bridging across a line
+    break that ``pattern`` lacks.
+    """
+    if not pattern:
+        return []
+    non_blank_lines = [
+        line.strip(_INLINE_WS_CHARS)
+        for line in _LINE_SPLIT_RE.split(pattern)
+        if line.strip(_INLINE_WS_CHARS)
+    ]
+    if not non_blank_lines:
+        return []
+
+    line_patterns: list[str] = []
+    for line in non_blank_lines:
+        folded_line = fold_double_quotes(line)
+        tokens = [re.escape(tok) for tok in _INLINE_WS_SPLIT_RE.split(folded_line) if tok]
+        if not tokens:
+            return []
+        line_patterns.append(r"[ \t\u3000]+".join(tokens))
+
+    regex = re.compile(_NORM_LINE_SEP_PATTERN.join(line_patterns))
+    folded_content = fold_double_quotes(content)
+    pattern_has_leading_ws = pattern[0] in _INLINE_WS_CHARS
+
+    spans: list[tuple[int, int]] = []
+    for match in regex.finditer(folded_content):
+        start, end = match.start(), match.end()
+        if pattern_has_leading_ws:
+            line_start = content.rfind("\n", 0, start) + 1
+            if start > line_start and not content[line_start:start].strip(_INLINE_WS_CHARS):
+                start = line_start
+        spans.append((start, end))
+        if len(spans) >= max_matches:
+            break
     return spans
 
 
@@ -963,12 +1019,17 @@ class FileEditor:
 
                 # Persist normalized op for subsequent logic
                 edit["op"] = op
-                if exact_only and active_spans is None and op in ("replace", "delete", "insert_after", "insert_before"):
-                    # 本请求没读过这个文件：old / anchor 只按逐字匹配，不拿可能过时的记忆去
-                    # 模糊命中作者刚改过的字（模型给了 match_mode 也一样）。
+                if (
+                    exact_only
+                    and active_spans is None
+                    and op in ("replace", "delete", "insert_after", "insert_before")
+                    and str(edit.get("match_mode") or "auto").strip().lower() != "exact"
+                ):
+                    # 本请求没读过这个文件：不做模糊去标点或近似错字猜测，但允许确定性的
+                    # 空白/换行/引号等价唯一匹配（调用方显式指定 match_mode="exact" 时保持纯逐字）。
                     # 若通过范围读取看过部分区间（active_spans 非空），区间内允许模糊/近似匹配，
-                    # 区间外仍强制逐字匹配（见下方 allowed_fuzzy_spans）。
-                    edit["match_mode"] = "exact"
+                    # 区间外同样只允许逐字或确定性空白/换行/引号匹配（见下方 allowed_fuzzy_spans）。
+                    edit["match_mode"] = "exact_normalized"
 
                 if op in ("append", "prepend", "insert_after", "insert_before"):
                     self._require_insert_text(edit, i, op, warnings)
@@ -976,6 +1037,7 @@ class FileEditor:
                 content_before_edit = content
                 applied_before_edit = len(applied_edits)
                 edit_hunks: list[tuple[int, int, int]] = []
+                replace_already_matched: list[bool] = []
 
                 old_field = edit.get("old")
                 if op == "replace" and isinstance(old_field, str) and old_field and self._peek_replace_new(edit) == old_field:
@@ -1002,6 +1064,7 @@ class FileEditor:
                         quote_style=quote_style,
                         allowed_fuzzy_spans=active_spans,
                         applied_hunks=edit_hunks,
+                        already_matched=replace_already_matched,
                     )
                 elif op in ("insert_after", "insert_before"):
                     content = self._apply_insert(
@@ -1052,6 +1115,12 @@ class FileEditor:
                 if content == content_before_edit and len(applied_edits) > applied_before_edit:
                     # 报告成功就必须真的改了：撤回这一条的 applied 记录。
                     del applied_edits[applied_before_edit:]
+                    if op == "replace" and replace_already_matched:
+                        # 命中的原文区间在引号规范化前就已等于 new_text（例如记忆陈旧但目标改动已存在）：
+                        # 记入 unchanged_edits，不报 no_change 错误，也不回滚同批其他改动。
+                        unchanged_edits.append({"index": i, "op": op, "reason": "already_matches"})
+                        warnings.append(f"Edit {i}: 原文此处已是目标内容，没有修改，不用重发")
+                        continue
                     raise _no_change_error(i, edit, quote_style)
                 if active_spans is not None and edit_hunks:
                     from agent.tools.tool_context import shift_spans_for_hunks
@@ -1467,9 +1536,19 @@ class FileEditor:
         stripped = old_text.strip()
         if not stripped or start >= end:
             return
-        if _edge_punct_class(stripped[-1]) is not None and _edge_punct_class(content[end - 1]) is None:
+        if (
+            _edge_punct_class(stripped[-1]) is not None
+            and _edge_punct_class(content[end - 1]) is None
+            and end < len(content)
+            and content[end] not in "\r\n"
+        ):
             where = "结束"
-        elif _edge_punct_class(stripped[0]) is not None and _edge_punct_class(content[start]) is None:
+        elif (
+            _edge_punct_class(stripped[0]) is not None
+            and _edge_punct_class(content[start]) is None
+            and start > 0
+            and content[start - 1] not in "\r\n"
+        ):
             where = "开始"
         else:
             return
@@ -1742,6 +1821,7 @@ class FileEditor:
         quote_style: str | None = None,
         allowed_fuzzy_spans: Sequence[tuple[int, int]] | None = None,
         applied_hunks: list[tuple[int, int, int]] | None = None,
+        already_matched: list[bool] | None = None,
     ) -> str:
         """Apply a replace edit operation."""
         old_text = edit.get("old", "")
@@ -1785,6 +1865,10 @@ class FileEditor:
             if replace_all:
                 spans = _exact_spans(haystack, needle, limit=len(haystack) + 1)
                 count = len(spans)
+                if already_matched is not None and spans and all(
+                    content[s:e] == new_text for s, e in spans
+                ):
+                    already_matched.append(True)
                 parts: list[str] = []
                 placed: list[tuple[int, int]] = []
                 prev = out_len = 0
@@ -1827,6 +1911,8 @@ class FileEditor:
                     extra_hint="（确实要把这几处全部替换时，才使用 replace_all=true）",
                     preview_content=content,
                 )
+                if already_matched is not None and content[start : start + len(old_text)] == new_text:
+                    already_matched.append(True)
                 content, new_text = self._place_new_text(
                     content, start, start + len(old_text), new_text, quote_style
                 )
@@ -1847,6 +1933,80 @@ class FileEditor:
                 raise _not_found(
                     f"Edit {edit_index}: old text not found in content (exact match)"
                 )
+
+            if match_mode == "exact_normalized":
+                norm_spans = _locate_normalized_exact_spans(
+                    content,
+                    old_text,
+                    max_matches=REPLACE_ALL_MAX_FUZZY_MATCHES if replace_all else 20,
+                )
+                if not norm_spans:
+                    raise _not_found(
+                        f"Edit {edit_index}: old text not found in content (exact match)"
+                    )
+                if replace_all:
+                    parts = []
+                    placed = []
+                    norm_hunks: list[tuple[int, int, int]] = []
+                    prev = out_len = 0
+                    all_equal = True
+                    for start, end in norm_spans:
+                        placed_text = follow_span_indentation(content, start, end, old_text, new_text)
+                        all_equal = all_equal and (content[start:end] == placed_text)
+                        parts.append(content[prev:start])
+                        out_len += start - prev
+                        parts.append(placed_text)
+                        placed.append((out_len, out_len + len(placed_text)))
+                        out_len += len(placed_text)
+                        norm_hunks.append((start, end, len(placed_text)))
+                        prev = end
+                    parts.append(content[prev:])
+                    if already_matched is not None and all_equal:
+                        already_matched.append(True)
+                    content = self._normalize_placed_spans("".join(parts), placed, quote_style)
+                    if applied_hunks is not None:
+                        applied_hunks.extend(norm_hunks)
+                    if placed:
+                        new_text = content[placed[0][0] : placed[0][1]]
+                    applied_edits.append({
+                        "op": "replace",
+                        "match_mode": "normalized_exact",
+                        "old_preview": _preview(old_text),
+                        "new_preview": _preview(new_text),
+                        "count": len(norm_spans),
+                    })
+                    return content
+                start, end = self._select_fuzzy_span(
+                    content,
+                    norm_spans,
+                    occurrence,
+                    edit_index,
+                    ambiguous=lambda count, previews: (
+                        f"Edit {edit_index}: 原文片段匹配到多个位置（{count}处），"
+                        f"为避免误改已中止。推荐做法：保持原参数不变，加上 occurrence=N "
+                        f"指定要改第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
+                        f"（确实要把这几处全部替换时，才使用 replace_all=true）候选片段: {previews}"
+                    ),
+                )
+                placed_text = follow_span_indentation(content, start, end, old_text, new_text)
+                if already_matched is not None and content[start:end] == placed_text:
+                    already_matched.append(True)
+                content, written = self._place_new_text(content, start, end, placed_text, quote_style)
+                if applied_hunks is not None:
+                    applied_hunks.append((start, end, len(written)))
+                detail = {
+                    "op": "replace",
+                    "match_mode": "normalized_exact",
+                    "match_count": len(norm_spans),
+                    "old_preview": _preview(old_text),
+                    "new_preview": _preview(written),
+                }
+                if occurrence is not None:
+                    detail["occurrence"] = occurrence
+                if placed_text != new_text:
+                    detail["layout_notes"] = [NOTE_INDENT_FOLLOWS_FILE]
+                applied_edits.append(detail)
+                return content
 
             # 2) Fuzzy match (ignore punctuation/whitespace)
             # replace_all mirrors the exact path (which replaces EVERY
@@ -1874,6 +2034,80 @@ class FileEditor:
                 # 不能再退到近似匹配去改其中一段的局部，那样会重复写入另一段的开头。
                 raise _paragraph_break_error(edit_index, "old")
 
+            # Short patterns (< 6 normalized chars) or ignore_punct_whitespace=False
+            # skip fuzzy matching; allow deterministic whitespace/newline/quote-normalized
+            # matches (e.g. \n vs \n\n) without relaxing punctuation or paragraph boundaries.
+            if not spans:
+                norm_spans = _locate_normalized_exact_spans(
+                    content,
+                    old_text,
+                    max_matches=REPLACE_ALL_MAX_FUZZY_MATCHES if replace_all else 20,
+                )
+                if norm_spans:
+                    if replace_all:
+                        parts = []
+                        placed = []
+                        norm_hunks = []
+                        prev = out_len = 0
+                        all_equal = True
+                        for start, end in norm_spans:
+                            placed_text = follow_span_indentation(content, start, end, old_text, new_text)
+                            all_equal = all_equal and (content[start:end] == placed_text)
+                            parts.append(content[prev:start])
+                            out_len += start - prev
+                            parts.append(placed_text)
+                            placed.append((out_len, out_len + len(placed_text)))
+                            out_len += len(placed_text)
+                            norm_hunks.append((start, end, len(placed_text)))
+                            prev = end
+                        parts.append(content[prev:])
+                        if already_matched is not None and all_equal:
+                            already_matched.append(True)
+                        content = self._normalize_placed_spans("".join(parts), placed, quote_style)
+                        if applied_hunks is not None:
+                            applied_hunks.extend(norm_hunks)
+                        if placed:
+                            new_text = content[placed[0][0] : placed[0][1]]
+                        applied_edits.append({
+                            "op": "replace",
+                            "match_mode": "normalized_exact",
+                            "old_preview": _preview(old_text),
+                            "new_preview": _preview(new_text),
+                            "count": len(norm_spans),
+                        })
+                        return content
+                    start, end = self._select_fuzzy_span(
+                        content,
+                        norm_spans,
+                        occurrence,
+                        edit_index,
+                        ambiguous=lambda count, previews: (
+                            f"Edit {edit_index}: 原文片段匹配到多个位置（{count}处），"
+                            f"为避免误改已中止。推荐做法：保持原参数不变，加上 occurrence=N "
+                            f"指定要改第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
+                            f"（确实要把这几处全部替换时，才使用 replace_all=true）候选片段: {previews}"
+                        ),
+                    )
+                    placed_text = follow_span_indentation(content, start, end, old_text, new_text)
+                    if already_matched is not None and content[start:end] == placed_text:
+                        already_matched.append(True)
+                    content, written = self._place_new_text(content, start, end, placed_text, quote_style)
+                    if applied_hunks is not None:
+                        applied_hunks.append((start, end, len(written)))
+                    detail = {
+                        "op": "replace",
+                        "match_mode": "normalized_exact",
+                        "match_count": len(norm_spans),
+                        "old_preview": _preview(old_text),
+                        "new_preview": _preview(written),
+                    }
+                    if occurrence is not None:
+                        detail["occurrence"] = occurrence
+                    if placed_text != new_text:
+                        detail["layout_notes"] = [NOTE_INDENT_FOLLOWS_FILE]
+                    applied_edits.append(detail)
+                    return content
+
             unseen_fuzzy_rejected = False
             if allowed_fuzzy_spans is not None and spans:
                 if replace_all:
@@ -1884,6 +2118,35 @@ class FileEditor:
                     spans = [sp for sp in spans if _span_within_seen(sp[0], sp[1], allowed_fuzzy_spans)]
                     if not spans:
                         unseen_fuzzy_rejected = True
+                if unseen_fuzzy_rejected:
+                    # Unseen region still allows deterministic whitespace/newline/quote-normalized match
+                    # (never fuzzy punctuation or word-error guessing).
+                    norm_spans = _locate_normalized_exact_spans(
+                        content,
+                        old_text,
+                        max_matches=REPLACE_ALL_MAX_FUZZY_MATCHES if replace_all else 20,
+                    )
+                    if len(norm_spans) == 1 and not replace_all and (occurrence is None or occurrence == 1):
+                        start, end = norm_spans[0]
+                        placed_text = follow_span_indentation(content, start, end, old_text, new_text)
+                        if already_matched is not None and content[start:end] == placed_text:
+                            already_matched.append(True)
+                        content, written = self._place_new_text(content, start, end, placed_text, quote_style)
+                        if applied_hunks is not None:
+                            applied_hunks.append((start, end, len(written)))
+                        detail = {
+                            "op": "replace",
+                            "match_mode": "normalized_exact",
+                            "match_count": 1,
+                            "old_preview": _preview(old_text),
+                            "new_preview": _preview(written),
+                        }
+                        if occurrence is not None:
+                            detail["occurrence"] = occurrence
+                        if placed_text != new_text:
+                            detail["layout_notes"] = [NOTE_INDENT_FOLLOWS_FILE]
+                        applied_edits.append(detail)
+                        return content
 
             # 3) If fuzzy match fails, try approximate match (handles word errors)
             # replace_all=True 要求替换所有命中，不能退化为只改一处的近似匹配；
@@ -1929,6 +2192,8 @@ class FileEditor:
                     self._check_approximate_edges(content, start, end, old_text, edit_index)
                     matched_text = content[start:end]
                     placed_text = follow_span_indentation(content, start, end, old_text, new_text)
+                    if already_matched is not None and matched_text == placed_text:
+                        already_matched.append(True)
                     # Single approximate match - use it
                     content, written = self._place_new_text(content, start, end, placed_text, quote_style)
                     if applied_hunks is not None:
@@ -1968,6 +2233,7 @@ class FileEditor:
                 prev = out_len = 0
                 first_matched: str | None = None
                 indent_followed = False
+                all_equal = True
                 for start, end in spans:
                     if ignore_punct_whitespace:
                         start, end = self._extend_fuzzy_span(
@@ -1979,6 +2245,7 @@ class FileEditor:
                     if first_matched is None:
                         first_matched = content[start:end]
                     placed_text = follow_span_indentation(content, start, end, old_text, new_text)
+                    all_equal = all_equal and (content[start:end] == placed_text)
                     indent_followed = indent_followed or placed_text != new_text
                     parts.append(content[prev:start])
                     out_len += start - prev
@@ -1988,6 +2255,8 @@ class FileEditor:
                     fuzzy_hunks.append((start, end, len(placed_text)))
                     prev = end
                 parts.append(content[prev:])
+                if already_matched is not None and spans and all_equal:
+                    already_matched.append(True)
                 content = self._normalize_placed_spans("".join(parts), placed, quote_style)
                 if applied_hunks is not None:
                     applied_hunks.extend(fuzzy_hunks)
@@ -2034,6 +2303,8 @@ class FileEditor:
                     )
                 matched_text = content[start:end]
                 placed_text = follow_span_indentation(content, start, end, old_text, new_text)
+                if already_matched is not None and matched_text == placed_text:
+                    already_matched.append(True)
                 content, written = self._place_new_text(content, start, end, placed_text, quote_style)
                 if applied_hunks is not None:
                     applied_hunks.append((start, end, len(written)))
@@ -2117,6 +2388,31 @@ class FileEditor:
         if match_mode == "exact":
             raise _not_found(
                 f"Edit {edit_index}: anchor text not found in content (exact match)"
+            )
+
+        if match_mode == "exact_normalized":
+            norm_spans = _locate_normalized_exact_spans(content, anchor)
+            if not norm_spans:
+                raise _not_found(
+                    f"Edit {edit_index}: anchor text not found in content (exact match)"
+                )
+            start, end = self._select_fuzzy_span(
+                content,
+                norm_spans,
+                occurrence,
+                edit_index,
+                ambiguous=lambda count, previews: (
+                    f"Edit {edit_index}: 锚点匹配到多个位置（{count}处），"
+                    f"为避免插入到错误位置已中止。推荐做法：保持原参数不变，加上 occurrence=N "
+                    f"指定第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的锚点。"
+                    f"候选片段: {previews}"
+                ),
+            )
+            pos = end if after else start
+            return place(
+                pos,
+                {"match_mode": "normalized_exact", "match_count": len(norm_spans)},
+                exact_anchor=True,
             )
 
         fuzzy_stats: dict[str, int] = {}
@@ -2302,6 +2598,39 @@ class FileEditor:
                     f"Edit {edit_index}: text to delete not found in content (exact match)"
                 )
 
+            if match_mode == "exact_normalized":
+                norm_spans = _locate_normalized_exact_spans(content, old_text)
+                if not norm_spans:
+                    raise _not_found(
+                        f"Edit {edit_index}: text to delete not found in content (exact match)"
+                    )
+                start, end = self._select_fuzzy_span(
+                    content,
+                    norm_spans,
+                    occurrence,
+                    edit_index,
+                    ambiguous=lambda count, previews: (
+                        f"Edit {edit_index}: 删除片段匹配到多个位置（{count}处），"
+                        f"为避免误删已中止。推荐做法：保持原参数不变，加上 occurrence=N "
+                        f"指定要删第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
+                        f"候选片段: {previews}"
+                    ),
+                )
+                matched_text = content[start:end]
+                content = content[:start] + content[end:]
+                if applied_hunks is not None:
+                    applied_hunks.append((start, end, 0))
+                detail = {
+                    "op": "delete",
+                    "match_mode": "normalized_exact",
+                    "match_count": len(norm_spans),
+                    "deleted_preview": _preview(matched_text),
+                }
+                if occurrence is not None:
+                    detail["occurrence"] = occurrence
+                applied_edits.append(detail)
+                return content
+
             fuzzy_stats: dict[str, int] = {}
             spans = find_fuzzy_spans(
                 content,
@@ -2320,8 +2649,90 @@ class FileEditor:
                 )
             if not spans and fuzzy_stats.get("paragraph_rejected"):
                 raise _paragraph_break_error(edit_index, "old")
+
+            if not spans:
+                norm_spans = _locate_normalized_exact_spans(content, old_text)
+                if norm_spans:
+                    start, end = self._select_fuzzy_span(
+                        content,
+                        norm_spans,
+                        occurrence,
+                        edit_index,
+                        ambiguous=lambda count, previews: (
+                            f"Edit {edit_index}: 删除片段匹配到多个位置（{count}处），"
+                            f"为避免误删已中止。推荐做法：保持原参数不变，加上 occurrence=N "
+                            f"指定要删第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
+                            f"候选片段: {previews}"
+                        ),
+                    )
+                    matched_text = content[start:end]
+                    content = content[:start] + content[end:]
+                    if applied_hunks is not None:
+                        applied_hunks.append((start, end, 0))
+                    detail = {
+                        "op": "delete",
+                        "match_mode": "normalized_exact",
+                        "match_count": len(norm_spans),
+                        "deleted_preview": _preview(matched_text),
+                    }
+                    if occurrence is not None:
+                        detail["occurrence"] = occurrence
+                    applied_edits.append(detail)
+                    return content
+
+            unseen_fuzzy_rejected = False
             if allowed_fuzzy_spans is not None and spans:
                 spans = [sp for sp in spans if _span_within_seen(sp[0], sp[1], allowed_fuzzy_spans)]
+                if not spans:
+                    unseen_fuzzy_rejected = True
+
+            approx_match = None
+            approx_stats: dict[str, int] = {}
+            if not spans and not unseen_fuzzy_rejected:
+                if allowed_fuzzy_spans is not None:
+                    approx_match = _find_approximate_in_spans(
+                        content,
+                        old_text,
+                        allowed_fuzzy_spans,
+                        max_error_rate=0.25,
+                        min_pattern_len=8,
+                        keep_line_breaks=True,
+                        stats=approx_stats,
+                    )
+                else:
+                    approx_match = find_approximate_match(
+                        content,
+                        old_text,
+                        max_error_rate=0.25,
+                        min_pattern_len=8,
+                        keep_line_breaks=True,
+                        stats=approx_stats,
+                    )
+                if not approx_match and approx_stats.get("paragraph_rejected"):
+                    raise _paragraph_break_error(edit_index, "old")
+                if approx_match:
+                    start, end, similarity, _matched_text = approx_match
+                    if occurrence is not None and occurrence != 1:
+                        raise EditFileError(
+                            f"Edit {edit_index}: 近似匹配只找到 1 处，"
+                            f"occurrence out of range (1..1)"
+                        )
+                    start, end = self._extend_fuzzy_span(content, start, end, old_text)
+                    self._check_approximate_edges(content, start, end, old_text, edit_index)
+                    matched_text = content[start:end]
+                    content = content[:start] + content[end:]
+                    if applied_hunks is not None:
+                        applied_hunks.append((start, end, 0))
+                    applied_edits.append({
+                        "op": "delete",
+                        "match_mode": "approximate",
+                        "similarity": round(similarity, 3),
+                        "matched_original": _preview(matched_text),
+                        "warning": FUZZY_EDIT_WARNING,
+                        "deleted_preview": _preview(old_text),
+                    })
+                    return content
+
             if not spans:
                 suggestions = suggest_similar_lines(
                     content,
@@ -2329,7 +2740,9 @@ class FileEditor:
                     ignore_punct_whitespace=ignore_punct_whitespace,
                 )
                 raise _not_found(
-                    f"Edit {edit_index}: 找不到要删除的原文片段。请从当前文件原文中复制更长且唯一的原文。候选片段: {suggestions}"
+                    f"Edit {edit_index}: 找不到要删除的原文片段。"
+                    f"{_approximate_not_found_advice(approx_stats, label='删除片段')}"
+                    f"候选片段: {suggestions}"
                 )
 
             start, end = self._select_fuzzy_span(

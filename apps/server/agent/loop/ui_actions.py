@@ -84,11 +84,11 @@ Short-drama script format preservation (strictly required for screenplay files):
 """.strip()
 
 
-def resolve_official_natural_polish_instructions(session: Session) -> str | None:
-    """Load the approved official '去AI味' skill instructions without requiring UserAddedSkill."""
+def resolve_official_natural_polish_skill(session: Session):
+    """Load the approved official '去AI味' PublicSkill row without requiring UserAddedSkill."""
     from models import PublicSkill
 
-    skill = session.exec(
+    return session.exec(
         select(PublicSkill)
         .where(
             PublicSkill.source == "official",
@@ -98,6 +98,11 @@ def resolve_official_natural_polish_instructions(session: Session) -> str | None
         .order_by(PublicSkill.updated_at.desc(), PublicSkill.id)
         .limit(1)
     ).first()
+
+
+def resolve_official_natural_polish_instructions(session: Session) -> str | None:
+    """Load the approved official '去AI味' skill instructions without requiring UserAddedSkill."""
+    skill = resolve_official_natural_polish_skill(session)
     if skill is None:
         return None
     text = (skill.instructions or "").strip()
