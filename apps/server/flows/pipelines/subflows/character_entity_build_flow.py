@@ -21,7 +21,7 @@ from flows.atomic_tasks.entities.character_tasks_v2 import (
 )
 from flows.utils.helpers import create_performance_monitor
 from flows.utils.helpers.exceptions import is_llm_fatal_stop, is_llm_service_failure
-from services.material.job_errors import MaterialPipelineError
+from services.material.job_errors import MaterialPipelineError, summarize_failure_reasons
 
 # 并发任务运行器
 RUNTIME_TASK_RUNNER: Any = ConcurrentTaskRunner(max_workers=settings.MAX_CONCURRENT_CHAPTERS)
@@ -218,6 +218,11 @@ def character_entity_build_flow(
             raise MaterialPipelineError(
                 code,
                 f"characters: all {len(important_characters)} character builds failed",
+                details={
+                    "capability": "characters",
+                    "failed_count": len(entity_errors),
+                    "reason_counts": summarize_failure_reasons(entity_errors),
+                },
             ) from (entity_errors[-1] if entity_errors else None)
 
         # 统计结果
@@ -246,6 +251,7 @@ def character_entity_build_flow(
             "skipped_count": skipped_count,
             "failed_count": failed_count,
             "failed_characters": failed_characters,
+            "character_failure_reasons": summarize_failure_reasons(entity_errors),
             "skipped_characters": skipped_characters,
             "total_count": created_count + updated_count,
             "status": "completed_with_errors" if failed_count > 0 else "completed",
