@@ -172,9 +172,117 @@ async def invoke_project_tool(
         return tool_error_text(str(exc), tool_name=tool_name)
 
 
-# 两次回复协议：上一次回复建好的文件，这一次回复必须先以 <file> 开头写正文。没写正文就调用的工具
-# 一律不执行（非递归删掉本请求新建的这份待写文件除外，见 _cancels_overdue_file）；
-# 先写正文再在同一条回复里建下一个文件照常允许。
+# 两次回复协议：上一次回复建好的文件，这一次回复必须先以 <file> 开头写正文。
+# 只读/元数据工具与不占用 <file> 槽位的 create_file（folder / empty=True / source_text）以及
+# 针对同一待写目标的重复 write_chapter / create_file 允许继续执行（附带简洁提醒或走工具既有幂等吸收，
+# 不触发 file_body_pending / runner 提前结束）；真正冲突的写操作（edit_file / delete_file[除精确取消] /
+# rename_file / 另一章 write_chapter / 新的待写 create_file）照旧以 file_body_pending 硬挡回。
+_OVERDUE_NON_CONFLICTING_TOOLS: frozenset[str] = frozenset({
+    "query_files",
+    "update_project",
+    "load_skill",
+    "read_skill_resource",
+})
+
+
+def _is_non_slotted_create_file(raw_arguments: str) -> bool:
+    """create_file 不占用 <file> 正文槽位（folder / empty=True / 非空 source_text）时返回 True。"""
+    from agent.constants import coerce_bool
+
+    parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="create_file")
+    if parse_error is not None or not isinstance(parsed, dict):
+        return False
+    file_type = parsed.get("file_type")
+    if isinstance(file_type, str) and file_type.strip().lower() == "folder":
+        return True
+    if coerce_bool(parsed.get("empty"), default=False):
+        return True
+    source_text = parsed.get("source_text")
+    return isinstance(source_text, str) and bool(source_text.strip())
+
+
+def _is_overdue_non_conflicting_tool(tool_name: str, raw_arguments: str) -> bool:
+    """严格不与待写 <file> 槽位冲突的只读/元数据调用。"""
+    if tool_name in _OVERDUE_NON_CONFLICTING_TOOLS:
+        return True
+    if tool_name == "create_file":
+        return _is_non_slotted_create_file(raw_arguments)
+    return False
+
+
+def _is_same_target_pending_writer_repeat(
+    tool_name: str,
+    raw_arguments: str,
+    overdue: list[dict[str, Any]],
+    req_ctx: AgentRequestContext,
+) -> bool:
+    """判断 write_chapter / create_file 是否指向当前已在等待正文的同一个目标，交由工具层既有吸收逻辑处理。"""
+    if tool_name == "create_file":
+        parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="create_file")
+        if parse_error is not None or not isinstance(parsed, dict):
+            return False
+        raw_title = parsed.get("title")
+        title = raw_title.strip() if isinstance(raw_title, str) else ""
+        if not title:
+            return False
+        return any(str(entry.get("title") or "").strip() == title for entry in overdue)
+
+    if tool_name == "write_chapter":
+        from agent.tools.tool_inputs import WriteChapterInput, validate_tool_input
+        from utils.title_sequence import extract_sequence_number, prefixed_chapter_heading
+
+        parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="write_chapter")
+        if parse_error is not None or not isinstance(parsed, dict):
+            return False
+        validated, validation_error = validate_tool_input(
+            WriteChapterInput, parsed, tool_name="write_chapter"
+        )
+        if validation_error is not None or validated is None:
+            return False
+
+        unit = "章" if validated.file_type == "draft" else "集"
+        for entry in overdue:
+            entry_id = str(entry.get("id") or "")
+            armed = req_ctx.pending_chapter_replacement(entry_id) if entry_id else None
+            if isinstance(armed, dict):
+                armed_chapter = armed.get("chapter")
+                armed_type = str(armed.get("file_type") or "").strip().lower()
+                if armed_chapter == validated.chapter and (not armed_type or armed_type == validated.file_type):
+                    return True
+            entry_title = str(entry.get("title") or "").strip()
+            if entry_title:
+                entry_seq = extract_sequence_number(entry_title, unit=unit)
+                if entry_seq is None:
+                    prefixed = prefixed_chapter_heading(entry_title, unit)
+                    entry_seq = prefixed[0] if prefixed is not None else None
+                if entry_seq is not None and entry_seq == validated.chapter:
+                    return True
+                if validated.title and entry_title == validated.title:
+                    return True
+        return False
+
+    return False
+
+
+def _attach_pending_file_reminder(output: str, title: str) -> str:
+    """在放行的非冲突工具结果上附带一行待写 <file> 提醒，不改变 status，不触发 runner 提前结束。"""
+    try:
+        payload = json.loads(output)
+    except (json.JSONDecodeError, TypeError):
+        return output
+    if not isinstance(payload, dict):
+        return output
+    if "pending_file_reminder" in payload:
+        return output
+    # 同目标重复 write_chapter / create_file 已自带 awaiting_body + next_step，不重复拼接提醒。
+    data = payload.get("data")
+    if isinstance(data, dict) and data.get("awaiting_body") is True:
+        return output
+    reminded = dict(payload)
+    reminded["pending_file_reminder"] = (
+        f"「{title}」仍在等待正文，完成本步后请以 <file> 开头写完它的正文并用 </file> 结束。"
+    )
+    return json.dumps(reminded, ensure_ascii=False, separators=(",", ":"))
 
 
 def _cancels_overdue_file(raw_arguments: str, overdue_ids: set[str]) -> str | None:
@@ -288,7 +396,14 @@ def build_agent_function_tools(
                 if overdue and _tool_name == "delete_file"
                 else None
             )
+            overdue_reminder_title: str | None = None
             if cancelled_id is not None:
+                overdue = []
+            elif overdue and req_ctx is not None and (
+                _is_overdue_non_conflicting_tool(_tool_name, raw_arguments)
+                or _is_same_target_pending_writer_repeat(_tool_name, raw_arguments, overdue, req_ctx)
+            ):
+                overdue_reminder_title = overdue[0]["title"]
                 overdue = []
             if overdue:
                 output = file_body_pending_text(_tool_name, overdue[0]["title"])
@@ -321,6 +436,8 @@ def build_agent_function_tools(
                     output = await invoke_allowed(raw_arguments)
                 if edit_guard is not None and edit_plan is not None and edit_plan.blocked_output is None:
                     output = edit_guard.observe(_tool_name, edit_plan, output)
+                if overdue_reminder_title is not None and req_ctx is not None and req_ctx.overdue_file_bodies():
+                    output = _attach_pending_file_reminder(output, overdue_reminder_title)
             if cancelled_id is not None and _deleted(output) and req_ctx is not None:
                 # 待写文件确实删掉了：守卫随这次删除结果收敛（StreamAdapter 按同一结果解除捕获），
                 # 模型在本 run 里接着做别的不会再被它拒绝；run 边界的「已删除」核验照旧兜底。
