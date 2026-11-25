@@ -155,8 +155,12 @@ describe("analytics", () => {
       expect(analytics.initAnalytics(ENABLED_ENV)).toBe(true);
       analytics.trackEvent("early_event", { source: "pre-optout" });
 
+      const readyBeforeCancel = analytics.whenAnalyticsReady();
       analytics.setAnalyticsOptOut(true);
       expect(cancelIdleSpy).toHaveBeenCalledWith(99);
+
+      // A promise captured before cancellation must settle rather than hang forever.
+      await expect(readyBeforeCancel).resolves.toBeUndefined();
 
       // Even if a stale callback were invoked, PostHog must not initialize or capture.
       idleCallback?.({ didTimeout: false, timeRemaining: () => 50 });
@@ -165,6 +169,32 @@ describe("analytics", () => {
       expect(captureMock).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
+    }
+  });
+
+  it("still initializes and flushes queued events on opt-back-in when localStorage.removeItem is blocked", async () => {
+    localStorage.setItem("zenstory:analytics-opt-out", "true");
+    const removeSpy = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    });
+
+    try {
+      const analytics = await import("../analytics");
+      expect(analytics.initAnalytics(ENABLED_ENV)).toBe(false);
+      expect(initMock).not.toHaveBeenCalled();
+
+      // Opt back in even though localStorage still returns "true".
+      analytics.setAnalyticsOptOut(false);
+      analytics.trackEvent("post_opt_in_event", { source: "blocked-storage" });
+      await analytics.whenAnalyticsReady();
+
+      expect(initMock).toHaveBeenCalledTimes(1);
+      expect(captureMock).toHaveBeenCalledWith(
+        "post_opt_in_event",
+        expect.objectContaining({ source: "blocked-storage" }),
+      );
+    } finally {
+      removeSpy.mockRestore();
     }
   });
 

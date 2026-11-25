@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import sitemapPlugin from 'vite-plugin-sitemap'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -98,33 +98,61 @@ function appVersionManifest(): Plugin {
   }
 }
 
+export const DEFAULT_PRODUCTION_API_ORIGIN = 'https://api.zenstory.ai'
+
 /**
- * Keeps the index.html API preconnect hint aligned with VITE_API_BASE_URL when
- * building for non-production HTTPS origins (e.g. staging preview), while
- * preserving the default `https://api.zenstory.ai` production hint.
+ * Resolves the API origin to emit in `<link rel="preconnect">`, or `null` when
+ * no external preconnect should be emitted (local dev, HTTP/E2E builds, or
+ * isolated Vercel Preview builds that route same-origin `/api/*` to staging).
  */
-function apiPreconnectPlugin(): Plugin {
-  const defaultOrigin = 'https://api.zenstory.ai'
-  let targetOrigin = defaultOrigin
-  const raw = process.env.VITE_API_BASE_URL?.trim()
+export function resolveApiPreconnectOrigin(options: {
+  command: 'serve' | 'build'
+  apiBaseUrl?: string
+  vercelEnv?: string
+}): string | null {
+  if (options.command === 'serve') return null
+
+  const raw = options.apiBaseUrl?.trim() ?? ''
   if (raw) {
     try {
       const parsed = new URL(raw)
-      if (parsed.protocol === 'https:') {
-        targetOrigin = parsed.origin
-      }
+      return parsed.protocol === 'https:' ? parsed.origin : null
     } catch {
-      // Fall back to default production API origin.
+      return null
     }
   }
+
+  if (options.vercelEnv?.trim() === 'preview') return null
+  return DEFAULT_PRODUCTION_API_ORIGIN
+}
+
+/**
+ * Injects `<link rel="preconnect" href="<origin>" crossorigin />` into the built
+ * app shell only when building for an HTTPS API origin (production or explicit
+ * HTTPS staging), preventing speculative connections to prod during local dev,
+ * HTTP E2E runs, or isolated Vercel Preview builds.
+ */
+function apiPreconnectPlugin(): Plugin {
+  let targetOrigin: string | null = null
   return {
     name: 'zenstory-api-preconnect',
+    configResolved(config) {
+      const env = loadEnv(config.mode, config.envDir || config.root, 'VITE_')
+      targetOrigin = resolveApiPreconnectOrigin({
+        command: config.command,
+        apiBaseUrl: env.VITE_API_BASE_URL ?? process.env.VITE_API_BASE_URL,
+        vercelEnv: process.env.VERCEL_ENV,
+      })
+    },
     transformIndexHtml(html) {
-      if (targetOrigin === defaultOrigin) return html
-      return html.replace(
-        `<link rel="preconnect" href="${defaultOrigin}" crossorigin />`,
-        `<link rel="preconnect" href="${targetOrigin}" crossorigin />`,
-      )
+      if (!targetOrigin) return html
+      const preconnectTag = `<link rel="preconnect" href="${targetOrigin}" crossorigin />`
+      if (html.includes(preconnectTag)) return html
+      const iconMarker = '<link rel="icon"'
+      if (html.includes(iconMarker)) {
+        return html.replace(iconMarker, `${preconnectTag}\n        ${iconMarker}`)
+      }
+      return html.replace('</head>', `        ${preconnectTag}\n    </head>`)
     },
   }
 }

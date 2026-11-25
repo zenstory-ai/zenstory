@@ -1,10 +1,11 @@
-import { createContext, useContext } from "react";
+import { StrictMode, createContext, useContext } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLastOpenedFile } from "../lib/lastOpenedFile";
 import { createEditorDraftSnapshot, writeEditorDraftSnapshot } from "../lib/editorDraftRecovery";
+import { peekPreloadedFile, seedPreloadedFile } from "../lib/preloadedFileCache";
 import type { File, Project, SelectedItem } from "../types";
 
 const ProjectRevContext = createContext(0);
@@ -124,6 +125,7 @@ vi.mock("../contexts/ProjectContext", () => ({
 }));
 
 import ProjectEditor from "../pages/ProjectEditor";
+import { Editor } from "../components/Editor";
 
 const sampleProject: Project = {
   id: "project-1",
@@ -269,6 +271,158 @@ describe("ProjectEditor boot API deduplication", () => {
 
     await waitFor(() => {
       expect(mocks.fileGet).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("survives React StrictMode double-effect execution in Editor without falling back to fileApi.get", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    seedPreloadedFile(queryClient, "user-1", "project-1", sampleFile);
+
+    mocks.project.loading = false;
+    mocks.project.projects = [sampleProject];
+    mocks.project.currentProject = sampleProject;
+    mocks.project.currentProjectId = "project-1";
+    mocks.project.selectedItem = { id: sampleFile.id, title: sampleFile.title, type: "draft" };
+    mocks.fileGet.mockResolvedValue(sampleFile);
+
+    render(
+      <StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <Editor />
+        </QueryClientProvider>
+      </StrictMode>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        sampleFile.content,
+      );
+    });
+    // StrictMode mounts/unmounts/remounts Editor: the microtask handoff must keep the
+    // preloaded entry alive for the surviving effect so Editor makes 0 extra GET calls.
+    expect(mocks.fileGet).not.toHaveBeenCalled();
+    expect(peekPreloadedFile(queryClient, "user-1", "project-1", sampleFile.id)).toBeNull();
+  });
+
+  it("preserves explicit conflict recovery when preloaded server version is newer than local draft", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let rev = 0;
+
+    setLastOpenedFile("user-1", "project-1", sampleFile.id);
+    // Draft was saved against an older updated_at token than sampleFile.updated_at.
+    writeEditorDraftSnapshot(
+      localStorage,
+      createEditorDraftSnapshot({
+        userId: "user-1",
+        projectId: "project-1",
+        fileId: sampleFile.id,
+        title: sampleFile.title,
+        content: "本地旧版本上的未保存草稿。",
+        baseUpdatedAt: "2026-11-25T09:00:00Z",
+        reason: "page-exit",
+      }),
+    );
+
+    mocks.project.loading = false;
+    mocks.project.projects = [sampleProject];
+    mocks.project.currentProject = sampleProject;
+    mocks.project.currentProjectId = "project-1";
+    mocks.fileGet.mockResolvedValue(sampleFile);
+
+    const renderTree = () => (
+      <QueryClientProvider client={queryClient}>
+        <ProjectRevContext.Provider value={rev++}>
+          <MemoryRouter initialEntries={["/project/project-1"]}>
+            <Routes>
+              <Route path="/project/:projectId" element={<ProjectEditor />} />
+            </Routes>
+          </MemoryRouter>
+        </ProjectRevContext.Provider>
+      </QueryClientProvider>
+    );
+
+    const holder: { view?: ReturnType<typeof render> } = {};
+    mocks.setSelectedItem.mockImplementation((item: SelectedItem | null) => {
+      mocks.project.selectedItem = item;
+      holder.view?.rerender(renderTree());
+    });
+
+    const view = render(renderTree());
+    holder.view = view;
+
+    // Must keep the newer server content loaded (no automatic overwrite) and show explicit conflict recovery choices.
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        sampleFile.content,
+      );
+      expect(screen.getByRole("button", { name: "editor:draftRecovery.restore" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "editor:draftRecovery.discard" })).toBeInTheDocument();
+      expect(screen.getByText("editor:draftRecovery.compare")).toBeInTheDocument();
+    });
+    expect(mocks.fileGet).toHaveBeenCalledTimes(1);
+  });
+
+  it("evicts preloaded target file from cache when leaving a dirty file fails flush", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let rev = 0;
+
+    const fileB: File = {
+      ...sampleFile,
+      id: "file-8",
+      title: "第四章",
+      content: "预加载的第四章内容。",
+    };
+
+    mocks.project.loading = false;
+    mocks.project.projects = [sampleProject];
+    mocks.project.currentProject = sampleProject;
+    mocks.project.currentProjectId = "project-1";
+    mocks.project.selectedItem = { id: sampleFile.id, title: sampleFile.title, type: "draft" };
+    mocks.fileGet.mockResolvedValue(sampleFile);
+    mocks.fileUpdate.mockRejectedValue(new Error("save failed"));
+
+    const renderTree = () => (
+      <QueryClientProvider client={queryClient}>
+        <ProjectRevContext.Provider value={rev++}>
+          <MemoryRouter initialEntries={["/project/project-1"]}>
+            <Routes>
+              <Route path="/project/:projectId" element={<ProjectEditor />} />
+            </Routes>
+          </MemoryRouter>
+        </ProjectRevContext.Provider>
+      </QueryClientProvider>
+    );
+
+    const holder: { view?: ReturnType<typeof render> } = {};
+    mocks.setSelectedItem.mockImplementation((item: SelectedItem | null) => {
+      mocks.project.selectedItem = item;
+      holder.view?.rerender(renderTree());
+    });
+
+    const view = render(renderTree());
+    holder.view = view;
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        sampleFile.content,
+      );
+    });
+
+    // Make file A dirty, then seed file B and attempt to switch to file B.
+    fireEvent.change(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder"), {
+      target: { value: "修改后但保存失败的第三章" },
+    });
+    seedPreloadedFile(queryClient, "user-1", "project-1", fileB);
+    expect(peekPreloadedFile(queryClient, "user-1", "project-1", fileB.id)).not.toBeNull();
+
+    act(() => {
+      mocks.project.selectedItem = { id: fileB.id, title: fileB.title, type: "draft" };
+      view.rerender(renderTree());
+    });
+
+    await waitFor(() => {
+      expect(mocks.fileUpdate).toHaveBeenCalledTimes(1);
+      expect(peekPreloadedFile(queryClient, "user-1", "project-1", fileB.id)).toBeNull();
     });
   });
 });
