@@ -83,6 +83,79 @@ OUTPUT_CAP_RATIO = 0.98
 # 正常结束的 run 最后一次响应也撞上了输出上限时，MESSAGE_END data 里带的结构化标记（值为 True）。
 OUTPUT_CAPPED_KEY = "output_capped"
 
+# 流式工具参数生成期间的轻量进度提示（经 StreamAdapter 转为瞬态 SSE `thinking` 事件，不落库）。
+TOOL_PREPARING_STEP = "tool_preparing"
+TOOL_ARG_PROGRESS_INTERVAL_S = 2.0
+TOOL_ARG_PROGRESS_BYTES = 1_500
+_TOOL_PREPARING_LABELS_ZH: dict[str, str] = {
+    "edit_file": "正在准备编辑文件…",
+    "write_chapter": "正在准备写入章节…",
+    "create_file": "正在准备创建文件…",
+    "query_files": "正在准备检索文件…",
+    "update_project": "正在准备更新项目…",
+    "delete_file": "正在准备删除文件…",
+    "rename_file": "正在准备重命名文件…",
+    "load_skill": "正在加载写作技能…",
+    "read_skill_resource": "正在读取技能参考资料…",
+}
+_TOOL_PREPARING_LABELS_EN: dict[str, str] = {
+    "edit_file": "Preparing file edits…",
+    "write_chapter": "Preparing chapter write…",
+    "create_file": "Preparing new file…",
+    "query_files": "Preparing file lookup…",
+    "update_project": "Preparing project update…",
+    "delete_file": "Preparing file deletion…",
+    "rename_file": "Preparing file rename…",
+    "load_skill": "Loading writing skill…",
+    "read_skill_resource": "Reading skill reference…",
+}
+_TOOL_ARG_PROGRESS_LABELS_ZH: dict[str, str] = {
+    "edit_file": "正在生成文件修改内容（约 {chars} 字符）…",
+    "write_chapter": "正在准备写入章节（约 {chars} 字符）…",
+    "create_file": "正在准备创建文件（约 {chars} 字符）…",
+    "update_project": "正在准备更新项目（约 {chars} 字符）…",
+}
+_TOOL_ARG_PROGRESS_LABELS_EN: dict[str, str] = {
+    "edit_file": "Generating file edits (~{chars} chars)…",
+    "write_chapter": "Preparing chapter write (~{chars} chars)…",
+    "create_file": "Preparing new file (~{chars} chars)…",
+    "update_project": "Preparing project update (~{chars} chars)…",
+}
+
+
+@dataclasses.dataclass
+class _ToolArgStreamState:
+    """单次流式函数调用参数的节流进度跟踪。"""
+
+    tool_name: str
+    total_bytes: int = 0
+    total_chars: int = 0
+    last_emit_bytes: int = 0
+    last_emit_at: float = 0.0
+
+
+def _tool_preparing_message(tool_name: str, *, english: bool) -> str:
+    labels = _TOOL_PREPARING_LABELS_EN if english else _TOOL_PREPARING_LABELS_ZH
+    default_label = "Preparing tool call…" if english else "正在准备调用工具…"
+    return labels.get(tool_name, default_label)
+
+
+def _tool_arg_progress_message(tool_name: str, chars: int, *, english: bool) -> str:
+    labels = _TOOL_ARG_PROGRESS_LABELS_EN if english else _TOOL_ARG_PROGRESS_LABELS_ZH
+    template = labels.get(
+        tool_name,
+        "Preparing tool arguments (~{chars} chars)…" if english else "正在准备工具参数（约 {chars} 字符）…",
+    )
+    return template.format(chars=chars)
+
+
+def _real_raw_item_id(value: Any) -> str:
+    """Return a provider item id only when it is a real unique id (never Chat Completions' FAKE_RESPONSES_ID)."""
+    from agents.models.fake_id import FAKE_RESPONSES_ID
+
+    raw_id = str(value or "")
+    return "" if not raw_id or raw_id == FAKE_RESPONSES_ID else raw_id
+
 # 距离上限还剩多少次模型调用时开始收尾：在这几次调用的输入末尾追加提醒，
 # 要求模型停止调用工具、写阶段总结（已完成 / 剩余 / 用到的文件 id）。上限取
 # 本次 run 的 max_turns 与请求级模型调用预算（AgentRunMeter）中先到的那个。
@@ -800,6 +873,9 @@ async def run_openai_agents_streaming_agent(
     call_text_length = 0
     repetition_checked_at = 0
     call_head_checked = False
+    english = str(state.get("language") or "").strip().lower().startswith("en")
+    active_tool_arg_streams: dict[str, _ToolArgStreamState] = {}
+    last_tool_arg_stream_key: str | None = None
     max_turns_exhausted = False
     turn_filter: _ModelCallCountingFilter | None = None
     # 请求级模型调用预算（单循环 agent 建一个跨 run 共享；单独调用 runner
@@ -955,6 +1031,8 @@ async def run_openai_agents_streaming_agent(
                     raw_type = _raw_event_type(raw)
                     if raw_type == "response.created":
                         call_text, call_text_length, repetition_checked_at, call_head_checked = [], 0, 0, False
+                        active_tool_arg_streams.clear()
+                        last_tool_arg_stream_key = None
                     if raw_type == "response.output_text.delta":
                         text = _raw_event_delta(raw)
                         if text:
@@ -1000,6 +1078,92 @@ async def run_openai_agents_streaming_agent(
                         if thinking:
                             thinking_chars += len(thinking)
                             yield StreamEvent(type=StreamEventType.THINKING, data={"thinking": thinking})
+                    elif raw_type == "response.output_item.added":
+                        added_item = getattr(raw, "item", None)
+                        if _raw_item_value(added_item, "type", "") == "function_call":
+                            tool_name = str(_raw_item_value(added_item, "name", "") or "")
+                            raw_item_id = _real_raw_item_id(_raw_item_value(added_item, "id", ""))
+                            output_index = getattr(raw, "output_index", None)
+                            if raw_item_id:
+                                stream_key = raw_item_id
+                            elif output_index is not None:
+                                stream_key = f"idx:{output_index}"
+                            else:
+                                stream_key = (
+                                    _real_raw_item_id(_raw_item_value(added_item, "call_id", ""))
+                                    or f"seq:{len(active_tool_arg_streams)}"
+                                )
+                            active_tool_arg_streams[stream_key] = _ToolArgStreamState(
+                                tool_name=tool_name,
+                                last_emit_at=time.monotonic(),
+                            )
+                            last_tool_arg_stream_key = stream_key
+                            yield StreamEvent(
+                                type=StreamEventType.THINKING,
+                                data={
+                                    "message": _tool_preparing_message(tool_name, english=english),
+                                    "step": TOOL_PREPARING_STEP,
+                                    "tool_name": tool_name,
+                                },
+                            )
+                    elif raw_type == "response.function_call_arguments.delta":
+                        arg_delta = _raw_event_delta(raw)
+                        if arg_delta:
+                            raw_item_id = _real_raw_item_id(getattr(raw, "item_id", ""))
+                            output_index = getattr(raw, "output_index", None)
+                            tracker = (
+                                active_tool_arg_streams.get(raw_item_id)
+                                if raw_item_id
+                                else None
+                            )
+                            if tracker is None and output_index is not None:
+                                tracker = active_tool_arg_streams.get(f"idx:{output_index}")
+                            if tracker is None and last_tool_arg_stream_key is not None:
+                                tracker = active_tool_arg_streams.get(last_tool_arg_stream_key)
+                            if tracker is not None:
+                                tracker.total_bytes += len(arg_delta.encode("utf-8"))
+                                tracker.total_chars += len(arg_delta)
+                                bytes_since_emit = tracker.total_bytes - tracker.last_emit_bytes
+                                now = time.monotonic()
+                                tracks_progress = (
+                                    tracker.tool_name in _TOOL_ARG_PROGRESS_LABELS_ZH
+                                    or tracker.total_bytes >= TOOL_ARG_PROGRESS_BYTES
+                                )
+                                if tracks_progress and (
+                                    bytes_since_emit >= TOOL_ARG_PROGRESS_BYTES
+                                    or (
+                                        bytes_since_emit > 0
+                                        and now - tracker.last_emit_at >= TOOL_ARG_PROGRESS_INTERVAL_S
+                                    )
+                                ):
+                                    tracker.last_emit_bytes = tracker.total_bytes
+                                    tracker.last_emit_at = now
+                                    yield StreamEvent(
+                                        type=StreamEventType.THINKING,
+                                        data={
+                                            "message": _tool_arg_progress_message(
+                                                tracker.tool_name,
+                                                tracker.total_chars,
+                                                english=english,
+                                            ),
+                                            "step": TOOL_PREPARING_STEP,
+                                            "tool_name": tracker.tool_name,
+                                        },
+                                    )
+                    elif raw_type in {"response.function_call_arguments.done", "response.output_item.done"}:
+                        done_item = getattr(raw, "item", None)
+                        done_key = _real_raw_item_id(getattr(raw, "item_id", "")) or _real_raw_item_id(
+                            _raw_item_value(done_item, "id", "")
+                        )
+                        output_index = getattr(raw, "output_index", None)
+                        if done_key:
+                            active_tool_arg_streams.pop(done_key, None)
+                        elif output_index is not None:
+                            active_tool_arg_streams.pop(f"idx:{output_index}", None)
+                        else:
+                            call_key = _real_raw_item_id(_raw_item_value(done_item, "call_id", ""))
+                            if call_key:
+                                active_tool_arg_streams.pop(call_key, None)
                     continue
 
                 if event_type != "run_item_stream_event":
@@ -1024,6 +1188,8 @@ async def run_openai_agents_streaming_agent(
                 elif event_name == "tool_output":
                     # 工具执行完毕后下一次 output_text 必然属于新一轮模型回复（兼容不发 response.created 的流/替身）。
                     call_text, call_text_length, repetition_checked_at, call_head_checked = [], 0, 0, False
+                    active_tool_arg_streams.clear()
+                    last_tool_arg_stream_key = None
                     call_id, result_text = _tool_output_payload(item)
                     tool_name = tool_names_by_call_id.get(call_id, "")
                     result_payload = mcp_text_result(result_text)
