@@ -70,7 +70,7 @@ ZenStory 工作台是在浏览器里写**长篇小说、短篇小说和短剧剧
 export DEEPSEEK_API_KEY=your-key          # 也可以写进仓库根目录的 .env
 docker compose up -d --build
 
-# 创建首个管理员账号（无需邀请码和邮箱验证，密码至少 12 位）
+# 创建首个管理员账号（无需邮箱验证，密码至少 12 位）
 docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
   -e ZENSTORY_ADMIN_PASSWORD='CHANGE-ME-12CHARS' server python scripts/create_admin.py
 ```
@@ -80,7 +80,7 @@ docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
 - **写作配置**：项目系统提示词（`novel`、`short`、`screenplay`）和官方技能保存在数据库中，首次启动后请在管理后台配置并重新加载，维护方式见 [docs/agent-writing-guidance.md](docs/agent-writing-guidance.md)。
 - **套餐初始化**：运行 `docker compose exec server python scripts/seed_subscription_plans.py` 初始化套餐，即可在管理后台「订阅管理」给账号开通 Pro。
 - **更换模型**：可通过环境变量配置 DeepSeek 或 MiniMax 模型（`LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`，对应 `DEEPSEEK_API_KEY` 或 `MINIMAX_API_KEY`），详见 [`apps/server/agent/core/llm_providers.py`](apps/server/agent/core/llm_providers.py)。
-- **开放注册与可选功能**：自托管默认要求邀请码注册，设 `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true` 可改为免邀请码注册；PostgreSQL + Redis 完整部署、邮箱验证与密码重置（Resend）、Google 登录、腾讯云语音输入、素材拆解（Prefect Worker）、灵感库以及支付宝 Zpay 收款等配置，详见 [docs/docker-compose.md](docs/docker-compose.md)。
+- **进阶与可选功能**：PostgreSQL + Redis 完整部署、邮箱验证与密码重置（Resend）、Google 登录、腾讯云语音输入、素材拆解（Prefect Worker）以及支付宝 Zpay 收款等配置，详见 [docs/docker-compose.md](docs/docker-compose.md)。
 
 <details>
 <summary>不用 Docker，本地开发</summary>

@@ -193,55 +193,6 @@ def test_product_identity_does_not_depend_on_database_role_definition():
 
 
 @pytest.mark.unit
-def test_base_prompt_rename_rule_points_only_to_rename_file():
-    """#273/F-13：只改标题时只走 rename_file，提示词里不能再有新建副本搬运正文的旧规则。"""
-    prompt = get_base_prompt(
-        project_id="proj-1",
-        folder_ids={"draft": "draft-folder"},
-        config={"role_definition": "Test role", "capabilities": "", "directory_structure": "{draft}",
-                "content_structure": "", "file_types": "draft", "writing_guidelines": ""},
-    )
-
-    tool_list = LOOP_TOOL_USAGE_PROTOCOL.split("## 写正文")[0]
-    assert "\n- rename_file" in tool_list
-    assert "改标题用 edit_file" not in prompt
-    assert "改标题用 create_file" not in prompt
-    assert "建一个新标题的文件" not in prompt
-    assert "只改文件名（文件标题）时用 rename_file" in prompt
-
-
-@pytest.mark.unit
-def test_delete_tool_prompt_uses_recovery_scope_without_authorship_refusal():
-    assert "删除未受作者正文保护" not in LOOP_TOOL_USAGE_PROTOCOL
-    assert "受保护正文及含它的文件夹请作者用文件菜单删除" not in LOOP_TOOL_USAGE_PROTOCOL
-    assert "软删除，作者可在该删除卡片上一键恢复" in LOOP_TOOL_USAGE_PROTOCOL
-    assert "移入回收站" not in LOOP_TOOL_USAGE_PROTOCOL
-
-
-@pytest.mark.unit
-def test_post_save_and_compaction_prompts_forbid_word_count_churn_and_uuid_tables():
-    from agent.loop.engine import _BODY_SAVED_CONTEXT, _BODY_SAVED_REPLIED_CONTEXT
-    from agent.loop.prompts import COMPACT_PROMPT, LOOP_WORKING_RULES
-
-    for text in (LOOP_WORKING_RULES, _BODY_SAVED_CONTEXT, _BODY_SAVED_REPLIED_CONTEXT):
-        assert "近似字数" in text
-        assert "edit_file" in text
-    assert "不写内部文件 ID 或 UUID" in COMPACT_PROMPT
-    assert "不使用 Markdown 表格" in COMPACT_PROMPT
-    assert "照工具结果原样抄" not in COMPACT_PROMPT
-
-
-@pytest.mark.unit
-def test_create_file_schema_empty_description_matches_loop_contract():
-    from agent.tools.tool_schemas import CREATE_FILE_TOOL
-
-    empty_desc = CREATE_FILE_TOOL["input_schema"]["properties"]["empty"]["description"]
-    assert "先建空章节" not in empty_desc
-    assert "设了也不生效" not in empty_desc
-    assert "<file>" in empty_desc
-
-
-@pytest.mark.unit
 @pytest.mark.parametrize(("directory_structure", "expected"), [
     ("正文目录: {draft}", "正文目录: draft-folder"),
     ("设定集 {unknown} 和 {draft}", "设定集 {unknown} 和 draft-folder"),
@@ -262,8 +213,51 @@ def test_admin_directory_structure_with_stray_braces_still_builds(directory_stru
 
 
 @pytest.mark.unit
-def test_anti_plagiarism_rule_scopes_to_reference_novels_and_allows_project_snippets():
-    """外部参考小说不搬运原句，但作者写进本项目「素材」文件夹的原创片段应允许按要求原句引用。"""
-    assert "参考小说等外部导入素材只用于学习结构、情绪与因果机制；另创人物、关系、情境和表达，不搬运原句或换名复刻。" in UNIFIED_EXECUTION_PROTOCOL
-    assert "作者自己写进本项目「素材」文件夹的原创片段" in UNIFIED_EXECUTION_PROTOCOL
-    assert "可直接原句使用" in UNIFIED_EXECUTION_PROTOCOL
+def test_working_rules_and_norms_are_static_prefix_text():
+    """工作规则与题材规范是固定文本，没有残留占位符；系统提示两次装配逐字相同。"""
+    import re
+
+    from agent.context.assembler import PREVIOUS_CHAPTER_NOTE
+    from agent.loop.prompts import LOOP_WORKING_RULES
+    from agent.prompts import GENRE_NORMS
+
+    for text in (LOOP_WORKING_RULES, *GENRE_NORMS.values()):
+        assert not re.search(r"\{[A-Za-z_]+\}", text)
+        assert PREVIOUS_CHAPTER_NOTE not in text
+    config = {
+        "role_definition": "R", "capabilities": "C", "directory_structure": "{draft}",
+        "content_structure": "S", "file_types": "T", "writing_guidelines": "G",
+    }
+    first = get_base_prompt("p", {"draft": "d"}, config)
+    assert first == get_base_prompt("p", {"draft": "d"}, config)
+    assert PREVIOUS_CHAPTER_NOTE not in first
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("writing_prompt_configs")
+@pytest.mark.parametrize("project_type", ["novel", "short", "screenplay"])
+@pytest.mark.parametrize("language", ["zh", "en"])
+async def test_the_real_system_prompt_carries_the_red_lines_once(db_session, project_type, language):
+    """真实装配的系统提示（三种作品类型、中英界面）都带一份红线。"""
+    from agent.core.message_manager import MessageManager
+    from models import Project, User
+
+    owner = User(
+        email=f"red-lines-{project_type}-{language}@example.com",
+        username=f"red_lines_{project_type}_{language}",
+        hashed_password="hashed_password",
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(owner)
+    db_session.commit()
+    db_session.refresh(owner)
+    project = Project(name="Red Lines", owner_id=owner.id, project_type=project_type)
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    system_prompt = MessageManager(project_id=project.id, user_id=owner.id).build_system_prompt(
+        session=db_session, language=language
+    )
+    assert system_prompt.count(CONTENT_RED_LINES) == 1

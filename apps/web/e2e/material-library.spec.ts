@@ -370,7 +370,7 @@ async function setupMaterialLibraryMocking(page: Page) {
           updated_at: mockTimestamp,
         }),
       })
-    } else if (pathname.endsWith('/plots') || pathname.endsWith('/storylines')) {
+    } else if (pathname.endsWith('/plots') || pathname.endsWith('/storylines') || pathname.endsWith('/stories')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -541,17 +541,12 @@ test.describe('Material Library Flow - Complete Lifecycle', () => {
     const chapterText = page.locator('text=/\\d+\\s*(章|chapters?)/i')
     await expect(chapterText.first()).toBeVisible({ timeout: 3000 })
 
-    // Verify entity tabs are available
-    const tabs = ['Chapter', '章节', 'Character', '角色']
-    let foundTab = false
-    for (const tabText of tabs) {
-      const tab = page.locator(`button:has-text("${tabText}")`)
-      if (await tab.isVisible()) {
-        foundTab = true
-        break
-      }
-    }
-    expect(foundTab || true).toBe(true) // Pass if at least some UI elements are present
+    // Verify entity folders/tabs are available
+    const entityControl = page
+      .locator('button')
+      .filter({ hasText: /章节|Chapters?|角色|Characters?/i })
+      .first()
+    await expect(entityControl).toBeVisible({ timeout: 5000 })
   })
 })
 
@@ -564,22 +559,19 @@ test.describe('Material Library Flow - Processing Status', () => {
   test('shows processing status for materials being processed', async ({ page }) => {
     await page.waitForSelector(MATERIALS_PAGE.materialsGrid, { timeout: 5000 })
 
-    // Look for processing status indicator
-    const processingBadge = page.locator('text=/decomposing|拆解中/i')
-    const hasProcessing = await processingBadge.count() > 0
+    // Look for processing status indicator (mockMaterials id '3' has status: 'processing')
+    const processingBadge = page.locator('text=/decomposing|processing|拆解中|处理中/i')
+    await expect(processingBadge.first()).toBeVisible({ timeout: 5000 })
 
-    if (hasProcessing) {
-      // Click on processing material
-      const processingCard = processingBadge.first().locator('..').locator('..')
-      await processingCard.click()
-      await page.waitForURL(/\/materials\//, { timeout: 5000 })
+    const processingCard = processingBadge.first().locator('..').locator('..')
+    await processingCard.click()
+    await page.waitForURL(/\/materials\//, { timeout: 5000 })
 
-      // Verify progress indicator
-      const progressBar = page.locator('[role="progressbar"], .progress, [class*="progress"]')
-      // Progress indicator may or may not be visible
-      const hasProgress = await progressBar.count() > 0
-      expect(hasProgress || true).toBe(true)
-    }
+    // Verify processing status or progress indicator is visible on detail page
+    const processingIndicator = page
+      .locator('[role="progressbar"], .animate-spin')
+      .or(page.getByText(/拆解中|处理中|processing|decomposing/i))
+    await expect(processingIndicator.first()).toBeVisible({ timeout: 5000 })
   })
 
   test('shows error message for failed materials', async ({ page }) => {
@@ -708,75 +700,54 @@ test.describe('Material Library Flow - Entity Exploration', () => {
   })
 
   test('user can browse chapters', async ({ page }) => {
-    // Look for chapters section/tab
-    const chapterTab = page.locator('button:has-text("Chapter"), button:has-text("章节")')
-    if (await chapterTab.first().isVisible()) {
-      await chapterTab.first().click()
+    const chapterTab = page.locator('button:has-text("Chapter"), button:has-text("章节")').first()
+    await expect(chapterTab).toBeVisible({ timeout: 5000 })
+    await chapterTab.click()
 
-      // Verify some content loaded (chapter list or tree)
-      await page.waitForTimeout(500)
-      const hasContent = await page.locator('[class*="chapter"], [class*="list"], [class*="tree"]').first().isVisible().catch(() => false)
-      expect(hasContent || true).toBe(true)
-    }
+    await expect(page.getByText(/第一章|陨落的天才/).first()).toBeVisible({ timeout: 5000 })
   })
 
   test('user can browse characters', async ({ page }) => {
-    const characterTab = page.locator('button:has-text("Character"), button:has-text("角色")')
-    if (await characterTab.first().isVisible()) {
-      await characterTab.first().click()
+    const characterTab = page.locator('button:has-text("Character"), button:has-text("角色")').first()
+    await expect(characterTab).toBeVisible({ timeout: 5000 })
+    await characterTab.click()
 
-      // Wait for character list
-      await page.waitForTimeout(500)
-
-      // Verify character content
-      const characterContent = page.locator('text=/萧炎|药老|Hero|Mentor/i')
-      await expect(characterContent.first()).toBeVisible({ timeout: 3000 })
-    }
+    const characterContent = page.locator('text=/萧炎|药老|Hero|Mentor/i')
+    await expect(characterContent.first()).toBeVisible({ timeout: 5000 })
   })
 
   test('user can browse plot/storylines', async ({ page }) => {
-    const plotTab = page.locator('button:has-text("Plot"), button:has-text("剧情"), button:has-text("Story")')
-    if (await plotTab.first().isVisible()) {
-      await plotTab.first().click()
+    const storylineFolder = page.locator('#material-folder-storylines')
+    await expect(storylineFolder).toBeVisible({ timeout: 5000 })
+    await storylineFolder.click()
 
-      // Wait for plot content
-      await page.waitForTimeout(500)
-
-      // Verify plot content
-      const plotContent = page.locator('text=/三年之约|Plot|Story/i')
-      const hasContent = await plotContent.count() > 0
-      expect(hasContent || true).toBe(true)
-    }
+    const plotContent = page.locator('text=/三年之约|炼药大会/')
+    await expect(plotContent.first()).toBeVisible({ timeout: 5000 })
   })
 
   test('user can view relationships', async ({ page }) => {
-    const relationshipTab = page.locator('button:has-text("Relation"), button:has-text("关系")')
-    if (await relationshipTab.first().isVisible()) {
-      await relationshipTab.first().click()
-
-      // Wait for relationship content
-      await page.waitForTimeout(500)
-
-      // Verify relationship content
-      const relationContent = page.locator('text=/师徒|Relation/i')
-      const hasContent = await relationContent.count() > 0
-      expect(hasContent || true).toBe(true)
+    const relationshipTab = page.locator('#material-folder-relationships')
+    if (!(await relationshipTab.isVisible())) {
+      // Relationships category is behind a feature flag when disabled
+      return
     }
+    await relationshipTab.click()
+
+    const relationContent = page.locator('text=/萧炎 - 药老|萧炎 - 纳兰嫣然|师徒/')
+    await expect(relationContent.first()).toBeVisible({ timeout: 5000 })
   })
 
   test('user can view world view/setting', async ({ page }) => {
-    const worldTab = page.locator('button:has-text("World"), button:has-text("世界"), button:has-text("设定")')
-    if (await worldTab.first().isVisible()) {
-      await worldTab.first().click()
+    const worldFolder = page.locator('#material-folder-worldview')
+    await expect(worldFolder).toBeVisible({ timeout: 5000 })
+    await worldFolder.click()
 
-      // Wait for world view content
-      await page.waitForTimeout(500)
+    const worldItem = page.getByRole('button', { name: /世界观设定|Worldbuilding Settings/i }).first()
+    await expect(worldItem).toBeVisible({ timeout: 5000 })
+    await worldItem.click()
 
-      // Verify world view content
-      const worldContent = page.locator('text=/斗气|修炼|Power|Cultivation/i')
-      const hasContent = await worldContent.count() > 0
-      expect(hasContent || true).toBe(true)
-    }
+    const worldContent = page.locator('text=/斗气修炼体系|云岚宗|斗气大陆/')
+    await expect(worldContent.first()).toBeVisible({ timeout: 5000 })
   })
 })
 
@@ -887,14 +858,11 @@ test.describe('Material Library Flow - Accessibility', () => {
     const uploadButton = page.locator(MATERIALS_PAGE.uploadButton).first()
     await uploadButton.click()
 
-    const modal = page.locator(UPLOAD_MODAL.overlay)
-    if (await modal.isVisible()) {
-      // Check for role attribute
-      const role = await modal.getAttribute('role')
-      const ariaModal = await modal.getAttribute('aria-modal')
-
-      expect(role === 'dialog' || ariaModal === 'true' || true).toBe(true)
-    }
+    const modal = page.locator('[role="dialog"]').first()
+    await expect(modal).toBeVisible({ timeout: 5000 })
+    const role = await modal.getAttribute('role')
+    const ariaModal = await modal.getAttribute('aria-modal')
+    expect(role === 'dialog' || ariaModal === 'true').toBe(true)
   })
 
   test('focus is trapped in modal', async ({ page }) => {
@@ -903,18 +871,14 @@ test.describe('Material Library Flow - Accessibility', () => {
     const uploadButton = page.locator(MATERIALS_PAGE.uploadButton).first()
     await uploadButton.click()
 
-    const modal = page.locator(UPLOAD_MODAL.overlay)
-    if (await modal.isVisible()) {
-      // Tab through modal elements - focus should stay within modal
-      for (let i = 0; i < 10; i++) {
-        await page.keyboard.press('Tab')
-      }
+    const modal = page.locator('[role="dialog"]').first()
+    await expect(modal).toBeVisible({ timeout: 5000 })
 
-      // Verify focus is still within modal
-      const focusedElement = page.locator(':focus')
-      const isInModal = await focusedElement.locator('xpath=ancestor-or-self::*[contains(@class, "modal")]').count() > 0
-      expect(isInModal || true).toBe(true)
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Tab')
     }
+
+    await expect(modal.locator(':focus')).toHaveCount(1)
   })
 
   test('buttons have discernible text', async ({ page }) => {
@@ -987,21 +951,16 @@ test.describe('Material Library Flow - Error Recovery', () => {
   test('retry button appears for failed uploads', async ({ page }) => {
     await page.waitForSelector(MATERIALS_PAGE.materialsGrid, { timeout: 5000 })
 
-    // Look for failed material
+    // mockMaterials id '4' has status: 'failed'
     const failedBadge = page.locator('text=/failed|失败/i')
-    const hasFailed = await failedBadge.count() > 0
+    await expect(failedBadge.first()).toBeVisible({ timeout: 5000 })
 
-    if (hasFailed) {
-      // Click on failed material
-      const failedCard = failedBadge.first().locator('..').locator('..')
-      await failedCard.click()
-      await page.waitForURL(/\/materials\//, { timeout: 5000 })
+    const failedCard = failedBadge.first().locator('..').locator('..')
+    await failedCard.click()
+    await page.waitForURL(/\/materials\//, { timeout: 5000 })
 
-      // Look for retry button
-      const retryButton = page.locator('button:has-text("Retry"), button:has-text("重试")')
-      const hasRetry = await retryButton.count() > 0
-      expect(hasRetry || true).toBe(true) // Pass regardless for now
-    }
+    const retryButton = page.getByRole('button', { name: /Retry|重试/i }).first()
+    await expect(retryButton).toBeVisible({ timeout: 5000 })
   })
 })
 
@@ -1264,18 +1223,12 @@ test.describe('Material Library Flow - Delete Operations', () => {
     const firstCard = page.locator(MATERIALS_PAGE.materialCard).first()
     await firstCard.hover()
 
-    // Look for delete button
-    const deleteButton = firstCard.locator('button:has(svg)')
-    const deleteCount = await deleteButton.count()
+    const deleteButton = firstCard.locator('button:has(svg)').last()
+    await expect(deleteButton).toBeVisible({ timeout: 5000 })
+    await deleteButton.click()
 
-    if (deleteCount > 0) {
-      await deleteButton.last().click({ force: true })
-
-      // Look for confirmation dialog
-      const confirmDialog = page.locator('text=/确认|Confirm|Delete|删除/')
-      const hasConfirm = await confirmDialog.count() > 0
-      expect(hasConfirm || true).toBe(true)
-    }
+    const confirmDialog = page.locator('[role="dialog"], [role="alertdialog"]').first()
+    await expect(confirmDialog).toBeVisible({ timeout: 5000 })
   })
 
   test('delete removes material from list', async ({ page }) => {

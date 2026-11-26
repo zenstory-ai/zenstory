@@ -18,34 +18,10 @@ let mockIsMobile = false
 let mockIsTablet = false
 let mockProjects: Array<{ id: string; name: string; description?: string; project_type: 'novel' | 'short' | 'screenplay'; updated_at?: string | null }> = []
 let mockProjectsLoading = false
-let mockFeaturedState: {
-  featured: Array<{ id: string; name: string; description?: string; project_type: 'novel' }>;
-  isLoading: boolean;
-  isFetching: boolean;
-} = {
-  featured: [],
-  isLoading: false,
-  isFetching: false,
-}
-let mockDashboardInspirations: Array<{
-  id: string;
-  title: string;
-  hook: string;
-  tags: string[];
-  source: string;
-}> = []
 
 const {
-  mockInspirationsConfig,
-  mockUseFeaturedInspirations,
-  mockUseDashboardInspirations,
   mockGetProgress,
 } = vi.hoisted(() => ({
-  mockInspirationsConfig: {
-    enabled: false,
-  },
-  mockUseFeaturedInspirations: vi.fn(),
-  mockUseDashboardInspirations: vi.fn(),
   mockGetProgress: vi.fn(async () => [] as unknown[]),
 }))
 
@@ -139,17 +115,9 @@ vi.mock('../../contexts/ProjectContext', () => ({
   }),
 }))
 
-vi.mock('../../hooks/useInspirations', () => ({
-  useFeaturedInspirations: mockUseFeaturedInspirations,
-}))
-
 vi.mock('../../hooks/useMediaQuery', () => ({
   useIsMobile: () => mockIsMobile,
   useIsTablet: () => mockIsTablet,
-}))
-
-vi.mock('../../hooks/useDashboardInspirations', () => ({
-  useDashboardInspirations: mockUseDashboardInspirations,
 }))
 
 vi.mock('../../components/subscription/UpgradePromptModal', () => ({
@@ -168,10 +136,6 @@ vi.mock('../../lib/api', () => ({
 
 vi.mock('../../lib/announcementApi', () => ({
   announcementApi: { getCurrent: vi.fn().mockResolvedValue(null) },
-}))
-
-vi.mock('../../config/inspirations', () => ({
-  inspirationsConfig: mockInspirationsConfig,
 }))
 
 vi.mock('../../components/subscription/QuotaBadge', () => ({
@@ -215,15 +179,6 @@ describe('DashboardHome featured inspirations section', () => {
     mockIsTablet = false
     mockProjects = []
     mockProjectsLoading = false
-    mockFeaturedState = {
-      featured: [],
-      isLoading: false,
-      isFetching: false,
-    }
-    mockInspirationsConfig.enabled = false
-    mockUseFeaturedInspirations.mockImplementation(() => mockFeaturedState)
-    mockUseDashboardInspirations.mockImplementation(() => mockDashboardInspirations)
-    mockDashboardInspirations = []
     vi.mocked(projectApi.getTemplates).mockResolvedValue(null)
     localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY)
     localStorage.removeItem(`${PREFERRED_PROJECT_TYPE_STORAGE_KEY}:${defaultMockUser.id}`)
@@ -413,7 +368,7 @@ describe('DashboardHome featured inspirations section', () => {
     consoleError.mockRestore()
   })
 
-  it('does not mount or fetch featured inspirations when the feature is disabled', () => {
+  it('does not mount retired featured inspirations widgets', () => {
     renderDashboardHome()
 
     expect(screen.queryByTestId('featured-inspirations-section')).not.toBeInTheDocument()
@@ -422,13 +377,11 @@ describe('DashboardHome featured inspirations section', () => {
     expect(screen.queryByText('如果你还没想好，可以从这里开始：')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '换一批' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '查看灵感库' })).not.toBeInTheDocument()
-    expect(mockUseFeaturedInspirations).not.toHaveBeenCalled()
-    expect(mockUseDashboardInspirations).not.toHaveBeenCalled()
     // The placeholder is one example premise, marked as an example rather than text already filled in.
     expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^例如：主角穿越成.+推到台前。$/)
   })
 
-  it('keeps manual idea creation available when inspirations are disabled', async () => {
+  it('keeps manual idea creation available', async () => {
     renderDashboardHome()
 
     fireEvent.change(screen.getByTestId('dashboard-inspiration-input'), {
@@ -440,84 +393,6 @@ describe('DashboardHome featured inspirations section', () => {
       expect(mockCreateProject).toHaveBeenCalledWith(expect.any(String), undefined, 'novel')
       expect(mockNavigate).toHaveBeenCalledWith('/project/project-created')
     })
-  })
-
-  it('shows featured section and renders empty CTA when explicitly enabled', () => {
-    mockInspirationsConfig.enabled = true
-
-    renderDashboardHome()
-
-    expect(screen.getByTestId('featured-inspirations-section')).toBeInTheDocument()
-    expect(mockUseFeaturedInspirations).toHaveBeenCalledWith(3)
-    expect(screen.getByText('暂无精选灵感')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '查看灵感库' }))
-    expect(mockNavigate).toHaveBeenCalledWith('/dashboard/inspirations')
-  })
-
-  it('renders real inspiration cards and fills the input when clicked', () => {
-    mockInspirationsConfig.enabled = true
-    mockDashboardInspirations = [
-      {
-        id: 'qimao:1983473',
-        title: '狂兽战神',
-        hook: '被皇朝与挚爱联手陷害的神将，流放后反掌万兽',
-        tags: ['玄幻奇幻', '东方玄幻'],
-        source: 'qimao_detail',
-      },
-    ]
-
-    renderDashboardHome()
-
-    expect(screen.getByTestId('dashboard-real-inspirations')).toBeInTheDocument()
-    expect(mockUseDashboardInspirations).toHaveBeenCalledWith('novel', 2, 0)
-    // The placeholder is one example premise, marked as an example rather than text already filled in.
-    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^例如：主角穿越成.+推到台前。$/)
-    fireEvent.click(screen.getByRole('button', { name: /狂兽战神/i }))
-
-    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue(
-      '《狂兽战神》：被皇朝与挚爱联手陷害的神将，流放后反掌万兽',
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: '换一批' }))
-    expect(mockUseDashboardInspirations).toHaveBeenLastCalledWith('novel', 2, 1)
-  })
-
-  it('keeps existing featured cards when featured inspirations are available', () => {
-    mockInspirationsConfig.enabled = true
-    mockFeaturedState = {
-      featured: [
-        {
-          id: 'insp-1',
-          name: '赛博修仙都市',
-          description: '未来都市与修仙体系结合',
-          project_type: 'novel',
-        },
-      ],
-      isLoading: false,
-      isFetching: false,
-    }
-
-    renderDashboardHome()
-
-    expect(screen.getByText('赛博修仙都市')).toBeInTheDocument()
-    expect(screen.queryByText('暂无精选灵感')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('赛博修仙都市'))
-    expect(mockNavigate).toHaveBeenCalledWith('/dashboard/inspirations/insp-1')
-  })
-
-  it('shows loading skeleton while featured inspirations are loading', () => {
-    mockInspirationsConfig.enabled = true
-    mockFeaturedState = {
-      featured: [],
-      isLoading: true,
-      isFetching: true,
-    }
-
-    renderDashboardHome()
-
-    expect(screen.getByTestId('featured-inspirations-loading')).toBeInTheDocument()
   })
 
   it('shows project quota upgrade modal when quick create hits limit', async () => {
@@ -822,7 +697,7 @@ describe('DashboardHome featured inspirations section', () => {
 })
 
 describe('first work entry', () => {
-  beforeEach(() => { vi.clearAllMocks(); mockFirstWork.get.mockResolvedValue(firstWorkState()); mockFirstWork.initialize.mockReset(); mockLanguage = 'zh-CN'; mockUser = defaultMockUser; mockProjects = []; mockProjectsLoading = false; mockUseFeaturedInspirations.mockReturnValue(mockFeaturedState); vi.spyOn(subscriptionApi, 'getQuota').mockResolvedValue({ ai_conversations: { used: 0, limit: 3, reset_at: null } } as QuotaResponse); localStorage.clear() })
+  beforeEach(() => { vi.clearAllMocks(); mockFirstWork.get.mockResolvedValue(firstWorkState()); mockFirstWork.initialize.mockReset(); mockLanguage = 'zh-CN'; mockUser = defaultMockUser; mockProjects = []; mockProjectsLoading = false; vi.spyOn(subscriptionApi, 'getQuota').mockResolvedValue({ ai_conversations: { used: 0, limit: 3, reset_at: null } } as QuotaResponse); localStorage.clear() })
   it('initializes pending work with the existing type preference and opens its exact manuscript', async () => {
     setPreferredProjectType('screenplay', defaultMockUser.id)
     mockFirstWork.get.mockResolvedValue(firstWorkState('pending'))
@@ -1013,24 +888,13 @@ describe('first work entry', () => {
       }
     })
 
-    it('shows error toast when project creation succeeds without an id and distinguishes featured inspiration load errors from empty state', async () => {
+    it('shows error toast when project creation succeeds without an id', async () => {
       const toastError = vi.spyOn(toast, 'error').mockImplementation(() => '')
       try {
+        mockFirstWork.get.mockResolvedValue(firstWorkState())
         mockCreateProject.mockResolvedValueOnce({ id: '' })
-        mockInspirationsConfig.enabled = true
-        const refetchFeatured = vi.fn()
-        mockUseFeaturedInspirations.mockReturnValue({
-          featured: [],
-          isLoading: false,
-          isFetching: false,
-          error: new Error('featured unavailable'),
-          refetch: refetchFeatured,
-        })
 
         renderDashboardHome()
-        expect(screen.queryByText('暂无精选灵感')).not.toBeInTheDocument()
-        fireEvent.click(screen.getByRole('button', { name: '重试' }))
-        expect(refetchFeatured).toHaveBeenCalledTimes(1)
 
         fireEvent.click(screen.getByTestId('create-project-button'))
         await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1))

@@ -7,16 +7,13 @@ const {
   mockNavigate,
   mockRegister,
   mockGoogleLogin,
-  mockGetRegistrationPolicy,
   mockToastError,
   mockToastSuccess,
   mockAuthConfig,
-  inviteCodePropsHistory,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockRegister: vi.fn(),
   mockGoogleLogin: vi.fn(),
-  mockGetRegistrationPolicy: vi.fn(),
   mockToastError: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockAuthConfig: {
@@ -25,9 +22,7 @@ const {
       google: { enabled: false, clientId: undefined },
     },
     forgotPasswordEnabled: false,
-    inviteCodeOptional: false,
   },
-  inviteCodePropsHistory: [] as Array<{ value: string; prefilled?: boolean; required?: boolean }>,
 }));
 
 vi.mock("react-router-dom", async () => {
@@ -68,26 +63,6 @@ vi.mock("../../components/Logo", () => ({
   LogoMark: () => <div data-testid="logo-mark" />,
 }));
 
-vi.mock("../../components/referral/InviteCodeInput", () => ({
-  InviteCodeInput: (props: { value: string; prefilled?: boolean; required?: boolean }) => {
-    inviteCodePropsHistory.push(props);
-    return (
-      <div
-        data-testid="invite-code-input"
-        data-value={props.value}
-        data-prefilled={String(Boolean(props.prefilled))}
-        data-required={String(Boolean(props.required))}
-      />
-    );
-  },
-}));
-
-vi.mock("../../lib/api", () => ({
-  authApi: {
-    getRegistrationPolicy: mockGetRegistrationPolicy,
-  },
-}));
-
 vi.mock("../../lib/toast", () => ({
   toast: {
     error: mockToastError,
@@ -100,26 +75,14 @@ vi.mock("../../config/auth", () => ({
   hasOAuthProviders: () => mockAuthConfig.oauthProviders.google.enabled,
 }));
 
-const referralFlag = vi.hoisted(() => ({ enabled: true }));
-
-vi.mock("../../config/referral", () => ({ referralConfig: referralFlag }));
-
 import Register from "../Register";
 import { ApiError } from "../../lib/apiClient";
 
 describe("Register", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    inviteCodePropsHistory.length = 0;
     mockAuthConfig.registrationEnabled = true;
-    mockAuthConfig.inviteCodeOptional = false;
-    referralFlag.enabled = true;
     mockAuthConfig.oauthProviders.google.enabled = false;
-    mockGetRegistrationPolicy.mockResolvedValue({
-      invite_code_optional: false,
-      variant: "control_required",
-      rollout_percent: 0,
-    });
   });
 
   const renderWithRoute = (route: string) =>
@@ -138,9 +101,6 @@ describe("Register", () => {
     });
   };
 
-  // An optional invite code is folded behind a link instead of showing the field.
-  const inviteToggle = () => screen.queryByRole("button", { name: /auth:register\.haveInviteCode/ });
-
   const acceptTerms = async (user: ReturnType<typeof userEvent.setup>) => {
     await act(async () => {
       await user.click(screen.getByRole("checkbox"));
@@ -150,54 +110,23 @@ describe("Register", () => {
     });
   };
 
-  it("hides and does not send an optional invite code while referral is off", async () => {
-    referralFlag.enabled = false;
-    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: "global_optional", rollout_percent: 100 });
+  it("does not render retired invite code controls and submits cleanly", async () => {
     mockRegister.mockResolvedValueOnce({ email: "test@example.com", email_verified: false, verification_sent: true });
     const user = userEvent.setup();
-    renderWithRoute("/register?invite=ABCD-1234");
-    await waitFor(() => expect(mockGetRegistrationPolicy).toHaveBeenCalled());
-    await waitFor(() => expect(screen.queryByTestId("invite-code-input")).not.toBeInTheDocument());
-    expect(inviteToggle()).not.toBeInTheDocument();
+    renderWithRoute("/register");
+    expect(screen.queryByTestId("invite-code-input")).not.toBeInTheDocument();
     fillRegistrationFields();
     await acceptTerms(user);
     await user.click(screen.getByRole("button", { name: "auth:register.submit" }));
     await waitFor(() =>
-      expect(mockRegister).toHaveBeenCalledWith("test@example.com", "SecurePass123!", undefined),
-    );
-  });
-
-  it("does not pass an optional invite code to Google while referral is off", async () => {
-    referralFlag.enabled = false;
-    mockAuthConfig.oauthProviders.google.enabled = true;
-    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: "global_optional", rollout_percent: 100 });
-    renderWithRoute("/register?plan=pro&code=abcd1234");
-    await waitFor(() => expect(mockGetRegistrationPolicy).toHaveBeenCalled());
-    await waitFor(() => expect(screen.queryByTestId("invite-code-input")).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "auth:register.googleRegister" }));
-    expect(mockGoogleLogin).toHaveBeenCalledWith({ inviteCode: undefined, planIntent: "pro" });
-  });
-
-  it("keeps a required invite code while referral is off", async () => {
-    referralFlag.enabled = false;
-    mockRegister.mockResolvedValueOnce({ email: "test@example.com", email_verified: false, verification_sent: true });
-    const user = userEvent.setup();
-    renderWithRoute("/register?invite=ABCD-1234");
-    await waitFor(() => expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-required", "true"));
-    fillRegistrationFields();
-    await acceptTerms(user);
-    await user.click(screen.getByRole("button", { name: "auth:register.submit" }));
-    await waitFor(() =>
-      expect(mockRegister).toHaveBeenCalledWith("test@example.com", "SecurePass123!", "ABCD-1234"),
+      expect(mockRegister).toHaveBeenCalledWith("test@example.com", "SecurePass123!"),
     );
   });
 
   it("does not claim mail was sent when the account exists but delivery failed", async () => {
-    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: 'global_optional', rollout_percent: 100 });
     mockRegister.mockResolvedValueOnce({ email: 'test@example.com', email_verified: false, verification_sent: false });
     const user = userEvent.setup();
     renderWithRoute('/register?plan=pro');
-    await waitFor(() => expect(inviteToggle()).toBeInTheDocument());
     fillRegistrationFields();
     await acceptTerms(user);
     await user.click(screen.getByRole('button', { name: 'auth:register.submit' }));
@@ -208,37 +137,26 @@ describe("Register", () => {
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
-  it("reads plan and prefilled invite code from URL", async () => {
-    renderWithRoute("/register?plan=pro&code=abcd1234");
-
-    await waitFor(() => {
-      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-prefilled", "true");
-      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-value", "ABCD-1234");
-      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-required", "true");
-    });
+  it("reads plan intent from URL", () => {
+    renderWithRoute("/register?plan=pro");
 
     expect(screen.getByRole("link", { name: "auth:register.login" })).toHaveAttribute("href", "/login?plan=pro");
     expect(screen.getByText(/auth:register.planIntentTitle/)).toBeInTheDocument();
   });
 
-  it("passes normalized plan intent through Google registration", async () => {
+  it("passes normalized plan intent through Google registration", () => {
     mockAuthConfig.oauthProviders.google.enabled = true;
-    renderWithRoute("/register?plan=PRO&code=abcd1234");
-    await waitFor(() => expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-value", "ABCD-1234"));
+    renderWithRoute("/register?plan=PRO");
 
     fireEvent.click(screen.getByRole("button", { name: "auth:register.googleRegister" }));
 
-    expect(mockGoogleLogin).toHaveBeenCalledWith({ inviteCode: "ABCD-1234", planIntent: "pro" });
+    expect(mockGoogleLogin).toHaveBeenCalledWith({ planIntent: "pro" });
   });
 
   it("keeps plan intent when navigating to verify-email after success", async () => {
     mockRegister.mockResolvedValue(undefined);
     const user = userEvent.setup();
-    renderWithRoute("/register?plan=pro&code=abcd1234");
-
-    await waitFor(() => {
-      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-value", "ABCD-1234");
-    });
+    renderWithRoute("/register?plan=pro");
 
     fillRegistrationFields();
     await acceptTerms(user);
@@ -249,7 +167,7 @@ describe("Register", () => {
     });
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith("test@example.com", "SecurePass123!", "ABCD-1234");
+      expect(mockRegister).toHaveBeenCalledWith("test@example.com", "SecurePass123!");
       expect(mockToastSuccess).toHaveBeenCalled();
     });
 
@@ -263,15 +181,11 @@ describe("Register", () => {
 
   it("rejects passwords longer than 72 bytes before calling the API", async () => {
     const user = userEvent.setup();
-    renderWithRoute("/register?code=abcd1234");
-
-    await waitFor(() => {
-      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-value", "ABCD-1234");
-    });
+    renderWithRoute("/register");
 
     // 25 CJK characters = 75 UTF-8 bytes, though only 25 JS characters.
     const longPassword = "密".repeat(25);
-    fillRegistrationFields(longPassword);
+    fillRegistrationFields();
     fireEvent.change(screen.getByLabelText("auth:register.passwordLabel"), {
       target: { value: longPassword },
     });
@@ -285,24 +199,6 @@ describe("Register", () => {
       expect(mockToastError).toHaveBeenCalledWith("auth:errors.passwordTooLong");
     });
     expect(mockRegister).not.toHaveBeenCalled();
-  });
-
-  it("requires invite code by default when optional flag is off", async () => {
-    const user = userEvent.setup();
-    renderWithRoute("/register");
-
-    fillRegistrationFields();
-    await acceptTerms(user);
-    const submitButton = screen.getByRole("button", { name: "auth:register.submit" });
-    expect(submitButton).toBeEnabled();
-
-    await act(async () => {
-      await user.click(submitButton);
-    });
-
-    expect(mockRegister).not.toHaveBeenCalled();
-    expect(mockToastError).toHaveBeenCalledWith("auth:errors.inviteCodeRequired");
-    expect(screen.getByText("auth:errors.inviteCodeRequired")).toBeInTheDocument();
   });
 
   it("answers a click on an empty form with a visible reason instead of doing nothing", async () => {
@@ -319,60 +215,6 @@ describe("Register", () => {
     expect(mockToastError).toHaveBeenCalledWith("auth:errors.invalidEmail");
     expect(screen.getByText("auth:errors.invalidEmail")).toBeInTheDocument();
     expect(submitButton).toBeEnabled();
-  });
-
-  it("posts on the first click without another policy lookup once the policy is known", async () => {
-    mockRegister.mockReturnValue(new Promise<void>(() => {}));
-    mockGetRegistrationPolicy.mockResolvedValue({
-      invite_code_optional: true,
-      variant: "treatment_optional",
-      rollout_percent: 50,
-    });
-    const user = userEvent.setup();
-    renderWithRoute("/register");
-
-    fillRegistrationFields();
-    await acceptTerms(user);
-    await waitFor(() => {
-      expect(mockGetRegistrationPolicy).toHaveBeenCalledWith({ email: "test@example.com" });
-      expect(inviteToggle()).toBeInTheDocument();
-    });
-    const policyCallsBeforeClick = mockGetRegistrationPolicy.mock.calls.length;
-
-    await act(async () => {
-      await user.click(screen.getByRole("button", { name: "auth:register.submit" }));
-    });
-
-    expect(mockRegister).toHaveBeenCalledTimes(1);
-    expect(mockGetRegistrationPolicy).toHaveBeenCalledTimes(policyCallsBeforeClick);
-    // While the POST runs the button is disabled and shows the loading label.
-    expect(screen.getByTestId("register-form")).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
-    expect(screen.getByTestId("register-form").querySelector('button[type="submit"]')).toBeDisabled();
-  });
-
-  it("prefetches the identity-independent policy on mount and skips per-email lookups", async () => {
-    mockRegister.mockReturnValue(new Promise<void>(() => {}));
-    mockGetRegistrationPolicy.mockResolvedValue({
-      invite_code_optional: true,
-      variant: "global_optional",
-      rollout_percent: 100,
-    });
-    const user = userEvent.setup();
-    renderWithRoute("/register");
-
-    await waitFor(() => {
-      expect(mockGetRegistrationPolicy).toHaveBeenCalledWith();
-      expect(inviteToggle()).toBeInTheDocument();
-    });
-    fillRegistrationFields();
-    await acceptTerms(user);
-    await act(async () => {
-      await user.click(screen.getByRole("button", { name: "auth:register.submit" }));
-    });
-
-    expect(mockRegister).toHaveBeenCalledWith("test@example.com", "SecurePass123!", undefined);
-    expect(mockGetRegistrationPolicy).toHaveBeenCalledTimes(1);
   });
 
   it("asks only for an email and one password, which the author can reveal to check", async () => {
@@ -415,25 +257,8 @@ describe("Register", () => {
     expect(mockRegister).not.toHaveBeenCalled();
   });
 
-  it("folds an optional invite code behind a link and opens it on request", async () => {
-    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: "global_optional", rollout_percent: 100 });
-    const user = userEvent.setup();
-    renderWithRoute("/register");
-
-    await waitFor(() => expect(inviteToggle()).toBeInTheDocument());
-    expect(screen.queryByTestId("invite-code-input")).not.toBeInTheDocument();
-
-    await user.click(inviteToggle()!);
-
-    expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-required", "false");
-  });
-
-  it("shows terms acceptance validation when paid intent pre-fills invite code", async () => {
-    renderWithRoute("/register?plan=pro&code=abcd1234");
-
-    await waitFor(() => {
-      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-value", "ABCD-1234");
-    });
+  it("shows terms acceptance validation before registering", async () => {
+    renderWithRoute("/register?plan=pro");
 
     fillRegistrationFields();
 
@@ -450,12 +275,8 @@ describe("Register", () => {
     const pendingRegistration = new Promise<void>(() => {});
     mockRegister.mockReturnValue(pendingRegistration);
     const user = userEvent.setup();
-    renderWithRoute("/register?plan=pro&code=abcd1234");
+    renderWithRoute("/register?plan=pro");
     const submitButton = screen.getByRole("button", { name: "auth:register.submit" });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-value", "ABCD-1234");
-    });
 
     fillRegistrationFields();
     await acceptTerms(user);
@@ -465,64 +286,20 @@ describe("Register", () => {
     });
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith("test@example.com", "SecurePass123!", "ABCD-1234");
+      expect(mockRegister).toHaveBeenCalledWith("test@example.com", "SecurePass123!");
     });
 
     expect(submitButton).toBeDisabled();
     expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
   });
 
-  it("allows register without invite code for gray-treatment optional policy", async () => {
-    mockRegister.mockResolvedValue(undefined);
-    mockGetRegistrationPolicy.mockResolvedValue({
-      invite_code_optional: true,
-      variant: "treatment_optional",
-      rollout_percent: 50,
-    });
-
-    const user = userEvent.setup();
-    renderWithRoute("/register");
-
-    fireEvent.change(screen.getByLabelText("auth:register.emailLabel"), {
-      target: { value: "gray_user@example.com" },
-    });
-    fireEvent.change(screen.getByLabelText("auth:register.passwordLabel"), {
-      target: { value: "SecurePass123!" },
-    });
-
-    await user.click(screen.getByRole("checkbox"));
-
-    await waitFor(() => {
-      expect(mockGetRegistrationPolicy).toHaveBeenCalledWith({ email: "gray_user@example.com" });
-      expect(inviteToggle()).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "auth:register.submit" })).toBeEnabled();
-    });
-
-    await act(async () => {
-      fireEvent.submit(screen.getByTestId("register-form"));
-    });
-
-    await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith(
-        "gray_user@example.com",
-        "SecurePass123!",
-        undefined
-      );
-    });
-  });
-
-  it("re-enables submit after a duplicate-email error when the author edits the email (invite required flow)", async () => {
+  it("re-enables submit after a duplicate-email error when the author edits the email", async () => {
     mockRegister
       .mockRejectedValueOnce(new Error("auth:errors.emailExists"))
       .mockResolvedValueOnce(undefined);
 
     const user = userEvent.setup();
-    renderWithRoute("/register?code=abcd1234");
-
-    await waitFor(() => {
-      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-value", "ABCD-1234");
-      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-required", "true");
-    });
+    renderWithRoute("/register");
 
     fireEvent.change(screen.getByLabelText("auth:register.emailLabel"), {
       target: { value: "duplicate_user@example.com" },
@@ -559,18 +336,14 @@ describe("Register", () => {
         2,
         "new_available_user@example.com",
         "SecurePass123!",
-        "ABCD-1234",
       );
     });
   });
 
   it("releases submit gate after terms rejection and permits ordinary retry", async () => {
-    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true });
     const user = userEvent.setup();
     renderWithRoute("/register");
     fillRegistrationFields();
-    // Existing form-handler validation contract: programmatic submit exercises
-    // the terms rejection branch; this is not a physical disabled-button bypass claim.
     await act(async () => { fireEvent.submit(screen.getByTestId("register-form")); });
     await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("auth:errors.mustAcceptTerms"));
     expect(mockRegister).not.toHaveBeenCalled();
@@ -585,7 +358,7 @@ describe("Register", () => {
 
   it("answers a malformed-email click with an inline error and marks the field invalid", async () => {
     const user = userEvent.setup();
-    renderWithRoute("/register?code=abcd1234");
+    renderWithRoute("/register");
     fireEvent.change(screen.getByLabelText("auth:register.emailLabel"), { target: { value: "not-an-email" } });
     fireEvent.change(screen.getByLabelText("auth:register.passwordLabel"), { target: { value: "SecurePass123!" } });
     await acceptTerms(user);
@@ -597,14 +370,11 @@ describe("Register", () => {
     expect(mockRegister).not.toHaveBeenCalled();
     expect(mockToastError).toHaveBeenCalledWith("auth:errors.invalidEmail");
     expect(screen.getByText("auth:errors.invalidEmail")).toBeInTheDocument();
-    expect(mockGetRegistrationPolicy).not.toHaveBeenCalledWith(expect.objectContaining({ email: "not-an-email" }));
   });
   it("gives an existing email both a sign-in and a verification exit", async () => {
-    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: 'global_optional', rollout_percent: 100 });
     mockRegister.mockRejectedValueOnce(new ApiError(400, 'ERR_AUTH_EMAIL_EXISTS'));
     const user = userEvent.setup();
     renderWithRoute('/register?plan=pro');
-    await waitFor(() => expect(inviteToggle()).toBeInTheDocument());
     fillRegistrationFields();
     await acceptTerms(user);
     await user.click(screen.getByRole('button', { name: 'auth:register.submit' }));
@@ -616,11 +386,9 @@ describe("Register", () => {
   });
 
   it("drops the existing-email exits once the author edits the address", async () => {
-    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: 'global_optional', rollout_percent: 100 });
     mockRegister.mockRejectedValueOnce(new ApiError(400, 'ERR_AUTH_EMAIL_EXISTS'));
     const user = userEvent.setup();
     renderWithRoute('/register');
-    await waitFor(() => expect(inviteToggle()).toBeInTheDocument());
     fillRegistrationFields();
     await acceptTerms(user);
     await user.click(screen.getByRole('button', { name: 'auth:register.submit' }));
@@ -631,11 +399,9 @@ describe("Register", () => {
   });
 
   it("does not offer existing-email exits for other failures", async () => {
-    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: 'global_optional', rollout_percent: 100 });
     mockRegister.mockRejectedValueOnce(new ApiError(503, 'ERR_AUTH_RESEND_FAILED'));
     const user = userEvent.setup();
     renderWithRoute('/register');
-    await waitFor(() => expect(inviteToggle()).toBeInTheDocument());
     fillRegistrationFields();
     await acceptTerms(user);
     await user.click(screen.getByRole('button', { name: 'auth:register.submit' }));

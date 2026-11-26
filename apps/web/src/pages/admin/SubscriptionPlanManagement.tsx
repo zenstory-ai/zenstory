@@ -12,7 +12,6 @@ import { AdminPageState, TouchCheckbox } from "../../components/admin";
 import { adminApi } from "../../lib/adminApi";
 import type { SubscriptionPlan, SubscriptionFeatures } from "../../types/subscription";
 import { toast } from "../../lib/toast";
-import { inspirationsConfig } from "../../config/inspirations";
 
 // Plan card component
 const PlanCard: React.FC<{
@@ -42,15 +41,12 @@ const PlanCard: React.FC<{
     file_versions_per_file: t("plans.featuresDetail.file_versions_per_file"),
     materials_library_access: t("plans.featuresDetail.materials_library_access"),
     material_decompositions: t("plans.featuresDetail.material_decompositions_monthly"),
-    inspiration_copies_monthly: t("plans.featuresDetail.inspiration_copies_monthly"),
     export_formats: t("plans.featuresDetail.export_formats"),
   };
 
   const features = (plan.effective_features ?? plan.features) as SubscriptionFeatures;
-  const planFeatureKeys = Object.keys(featureLabels).filter(
-    (key) =>
-      Object.prototype.hasOwnProperty.call(features, key)
-      && (inspirationsConfig.enabled || key !== "inspiration_copies_monthly"),
+  const planFeatureKeys = Object.keys(featureLabels).filter((key) =>
+    Object.prototype.hasOwnProperty.call(features, key),
   );
 
   return (
@@ -520,19 +516,6 @@ export const SubscriptionPlanManagement: React.FC = () => {
                     className="w-full min-h-11 rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2.5 text-[hsl(var(--text-secondary))]" />
                   <p id="admin-plans-free-daily-policy" className="mt-1 text-sm text-[hsl(var(--text-secondary))]">
                     {t("plans.featuresDetail.freeDailyPolicy", {count: freeDailyLimit})}
-                  </p>
-                </div>
-              )}
-              {editingPlan.name === "pro" && inspirationsConfig.enabled && (
-                <div>
-                  <label htmlFor="admin-plans-pro-copy-limit" className="block text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
-                    {t("plans.featuresDetail.inspiration_copies_monthly")}
-                  </label>
-                  <input id="admin-plans-pro-copy-limit" value={t("plans.unlimited")} readOnly
-                    aria-describedby="admin-plans-pro-copy-policy"
-                    className="w-full min-h-11 rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2.5 text-[hsl(var(--text-secondary))]" />
-                  <p id="admin-plans-pro-copy-policy" className="mt-1 text-sm text-[hsl(var(--text-secondary))]">
-                    {t("plans.featuresDetail.proInspirationPolicy")}
                   </p>
                 </div>
               )}

@@ -4,11 +4,8 @@ import { useTranslation } from "react-i18next";
 import { LogoMark } from "../components/Logo";
 import { useAuth } from "../contexts/AuthContext";
 import { authConfig, hasOAuthProviders } from "../config/auth";
-import { referralConfig } from "../config/referral";
 import { PublicHeader } from "../components/PublicHeader";
 import { Button } from "../components/ui/Button";
-import { InviteCodeInput } from "../components/referral/InviteCodeInput";
-import { authApi } from "../lib/api";
 import { translateError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { ApiError } from "../lib/apiClient";
@@ -17,12 +14,6 @@ import { Eye, EyeOff } from "lucide-react";
 import { EmailSuggestionInput } from "../components/EmailSuggestionInput";
 
 const MAX_PASSWORD_BYTES = 72;
-
-type PolicyCacheEntry = {
-  key: string;
-  value: boolean | null;
-  promise: Promise<boolean>;
-};
 
 // SVG icons for OAuth providers
 const GoogleIcon = () => (
@@ -50,10 +41,6 @@ export const Register: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [inviteCode, setInviteCode] = useState("");
-  const [inviteCodePrefilled, setInviteCodePrefilled] = useState(false);
-  // An optional invite code stays behind a link until the visitor asks for it.
-  const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanIntent | null>(null);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -62,20 +49,13 @@ export const Register: React.FC = () => {
   // The address the server reported as already registered. The same answer
   // covers verified and unverified accounts, so both exits are offered.
   const [existingEmail, setExistingEmail] = useState<string | null>(null);
-  const [inviteCodeOptional, setInviteCodeOptional] = useState(authConfig.inviteCodeOptional);
   const { register, googleLogin } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation(['auth', 'common', 'home']);
   const [searchParams] = useSearchParams();
-  const policyRequestSeqRef = useRef(0);
   const submitInFlightRef = useRef(false);
-  // Identity-independent policy from the mount prefetch (null = unknown or
-  // depends on the identity).
-  const globalPolicyRef = useRef<boolean | null>(null);
-  // Latest per-identity policy lookup, reused by submit.
-  const identityPolicyRef = useRef<PolicyCacheEntry | null>(null);
 
-  // Read invite code and plan intent from URL parameters
+  // Read plan intent and error code from URL parameters
   useEffect(() => {
     setSelectedPlan(normalizePlanIntent(searchParams.get('plan')));
 
@@ -84,41 +64,7 @@ export const Register: React.FC = () => {
       const message = translateError(errorCode);
       setFormError(message);
       toast.error(message);
-
-      const inviteRelatedErrors = new Set([
-        'ERR_AUTH_INVITE_CODE_REQUIRED',
-        'ERR_REFERRAL_CODE_INVALID',
-        'ERR_REFERRAL_CODE_EXPIRED',
-        'ERR_REFERRAL_CODE_USED_UP',
-      ]);
-
-      // Focus invite code input only when the error is invite-related.
-      if (inviteRelatedErrors.has(errorCode)) {
-        setInviteOpen(true);
-        setTimeout(() => {
-          const el = document.getElementById('invite_code');
-          if (el instanceof HTMLInputElement) {
-            el.scrollIntoView({ block: 'center' });
-            el.focus();
-          }
-        }, 0);
-      }
     }
-
-    const inviteFromUrl = searchParams.get('invite') || searchParams.get('code');
-    if (!inviteFromUrl) {
-      setInviteCode("");
-      setInviteCodePrefilled(false);
-      return;
-    }
-
-    // Format the code if needed (ensure XXXX-XXXX format)
-    let formattedCode = inviteFromUrl.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-    if (formattedCode.length === 8 && !formattedCode.includes('-')) {
-      formattedCode = formattedCode.slice(0, 4) + '-' + formattedCode.slice(4);
-    }
-    setInviteCode(formattedCode);
-    setInviteCodePrefilled(true);
   }, [searchParams]);
 
   const hasPaidPlanIntent = selectedPlan !== null && selectedPlan !== 'free';
@@ -132,14 +78,8 @@ export const Register: React.FC = () => {
     ? `/verify-email?plan=${encodeURIComponent(selectedPlan)}`
     : "/verify-email";
   const trimmedEmail = email.trim();
-  const trimmedInviteCode = inviteCode.trim();
-  // With referral off, an optional invite code is neither shown nor sent; a
-  // required one still gates registration.
-  const inviteCodeAllowed = referralConfig.enabled || !inviteCodeOptional;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
   const isPasswordLengthValid = password.length >= 6;
-  // An allowed but optional code folds behind a link unless it is prefilled or already typed.
-  const showInviteCodeField = !inviteCodeOptional || inviteCodePrefilled || inviteOpen || trimmedInviteCode.length > 0;
   // The submit button is only disabled while a request is running or after
   // success. Incomplete forms stay clickable so every click gets a visible
   // answer (inline message + toast) instead of a silent no-op.
@@ -154,88 +94,6 @@ export const Register: React.FC = () => {
       // Non-browser environments without scrollTo.
     }
   }, []);
-
-  // Prefetch the identity-independent policy on mount. When the server says
-  // the answer does not depend on the identity (global optional / no rollout),
-  // submit reuses it without another round trip.
-  useEffect(() => {
-    let cancelled = false;
-    void authApi.getRegistrationPolicy().then((policy) => {
-      if (cancelled) return;
-      const optional = Boolean(policy.invite_code_optional);
-      const identityIndependent =
-        policy.variant === "global_optional" || Number(policy.rollout_percent ?? 0) <= 0;
-      globalPolicyRef.current = identityIndependent ? optional : null;
-      if (identityIndependent) {
-        setInviteCodeOptional(optional);
-      }
-    }).catch(() => {
-      // Keep the build-time default; submit falls back to it as before.
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isEmailValid) {
-      setInviteCodeOptional(globalPolicyRef.current ?? authConfig.inviteCodeOptional);
-      return;
-    }
-    if (globalPolicyRef.current !== null) {
-      setInviteCodeOptional(globalPolicyRef.current);
-      return;
-    }
-
-    const requestSeq = ++policyRequestSeqRef.current;
-    let cancelled = false;
-    const key = trimmedEmail;
-    const entry: PolicyCacheEntry = {
-      key,
-      value: null,
-      promise: authApi.getRegistrationPolicy({ email: trimmedEmail }).then((policy) => {
-        const optional = Boolean(policy.invite_code_optional);
-        entry.value = optional;
-        return optional;
-      }),
-    };
-    identityPolicyRef.current = entry;
-
-    entry.promise.then((optional) => {
-      if (!cancelled && requestSeq === policyRequestSeqRef.current) {
-        setInviteCodeOptional(optional);
-      }
-    }).catch(() => {
-      if (identityPolicyRef.current === entry) {
-        identityPolicyRef.current = null;
-      }
-      if (!cancelled && requestSeq === policyRequestSeqRef.current) {
-        setInviteCodeOptional(authConfig.inviteCodeOptional);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isEmailValid, trimmedEmail]);
-
-  /**
-   * Resolve the invite policy for submit. Known answers are returned
-   * synchronously so the first click goes straight to the POST; only an
-   * unknown identity triggers (or joins) a network lookup.
-   */
-  const resolveSubmitPolicy = (): boolean | Promise<boolean> => {
-    if (globalPolicyRef.current !== null) return globalPolicyRef.current;
-    const key = trimmedEmail;
-    const cached = identityPolicyRef.current;
-    if (cached && cached.key === key) {
-      if (cached.value !== null) return cached.value;
-      return cached.promise.catch(() => inviteCodeOptional);
-    }
-    return authApi.getRegistrationPolicy({ email: trimmedEmail })
-      .then((policy) => Boolean(policy.invite_code_optional))
-      .catch(() => inviteCodeOptional);
-  };
 
   const rejectSubmit = (message: string, fieldId?: string) => {
     setFormError(message);
@@ -297,17 +155,7 @@ export const Register: React.FC = () => {
     setLoading(true);
 
     try {
-      const policyResult = resolveSubmitPolicy();
-      const effectiveInviteCodeOptional =
-        typeof policyResult === 'boolean' ? policyResult : await policyResult;
-      setInviteCodeOptional(effectiveInviteCodeOptional);
-
-      if (!effectiveInviteCodeOptional && !trimmedInviteCode) {
-        rejectSubmit(t('auth:errors.inviteCodeRequired'), 'invite_code');
-        return;
-      }
-      const sendInviteCode = referralConfig.enabled || !effectiveInviteCodeOptional;
-      const result = await register(trimmedEmail, password, (sendInviteCode && trimmedInviteCode) || undefined);
+      const result = await register(trimmedEmail, password);
       if (result?.verification_sent === false) {
         const path = selectedPlan ? `/verify-email?${new URLSearchParams({ plan: selectedPlan }).toString()}` : '/verify-email';
         navigate(path, { state: { email: result.email || trimmedEmail, verificationSent: false } });
@@ -340,21 +188,7 @@ export const Register: React.FC = () => {
 
   const handleGoogleRegister = () => {
     setFormError("");
-    if (!inviteCodeOptional && !trimmedInviteCode) {
-      const message = t('auth:errors.inviteCodeRequired');
-      setFormError(message);
-      toast.error(message);
-      // Keep the user on the page so they can fill the code.
-      setTimeout(() => {
-        const el = document.getElementById('invite_code');
-        if (el instanceof HTMLInputElement) {
-          el.scrollIntoView({ block: 'center' });
-          el.focus();
-        }
-      }, 0);
-      return;
-    }
-    googleLogin({ inviteCode: (inviteCodeAllowed && trimmedInviteCode) || undefined, planIntent: selectedPlan });
+    googleLogin({ planIntent: selectedPlan });
   };
 
   const showOAuthDivider = hasOAuthProviders();
@@ -532,37 +366,6 @@ export const Register: React.FC = () => {
                 {t('auth:register.passwordRule', '密码至少 6 个字符')}
               </p>
             </div>
-
-            {/* Invite Code */}
-            {inviteCodeAllowed && (
-            <div className="mb-6">
-              {showInviteCodeField ? (
-                <InviteCodeInput
-                  value={inviteCode}
-                  onChange={(value) => {
-                    setInviteCode(value);
-                    resetSubmitStateOnInput();
-                  }}
-                  disabled={loading || success}
-                  required={!inviteCodeOptional}
-                  prefilled={inviteCodePrefilled}
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInviteOpen(true);
-                    // The link is replaced by the field; keep the keyboard on it.
-                    setTimeout(() => document.getElementById("invite_code")?.focus(), 0);
-                  }}
-                  className="min-h-11 text-sm text-[hsl(var(--accent-primary))] underline-offset-2 hover:underline"
-                  disabled={loading || success}
-                >
-                  {t('auth:register.haveInviteCode', '有邀请码？')}
-                </button>
-              )}
-            </div>
-            )}
 
             <div className="mb-6">
               <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm leading-6 text-[hsl(var(--text-secondary))]">

@@ -440,33 +440,31 @@ def test_multiple_users_with_projects(db_session: Session):
 
 @pytest.mark.unit
 def test_model_timestamps_auto_generation(db_session: Session):
-    """Test that created_at and updated_at are automatically generated."""
+    """Test that created_at and updated_at are automatically generated and persist updates."""
+    from datetime import timedelta
+
     user = User(
         username="testuser",
         email="test@example.com",
-        hashed_password="hashed_password"
+        hashed_password="hashed_password",
     )
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
 
-    # Verify timestamps are set
     assert user.created_at is not None
     assert user.updated_at is not None
+    original_created_at = user.created_at
+    newer_timestamp = user.updated_at + timedelta(seconds=5)
 
-    # Save created_at
-
-    # Update the user
-    import asyncio
-    asyncio.sleep(0.01)  # Small delay to ensure time difference
     user.username = "updated_user"
+    user.updated_at = newer_timestamp
     db_session.commit()
     db_session.refresh(user)
 
-    # Verify updated_at changed (if you have auto-update logic)
-    # Note: SQLModel doesn't auto-update updated_at by default,
-    # this test verifies the field exists
-    assert user.updated_at is not None
+    assert user.created_at == original_created_at
+    assert user.updated_at == newer_timestamp
+    assert user.updated_at > user.created_at
 
 
 @pytest.mark.unit

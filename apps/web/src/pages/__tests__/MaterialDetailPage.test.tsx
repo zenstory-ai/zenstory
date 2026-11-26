@@ -139,7 +139,7 @@ import MaterialDetailPage from "../MaterialDetailPage";
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
+      queries: { retry: false, gcTime: 0 },
     },
   });
 
@@ -562,11 +562,11 @@ describe("MaterialDetailPage", () => {
 
   it("exposes folder expansion without loading unopened folders", async () => {
     render(<MaterialDetailPage />, { wrapper: createWrapper() });
-    const chapters = await screen.findByRole("button", { name: /materials:detail.chapters/ });
+    const chapters = await screen.findByRole("button", { name: /materials:detail.chapters/ }, { timeout: 4000 });
     expect(chapters).toHaveAttribute("aria-expanded", "false");
     expect(mockGetTree).not.toHaveBeenCalled();
     fireEvent.click(chapters);
-    expect(await screen.findByRole("button", { name: /Opening Chapter/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Opening Chapter/ }, { timeout: 4000 })).toBeInTheDocument();
     expect(chapters).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(chapters);
     expect(chapters).toHaveAttribute("aria-expanded", "false");

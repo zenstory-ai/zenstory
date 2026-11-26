@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { readComposedStylesheet } from '../test/readStylesheet';
 
 const GOOGLE_FONTS_HOST_RE = /fonts\.googleapis\.com|fonts\.gstatic\.com/i;
 
@@ -24,7 +25,7 @@ describe('self-hosted fonts contract', () => {
     ];
 
     for (const file of files) {
-      const content = readFileSync(file, 'utf8');
+      const content = file.endsWith('.css') ? readComposedStylesheet(file) : readFileSync(file, 'utf8');
       expect(content, `${file} must not reference Google Fonts`).not.toMatch(GOOGLE_FONTS_HOST_RE);
     }
   });
@@ -34,7 +35,7 @@ describe('self-hosted fonts contract', () => {
     const allFontUrls = new Set<string>();
 
     for (const stylesheet of stylesheets) {
-      const css = readFileSync(stylesheet, 'utf8');
+      const css = readComposedStylesheet(stylesheet);
       const blocks = extractFontFaceBlocks(css);
       expect(blocks.length, `${stylesheet} should declare @font-face rules`).toBeGreaterThan(0);
 
@@ -62,7 +63,7 @@ describe('self-hosted fonts contract', () => {
   });
 
   it('keeps expected primary Latin/Mono families and native CJK system fallbacks in workbench CSS tokens', () => {
-    const css = readFileSync('src/index.css', 'utf8');
+    const css = readComposedStylesheet('src/index.css');
 
     expect(css).toMatch(/--font-display:\s*"Crimson Pro"[^;]*Songti SC[^;]*serif;/);
     expect(css).toMatch(/--font-body:\s*"Source Serif 4"[^;]*Songti SC[^;]*serif;/);

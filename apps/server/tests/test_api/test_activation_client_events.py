@@ -169,7 +169,7 @@ async def test_rejects_unknown_events_and_free_form_fields(client, db_session, b
 
     response = await client.post(URL, headers=headers, json=body)
 
-    assert response.status_code in (400, 422)
+    assert response.status_code == 422
     assert _events(db_session, user.id) == {}
 
 

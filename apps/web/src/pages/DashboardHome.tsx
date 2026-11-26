@@ -12,10 +12,6 @@ import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState
 import { ProjectCard } from "../components/dashboard/ProjectCard";
 import { PROJECT_TYPE_STYLES } from "../components/dashboard/projectTypeStyles";
 import { Button } from "../components/ui/Button";
-import {
-  DashboardInspirationSuggestions,
-  FeaturedInspirationsSection,
-} from "../components/inspirations";
 import { projectApi } from "../lib/api";
 import type { ProjectTemplate } from "../lib/api";
 import { ApiError } from "../lib/apiClient";
@@ -34,7 +30,6 @@ import { reportActivationEvent } from "../lib/activationEvents";
 import { useAiMessageQuota } from "../hooks/useAiMessageQuota";
 import { readHeldDashboardIdea, useHeldDashboardIdea } from "../hooks/useHeldDashboardIdea";
 import { getUpgradePromptDefinition } from "../config/upgradeExperience";
-import { inspirationsConfig } from "../config/inspirations";
 import { FirstWorkEntry } from "../components/dashboard/FirstWorkEntry";
 import { untouchedFirstWork, useFirstWork } from "../hooks/useFirstWork";
 import { firstWorkQueryKey, type FirstWorkState } from "../lib/firstWorkApi";
@@ -476,13 +471,6 @@ export default function DashboardHome() {
             {t('common.createButton')}
           </Button>
         </div>
-
-        {inspirationsConfig.enabled && (
-          <DashboardInspirationSuggestions
-            projectType={activeTab}
-            onSelect={setInspiration}
-          />
-        )}
       </div>
 
       {/* Authors who arrive with a manuscript start from it instead of an idea. */}
@@ -603,10 +591,6 @@ export default function DashboardHome() {
           </>
         )}
       </div>
-
-      {inspirationsConfig.enabled && (
-        <FeaturedInspirationsSection isMobile={isMobile} isTablet={isTablet} />
-      )}
 
       <ConfirmDialog
         open={pendingDeleteProjectId !== null}

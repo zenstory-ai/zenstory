@@ -5,8 +5,6 @@
  * - **Profile tab**: User information display, avatar, and logout functionality
  * - **General tab**: Language selection (Chinese/English), theme mode (dark/light), accent color picker
  * - **Subscription tab**: Subscription status display and quota information with redeem code support
- * - **Points tab**: Points balance, daily check-in, earn opportunities, and transaction history
- * - **Referral tab**: Referral program for inviting friends and earning rewards
  *
  * The dialog features:
  * - Responsive layout (horizontal tabs on desktop, vertical on mobile)
@@ -19,30 +17,20 @@
  * @module components/SettingsDialog
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useIsFetching } from '@tanstack/react-query';
-import { User, Settings, Moon, Sun, LogOut, CreditCard, Coins, Users, Key } from 'lucide-react';
+import { User, Settings, Moon, Sun, LogOut, CreditCard, Key } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { useSlidingIndicator } from '../hooks/useSlidingIndicator';
 import { normalizeLocale, switchLocale } from '../lib/i18n-helpers';
-import { pointsConfig } from '../config/points';
-import { referralConfig } from '../config/referral';
 import Modal from './ui/Modal';
 import { Button } from './ui/Button';
 import { UserAvatar } from './UserMenu';
 import { SubscriptionStatus } from './subscription/SubscriptionStatus';
 import { QuotaBadge } from './subscription/QuotaBadge';
 import { RedeemCodeModal } from './subscription/RedeemCodeModal';
-import { RedeemProModal } from './points/RedeemProModal';
-import { DailyCheckIn } from './points/DailyCheckIn';
-import { PointsBalance } from './points/PointsBalance';
-import { PointsHistory } from './points/PointsHistory';
-import { EarnOpportunities } from './points/EarnOpportunities';
-import { ReferralStats } from './referral/ReferralStats';
-import { InviteCodeList } from './referral/InviteCodeList';
 import { AgentApiKeysPanel } from './settings/AgentApiKeysPanel';
 import { buildUpgradeUrl, getUpgradePromptDefinition } from '../config/upgradeExperience';
 import { trackUpgradeClick } from '../lib/upgradeAnalytics';
@@ -71,139 +59,21 @@ interface SettingsDialogProps {
  * - `'profile'` - User profile and account settings
  * - `'general'` - General application preferences (language, theme, colors)
  * - `'subscription'` - Subscription status and quota information
- * - `'points'` - Points balance, daily check-in, and earn opportunities
- * - `'referral'` - Referral program for inviting friends
+ * - `'agent'` - Agent API keys
  */
-export type SettingsTab = 'profile' | 'general' | 'subscription' | 'points' | 'referral' | 'agent';
+export type SettingsTab = 'profile' | 'general' | 'subscription' | 'agent';
 
-/**
- * Unified skeleton for the Points tab loading state.
- * Mimics the layout of PointsBalance, DailyCheckIn, EarnOpportunities, and PointsHistory.
- */
-function PointsTabSkeleton() {
-  return (
-    <div className="space-y-4 animate-pulse">
-      {/* Points Balance skeleton */}
-      <div className="p-4 border border-[hsl(var(--border-color))] rounded-xl bg-[hsl(var(--bg-secondary))]">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-5 h-5 rounded-full bg-[hsl(var(--bg-tertiary))]" />
-          <div className="w-16 h-4 rounded bg-[hsl(var(--bg-tertiary))]" />
-        </div>
-        <div className="w-24 h-8 rounded bg-[hsl(var(--bg-tertiary))]" />
-        <div className="w-32 h-3 rounded bg-[hsl(var(--bg-tertiary))] mt-1" />
-      </div>
+const ALLOWED_SETTINGS_TABS = new Set<SettingsTab>(['profile', 'general', 'subscription', 'agent']);
 
-      {/* Redeem button skeleton */}
-      <div className="w-full h-10 rounded-xl bg-[hsl(var(--bg-tertiary))]" />
-
-      {/* Daily Check-in skeleton */}
-      <div className="p-4 border border-[hsl(var(--border-color))] rounded-xl bg-[hsl(var(--bg-secondary))]">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-full bg-[hsl(var(--bg-tertiary))]" />
-            <div className="w-16 h-4 rounded bg-[hsl(var(--bg-tertiary))]" />
-          </div>
-        </div>
-        <div className="w-full h-10 rounded-lg bg-[hsl(var(--bg-tertiary))]" />
-      </div>
-
-      {/* Earn Opportunities skeleton */}
-      <div className="p-4 border border-[hsl(var(--border-color))] rounded-xl bg-[hsl(var(--bg-secondary))]">
-        <div className="w-24 h-4 rounded bg-[hsl(var(--bg-tertiary))] mb-3" />
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-[hsl(var(--bg-tertiary))]">
-              <div className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full bg-[hsl(var(--bg-hover))]" />
-                <div className="w-24 h-3 rounded bg-[hsl(var(--bg-hover))]" />
-              </div>
-              <div className="w-8 h-3 rounded bg-[hsl(var(--bg-hover))]" />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Points History skeleton */}
-      <div className="border border-[hsl(var(--border-color))] rounded-xl bg-[hsl(var(--bg-secondary))]">
-        <div className="p-4 border-b border-[hsl(var(--border-color))]">
-          <div className="w-16 h-4 rounded bg-[hsl(var(--bg-tertiary))] mb-1" />
-          <div className="w-24 h-3 rounded bg-[hsl(var(--bg-tertiary))]" />
-        </div>
-        <div className="divide-y divide-[hsl(var(--border-color))]">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="p-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-[hsl(var(--bg-tertiary))]" />
-                <div>
-                  <div className="w-20 h-3 rounded bg-[hsl(var(--bg-tertiary))] mb-1" />
-                  <div className="w-12 h-2 rounded bg-[hsl(var(--bg-tertiary))]" />
-                </div>
-              </div>
-              <div className="w-8 h-3 rounded bg-[hsl(var(--bg-tertiary))]" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Settings dialog component for managing user preferences and account settings.
- *
- * Provides a tabbed interface with five sections:
- * - **Profile**: Displays user avatar, nickname, email, and logout button
- * - **General**: Language selection, theme mode (dark/light), and accent color picker
- * - **Subscription**: Subscription status display and quota badges with redeem code support
- * - **Points**: Points balance, daily check-in, earn opportunities, and transaction history
- * - **Referral**: Referral program for inviting friends and earning rewards
- *
- * Features:
- * - Responsive layout with horizontal tabs on desktop, vertical on mobile
- * - Click-outside-to-close handled by Modal component
- * - Real-time theme and language changes without page reload
- * - Graceful logout with loading state to prevent double-clicks
- * - Integration with subscription system for quota management
- * - Uses Modal component for accessibility and consistent styling
- *
- * @param {SettingsDialogProps} props - Component props
- * @param {boolean} props.isOpen - Whether the dialog is visible
- * @param {() => void} props.onClose - Callback to close the dialog
- * @returns {React.ReactElement | null} The dialog element or null if closed
- *
- * @example
- * // Basic usage with state control
- * const [isOpen, setIsOpen] = useState(false);
- *
- * return (
- *   <>
- *     <button onClick={() => setIsOpen(true)}>Open Settings</button>
- *     <SettingsDialog isOpen={isOpen} onClose={() => setIsOpen(false)} />
- *   </>
- * );
- *
- * @example
- * // Integration with header menu
- * const [showSettings, setShowSettings] = useState(false);
- *
- * <UserMenu onSettingsClick={() => setShowSettings(true)} />
- * <SettingsDialog isOpen={showSettings} onClose={() => setShowSettings(false)} />
- */
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, defaultTab }) => {
   const isMobile = useIsMobile();
-  const isPointsPanelEnabled = pointsConfig.enabled;
-  const isReferralEnabled = referralConfig.enabled;
   const { t: tSettings } = useTranslation('settings');
   const { t: tAuth } = useTranslation('auth');
   const { i18n } = useTranslation();
   const { theme, accentColor, setTheme, setAccentColor } = useTheme();
   const { user, logout } = useAuth();
-  const resolveAllowedTab = (tab: SettingsTab): SettingsTab => {
-    if ((!isPointsPanelEnabled && tab === 'points') || (!isReferralEnabled && tab === 'referral')) {
-      return 'profile';
-    }
-    return tab;
-  };
+  const resolveAllowedTab = (tab: SettingsTab | string | undefined): SettingsTab =>
+    tab && ALLOWED_SETTINGS_TABS.has(tab as SettingsTab) ? (tab as SettingsTab) : 'profile';
   const [selectedTab, setActiveTab] = useState<SettingsTab>(() =>
     isOpen && defaultTab ? resolveAllowedTab(defaultTab) : 'profile',
   );
@@ -211,45 +81,18 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
   const [analyticsEnabled, setAnalyticsEnabled] = useState(() => !isAnalyticsOptedOut());
   const [wasOpen, setWasOpen] = useState(isOpen);
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
-  const [showRedeemProModal, setShowRedeemProModal] = useState(false);
   const currentLanguage = normalizeLocale(i18n.language || i18n.resolvedLanguage);
   const settingsUpgradePrompt = getUpgradePromptDefinition('settings_subscription_upgrade');
 
   const handleLanguageChange = (lang: 'zh' | 'en') =>
     switchLocale(i18n, currentLanguage, lang);
 
-  // Track all points-related query fetching states
-  const isPointsFetching = useIsFetching({ queryKey: ['points-balance'] }) +
-                         useIsFetching({ queryKey: ['check-in-status'] }) +
-                         useIsFetching({ queryKey: ['points-transactions'] }) +
-                         useIsFetching({ queryKey: ['earn-opportunities'] });
-
-  // Track if we've ever had data (to distinguish initial load from refetch)
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
-    if (!isOpen) {
-      setHasLoadedOnce(false);
-    } else if (defaultTab) {
+    if (isOpen && defaultTab) {
       setActiveTab(resolveAllowedTab(defaultTab));
     }
   }
-
-  // Show skeleton only during initial load, not refetch
-  const showPointsSkeleton = !hasLoadedOnce && isPointsFetching > 0;
-
-  // Set hasLoadedOnce when data arrives (isFetching goes to 0)
-  useEffect(() => {
-    if (activeTab !== 'points') return;
-
-    // When fetching completes and we haven't marked as loaded yet
-    if (isPointsFetching === 0 && !hasLoadedOnce) {
-      // Small delay to ensure data is rendered
-      const timer = setTimeout(() => setHasLoadedOnce(true), 50);
-      return () => clearTimeout(timer);
-    }
-  }, [activeTab, isPointsFetching, hasLoadedOnce]);
 
   const handleLogout = () => {
     logout();
@@ -268,13 +111,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
     { id: 'profile' as const, icon: User, label: tSettings('nav.profile') },
     { id: 'general' as const, icon: Settings, label: tSettings('nav.general') },
     { id: 'subscription' as const, icon: CreditCard, label: tSettings('nav.subscription', '订阅') },
-    ...(isPointsPanelEnabled
-      ? [{ id: 'points' as const, icon: Coins, label: tSettings('nav.points', '积分') }]
-      : []),
     { id: 'agent' as const, icon: Key, label: tSettings('nav.agent', 'API 密钥') },
-    ...(isReferralEnabled
-      ? [{ id: 'referral' as const, icon: Users, label: tSettings('nav.referral', '邀请') }]
-      : []),
   ];
 
   const { containerRef: navRef, indicatorRef: navIndicatorRef } = useSlidingIndicator<HTMLElement>(
@@ -595,50 +432,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
               </div>
             )}
 
-            {activeTab === 'points' && isPointsPanelEnabled && (
-              <div className="relative">
-                {/* Skeleton overlay - only shown during initial load */}
-                <div
-                  className={`absolute inset-0 z-10 transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${
-                    showPointsSkeleton ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                  }`}
-                >
-                  <PointsTabSkeleton />
-                </div>
-
-                {/* Actual content - visible when not loading or when refetching */}
-                <div
-                  className={`space-y-4 transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${
-                    showPointsSkeleton ? 'opacity-0' : 'opacity-100'
-                  }`}
-                >
-                  <PointsBalance />
-                  <Button
-                    variant="secondary"
-                    size={isMobile ? 'touch' : 'md'}
-                    onClick={() => setShowRedeemProModal(true)}
-                    className="w-full"
-                    leftIcon={<CreditCard size={16} />}
-                  >
-                    {tSettings('points.redeemPro', '用积分兑换 Pro')}
-                  </Button>
-                  <DailyCheckIn />
-                  <EarnOpportunities />
-                  <PointsHistory />
-                </div>
-              </div>
-            )}
-
             {activeTab === 'agent' && (
               <div className="space-y-4">
                 <AgentApiKeysPanel />
-              </div>
-            )}
-
-            {activeTab === 'referral' && isReferralEnabled && (
-              <div className="space-y-4">
-                <ReferralStats />
-                <InviteCodeList />
               </div>
             )}
             </div>
@@ -649,10 +445,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
         isOpen={showRedeemCodeModal}
         onClose={() => setShowRedeemCodeModal(false)}
         source={settingsUpgradePrompt.source}
-      />
-      <RedeemProModal
-        isOpen={showRedeemProModal}
-        onClose={() => setShowRedeemProModal(false)}
       />
     </>
   );

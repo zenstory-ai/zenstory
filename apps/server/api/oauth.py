@@ -3,7 +3,6 @@ import base64
 import json
 import logging
 import os
-import re
 import secrets
 import urllib.parse
 from typing import Literal
@@ -13,17 +12,10 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 
-from api.auth import (
-    _is_invite_code_expired,
-    _normalize_invite_code,
-    _resolve_registration_invite_policy,
-)
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from database import get_session
-from middleware.rate_limit import get_client_ip
 from models import ACTIVATION_EVENT_SIGNUP_SUCCESS, RefreshTokenRecord, User
-from models.referral import InviteCode
 from services.core.auth_service import (
     access_token_claims,
     create_access_token,
@@ -34,7 +26,6 @@ from services.core.auth_service import (
 )
 from services.core.registration_email_policy import is_registration_email_blocked
 from services.features.activation_event_service import activation_event_service
-from services.features.referral_service import create_referral as create_referral_service
 from services.features.user_preference_service import normalize_ui_language, set_ui_language
 from services.subscription.subscription_service import subscription_service
 from services.usage.acquisition_service import normalize_acquisition
@@ -53,7 +44,6 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 OAUTH_STATE_COOKIE_NAME = "oauth_google_state"
 OAUTH_STATE_TTL_SECONDS = int(os.getenv("OAUTH_STATE_TTL_SECONDS", "600"))
-OAUTH_STATE_INVITE_CODE_KEY = "invite_code"
 SSO_ALLOWED_REDIRECT_DOMAINS = [
     domain.strip().lower()
     for domain in os.getenv(
@@ -65,40 +55,11 @@ SSO_ALLOWED_REDIRECT_DOMAINS = [
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-_INVITE_CODE_ALLOWED_CHARS_RE = re.compile(r"[^A-Z0-9-]+")
-
-
-def _sanitize_invite_code(raw: str | None) -> str | None:
-    """
-    Normalize and sanitize invite code for safe transport in OAuth state.
-
-    Notes:
-    - Invite codes are not secrets, but we still sanitize/trim to avoid abuse.
-    - Accept both "XXXXXXXX" and "XXXX-XXXX" formats.
-    """
-    if not raw:
-        return None
-
-    cleaned = _normalize_invite_code(raw)
-    cleaned = _INVITE_CODE_ALLOWED_CHARS_RE.sub("", cleaned)
-    if not cleaned:
-        return None
-
-    if len(cleaned) == 8 and "-" not in cleaned:
-        cleaned = f"{cleaned[:4]}-{cleaned[4:]}"
-
-    # Defensive cap (real codes are 9 chars).
-    if len(cleaned) > 32:
-        cleaned = cleaned[:32]
-
-    return cleaned or None
-
 
 def _redirect_to_frontend_register(
     *,
     error_code: str,
     redirect: str | None = None,
-    invite_code: str | None = None,
 ) -> RedirectResponse:
     """
     Redirect back to frontend register page with a stable error code.
@@ -107,8 +68,6 @@ def _redirect_to_frontend_register(
     """
     frontend_url = os.getenv("FRONTEND_URL", "https://zenstory.ai")
     params: dict[str, str] = {"error_code": error_code}
-    if invite_code:
-        params["code"] = invite_code
     if redirect and _is_allowed_redirect_url(redirect):
         params["redirect"] = redirect
 
@@ -243,9 +202,6 @@ def _is_allowed_redirect_url(redirect_url: str) -> bool:
 @router.get("/google")
 async def google_oauth_login(
     redirect: str | None = Query(None, description="Redirect URL after successful login"),
-    invite_code: str | None = Query(None, description="Invite code for new user registration"),
-    invite: str | None = Query(None, description="Alias for invite_code"),
-    code: str | None = Query(None, description="Alias for invite_code"),
     acq: str | None = Query(None, max_length=1024, description="First-touch acquisition (JSON)"),
     lang: str | None = Query(None, max_length=32, description="Preferred UI language for new user registration"),
 ):
@@ -288,12 +244,6 @@ async def google_oauth_login(
                 "Rejected unsafe OAuth redirect URL",
                 redirect=redirect,
             )
-
-    # Include invite code in state for new-user gating (sanitize to keep payload small).
-    raw_invite_code = invite_code or invite or code
-    sanitized_invite_code = _sanitize_invite_code(raw_invite_code)
-    if sanitized_invite_code:
-        state_payload[OAUTH_STATE_INVITE_CODE_KEY] = sanitized_invite_code
 
     # First-touch acquisition rides in the state so a new account records where it came from.
     acquisition = _parse_acquisition_param(acq)
@@ -507,8 +457,6 @@ async def google_oauth_callback(
     ).first()
 
     failure_stage = "identity"
-    raw_state_invite = state_payload.get(OAUTH_STATE_INVITE_CODE_KEY)
-    normalized_invite_code = _sanitize_invite_code(raw_state_invite)
 
     is_new_user = False
     if existing_user:
@@ -565,70 +513,6 @@ async def google_oauth_callback(
                 redirect=redirect_from_state,
             )
 
-        invite_code_optional, invite_policy_variant, invite_policy_rollout_percent = (
-            _resolve_registration_invite_policy(
-                email=str(google_email),
-                username=str(google_name) if google_name else None,
-            )
-        )
-
-        # Invite code is required by default (unless env explicitly allows optional).
-        if not normalized_invite_code and not invite_code_optional:
-            return _redirect_to_frontend_register(
-                error_code=ErrorCode.AUTH_INVITE_CODE_REQUIRED,
-                redirect=redirect_from_state,
-            )
-
-        invite_code_obj: InviteCode | None = None
-        if normalized_invite_code:
-            invite_code_obj = session.exec(
-                select(InviteCode).where(InviteCode.code == normalized_invite_code)
-            ).first()
-
-            if not invite_code_obj:
-                return _redirect_to_frontend_register(
-                    error_code=ErrorCode.REFERRAL_CODE_INVALID,
-                    redirect=redirect_from_state,
-                    invite_code=normalized_invite_code,
-                )
-
-            if not invite_code_obj.is_active:
-                return _redirect_to_frontend_register(
-                    error_code=ErrorCode.REFERRAL_CODE_INVALID,
-                    redirect=redirect_from_state,
-                    invite_code=normalized_invite_code,
-                )
-
-            if invite_code_obj.current_uses >= invite_code_obj.max_uses:
-                return _redirect_to_frontend_register(
-                    error_code=ErrorCode.REFERRAL_CODE_USED_UP,
-                    redirect=redirect_from_state,
-                    invite_code=normalized_invite_code,
-                )
-
-            if _is_invite_code_expired(invite_code_obj.expires_at):
-                return _redirect_to_frontend_register(
-                    error_code=ErrorCode.REFERRAL_CODE_EXPIRED,
-                    redirect=redirect_from_state,
-                    invite_code=normalized_invite_code,
-                )
-
-            # SECURITY: Prevent self-referral (check if owner has same email)
-            owner = session.get(User, invite_code_obj.owner_id)
-            if owner and normalize_email_identity(owner.email) == google_email:
-                log_with_context(
-                    logger,
-                    logging.WARNING,
-                    "Self-referral attempt blocked (oauth)",
-                    email=google_email,
-                    invite_code=normalized_invite_code,
-                )
-                return _redirect_to_frontend_register(
-                    error_code=ErrorCode.REFERRAL_CODE_INVALID,
-                    redirect=redirect_from_state,
-                    invite_code=normalized_invite_code,
-                )
-
         # Create new user, named after Google or the email prefix.
         username = unique_username(session, google_name or google_email.split("@")[0])
 
@@ -648,39 +532,6 @@ async def google_oauth_callback(
         session.commit()
         session.refresh(new_user)
 
-        # Create referral relationship if valid invite code was used
-        if invite_code_obj:
-            try:
-                await create_referral_service(
-                    invite_code=invite_code_obj,
-                    invitee_id=new_user.id,
-                    session=session,
-                    device_fingerprint=None,
-                    ip_address=get_client_ip(request),
-                )
-                log_with_context(
-                    logger,
-                    logging.INFO,
-                    "Referral relationship created (oauth)",
-                    inviter_id=invite_code_obj.owner_id,
-                    invitee_id=new_user.id,
-                    invite_code=normalized_invite_code,
-                    invite_policy_variant=invite_policy_variant,
-                    invite_policy_rollout_percent=invite_policy_rollout_percent,
-                    invite_code_optional=invite_code_optional,
-                )
-            except Exception as e:
-                session.rollback()
-                log_with_context(
-                    logger,
-                    logging.WARNING,
-                    "Referral creation failed after OAuth user creation",
-                    invite_code_id=invite_code_obj.id,
-                    invitee_id=new_user.id,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
-
         # Activation milestone: signup completed. Never blocks the login.
         try:
             activation_event_service.record_once(
@@ -690,10 +541,6 @@ async def google_oauth_callback(
                 event_metadata={
                     "source": "google_oauth",
                     "acquisition": _parse_acquisition_param(state_payload.get(OAUTH_STATE_ACQUISITION_KEY)),
-                    "invite_code_provided": bool(normalized_invite_code),
-                    "invite_policy_variant": invite_policy_variant,
-                    "invite_policy_rollout_percent": invite_policy_rollout_percent,
-                    "invite_code_optional": invite_code_optional,
                 },
             )
         except Exception as e:

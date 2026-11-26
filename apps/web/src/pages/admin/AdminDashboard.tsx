@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Users, FolderOpen, Lightbulb, CreditCard, RefreshCw } from 'lucide-react';
+import { Users, FolderOpen, CreditCard, RefreshCw } from 'lucide-react';
 import { adminApi } from '@/lib/adminApi';
 import { AdminPageState } from '@/components/admin';
 import { StatsCard } from '@/components/admin/StatsCard';
@@ -9,7 +9,6 @@ import { AdminSegmented } from '@/components/admin/AdminSegmented';
 import { Button } from '@/components/ui/Button';
 import { GrowthOverview } from '@/components/admin/GrowthOverview';
 import { RecentActivityList } from '@/components/admin/RecentActivityList';
-import { inspirationsConfig } from '@/config/inspirations';
 
 const WINDOW_OPTIONS = [7, 14, 30] as const;
 const MAX_VISIBLE_SOURCES = 8;
@@ -42,10 +41,9 @@ export default function AdminDashboard() {
     queryFn: () => {
       const refresh = forceRefreshStatsRef.current;
       forceRefreshStatsRef.current = false;
-      return adminApi.getDashboardStats({
-        includeCommercialization: false,
-        ...(refresh ? { refresh: true } : {}),
-      });
+      return refresh
+        ? adminApi.getDashboardStats({ refresh: true })
+        : adminApi.getDashboardStats();
     },
     retry: false,
   });
@@ -202,14 +200,6 @@ export default function AdminDashboard() {
               description={t('admin:dashboard.projectOrigins', { author: stats?.author_created_projects ?? 0, automatic: stats?.auto_initialized_projects ?? 0 })}
               isLoading={isLoading}
             />
-            {inspirationsConfig.enabled && (
-              <StatsCard
-                icon={<Lightbulb className="h-5 w-5" />}
-                title={t('admin:dashboard.totalInspirations')}
-                value={stats?.total_inspirations ?? 0}
-                isLoading={isLoading}
-              />
-            )}
             <StatsCard
               icon={<CreditCard className="h-5 w-5" />}
               title={t('admin:dashboard.paidProUsers', '当前 Pro 用户（含赠送）')}

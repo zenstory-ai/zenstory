@@ -1041,7 +1041,7 @@ async def test_usage_hook_logs_reasoning_tokens_with_the_thinking_observation(ca
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_a_broken_thinking_observation_never_fails_the_run():
+async def test_a_broken_thinking_observation_never_fails_the_run(caplog):
     from agent.openai_agents.usage_hooks import build_agent_run_hooks
 
     class _Model:
@@ -1054,7 +1054,13 @@ async def test_a_broken_thinking_observation_never_fails_the_run():
             raise RuntimeError("observation broke")
 
     hooks = build_agent_run_hooks("MiniMax-M3.1-Flash")
-    await hooks.on_llm_end(None, SimpleNamespace(model=_Model()), SimpleNamespace(usage=None, output=[]))
+    with caplog.at_level("WARNING"):
+        await hooks.on_llm_end(None, SimpleNamespace(model=_Model()), SimpleNamespace(usage=None, output=[]))
+
+    assert any(
+        "Thinking observation after model call failed: observation broke" in r.getMessage()
+        for r in caplog.records
+    )
 
 
 # ------------------------------------------------- 2026-10-29 backup would reject the replayed input

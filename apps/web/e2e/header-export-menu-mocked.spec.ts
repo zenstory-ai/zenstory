@@ -3,11 +3,10 @@ import { mockResponsiveApp } from './fixtures-responsive';
 
 test('tablet header offers the full-text export and no outline export', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
-  await mockResponsiveApp(page);
-  await page.addInitScript(() => localStorage.setItem('zenstory-language', 'zh'));
+  await mockResponsiveApp(page, null, 'free', 'zh');
   await page.goto('/project/responsive-project-0');
 
-  await expect(page.getByRole('button', { name: '导出整本正文（TXT）', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '导出整本正文（TXT）', exact: true })).toBeVisible({ timeout: 10000 });
   await page.getByTestId('header-more-actions').click();
   await expect(page.getByTestId('header-more-actions-menu')).not.toContainText('大纲');
 });

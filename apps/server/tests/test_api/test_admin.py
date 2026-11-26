@@ -12,10 +12,7 @@ from httpx import AsyncClient
 from sqlmodel import Session
 
 from models import SystemPromptConfig, User
-from models.referral import InviteCode
 from services.core.auth_service import hash_password
-from services.features.referral_service import MAX_INVITE_CODES_PER_USER
-from sqlmodel import select
 
 
 # ============================================
@@ -158,17 +155,6 @@ async def test_update_prompt_forbidden_for_non_superuser(client: AsyncClient, db
     assert response.status_code == 403
 
 
-@pytest.mark.integration
-async def test_create_invite_code_forbidden_for_non_superuser(client: AsyncClient, db_session: Session):
-    """Test that non-superuser cannot create admin invite codes."""
-    await create_user(db_session, "normaluser", "normal@example.com")
-    token = await login_user(client, "normaluser")
-
-    response = await client.post("/api/admin/invites", headers=auth_headers(token))
-
-    assert response.status_code == 403
-
-
 # ============================================
 # User Management Tests - Superuser Access
 # ============================================
@@ -188,53 +174,6 @@ async def test_get_users_success(client: AsyncClient, db_session: Session):
     data = response.json()
     assert len(data["items"]) >= 3  # At least 3 users created
     assert data["total"] == len(data["items"])
-
-
-@pytest.mark.integration
-async def test_create_invite_code_success_for_superuser(client: AsyncClient, db_session: Session):
-    """Test superuser can create invite codes from admin referrals page."""
-    superuser = await create_user(db_session, "admin", "admin@example.com", is_superuser=True)
-    token = await login_user(client, "admin")
-
-    response = await client.post("/api/admin/invites", headers=auth_headers(token))
-
-    assert response.status_code == 201
-    payload = response.json()
-    assert payload["owner_id"] == superuser.id
-    assert payload["owner_name"] == superuser.username
-    assert isinstance(payload["code"], str) and len(payload["code"]) >= 9
-
-    db_code = db_session.exec(
-        select(InviteCode).where(InviteCode.id == payload["id"])
-    ).first()
-    assert db_code is not None
-    assert db_code.owner_id == superuser.id
-
-
-@pytest.mark.integration
-async def test_create_invite_code_unlimited_for_superuser(client: AsyncClient, db_session: Session):
-    """Test superuser can create more than MAX_INVITE_CODES_PER_USER invite codes via admin endpoint."""
-    superuser = await create_user(db_session, "admin_unlimited", "admin_unlimited@example.com", is_superuser=True)
-    token = await login_user(client, "admin_unlimited")
-
-    create_count = MAX_INVITE_CODES_PER_USER + 2
-    created_ids: set[str] = set()
-
-    for _ in range(create_count):
-        response = await client.post("/api/admin/invites", headers=auth_headers(token))
-        assert response.status_code == 201
-        payload = response.json()
-        created_ids.add(payload["id"])
-
-    assert len(created_ids) == create_count
-
-    db_codes = db_session.exec(
-        select(InviteCode)
-        .where(InviteCode.owner_id == superuser.id)
-        .where(InviteCode.is_active == True)
-    ).all()
-
-    assert len(db_codes) == create_count
 
 
 @pytest.mark.integration

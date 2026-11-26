@@ -18,14 +18,9 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { LogOut, ChevronDown, Shield, CalendarCheck, Mail } from "lucide-react";
+import { LogOut, ChevronDown, Shield, Mail } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { pointsApi } from "../lib/pointsApi";
-import { pointsConfig } from "../config/points";
-import { handleApiError } from "../lib/errorHandler";
-import { toast } from "../lib/toast";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import { getUserDisplayName } from "../lib/userDisplayName";
 import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
@@ -206,38 +201,13 @@ interface UserMenuProps {
  * </Header>
  */
 export const UserMenu: React.FC<UserMenuProps> = () => {
-  const { t } = useTranslation(['common', 'settings']);
+  const { t } = useTranslation(['common']);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const { isMounted: isMenuMounted, isExiting: isMenuExiting } = useAnimatedPresence(isOpen, 130);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const queryClient = useQueryClient();
-
-  // Check-in status query
-  const {
-    data: checkInStatus,
-    isError: checkInStatusError,
-    refetch: refetchCheckInStatus,
-  } = useQuery({
-    queryKey: ['check-in-status'],
-    queryFn: () => pointsApi.getCheckInStatus(),
-    enabled: !!user && pointsConfig.enabled,
-  });
-
-  // Check-in mutation
-  const checkInMutation = useMutation({
-    mutationFn: () => pointsApi.checkIn(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['check-in-status'] });
-      queryClient.invalidateQueries({ queryKey: ['points-balance'] });
-      queryClient.invalidateQueries({ queryKey: ['points-transactions'] });
-    },
-    onError: (error) => {
-      toast.error(handleApiError(error));
-    },
-  });
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -287,17 +257,6 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
     setIsOpen(false);
     navigate("/admin");
   };
-
-  const handleCheckIn = () => {
-    if (checkInStatusError && !checkInStatus) {
-      void refetchCheckInStatus();
-      return;
-    }
-    checkInMutation.mutate();
-  };
-
-  const isCheckedIn = checkInStatus?.checked_in;
-  const hasCheckInStatusError = Boolean(checkInStatusError && !checkInStatus);
 
   return (
     <div className="relative" ref={menuRef}>
@@ -365,35 +324,6 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
               >
                 <Shield size={16} />
                 {t('userMenu.adminPanel')}
-              </button>
-            )}
-
-            {/* Check-in button */}
-            {pointsConfig.enabled && (
-              <button
-                type="button"
-                onClick={handleCheckIn}
-                disabled={isCheckedIn || checkInMutation.isPending}
-                className="w-full min-h-[44px] px-3 py-2 text-left text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))] disabled:opacity-50 disabled:cursor-not-allowed"
-                data-testid="check-in-button"
-              >
-                <CalendarCheck
-                  size={16}
-                  className={
-                    hasCheckInStatusError
-                      ? "text-[hsl(var(--error-text))]"
-                      : isCheckedIn
-                        ? "text-[hsl(var(--success-text))]"
-                        : "text-[hsl(var(--warning-text))]"
-                  }
-                />
-                {hasCheckInStatusError
-                  ? t('settings:points.statusLoadFailed', '签到状态加载失败，点击重试')
-                  : isCheckedIn
-                    ? t('settings:points.alreadyCheckedIn', '今日已签到')
-                    : checkInMutation.isPending
-                      ? t('common:processing', "处理中…")
-                      : t('settings:points.checkIn', '签到领积分')}
               </button>
             )}
 
@@ -475,34 +405,9 @@ interface UserMenuMobileProps {
  * <UserMenuMobile />
  */
 export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
-  const { t } = useTranslation(['common', 'settings']);
+  const { t } = useTranslation(['common']);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-
-  // Check-in status query
-  const {
-    data: checkInStatus,
-    isError: checkInStatusError,
-    refetch: refetchCheckInStatus,
-  } = useQuery({
-    queryKey: ['check-in-status'],
-    queryFn: () => pointsApi.getCheckInStatus(),
-    enabled: !!user && pointsConfig.enabled,
-  });
-
-  // Check-in mutation
-  const checkInMutation = useMutation({
-    mutationFn: () => pointsApi.checkIn(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['check-in-status'] });
-      queryClient.invalidateQueries({ queryKey: ['points-balance'] });
-      queryClient.invalidateQueries({ queryKey: ['points-transactions'] });
-    },
-    onError: (error) => {
-      toast.error(handleApiError(error));
-    },
-  });
 
   if (!user) return null;
 
@@ -515,17 +420,6 @@ export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
     onLogout?.();
     navigate("/admin");
   };
-
-  const handleCheckIn = () => {
-    if (checkInStatusError && !checkInStatus) {
-      void refetchCheckInStatus();
-      return;
-    }
-    checkInMutation.mutate();
-  };
-
-  const isCheckedIn = checkInStatus?.checked_in;
-  const hasCheckInStatusError = Boolean(checkInStatusError && !checkInStatus);
 
   return (
     <>
@@ -558,37 +452,6 @@ export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
         >
           <Shield size={18} />
           <span>{t('userMenu.adminPanel')}</span>
-        </button>
-      )}
-
-      {/* Check-in button */}
-      {pointsConfig.enabled && (
-        <button
-          type="button"
-          onClick={handleCheckIn}
-          disabled={isCheckedIn || checkInMutation.isPending}
-          className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))] disabled:opacity-50 disabled:cursor-not-allowed"
-          data-testid="check-in-button-mobile"
-        >
-          <CalendarCheck
-            size={18}
-            className={
-              hasCheckInStatusError
-                ? "text-[hsl(var(--error-text))]"
-                : isCheckedIn
-                  ? "text-[hsl(var(--success-text))]"
-                  : "text-[hsl(var(--warning-text))]"
-            }
-          />
-          <span>
-            {hasCheckInStatusError
-              ? t('settings:points.statusLoadFailed', '签到状态加载失败，点击重试')
-              : isCheckedIn
-                ? t('settings:points.alreadyCheckedIn', '今日已签到')
-                : checkInMutation.isPending
-                  ? t('common:processing', "处理中…")
-                  : t('settings:points.checkIn', '签到领积分')}
-          </span>
         </button>
       )}
 

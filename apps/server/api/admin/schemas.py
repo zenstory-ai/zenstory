@@ -121,38 +121,6 @@ class SkillReviewResourcesResponse(BaseModel):
     resources: list[SkillReviewResourceResponse]
 
 
-# ==================== Inspiration Management Schemas ====================
-
-
-class CreateInspirationRequest(BaseModel):
-    """Request body for creating an inspiration from a project"""
-    project_id: str
-    name: str | None = None
-    description: str | None = None
-    cover_image: str | None = None
-    tags: list[str] | None = None
-    source: str = "official"
-    is_featured: bool = False
-
-
-class InspirationReviewRequest(BaseModel):
-    """Request body for reviewing an inspiration"""
-    approve: bool
-    # Required when approve=False
-    rejection_reason: str | None = None
-
-
-class UpdateInspirationRequest(BaseModel):
-    """Request body for updating an inspiration"""
-    name: str | None = None
-    description: str | None = None
-    cover_image: str | None = None
-    tags: list[str] | None = None
-    is_featured: bool | None = None
-    sort_order: int | None = None
-    status: Literal["pending", "approved", "rejected"] | None = None
-
-
 # ==================== Feedback Management Schemas ====================
 
 
@@ -381,16 +349,9 @@ class DashboardStatsResponse(BaseModel):
     total_projects: int = Field(description="All persisted project rows, including automatic initialization and soft deletes")
     author_created_projects: int = Field(description="Project rows created by author actions, excluding automatic first-work initialization")
     auto_initialized_projects: int = Field(description="Project rows originating from first-work initialization; not an activation metric")
-    total_inspirations: int
-    pending_inspirations: int
     # Paid (non-free) subscriptions whose period has not ended.
     active_subscriptions: int
     pro_users: int
-    # Commercialization stats
-    total_points_in_circulation: int
-    today_check_ins: int
-    active_invite_codes: int
-    week_referrals: int
 
 
 class ActivationFunnelStepResponse(BaseModel):
@@ -701,114 +662,6 @@ class AuditLogListResponse(BaseModel):
     page: int
     page_size: int
     total: int
-
-
-# ==================== Points Management Schemas ====================
-
-
-class AdminPointsBalance(BaseModel):
-    """User points details for admin"""
-    user_id: str
-    username: str
-    email: str
-    available: int
-    pending_expiration: int
-    total_earned: int
-    total_spent: int
-
-
-class AdminPointsAdjustRequest(BaseModel):
-    """Points adjustment request"""
-    amount: int  # Positive to add, negative to deduct
-    reason: str  # Adjustment reason
-
-
-class PointsStatsResponse(BaseModel):
-    """Points system statistics"""
-    total_points_issued: int
-    total_points_spent: int
-    total_points_expired: int
-    active_users_with_points: int
-
-
-class PointsTransactionListResponse(BaseModel):
-    """Response model for points transactions list"""
-    items: list
-    total: int
-    page: int
-    page_size: int
-
-
-# ==================== Check-in Stats Schemas ====================
-
-
-class CheckInStatsResponse(BaseModel):
-    """Check-in statistics"""
-    today_count: int
-    yesterday_count: int
-    week_total: int
-    streak_distribution: dict  # {7: 10, 14: 5, 30: 2}
-
-
-class CheckInRecordResponse(BaseModel):
-    """Check-in record response"""
-    id: str
-    user_id: str
-    username: str
-    check_in_date: date
-    streak_days: int
-    points_earned: int
-    created_at: UTCDateTime
-
-
-class CheckInRecordListResponse(BaseModel):
-    """Response model for check-in records list"""
-    items: list[CheckInRecordResponse]
-    total: int
-    page: int
-    page_size: int
-
-
-# ==================== Referral Management Schemas ====================
-
-
-class AdminReferralStatsResponse(BaseModel):
-    """Referral system statistics"""
-    total_codes: int
-    active_codes: int
-    total_referrals: int
-    successful_referrals: int
-    pending_rewards: int
-    total_points_awarded: int
-
-
-class AdminInviteCodeResponse(BaseModel):
-    """Invite code details"""
-    id: str
-    code: str
-    owner_id: str
-    owner_name: str
-    max_uses: int
-    current_uses: int
-    is_active: bool
-    expires_at: UTCDateTime | None
-    created_at: UTCDateTime
-
-
-class InviteCodeListResponse(BaseModel):
-    """Response model for invite codes list"""
-    items: list[AdminInviteCodeResponse]
-    total: int
-    page: int
-    page_size: int
-
-
-class ReferralRewardListResponse(BaseModel):
-    """Response model for referral rewards list"""
-    items: list
-    total: int
-    page: int
-    page_size: int
 
 
 # ==================== Quota Usage Schemas ====================

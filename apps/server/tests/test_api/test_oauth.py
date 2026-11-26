@@ -196,9 +196,8 @@ async def test_google_oauth_callback_bootstraps_subscription_and_quota(
         RefreshTokenRecord,
         User,
     )
-    from models.referral import InviteCode
     from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
-    from services.core.auth_service import TOKEN_TYPE_REFRESH, hash_password, verify_token
+    from services.core.auth_service import TOKEN_TYPE_REFRESH, verify_token
 
     class _DummyResponse:
         def __init__(self, status_code: int, payload: dict):
@@ -250,30 +249,8 @@ async def test_google_oauth_callback_bootstraps_subscription_and_quota(
         db_session.commit()
         db_session.refresh(free_plan)
 
-    inviter = User(
-        username="oauth_inviter_user",
-        email="oauth_inviter@example.com",
-        hashed_password=hash_password("password123"),
-        email_verified=True,
-        is_active=True,
-    )
-    db_session.add(inviter)
-    db_session.commit()
-    db_session.refresh(inviter)
-
-    invite_code = InviteCode(
-        code="TEST-1234",
-        owner_id=inviter.id,
-        max_uses=3,
-        current_uses=0,
-        is_active=True,
-    )
-    db_session.add(invite_code)
-    db_session.commit()
-    db_session.refresh(invite_code)
-
     nonce = "oauth-test-nonce"
-    state = _encode_oauth_state({"nonce": nonce, "invite_code": invite_code.code})
+    state = _encode_oauth_state({"nonce": nonce})
 
     response = await client.get(
         "/api/auth/google/callback",
@@ -336,7 +313,6 @@ async def test_google_oauth_callback_bootstraps_subscription_and_quota(
     ).first()
     assert signup_event is not None
     assert signup_event.event_metadata["source"] == "google_oauth"
-    assert signup_event.event_metadata["invite_code_provided"] is True
 
 
 @pytest.mark.integration
@@ -579,63 +555,6 @@ async def test_google_oauth_callback_preserves_existing_user_email_casing(
     # of the existing-user update path (avatar) still runs.
     assert refreshed.email == "Casing-OAuth@Example.com"
     assert refreshed.avatar_url == "https://example.com/avatar.png"
-
-
-@pytest.mark.integration
-async def test_google_oauth_callback_requires_invite_code_for_new_user(
-    client: AsyncClient, monkeypatch
-):
-    """OAuth signups should enforce the same invite-code requirement as /register."""
-    from api.oauth import OAUTH_STATE_COOKIE_NAME, _encode_oauth_state
-
-    class _DummyResponse:
-        def __init__(self, status_code: int, payload: dict):
-            self.status_code = status_code
-            self._payload = payload
-
-        def json(self):
-            return self._payload
-
-    class _DummyAsyncClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        async def post(self, *args, **kwargs):
-            return _DummyResponse(200, {"access_token": "google-access-token"})
-
-        async def get(self, *args, **kwargs):
-            return _DummyResponse(200, {
-                "email": "oauth_invite_required@example.com",
-                "name": "OAuth Invite Required",
-            })
-
-    monkeypatch.setattr("api.oauth.httpx.AsyncClient", _DummyAsyncClient)
-    monkeypatch.setattr("api.oauth.GOOGLE_CLIENT_ID", "test-client-id")
-    monkeypatch.setattr("api.oauth.GOOGLE_CLIENT_SECRET", "test-client-secret")
-    monkeypatch.setattr("api.oauth.GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
-    monkeypatch.setenv("FRONTEND_URL", "http://localhost:5173")
-    monkeypatch.delenv("AUTH_REGISTER_INVITE_CODE_OPTIONAL", raising=False)
-    monkeypatch.setenv("AUTH_REGISTER_INVITE_GRAY_PERCENT", "0")
-
-    nonce = "oauth-test-nonce-invite"
-    state = _encode_oauth_state({"nonce": nonce})
-
-    response = await client.get(
-        "/api/auth/google/callback",
-        params={"code": "dummy-code", "state": state},
-        headers={"Cookie": f"{OAUTH_STATE_COOKIE_NAME}={nonce}"},
-    )
-
-    assert response.status_code in [302, 307]
-    location = response.headers.get("location", "")
-    assert location.startswith("http://localhost:5173/register")
-    assert "error_code=ERR_AUTH_INVITE_CODE_REQUIRED" in location
 
 
 @pytest.mark.integration
