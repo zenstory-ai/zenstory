@@ -72,7 +72,7 @@ See the [user documentation](https://zenstory.ai/docs#en) for more workflows.
 export DEEPSEEK_API_KEY=your-key          # or place it in .env at the repository root
 docker compose up -d --build
 
-# Create the first admin account (no invite code or email verification required; password must be 12+ chars)
+# Create the first admin account (no email verification required; password must be 12+ chars)
 docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
   -e ZENSTORY_ADMIN_PASSWORD='CHANGE-ME-12CHARS' server python scripts/create_admin.py
 ```
@@ -82,7 +82,7 @@ Sign in at <http://localhost:5173>; the API reference is at <http://localhost:80
 - **Writing configuration**: project system prompts (`novel`, `short`, `screenplay`) and official skills live in the database. Configure and reload them in the admin console after first launch; see [docs/agent-writing-guidance.md](docs/agent-writing-guidance.md).
 - **Plan seeding**: run `docker compose exec server python scripts/seed_subscription_plans.py` to initialize plans, then assign Pro under **Subscriptions** in the admin console.
 - **Model selection**: configure DeepSeek or MiniMax via environment variables (`LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`, with `DEEPSEEK_API_KEY` or `MINIMAX_API_KEY`); see [`apps/server/agent/core/llm_providers.py`](apps/server/agent/core/llm_providers.py).
-- **Open sign-up & optional features**: self-hosted instances require an invite code by default; set `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true` to allow open registration. For PostgreSQL + Redis deployment, email verification and password reset (Resend), Google sign-in, Tencent Cloud voice input, material-library Prefect workers, the Inspiration Library, and Zpay Alipay checkout, see [docs/docker-compose.md](docs/docker-compose.md) (in Chinese).
+- **Optional features**: for PostgreSQL + Redis deployment, email verification and password reset (Resend), Google sign-in, Tencent Cloud voice input, material-library Prefect workers, and Zpay Alipay checkout, see [docs/docker-compose.md](docs/docker-compose.md) (in Chinese).
 
 <details>
 <summary>Local development without Docker</summary>

@@ -284,10 +284,8 @@ run_playwright_suite() {
                 e2e/auth.spec.ts
                 e2e/session.spec.ts
                 e2e/projects.spec.ts
-                e2e/points.spec.ts
                 e2e/onboarding-persona.spec.ts
                 e2e/public-skills.spec.ts
-                e2e/referral.spec.ts
                 e2e/security.spec.ts
                 e2e/subscription.spec.ts
                 e2e/settings-regression.spec.ts
