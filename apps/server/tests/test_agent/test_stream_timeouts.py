@@ -393,6 +393,77 @@ async def test_timeout_does_not_block_on_generator_finally_that_hangs(monkeypatc
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_teardown_external_cancellation_aborts_without_falling_through_to_close():
+    """External cancellation (e.g. event-loop shutdown) must abort _teardown instead of calling close()."""
+    aclose_started = asyncio.Event()
+    close_called = False
+
+    class _InnerIter:
+        async def aclose(self):
+            aclose_started.set()
+            await asyncio.sleep(10.0)
+
+    class _OuterStream:
+        def __init__(self, inner: _InnerIter) -> None:
+            self._inner = inner
+
+        def __aiter__(self):
+            return self._inner
+
+        async def close(self):
+            nonlocal close_called
+            close_called = True
+
+    inner = _InnerIter()
+    outer = _OuterStream(inner)
+    task = sdk_model._schedule_stream_teardown(inner, outer, timeout_s=5.0)
+    assert task is not None
+    await asyncio.wait_for(aclose_started.wait(), timeout=0.5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert close_called is False
+    assert task not in sdk_model._pending_stream_teardowns
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_teardown_does_not_double_close_dual_method_stream():
+    """When stream is its own iterator with both aclose() and close(), only aclose() is called."""
+    calls: list[str] = []
+
+    class _DualMethodStream:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            await asyncio.sleep(10.0)
+
+        async def aclose(self):
+            calls.append("aclose")
+
+        async def close(self):
+            calls.append("close")
+
+    stream = _DualMethodStream()
+    task = sdk_model._schedule_stream_teardown(stream, stream, timeout_s=1.0)
+    assert task is not None
+    await task
+    assert calls == ["aclose"]
+
+
+@pytest.mark.unit
+def test_meaningful_stream_progress_handles_none_delta_and_response_error():
+    assert sdk_model._is_meaningful_stream_progress(SimpleNamespace(type="response.output_text.delta", delta=None)) is False
+    assert sdk_model._is_meaningful_stream_progress(SimpleNamespace(type="response.output_text.delta", delta="")) is False
+    assert sdk_model._is_meaningful_stream_progress(SimpleNamespace(type="response.output_text.delta", delta="字")) is True
+    assert sdk_model._is_meaningful_stream_progress(SimpleNamespace(type="response.output_text.delta")) is True
+    assert sdk_model._is_meaningful_stream_progress(SimpleNamespace(type="response.error")) is True
+    assert sdk_model._is_meaningful_stream_progress(SimpleNamespace(type="error")) is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_normal_exit_and_caller_cancellation_close_stream_inline():
     normal_closed = False
     cancelled_closed = False

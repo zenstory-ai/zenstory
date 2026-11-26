@@ -67,14 +67,24 @@ _ANSWER_OUTPUT_EVENT_TYPES = frozenset({
 _STREAM_TEARDOWN_TIMEOUT_S = 2.0
 # Strong references to detached teardown tasks so GC never drops them mid-cleanup.
 _pending_stream_teardowns: set[asyncio.Task[Any]] = set()
+_MISSING = object()
 
 
 def _is_meaningful_stream_progress(event: Any) -> bool:
     """Whether ``event`` carries real generation progress (not an empty keepalive/lifecycle frame)."""
     event_type = getattr(event, "type", None)
-    if event_type in (_COMPLETED_EVENT_TYPE, _INCOMPLETE_EVENT_TYPE, _FAILED_EVENT_TYPE, "error"):
+    if event_type in (
+        _COMPLETED_EVENT_TYPE,
+        _INCOMPLETE_EVENT_TYPE,
+        _FAILED_EVENT_TYPE,
+        "error",
+        "response.error",
+    ):
         return True
-    return event_type in _FIRST_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != ""
+    if event_type not in _FIRST_OUTPUT_EVENT_TYPES:
+        return False
+    delta = getattr(event, "delta", _MISSING)
+    return delta is _MISSING or (isinstance(delta, str) and delta != "")
 
 
 def _schedule_stream_teardown(
@@ -90,9 +100,13 @@ def _schedule_stream_teardown(
     right away while bounding resource cleanup.
     """
     aclose = getattr(aiter, "aclose", None)
-    close = getattr(stream, "close", None) if stream is not None else None
     has_aclose = callable(aclose)
-    has_close = callable(close) and close is not aclose
+    close = (
+        getattr(stream, "close", None)
+        if stream is not None and (stream is not aiter or not has_aclose)
+        else None
+    )
+    has_close = callable(close)
     if not has_aclose and not has_close:
         return None
 
@@ -103,14 +117,14 @@ def _schedule_stream_teardown(
         if has_aclose:
             remaining = deadline - time.monotonic()
             if remaining > 0:
-                with contextlib.suppress(Exception, asyncio.CancelledError):
+                with contextlib.suppress(Exception):
                     res = aclose()
                     if inspect.isawaitable(res):
                         await asyncio.wait_for(res, timeout=remaining)
         if has_close:
             remaining = deadline - time.monotonic()
             if remaining > 0:
-                with contextlib.suppress(Exception, asyncio.CancelledError):
+                with contextlib.suppress(Exception):
                     res = close()
                     if inspect.isawaitable(res):
                         await asyncio.wait_for(res, timeout=remaining)

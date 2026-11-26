@@ -9,7 +9,7 @@ Status: implemented
 在 `apps/server/agent/openai_agents/model.py` 中，单次流式模型调用此前仅使用单一超时阈值 `_iter_with_idle_timeout(..., provider.kind.read_timeout_s())`（MiniMax 默认 120s、DeepSeek 默认 45s），且在 `finally` 中同步 `await aiter.aclose()`。实际运行中暴露出两类可靠性短板：
 
 1. **首包等待与流中空闲共用 120s 上限**：MiniMax 实测 320k 无缓存输入的最大 TTFT 约 49s，当上游节点静默挂死、迟迟不吐出首个有效推理/文本事件（或只发 `response.created` / 空 delta 保活）时，调用被迫白等 120s 才能失败并切换备源，明显拉长故障恢复时延，且日志里无法直接区分「首包前挂死（`first_event`）」还是「流中卡顿（`idle`）」。
-2. **挂死 TCP 连接阻塞超时释放**：超时触发后，`_iter_with_idle_timeout` 的 `finally` 直接 `await aiter.aclose()`（以及 `asyncio.timeout` 取消 `__anext__()` 时等待底层生成器/socket `finally` 退出）。若底层连接或 `aclose()` 在半开 TCP 上卡死，超时恢复与主备切换会被同步拖住，甚至耗尽整轮 780s 墙钟预算。
+2. **挂死连接阻塞 `aclose()` 释放**：超时触发后，`_iter_with_idle_timeout` 的 `finally` 直接同步 `await aiter.aclose()`。若底层自定义迭代器、挂起在 `yield` 处（`remaining <= 0` 超时）的生成器或 `_BudgetedAsyncStream.close()` / `__aexit__` 在半开 TCP 上卡死，超时恢复与主备切换会被同步拖住，甚至耗尽整轮 780s 墙钟预算。
 
 ## Decision
 
@@ -24,7 +24,8 @@ Status: implemented
    - **Phase 2（`idle`）**：收到首个有效进展事件后切换至 `idle_timeout_s`，并在后续每个有效进展事件上刷新；空 delta 与保活帧同样永不重置。
    - 超时异常文案明确区分 `first_event timeout` 与 `idle timeout`，并同步记录脱敏结构化 WARNING 日志（`timeout_phase="first_event" | "idle"`、`provider`、`timeout_s`），配合 `FailoverChatModel` 既有的 `phase="stream_start" | "stream"` 诊断字段快速定位节点首包挂死或流中停滞。
 3. **挂死流非阻塞释放（`releaseIterator` 模式）**（`apps/server/agent/openai_agents/model.py`）：
-   - 在调用方同一协程与 `contextvars.Context` 中通过 `asyncio.timeout(remaining)` 等待 `aiter.__anext__()`（保持 OpenAI Agents SDK `generation_span` / `response_span` 的 `ContextVar` 令牌有效，并兼容 `OpenAIResponsesModel.stream_response` 自身的 `CancelledError` 后台关流）。一旦超时，标记 `timed_out=True`，在 `finally` 中不再内联 `await aiter.aclose()`，而是通过 `_schedule_stream_teardown` 派发受强引用集合 `_pending_stream_teardowns` 保护的后台清理任务（总时长受 `_STREAM_TEARDOWN_TIMEOUT_S=2.0s` 限制，抑制清理异常并在完成后自动 `discard`），主协程立即抛出 `TimeoutError` 进入切换或终态上报。
+   - 在调用方同一协程与 `contextvars.Context` 中通过 `asyncio.timeout(remaining)` 等待 `aiter.__anext__()`（保持 OpenAI Agents SDK `generation_span` / `response_span` 的 `ContextVar` 令牌有效，并兼容 `OpenAIResponsesModel.stream_response` 自身的 `CancelledError` 后台关流）。一旦超时，标记 `timed_out=True`，在 `finally` 中不再内联 `await aiter.aclose()`，而是通过 `_schedule_stream_teardown` 派发受强引用集合 `_pending_stream_teardowns` 保护的后台清理任务（总时长受 `_STREAM_TEARDOWN_TIMEOUT_S=2.0s` 限制，仅抑制 `Exception` 而不吞外部 `asyncio.CancelledError`，且对同时暴露 `aclose`/`close` 的同一流对象避免重复关闭，完成后自动 `discard`），主协程立即抛出 `TimeoutError` 进入切换或终态上报。
+   - 该设计覆盖挂起生成器在 `remaining <= 0` 触发超时、慢 `_BudgetedAsyncStream.close()` / `__aexit__` 及自定义迭代器 `aclose()` 挂死；对于 `aiter.__anext__()` 内部自身 `finally: await ...` 的同步展开，生产链路中 `httpcore` 采用 `standard_compatible=False` TLS 关闭 + `transport.abort()`，且 `OpenAIResponsesModel.stream_response` 在 `CancelledError` 时后台关闭底层流，通常是非阻塞的。
    - 正常结束（`StopAsyncIteration`）、调用方取消（`CancelledError` / `GeneratorExit`）或上游直接抛出的异常仍维持同步内联 `aclose()`，确保正常释放与 `_BudgetedAsyncStream` 取消结算语义不变。
 4. **保持既有不变量与单 Run 双凭证固定契约**：
    - **不引入思考时长合成截断**：不构造伪造的 `ResponseCompletedEvent` 强行截断长思考，避免破坏工具调用协议与计费语义。
