@@ -615,7 +615,8 @@ def load_loop_history(
     重试不再重付一次摘要。
     """
     from agent.core.session_loader import SessionLoader
-    from models import ChatMessage
+    from models import ChatMessage, ChatMessageArchive
+    from models.chat_message_archive import has_chat_message_archive_table
 
     if keep_user_tokens is None:
         keep_user_tokens = AGENT_LOOP_COMPACT_KEEP_USER_TOKENS
@@ -633,6 +634,9 @@ def load_loop_history(
     skip_seen = False
     truncation_streak_open = True
     cursor: tuple[Any, Any] | None = None
+    source_model: Any = ChatMessage
+    archive_checked = False
+    seen_ids: set[str] = set()
 
     def note_compaction(metadata: dict[str, Any]) -> None:
         nonlocal compaction, stored_kept, skip_seen
@@ -655,27 +659,42 @@ def load_loop_history(
         note_compaction(carried_metadata)
 
     while True:
-        stmt = select(ChatMessage).where(
+        stmt = select(source_model).where(
             and_(
-                ChatMessage.session_id == chat_session_id,
-                ChatMessage.role.in_(("user", "assistant")),
+                source_model.session_id == chat_session_id,
+                source_model.role.in_(("user", "assistant")),
             )
         )
         if cursor is not None:
             created_at, row_id = cursor
             stmt = stmt.where(
                 or_(
-                    ChatMessage.created_at < created_at,
-                    and_(ChatMessage.created_at == created_at, ChatMessage.id < row_id),
+                    source_model.created_at < created_at,
+                    and_(source_model.created_at == created_at, source_model.id < row_id),
                 )
             )
         page = session.exec(
-            stmt.order_by(desc(ChatMessage.created_at), desc(ChatMessage.id)).limit(_PAGE_SIZE)
+            stmt.order_by(desc(source_model.created_at), desc(source_model.id)).limit(_PAGE_SIZE)
         ).all()
         if not page:
+            # Hot rows exhausted without hitting a compaction stop boundary: transparently
+            # continue reading older rows from chat_message_archive so returning >7d sessions
+            # never lose conversation context.
+            if (
+                source_model is ChatMessage
+                and not archive_checked
+                and has_chat_message_archive_table(session)
+            ):
+                archive_checked = True
+                source_model = ChatMessageArchive
+                cursor = None
+                continue
             break
         stop = False
         for row in page:
+            if row.id in seen_ids:
+                continue
+            seen_ids.add(row.id)
             if result.last_message_id is None:
                 result.last_message_id = row.id
             if covered_reached:

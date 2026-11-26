@@ -14,14 +14,15 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, desc
 from sqlalchemy.orm import load_only
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from agent.loop.history import client_message_metadata, client_tool_calls
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import create_session, get_session
-from models import ChatMessage, ChatMessageUxSummary, ChatSession, Project, User
+from models import ChatMessage, ChatMessageArchive, ChatMessageUxSummary, ChatSession, Project, User
+from models.chat_message_archive import has_chat_message_archive_table
 from models.chat_message_ux_summary import has_chat_message_ux_summary_table
 from services.chat_feedback_service import chat_feedback_service
 from services.chat_session_service import latest_active_chat_session, lock_active_chat_session
@@ -266,7 +267,51 @@ def get_recent_messages(
     if message_id is not None:
         stmt = stmt.where(ChatMessage.id == message_id)
     stmt = stmt.order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id)).limit(limit)
-    messages = list(reversed(session.exec(stmt).all()))
+    hot_messages: list[ChatMessage | ChatMessageArchive] = list(session.exec(stmt).all())
+
+    # Transparent cold-archive fallback: only touch chat_message_archive when hot
+    # rows do not satisfy the request (fewer than `limit` or targeted `message_id` missing).
+    need_cold = (message_id is not None and not hot_messages) or (
+        message_id is None and len(hot_messages) < limit
+    )
+    if need_cold and has_chat_message_archive_table(session.connection()):
+        cold_stmt = (
+            select(ChatMessageArchive)
+            .options(
+                load_only(
+                    ChatMessageArchive.id,
+                    ChatMessageArchive.session_id,
+                    ChatMessageArchive.role,
+                    ChatMessageArchive.content,
+                    ChatMessageArchive.tool_calls,
+                    ChatMessageArchive.message_metadata,
+                    ChatMessageArchive.created_at,
+                )
+            )
+            .where(ChatMessageArchive.session_id == chat_session.id)
+        )
+        if message_id is not None:
+            cold_stmt = cold_stmt.where(ChatMessageArchive.id == message_id).limit(1)
+        else:
+            hot_ids = [msg.id for msg in hot_messages]
+            if hot_ids:
+                cold_stmt = cold_stmt.where(col(ChatMessageArchive.id).notin_(hot_ids))
+            cold_stmt = cold_stmt.order_by(
+                ChatMessageArchive.created_at.desc(), desc(ChatMessageArchive.id)
+            ).limit(limit - len(hot_messages))
+        cold_messages = list(session.exec(cold_stmt).all())
+        if cold_messages:
+            by_id: dict[str, ChatMessage | ChatMessageArchive] = {
+                msg.id: msg for msg in cold_messages
+            }
+            # Prefer hot row when an ID temporarily exists in both tables during archival.
+            for msg in hot_messages:
+                by_id[msg.id] = msg
+            messages = sorted(by_id.values(), key=lambda msg: (msg.created_at, msg.id))[-limit:]
+        else:
+            messages = list(reversed(hot_messages))
+    else:
+        messages = list(reversed(hot_messages))
 
     return [
         MessageResponse(
@@ -359,9 +404,22 @@ def clear_session(
             .where(ChatMessage.session_id == chat_session.id)
         ).one()
     )
+    has_archive_table = has_chat_message_archive_table(session.connection())
+    if has_archive_table:
+        cleared_count += int(
+            session.exec(
+                select(func.count())
+                .select_from(ChatMessageArchive)
+                .where(ChatMessageArchive.session_id == chat_session.id)
+            ).one()
+        )
     if has_chat_message_ux_summary_table(session.connection()):
         session.exec(
             delete(ChatMessageUxSummary).where(ChatMessageUxSummary.session_id == chat_session.id)
+        )
+    if has_archive_table:
+        session.exec(
+            delete(ChatMessageArchive).where(ChatMessageArchive.session_id == chat_session.id)
         )
     session.exec(
         delete(ChatMessage).where(ChatMessage.session_id == chat_session.id)

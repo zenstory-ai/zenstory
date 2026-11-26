@@ -13,7 +13,8 @@ from sqlmodel import Session
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
-from models import ChatMessage, ChatSession, User
+from models import ChatMessage, ChatMessageArchive, ChatSession, User
+from models.chat_message_archive import has_chat_message_archive_table
 from utils.permission import verify_project_access_sync
 
 FeedbackVote = Literal["up", "down"]
@@ -67,7 +68,9 @@ class ChatFeedbackService:
         Returns:
             Dict compatible with MessageFeedbackResponse.
         """
-        message = session.get(ChatMessage, message_id)
+        message: ChatMessage | ChatMessageArchive | None = session.get(ChatMessage, message_id)
+        if message is None and has_chat_message_archive_table(session.connection()):
+            message = session.get(ChatMessageArchive, message_id)
         if not message:
             raise APIException(
                 error_code=ErrorCode.CHAT_MESSAGE_NOT_FOUND,
