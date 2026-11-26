@@ -2499,7 +2499,7 @@ def test_b2_archived_skill_tool_calls_skip_cold_replay_rehydration_and_db_querie
 @pytest.mark.usefixtures("writing_prompt_configs")
 async def test_m1_stage1_admission_rechecks_restored_full_text_tokens(
     db_session: Session,
-    monkeypatch,
+    fake_redis,  # noqa: ARG001 - patches wire_prefix_cache.get_redis_client + REDIS_URL
 ):
     """M1: When warm-cache dedup shrinks <turn_context> (e.g. 21k -> 1k tokens) and Stage 1 would
     restore loop_turn.full_text, Stage 1 MUST re-check admission against restored full_text tokens
@@ -2573,23 +2573,6 @@ async def test_m1_stage1_admission_rechecks_restored_full_text_tokens(
     )
     provider_key = f"{fake_provider.name}:{fake_provider.model}:{fake_provider.key_slot}"
     tools_sha = wire_prefix_cache.tools_schema_sha256()
-
-    store: dict[str, str] = {}
-
-    class _FakeRedis:
-        def get(self, key: str) -> str | None:
-            return store.get(key)
-
-        def set(self, key: str, value: str, ex: int | None = None) -> bool:  # noqa: ARG002
-            store[key] = value
-            return True
-
-        def delete(self, key: str) -> int:
-            return 1 if store.pop(key, None) is not None else 0
-
-    monkeypatch.setenv("REDIS_URL", "redis://fake-m1/0")
-    monkeypatch.setattr("services.infra.redis_client.get_redis_client", lambda: _FakeRedis())
-    monkeypatch.setattr(wire_prefix_cache, "_redis_down_until", 0.0)
 
     service = AgentService()
     system_prompt = MessageManager(project_id=project.id, user_id=user.id).build_system_prompt(

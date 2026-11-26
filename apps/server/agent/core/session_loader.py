@@ -702,9 +702,12 @@ class SessionLoader:
                                         # full content in model history -> refuse snapshot carryover and
                                         # block older reads from masquerading as latest.
                                         unverifiable.add(fid)
-                                elif isinstance(item.get("archived_note"), str) and item["archived_note"].strip():
-                                    if not allow_slimmed_read_sha256:
-                                        unverifiable.add(fid)
+                                elif (
+                                    not allow_slimmed_read_sha256
+                                    and isinstance(item.get("archived_note"), str)
+                                    and item["archived_note"].strip()
+                                ):
+                                    unverifiable.add(fid)
                             if len(candidates) >= limit:
                                 break
                             continue
