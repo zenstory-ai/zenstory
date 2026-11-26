@@ -111,7 +111,13 @@ async def test_crashed_slots_recover_after_the_stale_window(backend, monkeypatch
     real_time = time.time
     monkeypatch.setattr(limit.time, "time", lambda: real_time() + limit.SLOT_STALE_AFTER_S + 1)
     fresh = await limit.acquire_account_run_slot(user_id)
-    await _release_all([fresh, *crashed])
+    assert fresh is not None
+    try:
+        # Once the recovered slot is taken (limit=1), a second concurrent run must be rejected.
+        with pytest.raises(limit.AccountRunLimitExceeded):
+            await limit.acquire_account_run_slot(user_id)
+    finally:
+        await _release_all([fresh, *crashed])
 
 
 async def test_renewed_long_run_keeps_its_slot_past_the_stale_window(backend, monkeypatch):

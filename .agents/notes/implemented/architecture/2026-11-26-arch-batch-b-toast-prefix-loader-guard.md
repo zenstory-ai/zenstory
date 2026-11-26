@@ -24,9 +24,9 @@ Status: implemented
    - 拆分 `get_base_prompt_static_prefix` 与 `get_base_prompt_project_suffix`（保留 `get_base_prompt` 完全向后兼容），在 `prompts/__init__.py` 新增 `get_prompt_parts_for_project_type` 并让 `get_prompt_for_project_type` 将 `GENRE_NORMS` 置于项目 UUID 之前。
    - `MessageManager.build_system_prompt` 先拼接 `static_prefix`（BASE + `GENRE_NORMS`）、回复语言规则、`LOOP_INPUT_LAYOUT_SECTION`、`LOOP_WORKING_RULES`、`skill_catalog`，再在最末尾拼接 `project_suffix`（`folder_ids`、`directory_structure`、`character_detection`、`project_id`）。
    - `_get_folder_ids` 改用不可变的 `(created_at ASC, id ASC)` 决胜（规范目录优先，兜底未识别旧目录仅在无规范目录时按需查去重 `(parent_id, file_type)` 并同样按 `(created_at ASC, id ASC)` 排序），确保会话中途增删移动文件永不翻转 `folder_ids`。
-3. **SessionLoader 批量查询、游标分页与免 SAVEPOINT 健康路径（`agent/core/session_loader.py`）**：
+3. **SessionLoader 批量查询、游标分页与单外层 SAVEPOINT 隔离（`agent/core/session_loader.py`）**：
    - `session_written_file_ids` 与 `session_read_snapshots` 全部改用 `(created_at, id) < cursor` 游标分页消除 `OFFSET`；`session_written_file_ids` 按 20 行一页收集 `page_candidates` 并在每页末尾执行单次批量 `SELECT File.id ... WHERE File.id IN (...)`，凑够 `limit` 即刻提前终止，既消逐行 N+1 又避免全会话扫描。
-   - `author_edits_for_files` 先将 `File` 元数据（`id`/`title`/`content`/`updated_at`）快照为纯 Python `_FileSnapshot`（避免异常路径 `session.rollback()` 令 ORM 对象过期并触发懒加载或崩溃），再用单条批量聚合 + 最新版本联表 SQL（不碰 `FileVersion.content`）预查 `max_ver`、`potential_ai_count`（含 `change_type="ai_edit"` 以覆盖旧 `"AI edit (reviewed)"` 链）、`min_ai_ver`、`max_non_ai_ver`（覆盖 `restore/system` 等全部 AI 之后非 AI 版本）、最新 `char_count`/`word_count`/`created_at` 与 `latest_is_strict_ai`；仅在明确无手改（零宽限窗口、缺失时间戳 fail-closed、字数/字符数一致且无 AI 后非 AI 版本）时跳过回放；健康路径不开启逐文件 `session.begin_nested()`，仅在异常或 `failed=True` 时回滚只读事务。
+   - `author_edits_for_files` 先将 `File` 元数据（`id`/`title`/`content`/`updated_at`）快照为纯 Python `_FileSnapshot`（避免异常路径回滚令 ORM 对象过期并触发懒加载或崩溃），再用单条批量聚合 + 最新版本联表 SQL（不碰 `FileVersion.content`）预查 `max_ver`、`potential_ai_count`（含 `change_type="ai_edit"` 以覆盖旧 `"AI edit (reviewed)"` 链）、`min_ai_ver`、`max_non_ai_ver`（覆盖 `restore/system` 等全部 AI 之后非 AI 版本）、最新 `char_count`/`word_count`/`created_at` 与 `latest_is_strict_ai`；仅在明确无手改（零宽限窗口、缺失时间戳 fail-closed、字数/字符数一致且无 AI 后非 AI 版本）时跳过回放；整批可选查询收敛进单次外层 `session.begin_nested()`（替代此前至多 30 次逐文件 savepoint），异常或 `failed=True` 时仅回滚该 savepoint 绝不破坏外层事务。
 4. **`RepeatEditGuard` 闭环加固（`agent/openai_agents/repeat_edit_guard.py`）**：
    - 新增连续拦截硬上限 `MAX_CONSECUTIVE_GUARD_INTERCEPTS = 3` 与单文件累计上限 `MAX_PER_FILE_GUARD_INTERCEPTS = 4`：前 1–2 次保持软跳过/自读保护以维持既有温和收敛体验，触顶后升级返回 `status="error"`、`error_type="edit_guard_loop_exhausted"`（`guard_escalated=True`、`stop_calling_tools=True`，`edit_file` 升级载荷省略顶层 `id` 改用 `file_id` 以防 `StreamAdapter` 发出假 `file_edit_*` 事件），由既有 `ToolFailureBreaker` 计数并在继续空转时熔断。
    - `_plan_self_read` 支持多 ID `query_files(ids=[...])`：全为本轮刚写文件时同步整次拦截（零 DB 查询）；混合批通过 `EditPlan.arguments` 改写参数在 DB 执行前剔除 `guarded_ids` 并在 `observe()` 按原序合并 `content_omitted=True` 轻量行（同时保留未改写时的纵深剥离兜底），触及单文件上限时同步升级拒绝。
@@ -49,7 +49,7 @@ Status: implemented
 - **收益**：
   - 新落库的 `chat_message.tool_calls` 与 `message_metadata` 中文体积立降 ~45%–50%。
   - 同一写作类型跨项目系统提示词公共静态前缀完整覆盖基础协议、题材规范、回复语言、循环规则与技能目录，且会话内 `folder_ids` 不再因写入抖动。
-  - `session_written_file_ids` 消除 N+1 和 `OFFSET`；`author_edits_for_files` 健康路径零 `SAVEPOINT` 并跳过绝大多数未手改文件的 `line_blame` / `SequenceMatcher`。
+  - `session_written_file_ids` 消除 N+1 和 `OFFSET`；`author_edits_for_files` 将至多 30 次逐文件 `SAVEPOINT` 收敛为单次外层 batch `session.begin_nested()`，并跳过绝大多数未手改文件的 `line_blame` / `SequenceMatcher`。
   - `RepeatEditGuard` 彻底堵住自读/软跳过无限空转、多 ID 绕过和 `partial` 编辑漏记三个盲区。
 - **成本**：
   - 系统提示词段落重排会在发布后触发一次全量旧前缀缓存刷新（一次性，随后跨项目命中率显著提升）。

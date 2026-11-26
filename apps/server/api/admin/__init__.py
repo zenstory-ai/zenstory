@@ -8,17 +8,13 @@ from fastapi import APIRouter
 
 from .announcements import router as announcements_router
 from .audit import router as audit_router
-from .checkin import router as checkin_router
 from .codes import router as codes_router
 from .dashboard import router as dashboard_router
 from .feedback import router as feedback_router
-from .inspirations import router as inspirations_router
 from .payment_orders import router as payment_orders_router
 from .plans import router as plans_router
-from .points import router as points_router
 from .prompts import router as prompts_router
 from .quotas import router as quotas_router
-from .referrals import router as referrals_router
 from .skills import router as skills_router
 from .subscriptions import router as subscriptions_router
 from .usage import router as usage_router
@@ -32,7 +28,6 @@ router.include_router(users_router)
 router.include_router(announcements_router)
 router.include_router(prompts_router)
 router.include_router(skills_router)
-router.include_router(inspirations_router)
 router.include_router(feedback_router)
 router.include_router(plans_router)
 router.include_router(payment_orders_router)
@@ -40,9 +35,6 @@ router.include_router(codes_router)
 router.include_router(subscriptions_router)
 router.include_router(dashboard_router)
 router.include_router(audit_router)
-router.include_router(points_router)
-router.include_router(checkin_router)
-router.include_router(referrals_router)
 router.include_router(quotas_router)
 router.include_router(usage_router)
 

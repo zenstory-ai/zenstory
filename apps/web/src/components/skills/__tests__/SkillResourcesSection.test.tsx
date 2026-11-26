@@ -64,4 +64,44 @@ describe('SkillResourcesSection request freshness', () => {
     await user.click(screen.getByRole('button', { name: 'common:retry' }))
     expect(await screen.findByText('references/recovered.md')).toBeInTheDocument()
   })
+
+  it.each(['examples/opening.md', 'templates/chapter.txt'])(
+    'allows creating resources under %s',
+    async (resourcePath) => {
+      vi.mocked(skillsApi.upsertResource).mockResolvedValue({
+        path: resourcePath,
+        size: 7,
+        updated_at: 'now',
+      })
+      const user = userEvent.setup()
+      render(<SkillResourcesSection skillId="skill-1" />)
+
+      await user.click(await screen.findByRole('button', { name: 'resources.add' }))
+      const pathInput = screen.getByRole('textbox', { name: 'resources.path' })
+      await user.clear(pathInput)
+      await user.type(pathInput, resourcePath)
+      await user.type(screen.getByRole('textbox', { name: 'resources.content' }), 'content')
+      await user.click(screen.getByRole('button', { name: 'resources.saveFile' }))
+
+      await waitFor(() =>
+        expect(skillsApi.upsertResource).toHaveBeenCalledWith('skill-1', resourcePath, 'content'),
+      )
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    },
+  )
+
+  it('rejects disallowed resource prefixes such as scripts/', async () => {
+    const user = userEvent.setup()
+    render(<SkillResourcesSection skillId="skill-1" />)
+
+    await user.click(await screen.findByRole('button', { name: 'resources.add' }))
+    const pathInput = screen.getByRole('textbox', { name: 'resources.path' })
+    await user.clear(pathInput)
+    await user.type(pathInput, 'scripts/run.md')
+    await user.type(screen.getByRole('textbox', { name: 'resources.content' }), 'nope')
+    await user.click(screen.getByRole('button', { name: 'resources.saveFile' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('resources.errors.prefix')
+    expect(skillsApi.upsertResource).not.toHaveBeenCalled()
+  })
 })

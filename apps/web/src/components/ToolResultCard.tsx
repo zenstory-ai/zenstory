@@ -613,27 +613,38 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       description = parts.join(' · ');
     } else if (toolName === 'search_files') {
       const query = typeof args.query === 'string' && args.query.trim() ? args.query.trim() : '';
-      const searchFileType = typeof args.file_type === 'string' && args.file_type ? args.file_type : '';
-      if (query && searchFileType) {
-        description = `${getFileTypeInfo(searchFileType, t).label} · ${quote(query)}`;
+      const rawTypes = Array.isArray(args.file_types)
+        ? args.file_types.filter((ft): ft is string => typeof ft === 'string' && ft.trim().length > 0)
+        : typeof args.file_types === 'string' && args.file_types.trim()
+          ? [args.file_types.trim()]
+          : typeof args.file_type === 'string' && args.file_type.trim()
+            ? [args.file_type.trim()]
+            : [];
+      const typeLabels = rawTypes.map((ft) => getFileTypeInfo(ft, t).label).join(' / ');
+      if (query && typeLabels) {
+        description = `${typeLabels} · ${quote(query)}`;
       } else if (query) {
         description = quote(query);
-      } else if (searchFileType) {
-        const typeInfo = getFileTypeInfo(searchFileType, t);
-        description = t('chat:tool.query_description', { label: typeInfo.label });
+      } else if (typeLabels) {
+        description = t('chat:tool.query_description', { label: typeLabels });
       }
     } else if (toolName === 'batch_replace_files') {
       const fileIds = Array.isArray(args.file_ids)
         ? args.file_ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
         : [];
-      const targetFileType = typeof args.file_type === 'string' && args.file_type ? args.file_type : '';
+      const rawTypes = Array.isArray(args.file_types)
+        ? args.file_types.filter((ft): ft is string => typeof ft === 'string' && ft.trim().length > 0)
+        : typeof args.file_types === 'string' && args.file_types.trim()
+          ? [args.file_types.trim()]
+          : typeof args.file_type === 'string' && args.file_type.trim()
+            ? [args.file_type.trim()]
+            : [];
+      const typeLabels = rawTypes.map((ft) => getFileTypeInfo(ft, t).label).join(' / ');
       const parts = [
         args.dry_run === true ? t('chat:tool.batch_replace_preview_pending') : '',
         fileIds.length > 0
           ? t('chat:tool.batch_replace_scope_files', { count: fileIds.length })
-          : targetFileType
-            ? getFileTypeInfo(targetFileType, t).label
-            : '',
+          : typeLabels,
       ].filter(Boolean);
       description = parts.join(' · ');
     } else if (toolName === 'update_project') {

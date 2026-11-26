@@ -389,10 +389,8 @@ describe('Layout', () => {
       expect(middlePanelElement.closest('[aria-hidden="true"]')).toBeNull()
 
       // Inactive panels exist in DOM but are hidden
-      const rightPanelElement = screen.queryByTestId('right-panel')
-      if (rightPanelElement) {
-        expect(rightPanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
-      }
+      const rightPanelElement = screen.getByTestId('right-panel')
+      expect(rightPanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
 
       const panels = screen.getAllByRole('tabpanel', { hidden: true })
       expect(panels).toHaveLength(3)
@@ -416,15 +414,11 @@ describe('Layout', () => {
 
       // Files panel in mobile layout uses MobileFileTree, not the left prop
       // Check that inactive panels are hidden (aria-hidden)
-      const middlePanelElement = screen.queryByTestId('middle-panel')
-      if (middlePanelElement) {
-        expect(middlePanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
-      }
+      const middlePanelElement = screen.getByTestId('middle-panel')
+      expect(middlePanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
 
-      const rightPanelElement = screen.queryByTestId('right-panel')
-      if (rightPanelElement) {
-        expect(rightPanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
-      }
+      const rightPanelElement = screen.getByTestId('right-panel')
+      expect(rightPanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
     })
 
     it('shows chat panel when activePanel is chat', () => {
@@ -437,10 +431,8 @@ describe('Layout', () => {
       expect(rightPanelElement.closest('[aria-hidden="true"]')).toBeNull()
 
       // Inactive panels should be hidden
-      const middlePanelElement = screen.queryByTestId('middle-panel')
-      if (middlePanelElement) {
-        expect(middlePanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
-      }
+      const middlePanelElement = screen.getByTestId('middle-panel')
+      expect(middlePanelElement.closest('[aria-hidden="true"]')).not.toBeNull()
     })
 
     it('renders bottom navigation tabs', () => {

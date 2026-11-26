@@ -3562,3 +3562,51 @@ async def test_w3_p1_2_cancelled_reserve_task_tracked_and_refunds_via_independen
     assert refund_calls[0][0] == user.id
     assert refund_calls[0][1] == _CHARGED_PERIOD
     assert not any(not t.done() for t in agent_api._detached_refund_tasks)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_m4_schedule_detached_refund_checks_offload_upfront_before_session_closes():
+    """M4: _schedule_detached_refund checks should_offload_session_work(session) synchronously
+    BEFORE spawning the background task and delegates to _schedule_detached_refund_independent,
+    so closing the request session immediately after scheduling never fails."""
+
+    class _CloseableSession:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def __getattr__(self, name: str):
+            if self.closed:
+                raise RuntimeError(f"Closed request session touched via .{name}")
+            return None
+
+    fake_session = _CloseableSession()
+    refund_calls: list[tuple[str, datetime, str]] = []
+
+    def fake_independent_release(uid: str, period: datetime, rid: str) -> bool:
+        refund_calls.append((uid, period, rid))
+        return True
+
+    def check_offload(sess) -> bool:
+        if getattr(sess, "closed", False):
+            raise RuntimeError("should_offload_session_work called after request session closed!")
+        return True
+
+    with (
+        patch("api.agent.should_offload_session_work", side_effect=check_offload),
+        patch("api.agent._release_ai_conversation_sync", side_effect=fake_independent_release),
+    ):
+        task = agent_api._schedule_detached_refund(
+            fake_session,  # type: ignore[arg-type]
+            "user-m4",
+            _CHARGED_PERIOD,
+            "run-m4",
+            billing_reason="prestream_aborted",
+        )
+        # Immediately close the request session BEFORE the event loop yields to run the scheduled task!
+        fake_session.closed = True
+        assert task is not None
+        assert await task is True
+
+    assert refund_calls == [("user-m4", _CHARGED_PERIOD, "run-m4")]
+    assert task not in agent_api._detached_refund_tasks

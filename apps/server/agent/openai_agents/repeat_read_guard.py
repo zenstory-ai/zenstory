@@ -41,6 +41,8 @@ from typing import Any
 
 from agent.constants import coerce_bool
 from agent.openai_agents.events import parse_json_object, tool_error_text
+from agent.skills.active_skills import skill_name_key
+from agent.skills.package import normalize_resource_path
 from agent.tools.file_ops.content_range import DEFAULT_RANGE_CHARS, wants_range
 from agent.tools.file_ops.serialization import (
     QUERY_FILES_MAX_BATCH_IDS,
@@ -50,15 +52,20 @@ from agent.tools.file_ops.serialization import (
 
 READ_TOOL_NAME = "query_files"
 READ_TOOL_NAMES: frozenset[str] = frozenset({"query_files", "read_files"})
+SKILL_LOAD_TOOL_NAME = "load_skill"
+SKILL_RESOURCE_TOOL_NAME = "read_skill_resource"
+SKILL_READ_TOOL_NAMES: frozenset[str] = frozenset({SKILL_LOAD_TOOL_NAME, SKILL_RESOURCE_TOOL_NAME})
 # 直接调用即写文件的工具（成功后清零该文件的读取计数）。
-WRITE_TOOL_NAMES: frozenset[str] = frozenset({
-    "create_file",
-    "write_chapter",
-    "edit_file",
-    "delete_file",
-    "rename_file",
-    "batch_replace_files",
-})
+WRITE_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "create_file",
+        "write_chapter",
+        "edit_file",
+        "delete_file",
+        "rename_file",
+        "batch_replace_files",
+    }
+)
 
 # 同一键第几次成功读取开始附提示 / 强警告，第几次起拦下不执行。
 READ_HINT_AT = 2
@@ -82,6 +89,8 @@ NO_PROGRESS_ERROR_TYPE = "NoProgressStop"
 _READ_HINT_TEXT = "该文件全文本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
 _SUMMARY_READ_HINT_TEXT = "该文件摘要本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
 _RANGE_READ_HINT_TEXT = "该文件的这一段内容本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
+_SKILL_LOAD_HINT_TEXT = "该技能正文本次运行中已加载过，请直接使用本次运行中之前的工具结果。"
+_SKILL_RESOURCE_HINT_TEXT = "该技能的这一参考内容本次运行中已读取过，请直接使用本次运行中之前的工具结果。"
 
 # 无进展停止时给作者看的说明（ERROR 事件的 error；前端按 ERR_AGENT_NO_PROGRESS 取 i18n）。
 NO_PROGRESS_USER_MESSAGE = (
@@ -209,6 +218,49 @@ def _is_full_key(key: ReadKey) -> bool:
     return key[2] in ("full", "full:pstats")
 
 
+def _parse_skill_offset(raw: Any) -> int | None:
+    if raw is None:
+        return 0
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return raw if raw >= 0 else None
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if not stripped:
+            return None
+        try:
+            parsed = int(stripped)
+        except ValueError:
+            return None
+        return parsed if parsed >= 0 else None
+    return None
+
+
+def _parse_skill_read_args(tool_name: str, params: Any) -> tuple[str, str] | None:
+    """提取技能只读工具的 (requested_name, normalized_mode)；参数非法时返回 None 交由工具校验。"""
+    if not isinstance(params, dict):
+        return None
+    raw_name = params.get("name")
+    if not isinstance(raw_name, str) or not raw_name.strip():
+        return None
+    requested_name = raw_name.strip()
+    if tool_name == SKILL_LOAD_TOOL_NAME:
+        return requested_name, "body"
+    if tool_name == SKILL_RESOURCE_TOOL_NAME:
+        raw_path = params.get("path")
+        if not isinstance(raw_path, str):
+            return None
+        path = normalize_resource_path(raw_path)
+        if not path:
+            return None
+        offset = _parse_skill_offset(params.get("offset"))
+        if offset is None:
+            return None
+        return requested_name, f"{path}@{offset}"
+    return None
+
+
 def _is_partial(data: Any) -> bool:
     """query_files 结果的第一条只是正文的一段（范围读取）。"""
     return isinstance(data, list) and bool(data) and isinstance(data[0], dict) and data[0].get("content_partial") is True
@@ -298,6 +350,9 @@ class RepeatReadGuard:
     # 任意一次写工具成功（有些写入拿不到 id，例如结果被截断）。
     write_succeeded: bool = False
     _titles: dict[str, str] = field(default_factory=dict)
+    # 技能别名与展示名映射（与项目文件 _titles / files_read 隔离）：requested_name/id → canonical skill_id。
+    _skill_aliases: dict[str, str] = field(default_factory=dict)
+    _skill_names: dict[str, str] = field(default_factory=dict)
     # 已经按「正文落库」清过读取计数的文件（AgentRequestContext.saved_bodies_this_request 的 id）。
     _saved_bodies_seen: set[str] = field(default_factory=set)
     # 本次请求的强类型上下文（用于读取已落库正文集合，不再查全局 ContextVar）。
@@ -326,7 +381,49 @@ class RepeatReadGuard:
         self._forget_newly_saved_bodies()
         if tool_name in READ_TOOL_NAMES:
             return self._plan_direct_read(tool_name, raw_arguments, parsed_args=parsed_args)
+        if tool_name in SKILL_READ_TOOL_NAMES:
+            return self._plan_skill_read(tool_name, raw_arguments, parsed_args=parsed_args)
         return ReadPlan(arguments=raw_arguments, parsed_arguments=parsed_args)
+
+    def _plan_skill_read(
+        self,
+        tool_name: str,
+        raw_arguments: str,
+        *,
+        parsed_args: dict[str, Any] | None = None,
+    ) -> ReadPlan:
+        if parsed_args is not None:
+            args = parsed_args
+        else:
+            parsed_obj, parse_error, _ = parse_json_object(raw_arguments or "")
+            if parse_error is not None or not isinstance(parsed_obj, dict):
+                return ReadPlan(arguments=raw_arguments)
+            args = parsed_obj
+        parsed = _parse_skill_read_args(tool_name, args)
+        if parsed is None:
+            return ReadPlan(arguments=raw_arguments, parsed_arguments=args)
+        requested_name, mode = parsed
+        alias_key = skill_name_key(requested_name)
+        skill_ident = self._skill_aliases.get(alias_key, alias_key)
+        key: ReadKey = (tool_name, skill_ident, mode)
+        if self._read_counts.get(key, 0) + 1 >= READ_BLOCK_AT:
+            label = self._register_blocked(key, display_label=self._skill_label(skill_ident))
+            model_msg = self._skill_blocked_message(label, key)
+            return ReadPlan(
+                arguments=raw_arguments,
+                parsed_arguments=args,
+                blocked_output=_blocked_error_text(
+                    model_msg,
+                    user_message=_blocked_skill_user_message(tool_name, self._skill_names.get(skill_ident, "")),
+                    tool_name=tool_name,
+                ),
+            )
+        return ReadPlan(
+            arguments=raw_arguments,
+            parsed_arguments=args,
+            read_key=key,
+            read_keys=(key,),
+        )
 
     def _plan_direct_read(
         self,
@@ -428,6 +525,29 @@ class RepeatReadGuard:
             f"如果确实缺少信息，请停止调用工具并向用户说明缺什么。{tail}"
         )
 
+    def _skill_blocked_message(self, label: str, key: ReadKey) -> str:
+        remaining = max(self.max_blocked_reads - self.blocked_reads, 0)
+        tail = (
+            f"再有 {remaining} 次重复读取被拦下，本轮将被自动终止。"
+            if remaining
+            else "重复读取次数已达上限，本轮即将终止。"
+        )
+        if key[0] == SKILL_LOAD_TOOL_NAME:
+            return (
+                f"技能{label}的正文本次运行中已加载 {READ_BLOCK_AT - 1} 次，"
+                "内容就在本次运行之前的工具结果里，本次调用未执行。"
+                "不要再重复加载它：请直接根据已读内容完成任务并输出结果；"
+                f"如果确实缺少信息，请停止调用工具并向用户说明缺什么。{tail}"
+            )
+        path, _, offset_str = key[2].rpartition("@")
+        path_desc = f"{path} (offset={offset_str})" if offset_str and offset_str != "0" else (path or key[2])
+        return (
+            f"技能{label}的资源（{path_desc}）本次运行中已读取 {READ_BLOCK_AT - 1} 次，"
+            "内容就在本次运行之前的工具结果里，本次读取未执行。"
+            "不要再重复读取它：请直接根据已读内容完成任务并输出结果；"
+            f"如果确实缺少信息，请停止调用工具并向用户说明缺什么。{tail}"
+        )
+
     # --------------------------------------------------------------- observe
     def observe(
         self,
@@ -449,7 +569,69 @@ class RepeatReadGuard:
             return output_text
         if tool_name in READ_TOOL_NAMES and (plan.read_keys or plan.read_key is not None):
             return self._observe_direct_read(plan, output_text, parsed_output=parsed_output)
+        if tool_name in SKILL_READ_TOOL_NAMES and plan.read_key is not None:
+            return self._observe_skill_read(tool_name, plan, output_text, parsed_output=parsed_output)
         return output_text
+
+    def _observe_skill_read(
+        self,
+        tool_name: str,
+        plan: ReadPlan,
+        output_text: str,
+        *,
+        parsed_output: dict[str, Any] | None = None,
+    ) -> str:
+        payload = parsed_output if parsed_output is not None else _load_json(output_text)
+        if payload is None or payload.get("status") != "success":
+            return output_text
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            return output_text
+
+        planned_key = plan.read_key
+        assert planned_key is not None
+        skill_id = str(data.get("skill_id") or "").strip()
+        skill_name = str(data.get("skill_name") or "").strip()
+        target_id = skill_id or planned_key[1]
+
+        if tool_name == SKILL_RESOURCE_TOOL_NAME:
+            raw_path = data.get("path")
+            resolved_path = normalize_resource_path(raw_path) if isinstance(raw_path, str) else ""
+            planned_path, _, planned_offset = planned_key[2].rpartition("@")
+            final_path = resolved_path or planned_path
+            parsed_offset = _parse_skill_offset(data.get("offset"))
+            final_offset = str(parsed_offset) if parsed_offset is not None else (planned_offset or "0")
+            mode = f"{final_path}@{final_offset}"
+        else:
+            mode = "body"
+
+        if skill_id:
+            if plan.parsed_arguments is not None:
+                args = plan.parsed_arguments
+                parse_error = None
+            else:
+                args, parse_error, _ = parse_json_object(plan.arguments or "")
+            if parse_error is None and isinstance(args, dict):
+                raw_name = args.get("name")
+                if isinstance(raw_name, str) and raw_name.strip():
+                    self._skill_aliases[skill_name_key(raw_name)] = skill_id
+            self._skill_aliases[skill_name_key(skill_id)] = skill_id
+            if skill_name:
+                self._skill_names[skill_id] = skill_name
+
+        canonical_key: ReadKey = (tool_name, target_id, mode)
+        count = self._read_counts.get(canonical_key, 0) + 1
+        self._read_counts[canonical_key] = count
+        if count >= READ_HINT_AT:
+            self.duplicate_reads += 1
+
+        hint = self._skill_hint_for(tool_name, count)
+        if hint is None:
+            return output_text
+        hinted = dict(payload)
+        hinted["repeated_reads"] = count
+        hinted["read_hint"] = hint
+        return json.dumps(hinted, ensure_ascii=False, separators=(",", ":"))
 
     def _observe_direct_read(
         self,
@@ -563,7 +745,7 @@ class RepeatReadGuard:
         """这个文件读过之后被别人改了：之前的读取计数作废。"""
         if not file_id:
             return
-        for key in [key for key in self._read_counts if key[1] == file_id]:
+        for key in [key for key in self._read_counts if key[0] == READ_TOOL_NAME and key[1] == file_id]:
             del self._read_counts[key]
 
     def _forget_newly_saved_bodies(self) -> None:
@@ -617,7 +799,10 @@ class RepeatReadGuard:
                 parse_error = None
             else:
                 args, parse_error, _ = parse_json_object(raw_arguments or "")
-            file_id = str(payload.get("id") or ("" if parse_error is not None or not isinstance(args, dict) else args.get("id") or ""))
+            file_id = str(
+                payload.get("id")
+                or ("" if parse_error is not None or not isinstance(args, dict) else args.get("id") or "")
+            )
             self._forget_reads(file_id)
             return
         # edit_file 部分成功（status=partial）时，已生效的几处确实改了文件：
@@ -668,7 +853,7 @@ class RepeatReadGuard:
         if not file_id:
             return
         # 文件被改过：之后再读是在看新内容，不算重复。
-        for key in [key for key in self._read_counts if key[1] == file_id]:
+        for key in [key for key in self._read_counts if key[0] == READ_TOOL_NAME and key[1] == file_id]:
             del self._read_counts[key]
         self.files_written[file_id] = self._titles.get(file_id, title)
 
@@ -689,9 +874,25 @@ class RepeatReadGuard:
             )
         return None
 
+    def _skill_hint_for(self, tool_name: str, count: int) -> str | None:
+        base = _SKILL_LOAD_HINT_TEXT if tool_name == SKILL_LOAD_TOOL_NAME else _SKILL_RESOURCE_HINT_TEXT
+        if count == READ_HINT_AT:
+            return base
+        if count >= READ_WARN_AT:
+            return (
+                f"警告：{base}这是第 {count} 次读取同一内容；"
+                "下一次重复读取将被拒绝执行。请立即基于已读内容产出结果，"
+                "若缺少信息请停止调用工具并向用户说明。"
+            )
+        return None
+
     def _file_label(self, file_id: str) -> str:
         title = self._titles.get(file_id)
         return f"《{title}》(id={file_id})" if title else f"(id={file_id})"
+
+    def _skill_label(self, skill_ident: str) -> str:
+        name = self._skill_names.get(skill_ident)
+        return f"「{name}」(id={skill_ident})" if name else f"「{skill_ident}」"
 
     def short_circuit_text(self, tool_name: str) -> str:
         """无进展停止后同一轮里剩下的工具调用：不执行，直接返回说明。"""
@@ -711,6 +912,17 @@ def _blocked_user_message(titles: list[str]) -> str:
     if not named:
         return "这个文件刚才已经读过，AI 直接用已读内容继续。"
     return f"{'、'.join(named)}刚才已经读过，AI 直接用已读内容继续。"
+
+
+def _blocked_skill_user_message(tool_name: str, skill_name: str) -> str:
+    """被拦下的技能读取给作者看的一句话：绝不包含技能正文、id 或模型指令。"""
+    if tool_name == SKILL_LOAD_TOOL_NAME:
+        if skill_name:
+            return f"技能「{skill_name}」刚才已经加载过，AI 直接用已读内容继续。"
+        return "这个技能刚才已经加载过，AI 直接用已读内容继续。"
+    if skill_name:
+        return f"技能「{skill_name}」的参考资料刚才已经读过，AI 直接用已读内容继续。"
+    return "这份技能参考资料刚才已经读过，AI 直接用已读内容继续。"
 
 
 def _blocked_error_text(

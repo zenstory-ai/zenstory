@@ -92,6 +92,10 @@ export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free
             data = { skills: [], total: 0 };
         else if (path.includes('/projects/templates'))
             data = {};
+        else if (path.endsWith('/bootstrap')) {
+            await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ detail: 'Not Found' }) });
+            return;
+        }
         else if (path.startsWith('/api/v1/projects/'))
             data = responsiveProjects[0];
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data) });

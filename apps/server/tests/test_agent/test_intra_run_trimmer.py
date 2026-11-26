@@ -325,3 +325,173 @@ def test_under_budget_input_is_untouched():
 def test_invalid_config_rejected(kwargs):
     with pytest.raises(ValueError):
         IntraRunToolOutputTrimmer(**kwargs)
+
+
+def _load_skill_output(skill_id: str, skill_name: str, body: str, *, source: str = "added") -> str:
+    return json.dumps(
+        {
+            "status": "success",
+            "data": {
+                "skill_id": skill_id,
+                "skill_name": skill_name,
+                "source": source,
+                "instructions": body,
+                "truncated": False,
+                "resources": [{"path": "references/hooks.md", "size": 2048}],
+            },
+        },
+        ensure_ascii=False,
+    )
+
+
+def _read_skill_resource_output(
+    skill_id: str,
+    skill_name: str,
+    path: str,
+    body: str,
+    *,
+    offset: int | None = None,
+) -> str:
+    data: dict[str, Any] = {
+        "skill_id": skill_id,
+        "skill_name": skill_name,
+        "path": path,
+        "content": body,
+        "truncated": False,
+    }
+    if offset is not None:
+        data["offset"] = offset
+    return json.dumps({"status": "success", "data": data}, ensure_ascii=False)
+
+
+def test_skill_tools_stay_untouched_below_budget():
+    official_body = "OFFICIAL_SECRET_METHOD_" + ("秘籍" * 4_000)
+    resource_body = "OFFICIAL_SECRET_RESOURCE_" + ("范例" * 4_000)
+    items = [
+        _fc("sk-1", "load_skill", json.dumps({"name": "官方悬疑"}, ensure_ascii=False)),
+        _fco("sk-1", _load_skill_output("pub-1", "官方悬疑", official_body)),
+        _fc(
+            "sk-2",
+            "read_skill_resource",
+            json.dumps({"name": "pub-1", "path": "references/hooks.md"}, ensure_ascii=False),
+        ),
+        _fco("sk-2", _read_skill_resource_output("pub-1", "官方悬疑", "references/hooks.md", resource_body)),
+    ]
+
+    assert _run(IntraRunToolOutputTrimmer(), items) == items
+
+
+def test_skill_tools_are_folded_over_budget_without_leaking_body_text():
+    """超预算时 load_skill 与 read_skill_resource 可被折叠，保留安全 trace，且绝不泄露官方正文预览。"""
+    official_secret = "OFFICIAL_SECRET_HEAD_DO_NOT_LEAK_IN_FOLD_NOTE"
+    resource_secret = "OFFICIAL_RESOURCE_HEAD_DO_NOT_LEAK_IN_FOLD_NOTE"
+    official_body = f"{official_secret}:" + ("密文" * 9_000)
+    resource_body = f"{resource_secret}:" + ("秘料" * 9_000)
+
+    items = [
+        _fc("sk-load", "load_skill", json.dumps({"name": "官方节奏"}, ensure_ascii=False)),
+        _fco("sk-load", _load_skill_output("pub-rhythm", "官方节奏", official_body)),
+        _fc(
+            "sk-res",
+            "read_skill_resource",
+            json.dumps({"name": "pub-rhythm", "path": "examples/beats.md", "offset": 120}, ensure_ascii=False),
+        ),
+        _fco(
+            "sk-res",
+            _read_skill_resource_output("pub-rhythm", "官方节奏", "examples/beats.md", resource_body, offset=120),
+        ),
+        _fc("q-tail", "query_files", json.dumps({"id": "file-latest"})),
+        _fco("q-tail", _read_output("file-latest", "最新章节" * 2_000)),
+    ]
+
+    out = _run(IntraRunToolOutputTrimmer(max_input_chars=14_000), items)
+
+    folded_load_raw = out[1]["output"]
+    folded_res_raw = out[3]["output"]
+    folded_load = json.loads(folded_load_raw)
+    folded_res = json.loads(folded_res_raw)
+
+    assert folded_load["_zenstory_context_summary"] == COMPACTION_REASON
+    assert folded_load["tool"] == "load_skill"
+    assert "load_skill" in folded_load["note"]
+    assert "query_files" not in folded_load["note"]
+    assert folded_load["trace"]["skill_id"] == ["pub-rhythm"]
+    assert folded_load["trace"]["skill_name"] == ["官方节奏"]
+    assert folded_load["trace"]["path"] == ["references/hooks.md"]
+    assert "preview" not in folded_load
+    assert official_secret not in folded_load_raw
+    assert "密文" not in folded_load_raw
+
+    assert folded_res["_zenstory_context_summary"] == COMPACTION_REASON
+    assert folded_res["tool"] == "read_skill_resource"
+    assert "read_skill_resource" in folded_res["note"]
+    assert "query_files" not in folded_res["note"]
+    assert folded_res["trace"]["skill_id"] == ["pub-rhythm"]
+    assert folded_res["trace"]["skill_name"] == ["官方节奏"]
+    assert folded_res["trace"]["path"] == ["examples/beats.md"]
+    assert folded_res["trace"]["offset"] == [120]
+    assert "preview" not in folded_res
+    assert resource_secret not in folded_res_raw
+    assert "秘料" not in folded_res_raw
+
+    # 最新的读取保持完整
+    assert COMPACTION_REASON not in out[5]["output"]
+
+
+@pytest.mark.asyncio
+async def test_compaction_folds_large_skill_outputs_without_dropping_whole_turns(monkeypatch):
+    """compact_history 的 _trim_for_budget 遇到超大技能结果时优先折叠技能载荷，保留轮次脉络且不泄露正文预览。"""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from agent.loop.compaction import compact_history
+    from agent.loop.history import LoopHistory
+
+    secret_marker = "COMPACTION_OFFICIAL_SECRET_MARKER"
+    huge_skill_body = f"{secret_marker}:" + ("技能方法" * 45_000)  # ~180k chars
+    huge_res_body = f"{secret_marker}_RES:" + ("技能模板" * 45_000)
+
+    items = [
+        {"role": "user", "content": "第1轮：加载技能"},
+        _fc("c1", "load_skill", json.dumps({"name": "官方长技能"}, ensure_ascii=False)),
+        _fco("c1", _load_skill_output("pub-big", "官方长技能", huge_skill_body)),
+        _fc("c2", "read_skill_resource", json.dumps({"name": "pub-big", "path": "templates/a.md"}, ensure_ascii=False)),
+        _fco("c2", _read_skill_resource_output("pub-big", "官方长技能", "templates/a.md", huge_res_body)),
+        {"role": "assistant", "content": "已按技能完成第1章。"},
+        {"role": "user", "content": "第2轮：继续第2章"},
+        {"role": "assistant", "content": "已完成第2章。"},
+    ]
+    history = LoopHistory(
+        items=items,
+        last_message_id="msg-2",
+        last_prompt_tokens=320_000,
+        author_messages=["第1轮：加载技能", "第2轮：继续第2章"],
+    )
+
+    captured_messages: list[dict[str, Any]] = []
+
+    async def fake_chat_completion(**kwargs):
+        captured_messages.extend(kwargs["messages"])
+        choice = SimpleNamespace(
+            finish_reason="stop",
+            message=SimpleNamespace(content="交接摘要：已完成前两章。", tool_calls=None, function_call=None),
+        )
+        return SimpleNamespace(choices=[choice], usage=None), SimpleNamespace(model="test-model")
+
+    monkeypatch.setattr("agent.loop.compaction.AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS", 120_000)
+    monkeypatch.setattr("agent.core.llm_failover.aordered_providers", AsyncMock(return_value=[]))
+    monkeypatch.setattr("agent.core.llm_failover.acreate_chat_completion", fake_chat_completion)
+
+    outcome = await compact_history(history, system_prompt="sys", session_id="sess-skill-compact")
+
+    assert outcome.record is not None
+    assert outcome.record["summary"] == "交接摘要：已完成前两章。"
+    # 第1轮和第2轮消息都得以保留，超大技能输出已被折叠且无官方正文预览
+    tool_msgs = [m for m in captured_messages if m.get("role") == "tool"]
+    assert len(tool_msgs) == 2
+    assert COMPACTION_REASON in tool_msgs[0]["content"]
+    assert secret_marker not in tool_msgs[0]["content"]
+    assert '"preview"' not in tool_msgs[0]["content"]
+    user_texts = [str(m.get("content") or "") for m in captured_messages if m.get("role") == "user"]
+    assert any("第1轮：加载技能" in text for text in user_texts)
+    assert any("第2轮：继续第2章" in text for text in user_texts)

@@ -27,6 +27,7 @@ import type {
   VersionComparison,
   VersionContentResponse,
 } from "../types";
+import type { ChatMessage, ChatSession } from "./chatApi";
 import { api, ApiError, authenticatedFetch, getApiBase, getCurrentRequestLanguage, readApiError } from "./apiClient";
 import { downloadBlob } from "./downloadBlob";
 import { getLocale } from "./i18n-helpers";
@@ -59,30 +60,6 @@ function shouldTrackFileSaved(fileId: string, now: number = Date.now()): boolean
  * @namespace authApi
  */
 export const authApi = {
-  /**
-   * Resolve registration invite-code policy (supports gray rollout experiments).
-   */
-  getRegistrationPolicy: async (params: { email?: string; username?: string } = {}) => {
-    const search = new URLSearchParams();
-    const email = params.email?.trim();
-    const username = params.username?.trim();
-    if (email) search.set("email", email);
-    if (username) search.set("username", username);
-    const suffix = search.toString();
-    const response = await fetch(
-      `${getApiBase()}/api/auth/register-policy${suffix ? `?${suffix}` : ""}`,
-      { method: "GET" }
-    );
-    if (!response.ok) {
-      throw await readApiError(response);
-    }
-    return response.json() as Promise<{
-      invite_code_optional: boolean;
-      variant: string;
-      rollout_percent: number;
-    }>;
-  },
-
   correctRegistrationEmail: async (data: { email: string; password: string; new_email: string; language: 'zh' | 'en' }) => {
     const response = await fetch(`${getApiBase()}/api/auth/registration-email`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
@@ -93,7 +70,7 @@ export const authApi = {
     return response.json() as Promise<{ email: string; verification_sent: boolean }>;
   },
 
-  register: async (data: { username?: string; email: string; password: string; invite_code?: string; language?: 'zh' | 'en'; acquisition?: Acquisition }) => {
+  register: async (data: { username?: string; email: string; password: string; language?: 'zh' | 'en'; acquisition?: Acquisition }) => {
     const response = await fetch(`${getApiBase()}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -239,6 +216,15 @@ export interface ProjectTemplate {
   default_project_name: string;
 }
 
+export interface ProjectBootstrapResponse {
+  project: Project;
+  files: FileTreeNode[];
+  initial_file: File | null;
+  chat_session: ChatSession | null;
+  recent_messages: ChatMessage[];
+  has_more_messages: boolean;
+}
+
 /**
  * Project API endpoints.
  *
@@ -272,6 +258,24 @@ export const projectApi = {
    * ```
    */
   get: (projectId: string) => api.get<Project>(`/api/v1/projects/${projectId}`),
+
+  /**
+   * Aggregated single-round-trip workbench boot payload: project metadata,
+   * file tree (without bodies), active initial file, and recent chat messages.
+   */
+  getBootstrap: (
+    projectId: string,
+    options?: { fileId?: string | null; chatLimit?: number; signal?: AbortSignal },
+  ) => {
+    const params = new URLSearchParams();
+    if (options?.fileId) params.set("file_id", options.fileId);
+    if (options?.chatLimit !== undefined) params.set("chat_limit", String(options.chatLimit));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return api.get<ProjectBootstrapResponse>(
+      `/api/v1/projects/${projectId}/bootstrap${query}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+  },
 
   /**
    * Writing progress of the author's projects (cards), or of one project when given
@@ -1238,167 +1242,5 @@ export const agentApiKeysApi = {
    */
   regenerate: async (id: string) => {
     return api.post<import("../types").RegenerateAgentApiKeyResponse>(`/api/v1/agent-api-keys/${id}/regenerate`);
-  },
-};
-
-/**
- * Inspirations API endpoints.
- *
- * Provides access to creative writing prompts and story templates that
- * help users start new projects. Inspirations are curated starting points
- * with pre-defined structure, characters, or themes.
- *
- * Users can browse inspirations by project type, search by keywords,
- * and copy inspirations to create new projects.
- *
- * @namespace inspirationsApi
- */
-export const inspirationsApi = {
-  /**
-   * Submit an existing user project to the inspiration library.
-   *
-   * Community submissions enter admin review by default. Submissions from
-   * admin users are auto-approved by backend policy.
-   */
-  submit: async (data: import("../types").SubmitInspirationRequest) => {
-    return api.post<import("../types").SubmitInspirationResponse>(
-      "/api/v1/inspirations",
-      data
-    );
-  },
-
-  /**
-   * Get the current user's inspiration submissions and review status.
-   */
-  getMySubmissions: async (params?: { page?: number; page_size?: number }) => {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.set("page", String(params.page));
-    if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-    const query = searchParams.toString();
-    return api.get<import("../types").MyInspirationSubmissionsResponse>(
-      `/api/v1/inspirations/my-submissions${query ? `?${query}` : ""}`
-    );
-  },
-
-  /**
-   * Browse inspirations with optional filtering and pagination.
-   *
-   * Supports filtering by project type, searching by keyword or tags,
-   * and restricting to featured content only.
-   *
-   * @param params - Optional query parameters
-   * @param params.project_type - Filter by project type (e.g., 'novel', 'short_story')
-   * @param params.search - Search term to find inspirations by title or description
-   * @param params.tags - Comma-separated list of tags to filter by
-   * @param params.page - Page number for pagination (1-indexed)
-   * @param params.page_size - Number of results per page
-   * @param params.featured_only - Only return featured/promoted inspirations
-   * @returns Promise resolving to paginated list of inspirations
-   *
-   * @example
-   * ```ts
-   * // Browse all inspirations
-   * const { inspirations, total } = await inspirationsApi.list();
-   *
-   * // Get featured novel inspirations
-   * const featured = await inspirationsApi.list({
-   *   project_type: 'novel',
-   *   featured_only: true
-   * });
-   *
-   * // Search by keyword
-   * const results = await inspirationsApi.list({ search: 'fantasy' });
-   * ```
-   */
-  list: async (params?: {
-    project_type?: string;
-    search?: string;
-    tags?: string;
-    page?: number;
-    page_size?: number;
-    featured_only?: boolean;
-  }) => {
-    const searchParams = new URLSearchParams();
-    if (params?.project_type) searchParams.set("project_type", params.project_type);
-    if (params?.search) searchParams.set("search", params.search);
-    if (params?.tags) searchParams.set("tags", params.tags);
-    if (params?.page) searchParams.set("page", params.page.toString());
-    if (params?.page_size) searchParams.set("page_size", params.page_size.toString());
-    if (params?.featured_only) searchParams.set("featured_only", "true");
-    const query = searchParams.toString();
-    return api.get<import("../types").InspirationListResponse>(
-      `/api/v1/inspirations${query ? `?${query}` : ""}`
-    );
-  },
-
-  /**
-   * Get featured inspirations for display on homepage or landing.
-   *
-   * Returns a curated selection of top inspirations promoted by the
-   * platform. Useful for showcasing popular starting points.
-   *
-   * @param limit - Maximum number of featured inspirations to return
-   * @returns Promise resolving to array of featured Inspiration objects
-   *
-   * @example
-   * ```ts
-   * // Get 5 featured inspirations for homepage
-   * const featured = await inspirationsApi.getFeatured(5);
-   * ```
-   */
-  getFeatured: async (limit?: number) => {
-    const searchParams = new URLSearchParams();
-    if (limit) searchParams.set("limit", limit.toString());
-    const query = searchParams.toString();
-    return api.get<import("../types").Inspiration[]>(
-      `/api/v1/inspirations/featured${query ? `?${query}` : ""}`
-    );
-  },
-
-  /**
-   * Get detailed information about a specific inspiration.
-   *
-   * Returns the full inspiration content including preview text,
-   * structure, and any associated metadata.
-   *
-   * @param id - The UUID of the inspiration
-   * @returns Promise resolving to detailed InspirationDetail object
-   *
-   * @example
-   * ```ts
-   * const inspiration = await inspirationsApi.get('inspiration-uuid');
-   * console.log(inspiration.title, inspiration.preview);
-   * ```
-   */
-  get: async (id: string) => {
-    return api.get<import("../types").InspirationDetail>(`/api/v1/inspirations/${id}`);
-  },
-
-  /**
-   * Create a new project from an inspiration template.
-   *
-   * Copies the inspiration's structure and content into a new project
-   * that the user can then customize and develop.
-   *
-   * @param id - The UUID of the inspiration to copy
-   * @param projectName - Optional custom name for the new project
-   *                      (defaults to inspiration title)
-   * @returns Promise resolving to copy confirmation with new project ID
-   *
-   * @example
-   * ```ts
-   * // Copy with default name
-   * const result = await inspirationsApi.copy('inspiration-uuid');
-   *
-   * // Copy with custom name
-   * const result = await inspirationsApi.copy('inspiration-uuid', 'My Fantasy Novel');
-   * console.log('Created project:', result.project_id);
-   * ```
-   */
-  copy: async (id: string, projectName?: string) => {
-    return api.post<import("../types").CopyInspirationResponse>(
-      `/api/v1/inspirations/${id}/copy`,
-      { project_name: projectName } as import("../types").CopyInspirationRequest
-    );
   },
 };

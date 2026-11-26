@@ -1,0 +1,126 @@
+/* ========================================
+   Utility Classes
+   ======================================== */
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+    display: none;
+}
+
+/* Safe area padding for iOS notch/home indicator */
+.safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Safe area padding with fallback - used for mobile chat panel bottom padding */
+.pb-safe-or-2 {
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+}
+
+/* Touch-friendly tap target size */
+.touch-target {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Prevent text selection on interactive elements (mobile) */
+.no-select {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+/* ========================================
+   Mobile Navigation Styles
+   ======================================== */
+
+@layer components {
+    /* Mobile bottom tab — lives in @layer components so BottomTabs utility classes
+       (active accent color, transition list, reduced-motion, focus-visible ring) always win. */
+    .mobile-bottom-tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+        cursor: pointer;
+        min-height: 56px;
+        min-width: 64px;
+        flex: 1;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        .mobile-bottom-tab:active {
+            transform: scale(0.95);
+        }
+    }
+
+    .mobile-bottom-tab.active {
+        color: hsl(var(--accent-primary));
+    }
+}
+
+/* Mobile button touch feedback */
+@layer base {
+    @media (max-width: 767px) {
+        button,
+        .btn,
+        [role="button"] {
+            -webkit-tap-highlight-color: hsl(var(--accent-primary) / 0.12);
+        }
+    }
+
+    @media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+        button:active,
+        .btn:active,
+        [role="button"]:active {
+            transform: scale(0.98);
+        }
+    }
+}
+
+/* ========================================
+   Mobile Optimization Utilities
+   ======================================== */
+
+/* Prevent iOS auto-zoom on input focus */
+@media (max-width: 767px), (max-width: 1023px) and (hover: none) and (pointer: coarse) {
+    input,
+    select,
+    textarea {
+        font-size: 16px !important;
+    }
+}
+
+/* ========================================
+   320px Viewport Compatibility
+   For iPhone SE and small Android devices
+   ======================================== */
+
+@media (max-width: 320px) {
+    /* Smaller bottom tab labels */
+    .mobile-bottom-tab span {
+        font-size: 10px;
+    }
+
+    /* Bottom tabs 320px optimizations */
+    .bottom-tab-icon {
+        width: 18px;
+        height: 18px;
+    }
+
+    .bottom-tab-label {
+        font-size: 10px;
+        line-height: 1.2;
+    }
+}

@@ -23,7 +23,7 @@ when N tool calls run concurrently each must obtain a DISTINCT Session object,
 and the connection pool must return to its baseline depth after all calls
 complete.
 
-Skipped unless RUN_PG_CONCURRENCY_GATE=1 and TEST_DATABASE_URL are set.
+Skipped unless ZENSTORY_TEST_POSTGRES_URL is set.
 
 See: .omc/plans/agent-layer-improvements.md Phase 1, items 1.1 and 1.5.
 """
@@ -34,19 +34,12 @@ import os
 import pytest
 
 # ---------------------------------------------------------------------------
-# Skip the entire module unless a Postgres DSN is explicitly provided AND the
-# caller opts in with RUN_PG_CONCURRENCY_GATE=1.  This prevents accidental
-# execution in CI pipelines that only have SQLite.
+# Skip the entire module unless an owned PostgreSQL DSN is configured via
+# ZENSTORY_TEST_POSTGRES_URL (matching all other *_postgres.py CI suites).
 # ---------------------------------------------------------------------------
-_PG_DSN = os.environ.get("TEST_DATABASE_URL", "")
-_GATE_ENABLED = os.environ.get("RUN_PG_CONCURRENCY_GATE", "") == "1"
-
-pytestmark = pytest.mark.skip(
-    reason=(
-        "Gate for item 1.5 cap relax: requires Postgres + per-call session isolation "
-        "(item 1.1). See .omc/plans/agent-layer-improvements.md Phase 1.  "
-        "Re-enable by setting RUN_PG_CONCURRENCY_GATE=1 and TEST_DATABASE_URL=<pg-dsn>."
-    )
+pytestmark = pytest.mark.skipif(
+    not os.getenv("ZENSTORY_TEST_POSTGRES_URL"),
+    reason="explicitly owned PostgreSQL URL required",
 )
 
 
@@ -54,15 +47,17 @@ pytestmark = pytest.mark.skip(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_pg_engine(dsn: str):
-    """Create a SQLAlchemy engine pointed at the given Postgres DSN."""
+def _make_pg_engine():
+    """Create a SQLAlchemy engine pointed at the owned Postgres DSN."""
     from sqlalchemy import create_engine
 
+    dsn = os.environ["ZENSTORY_TEST_POSTGRES_URL"]
     return create_engine(
         dsn,
         pool_size=10,
         max_overflow=0,
         pool_pre_ping=True,
+        connect_args={"options": "-c timezone=UTC -c statement_timeout=15000 -c lock_timeout=5000"},
     )
 
 
@@ -82,7 +77,7 @@ class TestToolConcurrencySessionIsolation:
 
     These tests must pass before max_function_tool_concurrency may be raised
     above 1.  They depend on:
-      - A live Postgres instance (TEST_DATABASE_URL env var)
+      - A live Postgres instance (ZENSTORY_TEST_POSTGRES_URL env var)
       - AgentRequestContext.session_scope() returning a fresh,
         independently-scoped Session for every tool invocation.
     """
@@ -95,14 +90,11 @@ class TestToolConcurrencySessionIsolation:
         one will unexpectedly affect the other's pending writes, producing
         silent data corruption or IntegrityErrors.
         """
-        if not _PG_DSN:
-            pytest.skip("TEST_DATABASE_URL not set")
-
         from sqlmodel import Session
 
         from agent.tools.tool_context import AgentRequestContext
 
-        engine = _make_pg_engine(_PG_DSN)
+        engine = _make_pg_engine()
         req_ctx = AgentRequestContext(create_session_func=lambda: Session(engine))
 
         CONCURRENCY = 4
@@ -115,10 +107,11 @@ class TestToolConcurrencySessionIsolation:
                 # Hold briefly to maximise overlap with sibling coroutines.
                 await asyncio.sleep(0.01)
 
+        async def _run() -> None:
+            await asyncio.gather(*[simulate_tool_call(i) for i in range(CONCURRENCY)])
+
         try:
-            asyncio.run(
-                asyncio.gather(*[simulate_tool_call(i) for i in range(CONCURRENCY)])
-            )
+            asyncio.run(_run())
         finally:
             engine.dispose()
 
@@ -138,15 +131,12 @@ class TestToolConcurrencySessionIsolation:
         A connection leak under concurrency would exhaust the pool under load
         and stall subsequent requests indefinitely.
         """
-        if not _PG_DSN:
-            pytest.skip("TEST_DATABASE_URL not set")
-
         from sqlalchemy import text
         from sqlmodel import Session
 
         from agent.tools.tool_context import AgentRequestContext
 
-        engine = _make_pg_engine(_PG_DSN)
+        engine = _make_pg_engine()
         req_ctx = AgentRequestContext(create_session_func=lambda: Session(engine))
         baseline = _pool_checkedout(engine)
 
@@ -158,18 +148,21 @@ class TestToolConcurrencySessionIsolation:
                 # Execute a cheap read to actually check out a connection.
                 session.execute(text("SELECT 1"))
 
-        asyncio.run(
-            asyncio.gather(
+        async def _run() -> None:
+            await asyncio.gather(
                 *[simulate_tool_call_with_query(i) for i in range(CONCURRENCY)]
             )
-        )
 
-        after = _pool_checkedout(engine)
+        try:
+            asyncio.run(_run())
+            after = _pool_checkedout(engine)
+        finally:
+            engine.dispose()
+
         assert after <= baseline, (
             f"Connection pool leaked: {after} connections checked out after concurrent "
             f"calls, expected ≤ {baseline} (baseline)."
         )
-        engine.dispose()
 
     def test_concurrent_writes_do_not_cross_contaminate(self):
         """
@@ -179,15 +172,12 @@ class TestToolConcurrencySessionIsolation:
         This guards against the scenario where a shared Session would expose
         an unflushed write from one coroutine to a read in the other.
         """
-        if not _PG_DSN:
-            pytest.skip("TEST_DATABASE_URL not set")
-
         from sqlalchemy import text
         from sqlmodel import Session
 
         from agent.tools.tool_context import AgentRequestContext
 
-        engine = _make_pg_engine(_PG_DSN)
+        engine = _make_pg_engine()
         req_ctx = AgentRequestContext(create_session_func=lambda: Session(engine))
 
         # Track what each call observed about the other's write.
@@ -236,8 +226,11 @@ class TestToolConcurrencySessionIsolation:
                 observations[1] = int(row) == 0  # True = no cross-contamination
                 session.rollback()
 
+        async def _run() -> None:
+            await asyncio.gather(writer_a(), writer_b())
+
         try:
-            asyncio.run(asyncio.gather(writer_a(), writer_b()))
+            asyncio.run(_run())
         finally:
             engine.dispose()
 

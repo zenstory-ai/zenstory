@@ -1,9 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { ChartBar, Lightbulb, MessageSquare, Zap } from "lucide-react";
+import { ChartBar, MessageSquare, Zap } from "lucide-react";
 import type { QuotaCounter, UserQuotaDetail } from "../../types/admin";
 import { formatAdminDateTime } from "../../lib/dateUtils";
-import { inspirationsConfig } from "../../config/inspirations";
 
 const usagePercent = (used: number, limit: number) => {
   if (limit === -1) return 0;
@@ -80,14 +79,6 @@ export const UserQuotaCards: React.FC<{ quota: UserQuotaDetail }> = ({ quota }) 
         title={t("quota.customSkills")}
         counter={quota.custom_skills}
       />
-      {inspirationsConfig.enabled && (
-        <QuotaCard
-          icon={<Lightbulb className="h-5 w-5" />}
-          title={t("quota.inspirationCopy")}
-          counter={quota.inspiration_copies}
-          resetLabel={t("quota.resetsAt")}
-        />
-      )}
     </div>
   );
 };

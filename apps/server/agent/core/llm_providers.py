@@ -25,7 +25,7 @@ configuration:
     ``httpx``'s ``read_timeout_s()``.
   - Phase-2 stream idle timeout (longest silence between meaningful events; ``0`` disables
     the stream idle guard while the HTTP client socket timeout keeps the positive default):
-    ``MINIMAX_CLIENT_TIMEOUT_S`` (default 120), ``DEEPSEEK_CLIENT_TIMEOUT_S`` (default 45).
+    ``MINIMAX_CLIENT_TIMEOUT_S`` (default 120), ``DEEPSEEK_CLIENT_TIMEOUT_S`` (default 90).
 
 A model name must have a price in ``services/usage/pricing.py``; the free-user
 cost budget refuses calls to unpriced models.
@@ -115,7 +115,7 @@ class ProviderKind:
     # Longest silence between bytes before a call counts as timed out, and Phase-2 stream idle
     # timeout between meaningful events (0 disables Phase-2 stream guard).
     read_timeout_env: str = "DEEPSEEK_CLIENT_TIMEOUT_S"
-    default_read_timeout_s: float = 45.0
+    default_read_timeout_s: float = 90.0
     # Phase-1 stream timeout before the first meaningful event arrives (0 disables Phase-1 guard).
     first_event_timeout_env: str = "DEEPSEEK_FIRST_EVENT_TIMEOUT_S"
     default_first_event_timeout_s: float = 65.0
@@ -146,8 +146,10 @@ DEEPSEEK = ProviderKind(
     can_disable_thinking=True,
     reasoning_efforts=frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max"}),
     requires_tool_turn_reasoning=True,
+    # Keep httpx socket read timeout (90s) cleanly above Phase-1 first_event timeout (65s)
+    # so silent TCP stalls trigger Phase-1 first_event timeout & non-blocking teardown first.
     read_timeout_env="DEEPSEEK_CLIENT_TIMEOUT_S",
-    default_read_timeout_s=45.0,
+    default_read_timeout_s=90.0,
     first_event_timeout_env="DEEPSEEK_FIRST_EVENT_TIMEOUT_S",
     default_first_event_timeout_s=65.0,
 )

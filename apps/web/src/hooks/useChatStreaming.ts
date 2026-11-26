@@ -28,6 +28,7 @@ import { toast } from "../lib/toast";
 import { fileApi } from "../lib/api";
 import { findAncestorFolderIds } from "../lib/lastOpenedFile";
 import { isFileRemoved, notifyFileRemoved } from "../lib/fileRemovalEvents";
+import { rearmAiFileOpened } from "../lib/activationEvents";
 import { stripThinkTags } from "../lib/utils";
 import { dispatchProjectStatusUpdated } from "../lib/projectStatusEvents";
 import type { MessageSegment, StreamCompletionMeta } from "./useAgentStream";
@@ -327,6 +328,8 @@ export interface UseChatStreamingDependencies {
   getCurrentStreamingFileId?: () => string | null;
   /** Active UI project ID; scopes file checks during the stream */
   activeProjectId: string | null;
+  /** Current authenticated user ID (used to re-arm background edited files for AI-opened tracking) */
+  currentUserId?: string | null;
   /**
    * Called when a successful `update_project` reports that the server renamed
    * the project (`project_name_updated: true`, set when the agent gave a
@@ -548,6 +551,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
   const fileEditMetaByIdRef = useRef<Map<string, { title: string; fileType?: string }>>(
     new Map(),
   );
+  /** Tracks which file currently owns the AI autosave lock (`aiEditingFileId`). */
+  const aiEditingTargetRef = useRef<string | null>(null);
   const pendingFileTreeRefreshRef = useRef(false);
   /** Whether the current round has written any file (reset on stream start). */
   const roundWroteFilesRef = useRef(false);
@@ -612,6 +617,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
         startFileStreaming,
         getCurrentStreamingFileId,
         activeProjectId,
+        currentUserId,
         onProjectRenamed,
         t,
       } = deps;
@@ -684,6 +690,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
         setEditProgress(null);
         // 流结束兜底：file_edit_end 可能因取消/报错永远不到，
         // 不清掉标记会让编辑器的自动保存被永久挂起。
+        aiEditingTargetRef.current = null;
         setAiEditingFileId?.(null);
 
         const latestStreamingFileId = getCurrentStreamingFileId?.() ?? null;
@@ -719,6 +726,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           setMatchedSkills([]);
           fileContentEndByFileIdRef.current.clear();
           fileEditMetaByIdRef.current.clear();
+          aiEditingTargetRef.current = null;
           roundWroteFilesRef.current = false;
           roundMayDeleteFilesRef.current = false;
           deletionTreeCheckRef.current = null;
@@ -1133,8 +1141,13 @@ export function useChatStreaming(): UseChatStreamingReturn {
          */
         onFileEditStart: (fileId: string, title: string, totalEdits: number, fileType?: string) => {
           fileEditMetaByIdRef.current.set(fileId, { title, fileType });
-          // 挂起该文件的自动保存，直到 file_edit_end
-          setAiEditingFileId?.(fileId);
+          // 仅当目标文件是当前打开文件（或尚未选中文件）时挂起自动保存，
+          // 避免 batch_replace_files 批量回放未打开文件时闪烁 aiEditingFileId。
+          const currentSelected = getCurrentSelectedItem?.() ?? null;
+          if (!currentSelected || currentSelected.id === fileId) {
+            aiEditingTargetRef.current = fileId;
+            setAiEditingFileId?.(fileId);
+          }
           setEditProgress({
             fileId,
             title,
@@ -1176,7 +1189,10 @@ export function useChatStreaming(): UseChatStreamingReturn {
           // Clear edit progress and mark tree refresh once.
           roundWroteFilesRef.current = true;
           setEditProgress(null);
-          setAiEditingFileId?.(null);
+          if (aiEditingTargetRef.current === fileId || (aiEditingTargetRef.current === null && !getCurrentSelectedItem)) {
+            aiEditingTargetRef.current = null;
+            setAiEditingFileId?.(null);
+          }
           scheduleFileTreeRefresh();
 
           // Direct edit_file can fill a create_file placeholder without <file>
@@ -1208,8 +1224,9 @@ export function useChatStreaming(): UseChatStreamingReturn {
           // Chat edits are already committed and recoverable through the edit card's undo
           // action and file history. Show the latest saved copy directly; the editor's
           // server-sync path still opens a conflict comparison when the author has unsaved text.
+          const currentSelected = getCurrentSelectedItem?.() ?? null;
+          let switchedSelection = false;
           if (newContent && originalContent && newContent !== originalContent) {
-            const currentSelected = getCurrentSelectedItem?.() ?? null;
             const trackedMeta = fileEditMetaByIdRef.current.get(fileId);
             const resolvedType =
               (fileType as FileType | undefined)
@@ -1226,8 +1243,15 @@ export function useChatStreaming(): UseChatStreamingReturn {
               type: resolvedType,
               title: resolvedTitle,
             });
+            switchedSelection = true;
           }
-          triggerEditorRefresh(fileId);
+          // 多文件 batch_replace_files 会连续发出 [f1, f2, ..., fN] 的 file_edit_end；
+          // 如果当前已打开 f1，不能让后续未选中的 f2..fN 覆写 lastEditedFileId 而取消 f1 的 100ms 刷新定时器。
+          if (!currentSelected || currentSelected.id === fileId || switchedSelection) {
+            triggerEditorRefresh(fileId);
+          } else {
+            rearmAiFileOpened(currentUserId, fileId);
+          }
           fileEditMetaByIdRef.current.delete(fileId);
         },
 

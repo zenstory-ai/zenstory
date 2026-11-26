@@ -169,10 +169,25 @@ class TestParseSkillMd:
 class TestValidateResourcePath:
     @pytest.mark.parametrize(
         "path",
-        ["references/style.md", "assets/template.json", "references/sub/dir/data.CSV", " assets/a.yml "],
+        [
+            "references/style.md",
+            "assets/template.json",
+            "examples/opening.md",
+            "templates/chapter.txt",
+            "references/sub/dir/data.CSV",
+            "templates/nested/outline.yaml",
+            " assets/a.yml ",
+        ],
     )
     def test_valid_paths(self, path: str):
         assert validate_resource_path(path) == path.strip()
+
+    def test_disallowed_root_error_lists_all_allowed_roots(self):
+        with pytest.raises(SkillPackageError) as exc_info:
+            validate_resource_path("notes/memo.md")
+        message = str(exc_info.value)
+        for root in ("references/", "assets/", "examples/", "templates/"):
+            assert root in message
 
     @pytest.mark.parametrize(
         "path",
@@ -206,6 +221,8 @@ class TestReadSkillZip:
             "my-skill/SKILL.md": STANDARD_SKILL_MD,
             "my-skill/references/hooks.md": "钩子清单",
             "my-skill/assets/template.json": '{"a": 1}',
+            "my-skill/examples/sample.md": "范例",
+            "my-skill/templates/beat-sheet.yaml": "beats: []",
         })
 
         skill, resources, warnings = read_skill_zip(data)
@@ -213,7 +230,9 @@ class TestReadSkillZip:
         assert skill.name == "悬念大师"
         assert resources == [
             ("assets/template.json", '{"a": 1}'),
+            ("examples/sample.md", "范例"),
             ("references/hooks.md", "钩子清单"),
+            ("templates/beat-sheet.yaml", "beats: []"),
         ]
         assert warnings == []
 
@@ -248,6 +267,7 @@ class TestReadSkillZip:
         assert "scripts/notes.md" in joined
         assert "references/image.png" in joined
         assert "README.md" in joined
+        assert "examples/" in joined and "templates/" in joined
         assert "other/file.md" in joined
         # 系统垃圾文件静默跳过
         assert "__MACOSX" not in joined and ".DS_Store" not in joined
@@ -603,10 +623,16 @@ class TestZipHardening:
         data = _zip_entries([
             ("SKILL.md", STANDARD_SKILL_MD),
             ("references/SKILL.md", "参考用的另一份说明"),
+            ("examples/SKILL.md", "范例里的说明"),
+            ("templates/SKILL.md", "模板里的说明"),
         ])
         skill, resources, warnings = read_skill_zip(data)
         assert skill.name == "悬念大师"
-        assert resources == [("references/SKILL.md", "参考用的另一份说明")]
+        assert resources == [
+            ("examples/SKILL.md", "范例里的说明"),
+            ("references/SKILL.md", "参考用的另一份说明"),
+            ("templates/SKILL.md", "模板里的说明"),
+        ]
         assert warnings == []
 
     def test_root_skill_md_plus_sibling_skill_dir_is_ambiguous(self):

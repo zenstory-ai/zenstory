@@ -11,7 +11,6 @@ let mockLanguage = 'zh-CN'
 let mockResolvedLanguage: string | undefined = 'zh-CN'
 let mockProjects: Array<{ id: string; name: string; project_type: 'novel'; updated_at?: string | null }> = []
 let mockProjectsLoading = false
-const inspirationFeature = vi.hoisted(() => ({ enabled: true }))
 
 const mockChangeLanguage = vi.fn()
 const mockSetTheme = vi.fn()
@@ -105,10 +104,6 @@ vi.mock('../../components/UserMenu', () => ({
   UserAvatar: ({ username }: { username: string }) => <span>{username}</span>,
 }))
 
-vi.mock('../../config/inspirations', () => ({
-  inspirationsConfig: inspirationFeature,
-}))
-
 import Dashboard from '../Dashboard'
 
 const renderDashboard = (initialEntries: string[] = ['/dashboard']) => {
@@ -117,8 +112,7 @@ const renderDashboard = (initialEntries: string[] = ['/dashboard']) => {
       <Routes>
         <Route path="/dashboard" element={<Dashboard />}>
           <Route index element={<div>Dashboard Home</div>} />
-          <Route path="inspirations" element={<div>Inspirations Page</div>} />
-          <Route path="inspirations/:inspirationId" element={<div>Inspiration Detail Page</div>} />
+          <Route path="projects" element={<div>Projects Page</div>} />
         </Route>
       </Routes>
     </MemoryRouter>
@@ -136,7 +130,6 @@ describe('Dashboard user panel and quick switches', () => {
     mockResolvedLanguage = 'zh-CN'
     mockProjects = []
     mockProjectsLoading = false
-    inspirationFeature.enabled = true
   })
 
   it('opens user panel and closes on outside click', async () => {
@@ -187,11 +180,11 @@ describe('Dashboard user panel and quick switches', () => {
   it('marks the current page in the mobile menu like the desktop sidebar', () => {
     mockIsMobile = true
     mockIsDesktop = false
-    renderDashboard(['/dashboard/inspirations'])
+    renderDashboard(['/dashboard/projects'])
 
     fireEvent.click(screen.getByRole('button', { name: '打开菜单' }))
 
-    expect(screen.getByTestId('dashboard-mobile-nav-inspirations')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('dashboard-mobile-nav-projects')).toHaveAttribute('aria-current', 'page')
     expect(screen.getByTestId('dashboard-mobile-nav-home')).not.toHaveAttribute('aria-current')
   })
 
@@ -244,20 +237,11 @@ describe('Dashboard user panel and quick switches', () => {
     renderDashboard()
     const main = screen.getByRole('main')
     main.scrollTop = 600
-    fireEvent.click(screen.getByRole('link', { name: 'Inspirations' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Projects' }))
     expect(main.scrollTop).toBe(0)
   })
 
-  it('highlights inspirations nav item for /dashboard/inspirations/* routes', () => {
-    renderDashboard(['/dashboard/inspirations/test-inspiration-id'])
-
-    const inspirationsButton = screen.getByRole('link', { name: 'Inspirations' })
-    expect(inspirationsButton.className).toContain('accent-primary')
-    expect(screen.getByText('Inspiration Detail Page')).toBeInTheDocument()
-  })
-
-  it('hides inspirations from desktop and mobile navigation when disabled', () => {
-    inspirationFeature.enabled = false
+  it('omits retired inspirations from desktop and mobile navigation', () => {
     const { unmount } = renderDashboard()
 
     expect(screen.queryByRole('link', { name: 'Inspirations' })).not.toBeInTheDocument()

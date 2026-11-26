@@ -48,6 +48,7 @@ from models.activation_event import (
     ACTIVATION_EVENT_FIRST_FILE_SAVED,
     ActivationEvent,
 )
+from models.chat_message_archive import ChatMessageArchive, has_chat_message_archive_table
 from models.chat_message_ux_summary import (
     ChatMessageUxSummary,
     classify_round,
@@ -98,16 +99,15 @@ CASE
 END
 """
 
-_PG_PROJECTED_FEEDBACK_SQL = r"""
-CASE
-    WHEN chat_message.message_metadata IS NOT NULL
-     AND left(ltrim(chat_message.message_metadata, E' \t\r\n'), 1) = '{'
-    THEN json_build_object(
-        'feedback', (chat_message.message_metadata::json)->'feedback'
-    )::text
-    ELSE NULL
-END
-"""
+def _pg_projected_feedback_sql(table_name: str) -> str:
+    return (
+        "CASE "
+        f"WHEN {table_name}.message_metadata IS NOT NULL "
+        f" AND left(ltrim({table_name}.message_metadata, E' \\t\\r\\n'), 1) = '{{' "
+        f"THEN json_build_object('feedback', ({table_name}.message_metadata::json)->'feedback')::text "
+        "ELSE NULL "
+        "END"
+    )
 
 _TTFV_EVENTS = (
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
@@ -1510,36 +1510,31 @@ def list_chat_feedback_votes(
     current, _ = _periods(days, report_now)
     start, end = current.naive_bounds
 
-    feedback_match = (
-        func.strpos(ChatMessage.message_metadata, '"feedback"') > 0
-        if _is_postgres(session)
-        else col(ChatMessage.message_metadata).contains('"feedback"')
-    )
-
-    base_filters = (
-        User.is_superuser.is_(False),
-        ChatMessage.role == "assistant",
-        ChatMessage.created_at >= start,
-        ChatMessage.created_at < end,
-        ChatMessage.message_metadata.is_not(None),
-        feedback_match,
-    )
+    up_count = 0
+    down_count = 0
+    preset_counter: Counter[str] = Counter()
+    entries: list[dict[str, Any]] = []
+    seen_message_ids: set[str] = set()
 
     def _scan_votes(
         stmt: Any, *, yield_per: int
-    ) -> tuple[int, int, Counter[str], list[dict[str, Any]]]:
+    ) -> tuple[int, int, Counter[str], list[dict[str, Any]], set[str]]:
         up_acc = 0
         down_acc = 0
         presets_acc: Counter[str] = Counter()
         entries_acc: list[dict[str, Any]] = []
+        batch_seen: set[str] = set()
 
         rows = session.exec(stmt, execution_options={"yield_per": yield_per})
         try:
             for message_id, message_created_at, raw_metadata, user_id, username in rows:
+                if message_id in seen_message_ids or message_id in batch_seen:
+                    continue
                 metadata = _parse_json_dict(raw_metadata)
                 fb = _extract_feedback(metadata)
                 if fb is None:
                     continue
+                batch_seen.add(message_id)
 
                 if fb["vote"] == "up":
                     up_acc += 1
@@ -1569,45 +1564,71 @@ def list_chat_feedback_votes(
                 )
         finally:
             rows.close()
-        return up_acc, down_acc, presets_acc, entries_acc
+        return up_acc, down_acc, presets_acc, entries_acc, batch_seen
 
-    scanned: tuple[int, int, Counter[str], list[dict[str, Any]]] | None = None
+    models_to_scan: list[type[ChatMessage] | type[ChatMessageArchive]] = [ChatMessage]
+    if has_chat_message_archive_table(session.connection()):
+        models_to_scan.append(ChatMessageArchive)
+
     with admin_read_statement_timeout(session):
-        if _is_postgres_session(session):
-            pg_stmt = (
-                select(
-                    ChatMessage.id,
-                    ChatMessage.created_at,
-                    literal_column(_PG_PROJECTED_FEEDBACK_SQL).label("projected_feedback"),
-                    User.id,
-                    User.username,
-                )
-                .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-                .join(User, User.id == ChatSession.user_id)
-                .where(*base_filters)
+        for model in models_to_scan:
+            feedback_match = (
+                func.strpos(model.message_metadata, '"feedback"') > 0
+                if _is_postgres(session)
+                else col(model.message_metadata).contains('"feedback"')
             )
-            try:
-                with session.begin_nested():
-                    scanned = _scan_votes(pg_stmt, yield_per=_STREAM_PG_PROJECTED_BATCH_SIZE)
-            except DataError:
-                scanned = None
-
-        if scanned is None:
-            portable_stmt = (
-                select(
-                    ChatMessage.id,
-                    ChatMessage.created_at,
-                    ChatMessage.message_metadata,
-                    User.id,
-                    User.username,
-                )
-                .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-                .join(User, User.id == ChatSession.user_id)
-                .where(*base_filters)
+            base_filters = (
+                User.is_superuser.is_(False),
+                model.role == "assistant",
+                model.created_at >= start,
+                model.created_at < end,
+                model.message_metadata.is_not(None),
+                feedback_match,
             )
-            scanned = _scan_votes(portable_stmt, yield_per=_STREAM_CHAT_BATCH_SIZE)
 
-    up_count, down_count, preset_counter, entries = scanned
+            scanned: tuple[int, int, Counter[str], list[dict[str, Any]], set[str]] | None = None
+            if _is_postgres_session(session):
+                pg_stmt = (
+                    select(
+                        model.id,
+                        model.created_at,
+                        literal_column(_pg_projected_feedback_sql(model.__tablename__)).label(
+                            "projected_feedback"
+                        ),
+                        User.id,
+                        User.username,
+                    )
+                    .join(ChatSession, ChatSession.id == model.session_id)
+                    .join(User, User.id == ChatSession.user_id)
+                    .where(*base_filters)
+                )
+                try:
+                    with session.begin_nested():
+                        scanned = _scan_votes(pg_stmt, yield_per=_STREAM_PG_PROJECTED_BATCH_SIZE)
+                except DataError:
+                    scanned = None
+
+            if scanned is None:
+                portable_stmt = (
+                    select(
+                        model.id,
+                        model.created_at,
+                        model.message_metadata,
+                        User.id,
+                        User.username,
+                    )
+                    .join(ChatSession, ChatSession.id == model.session_id)
+                    .join(User, User.id == ChatSession.user_id)
+                    .where(*base_filters)
+                )
+                scanned = _scan_votes(portable_stmt, yield_per=_STREAM_CHAT_BATCH_SIZE)
+
+            up_part, down_part, presets_part, entries_part, batch_seen = scanned
+            up_count += up_part
+            down_count += down_part
+            preset_counter.update(presets_part)
+            entries.extend(entries_part)
+            seen_message_ids.update(batch_seen)
 
     entries.sort(
         key=lambda item: (item["created_at"], item["message_id"]),

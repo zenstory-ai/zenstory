@@ -7,7 +7,6 @@ const mockGetDashboardStats = vi.fn();
 const mockGetActivationFunnel = vi.fn();
 const mockGetUpgradeFunnelStats = vi.fn();
 const mockGetUpgradeConversionStats = vi.fn();
-const inspirationFeature = vi.hoisted(() => ({ enabled: true }));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -34,10 +33,6 @@ vi.mock('@/components/admin/RecentActivityList', () => ({
   RecentActivityList: () => <div data-testid="recent-activity-placeholder" />,
 }));
 
-vi.mock('@/config/inspirations', () => ({
-  inspirationsConfig: inspirationFeature,
-}));
-
 import AdminDashboard from '../AdminDashboard';
 
 function createWrapper() {
@@ -61,20 +56,14 @@ function createWrapper() {
 describe('AdminDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    inspirationFeature.enabled = true;
 
     const metrics = { new_users: 10, ai_active_users: 4, cohort_activated_users: 3, cohort_activation_rate: 0.3, paid_orders: 2, revenue_cents: 29900, paid_users: 1, cohort_paid_users: 1, signup_to_paid_rate: 0.1, grant_upgrade_events: 5, grant_upgrade_users: 4, grant_channels: [] };
     mockGetGrowthDashboard.mockResolvedValue({days: 7, timezone: 'Asia/Shanghai', current: {period_start: '2026-10-01T16:00:00Z', period_end: '2026-10-07T08:00:00Z', metrics}, previous: {period_start: '2026-09-24T16:00:00Z', period_end: '2026-09-30T08:00:00Z', metrics: {...metrics, new_users: 5}}, daily: [{date: '2026-10-07', ...metrics}], definitions: {}});
     mockGetDashboardStats.mockResolvedValue({
       total_users: 100,
       total_projects: 40,
-      total_inspirations: 22,
       active_subscriptions: 12,
       pro_users: 7,
-      total_points_in_circulation: 5000,
-      today_check_ins: 20,
-      active_invite_codes: 9,
-      week_referrals: 4,
     });
 
     mockGetActivationFunnel.mockResolvedValue({
@@ -194,15 +183,13 @@ describe('AdminDashboard', () => {
     });
   });
 
-  it('hides the inspiration statistics card when disabled', async () => {
-    inspirationFeature.enabled = false;
+  it('omits the retired inspiration statistics card', async () => {
     render(<AdminDashboard />, { wrapper: createWrapper() });
 
     await waitFor(() => {
       expect(screen.getByText('付费转化归因')).toBeInTheDocument();
     });
     expect(screen.queryByText('admin:dashboard.totalInspirations')).not.toBeInTheDocument();
-    expect(screen.queryByText('22')).not.toBeInTheDocument();
   });
 
   it('omits dead commercial KPI cards, collapses methodology copy, and refreshes queries', async () => {

@@ -1543,6 +1543,7 @@ class FileEditor:
         new_text: str,
         file_ids: Sequence[str] | None = None,
         file_type: str | None = None,
+        file_types: Sequence[str] | None = None,
         dry_run: bool = False,
         max_files: int = BATCH_REPLACE_MAX_FILES,
         body_guards: bool = False,
@@ -1568,8 +1569,22 @@ class FileEditor:
             raise EditFileError("batch_replace_files 的 new_text 必须是字符串。", error_type=EDIT_ERROR_INVALID_EDIT)
         if old_text == new_text:
             raise EditFileError("batch_replace_files 的 old_text 与 new_text 相同，无需替换。", error_type=EDIT_ERROR_INVALID_EDIT)
-        if file_type == "folder":
-            raise EditFileError("batch_replace_files 不支持 folder 类型。", error_type=EDIT_ERROR_INVALID_EDIT)
+        normalized_file_types: list[str] = []
+        raw_type_inputs: list[str] = []
+        if file_type:
+            raw_type_inputs.append(file_type)
+        if file_types:
+            raw_type_inputs.extend(file_types)
+        for raw_ft in raw_type_inputs:
+            if not isinstance(raw_ft, str):
+                continue
+            cleaned_ft = raw_ft.strip().lower()
+            if not cleaned_ft:
+                continue
+            if cleaned_ft == "folder":
+                raise EditFileError("batch_replace_files 不支持 folder 类型。", error_type=EDIT_ERROR_INVALID_EDIT)
+            if cleaned_ft not in normalized_file_types:
+                normalized_file_types.append(cleaned_ft)
 
         check_project_ownership(self.session, project_id, self.user_id)
 
@@ -1583,8 +1598,8 @@ class FileEditor:
                 File.is_deleted.is_(False),
                 File.file_type != "folder",
             )
-            if file_type:
-                stmt = stmt.where(File.file_type == file_type)
+            if normalized_file_types:
+                stmt = stmt.where(File.file_type.in_(normalized_file_types))  # type: ignore[attr-defined]
             candidates = list(self.session.exec(stmt.execution_options(populate_existing=True)).all())
             by_id = {f.id: f for f in candidates}
             missing_ids = [fid for fid in requested_ids if fid not in by_id]
@@ -1617,8 +1632,8 @@ class FileEditor:
                     col(File.id).asc(),
                 )
             )
-            if file_type:
-                stmt = stmt.where(File.file_type == file_type)
+            if normalized_file_types:
+                stmt = stmt.where(File.file_type.in_(normalized_file_types))  # type: ignore[attr-defined]
             ordered_candidates = list(self.session.exec(stmt.execution_options(populate_existing=True)).all())
 
         # Exact literal filter in Python (SQLite LIKE is ASCII case-insensitive).

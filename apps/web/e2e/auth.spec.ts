@@ -1,7 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { TEST_USERS } from './config';
 
-const TEST_INVITE_CODE = process.env.E2E_TEST_INVITE_CODE || 'E2E1-TST1';
 const AUTHENTICATED_ROUTE_PATTERN = /\/(project|dashboard|onboarding\/persona)/;
 
 async function gotoWithRetry(
@@ -69,15 +68,13 @@ async function settleAfterLogin(page: Page) {
 test.describe('Authentication', () => {
   test.describe('Registration', () => {
     test('user can register with valid credentials', async ({ page }, testInfo) => {
-      // An invite link fills and shows the invite code; email and one password are all that is asked.
-      await gotoWithRetry(page, `/register?code=${encodeURIComponent(TEST_INVITE_CODE)}`);
+      await gotoWithRetry(page, '/register');
 
       const uniqueSuffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}-${testInfo.project.name.replace(/\W+/g, '-')}`;
 
       // Fill in registration form
       await page.fill('input#email', `newuser-${uniqueSuffix}@example.com`);
       await page.fill('input#password', 'SecurePass123!');
-      await expect(page.locator('input#invite_code')).toHaveValue(TEST_INVITE_CODE);
       await page.locator('input[type="checkbox"]').first().check();
 
       // Submit form
@@ -284,14 +281,30 @@ test.describe('Authentication', () => {
       }
     });
 
-    test('Google OAuth callback handles success and redirects to dashboard', async ({ page }) => {
-      // Navigate to callback page with mock params
-      // The callback handler should exchange code for tokens
-      // Note: Actual OAuth flow completion would require backend mock
+    test('Google OAuth callback without tokens scrubs URL and surfaces error without establishing session', async ({ page }) => {
+      const pageErrors: string[] = [];
+      page.on('pageerror', (err) => pageErrors.push(err.message));
+
       await gotoWithRetry(page, `/auth/callback?code=test-code&state=test-state`);
 
-      // Verify the callback route exists - it may redirect to login if OAuth fails
-      // This test mainly checks that the callback route doesn't crash
+      // OAuthCallback must scrub handshake query params from the URL and never establish tokens.
+      await expect.poll(() => page.url()).not.toContain('code=');
+      expect(page.url()).not.toContain('state=');
+
+      const tokens = await page.evaluate(() => ({
+        access: localStorage.getItem('access_token'),
+        refresh: localStorage.getItem('refresh_token'),
+      }));
+      expect(tokens.access).toBeNull();
+      expect(tokens.refresh).toBeNull();
+
+      // Should surface an error state on callback or cleanly redirect to /login without crashing.
+      const errorOrLoginAction = page
+        .getByRole('alert')
+        .or(page.getByRole('button', { name: /登录|Sign in|Log in|返回/i }))
+        .or(page.getByRole('link', { name: /登录|Sign in|Log in|返回/i }));
+      await expect(errorOrLoginAction.first()).toBeVisible({ timeout: 5000 });
+      expect(pageErrors).toEqual([]);
     });
   });
 
@@ -310,17 +323,34 @@ test.describe('Authentication', () => {
       // Verify we're logged in
       await expect(page).toHaveURL(AUTHENTICATED_ROUTE_PATTERN);
 
-      // Clear access token to simulate expiry
-      await page.evaluate(() => localStorage.removeItem('access_token'));
+      // Simulate an expired access token and bypass the 5-minute auth_validated_at cache
+      // so AuthProvider calls /api/auth/me (401) -> /api/auth/refresh on mount.
+      const expiredToken = 'expired.invalid.token';
+      await page.evaluate((token) => {
+        localStorage.setItem('access_token', token);
+        localStorage.removeItem('auth_validated_at');
+      }, expiredToken);
 
-      // Make an API call that should trigger refresh by navigating to a protected page
+      const refreshResponsePromise = page.waitForResponse(
+        (resp) => resp.url().includes('/api/auth/refresh') && resp.request().method() === 'POST'
+      );
+
+      // Navigate to a protected page, triggering init validation + token refresh
       await gotoWithRetry(page, '/dashboard/projects');
 
-      // App should handle missing access token gracefully (stay authenticated or redirect to login)
-      await expect(page).toHaveURL(/\/(login|dashboard|project\/)/);
+      const refreshResponse = await refreshResponsePromise;
+      expect(refreshResponse.ok()).toBe(true);
+
+      // Token refresh must keep the user authenticated (never silently pass on /login)
+      await expect(page).toHaveURL(/\/(dashboard|project\/)/, { timeout: 10000 });
+      await expect
+        .poll(() => page.evaluate(() => localStorage.getItem('access_token')), { timeout: 10000 })
+        .not.toBe(expiredToken);
+      const refreshedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+      expect(refreshedToken).toBeTruthy();
     });
 
-    test('refresh token is used for API calls when access token missing', async ({ page }) => {
+    test('refresh token restores session on reload when access token is expired', async ({ page }) => {
       const TEST_EMAIL = TEST_USERS.standard.email;
       const TEST_PASSWORD = TEST_USERS.standard.password;
 
@@ -331,22 +361,36 @@ test.describe('Authentication', () => {
       await page.click('button[type="submit"]');
       await settleAfterLogin(page);
 
-      // Store the refresh token before clearing access token
+      // Store the refresh token before expiring the access token
       const refreshToken = await page.evaluate(() => localStorage.getItem('refresh_token'));
       expect(refreshToken).toBeTruthy();
 
-      // Clear access token
-      await page.evaluate(() => localStorage.removeItem('access_token'));
+      const expiredToken = 'expired.reload.token';
+      await page.evaluate((token) => {
+        localStorage.setItem('access_token', token);
+        localStorage.removeItem('auth_validated_at');
+      }, expiredToken);
 
       // Verify refresh token still exists
       const storedRefreshToken = await page.evaluate(() => localStorage.getItem('refresh_token'));
       expect(storedRefreshToken).toBeTruthy();
 
-      // Trigger a page reload which should attempt to refresh token
+      const refreshResponsePromise = page.waitForResponse(
+        (resp) => resp.url().includes('/api/auth/refresh') && resp.request().method() === 'POST'
+      );
+
+      // Trigger a page reload which must refresh the expired access token and stay authenticated
       await page.reload();
 
-      // App should handle missing access token gracefully
-      await expect(page).toHaveURL(/\/(login|dashboard|project\/)/);
+      const refreshResponse = await refreshResponsePromise;
+      expect(refreshResponse.ok()).toBe(true);
+
+      await expect(page).toHaveURL(/\/(dashboard|project\/)/, { timeout: 10000 });
+      await expect
+        .poll(() => page.evaluate(() => localStorage.getItem('access_token')), { timeout: 10000 })
+        .not.toBe(expiredToken);
+      const refreshedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+      expect(refreshedToken).toBeTruthy();
     });
 
     test('logout when both tokens expire', async ({ page }) => {

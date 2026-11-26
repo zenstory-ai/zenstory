@@ -955,12 +955,12 @@ class ReadSkillResourceInput(_ToolInputModel):
         description="技能名称（与 load_skill 使用的名称一致），也可以传技能 ID；同名技能必须传 id",
     )
     path: StrictStr = Field(
-        description="资源文件路径（以 references/ 或 assets/ 开头），或 SKILL.md 表示技能正文",
+        description="资源文件路径（以 references/、assets/、examples/ 或 templates/ 开头），或 SKILL.md 表示技能正文",
     )
     offset: OptionalNonBoolInt = Field(
         default=None,
         ge=0,
-        description="从第几个字符开始读取，默认 0；续读时传上次返回的 next_offset",
+        description="从第几个字符开始读取，默认 0（默认返回完整内容）",
     )
 
     @field_validator("name", mode="before")
@@ -981,6 +981,8 @@ class ReadSkillResourceInput(_ToolInputModel):
 class BatchReplaceFilesInput(_ToolInputModel):
     """Input model for ``batch_replace_files``."""
 
+    _schema_excluded_fields: ClassVar[frozenset[str]] = frozenset({"file_type"})
+
     old_text: StrictStr = Field(
         description="要精确替换的原文（逐字匹配，非正则，不能为空）",
     )
@@ -991,34 +993,84 @@ class BatchReplaceFilesInput(_ToolInputModel):
         default=None,
         description="可选：限定只处理这些文件 ID；不传则扫描本项目所有非文件夹文件",
     )
-    file_type: ArtifactFileType | None = Field(
+    file_types: list[ArtifactFileType] | None = Field(
         default=None,
-        description="可选：限定文件类型（如 draft / script / outline / character）",
+        description='可选：限定文件类型列表（如 ["draft"]、["draft", "script"]、["outline", "character"]）',
     )
     dry_run: CoercedBool = Field(
         default=False,
         description="设为 true 时只预览各文件命中次数与示例片段，不写入数据库",
     )
+    # Runtime-compatible singular alias hidden from public LLM schema.
+    file_type: ArtifactFileType | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_file_types(cls, data: Any) -> Any:
+        if not isinstance(data, Mapping):
+            return data
+        normalized = dict(data)
+        merged: list[Any] = []
+
+        if "file_type" in normalized:
+            raw_ft = normalized.get("file_type")
+            if raw_ft is None:
+                normalized["file_type"] = None
+            elif isinstance(raw_ft, str):
+                cleaned_ft = raw_ft.strip().lower()
+                if cleaned_ft == "folder":
+                    raise ValueError("batch_replace_files 不支持 folder 类型")
+                normalized["file_type"] = cleaned_ft or None
+                if cleaned_ft:
+                    merged.append(cleaned_ft)
+            else:
+                merged.append(raw_ft)
+
+        if "file_types" in normalized:
+            raw_fts = normalized.get("file_types")
+            if raw_fts is None:
+                pass
+            elif isinstance(raw_fts, str):
+                cleaned_ft = raw_fts.strip().lower()
+                if cleaned_ft == "folder":
+                    raise ValueError("batch_replace_files 不支持 folder 类型")
+                if not cleaned_ft:
+                    raise ValueError("batch_replace_files 的 file_types 不能为空；省略此参数可扫描所有文件类型")
+                merged.append(cleaned_ft)
+            elif isinstance(raw_fts, list | tuple):
+                cleaned_items: list[Any] = []
+                for item in raw_fts:
+                    if isinstance(item, str):
+                        cleaned = item.strip().lower()
+                        if cleaned == "folder":
+                            raise ValueError("batch_replace_files 不支持 folder 类型")
+                        if not cleaned:
+                            raise ValueError("batch_replace_files 的 file_types 每一项都必须是非空文件类型")
+                        cleaned_items.append(cleaned)
+                    else:
+                        cleaned_items.append(item)
+                if not cleaned_items:
+                    raise ValueError("batch_replace_files 的 file_types 不能为空列表；省略此参数可扫描所有文件类型")
+                merged.extend(cleaned_items)
+            else:
+                raise ValueError("batch_replace_files 的 file_types 必须是文件类型列表")
+
+        if merged:
+            deduped: list[Any] = []
+            for item in merged:
+                if item not in deduped:
+                    deduped.append(item)
+            normalized["file_types"] = deduped
+        elif "file_types" in normalized and normalized.get("file_types") is None:
+            normalized["file_types"] = None
+
+        return normalized
 
     @field_validator("old_text", mode="before")
     @classmethod
     def _validate_old_text(cls, value: Any) -> str:
         if not isinstance(value, str) or not value:
             raise ValueError("batch_replace_files 的 old_text 必须是非空字符串")
-        return value
-
-    @field_validator("file_type", mode="before")
-    @classmethod
-    def _normalize_file_type(cls, value: Any) -> Any:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            cleaned = value.strip().lower()
-            if not cleaned:
-                return None
-            if cleaned == "folder":
-                raise ValueError("batch_replace_files 不支持 folder 类型")
-            return cleaned
         return value
 
     @field_validator("file_ids", mode="before")

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   filterAvailableMetrics,
@@ -11,30 +11,13 @@ import {
 } from "../subscriptionEntitlements";
 import type { SubscriptionCatalogTier } from "../../types/subscription";
 
-const inspirationFeature = vi.hoisted(() => ({ enabled: true }));
-
-vi.mock("../../config/inspirations", () => ({
-  inspirationsConfig: inspirationFeature,
-}));
-
 const t = (_key: string, fallback: string, options?: Record<string, unknown>) =>
   options
     ? fallback.replace(/{{\s*(\w+)\s*}}/g, (_, name: string) => String(options[name] ?? ""))
     : fallback;
 
 describe("getEntitlementMetricDefinitions", () => {
-  beforeEach(() => {
-    inspirationFeature.enabled = true;
-  });
-
-  it("includes inspiration copy entitlements when enabled", () => {
-    expect(getEntitlementMetricDefinitions(t, "zh-CN").map((metric) => metric.key))
-      .toContain("inspiration_copies_monthly");
-  });
-
-  it("omits inspiration copy entitlements when disabled", () => {
-    inspirationFeature.enabled = false;
-
+  it("omits retired inspiration copy entitlements", () => {
     expect(getEntitlementMetricDefinitions(t, "zh-CN").map((metric) => metric.key))
       .not.toContain("inspiration_copies_monthly");
   });

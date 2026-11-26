@@ -195,12 +195,52 @@ def test_exported_schemas_preserve_required_properties_constraints_and_open_meta
     rsr_schema = TOOL_SCHEMAS["read_skill_resource"]["input_schema"]
     assert rsr_schema["required"] == ["name", "path"]
     assert rsr_schema["properties"]["offset"]["minimum"] == 0
+    path_desc = rsr_schema["properties"]["path"]["description"]
+    for root in ("references/", "assets/", "examples/", "templates/", "SKILL.md"):
+        assert root in path_desc
 
-    # batch_replace_files: ultra-compact 5 fields
+    # batch_replace_files: ultra-compact 5 fields (plural file_types exposed, singular file_type hidden alias)
     br_schema = TOOL_SCHEMAS["batch_replace_files"]["input_schema"]
     assert br_schema["required"] == ["old_text", "new_text"]
-    assert list(br_schema["properties"].keys()) == ["old_text", "new_text", "file_ids", "file_type", "dry_run"]
+    assert list(br_schema["properties"].keys()) == ["old_text", "new_text", "file_ids", "file_types", "dry_run"]
     assert br_schema["properties"]["dry_run"]["default"] is False
+
+
+@pytest.mark.unit
+def test_batch_replace_files_input_file_types_normalization_and_validation():
+    from agent.tools.tool_inputs import BatchReplaceFilesInput
+
+    # Plural file_types is accepted and normalized (never silently dropped by extra="ignore").
+    parsed, err = validate_tool_input(
+        BatchReplaceFilesInput,
+        {"old_text": "旧名", "new_text": "新名", "file_types": ["DRAFT", "script", "draft"]},
+        tool_name="batch_replace_files",
+    )
+    assert err is None and parsed is not None
+    assert parsed.file_types == ["draft", "script"]
+
+    # Singular backward-compat file_type still works and populates file_types.
+    parsed_single, err_single = validate_tool_input(
+        BatchReplaceFilesInput,
+        {"old_text": "旧名", "new_text": "新名", "file_type": "outline"},
+        tool_name="batch_replace_files",
+    )
+    assert err_single is None and parsed_single is not None
+    assert parsed_single.file_types == ["outline"]
+    assert parsed_single.file_type == "outline"
+
+    # Empty list, folder, or unknown type must fail validation loudly (never widen scope project-wide).
+    for bad_args in (
+        {"old_text": "旧名", "new_text": "新名", "file_types": []},
+        {"old_text": "旧名", "new_text": "新名", "file_types": ["folder"]},
+        {"old_text": "旧名", "new_text": "新名", "file_types": ["unknown_type"]},
+    ):
+        bad_parsed, bad_err = validate_tool_input(
+            BatchReplaceFilesInput,
+            bad_args,
+            tool_name="batch_replace_files",
+        )
+        assert bad_parsed is None and bad_err is not None and bad_err["status"] == "error"
 
 
 # ---------------------------------------------------------------------------

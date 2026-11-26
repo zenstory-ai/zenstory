@@ -20,8 +20,6 @@ services:
     environment:
       # Required config for the writing agent — DeepSeek only
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      # Optional inspiration/template library, disabled by default.
-      INSPIRATIONS_ENABLED: ${INSPIRATIONS_ENABLED:-false}
       # Optional: a fixed secret (32+ characters) keeps people signed in across restarts
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
       # SQLite on the zenstory_db volume, so accounts and projects survive
@@ -43,8 +41,6 @@ services:
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: http://localhost:${SERVER_PORT:-8000}
-      # Mirror the server switch for this dev-server based Docker setup.
-      VITE_INSPIRATIONS_ENABLED: ${INSPIRATIONS_ENABLED:-false}
     depends_on:
       server:
         condition: service_healthy

@@ -284,7 +284,9 @@ def test_session_written_file_ids_uses_per_page_batched_file_query_early_stop_an
         event.remove(engine, "before_cursor_execute", _on_early_sql)
 
     assert early_result == expected_drafts_newest_first[:10]
-    early_msg_queries = [s for s, _p in early_sql if "from chat_message" in s.lower()]
+    early_msg_queries = [
+        s for s, _p in early_sql if re.search(r"\bfrom\s+\"?chat_message\"?\b", s.lower())
+    ]
     early_file_selects = [
         s for s, _p in early_sql
         if s.lstrip().lower().startswith("select") and re.search(r"\bfrom\s+\"?file\"?\b", s.lower())
@@ -315,7 +317,9 @@ def test_session_written_file_ids_uses_per_page_batched_file_query_early_stop_an
         if s.lstrip().lower().startswith("select") and re.search(r"\bfrom\s+\"?file\"?\b", s.lower())
     ]
     assert len(file_selects) == 2, f"Expected 1 batched File SELECT per scanned page (2), got {len(file_selects)}"
-    msg_queries = [(s, p) for s, p in executed_sql if "from chat_message" in s.lower()]
+    msg_queries = [
+        (s, p) for s, p in executed_sql if re.search(r"\bfrom\s+\"?chat_message\"?\b", s.lower())
+    ]
     assert len(msg_queries) == 2
     assert "chat_message.created_at <" in msg_queries[1][0].lower()
     assert "chat_message.id <" in msg_queries[1][0].lower()
@@ -400,7 +404,9 @@ def test_session_read_snapshots_uses_keyset_pagination_without_offset(db_session
         event.remove(engine, "before_cursor_execute", _on_sql)
 
     assert carried == {old_file.id: old_file.content}
-    msg_queries = [(s, p) for s, p in executed_sql if "from chat_message" in s.lower()]
+    msg_queries = [
+        (s, p) for s, p in executed_sql if re.search(r"\bfrom\s+\"?chat_message\"?\b", s.lower())
+    ]
     assert len(msg_queries) == 2
     assert "chat_message.created_at <" in msg_queries[1][0].lower()
     assert "chat_message.id <" in msg_queries[1][0].lower()

@@ -864,6 +864,48 @@ describe('ToolResultCard', () => {
       expect(screen.getByText(/chat:tool\.failureHint\.authorChanged/)).toBeInTheDocument()
     })
 
+    it('renders pending search_files and batch_replace_files cards with plural args.file_types and legacy file_type', () => {
+      const { rerender } = render(
+        <ToolResultCard
+          type="tool_call"
+          toolName="search_files"
+          isPending={true}
+          result={{ query: '青铜镜', file_types: ['draft', 'outline'] }}
+        />
+      )
+      expect(screen.getByText('Draft / Outline · 「青铜镜」')).toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_call"
+          toolName="search_files"
+          isPending={true}
+          result={{ file_types: ['character'] }}
+        />
+      )
+      expect(screen.getByText('Query Character')).toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_call"
+          toolName="search_files"
+          isPending={true}
+          result={{ file_type: 'outline' }}
+        />
+      )
+      expect(screen.getByText('Query Outline')).toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_call"
+          toolName="batch_replace_files"
+          isPending={true}
+          result={{ old_text: '林默', new_text: '沈砚', file_types: ['draft'], dry_run: true }}
+        />
+      )
+      expect(screen.getByText(/Draft/)).toBeInTheDocument()
+    })
+
     it('renders edit_file success with details', () => {
       render(
         <ToolResultCard

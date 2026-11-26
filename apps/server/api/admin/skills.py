@@ -16,7 +16,6 @@ from models import PublicSkill, User, UserSkill
 from services import skill_package_service
 from services.admin_audit_service import admin_audit_service
 from services.core.auth_service import get_current_superuser
-from services.features.points_service import points_service
 from utils.logger import get_logger, log_with_context
 
 from .schemas import (
@@ -169,17 +168,12 @@ def approve_skill(
 
     session.add(skill)
     try:
-        # 社区投稿的贡献积分与核准同一事务提交；同一个公共技能只发一次。
-        reward = None
-        if skill.source == "community" and skill.author_id:
-            reward = points_service.award_skill_contribution(session, skill.author_id, skill.id)
         admin_audit_service.log_action(
             session, current_user.id, "approve_skill", "skill", skill_id,
             old_value={"status": "pending"},
             new_value={
                 "status": "approved",
                 "reviewed_by": current_user.id,
-                "points_awarded": reward.amount if reward else 0,
             },
             request=http_request, commit=False,
         )
@@ -289,7 +283,7 @@ def unpublish_skill(
 
     下架后公共库列表、技能目录、load_skill 与已添加用户的技能列表都不再返回它
     （各处只认 approved）。作者的技能保持「已分享」链接，能看到「已下架」状态，
-    不能直接重投同一个技能。已发放的贡献积分不收回。
+    不能直接重投同一个技能。
     Requires superuser privileges.
     """
     skill = session.exec(

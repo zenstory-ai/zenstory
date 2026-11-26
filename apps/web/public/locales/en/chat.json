@@ -59,7 +59,9 @@
     "newSessionFailed": "Couldn't create a new chat. Please try again.",
     "sessionRecoveryFailed": "Couldn't load this chat. Please try again.",
     "readWrittenFiles": "Read it",
-    "openWrittenFile": "Open “{{title}}”"
+    "openWrittenFile": "Open “{{title}}”",
+    "loadEarlierMessages": "Load earlier messages",
+    "loadingEarlierMessages": "Loading earlier messages…"
   },
   "input": {
     "placeholder": "What should we write or revise next…",

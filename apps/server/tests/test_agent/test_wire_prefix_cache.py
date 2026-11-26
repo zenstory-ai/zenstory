@@ -2303,3 +2303,246 @@ def test_default_wall_clock_wrap_up_margin_is_240s(monkeypatch):
         assert reloaded.AGENT_RUN_WRAP_UP_AFTER_S == 540
     finally:
         importlib.reload(agent_runtime)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs")
+async def test_turn_n_plus_1_wire_prefix_round_trip_on_default_responses_api_and_cold_replay_parity(
+    db_session: Session, fake_redis, monkeypatch
+):
+    """On MiniMax's production default /v1/responses surface (store=False + prompt_cache_key):
+    1) Turn 1 stores wire_prefix_cache keyed with ':responses' and Turn 2 hits the cache,
+       sending Turn 1's input + output items as an exact prefix with stable prompt_cache_key.
+    2) Clearing Redis forces cold DB replay via load_loop_history(), which preserves paired
+       function_call / function_call_output structure and assistant text."""
+    import httpx2
+    from openai.types.responses import (
+        Response,
+        ResponseFunctionToolCall,
+        ResponseOutputMessage,
+        ResponseOutputText,
+        ResponseReasoningItem,
+    )
+    from openai.types.responses.response_reasoning_item import Content as ReasoningContent
+    from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails, ResponseUsage
+
+    from agent.loop.history import load_loop_history
+    from agent.service import AgentService
+
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-test-minimax")
+    monkeypatch.delenv("MINIMAX_API_SURFACE", raising=False)
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    monkeypatch.delenv("MINIMAX_SECONDARY_API_KEY", raising=False)
+    sdk_model.reset_sdk_model_cache()
+    llm_failover.reset_failover_state()
+
+    user = User(
+        email="wire_prefix_responses@example.com",
+        username="wireprefixresponses",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="Responses前缀测试", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chapter = File(project_id=project.id, title="第一章", file_type="draft", content="雾夜降临，灯塔熄灭。")
+    db_session.add(chapter)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    def _resp(resp_id: str, output_items: list, *, status: str = "completed") -> dict:
+        return Response(
+            id=resp_id,
+            created_at=1.0,
+            model="MiniMax-M3.1-Flash",
+            object="response",
+            output=output_items,
+            parallel_tool_calls=True,
+            tool_choice="auto",
+            tools=[],
+            status=status,  # type: ignore[arg-type]
+            usage=ResponseUsage(
+                input_tokens=1000,
+                input_tokens_details=InputTokensDetails(cached_tokens=800, cache_write_tokens=0),
+                output_tokens=40,
+                output_tokens_details=OutputTokensDetails(reasoning_tokens=10),
+                total_tokens=1040,
+            ),
+        ).model_dump(mode="json")
+
+    def _sse(events: list[dict]) -> str:
+        return "".join(f"event: {ev['type']}\ndata: {json.dumps(ev, ensure_ascii=False)}\n\n" for ev in events)
+
+    # Turn 1, Step 1: reasoning + query_files function_call
+    t1_s1_reasoning = ResponseReasoningItem(
+        id="rs_t1_1",
+        type="reasoning",
+        summary=[],
+        content=[ReasoningContent(type="reasoning_text", text="先读第一章内容")],
+        status="completed",
+    )
+    t1_s1_call = ResponseFunctionToolCall(
+        id="fc_t1_1",
+        call_id="call_resp_001",
+        type="function_call",
+        name="query_files",
+        arguments=json.dumps({"id": chapter.id}),
+        status="completed",
+    )
+    t1_s1_sse = _sse([
+        {"type": "response.created", "sequence_number": 0, "response": _resp("resp_1", [], status="in_progress")},
+        {"type": "response.output_item.added", "sequence_number": 1, "output_index": 0, "item": t1_s1_reasoning.model_dump(mode="json")},
+        {"type": "response.reasoning_text.delta", "sequence_number": 2, "item_id": "rs_t1_1", "output_index": 0, "content_index": 0, "delta": "先读第一章内容"},
+        {"type": "response.output_item.done", "sequence_number": 3, "output_index": 0, "item": t1_s1_reasoning.model_dump(mode="json")},
+        {"type": "response.output_item.added", "sequence_number": 4, "output_index": 1, "item": t1_s1_call.model_dump(mode="json")},
+        {"type": "response.output_item.done", "sequence_number": 5, "output_index": 1, "item": t1_s1_call.model_dump(mode="json")},
+        {"type": "response.completed", "sequence_number": 6, "response": _resp("resp_1", [t1_s1_reasoning, t1_s1_call])},
+    ])
+
+    # Turn 1, Step 2: reasoning + final reply
+    t1_s2_reasoning = ResponseReasoningItem(
+        id="rs_t1_2",
+        type="reasoning",
+        summary=[],
+        content=[ReasoningContent(type="reasoning_text", text="读完第一章，准备回复")],
+        status="completed",
+    )
+    t1_s2_msg = ResponseOutputMessage(
+        id="msg_t1_2",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[ResponseOutputText(type="output_text", text="已读完第一章，灯塔熄灭的开场很有氛围。", annotations=[])],
+    )
+    t1_s2_sse = _sse([
+        {"type": "response.created", "sequence_number": 0, "response": _resp("resp_2", [], status="in_progress")},
+        {"type": "response.output_item.added", "sequence_number": 1, "output_index": 0, "item": t1_s2_reasoning.model_dump(mode="json")},
+        {"type": "response.reasoning_text.delta", "sequence_number": 2, "item_id": "rs_t1_2", "output_index": 0, "content_index": 0, "delta": "读完第一章，准备回复"},
+        {"type": "response.output_item.done", "sequence_number": 3, "output_index": 0, "item": t1_s2_reasoning.model_dump(mode="json")},
+        {"type": "response.output_item.added", "sequence_number": 4, "output_index": 1, "item": t1_s2_msg.model_dump(mode="json")},
+        {"type": "response.output_text.delta", "sequence_number": 5, "item_id": "msg_t1_2", "output_index": 1, "content_index": 0, "delta": "已读完第一章，灯塔熄灭的开场很有氛围。", "logprobs": []},
+        {"type": "response.output_item.done", "sequence_number": 6, "output_index": 1, "item": t1_s2_msg.model_dump(mode="json")},
+        {"type": "response.completed", "sequence_number": 7, "response": _resp("resp_2", [t1_s2_reasoning, t1_s2_msg])},
+    ])
+
+    # Turn 2, Step 1: direct reply using cached wire prefix
+    t2_s1_msg = ResponseOutputMessage(
+        id="msg_t2_1",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[ResponseOutputText(type="output_text", text="第二轮继续推进主角动机。", annotations=[])],
+    )
+    t2_s1_sse = _sse([
+        {"type": "response.created", "sequence_number": 0, "response": _resp("resp_3", [], status="in_progress")},
+        {"type": "response.output_item.added", "sequence_number": 1, "output_index": 0, "item": t2_s1_msg.model_dump(mode="json")},
+        {"type": "response.output_text.delta", "sequence_number": 2, "item_id": "msg_t2_1", "output_index": 0, "content_index": 0, "delta": "第二轮继续推进主角动机。", "logprobs": []},
+        {"type": "response.output_item.done", "sequence_number": 3, "output_index": 0, "item": t2_s1_msg.model_dump(mode="json")},
+        {"type": "response.completed", "sequence_number": 4, "response": _resp("resp_3", [t2_s1_msg])},
+    ])
+
+    scripted_bodies = [t1_s1_sse, t1_s2_sse, t2_s1_sse]
+    recorded_requests: list[tuple[str, dict]] = []
+
+    async def handle(req: httpx2.Request) -> httpx2.Response:
+        recorded_requests.append((req.url.path, json.loads(req.content)))
+        body = scripted_bodies.pop(0)
+        return httpx2.Response(200, headers={"content-type": "text/event-stream"}, content=body)
+
+    monkeypatch.setattr("agent.openai_agents.usage_hooks.schedule_llm_usage_record", lambda *_a, **_kw: None)
+
+    service = AgentService()
+    cache_key = wire_prefix_cache.wire_prefix_cache_key(chat.id)
+    try:
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(handle)) as http_client:
+            sdk_client = openai.AsyncOpenAI(
+                api_key="sk-test-minimax",
+                base_url="https://llm.test/v1",
+                http_client=http_client,
+                max_retries=0,
+            )
+            monkeypatch.setattr(llm_providers, "get_async_client", lambda _p: sdk_client)
+
+            # Turn 1
+            async for _frame in service.process_stream(
+                project_id=str(project.id),
+                user_id=str(user.id),
+                message="先看看第一章",
+                session=db_session,
+                session_id=chat.id,
+                metadata={"current_file_id": chapter.id, "current_file_type": "draft", "current_file_title": "第一章"},
+            ):
+                pass
+
+            assert cache_key in fake_redis.store
+
+            # Spy on load_wire_prefix_entry to confirm Turn 2 actually hits Redis wire cache.
+            orig_load = wire_prefix_cache.load_wire_prefix_entry
+            load_hits: list[int] = []
+
+            def _spy_load(*args, **kwargs):
+                res = orig_load(*args, **kwargs)
+                if res is not None:
+                    load_hits.append(len(res.items))
+                return res
+
+            monkeypatch.setattr("agent.service.load_wire_prefix_entry", _spy_load)
+
+            # Turn 2
+            async for _frame in service.process_stream(
+                project_id=str(project.id),
+                user_id=str(user.id),
+                message="接着分析主角动机",
+                session=db_session,
+                session_id=chat.id,
+                metadata={"current_file_id": chapter.id, "current_file_type": "draft", "current_file_title": "第一章"},
+            ):
+                pass
+    finally:
+        sdk_model.reset_sdk_model_cache()
+        llm_failover.reset_failover_state()
+
+    # 1. All 3 calls hit /v1/responses with store=False and identical prompt_cache_key.
+    assert len(recorded_requests) == 3
+    for path, body in recorded_requests:
+        assert path.endswith("/responses")
+        assert body["store"] is False
+        assert body["prompt_cache_key"] == f"zs:{chat.id}"
+    assert len(load_hits) == 1 and load_hits[0] > 0
+
+    # 2. Exact wire prefix continuity across Turn 1 -> Turn 2 on /v1/responses input items.
+    t1_s2_input = recorded_requests[1][1]["input"]
+    t2_s1_input = recorded_requests[2][1]["input"]
+    assert t2_s1_input[: len(t1_s2_input)] == t1_s2_input
+    assert recorded_requests[0][1]["instructions"] == recorded_requests[1][1]["instructions"] == recorded_requests[2][1]["instructions"]
+    assert recorded_requests[0][1]["tools"] == recorded_requests[1][1]["tools"] == recorded_requests[2][1]["tools"]
+
+    # 3. Cold DB replay after Redis eviction preserves paired tool call + assistant replies.
+    fake_redis.store.clear()
+    cold_history = load_loop_history(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+    )
+    cold_types = [item.get("type") or item.get("role") for item in cold_history.items]
+    assert "function_call" in cold_types
+    assert "function_call_output" in cold_types
+    fn_calls = [item for item in cold_history.items if item.get("type") == "function_call"]
+    fn_outputs = [item for item in cold_history.items if item.get("type") == "function_call_output"]
+    assert len(fn_calls) == len(fn_outputs) == 1
+    assert fn_calls[0]["call_id"] == fn_outputs[0]["call_id"]
+    assert fn_calls[0]["name"] == "query_files"
+    cold_text = json.dumps(cold_history.items, ensure_ascii=False)
+    assert "已读完第一章，灯塔熄灭的开场很有氛围。" in cold_text
+    assert "第二轮继续推进主角动机。" in cold_text

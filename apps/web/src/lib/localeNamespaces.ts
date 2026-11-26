@@ -5,8 +5,7 @@
  *   and loaded upfront on initial boot. Includes every namespace requested on
  *   initial `/dashboard` or `/project/:id` render, imperative/undeclared
  *   prefixes (`errors`, `onboarding` in `ProtectedRoute`), and tiny modal
- *   namespaces that mount without a local Suspense boundary (`points`,
- *   `project`, `referral`).
+ *   namespaces that mount without a local Suspense boundary (`project`).
  * - LAZY_LOCALE_NAMESPACES: each emitted as its own code-split virtual module
  *   `virtual:zenstory-locale-{lang}-{ns}` and fetched on demand when a lazy
  *   route or Suspense-wrapped pane (`Sidebar` → `MaterialsPane`) requests it.
@@ -24,9 +23,7 @@ export const CORE_LOCALE_NAMESPACES = [
   'errors',
   'home',
   'onboarding',
-  'points',
   'project',
-  'referral',
   'settings',
   'versions',
 ] as const;
@@ -34,7 +31,6 @@ export const CORE_LOCALE_NAMESPACES = [
 export const LAZY_LOCALE_NAMESPACES = [
   'admin',
   'docs',
-  'inspirations',
   'materials',
   'privacy',
   'skills',

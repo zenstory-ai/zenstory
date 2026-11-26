@@ -390,7 +390,7 @@ async def test_an_empty_normal_completion_is_a_success(chunk_endpoints):
 @pytest.mark.parametrize(
     ("env", "expected"),
     [
-        ({}, {"minimax": 120.0, "deepseek": 45.0}),
+        ({}, {"minimax": 120.0, "deepseek": 90.0}),
         ({"MINIMAX_CLIENT_TIMEOUT_S": "90", "DEEPSEEK_CLIENT_TIMEOUT_S": "30"}, {"minimax": 90.0, "deepseek": 30.0}),
     ],
 )
@@ -1041,7 +1041,7 @@ async def test_usage_hook_logs_reasoning_tokens_with_the_thinking_observation(ca
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_a_broken_thinking_observation_never_fails_the_run():
+async def test_a_broken_thinking_observation_never_fails_the_run(caplog):
     from agent.openai_agents.usage_hooks import build_agent_run_hooks
 
     class _Model:
@@ -1054,7 +1054,13 @@ async def test_a_broken_thinking_observation_never_fails_the_run():
             raise RuntimeError("observation broke")
 
     hooks = build_agent_run_hooks("MiniMax-M3.1-Flash")
-    await hooks.on_llm_end(None, SimpleNamespace(model=_Model()), SimpleNamespace(usage=None, output=[]))
+    with caplog.at_level("WARNING"):
+        await hooks.on_llm_end(None, SimpleNamespace(model=_Model()), SimpleNamespace(usage=None, output=[]))
+
+    assert any(
+        "Thinking observation after model call failed: observation broke" in r.getMessage()
+        for r in caplog.records
+    )
 
 
 # ------------------------------------------------- 2026-10-29 backup would reject the replayed input

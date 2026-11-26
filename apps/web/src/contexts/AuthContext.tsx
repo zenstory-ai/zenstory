@@ -14,6 +14,12 @@ import { saveOAuthPlanIntent, type PlanIntent } from '../lib/authFlow';
 import { clearPendingUpgradeFunnelEvents } from '../lib/upgradeAnalytics';
 import { claimPreferredProjectType } from '../lib/preferredProjectType';
 import { supportedAccountLanguage, syncAccountLanguage } from '../lib/accountLanguage';
+import {
+  clearAuthSessionUserSnapshot,
+  clearWorkbenchSwrCache,
+  readAuthSessionUserSnapshot,
+  writeAuthSessionUserSnapshot,
+} from '../lib/workbenchSwrCache';
 
 export interface User {
   id: string;
@@ -36,7 +42,7 @@ export interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (email: string, password: string, inviteCode?: string) => Promise<{ email: string; email_verified: boolean; verification_sent?: boolean }>;
+  register: (email: string, password: string) => Promise<{ email: string; email_verified: boolean; verification_sent?: boolean }>;
   logout: () => void;
   handleOAuthCallback: (
     accessToken: string,
@@ -45,7 +51,7 @@ export interface AuthContextType {
   ) => Promise<void>;
   verifyEmail: (email: string, code: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
-  googleLogin: (options?: { inviteCode?: string; redirectUrl?: string; planIntent?: PlanIntent | null }) => void;
+  googleLogin: (options?: { redirectUrl?: string; planIntent?: PlanIntent | null }) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -78,6 +84,17 @@ export const AuthIdentityQueryBoundary: React.FC<{ children: ReactNode }> = ({ c
 
 // Cache TTL: 5 minutes (conservative to balance performance and security)
 const AUTH_CACHE_TTL_MS = 5 * 60 * 1000;
+const INACTIVE_USER_ERROR_CODE = 'ERR_AUTH_INACTIVE_USER';
+
+async function isInactiveUserAuthFailure(response: Response): Promise<boolean> {
+  if (response.status !== 400 || typeof response.json !== 'function') return false;
+  try {
+    const body = (await response.json()) as { error_code?: unknown; detail?: unknown } | null;
+    return body?.error_code === INACTIVE_USER_ERROR_CODE || body?.detail === INACTIVE_USER_ERROR_CODE;
+  } catch {
+    return false;
+  }
+}
 
 // Cache keys
 const CACHE_KEYS = {
@@ -103,6 +120,9 @@ const saveUserCache = (userData: User) => {
   } catch {
     logger.warn('[Auth] Failed to save user cache (localStorage may be unavailable)');
   }
+  // Keep a lightweight tab-scoped user snapshot (no tokens/secrets) so reloads
+  // past the 5-minute TTL still mount protected routes without blocking on /api/auth/me.
+  writeAuthSessionUserSnapshot(userData);
 };
 
 // Helper to read cached user if valid (within TTL)
@@ -130,6 +150,54 @@ const getValidCachedUser = (): User | null => {
   }
 };
 
+// Helper to read optimistic boot user when an active access_token exists:
+// prefers the 5-min localStorage cache, then falls back to the tab-scoped
+// sessionStorage user snapshot (strictly cross-checked against localStorage.user.id
+// to prevent stale cross-tab identity leaks). Never stores or reads secrets here.
+const getOptimisticBootUser = (): User | null => {
+  let accessToken: string | null = null;
+  try {
+    accessToken = localStorage.getItem(CACHE_KEYS.ACCESS_TOKEN);
+  } catch {
+    return null;
+  }
+  if (!accessToken) return null;
+
+  const validCached = getValidCachedUser();
+  if (validCached) {
+    const existingSessionSnapshot = readAuthSessionUserSnapshot<User>();
+    if (existingSessionSnapshot && existingSessionSnapshot.id !== validCached.id) {
+      clearAuthSessionUserSnapshot();
+      clearWorkbenchSwrCache();
+    }
+    return validCached;
+  }
+
+  const sessionUser = readAuthSessionUserSnapshot<User>();
+  if (!sessionUser) return null;
+
+  try {
+    const storedUserStr = localStorage.getItem(CACHE_KEYS.USER);
+    if (!storedUserStr) {
+      clearAuthSessionUserSnapshot();
+      clearWorkbenchSwrCache();
+      return null;
+    }
+    const storedUser = JSON.parse(storedUserStr) as Partial<User> | null;
+    if (!storedUser || typeof storedUser.id !== 'string' || !storedUser.id || storedUser.id !== sessionUser.id) {
+      clearAuthSessionUserSnapshot();
+      clearWorkbenchSwrCache();
+      return null;
+    }
+  } catch {
+    clearAuthSessionUserSnapshot();
+    clearWorkbenchSwrCache();
+    return null;
+  }
+
+  return sessionUser;
+};
+
 // Helper to attempt token refresh
 const attemptTokenRefresh = async (
   setUser: (user: User | null) => void,
@@ -154,12 +222,26 @@ const attemptTokenRefresh = async (
 };
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUserState] = useState<User | null>(null);
+  const initialOptimisticUserRef = React.useRef<User | null | undefined>(undefined);
+  if (initialOptimisticUserRef.current === undefined) {
+    initialOptimisticUserRef.current = getOptimisticBootUser();
+  }
+  const [user, setUserState] = useState<User | null>(initialOptimisticUserRef.current);
+  const activeUserIdRef = React.useRef<string | null>(initialOptimisticUserRef.current?.id ?? null);
   const setUser = React.useCallback((next: User | null) => {
+    const prevId = activeUserIdRef.current;
+    const nextId = next?.id ?? null;
+    if (prevId !== nextId && prevId !== null) {
+      clearWorkbenchSwrCache();
+    }
+    if (nextId === null) {
+      clearAuthSessionUserSnapshot();
+    }
+    activeUserIdRef.current = nextId;
     if (next) claimPreferredProjectType(next.id, { currentTabOnly: true });
     setUserState(next);
   }, []);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(initialOptimisticUserRef.current === null);
   const previousUserIdRef = React.useRef<string | null>(null);
   const authGenerationRef = React.useRef(0);
   // Tracks the language already synced (backfilled or switched) for the current signed-in user
@@ -194,17 +276,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return;
         }
 
-        // Check for valid cached user (within TTL)
-        const cachedUser = getValidCachedUser();
+        // Check for valid cached user (within 5m localStorage TTL or tab-scoped sessionStorage snapshot)
+        const cachedUser = getOptimisticBootUser();
 
         if (cachedUser) {
           // Cache hit and valid - immediately set user for fast initial render
-          logger.log('[Auth] Using cached user (within TTL)');
+          logger.log('[Auth] Using cached user for non-blocking boot');
           setUser(cachedUser);
           setLoading(false);
 
           // Validate token in background to ensure freshness
-          // This doesn't block the UI - user sees cached data immediately
+          // This doesn't block the UI - user sees cached data immediately while /bootstrap runs in parallel
           void (async () => {
             try {
               const response = await fetch(`${getApiBase()}/api/auth/me`, {
@@ -223,7 +305,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     : serverUser;
                 setUser(hydratedUser);
                 saveUserCache(hydratedUser);
-              } else if ((response.status === 401 || response.status === 403) && ownsOriginalSession()) {
+              } else if (response.status === 401 && ownsOriginalSession()) {
+                if (refreshToken) {
+                  const refreshed = await attemptTokenRefresh(
+                    setUser,
+                    () => authGenerationRef.current === generation,
+                  );
+                  if (!refreshed && ownsOriginalSession()) {
+                    // Transient refresh failure (e.g. 503): drop optimistic session cache and require re-validation.
+                    clearAuthSessionUserSnapshot();
+                    clearWorkbenchSwrCache();
+                    setUser(null);
+                  }
+                } else {
+                  clearAuthState(setUser, 'background_validation_failed');
+                }
+              } else if (response.status === 403 && ownsOriginalSession()) {
+                clearAuthState(setUser, 'background_validation_failed');
+              } else if (await isInactiveUserAuthFailure(response) && ownsOriginalSession()) {
                 clearAuthState(setUser, 'background_validation_failed');
               }
             } catch (error) {
@@ -250,6 +349,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             logger.log('[Auth] Token validated on init');
           } else if (!ownsOriginalSession()) {
             return;
+          } else if (await isInactiveUserAuthFailure(response)) {
+            if (ownsOriginalSession()) {
+              clearAuthState(setUser, 'background_validation_failed');
+            }
           } else if (response.status === 401 || response.status === 403) {
             // Token invalid - try refresh
             logger.log('[Auth] Token invalid on init, attempting refresh...');
@@ -302,6 +405,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const onLogout = () => {
       logger.log('[Auth] Logout event received');
       authGenerationRef.current += 1;
+      clearAuthSessionUserSnapshot();
+      clearWorkbenchSwrCache();
       setUser(null);
     };
 
@@ -378,14 +483,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const register = async (email: string, password: string, inviteCode?: string) => {
+  const register = async (email: string, password: string) => {
     // The verification email goes out in the language the visitor is using; the
     // server names the account after the email prefix.
-    const data = await authApi.register({ email, password, invite_code: inviteCode, language: getLocale(), acquisition: getAcquisition() });
+    const data = await authApi.register({ email, password, language: getLocale(), acquisition: getAcquisition() });
     trackEvent('register_success', {
       method: 'password',
       email_verified: data.email_verified,
-      invite_code_provided: Boolean(inviteCode?.trim()),
       entry_source: getEntrySource(),
     });
 
@@ -479,11 +583,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     trackEvent('oauth_callback_success', { is_new_user: isNewUser });
   };
 
-  const googleLogin = (options?: { inviteCode?: string; redirectUrl?: string; planIntent?: PlanIntent | null }) => {
+  const googleLogin = (options?: { redirectUrl?: string; planIntent?: PlanIntent | null }) => {
     // Check for redirect parameter from external apps
     const params = new URLSearchParams(window.location.search);
     const redirectUrl = options?.redirectUrl ?? params.get('redirect');
-    const inviteCode = options?.inviteCode?.trim();
     saveOAuthPlanIntent(options?.planIntent);
 
     // Redirect to backend Google OAuth endpoint
@@ -493,10 +596,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (redirectUrl) {
       // Pass redirect parameter to backend OAuth flow
       url.searchParams.set('redirect', redirectUrl);
-    }
-    if (inviteCode) {
-      // Pass invite code for new-user gating (especially when registration requires invite codes)
-      url.searchParams.set('invite_code', inviteCode);
     }
     const acquisition = getAcquisition();
     if (acquisition) {
@@ -527,3 +626,6 @@ export const useAuth = () => {
   }
   return context;
 };
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const useOptionalAuth = (): AuthContextType | undefined => useContext(AuthContext);

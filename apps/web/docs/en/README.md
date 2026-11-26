@@ -22,7 +22,6 @@ From your first outline to final revision and export, write in the [workbench](h
 - [AI Assistant](user-guide/ai-assistant.md): Draft and revise files in chat, attach writing skills, and steer active runs
 - [Skills](user-guide/skills.md): Add official and community skills from Discover, and attach skills via `/` or the project sidebar
 - [Materials](user-guide/materials.md): Use project material files alongside your account's Reference Library and attach references to chat
-- [Inspirations (coming soon)](user-guide/inspirations.md): Current status of preset templates and how to start from templates today
 
 ### Plans, versions, and export
 

@@ -1,8 +1,8 @@
 """
 Request-driven admin management e2e workflows.
 
-These tests cover admin user management, subscription management, and
-inspiration moderation through the real HTTP API.
+These tests cover admin user management and subscription management through the
+real HTTP API.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel import Session, select
 
-from models import Inspiration, User
+from models import User
 from models.subscription import SubscriptionPlan, UserSubscription
 from services.core.auth_service import hash_password
 
@@ -194,74 +194,3 @@ async def test_admin_subscriptions_roundtrip_lists_fetches_and_updates_user_subs
     assert refreshed_subscription is not None
     assert refreshed_subscription.plan_id == pro_plan.id
     assert refreshed_subscription.status == "cancelled"
-
-
-@pytest.mark.asyncio
-async def test_admin_inspiration_moderation_roundtrip_lists_details_and_approves_submission(
-    client: AsyncClient,
-    db_session: Session,
-    monkeypatch,
-):
-    monkeypatch.setenv("INSPIRATIONS_ENABLED", "true")
-    admin = await _create_user(db_session, prefix="admin_inspiration_flow", is_superuser=True)
-    author = await _create_user(db_session, prefix="inspiration_author")
-
-    admin_login = await _login(client, identifier=admin.username)
-    author_login = await _login(client, identifier=author.email)
-
-    project_response = await client.post(
-        "/api/v1/projects",
-        json={"name": "Community Inspiration Source", "project_type": "novel"},
-        headers=_auth_headers(author_login["access_token"]),
-    )
-    assert project_response.status_code == 200
-    project_id = project_response.json()["id"]
-
-    file_response = await client.post(
-        f"/api/v1/projects/{project_id}/files",
-        json={"title": "Source Chapter", "content": "Source inspiration content", "file_type": "draft"},
-        headers=_auth_headers(author_login["access_token"]),
-    )
-    assert file_response.status_code == 200
-
-    submit_response = await client.post(
-        "/api/v1/inspirations",
-        json={
-            "project_id": project_id,
-            "name": "Pending Community Inspiration",
-            "description": "needs admin review",
-            "tags": ["community", "pending"],
-        },
-        headers=_auth_headers(author_login["access_token"]),
-    )
-    assert submit_response.status_code == 201
-    inspiration_id = submit_response.json()["inspiration_id"]
-    assert submit_response.json()["status"] == "pending"
-
-    admin_headers = _auth_headers(admin_login["access_token"])
-
-    list_response = await client.get("/api/admin/inspirations?status=pending", headers=admin_headers)
-    assert list_response.status_code == 200
-    list_payload = list_response.json()
-    pending_item = next(item for item in list_payload["items"] if item["id"] == inspiration_id)
-    assert pending_item["creator_id"] == author.id
-    assert pending_item["status"] == "pending"
-
-    detail_response = await client.get(f"/api/admin/inspirations/{inspiration_id}", headers=admin_headers)
-    assert detail_response.status_code == 200
-    detail_payload = detail_response.json()
-    assert detail_payload["name"] == "Pending Community Inspiration"
-    assert detail_payload["creator_name"] == author.username
-
-    review_response = await client.post(
-        f"/api/admin/inspirations/{inspiration_id}/review",
-        json={"approve": True},
-        headers=admin_headers,
-    )
-    assert review_response.status_code == 200
-    assert review_response.json()["inspiration_id"] == inspiration_id
-
-    refreshed_inspiration = db_session.get(Inspiration, inspiration_id)
-    assert refreshed_inspiration is not None
-    assert refreshed_inspiration.status == "approved"
-    assert refreshed_inspiration.reviewed_by == admin.id

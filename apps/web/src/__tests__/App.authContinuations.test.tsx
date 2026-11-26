@@ -178,9 +178,11 @@ for (const strict of [true, false]) {
     })
     it.each(['saved', 'recent'] as const)('Login identity self-unmount preserves healthy %s project continuation', async mode => {
       const list = hold(); let projects = 0
+      const expectedProjectId = mode === 'saved' ? 'A-saved' : 'A-recent'
       handler = async call => {
         if (call.path === '/api/auth/login') return json(a)
         if (call.path === '/api/v1/projects') return ++projects === 1 ? list.promise : hold().promise
+        if (call.method === 'GET' && call.path === `/api/v1/projects/${expectedProjectId}/bootstrap`) return hold().promise
         return ordinary(call)
       }
       if (mode === 'saved') localStorage.setItem('zenstory_current_project_id:A', 'A-saved')
@@ -332,6 +334,7 @@ for (const strict of [true, false]) {
       handler = async call => {
         if (call.path === '/api/auth/login') return json(a)
         if (call.path === '/api/v1/projects') return ++projects === 1 ? list.promise : hold().promise
+        if (call.method === 'GET' && call.path === '/api/v1/projects/A-recent/bootstrap') return hold().promise
         if (call.path === '/api/auth/refresh') return json(rotatedA)
         if (call.path === '/api/v1/subscription/me' && call.authorization === `Bearer ${a.access_token}`) return json({ detail: 'Offline rotation' }, 401)
         return ordinary(call)

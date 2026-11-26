@@ -99,15 +99,20 @@ test.describe('Chat input compact layout', () => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify([
-            {
-              id: mockSkillId,
-              name: skillName,
-              description: '用于验证聊天输入区紧凑布局的测试技能',
-              triggers: [trigger],
-              instructions: '当用户调用这个技能时，保留输入框优先级并继续写作。',
-            },
-          ]),
+          body: JSON.stringify({
+            skills: [
+              {
+                id: mockSkillId,
+                name: skillName,
+                description: '用于验证聊天输入区紧凑布局的测试技能',
+                triggers: [trigger],
+                instructions: '当用户调用这个技能时，保留输入框优先级并继续写作。',
+                is_active: true,
+                source: 'user',
+              },
+            ],
+            total: 1,
+          }),
         })
       } else if (route.request().method() === 'POST') {
         await route.fulfill({
@@ -128,7 +133,7 @@ test.describe('Chat input compact layout', () => {
     await expect(chatInput).toBeVisible({ timeout: 10000 })
     await expect(sendButton).toBeVisible()
 
-    await page.getByRole('button', { name: '技能', exact: true }).click()
+    await page.getByRole('tab', { name: '技能', exact: true }).click()
 
     const skillRow = page
       .getByText(skillName, { exact: true })

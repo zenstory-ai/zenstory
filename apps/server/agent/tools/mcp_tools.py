@@ -2164,7 +2164,7 @@ def _search_files_matches_sync(
 
     try:
         check_project_ownership(session, project_id, req_ctx.user_id)
-        requested_ids, _ = normalize_query_file_ids(
+        requested_ids, truncated_ids = normalize_query_file_ids(
             file_ids=parsed.ids,
             max_ids=QUERY_MATCHES_MAX_FILES,
         )
@@ -2204,7 +2204,7 @@ def _search_files_matches_sync(
     total_matches = 0
     matched_files = 0
     collected_matches = 0
-    truncated = False
+    truncated = bool(truncated_ids)
     file_entries: list[dict[str, Any]] = []
 
     for row in rows:
@@ -2247,19 +2247,21 @@ def _search_files_matches_sync(
             entry["title_matched"] = True
         file_entries.append(entry)
 
-    return _make_result(
-        {
-            "status": "success",
-            "data": {
-                "query": needle,
-                "total_matches": total_matches,
-                "matched_files": matched_files,
-                "truncated": truncated,
-                "files": file_entries,
-            },
-        },
-        tool_name=tool_name,
-    )
+    result_data: dict[str, Any] = {
+        "query": needle,
+        "total_matches": total_matches,
+        "matched_files": matched_files,
+        "truncated": truncated,
+        "files": file_entries,
+    }
+    payload: dict[str, Any] = {
+        "status": "success",
+        "data": result_data,
+    }
+    if truncated_ids:
+        result_data["truncated_ids"] = truncated_ids
+        payload["truncated_ids"] = truncated_ids
+    return _make_result(payload, tool_name=tool_name)
 
 
 async def query_files(
@@ -2550,7 +2552,7 @@ def _query_files_matches_sync(
 
     try:
         check_project_ownership(session, project_id, req_ctx.user_id)
-        requested_ids, _ = normalize_query_file_ids(
+        requested_ids, truncated_ids = normalize_query_file_ids(
             file_id=parsed.id,
             file_ids=parsed.ids,
             max_ids=QUERY_MATCHES_MAX_FILES,
@@ -2590,7 +2592,7 @@ def _query_files_matches_sync(
     total_matches = 0
     matched_files = 0
     collected_matches = 0
-    truncated = False
+    truncated = bool(truncated_ids)
     file_entries: list[dict[str, Any]] = []
 
     for row in rows:
@@ -2627,19 +2629,21 @@ def _query_files_matches_sync(
             }
         )
 
-    return _make_result(
-        {
-            "status": "success",
-            "data": {
-                "query": needle,
-                "total_matches": total_matches,
-                "matched_files": matched_files,
-                "truncated": truncated,
-                "files": file_entries,
-            },
-        },
-        tool_name=tool_name,
-    )
+    result_data: dict[str, Any] = {
+        "query": needle,
+        "total_matches": total_matches,
+        "matched_files": matched_files,
+        "truncated": truncated,
+        "files": file_entries,
+    }
+    payload: dict[str, Any] = {
+        "status": "success",
+        "data": result_data,
+    }
+    if truncated_ids:
+        result_data["truncated_ids"] = truncated_ids
+        payload["truncated_ids"] = truncated_ids
+    return _make_result(payload, tool_name=tool_name)
 
 
 def _attach_query_matches(session: Session, rows: list[Any], keyword: str) -> None:
@@ -2739,6 +2743,7 @@ def _batch_replace_files_sync(
                 new_text=parsed.new_text,
                 file_ids=parsed.file_ids,
                 file_type=parsed.file_type,
+                file_types=parsed.file_types,
                 dry_run=parsed.dry_run,
                 max_files=BATCH_REPLACE_MAX_FILES,
                 body_guards=req_ctx.is_loop_agent,
@@ -2759,6 +2764,7 @@ def _batch_replace_files_sync(
                 return _make_structured_error(
                     str(first_skip.get("error") or "批量替换未修改任何文件，所有目标文件均被跳过。"),
                     error_type=reason,
+                    user_message=edit_error_user_message(reason),
                     tool_name=tool_name,
                     mutation_applied=False,
                     data=result,
@@ -3098,16 +3104,6 @@ def _same_name_payload(others: list) -> dict[str, Any]:
     }
 
 
-def _skill_budget_exhausted_error(tool_name: str) -> dict[str, Any]:
-    from agent.skills.content_budget import SKILL_CONTENT_TOKEN_BUDGET
-
-    return _make_error(
-        f"本轮读取的技能内容已达上限（约 {SKILL_CONTENT_TOKEN_BUDGET} tokens）。"
-        "请基于已加载的技能内容完成任务；还需要更多内容时，请用户在下一条消息中继续。",
-        tool_name=tool_name,
-    )
-
-
 def _skill_limit_error(tool_name: str, skill_name: str) -> dict[str, Any]:
     from agent.skills.content_budget import MAX_LOADED_SKILLS_PER_REQUEST
 
@@ -3118,30 +3114,12 @@ def _skill_limit_error(tool_name: str, skill_name: str) -> dict[str, Any]:
     )
 
 
-def _segment_fields(segment, *, skill_id: str, path: str) -> dict[str, Any]:
-    """截断时告诉模型如何续读（read_skill_resource + offset）。"""
-    if not segment.truncated:
-        return {"truncated": False}
-    return {
-        "truncated": True,
-        "offset": segment.offset,
-        "next_offset": segment.next_offset,
-        "total_chars": segment.total_chars,
-        "continue_hint": (
-            f"内容过长，本次只返回了第 {segment.offset}–{segment.next_offset} 个字符（共 {segment.total_chars}）。"
-            f"需要后续内容时调用 read_skill_resource(name=\"{skill_id}\", path=\"{path}\", "
-            f"offset={segment.next_offset}) 分段读取。"
-        ),
-    }
-
-
 def _load_skill_sync(
     args: dict[str, Any],
     req_ctx: AgentRequestContext | None,
 ) -> dict[str, Any]:
     """Synchronous load_skill implementation."""
     from agent.skills.active_skills import list_active_skill_resources
-    from agent.skills.content_budget import SKILL_BODY_PATH
 
     tool_name = "load_skill"
     if req_ctx is None or not req_ctx.user_id:
@@ -3159,8 +3137,6 @@ def _load_skill_sync(
             budget = req_ctx.skill_content_budget
             if not budget.admit_skill(skill.id):
                 return _skill_limit_error(tool_name, skill.name)
-            if budget.remaining <= 0:
-                return _skill_budget_exhausted_error(tool_name)
             segment = budget.take(skill.instructions)
 
             resources = [
@@ -3175,7 +3151,7 @@ def _load_skill_sync(
                     "skill_name": skill.name,
                     "source": skill.source,
                     "instructions": segment.text,
-                    **_segment_fields(segment, skill_id=skill.id, path=SKILL_BODY_PATH),
+                    "truncated": False,
                     "resources": resources,
                     **_same_name_payload(others),
                 },
@@ -3221,7 +3197,6 @@ def _read_skill_resource_sync(
                 return _make_error("path is required", tool_name=tool_name)
 
             if path == SKILL_BODY_PATH:
-                # 技能正文（load_skill 截断后按 offset 续读）
                 content = skill.instructions
                 resolved_path = SKILL_BODY_PATH
             else:
@@ -3245,19 +3220,21 @@ def _read_skill_resource_sync(
             budget = req_ctx.skill_content_budget
             if not budget.admit_skill(skill.id):
                 return _skill_limit_error(tool_name, skill.name)
-            if budget.remaining <= 0 and offset < len(content):
-                return _skill_budget_exhausted_error(tool_name)
             segment = budget.take(content, offset)
+
+            data: dict[str, Any] = {
+                "skill_id": skill.id,
+                "skill_name": skill.name,
+                "path": resolved_path,
+                "content": segment.text,
+                "truncated": False,
+            }
+            if offset > 0:
+                data["offset"] = offset
 
             return _make_result({
                 "status": "success",
-                "data": {
-                    "skill_id": skill.id,
-                    "skill_name": skill.name,
-                    "path": resolved_path,
-                    "content": segment.text,
-                    **_segment_fields(segment, skill_id=skill.id, path=resolved_path),
-                },
+                "data": data,
             }, tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)

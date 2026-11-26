@@ -364,13 +364,13 @@ test.describe('Skills Management', () => {
 
     // Click expand button
     const skillCard = getSkillCard(page, skillName);
-    await skillCard.locator('button:has(svg.lucide-chevron-down)').click();
+    await skillCard.locator('button[aria-expanded="false"]').click();
 
     // Verify instructions are visible
     await expect(page.locator(`text=${instructions}`)).toBeVisible();
 
     // Collapse again
-    await skillCard.locator('button:has(svg.lucide-chevron-up)').click();
+    await skillCard.locator('button[aria-expanded="true"]').click();
     await expect(page.locator(`text=${instructions}`)).not.toBeVisible();
   });
 
@@ -491,7 +491,7 @@ test.describe('Skills Management', () => {
       await expect(getSkillCard(page, name)).toBeVisible();
     }
 
-    const selectAllBtn = page.getByRole('button', { name: /全选|Select all/i });
+    const selectAllBtn = page.getByRole('button', { name: /^(全选|Select all)$/i });
     await expect(selectAllBtn).toBeVisible();
     await selectAllBtn.click();
     for (const name of names) {

@@ -338,7 +338,8 @@ vi.mock('../../lib/toast', () => ({
   },
 }))
 
-import { ChatPanel } from '../ChatPanel'
+import { ChatPanel, mergeEarlierHistoryMessages } from '../ChatPanel'
+import type { Message } from '../MessageList'
 import { createNewSession, getRecentMessages } from '../../lib/chatApi'
 
 /** An earlier exchange in the chat: opening it requests suggestions (a work's empty first chat shows the starter cards instead). */
@@ -3718,5 +3719,460 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     } finally {
       mockLayout.isMobile = false
     }
+  })
+
+  it('hydrates initial chat history from /bootstrap handoff without duplicate recent GET and loads older messages on click', async () => {
+    const { workbenchBootstrapQueryKey } = await import('../../lib/workbenchBootstrap')
+    const bootMessages = [
+      {
+        id: 'boot-msg-1',
+        session_id: 'session-boot',
+        role: 'user' as const,
+        content: '从 bootstrap 带来的消息',
+        created_at: '2026-11-26T08:00:00Z',
+      },
+    ]
+    const seededClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    seededClient.setQueryData(workbenchBootstrapQueryKey('test-user', 'project-1'), {
+      userId: 'test-user',
+      projectId: 'project-1',
+      requestedFileId: null,
+      startedAt: Date.now(),
+      promise: Promise.resolve({
+        data: {
+          project: { id: 'project-1', name: '测试作品' },
+          files: [],
+          initial_file: null,
+          chat_session: {
+            id: 'session-boot',
+            user_id: 'test-user',
+            project_id: 'project-1',
+            title: 'AI 助手对话',
+            is_active: true,
+            message_count: 25,
+            created_at: '2026-11-26T07:00:00Z',
+            updated_at: '2026-11-26T08:00:00Z',
+          },
+          recent_messages: bootMessages,
+          has_more_messages: true,
+        },
+        usedFallback: false,
+        fileTreeReady: true,
+        chatReady: true,
+      }),
+      fileTreeConsumed: false,
+      chatConsumed: false,
+    })
+
+    rtlRender(<QueryClientProvider client={seededClient}><ChatPanel /></QueryClientProvider>)
+
+    const loadEarlierBtn = await screen.findByTestId('chat-load-earlier-messages')
+    expect(loadEarlierBtn).toBeInTheDocument()
+    // Zero duplicate GET /chat/session/project-1/recent calls on initial boot!
+    expect(vi.mocked(getRecentMessages)).not.toHaveBeenCalled()
+
+    const expandedHistory = Array.from({ length: 50 }, (_, index) => ({
+      id: index === 49 ? 'boot-msg-1' : `older-msg-${index}`,
+      session_id: 'session-boot',
+      role: 'user' as const,
+      content: index === 49 ? '从 bootstrap 带来的消息' : `更早的对话消息 ${index}`,
+      created_at: `2026-11-26T07:${String(index).padStart(2, '0')}:00Z`,
+    }))
+    vi.mocked(getRecentMessages).mockResolvedValueOnce(expandedHistory as never)
+
+    fireEvent.click(loadEarlierBtn)
+
+    await waitFor(() => {
+      expect(vi.mocked(getRecentMessages)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(getRecentMessages)).toHaveBeenCalledWith('project-1', 51)
+    })
+    await waitFor(() => {
+      const lastProps = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ id: string }> }
+      expect(lastProps.messages).toHaveLength(50)
+      expect(lastProps.messages?.[0]?.id).toBe('older-msg-0')
+      expect(lastProps.messages?.[49]?.id).toBe('boot-msg-1')
+    })
+    // Exactly 50 messages returned (< 51), so button disappears cleanly with no spurious extra page.
+    await waitFor(() => {
+      expect(screen.queryByTestId('chat-load-earlier-messages')).not.toBeInTheDocument()
+    })
+  })
+
+  it('disables Load earlier messages while streaming so active/optimistic messages cannot be clobbered', async () => {
+    const { workbenchBootstrapQueryKey } = await import('../../lib/workbenchBootstrap')
+    const seededClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    seededClient.setQueryData(workbenchBootstrapQueryKey('test-user', 'project-1'), {
+      userId: 'test-user',
+      projectId: 'project-1',
+      requestedFileId: null,
+      startedAt: Date.now(),
+      promise: Promise.resolve({
+        data: {
+          project: { id: 'project-1', name: '测试作品' },
+          files: [],
+          initial_file: null,
+          chat_session: null,
+          recent_messages: [
+            {
+              id: 'boot-msg-1',
+              session_id: 'session-boot',
+              role: 'user' as const,
+              content: '已有消息',
+              created_at: '2026-11-26T08:00:00Z',
+            },
+          ],
+          has_more_messages: true,
+        },
+        usedFallback: false,
+        fileTreeReady: true,
+        chatReady: true,
+        initialFileStatus: 'missing',
+      }),
+      settled: true,
+      fileTreeConsumed: false,
+      chatConsumed: false,
+    })
+
+    mockAgentStreamState.isStreaming = true
+    try {
+      rtlRender(<QueryClientProvider client={seededClient}><ChatPanel /></QueryClientProvider>)
+
+      const loadEarlierBtn = await screen.findByTestId('chat-load-earlier-messages')
+      expect(loadEarlierBtn).toBeDisabled()
+      fireEvent.click(loadEarlierBtn)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(vi.mocked(getRecentMessages)).not.toHaveBeenCalled()
+    } finally {
+      mockAgentStreamState.isStreaming = false
+    }
+  })
+
+  it('invalidates an in-flight Load earlier messages request when startRound sends a new message (P1-2)', async () => {
+    const { workbenchBootstrapQueryKey } = await import('../../lib/workbenchBootstrap')
+    const seededClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    seededClient.setQueryData(workbenchBootstrapQueryKey('test-user', 'project-1'), {
+      userId: 'test-user',
+      projectId: 'project-1',
+      requestedFileId: null,
+      startedAt: Date.now(),
+      promise: Promise.resolve({
+        data: {
+          project: { id: 'project-1', name: '测试作品' },
+          files: [],
+          initial_file: null,
+          chat_session: null,
+          recent_messages: [
+            {
+              id: 'boot-msg-1',
+              session_id: 'session-boot',
+              role: 'assistant' as const,
+              content: '已有最新回复',
+              created_at: '2026-11-26T08:00:00Z',
+            },
+          ],
+          has_more_messages: true,
+        },
+        usedFallback: false,
+        fileTreeReady: true,
+        chatReady: true,
+        initialFileStatus: 'missing',
+      }),
+      settled: true,
+      fileTreeConsumed: false,
+      chatConsumed: false,
+    })
+
+    let resolveOlder!: (messages: unknown[]) => void
+    vi.mocked(getRecentMessages).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveOlder = resolve }) as never,
+    )
+
+    rtlRender(<QueryClientProvider client={seededClient}><ChatPanel /></QueryClientProvider>)
+
+    const loadEarlierBtn = await screen.findByTestId('chat-load-earlier-messages')
+    fireEvent.click(loadEarlierBtn)
+
+    await waitFor(() => {
+      expect(vi.mocked(getRecentMessages)).toHaveBeenCalledWith('project-1', 51)
+    })
+
+    // User sends a new message while Load earlier messages is still in flight; startRound runs
+    // and sendLockRef clears after setTimeout(0) (simulating a fast round completion/error).
+    await act(async () => {
+      await lastMessageInputProps().onSend('刚发出的新指令', [])
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    await waitFor(() => {
+      const props = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ content: string }> }
+      expect(props.messages?.map((m) => m.content)).toEqual(['已有最新回复', '刚发出的新指令'])
+    })
+
+    // Stale in-flight Load earlier response finally resolves without the new user message -> MUST be ignored!
+    await act(async () => {
+      resolveOlder([
+        {
+          id: 'older-msg-0',
+          session_id: 'session-boot',
+          role: 'user',
+          content: '更早的旧消息',
+          created_at: '2026-11-26T07:00:00Z',
+        },
+        {
+          id: 'boot-msg-1',
+          session_id: 'session-boot',
+          role: 'assistant',
+          content: '已有最新回复',
+          created_at: '2026-11-26T08:00:00Z',
+        },
+      ])
+      await Promise.resolve()
+    })
+
+    const afterLateProps = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ content: string }> }
+    expect(afterLateProps.messages?.map((m) => m.content)).toEqual(['已有最新回复', '刚发出的新指令'])
+
+    // Subsequent click on Load earlier messages merges older history by prepending while preserving the new user message!
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      {
+        id: 'older-msg-0',
+        session_id: 'session-boot',
+        role: 'user',
+        content: '更早的旧消息',
+        created_at: '2026-11-26T07:00:00Z',
+      },
+      {
+        id: 'boot-msg-1',
+        session_id: 'session-boot',
+        role: 'assistant',
+        content: '已有最新回复',
+        created_at: '2026-11-26T08:00:00Z',
+      },
+    ] as never)
+
+    fireEvent.click(screen.getByTestId('chat-load-earlier-messages'))
+
+    await waitFor(() => {
+      const mergedProps = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ content: string }> }
+      expect(mergedProps.messages?.map((m) => m.content)).toEqual([
+        '更早的旧消息',
+        '已有最新回复',
+        '刚发出的新指令',
+      ])
+    })
+  })
+
+  it('clears currentAgentSessionIdRef when switching to a session-less project so backend message hydration does not filter by the previous project session', async () => {
+    const { workbenchBootstrapQueryKey } = await import('../../lib/workbenchBootstrap')
+    testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    testQueryClient.setQueryData(workbenchBootstrapQueryKey('test-user', 'project-1'), {
+      userId: 'test-user',
+      projectId: 'project-1',
+      requestedFileId: null,
+      startedAt: Date.now(),
+      promise: Promise.resolve({
+        data: {
+          project: { id: 'project-1', name: '有会话作品' },
+          files: [],
+          initial_file: null,
+          chat_session: {
+            id: 'session-project-1',
+            user_id: 'test-user',
+            project_id: 'project-1',
+            title: 'AI 助手对话',
+            is_active: true,
+            message_count: 1,
+            created_at: '2026-11-26T07:00:00Z',
+            updated_at: '2026-11-26T08:00:00Z',
+          },
+          recent_messages: [
+            {
+              id: 'p1-msg-1',
+              session_id: 'session-project-1',
+              role: 'assistant' as const,
+              content: '项目1历史',
+              created_at: '2026-11-26T08:00:00Z',
+            },
+          ],
+          has_more_messages: false,
+        },
+        usedFallback: false,
+        fileTreeReady: true,
+        chatReady: true,
+        initialFileStatus: 'missing',
+      }),
+      settled: true,
+      fileTreeConsumed: false,
+      chatConsumed: false,
+    })
+
+    const { rerender } = rtlRender(nextChatPanel())
+    await waitFor(() => {
+      const props = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ id: string }> }
+      expect(props.messages?.map((m) => m.id)).toEqual(['p1-msg-1'])
+    })
+
+    // Switch to project-2 which has NO chat_session yet
+    testQueryClient.setQueryData(workbenchBootstrapQueryKey('test-user', 'project-2'), {
+      userId: 'test-user',
+      projectId: 'project-2',
+      requestedFileId: null,
+      startedAt: Date.now(),
+      promise: Promise.resolve({
+        data: {
+          project: { id: 'project-2', name: '空白新作品' },
+          files: [],
+          initial_file: null,
+          chat_session: null,
+          recent_messages: [],
+          has_more_messages: false,
+        },
+        usedFallback: false,
+        fileTreeReady: true,
+        chatReady: true,
+        initialFileStatus: 'missing',
+      }),
+      settled: true,
+      fileTreeConsumed: false,
+      chatConsumed: false,
+    })
+
+    mockProjectState.currentProjectId = 'project-2'
+    mockProjectState.currentProject = { id: 'project-2', name: '空白新作品' }
+    rerender(nextChatPanel())
+
+    await waitFor(() => {
+      expect(capturedUseAgentStream.options).not.toBeNull()
+    })
+
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      {
+        id: 'p2-backend-assistant',
+        session_id: 'session-project-2',
+        role: 'assistant',
+        content: '项目2首条回复',
+        tool_calls: null,
+        metadata: null,
+        created_at: '2026-11-26T09:00:00Z',
+      },
+    ] as never)
+
+    await act(async () => {
+      const options = capturedUseAgentStream.options as {
+        onComplete?: (segments: unknown[]) => Promise<void>
+      }
+      await options.onComplete?.([{ type: 'content', id: 'seg-1', content: '项目2首条回复' }])
+    })
+
+    await waitFor(() => {
+      const props = mockMessageList.mock.calls.at(-1)?.[0] as {
+        messages?: Array<{ backendMessageId?: string; content: string }>
+      }
+      expect(props.messages?.at(-1)?.backendMessageId).toBe('p2-backend-assistant')
+    })
+  })
+})
+
+describe('mergeEarlierHistoryMessages', () => {
+  const makeMsg = (
+    id: string,
+    iso: string,
+    overrides: Partial<Message> = {},
+  ): Message => ({
+    id,
+    role: 'user',
+    content: id,
+    timestamp: new Date(iso),
+    ...overrides,
+  })
+
+  it('prepends strictly earlier messages anchored to currentMessages[0]', () => {
+    const current = [
+      makeMsg('m3', '2026-11-26T08:03:00Z', { backendMessageId: 'm3' }),
+      makeMsg('m4', '2026-11-26T08:04:00Z', { backendMessageId: 'm4' }),
+    ]
+    const fetched = [
+      makeMsg('m1', '2026-11-26T08:01:00Z', { backendMessageId: 'm1' }),
+      makeMsg('m2', '2026-11-26T08:02:00Z', { backendMessageId: 'm2' }),
+      makeMsg('m3', '2026-11-26T08:03:00Z', { backendMessageId: 'm3' }),
+      makeMsg('m4', '2026-11-26T08:04:00Z', { backendMessageId: 'm4' }),
+    ]
+
+    const merged = mergeEarlierHistoryMessages(fetched, current)
+    expect(merged.map((m) => m.id)).toEqual(['m1', 'm2', 'm3', 'm4'])
+  })
+
+  it('matches currentMessages[0] via backendMessageId when local id differs', () => {
+    const current = [
+      makeMsg('local-ai-1', '2026-11-26T08:03:00Z', { role: 'assistant', backendMessageId: 'db-3' }),
+      makeMsg('user-opt-4', '2026-11-26T08:04:00Z'),
+    ]
+    const fetched = [
+      makeMsg('db-1', '2026-11-26T08:01:00Z', { backendMessageId: 'db-1' }),
+      makeMsg('db-2', '2026-11-26T08:02:00Z', { backendMessageId: 'db-2' }),
+      makeMsg('db-3', '2026-11-26T08:03:00Z', { role: 'assistant', backendMessageId: 'db-3' }),
+    ]
+
+    const merged = mergeEarlierHistoryMessages(fetched, current)
+    expect(merged.map((m) => m.id)).toEqual(['db-1', 'db-2', 'local-ai-1', 'user-opt-4'])
+  })
+
+  it('returns currentMessages unchanged when >35 new messages push currentMessages[0] outside the fetched window', () => {
+    const current = [
+      makeMsg('m1', '2026-11-26T08:01:00Z', { backendMessageId: 'm1' }),
+      makeMsg('user-opt-40', '2026-11-26T08:40:00Z'),
+      makeMsg('local-ai-41', '2026-11-26T08:41:00Z', { role: 'assistant', backendMessageId: 'db-41' }),
+    ]
+    // Fetched window (e.g. last 50) no longer contains m1; it starts at db-40 (which has a different ID from user-opt-40)
+    // and overlaps at db-41. Must NOT slice at db-41 and prepend db-40 ahead of m1!
+    const fetched = [
+      makeMsg('db-40', '2026-11-26T08:40:00Z', { backendMessageId: 'db-40' }),
+      makeMsg('db-41', '2026-11-26T08:41:00Z', { role: 'assistant', backendMessageId: 'db-41' }),
+    ]
+
+    const merged = mergeEarlierHistoryMessages(fetched, current)
+    expect(merged).toBe(current)
+    expect(merged.map((m) => m.id)).toEqual(['m1', 'user-opt-40', 'local-ai-41'])
+  })
+
+  it('returns currentMessages unchanged when fetchedHistory has zero overlap and is not strictly older', () => {
+    const current = [
+      makeMsg('m1', '2026-11-26T08:01:00Z', { backendMessageId: 'm1' }),
+      makeMsg('user-opt-55', '2026-11-26T08:55:00Z'),
+    ]
+    const fetchedNewer = [
+      makeMsg('db-55', '2026-11-26T08:55:00Z', { backendMessageId: 'db-55' }),
+      makeMsg('db-56', '2026-11-26T08:56:00Z', { backendMessageId: 'db-56' }),
+    ]
+    expect(mergeEarlierHistoryMessages(fetchedNewer, current)).toBe(current)
+
+    const fetchedEqualTs = [
+      makeMsg('db-eq', '2026-11-26T08:01:00Z', { backendMessageId: 'db-eq' }),
+    ]
+    expect(mergeEarlierHistoryMessages(fetchedEqualTs, current)).toBe(current)
+
+    const fetchedInvalidTs = [
+      makeMsg('db-bad', 'invalid-date', { backendMessageId: 'db-bad' }),
+    ]
+    expect(mergeEarlierHistoryMessages(fetchedInvalidTs, current)).toBe(current)
+  })
+
+  it('prepends disjoint fetchedHistory only when every fetched message is strictly older than currentMessages[0]', () => {
+    const current = [
+      makeMsg('user-opt-10', '2026-11-26T08:10:00Z'),
+    ]
+    const strictlyOlder = [
+      makeMsg('db-1', '2026-11-26T08:01:00Z', { backendMessageId: 'db-1' }),
+      makeMsg('db-2', '2026-11-26T08:02:00Z', { backendMessageId: 'db-2' }),
+    ]
+
+    const merged = mergeEarlierHistoryMessages(strictlyOlder, current)
+    expect(merged.map((m) => m.id)).toEqual(['db-1', 'db-2', 'user-opt-10'])
+  })
+
+  it('handles empty currentMessages or empty fetchedHistory safely', () => {
+    const sample = [makeMsg('m1', '2026-11-26T08:01:00Z')]
+    expect(mergeEarlierHistoryMessages(sample, [])).toBe(sample)
+    expect(mergeEarlierHistoryMessages([], sample)).toBe(sample)
   })
 })

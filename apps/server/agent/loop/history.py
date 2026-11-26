@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -60,6 +61,9 @@ _SKILL_CONTENT_NOT_KEPT = {
     "load_skill": "技能方法正文没有保留在历史里；这一轮要按这个技能做，先重新调用 load_skill 读取。",
     "read_skill_resource": "资源正文没有保留在历史里；这一轮要用它，先重新调用 read_skill_resource 读取。",
 }
+# 冷回放仅对最近 N 个用户轮次内的技能工具调用重新水合正文，避免过早的轮次膨胀冷回放输入。
+SKILL_REPLAY_RECENT_TURNS = 3
+_SkillRehydrator = Callable[[str, Any, Any], dict[str, Any] | None]
 _FAILED_CALL_NOTE = "这是当时给作者看的失败说明；工具给你的具体原因与候选没有保留，重试前先重新读取相关文件。"
 
 # Stage 1 零 LLM 确定性归档压缩（tool_archive）的共享常量与收据构造。
@@ -607,7 +611,11 @@ def summary_message(summary: str) -> dict[str, Any]:
     return {"role": "user", "content": f"{SUMMARY_PREFIX}{summary.strip()}"}
 
 
-def _tool_output_text(call: dict[str, Any]) -> str:
+def _tool_output_text(
+    call: dict[str, Any],
+    *,
+    skill_rehydrator: _SkillRehydrator | None = None,
+) -> str:
     """持久化的工具结果（前端卡片口径）还原成交给模型的结果文字。"""
     status = str(call.get("status") or "")
     name = str(call.get("name") or "")
@@ -619,6 +627,7 @@ def _tool_output_text(call: dict[str, Any]) -> str:
             ensure_ascii=False,
             separators=(",", ":"),
         )
+    rehydrated_skill = False
     if name == "edit_file" and isinstance(result, dict):
         from agent.tools.file_ops.edit import slim_edit_file_result_for_llm
 
@@ -646,6 +655,16 @@ def _tool_output_text(call: dict[str, Any]) -> str:
             result["body_saved"] = saved if has_receipt else True
             if has_receipt and not saved:
                 result["result"] = _CREATE_NOT_SAVED_NOTE
+    elif (
+        skill_rehydrator is not None
+        and (status or "success") == "success"
+        and name in _SKILL_CONTENT_NOT_KEPT
+        and isinstance(result, dict)
+    ):
+        hydrated = skill_rehydrator(name, result, call.get("arguments"))
+        if hydrated is not None:
+            result = hydrated
+            rehydrated_skill = True
     payload: dict[str, Any] = {"status": status or "success"}
     if result is not None:
         payload["data"] = result
@@ -653,7 +672,7 @@ def _tool_output_text(call: dict[str, Any]) -> str:
         payload["error"] = error
     if status == "error":
         payload["note"] = _FAILED_CALL_NOTE
-    elif name in _SKILL_CONTENT_NOT_KEPT:
+    elif name in _SKILL_CONTENT_NOT_KEPT and not rehydrated_skill:
         payload["note"] = _SKILL_CONTENT_NOT_KEPT[name]
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
@@ -699,7 +718,7 @@ def query_result_full_file_ids(result: Any, *, include_slimmed_sha256: bool = Fa
 
 
 def _is_persist_slimmed_query_payload(payload: Any, *, depth: int = 0) -> bool:
-    """判定 ``query_files`` / ``read_files`` 结果是否已在落库期被瘦身（存在 ``archived_note`` 且无完整正文 ``content``）。"""
+    """判定 ``query_files`` 结果是否已在落库期被瘦身（存在 ``archived_note`` 且无完整正文 ``content``）。"""
     if depth > 4:
         return False
     if isinstance(payload, list):
@@ -723,6 +742,7 @@ def _loop_row_items(
     archived_call_ids: set[str] | None = None,
     archived_file_ids: set[str] | None = None,
     archive_matcher: Any | None = None,
+    skill_rehydrator: _SkillRehydrator | None = None,
 ) -> list[dict[str, Any]]:
     """一条单循环 assistant 行 → SDK 输入项（文字与成对的工具调用，按显示顺序）。"""
     raw_calls = _parse_json(getattr(row, "tool_calls", None))
@@ -749,8 +769,6 @@ def _loop_row_items(
         arguments = call.get("arguments")
         if not isinstance(arguments, str):
             arguments = json.dumps(arguments if arguments is not None else {}, ensure_ascii=False, separators=(",", ":"))
-        output_text = _tool_output_text(call)
-        was_archived = False
         if archive_matcher is not None:
             should_archive = archive_matcher(call_id, orig_call_id, tool_name)
         else:
@@ -759,6 +777,12 @@ def _loop_row_items(
                 and tool_name in ARCHIVABLE_READ_TOOLS
                 and (call_id in archived_call_ids or (orig_call_id and orig_call_id in archived_call_ids))
             )
+        # 已归档的技能调用跳过冷回放水合，避免无谓查询 DB 后再被归档丢弃。
+        output_text = _tool_output_text(
+            call,
+            skill_rehydrator=None if should_archive else skill_rehydrator,
+        )
+        was_archived = False
         if should_archive:
             parsed_output = _parse_json(output_text)
             if is_successful_archivable_payload(parsed_output):
@@ -777,6 +801,10 @@ def _loop_row_items(
                     was_archived = True
                     if archived_file_ids is not None:
                         archived_file_ids.update(fids)
+                elif tool_name in _SKILL_CONTENT_NOT_KEPT:
+                    # 落库的技能工具卡片不含正文且已跳过水合，统一转为归档回执。
+                    output_text = receipt_text
+                    was_archived = True
         if not was_archived and archived_file_ids is not None and tool_name in _FILE_READ_TOOL_NAMES:
             # 只有后续非归档的 read_files / query_files 再次返回了完整、未截断、非范围读取的正文，该文件才重新进入模型视野；
             # edit_file / search_files / summary / partial / truncated 查询不提供全文，不能清除已归档标记。
@@ -840,6 +868,7 @@ def _row_items(
     archived_call_ids: set[str] | None = None,
     archived_file_ids: set[str] | None = None,
     archive_matcher: Any | None = None,
+    skill_rehydrator: _SkillRehydrator | None = None,
 ) -> list[dict[str, Any]]:
     content = str(getattr(row, "content", "") or "")
     if row.role == "user":
@@ -853,6 +882,7 @@ def _row_items(
         archived_call_ids=archived_call_ids,
         archived_file_ids=archived_file_ids,
         archive_matcher=archive_matcher,
+        skill_rehydrator=skill_rehydrator,
     )
     stop_reason = metadata.get("stop_reason")
     status_cards = metadata.get("status_cards")
@@ -872,6 +902,34 @@ def _row_items(
     elif isinstance(stop_reason, str) and stop_reason in _INTERRUPTED_ROUND_NOTES:
         items.append({"role": "assistant", "content": _INTERRUPTED_ROUND_NOTES[stop_reason]})
     return items
+
+
+def _recent_skill_replay_row_ids(
+    after_rows: list[Any],
+    *,
+    recent_turns: int = SKILL_REPLAY_RECENT_TURNS,
+) -> set[Any]:
+    """选出最近 ``recent_turns`` 个用户轮次内的 assistant 行 id（``after_rows`` 按新→旧排列）。
+
+    同一轮内由 steering 产生的连续多条 user 行合并计作 1 个用户轮次。
+    """
+    if recent_turns <= 0:
+        return set()
+    eligible: set[Any] = set()
+    user_turns_seen = 0
+    prev_was_user = False
+    for row in after_rows:
+        if row.role == "user":
+            if not prev_was_user:
+                user_turns_seen += 1
+                prev_was_user = True
+            continue
+        prev_was_user = False
+        if row.role == "assistant":
+            if user_turns_seen >= recent_turns:
+                break
+            eligible.add(row.id)
+    return eligible
 
 
 def kept_author_messages(author_messages: list[str], budget_tokens: int) -> list[dict[str, Any]]:
@@ -894,6 +952,178 @@ def kept_author_messages(author_messages: list[str], budget_tokens: int) -> list
     return kept
 
 
+def _fetch_message_page_desc(
+    session: Session,
+    model: Any,
+    *,
+    chat_session_id: str,
+    cursor: tuple[Any, Any] | None,
+) -> list[Any]:
+    # 显式 6 列投影（排除未用的 reasoning_content 列，避免 PostgreSQL TOAST 解压开销）。
+    stmt = select(
+        model.id,
+        model.role,
+        model.content,
+        model.tool_calls,
+        model.message_metadata,
+        model.created_at,
+    ).where(
+        and_(
+            model.session_id == chat_session_id,
+            model.role.in_(("user", "assistant")),
+        )
+    )
+    if cursor is not None:
+        created_at, row_id = cursor
+        stmt = stmt.where(
+            or_(
+                model.created_at < created_at,
+                and_(model.created_at == created_at, model.id < row_id),
+            )
+        )
+    return list(
+        session.exec(
+            stmt.order_by(desc(model.created_at), desc(model.id)).limit(_PAGE_SIZE)
+        ).all()
+    )
+
+
+def _fetch_cold_watermark(
+    session: Session,
+    *,
+    chat_session_id: str,
+) -> tuple[Any, Any] | None:
+    """Index-only probe on ``(session_id, created_at, id)`` for the newest archived row.
+
+    Omits the ``role`` filter so PostgreSQL can satisfy this with a 1-row Index Only Scan
+    on ``ix_chat_message_archive_session_created_at_id`` without heap or TOAST fetches.
+    """
+    from models import ChatMessageArchive
+
+    row = session.exec(
+        select(ChatMessageArchive.created_at, ChatMessageArchive.id)
+        .where(ChatMessageArchive.session_id == chat_session_id)
+        .order_by(desc(ChatMessageArchive.created_at), desc(ChatMessageArchive.id))
+        .limit(1)
+    ).first()
+    if row is None:
+        return None
+    return (row[0], row[1])
+
+
+def _iter_session_messages_desc(
+    session: Session,
+    *,
+    chat_session_id: str,
+):
+    """Yield session user/assistant rows in strict descending ``(created_at, id)`` order.
+
+    Performs a lazy 2-way descending merge across hot ``ChatMessage`` and cold
+    ``ChatMessageArchive`` (when present), deduplicating by ``id`` (preferring hot).
+
+    Cold full-row queries are deferred behind a 1-row index-only watermark check on
+    ``(session_id, created_at, id)``: hot-only sessions and active multi-week sessions
+    that stop at a hot compaction anchor strictly newer than the cold watermark never
+    execute ``SELECT * FROM chat_message_archive`` (zero cold TOAST detoasting), while
+    chronological order remains exact even if ``FOR UPDATE SKIP LOCKED`` transiently
+    leaves hot and cold rows interleaved.
+    """
+    from models import ChatMessage, ChatMessageArchive
+    from models.chat_message_archive import has_chat_message_archive_table
+
+    hot_buf: list[Any] = []
+    hot_idx = 0
+    hot_cursor: tuple[Any, Any] | None = None
+    hot_exhausted = False
+
+    cold_buf: list[Any] = []
+    cold_idx = 0
+    cold_cursor: tuple[Any, Any] | None = None
+    cold_exhausted = not has_chat_message_archive_table(session)
+    cold_watermark: tuple[Any, Any] | None = None
+    cold_watermark_checked = False
+    cold_active = False
+
+    seen_ids: set[str] = set()
+
+    def _peek_hot() -> Any | None:
+        nonlocal hot_buf, hot_idx, hot_cursor, hot_exhausted
+        if hot_idx >= len(hot_buf) and not hot_exhausted:
+            hot_buf = _fetch_message_page_desc(
+                session, ChatMessage, chat_session_id=chat_session_id, cursor=hot_cursor
+            )
+            hot_idx = 0
+            if hot_buf:
+                hot_cursor = (hot_buf[-1].created_at, hot_buf[-1].id)
+            if len(hot_buf) < _PAGE_SIZE:
+                hot_exhausted = True
+        return hot_buf[hot_idx] if hot_idx < len(hot_buf) else None
+
+    def _ensure_cold_watermark() -> tuple[Any, Any] | None:
+        nonlocal cold_watermark, cold_watermark_checked, cold_exhausted
+        if not cold_watermark_checked:
+            cold_watermark_checked = True
+            if cold_exhausted:
+                return None
+            cold_watermark = _fetch_cold_watermark(
+                session, chat_session_id=chat_session_id
+            )
+            if cold_watermark is None:
+                cold_exhausted = True
+        return cold_watermark
+
+    def _peek_cold() -> Any | None:
+        nonlocal cold_buf, cold_idx, cold_cursor, cold_exhausted
+        if cold_idx >= len(cold_buf) and not cold_exhausted:
+            cold_buf = _fetch_message_page_desc(
+                session, ChatMessageArchive, chat_session_id=chat_session_id, cursor=cold_cursor
+            )
+            cold_idx = 0
+            if cold_buf:
+                cold_cursor = (cold_buf[-1].created_at, cold_buf[-1].id)
+            if len(cold_buf) < _PAGE_SIZE:
+                cold_exhausted = True
+        return cold_buf[cold_idx] if cold_idx < len(cold_buf) else None
+
+    while True:
+        hot_row = _peek_hot()
+        if cold_active:
+            cold_row = _peek_cold()
+        elif cold_exhausted:
+            cold_row = None
+        else:
+            watermark = _ensure_cold_watermark()
+            if watermark is None:
+                cold_row = None
+            elif hot_row is None or (hot_row.created_at, hot_row.id) < watermark:
+                cold_active = True
+                cold_row = _peek_cold()
+            else:
+                # hot_row >= newest cold row: strictly newer (or identical id, hot wins),
+                # so defer full-row cold fetching until hot exhausts or reaches the watermark.
+                cold_row = None
+
+        if hot_row is None and cold_row is None:
+            break
+        if cold_row is None:
+            chosen = hot_row
+            hot_idx += 1
+        elif hot_row is None:
+            chosen = cold_row
+            cold_idx += 1
+        elif (hot_row.created_at, hot_row.id) >= (cold_row.created_at, cold_row.id):
+            chosen = hot_row
+            hot_idx += 1
+        else:
+            chosen = cold_row
+            cold_idx += 1
+
+        if chosen.id in seen_ids:
+            continue
+        seen_ids.add(chosen.id)
+        yield chosen
+
+
 def load_loop_history(
     session: Session,
     *,
@@ -912,7 +1142,6 @@ def load_loop_history(
     重试不再重付一次摘要。
     """
     from agent.core.session_loader import SessionLoader
-    from models import ChatMessage
 
     if keep_user_tokens is None:
         keep_user_tokens = AGENT_LOOP_COMPACT_KEEP_USER_TOKENS
@@ -933,7 +1162,6 @@ def load_loop_history(
     unmeasured_tokens = 0
     skip_seen = False
     truncation_streak_open = True
-    cursor: tuple[Any, Any] | None = None
 
     def note_compaction(metadata: dict[str, Any], *, row_id: str | None = None) -> None:
         nonlocal compaction, stored_kept, skip_seen
@@ -978,83 +1206,49 @@ def load_loop_history(
             # 重试接过未回复作者行上的压缩记录：其之前的实测 prompt_tokens 属于压缩前，不再往前取。
             measured_seen = True
 
-    while True:
-        stmt = select(
-            ChatMessage.id,
-            ChatMessage.role,
-            ChatMessage.content,
-            ChatMessage.tool_calls,
-            ChatMessage.message_metadata,
-            ChatMessage.created_at,
-        ).where(
-            and_(
-                ChatMessage.session_id == chat_session_id,
-                ChatMessage.role.in_(("user", "assistant")),
-            )
-        )
-        if cursor is not None:
-            created_at, row_id = cursor
-            stmt = stmt.where(
-                or_(
-                    ChatMessage.created_at < created_at,
-                    and_(ChatMessage.created_at == created_at, ChatMessage.id < row_id),
-                )
-            )
-        page = session.exec(
-            stmt.order_by(desc(ChatMessage.created_at), desc(ChatMessage.id)).limit(_PAGE_SIZE)
-        ).all()
-        if not page:
-            break
-        stop = False
-        for row in page:
-            if result.last_message_id is None:
-                result.last_message_id = row.id
-            if covered_reached:
-                before_rows.append(row)
-                if row.role == "user":
-                    kept_tokens_seen += estimate_provider_text_tokens(str(row.content or ""))
-                    if kept_tokens_seen >= keep_user_tokens:
-                        stop = True
-                        break
-                continue
-            if compaction is not None and row.id == compaction["covers_through_message_id"]:
-                covered_reached = True
-                if stored_kept is not None:
-                    # 保留的作者原话已记在压缩点上，不必再往前读。
-                    stop = True
+    for row in _iter_session_messages_desc(session, chat_session_id=chat_session_id):
+        if result.last_message_id is None:
+            result.last_message_id = row.id
+        if covered_reached:
+            before_rows.append(row)
+            if row.role == "user":
+                kept_tokens_seen += estimate_provider_text_tokens(str(row.content or ""))
+                if kept_tokens_seen >= keep_user_tokens:
                     break
-                before_rows.append(row)
-                if row.role == "user":
-                    kept_tokens_seen += estimate_provider_text_tokens(str(row.content or ""))
-                continue
-            after_rows.append(row)
-            metadata = row_metadata(row)
-            if row.role == "assistant":
-                if truncation_streak_open:
-                    if metadata.get("stop_reason") == OUTPUT_TRUNCATED_REASON:
-                        result.trailing_output_truncations += 1
-                    else:
-                        truncation_streak_open = False
-                if not measured_seen and metadata.get("engine") == LOOP_ENGINE_METADATA_VALUE:
-                    # 停在第一次模型调用之前的一轮没有量到 prompt_tokens：不挡住更早一轮的真实读数。
-                    tokens = metadata.get("prompt_tokens")
-                    if isinstance(tokens, int) and tokens > 0:
-                        measured_seen = True
-                        result.last_prompt_tokens = tokens + unmeasured_tokens
-            if not measured_seen and (
-                valid_compaction(metadata) is not None
-                or valid_tool_archive_compaction(metadata) is not None
-            ):
-                # 压缩点（含 Stage 1 tool_archive）之前的读数是压缩前的上下文大小，不再往前取。
-                measured_seen = True
-            if not measured_seen:
-                unmeasured_tokens += estimate_provider_text_tokens(str(row.content or ""))
-            # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
-            note_compaction(metadata, row_id=row.id)
-        if stop:
-            break
-        last = page[-1]
-        cursor = (last.created_at, last.id)
+            continue
+        if compaction is not None and row.id == compaction["covers_through_message_id"]:
+            covered_reached = True
+            if stored_kept is not None:
+                # 保留的作者原话已记在压缩点上，不必再往前读。
+                break
+            before_rows.append(row)
+            if row.role == "user":
+                kept_tokens_seen += estimate_provider_text_tokens(str(row.content or ""))
+            continue
+        after_rows.append(row)
+        metadata = row_metadata(row)
+        if row.role == "assistant":
+            if truncation_streak_open:
+                if metadata.get("stop_reason") == OUTPUT_TRUNCATED_REASON:
+                    result.trailing_output_truncations += 1
+                else:
+                    truncation_streak_open = False
+            if not measured_seen and metadata.get("engine") == LOOP_ENGINE_METADATA_VALUE:
+                # 停在第一次模型调用之前的一轮没有量到 prompt_tokens：不挡住更早一轮的真实读数。
+                tokens = metadata.get("prompt_tokens")
+                if isinstance(tokens, int) and tokens > 0:
+                    measured_seen = True
+                    result.last_prompt_tokens = tokens + unmeasured_tokens
+        if not measured_seen and (
+            valid_compaction(metadata) is not None
+            or valid_tool_archive_compaction(metadata) is not None
+        ):
+            # 压缩点（含 Stage 1 tool_archive）之前的读数是压缩前的上下文大小，不再往前取。
+            measured_seen = True
+        if not measured_seen:
+            unmeasured_tokens += estimate_provider_text_tokens(str(row.content or ""))
+        # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
+        note_compaction(metadata, row_id=row.id)
 
     items: list[dict[str, Any]] = []
     if compaction is not None and covered_reached:
@@ -1099,6 +1293,32 @@ def load_loop_history(
     # 精准命中被归档的那次调用，绝不误归档保护窗口内同名的后续读调用或写工具。
     orig_call_occurrence_counts: dict[str, int] = {}
 
+    recent_skill_row_ids = _recent_skill_replay_row_ids(after_rows) if user_id else set()
+    active_skills_by_id: dict[str, Any] | None = None
+
+    def rehydrate_skill_call(
+        tool_name: str,
+        result_data: Any,
+        call_arguments: Any,
+    ) -> dict[str, Any] | None:
+        nonlocal active_skills_by_id
+        if not user_id:
+            return None
+        if active_skills_by_id is None:
+            from agent.skills.active_skills import load_active_skills
+            from agent.skills.replay import index_active_skills
+
+            active_skills_by_id = index_active_skills(load_active_skills(session, user_id))
+        from agent.skills.replay import rehydrate_skill_tool_result
+
+        return rehydrate_skill_tool_result(
+            active_skills_by_id,
+            session,
+            tool_name,
+            result_data,
+            call_arguments=call_arguments,
+        )
+
     for pos, row in enumerate(chronological_rows):
         active_scopes = [scope for scope in scoped_archives if pos <= scope[0]] if scoped_archives else []
 
@@ -1128,12 +1348,14 @@ def load_loop_history(
                         matched = True
             return matched
 
+        rehydrator = rehydrate_skill_call if row.id in recent_skill_row_ids else None
         items.extend(
             _row_items(
                 loader,
                 row,
                 archived_file_ids=result.archived_file_ids,
                 archive_matcher=_match_archive if scoped_archives else None,
+                skill_rehydrator=rehydrator,
             )
         )
         if row.role == "user" and str(row.content or "").strip():

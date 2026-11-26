@@ -2084,11 +2084,27 @@ async def test_w3_stage1_tool_archive_restores_same_turn_and_evicts_next_turn_fi
         {"status": "success", "data": [{"id": ch1.id, "title": ch1.title, "file_type": "draft", "content": ch1_body}]},
         ensure_ascii=False,
     )
+    large_other_output = json.dumps(
+        {
+            "status": "success",
+            "data": [
+                {
+                    "id": "ch-old-other",
+                    "title": "第0章 序幕",
+                    "file_type": "draft",
+                    "content": "【序幕长正文】旧轮次读过的参考章节，归档后足以提供净节省量。" * 240,
+                }
+            ],
+        },
+        ensure_ascii=False,
+    )
     wire_items = [
-        # Old Turn 1 (outside keep_recent_turns=3): only place where Ch1 full text lives!
+        # Old Turn 1 (outside keep_recent_turns=3): Ch1 + another old read so net savings keep restored full_text <= 300k!
         {"role": "user", "content": "先看第1章"},
         {"type": "function_call", "call_id": "call_q_ch1", "name": "query_files", "arguments": json.dumps({"id": ch1.id})},
         {"type": "function_call_output", "call_id": "call_q_ch1", "output": large_ch1_output},
+        {"type": "function_call", "call_id": "call_q_old", "name": "query_files", "arguments": json.dumps({"id": "ch-old-other"})},
+        {"type": "function_call_output", "call_id": "call_q_old", "output": large_other_output},
         {"role": "assistant", "content": "已读完第1章。"},
         # Recent 3 protected turns
         {"role": "user", "content": "第2轮"},
@@ -2266,3 +2282,381 @@ async def test_w3_stage1_tool_archive_restores_same_turn_and_evicts_next_turn_fi
     )
     assert ch1_body in turn_def.text
     assert "与本会话近期上下文中已提供的全文一致" not in turn_def.text
+
+
+@pytest.mark.integration
+def test_b2_archived_skill_tool_calls_skip_cold_replay_rehydration_and_db_queries(db_session: Session):
+    """B2: Archived load_skill / read_skill_resource calls inside SKILL_REPLAY_RECENT_TURNS must
+    never invoke skill_rehydrator / DB skill queries during cold replay, while non-archived recent
+    skill calls still rehydrate normally."""
+    from models import SkillResource, UserSkill
+
+    user, project, chat = _seed_user_project_chat(db_session, "b2_skill_archive")
+    archived_skill = UserSkill(
+        user_id=user.id,
+        name="旧归档技能",
+        description="desc",
+        instructions="绝不应在已归档调用里被水合的机密正文。" * 200,
+    )
+    active_skill = UserSkill(
+        user_id=user.id,
+        name="近期活跃技能",
+        description="desc",
+        instructions="近期未归档技能应当正常水合的正文。",
+    )
+    db_session.add_all([archived_skill, active_skill])
+    db_session.commit()
+    db_session.add(
+        SkillResource(
+            user_skill_id=archived_skill.id,
+            path="references/secret.md",
+            content="归档资源的原文绝不应被查询水合。" * 100,
+            size=1024,
+        )
+    )
+    db_session.commit()
+
+    base_time = utcnow().replace(tzinfo=None) - timedelta(minutes=10)
+    # Turn 1 (still inside SKILL_REPLAY_RECENT_TURNS=3): load_skill + read_skill_resource
+    u1 = ChatMessage(session_id=chat.id, role="user", content="第1轮用旧技能", created_at=base_time)
+    a1 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="第1轮完成。",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "call_skill_load_1",
+                    "name": "load_skill",
+                    "arguments": {"name": "旧归档技能"},
+                    "status": "success",
+                    "result": {
+                        "skill_id": archived_skill.id,
+                        "skill_name": "旧归档技能",
+                        "source": "user",
+                        "instructions_chars": len(archived_skill.instructions),
+                        "resources": [{"path": "references/secret.md", "size": 1024}],
+                    },
+                },
+                {
+                    "id": "call_skill_res_1",
+                    "name": "read_skill_resource",
+                    "arguments": {"name": "旧归档技能", "path": "references/secret.md"},
+                    "status": "success",
+                    "result": {
+                        "skill_id": archived_skill.id,
+                        "skill_name": "旧归档技能",
+                        "path": "references/secret.md",
+                        "size": 1024,
+                    },
+                },
+            ],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps(
+            {
+                "engine": LOOP_ENGINE_METADATA_VALUE,
+                "display_events": [
+                    {"type": "tool_call", "tool_call_index": 0},
+                    {"type": "tool_call", "tool_call_index": 1},
+                    {"type": "content", "content": "第1轮完成。"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        created_at=base_time + timedelta(seconds=10),
+    )
+    db_session.add_all([u1, a1])
+    db_session.commit()
+    db_session.refresh(a1)
+
+    # Turn 2: persists Stage 1 tool_archive covering Turn 1's skill calls (e.g. KEEP_RECENT_TURNS < SKILL_REPLAY_RECENT_TURNS)
+    u2 = ChatMessage(session_id=chat.id, role="user", content="第2轮继续", created_at=base_time + timedelta(seconds=20))
+    a2 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="第2轮完成。",
+        message_metadata=json.dumps(
+            {
+                "engine": LOOP_ENGINE_METADATA_VALUE,
+                "compaction": {
+                    "mode": COMPACTION_MODE_TOOL_ARCHIVE,
+                    "archived_through_message_id": a1.id,
+                    "archived_call_ids": ["call_skill_load_1", "call_skill_res_1"],
+                    "archived_count": 2,
+                    "saved_tokens": 40_000,
+                    "created_at": utcnow().isoformat(),
+                },
+                "display_events": [{"type": "content", "content": "第2轮完成。"}],
+            },
+            ensure_ascii=False,
+        ),
+        created_at=base_time + timedelta(seconds=30),
+    )
+    db_session.add_all([u2, a2])
+    db_session.commit()
+
+    # Case 1: Only archived skill calls exist -> load_active_skills / rehydrate_skill_tool_result MUST NOT be called!
+    with (
+        patch("agent.skills.active_skills.load_active_skills", side_effect=AssertionError("DB queried for archived skill")) as mock_load,
+        patch("agent.skills.replay.rehydrate_skill_tool_result", side_effect=AssertionError("rehydrated archived skill")) as mock_rehydrate,
+    ):
+        hist_only_archived = load_loop_history(
+            db_session,
+            project_id=project.id,
+            user_id=user.id,
+            chat_session_id=chat.id,
+        )
+    mock_load.assert_not_called()
+    mock_rehydrate.assert_not_called()
+
+    outputs = [
+        json.loads(item["output"])
+        for item in hist_only_archived.items
+        if item.get("type") == "function_call_output"
+    ]
+    assert len(outputs) == 2
+    assert all(out.get("archived") is True for out in outputs)
+    assert outputs[0]["tool_name"] == "load_skill"
+    assert outputs[0]["skill_id"] == archived_skill.id
+    assert outputs[1]["tool_name"] == "read_skill_resource"
+    assert outputs[1]["path"] == "references/secret.md"
+    assert "绝不应在已归档调用里被水合" not in json.dumps(outputs, ensure_ascii=False)
+    assert "归档资源的原文绝不应被查询水合" not in json.dumps(outputs, ensure_ascii=False)
+
+    # Case 2: Add Turn 3 with a non-archived load_skill -> Turn 1 stays archived (never rehydrated), Turn 3 rehydrates!
+    u3 = ChatMessage(session_id=chat.id, role="user", content="第3轮用新技能", created_at=base_time + timedelta(seconds=40))
+    a3 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="第3轮完成。",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "call_skill_load_3",
+                    "name": "load_skill",
+                    "arguments": {"name": "近期活跃技能"},
+                    "status": "success",
+                    "result": {
+                        "skill_id": active_skill.id,
+                        "skill_name": "近期活跃技能",
+                        "source": "user",
+                        "instructions_chars": len(active_skill.instructions),
+                        "resources": [],
+                    },
+                }
+            ],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps(
+            {
+                "engine": LOOP_ENGINE_METADATA_VALUE,
+                "display_events": [
+                    {"type": "tool_call", "tool_call_index": 0},
+                    {"type": "content", "content": "第3轮完成。"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        created_at=base_time + timedelta(seconds=50),
+    )
+    db_session.add_all([u3, a3])
+    db_session.commit()
+
+    from agent.skills import replay as skill_replay_mod
+
+    rehydrated_ids: list[str] = []
+    orig_rehydrate = skill_replay_mod.rehydrate_skill_tool_result
+
+    def _spy_rehydrate(active_by_id, sess, tool_name, result_data, **kwargs):
+        if isinstance(result_data, dict) and result_data.get("skill_id"):
+            rehydrated_ids.append(str(result_data["skill_id"]))
+        return orig_rehydrate(active_by_id, sess, tool_name, result_data, **kwargs)
+
+    with patch("agent.skills.replay.rehydrate_skill_tool_result", side_effect=_spy_rehydrate):
+        hist_mixed = load_loop_history(
+            db_session,
+            project_id=project.id,
+            user_id=user.id,
+            chat_session_id=chat.id,
+        )
+
+    assert rehydrated_ids == [active_skill.id]
+    mixed_outputs = [
+        json.loads(item["output"])
+        for item in hist_mixed.items
+        if item.get("type") == "function_call_output"
+    ]
+    assert len(mixed_outputs) == 3
+    assert mixed_outputs[0]["archived"] is True
+    assert mixed_outputs[1]["archived"] is True
+    assert "archived" not in mixed_outputs[2]
+    assert mixed_outputs[2]["data"]["instructions"] == active_skill.instructions
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.usefixtures("writing_prompt_configs")
+async def test_m1_stage1_admission_rechecks_restored_full_text_tokens(
+    db_session: Session,
+    fake_redis,  # noqa: ARG001 - patches wire_prefix_cache.get_redis_client + REDIS_URL
+):
+    """M1: When warm-cache dedup shrinks <turn_context> (e.g. 21k -> 1k tokens) and Stage 1 would
+    restore loop_turn.full_text, Stage 1 MUST re-check admission against restored full_text tokens
+    and fall through to Stage 2 if projected_after + restored_turn_tokens > COMPACT_AT_TOKENS."""
+    from agent.core.message_manager import MessageManager
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.loop import wire_prefix_cache
+    from agent.loop.compaction import CompactionOutcome
+    from agent.loop.history import estimate_provider_text_tokens
+    from agent.service import AgentService
+    from models import File
+    from services.features.file_version_service import content_sha256
+
+    user, project, chat = _seed_user_project_chat(db_session, "m1_restored_admission")
+    ch1_body = "第一章完整长正文，用于验证恢复全文后的准入复检。" * 1_500  # ~21k+ provider tokens
+    ch1 = File(
+        project_id=project.id,
+        title="第1章 准入复检",
+        file_type="draft",
+        content=ch1_body,
+    )
+    db_session.add(ch1)
+    db_session.commit()
+    db_session.refresh(ch1)
+
+    base_time = utcnow().replace(tzinfo=None) - timedelta(minutes=10)
+    u_seed = ChatMessage(session_id=chat.id, role="user", content="先读第1章", created_at=base_time)
+    a_seed = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="已读第1章。",
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "prompt_tokens": 340_000}),
+        created_at=base_time + timedelta(seconds=10),
+    )
+    db_session.add_all([u_seed, a_seed])
+    db_session.commit()
+    db_session.refresh(a_seed)
+
+    # Craft warm history where Stage 1 saves >= 30k tokens leaving projected_after = 295k:
+    # - With deduped <turn_context> (~1k tokens): 295k + 1k = 296k <= 300k (would falsely admit!)
+    # - With restored full_text (~21k tokens):   295k + 21k = 316k > 300k (MUST reject Stage 1 -> Stage 2!)
+    old_ch1_output = _large_query_output(ch1.id, ch1.title, repeat=3_500)  # ~50k tokens saved
+    warm_items = [
+        {"role": "user", "content": "第1轮"},
+        {"type": "function_call", "call_id": "call_m1_ch1", "name": "query_files", "arguments": json.dumps({"id": ch1.id})},
+        {"type": "function_call_output", "call_id": "call_m1_ch1", "output": old_ch1_output},
+        {"role": "assistant", "content": "第1轮回复"},
+        {"role": "user", "content": "第2轮"},
+        {"role": "assistant", "content": "第2轮回复"},
+        {"role": "user", "content": "第3轮"},
+        {"role": "assistant", "content": "第3轮回复"},
+        {"role": "user", "content": "第4轮"},
+        {"role": "assistant", "content": "第4轮回复"},
+    ]
+    probe_archive = archive_old_tool_results(
+        LoopHistory(items=warm_items, last_prompt_tokens=345_000, last_message_id=a_seed.id),
+        turn_input_tokens=500,
+    )
+    assert probe_archive.saved_tokens >= 30_000
+    # Pin last_prompt_tokens so projected_after_tokens lands cleanly at 295_000.
+    tuned_last_prompt_tokens = 295_000 + probe_archive.saved_tokens
+    full_ch1_tokens = estimate_provider_text_tokens(ch1_body)
+    assert 295_000 + full_ch1_tokens > agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS
+
+    fake_provider = SimpleNamespace(
+        name="minimax",
+        model="MiniMax-M3.1-Flash",
+        key_slot="primary",
+        uses_responses_api=False,
+        reasoning_effort_for=lambda _req: "default",
+    )
+    provider_key = f"{fake_provider.name}:{fake_provider.model}:{fake_provider.key_slot}"
+    tools_sha = wire_prefix_cache.tools_schema_sha256()
+
+    service = AgentService()
+    system_prompt = MessageManager(project_id=project.id, user_id=user.id).build_system_prompt(
+        session=db_session, language="zh", skill_catalog=""
+    )
+    assert wire_prefix_cache.store_wire_prefix(
+        session_id=chat.id,
+        project_id=project.id,
+        user_id=user.id,
+        last_assistant_message_id=a_seed.id,
+        system_prompt=system_prompt,
+        provider_key=provider_key,
+        tools_sha256=tools_sha,
+        reasoning_effort="default",
+        items=warm_items,
+        history_meta={
+            "last_prompt_tokens": tuned_last_prompt_tokens,
+            "compacted": False,
+            "compaction_skipped_at_tokens": 0,
+            "compaction_skipped_reason": None,
+            "trailing_output_truncations": 0,
+            "archived_call_ids": [],
+            "archived_file_ids": [],
+            "author_messages": ["第1轮", "第2轮", "第3轮", "第4轮"],
+        },
+        context_fingerprints={
+            "project_files_sha256": "",
+            "full_file_hashes": {ch1.id: content_sha256(ch1_body)},
+            "author_edits_sha256": "",
+        },
+    )
+
+    stage2_calls: list[dict[str, Any]] = []
+
+    async def fake_compact_history(_hist, **kwargs):
+        stage2_calls.append(kwargs)
+        pre = kwargs.get("pre_archive")
+        assert pre is not None
+        assert pre.admitted is False
+        assert pre.record is None
+        assert pre.archived_count == 1
+        return CompactionOutcome(
+            record={
+                "summary": "Stage 2 兜底摘要",
+                "covers_through_message_id": a_seed.id,
+                "kept_author_messages": ["第4轮"],
+                "created_at": utcnow().isoformat(),
+            },
+            items=[{"role": "user", "content": "【上下文已压缩】Stage 2 兜底摘要"}],
+            usage={"prompt_tokens": 1000, "completion_tokens": 100},
+        )
+
+    captured_user_msg: list[str] = []
+
+    def fake_loop(state, **_kwargs):
+        captured_user_msg.append(str(state.get("user_message") or ""))
+        state["run_items"] = [*state.get("history_items", []), {"role": "user", "content": "继续"}, {"role": "assistant", "content": "好。"}]
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "好。"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return _stream()
+
+    with (
+        patch("agent.service.llm_failover.aordered_providers", new=AsyncMock(return_value=[fake_provider])),
+        patch("agent.service.compact_history", side_effect=fake_compact_history),
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
+    ):
+        events = [
+            chunk
+            async for chunk in service.process_stream(
+                project_id=project.id,
+                user_id=user.id,
+                message="改写一下第1章",
+                session=db_session,
+                session_id=chat.id,
+                metadata={"current_file_id": ch1.id},
+            )
+        ]
+
+    # Stage 1 MUST have been rejected after re-checking restored full_text, falling through to Stage 2!
+    assert len(stage2_calls) == 1
+    assert stage2_calls[0]["turn_input_tokens"] >= full_ch1_tokens
+    assert any("history_compacted" in ev for ev in events)
+    assert len(captured_user_msg) == 1
+    assert ch1_body in captured_user_msg[0]

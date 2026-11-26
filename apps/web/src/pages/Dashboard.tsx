@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "re
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation, Outlet, Link } from "react-router-dom";
 import {
-  Home, LogOut, Menu, X, Zap, Library, FolderOpen, Compass
+  Home, LogOut, Menu, X, Zap, Library, FolderOpen
 } from "../components/icons";
 import {
   ChevronDown,
@@ -27,7 +27,6 @@ const SettingsDialog = lazy(() =>
 );
 import { UserAvatar } from "../components/UserMenu";
 import { normalizeLocale, switchLocale } from "../lib/i18n-helpers";
-import { inspirationsConfig } from "../config/inspirations";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import { getUserDisplayName } from "../lib/userDisplayName";
 
@@ -36,7 +35,6 @@ const NAV_ITEMS = [
   { id: "home", icon: Home, labelKey: "nav.home", path: "/dashboard" },
   { id: "projects", icon: FolderOpen, labelKey: "nav.projects", path: "/dashboard/projects" },
   { id: "materials", icon: Library, labelKey: "nav.materials", path: "/dashboard/materials" },
-  { id: "inspirations", icon: Compass, labelKey: "nav.inspirations", path: "/dashboard/inspirations" },
   { id: "skills", icon: Zap, labelKey: "nav.skills", path: "/dashboard/skills" },
   { id: "billing", icon: CreditCard, labelKey: "nav.billing", path: "/dashboard/billing" },
 ];
@@ -96,13 +94,10 @@ function DashboardContent() {
   const openSettingsLabel = t('dashboard:userPanel.openSettings');
   const adminPanelLabel = t('dashboard:userPanel.adminPanel');
   const contactSupportLabel = t('dashboard:userPanel.contactSupport');
-  const navItems = inspirationsConfig.enabled
-    ? NAV_ITEMS
-    : NAV_ITEMS.filter((item) => item.id !== "inspirations");
+  const navItems = NAV_ITEMS;
 
   // Determine active nav based on current route
   const getActiveNav = () => {
-    if (location.pathname.startsWith("/dashboard/inspirations")) return "inspirations";
     if (location.pathname === "/dashboard/projects") return "projects";
     if (location.pathname === "/dashboard/materials") return "materials";
     if (location.pathname === "/dashboard/skills") return "skills";

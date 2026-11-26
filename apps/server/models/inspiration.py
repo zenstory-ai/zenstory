@@ -1,8 +1,8 @@
 """
-Inspiration database model.
+Inspiration database model (DORMANT).
 
-Stores project templates in the inspiration library that users can discover and copy.
-Includes both official inspirations and community-contributed templates.
+Retained strictly for Alembic metadata compatibility and historical data
+preservation (no DROP TABLE). Runtime code no longer reads or writes this table.
 """
 
 from datetime import datetime

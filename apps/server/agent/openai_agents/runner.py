@@ -74,7 +74,7 @@ def _schedule_background_aclose(
         return
 
     async def _run_close() -> None:
-        with contextlib.suppress(BaseException):
+        with contextlib.suppress(Exception):
             res = aclose()
             if inspect.isawaitable(res):
                 await asyncio.wait_for(res, timeout=max(0.0, timeout_s))

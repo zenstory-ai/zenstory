@@ -2,18 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 
-const mockNavigate = vi.fn()
 const mockProjectGet = vi.fn()
-const inspirationFeature = vi.hoisted(() => ({ enabled: true }))
 let projectStatusSubscriber: ((detail: { projectId: string; updatedFields: string[] }) => void) | undefined
-
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  }
-})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -77,9 +67,6 @@ vi.mock('../../lib/api', () => ({
     get: (...args: unknown[]) => mockProjectGet(...args),
     patch: vi.fn(),
   },
-  inspirationsApi: {
-    submit: vi.fn(),
-  },
 }))
 
 vi.mock('../../lib/projectStatusEvents', () => ({
@@ -89,17 +76,12 @@ vi.mock('../../lib/projectStatusEvents', () => ({
   },
 }))
 
-vi.mock('../../config/inspirations', () => ({
-  inspirationsConfig: inspirationFeature,
-}))
-
 import { ProjectStatusDialog } from '../ProjectStatusDialog'
 
 describe('ProjectStatusDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     projectStatusSubscriber = undefined
-    inspirationFeature.enabled = true
     mockProjectGet.mockResolvedValue({
       id: 'project-1',
       name: 'Test Project',
@@ -111,32 +93,7 @@ describe('ProjectStatusDialog', () => {
     })
   })
 
-  it('renders updated inspiration action labels', async () => {
-    render(<ProjectStatusDialog isOpen={true} onClose={vi.fn()} projectId="project-1" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: '投稿到灵感库' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: '查看灵感库' })).toBeInTheDocument()
-    })
-  })
-
-  it('navigates to inspiration library and closes dialog', async () => {
-    const onClose = vi.fn()
-
-    render(<ProjectStatusDialog isOpen={true} onClose={onClose} projectId="project-1" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: '查看灵感库' })).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: '查看灵感库' }))
-
-    expect(onClose).toHaveBeenCalledTimes(1)
-    expect(mockNavigate).toHaveBeenCalledWith('/dashboard/inspirations')
-  })
-
-  it('hides inspiration actions while keeping save available when disabled', async () => {
-    inspirationFeature.enabled = false
+  it('keeps save available without retired inspiration actions', async () => {
     render(<ProjectStatusDialog isOpen={true} onClose={vi.fn()} projectId="project-1" />)
 
     await waitFor(() => {

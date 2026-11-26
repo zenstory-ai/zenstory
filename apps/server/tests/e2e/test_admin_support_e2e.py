@@ -1,7 +1,7 @@
 """
 Request-driven admin support e2e workflows.
 
-These tests cover audit logs, check-in/quota stats, and plan management through
+These tests cover audit logs, quota stats, and plan management through
 the real admin HTTP surface.
 """
 
@@ -14,9 +14,8 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel import Session, select
 
-from config.datetime_utils import beijing_date, beijing_day_bounds, utcnow
+from config.datetime_utils import utcnow
 from models import User
-from models.points import CheckInRecord
 from models.subscription import AdminAuditLog, SubscriptionPlan, UserSubscription
 from services.core.auth_service import hash_password
 from services.quota_service import quota_service
@@ -133,53 +132,6 @@ async def test_admin_audit_logs_roundtrip_lists_filtered_actions(
     assert payload["items"][0]["action"] == "update_subscription"
     assert payload["items"][0]["resource_type"] == "subscription"
     assert payload["items"][0]["resource_id"] == target.id
-
-
-@pytest.mark.asyncio
-async def test_admin_checkin_roundtrip_reports_exact_stats_and_records(
-    client: AsyncClient,
-    db_session: Session,
-):
-    admin = await _create_user(db_session, prefix="admin_checkin", is_superuser=True)
-    target = await _create_user(db_session, prefix="checkin_target")
-
-    # Check-ins store their Beijing calendar date; admin stats count Beijing days.
-    today_start, _ = beijing_day_bounds(utcnow())
-    today_at = today_start + timedelta(hours=2)
-    yesterday_at = today_start - timedelta(hours=2)
-    db_session.add(
-        CheckInRecord(
-            user_id=target.id, check_in_date=beijing_date(today_at), streak_days=8, points_earned=10,
-            created_at=today_at,
-        )
-    )
-    db_session.add(
-        CheckInRecord(
-            user_id=target.id, check_in_date=beijing_date(yesterday_at),
-            streak_days=7, points_earned=10, created_at=yesterday_at,
-        )
-    )
-    db_session.commit()
-
-    login_payload = await _login(client, identifier=admin.email)
-    headers = _auth_headers(login_payload["access_token"])
-
-    stats_response = await client.get("/api/admin/check-in/stats", headers=headers)
-    assert stats_response.status_code == 200
-    stats_payload = stats_response.json()
-    assert stats_payload["today_count"] == 1
-    assert stats_payload["yesterday_count"] == 1
-    assert stats_payload["week_total"] == 2
-    assert int(stats_payload["streak_distribution"]["7"]) == 1
-
-    records_response = await client.get(
-        f"/api/admin/check-in/records?page=1&page_size=20&user_id={target.id}",
-        headers=headers,
-    )
-    assert records_response.status_code == 200
-    records_payload = records_response.json()
-    assert records_payload["total"] == 2
-    assert all(item["user_id"] == target.id for item in records_payload["items"])
 
 
 @pytest.mark.asyncio

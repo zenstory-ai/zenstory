@@ -18,7 +18,6 @@ from sqlalchemy import create_engine, event, text
 from sqlmodel import Session, SQLModel, func, select
 
 import database
-from api.inspirations import CopyInspirationRequest, copy_inspiration
 from config.project_templates import get_folders_for_type
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
@@ -26,7 +25,6 @@ from database import get_session
 from main import app
 from models import AgentApiKey, File, FileVersion, Project, Snapshot, User, WorkspaceOnboarding
 from models.activation_event import ActivationEvent
-from models.inspiration import Inspiration
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.agent_auth_service import hash_api_key
 from services.core.auth_service import create_access_token
@@ -37,7 +35,7 @@ pytestmark = pytest.mark.skipif(
     not os.getenv('ZENSTORY_TEST_POSTGRES_URL'), reason='explicitly owned PostgreSQL URL required',
 )
 TABLES = [User.__table__, Project.__table__, File.__table__, SubscriptionPlan.__table__,
-          UserSubscription.__table__, UsageQuota.__table__, ActivationEvent.__table__, Inspiration.__table__,
+          UserSubscription.__table__, UsageQuota.__table__, ActivationEvent.__table__,
           Snapshot.__table__, FileVersion.__table__, AgentApiKey.__table__, WorkspaceOnboarding.__table__]
 
 
@@ -57,7 +55,7 @@ def capacity_engine():
         engine.dispose()
 
 
-def seed(engine, *, expired=False, different_owner=False, copy=False):
+def seed(engine, *, expired=False, different_owner=False):
     with Session(engine) as session:
         suffix = uuid4().hex
         users = [User(username=f'capacity-{suffix}-{i}', email=f'capacity-{suffix}-{i}@example.test',
@@ -67,7 +65,7 @@ def seed(engine, *, expired=False, different_owner=False, copy=False):
         user_ids = [user.id for user in users]
         for uid in user_ids:
             session.add_all([Project(name=f'Existing {i}', owner_id=uid) for i in range(2)])
-        if expired or copy:
+        if expired:
             plan = session.exec(select(SubscriptionPlan).where(SubscriptionPlan.name == 'pro')).first()
             if plan is None:
                 plan = SubscriptionPlan(name='pro', display_name='Local configured cap', features={'max_projects': 3})
@@ -76,28 +74,18 @@ def seed(engine, *, expired=False, different_owner=False, copy=False):
             now = datetime.now(UTC)
             session.add(UserSubscription(user_id=user_ids[0], plan_id=plan.id, status='active',
                                          current_period_start=now - timedelta(days=30),
-                                         current_period_end=now + timedelta(days=-1 if expired else 30)))
-        inspiration_id = None
-        if copy:
-            inspiration = Inspiration(name=f'Local {suffix}', snapshot_data=json.dumps({'files': []}))
-            session.add(inspiration)
-            session.flush()
-            inspiration_id = inspiration.id
+                                         current_period_end=now + timedelta(days=-1)))
         session.commit()
-        return {'owners': user_ids, 'inspiration': inspiration_id}
+        return {'owners': user_ids}
 
 
-def create(session, ids, worker, *, copy=False, different_owner=False):
+def create(session, ids, worker, *, different_owner=False):
     uid = ids['owners'][1 if different_owner and worker == 'B' else 0]
     try:
-        if copy and worker == 'B':
-            user = session.get(User, uid)
-            result = copy_inspiration(ids['inspiration'], CopyInspirationRequest(project_name='Copied B'), user, session)
-            return {'status': 'created', 'project': result.project_id, 'owner': uid, 'copy': True}
         project = Project(name=f'Created {worker}', owner_id=uid)
         folders = create_project_with_default_folders(session, project)
         assert len(folders) == len(get_folders_for_type('novel', 'zh'))
-        return {'status': 'created', 'project': project.id, 'owner': uid, 'copy': False}
+        return {'status': 'created', 'project': project.id, 'owner': uid}
     except APIException as error:
         session.rollback()
         assert error.status_code == 402
@@ -111,12 +99,11 @@ def counts(engine, ids):
         )).one() for uid in ids['owners']}
 
 
-@pytest.mark.parametrize('scenario', ['same-owner', 'expired-plan', 'different-owner', 'shared-vs-copy'])
+@pytest.mark.parametrize('scenario', ['same-owner', 'expired-plan', 'different-owner'])
 def test_last_slot_is_not_allocated_twice(capacity_engine, scenario, record_property):
     engine = capacity_engine
     different = scenario == 'different-owner'
-    copy = scenario == 'shared-vs-copy'
-    ids = seed(engine, expired=scenario == 'expired-plan', different_owner=different, copy=copy)
+    ids = seed(engine, expired=scenario == 'expired-plan', different_owner=different)
     held, release, b_started = threading.Event(), threading.Event(), threading.Event()
     pids = {}
     thread_owners = {}
@@ -140,7 +127,7 @@ def test_last_slot_is_not_allocated_twice(capacity_engine, scenario, record_prop
             if worker == 'B':
                 b_started.set()
             try:
-                return create(session, ids, worker, copy=copy, different_owner=different)
+                return create(session, ids, worker, different_owner=different)
             finally:
                 thread_owners.pop(threading.get_ident(), None)
 
@@ -182,7 +169,7 @@ def test_last_slot_is_not_allocated_twice(capacity_engine, scenario, record_prop
             assert wait_fact['blockers'] == [pids['A']]
         with Session(engine) as reader:
             for result in outcomes:
-                if result['status'] == 'created' and not result['copy']:
+                if result['status'] == 'created':
                     assert reader.exec(select(func.count()).select_from(File).where(
                         File.project_id == result['project'],
                     )).one() == len(get_folders_for_type('novel', 'zh'))
@@ -242,14 +229,8 @@ def seed_http(engine, *, plan_name='free', limit=3, expired=False, different=Fal
                     quota.monthly_period_start = now - timedelta(days=65)
                     quota.monthly_period_end = now - timedelta(days=35)
                     quota.inspiration_copies_used = 9
-        snapshot = {'files': [{'id': 'old-body', 'title': 'Chapter 1', 'file_type': 'draft',
-                               'content': 'Owned local body 中文', 'order': 1}]}
-        inspiration = Inspiration(name=f'HTTP template {suffix}', snapshot_data=json.dumps(snapshot))
-        session.add(inspiration)
-        session.flush()
-        iid = inspiration.id
         session.commit()
-    return {'owners': owners, 'headers': headers, 'inspiration': iid}
+    return {'owners': owners, 'headers': headers}
 
 
 @contextmanager
@@ -288,12 +269,8 @@ def http_sessions(engine):
 def post_http(ids, kind, worker, *, different=False):
     index = 1 if different and worker == 'B' else 0
     headers = {**ids['headers'][index], 'X-Capacity-Worker': worker}
-    if kind == 'copy':
-        path = f"/api/v1/inspirations/{ids['inspiration']}/copy"
-        payload = {'project_name': f'Candidate {worker}'}
-    else:
-        path = '/api/v1/agent/projects' if kind == 'agent' else '/api/v1/projects'
-        payload = {'name': f'Candidate {worker}', 'project_type': 'novel'}
+    path = '/api/v1/agent/projects' if kind == 'agent' else '/api/v1/projects'
+    payload = {'name': f'Candidate {worker}', 'project_type': 'novel'}
 
     async def request():
         async with AsyncClient(transport=ASGITransport(app=app), base_url='http://owned.test') as client:
@@ -309,16 +286,11 @@ def durable_http(engine, ids):
         candidates = [p for p in projects if p.name.startswith('Candidate ')]
         result = {'active': {uid: sum(p.owner_id == uid and not p.is_deleted for p in projects)
                              for uid in ids['owners']}, 'candidates': {p.name: p.id for p in candidates},
-                  'files': {}, 'versions': {}, 'activation': {}, 'usage': {}}
+                  'files': {}, 'versions': {}, 'activation': {}}
         for project in candidates:
             for key, model in [('files', File), ('versions', FileVersion), ('activation', ActivationEvent)]:
                 result[key][project.name] = session.exec(select(func.count()).select_from(model).where(
                     model.project_id == project.id)).one()
-        for uid in ids['owners']:
-            quotas = session.exec(select(UsageQuota).where(UsageQuota.user_id == uid)).all()
-            assert len(quotas) <= 1, 'no duplicate monthly quota rows'
-            result['usage'][uid] = quotas[0].inspiration_copies_used if quotas else None
-        result['copy_count'] = session.get(Inspiration, ids['inspiration']).copy_count
         return result
 
 
@@ -377,21 +349,15 @@ def concurrent_http(engine, ids, pair, *, different=False, observer_action=None)
 HTTP_CASES = [
     (('web', 'web'), 'free', 3, False, False, 'current'),
     (('web', 'agent'), 'free', 3, False, False, 'current'),
-    (('web', 'copy'), 'pro', 3, False, False, 'current'),
-    (('copy', 'copy'), 'pro', 3, False, False, 'current'),
     (('web', 'web'), 'pro', 3, True, False, 'current'),
-    (('copy', 'copy'), 'free', 3, False, False, 'missing'),
-    (('copy', 'copy'), 'free', 3, False, False, 'stale'),
     (('web', 'web'), 'pro', -1, False, False, 'current'),
-    (('copy', 'copy'), 'pro', -1, False, False, 'current'),
     (('web', 'web'), 'free', 3, False, True, 'current'),
 ]
 
 
 @pytest.mark.parametrize(('pair', 'plan', 'limit', 'expired', 'different', 'quota_state'), HTTP_CASES)
-def test_http_capacity_transaction_matrix(capacity_engine, monkeypatch, record_property,
+def test_http_capacity_transaction_matrix(capacity_engine, record_property,
                                           pair, plan, limit, expired, different, quota_state):
-    monkeypatch.setenv('INSPIRATIONS_ENABLED', 'true')
     ids = seed_http(capacity_engine, plan_name=plan, limit=limit, expired=expired,
                     different=different, quota_state=quota_state)
     outcomes, wait, frames = concurrent_http(capacity_engine, ids, pair, different=different)
@@ -415,25 +381,14 @@ def test_http_capacity_transaction_matrix(capacity_engine, monkeypatch, record_p
             assert name not in durable['candidates'], 'reject leaves no project/files/versions/activation'
         else:
             assert name in durable['candidates']
-            if result['kind'] == 'copy':
-                assert durable['files'][name] == durable['versions'][name] == 1
-                assert durable['activation'][name] == 0  # Existing copy contract.
-            else:
-                assert durable['files'][name] == len(get_folders_for_type('novel', 'zh'))
-                assert durable['activation'][name] in (0, 1)  # Once per owner, not per project.
+            assert durable['files'][name] == len(get_folders_for_type('novel', 'zh'))
+            assert durable['activation'][name] in (0, 1)  # Once per owner, not per project.
     expected_activations = len({ids['owners'][1 if different and result['worker'] == 'B' else 0]
-                                for result in outcomes if result['status'] == 200 and result['kind'] != 'copy'})
+                                for result in outcomes if result['status'] == 200})
     assert sum(durable['activation'].values()) == expected_activations
-    copies = sum(result['kind'] == 'copy' and result['status'] == 200 for result in outcomes)
-    assert durable['copy_count'] == copies
-    if 'copy' in pair and plan != 'pro':
-        assert list(durable['usage'].values()) == [copies]
 
 
-
-
-def test_http_soft_deleted_slot_is_reused_once(capacity_engine, monkeypatch):
-    monkeypatch.setenv('INSPIRATIONS_ENABLED', 'true')
+def test_http_soft_deleted_slot_is_reused_once(capacity_engine):
     ids = seed_http(capacity_engine, slots=3)
     with Session(capacity_engine) as session:
         row = session.exec(select(Project).where(Project.owner_id == ids['owners'][0])).first()
@@ -441,7 +396,7 @@ def test_http_soft_deleted_slot_is_reused_once(capacity_engine, monkeypatch):
         session.commit()
     with http_sessions(capacity_engine) as closed:
         winner = post_http(ids, 'web', 'A')
-        loser = post_http(ids, 'copy', 'B')
+        loser = post_http(ids, 'agent', 'B')
     assert winner['status'] == 200
     assert loser['status'] == 402
     assert loser['body']['error_code'] == ErrorCode.QUOTA_PROJECTS_EXCEEDED
@@ -449,35 +404,6 @@ def test_http_soft_deleted_slot_is_reused_once(capacity_engine, monkeypatch):
     durable = durable_http(capacity_engine, ids)
     assert list(durable['active'].values()) == [3]
     assert list(durable['candidates']) == ['Candidate A']
-    assert durable['copy_count'] == 0
-    assert list(durable['usage'].values()) == [0]
-
-
-def test_http_final_monthly_reservation_failure_rolls_back_copy(capacity_engine, monkeypatch, record_property):
-    monkeypatch.setenv('INSPIRATIONS_ENABLED', 'true')
-    ids = seed_http(capacity_engine)
-
-    def exhaust_real_quota():
-        # An independent monthly consumer can write this row without allocating
-        # a project. Do not replace advisory checks or the actual reservation.
-        with Session(capacity_engine) as consumer:
-            quota = consumer.exec(select(UsageQuota).where(UsageQuota.user_id == ids['owners'][0])).one()
-            quota.inspiration_copies_used = 10
-            consumer.commit()
-
-    outcomes, wait, frames = concurrent_http(capacity_engine, ids, ('copy', 'web'),
-                                             observer_action=exhaust_real_quota)
-    assert outcomes[0]['status'] == 402
-    assert outcomes[1]['status'] == 200
-    durable = durable_http(capacity_engine, ids)
-    assert list(durable['candidates']) == ['Candidate B']
-    assert list(durable['active'].values()) == [3]
-    assert durable['copy_count'] == 0
-    assert list(durable['usage'].values()) == [10]
-    assert wait['type'] == 'Lock'
-    assert any(frame['worker'] == 'A' and 'insert into file_version' in frame['sql'] for frame in frames)
-    record_property('quota_reservation_rollback', json.dumps({'outcomes': outcomes, 'durable': durable,
-                                                            'frames': frames}, sort_keys=True))
 
 
 def test_pg_creation_gate_compatible_with_fk_key_share(capacity_engine):

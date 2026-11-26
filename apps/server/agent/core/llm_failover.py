@@ -809,6 +809,14 @@ _STREAM_COLLECT_PROGRESS_EVENTS = frozenset({
     "response.incomplete",
     "response.failed",
     "error",
+    "response.error",
+})
+_STREAM_COLLECT_TERMINAL_EVENTS = frozenset({
+    "response.completed",
+    "response.incomplete",
+    "response.failed",
+    "error",
+    "response.error",
 })
 _STREAM_COLLECT_REASONING_EVENTS = frozenset({
     "response.reasoning_text.delta",
@@ -819,6 +827,35 @@ _STREAM_COLLECT_ANSWER_EVENTS = frozenset({
     "response.refusal.delta",
     "response.function_call_arguments.delta",
 })
+_STREAM_COLLECT_MISSING = object()
+
+
+def _is_meaningful_collect_progress(event: Any) -> bool:
+    event_type = getattr(event, "type", None)
+    if event_type in _STREAM_COLLECT_TERMINAL_EVENTS:
+        return True
+    if event_type not in _STREAM_COLLECT_PROGRESS_EVENTS:
+        return False
+    delta = getattr(event, "delta", _STREAM_COLLECT_MISSING)
+    return delta is _STREAM_COLLECT_MISSING or (isinstance(delta, str) and delta != "")
+
+
+def _build_collect_timeout_error(provider: ModelProvider, *, phase: str, timeout_s: float) -> TimeoutError:
+    log_with_context(
+        logger,
+        30,  # WARNING
+        "LLM stream timeout",
+        provider=provider.name,
+        timeout_phase=phase,
+        timeout_s=timeout_s,
+    )
+    if phase == "first_event":
+        return TimeoutError(
+            f"{provider.name} stream produced no output before first_event for {timeout_s:g}s (first_event timeout)"
+        )
+    return TimeoutError(
+        f"{provider.name} stream produced no output for {timeout_s:g}s (idle timeout)"
+    )
 
 
 def _responses_failed_event_error(event: Any, provider: ModelProvider) -> Exception:
@@ -880,7 +917,11 @@ def _schedule_stream_collect_teardown(
     """Detach and close a timed-out/wedged compaction stream in a bounded background task."""
     aclose = getattr(aiter, "aclose", None)
     has_aclose = callable(aclose)
-    close = getattr(raw_stream, "close", None)
+    close = (
+        getattr(raw_stream, "close", None)
+        if raw_stream is not None and (raw_stream is not aiter or not has_aclose)
+        else None
+    )
     has_close = callable(close)
     if not has_aclose and not has_close:
         return None
@@ -892,14 +933,14 @@ def _schedule_stream_collect_teardown(
         if has_aclose:
             remaining = deadline - time.monotonic()
             if remaining > 0:
-                with contextlib.suppress(BaseException):
+                with contextlib.suppress(Exception):
                     res = aclose()
                     if inspect.isawaitable(res):
                         await asyncio.wait_for(res, timeout=remaining)
         if has_close:
             remaining = deadline - time.monotonic()
             if remaining > 0:
-                with contextlib.suppress(BaseException):
+                with contextlib.suppress(Exception):
                     res = close()
                     if inspect.isawaitable(res):
                         await asyncio.wait_for(res, timeout=remaining)
@@ -918,16 +959,21 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
     """Drain a streaming ``responses.create(stream=True)`` call into its terminal ``Response``.
 
     Avoids non-streaming read timeouts on long cached-prefill generations (such as
-    300k-token loop compaction) while enforcing the provider's idle-delta timeout and
-    preserving pre-answer failover semantics with bounded non-blocking teardown on timeout.
+    300k-token loop compaction) while enforcing the provider's two-tier first-event / idle
+    stream timeouts (``0`` disables each phase) and preserving pre-answer failover semantics
+    with bounded non-blocking teardown on timeout.
     """
     if not hasattr(raw_stream, "__aiter__"):
         return raw_stream
     import httpx
     import openai
 
-    idle_timeout_s = provider.kind.read_timeout_s()
-    idle_deadline = time.monotonic() + idle_timeout_s
+    first_event_timeout_s = provider.first_event_timeout_s
+    idle_timeout_s = provider.stream_idle_timeout_s
+    received_first_meaningful = False
+    deadline: float | None = (
+        time.monotonic() + first_event_timeout_s if first_event_timeout_s > 0 else None
+    )
     answer_started = False
     reasoning_started = False
     timed_out = False
@@ -935,35 +981,44 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
     aiter = raw_stream.__aiter__()
     try:
         while True:
-            remaining = idle_deadline - time.monotonic()
-            if remaining <= 0:
-                timed_out = True
-                raise TimeoutError(f"{provider.name} stream produced no output for {idle_timeout_s:g}s")
-            cm = asyncio.timeout(remaining)
-            try:
-                async with cm:
-                    event = await aiter.__anext__()
-            except StopAsyncIteration:
-                break
-            except TimeoutError:
-                if cm.expired():
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
                     timed_out = True
-                    raise TimeoutError(
-                        f"{provider.name} stream produced no output for {idle_timeout_s:g}s"
-                    ) from None
-                raise
+                    phase = "idle" if received_first_meaningful else "first_event"
+                    timeout_s = idle_timeout_s if received_first_meaningful else first_event_timeout_s
+                    raise _build_collect_timeout_error(provider, phase=phase, timeout_s=timeout_s)
+                cm = asyncio.timeout(remaining)
+                try:
+                    async with cm:
+                        event = await aiter.__anext__()
+                except StopAsyncIteration:
+                    break
+                except TimeoutError:
+                    if cm.expired():
+                        timed_out = True
+                        phase = "idle" if received_first_meaningful else "first_event"
+                        timeout_s = idle_timeout_s if received_first_meaningful else first_event_timeout_s
+                        raise _build_collect_timeout_error(
+                            provider, phase=phase, timeout_s=timeout_s
+                        ) from None
+                    raise
+            else:
+                try:
+                    event = await aiter.__anext__()
+                except StopAsyncIteration:
+                    break
             event_type = getattr(event, "type", None)
-            delta = getattr(event, "delta", None)
-            if event_type in _STREAM_COLLECT_PROGRESS_EVENTS and (
-                event_type in {"response.completed", "response.incomplete", "response.failed", "error"}
-                or delta != ""
-            ):
-                idle_deadline = time.monotonic() + idle_timeout_s
-            if event_type in _STREAM_COLLECT_REASONING_EVENTS and delta != "":
+            delta = getattr(event, "delta", _STREAM_COLLECT_MISSING)
+            has_delta = delta is _STREAM_COLLECT_MISSING or (isinstance(delta, str) and delta != "")
+            if _is_meaningful_collect_progress(event):
+                received_first_meaningful = True
+                deadline = time.monotonic() + idle_timeout_s if idle_timeout_s > 0 else None
+            if event_type in _STREAM_COLLECT_REASONING_EVENTS and has_delta:
                 reasoning_started = True
-            if event_type in _STREAM_COLLECT_ANSWER_EVENTS and delta != "":
+            if event_type in _STREAM_COLLECT_ANSWER_EVENTS and has_delta:
                 answer_started = True
-            if event_type in {"response.failed", "error"}:
+            if event_type in {"response.failed", "error", "response.error"}:
                 raise _responses_failed_event_error(event, provider)
             if event_type in {"response.completed", "response.incomplete"}:
                 final_response = getattr(event, "response", None)
@@ -980,21 +1035,25 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
         else:
             close_deadline = time.monotonic() + _STREAM_COLLECT_TEARDOWN_TIMEOUT_S
             aclose = getattr(aiter, "aclose", None)
-            if callable(aclose):
-                remaining = close_deadline - time.monotonic()
-                if remaining > 0:
-                    with contextlib.suppress(Exception):
-                        res = aclose()
-                        if inspect.isawaitable(res):
-                            await asyncio.wait_for(res, timeout=remaining)
-            close = getattr(raw_stream, "close", None)
-            if callable(close):
-                remaining = close_deadline - time.monotonic()
-                if remaining > 0:
-                    with contextlib.suppress(Exception):
-                        res = close()
-                        if inspect.isawaitable(res):
-                            await asyncio.wait_for(res, timeout=remaining)
+            aclose_completed = False
+            try:
+                if callable(aclose):
+                    remaining = close_deadline - time.monotonic()
+                    if remaining > 0:
+                        with contextlib.suppress(Exception):
+                            res = aclose()
+                            if inspect.isawaitable(res):
+                                await asyncio.wait_for(res, timeout=remaining)
+                            aclose_completed = True
+            finally:
+                close = getattr(raw_stream, "close", None)
+                if callable(close) and (raw_stream is not aiter or not aclose_completed):
+                    remaining = close_deadline - time.monotonic()
+                    if remaining > 0:
+                        with contextlib.suppress(Exception):
+                            res = close()
+                            if inspect.isawaitable(res):
+                                await asyncio.wait_for(res, timeout=remaining)
     if final_response is None:
         url = f"{provider.base_url.rstrip('/')}/responses" if provider.base_url else "https://responses.local/v1/responses"
         raise _StreamCollectError(

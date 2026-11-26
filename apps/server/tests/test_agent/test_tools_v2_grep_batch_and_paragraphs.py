@@ -1233,3 +1233,108 @@ async def test_read_files_show_paragraph_stats_preserves_cross_turn_session_read
     )
     assert short_file.id not in snapshots_after_edit
     assert snapshots_after_edit.get(long_file.id) == long_body
+
+
+# ===========================================================================
+# 5. PR #497 review regression tests (High-1, Medium-1, Medium-3)
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_batch_replace_files_plural_file_types_restricts_scope(db_session):
+    """High-1: passing plural file_types=['draft'] MUST restrict mutations strictly to drafts."""
+    user, project = _make_user_project(db_session, "batch-file-types")
+    draft = _add_file(db_session, project.id, title="第1章", file_type="draft", content="　　林默推门而入。")
+    outline = _add_file(db_session, project.id, title="大纲", file_type="outline", content="林默是主角。")
+    character = _add_file(db_session, project.id, title="林默人物卡", file_type="character", content="姓名：林默。")
+
+    req_ctx = _make_req_ctx(db_session, user, project)
+    res = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {"old_text": "林默", "new_text": "沈砚", "file_types": ["draft"]},
+            request_context=req_ctx,
+        )
+    )
+    assert res["status"] == "success"
+    assert res["mutation_applied"] is True
+    assert res["data"]["modified_files"] == 1
+    assert [f["id"] for f in res["data"]["files"]] == [draft.id]
+
+    db_session.expire_all()
+    assert db_session.get(File, draft.id).content == "　　沈砚推门而入。"
+    assert db_session.get(File, outline.id).content == "林默是主角。"
+    assert db_session.get(File, character.id).content == "姓名：林默。"
+
+
+@pytest.mark.asyncio
+async def test_batch_replace_files_all_skipped_returns_user_message_and_hides_raw_error_in_sse(db_session):
+    """Medium-1: all-skipped batch_replace_files sets user_message so StreamAdapter hides raw model instructions."""
+    from agent.tools.file_ops.edit import edit_error_user_message
+
+    user, project = _make_user_project(db_session, "batch-all-skipped")
+    stale_file = _add_file(
+        db_session, project.id, title="第1章", file_type="draft", content="　　作者刚手改的新内容，包含旧词。"
+    )
+    req_ctx = _make_req_ctx(db_session, user, project)
+    req_ctx.record_read_snapshot(stale_file.id, "　　模型之前读到的旧内容，包含旧词。")
+    req_ctx.promote_pending_reads()
+
+    raw_mcp = await mcp_tools.batch_replace_files(
+        {"old_text": "旧词", "new_text": "新词", "file_ids": [stale_file.id]},
+        request_context=req_ctx,
+    )
+    parsed = _parse_mcp(raw_mcp)
+    assert parsed["status"] == "error"
+    assert parsed["error_type"] == "stale_content"
+    expected_user_msg = edit_error_user_message("stale_content")
+    assert parsed["user_message"] == expected_user_msg
+    assert parsed["error"] != expected_user_msg  # model still gets detailed stale diff/instructions
+
+    adapter = StreamAdapter(StreamAdapterConfig(project_id=project.id, user_id=user.id, request_context=req_ctx))
+
+    async def _events():
+        yield WorkflowStreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={
+                "name": "batch_replace_files",
+                "tool_use_id": "call-batch-stale",
+                "result": raw_mcp,
+            },
+        )
+
+    emitted = [evt async for evt in adapter.process_workflow_events(_events())]
+    tool_results = [e for e in emitted if e.type == "tool_result"]
+    assert len(tool_results) == 1
+    assert tool_results[0].data["status"] == "error"
+    assert tool_results[0].data["error"] == expected_user_msg
+    assert tool_results[0].data["data"]["user_message"] == expected_user_msg
+    assert tool_results[0].data["data"]["error_type"] == "stale_content"
+
+
+@pytest.mark.asyncio
+async def test_search_files_matches_preserves_truncated_ids_over_30(db_session):
+    """Medium-3: search_files(query=..., ids=[>30]) preserves truncated_ids and sets truncated=True."""
+    user, project = _make_user_project(db_session, "search-trunc-ids")
+    created_ids: list[str] = []
+    for idx in range(33):
+        f = _add_file(
+            db_session,
+            project.id,
+            title=f"第{idx + 1}章",
+            order=idx,
+            content=f"　　第{idx + 1}章里出现了关键词青铜镜。",
+        )
+        created_ids.append(f.id)
+
+    req_ctx = _make_req_ctx(db_session, user, project)
+    res = _parse_mcp(
+        await mcp_tools.search_files(
+            {"query": "青铜镜", "ids": created_ids},
+            request_context=req_ctx,
+        )
+    )
+    assert res["status"] == "success"
+    assert res["truncated_ids"] == created_ids[30:]
+    assert res["data"]["truncated"] is True
+    assert res["data"]["truncated_ids"] == created_ids[30:]
+    assert len(res["data"]["files"]) == 30
