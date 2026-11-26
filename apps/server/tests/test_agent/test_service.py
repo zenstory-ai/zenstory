@@ -1179,10 +1179,10 @@ class TestAgentServiceProcessStream:
         user = test_user_with_project["user"]
 
         async def stream():
-            result = {"status": "success", "data": {"count": 1}}
+            result = {"status": "success", "data": {"edits_applied": 1}}
             if mutation is not None:
                 result["mutation_applied"] = mutation
-            yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "parallel_execute", "result": result})
+            yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "edit_file", "result": result})
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Completed"})
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
@@ -1208,7 +1208,7 @@ class TestAgentServiceProcessStream:
         user = test_user_with_project["user"]
 
         async def stream():
-            yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "parallel_execute", "result": {"status": "success", "mutation_applied": True}})
+            yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "edit_file", "result": {"status": "success", "mutation_applied": True}})
             if has_assistant_payload:
                 yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Completed"})
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})

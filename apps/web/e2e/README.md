@@ -57,8 +57,7 @@ Historical 7/14-day promotion targets belong to the [April lane design](../../..
 | `config/test-users.ts` | Synthetic standard, skills, admin and pool users; process env overrides defaults |
 | `auth.setup.ts` | API login and browser storage state |
 | `fixtures/page-objects/` | Existing page interaction helpers |
-| `utils/` | API setup, data names, waits and assertions |
-| `mocks/` | Reusable MSW handlers and responses; tests must attach mocks explicitly |
+| `utils/` | Accessibility (`axe-helper.ts`) utilities |
 
 Origins come from `E2E_BASE_URL` and `E2E_API_URL`. Credentials and browser storage state are test-only private material; avoid copying real account tokens into fixtures or reports. `PLAYWRIGHT_AUTH_FILE` can isolate the browser auth file per run. Helpers do not create their own users merely because a credential is configured.
 
@@ -68,7 +67,7 @@ Version, skill creation, chat, voice and specialized checks have their own opt-i
 
 Use an existing page object when it owns the interaction. Prefer accessible names and roles, or stable test IDs where needed; avoid CSS tied to presentation. Register response/event waits before triggering the action, then assert the visible result. An idle network or an arbitrary sleep does not prove an editor save or generation completed.
 
-Keep data unique per test and separate mutable state between parallel workers. Use the actual exports in `utils/api-helpers.ts` (`createProjectViaAPI`, `createFileViaAPI`, `cleanupTestData`), with the current request shape; do not invent helper methods or assume project creation remains on the dashboard. Close or clean up resources in fixtures.
+Keep data unique per test and separate mutable state between parallel workers. Use the actual exports in `fixtures/project-test-data.ts` (`createOwnedProject`, `createOwnedFile`, `cleanupOwnedProject`), with the current request shape; do not invent helper methods or assume project creation remains on the dashboard. Close or clean up resources in fixtures.
 
 Preserved selector comparison:
 
@@ -112,6 +111,6 @@ await expect(page.locator('.chat')).toHaveScreenshot('chat.png', {
 
 Wait for the relevant page state and fonts rather than an arbitrary buffer. Keep viewport, theme and fixture data consistent. A DOM assertion does not replace keyboard/focus testing or visual review.
 
-Voice codec checks have a separate [fixture guide](fixtures/audio/README.md) and `playwright.voice.config.ts`; they do not prove physical microphone or native Safari permission behavior. Organization/domain checks use `playwright.geo.config.ts` and the [domain guide](../../../docs/ops/domain-migration.md). Online production checks and paid-provider calls require their own explicit scope.
+Voice codec checks have a separate [fixture guide](fixtures/audio/README.md) and `playwright.voice.config.ts` (`pnpm test:e2e:voice-codec`); they do not prove physical microphone or native Safari permission behavior. Production bundle smoke checks use `playwright.prod-smoke.config.ts` (`pnpm test:e2e:prod-smoke`) against `vite preview`. Organization/domain checks use `playwright.geo.config.ts` and the [domain guide](../../../docs/ops/domain-migration.md). Online production checks and paid-provider calls require their own explicit scope.
 
 For release authorization, source binding and migration/drain requirements, use [the release contract](../../../docs/ops/release-ci-cd.md).

@@ -43,7 +43,7 @@ async def test_admin_user_crud_never_serializes_password_hash(client, admin_boun
 async def test_admin_cannot_deactivate_or_demote_self(client, db_session, admin_boundary, change):
     admin, _, _ = admin_boundary
     response = await client.put(f"/api/admin/users/{admin.id}", json=change)
-    assert response.status_code in (400, 409)
+    assert response.status_code == 400
     db_session.refresh(admin)
     assert admin.is_active and admin.is_superuser
 

@@ -135,24 +135,33 @@ for (const strict of [false, true]) {
       await waitFor(() => expect(registrations).toHaveLength(2))
       await act(async () => { registrations[1].resolve(json({ detail: 'Offline retry finished' }, 400)) })
       await waitFor(() => expect(screen.getByRole('button', { name: 'Create Account' })).toBeEnabled())
-      console.info('REGISTER_POST_CONTROL', JSON.stringify({ strict, calls, authority: screen.getByTestId('authority').textContent }))
     })
 
     it('retains successful form lock and real router verification handoff without establishing tokens', async () => {
       const user = await mount(strict)
       await click(user, screen.getByRole('button', { name: 'Create Account' }))
       await waitFor(() => expect(registrations).toHaveLength(1))
-      await act(async () => { registrations[0].resolve(json({ email: 'offline@example.invalid', email_verified: false })) })
-      await waitFor(() => expect(screen.getByTestId('register-form')).toHaveAttribute('aria-busy', 'false'))
-      expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled()
-      expect(screen.getByLabelText(/^Email/)).toBeDisabled()
-      await click(user, screen.getByRole('button', { name: 'Create Account' }))
-      expect(registrations).toHaveLength(1)
-      await waitFor(() => expect(screen.getByTestId('authority').textContent).toContain('"path":"/verify-email"'), { timeout: 3000 })
-      expect(screen.getByTestId('authority').textContent).toContain('"email":"offline@example.invalid"')
-      expect(localStorage.getItem('access_token')).toBeNull()
-      expect(localStorage.getItem('refresh_token')).toBeNull()
-      console.info('REGISTER_SUCCESS_CONTROL', JSON.stringify({ strict, calls, authority: screen.getByTestId('authority').textContent }))
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      try {
+        await act(async () => {
+          registrations[0].resolve(json({ email: 'offline@example.invalid', email_verified: false }))
+          await vi.advanceTimersByTimeAsync(0)
+        })
+        expect(screen.getByTestId('register-form')).toHaveAttribute('aria-busy', 'false')
+        expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled()
+        expect(screen.getByLabelText(/^Email/)).toBeDisabled()
+        fireEvent.click(screen.getByRole('button', { name: 'Create Account' }))
+        expect(registrations).toHaveLength(1)
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2000)
+        })
+        expect(screen.getByTestId('authority').textContent).toContain('"path":"/verify-email"')
+        expect(screen.getByTestId('authority').textContent).toContain('"email":"offline@example.invalid"')
+        expect(localStorage.getItem('access_token')).toBeNull()
+        expect(localStorage.getItem('refresh_token')).toBeNull()
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 }

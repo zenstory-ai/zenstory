@@ -11,7 +11,6 @@ Unit tests for apps/server/services/agent_auth_service.py covering:
 
 import hashlib
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
 
 import pytest
 from fastapi import status
@@ -285,218 +284,161 @@ class TestVerifyProjectAccess:
 
 @pytest.mark.unit
 class TestGetAgentUser:
-    """Tests for get_agent_user() dependency."""
+    """Tests for get_agent_user() dependency against a real DB session."""
 
-    def test_get_agent_user_missing_header(self):
+    @staticmethod
+    def _seed_owner_and_key(
+        db_session: Session,
+        *,
+        owner_active: bool = True,
+        key_active: bool = True,
+        expires_at: datetime | None = None,
+        scopes: list[str] | None = None,
+    ) -> tuple[str, AgentApiKey]:
+        from uuid import uuid4
+
+        from models import User
+
+        suffix = uuid4().hex[:8]
+        owner = User(
+            username=f"agent_auth_{suffix}",
+            email=f"agent_auth_{suffix}@example.com",
+            hashed_password="hashed_password",
+            email_verified=True,
+            is_active=owner_active,
+        )
+        db_session.add(owner)
+        db_session.commit()
+        db_session.refresh(owner)
+
+        plain_key = generate_api_key()
+        api_key = AgentApiKey(
+            user_id=owner.id,
+            key_prefix=plain_key[:8],
+            key_hash=hash_api_key(plain_key),
+            name=f"Key {suffix}",
+            scopes=scopes or ["read", "write"],
+            is_active=key_active,
+            expires_at=expires_at,
+            request_count=0,
+        )
+        db_session.add(api_key)
+        db_session.commit()
+        db_session.refresh(api_key)
+        return plain_key, api_key
+
+    def test_get_agent_user_missing_header(self, db_session: Session):
         """Test that missing API key header raises unauthorized."""
-        mock_session = MagicMock(spec=Session)
-
         with pytest.raises(APIException) as exc_info:
-            get_agent_user(x_agent_api_key=None, session=mock_session)
+            get_agent_user(x_agent_api_key=None, session=db_session)
 
         assert exc_info.value.error_code == ErrorCode.AUTH_UNAUTHORIZED
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
         assert "Missing" in exc_info.value.detail
 
-    def test_get_agent_user_invalid_format(self):
+    def test_get_agent_user_invalid_format(self, db_session: Session):
         """Test that invalid API key format raises error."""
-        mock_session = MagicMock(spec=Session)
-
         with pytest.raises(APIException) as exc_info:
-            get_agent_user(x_agent_api_key="invalid_key", session=mock_session)
+            get_agent_user(x_agent_api_key="invalid_key", session=db_session)
 
         assert exc_info.value.error_code == ErrorCode.AUTH_TOKEN_INVALID
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
         assert "format" in exc_info.value.detail.lower()
 
-    def test_get_agent_user_not_found_in_db(self):
+    def test_get_agent_user_not_found_in_db(self, db_session: Session):
         """Test that key not found in database raises error."""
-        mock_session = MagicMock(spec=Session)
-        mock_session.exec.return_value.first.return_value = None
-
         valid_key = generate_api_key()
 
         with pytest.raises(APIException) as exc_info:
-            get_agent_user(x_agent_api_key=valid_key, session=mock_session)
+            get_agent_user(x_agent_api_key=valid_key, session=db_session)
 
         assert exc_info.value.error_code == ErrorCode.AUTH_TOKEN_INVALID
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_get_agent_user_inactive_key(self):
-        """Test that inactive key raises forbidden error."""
-        mock_session = MagicMock(spec=Session)
-
-        valid_key = generate_api_key()
-        key_hash = hash_api_key(valid_key)
-
-        inactive_api_key = AgentApiKey(
-            id="test-id",
-            user_id="user-1",
-            key_prefix=valid_key[:8],
-            key_hash=key_hash,
-            name="Inactive Key",
-            scopes=["read"],
-            is_active=False,
-        )
-
-        mock_session.exec.return_value.first.return_value = inactive_api_key
+    def test_get_agent_user_inactive_key(self, db_session: Session):
+        """Test that inactive key raises forbidden error and does not increment usage."""
+        plain_key, api_key = self._seed_owner_and_key(db_session, key_active=False)
 
         with pytest.raises(APIException) as exc_info:
-            get_agent_user(x_agent_api_key=valid_key, session=mock_session)
+            get_agent_user(x_agent_api_key=plain_key, session=db_session)
 
         assert exc_info.value.error_code == ErrorCode.AUTH_INACTIVE_USER
         assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
         assert "inactive" in exc_info.value.detail.lower()
+        db_session.refresh(api_key)
+        assert api_key.request_count == 0
 
-    def test_get_agent_user_expired_key(self):
-        """Test that expired key raises unauthorized error."""
-        mock_session = MagicMock(spec=Session)
-
-        valid_key = generate_api_key()
-        key_hash = hash_api_key(valid_key)
-
-        expired_api_key = AgentApiKey(
-            id="test-id",
-            user_id="user-1",
-            key_prefix=valid_key[:8],
-            key_hash=key_hash,
-            name="Expired Key",
-            scopes=["read"],
-            is_active=True,
-            expires_at=utcnow() - timedelta(days=1),
-        )
-
-        mock_session.exec.return_value.first.return_value = expired_api_key
+    def test_get_agent_user_inactive_owner_rejected(self, db_session: Session):
+        """Test that an active key owned by a deactivated user is rejected with 403."""
+        plain_key, api_key = self._seed_owner_and_key(db_session, owner_active=False, key_active=True)
 
         with pytest.raises(APIException) as exc_info:
-            get_agent_user(x_agent_api_key=valid_key, session=mock_session)
+            get_agent_user(x_agent_api_key=plain_key, session=db_session)
+
+        assert exc_info.value.error_code == ErrorCode.AUTH_INACTIVE_USER
+        assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+        db_session.refresh(api_key)
+        assert api_key.request_count == 0
+        assert api_key.last_used_at is None
+
+    def test_get_agent_user_expired_key(self, db_session: Session):
+        """Test that expired key raises unauthorized error."""
+        plain_key, api_key = self._seed_owner_and_key(
+            db_session, expires_at=utcnow() - timedelta(days=1)
+        )
+
+        with pytest.raises(APIException) as exc_info:
+            get_agent_user(x_agent_api_key=plain_key, session=db_session)
 
         assert exc_info.value.error_code == ErrorCode.AUTH_TOKEN_EXPIRED
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
         assert "expired" in exc_info.value.detail.lower()
+        db_session.refresh(api_key)
+        assert api_key.request_count == 0
 
-    def test_get_agent_user_rejects_key_at_exact_expiry_boundary(self, monkeypatch):
+    def test_get_agent_user_rejects_key_at_exact_expiry_boundary(self, db_session: Session, monkeypatch):
         """A key is no longer usable at the instant named by expires_at."""
         from services import agent_auth_service
 
-        mock_session = MagicMock(spec=Session)
-        valid_key = generate_api_key()
         boundary = datetime(2026, 10, 6, 12, tzinfo=UTC)
-        boundary_key = AgentApiKey(
-            id="test-id",
-            user_id="user-1",
-            key_prefix=valid_key[:8],
-            key_hash=hash_api_key(valid_key),
-            name="Boundary Key",
-            scopes=["read"],
-            is_active=True,
-            expires_at=boundary,
-        )
-        mock_session.exec.return_value.first.return_value = boundary_key
+        plain_key, api_key = self._seed_owner_and_key(db_session, expires_at=boundary)
         monkeypatch.setattr(agent_auth_service, "utcnow", lambda: boundary)
 
         with pytest.raises(APIException) as exc_info:
-            get_agent_user(x_agent_api_key=valid_key, session=mock_session)
+            get_agent_user(x_agent_api_key=plain_key, session=db_session)
 
         assert exc_info.value.error_code == ErrorCode.AUTH_TOKEN_EXPIRED
-        mock_session.commit.assert_not_called()
+        db_session.refresh(api_key)
+        assert api_key.request_count == 0
 
-    def test_get_agent_user_success(self):
-        """Test successful API key validation."""
-        mock_session = MagicMock(spec=Session)
-
-        valid_key = generate_api_key()
-        key_hash = hash_api_key(valid_key)
-
-        active_api_key = AgentApiKey(
-            id="test-id",
-            user_id="user-1",
-            key_prefix=valid_key[:8],
-            key_hash=key_hash,
-            name="Active Key",
-            scopes=["read", "write"],
-            is_active=True,
-            request_count=0,
-        )
-
-        mock_session.exec.return_value.first.return_value = active_api_key
+    def test_get_agent_user_success_and_updates_usage(self, db_session: Session):
+        """Test successful API key validation persists atomic request_count + last_used_at."""
+        plain_key, api_key = self._seed_owner_and_key(db_session, scopes=["read", "write"])
 
         result_session, result_user_id, result_key = get_agent_user(
-            x_agent_api_key=valid_key, session=mock_session
+            x_agent_api_key=plain_key, session=db_session
         )
 
-        assert result_session == mock_session
-        assert result_user_id == "user-1"
-        assert result_key == active_api_key
+        assert result_session is db_session
+        assert result_user_id == api_key.user_id
+        assert result_key.id == api_key.id
+        assert result_key.request_count == 1
+        assert result_key.last_used_at is not None
 
-        # Verify that the atomic usage update was persisted and reloaded.
-        mock_session.commit.assert_called_once()
-        mock_session.refresh.assert_called_once_with(active_api_key)
+        # A second call increments atomically to 2.
+        _, _, result_key_2 = get_agent_user(x_agent_api_key=plain_key, session=db_session)
+        assert result_key_2.request_count == 2
 
-    def test_get_agent_user_updates_last_used_at(self):
-        """Test that successful validation updates last_used_at timestamp."""
-        mock_session = MagicMock(spec=Session)
-
-        valid_key = generate_api_key()
-        key_hash = hash_api_key(valid_key)
-
-        active_api_key = AgentApiKey(
-            id="test-id",
-            user_id="user-1",
-            key_prefix=valid_key[:8],
-            key_hash=key_hash,
-            name="Active Key",
-            scopes=["read"],
-            is_active=True,
-            last_used_at=None,
-            request_count=0,
-        )
-
-        mock_session.exec.return_value.first.return_value = active_api_key
-
-        get_agent_user(x_agent_api_key=valid_key, session=mock_session)
-
-        statement = mock_session.exec.call_args_list[-1].args[0]
-        compiled = str(statement.compile(compile_kwargs={"literal_binds": True}))
-        assert "request_count=(agent_api_key.request_count + 1)" in compiled
-        assert "last_used_at=" in compiled
-
-    def test_get_agent_user_key_not_expiring_soon(self):
+    def test_get_agent_user_key_not_expiring_soon(self, db_session: Session):
         """Test key that expires in the future works correctly."""
-        mock_session = MagicMock(spec=Session)
-
-        valid_key = generate_api_key()
-        key_hash = hash_api_key(valid_key)
-
-        future_expiry_key = AgentApiKey(
-            id="test-id",
-            user_id="user-1",
-            key_prefix=valid_key[:8],
-            key_hash=key_hash,
-            name="Future Expiry Key",
-            scopes=["read"],
-            is_active=True,
-            expires_at=utcnow() + timedelta(days=30),
-            request_count=0,
+        plain_key, api_key = self._seed_owner_and_key(
+            db_session, expires_at=utcnow() + timedelta(days=30)
         )
 
-        mock_session.exec.return_value.first.return_value = future_expiry_key
-
-        result_session, result_user_id, result_key = get_agent_user(
-            x_agent_api_key=valid_key, session=mock_session
+        _, result_user_id, result_key = get_agent_user(
+            x_agent_api_key=plain_key, session=db_session
         )
 
-        assert result_key == future_expiry_key
-
-
-@pytest.mark.unit
-class TestApiKeyConstants:
-    """Tests for API key constants."""
-
-    def test_api_key_prefix_value(self):
-        """Test that API_KEY_PREFIX is 'eg_'."""
-        assert API_KEY_PREFIX == "eg_"
-
-    def test_api_key_length_value(self):
-        """Test that API_KEY_LENGTH is 32 (producing 64 hex chars)."""
-        assert API_KEY_LENGTH == 32
+        assert result_user_id == api_key.user_id
+        assert result_key.id == api_key.id
+        assert result_key.request_count == 1

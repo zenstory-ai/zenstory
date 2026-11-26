@@ -1,0 +1,262 @@
+/* ========================================
+   Self-hosted Latin/Mono Variable Fonts (OFL-1.1)
+   CJK glyphs intentionally fall back to native OS fonts for 0ms first paint.
+   ======================================== */
+
+@font-face {
+    font-family: "Crimson Pro";
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url("/fonts/crimson-pro-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Source Serif 4";
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url("/fonts/source-serif-4-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Plus Jakarta Sans";
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url("/fonts/plus-jakarta-sans-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 400 500;
+    font-display: swap;
+    src: url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ========================================
+   CSS Variables - React Workbench Design System
+   Canonical usage and migration rules are documented in repository DESIGN.md
+   ======================================== */
+
+:root {
+    --app-viewport-height: 100dvh;
+    --app-viewport-top: 0px;
+    /* Font System - Literary serif for reading, sans-serif for UI (self-hosted Latin + system CJK) */
+    --font-display: "Crimson Pro", "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", Georgia, serif;
+    --font-body: "Source Serif 4", "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", Georgia, serif;
+    --font-sans: "Plus Jakarta Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
+
+    /* Theme variables (set by ThemeContext) */
+    --bg-primary: 225 14% 9%;
+    --bg-secondary: 225 12% 12.2%;
+    --bg-tertiary: 225 10% 17%;
+    --bg-card: 225 12% 12.2%;
+    --bg-rail: 225 16% 7.2%;
+    --bg-canvas: 225 13% 10.6%;
+    --chat-user-pill-bg: 225 12% 15.5%;
+    --chat-user-pill-border: 225 11% 22%;
+
+    --text-primary: 220 15% 93%;
+    --text-secondary: 220 8% 68%;
+    --text-tertiary: var(--text-secondary); /* Alias: low-emphasis body text */
+
+    --border-color: 220 10% 23%;
+    --border-primary: var(--border-color); /* Alias: primary border token */
+    --separator-color: 220 10% 19%;
+    --border-subtle: 0 0% 100% / 0.03; /* Very subtle borders */
+
+    /* 主色调：深沉典雅的墨蓝 - 更有文学气质 */
+    --accent-primary: 220 65% 50%; /* 墨蓝 - Primary action */
+    --accent: var(--accent-primary); /* Alias: legacy accent token */
+    --accent-dark: 220 65% 40%; /* 墨蓝深色 - Primary hover */
+    --accent-primary-hover: var(--accent-dark); /* Alias: primary hover token */
+    --accent-light: 220 65% 60%; /* 墨蓝浅色 - Lighter accent */
+
+    /* 辅助色：温暖的琥珀金 - 象征创作灵感和智慧 */
+    --accent-secondary: 38 85% 55%; /* 琥珀金 - Secondary emphasis */
+    --accent-secondary-dark: 38 85% 45%; /* 琥珀金深色 - Secondary hover */
+    --accent-secondary-light: 38 85% 65%; /* 琥珀金浅色 - Lighter secondary */
+
+    /* User message background (light variant of accent) */
+    --user-message-bg: 220 47% 32%; /* 墨蓝背景 - User message bubble */
+    --user-message: var(--user-message-bg); /* Alias: user message bubble token */
+
+    /* Message bubble gradient colors - 墨蓝渐变 */
+    --message-user-gradient-start: 220 65% 50%;
+    --message-user-gradient-end: 220 65% 40%;
+    --message-ai-gradient-start: 30 10% 20%;
+    --message-ai-gradient-end: 30 10% 15%;
+
+    /* Background colors (legacy - will be deprecated) */
+    /* NOTE: keep these as raw HSL parts (no nested hsl()) */
+    --background: var(--bg-primary);
+    --background-secondary: var(--bg-secondary);
+    --background-hover: var(--bg-tertiary);
+    --bg-hover: var(--bg-tertiary); /* Alias: hover background token */
+    --muted: var(--bg-tertiary); /* Alias: muted surface token */
+    --background-active: 0 0% 22%; /* #37373d - Active/selected */
+
+    /* Foreground colors (legacy - will be deprecated) */
+    /* NOTE: keep these as raw HSL parts (no nested hsl()) */
+    --foreground: var(--text-primary);
+    --foreground-muted: var(--text-secondary);
+    --foreground-subtle: var(--text-primary); /* #cccccc - Label text */
+    --foreground-faint: var(--text-secondary); /* #aaaaaa - Auxiliary text */
+
+    /* Border colors */
+    --border: var(--border-color);
+    --border-hover: 0 0% 100% / 0.12; /* Hover border */
+    --border-focus: var(--accent-primary); /* Focus border */
+
+    /* Primary colors (legacy - will be deprecated) */
+    --primary: var(--accent-primary);
+    --primary-hover: var(--accent-dark);
+    --primary-foreground: 0 0% 100%; /* #ffffff - Text on primary */
+
+    /* Semantic colors */
+    --success: 142 71% 45%; /* #22c55e - Success */
+    --success-light: 142 69% 58%; /* #4ade80 - Success light */
+    --success-dark: var(--success); /* Alias: success hover token */
+    --warning: 43 96% 56%; /* #fbbf24 - Warning */
+    --error: 0 91% 71%; /* #f87171 - Error/destructive */
+    --danger-solid: 0 72% 42%;
+    --danger-hover: 0 72% 36%;
+    --success-solid: 142 72% 27%;
+    /* Small status text (badges) on a 15% tint of its own color: AA contrast in both themes */
+    --success-text: var(--success-light);
+    --warning-text: var(--warning);
+    --error-text: var(--error);
+    --info: 220 65% 50%; /* 墨蓝 - Info (same as accent-primary) */
+    --info-text: 220 75% 75%;
+    --purple-text: 270 60% 75%;
+    --cyan-text: 180 60% 65%;
+    --info-light: 220 65% 60%; /* 墨蓝浅色 - Info light */
+    --purple: 270 60% 60%; /* #9966e8 - Purple */
+    --purple-light: 270 60% 65%; /* #a678f0 - Purple light */
+    --cyan: 180 60% 50%; /* #33cccc - Cyan */
+    --cyan-light: 180 60% 55%; /* #4dd4d4 - Cyan light */
+    --accent-gold: 38 85% 55%; /* Gold accent for points badges */
+
+    /* Special backgrounds */
+    --result-bg: 150 33% 17%; /* #1e3a2f - AI result card */
+    --result-border: 160 33% 26%; /* #2d5a4a - AI result border */
+    --ref-tag-bg: 220 33% 23%; /* 墨蓝标签背景 - Reference tag */
+    --ref-tag-text: 38 85% 60%; /* 琥珀金文字 - Reference tag text */
+
+    /* Diff colors */
+    --diff-add-bg: 120 33% 17%; /* #1e3a1e - Added line bg */
+    --diff-add-text: 142 69% 58%; /* #4ade80 - Added line text */
+    --diff-remove-bg: 0 33% 17%; /* #3a1e1e - Removed line bg */
+    --diff-remove-text: 0 91% 71%; /* #f87171 - Removed line text */
+
+    /* Selection */
+    --selection: 220 50% 38%; /* 墨蓝选中 - Text selection */
+
+    /* Scrollbar */
+    --scrollbar-track: 0 0% 12%; /* #1e1e1e */
+    --scrollbar-thumb: 0 0% 29%; /* #4a4a4a */
+    --scrollbar-thumb-hover: 0 0% 35%; /* #5a5a5a */
+
+    /* Motion Tokens - Unified choreography for all state transitions */
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-expo: cubic-bezier(0.7, 0, 0.84, 0);
+    --ease-spring-snappy: cubic-bezier(0.22, 1.12, 0.36, 1);
+    --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --duration-instant: 100ms;
+    --duration-fast: 160ms;
+    --duration-base: 240ms;
+    --duration-normal: var(--duration-base);
+    --duration-slow: 360ms;
+    --motion-distance-xs: 4px;
+    --motion-distance-sm: 6px;
+    --motion-distance-md: 10px;
+    --motion-scale-subtle: 0.975;
+    --motion-scale-press: 0.975;
+
+    /* Shadow Tokens */
+    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.1), 0 2px 4px -2px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.1), 0 4px 6px -4px hsl(0 0% 0% / 0.1);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.1), 0 8px 10px -6px hsl(0 0% 0% / 0.1);
+
+    /* Border Radius Tokens */
+    --radius-sm: 0.25rem; /* 4px - buttons, badges, small elements */
+    --radius-md: 0.375rem; /* 6px - inputs, medium elements */
+    --radius-lg: 0.5rem; /* 8px - cards, panels */
+    --radius-xl: 0.75rem; /* 12px - modals, large cards */
+    --radius-2xl: 1rem; /* 16px - large containers */
+    --radius-full: 9999px; /* fully rounded - pills, avatars */
+}
+
+:root.dark { color-scheme: dark; }
+
+/* Light theme */
+:root.light {
+    color-scheme: light;
+    --bg-primary: 220 18% 98%;
+    --bg-secondary: 0 0% 100%;
+    --bg-tertiary: 220 16% 95%;
+    --bg-card: 0 0% 100%; /* #ffffff */
+    --bg-rail: 220 20% 97.5%;
+    --bg-canvas: 0 0% 100%;
+    --chat-user-pill-bg: 220 18% 92%;
+    --chat-user-pill-border: 220 15% 86%;
+
+    --text-primary: 225 18% 16%;
+    --text-secondary: 220 9% 42%;
+    --foreground-subtle: 225 18% 30%;
+
+    --border-color: 220 14% 90%;
+    --border-hover: 220 14% 78%;
+    --separator-color: 220 14% 93%; /* Panel separators */
+    --border-subtle: 210 15% 0% / 0.03; /* Very subtle borders */
+
+    /* 浅色主题下主色调调整 */
+    --accent-primary: 220 70% 50%; /* 墨蓝 - 浅色主题下稍亮 */
+    --accent-dark: 220 70% 42%; /* 墨蓝深色 */
+    --accent-light: 220 70% 58%; /* 墨蓝浅色 */
+
+    /* Secondary accent - light theme adjustments */
+    --accent-secondary: 38 85% 50%; /* 琥珀金 - 浅色主题下调整 */
+    --accent-secondary-dark: 38 85% 40%; /* 琥珀金深色 */
+    --accent-secondary-light: 38 85% 65%; /* 琥珀金浅色 */
+
+    --selection: 220 65% 90%; /* 墨蓝浅色选中 */
+    --scrollbar-track: 210 20% 96%;
+    --scrollbar-thumb: 210 15% 75%; /* #5a5a5a */
+
+    --result-bg: 142 71% 94%; /* #f0fdf4 */
+    --result-border: 142 71% 86%; /* #dcfce7 */
+
+    /* Status text on light tints: the dark-theme hues are ~1.6–2.5:1 on near-white */
+    --success-text: 142 72% 27%; /* #137333 */
+    --warning-text: 30 90% 30%; /* #924a08 */
+    --error-text: 0 72% 42%;
+    --info-text: 220 65% 38%;
+    --purple-text: 270 60% 38%;
+    --cyan-text: 180 65% 23%; /* #b91d1d */
+    --user-message-bg: 220 47% 94%; /* 墨蓝浅色背景 - Lighter user message */
+
+    --ref-tag-bg: 220 40% 96%; /* 墨蓝标签背景 */
+    --ref-tag-text: 220 65% 55%; /* 墨蓝文字 */
+
+    --diff-add-bg: 142 71% 94%; /* #f0fdf4 */
+    --diff-add-text: 142 71% 45%; /* #22c55e */
+    --diff-remove-bg: 0 91% 94%; /* #fef2f2 */
+    --diff-remove-text: 0 91% 71%; /* #f87171 */
+
+    /* Message bubble gradient colors - light theme - 墨蓝渐变 */
+    --message-user-gradient-start: 220 65% 65%;
+    --message-user-gradient-end: 220 65% 55%;
+    --message-ai-gradient-start: 210 20% 94%;
+    --message-ai-gradient-end: 210 20% 90%;
+}

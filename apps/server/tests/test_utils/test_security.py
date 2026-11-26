@@ -3,6 +3,7 @@
 包括密码哈希、验证、JWT token 生成和解析
 """
 import time
+from datetime import timedelta
 
 import pytest
 from jose import jwt
@@ -281,14 +282,23 @@ class TestTokenVerification:
             assert payload is None
 
     def test_verify_token_wrong_algorithm(self):
-        """测试验证使用错误算法生成的令牌"""
-        # 使用 HS256 创建令牌
-        data = {"sub": "123"}
-        token = jwt.encode(data, SECRET_KEY, algorithm="HS256")
+        """测试验证使用错误算法（如 HS512 / none）生成的令牌必须被拒绝"""
+        import base64
+        import json
 
-        # 令牌应该有效（因为我们使用 HS256）
-        payload = verify_token(token)
-        assert payload is not None
+        data = {"sub": "123"}
+        hs512_token = jwt.encode(data, SECRET_KEY, algorithm="HS512")
+        assert verify_token(hs512_token) is None
+
+        # 构造 alg=none 的伪造无签名 JWT，必须被拒绝
+        header_b64 = base64.urlsafe_b64encode(
+            json.dumps({"alg": "none", "typ": "JWT"}).encode()
+        ).rstrip(b"=").decode()
+        payload_b64 = base64.urlsafe_b64encode(
+            json.dumps({"sub": "123"}).encode()
+        ).rstrip(b"=").decode()
+        unsigned_token = f"{header_b64}.{payload_b64}."
+        assert verify_token(unsigned_token) is None
 
     def test_verify_token_missing_sub(self):
         """测试验证没有 sub 字段的令牌"""
@@ -323,46 +333,53 @@ class TestTokenSecurity:
     """测试令牌安全性"""
 
     def test_different_secret_keys_produce_different_tokens(self):
-        """测试不同的密钥生成不同的令牌"""
+        """测试不同密钥签发的令牌不同，且非当前密钥签发的令牌无法通过校验"""
         data = {"sub": "123"}
+        token_with_app_secret = jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+        token_with_other_secret = jwt.encode(
+            data, f"{SECRET_KEY}-other-secret", algorithm=ALGORITHM
+        )
 
-        # 使用当前密钥创建令牌
-        token1 = create_access_token(data)
+        assert token_with_app_secret != token_with_other_secret
+        assert verify_token(token_with_app_secret) is not None
+        assert verify_token(token_with_other_secret) is None
 
-        # 验证令牌
-        payload1 = verify_token(token1)
-        assert payload1 is not None
+    def test_tampered_token_payload_is_rejected(self):
+        """测试篡改 JWT payload 后签名校验必须失败"""
+        import base64
+        import json
 
-    def test_token_payload_does_not_contain_sensitive_data(self):
-        """测试令牌 payload 不包含敏感数据（如密码）"""
-        data = {"sub": "123", "username": "testuser", "password": "secret123"}
-        token = create_access_token(data)
+        token = create_access_token({"sub": "123", "role": "user"})
+        header, _payload, signature = token.split(".")
+        tampered_payload = base64.urlsafe_b64encode(
+            json.dumps({"sub": "123", "role": "admin"}).encode()
+        ).rstrip(b"=").decode()
+        tampered_token = f"{header}.{tampered_payload}.{signature}"
 
-        # 解码令牌
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        assert verify_token(tampered_token) is None
 
-        # 令牌应该包含所有传入的数据
-        # 注意：JWT payload 是 base64 编码的，可以被解码，所以不应包含敏感信息
-        assert "password" in payload
-        # 这是一个安全警示：实际使用中不应该在 JWT 中存储密码
-
-    def test_reproducible_tokens_with_same_data(self):
+    def test_reproducible_tokens_with_same_data(self, monkeypatch):
         """测试相同数据在不同时间创建的令牌有不同的 exp"""
-        data = {"sub": "123", "username": "testuser"}
+        from datetime import UTC, datetime
 
+        import services.core.auth_service as auth_service
+
+        data = {"sub": "123", "username": "testuser"}
+        t1 = datetime(2026, 11, 1, 12, 0, 0, tzinfo=UTC)
+        t2 = t1 + timedelta(seconds=60)
+
+        monkeypatch.setattr(auth_service, "utcnow", lambda: t1)
         token1 = create_access_token(data)
-        time.sleep(1.1)  # 等待超过 1 秒
+        monkeypatch.setattr(auth_service, "utcnow", lambda: t2)
         token2 = create_access_token(data)
 
         # 令牌应该不同（因为 exp 不同）
         assert token1 != token2
 
-        # 解码两个令牌
-        payload1 = jwt.decode(token1, SECRET_KEY, algorithms=[ALGORITHM])
-        payload2 = jwt.decode(token2, SECRET_KEY, algorithms=[ALGORITHM])
+        # 解码两个令牌（跳过过期校验，只验证 payload 字段和 exp 差值）
+        payload1 = jwt.decode(token1, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+        payload2 = jwt.decode(token2, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
 
-        # exp 应该不同
-        assert payload1["exp"] != payload2["exp"]
-        # 其他字段应该相同
+        assert payload2["exp"] - payload1["exp"] == 60
         assert payload1["sub"] == payload2["sub"]
         assert payload1["username"] == payload2["username"]

@@ -1382,3 +1382,28 @@ def test_empty_notes_are_explicit_current_context(status):
     assert '【当前写作约定】' in context
     assert '（空）' in context
     assert '历史对话' in context
+
+
+@pytest.mark.unit
+def test_previous_chapter_is_labelled_as_plot_handoff_not_style_sample():
+    """批量续写时碎句逐章自我强化：前一章条目前标明它只用于承接情节。"""
+    from agent.context.assembler import PREVIOUS_CHAPTER_NOTE
+
+    def _draft(item_id: str, title: str, relation: str | None) -> ContextItem:
+        return ContextItem(
+            id=item_id,
+            type="outline",
+            title=title,
+            content=f"{title}的正文。",
+            metadata={"file_type": "draft", "relation": relation},
+        )
+
+    context = ContextAssembler()._format_context(
+        [_draft("a", "第9章", "previous"), _draft("b", "第3章", "sibling")]
+    )
+    assert context.count(PREVIOUS_CHAPTER_NOTE) == 1
+    note_at = context.index(PREVIOUS_CHAPTER_NOTE)
+    assert context.index("[previous] 第9章") < note_at < context.index("第9章的正文。")
+
+    without_previous = ContextAssembler()._format_context([_draft("b", "第3章", "sibling")])
+    assert PREVIOUS_CHAPTER_NOTE not in without_previous

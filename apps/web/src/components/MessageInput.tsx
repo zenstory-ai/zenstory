@@ -1,296 +1,81 @@
 /**
  * @fileoverview MessageInput component - Chat input with suggestions, attachments, and selected skills.
  *
- * This component provides a rich input interface for AI chat, handling:
- * - Auto-resizing textarea with keyboard shortcuts
- * - Project-aware suggestion display with fallback behavior
- * - Swipe-to-dismiss suggestion chips on mobile
- * - Material attachments and text quotes
- * - Explicitly selected skills shown as removable chips (sent as selected_skill_ids)
- * - Skill quick picker menu ("/" prefix) that adds a skill chip
- * - Voice input integration
- * - Draft persistence with external state sync
+ * Orchestrates subcomponents under `components/chat/` for:
+ * - Accessory chips, suggestions, and "/" skill quick-picker (`ChatInputAccessories`)
+ * - Suggestion selection/dismissal state (`useChatSuggestions`)
+ * - "/" skill command state & keyboard navigation (`useSlashSkillMenu`)
+ * - Voice, send, stop (with arming delay), and steering controls (`ComposerActionControls`)
  *
  * @module components/MessageInput
  */
-import React, { useState, useRef, useEffect, useMemo, useCallback, useId } from "react";
+import React, { useState, useRef, useEffect, useCallback, useId } from "react";
 import type { KeyboardEvent } from "react";
-import { Send, X, Square, RefreshCw, FileText, Quote, Zap } from "lucide-react";
 import { VoiceInputButton } from "./VoiceInputButton";
 import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
 import { useTextQuote } from "../contexts/TextQuoteContext";
-import { MAX_SELECTED_SKILLS, useSkillTrigger, type SelectedSkill } from "../contexts/SkillTriggerContext";
+import { useSkillTrigger, type SelectedSkill } from "../contexts/SkillTriggerContext";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import { useTranslation } from "react-i18next";
-import { skillsApi } from "../lib/api";
-import type { Skill } from "../types";
-import { useSwipeGestures } from "../hooks/useGestures";
 import { logger } from "../lib/logger";
 import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
-import { trackEvent } from "../lib/analytics";
 import { toast } from "../lib/toast";
-
-/**
- * Randomly selects a specified number of distinct suggestions from a pool.
- * Uses Fisher-Yates shuffle for unbiased random selection.
- *
- * @param pool - Array of suggestion strings to choose from
- * @param count - Maximum number of suggestions to return
- * @returns Array of randomly selected suggestions (may be fewer than count if pool is small)
- *
- * @example
- * const suggestions = getRandomSuggestions(['Help me write', 'Continue story', 'Fix grammar'], 2);
- * // Returns 2 random suggestions from the pool
- */
-function getRandomSuggestions(pool: string[], count: number): string[] {
-  if (!pool.length) return [];
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, Math.min(count, shuffled.length));
-}
-
-type SuggestionDisplayState = "loading" | "ready" | "fallback";
-
-function getSuggestionsToDisplay(
-  staticSuggestions: string[],
-  aiSuggestions: string[],
-  suggestionDisplayState: SuggestionDisplayState
-): string[] {
-  if (suggestionDisplayState === "ready" && aiSuggestions.length > 0) {
-    return aiSuggestions.slice(0, 3);
-  }
-  if (suggestionDisplayState === "fallback") {
-    return staticSuggestions.slice(0, 3);
-  }
-  return [];
-}
+import { ChatInputAccessories } from "./chat/ChatInputAccessories";
+import { ComposerActionControls } from "./chat/ComposerActionControls";
+import type { SuggestionDisplayState } from "./chat/suggestionHelpers";
+import { useChatSuggestions } from "./chat/useChatSuggestions";
+import { useSlashSkillMenu } from "./chat/useSlashSkillMenu";
 
 /** How long the stop button ignores presses after it replaces the send button. */
 export const STOP_ARM_DELAY_MS = 1500;
-/** Minimum textarea height in pixels */
 const TEXTAREA_MIN_HEIGHT_PX = 64;
-/** Maximum textarea height in auto-layout mode before scrolling */
 const TEXTAREA_AUTO_MAX_HEIGHT_PX = 120;
 
-/**
- * Props for the SwipeableSuggestionChip component.
- * Displays a suggestion that can be tapped to use or swiped to dismiss.
- */
-interface SwipeableSuggestionChipProps {
-  /** The suggestion text to display */
-  suggestion: string;
-  /** Callback when the chip is clicked/tapped */
-  onClick: () => void;
-  /** Callback when the chip is dismissed via swipe gesture */
-  onDismiss: () => void;
-  /** Whether to use mobile-optimized styling */
-  isMobile: boolean;
-}
-
-/**
- * A suggestion chip component with swipe-to-dismiss support for mobile.
- *
- * Renders as a pill-shaped button that can be:
- * - Tapped to insert the suggestion into the input
- * - Swiped left or right to dismiss (mobile only)
- *
- * Features smooth animations for both dismiss and tap interactions.
- *
- * @param props - Component props
- * @param props.suggestion - The suggestion text to display
- * @param props.onClick - Handler for click/tap events
- * @param props.onDismiss - Handler called after swipe-dismiss animation completes
- * @param props.isMobile - Whether to enable swipe gestures
- *
- * @example
- * <SwipeableSuggestionChip
- *   suggestion="Help me write"
- *   onClick={() => setInput("Help me write")}
- *   onDismiss={() => dismissSuggestion("Help me write")}
- *   isMobile={true}
- * />
- */
-const SwipeableSuggestionChip: React.FC<SwipeableSuggestionChipProps> = ({
-  suggestion,
-  onClick,
-  onDismiss,
-  isMobile,
-}) => {
-  /** Tracks whether the chip is in dismiss animation state */
-  const [isDismissing, setIsDismissing] = useState(false);
-  /** Horizontal translation for swipe animation */
-  const [translateX, setTranslateX] = useState(0);
-
-  const { bind } = useSwipeGestures(
-    (e) => {
-      // Dismiss on left or right swipe
-      if (e.direction === "left" || e.direction === "right") {
-        setIsDismissing(true);
-        // Animate out in swipe direction
-        setTranslateX(e.direction === "left" ? -150 : 150);
-        // Remove after animation
-        setTimeout(() => {
-          onDismiss();
-        }, 200);
-      }
-    },
-    {
-      swipeThreshold: 40,
-      swipeTimeout: 250,
-      swipeVelocity: 0.2,
-      enableVerticalSwipe: false,
-      preventDefaultTouch: false, // Allow scroll to work
-    }
-  );
-
-  return (
-    <button
-      {...bind()}
-      type="button"
-      onClick={onClick}
-      aria-label={suggestion}
-      className={`shrink-0 border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] rounded-full text-xs whitespace-nowrap transition-[background-color,color,border-color,opacity] duration-[var(--duration-instant)] ease-[var(--ease-standard)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'px-3 py-1.5 min-h-11 md:min-h-[32px]' : 'px-2.5 py-1'} ${isDismissing ? 'opacity-0 h-0 py-0 my-0 overflow-hidden' : ''}`}
-      style={{
-        transform: `translate3d(${translateX}px, 0, 0)`,
-        transition: isDismissing
-          ? 'transform var(--duration-fast) var(--ease-out-expo), opacity var(--duration-fast) var(--ease-standard)'
-          : 'none',
-      }}
-    >
-      {suggestion}
-    </button>
-  );
-};
-
-/**
- * Props for the MessageInput component.
- * Provides a rich chat input interface with suggestions, attachments, and selected skills.
- */
 interface MessageInputProps {
   /** Focus after an explicit cross-panel action without changing or sending the draft. */
   focusRequest?: number;
-  /**
-   * Callback invoked when the user submits a message.
-   * @param message - The message text
-   * @param selectedSkillIds - Ids of the skills the user explicitly selected (chips), max 3
-   */
-  /**
-   * Send a new turn. `extraMetadata.entry` is "suggestion" when the author sends a
-   * suggestion chip unchanged.
-   */
+  /** Send a new turn. `extraMetadata.entry` is "suggestion" when sending a suggestion unchanged. */
   onSend: (message: string, selectedSkillIds: string[], extraMetadata?: Record<string, unknown>) => void;
-  /**
-   * Whether the input is disabled (e.g., when the panel is unavailable).
-   * This disables both editing and sending.
-   */
+  /** Disables both editing and sending. */
   disabled?: boolean;
-  /**
-   * Whether sending is disabled (e.g., during AI response generation),
-   * while still allowing the user to type a draft message.
-   *
-   * When omitted, defaults to `disabled`.
-   */
+  /** Disables sending while allowing draft typing; defaults to `disabled`. */
   sendDisabled?: boolean;
-  /**
-   * Sending is held back (today's AI messages are used up): the send button and Enter
-   * call this instead of `onSend`, and the typed text stays in the box.
-   */
+  /** Called instead of `onSend` when quota/sending is held back, preserving the draft. */
   onBlockedSend?: () => void;
-  /**
-   * The server refused this message before starting a round, and its words are back in the
-   * draft. The skills sent with it come back too. A new `seq` means a new refusal.
-   */
+  /** Server refused this message before starting a round; restores sent skills on new `seq`. */
   refusedSend?: { seq: number; message: string; skillIds: string[] } | null;
-  /** Callback to cancel an ongoing operation (shows cancel button when disabled) */
+  /** Callback to cancel an ongoing operation (shows stop button when sendDisabled). */
   onCancel?: () => void;
-  /** Stop already requested: the stop button shows it is waiting and ignores presses */
+  /** Stop already requested: disables stop button while waiting. */
   isStopping?: boolean;
-  /**
-   * Callback to send a steering (follow-up) message while the agent is
-   * streaming. When provided together with `canSteer`, typing during
-   * generation and sending dispatches a steering message instead of a new turn.
-   */
+  /** Dispatches a steering (follow-up) message while streaming when `canSteer` is true. */
   onSteer?: (message: string) => void | Promise<void>;
   /** Whether steering is currently available (agent streaming + active session). */
   canSteer?: boolean;
-  /** Custom placeholder text (defaults to i18n "chat:input.placeholder") */
+  /** Custom placeholder text (defaults to i18n "chat:input.placeholder"). */
   placeholder?: string;
-  /** AI-generated context-aware suggestions to display */
+  /** AI-generated context-aware suggestions to display. */
   aiSuggestions?: string[];
-  /** Chips (AI or fallback) to leave out, e.g. ones that repeat the next-step card. */
+  /** Predicate to hide specific suggestion chips. */
   hideSuggestion?: (suggestion: string) => boolean;
-  /** Suppress the entire suggestion chips row (e.g. while the daily AI quota card is shown). */
+  /** Suppress the entire suggestion chips row. */
   hideSuggestions?: boolean;
-  /** Controls whether suggestion area is loading, ready with AI, or fallback static */
+  /** Controls whether suggestion area is loading, ready with AI, or fallback static. */
   suggestionDisplayState?: SuggestionDisplayState;
-  /** Callback to trigger refresh of AI suggestions */
+  /** Callback to trigger refresh of AI suggestions. */
   onRefreshSuggestions?: () => void;
-  /** Whether AI suggestions are currently being refreshed */
+  /** Whether AI suggestions are currently being refreshed. */
   isRefreshingSuggestions?: boolean;
-  /**
-   * Layout mode for the textarea:
-   * - "auto": Textarea auto-grows up to max height (default)
-   * - "fill": Textarea fills available space in fixed-height parent
-   */
+  /** Layout mode: "auto" grows up to max height; "fill" fills fixed-height parent. */
   layout?: "auto" | "fill";
-  /** Skills that match the current context (displayed as chips) */
+  /** Skills that match the current context (displayed as chips). */
   matchedSkills?: Array<{ name: string; trigger: string }>;
-  /** External draft value for controlled input state */
+  /** External draft value for controlled input state. */
   externalDraft?: string;
-  /** Callback when draft content changes (for persistence) */
+  /** Callback when draft content changes (for persistence). */
   onDraftChange?: (draft: string) => void;
 }
 
-/**
- * Rich chat input component with suggestions, attachments, and selected skills.
- *
- * Features:
- * - Auto-resizing textarea with Enter-to-send and Shift+Enter for newline
- * - Project-aware suggestion system (loading → AI suggestions → static fallback)
- * - Swipe-to-dismiss suggestions on mobile devices
- * - Material attachment display from MaterialAttachmentContext
- * - Text quote display from TextQuoteContext
- * - Selected skill chips from SkillTriggerContext (removable, cleared on send)
- * - Skill quick picker menu (type "/" to search and select skills as chips)
- * - Voice input integration via VoiceInputButton
- * - Draft persistence with external state synchronization
- *
- * Keyboard Shortcuts:
- * - Enter: Send message
- * - Shift+Enter: Newline
- * - Tab: Accept first suggestion (when input is empty)
- * - "/" + type: Open skill search menu
- * - Arrow Up/Down: Navigate skill menu
- * - Escape: Close skill menu
- *
- * @param props - Component props (see MessageInputProps)
- * @returns The rendered message input component
- *
- * @example
- * // Basic usage
- * <MessageInput
- *   onSend={(msg) => sendMessage(msg)}
- *   placeholder="Ask anything..."
- * />
- *
- * @example
- * // With AI suggestions and draft persistence
- * <MessageInput
- *   onSend={handleSend}
- *   aiSuggestions={['Continue story', 'Add dialogue']}
- *   messageCount={5}
- *   onRefreshSuggestions={refreshAI}
- *   externalDraft={savedDraft}
- *   onDraftChange={saveDraft}
- * />
- *
- * @example
- * // During AI response (disabled with cancel)
- * <MessageInput
- *   onSend={handleSend}
- *   disabled={true}
- *   onCancel={cancelGeneration}
- * />
- */
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSend,
   focusRequest = 0,
@@ -320,6 +105,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const textareaMinHeightPx = isMobile ? 44 : TEXTAREA_MIN_HEIGHT_PX;
   const effectiveSendDisabled = sendDisabled ?? disabled;
   const inputDisabled = disabled;
+
   // The stop button takes the send button's place the moment a message goes out,
   // so a double tap on send used to stop the round before anything was written.
   // Ignore it until STOP_ARM_DELAY_MS after it appears.
@@ -335,45 +121,25 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     const timer = setTimeout(() => setStopArmed(true), STOP_ARM_DELAY_MS);
     return () => clearTimeout(timer);
   }, [stopShown]);
-  // The suggestion the author last put into the box; sent unchanged → entry "suggestion".
-  const pickedSuggestionRef = useRef<string | null>(null);
-  const noteSuggestionPicked = (suggestion: string, via: "click" | "tab") => {
-    pickedSuggestionRef.current = suggestion;
-    trackEvent("ai_suggestion_picked", {
-      via,
-      index: aiSuggestions.indexOf(suggestion),
-      source: suggestionDisplayState,
-    });
-  };
-  // Steering is offered while the agent is generating: the textarea stays
-  // editable and submitting dispatches a follow-up instruction instead of a
-  // brand-new turn.
-  const steerActive = canSteer && !!onSteer && !inputDisabled;
 
-  const allStaticSuggestions = useMemo(() => {
-    const raw = t("chat:input.staticSuggestions", { returnObjects: true }) as unknown;
-    if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
-    return [];
-  }, [t]);
+  // Steering is offered while the agent is generating: the textarea stays
+  // editable and submitting dispatches a follow-up instruction instead of a brand-new turn.
+  const steerActive = canSteer && !!onSteer && !inputDisabled;
 
   const [input, setInputInternal] = useState(externalDraft ?? "");
   // 与后端 AgentRequest.message 的 max_length 一致：超限时禁用发送并提示。
   const inputTooLong = input.length > MAX_AGENT_MESSAGE_CHARS;
-  const [staticSuggestions, setStaticSuggestions] = useState<string[]>(() =>
-    getRandomSuggestions(allStaticSuggestions, 3)
+
+  const setInput = useCallback(
+    (value: string | ((prev: string) => string)) => {
+      setInputInternal((prev) => {
+        const next = typeof value === "function" ? value(prev) : value;
+        onDraftChange?.(next);
+        return next;
+      });
+    },
+    [onDraftChange]
   );
-
-  // Track dismissed suggestions for swipe-to-dismiss
-  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
-
-  // Wrap setInput to also notify parent of draft changes
-  const setInput = useCallback((value: string | ((prev: string) => string)) => {
-    setInputInternal((prev) => {
-      const next = typeof value === 'function' ? value(prev) : value;
-      onDraftChange?.(next);
-      return next;
-    });
-  }, [onDraftChange]);
 
   // Sync from external draft when it changes (e.g. project switch)
   useEffect(() => {
@@ -381,6 +147,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       setInputInternal(externalDraft);
     }
   }, [externalDraft]);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastFocusRequestRef = useRef(0);
   useEffect(() => {
@@ -391,6 +158,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     });
     return () => cancelAnimationFrame(frame);
   }, [focusRequest, disabled]);
+
   const isComposingRef = useRef(false);
   const { attachedMaterials, removeMaterial } = useMaterialAttachment();
   const { quotes, removeQuote } = useTextQuote();
@@ -399,128 +167,31 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   // 追加指令发送中：用于禁用按钮/回车，避免重复提交同一条 steering。
   const [steerPending, setSteerPending] = useState(false);
 
-  // Skill quick trigger state
-  const [showSkillMenu, setShowSkillMenu] = useState(false);
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [skillSearchQuery, setSkillSearchQuery] = useState("");
-  const [selectedSkillIndex, setSelectedSkillIndex] = useState(0);
-  const [isLoadingSkills, setIsLoadingSkills] = useState(false);
-  const [skillsLoadFailed, setSkillsLoadFailed] = useState(false);
-  const skillMenuRef = useRef<HTMLDivElement>(null);
+  const skillMenu = useSlashSkillMenu({
+    selectedSkills,
+    selectSkill,
+    setInput,
+    layout,
+    textareaRef,
+  });
 
-  // Reset static suggestions when language changes
-  useEffect(() => {
-    setStaticSuggestions(getRandomSuggestions(allStaticSuggestions, 3));
-  }, [allStaticSuggestions]);
-
-  const baseDisplaySuggestions = getSuggestionsToDisplay(
-    hideSuggestion ? staticSuggestions.filter((s) => !hideSuggestion(s)) : staticSuggestions,
-    hideSuggestion ? aiSuggestions.filter((s) => !hideSuggestion(s)) : aiSuggestions,
+  const suggestions = useChatSuggestions({
+    aiSuggestions,
+    hideSuggestion,
+    hideSuggestions,
     suggestionDisplayState,
-  );
+    onRefreshSuggestions,
+    input,
+    inputDisabled,
+    effectiveSendDisabled,
+    layout,
+    selectedSkillsCount: selectedSkills.length,
+  });
 
-  // Filter out dismissed suggestions
-  const displaySuggestions = useMemo(
-    () => baseDisplaySuggestions.filter(s => !dismissedSuggestions.has(s)),
-    [baseDisplaySuggestions, dismissedSuggestions]
-  );
-  const isSuggestionLoading = suggestionDisplayState === "loading";
-  const showSuggestionRow =
-    !hideSuggestions &&
-    !input &&
-    !inputDisabled &&
-    !effectiveSendDisabled &&
-    !(layout === "fill" && selectedSkills.length > 0) &&
-    (isSuggestionLoading || suggestionDisplayState === "fallback" || displaySuggestions.length > 0);
-
-  // Load skills when menu is shown
-  const loadSkills = useCallback(async () => {
-    if (skills.length > 0) return; // Already loaded
-    setIsLoadingSkills(true);
-    setSkillsLoadFailed(false);
-    try {
-      const response = await skillsApi.list();
-      setSkills(response.skills.filter(s => s.is_active));
-    } catch (error) {
-      logger.error("Failed to load skills:", error);
-      setSkillsLoadFailed(true);
-    } finally {
-      setIsLoadingSkills(false);
-    }
-  }, [skills.length]);
-
-  // Filter skills based on search query
-  const filteredSkills = useMemo(() => {
-    if (!skillSearchQuery) return skills;
-    const query = skillSearchQuery.toLowerCase();
-    return skills.filter(skill =>
-      skill.name.toLowerCase().includes(query) ||
-      skill.triggers.some(t => t.toLowerCase().includes(query)) ||
-      (skill.description?.toLowerCase().includes(query))
-    );
-  }, [skills, skillSearchQuery]);
-
-  // 已选满 MAX_SELECTED_SKILLS 个时，菜单里未选中的技能不可再选（否则 selectSkill 静默忽略、
-  // 输入却被清空，用户看不出发生了什么）；已选中的仍可点，等价于保持原样。
-  const skillSelectionFull = selectedSkills.length >= MAX_SELECTED_SKILLS;
-  const isSkillPickable = useCallback(
-    (skill: Skill) => !skillSelectionFull || selectedSkills.some((selected) => selected.id === skill.id),
-    [selectedSkills, skillSelectionFull],
-  );
-
-  // Handle skill selection from the "/" menu: add a chip and drop the "/query" text
-  const pickSkillFromMenu = useCallback((skill: Skill) => {
-    if (!isSkillPickable(skill)) {
-      return;
-    }
-    selectSkill({ id: skill.id, name: skill.name });
-    setInput("");
-    setShowSkillMenu(false);
-    setSkillSearchQuery("");
-    setSelectedSkillIndex(0);
-    textareaRef.current?.focus();
-    if (layout === "auto" && textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
-  }, [isSkillPickable, layout, selectSkill, setInput]);
-
-  // Close skill menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (skillMenuRef.current && !skillMenuRef.current.contains(e.target as Node)) {
-        setShowSkillMenu(false);
-        setSkillSearchQuery("");
-        setSelectedSkillIndex(0);
-      }
-    };
-    if (showSkillMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showSkillMenu]);
-
-  // Dismiss a suggestion (swipe-to-dismiss)
-  const dismissSuggestion = useCallback((suggestion: string) => {
-    setDismissedSuggestions(prev => {
-      const next = new Set(prev);
-      next.add(suggestion);
-      return next;
-    });
-  }, []);
-
-  // 刷新提示
-  const refreshSuggestions = () => {
-    setDismissedSuggestions(new Set());
-    onRefreshSuggestions?.();
-  };
-
-  // Auto-resize textarea (only in auto layout)
   const adjustHeight = () => {
     if (layout !== "auto") return;
-
     const textarea = textareaRef.current;
     if (!textarea) return;
-
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, TEXTAREA_AUTO_MAX_HEIGHT_PX)}px`;
   };
@@ -529,111 +200,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     const value = e.target.value;
     setInput(value);
     adjustHeight();
-
-    // Check for skill trigger: input starts with "/"
-    if (value.startsWith("/")) {
-      const query = value.slice(1); // Remove the "/" prefix
-      setSkillSearchQuery(query);
-      setSelectedSkillIndex(0);
-      if (!showSkillMenu) {
-        setShowSkillMenu(true);
-        loadSkills();
-      }
-    } else {
-      if (showSkillMenu) {
-        setShowSkillMenu(false);
-        setSkillSearchQuery("");
-        setSelectedSkillIndex(0);
-      }
-    }
+    skillMenu.syncWithInputValue(value);
   };
 
-  // 采纳建议（第一条 AI 建议或静态建议）
   const acceptSuggestion = (suggestion: string) => {
     if (!input) {
-      noteSuggestionPicked(suggestion, "tab");
+      suggestions.noteSuggestionPicked(suggestion, "tab");
       setInput(suggestion);
       textareaRef.current?.focus();
       setTimeout(adjustHeight, 0);
     }
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // IME 组字期间（拼音/日文输入法）按 Enter 只是确认候选词，不能触发发送等快捷键。
-    // Safari 会在 compositionend 之后才派发确认键的 keydown（此时 isComposing 已为
-    // false，但 keyCode 仍是 229），所以需要 composition 事件 + isComposing/keyCode 双重判断。
-    if (
-      isComposingRef.current ||
-      e.nativeEvent.isComposing ||
-      e.nativeEvent.keyCode === 229
-    ) {
-      return;
-    }
-
-    // Escape always dismisses the skill menu (even with 0 matches or while loading/failed)
-    if (showSkillMenu && e.key === "Escape") {
-      e.preventDefault();
-      setShowSkillMenu(false);
-      setSkillSearchQuery("");
-      setSelectedSkillIndex(0);
-      setInput("");
-      textareaRef.current?.focus();
-      return;
-    }
-
-    // Handle skill menu navigation
-    if (showSkillMenu && filteredSkills.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedSkillIndex(prev =>
-          prev < filteredSkills.length - 1 ? prev + 1 : 0
-        );
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedSkillIndex(prev =>
-          prev > 0 ? prev - 1 : filteredSkills.length - 1
-        );
-        return;
-      }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        pickSkillFromMenu(filteredSkills[selectedSkillIndex]);
-        return;
-      }
-    }
-
-    // Tab 键：技能菜单选择或采纳建议
-    if (e.key === "Tab") {
-      if (showSkillMenu && filteredSkills.length > 0) {
-        // 技能菜单已打开 - Tab 用于导航（已在上面处理）
-        return;
-      }
-      if (!input && displaySuggestions.length > 0) {
-        // 无输入且有建议 - Tab 采纳第一条建议
-        e.preventDefault();
-        acceptSuggestion(displaySuggestions[0]);
-        return;
-      }
-    }
-    // Enter 发送（生成中且可追加时，发送补充指令）
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      if (steerActive) {
-        void handleSteer();
-      } else {
-        handleSubmit();
-      }
-    }
-  };
-
   /**
    * 发送追加指令（steering）。
-   *
-   * 必须等 onSteer 真正成功之后才清空输入：setInput 会同步把草稿
-   * （localStorage 里的 drafts[projectId]）覆写成空串，一旦失败，
-   * 用户敲的这段指令在 textarea 和持久化草稿里都不复存在，只能凭记忆重打。
+   * 必须等 onSteer 真正成功之后才清空输入，否则失败时用户敲的指令和草稿都会丢失。
    */
   const handleSteer = async () => {
     const trimmed = input.trim();
@@ -643,7 +224,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     try {
       await onSteer(trimmed);
     } catch (error) {
-      // 失败时保留输入，用户可直接重试（提示由上层 toast 负责）。
       logger.error("Failed to send steering message", error);
       return;
     } finally {
@@ -675,13 +255,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleSubmit = () => {
     const message = input.trim();
     if (message && onBlockedSend && !effectiveSendDisabled && !inputTooLong) {
-      // Keep the draft: it is sent once the author can send again.
       onBlockedSend();
       return;
     }
     if (message && !effectiveSendDisabled && !inputTooLong) {
-      const fromSuggestion = pickedSuggestionRef.current?.trim() === message;
-      pickedSuggestionRef.current = null;
+      const fromSuggestion = suggestions.consumePickedSuggestionMatch(message);
       const skillIds = selectedSkills.map((skill) => skill.id);
       lastSentRef.current = { message, skills: selectedSkills };
       if (fromSuggestion) {
@@ -692,9 +270,40 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       // 与输入框文本保持一致：发送即清空（onSend 不回报失败）。
       setInput("");
       clearSkills();
-      // Reset height (auto layout only)
       if (textareaRef.current && layout === "auto") {
         textareaRef.current.style.height = "auto";
+      }
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME 组字期间（拼音/日文输入法）按 Enter 只是确认候选词，不能触发发送等快捷键。
+    // Safari 会在 compositionend 之后才派发确认键的 keydown（此时 isComposing 已为
+    // false，但 keyCode 仍是 229），所以需要 composition 事件 + isComposing/keyCode 双重判断。
+    if (
+      isComposingRef.current ||
+      e.nativeEvent.isComposing ||
+      e.nativeEvent.keyCode === 229
+    ) {
+      return;
+    }
+
+    if (skillMenu.handleSkillMenuKeyDown(e)) {
+      return;
+    }
+
+    if (e.key === "Tab" && !input && suggestions.displaySuggestions.length > 0) {
+      e.preventDefault();
+      acceptSuggestion(suggestions.displaySuggestions[0]);
+      return;
+    }
+
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (steerActive) {
+        void handleSteer();
+      } else {
+        handleSubmit();
       }
     }
   };
@@ -715,22 +324,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     onCancel?.();
   };
 
-  // 点击提示填充到输入框
   const handleSuggestionClick = (suggestion: string) => {
-    noteSuggestionPicked(suggestion, "click");
+    suggestions.noteSuggestionPicked(suggestion, "click");
     setInput(suggestion);
     textareaRef.current?.focus();
   };
 
-  // 语音识别结果回调
   const handleVoiceResult = (text: string) => {
-    // 将识别结果追加到输入框（如果已有内容则追加）
-    setInput((prev) => {
-      const newText = prev ? `${prev} ${text}` : text;
-      return newText;
-    });
+    setInput((prev) => (prev ? `${prev} ${text}` : text));
     textareaRef.current?.focus();
-    // 调整高度
     setTimeout(adjustHeight, 0);
   };
 
@@ -738,274 +340,47 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     ? t("chat:input.steerPlaceholder")
     : (placeholder ?? t("chat:input.placeholder"));
   const isFillLayout = layout === "fill";
-  const compactAccessoryRowClass = isFillLayout
-    ? "shrink-0 flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none"
-    : "shrink-0 flex flex-wrap items-center gap-1.5";
-  const accessoryLabelClass = `text-xs text-[hsl(var(--text-secondary))] ${isFillLayout ? "shrink-0" : ""}`;
-  const hasAccessoryRows =
-    attachedMaterials.length > 0 ||
-    quotes.length > 0 ||
-    matchedSkills.length > 0 ||
-    selectedSkills.length > 0 ||
-    showSuggestionRow ||
-    showSkillMenu;
-
-  const accessoryRows = (
-    <>
-      {/* Attached materials display */}
-      {attachedMaterials.length > 0 && (
-        <div className={compactAccessoryRowClass}>
-          <span className={accessoryLabelClass}>{t("chat:input.attachedMaterials")}</span>
-          {attachedMaterials.map((material) => (
-            <span
-              key={material.id}
-              className={`inline-flex min-w-0 items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))] text-xs font-medium ${isFillLayout ? "shrink-0" : ""}`}
-            >
-              <FileText size={12} className="shrink-0" />
-              <span className="max-w-[110px] truncate">{material.title}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  removeMaterial(material.id);
-                  textareaRef.current?.focus();
-                }}
-                className={`shrink-0 opacity-70 hover:opacity-100 hover:text-[hsl(var(--error-text))] transition-opacity focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--accent-primary))] rounded-full ${isMobile ? "p-1 -m-1" : ""}`}
-                title={t("chat:input.remove")}
-                aria-label={t("chat:input.removeMaterial", { title: material.title })}
-              >
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Quoted text display */}
-      {quotes.length > 0 && (
-        <div className={compactAccessoryRowClass}>
-          <span className={accessoryLabelClass}>{t("chat:input.quotedText")}</span>
-          {quotes.map((quote) => (
-            <span
-              key={quote.id}
-              className={`inline-flex min-w-0 items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.1)] text-[hsl(var(--warning-text))] text-xs font-medium ${isFillLayout ? "shrink-0" : ""}`}
-              title={quote.text}
-            >
-              <Quote size={12} className="shrink-0" />
-              <span className="max-w-[150px] truncate">
-                {quote.text.length > 50 ? `${quote.text.slice(0, 50)}…` : quote.text}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  removeQuote(quote.id);
-                  textareaRef.current?.focus();
-                }}
-                className={`shrink-0 opacity-70 hover:opacity-100 hover:text-[hsl(var(--error-text))] transition-opacity focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--accent-primary))] rounded-full ${isMobile ? "p-1 -m-1" : ""}`}
-                title={t("chat:input.remove")}
-                aria-label={t("chat:input.removeQuote")}
-              >
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Matched skills indicator */}
-      {matchedSkills.length > 0 && (
-        <div className={compactAccessoryRowClass}>
-          {matchedSkills.map((skill, index) => (
-            <span
-              key={index}
-              className={`inline-flex min-w-0 items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))] text-xs font-medium ${isFillLayout ? "shrink-0" : ""}`}
-            >
-              <Zap size={10} className="shrink-0" />
-              <span className="max-w-[180px] truncate">{skill.name}</span>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Explicitly selected skills (sent as selected_skill_ids) */}
-      {selectedSkills.length > 0 && (
-        <div className={compactAccessoryRowClass} data-testid="chat-selected-skill-row">
-          <span className={accessoryLabelClass}>
-            {t("chat:skill.selectedLabel", { count: selectedSkills.length, max: MAX_SELECTED_SKILLS })}
-          </span>
-          {selectedSkills.map((skill) => (
-            <span
-              key={skill.id}
-              className={`inline-flex min-w-0 items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] text-xs font-medium ${isFillLayout ? "shrink-0" : ""}`}
-              data-testid="chat-selected-skill-chip"
-            >
-              <Zap size={11} className="shrink-0 text-[hsl(var(--accent-primary))]" />
-              <span className="max-w-[200px] truncate">{skill.name}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  removeSkill(skill.id);
-                  textareaRef.current?.focus();
-                }}
-                className={`shrink-0 opacity-70 hover:opacity-100 hover:text-[hsl(var(--error-text))] transition-opacity focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--accent-primary))] rounded-full ${isMobile ? "p-1 -m-1" : ""}`}
-                title={t("chat:input.remove")}
-                aria-label={t("chat:skill.removeSelected", { name: skill.name })}
-              >
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Suggestion row: project suggestions first, static only as explicit fallback */}
-      {showSuggestionRow && (
-        <div className="shrink-0 flex min-w-0 items-center gap-2">
-          {/* Only the chips scroll sideways: long ones (a reply's own options) must not push the
-              refresh button off a phone screen. */}
-          <div className={`flex min-w-0 flex-1 items-center overflow-x-auto pb-0.5 pr-5 scrollbar-none [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] ${isMobile ? 'gap-2' : 'gap-1.5'}`}>
-          {isSuggestionLoading ? (
-            <>
-              <span className="sr-only">{t("common:loading")}</span>
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={`suggestion-loading-${i}`}
-                  className={`shrink-0 rounded-full bg-[hsl(var(--bg-tertiary))] animate-pulse ${isMobile ? 'w-20 h-7' : 'w-24 h-6'}`}
-                />
-              ))}
-            </>
-          ) : (
-            displaySuggestions.map((suggestion, index) => (
-              <SwipeableSuggestionChip
-                key={`${suggestion}-${index}`}
-                suggestion={suggestion}
-                onClick={() => handleSuggestionClick(suggestion)}
-                onDismiss={() => dismissSuggestion(suggestion)}
-                isMobile={isMobile}
-              />
-            ))
-          )}
-          </div>
-          {onRefreshSuggestions && (
-            <button
-              type="button"
-              onClick={refreshSuggestions}
-              disabled={isRefreshingSuggestions}
-              className="shrink-0 inline-flex items-center justify-center min-h-11 min-w-11 md:min-h-7 md:min-w-7 -my-1.5 md:my-0 p-1.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
-              title={t("chat:input.refresh")}
-              aria-label={t("chat:input.refresh")}
-              aria-busy={isRefreshingSuggestions}
-            >
-              <RefreshCw size={13} className={isRefreshingSuggestions ? "animate-spin" : ""} />
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Skill quick trigger menu */}
-      {showSkillMenu && (
-        <div
-          ref={skillMenuRef}
-          className="shrink-0 relative bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg shadow-lg max-h-64 overflow-y-auto"
-        >
-          {isLoadingSkills ? (
-            <div className="px-3 py-4 text-center text-sm text-[hsl(var(--text-secondary))]">
-              {t("chat:skill.loading")}
-            </div>
-          ) : skillsLoadFailed && skills.length === 0 ? (
-            <div className="px-3 py-4 flex flex-col items-center gap-2 text-center">
-              <p role="alert" className="text-sm text-[hsl(var(--error-text))]">
-                {t("chat:skill.loadFailed")}
-              </p>
-              <button
-                type="button"
-                onClick={() => void loadSkills()}
-                className="px-2.5 py-1 text-xs rounded bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary)/0.8)] transition-colors"
-              >
-                {t("chat:skill.retry")}
-              </button>
-            </div>
-          ) : filteredSkills.length === 0 ? (
-            <div className="px-3 py-4 text-center text-sm text-[hsl(var(--text-secondary))]">
-              {t("chat:skill.noResults")}
-            </div>
-          ) : (
-            <div className="py-1">
-              {skillSelectionFull && (
-                <div
-                  role="status"
-                  className="px-3 py-2 text-xs text-[hsl(var(--warning-text))]"
-                >
-                  {t("chat:skill.selectionFull", { max: MAX_SELECTED_SKILLS })}
-                </div>
-              )}
-              {filteredSkills.map((skill, index) => (
-                <button
-                  key={skill.id}
-                  type="button"
-                  onClick={() => pickSkillFromMenu(skill)}
-                  disabled={!isSkillPickable(skill)}
-                  className={`w-full px-3 py-2 text-left hover:bg-[hsl(var(--bg-tertiary))] transition-colors focus-visible:outline-none focus-visible:bg-[hsl(var(--bg-tertiary))] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent ${
-                    index === selectedSkillIndex
-                      ? "bg-[hsl(var(--accent-primary)/0.1)] border-l-2 border-l-[hsl(var(--accent-primary))]"
-                      : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Zap size={14} className="text-[hsl(var(--accent-primary))] shrink-0" />
-                    <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
-                      {skill.name}
-                    </span>
-                    <span className="text-xs text-[hsl(var(--text-secondary))] px-1.5 py-0.5 bg-[hsl(var(--bg-tertiary))] rounded">
-                      {skill.source === "builtin" ? t("chat:skill.builtin") : t("chat:skill.user")}
-                    </span>
-                  </div>
-                  {skill.description && (
-                    <p className="mt-1 text-xs text-[hsl(var(--text-secondary))] line-clamp-1 ml-5">
-                      {skill.description}
-                    </p>
-                  )}
-                  <div className="mt-1 flex flex-wrap gap-1 ml-5">
-                    {skill.triggers.slice(0, 3).map((trigger, i) => (
-                      <span
-                        key={i}
-                        className="text-xs text-[hsl(var(--accent-primary)/0.8)] bg-[hsl(var(--accent-primary)/0.1)] px-1.5 py-0.5 rounded"
-                      >
-                        {trigger}
-                      </span>
-                    ))}
-                    {skill.triggers.length > 3 && (
-                      <span className="text-xs text-[hsl(var(--text-secondary))]">
-                        +{skill.triggers.length - 3}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="px-3 py-2 border-t border-[hsl(var(--border-color))] text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1.5">
-            <span>{t("chat:skill.hint")}</span>
-          </div>
-        </div>
-      )}
-    </>
-  );
 
   return (
-    <div
-      className={
-        isFillLayout
-          ? "flex flex-col gap-2.5 h-full min-h-0"
-          : "flex flex-col gap-2.5"
-      }
-    >
-      {isFillLayout && hasAccessoryRows ? (
-        <div className="min-h-0 overflow-y-auto pr-1" data-testid="chat-input-accessories">
-          <div className="flex flex-col gap-2.5 pb-1">{accessoryRows}</div>
-        </div>
-      ) : (
-        accessoryRows
-      )}
+    <div className={isFillLayout ? "flex flex-col gap-2.5 h-full min-h-0" : "flex flex-col gap-2.5"}>
+      <ChatInputAccessories
+        attachedMaterials={attachedMaterials}
+        quotes={quotes}
+        matchedSkills={matchedSkills}
+        selectedSkills={selectedSkills}
+        isFillLayout={isFillLayout}
+        isMobile={isMobile}
+        onRemoveMaterial={(id) => {
+          removeMaterial(id);
+          textareaRef.current?.focus();
+        }}
+        onRemoveQuote={(id) => {
+          removeQuote(id);
+          textareaRef.current?.focus();
+        }}
+        onRemoveSkill={(id) => {
+          removeSkill(id);
+          textareaRef.current?.focus();
+        }}
+        showSuggestionRow={suggestions.showSuggestionRow}
+        isSuggestionLoading={suggestions.isSuggestionLoading}
+        displaySuggestions={suggestions.displaySuggestions}
+        onSelectSuggestion={handleSuggestionClick}
+        onDismissSuggestion={suggestions.dismissSuggestion}
+        onRefreshSuggestions={onRefreshSuggestions ? suggestions.refreshSuggestions : undefined}
+        isRefreshingSuggestions={isRefreshingSuggestions}
+        showSkillMenu={skillMenu.showSkillMenu}
+        skillMenuRef={skillMenu.skillMenuRef}
+        isLoadingSkills={skillMenu.isLoadingSkills}
+        skillsLoadFailed={skillMenu.skillsLoadFailed}
+        skillsCount={skillMenu.skillsCount}
+        filteredSkills={skillMenu.filteredSkills}
+        selectedSkillIndex={skillMenu.selectedSkillIndex}
+        skillSelectionFull={skillMenu.skillSelectionFull}
+        isSkillPickable={skillMenu.isSkillPickable}
+        onPickSkill={skillMenu.pickSkillFromMenu}
+        onRetrySkills={() => void skillMenu.loadSkills()}
+      />
 
       {inputTooLong ? (
         <div
@@ -1030,10 +405,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           inputTooLong
             ? "border-[hsl(var(--error)/0.65)] ring-1 ring-inset ring-[hsl(var(--error)/0.2)]"
             : "border-[hsl(var(--border-color))] focus-within:border-[hsl(var(--accent-primary)/0.55)] focus-within:ring-1 focus-within:ring-inset focus-within:ring-[hsl(var(--accent-primary)/0.2)]"
-        } ${
-          isFillLayout ? "flex-1 min-h-0" : ""
-        }`}
-        style={isFillLayout ? { minHeight: '110px' } : undefined}
+        } ${isFillLayout ? "flex-1 min-h-0" : ""}`}
+        style={isFillLayout ? { minHeight: "110px" } : undefined}
       >
         {isMobile && (
           <VoiceInputButton
@@ -1060,15 +433,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           placeholder={displayPlaceholder}
           disabled={inputDisabled}
           className={`bg-transparent text-sm text-[hsl(var(--text-primary))] placeholder:text-sm placeholder:text-[hsl(var(--text-secondary))] outline-none resize-none overflow-y-auto disabled:opacity-50 ${
-            isMobile ? 'flex-1 min-w-0 px-2 py-2.5 text-base md:text-sm' : 'w-full px-3.5 pt-2.5 pb-1'
-          } ${
-            isFillLayout ? "flex-1 min-h-0" : ""
-          }`}
+            isMobile ? "flex-1 min-w-0 px-2 py-2.5 text-base md:text-sm" : "w-full px-3.5 pt-2.5 pb-1"
+          } ${isFillLayout ? "flex-1 min-h-0" : ""}`}
           style={
             isFillLayout
-              ? {
-                  minHeight: `${textareaMinHeightPx}px`,
-                }
+              ? { minHeight: `${textareaMinHeightPx}px` }
               : {
                   minHeight: `${textareaMinHeightPx}px`,
                   maxHeight: `${TEXTAREA_AUTO_MAX_HEIGHT_PX}px`,
@@ -1078,73 +447,25 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           data-testid="chat-input"
         />
 
-        {/* Action controls: inline trailing on phones, dedicated bottom bar on desktop */}
-        <div className={isMobile ? "shrink-0 flex items-center" : "shrink-0 flex items-center justify-between gap-2 px-2 pb-1.5 pt-0.5"}>
-          {!isMobile && (
-            <div className="flex items-center gap-1">
-              {/* 语音输入按钮 */}
-              <VoiceInputButton
-                onResult={handleVoiceResult}
-                disabled={inputDisabled}
-                className="!border-0 !bg-transparent hover:!bg-[hsl(var(--bg-tertiary))] !rounded-full"
-              />
-            </div>
-          )}
-
-          <div className="flex items-center gap-1.5">
-            {steerActive && input.trim() ? (
-              <button
-                onClick={() => { void handleSteer(); }}
-                disabled={!input.trim() || steerPending || inputTooLong}
-                className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-full transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.95] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-secondary)),_0_0_0_4px_hsl(var(--accent-primary))] ${isMobile ? 'w-11 h-11' : 'w-8 h-8'}`}
-                title={t("chat:input.steerButton")}
-                aria-label={t("chat:input.steerButton")}
-                data-testid="steer-button"
-              >
-                <Send key="steer-icon" size={15} className="motion-icon-pop" />
-              </button>
-            ) : onCancel && effectiveSendDisabled ? (
-              <button
-                onClick={handleCancel}
-                // While arming the button stays clickable (aria-disabled) so a press gets an answer.
-                disabled={isStopping}
-                aria-disabled={!stopArmed || isStopping}
-                className={`shrink-0 flex items-center justify-center rounded-full transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.95] motion-reduce:active:scale-100 focus-visible:outline-none ${
-                  !stopArmed || isStopping
-                    // Muted while arming: secondary ink on the tertiary fill, hairline ring.
-                    ? 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] shadow-[inset_0_0_0_1px_hsl(var(--border-color))] cursor-not-allowed focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-secondary)),_0_0_0_4px_hsl(var(--accent-primary))]'
-                    // Same solid danger colors as ui/Button's danger variant.
-                    : 'bg-[hsl(var(--danger-solid))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--danger-hover))] focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-secondary)),_0_0_0_4px_hsl(var(--error))]'
-                } ${isMobile ? 'w-11 h-11' : 'w-8 h-8'}`}
-                title={stopButtonLabel}
-                aria-label={stopButtonLabel}
-                data-testid="stop-button"
-              >
-                <Square key="stop-icon" size={13} fill="currentColor" className="motion-icon-pop" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!input.trim() || effectiveSendDisabled || inputTooLong}
-                className={`shrink-0 flex items-center justify-center bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-hover))] text-[hsl(var(--primary-foreground))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:text-[hsl(var(--text-secondary))] disabled:opacity-60 disabled:cursor-not-allowed rounded-full transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.95] disabled:active:scale-100 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-secondary)),_0_0_0_4px_hsl(var(--accent-primary))] disabled:focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-secondary)),_0_0_0_4px_hsl(var(--bg-tertiary))] ${isMobile ? 'w-11 h-11' : 'w-8 h-8'}`}
-                title={
-                  inputTooLong
-                    ? t("chat:input.tooLong", { count: input.length, max: MAX_AGENT_MESSAGE_CHARS })
-                    : effectiveSendDisabled
-                      ? t("chat:input.sendDisabledBusy")
-                      : !input.trim()
-                        ? t("chat:input.sendDisabledEmpty")
-                        : t("chat:input.sendWithShortcut")
-                }
-                aria-label={t("common:send")}
-                data-testid="send-button"
-              >
-                <Send key="send-icon" size={15} className="motion-icon-pop" />
-              </button>
-            )}
-          </div>
-        </div>
+        <ComposerActionControls
+          isMobile={isMobile}
+          input={input}
+          inputDisabled={inputDisabled}
+          effectiveSendDisabled={effectiveSendDisabled}
+          inputTooLong={inputTooLong}
+          steerActive={steerActive}
+          steerPending={steerPending}
+          hasCancelHandler={Boolean(onCancel)}
+          isStopping={isStopping}
+          stopArmed={stopArmed}
+          stopButtonLabel={stopButtonLabel}
+          onVoiceResult={handleVoiceResult}
+          onSteer={() => {
+            void handleSteer();
+          }}
+          onCancel={handleCancel}
+          onSubmit={handleSubmit}
+        />
       </div>
     </div>
   );
