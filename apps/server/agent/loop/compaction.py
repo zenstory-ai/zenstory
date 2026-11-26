@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -195,16 +196,32 @@ def archive_old_tool_results(
             projected_after_tokens=max(before_tokens, history.last_prompt_tokens),
         )
 
-    call_info_by_id: dict[str, tuple[int, str]] = {}
+    # 按序匹配最近未消费的 function_call（支持上游/代理跨轮复用 call_0 等非全局唯一 call_id，
+    # 绝不发生后轮 query_files(call_0) 覆盖前轮 edit_file(call_0) 导致误归档写工具，或保护窗覆盖旧读工具）。
+    pending_calls_by_id: dict[str, deque[tuple[int, str, int]]] = {}
+    matched_call_by_output_idx: dict[int, tuple[int, str, int]] = {}
+    call_id_counts: dict[str, int] = {}
     for idx, item in enumerate(history.items):
-        if isinstance(item, dict) and item.get("type") == "function_call":
-            call_id = item.get("call_id") or item.get("id")
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type")
+        call_id = item.get("call_id") or item.get("id")
+        if not isinstance(call_id, str) or not call_id:
+            continue
+        if item_type == "function_call":
             tool_name = item.get("name")
-            if isinstance(call_id, str) and call_id and isinstance(tool_name, str) and tool_name:
-                call_info_by_id[call_id] = (idx, tool_name)
+            if isinstance(tool_name, str) and tool_name:
+                occ_idx = call_id_counts.get(call_id, 0)
+                call_id_counts[call_id] = occ_idx + 1
+                pending_calls_by_id.setdefault(call_id, deque()).append((idx, tool_name, occ_idx))
+        elif item_type == "function_call_output":
+            queue = pending_calls_by_id.get(call_id)
+            if queue:
+                matched_call_by_output_idx[idx] = queue.popleft()
 
     new_items: list[dict[str, Any]] = list(history.items)
     archived_call_ids: list[str] = []
+    archived_call_occurrences: dict[str, list[int]] = {}
     archived_file_ids: set[str] = set()
     archived_unidentified_query_files = False
     archived_count = 0
@@ -216,10 +233,10 @@ def archive_old_tool_results(
         call_id = item.get("call_id") or item.get("id")
         if not isinstance(call_id, str) or not call_id:
             continue
-        info = call_info_by_id.get(call_id)
+        info = matched_call_by_output_idx.get(idx)
         if info is None:
             continue
-        call_idx, tool_name = info
+        call_idx, tool_name, occ_idx = info
         if call_idx >= archive_cutoff_index or tool_name not in ARCHIVABLE_READ_TOOLS:
             continue
         output = item.get("output")
@@ -233,6 +250,8 @@ def archive_old_tool_results(
             continue
         new_items[idx] = {**item, "output": receipt_json}
         archived_call_ids.append(call_id)
+        if call_id_counts.get(call_id, 0) > 1:
+            archived_call_occurrences.setdefault(call_id, []).append(occ_idx)
         if tool_name in ("query_files", "read_files"):
             if file_ids:
                 archived_file_ids.update(file_ids)
@@ -254,10 +273,7 @@ def archive_old_tool_results(
             item = history.items[idx]
             if not isinstance(item, dict) or item.get("type") != "function_call_output":
                 continue
-            call_id = item.get("call_id") or item.get("id")
-            if not isinstance(call_id, str) or not call_id:
-                continue
-            info = call_info_by_id.get(call_id)
+            info = matched_call_by_output_idx.get(idx)
             if info is None or info[1] not in ("query_files", "read_files"):
                 continue
             output = item.get("output")
@@ -293,6 +309,8 @@ def archive_old_tool_results(
             "projected_after_tokens": projected_after_tokens,
             "created_at": utcnow().isoformat(),
         }
+        if archived_call_occurrences:
+            record["archived_call_occurrences"] = archived_call_occurrences
     return ToolArchiveResult(
         items=new_items,
         archived_call_ids=archived_call_ids,

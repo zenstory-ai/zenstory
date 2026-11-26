@@ -1802,3 +1802,467 @@ async def test_p2_2_retry_unanswered_merges_carried_and_new_stage1_archived_call
     assert outputs_by_call[f"h{assistant_rows[0].id}_0"]["archived"] is True
     assert outputs_by_call[f"h{assistant_rows[1].id}_0"]["archived"] is True
 
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 Audit P0-1 & P1-1 regressions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_w3_p0_1_cold_replay_persist_slimmed_archived_call_records_archived_file_ids(
+    db_session: Session,
+):
+    """P0-1: When a query_files row was ALREADY persist-time slimmed (archived_note without content,
+    so len(receipt_text) >= len(output_text)), cold replay under Stage 1 tool_archive MUST still
+    unconditionally record its file_ids in history.archived_file_ids."""
+    from agent.core.chat_storage import slim_query_files_result_for_persistence
+
+    user, project, chat = _seed_user_project_chat(db_session, "p0_1_slimmed_archive")
+    large_body = "雾港雨夜的灯塔亮了起来，潮水涌上青石阶。" * 300
+    slimmed_result = slim_query_files_result_for_persistence(
+        [{"id": "f-slim-1", "title": "第1章", "file_type": "draft", "content": large_body}]
+    )
+    assert isinstance(slimmed_result, list) and "archived_note" in slimmed_result[0]
+
+    base = utcnow().replace(tzinfo=None) - timedelta(minutes=10)
+    u1 = ChatMessage(session_id=chat.id, role="user", content="读第1章", created_at=base)
+    a1 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="读完了。",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "call_slim_0",
+                    "name": "query_files",
+                    "arguments": {"id": "f-slim-1"},
+                    "status": "success",
+                    "result": slimmed_result,
+                }
+            ],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps(
+            {
+                "engine": LOOP_ENGINE_METADATA_VALUE,
+                "display_events": [
+                    {"type": "tool_call", "tool_call_index": 0},
+                    {"type": "content", "content": "读完了。"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        created_at=base + timedelta(seconds=5),
+    )
+    db_session.add_all([u1, a1])
+    db_session.commit()
+    db_session.refresh(a1)
+
+    u2 = ChatMessage(session_id=chat.id, role="user", content="继续", created_at=base + timedelta(seconds=10))
+    a2 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="继续完成。",
+        message_metadata=json.dumps(
+            {
+                "engine": LOOP_ENGINE_METADATA_VALUE,
+                "compaction": {
+                    "mode": COMPACTION_MODE_TOOL_ARCHIVE,
+                    "archived_through_message_id": a1.id,
+                    "archived_call_ids": ["call_slim_0"],
+                    "archived_count": 1,
+                },
+            },
+            ensure_ascii=False,
+        ),
+        created_at=base + timedelta(seconds=15),
+    )
+    db_session.add_all([u2, a2])
+    db_session.commit()
+
+    hist = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert "f-slim-1" in hist.archived_file_ids
+
+
+@pytest.mark.unit
+def test_w3_p1_1_reused_call_ids_never_misarchive_write_tool_or_skip_old_read():
+    """P1-1: Non-globally-unique call_ids (e.g. call_0 reused across turns) must match the
+    ordered unconsumed function_call, never mis-archiving edit_file or skipping old query_files."""
+    large_edit_out = json.dumps(
+        {"status": "success", "data": {"id": "f-write", "edits_applied": 1, "note": "写" * 3000}},
+        ensure_ascii=False,
+    )
+    large_read_old = _large_query_output("f-old", "旧章", repeat=200)
+    large_read_recent = _large_query_output("f-recent", "近章", repeat=200)
+
+    items = [
+        # Turn 1 (old): write tool uses call_0
+        {"role": "user", "content": "第1轮改稿"},
+        {"type": "function_call", "call_id": "call_0", "name": "edit_file", "arguments": "{}"},
+        {"type": "function_call_output", "call_id": "call_0", "output": large_edit_out},
+        {"role": "assistant", "content": "改好了。"},
+        # Turn 2 (old): read tool ALSO uses call_0
+        {"role": "user", "content": "第2轮读旧章"},
+        {"type": "function_call", "call_id": "call_0", "name": "query_files", "arguments": "{}"},
+        {"type": "function_call_output", "call_id": "call_0", "output": large_read_old},
+        {"role": "assistant", "content": "读完了旧章。"},
+        # Turns 3-5 (protected recent window): Turn 5 ALSO reuses call_0!
+        {"role": "user", "content": "第3轮"},
+        {"role": "assistant", "content": "好3。"},
+        {"role": "user", "content": "第4轮"},
+        {"role": "assistant", "content": "好4。"},
+        {"role": "user", "content": "第5轮读近章"},
+        {"type": "function_call", "call_id": "call_0", "name": "query_files", "arguments": "{}"},
+        {"type": "function_call_output", "call_id": "call_0", "output": large_read_recent},
+        {"role": "assistant", "content": "读完了近章。"},
+    ]
+    history = LoopHistory(items=items, last_prompt_tokens=320_000, last_message_id="m5")
+    res = archive_old_tool_results(
+        history,
+        keep_recent_turns=3,
+        min_output_chars=1000,
+        min_savings_tokens=1,
+        compact_at_tokens=400_000,
+    )
+    assert res.admitted is True
+    assert res.archived_count == 1
+    assert res.archived_call_ids == ["call_0"]
+    assert res.archived_file_ids == {"f-old"}
+    assert res.record is not None
+    assert res.record.get("archived_call_occurrences") == {"call_0": [1]}
+    # Turn 1 write tool (index 2) is NEVER archived!
+    assert res.items[2]["output"] == large_edit_out
+    # Turn 2 old read tool (index 6) IS archived!
+    assert json.loads(res.items[6]["output"])["archived"] is True
+    # Turn 5 protected recent read tool (index 14) is NEVER archived!
+    assert res.items[14]["output"] == large_read_recent
+
+
+@pytest.mark.unit
+def test_w3_p1_1_cold_replay_handles_reused_orig_call_ids_precisely(db_session: Session):
+    """P1-1: Cold DB replay with reused orig_call_id ('call_0') archives ONLY the exact
+    occurrence recorded in archived_call_occurrences and never touches protected recent turns."""
+    user, project, chat = _seed_user_project_chat(db_session, "p1_1_cold_reused")
+    base = utcnow().replace(tzinfo=None) - timedelta(minutes=10)
+    big_old = "旧章正文段落。" * 400
+    big_recent = "近期章节正文段落。" * 400
+
+    rows: list[ChatMessage] = []
+    # Turn 1: edit_file with id="call_0"
+    u1 = ChatMessage(session_id=chat.id, role="user", content="第1轮", created_at=base)
+    a1 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="改完了。",
+        tool_calls=json.dumps(
+            [{"id": "call_0", "name": "edit_file", "arguments": {"id": "f-w"}, "status": "success", "result": {"id": "f-w", "edits_applied": 1}}],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "display_events": [{"type": "tool_call", "tool_call_index": 0}, {"type": "content", "content": "改完了。"}]}),
+        created_at=base + timedelta(seconds=1),
+    )
+    # Turn 2: query_files with id="call_0" (archived!)
+    u2 = ChatMessage(session_id=chat.id, role="user", content="第2轮", created_at=base + timedelta(seconds=2))
+    a2 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="读旧章。",
+        tool_calls=json.dumps(
+            [{"id": "call_0", "name": "query_files", "arguments": {"id": "f-old"}, "status": "success", "result": [{"id": "f-old", "title": "旧章", "content": big_old}]}],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "display_events": [{"type": "tool_call", "tool_call_index": 0}, {"type": "content", "content": "读旧章。"}]}),
+        created_at=base + timedelta(seconds=3),
+    )
+    # Turn 3: query_files with id="call_0" (protected recent turn, NOT archived!)
+    u3 = ChatMessage(session_id=chat.id, role="user", content="第3轮", created_at=base + timedelta(seconds=4))
+    a3 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="读近章。",
+        tool_calls=json.dumps(
+            [{"id": "call_0", "name": "query_files", "arguments": {"id": "f-rec"}, "status": "success", "result": [{"id": "f-rec", "title": "近章", "content": big_recent}]}],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "display_events": [{"type": "tool_call", "tool_call_index": 0}, {"type": "content", "content": "读近章。"}]}),
+        created_at=base + timedelta(seconds=5),
+    )
+    rows.extend([u1, a1, u2, a2, u3, a3])
+    db_session.add_all(rows)
+    db_session.commit()
+    for r in rows:
+        db_session.refresh(r)
+
+    # Turn 4 assistant row carries Stage 1 record covering through a3 with occurrence [1] for call_0
+    u4 = ChatMessage(session_id=chat.id, role="user", content="第4轮", created_at=base + timedelta(seconds=6))
+    a4 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="继续。",
+        message_metadata=json.dumps(
+            {
+                "engine": LOOP_ENGINE_METADATA_VALUE,
+                "compaction": {
+                    "mode": COMPACTION_MODE_TOOL_ARCHIVE,
+                    "archived_through_message_id": a3.id,
+                    "archived_call_ids": ["call_0"],
+                    "archived_call_occurrences": {"call_0": [1]},
+                    "archived_count": 1,
+                },
+            },
+            ensure_ascii=False,
+        ),
+        created_at=base + timedelta(seconds=7),
+    )
+    db_session.add_all([u4, a4])
+    db_session.commit()
+
+    replayed = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    outputs = {
+        item["call_id"]: json.loads(item["output"])
+        for item in replayed.items
+        if item.get("type") == "function_call_output"
+    }
+    assert outputs[f"h{a1.id}_0"].get("archived") is not True
+    assert outputs[f"h{a2.id}_0"].get("archived") is True
+    assert outputs[f"h{a3.id}_0"].get("archived") is not True
+    assert replayed.archived_file_ids == {"f-old"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_w3_stage1_tool_archive_restores_same_turn_and_evicts_next_turn_fingerprints(
+    db_session: Session,
+    fake_redis,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """P0-2 Path A × Stage 1 tool_archive:
+    1) Same-turn: when Ch1 was deduped via cached_file_hashes (populated from an earlier
+       query_files(Ch1)) and Stage 1 tool_archive archives that query_files(Ch1) on the
+       current turn, service MUST restore full_text so Ch1's full content is emitted to the model.
+    2) Next-turn: when Stage 1 archives Ch1 while focusing Ch2, stored wire_prefix_cache MUST
+       evict Ch1 from full_file_hashes (and _prepare_loop_turn filters history.archived_file_ids)
+       so Turn N+1 focusing Ch1 emits full text instead of a stale unchanged pointer.
+    """
+    from agent.core.message_manager import MessageManager
+    from agent.service import AgentService
+    from services.features.file_version_service import content_sha256
+
+    user, project, chat = _seed_user_project_chat(db_session, "stage1_fp_splitbrain")
+    ch1_body = "【第一章完整正文】雾港钟声响起，潮水拍打着青石阶，温梨推开了补纸斋的木门。" * 120
+    ch2_body = "【第二章完整正文】长街雨落，老周点亮了柜台上的煤油灯，翻开泛黄的账本。" * 40
+    ch1 = File(project_id=project.id, title="第1章 雾港", content=ch1_body, file_type="draft")
+    ch2 = File(project_id=project.id, title="第2章 长街", content=ch2_body, file_type="draft")
+    db_session.add_all([ch1, ch2])
+    db_session.commit()
+    db_session.refresh(ch1)
+    db_session.refresh(ch2)
+
+    base = utcnow().replace(tzinfo=None) - timedelta(minutes=10)
+    u_seed = ChatMessage(session_id=chat.id, role="user", content="先看第1章", created_at=base)
+    a_seed = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="已看完。",
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "prompt_tokens": 310_000}),
+        created_at=base + timedelta(seconds=5),
+    )
+    db_session.add_all([u_seed, a_seed])
+    db_session.commit()
+    db_session.refresh(a_seed)
+
+    service = AgentService()
+    system_prompt = MessageManager(project_id=project.id, user_id=user.id).build_system_prompt(
+        session=db_session, language="zh", skill_catalog=""
+    )
+    provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+    tools_sha = wire_prefix_cache.tools_schema_sha256()
+
+    large_ch1_output = json.dumps(
+        {"status": "success", "data": [{"id": ch1.id, "title": ch1.title, "file_type": "draft", "content": ch1_body}]},
+        ensure_ascii=False,
+    )
+    wire_items = [
+        # Old Turn 1 (outside keep_recent_turns=3): only place where Ch1 full text lives!
+        {"role": "user", "content": "先看第1章"},
+        {"type": "function_call", "call_id": "call_q_ch1", "name": "query_files", "arguments": json.dumps({"id": ch1.id})},
+        {"type": "function_call_output", "call_id": "call_q_ch1", "output": large_ch1_output},
+        {"role": "assistant", "content": "已读完第1章。"},
+        # Recent 3 protected turns
+        {"role": "user", "content": "第2轮"},
+        {"role": "assistant", "content": "好2。"},
+        {"role": "user", "content": "第3轮"},
+        {"role": "assistant", "content": "好3。"},
+        {"role": "user", "content": "第4轮"},
+        {"role": "assistant", "content": "好4。"},
+    ]
+
+    fake_provider = SimpleNamespace(
+        name="minimax",
+        model="MiniMax-M3.1-Flash",
+        key_slot="primary",
+        uses_responses_api=False,
+        reasoning_effort_for=lambda _req: "default",
+    )
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_COMPACT_AT_TOKENS", 300_000)
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS", 1)
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_TOOL_ARCHIVE_MIN_OUTPUT_CHARS", 500)
+
+    def _seed_warm_cache(last_msg_id: str, *, archived_fids: list[str] | None = None) -> None:
+        assert wire_prefix_cache.store_wire_prefix(
+            session_id=chat.id,
+            project_id=project.id,
+            user_id=user.id,
+            last_assistant_message_id=last_msg_id,
+            system_prompt=system_prompt,
+            provider_key=provider_key,
+            tools_sha256=tools_sha,
+            reasoning_effort="default",
+            items=wire_items,
+            history_meta={
+                "last_prompt_tokens": 300_500,
+                "compacted": False,
+                "compaction_skipped_at_tokens": 0,
+                "compaction_skipped_reason": None,
+                "trailing_output_truncations": 0,
+                "archived_call_ids": [],
+                "archived_file_ids": list(archived_fids or []),
+                "author_messages": ["先看第1章", "第2轮", "第3轮", "第4轮"],
+            },
+            context_fingerprints={
+                "project_files_sha256": "",
+                "full_file_hashes": {ch1.id: content_sha256(ch1_body)},
+                "author_edits_sha256": "",
+            },
+        )
+
+    # --- Case 1: Same-turn Stage 1 archive while focusing Ch1 ---
+    _seed_warm_cache(a_seed.id)
+    captured_same_turn: list[str] = []
+
+    def fake_loop_same_turn(state, **_kwargs):
+        captured_same_turn.append(str(state.get("user_message") or ""))
+        state["run_items"] = [*state.get("history_items", []), {"role": "user", "content": "改第1章"}, {"role": "assistant", "content": "好的。"}]
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "好的。"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return _stream()
+
+    with (
+        patch("agent.service.llm_failover.aordered_providers", new=AsyncMock(return_value=[fake_provider])),
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop_same_turn),
+    ):
+        async for _chunk in service.process_stream(
+            project_id=project.id,
+            user_id=user.id,
+            message="改一下第1章",
+            session=db_session,
+            session_id=chat.id,
+            metadata={"current_file_id": ch1.id},
+        ):
+            pass
+
+    assert len(captured_same_turn) == 1
+    assert ch1_body in captured_same_turn[0]
+    assert "与本会话近期上下文中已提供的全文一致" not in captured_same_turn[0]
+
+    # --- Case 2: Next-turn Stage 1 archive while focusing Ch2, then Turn N+1 focuses Ch1 ---
+    latest_a = db_session.exec(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == chat.id, ChatMessage.role == "assistant")
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+    ).first()
+    assert latest_a is not None
+    _seed_warm_cache(latest_a.id)
+
+    def fake_loop_focus_ch2(state, **_kwargs):
+        state["run_meter"].last_served_provider_key = provider_key
+        state["run_meter"].last_served_reasoning_effort = "default"
+        state["run_meter"].last_prompt_tokens = 20_000
+        state["run_items"] = [
+            *state.get("history_items", []),
+            {"role": "user", "content": "看第2章"},
+            {"role": "assistant", "content": "已看第2章。"},
+        ]
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "已看第2章。"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return _stream()
+
+    with (
+        patch("agent.service.llm_failover.aordered_providers", new=AsyncMock(return_value=[fake_provider])),
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop_focus_ch2),
+    ):
+        async for _chunk in service.process_stream(
+            project_id=project.id,
+            user_id=user.id,
+            message="看第2章",
+            session=db_session,
+            session_id=chat.id,
+            metadata={"current_file_id": ch2.id},
+        ):
+            pass
+
+    # Stored wire_prefix_cache MUST have evicted ch1.id from full_file_hashes!
+    after_ch2_a = db_session.exec(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == chat.id, ChatMessage.role == "assistant")
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+    ).first()
+    assert after_ch2_a is not None
+    stored_entry = wire_prefix_cache.load_wire_prefix_entry(
+        session_id=chat.id,
+        project_id=project.id,
+        user_id=user.id,
+        last_message_id=after_ch2_a.id,
+        system_prompt=system_prompt,
+        provider_key=provider_key,
+        tools_sha256=tools_sha,
+        reasoning_effort="default",
+    )
+    assert stored_entry is not None
+    assert stored_entry.context_fingerprints is not None
+    assert ch1.id not in (stored_entry.context_fingerprints.get("full_file_hashes") or {})
+    assert stored_entry.history_meta is not None
+    assert ch1.id in (stored_entry.history_meta.get("archived_file_ids") or [])
+
+    # Turn N+1 focusing Ch1 MUST emit full Ch1 text (NOT unchanged pointer)!
+    _hist_next, turn_next, _sk, _sp = service._prepare_loop_turn(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+        selected_skill_ids=None,
+        message="回到第1章",
+        metadata={"current_file_id": ch1.id},
+        language="zh",
+        expected_provider_key=provider_key,
+        expected_tools_sha256=tools_sha,
+        expected_reasoning_effort="default",
+    )
+    assert ch1_body in turn_next.text
+    assert "与本会话近期上下文中已提供的全文一致" not in turn_next.text
+
+    # --- Case 3: Defense-in-depth in _prepare_loop_turn when a stale entry still has ch1 in full_file_hashes ---
+    _seed_warm_cache(after_ch2_a.id, archived_fids=[ch1.id])
+    _hist_def, turn_def, _sk, _sp = service._prepare_loop_turn(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+        selected_skill_ids=None,
+        message="再次回到第1章",
+        metadata={"current_file_id": ch1.id},
+        language="zh",
+        expected_provider_key=provider_key,
+        expected_tools_sha256=tools_sha,
+        expected_reasoning_effort="default",
+    )
+    assert ch1_body in turn_def.text
+    assert "与本会话近期上下文中已提供的全文一致" not in turn_def.text

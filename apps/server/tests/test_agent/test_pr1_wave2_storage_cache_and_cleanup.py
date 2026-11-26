@@ -241,14 +241,24 @@ def test_p02_query_files_persist_slimming_preserves_session_read_snapshots(db_se
     db_session.commit()
 
     loader = SessionLoader(project.id, user.id)
-    snapshots = loader.session_read_snapshots(db_session, chat_session_id=chat.id)
+    # P0-1: Cold DB replay (default allow_slimmed_read_sha256=False) MUST NOT grant
+    # read_snapshots carryover for persist-slimmed entries lacking full content in model history.
+    assert loader.session_read_snapshots(db_session, chat_session_id=chat.id) == {}
+
+    # Warm wire_prefix_cache hit (allow_slimmed_read_sha256=True) confirms full text is still
+    # in model context and verifies via content_sha256 + updated_at.
+    snapshots = loader.session_read_snapshots(
+        db_session, chat_session_id=chat.id, allow_slimmed_read_sha256=True
+    )
     assert snapshots == {chapter.id: large_body}
 
-    # If the author edits the chapter, sha256 mismatch rejects carryover (zero stale bypass).
+    # If the author edits the chapter, sha256 mismatch rejects carryover even on warm hit (zero stale bypass).
     chapter.content = large_body + "\n作者新加的一句。"
     db_session.add(chapter)
     db_session.commit()
-    assert loader.session_read_snapshots(db_session, chat_session_id=chat.id) == {}
+    assert loader.session_read_snapshots(
+        db_session, chat_session_id=chat.id, allow_slimmed_read_sha256=True
+    ) == {}
 
 
 # ---------------------------------------------------------------------------
@@ -843,3 +853,432 @@ def test_p2_2_query_result_full_file_ids_covers_dict_containers_and_slimmed_sha(
     }
     assert query_result_full_file_ids(payload) == ["f-raw"]
     assert query_result_full_file_ids(payload, include_slimmed_sha256=True) == ["f-raw", "f-slim", "f-nested"]
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 Audit P0-1 & P0-2 regressions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs")
+def test_w3_p0_1_prepare_loop_turn_cold_vs_warm_persist_slimmed_read_snapshots(
+    db_session: Session, fake_redis
+):
+    """P0-1: Cold DB replay never grants read_snapshots for persist-slimmed query_files;
+    warm wire_prefix_cache hit with full wire content grants it; a warm entry whose own wire
+    items contain only archived_note (cold->warm hop) marks the file archived so it is dropped."""
+    user, project, chat = _seed(db_session)
+    large_body = "雾港钟声响起，潮水拍打着青石阶，温梨推开了补纸斋的木门。" * 300
+    chapter = File(project_id=project.id, title="第1章", content=large_body, file_type="draft")
+    db_session.add(chapter)
+    db_session.commit()
+    db_session.refresh(chapter)
+
+    raw_result = [
+        {
+            "id": chapter.id,
+            "title": chapter.title,
+            "file_type": "draft",
+            "content": large_body,
+            "content_length": len(large_body),
+            "updated_at": chapter.updated_at.isoformat(),
+        }
+    ]
+    slimmed = slim_query_files_result_for_persistence(raw_result)
+    msg_u = ChatMessage(session_id=chat.id, role="user", content="看看第1章")
+    msg_a = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="已读完第1章。",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "call-qf-1",
+                    "name": "query_files",
+                    "arguments": {"id": chapter.id},
+                    "status": "success",
+                    "result": slimmed,
+                }
+            ],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "prompt_tokens": 12_000}),
+    )
+    db_session.add_all([msg_u, msg_a])
+    db_session.commit()
+    db_session.refresh(msg_a)
+
+    service = AgentService()
+    system_prompt = MessageManager(project_id=project.id, user_id=user.id).build_system_prompt(
+        session=db_session, language="zh", skill_catalog=""
+    )
+    tools_sha = wire_prefix_cache.tools_schema_sha256()
+
+    # 1) Cold DB replay (Redis empty): no snapshot carryover for persist-slimmed entry!
+    _hist_cold, turn_cold, _sk, _sp = service._prepare_loop_turn(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+        selected_skill_ids=None,
+        message="修改第1章",
+        metadata={},
+        language="zh",
+        expected_provider_key="minimax:MiniMax-M3.1-Flash:primary",
+        expected_tools_sha256=tools_sha,
+        expected_reasoning_effort="default",
+    )
+    assert chapter.id not in turn_cold.read_snapshots
+
+    # 2) Warm wire_prefix_cache hit with full wire content: carryover succeeds!
+    full_wire_items = [
+        {"role": "user", "content": "看看第1章"},
+        {"type": "function_call", "call_id": "call-qf-1", "name": "query_files", "arguments": json.dumps({"id": chapter.id})},
+        {
+            "type": "function_call_output",
+            "call_id": "call-qf-1",
+            "output": json.dumps({"status": "success", "data": raw_result}, ensure_ascii=False),
+        },
+        {"role": "assistant", "content": "已读完第1章。"},
+    ]
+    assert wire_prefix_cache.store_wire_prefix(
+        session_id=chat.id,
+        project_id=project.id,
+        user_id=user.id,
+        last_assistant_message_id=msg_a.id,
+        system_prompt=system_prompt,
+        provider_key="minimax:MiniMax-M3.1-Flash:primary",
+        tools_sha256=tools_sha,
+        reasoning_effort="default",
+        items=full_wire_items,
+        history_meta={
+            "last_prompt_tokens": 12_000,
+            "compacted": False,
+            "compaction_skipped_at_tokens": 0,
+            "compaction_skipped_reason": None,
+            "trailing_output_truncations": 0,
+            "archived_call_ids": [],
+            "archived_file_ids": [],
+            "author_messages": ["看看第1章"],
+        },
+    )
+    hist_warm, turn_warm, _sk, _sp = service._prepare_loop_turn(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+        selected_skill_ids=None,
+        message="修改第1章",
+        metadata={},
+        language="zh",
+        expected_provider_key="minimax:MiniMax-M3.1-Flash:primary",
+        expected_tools_sha256=tools_sha,
+        expected_reasoning_effort="default",
+    )
+    assert turn_warm.read_snapshots.get(chapter.id) == large_body
+    assert chapter.id not in hist_warm.archived_file_ids
+
+    # 3) Cold->warm hop where wire items themselves only hold archived_note:
+    #    chapter.id is recorded in hist.archived_file_ids so service drops its snapshot!
+    slimmed_wire_items = [
+        {"role": "user", "content": "看看第1章"},
+        {"type": "function_call", "call_id": "call-qf-1", "name": "query_files", "arguments": json.dumps({"id": chapter.id})},
+        {
+            "type": "function_call_output",
+            "call_id": "call-qf-1",
+            "output": json.dumps({"status": "success", "data": slimmed}, ensure_ascii=False),
+        },
+        {"role": "assistant", "content": "已读完第1章。"},
+    ]
+    assert wire_prefix_cache.store_wire_prefix(
+        session_id=chat.id,
+        project_id=project.id,
+        user_id=user.id,
+        last_assistant_message_id=msg_a.id,
+        system_prompt=system_prompt,
+        provider_key="minimax:MiniMax-M3.1-Flash:primary",
+        tools_sha256=tools_sha,
+        reasoning_effort="default",
+        items=slimmed_wire_items,
+        history_meta={
+            "last_prompt_tokens": 12_000,
+            "compacted": False,
+            "compaction_skipped_at_tokens": 0,
+            "compaction_skipped_reason": None,
+            "trailing_output_truncations": 0,
+            "archived_call_ids": [],
+            "archived_file_ids": [],
+            "author_messages": ["看看第1章"],
+        },
+    )
+    hist_hop, _turn_hop, _sk, _sp = service._prepare_loop_turn(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+        selected_skill_ids=None,
+        message="修改第1章",
+        metadata={},
+        language="zh",
+        expected_provider_key="minimax:MiniMax-M3.1-Flash:primary",
+        expected_tools_sha256=tools_sha,
+        expected_reasoning_effort="default",
+    )
+    assert chapter.id in hist_hop.archived_file_ids
+
+
+@pytest.mark.unit
+def test_w3_p0_2_path_a_query_files_read_updates_fingerprints_preventing_stale_revert_pointer(
+    db_session: Session,
+):
+    """P0-2 Path A: Focus Ch1(V1) -> author edits V2 -> Turn 2 focuses Ch2 & reads Ch1(V2) via
+    query_files (no write tools) -> author reverts Ch1 to V1 -> Turn 3 MUST emit full V1."""
+    from agent.service import _applied_file_mutations_for_fingerprints, _read_file_hashes_for_fingerprints
+
+    user, project, chat = _seed(db_session)
+    v1_body = "【第1章V1】" + ("雾港的灯塔在夜雨里闪烁，温梨站在栈桥尽头。" * 60)
+    v2_body = "【第1章V2】" + ("黎明前的海面一片死寂，温梨拆开了那封旧信。" * 60)
+    ch2_body = "【第2章】" + ("补纸斋的木门轻轻推开，老周正在研墨。" * 60)
+    ch1 = File(project_id=project.id, title="第1章", file_type="draft", content=v1_body)
+    ch2 = File(project_id=project.id, title="第2章", file_type="draft", content=ch2_body)
+    db_session.add_all([ch1, ch2])
+    db_session.commit()
+
+    # Turn 1: Focus Ch1(V1) -> full_file_hashes[ch1.id] = sha(V1)
+    turn1 = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": ch1.id},
+        language="zh",
+        chat_session_id=chat.id,
+    )
+    assert v1_body in turn1.text
+    assert turn1.context_fingerprints["full_file_hashes"][ch1.id] == content_sha256(v1_body)
+
+    # Author edits Ch1 -> V2; Turn 2 focuses Ch2 and AI reads Ch1(V2) via query_files (NO write tools!)
+    ch1.content = v2_body
+    db_session.add(ch1)
+    db_session.commit()
+    turn2 = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": ch2.id},
+        language="zh",
+        chat_session_id=chat.id,
+        prior_context_fingerprints=turn1.context_fingerprints,
+    )
+    # Turn 2 only executed a read-only query_files(id=ch1) returning V2 (no write tools).
+    turn2_tool_calls = [
+        {
+            "id": "call_q_v2",
+            "name": "query_files",
+            "arguments": {"id": ch1.id},
+            "status": "success",
+            "result": [{"id": ch1.id, "title": "第1章", "file_type": "draft", "content": v2_body}],
+        }
+    ]
+    read_hashes, read_ids = _read_file_hashes_for_fingerprints(turn2_tool_calls)
+    mutated_ids, any_mutation = _applied_file_mutations_for_fingerprints(turn2_tool_calls)
+    assert mutated_ids == set() and any_mutation is False
+    assert read_ids == {ch1.id}
+    assert read_hashes[ch1.id] == content_sha256(v2_body)
+
+    cached_after_turn2 = {
+        "project_files_sha256": turn2.context_fingerprints["project_files_sha256"],
+        "full_file_hashes": dict(turn2.context_fingerprints["full_file_hashes"]),
+        "author_edits_sha256": turn2.context_fingerprints["author_edits_sha256"],
+    }
+    for fid in read_ids:
+        if fid in read_hashes:
+            cached_after_turn2["full_file_hashes"][fid] = read_hashes[fid]
+        else:
+            cached_after_turn2["full_file_hashes"].pop(fid, None)
+
+    # Author reverts Ch1 back to V1 before Turn 3!
+    ch1.content = v1_body
+    db_session.add(ch1)
+    db_session.commit()
+
+    turn3 = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": ch1.id},
+        language="zh",
+        chat_session_id=chat.id,
+        prior_context_fingerprints=cached_after_turn2,
+    )
+    # Model last saw V2 in Turn 2, so Turn 3 MUST emit full V1 instead of a stale unchanged pointer!
+    assert v1_body in turn3.text
+    assert "与本会话近期上下文中已提供的全文一致" not in turn3.text
+
+
+@pytest.mark.unit
+def test_w3_p0_2_path_b_author_edits_second_edit_and_read_never_emit_unchanged(
+    db_session: Session,
+):
+    """P0-2 Path B: (1) author_edits_sha256 hashes structured (file_id, updated_at, version_number,
+    char_count) so a second author edit V2 -> V3 never emits <author_edits unchanged="true"/>;
+    (2) reading an alerted file via query_files clears author_edits_sha256 even with no write tool."""
+    from agent.service import _read_file_hashes_for_fingerprints
+
+    user, project, chat = _seed(db_session)
+    versions = FileVersionService()
+
+    focus = File(project_id=project.id, title="第1章", content="聚焦章内容。", file_type="draft")
+    ch2 = File(project_id=project.id, title="第2章", content="AI初稿。", file_type="draft")
+    db_session.add_all([focus, ch2])
+    db_session.commit()
+    db_session.refresh(focus)
+    db_session.refresh(ch2)
+
+    versions.create_version(db_session, ch2.id, "AI初稿。", change_type="create", change_source="ai")
+    v2_text = "作者第一次手改V2。"
+    ch2.content = v2_text
+    ch2.updated_at = utcnow().replace(tzinfo=None) + timedelta(seconds=5)
+    db_session.add(ch2)
+    db_session.commit()
+    versions.create_version(db_session, ch2.id, v2_text, change_type="edit", change_source="user")
+
+    db_session.add(
+        ChatMessage(
+            session_id=chat.id,
+            role="assistant",
+            content="写完了第2章。",
+            tool_calls=json.dumps(
+                [
+                    {
+                        "id": "wc-ch2",
+                        "name": "write_chapter",
+                        "arguments": {"chapter": 2, "title": "第2章", "file_type": "draft"},
+                        "status": "success",
+                        "result": {"id": ch2.id, "title": "第2章", "action": "created", "body_saved": True},
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE}),
+        )
+    )
+    db_session.commit()
+
+    turn1 = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": focus.id},
+        language="zh",
+        chat_session_id=chat.id,
+    )
+    assert ch2.id in turn1.text
+    assert ch2.id in turn1.context_fingerprints["_author_edits_file_ids"]
+    sha_v2 = turn1.context_fingerprints["author_edits_sha256"]
+    assert sha_v2
+
+    # Subcase 1: Author edits Ch2 a second time (V2 -> V3). Rendered 1-line alert text is identical,
+    # yet structured state tuple (updated_at, version_number, char_count) changed -> MUST NOT emit unchanged!
+    v3_text = "作者第二次手改V3（新增冲突情节）。"
+    ch2.content = v3_text
+    ch2.updated_at = utcnow().replace(tzinfo=None) + timedelta(seconds=15)
+    db_session.add(ch2)
+    db_session.commit()
+    versions.create_version(db_session, ch2.id, v3_text, change_type="edit", change_source="user")
+
+    turn2_after_second_edit = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": focus.id},
+        language="zh",
+        chat_session_id=chat.id,
+        prior_context_fingerprints=turn1.context_fingerprints,
+    )
+    assert AUTHOR_EDITS_UNCHANGED_MARKER not in turn2_after_second_edit.text
+    assert ch2.id in turn2_after_second_edit.text
+    assert turn2_after_second_edit.context_fingerprints["author_edits_sha256"] != sha_v2
+
+    # Subcase 2: AI reads alerted Ch2 during Turn 2 (no write tools) -> service clears author_edits_sha256!
+    turn2_reads = [
+        {
+            "id": "q-ch2",
+            "name": "query_files",
+            "arguments": {"id": ch2.id},
+            "status": "success",
+            "result": [{"id": ch2.id, "title": "第2章", "file_type": "draft", "content": v3_text}],
+        }
+    ]
+    _r_hashes, read_ids = _read_file_hashes_for_fingerprints(turn2_reads)
+    alerted_ids = set(turn2_after_second_edit.context_fingerprints["_author_edits_file_ids"])
+    assert bool(read_ids & alerted_ids) is True
+    cleared_fp = {
+        "project_files_sha256": turn2_after_second_edit.context_fingerprints["project_files_sha256"],
+        "full_file_hashes": dict(turn2_after_second_edit.context_fingerprints["full_file_hashes"]),
+        "author_edits_sha256": "",
+    }
+    turn3 = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": focus.id},
+        language="zh",
+        chat_session_id=chat.id,
+        prior_context_fingerprints=cleared_fp,
+    )
+    assert AUTHOR_EDITS_UNCHANGED_MARKER not in turn3.text
+    assert ch2.id in turn3.text
+
+
+@pytest.mark.unit
+def test_read_files_updates_cached_file_hashes_and_annotated_raw_sha_for_fingerprints():
+    """read_files updates cached_file_hashes identically to query_files, including
+    paragraph_stats_annotated raw_content_sha256 and persist-slimmed content_sha256."""
+    from agent.service import _read_file_hashes_for_fingerprints
+    from services.features.file_version_service import content_sha256
+
+    plain_body = "林雾站在雨夜的港口边回望旧钟楼，海风吹起她的风衣下摆。" * 25
+    raw_annotated_body = "第一段原始正文用于校验段落统计哈希一致性，避免注释文本导致指纹漂移。" * 20
+    annotated_display = f"[P1 {len(raw_annotated_body)}字]\n{raw_annotated_body}"
+    raw_sha = content_sha256(raw_annotated_body)
+    slimmed_sha = content_sha256("超长章节被落库瘦身后的原始内容" * 40)
+
+    tool_calls = [
+        {
+            "id": "rf-1",
+            "name": "read_files",
+            "status": "success",
+            "result": [
+                {"id": "f-plain", "title": "第1章", "file_type": "draft", "content": plain_body},
+                {
+                    "id": "f-annotated",
+                    "title": "第2章",
+                    "file_type": "draft",
+                    "content": annotated_display,
+                    "paragraph_stats_annotated": True,
+                    "raw_content_sha256": raw_sha,
+                },
+                {
+                    "id": "f-slim",
+                    "title": "第3章",
+                    "file_type": "draft",
+                    "content_sha256": slimmed_sha,
+                    "archived_note": "已归档",
+                },
+                {
+                    "id": "f-partial",
+                    "title": "第4章",
+                    "file_type": "draft",
+                    "content": plain_body,
+                    "content_partial": True,
+                },
+            ],
+        }
+    ]
+    hashes, read_ids = _read_file_hashes_for_fingerprints(tool_calls)
+    assert read_ids == {"f-plain", "f-annotated", "f-slim", "f-partial"}
+    assert hashes["f-plain"] == content_sha256(plain_body)
+    assert hashes["f-annotated"] == raw_sha
+    assert hashes["f-slim"] == slimmed_sha
+    assert "f-partial" not in hashes

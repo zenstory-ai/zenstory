@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -675,7 +676,7 @@ def query_result_full_file_ids(result: Any, *, include_slimmed_sha256: bool = Fa
         elif isinstance(node, dict):
             fid = node.get("id") or node.get("file_id")
             content = node.get("content")
-            sha = node.get("content_sha256") if include_slimmed_sha256 else None
+            sha = (node.get("content_sha256") or node.get("raw_content_sha256")) if include_slimmed_sha256 else None
             has_full_body = (isinstance(content, str) and bool(content)) or (
                 isinstance(sha, str) and bool(sha.strip())
             )
@@ -697,12 +698,31 @@ def query_result_full_file_ids(result: Any, *, include_slimmed_sha256: bool = Fa
     return found
 
 
+def _is_persist_slimmed_query_payload(payload: Any, *, depth: int = 0) -> bool:
+    """判定 ``query_files`` / ``read_files`` 结果是否已在落库期被瘦身（存在 ``archived_note`` 且无完整正文 ``content``）。"""
+    if depth > 4:
+        return False
+    if isinstance(payload, list):
+        return any(_is_persist_slimmed_query_payload(elem, depth=depth + 1) for elem in payload)
+    if isinstance(payload, dict):
+        has_note = isinstance(payload.get("archived_note"), str) and bool(payload["archived_note"].strip())
+        has_content = isinstance(payload.get("content"), str) and bool(payload["content"])
+        if has_note and not has_content:
+            return True
+        for container_key in ("data", "files", "items", "results"):
+            nested = payload.get(container_key)
+            if isinstance(nested, (list, dict)) and _is_persist_slimmed_query_payload(nested, depth=depth + 1):
+                return True
+    return False
+
+
 def _loop_row_items(
     row: Any,
     metadata: dict[str, Any],
     *,
     archived_call_ids: set[str] | None = None,
     archived_file_ids: set[str] | None = None,
+    archive_matcher: Any | None = None,
 ) -> list[dict[str, Any]]:
     """一条单循环 assistant 行 → SDK 输入项（文字与成对的工具调用，按显示顺序）。"""
     raw_calls = _parse_json(getattr(row, "tool_calls", None))
@@ -731,16 +751,29 @@ def _loop_row_items(
             arguments = json.dumps(arguments if arguments is not None else {}, ensure_ascii=False, separators=(",", ":"))
         output_text = _tool_output_text(call)
         was_archived = False
-        if (
-            archived_call_ids
-            and tool_name in ARCHIVABLE_READ_TOOLS
-            and (call_id in archived_call_ids or (orig_call_id and orig_call_id in archived_call_ids))
-        ):
+        if archive_matcher is not None:
+            should_archive = archive_matcher(call_id, orig_call_id, tool_name)
+        else:
+            should_archive = bool(
+                archived_call_ids
+                and tool_name in ARCHIVABLE_READ_TOOLS
+                and (call_id in archived_call_ids or (orig_call_id and orig_call_id in archived_call_ids))
+            )
+        if should_archive:
             parsed_output = _parse_json(output_text)
             if is_successful_archivable_payload(parsed_output):
                 receipt_text, fids = build_tool_archive_receipt(tool_name, output_text, parsed_output)
+                already_persist_slimmed = (
+                    tool_name in _FILE_READ_TOOL_NAMES and _is_persist_slimmed_query_payload(parsed_output)
+                )
                 if len(receipt_text) < len(output_text):
                     output_text = receipt_text
+                    was_archived = True
+                    if archived_file_ids is not None:
+                        archived_file_ids.update(fids)
+                elif already_persist_slimmed:
+                    # 落库期已被瘦身为 ~220 字符 archived_note 的条目，即使回执长度未更短，
+                    # 仍必须无条件登记 archived_file_ids 以撤销跨轮快照结转。
                     was_archived = True
                     if archived_file_ids is not None:
                         archived_file_ids.update(fids)
@@ -806,6 +839,7 @@ def _row_items(
     *,
     archived_call_ids: set[str] | None = None,
     archived_file_ids: set[str] | None = None,
+    archive_matcher: Any | None = None,
 ) -> list[dict[str, Any]]:
     content = str(getattr(row, "content", "") or "")
     if row.role == "user":
@@ -818,6 +852,7 @@ def _row_items(
         metadata,
         archived_call_ids=archived_call_ids,
         archived_file_ids=archived_file_ids,
+        archive_matcher=archive_matcher,
     )
     stop_reason = metadata.get("stop_reason")
     status_cards = metadata.get("status_cards")
@@ -889,8 +924,8 @@ def load_loop_history(
     stored_kept: list[str] | None = None
     archived_call_ids: set[str] = set()
     # 每条 tool_archive 记录按其 archived_through_message_id 限定作用范围，避免未来轮次同名 call_id 误伤。
-    # 元素为 (record_row_id_or_None_if_carried, archived_through_message_id, call_ids_frozenset)。
-    tool_archive_scopes: list[tuple[str | None, str, frozenset[str]]] = []
+    # 元素为 (record_row_id_or_None_if_carried, archived_through_message_id, call_ids_tuple, occ_map)。
+    tool_archive_scopes: list[tuple[str | None, str, tuple[str, ...], dict[str, frozenset[int]]]] = []
     covered_reached = False
     kept_tokens_seen = 0
     measured_seen = False
@@ -906,9 +941,17 @@ def load_loop_history(
             return
         tool_archive = valid_tool_archive_compaction(metadata)
         if tool_archive is not None:
-            call_set = frozenset(tool_archive["archived_call_ids"])
-            archived_call_ids.update(call_set)
-            tool_archive_scopes.append((row_id, str(tool_archive["archived_through_message_id"]), call_set))
+            call_tuple = tuple(tool_archive["archived_call_ids"])
+            raw_occ = tool_archive.get("archived_call_occurrences")
+            occ_map: dict[str, frozenset[int]] = {}
+            if isinstance(raw_occ, dict):
+                for cid, indices in raw_occ.items():
+                    if isinstance(cid, str) and cid and isinstance(indices, list):
+                        valid_indices = frozenset(i for i in indices if isinstance(i, int) and not isinstance(i, bool) and i >= 0)
+                        if valid_indices:
+                            occ_map[cid] = valid_indices
+            archived_call_ids.update(call_tuple)
+            tool_archive_scopes.append((row_id, str(tool_archive["archived_through_message_id"]), call_tuple, occ_map))
             # 成功的 Stage 1 归档压缩覆盖其之前的退避记录，但不会截断会话行，继续往前扫描。
             skip_seen = True
             return
@@ -1036,8 +1079,9 @@ def load_loop_history(
     result.archived_call_ids = archived_call_ids
     chronological_rows = list(reversed(after_rows))
     row_positions = {row.id: pos for pos, row in enumerate(chronological_rows)}
-    scoped_archives: list[tuple[int, frozenset[str]]] = []
-    for record_row_id, anchor_id, call_set in tool_archive_scopes:
+    # (cutoff_pos, call_set, remaining_orig_counts, occ_map)
+    scoped_archives: list[tuple[int, frozenset[str], Counter[str], dict[str, frozenset[int]]]] = []
+    for record_row_id, anchor_id, call_tuple, occ_map in tool_archive_scopes:
         anchor_pos = row_positions.get(anchor_id)
         if anchor_pos is not None:
             cutoff_pos = anchor_pos
@@ -1049,23 +1093,47 @@ def load_loop_history(
         else:
             continue
         if cutoff_pos >= 0:
-            scoped_archives.append((cutoff_pos, call_set))
+            scoped_archives.append((cutoff_pos, frozenset(call_tuple), Counter(call_tuple), occ_map))
+
+    # 跨行按时间序追踪每个 orig_call_id 的 0-based 出现序号，确保复用 call_id（如 call_0）在冷回放中
+    # 精准命中被归档的那次调用，绝不误归档保护窗口内同名的后续读调用或写工具。
+    orig_call_occurrence_counts: dict[str, int] = {}
 
     for pos, row in enumerate(chronological_rows):
-        row_archived_ids: set[str] | None = None
-        if scoped_archives:
-            active_ids: set[str] = set()
-            for cutoff_pos, call_set in scoped_archives:
-                if pos <= cutoff_pos:
-                    active_ids.update(call_set)
-            if active_ids:
-                row_archived_ids = active_ids
+        active_scopes = [scope for scope in scoped_archives if pos <= scope[0]] if scoped_archives else []
+
+        def _match_archive(
+            call_id: str,
+            orig_call_id: str,
+            tool_name: str,
+            *,
+            _scopes: list[tuple[int, frozenset[str], Counter[str], dict[str, frozenset[int]]]] = active_scopes,
+        ) -> bool:
+            occ_idx: int | None = None
+            if orig_call_id:
+                occ_idx = orig_call_occurrence_counts.get(orig_call_id, 0)
+                orig_call_occurrence_counts[orig_call_id] = occ_idx + 1
+            if not _scopes or tool_name not in ARCHIVABLE_READ_TOOLS:
+                return False
+            matched = False
+            for _cutoff, call_set, remaining_counts, occ_map in _scopes:
+                if call_id in call_set:
+                    matched = True
+                elif orig_call_id:
+                    if orig_call_id in occ_map:
+                        if occ_idx is not None and occ_idx in occ_map[orig_call_id]:
+                            matched = True
+                    elif orig_call_id in call_set and remaining_counts[orig_call_id] > 0:
+                        remaining_counts[orig_call_id] -= 1
+                        matched = True
+            return matched
+
         items.extend(
             _row_items(
                 loader,
                 row,
-                archived_call_ids=row_archived_ids,
                 archived_file_ids=result.archived_file_ids,
+                archive_matcher=_match_archive if scoped_archives else None,
             )
         )
         if row.role == "user" and str(row.content or "").strip():

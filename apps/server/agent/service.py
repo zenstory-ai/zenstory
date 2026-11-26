@@ -224,6 +224,126 @@ def _applied_file_mutations_for_fingerprints(
     return mutated_ids, any_mutation
 
 
+def _read_file_hashes_for_fingerprints(
+    tool_calls: list[dict[str, Any]],
+) -> tuple[dict[str, str], set[str]]:
+    """Return ``(full_read_hashes, all_read_file_ids)`` for successful ``read_files`` / ``query_files`` calls this turn.
+
+    Used before storing ``wire_prefix_cache`` so:
+    - Path A: any file read via ``read_files`` / ``query_files`` updates (or evicts, for partial/truncated/short reads)
+      ``cached_file_hashes[fid]`` even when no write tool ran, preventing a later author revert
+      (V1 -> V2 -> V1) from emitting a stale ``unchanged`` pointer while the model last saw V2.
+    - Path B: if any file alerted in ``<author_edits>`` was read this turn, ``author_edits_sha256``
+      is cleared so a subsequent manual edit (V2 -> V3) never emits ``<author_edits unchanged="true"/>``.
+    """
+    from agent.loop.turn_context import _WARM_DEDUP_FILE_MIN_CHARS
+    from services.features.file_version_service import content_sha256
+
+    full_read_hashes: dict[str, str] = {}
+    all_read_ids: set[str] = set()
+
+    def _visit(node: Any, depth: int = 0) -> None:
+        if depth > 4:
+            return
+        if isinstance(node, list):
+            for elem in node:
+                _visit(elem, depth + 1)
+        elif isinstance(node, dict):
+            raw_fid = node.get("id") or node.get("file_id")
+            if isinstance(raw_fid, str) and raw_fid.strip() and node.get("file_type") != "folder":
+                fid = raw_fid.strip()
+                all_read_ids.add(fid)
+                is_partial = bool(node.get("content_truncated") or node.get("content_partial"))
+                content = node.get("content")
+                raw_sha = node.get("raw_content_sha256")
+                if not (isinstance(raw_sha, str) and raw_sha.strip()):
+                    raw_sha = node.get("content_sha256")
+                has_raw_sha = isinstance(raw_sha, str) and bool(raw_sha.strip())
+                if not is_partial and isinstance(content, str):
+                    if len(content) >= _WARM_DEDUP_FILE_MIN_CHARS:
+                        full_read_hashes[fid] = (
+                            raw_sha.strip()
+                            if node.get("paragraph_stats_annotated") is True and has_raw_sha
+                            else content_sha256(content)
+                        )
+                    else:
+                        full_read_hashes.pop(fid, None)
+                elif not is_partial and has_raw_sha:
+                    full_read_hashes[fid] = raw_sha.strip()
+                else:
+                    full_read_hashes.pop(fid, None)
+            for container_key in ("data", "files", "items", "results"):
+                nested = node.get(container_key)
+                if isinstance(nested, (list, dict)):
+                    _visit(nested, depth + 1)
+
+    for tc in tool_calls:
+        if not isinstance(tc, dict):
+            continue
+        if str(tc.get("name") or "").strip() not in ("query_files", "read_files"):
+            continue
+        if str(tc.get("status") or "").strip().lower() != "success":
+            continue
+        res = tc.get("result")
+        if isinstance(res, str):
+            with contextlib.suppress(Exception):
+                res = json.loads(res)
+        if isinstance(res, (list, dict)):
+            _visit(res)
+
+    return full_read_hashes, all_read_ids
+
+
+def _wire_prefix_slimmed_only_file_ids(items: list[dict[str, Any]]) -> set[str]:
+    """Identify files whose latest ``read_files`` / ``query_files`` entry in cached wire items is persist-slimmed
+    (``archived_note`` without ``content``), e.g. from a prior cold replay -> warm cache hop."""
+    slimmed_only: set[str] = set()
+
+    def _visit(node: Any, depth: int = 0) -> None:
+        if depth > 4:
+            return
+        if isinstance(node, list):
+            for elem in node:
+                _visit(elem, depth + 1)
+        elif isinstance(node, dict):
+            raw_fid = node.get("id") or node.get("file_id")
+            if isinstance(raw_fid, str) and raw_fid.strip() and node.get("file_type") != "folder":
+                fid = raw_fid.strip()
+                content = node.get("content")
+                has_content = isinstance(content, str) and bool(content)
+                has_note = isinstance(node.get("archived_note"), str) and bool(node["archived_note"].strip())
+                if has_note and not has_content:
+                    slimmed_only.add(fid)
+                elif (
+                    has_content
+                    and not node.get("content_truncated")
+                    and not node.get("content_partial")
+                ):
+                    slimmed_only.discard(fid)
+            for container_key in ("data", "files", "items", "results"):
+                nested = node.get(container_key)
+                if isinstance(nested, (list, dict)):
+                    _visit(nested, depth + 1)
+
+    for item in items:
+        if not isinstance(item, dict) or item.get("type") != "function_call_output":
+            continue
+        output = item.get("output")
+        if not isinstance(output, str) or '"archived_note"' not in output:
+            if isinstance(output, str) and '"content"' in output and slimmed_only:
+                with contextlib.suppress(Exception):
+                    parsed = json.loads(output)
+                    if isinstance(parsed, (list, dict)):
+                        _visit(parsed)
+            continue
+        with contextlib.suppress(Exception):
+            parsed = json.loads(output)
+            if isinstance(parsed, (list, dict)):
+                _visit(parsed)
+
+    return slimmed_only
+
+
 # 作者在一部作品里发出的第一条消息带 metadata.entry：工作台想法（dashboard_idea）、聊天空态
 # 起手卡的示例（starter_example）、已有作者正文时起手卡的读稿请求（starter_manuscript）、空会话里
 # 手打的第一条（first_message）。前端发的是作者原话；
@@ -791,6 +911,7 @@ class AgentService:
             return history, LoopTurnContext(), selected_skills, system_prompt
 
         prior_context_fingerprints: dict[str, Any] | None = None
+        wire_prefix_hit = False
         if user_id and chat_session_id:
             chat_session = session.get(ChatSession, chat_session_id)
             if chat_session is not None and chat_session.user_id == user_id and chat_session.project_id == project_id:
@@ -832,6 +953,7 @@ class AgentService:
 
                 if warm_history is not None:
                     history = warm_history
+                    wire_prefix_hit = True
                     prior_context_fingerprints = cached_entry.context_fingerprints if cached_entry else None
                 else:
                     history = load_loop_history(
@@ -843,7 +965,29 @@ class AgentService:
                     )
                     if cached_entry is not None and history.last_message_id == latest_message_id:
                         history.items = cached_entry.items
+                        wire_prefix_hit = True
                         prior_context_fingerprints = cached_entry.context_fingerprints
+                if wire_prefix_hit:
+                    # Guard against a prior cold-replay -> warm-cache hop where cached wire items
+                    # themselves contain persist-slimmed archived_note entries without full content.
+                    slimmed_only_fids = _wire_prefix_slimmed_only_file_ids(history.items)
+                    if slimmed_only_fids:
+                        history.archived_file_ids.update(slimmed_only_fids)
+                    # Defense-in-depth: never allow prior full_file_hashes to emit an "unchanged"
+                    # pointer for any file whose history text is already archived/slimmed out.
+                    if history.archived_file_ids and isinstance(prior_context_fingerprints, dict):
+                        prior_hashes = prior_context_fingerprints.get("full_file_hashes")
+                        if isinstance(prior_hashes, dict) and any(
+                            fid in prior_hashes for fid in history.archived_file_ids
+                        ):
+                            prior_context_fingerprints = {
+                                **prior_context_fingerprints,
+                                "full_file_hashes": {
+                                    k: v
+                                    for k, v in prior_hashes.items()
+                                    if k not in history.archived_file_ids
+                                },
+                            }
         if cancel_event is not None and cancel_event.is_set():
             return history, LoopTurnContext(), selected_skills, system_prompt
         turn = build_loop_turn_context(
@@ -861,6 +1005,7 @@ class AgentService:
             ui_action=ui_action,
             selected_text=selected_text,
             prior_context_fingerprints=prior_context_fingerprints,
+            allow_slimmed_read_snapshots=wire_prefix_hit,
         )
         return history, turn, selected_skills, system_prompt
 
@@ -1476,6 +1621,9 @@ class AgentService:
                     "project_files_sha256": loop_turn.context_fingerprints.get("project_files_sha256", ""),
                     "full_file_hashes": dict(loop_turn.context_fingerprints.get("full_file_hashes") or {}),
                     "author_edits_sha256": loop_turn.context_fingerprints.get("author_edits_sha256", ""),
+                    "_author_edits_file_ids": list(
+                        loop_turn.context_fingerprints.get("_author_edits_file_ids") or ()
+                    ),
                 }
                 if loop_turn.context_fingerprints
                 else {}
@@ -1496,6 +1644,9 @@ class AgentService:
                             loop_turn.context_fingerprints.get("_current_full_file_hashes") or {}
                         ),
                         "author_edits_sha256": loop_turn.context_fingerprints.get("author_edits_sha256", ""),
+                        "_author_edits_file_ids": list(
+                            loop_turn.context_fingerprints.get("_author_edits_file_ids") or ()
+                        ),
                     }
             message_manager = MessageManager(project_id=project_id, user_id=user_id)
 
@@ -1667,6 +1818,31 @@ class AgentService:
                             if is_tool_archive_compaction(outcome.record):
                                 if outcome.archived_file_ids:
                                     stage1_archived_file_ids.update(outcome.archived_file_ids)
+                                # Stage 1 折叠了旧轮次的只读工具结果：若本轮 <turn_context> 对被归档文件做了
+                                # 指纹去重省略，立即恢复 full_text 避免模型上下文彻底失去正文；同时从
+                                # effective_context_fingerprints["full_file_hashes"] 驱逐被归档文件，
+                                # 防止下轮对已归档的 query_files 正文发出陈旧 unchanged 指针。
+                                current_full_ids = set(
+                                    (loop_turn.context_fingerprints or {}).get("_current_full_file_hashes") or ()
+                                )
+                                if outcome.archived_unidentified_query_files:
+                                    _restore_full_turn_context()
+                                elif outcome.archived_file_ids:
+                                    restored_for_stage1 = bool(
+                                        loop_turn.full_text and (outcome.archived_file_ids & current_full_ids)
+                                    )
+                                    if restored_for_stage1:
+                                        _restore_full_turn_context()
+                                    if effective_context_fingerprints and isinstance(
+                                        effective_context_fingerprints.get("full_file_hashes"), dict
+                                    ):
+                                        evict_ids = (
+                                            outcome.archived_file_ids - current_full_ids
+                                            if restored_for_stage1
+                                            else outcome.archived_file_ids
+                                        )
+                                        for fid in evict_ids:
+                                            effective_context_fingerprints["full_file_hashes"].pop(fid, None)
                                 # Stage 1 只折叠了旧轮次的只读工具结果：仅撤销被归档文件的跨轮快照结转；
                                 # 仅当存在未能提取具体 id 的 query_files 归档时才保守全撤，绝不因归档技能而误撤近期文件快照。
                                 if loop_turn.session_carried_snapshot_ids:
@@ -1720,11 +1896,23 @@ class AgentService:
                                 ]
                             )
                         )
+                        merged_occ: dict[str, list[int]] = {}
+                        for src in (carried_archive, loop_compaction_record):
+                            raw_occ = src.get("archived_call_occurrences")
+                            if isinstance(raw_occ, dict):
+                                for cid, indices in raw_occ.items():
+                                    if isinstance(cid, str) and cid and isinstance(indices, list):
+                                        merged_occ.setdefault(cid, [])
+                                        for idx_val in indices:
+                                            if isinstance(idx_val, int) and idx_val not in merged_occ[cid]:
+                                                merged_occ[cid].append(idx_val)
                         loop_compaction_record = {
                             **loop_compaction_record,
                             "archived_call_ids": merged_call_ids,
                             "archived_count": len(merged_call_ids),
                         }
+                        if merged_occ:
+                            loop_compaction_record["archived_call_occurrences"] = merged_occ
                     if (
                         loop_compaction_record is None
                         and loop_compaction_skipped is None
@@ -1749,6 +1937,7 @@ class AgentService:
                             if folded_history is not run_history:
                                 writing_state["history_items"] = folded_history
                                 run_history = folded_history
+                                _restore_full_turn_context()
                             bounded_history = bound_history_for_provider(
                                 loop_history, run_history, history_max_tokens
                             )
@@ -2072,19 +2261,42 @@ class AgentService:
                                 "archived_file_ids": sorted(next_archived_file_ids),
                                 "author_messages": next_author_messages,
                             }
-                            # P1-1: If this turn mutated any file, invalidate pre-turn fingerprints for
-                            # mutated files + manifest/author_edits so a subsequent author revert back to
-                            # pre-turn content never falsely triggers an "unchanged" pointer on the next turn.
+                            # P1-1 / P0-2: Before storing wire_prefix_cache fingerprints:
+                            # 1) Update/evict cached_file_hashes for every file read via successful query_files
+                            #    in this turn (even when no write tool ran!) so a subsequent author revert
+                            #    (V1 -> V2 -> V1) never emits a stale unchanged pointer while model last saw V2.
+                            # 2) Evict mutated files and clear project_files/author_edits on any file mutation.
+                            # 3) Clear author_edits_sha256 whenever any alerted file was read this turn so a
+                            #    second author edit (V2 -> V3) never emits <author_edits unchanged="true"/>.
                             cached_fingerprints: dict[str, Any] | None = None
                             if effective_context_fingerprints:
+                                from agent.loop.turn_context import _WARM_DEDUP_MAX_TRACKED_FILES
+
+                                read_file_hashes, read_file_ids = _read_file_hashes_for_fingerprints(
+                                    all_tool_calls
+                                )
                                 mutated_ids, any_file_mutation = _applied_file_mutations_for_fingerprints(
                                     all_tool_calls
                                 )
                                 cached_file_hashes = dict(
                                     effective_context_fingerprints.get("full_file_hashes") or {}
                                 )
+                                for fid in read_file_ids:
+                                    if fid in read_file_hashes:
+                                        cached_file_hashes[fid] = read_file_hashes[fid]
+                                    else:
+                                        cached_file_hashes.pop(fid, None)
                                 for fid in mutated_ids:
                                     cached_file_hashes.pop(fid, None)
+                                if len(cached_file_hashes) > _WARM_DEDUP_MAX_TRACKED_FILES:
+                                    trimmed_keys = list(cached_file_hashes)[-_WARM_DEDUP_MAX_TRACKED_FILES:]
+                                    cached_file_hashes = {k: cached_file_hashes[k] for k in trimmed_keys}
+                                alerted_author_edit_ids = {
+                                    str(fid)
+                                    for fid in (effective_context_fingerprints.get("_author_edits_file_ids") or ())
+                                    if isinstance(fid, str) and fid
+                                }
+                                any_alerted_file_read = bool(read_file_ids & alerted_author_edit_ids)
                                 cached_fingerprints = {
                                     "project_files_sha256": (
                                         ""
@@ -2094,7 +2306,7 @@ class AgentService:
                                     "full_file_hashes": cached_file_hashes,
                                     "author_edits_sha256": (
                                         ""
-                                        if any_file_mutation
+                                        if (any_file_mutation or any_alerted_file_read)
                                         else effective_context_fingerprints.get("author_edits_sha256", "")
                                     ),
                                 }

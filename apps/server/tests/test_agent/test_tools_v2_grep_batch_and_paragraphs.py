@@ -1211,14 +1211,25 @@ async def test_read_files_show_paragraph_stats_preserves_cross_turn_session_read
     db_session.commit()
 
     loader = SessionLoader(project_id=project.id, user_id=user.id)
-    snapshots = loader.session_read_snapshots(db_session, chat_session_id=chat.id)
-    assert snapshots.get(short_file.id) == short_body
-    assert snapshots.get(long_file.id) == long_body
+    # Cold DB replay: un-slimmed annotated read carries over via raw_content_sha256, while
+    # persist-slimmed long_file (content stripped from DB) MUST NOT carry over without warm cache.
+    cold_snapshots = loader.session_read_snapshots(db_session, chat_session_id=chat.id)
+    assert cold_snapshots.get(short_file.id) == short_body
+    assert long_file.id not in cold_snapshots
+
+    # Warm wire_prefix_cache hit (allow_slimmed_read_sha256=True): both short and slimmed long_file carry over.
+    warm_snapshots = loader.session_read_snapshots(
+        db_session, chat_session_id=chat.id, allow_slimmed_read_sha256=True
+    )
+    assert warm_snapshots.get(short_file.id) == short_body
+    assert warm_snapshots.get(long_file.id) == long_body
 
     # If the author edits short_file before next turn, carryover MUST reject stale snapshot.
     short_file.content = short_body + "\n\n　　作者手动新增一段。"
     db_session.add(short_file)
     db_session.commit()
-    snapshots_after_edit = loader.session_read_snapshots(db_session, chat_session_id=chat.id)
+    snapshots_after_edit = loader.session_read_snapshots(
+        db_session, chat_session_id=chat.id, allow_slimmed_read_sha256=True
+    )
     assert short_file.id not in snapshots_after_edit
     assert snapshots_after_edit.get(long_file.id) == long_body

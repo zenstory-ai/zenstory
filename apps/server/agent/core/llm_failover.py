@@ -866,12 +866,60 @@ class _StreamCollectError(Exception):
         self.reasoning_started = reasoning_started
 
 
+# Bounded timeout for detached/inline teardown of timed-out or wedged compaction streams.
+_STREAM_COLLECT_TEARDOWN_TIMEOUT_S = 2.0
+_pending_stream_collect_teardowns: set[asyncio.Task[Any]] = set()
+
+
+def _schedule_stream_collect_teardown(
+    aiter: Any,
+    raw_stream: Any,
+    *,
+    timeout_s: float | None = None,
+) -> asyncio.Task[Any] | None:
+    """Detach and close a timed-out/wedged compaction stream in a bounded background task."""
+    aclose = getattr(aiter, "aclose", None)
+    has_aclose = callable(aclose)
+    close = getattr(raw_stream, "close", None)
+    has_close = callable(close)
+    if not has_aclose and not has_close:
+        return None
+
+    effective_timeout = _STREAM_COLLECT_TEARDOWN_TIMEOUT_S if timeout_s is None else timeout_s
+
+    async def _teardown() -> None:
+        deadline = time.monotonic() + max(0.0, effective_timeout)
+        if has_aclose:
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                with contextlib.suppress(BaseException):
+                    res = aclose()
+                    if inspect.isawaitable(res):
+                        await asyncio.wait_for(res, timeout=remaining)
+        if has_close:
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                with contextlib.suppress(BaseException):
+                    res = close()
+                    if inspect.isawaitable(res):
+                        await asyncio.wait_for(res, timeout=remaining)
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+    task = loop.create_task(_teardown())
+    _pending_stream_collect_teardowns.add(task)
+    task.add_done_callback(_pending_stream_collect_teardowns.discard)
+    return task
+
+
 async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) -> Any:
     """Drain a streaming ``responses.create(stream=True)`` call into its terminal ``Response``.
 
     Avoids non-streaming read timeouts on long cached-prefill generations (such as
     300k-token loop compaction) while enforcing the provider's idle-delta timeout and
-    preserving pre-answer failover semantics.
+    preserving pre-answer failover semantics with bounded non-blocking teardown on timeout.
     """
     if not hasattr(raw_stream, "__aiter__"):
         return raw_stream
@@ -882,12 +930,14 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
     idle_deadline = time.monotonic() + idle_timeout_s
     answer_started = False
     reasoning_started = False
+    timed_out = False
     final_response: Any = None
     aiter = raw_stream.__aiter__()
     try:
         while True:
             remaining = idle_deadline - time.monotonic()
             if remaining <= 0:
+                timed_out = True
                 raise TimeoutError(f"{provider.name} stream produced no output for {idle_timeout_s:g}s")
             cm = asyncio.timeout(remaining)
             try:
@@ -897,6 +947,7 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
                 break
             except TimeoutError:
                 if cm.expired():
+                    timed_out = True
                     raise TimeoutError(
                         f"{provider.name} stream produced no output for {idle_timeout_s:g}s"
                     ) from None
@@ -924,18 +975,26 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
             exc, answer_started=answer_started, reasoning_started=reasoning_started
         ) from exc
     finally:
-        aclose = getattr(aiter, "aclose", None)
-        if callable(aclose):
-            with contextlib.suppress(Exception):
-                res = aclose()
-                if inspect.isawaitable(res):
-                    await res
-        close = getattr(raw_stream, "close", None)
-        if callable(close):
-            with contextlib.suppress(Exception):
-                res = close()
-                if inspect.isawaitable(res):
-                    await res
+        if timed_out:
+            _schedule_stream_collect_teardown(aiter, raw_stream)
+        else:
+            close_deadline = time.monotonic() + _STREAM_COLLECT_TEARDOWN_TIMEOUT_S
+            aclose = getattr(aiter, "aclose", None)
+            if callable(aclose):
+                remaining = close_deadline - time.monotonic()
+                if remaining > 0:
+                    with contextlib.suppress(Exception):
+                        res = aclose()
+                        if inspect.isawaitable(res):
+                            await asyncio.wait_for(res, timeout=remaining)
+            close = getattr(raw_stream, "close", None)
+            if callable(close):
+                remaining = close_deadline - time.monotonic()
+                if remaining > 0:
+                    with contextlib.suppress(Exception):
+                        res = close()
+                        if inspect.isawaitable(res):
+                            await asyncio.wait_for(res, timeout=remaining)
     if final_response is None:
         url = f"{provider.base_url.rstrip('/')}/responses" if provider.base_url else "https://responses.local/v1/responses"
         raise _StreamCollectError(

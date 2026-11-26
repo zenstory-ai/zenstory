@@ -58,11 +58,16 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 MessageList = list[dict[str, Any]]
+_BACKGROUND_ACLOSE_TIMEOUT_S = 2.0
 _background_aclose_tasks: set[asyncio.Task[Any]] = set()
 
 
-def _schedule_background_aclose(aclose: Callable[[], Any]) -> None:
-    """Schedule async-generator cleanup without awaiting inside a ``GeneratorExit`` finally block."""
+def _schedule_background_aclose(
+    aclose: Callable[[], Any],
+    *,
+    timeout_s: float = _BACKGROUND_ACLOSE_TIMEOUT_S,
+) -> None:
+    """Schedule bounded async-generator cleanup without awaiting inside a ``GeneratorExit`` finally block."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -72,7 +77,7 @@ def _schedule_background_aclose(aclose: Callable[[], Any]) -> None:
         with contextlib.suppress(BaseException):
             res = aclose()
             if inspect.isawaitable(res):
-                await res
+                await asyncio.wait_for(res, timeout=max(0.0, timeout_s))
 
     task = loop.create_task(_run_close())
     _background_aclose_tasks.add(task)

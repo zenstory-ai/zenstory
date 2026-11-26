@@ -3459,3 +3459,106 @@ async def test_stop_still_emits_done_when_remove_empty_placeholders_raises(
     assert _frame_data(rest, "quota_refunded") == {"refunded": True, "kind": "stopped"}
 
 
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_w3_p1_2_cancelled_reserve_task_tracked_and_refunds_via_independent_session(
+    db_session,
+):
+    """P1-2: Cancelling stream_request during offloaded reserve_task registers reserve_task in
+    _detached_refund_tasks, waits for both reserve and refund in wait_for_stream_cleanup, and
+    refunds via _release_ai_conversation_sync without touching the closed request session."""
+    import threading
+
+    from models import Project, User
+    from services.core.auth_service import hash_password
+
+    suffix = uuid4().hex[:8]
+    user = User(
+        username=f"p12_cancel_{suffix}",
+        email=f"p12_cancel_{suffix}@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="P12 Cancel", owner_id=user.id)
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    reserve_entered = threading.Event()
+    allow_reserve_finish = threading.Event()
+    refund_calls: list[tuple[str, datetime, str]] = []
+
+    def blocking_reserve(_uid: str, _ip: str, _rid: str) -> datetime:
+        reserve_entered.set()
+        allow_reserve_finish.wait(timeout=5.0)
+        return _CHARGED_PERIOD
+
+    def independent_release(uid: str, period: datetime, rid: str) -> bool:
+        refund_calls.append((uid, period, rid))
+        return True
+
+    class _ExplodingClosedSession:
+        """Simulates a FastAPI request session that becomes unusable once the request is cancelled."""
+
+        def __init__(self, inner):
+            self._inner = inner
+            self.closed = False
+
+        def __getattr__(self, name: str):
+            if self.closed:
+                raise RuntimeError(f"Closed request session touched via .{name}")
+            return getattr(self._inner, name)
+
+    wrapped_session = _ExplodingClosedSession(db_session)
+    body = agent_api.AgentRequest(project_id=str(project.id), message="写第一章")
+
+    from types import SimpleNamespace
+
+    fake_slot = SimpleNamespace(release=AsyncMock())
+    with (
+        patch("api.agent.verify_project_access", new=AsyncMock(return_value=project)),
+        patch("api.agent.should_offload_session_work", side_effect=lambda s: not getattr(s, "closed", False)),
+        patch("api.agent._check_ai_conversation_quota_sync", return_value=(True, 0, 3)),
+        patch("api.agent._reserve_ai_conversation_sync", side_effect=blocking_reserve),
+        patch("api.agent._release_ai_conversation_sync", side_effect=independent_release),
+        patch("api.agent._acquire_account_slot", new=AsyncMock(return_value=fake_slot)),
+    ):
+        task = asyncio.create_task(
+            agent_api.stream_request(
+                body=body,
+                request=_SYNTHETIC_REQUEST,
+                current_user=user,
+                session=wrapped_session,  # type: ignore[arg-type]
+                accept_language="zh",
+            )
+        )
+        # Wait until the offloaded thread is inside _reserve_ai_conversation_sync
+        for _ in range(100):
+            if reserve_entered.is_set():
+                break
+            await asyncio.sleep(0.01)
+        assert reserve_entered.is_set()
+
+        # Client disconnects mid-reserve -> cancel request and close request session!
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        wrapped_session.closed = True
+
+        # reserve_task MUST be strongly referenced in _detached_refund_tasks!
+        assert len(agent_api._detached_refund_tasks) >= 1
+
+        # Unblock reserve thread and verify wait_for_stream_cleanup awaits BOTH reserve_task AND refund task!
+        allow_reserve_finish.set()
+        await agent_api.wait_for_stream_cleanup(timeout_s=5.0)
+
+    assert len(refund_calls) == 1
+    assert refund_calls[0][0] == user.id
+    assert refund_calls[0][1] == _CHARGED_PERIOD
+    assert not any(not t.done() for t in agent_api._detached_refund_tasks)

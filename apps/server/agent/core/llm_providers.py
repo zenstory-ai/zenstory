@@ -19,8 +19,8 @@ configuration:
   when the request names no effort.
 - stream / read timeouts:
   - Phase-1 first-event timeout (wait for the first meaningful output/terminal event;
-    ``0`` disables): ``MINIMAX_FIRST_EVENT_TIMEOUT_S`` (default 75),
-    ``DEEPSEEK_FIRST_EVENT_TIMEOUT_S`` (default 45). Setting this higher than
+    ``0`` disables): ``MINIMAX_FIRST_EVENT_TIMEOUT_S`` (default 95),
+    ``DEEPSEEK_FIRST_EVENT_TIMEOUT_S`` (default 65). Setting this higher than
     ``*_CLIENT_TIMEOUT_S`` (or ``0``) is still bounded on zero-byte TCP silence by
     ``httpx``'s ``read_timeout_s()``.
   - Phase-2 stream idle timeout (longest silence between meaningful events; ``0`` disables
@@ -118,7 +118,7 @@ class ProviderKind:
     default_read_timeout_s: float = 45.0
     # Phase-1 stream timeout before the first meaningful event arrives (0 disables Phase-1 guard).
     first_event_timeout_env: str = "DEEPSEEK_FIRST_EVENT_TIMEOUT_S"
-    default_first_event_timeout_s: float = 45.0
+    default_first_event_timeout_s: float = 65.0
     # API surface for the writing agent loop and compaction: "responses" or "chat_completions".
     api_surface_env: str | None = None
     default_api_surface: str = API_SURFACE_CHAT_COMPLETIONS
@@ -149,7 +149,7 @@ DEEPSEEK = ProviderKind(
     read_timeout_env="DEEPSEEK_CLIENT_TIMEOUT_S",
     default_read_timeout_s=45.0,
     first_event_timeout_env="DEEPSEEK_FIRST_EVENT_TIMEOUT_S",
-    default_first_event_timeout_s=45.0,
+    default_first_event_timeout_s=65.0,
 )
 
 MINIMAX = ProviderKind(
@@ -165,12 +165,13 @@ MINIMAX = ProviderKind(
     reasoning_effort_env="MINIMAX_REASONING_EFFORT",
     default_reasoning_effort="high",
     # Measured 2026-10-22: ~49s before the first byte on a ~320k-character uncached input;
-    # production inputs reach 260k tokens. Phase-1 first_event timeout (75s) bounds dead-node
-    # waits cleanly above measured max TTFT while keeping Phase-2 idle timeout at 120s.
+    # production inputs reach 300k tokens. Phase-1 first_event timeout (95s) bounds dead-node
+    # waits cleanly above measured max TTFT without falsely tripping the circuit breaker while
+    # keeping Phase-2 idle timeout at 120s.
     read_timeout_env="MINIMAX_CLIENT_TIMEOUT_S",
     default_read_timeout_s=120.0,
     first_event_timeout_env="MINIMAX_FIRST_EVENT_TIMEOUT_S",
-    default_first_event_timeout_s=75.0,
+    default_first_event_timeout_s=95.0,
     # Instant env-only rollback to /v1/chat/completions via MINIMAX_API_SURFACE=chat_completions.
     api_surface_env="MINIMAX_API_SURFACE",
     default_api_surface=API_SURFACE_RESPONSES,
