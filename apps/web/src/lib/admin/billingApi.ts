@@ -1,21 +1,11 @@
 import { api } from "../apiClient";
 import type {
-  AdminPointsBalance,
-  CheckInRecordsResponse,
-  CheckInStats,
-  InviteCodesResponse,
   PlanUpdateRequest,
-  PointsAdjustRequest,
-  PointsStats,
-  PointsTransactionsResponse,
   RedemptionCode,
-  ReferralStats,
-  RewardsResponse,
 } from "../../types/admin";
 import type { SubscriptionPlan } from "../../types/subscription";
 import { ADMIN_BASE } from "./shared";
 import type {
-  AdjustUserPointsResponse,
   CodeBatchCreateResponse,
   CodesListResponse,
   PaymentOrderSyncResponse,
@@ -144,87 +134,6 @@ async function updatePlan(planId: string, data: PlanUpdateRequest): Promise<Subs
   return api.put<SubscriptionPlan>(`${ADMIN_BASE}/plans/${planId}`, data);
 }
 
-// ==================== Points Management API ====================
-
-async function getPointsStats(): Promise<PointsStats> {
-  return api.get<PointsStats>(`${ADMIN_BASE}/points/stats`);
-}
-
-async function getUserPoints(userId: string): Promise<AdminPointsBalance> {
-  return api.get<AdminPointsBalance>(`${ADMIN_BASE}/points/${userId}`);
-}
-
-async function getUserPointsTransactions(
-  userId: string,
-  params?: { page?: number; page_size?: number }
-): Promise<PointsTransactionsResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-  return api.get<PointsTransactionsResponse>(
-    `${ADMIN_BASE}/points/${userId}/transactions?${searchParams.toString()}`
-  );
-}
-
-async function adjustUserPoints(
-  userId: string,
-  data: PointsAdjustRequest
-): Promise<AdjustUserPointsResponse> {
-  return api.post<AdjustUserPointsResponse>(`${ADMIN_BASE}/points/${userId}/adjust`, data);
-}
-
-// ==================== Check-in Stats API ====================
-
-async function getCheckInStats(): Promise<CheckInStats> {
-  return api.get<CheckInStats>(`${ADMIN_BASE}/check-in/stats`);
-}
-
-async function getCheckInRecords(params?: {
-  page?: number;
-  page_size?: number;
-  user_id?: string;
-}): Promise<CheckInRecordsResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-  if (params?.user_id) searchParams.set("user_id", params.user_id);
-  return api.get<CheckInRecordsResponse>(
-    `${ADMIN_BASE}/check-in/records?${searchParams.toString()}`
-  );
-}
-
-// ==================== Referral Management API ====================
-
-async function getReferralStats(): Promise<ReferralStats> {
-  return api.get<ReferralStats>(`${ADMIN_BASE}/referrals/stats`);
-}
-
-async function createAdminInviteCode(): Promise<InviteCodesResponse["items"][number]> {
-  return api.post<InviteCodesResponse["items"][number]>(`${ADMIN_BASE}/invites`);
-}
-
-async function getInviteCodes(params?: {
-  page?: number;
-  page_size?: number;
-  is_active?: boolean;
-}): Promise<InviteCodesResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-  if (params?.is_active !== undefined) searchParams.set("is_active", String(params.is_active));
-  return api.get<InviteCodesResponse>(`${ADMIN_BASE}/invites?${searchParams.toString()}`);
-}
-
-async function getReferralRewards(params?: {
-  page?: number;
-  page_size?: number;
-}): Promise<RewardsResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-  return api.get<RewardsResponse>(`${ADMIN_BASE}/referrals/rewards?${searchParams.toString()}`);
-}
-
 export const billingAdminApi = {
   getCodes,
   createCode,
@@ -237,14 +146,4 @@ export const billingAdminApi = {
   updateUserSubscription,
   getPlans,
   updatePlan,
-  getPointsStats,
-  getUserPoints,
-  getUserPointsTransactions,
-  adjustUserPoints,
-  getCheckInStats,
-  getCheckInRecords,
-  getReferralStats,
-  createAdminInviteCode,
-  getInviteCodes,
-  getReferralRewards,
 };

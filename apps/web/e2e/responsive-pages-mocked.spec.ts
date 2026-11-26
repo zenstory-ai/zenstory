@@ -79,9 +79,8 @@ for (const viewport of sizes) {
     await expect(dialog).toHaveCSS('animation-name', 'scale-in');
     await page.waitForTimeout(250); // Wait for the existing scale-in transition before physical bounds checks.
     const bounds = await dialog.boundingBox();
-    for (const id of ['profile', 'general', 'subscription', 'points', 'agent', 'referral']) {
+    for (const id of ['profile', 'general', 'subscription', 'agent']) {
       const tab = page.getByTestId('settings-tab-' + id);
-      if (await tab.count() === 0) continue; // Optional points panel is disabled in some product builds.
       await tab.click();
       const box = await tab.boundingBox();
       expect(box!.x).toBeGreaterThanOrEqual(bounds!.x);

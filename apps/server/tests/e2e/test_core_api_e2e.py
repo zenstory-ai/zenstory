@@ -19,10 +19,8 @@ from sqlmodel import Session, select
 
 import api.auth as auth_api
 from config.datetime_utils import utcnow
-from models import AgentArtifactLedger, ChatMessage, ChatSession, Inspiration, PublicSkill, User
+from models import AgentArtifactLedger, ChatMessage, ChatSession, PublicSkill, User
 from models.material_models import Chapter, Character, IngestionJob, Novel, StoryLine, WorldView
-from models.points import PointsTransaction
-from models.referral import InviteCode, UserReward, UserStats
 from models.subscription import (
     RedemptionCode,
     SubscriptionHistory,
@@ -602,96 +600,6 @@ async def test_subscription_status_quota_and_history_roundtrip(client: AsyncClie
 
 
 @pytest.mark.asyncio
-async def test_inspirations_submit_list_detail_and_copy_roundtrip(
-    client: AsyncClient,
-    db_session: Session,
-    monkeypatch,
-):
-    monkeypatch.setenv("INSPIRATIONS_ENABLED", "true")
-    admin = await _create_user(db_session, prefix="inspiration_admin", is_superuser=True)
-    consumer = await _create_user(db_session, prefix="inspiration_consumer")
-
-    pro_plan = _create_plan(
-        db_session,
-        name="pro",
-        display_name="Pro",
-        features={
-            "ai_conversations_per_day": -1,
-            "max_projects": 10,
-            "inspiration_copies_monthly": 100,
-        },
-    )
-    _attach_subscription(db_session, user_id=consumer.id, plan_id=pro_plan.id)
-
-    admin_login = await _login(client, identifier=admin.username)
-    consumer_login = await _login(client, identifier=consumer.email)
-
-    source_project = await _create_project(client, admin_login["access_token"], name="Admin Inspiration Source")
-    await _create_file(
-        client,
-        admin_login["access_token"],
-        project_id=source_project["id"],
-        title="Template Chapter",
-        content="Template content",
-    )
-
-    submit_response = await client.post(
-        "/api/v1/inspirations",
-        json={
-            "project_id": source_project["id"],
-            "name": "Admin Approved Inspiration",
-            "description": "A reusable template",
-            "tags": ["mystery", "featured"],
-        },
-        headers=_auth_headers(admin_login["access_token"]),
-    )
-    assert submit_response.status_code == 201
-    submit_payload = submit_response.json()
-    assert submit_payload["status"] == "approved"
-    inspiration_id = submit_payload["inspiration_id"]
-
-    listing_response = await client.get("/api/v1/inspirations?search=Admin+Approved")
-    assert listing_response.status_code == 200
-    listing_payload = listing_response.json()
-    assert listing_payload["total"] >= 1
-    assert any(item["id"] == inspiration_id for item in listing_payload["inspirations"])
-
-    detail_response = await client.get(f"/api/v1/inspirations/{inspiration_id}")
-    assert detail_response.status_code == 200
-    detail_payload = detail_response.json()
-    assert detail_payload["name"] == "Admin Approved Inspiration"
-    assert any(item["title"] == "Template Chapter" for item in detail_payload["file_preview"])
-
-    copy_response = await client.post(
-        f"/api/v1/inspirations/{inspiration_id}/copy",
-        json={"project_name": "Copied Inspiration Project"},
-        headers=_auth_headers(consumer_login["access_token"]),
-    )
-    assert copy_response.status_code == 200
-    copy_payload = copy_response.json()
-    assert copy_payload["success"] is True
-    assert copy_payload["project_name"] == "Copied Inspiration Project"
-
-    copied_project_response = await client.get(
-        f"/api/v1/projects/{copy_payload['project_id']}",
-        headers=_auth_headers(consumer_login["access_token"]),
-    )
-    assert copied_project_response.status_code == 200
-
-    copied_tree_response = await client.get(
-        f"/api/v1/projects/{copy_payload['project_id']}/file-tree",
-        headers=_auth_headers(consumer_login["access_token"]),
-    )
-    assert copied_tree_response.status_code == 200
-    copied_tree = copied_tree_response.json()["tree"]
-    assert any(node["title"] == "Template Chapter" for node in copied_tree)
-
-    stored_inspiration = db_session.get(Inspiration, inspiration_id)
-    assert stored_inspiration is not None
-    assert stored_inspiration.copy_count >= 1
-
-
-@pytest.mark.asyncio
 async def test_subscription_redeem_code_roundtrip_upgrades_plan_and_records_history(
     client: AsyncClient,
     db_session: Session,
@@ -750,94 +658,6 @@ async def test_subscription_redeem_code_roundtrip_upgrades_plan_and_records_hist
     history_payload = history_response.json()
     assert len(history_payload) >= 1
     assert history_payload[0]["plan_name"] == "pro"
-
-
-@pytest.mark.asyncio
-async def test_points_and_referral_roundtrip_covers_check_in_codes_stats_and_rewards(
-    client: AsyncClient,
-    db_session: Session,
-):
-    user = await _create_user(db_session, prefix="points_referral")
-    login_payload = await _login(client, identifier=user.email)
-    access_token = login_payload["access_token"]
-
-    check_in_status_before = await client.get(
-        "/api/v1/points/check-in/status",
-        headers=_auth_headers(access_token),
-    )
-    assert check_in_status_before.status_code == 200
-    assert check_in_status_before.json()["checked_in"] is False
-
-    check_in_response = await client.post(
-        "/api/v1/points/check-in",
-        headers=_auth_headers(access_token),
-    )
-    assert check_in_response.status_code == 200
-    check_in_payload = check_in_response.json()
-    assert check_in_payload["success"] is True
-    assert check_in_payload["points_earned"] > 0
-
-    balance_response = await client.get(
-        "/api/v1/points/balance",
-        headers=_auth_headers(access_token),
-    )
-    assert balance_response.status_code == 200
-    assert balance_response.json()["available"] >= check_in_payload["points_earned"]
-
-    create_code_response = await client.post(
-        "/api/v1/referral/codes",
-        headers=_auth_headers(access_token),
-    )
-    assert create_code_response.status_code == 201
-    invite_code = create_code_response.json()["code"]
-
-    validate_code_response = await client.post(f"/api/v1/referral/codes/{invite_code}/validate")
-    assert validate_code_response.status_code == 200
-    assert validate_code_response.json()["valid"] is True
-
-    user_stats = UserStats(
-        user_id=user.id,
-        total_invites=3,
-        successful_invites=2,
-        total_points=80,
-        available_points=55,
-    )
-    reward = UserReward(
-        user_id=user.id,
-        reward_type="points",
-        amount=30,
-        source="referral",
-        is_used=False,
-    )
-    transaction = PointsTransaction(
-        user_id=user.id,
-        amount=25,
-        balance_after=balance_response.json()["available"] + 25,
-        transaction_type="referral",
-        description="Referral bonus",
-    )
-    db_session.add(user_stats)
-    db_session.add(reward)
-    db_session.add(transaction)
-    db_session.commit()
-
-    stats_response = await client.get(
-        "/api/v1/referral/stats",
-        headers=_auth_headers(access_token),
-    )
-    assert stats_response.status_code == 200
-    stats_payload = stats_response.json()
-    assert stats_payload["total_invites"] == 3
-    assert stats_payload["successful_invites"] == 2
-    assert stats_payload["available_points"] >= check_in_payload["points_earned"] + 25
-
-    rewards_response = await client.get(
-        "/api/v1/referral/rewards",
-        headers=_auth_headers(access_token),
-    )
-    assert rewards_response.status_code == 200
-    rewards_payload = rewards_response.json()
-    assert any(item["reward_type"] == "points" and item["amount"] == 30 for item in rewards_payload)
 
 
 @pytest.mark.asyncio
@@ -1005,9 +825,7 @@ async def test_admin_redemption_codes_roundtrip_create_list_and_update(
 async def test_admin_dashboard_stats_roundtrip_reports_commercialization_metrics(
     client: AsyncClient,
     db_session: Session,
-    monkeypatch,
 ):
-    monkeypatch.setenv("INSPIRATIONS_ENABLED", "true")
     admin = await _create_user(db_session, prefix="admin_dashboard", is_superuser=True)
     active_user = await _create_user(db_session, prefix="dashboard_user")
 
@@ -1018,18 +836,6 @@ async def test_admin_dashboard_stats_roundtrip_reports_commercialization_metrics
     )
     assert project["name"] == "Dashboard Project"
 
-    pending_inspiration = Inspiration(
-        name="Pending Inspiration",
-        description="pending",
-        project_type="novel",
-        tags="[]",
-        snapshot_data='{"project_type":"novel","files":[]}',
-        source="community",
-        status="pending",
-        author_id=active_user.id,
-    )
-    db_session.add(pending_inspiration)
-
     pro_plan = _create_plan(
         db_session,
         name="pro",
@@ -1037,24 +843,6 @@ async def test_admin_dashboard_stats_roundtrip_reports_commercialization_metrics
         features={"ai_conversations_per_day": 9999},
     )
     _attach_subscription(db_session, user_id=active_user.id, plan_id=pro_plan.id)
-
-    points_transaction = PointsTransaction(
-        user_id=active_user.id,
-        amount=100,
-        balance_after=100,
-        transaction_type="check_in",
-        is_expired=False,
-    )
-    invite_code = InviteCode(
-        code="DASH-0001",
-        owner_id=admin.id,
-        max_uses=5,
-        current_uses=0,
-        is_active=True,
-    )
-    db_session.add(points_transaction)
-    db_session.add(invite_code)
-    db_session.commit()
 
     dashboard_login = await _login(client, identifier=admin.email)
     dashboard_response = await client.get(
@@ -1066,8 +854,5 @@ async def test_admin_dashboard_stats_roundtrip_reports_commercialization_metrics
     assert dashboard_payload["total_users"] >= 2
     assert dashboard_payload["active_users"] >= 2
     assert dashboard_payload["total_projects"] >= 1
-    assert dashboard_payload["pending_inspirations"] >= 1
     assert dashboard_payload["active_subscriptions"] >= 1
     assert dashboard_payload["pro_users"] >= 1
-    assert dashboard_payload["active_invite_codes"] >= 1
-    assert dashboard_payload["total_points_in_circulation"] >= 100

@@ -117,7 +117,7 @@ i18n
     /**
      * Core translation namespaces loaded upfront on initial boot.
      * Heavy/route-specific namespaces (admin, privacy, materials, skills,
-     * inspirations, docs) are loaded lazily on demand by LocaleBundleBackend
+     * docs) are loaded lazily on demand by LocaleBundleBackend
      * when their routes or Suspense-wrapped panes mount.
      */
     ns: [...CORE_LOCALE_NAMESPACES],

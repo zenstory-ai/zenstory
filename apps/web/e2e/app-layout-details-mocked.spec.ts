@@ -109,7 +109,7 @@ for (const viewport of viewports) {
     await expect(settings).toBeVisible();
     // Layout bounds are comparable only after the dialog's entry transform settles.
     await settings.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)));
-    for (const id of ['profile', 'general', 'subscription', 'points', 'agent', 'referral']) {
+    for (const id of ['profile', 'general', 'subscription', 'agent']) {
       if (await settings.getByTestId(`settings-tab-${id}`).count() === 0) continue;
       await settings.getByTestId(`settings-tab-${id}`).click();
       await expect(settings.getByRole('tabpanel')).toBeVisible();
@@ -186,17 +186,13 @@ for (const viewport of viewports) {
       await page.getByRole('button', { name: '打开菜单', exact: true }).click();
       await expect(page.locator('#dashboard-mobile-navigation')).toBeVisible();
     }
-    const inspirationEntry = page.locator('a[href="/dashboard/inspirations"]');
-    const hasInspirationEntry = await inspirationEntry.count() > 0;
-    if (hasInspirationEntry) await expect(inspirationEntry.first()).toBeVisible();
+    await expect(page.locator('a[href="/dashboard/inspirations"]')).toHaveCount(0);
     if (viewport.width < 768) {
       await page.keyboard.press('Escape');
       await expect(page.locator('#dashboard-mobile-navigation')).not.toBeVisible();
     }
-    if (!hasInspirationEntry) {
-      await page.goto('/dashboard/inspirations');
-      await expect(page).toHaveURL(/\/dashboard$/);
-    }
+    await page.goto('/dashboard/inspirations');
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 
   test(`skill failure and material retry stay independent at ${viewport.width}`, async ({ page }) => {

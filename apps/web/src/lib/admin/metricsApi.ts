@@ -101,13 +101,9 @@ async function getAcquisitionStats(
 }
 
 async function getDashboardStats(options?: {
-  includeCommercialization?: boolean;
   refresh?: boolean;
 }): Promise<DashboardStats> {
   const params = new URLSearchParams();
-  if (options?.includeCommercialization === false) {
-    params.set("include_commercialization", "false");
-  }
   if (options?.refresh) {
     params.set("refresh", "true");
   }

@@ -5,17 +5,7 @@ import { UserAvatar, UserMenu, UserMenuMobile } from '../UserMenu'
 
 const mockNavigate = vi.fn()
 const mockLogout = vi.fn()
-const mockMutate = vi.fn()
-const mockRefetchStatus = vi.fn()
-const mockInvalidateQueries = vi.fn()
-const mockToastError = vi.fn()
 const mockUseAuth = vi.fn()
-let checkedIn = false
-let checkInPending = false
-let checkInStatusError = false
-let capturedMutationOptions: { onError?: (error: unknown) => void } | undefined
-const queryEnabled: Array<boolean | undefined> = []
-const pointsFlag = vi.hoisted(() => ({ enabled: true }))
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
@@ -35,8 +25,6 @@ vi.mock('react-i18next', () => ({
           'userMenu.adminPanel': 'Admin panel',
           'userMenu.logout': 'Log out',
           'common:userMenu.logout': 'Log out',
-          'settings:points.alreadyCheckedIn': 'Already checked in',
-          'settings:points.checkIn': 'Check in',
           'common:processing': 'Loading',
         } as Record<string, string>
       )[key] ?? fallback ?? key,
@@ -47,45 +35,9 @@ vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }))
 
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: (options: { enabled?: boolean }) => {
-    queryEnabled.push(options.enabled)
-    if (checkInStatusError) {
-      return { data: undefined, isError: true, refetch: mockRefetchStatus }
-    }
-    return { data: { checked_in: checkedIn }, isError: false, refetch: mockRefetchStatus }
-  },
-  useMutation: (options: { onError?: (error: unknown) => void }) => {
-    capturedMutationOptions = options
-    return { mutate: mockMutate, isPending: checkInPending }
-  },
-  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
-}))
-
-vi.mock('../../lib/toast', () => ({
-  toast: {
-    error: (...args: unknown[]) => mockToastError(...args),
-  },
-}))
-
-vi.mock('../../lib/pointsApi', () => ({
-  pointsApi: {
-    getCheckInStatus: vi.fn(),
-    checkIn: vi.fn(),
-  },
-}))
-
-vi.mock('../../config/points', () => ({ pointsConfig: pointsFlag }))
-
 describe('UserMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    checkedIn = false
-    checkInPending = false
-    checkInStatusError = false
-    capturedMutationOptions = undefined
-    queryEnabled.length = 0
-    pointsFlag.enabled = true
     mockUseAuth.mockReturnValue({
       user: {
         username: 'Alice',
@@ -111,7 +63,7 @@ describe('UserMenu', () => {
     expect(screen.getByAltText('alice')).toHaveAttribute('src', 'https://example.com/avatar.png')
   })
 
-  it('opens the desktop dropdown, supports admin navigation, check-in, and logout', async () => {
+  it('opens the desktop dropdown, supports admin navigation, and logout', async () => {
     render(<UserMenu />)
 
     fireEvent.click(screen.getByTestId('user-menu-button'))
@@ -121,9 +73,6 @@ describe('UserMenu', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/admin')
 
     fireEvent.click(screen.getByTestId('user-menu-button'))
-    fireEvent.click(screen.getByTestId('check-in-button'))
-    expect(mockMutate).toHaveBeenCalled()
-
     fireEvent.click(screen.getByTestId('logout-button'))
     expect(mockLogout).toHaveBeenCalled()
 
@@ -134,25 +83,14 @@ describe('UserMenu', () => {
     })
   })
 
-  it('closes on outside click and reflects checked-in / pending states', async () => {
-    const { rerender } = render(<UserMenu />)
+  it('closes on outside click', async () => {
+    render(<UserMenu />)
 
     fireEvent.click(screen.getByTestId('user-menu-button'))
     fireEvent.mouseDown(document.body)
     await waitFor(() => {
       expect(screen.queryByText('alice@example.com')).not.toBeInTheDocument()
     })
-
-    checkedIn = true
-    rerender(<UserMenu />)
-    fireEvent.click(screen.getByTestId('user-menu-button'))
-    expect(screen.getByTestId('check-in-button')).toBeDisabled()
-    expect(screen.getByText('Already checked in')).toBeInTheDocument()
-
-    checkedIn = false
-    checkInPending = true
-    rerender(<UserMenu />)
-    expect(screen.getByText('Loading')).toBeInTheDocument()
   })
 
   it('links to the support email from desktop and mobile menus', () => {
@@ -165,16 +103,13 @@ describe('UserMenu', () => {
     expect(screen.getByTestId('contact-support-link-mobile')).toHaveAttribute('href', 'mailto:support@zenstory.ai')
   })
 
-  it('hides check-in and skips its status request while points are off', () => {
-    pointsFlag.enabled = false
+  it('omits retired check-in actions from desktop and mobile menus', () => {
     render(<UserMenu />)
     fireEvent.click(screen.getByTestId('user-menu-button'))
     render(<UserMenuMobile />)
 
     expect(screen.queryByTestId('check-in-button')).not.toBeInTheDocument()
     expect(screen.queryByTestId('check-in-button-mobile')).not.toBeInTheDocument()
-    expect(queryEnabled.length).toBeGreaterThan(0)
-    expect(queryEnabled.every((enabled) => enabled === false)).toBe(true)
   })
 
   it('returns null when no user is logged in', () => {
@@ -187,16 +122,13 @@ describe('UserMenu', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('renders the mobile menu and triggers admin/check-in/logout callbacks', () => {
+  it('renders the mobile menu and triggers admin/logout callbacks', () => {
     const onLogout = vi.fn()
     render(<UserMenuMobile onLogout={onLogout} />)
 
     fireEvent.click(screen.getByText('Admin panel'))
     expect(onLogout).toHaveBeenCalled()
     expect(mockNavigate).toHaveBeenCalledWith('/admin')
-
-    fireEvent.click(screen.getByTestId('check-in-button-mobile'))
-    expect(mockMutate).toHaveBeenCalled()
 
     const logoutBtn = screen.getByRole('button', { name: 'Log out' })
     expect(logoutBtn.className).toContain('text-[hsl(var(--error-text))]')
@@ -237,26 +169,6 @@ describe('UserMenu', () => {
 
     const { container } = render(<UserMenuMobile />)
     expect(container).toBeEmptyDOMElement()
-  })
-
-  it('shows error toast when check-in fails and retries status instead of mutating when status query failed', () => {
-    checkInStatusError = true
-    render(<UserMenu />)
-    fireEvent.click(screen.getByTestId('user-menu-button'))
-    fireEvent.click(screen.getByTestId('check-in-button'))
-    expect(mockRefetchStatus).toHaveBeenCalledTimes(1)
-    expect(mockMutate).not.toHaveBeenCalled()
-
-    capturedMutationOptions?.onError?.(new Error('Check-in network failure'))
-    expect(mockToastError).toHaveBeenCalledTimes(1)
-
-    render(<UserMenuMobile />)
-    fireEvent.click(screen.getByTestId('check-in-button-mobile'))
-    expect(mockRefetchStatus).toHaveBeenCalledTimes(2)
-    expect(mockMutate).not.toHaveBeenCalled()
-
-    capturedMutationOptions?.onError?.(new Error('Mobile check-in failure'))
-    expect(mockToastError).toHaveBeenCalledTimes(2)
   })
 
   it('restores focus to trigger on Escape and uses danger styling for logout', async () => {

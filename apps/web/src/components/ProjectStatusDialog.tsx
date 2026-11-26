@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useId } from "react";
 import { Save, Brain, Loader2, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
-import { inspirationsApi, projectApi } from "../lib/api";
+import { projectApi } from "../lib/api";
 import { subscribeProjectStatusUpdated } from "../lib/projectStatusEvents";
 import type { Project, PatchProjectRequest } from "../types";
 import { Modal } from "./ui/Modal";
@@ -11,7 +10,6 @@ import { ApiError } from "../lib/apiClient";
 import { authorNotesText, withAuthorNotes } from "../lib/projectNotes";
 import { toast } from "../lib/toast";
 import { logger } from "../lib/logger";
-import { inspirationsConfig } from "../config/inspirations";
 
 interface ProjectStatusDialogProps {
   isOpen: boolean;
@@ -27,12 +25,10 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   initialSection,
 }) => {
   const { t } = useTranslation('project', { keyPrefix: 'statusDialog' });
-  const navigate = useNavigate();
   const fieldId = useId();
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [submittingInspiration, setSubmittingInspiration] = useState(false);
   const [project, setProject] = useState<Project | null>(null);
 
   const [summary, setSummary] = useState("");
@@ -300,30 +296,6 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     }
   };
 
-  const handleSubmitInspiration = async () => {
-    if (!projectId || !project) return;
-
-    setSubmittingInspiration(true);
-    try {
-      const result = await inspirationsApi.submit({
-        project_id: projectId,
-        name: project.name,
-        description: project.description || undefined,
-      });
-
-      toast.success(
-        result.status === "approved"
-          ? t('shareSuccessApproved')
-          : t('shareSuccessPending'),
-      );
-    } catch (err) {
-      logger.error("Failed to submit inspiration:", err);
-      toast.error(t('shareFailed'));
-    } finally {
-      setSubmittingInspiration(false);
-    }
-  };
-
   const originalSummary = project?.summary || "";
   const originalWritingStyle = project?.writing_style || "";
   const originalCurrentPhase = project?.current_phase || "";
@@ -333,11 +305,6 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     writingStyle.trim() !== originalWritingStyle ||
     currentPhase.trim() !== originalCurrentPhase ||
     notes.trim() !== originalNotes;
-
-  const handleViewInspirationLibrary = () => {
-    onClose();
-    navigate('/dashboard/inspirations');
-  };
 
   return (
     <Modal
@@ -354,25 +321,6 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
       }
       footer={
         <div className="w-full flex flex-col sm:flex-row sm:flex-wrap sm:justify-end gap-2 sm:gap-3">
-          {inspirationsConfig.enabled && (
-            <>
-              <button
-                type="button"
-                onClick={handleSubmitInspiration}
-                disabled={submittingInspiration || loading || !project}
-                className="w-full sm:w-auto min-h-11 px-4 py-2 bg-[hsl(var(--bg-secondary))] text-[hsl(var(--accent-primary))] border border-[hsl(var(--accent-primary)/0.35)] rounded-xl text-sm hover:bg-[hsl(var(--accent-primary)/0.08)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {submittingInspiration ? t('sharingInspiration') : t('shareAsInspiration')}
-              </button>
-              <button
-                type="button"
-                onClick={handleViewInspirationLibrary}
-                className="w-full sm:w-auto min-h-11 px-4 py-2 bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] border border-[hsl(var(--border-color))] rounded-xl text-sm hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
-              >
-                {t('viewInspirationLibrary')}
-              </button>
-            </>
-          )}
           <Button size="touch"
             onClick={() => void handleSave()}
             disabled={saving || loading || !project || !hasChanges || notesConflict}

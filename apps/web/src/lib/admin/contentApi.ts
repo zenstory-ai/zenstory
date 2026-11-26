@@ -3,7 +3,6 @@ import type {
   AdminFeedbackItem,
   AdminFeedbackListResponse,
   AdminFeedbackStatus,
-  AdminInspiration,
   ChatVoteFilter,
   ChatVotesListResponse,
   PendingSkill,
@@ -15,7 +14,6 @@ import type {
   SystemPromptConfig,
 } from "../../types/admin";
 import { ADMIN_BASE } from "./shared";
-import type { AdminInspirationsListResponse } from "./types";
 
 // ==================== Prompt 管理 API ====================
 
@@ -82,55 +80,6 @@ async function getSkillReviewResources(id: string): Promise<SkillReviewResource[
     `${ADMIN_BASE}/skills/${id}/resources`
   );
   return Array.isArray(payload?.resources) ? payload.resources : [];
-}
-
-// ==================== Inspirations (Admin) API ====================
-
-async function getInspirations(params?: {
-  status?: string;
-  source?: string;
-  skip?: number;
-  limit?: number;
-}): Promise<AdminInspirationsListResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.status) searchParams.set("status", params.status);
-  if (params?.source) searchParams.set("source", params.source);
-  if (params?.skip) searchParams.set("skip", String(params.skip));
-  if (params?.limit) searchParams.set("limit", String(params.limit));
-
-  const queryString = searchParams.toString();
-  const url = queryString
-    ? `${ADMIN_BASE}/inspirations?${queryString}`
-    : `${ADMIN_BASE}/inspirations`;
-
-  return api.get<AdminInspirationsListResponse>(url);
-}
-
-async function reviewInspiration(
-  id: string,
-  approve: boolean,
-  reason?: string
-): Promise<{ message: string }> {
-  return api.post<{ message: string }>(`${ADMIN_BASE}/inspirations/${id}/review`, {
-    approve,
-    rejection_reason: reason,
-  });
-}
-
-async function updateInspiration(
-  id: string,
-  data: {
-    name?: string;
-    description?: string;
-    tags?: string[];
-    is_featured?: boolean;
-  }
-): Promise<AdminInspiration> {
-  return api.patch<AdminInspiration>(`${ADMIN_BASE}/inspirations/${id}`, data);
-}
-
-async function deleteInspiration(id: string): Promise<{ message: string }> {
-  return api.delete<{ message: string }>(`${ADMIN_BASE}/inspirations/${id}`);
 }
 
 // ==================== Feedback (Admin) API ====================
@@ -213,10 +162,6 @@ export const contentAdminApi = {
   rejectSkill,
   unpublishSkill,
   getSkillReviewResources,
-  getInspirations,
-  reviewInspiration,
-  updateInspiration,
-  deleteInspiration,
   getFeedbackList,
   updateFeedbackStatus,
   getFeedbackScreenshotBlob,

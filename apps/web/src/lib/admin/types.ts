@@ -1,7 +1,5 @@
 import type {
-  AdminInspiration,
   AuditLog,
-  PointsTransactionsResponse,
   RedemptionCode,
 } from "../../types/admin";
 import type { PaymentOrder } from "../../types/payment";
@@ -277,7 +275,7 @@ export interface StageLatencyResponse {
   daily: StageLatencyDailyRow[];
 }
 
-// ==================== 审计日志 / 灵感 / 积分响应类型 ====================
+// ==================== 审计日志响应类型 ====================
 
 /** Paginated response for audit log listings. */
 export interface AuditLogsResponse {
@@ -285,17 +283,4 @@ export interface AuditLogsResponse {
   total: number;
   page: number;
   page_size: number;
-}
-
-export interface AdminInspirationsListResponse {
-  items: AdminInspiration[];
-  total: number;
-}
-
-export interface AdjustUserPointsResponse {
-  success?: boolean;
-  message?: string;
-  old_balance?: number;
-  new_balance: number;
-  transaction?: PointsTransactionsResponse["items"][number];
 }

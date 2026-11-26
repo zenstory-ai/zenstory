@@ -24,7 +24,6 @@ const defaultLazyLoaders: LazyNamespaceLoaders = {
   zh: {
     admin: async () => (await import('virtual:zenstory-locale-zh-admin')).default,
     docs: async () => (await import('virtual:zenstory-locale-zh-docs')).default,
-    inspirations: async () => (await import('virtual:zenstory-locale-zh-inspirations')).default,
     materials: async () => (await import('virtual:zenstory-locale-zh-materials')).default,
     privacy: async () => (await import('virtual:zenstory-locale-zh-privacy')).default,
     skills: async () => (await import('virtual:zenstory-locale-zh-skills')).default,
@@ -32,7 +31,6 @@ const defaultLazyLoaders: LazyNamespaceLoaders = {
   en: {
     admin: async () => (await import('virtual:zenstory-locale-en-admin')).default,
     docs: async () => (await import('virtual:zenstory-locale-en-docs')).default,
-    inspirations: async () => (await import('virtual:zenstory-locale-en-inspirations')).default,
     materials: async () => (await import('virtual:zenstory-locale-en-materials')).default,
     privacy: async () => (await import('virtual:zenstory-locale-en-privacy')).default,
     skills: async () => (await import('virtual:zenstory-locale-en-skills')).default,

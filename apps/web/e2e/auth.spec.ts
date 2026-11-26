@@ -1,7 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { TEST_USERS } from './config';
 
-const TEST_INVITE_CODE = process.env.E2E_TEST_INVITE_CODE || 'E2E1-TST1';
 const AUTHENTICATED_ROUTE_PATTERN = /\/(project|dashboard|onboarding\/persona)/;
 
 async function gotoWithRetry(
@@ -69,15 +68,13 @@ async function settleAfterLogin(page: Page) {
 test.describe('Authentication', () => {
   test.describe('Registration', () => {
     test('user can register with valid credentials', async ({ page }, testInfo) => {
-      // An invite link fills and shows the invite code; email and one password are all that is asked.
-      await gotoWithRetry(page, `/register?code=${encodeURIComponent(TEST_INVITE_CODE)}`);
+      await gotoWithRetry(page, '/register');
 
       const uniqueSuffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}-${testInfo.project.name.replace(/\W+/g, '-')}`;
 
       // Fill in registration form
       await page.fill('input#email', `newuser-${uniqueSuffix}@example.com`);
       await page.fill('input#password', 'SecurePass123!');
-      await expect(page.locator('input#invite_code')).toHaveValue(TEST_INVITE_CODE);
       await page.locator('input[type="checkbox"]').first().check();
 
       // Submit form

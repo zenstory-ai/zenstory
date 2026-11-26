@@ -7,7 +7,6 @@ const useQueryMock = vi.fn();
 const useMutationMock = vi.fn();
 const invalidateQueriesMock = vi.fn();
 const mutateMock = vi.fn();
-const inspirationFeature = vi.hoisted(() => ({ enabled: true }));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -30,10 +29,6 @@ vi.mock("../../../lib/toast", () => ({
   },
 }));
 
-vi.mock("../../../config/inspirations", () => ({
-  inspirationsConfig: inspirationFeature,
-}));
-
 const plan = {
   id: "plan-pro",
   name: "pro",
@@ -52,7 +47,6 @@ const plan = {
 describe("SubscriptionPlanManagement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    inspirationFeature.enabled = true;
     useMutationMock.mockReturnValue({
       mutate: mutateMock,
       isPending: false,
@@ -177,11 +171,11 @@ describe("SubscriptionPlanManagement", () => {
     expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({data: expect.objectContaining({features: {max_projects: 3, ai_conversations_per_day: 3}})}));
   });
 
-  it("keeps Pro's existing unlimited inspiration policy read-only", () => {
+  it("keeps Pro's legacy inspiration_copies_monthly out of the JSON editor without rendering retired UI", () => {
     useQueryMock.mockReturnValue({data: [{...plan, features: {inspiration_copies_monthly: 100, max_projects: -1}}]});
     render(<SubscriptionPlanManagement />);
     fireEvent.click(screen.getByRole("button", {name: "plans.edit"}));
-    expect(screen.getByRole("textbox", {name: "plans.featuresDetail.inspiration_copies_monthly"})).toHaveAttribute("readonly");
+    expect(screen.queryByRole("textbox", {name: "plans.featuresDetail.inspiration_copies_monthly"})).not.toBeInTheDocument();
     expect(JSON.parse((screen.getByLabelText("plans.featuresDetail.jsonLabel") as HTMLTextAreaElement).value)).toEqual({max_projects: -1});
     fireEvent.click(screen.getByRole("button", {name: "plans.save"}));
     expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({data: expect.objectContaining({features: {max_projects: -1, inspiration_copies_monthly: -1}})}));
@@ -198,7 +192,6 @@ describe("SubscriptionPlanManagement", () => {
   });
 
   it("shows the effective entitlements users get, not the raw stored keys", () => {
-    inspirationFeature.enabled = false;
     useQueryMock.mockReturnValue({
       data: [{
         ...plan,
@@ -235,8 +228,7 @@ describe("SubscriptionPlanManagement", () => {
     expect(screen.queryByText("materials_library_access")).not.toBeInTheDocument();
   });
 
-  it("hides the inspiration entitlement from plan cards when disabled", () => {
-    inspirationFeature.enabled = false;
+  it("omits retired inspiration entitlement from plan cards", () => {
     useQueryMock.mockReturnValue({
       data: [{
         ...plan,

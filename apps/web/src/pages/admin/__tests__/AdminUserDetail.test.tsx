@@ -7,12 +7,6 @@ import AdminUserDetail from "../AdminUserDetail";
 import { adminApi } from "../../../lib/adminApi";
 import { ApiError } from "../../../lib/apiClient";
 
-const pointsFeature = vi.hoisted(() => ({ enabled: true }));
-
-vi.mock("../../../config/points", () => ({
-  pointsConfig: pointsFeature,
-}));
-
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -28,11 +22,8 @@ vi.mock("../../../lib/adminApi", () => ({
     getUserSubscription: vi.fn(),
     getPlans: vi.fn(),
     getUserQuota: vi.fn(),
-    getUserPoints: vi.fn(),
-    getUserPointsTransactions: vi.fn(),
     getPaymentOrders: vi.fn(),
     updateUserSubscription: vi.fn(),
-    adjustUserPoints: vi.fn(),
   },
 }));
 
@@ -55,7 +46,6 @@ const renderPage = () => {
 describe("AdminUserDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    pointsFeature.enabled = true;
     api.getUser.mockResolvedValue({
       id: "user-1", username: "writer", email: "writer@example.com", email_verified: true,
       is_active: true, is_superuser: false, created_at: "2026-10-01T08:00:00", updated_at: "2026-10-01T08:00:00",
@@ -75,18 +65,6 @@ describe("AdminUserDetail", () => {
       ai_conversations: counter(3, -1), material_decompositions: counter(1, 5),
       inspiration_copies: counter(0, 100), custom_skills: counter(2, 20),
     });
-    api.getUserPoints.mockResolvedValue({
-      user_id: "user-1", username: "writer", email: "writer@example.com",
-      available: 120, pending_expiration: 0, total_earned: 150, total_spent: 30,
-    });
-    api.getUserPointsTransactions.mockResolvedValue({
-      items: [{
-        id: "tx-1", user_id: "user-1", username: "writer", amount: 10, balance_after: 120,
-        transaction_type: "check_in", source_id: null, description: null, expires_at: null,
-        is_expired: false, created_at: "2026-10-02T00:00:00",
-      }],
-      total: 1, page: 1, page_size: 10,
-    });
     api.getPaymentOrders.mockResolvedValue({
       items: [{
         id: "order-1", out_trade_no: "20261006000001", user_id: "user-1", plan_display_name: "专业版",
@@ -95,18 +73,16 @@ describe("AdminUserDetail", () => {
       total: 1, page: 1, page_size: 10,
     } as never);
     api.updateUserSubscription.mockResolvedValue({ success: true });
-    api.adjustUserPoints.mockResolvedValue({ message: "ok", new_balance: 170 });
   });
 
-  it("shows account, membership, quota, points and payments for one user", async () => {
+  it("shows account, membership, quota and payments for one user without retired points", async () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "writer" })).toBeInTheDocument();
     expect(screen.getByText("writer@example.com")).toBeInTheDocument();
     expect(await screen.findByText("1 / 5")).toBeInTheDocument();
-    expect(await screen.findByText("120")).toBeInTheDocument();
     expect(await screen.findByText("20261006000001")).toBeInTheDocument();
-    expect(screen.getByText("points.types.check_in")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "userDetail.points" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "userDetail.viewUsage" })).toHaveAttribute(
       "href", "/admin/usage?user=user-1",
     );
@@ -150,19 +126,6 @@ describe("AdminUserDetail", () => {
     expect(api.updateUserSubscription).not.toHaveBeenCalled();
   });
 
-  it("adjusts points with a reason", async () => {
-    renderPage();
-    await screen.findByText("120");
-
-    const submit = screen.getByRole("button", { name: "points.adjustPoints" });
-    expect(submit).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("points.adjustAmount"), { target: { value: "50" } });
-    fireEvent.change(screen.getByLabelText("points.adjustReason"), { target: { value: " bonus " } });
-    fireEvent.click(submit);
-
-    await waitFor(() => expect(api.adjustUserPoints).toHaveBeenCalledWith("user-1", { amount: 50, reason: "bonus" }));
-  });
-
   it("says so when the user does not exist", async () => {
     api.getUser.mockRejectedValue(new ApiError(404, "ERR_NOT_FOUND"));
     renderPage();
@@ -170,19 +133,11 @@ describe("AdminUserDetail", () => {
     expect(await screen.findByText("userDetail.notFound")).toBeInTheDocument();
   });
 
-  it("shows account flags, admin notes, spends and older orders", async () => {
+  it("shows account flags and older orders", async () => {
     api.getUser.mockResolvedValue({
       id: "user-1", username: "writer", email: "writer@example.com", email_verified: false,
       is_active: false, is_superuser: true, created_at: "2026-10-01T08:00:00", updated_at: "2026-10-01T08:00:00",
     } as never);
-    api.getUserPointsTransactions.mockResolvedValue({
-      items: [{
-        id: "tx-2", user_id: "user-1", username: "writer", amount: -20, balance_after: 100,
-        transaction_type: "admin_adjust", source_id: null, description: "refund fix", expires_at: null,
-        is_expired: false, created_at: "2026-10-02T00:00:00",
-      }],
-      total: 1, page: 1, page_size: 10,
-    });
     api.getPaymentOrders.mockResolvedValue({
       items: [{
         id: "order-1", out_trade_no: "20261006000001", user_id: "user-1", plan_display_name: "专业版",
@@ -195,32 +150,24 @@ describe("AdminUserDetail", () => {
     expect(await screen.findByText("userDetail.emailUnverified")).toBeInTheDocument();
     expect(screen.getByText("users.inactive")).toBeInTheDocument();
     expect(screen.getByText("users.yes")).toBeInTheDocument();
-    expect(await screen.findByText("refund fix")).toBeInTheDocument();
-    expect(screen.getByText("-20")).toBeInTheDocument();
     expect(await screen.findByText("userDetail.olderOrders")).toBeInTheDocument();
   });
 
   it("shows section errors with retry and refetches on retry", async () => {
     api.getUserSubscription.mockRejectedValue(new ApiError(500, "ERR_INTERNAL", "subscription down"));
     api.getUserQuota.mockRejectedValue(new Error("quota down"));
-    api.getUserPoints.mockRejectedValue(new Error("points down"));
-    api.getUserPointsTransactions.mockRejectedValue(new Error("tx down"));
     api.getPaymentOrders.mockRejectedValue(new Error("orders down"));
     renderPage();
 
     expect(await screen.findByText("quota down")).toBeInTheDocument();
-    expect(await screen.findByText("points down")).toBeInTheDocument();
-    expect(await screen.findByText("tx down")).toBeInTheDocument();
     expect(await screen.findByText("orders down")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "subscriptions.modify" })).toBeDisabled();
 
     const retries = await screen.findAllByRole("button", { name: "common:retry" });
-    expect(retries).toHaveLength(5);
+    expect(retries).toHaveLength(3);
     retries.forEach((button) => fireEvent.click(button));
     await waitFor(() => expect(api.getUserQuota).toHaveBeenCalledTimes(2));
     expect(api.getUserSubscription).toHaveBeenCalledTimes(2);
-    expect(api.getUserPoints).toHaveBeenCalledTimes(2);
-    expect(api.getUserPointsTransactions).toHaveBeenCalledTimes(2);
     expect(api.getPaymentOrders).toHaveBeenCalledTimes(2);
   });
 
@@ -257,7 +204,7 @@ describe("AdminUserDetail", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("subscriptions.updateSuccess"));
   });
 
-  it("renders all five sections cleanly from exact FastAPI Pydantic response shapes", async () => {
+  it("renders all four sections cleanly from exact FastAPI Pydantic response shapes", async () => {
     api.getUser.mockResolvedValue({
       id: "user-1",
       username: "writer",
@@ -291,29 +238,6 @@ describe("AdminUserDetail", () => {
         is_active: true,
       },
     });
-    api.getUserPointsTransactions.mockResolvedValue({
-      items: [{
-        id: "tx-raw-1",
-        user_id: "user-1",
-        amount: 25,
-        balance_after: 120,
-        transaction_type: "check_in",
-        source_id: null,
-        description: null,
-        expires_at: null,
-        is_expired: false,
-        expired_at: null,
-        created_at: "2026-10-02T00:00:00Z",
-      }],
-      total: 1,
-      page: 1,
-      page_size: 10,
-    });
-    api.adjustUserPoints.mockResolvedValue({
-      success: true,
-      old_balance: 120,
-      new_balance: 145,
-    });
 
     renderPage();
 
@@ -321,20 +245,17 @@ describe("AdminUserDetail", () => {
       "userDetail.account",
       "userDetail.subscription",
       "userDetail.quota",
-      "userDetail.points",
       "userDetail.payments",
     ]) {
       expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
     }
     expect(await screen.findByText("writer@example.com")).toBeInTheDocument();
     expect(await screen.findByText("1 / 5")).toBeInTheDocument();
-    expect(await screen.findByText("+25")).toBeInTheDocument();
   });
 
-  it("reports failed subscription and points updates", async () => {
+  it("reports failed subscription updates", async () => {
     const { toast } = await import("../../../lib/toast");
     api.updateUserSubscription.mockRejectedValue(new Error("nope"));
-    api.adjustUserPoints.mockRejectedValue(new Error("nope"));
     renderPage();
     await screen.findByText("subscriptions.statusActive");
 
@@ -343,21 +264,5 @@ describe("AdminUserDetail", () => {
     fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "subscriptions.saveChanges" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("subscriptions.updateFailed"));
-
-    fireEvent.change(screen.getByLabelText("points.adjustAmount"), { target: { value: "-5" } });
-    fireEvent.change(screen.getByLabelText("points.adjustReason"), { target: { value: "fix" } });
-    fireEvent.click(screen.getByRole("button", { name: "points.adjustPoints" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("points.adjustFailed"));
-  });
-
-  it("hides the points section and skips points queries when points are disabled", async () => {
-    pointsFeature.enabled = false;
-    renderPage();
-
-    expect(await screen.findByRole("heading", { name: "writer" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "userDetail.quota" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "userDetail.points" })).not.toBeInTheDocument();
-    expect(api.getUserPoints).not.toHaveBeenCalled();
-    expect(api.getUserPointsTransactions).not.toHaveBeenCalled();
   });
 });

@@ -28,16 +28,6 @@ declare module 'virtual:zenstory-locale-en-docs' {
   export default resource;
 }
 
-declare module 'virtual:zenstory-locale-zh-inspirations' {
-  const resource: import('i18next').ResourceKey;
-  export default resource;
-}
-
-declare module 'virtual:zenstory-locale-en-inspirations' {
-  const resource: import('i18next').ResourceKey;
-  export default resource;
-}
-
 declare module 'virtual:zenstory-locale-zh-materials' {
   const resource: import('i18next').ResourceKey;
   export default resource;

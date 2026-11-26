@@ -163,13 +163,13 @@ test('writing workflow comparison renders three source-backed choices across the
   for (const lang of LANGS) assert.equal(siteMap.split(`<loc>${urlIn(lang, route)}</loc><lastmod>${comparison.checked_on}</lastmod>`).length - 1, 1)
   assert.ok(!appMap.includes('/compare/'))
   // Organization routes × 2 languages (home, /projects, /guides, /glossary, projects, guides, bilingual
-  // articles, comparisons, terms) + Chinese-only articles + 25 workbench docs + 2 legal pages on the
+  // articles, comparisons, terms) + Chinese-only articles + 24 workbench docs + 2 legal pages on the
   // site; home and pricing on the app. Counts come from the content JSON so new content needs no edit here.
   const content = (file) => JSON.parse(readFileSync(join(webRoot, 'content', file), 'utf8'))
   const articles = content('articles.json')
   const topicURLs = ['en', 'zh'].reduce((sum, lang) => sum + content('guide-topics.json').reduce((total, topic) => total + Math.max(1, Math.ceil([...content('guides.json'), ...articles.filter((a) => a.langs.includes(lang))].filter((item) => item.topic === topic.slug).length / 24)), 0), 0)
   const bilingual = 4 + projects.length + content('guides.json').length + articles.filter((a) => a.langs.includes('en')).length + comparisons.length + content('glossary.json').length
-  assert.equal(matches(siteMap, /<loc>/g).length, bilingual * 2 + topicURLs + articles.filter((a) => !a.langs.includes('en')).length + 25 + 2)
+  assert.equal(matches(siteMap, /<loc>/g).length, bilingual * 2 + topicURLs + articles.filter((a) => !a.langs.includes('en')).length + 24 + 2)
   assert.equal(matches(appMap, /<loc>/g).length, 2)
 })
 
