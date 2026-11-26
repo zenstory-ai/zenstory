@@ -391,11 +391,17 @@ def paragraph_index_at_offset(content: str, offset: int) -> int:
         return 1
     prefix = content[:offset]
     prior = count_paragraphs(prefix)
-    # If offset lands inside an already-started non-blank line, keep that line's paragraph number.
+    # If offset lands inside an already-started non-blank line AND the remaining
+    # slice before the next newline still has non-whitespace text, keep that line's
+    # paragraph number; if only `\r` or trailing spaces remain before `\n`,
+    # format_paragraph_stats skips that blank fragment so the next paragraph is prior + 1.
     last_nl = prefix.rfind("\n")
     current_line_prefix = prefix[last_nl + 1 :]
     if current_line_prefix.strip():
-        return max(1, prior)
+        next_nl = content.find("\n", offset)
+        rest = content[offset:] if next_nl < 0 else content[offset:next_nl]
+        if rest.strip():
+            return max(1, prior)
     return prior + 1
 
 

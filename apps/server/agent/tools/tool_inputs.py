@@ -906,7 +906,7 @@ class BatchReplaceFilesInput(_ToolInputModel):
         default=None,
         description="可选：限定只处理这些文件 ID；不传则扫描本项目所有非文件夹文件",
     )
-    file_type: AllFileType | None = Field(
+    file_type: ArtifactFileType | None = Field(
         default=None,
         description="可选：限定文件类型（如 draft / script / outline / character）",
     )

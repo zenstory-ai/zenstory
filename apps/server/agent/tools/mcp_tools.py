@@ -2424,7 +2424,7 @@ def _batch_replace_files_sync(
                 remaining_count = int(result.get("remaining_count") or 0)
                 payload["note"] = (
                     f"单次最多修改 {BATCH_REPLACE_MAX_FILES} 个文件，已处理前 {BATCH_REPLACE_MAX_FILES} 个；"
-                    f"还有 {remaining_count} 个匹配文件列在 remaining_files 中，可再次调用 batch_replace_files 继续处理。"
+                    f"还有 {remaining_count} 个匹配文件列在 remaining_files 中，继续处理时请将这些 ID 传给 file_ids（避免重复替换已处理文件）。"
                 )
             return _make_result(payload, tool_name=tool_name)
         except EditFileError as exc:

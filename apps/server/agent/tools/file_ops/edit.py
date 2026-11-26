@@ -995,6 +995,7 @@ class FileEditor:
             else None
         )
         applied_edits = []
+        effective_edits: list[Any] = []
         failed_edits: list[dict[str, Any]] = []
         # old 与 new 一字不差、原文里确实有这段：模型要的就是原样，不算失败也不计入已应用。
         unchanged_edits: list[dict[str, Any]] = []
@@ -1144,6 +1145,7 @@ class FileEditor:
                         if isinstance(detail, dict):
                             detail["paragraph_prefixes_stripped"] = True
                 if is_noop:
+                    effective_edits.append(edit)
                     continue
 
                 if content == content_before_edit and len(applied_edits) > applied_before_edit:
@@ -1154,8 +1156,10 @@ class FileEditor:
                         # 记入 unchanged_edits，不报 no_change 错误，也不回滚同批其他改动。
                         unchanged_edits.append({"index": i, "op": op, "reason": "already_matches"})
                         warnings.append(f"Edit {i}: 原文此处已是目标内容，没有修改，不用重发")
+                        effective_edits.append(edit)
                         continue
                     raise _no_change_error(i, edit, quote_style)
+                effective_edits.append(edit)
                 if active_spans is not None and edit_hunks:
                     from agent.tools.tool_context import shift_spans_for_hunks
 
@@ -1203,7 +1207,7 @@ class FileEditor:
             raise EditBatchError(failed_edits, edits_total=len(edits))
 
         if body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
-            check_body_edit_guards(old_content, content, edits)
+            check_body_edit_guards(old_content, content, effective_edits)
 
         undo: dict[str, Any] | None = None
         if content != old_content:
@@ -1615,14 +1619,16 @@ class FileEditor:
             }
 
         pending_set = set(pending_file_ids) if pending_file_ids else set()
+        # Snapshot plain (id, title) tuples before commit/rollback expires ORM instances.
+        target_specs = [(candidate.id, candidate.title) for candidate in batch_targets]
         modified_files: list[dict[str, Any]] = []
         total_replacements = 0
-        for candidate in batch_targets:
-            if candidate.id in pending_set:
+        for target_id, target_title in target_specs:
+            if target_id in pending_set:
                 skipped_files.append(
                     {
-                        "id": candidate.id,
-                        "title": candidate.title,
+                        "id": target_id,
+                        "title": target_title,
                         "reason": "chapter_replace_pending",
                         "error": "该文件正在等待 <file> 正文写入，已跳过。",
                     }
@@ -1630,7 +1636,7 @@ class FileEditor:
                 continue
             try:
                 entry = self._batch_replace_one_file(
-                    file_id=candidate.id,
+                    file_id=target_id,
                     old_text=old_text,
                     new_text=new_text,
                     body_guards=body_guards,
@@ -1659,8 +1665,8 @@ class FileEditor:
                     reason = EDIT_ERROR_PERMISSION_DENIED
                 skipped_files.append(
                     {
-                        "id": candidate.id,
-                        "title": candidate.title,
+                        "id": target_id,
+                        "title": target_title,
                         "reason": reason,
                         "error": str(exc),
                     }
@@ -1719,11 +1725,13 @@ class FileEditor:
             if new_content == old_content:
                 return None
             if body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
-                check_body_edit_guards(
-                    old_content,
-                    new_content,
-                    [{"op": "replace", "old": old_text, "new": new_text, "replace_all": True}],
-                )
+                # Multi-occurrence replace_all (e.g. protagonist rename or punctuation fix across every paragraph)
+                # represents multiple local edits, not a single whole-body rewrite; keep exact whole-body blocking,
+                # single-occurrence near-whole-body blocking, and duplicated-paragraph checks intact.
+                guard_edits = [
+                    {"op": "replace", "old": old_text, "new": new_text, "replace_all": True}
+                ] * min(replacements, 2)
+                check_body_edit_guards(old_content, new_content, guard_edits)
             summary = f"AI 批量替换: {old_text[:20]} → {new_text[:20]} ({replacements} 处)"
             undo = self._commit_ai_content(
                 file,
@@ -2014,7 +2022,7 @@ class FileEditor:
         if not isinstance(target_val, str) or not _all_non_empty_lines_have_marker_prefix(target_val):
             return None
         stripped_target = _strip_marker_prefixes(target_val)
-        if not stripped_target:
+        if not stripped_target.strip():
             return None
 
         retry_edit = dict(edit)

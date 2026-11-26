@@ -767,3 +767,214 @@ def test_edit_file_first_attempt_untouched_for_literal_p_markers_and_partial_pre
             ],
         )
     assert "not found" in str(exc_info.value).lower() or "找不到" in str(exc_info.value)
+
+
+# ===========================================================================
+# 5. Review regressions (P1-1..4 + P2-2, P2-4, P2-6)
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_batch_replace_every_paragraph_rename_allowed_under_body_guards(db_session):
+    """P1-1: multi-paragraph draft where old_text appears in every paragraph must succeed under body_guards."""
+    user, project = _make_user_project(db_session, "batch-every-para")
+    draft = _add_file(
+        db_session,
+        project.id,
+        title="第1章 每段都有主角",
+        order=1,
+        content="　　沈砚推开门。\n\n　　沈砚坐下喝茶。\n\n　　沈砚望向窗外。",
+    )
+    whole_only = _add_file(
+        db_session,
+        project.id,
+        title="第2章 全文等于旧词",
+        order=2,
+        content="沈砚",
+    )
+
+    req_ctx = _make_req_ctx(db_session, user, project, is_loop_agent=True)
+    res = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {"old_text": "沈砚", "new_text": "陈砚"},
+            request_context=req_ctx,
+        )
+    )
+    assert res["status"] == "partial"
+    assert res["mutation_applied"] is True
+    assert [item["id"] for item in res["data"]["files"]] == [draft.id]
+    assert res["data"]["files"][0]["replacements"] == 3
+    assert {item["id"]: item["reason"] for item in res["data"]["skipped_files"]} == {
+        whole_only.id: "whole_body_replace"
+    }
+
+    db_session.expire_all()
+    assert db_session.get(File, draft.id).content == "　　陈砚推开门。\n\n　　陈砚坐下喝茶。\n\n　　陈砚望向窗外。"
+    assert db_session.get(File, whole_only.id).content == "沈砚"
+
+
+def test_repeat_read_guard_forgets_stale_reads_on_batch_replace_error_and_matches_precedence():
+    """P1-2 & P2-4: batch_replace_files error/mixed-skip stale_content clears read counts; matches mode takes precedence."""
+    guard = RepeatReadGuard()
+
+    # P1-2a: all-stale status="error" clears read count so recovery read is not blocked.
+    key_a = ("query_files", "f-stale-1", "full")
+    guard._read_counts[key_a] = 3
+    all_stale_out = json.dumps(
+        {
+            "status": "error",
+            "error_type": "stale_content",
+            "mutation_applied": False,
+            "data": {
+                "modified_files": 0,
+                "skipped_files": [{"id": "f-stale-1", "reason": "stale_content", "error": "stale"}],
+            },
+        },
+        ensure_ascii=False,
+    )
+    guard.observe("batch_replace_files", guard.plan("batch_replace_files", "{}"), all_stale_out)
+    assert key_a not in guard._read_counts
+    assert guard.write_succeeded is False
+
+    # P1-2b: mixed-skip status="error" where first skip is whole_body_replace and second is stale_content.
+    key_b = ("query_files", "f-stale-2", "full")
+    guard._read_counts[key_b] = 3
+    mixed_err_out = json.dumps(
+        {
+            "status": "error",
+            "error_type": "whole_body_replace",
+            "mutation_applied": False,
+            "data": {
+                "modified_files": 0,
+                "skipped_files": [
+                    {"id": "f-whole", "reason": "whole_body_replace", "error": "whole"},
+                    {"id": "f-stale-2", "reason": "stale_content", "error": "stale"},
+                ],
+            },
+        },
+        ensure_ascii=False,
+    )
+    guard.observe("batch_replace_files", guard.plan("batch_replace_files", "{}"), mixed_err_out)
+    assert key_b not in guard._read_counts
+
+    # P2-4: response_mode="matches" takes precedence over include_content=True and range args.
+    plan_matches = guard.plan(
+        "query_files",
+        json.dumps({"id": "f-1", "response_mode": "matches", "query": "?", "include_content": True}),
+    )
+    assert plan_matches.read_key == ("query_files", "f-1", "matches:?")
+    plan_matches_range = guard.plan(
+        "query_files",
+        json.dumps({"id": "f-1", "response_mode": "matches", "query": "?", "tail_chars": 100}),
+    )
+    assert plan_matches_range.read_key == ("query_files", "f-1", "matches:?")
+
+
+def test_paragraph_index_at_offset_crlf_and_trailing_whitespace_alignment():
+    """P1-3: CRLF and trailing-whitespace range boundaries never shift paragraph numbers by -1."""
+    from agent.tools.file_ops.content_range import format_paragraph_stats, paragraph_index_at_offset
+
+    # CRLF boundary: offset lands on `\r` at end of line 2 -> slice is "\r\n第三段"
+    crlf_body = "第一段\r\n第二段\r\n第三段"
+    crlf_offset = len(crlf_body) - 5  # index 8 -> "\r\n第三段"
+    assert crlf_body[crlf_offset:] == "\r\n第三段"
+    start_p = paragraph_index_at_offset(crlf_body, crlf_offset)
+    assert start_p == 3
+    annotated, _ = format_paragraph_stats(crlf_body[crlf_offset:], start_paragraph=start_p)
+    assert "[P03 · 3字] 第三段" in annotated
+
+    # Trailing spaces boundary: offset lands inside trailing spaces of line 2 -> slice is "  \n第三段"
+    ws_body = "第一段\n第二段   \n第三段"
+    ws_offset = 8  # "  \n第三段"
+    assert ws_body[ws_offset:] == "  \n第三段"
+    ws_start_p = paragraph_index_at_offset(ws_body, ws_offset)
+    assert ws_start_p == 3
+    ws_annotated, _ = format_paragraph_stats(ws_body[ws_offset:], start_paragraph=ws_start_p)
+    assert "[P03 · 3字] 第三段" in ws_annotated
+
+    # Mid-paragraph split: remaining text on line 2 is non-blank -> keeps P02 for remainder, P03 for line 3
+    mid_body = "第一段\n第二段前半后半\n第三段"
+    mid_offset = mid_body.index("后半")
+    assert mid_body[mid_offset:] == "后半\n第三段"
+    mid_start_p = paragraph_index_at_offset(mid_body, mid_offset)
+    assert mid_start_p == 2
+    mid_annotated, _ = format_paragraph_stats(mid_body[mid_offset:], start_paragraph=mid_start_p)
+    assert "[P02 · 2字] 后半\n[P03 · 3字] 第三段" == mid_annotated
+
+
+def test_edit_file_marker_only_old_does_not_corrupt_newlines_and_body_guards_sees_stripped_edit(db_session):
+    """P1-4 & P2-2: marker-only old refuses to strip to '\\n'; stripped whole-body replace still trips body_guards."""
+    user, project = _make_user_project(db_session, "prefix-edge")
+    doc = _add_file(db_session, project.id, title="第1章", content="第一段\n第二段")
+    editor = FileEditor(db_session, user.id)
+
+    # P1-4: "[P01 · 3字]\n[P02 · 3字]" must NOT strip to "\n" and corrupt the paragraph break.
+    with pytest.raises(Exception) as exc_info:
+        editor.edit_file(
+            id=doc.id,
+            edits=[{"op": "replace", "old": "[P01 · 3字]\n[P02 · 3字]", "new": "BOOM"}],
+        )
+    assert "not found" in str(exc_info.value).lower() or "找不到" in str(exc_info.value)
+    db_session.expire_all()
+    assert db_session.get(File, doc.id).content == "第一段\n第二段"
+
+    # P2-2: 1-paragraph draft replaced via prefixed old must still trigger whole_body_replace under body_guards=True.
+    one_para = _add_file(db_session, project.id, title="第2章 单段", content="整章正文内容。")
+    with pytest.raises(Exception) as guard_exc:
+        editor.edit_file(
+            id=one_para.id,
+            edits=[
+                {
+                    "op": "replace",
+                    "old": "[P01 · 6字] 整章正文内容。",
+                    "new": "[P01 · 6字] 全新整章内容。",
+                }
+            ],
+            body_guards=True,
+        )
+    assert getattr(guard_exc.value, "error_type", "") == "whole_body_replace"
+    db_session.expire_all()
+    assert db_session.get(File, one_para.id).content == "整章正文内容。"
+
+
+@pytest.mark.asyncio
+async def test_same_turn_query_then_batch_replace_then_edit_file_keeps_fresh_snapshot(db_session):
+    """P2-6: query_files -> batch_replace_files -> edit_file in the same turn must not hit false StaleContentError."""
+    user, project = _make_user_project(db_session, "same-turn-snap")
+    ch = _add_file(
+        db_session,
+        project.id,
+        title="第1章 连续修改",
+        order=1,
+        content="　　沈砚推开门。\n\n　　窗外雨声不停。",
+    )
+    req_ctx = _make_req_ctx(db_session, user, project, is_loop_agent=True)
+
+    read_res = _parse_mcp(await mcp_tools.query_files({"id": ch.id}, request_context=req_ctx))
+    assert read_res["status"] == "success"
+    req_ctx.promote_pending_reads()
+
+    batch_res = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {"old_text": "沈砚", "new_text": "陈砚"},
+            request_context=req_ctx,
+        )
+    )
+    assert batch_res["status"] == "success"
+    assert batch_res["mutation_applied"] is True
+    assert req_ctx.read_snapshot(ch.id) == "　　陈砚推开门。\n\n　　窗外雨声不停。"
+
+    edit_res = _parse_mcp(
+        await mcp_tools.edit_file(
+            {
+                "id": ch.id,
+                "edits": [{"op": "replace", "old": "窗外雨声不停。", "new": "窗外雨势渐歇。"}],
+            },
+            request_context=req_ctx,
+        )
+    )
+    assert edit_res["status"] == "success"
+    assert edit_res["mutation_applied"] is True
+    db_session.expire_all()
+    assert db_session.get(File, ch.id).content == "　　陈砚推开门。\n\n　　窗外雨势渐歇。"
+

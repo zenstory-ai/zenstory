@@ -129,8 +129,11 @@ def _read_mode(params: dict[str, Any], *, file_ids: list[str] | None = None) -> 
     preview_chars = preview if isinstance(preview, int) and not isinstance(preview, bool) else None
     raw_query = params.get("query")
     normalized_query = raw_query.strip() if isinstance(raw_query, str) and raw_query.strip() else None
+    raw_mode = params.get("response_mode")
+    if isinstance(raw_mode, str) and raw_mode.strip().lower() == "matches":
+        return f"matches:{normalized_query or ''}"
     mode = resolve_query_files_response_mode(
-        params.get("response_mode"),
+        raw_mode,
         file_id=str(params.get("id") or ""),
         file_ids=file_ids,
         include_content=None if include_raw is None else coerce_bool(include_raw),
@@ -138,8 +141,6 @@ def _read_mode(params: dict[str, Any], *, file_ids: list[str] | None = None) -> 
         query=normalized_query,
     )
     mode_lower = str(mode).strip().lower()
-    if mode_lower == "matches":
-        return f"matches:{normalized_query or ''}"
     if mode_lower == "full":
         if coerce_bool(params.get("show_paragraph_stats"), default=False):
             return "full:pstats"
@@ -163,6 +164,10 @@ def _read_keys_and_truncated(params: Any) -> tuple[list[ReadKey], tuple[str, ...
         return [], ()
     if not target_ids:
         return [], ()
+    raw_mode = params.get("response_mode")
+    if isinstance(raw_mode, str) and raw_mode.strip().lower() == "matches":
+        mode = _read_mode(params, file_ids=target_ids)
+        return [(READ_TOOL_NAME, fid, mode) for fid in target_ids], tuple(truncated_ids)
     range_mode = _range_mode(params)
     if range_mode is not None:
         if len(target_ids) > 1:
@@ -521,24 +526,16 @@ class RepeatReadGuard:
         if payload is None:
             return
         status = payload.get("status")
-        if payload.get("error_type") == "stale_content":
-            # 文件在模型读过之后被别人（多半是作者）改了：再读是在看新内容，不算重复，也不能提示「之后未被修改」。
-            args, parse_error, _ = parse_json_object(raw_arguments or "")
-            file_id = str(payload.get("id") or ("" if parse_error is not None else args.get("id") or ""))
-            self._forget_reads(file_id)
-            return
-        # edit_file 部分成功（status=partial）时，已生效的几处确实改了文件：
-        # 和计费（StreamBillingTracker 把 partial 当作写入）保持同一口径。
         applied_partial = status == "partial" and payload.get("mutation_applied") is True
-        if status != "success" and not applied_partial:
-            return
-        data = payload.get("data")
         if tool_name == "batch_replace_files":
+            data = payload.get("data")
             if isinstance(data, dict):
+                # Always forget reads for any file skipped due to stale_content, even when
+                # every target failed (`status="error"`) or another error preceded it.
                 for skipped in data.get("skipped_files") or []:
                     if isinstance(skipped, dict) and skipped.get("reason") == "stale_content":
                         self._forget_reads(str(skipped.get("id") or ""))
-                if payload.get("mutation_applied") is True:
+                if (status == "success" or applied_partial) and payload.get("mutation_applied") is True:
                     modified = data.get("files") or []
                     recorded = False
                     for item in modified:
@@ -551,6 +548,17 @@ class RepeatReadGuard:
                     if not recorded and int(data.get("modified_files") or 0) > 0:
                         self._record_write("", "")
             return
+        if payload.get("error_type") == "stale_content":
+            # 文件在模型读过之后被别人（多半是作者）改了：再读是在看新内容，不算重复，也不能提示「之后未被修改」。
+            args, parse_error, _ = parse_json_object(raw_arguments or "")
+            file_id = str(payload.get("id") or ("" if parse_error is not None else args.get("id") or ""))
+            self._forget_reads(file_id)
+            return
+        # edit_file 部分成功（status=partial）时，已生效的几处确实改了文件：
+        # 和计费（StreamBillingTracker 把 partial 当作写入）保持同一口径。
+        if status != "success" and not applied_partial:
+            return
+        data = payload.get("data")
         if isinstance(data, dict) and data.get("all_failed"):
             return
         args, parse_error, _ = parse_json_object(raw_arguments or "")
