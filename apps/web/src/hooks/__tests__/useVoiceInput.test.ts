@@ -526,10 +526,9 @@ describe('useVoiceInput', () => {
       })
 
       // Simulate recording data
+      expect(ondataavailableCallback).toBeTypeOf('function')
       act(() => {
-        if (ondataavailableCallback) {
-          ondataavailableCallback({ data: new Blob(['audio-data']) })
-        }
+        ondataavailableCallback!({ data: new Blob(['audio-data']) })
       })
 
       // Stop recording triggers processing
@@ -538,10 +537,9 @@ describe('useVoiceInput', () => {
       })
 
       // Trigger onstop callback
+      expect(onstopCallback).toBeTypeOf('function')
       await act(async () => {
-        if (onstopCallback) {
-          onstopCallback()
-        }
+        onstopCallback!()
       })
 
       expect(voiceApi.recognizeVoice).toHaveBeenCalled()
@@ -560,20 +558,18 @@ describe('useVoiceInput', () => {
         await result.current.startRecording()
       })
 
+      expect(ondataavailableCallback).toBeTypeOf('function')
       act(() => {
-        if (ondataavailableCallback) {
-          ondataavailableCallback({ data: new Blob(['audio-data']) })
-        }
+        ondataavailableCallback!({ data: new Blob(['audio-data']) })
       })
 
       act(() => {
         result.current.stopRecording()
       })
 
+      expect(onstopCallback).toBeTypeOf('function')
       await act(async () => {
-        if (onstopCallback) {
-          onstopCallback()
-        }
+        onstopCallback!()
       })
 
       expect(onResult).toHaveBeenCalledWith('Hello world')
@@ -593,20 +589,18 @@ describe('useVoiceInput', () => {
         await result.current.startRecording()
       })
 
+      expect(ondataavailableCallback).toBeTypeOf('function')
       act(() => {
-        if (ondataavailableCallback) {
-          ondataavailableCallback({ data: new Blob(['audio-data']) })
-        }
+        ondataavailableCallback!({ data: new Blob(['audio-data']) })
       })
 
       act(() => {
         result.current.stopRecording()
       })
 
+      expect(onstopCallback).toBeTypeOf('function')
       await act(async () => {
-        if (onstopCallback) {
-          onstopCallback()
-        }
+        onstopCallback!()
       })
 
       expect(result.current.status).toBe('error')
@@ -625,20 +619,18 @@ describe('useVoiceInput', () => {
         await result.current.startRecording()
       })
 
+      expect(ondataavailableCallback).toBeTypeOf('function')
       act(() => {
-        if (ondataavailableCallback) {
-          ondataavailableCallback({ data: new Blob(['audio-data']) })
-        }
+        ondataavailableCallback!({ data: new Blob(['audio-data']) })
       })
 
       act(() => {
         result.current.stopRecording()
       })
 
+      expect(onstopCallback).toBeTypeOf('function')
       await act(async () => {
-        if (onstopCallback) {
-          onstopCallback()
-        }
+        onstopCallback!()
       })
 
       expect(result.current.status).toBe('error')
