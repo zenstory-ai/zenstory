@@ -51,8 +51,8 @@ from .history import (
 from .prompts import COMPACT_PROMPT, SUMMARY_PREFIX
 
 if TYPE_CHECKING:
-    from agent.core.request_context import AgentRequestContext
     from agent.core.run_meter import AgentRunMeter
+    from agent.tools.tool_context import AgentRequestContext
 
 logger = get_logger(__name__)
 

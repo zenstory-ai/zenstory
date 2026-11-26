@@ -2167,7 +2167,7 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
         assert card["limit"] == "wall_clock"
         assert card["layer"] == "collaboration"
         assert card["iterations_used"] == 2
-        assert card["last_agent"] is None
+        assert card.get("last_agent") is None
         done = _frame_data(text, "done")
         assert done["delivery_incomplete"] is True
         # done 在收尾之前发出：流式正文的保存回执还没到，不在这里声称已保存，也不说成未保存。
@@ -2182,10 +2182,10 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
         assert metadata["display_events"][-1]["type"] == "iteration_exhausted"
         assert metadata["display_events"][-1]["data"]["limit"] == "wall_clock"
         assert metadata["display_events"][-1]["data"]["iterations_used"] == 2
-        assert metadata["display_events"][-1]["data"]["last_agent"] is None
+        assert metadata["display_events"][-1]["data"].get("last_agent") is None
         assert metadata["status_cards"][-1]["type"] == "iteration_exhausted"
         assert metadata["status_cards"][-1]["iterationsUsed"] == 2
-        assert metadata["status_cards"][-1]["lastAgent"] is None
+        assert metadata["status_cards"][-1].get("lastAgent") is None
         assert metadata["status_cards"][-1]["limit"] == "wall_clock"
     else:
         assert "ERR_AGENT_RUN_TIMEOUT" in text
@@ -2265,11 +2265,11 @@ async def test_deadline_pause_follows_the_interface_language_and_never_doubles_t
         assert card == loop_card
     else:
         assert card["iterations_used"] == 1
-        assert card["last_agent"] is None
+        assert card.get("last_agent") is None
         assert card["reason"] == agent_api.DEADLINE_PAUSE_REASON_EN
         assert not any("\u4e00" <= ch <= "\u9fff" for ch in card["reason"])
         assert pause_cards[0]["iterationsUsed"] == 1
-        assert pause_cards[0]["lastAgent"] is None
+        assert pause_cards[0].get("lastAgent") is None
         assert pause_cards[0]["reason"] == agent_api.DEADLINE_PAUSE_REASON_EN
 
 
@@ -2374,7 +2374,7 @@ async def test_disconnect_during_deadline_pause_cleanup_keeps_the_resumable_paus
     assert len(pause_cards) == 1
     assert pause_cards[0]["limit"] == "wall_clock"
     assert pause_cards[0]["iterationsUsed"] == 1
-    assert pause_cards[0]["lastAgent"] is None
+    assert pause_cards[0].get("lastAgent") is None
     assert all(fields["billing_reason"] == "run_deadline_exceeded" for _, fields in billing_logs)
 
 
@@ -2533,7 +2533,7 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
     没有 file_content 帧，残稿补存还在进行，空白占位不能先被移除，否则补存被已删除的文件拒绝，
     正文丢失。停止路径当场只等很短的时间，等不到保存回执就按「没有产出」退还；断线路径在后台
     等回执，补存提交了就撤回退还（按保存回执计费）。"""
-    from agent.core.request_context import AgentRequestContext
+    from agent.tools.tool_context import AgentRequestContext
     from models import ChatMessage, File
     from tests.conftest import TestSessionLocal
 
@@ -2596,7 +2596,7 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
 @pytest.mark.usefixtures("_adapter_saves_on_test_db")
 async def test_stop_with_a_short_body_in_the_tail_buffer_is_charged_once_it_is_saved(client, db_session):
     """新章只写了一句（还在解析器尾缓冲里，没有 file_content 帧）就停止：已进入模型且补存提交，回执确认写入，不退还。"""
-    from agent.core.request_context import AgentRequestContext
+    from agent.tools.tool_context import AgentRequestContext
     from models import ChatMessage, File
     from tests.conftest import TestSessionLocal
 

@@ -302,6 +302,8 @@ def test_gzip_compression_fits_large_session_under_max_bytes_and_reads_legacy_pl
             "last_assistant_message_id": "m-legacy",
             "system_prompt_sha256": wire_prefix_cache.system_prompt_sha256("sys"),
             "provider_key": "minimax:MiniMax-M3.1-Flash:primary",
+            "tools_sha256": wire_prefix_cache.tools_schema_sha256(),
+            "reasoning_effort": wire_prefix_cache.effective_reasoning_effort(),
             "items": legacy_items,
         },
         ensure_ascii=False,

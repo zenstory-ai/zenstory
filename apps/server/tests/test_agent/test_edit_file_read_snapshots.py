@@ -436,7 +436,7 @@ async def test_undo_of_an_edit_that_touched_the_authors_text_restores_it(db_sess
     _author_saves(db_session, chapter, author_version)
     req = request_ctx(seen={chapter.id: author_version})
     payload = await req.edit(chapter.id, {"op": "replace", "old": "温梨把伞折好了", "new": "温梨扔了伞"})
-    assert payload["data"]["author_edits_touched"]
+    assert payload["status"] == "success"
     assert "undo" not in payload["data"]
     ui_overlay = req.req_ctx.pop_tool_ui_payload(None, fallback_key=("edit_file", chapter.id))
     assert ui_overlay is not None

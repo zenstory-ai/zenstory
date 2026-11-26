@@ -34,6 +34,27 @@ TURN_CONTEXT_CLOSE = "</turn_context>"
 AGENT_DIRECTIVE_HEADER = "[本次运行的系统指令]"
 
 
+# 落库时单个 thinking_content / reasoning_content 块的字符上限（直播 SSE 思考流不受影响），
+# 防止 200k–400k 字的深度思考块永久膨胀 PostgreSQL TOAST。
+PERSISTED_THINKING_MAX_CHARS = 8_000
+PERSISTED_THINKING_TRUNCATION_MARKER = "\n…（思考过程过长，已截断保存）"
+
+
+def truncate_persisted_thinking(
+    content: str,
+    *,
+    max_chars: int = PERSISTED_THINKING_MAX_CHARS,
+) -> str:
+    """Bound persisted thinking text to ``max_chars`` with a short truncation marker."""
+    if not content or len(content) <= max_chars:
+        return content
+    marker = PERSISTED_THINKING_TRUNCATION_MARKER
+    if max_chars <= len(marker):
+        return content[:max_chars]
+    head = content[: max_chars - len(marker)].rstrip()
+    return f"{head}{marker}"
+
+
 def normalize_assistant_content(content: str | None) -> str:
     """规范化待落库的助手消息正文：纯空白归一为空串，非空正文仅裁去首部换行（保留缩进与内部全部原文）。"""
     if not content:
@@ -47,7 +68,8 @@ def normalize_assistant_content(content: str | None) -> str:
 def normalize_assistant_display_events(
     display_events: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]] | None:
-    """清理待落库的有序展示事件：移除孤立的纯空白文本段，首个非空 content 段剥离首部换行，内部文本段逐字保留。"""
+    """清理待落库的有序展示事件：移除孤立的纯空白文本段，首个非空 content 段剥离首部换行，
+    单块 thinking_content 限制在 PERSISTED_THINKING_MAX_CHARS 内，内部正文段逐字保留。"""
     if not display_events or not isinstance(display_events, list):
         return None
     normalized: list[dict[str, Any]] = []
@@ -63,12 +85,39 @@ def normalize_assistant_display_events(
             if event_type == "content" and not seen_content:
                 cleaned = raw.lstrip("\r\n")
                 seen_content = True
+            elif event_type == "thinking_content":
+                cleaned = truncate_persisted_thinking(raw)
             else:
                 cleaned = raw
             normalized.append(event if cleaned == event["content"] else {**event, "content": cleaned})
             continue
         normalized.append(event)
     return normalized or None
+
+
+def dedupe_single_content_display_events(
+    display_events: list[dict[str, Any]] | None,
+    assistant_message: str,
+    *,
+    tool_calls: list | None = None,
+    status_cards: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]] | None:
+    """当展示时间线仅含单个 content 段且与 chat_message.content 逐字相同时省略落库，避免双写正文。
+
+    前端 parseChatDisplayEvents 在无 display_events 时返回 undefined，MessageList 直接渲染
+    message.content；后端 loop/history._loop_row_items 同样回退到 row.content，零行为差异。
+    """
+    if (
+        display_events
+        and len(display_events) == 1
+        and not tool_calls
+        and not status_cards
+        and isinstance(display_events[0], dict)
+        and display_events[0].get("type") == "content"
+        and display_events[0].get("content") == assistant_message
+    ):
+        return None
+    return display_events
 
 
 def has_substantive_display_events(display_events: list[dict[str, Any]] | None) -> bool:
@@ -324,17 +373,27 @@ class MessageManager:
                 or (reasoning_content or "").strip()
             ):
                 tool_calls_json = self._serialize_tool_calls(tool_calls)
+                persisted_display_events = dedupe_single_content_display_events(
+                    assistant_display_events,
+                    assistant_message,
+                    tool_calls=tool_calls,
+                    status_cards=assistant_status_cards,
+                )
                 assistant_metadata_json = self._serialize_message_metadata(
                     stop_reason=assistant_stop_reason,
                     usage=assistant_usage,
                     status_cards=assistant_status_cards,
-                    display_events=assistant_display_events,
+                    display_events=persisted_display_events,
                     extra_metadata=assistant_extra_metadata,
                 )
                 persisted_reasoning_content = (
                     None
                     if display_events_have_thinking_content(assistant_display_events)
-                    else reasoning_content
+                    else (
+                        truncate_persisted_thinking(reasoning_content)
+                        if isinstance(reasoning_content, str)
+                        else reasoning_content
+                    )
                 )
                 assistant_chat_message = ChatMessage(
                     session_id=chat_session.id,

@@ -16,11 +16,11 @@ import json
 import pytest
 from sqlmodel import Session
 
-from agent.core.request_context import AgentRequestContext
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.openai_agents.events import mcp_text_result
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 from agent.tools.mcp_tools import create_file
+from agent.tools.tool_context import AgentRequestContext
 from models import File, Project, User
 from services.features.file_version_service import FileVersionService
 

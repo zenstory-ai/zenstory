@@ -393,7 +393,6 @@ def iteration_exhausted_event(
     iterations_used: int,
     max_iterations: int,
     reason: str,
-    last_agent: str | None = None,
     limit: str | None = None,
     unfinished_files: list[dict[str, str]] | None = None,
     rolled_back_files: list[dict[str, str]] | None = None,
@@ -404,7 +403,6 @@ def iteration_exhausted_event(
         "iterations_used": iterations_used,
         "max_iterations": max_iterations,
         "reason": reason,
-        "last_agent": last_agent,
     }
     # Only the stops that carry them keep these keys; other events' stored shape is unchanged.
     if limit is not None:
@@ -418,13 +416,12 @@ def iteration_exhausted_event(
 
 def iteration_exhausted_status_card(data: dict[str, Any]) -> dict[str, Any]:
     """iteration_exhausted 事件落库成 message_metadata.status_cards 里的一张卡（前端 statusCards 的形状）。"""
-    return {
+    card: dict[str, Any] = {
         "type": "iteration_exhausted",
         "layer": data.get("layer"),
         "iterationsUsed": data.get("iterations_used"),
         "maxIterations": data.get("max_iterations"),
         "reason": data.get("reason"),
-        "lastAgent": data.get("last_agent"),
         "limit": data.get("limit"),
         # 空文件补不成：未写完 / 已撤销的文件（id 与标题），刷新后照样说清楚。
         **{
@@ -436,6 +433,9 @@ def iteration_exhausted_status_card(data: dict[str, Any]) -> dict[str, Any]:
             if isinstance(data.get(event_key), list)
         },
     }
+    if data.get("last_agent"):
+        card["lastAgent"] = data["last_agent"]
+    return card
 
 
 def session_started_event(session_id: str) -> StreamEvent:

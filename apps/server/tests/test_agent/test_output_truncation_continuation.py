@@ -8,7 +8,7 @@ import pytest
 from agent.core.message_manager import MessageManager
 from agent.core.session_loader import SessionLoader
 from agent.core.workflow_events import StreamEventType
-from agent.loop.history import load_loop_history
+from agent.loop.history import LOOP_ENGINE_METADATA_VALUE, _row_items, load_loop_history
 from agent.openai_agents.runner import normalize_messages_for_openai_agents
 from models import ChatMessage, ChatSession, Project, User
 from tests.test_agent.test_output_truncated_stop import _max_tokens, _reasoning_chunks, _unused_edit
@@ -17,15 +17,19 @@ from tests.test_agent.test_tool_failure_breaker import _run_against_local_model
 
 @pytest.mark.unit
 def test_persisted_stop_metadata_survives_thinking_free_model_replay():
-    row = SimpleNamespace(id="a1", role="assistant", content="", tool_calls=None,
-                          reasoning_content="private reasoning",
-                          message_metadata=json.dumps({"stop_reason": "output_truncated"}))
+    row = SimpleNamespace(
+        id="a1",
+        role="assistant",
+        content="",
+        tool_calls=None,
+        reasoning_content="private reasoning",
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "stop_reason": "output_truncated"}),
+    )
     loader = SessionLoader(project_id="p", user_id="u")
-    history = loader._format_chat_message_for_history(row)
-    replay = normalize_messages_for_openai_agents([history])
+    replay = _row_items(loader, row)
     assert len(replay) == 1
     assert replay[0]["role"] == "assistant"
-    assert "[output_truncated]" in replay[0]["content"]
+    assert "输出上限" in replay[0]["content"]
     assert "private reasoning" not in str(replay)
 
 
@@ -103,11 +107,12 @@ def test_stop_metadata_persists_and_reloads_without_changing_assistant_body(db_s
     saved_id = manager._save_messages_with_session(
         db_session, chat.id, "只写第三章", "", reasoning_content="private reasoning",
         assistant_stop_reason="output_truncated",
+        assistant_extra_metadata={"engine": LOOP_ENGINE_METADATA_VALUE},
     )
     saved = db_session.get(ChatMessage, saved_id)
     assert saved.content == ""
     assert json.loads(saved.message_metadata)["stop_reason"] == "output_truncated"
-    history = SessionLoader(project_id=project.id, user_id=user.id)._format_chat_message_for_history(saved)
-    replay = normalize_messages_for_openai_agents([history])
-    assert "[output_truncated]" in replay[0]["content"]
-    assert "private reasoning" not in str(replay)
+    loaded = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert loaded.trailing_output_truncations == 1
+    assert any(item.get("role") == "assistant" and "输出上限" in str(item.get("content")) for item in loaded.items)
+    assert "private reasoning" not in str(loaded.items)

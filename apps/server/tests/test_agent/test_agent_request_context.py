@@ -44,11 +44,11 @@ from openai.types.responses import (
 from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
 from sqlmodel import Session
 
-from agent.core.request_context import AgentRequestContext, unwrap_request_context
 from agent.core.workflow_events import StreamEventType
 from agent.openai_agents import model as model_module
 from agent.openai_agents import runner as runner_module
 from agent.openai_agents.tools_adapter import build_agent_function_tools
+from agent.tools.tool_context import AgentRequestContext, unwrap_request_context
 from models import File, Project, User
 from tests.conftest import TestSessionLocal
 
@@ -434,7 +434,7 @@ def test_session_scope_reuses_injected_session_without_closing_when_no_factory()
 async def test_parallel_edit_file_calls_isolate_tool_ui_payloads_per_call_id(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from agent.tools.file_ops.executor import FileToolExecutor
+    from agent.tools.file_ops import FileToolExecutor
 
     barrier = threading.Barrier(2, timeout=5)
     lock = threading.Lock()

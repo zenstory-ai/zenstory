@@ -564,6 +564,7 @@ class TestProcessStreamLoadsResolvedSession:
                             ],
                             ensure_ascii=False,
                         ),
+                        message_metadata=json.dumps({"engine": "loop"}),
                         created_at=base + timedelta(minutes=index, seconds=1),
                     )
                 )
@@ -625,12 +626,12 @@ class TestProcessStreamLoadsResolvedSession:
         # 历史与跨轮工作集各自绑定自己的会话
         a_seen = seen_messages["session-A"]
         assert "A会话的旧回答" in a_seen
-        assert f"《A卷纲》 (id={file_ids['A']})" in a_seen
+        assert file_ids["A"] in a_seen and "A卷纲" in a_seen
         assert "B会话" not in a_seen
         assert file_ids["B"] not in a_seen
         b_seen = seen_messages["session-B"]
         assert "B会话的旧回答" in b_seen
-        assert f"《B卷纲》 (id={file_ids['B']})" in b_seen
+        assert file_ids["B"] in b_seen and "B卷纲" in b_seen
         assert "A会话" not in b_seen
         assert file_ids["A"] not in b_seen
 

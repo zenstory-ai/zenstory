@@ -737,24 +737,6 @@ def test_repeat_read_guard_tracks_batch_ids_per_file_and_shares_key_with_single_
     assert json.loads(p7.blocked_output)["error_type"] == "repeated_read"
 
 
-def test_session_loader_extract_file_actions_supports_batch_query_files_ids():
-    loader = SessionLoader(project_id="p1", user_id="u1")
-    actions = loader._extract_file_actions(
-        [
-            {
-                "name": "query_files",
-                "status": "success",
-                "arguments": {"ids": ["f1", "f2", "f1"]},
-                "result": [{"id": "f1", "title": "大纲"}, {"id": "f2", "title": "人物"}],
-            }
-        ]
-    )
-    assert actions == [
-        {"name": "query_files", "file_id": "f1", "title": "大纲"},
-        {"name": "query_files", "file_id": "f2", "title": "人物"},
-    ]
-
-
 # =====================================================================
 # Rank 5 & 6: Prompt and schema contract assertions
 # =====================================================================

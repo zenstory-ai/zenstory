@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from agent.core.request_context import AgentRequestContext
+from agent.tools.tool_context import AgentRequestContext
 from services.usage import cost_budget
 from services.usage import llm_usage_service as svc
 from services.usage.llm_usage_service import LLMUsageAttribution, UsageTokens

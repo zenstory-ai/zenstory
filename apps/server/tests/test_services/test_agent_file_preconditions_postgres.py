@@ -873,7 +873,7 @@ def test_parallel_writes_to_one_file_do_not_see_each_other_as_stale(pg_engine, m
     快照必须在提交前就更新成第一个写下的正文；提交后才记，第二个会把同请求的写入误判为
     「作者改了」。顺序靠包住第一个会话的 commit 控制：它一提交完，第二个写入就整段执行。
     """
-    from agent.core.request_context import AgentRequestContext
+    from agent.tools.tool_context import AgentRequestContext
 
     with Session(pg_engine) as setup:
         user_id, file_id = _ai_then_author(setup, "parallel-own-writes")

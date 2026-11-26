@@ -23,11 +23,11 @@ import pytest
 from agents import RunContextWrapper
 from sqlmodel import Session, select
 
-from agent.core.request_context import AgentRequestContext
 from agent.core.round_outcome import RoundWrittenFiles
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_billing import StreamBillingTracker
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+from agent.tools.tool_context import AgentRequestContext
 from models import File, Project, User
 from tests.conftest import TestSessionLocal
 from utils.text_metrics import count_words

@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from agent.core.request_context import AgentRequestContext
 from agent.core.task_board_completion import (
     _build_completion_task_payload,
     _existing_written_artifacts,
@@ -24,6 +23,7 @@ from agent.tools.task_progress import (
     task_unit_spec,
     validate_task_artifact_fields,
 )
+from agent.tools.tool_context import AgentRequestContext
 from models import File
 
 pytestmark = pytest.mark.unit

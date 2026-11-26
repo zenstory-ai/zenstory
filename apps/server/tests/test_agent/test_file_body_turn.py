@@ -6,8 +6,8 @@ from types import SimpleNamespace
 import pytest
 from agents import RunContextWrapper
 
-from agent.core.request_context import AgentRequestContext
 from agent.openai_agents.tools_adapter import build_agent_function_tools
+from agent.tools.tool_context import AgentRequestContext
 
 pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 

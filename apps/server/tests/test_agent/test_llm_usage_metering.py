@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlmodel import Session, select
 
-from agent.core.request_context import AgentRequestContext
+from agent.tools.tool_context import AgentRequestContext
 from models import LLMUsageEvent, User
 from services.usage import llm_usage_service
 from services.usage.llm_usage_service import LLMUsageAttribution, drain_pending_usage_records

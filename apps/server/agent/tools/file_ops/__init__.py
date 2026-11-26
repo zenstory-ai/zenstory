@@ -6,12 +6,10 @@ File operations for agent tools.
 - crud.py: create, update, delete, query
 - edit.py: precise content editing
 - project.py: project status and task board
-- executor.py: FileToolExecutor, combining the three operation classes
 """
 
 from .crud import FileCRUD
 from .edit import FileEditor
-from .executor import FileToolExecutor
 from .project import ProjectOperations
 from .serialization import serialize_file
 from .text_matching import (
@@ -34,6 +32,10 @@ from .text_matching import (
 from .text_matching import (
     suggest_similar_lines as _suggest_similar_lines,
 )
+
+
+class FileToolExecutor(FileCRUD, FileEditor, ProjectOperations):
+    """File CRUD, content editing and project operations bound to one session and user."""
 
 __all__ = [
     # Main entry points

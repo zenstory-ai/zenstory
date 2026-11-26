@@ -15,13 +15,13 @@ from unittest.mock import patch
 import pytest
 from sqlmodel import Session
 
-from agent.core.request_context import AgentRequestContext
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.loop.ui_actions import OFFICIAL_NATURAL_POLISH_SKILL_NAME, UI_ACTION_NATURAL_POLISH
 from agent.openai_agents.repeat_edit_guard import EDIT_REPEAT_LIMIT_ERROR_TYPE
 from agent.service import AgentService
 from agent.stream_adapter import create_stream_adapter
 from agent.tools.mcp_tools import create_file, read_skill_resource
+from agent.tools.tool_context import AgentRequestContext
 from models import ChatSession, File, Project, PublicSkill, SkillResource, User
 from services.core.auth_service import hash_password
 

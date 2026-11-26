@@ -1169,7 +1169,7 @@ def test_an_input_the_sdk_cannot_convert_keeps_the_existing_failover(monkeypatch
 @pytest.fixture
 def request_tools():
     """A request context with the pending-file state the file_body_pending guard reads."""
-    from agent.core.request_context import AgentRequestContext
+    from agent.tools.tool_context import AgentRequestContext
 
     req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
@@ -1503,6 +1503,9 @@ async def test_agent_stream_closes_inner_generator_immediately_on_caller_aclose(
     assert closed is False
 
     await stream.aclose()
+    # P0-6: GeneratorExit schedules background teardown instead of awaiting inline in finally.
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
     assert closed is True
 
 

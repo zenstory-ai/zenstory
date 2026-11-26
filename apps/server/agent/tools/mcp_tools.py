@@ -1638,7 +1638,6 @@ def _edit_file_sync(
                 # 在锁内取快照：同一请求里先写的那一步已经把快照更新为它写下的正文。
                 "read_snapshot_fn": (lambda: req_ctx.read_snapshot(file_id)) if has_snapshot else None,
                 "exact_only": not has_seen,
-                "report_author_edits": True,
                 # 单循环 agent 改正文：不整份替换（走 write_chapter）、不新添逐字重复的段落。
                 "body_guards": req_ctx.is_loop_agent,
             }

@@ -484,18 +484,18 @@ def test_author_edits_for_files_prequeries_versions_skips_unedited_and_emits_no_
 
     assert edited_ids == {ai_edited.id, ai_unversioned.id}
     assert by_id is not None and len(by_id) == len(all_ids)
-    assert "老秦在收摊" in block
-    assert "作者无版本手改后的新台词" in block
+    assert ai_edited.id in block and "手改章" in block
+    assert ai_unversioned.id in block and "无版本手改章" in block
+    assert "自你上次写入后已被作者手动修改" in block
 
     # Zero SAVEPOINTs emitted on healthy paths!
     assert not any("savepoint" in s.lower() for s in executed_sql), f"Unexpected SAVEPOINT SQL: {executed_sql}"
 
-    # 1 batched summary query + 2 files replayed (3 FileVersion SELECTs each = 6) = 7 total FileVersion queries
-    # instead of 14 files * 3-4 queries = ~45 queries + 28 SAVEPOINTs!
+    # Single batched FileVersion metadata query regardless of file count!
     fv_selects = [
         s for s in executed_sql if s.lstrip().lower().startswith("select") and "file_version" in s.lower()
     ]
-    assert len(fv_selects) <= 8, f"Expected skipped files to avoid per-file FileVersion SQL, got {len(fv_selects)}"
+    assert len(fv_selects) == 1, f"Expected exactly 1 batched FileVersion SQL, got {len(fv_selects)}"
 
 
 @pytest.mark.unit
@@ -615,9 +615,9 @@ def test_author_edits_prequery_catches_same_length_unversioned_none_ts_reviewed_
     )
 
     assert edited_ids == set(ordered)
-    assert "陆沉推门走进雨里。" in block
-    assert "作者二次手改第一句。" in block
-    assert "AI写下的第二段。" in block
+    for fid in ordered:
+        assert fid in block
+    assert "自你上次写入后已被作者手动修改" in block
 
 
 @pytest.mark.unit
@@ -625,10 +625,9 @@ def test_author_edits_rollback_isolation_survives_orm_expiration(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """P1-2 regression: when file 1 triggers a DB error + session.rollback() on a session with
-    expire_on_commit=True, file 1 degrades to failed=True while file 2 still succeeds cleanly
-    and no lazy SELECT file.* refreshes fire on expired ORM instances."""
-    from agent.tools import author_changes as author_changes_mod
+    """P1-2 regression: when the batched FileVersion query triggers a DB error + session.rollback()
+    on a session with expire_on_commit=True, author_edits_for_files degrades cleanly to FAILED_LINE
+    without firing lazy SELECT file.* refreshes on expired ORM instances."""
     from agent.tools.author_changes import FAILED_LINE
 
     user, project, _ = _seed_user_and_project(db_session)
@@ -648,15 +647,6 @@ def test_author_edits_rollback_isolation_survives_orm_expiration(
     db_session.add_all([f1, f2])
     db_session.commit()
 
-    real_author_changes = author_changes_mod.author_changes
-
-    def flaky_author_changes(sess, file_obj):
-        if file_obj.id == f1.id:
-            raise RuntimeError("simulated sql error on file 1")
-        return real_author_changes(sess, file_obj)
-
-    monkeypatch.setattr(author_changes_mod, "author_changes", flaky_author_changes)
-
     bind = db_session.get_bind()
     file_selects: list[str] = []
 
@@ -668,6 +658,16 @@ def test_author_edits_rollback_isolation_survives_orm_expiration(
     # Use a fresh Session with expire_on_commit=True (production default) so rollback() expires ORM rows.
     with Session(bind) as prod_session:
         assert prod_session.expire_on_commit is True
+        real_exec = prod_session.exec
+        exec_calls = {"n": 0}
+
+        def flaky_exec(statement: Any, *args: Any, **kwargs: Any) -> Any:
+            exec_calls["n"] += 1
+            if exec_calls["n"] == 2:
+                raise RuntimeError("simulated sql error on FileVersion metadata query")
+            return real_exec(statement, *args, **kwargs)
+
+        monkeypatch.setattr(prod_session, "exec", flaky_exec)
         event.listen(bind, "before_cursor_execute", _on_sql)
         try:
             block, edited_ids, by_id = SessionLoader(project.id, user.id).author_edits_for_files(
@@ -677,10 +677,7 @@ def test_author_edits_rollback_isolation_survives_orm_expiration(
             event.remove(bind, "before_cursor_execute", _on_sql)
 
     assert by_id is not None and set(by_id) == {f1.id, f2.id}
-    assert edited_ids == {f2.id}
-    assert "故障章" in block
+    assert edited_ids == set()
     assert FAILED_LINE in block
-    assert "正常章" in block
-    assert "老秦在收摊。" in block
     # Exactly ONE initial SELECT FROM file (zero lazy ORM reloads after session.rollback()!).
     assert len(file_selects) == 1, f"Expected 1 File SELECT (no lazy reloads after rollback), got {len(file_selects)}"

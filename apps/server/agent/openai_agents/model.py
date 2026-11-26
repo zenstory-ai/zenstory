@@ -188,6 +188,7 @@ async def _iter_with_stream_timeouts(
         time.monotonic() + first_event_timeout_s if first_event_timeout_s > 0 else None
     )
     timed_out = False
+    exiting_via_generator_exit = False
     try:
         while True:
             if deadline is not None:
@@ -221,8 +222,11 @@ async def _iter_with_stream_timeouts(
                 received_first_meaningful = True
                 deadline = time.monotonic() + idle_timeout_s if idle_timeout_s > 0 else None
             yield event
+    except GeneratorExit:
+        exiting_via_generator_exit = True
+        raise
     finally:
-        if timed_out:
+        if timed_out or exiting_via_generator_exit:
             _schedule_stream_teardown(aiter, stream)
         else:
             aclose = getattr(aiter, "aclose", None)
@@ -239,16 +243,25 @@ async def _iter_with_idle_timeout(
     provider_name: str,
 ) -> AsyncIterator[Any]:
     """Compatibility wrapper applying ``idle_timeout_s`` to both first-event and idle phases."""
-    async with contextlib.aclosing(
-        _iter_with_stream_timeouts(
-            stream,
-            first_event_timeout_s=idle_timeout_s,
-            idle_timeout_s=idle_timeout_s,
-            provider_name=provider_name,
-        )
-    ) as guarded:
+    guarded = _iter_with_stream_timeouts(
+        stream,
+        first_event_timeout_s=idle_timeout_s,
+        idle_timeout_s=idle_timeout_s,
+        provider_name=provider_name,
+    )
+    exiting_via_generator_exit = False
+    try:
         async for event in guarded:
             yield event
+    except GeneratorExit:
+        exiting_via_generator_exit = True
+        raise
+    finally:
+        if exiting_via_generator_exit:
+            _schedule_stream_teardown(guarded)
+        else:
+            with contextlib.suppress(Exception):
+                await guarded.aclose()
 
 
 def _replay_reasoning_content(_context: Any) -> bool:
@@ -677,66 +690,71 @@ class FailoverChatModel:
             effective_settings = _apply_surface_settings(
                 provider, _settings_for(provider, model_settings), self._session_id
             )
+            guarded_stream: Any = None
+            exiting_via_generator_exit = False
             try:
                 raw_stream = _sdk_model_for(provider).stream_response(
                     system_instructions, effective_input, effective_settings, *args, **kwargs
                 )
-                async with contextlib.aclosing(
-                    _iter_with_stream_timeouts(
-                        raw_stream,
-                        first_event_timeout_s=provider.first_event_timeout_s,
-                        idle_timeout_s=provider.stream_idle_timeout_s,
-                        provider_name=provider.name,
-                    )
-                ) as guarded_stream:
-                    async for event in guarded_stream:
-                        failed_exc = _response_failed_to_api_error(event, provider)
-                        if failed_exc is not None:
-                            raise failed_exc
-                        converted_cap = _incomplete_max_output_tokens_to_completed(event)
-                        if converted_cap is not None:
-                            self.last_response_output_capped = True
-                            event = converted_cap
-                        event_type = getattr(event, "type", None)
-                        # An empty delta (openai-agents 0.17.6 emits one for a role chunk with
-                        # ``content: ""``) is not output yet.
-                        if (
-                            ttft_ms is None
-                            and event_type in _FIRST_OUTPUT_EVENT_TYPES
-                            and getattr(event, "delta", None) != ""
-                        ):
+                guarded_stream = _iter_with_stream_timeouts(
+                    raw_stream,
+                    first_event_timeout_s=provider.first_event_timeout_s,
+                    idle_timeout_s=provider.stream_idle_timeout_s,
+                    provider_name=provider.name,
+                )
+                async for event in guarded_stream:
+                    failed_exc = _response_failed_to_api_error(event, provider)
+                    if failed_exc is not None:
+                        raise failed_exc
+                    converted_cap = _incomplete_max_output_tokens_to_completed(event)
+                    if converted_cap is not None:
+                        self.last_response_output_capped = True
+                        event = converted_cap
+                    event_type = getattr(event, "type", None)
+                    # An empty delta (openai-agents 0.17.6 emits one for a role chunk with
+                    # ``content: ""``) is not output yet.
+                    if (
+                        ttft_ms is None
+                        and event_type in _FIRST_OUTPUT_EVENT_TYPES
+                        and getattr(event, "delta", None) != ""
+                    ):
+                        from services.usage.llm_usage_service import elapsed_ms
+
+                        ttft_ms = elapsed_ms(attempt_started)
+                    if event_type in _ANSWER_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != "":
+                        if not answered:
                             from services.usage.llm_usage_service import elapsed_ms
 
-                            ttft_ms = elapsed_ms(attempt_started)
-                        if event_type in _ANSWER_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != "":
-                            if not answered:
-                                from services.usage.llm_usage_service import elapsed_ms
-
-                                first_answer_ms = elapsed_ms(attempt_started)
-                            answered = True
-                        elif event_type in _REASONING_DELTA_EVENT_TYPES and not answered:
-                            delta = getattr(event, "delta", None)
-                            thinking_chars += len(delta) if isinstance(delta, str) else 0
-                        if event_type == _COMPLETED_EVENT_TYPE:
-                            # Timed when the provider finished, before the SDK consumes the event.
-                            completed = True
-                            self._succeeded(attempt_started, ttft_ms)
-                            self._thinking_before_answer = (thinking_chars, first_answer_ms)
-                        if not started:
-                            if ttft_ms is None and not completed:
-                                preamble.append(event)
-                                continue
-                            started = True
-                            self._served(provider)
-                            for held in preamble:
-                                yield held
-                            preamble.clear()
-                        yield event
-                        if converted_cap is not None:
-                            # Stop before OpenAIResponsesModel.stream_response raises
-                            # ModelBehaviorError after yielding response.incomplete.
-                            break
-            except (asyncio.CancelledError, GeneratorExit) as exc:
+                            first_answer_ms = elapsed_ms(attempt_started)
+                        answered = True
+                    elif event_type in _REASONING_DELTA_EVENT_TYPES and not answered:
+                        delta = getattr(event, "delta", None)
+                        thinking_chars += len(delta) if isinstance(delta, str) else 0
+                    if event_type == _COMPLETED_EVENT_TYPE:
+                        # Timed when the provider finished, before the SDK consumes the event.
+                        completed = True
+                        self._succeeded(attempt_started, ttft_ms)
+                        self._thinking_before_answer = (thinking_chars, first_answer_ms)
+                    if not started:
+                        if ttft_ms is None and not completed:
+                            preamble.append(event)
+                            continue
+                        started = True
+                        self._served(provider)
+                        for held in preamble:
+                            yield held
+                        preamble.clear()
+                    yield event
+                    if converted_cap is not None:
+                        # Stop before OpenAIResponsesModel.stream_response raises
+                        # ModelBehaviorError after yielding response.incomplete.
+                        break
+            except GeneratorExit as exc:
+                exiting_via_generator_exit = True
+                if not completed:
+                    self._record_failed_attempt(provider, attempt_started, exc, ttft_ms)
+                raise
+            except asyncio.CancelledError as exc:
                 if not completed:
                     self._record_failed_attempt(provider, attempt_started, exc, ttft_ms)
                 raise
@@ -789,6 +807,13 @@ class FailoverChatModel:
                 if llm_failover.is_upstream_provider_error(exc):
                     self._unrecovered_provider_error = exc
                 raise
+            finally:
+                if guarded_stream is not None:
+                    if exiting_via_generator_exit:
+                        _schedule_stream_teardown(guarded_stream)
+                    else:
+                        with contextlib.suppress(Exception):
+                            await guarded_stream.aclose()
             if not started:
                 self._served(provider)
                 for held in preamble:

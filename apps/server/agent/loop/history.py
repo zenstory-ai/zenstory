@@ -4,8 +4,7 @@
   的顺序还原成 SDK 输入项：回复文字是 assistant 消息，工具调用是成对的 function_call /
   function_call_output（每个调用都有输出，不会留下孤立的 tool_call_id）。思考内容只在一次
   run 内回放，这里不带。
-- 多 agent 图写下的旧行没有 engine 标记，照旧按 ``SessionLoader._format_chat_message_for_history``
-  折叠成文字（正文 + 状态卡摘要 + 工具面包屑），旧会话照常续写。
+- 旧格式历史行没有 engine 标记时，回退为简洁的纯文本 ``row.content`` 摘要。
 - 压缩点（某条 assistant 行的 ``message_metadata.compaction``）：它覆盖到
   ``covers_through_message_id`` 那一行为止。重建结果是 压缩点之前最近的作者原话（预算内原文）
   → 一条以「【上下文已压缩】」开头的 user 消息（交接摘要）→ 那一行之后的全部行。
@@ -758,16 +757,10 @@ def _loop_row_items(
     return items
 
 
-def _legacy_row_items(loader: Any, row: Any, *, latest_assistant: bool = False) -> list[dict[str, Any]]:
-    """多 agent 图写下的行：沿用原有的文字折叠（正文 + 状态卡摘要 + 工具面包屑）。
-
-    latest_assistant：这是会话里最新的 assistant 行，旧加载器据此附上未执行的审稿返修要求。
-    """
-    from agent.openai_agents.runner import normalize_messages_for_openai_agents
-
-    return normalize_messages_for_openai_agents(
-        [loader._format_chat_message_for_history(row, latest_assistant=latest_assistant)]
-    )
+def _legacy_row_items(row: Any) -> list[dict[str, Any]]:
+    """旧版非单循环助手行的精简纯文本回放兜底。"""
+    content = str(getattr(row, "content", "") or "").strip()
+    return [{"role": "assistant", "content": content}] if content else []
 
 
 # 这些 stop_reason 已有「这一轮没做完」的说明，同一原因的工具轮数卡（layer=tool_call）不再重复。
@@ -787,7 +780,6 @@ def _row_items(
     loader: Any,
     row: Any,
     *,
-    latest_assistant: bool = False,
     archived_call_ids: set[str] | None = None,
     archived_file_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
@@ -796,7 +788,7 @@ def _row_items(
         return [{"role": "user", "content": content}] if content.strip() else []
     metadata = row_metadata(row)
     if metadata.get("engine") != LOOP_ENGINE_METADATA_VALUE:
-        return _legacy_row_items(loader, row, latest_assistant=latest_assistant)
+        return _legacy_row_items(row)
     items = _loop_row_items(
         row,
         metadata,
@@ -920,7 +912,14 @@ def load_loop_history(
             measured_seen = True
 
     while True:
-        stmt = select(ChatMessage).where(
+        stmt = select(
+            ChatMessage.id,
+            ChatMessage.role,
+            ChatMessage.content,
+            ChatMessage.tool_calls,
+            ChatMessage.message_metadata,
+            ChatMessage.created_at,
+        ).where(
             and_(
                 ChatMessage.session_id == chat_session_id,
                 ChatMessage.role.in_(("user", "assistant")),
@@ -1010,7 +1009,6 @@ def load_loop_history(
             "Loop history compaction anchor not found; replaying the full session",
             chat_session_id=chat_session_id,
         )
-    latest_assistant_id = next((row.id for row in after_rows if row.role == "assistant"), None)
     result.archived_call_ids = archived_call_ids
     chronological_rows = list(reversed(after_rows))
     row_positions = {row.id: pos for pos, row in enumerate(chronological_rows)}
@@ -1042,7 +1040,6 @@ def load_loop_history(
             _row_items(
                 loader,
                 row,
-                latest_assistant=row.id == latest_assistant_id,
                 archived_call_ids=row_archived_ids,
                 archived_file_ids=result.archived_file_ids,
             )

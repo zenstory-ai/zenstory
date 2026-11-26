@@ -621,7 +621,6 @@ class _AgentStreamSettlement:
                     iterations_used=max(1, self.run_outcome.runs_started),
                     max_iterations=AGENT_COLLABORATION_MAX_ITERATIONS,
                     reason=DEADLINE_PAUSE_REASON_EN if english else DEADLINE_PAUSE_REASON,
-                    last_agent=None,
                     limit=WALL_CLOCK_LIMIT,
                 )
                 self.deadline_pause_card = dict(card.data)

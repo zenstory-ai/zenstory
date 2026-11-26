@@ -23,7 +23,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlmodel import Session
 
-from agent.core.request_context import AgentRequestContext
 from agent.loop.ui_actions import OFFICIAL_NATURAL_POLISH_SKILL_NAME, UI_ACTION_NATURAL_POLISH
 from agent.tools import mcp_tools
 from agent.tools.file_ops.content_range import (
@@ -40,6 +39,7 @@ from agent.tools.file_ops.edit import (
     FileEditor,
 )
 from agent.tools.file_ops.project import ProjectOperations
+from agent.tools.tool_context import AgentRequestContext
 from agent.tools.tool_inputs import EditFileInput, validate_tool_input
 from agent.tools.tool_schemas import EDIT_FILE_TOOL, QUERY_FILES_TOOL
 from models import File, Project, PublicSkill, SkillResource, User, UserSkill

@@ -6,11 +6,11 @@ from unittest.mock import patch
 import pytest
 from sqlmodel import Session
 
-from agent.core.request_context import AgentRequestContext
 from agent.skills.content_budget import SKILL_CONTENT_TOKEN_BUDGET
 from agent.skills.context_injector import SkillContextInjector
 from agent.tools.mcp_tools import load_skill, read_skill_resource
 from agent.tools.registry import get_exposed_tools
+from agent.tools.tool_context import AgentRequestContext
 from agent.tools.tool_schemas import TOOL_SCHEMAS
 from agent.utils.token_utils import estimate_text_tokens
 from models import Project, PublicSkill, SkillResource, User, UserAddedSkill, UserSkill

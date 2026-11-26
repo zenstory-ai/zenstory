@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent.core.request_context import AgentRequestContext
 from agent.openai_agents import repeat_edit_guard as guard_mod
 from agent.openai_agents.repeat_edit_guard import (
     BULK_EDIT_MIN_ITEMS,
@@ -25,7 +24,7 @@ from agent.openai_agents.repeat_edit_guard import (
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 from agent.openai_agents.tools_adapter import build_agent_function_tools
-from agent.tools.tool_context import _ReadSnapshots
+from agent.tools.tool_context import AgentRequestContext, _ReadSnapshots
 
 
 def _edit_args(file_id: str, edits: list[dict], *, continue_on_error: bool = False) -> str:

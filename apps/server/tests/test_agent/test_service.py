@@ -807,7 +807,6 @@ class TestAgentServiceProcessStream:
                     "iterations_used": 3,
                     "max_iterations": 3,
                     "reason": "limit reached",
-                    "last_agent": None,
                 },
             },
         ]
@@ -872,7 +871,6 @@ class TestAgentServiceProcessStream:
                     "iterations_used": 3,
                     "max_iterations": 3,
                     "reason": "limit reached",
-                    "last_agent": None,
                 },
             }
         ]
@@ -1287,7 +1285,6 @@ class TestAgentServiceProcessStream:
                     "iterations_used": 12,
                     "max_iterations": 12,
                     "reason": "达到最大协作轮次",
-                    "last_agent": None,
                 },
             }
         ]
@@ -1378,9 +1375,8 @@ class TestAgentServiceProcessStream:
         assert any(m.role == "assistant" and m.content == "partial reply" for m in persisted_messages)
         partial_assistant = next(m for m in persisted_messages if m.role == "assistant")
         assert await outcome.wait_message_id(0.1) == partial_assistant.id
-        assert json.loads(partial_assistant.message_metadata or "{}")["display_events"] == [
-            {"type": "content", "content": "partial reply"}
-        ]
+        # Single-segment text-only reply omits duplicate display_events (content column holds it).
+        assert "display_events" not in json.loads(partial_assistant.message_metadata or "{}")
 
     async def test_process_stream_settles_in_flight_capture_before_reporting_an_exception(
         self, mock_agent_service, test_user_with_project, db_session: Session
@@ -1552,8 +1548,8 @@ class TestAgentServiceProcessStream:
             m.role == "assistant" and m.content == "partial reply" for m in saved_messages
         )
         partial_assistant = next(m for m in saved_messages if m.role == "assistant")
-        display_events = json.loads(partial_assistant.message_metadata or "{}")["display_events"]
-        assert display_events[-1] == {"type": "content", "content": "partial reply"}
+        # Single-segment text-only partial reply omits duplicate display_events.
+        assert "display_events" not in json.loads(partial_assistant.message_metadata or "{}")
         # Usage already accumulated before the cancel is kept.
         assert json.loads(partial_assistant.message_metadata or "{}")["usage"] == run_usage
 
@@ -2546,4 +2542,9 @@ class TestStoppedRoundHistory:
         saved = db_session.get(ChatMessage, done_payload["assistant_message_id"])
         assert saved is not None
         persisted_calls = json.loads(saved.tool_calls or "[]")
-        assert persisted_calls[0]["result"][0]["content"] == heavy_body
+        # P0-2: oversized query_files (> 4,000 chars) is slimmed at persist time with content_sha256 + archived_note.
+        from services.features.file_version_service import content_sha256
+
+        assert "content" not in persisted_calls[0]["result"][0]
+        assert persisted_calls[0]["result"][0]["content_sha256"] == content_sha256(heavy_body)
+        assert persisted_calls[0]["result"][0]["archived_note"]

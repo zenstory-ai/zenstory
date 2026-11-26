@@ -514,7 +514,6 @@ async def test_edit_file_forwards_continue_on_error():
         normalize_quotes=True,
         read_snapshot_fn=None,
         exact_only=True,
-        report_author_edits=True,
         body_guards=False,
     )
 
@@ -567,7 +566,6 @@ async def test_edit_file_accepts_file_id_alias():
         normalize_quotes=True,
         read_snapshot_fn=None,
         exact_only=True,
-        report_author_edits=True,
         body_guards=False,
     )
 

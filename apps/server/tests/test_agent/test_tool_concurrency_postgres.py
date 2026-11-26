@@ -100,7 +100,7 @@ class TestToolConcurrencySessionIsolation:
 
         from sqlmodel import Session
 
-        from agent.core.request_context import AgentRequestContext
+        from agent.tools.tool_context import AgentRequestContext
 
         engine = _make_pg_engine(_PG_DSN)
         req_ctx = AgentRequestContext(create_session_func=lambda: Session(engine))
@@ -144,7 +144,7 @@ class TestToolConcurrencySessionIsolation:
         from sqlalchemy import text
         from sqlmodel import Session
 
-        from agent.core.request_context import AgentRequestContext
+        from agent.tools.tool_context import AgentRequestContext
 
         engine = _make_pg_engine(_PG_DSN)
         req_ctx = AgentRequestContext(create_session_func=lambda: Session(engine))
@@ -185,7 +185,7 @@ class TestToolConcurrencySessionIsolation:
         from sqlalchemy import text
         from sqlmodel import Session
 
-        from agent.core.request_context import AgentRequestContext
+        from agent.tools.tool_context import AgentRequestContext
 
         engine = _make_pg_engine(_PG_DSN)
         req_ctx = AgentRequestContext(create_session_func=lambda: Session(engine))

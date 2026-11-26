@@ -19,10 +19,10 @@ from uuid import uuid4
 import pytest
 from sqlmodel import Session, select
 
-from agent.core.request_context import AgentRequestContext
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.stream_adapter import StreamAdapter
 from agent.tools import mcp_tools
+from agent.tools.tool_context import AgentRequestContext
 from models import File, Project, User
 
 pytestmark = pytest.mark.unit

@@ -1515,7 +1515,6 @@ async def run_openai_agents_streaming_agent(
                         "这一轮的时间快用完了，AI 先写下了阶段总结。"
                         "任务可能还没做完，回复「继续」就能接着做。"
                     ),
-                    "last_agent": None,
                 }
             elif budget_landed:
                 exhausted_data = {
@@ -1526,7 +1525,6 @@ async def run_openai_agents_streaming_agent(
                         f"这一轮的模型调用次数快到上限（{run_meter.max_model_calls} 次），"
                         "AI 先写下了阶段总结。任务可能还没做完，回复「继续」就能接着做。"
                     ),
-                    "last_agent": None,
                 }
             else:
                 exhausted_data = {
@@ -1537,7 +1535,6 @@ async def run_openai_agents_streaming_agent(
                         f"这一轮的工具调用轮数已达上限（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
                         "当前任务可能未完全完成，您可以回复「继续」让 AI 接着完成剩余工作。"
                     ),
-                    "last_agent": None,
                 }
             # 前端据此选卡片文案：时限收尾时模型可能已经做完，只是收尾提醒让它写了总结。
             exhausted_data["limit"] = (

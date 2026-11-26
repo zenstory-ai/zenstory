@@ -436,7 +436,6 @@ async def _empty_file_card(
             ),
             "unfinished_files": unresolved,
             "rolled_back_files": [entry for entry in unfinished if entry["file_id"] in rolled_back],
-            "last_agent": None,
         },
     )
 
@@ -569,7 +568,6 @@ async def run_loop_agent_streaming(
                         "iterations_used": runs,
                         "max_iterations": max_runs,
                         "reason": run_support.WRAP_UP_CARD_REASON_EN if english else run_support.WRAP_UP_CARD_REASON,
-                        "last_agent": None,
                         "limit": WALL_CLOCK_LIMIT,
                     },
                 )
@@ -783,7 +781,6 @@ async def run_loop_agent_streaming(
                         "iterations_used": runs,
                         "max_iterations": max_runs,
                         "reason": _UNEXECUTED_TOOL_TEXT_REASON_EN if english else _UNEXECUTED_TOOL_TEXT_REASON,
-                        "last_agent": None,
                     },
                 )
 
@@ -919,7 +916,6 @@ async def run_loop_agent_streaming(
                         f"这一轮已连续运行 {max_runs} 次，先停在这里。"
                         "任务可能未完全完成，您可以继续对话让 AI 完成剩余工作。"
                     ),
-                    "last_agent": None,
                 },
             )
     except Exception as exc:

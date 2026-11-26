@@ -13,7 +13,7 @@ import pytest
 from sqlmodel import Session
 
 from agent.core import empty_files
-from agent.core.request_context import AgentRequestContext
+from agent.tools.tool_context import AgentRequestContext
 from models import File, Project, User
 from services.core.auth_service import hash_password
 

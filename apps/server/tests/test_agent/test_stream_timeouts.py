@@ -505,6 +505,8 @@ async def test_normal_exit_and_caller_cancellation_close_stream_inline():
     first = await gen.__anext__()
     assert first.delta == "first"
     await gen.aclose()
+    # P0-6: GeneratorExit schedules background teardown instead of awaiting inline in finally.
+    await asyncio.sleep(0)
     assert cancelled_closed is True
 
 

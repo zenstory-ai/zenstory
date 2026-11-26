@@ -70,10 +70,9 @@ AGENT_CONTEXT_TOKEN_BUDGET = get_int_env(
 AGENT_RUN_MAX_MODEL_CALLS = get_int_env("AGENT_RUN_MAX_MODEL_CALLS", 120)
 
 # Wall-clock budget for the whole streaming request, in seconds. Railway closes a
-# public HTTP connection after 15 minutes even while bytes (heartbeats) flow, so
+# public HTTP connection after 15 minutes (900s) even while bytes (heartbeats) flow, so
 # the run must end well before that: the remaining margin covers cancelling the
 # producer, the timeout frame, refund settlement and the trailing quota frame.
-RAILWAY_HTTP_CONNECTION_LIMIT_S = 900
 AGENT_RUN_WALL_CLOCK_TIMEOUT_S = get_int_env("AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 780)
 # From here on the agent is told to wrap up and the workflow starts no new agent runs,
 # so a long request ends with a phase summary instead of being cut at the deadline.

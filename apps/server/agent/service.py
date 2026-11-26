@@ -93,11 +93,13 @@ from .loop.turn_context import LoopTurnContext, build_loop_turn_context
 from .loop.ui_actions import UIAction
 from .loop.wire_prefix_cache import (
     ainvalidate_wire_prefix,
-    aload_wire_prefix,
     astore_wire_prefix,
+    effective_reasoning_effort,
     invalidate_wire_prefix,
     is_well_formed_wire_prefix,
+    load_wire_prefix_entry,
     provider_cache_key,
+    tools_schema_sha256,
 )
 from .openai_agents.runner import MAX_TURNS_STOP_REASON
 from .skills import get_skill_context_injector, resolve_selected_skills
@@ -625,6 +627,50 @@ class AgentService:
             )
             return False
 
+    @staticmethod
+    def _history_from_wire_prefix_meta(
+        *,
+        items: list[dict[str, Any]],
+        last_message_id: str,
+        history_meta: dict[str, Any],
+    ) -> LoopHistory | None:
+        """Reconstruct ``LoopHistory`` from compact metadata stored in ``wire_prefix_cache``."""
+        raw_prompt_tokens = history_meta.get("last_prompt_tokens")
+        raw_author_messages = history_meta.get("author_messages")
+        if not isinstance(raw_prompt_tokens, int) or raw_prompt_tokens < 0:
+            return None
+        if not isinstance(raw_author_messages, list) or not all(
+            isinstance(m, str) for m in raw_author_messages
+        ):
+            return None
+        raw_skipped_tokens = history_meta.get("compaction_skipped_at_tokens", 0)
+        raw_skipped_reason = history_meta.get("compaction_skipped_reason")
+        raw_truncations = history_meta.get("trailing_output_truncations", 0)
+        raw_archived_calls = history_meta.get("archived_call_ids") or []
+        raw_archived_files = history_meta.get("archived_file_ids") or []
+        if not isinstance(raw_skipped_tokens, int) or raw_skipped_tokens < 0:
+            return None
+        if not isinstance(raw_truncations, int) or raw_truncations < 0:
+            return None
+        if not isinstance(raw_archived_calls, list) or not isinstance(raw_archived_files, list):
+            return None
+        return LoopHistory(
+            items=items,
+            last_prompt_tokens=raw_prompt_tokens,
+            last_message_id=last_message_id,
+            compacted=bool(history_meta.get("compacted", False)),
+            author_messages=list(raw_author_messages),
+            compaction_skipped_at_tokens=raw_skipped_tokens,
+            compaction_skipped_reason=(
+                raw_skipped_reason
+                if isinstance(raw_skipped_reason, str) and raw_skipped_reason
+                else None
+            ),
+            trailing_output_truncations=raw_truncations,
+            archived_call_ids={str(cid) for cid in raw_archived_calls if isinstance(cid, str) and cid},
+            archived_file_ids={str(fid) for fid in raw_archived_files if isinstance(fid, str) and fid},
+        )
+
     def _prepare_loop_turn(
         self,
         session: Session,
@@ -640,30 +686,90 @@ class AgentService:
         cancel_event: threading.Event | None = None,
         ui_action: UIAction | None = None,
         selected_text: str | None = None,
+        expected_provider_key: str | None = None,
+        expected_tools_sha256: str | None = None,
+        expected_reasoning_effort: str | None = None,
     ) -> tuple[LoopHistory, LoopTurnContext, list[dict[str, Any]], str]:
-        """单循环 agent 这一轮的输入：跨轮历史、本轮上下文、作者选的技能、系统提示。"""
-        from models import ChatSession
+        """单循环 agent 这一轮的输入：跨轮历史、本轮上下文、作者选的技能、系统提示。
+
+        温缓存优先路径（P0-3）：在触发 ``load_loop_history`` 扫库解压 ``chat_message`` TOAST 之前，
+        先用 3 列索引查询（``id, role, created_at``）取最新消息 id 并查询 ``wire_prefix_cache``；
+        命中且携带完整 ``history_meta`` 时直接复用缓存历史，完全跳过 ``load_loop_history`` 扫库。
+        """
+        from models import ChatMessage, ChatSession
 
         history = LoopHistory()
         owned_session_id: str | None = None
         if cancel_event is not None and cancel_event.is_set():
             return history, LoopTurnContext(), [], ""
+        selected_skills = self._resolve_selected_skills(
+            session, user_id=user_id, selected_skill_ids=selected_skill_ids
+        )
+        if cancel_event is not None and cancel_event.is_set():
+            return history, LoopTurnContext(), selected_skills, ""
+        skill_catalog = get_skill_context_injector().build_skill_catalog(session, user_id)
+        system_prompt = MessageManager(project_id=project_id, user_id=user_id).build_system_prompt(
+            session=session, language=language, skill_catalog=skill_catalog
+        )
+        if cancel_event is not None and cancel_event.is_set():
+            return history, LoopTurnContext(), selected_skills, system_prompt
+
+        prior_context_fingerprints: dict[str, Any] | None = None
         if user_id and chat_session_id:
             chat_session = session.get(ChatSession, chat_session_id)
             if chat_session is not None and chat_session.user_id == user_id and chat_session.project_id == project_id:
                 owned_session_id = chat_session_id
-                history = load_loop_history(
-                    session,
-                    project_id=project_id,
-                    user_id=user_id,
-                    chat_session_id=chat_session_id,
-                    carried_metadata=carried_compaction,
-                )
+                cached_entry = None
+                latest_message_id: str | None = None
+                if not carried_compaction and expected_provider_key:
+                    latest_row = session.exec(
+                        select(ChatMessage.id, ChatMessage.role, ChatMessage.created_at)
+                        .where(
+                            and_(
+                                ChatMessage.session_id == chat_session_id,
+                                ChatMessage.role.in_(("user", "assistant")),
+                            )
+                        )
+                        .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+                        .limit(1)
+                    ).first()
+                    latest_message_id = str(latest_row[0]) if latest_row is not None else None
+                    if latest_message_id:
+                        cached_entry = load_wire_prefix_entry(
+                            session_id=chat_session_id,
+                            project_id=project_id,
+                            user_id=user_id,
+                            last_message_id=latest_message_id,
+                            system_prompt=system_prompt,
+                            provider_key=expected_provider_key,
+                            tools_sha256=expected_tools_sha256,
+                            reasoning_effort=expected_reasoning_effort,
+                        )
+
+                warm_history: LoopHistory | None = None
+                if cached_entry is not None and latest_message_id is not None and cached_entry.history_meta is not None:
+                    warm_history = self._history_from_wire_prefix_meta(
+                        items=cached_entry.items,
+                        last_message_id=latest_message_id,
+                        history_meta=cached_entry.history_meta,
+                    )
+
+                if warm_history is not None:
+                    history = warm_history
+                    prior_context_fingerprints = cached_entry.context_fingerprints if cached_entry else None
+                else:
+                    history = load_loop_history(
+                        session,
+                        project_id=project_id,
+                        user_id=user_id,
+                        chat_session_id=chat_session_id,
+                        carried_metadata=carried_compaction,
+                    )
+                    if cached_entry is not None and history.last_message_id == latest_message_id:
+                        history.items = cached_entry.items
+                        prior_context_fingerprints = cached_entry.context_fingerprints
         if cancel_event is not None and cancel_event.is_set():
-            return history, LoopTurnContext(), [], ""
-        selected_skills = self._resolve_selected_skills(
-            session, user_id=user_id, selected_skill_ids=selected_skill_ids
-        )
+            return history, LoopTurnContext(), selected_skills, system_prompt
         turn = build_loop_turn_context(
             session,
             project_id=project_id,
@@ -678,12 +784,7 @@ class AgentService:
             cancel_event=cancel_event,
             ui_action=ui_action,
             selected_text=selected_text,
-        )
-        if cancel_event is not None and cancel_event.is_set():
-            return history, turn, selected_skills, ""
-        skill_catalog = get_skill_context_injector().build_skill_catalog(session, user_id)
-        system_prompt = MessageManager(project_id=project_id, user_id=user_id).build_system_prompt(
-            session=session, language=language, skill_catalog=skill_catalog
+            prior_context_fingerprints=prior_context_fingerprints,
         )
         return history, turn, selected_skills, system_prompt
 
@@ -839,6 +940,8 @@ class AgentService:
 
         # 本轮开始前写下的压缩点，随本轮 assistant 行落库（agent/loop/compaction.py）。
         loop_compaction_record: dict[str, Any] | None = None
+        # 本轮 Stage 1 tool_archive 归档的文件 id（写回 wire_prefix_cache history_meta 使用）。
+        stage1_archived_file_ids: set[str] = set()
         # 本轮没压缩成时的记录：下一轮据此退避，不每轮重付摘要调用。
         loop_compaction_skipped: dict[str, Any] | None = None
         # 重试时删掉的那条作者消息上的压缩记录：本轮历史照它重建，没有新记录时随本轮落库。
@@ -1224,6 +1327,19 @@ class AgentService:
             yield thinking_event(
                 "Assembling context..." if force_en else "正在组装上下文..."
             ).to_sse()
+            expected_provider_key: str | None = None
+            expected_tools_sha = tools_schema_sha256()
+            expected_reasoning_effort = effective_reasoning_effort()
+            if user_id and session_id and not retry_carried_compaction:
+                try:
+                    ordered_providers = await llm_failover.aordered_providers(session_id)
+                    if ordered_providers:
+                        expected_provider_key = provider_cache_key(ordered_providers[0])
+                        expected_reasoning_effort = effective_reasoning_effort(ordered_providers[0])
+                        if run_report is not None and not run_meter.last_served_model and ordered_providers[0].model:
+                            run_report["model"] = ordered_providers[0].model
+                except Exception:  # noqa: BLE001 - fail open to DB history
+                    expected_provider_key = None
             loop_kwargs: dict[str, Any] = {
                 "project_id": project_id,
                 "user_id": user_id,
@@ -1236,6 +1352,9 @@ class AgentService:
                 "cancel_event": prepare_cancel_event,
                 "ui_action": ui_action,
                 "selected_text": selected_text,
+                "expected_provider_key": expected_provider_key,
+                "expected_tools_sha256": expected_tools_sha,
+                "expected_reasoning_effort": expected_reasoning_effort,
             }
             if should_offload_session_work(session):
                 loop_history, loop_turn, selected_skills, system_prompt = await asyncio.to_thread(
@@ -1245,27 +1364,6 @@ class AgentService:
                 loop_history, loop_turn, selected_skills, system_prompt = self._prepare_loop_turn(
                     session, **loop_kwargs
                 )
-            if user_id and session_id and loop_history.last_message_id and not retry_carried_compaction:
-                expected_provider_key: str | None = None
-                try:
-                    ordered_providers = await llm_failover.aordered_providers(session_id)
-                    if ordered_providers:
-                        expected_provider_key = provider_cache_key(ordered_providers[0])
-                        if run_report is not None and not run_meter.last_served_model and ordered_providers[0].model:
-                            run_report["model"] = ordered_providers[0].model
-                except Exception:  # noqa: BLE001 - fail open to DB history
-                    expected_provider_key = None
-                if expected_provider_key:
-                    cached_items = await aload_wire_prefix(
-                        session_id=session_id,
-                        project_id=project_id,
-                        user_id=user_id,
-                        last_message_id=loop_history.last_message_id,
-                        system_prompt=system_prompt,
-                        provider_key=expected_provider_key,
-                    )
-                    if cached_items is not None:
-                        loop_history.items = cached_items
             if loop_turn.items:
                 yield context_event(items=loop_turn.items, token_count=0).to_sse()
             for selected in selected_skills:
@@ -1284,16 +1382,45 @@ class AgentService:
             ):
                 first_message_project_type = await self._lookup_project_type(session, project_id) or ""
 
-            user_content = message
+            base_user_content = message
             if selected_text:
-                user_content += f"\n\n{'Selected text' if force_en else '选中的文本'}:\n{selected_text}"
+                base_user_content += f"\n\n{'Selected text' if force_en else '选中的文本'}:\n{selected_text}"
             if first_message_project_type is not None:
-                user_content += (
+                base_user_content += (
                     f"\n\n{'Context' if force_en else '上下文'}:\n"
                     + first_message_hint(first_message_project_type, force_en)
                 )
-            if loop_turn.text:
-                user_content = SessionLoader.attach_working_set_to_user_content(user_content, loop_turn.text)
+            user_content = (
+                SessionLoader.attach_working_set_to_user_content(base_user_content, loop_turn.text)
+                if loop_turn.text
+                else base_user_content
+            )
+            effective_context_fingerprints = (
+                {
+                    "project_files_sha256": loop_turn.context_fingerprints.get("project_files_sha256", ""),
+                    "full_file_hashes": dict(loop_turn.context_fingerprints.get("full_file_hashes") or {}),
+                    "author_edits_sha256": loop_turn.context_fingerprints.get("author_edits_sha256", ""),
+                }
+                if loop_turn.context_fingerprints
+                else {}
+            )
+
+            def _restore_full_turn_context() -> None:
+                """Stage 2 摘要或历史滑窗截断清掉前几轮 <turn_context> 时，恢复本轮完整上下文。"""
+                nonlocal user_content, effective_context_fingerprints
+                if loop_turn.full_text:
+                    user_content = SessionLoader.attach_working_set_to_user_content(
+                        base_user_content, loop_turn.full_text
+                    )
+                    writing_state["user_message"] = user_content
+                if loop_turn.context_fingerprints:
+                    effective_context_fingerprints = {
+                        "project_files_sha256": loop_turn.context_fingerprints.get("project_files_sha256", ""),
+                        "full_file_hashes": dict(
+                            loop_turn.context_fingerprints.get("_current_full_file_hashes") or {}
+                        ),
+                        "author_edits_sha256": loop_turn.context_fingerprints.get("author_edits_sha256", ""),
+                    }
             message_manager = MessageManager(project_id=project_id, user_id=user_id)
 
             yield thinking_event(
@@ -1462,6 +1589,8 @@ class AgentService:
                             loop_compaction_record = outcome.record
                             writing_state["history_items"] = outcome.items
                             if is_tool_archive_compaction(outcome.record):
+                                if outcome.archived_file_ids:
+                                    stage1_archived_file_ids.update(outcome.archived_file_ids)
                                 # Stage 1 只折叠了旧轮次的只读工具结果：仅撤销被归档文件的跨轮快照结转；
                                 # 仅当存在未能提取具体 id 的 query_files 归档时才保守全撤，绝不因归档技能而误撤近期文件快照。
                                 if loop_turn.session_carried_snapshot_ids:
@@ -1479,7 +1608,9 @@ class AgentService:
                                     step=HISTORY_COMPACTION_SKIPPED_STEP if emitted_compaction_progress else None,
                                 ).to_sse()
                             else:
-                                # Stage 2 压缩成功后前几轮的工具结果已折叠进摘要，撤销全部会话快照结转。
+                                # Stage 2 压缩成功后前几轮的工具结果与 <turn_context> 已折叠进摘要，
+                                # 撤销全部会话快照结转并恢复本轮完整上下文。
+                                _restore_full_turn_context()
                                 if loop_turn.session_carried_snapshot_ids:
                                     request_context.drop_initial_read_snapshots(
                                         loop_turn.session_carried_snapshot_ids
@@ -1555,6 +1686,7 @@ class AgentService:
                                     kept_tokens=estimate_provider_items_tokens(bounded_history),
                                 )
                                 writing_state["history_items"] = bounded_history
+                                _restore_full_turn_context()
                     workflow_events = self._loop_events(
                         writing_state,
                         get_steering_messages=get_steering_messages,
@@ -1789,6 +1921,88 @@ class AgentService:
                             wire_prefix_skip_reason = "no_provider_key"
 
                         if wire_prefix_skip_reason is None:
+                            stage2_compacted = bool(
+                                loop_compaction_record is not None
+                                and not is_tool_archive_compaction(loop_compaction_record)
+                            )
+                            stage1_archived = bool(
+                                loop_compaction_record is not None
+                                and is_tool_archive_compaction(loop_compaction_record)
+                            )
+                            turn_author_msgs = [
+                                text
+                                for text in (message, *consumed_steering)
+                                if isinstance(text, str) and text.strip()
+                            ]
+                            if stage2_compacted and isinstance(loop_compaction_record, dict):
+                                kept_prior = loop_compaction_record.get("kept_author_messages")
+                                next_author_messages = [
+                                    *(kept_prior if isinstance(kept_prior, list) else []),
+                                    *turn_author_msgs,
+                                ]
+                                next_archived_call_ids: set[str] = set()
+                                next_archived_file_ids: set[str] = set()
+                            else:
+                                next_author_messages = [*loop_history.author_messages, *turn_author_msgs]
+                                next_archived_call_ids = set(loop_history.archived_call_ids)
+                                next_archived_file_ids = set(loop_history.archived_file_ids)
+                                if stage1_archived and isinstance(loop_compaction_record, dict):
+                                    next_archived_call_ids.update(
+                                        str(cid)
+                                        for cid in (loop_compaction_record.get("archived_call_ids") or [])
+                                        if isinstance(cid, str) and cid
+                                    )
+                                    if stage1_archived_file_ids:
+                                        next_archived_file_ids.update(stage1_archived_file_ids)
+                                # If this turn re-read any archived file in full, discard it from archived_file_ids.
+                                for tc in all_tool_calls:
+                                    if tc.get("name") == "query_files" and str(tc.get("status") or "").lower() == "success":
+                                        res = tc.get("result")
+                                        if isinstance(res, list):
+                                            for item in res:
+                                                if (
+                                                    isinstance(item, dict)
+                                                    and item.get("file_type") != "folder"
+                                                    and not item.get("content_truncated")
+                                                    and not item.get("content_partial")
+                                                    and (
+                                                        (isinstance(item.get("content"), str) and item["content"])
+                                                        or (isinstance(item.get("content_sha256"), str) and item["content_sha256"])
+                                                    )
+                                                ):
+                                                    fid = str(item.get("id") or "").strip()
+                                                    if fid:
+                                                        next_archived_file_ids.discard(fid)
+                            if isinstance(loop_compaction_skipped, dict) and isinstance(
+                                loop_compaction_skipped.get("at_prompt_tokens"), int
+                            ):
+                                next_skipped_at = max(0, loop_compaction_skipped["at_prompt_tokens"])
+                                raw_skip_reason = loop_compaction_skipped.get("reason")
+                                next_skipped_reason = (
+                                    raw_skip_reason
+                                    if isinstance(raw_skip_reason, str) and raw_skip_reason
+                                    else None
+                                )
+                            elif loop_compaction_record is not None:
+                                next_skipped_at = 0
+                                next_skipped_reason = None
+                            else:
+                                next_skipped_at = loop_history.compaction_skipped_at_tokens
+                                next_skipped_reason = loop_history.compaction_skipped_reason
+
+                            next_history_meta: dict[str, Any] = {
+                                "last_prompt_tokens": int(
+                                    run_meter.last_prompt_tokens
+                                    or (0 if loop_compaction_record is not None else loop_history.last_prompt_tokens)
+                                ),
+                                "compacted": stage2_compacted or (loop_history.compacted and not stage2_compacted),
+                                "compaction_skipped_at_tokens": next_skipped_at,
+                                "compaction_skipped_reason": next_skipped_reason,
+                                "trailing_output_truncations": 0,
+                                "archived_call_ids": sorted(next_archived_call_ids),
+                                "archived_file_ids": sorted(next_archived_file_ids),
+                                "author_messages": next_author_messages,
+                            }
                             stored_wire_prefix = await astore_wire_prefix(
                                 session_id=session_id,
                                 project_id=project_id,
@@ -1797,6 +2011,10 @@ class AgentService:
                                 system_prompt=system_prompt,
                                 provider_key=run_meter.last_served_provider_key,
                                 items=completed_wire_items,
+                                tools_sha256=expected_tools_sha,
+                                reasoning_effort=run_meter.last_served_reasoning_effort or expected_reasoning_effort,
+                                history_meta=next_history_meta,
+                                context_fingerprints=effective_context_fingerprints or None,
                             )
                         else:
                             log_with_context(

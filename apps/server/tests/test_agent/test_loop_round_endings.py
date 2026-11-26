@@ -11,10 +11,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent.core.request_context import AgentRequestContext
 from agent.core.run_meter import AgentRunMeter
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.loop import run_support
+from agent.tools.tool_context import AgentRequestContext
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 
@@ -156,7 +156,7 @@ async def test_textual_tool_call_after_the_last_tool_event_is_flagged_once_and_t
     flagged = [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
     assert len(flagged) == 1
     assert flagged[0].data["layer"] == "unexecuted_tool_text"
-    assert flagged[0].data["last_agent"] is None
+    assert flagged[0].data.get("last_agent") is None
     assert "limit" not in flagged[0].data
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
     assert _TEXTUAL_CALL in texts  # 文字逐字节原样流出，不改写、不删除

@@ -804,7 +804,7 @@ async def test_loop_stops_starting_runs_near_the_wall_clock(loop_tool_context):
     [card] = [event for event in events if event.type == StreamEventType.ITERATION_EXHAUSTED]
     assert card.data["limit"] == WALL_CLOCK_LIMIT
     assert card.data["layer"] == "collaboration"
-    assert card.data["last_agent"] is None
+    assert card.data.get("last_agent") is None
 
 
 @pytest.mark.asyncio
@@ -1110,10 +1110,10 @@ def test_loop_turn_context_lists_author_edits_on_chapters_the_ai_wrote_this_sess
         chat_session_id=chat.id,
     )
 
-    # 作者没打开、也没附加这一章：仍列出作者把「老周」改成了「老陈」。
+    # 作者没打开、也没附加这一章：非焦点文件在 <author_edits> 中给 1 行简明手改提醒。
     assert "<author_edits>" in turn.text
     block = turn.text.split("<author_edits>", 1)[1].split("</author_edits>", 1)[0]
-    assert chapter.id in block and "老陈" in block
+    assert chapter.id in block and "自你上次写入后已被作者手动修改" in block
     assert untouched.id not in block
 
     # 没有会话（或不是作者的会话）时不读别处的写入记录。
@@ -1121,7 +1121,7 @@ def test_loop_turn_context_lists_author_edits_on_chapters_the_ai_wrote_this_sess
         db_session, project_id=project.id, user_id=user.id, metadata={}, language="zh", author_message="继续写第3章"
     )
     assert "<author_edits>" not in without_session.text
-    # 作者正在看的文件同样核对。
+    # 作者正在看的焦点文件已在 <turn_context> 里给出最新全文（含「老陈」），不再重复塞进 <author_edits>。
     focused = build_loop_turn_context(
         db_session,
         project_id=project.id,
@@ -1129,8 +1129,10 @@ def test_loop_turn_context_lists_author_edits_on_chapters_the_ai_wrote_this_sess
         metadata={"current_file_id": chapter.id},
         language="zh",
         author_message="改一下这一章",
+        chat_session_id=chat.id,
     )
-    assert "<author_edits>" in focused.text and "老陈" in focused.text.split("<author_edits>", 1)[1]
+    assert "老陈" in focused.text
+    assert "<author_edits>" not in focused.text
 
 
 @pytest.mark.asyncio
@@ -1243,7 +1245,7 @@ def test_loop_author_edits_keep_a_chapter_behind_many_newer_non_body_writes(db_s
 
     assert "<author_edits>" in turn.text
     block = turn.text.split("<author_edits>", 1)[1].split("</author_edits>", 1)[0]
-    assert chapter.id in block and "老陈" in block
+    assert chapter.id in block and "自你上次写入后已被作者手动修改" in block
 
 
 @pytest.mark.unit

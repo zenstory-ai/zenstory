@@ -59,7 +59,6 @@ from utils.title_sequence import (
 from .edit import (
     NORMALIZED_QUOTE_FILE_TYPES,
     acquire_file_write_lock,
-    attach_author_edits_for_agent,
     normalize_ai_body_first_indent,
     resolve_write_quote_style,
     stage_pre_ai_write_backup,
@@ -1178,12 +1177,6 @@ class FileCRUD:
             )
             for file in files
         ]
-        if target_ids:
-            for file, item in zip(files, serialized, strict=True):
-                if isinstance(item.get("content"), str):
-                    attach_author_edits_for_agent(
-                        self.session, file, item, request_context=self.request_context
-                    )
         return serialized
 
     def _execute_query_files(
