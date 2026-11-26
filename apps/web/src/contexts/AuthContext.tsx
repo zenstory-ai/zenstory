@@ -84,6 +84,17 @@ export const AuthIdentityQueryBoundary: React.FC<{ children: ReactNode }> = ({ c
 
 // Cache TTL: 5 minutes (conservative to balance performance and security)
 const AUTH_CACHE_TTL_MS = 5 * 60 * 1000;
+const INACTIVE_USER_ERROR_CODE = 'ERR_AUTH_INACTIVE_USER';
+
+async function isInactiveUserAuthFailure(response: Response): Promise<boolean> {
+  if (response.status !== 400 || typeof response.json !== 'function') return false;
+  try {
+    const body = (await response.json()) as { error_code?: unknown; detail?: unknown } | null;
+    return body?.error_code === INACTIVE_USER_ERROR_CODE || body?.detail === INACTIVE_USER_ERROR_CODE;
+  } catch {
+    return false;
+  }
+}
 
 // Cache keys
 const CACHE_KEYS = {
@@ -311,6 +322,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
               } else if (response.status === 403 && ownsOriginalSession()) {
                 clearAuthState(setUser, 'background_validation_failed');
+              } else if (await isInactiveUserAuthFailure(response) && ownsOriginalSession()) {
+                clearAuthState(setUser, 'background_validation_failed');
               }
             } catch (error) {
               logger.warn('[Auth] Background validation failed (network error):', error);
@@ -336,6 +349,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             logger.log('[Auth] Token validated on init');
           } else if (!ownsOriginalSession()) {
             return;
+          } else if (await isInactiveUserAuthFailure(response)) {
+            if (ownsOriginalSession()) {
+              clearAuthState(setUser, 'background_validation_failed');
+            }
           } else if (response.status === 401 || response.status === 403) {
             // Token invalid - try refresh
             logger.log('[Auth] Token invalid on init, attempting refresh...');

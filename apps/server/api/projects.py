@@ -5,12 +5,12 @@ import json
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlmodel import Session, col, func, select
 
 from api.chat import MessageResponse, SessionResponse, load_active_session_recent_messages
-from api.files import FileResponse, build_project_file_tree
+from api.files import FileResponse, build_project_file_tree, serialize_file_tree_array_json
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
 from config.project_notes import without_legacy_proposals
 from config.project_status import (
@@ -303,6 +303,46 @@ def get_project(
     return project
 
 
+def _serialize_project_bootstrap_json(
+    *,
+    project: Project,
+    files: list[dict[str, Any]],
+    initial_file: FileResponse | None,
+    chat_session: SessionResponse | None,
+    recent_messages: list[MessageResponse],
+    has_more_messages: bool,
+) -> str:
+    """Encode ProjectBootstrapResponse without recursing through nested file-tree children."""
+    shell = ProjectBootstrapResponse(
+        project=project,
+        files=[],
+        initial_file=initial_file,
+        chat_session=chat_session,
+        recent_messages=recent_messages,
+        has_more_messages=has_more_messages,
+    )
+    payload = shell.model_dump(mode="json")
+    files_json = serialize_file_tree_array_json(files)
+
+    def _dumps_compact(value: Any) -> str:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        )
+
+    return (
+        f'{{"project":{_dumps_compact(payload["project"])},'
+        f'"files":{files_json},'
+        f'"initial_file":{_dumps_compact(payload["initial_file"])},'
+        f'"chat_session":{_dumps_compact(payload["chat_session"])},'
+        f'"recent_messages":{_dumps_compact(payload["recent_messages"])},'
+        f'"has_more_messages":{_dumps_compact(payload["has_more_messages"])}}}'
+    )
+
+
 @router.get("/projects/{project_id}/bootstrap", response_model=ProjectBootstrapResponse)
 def get_project_bootstrap(
     project_id: str,
@@ -322,13 +362,16 @@ def get_project_bootstrap(
         limit=chat_limit,
     )
 
-    return ProjectBootstrapResponse(
-        project=project,
-        files=files,
-        initial_file=initial_file,
-        chat_session=chat_session,
-        recent_messages=recent_messages,
-        has_more_messages=has_more_messages,
+    return Response(
+        content=_serialize_project_bootstrap_json(
+            project=project,
+            files=files,
+            initial_file=initial_file,
+            chat_session=chat_session,
+            recent_messages=recent_messages,
+            has_more_messages=has_more_messages,
+        ),
+        media_type="application/json",
     )
 
 

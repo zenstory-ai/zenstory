@@ -827,6 +827,246 @@ describe("Workbench /bootstrap single-call boot, 404 fallback, and SWR cache", (
     });
     expect(mocks.getBootstrap).toHaveBeenCalledTimes(3);
   });
+
+  it("writes through saved edits to workbenchSwrCache so reload within 15m never flashes pre-save text (P0-3a)", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    setLastOpenedFile("user-1", "project-1", sampleFile.id);
+
+    const v1File: File = {
+      ...sampleFile,
+      content: "旧版正文 V1。",
+      updated_at: "2026-11-26T07:00:00Z",
+    };
+    const v2SavedFile: File = {
+      ...sampleFile,
+      content: "保存后的最新正文 V2。",
+      updated_at: "2026-11-26T09:30:00Z",
+    };
+
+    mocks.getBootstrap.mockResolvedValueOnce({
+      ...sampleBootstrap,
+      initial_file: v1File,
+    });
+    mocks.fileUpdate.mockResolvedValueOnce(v2SavedFile);
+
+    const firstMount = mountEditor(queryClient);
+
+    const editorInput = await screen.findByPlaceholderText("editor:placeholder.contentPlaceholder");
+    expect(editorInput).toHaveValue("旧版正文 V1。");
+
+    // Edit and save V2
+    fireEvent.change(editorInput, { target: { value: "保存后的最新正文 V2。" } });
+    fireEvent.click(screen.getByRole("button", { name: "editor:save" }));
+
+    await waitFor(() => {
+      expect(mocks.fileUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    // SWR cache immediately reflects V2!
+    const cachedAfterSave = readWorkbenchSwr("user-1", "project-1");
+    expect(cachedAfterSave?.initial_file?.content).toBe("保存后的最新正文 V2。");
+    expect(cachedAfterSave?.initial_file?.updated_at).toBe(v2SavedFile.updated_at);
+
+    // Simulate reload within 15 minutes while /bootstrap is still in flight
+    firstMount.view.unmount();
+    const reloadQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    mocks.project.projects = [];
+    mocks.project.currentProject = null;
+    mocks.project.currentProjectId = null;
+    mocks.project.loading = true;
+    mocks.project.selectedItem = null;
+
+    const pendingReloadBootstrap = deferred<ProjectBootstrapResponse>();
+    mocks.getBootstrap.mockReturnValueOnce(pendingReloadBootstrap.promise);
+
+    mountEditor(reloadQueryClient);
+
+    // Instant SWR paint shows V2 — NEVER flashes stale pre-save V1!
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        "保存后的最新正文 V2。",
+      );
+    });
+  });
+
+  it("triggers fresh server sync and surfaces serverSyncIssue banner when /bootstrap fails transiently after SWR paint (P0-3b)", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    setLastOpenedFile("user-1", "project-1", sampleFile.id);
+
+    const staleFile: File = {
+      ...sampleFile,
+      content: "缓存里的旧版正文。",
+      updated_at: "2026-11-26T07:00:00Z",
+    };
+    writeWorkbenchSwr("user-1", "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: staleFile,
+    });
+
+    // Case 1: /bootstrap fails with 502 after SWR paints -> Editor triggers fileApi.get and reconciles fresh V2!
+    const pendingBootstrap = deferred<ProjectBootstrapResponse>();
+    mocks.getBootstrap.mockReturnValueOnce(pendingBootstrap.promise);
+    mocks.fileGet.mockResolvedValueOnce(sampleFile);
+
+    const firstView = mountEditor(queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        "缓存里的旧版正文。",
+      );
+    });
+
+    await act(async () => {
+      pendingBootstrap.reject(new ApiError(502, "Bad Gateway"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mocks.fileGet).toHaveBeenCalledWith(sampleFile.id);
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        sampleFile.content,
+      );
+    });
+    expect(readWorkbenchSwr("user-1", "project-1")?.initial_file?.content).toBe(sampleFile.content);
+    firstView.view.unmount();
+
+    // Case 2: Both /bootstrap AND fallback fileApi.get fail transiently -> surfaces serverSyncIssue retry banner!
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const retryQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      mocks.project.projects = [];
+      mocks.project.currentProject = null;
+      mocks.project.currentProjectId = null;
+      mocks.project.loading = true;
+      mocks.project.selectedItem = null;
+      writeWorkbenchSwr("user-1", "project-1", {
+        project: sampleProject,
+        files: sampleTree,
+        initial_file: staleFile,
+      });
+
+      mocks.getBootstrap.mockRejectedValueOnce(new ApiError(503, "Service Unavailable"));
+      mocks.fileGet.mockRejectedValue(new ApiError(503, "Service Unavailable"));
+
+      const retryView = mountEditor(retryQueryClient);
+      try {
+        await waitFor(() => {
+          expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+            "缓存里的旧版正文。",
+          );
+        });
+
+        // Advance past SERVER_SYNC_RETRY_DELAYS_MS ([1000, 3000])
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+
+        await waitFor(() => {
+          expect(screen.getByText("editor:serverSyncFailed.message")).toBeInTheDocument();
+          expect(screen.getByRole("button", { name: "editor:serverSyncFailed.retry" })).toBeInTheDocument();
+        });
+      } finally {
+        retryView.view.unmount();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("evicts SWR cache and renders projectNotFound even when SWR hydrated currentProject on /bootstrap 404/403 (P1-1)", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    setLastOpenedFile("user-1", "project-1", sampleFile.id);
+
+    writeWorkbenchSwr("user-1", "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: sampleFile,
+    });
+
+    const pendingBootstrap = deferred<ProjectBootstrapResponse>();
+    mocks.getBootstrap.mockReturnValueOnce(pendingBootstrap.promise);
+
+    mountEditor(queryClient);
+
+    // SWR hydrates currentProject immediately
+    await waitFor(() => {
+      expect(screen.getByTestId("workbench-layout")).toBeInTheDocument();
+    });
+
+    // Server definitively reports project deleted (404 ERR_PROJECT_NOT_FOUND)
+    await act(async () => {
+      pendingBootstrap.reject(new ApiError(404, "ERR_PROJECT_NOT_FOUND"));
+      await Promise.resolve();
+    });
+
+    // SWR entry is evicted AND projectNotFound screen is rendered (not hidden behind SWR currentProject)!
+    await waitFor(() => {
+      expect(screen.getByText("projectNotFound")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("workbench-layout")).not.toBeInTheDocument();
+    expect(readWorkbenchSwr("user-1", "project-1")).toBeNull();
+  });
+
+  it("clears auth storage and SWR cache when /bootstrap returns 400 ERR_AUTH_INACTIVE_USER (P0-1)", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    localStorage.setItem("access_token", "deactivated-token");
+    writeAuthSessionUserSnapshot(mocks.user);
+    writeWorkbenchSwr("user-1", "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: sampleFile,
+    });
+    const logoutListener = vi.fn();
+    window.addEventListener("auth:logout", logoutListener);
+
+    try {
+      mocks.getBootstrap.mockRejectedValueOnce(new ApiError(400, "ERR_AUTH_INACTIVE_USER"));
+
+      mountEditor(queryClient);
+
+      await waitFor(() => {
+        expect(logoutListener).toHaveBeenCalledTimes(1);
+      });
+      expect(localStorage.getItem("access_token")).toBeNull();
+      expect(readAuthSessionUserSnapshot()).toBeNull();
+      expect(readWorkbenchSwr("user-1", "project-1")).toBeNull();
+    } finally {
+      window.removeEventListener("auth:logout", logoutListener);
+    }
+  });
+
+  it("registers bootstrap handoff before child useEffects when navigating from Dashboard to an already-active project (P1-4)", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    setLastOpenedFile("user-1", "project-1", sampleFile.id);
+
+    // Simulate Dashboard -> previously-active /project/project-1 where ProjectContext ALREADY has
+    // currentProject & currentProjectId set on frame 1 so FileTreeProbe & ChatPanel mount immediately!
+    mocks.project.projects = [sampleProject];
+    mocks.project.currentProject = sampleProject;
+    mocks.project.currentProjectId = sampleProject.id;
+    mocks.project.loading = false;
+    mocks.project.selectedItem = null;
+
+    mocks.getBootstrap.mockResolvedValueOnce(sampleBootstrap);
+
+    mountEditor(queryClient, { strict: true });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workbench-layout")).toBeInTheDocument();
+      expect(screen.getByText("正文")).toBeInTheDocument();
+      expect(screen.getByText("上次我们写到第七章转折点。")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        sampleFile.content,
+      );
+    });
+
+    // Exactly ONE /bootstrap call — ZERO duplicate GET /file-tree, GET /recent, or GET /files/:id!
+    expect(mocks.getBootstrap).toHaveBeenCalledTimes(1);
+    expect(mocks.fileGetTree).not.toHaveBeenCalled();
+    expect(mocks.getRecentMessages).not.toHaveBeenCalled();
+    expect(mocks.fileGet).not.toHaveBeenCalled();
+  });
 });
 
 describe("AuthContext non-blocking session snapshot boot and 401 eviction", () => {
@@ -943,5 +1183,91 @@ describe("AuthContext non-blocking session snapshot boot and 401 eviction", () =
     });
     await waitFor(() => expect(orphanView.result.current.loading).toBe(false));
     orphanView.unmount();
+  });
+
+  it("evicts deactivated account (400 ERR_AUTH_INACTIVE_USER) during 24h non-blocking auth boot and cache-miss init (P0-1)", async () => {
+    const actualAuth = await vi.importActual<typeof import("../contexts/AuthContext")>(
+      "../contexts/AuthContext",
+    );
+    const { AuthProvider, useAuth } = actualAuth;
+
+    // 1) 24h non-blocking sessionStorage snapshot boot -> background /api/auth/me returns 400 ERR_AUTH_INACTIVE_USER
+    const expiredTs = Date.now() - 10 * 60 * 1000;
+    localStorage.setItem("access_token", "deactivated-user-token");
+    localStorage.setItem("refresh_token", "deactivated-user-refresh");
+    localStorage.setItem("user", JSON.stringify(mocks.user));
+    localStorage.setItem("auth_validated_at", String(expiredTs));
+    writeAuthSessionUserSnapshot(mocks.user);
+    writeWorkbenchSwr(mocks.user.id, "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: sampleFile,
+    });
+
+    const meResponse = deferred<Response>();
+    global.fetch = vi.fn().mockReturnValue(meResponse.promise) as unknown as typeof fetch;
+
+    const { result, unmount } = renderHook(() => useAuth(), {
+      wrapper: ({ children }: { children: React.ReactNode }) => (
+        <AuthProvider>{children}</AuthProvider>
+      ),
+    });
+
+    // Non-blocking boot initially painted cached user
+    expect(result.current.loading).toBe(false);
+    expect(result.current.user?.id).toBe(mocks.user.id);
+
+    await act(async () => {
+      meResponse.resolve(
+        new Response(
+          JSON.stringify({
+            detail: "ERR_AUTH_INACTIVE_USER",
+            error_code: "ERR_AUTH_INACTIVE_USER",
+            error_detail: "ERR_AUTH_INACTIVE_USER",
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+      await meResponse.promise;
+    });
+
+    await waitFor(() => {
+      expect(result.current.user).toBeNull();
+    });
+    expect(localStorage.getItem("access_token")).toBeNull();
+    expect(localStorage.getItem("refresh_token")).toBeNull();
+    expect(localStorage.getItem("user")).toBeNull();
+    expect(readAuthSessionUserSnapshot()).toBeNull();
+    expect(readWorkbenchSwr(mocks.user.id, "project-1")).toBeNull();
+    unmount();
+
+    // 2) Cache-miss init validation -> 400 ERR_AUTH_INACTIVE_USER clears tokens instead of preserving them
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem("access_token", "deactivated-user-token-2");
+    localStorage.setItem("refresh_token", "deactivated-user-refresh-2");
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: "ERR_AUTH_INACTIVE_USER",
+          error_code: "ERR_AUTH_INACTIVE_USER",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      ),
+    ) as unknown as typeof fetch;
+
+    const coldInit = renderHook(() => useAuth(), {
+      wrapper: ({ children }: { children: React.ReactNode }) => (
+        <AuthProvider>{children}</AuthProvider>
+      ),
+    });
+
+    await waitFor(() => {
+      expect(coldInit.result.current.loading).toBe(false);
+    });
+    expect(coldInit.result.current.user).toBeNull();
+    expect(localStorage.getItem("access_token")).toBeNull();
+    expect(localStorage.getItem("refresh_token")).toBeNull();
+    coldInit.unmount();
   });
 });

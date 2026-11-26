@@ -12,10 +12,12 @@ Covers:
 """
 
 import json
+import sys
 from datetime import timedelta
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import insert
 from sqlmodel import Session, select
 
 from config.datetime_utils import utcnow
@@ -445,3 +447,67 @@ async def test_bootstrap_chat_limit_has_more_and_client_slimming(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert res_over.status_code == 422
+
+
+@pytest.mark.integration
+async def test_bootstrap_serializes_deeply_nested_file_tree_without_recursion_error(
+    client: AsyncClient,
+    db_session: Session,
+):
+    owner, token = await _create_and_login(client, db_session, username="boot_deep_tree")
+    project = Project(name="Deep Tree Project", owner_id=owner.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    depth = 1200
+    now = utcnow()
+    ids = [f"deep-node-{index:04d}" for index in range(depth)]
+    rows = [
+        {
+            "id": file_id,
+            "project_id": project.id,
+            "title": f"Folder {index}",
+            "content": f"body-{index}",
+            "file_type": "draft" if index == depth - 1 else "folder",
+            "parent_id": ids[index - 1] if index else None,
+            "order": 0,
+            "file_metadata": None,
+            "created_at": now,
+            "updated_at": now,
+            "is_deleted": False,
+            "deleted_at": None,
+        }
+        for index, file_id in enumerate(ids)
+    ]
+    db_session.execute(insert(File), rows)
+    db_session.commit()
+
+    original_limit = sys.getrecursionlimit()
+    response = await client.get(
+        f"/api/v1/projects/{project.id}/bootstrap",
+        params={"file_id": ids[-1]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert sys.getrecursionlimit() == original_limit
+    assert response.status_code == 200, response.text
+
+    try:
+        sys.setrecursionlimit(max(original_limit, depth * 4 + 1000))
+        body = response.json()
+    finally:
+        sys.setrecursionlimit(original_limit)
+
+    assert body["project"]["id"] == project.id
+    assert body["initial_file"]["id"] == ids[-1]
+    assert body["initial_file"]["content"] == f"body-{depth - 1}"
+
+    # Iterative traversal verifies every node in the 1200-deep chain survived with empty tree bodies.
+    visited_ids: list[str] = []
+    stack = list(reversed(body["files"]))
+    while stack:
+        node = stack.pop()
+        visited_ids.append(node["id"])
+        assert node["content"] == ""
+        stack.extend(reversed(node["children"]))
+    assert visited_ids == ids

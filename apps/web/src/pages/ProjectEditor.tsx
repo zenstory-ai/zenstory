@@ -12,19 +12,22 @@ import { Button } from "../components/ui/Button";
 import { useProject } from "../contexts/ProjectContext";
 import { useAuth } from "../contexts/AuthContext";
 import { fileApi } from "../lib/api";
-import { ApiError } from "../lib/apiClient";
+import { ApiError, clearAuthStorage } from "../lib/apiClient";
 import { logger } from "../lib/logger";
 import { trackEvent } from "../lib/analytics";
 import { clearLastOpenedFile, getLastOpenedFile, setLastOpenedFile } from "../lib/lastOpenedFile";
 import { consumePreloadedFile, seedPreloadedFile } from "../lib/preloadedFileCache";
 import { readEditorDraftSnapshot } from "../lib/editorDraftRecovery";
 import { notifyFileRemoved } from "../lib/fileRemovalEvents";
-import { readWorkbenchSwr } from "../lib/workbenchSwrCache";
+import { readWorkbenchSwr, removeWorkbenchSwr } from "../lib/workbenchSwrCache";
 import {
   BOOTSTRAP_DEFAULT_CHAT_LIMIT,
+  clearWorkbenchSwrSyncRequired,
+  dispatchWorkbenchBootstrapFailed,
   dispatchWorkbenchFreshFile,
   evictProjectBootstrapHandoff,
   isProjectBootstrapAvailable,
+  markWorkbenchSwrSyncRequired,
   startProjectBootstrap,
 } from "../lib/workbenchBootstrap";
 import type { SelectedItem, TreeNodeType } from "../types";
@@ -59,10 +62,12 @@ export default function ProjectEditor() {
 
   const [isEnsuring, setIsEnsuring] = React.useState(false);
   const [notFound, setNotFound] = React.useState(false);
+  const [bootstrapRetryNonce, setBootstrapRetryNonce] = React.useState(0);
   const attemptedRefreshRef = React.useRef<string | null>(null);
   const selectedFromQueryRef = React.useRef<string | null>(null);
   const restoreAttemptedRef = React.useRef<string | null>(null);
   const bootstrappedProjectRef = React.useRef<string | null>(null);
+  const bootstrapNotFoundProjectRef = React.useRef<string | null>(null);
   const previousBootstrapProjectRef = React.useRef<string | null>(null);
   const selectedItemRef = React.useRef(selectedItem ?? null);
   selectedItemRef.current = selectedItem ?? null;
@@ -81,18 +86,21 @@ export default function ProjectEditor() {
     trackEvent("project_opened", { project_id: projectId, project_type: currentProjectType });
   }, [isRouteProjectActive, projectId, currentProjectType]);
 
-  // Reset per projectId
-  React.useEffect(() => {
+  // Reset per projectId synchronously before the bootstrap layout effect registers new refs.
+  React.useLayoutEffect(() => {
     attemptedRefreshRef.current = null;
     selectedFromQueryRef.current = null;
     restoreAttemptedRef.current = null;
     bootstrappedProjectRef.current = null;
+    bootstrapNotFoundProjectRef.current = null;
     setNotFound(false);
   }, [projectId]);
 
   // Single-round-trip workbench bootstrap + user-scoped SWR instant paint.
-  // Runs immediately on mount for (userId, projectId) without waiting for GET /api/v1/projects.
-  React.useEffect(() => {
+  // Runs in useLayoutEffect so startProjectBootstrap registers the handoff in QueryClient
+  // synchronously BEFORE child useEffects (useFileTree / ChatPanel / Editor) fire, even when
+  // navigating from Dashboard to an already-active project where children mount on frame 1.
+  React.useLayoutEffect(() => {
     if (!userId || !projectId || !queryClient || !isProjectBootstrapAvailable()) {
       return;
     }
@@ -168,6 +176,8 @@ export default function ProjectEditor() {
       .then((result) => {
         if (cancelled || !result) return;
         const { project, initial_file: initialFile } = result.data;
+        bootstrapNotFoundProjectRef.current = null;
+        clearWorkbenchSwrSyncRequired(queryClient, userId, projectId, requestedFileId);
         hydrateProject?.(project);
         setNotFound(false);
 
@@ -195,6 +205,9 @@ export default function ProjectEditor() {
               consumePreloadedFile(queryClient, userId, projectId, requestedFileId);
               notifyFileRemoved(projectId, requestedFileId);
             }
+          } else if (swrPaintedFileId === requestedFileId) {
+            markWorkbenchSwrSyncRequired(queryClient, userId, projectId, swrPaintedFileId);
+            dispatchWorkbenchBootstrapFailed({ userId, projectId, fileId: swrPaintedFileId });
           }
         } else if (initialFile) {
           // Warm the one-shot cache for the most recently updated editable file without
@@ -204,7 +217,17 @@ export default function ProjectEditor() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        if (
+          err instanceof ApiError &&
+          err.status === 400 &&
+          err.errorCode === "ERR_AUTH_INACTIVE_USER"
+        ) {
+          clearAuthStorage("background_validation_failed");
+          return;
+        }
         if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
+          bootstrapNotFoundProjectRef.current = projectId;
+          removeWorkbenchSwr(userId, projectId);
           setNotFound(true);
           return;
         }
@@ -215,6 +238,12 @@ export default function ProjectEditor() {
         if (linkedFileId && selectedFromQueryRef.current === linkedFileId) {
           selectedFromQueryRef.current = null;
         }
+        // If SWR already painted this file, do not strand the editor on the stale cached copy:
+        // trigger a fresh server sync (or surface the Editor retry banner if the server stays down).
+        if (swrPaintedFileId && swrPaintedFileId === requestedFileId) {
+          markWorkbenchSwrSyncRequired(queryClient, userId, projectId, swrPaintedFileId);
+          dispatchWorkbenchBootstrapFailed({ userId, projectId, fileId: swrPaintedFileId });
+        }
         logger.warn("[ProjectEditor] Bootstrap load failed, falling back to ProjectContext", {
           projectId,
           error: err instanceof Error ? err.message : String(err),
@@ -224,7 +253,7 @@ export default function ProjectEditor() {
     return () => {
       cancelled = true;
     };
-  }, [hydrateProject, projectId, queryClient, setCurrentProjectId, setSelectedItem, userId]);
+  }, [bootstrapRetryNonce, hydrateProject, projectId, queryClient, setCurrentProjectId, setSelectedItem, userId]);
 
   // Remember the open file so reopening this project lands on it.
   const selectedFileId = selectedItem && selectedItem.type !== "folder" ? selectedItem.id : null;
@@ -372,7 +401,9 @@ export default function ProjectEditor() {
       if (exists) {
         if (!cancelled) {
           setIsEnsuring(false);
-          setNotFound(false);
+          if (bootstrapNotFoundProjectRef.current !== projectId) {
+            setNotFound(false);
+          }
         }
         return;
       }
@@ -403,6 +434,39 @@ export default function ProjectEditor() {
     };
   }, [projectId, projects, loading, error, refreshProjects, setCurrentProjectId]);
 
+  // Render definitive not-found BEFORE loading/currentProject checks so an SWR-hydrated
+  // or stale project entry never hides a 404/403 project-not-found state.
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex flex-col items-center justify-center gap-4">
+        <div className="text-[hsl(var(--text-primary))]">{t('projectNotFound')}</div>
+        <div className="flex gap-3">
+          <Button
+            className="max-md:min-h-11"
+            onClick={async () => {
+              attemptedRefreshRef.current = null;
+              bootstrapNotFoundProjectRef.current = null;
+              evictProjectBootstrapHandoff(queryClient ?? undefined, userId, projectId);
+              setNotFound(false);
+              setBootstrapRetryNonce((n) => n + 1);
+              setIsEnsuring(true);
+              try {
+                await refreshProjects();
+              } finally {
+                setIsEnsuring(false);
+              }
+            }}
+          >
+            {t('tryAgain')}
+          </Button>
+          <Button variant="secondary" className="max-md:min-h-11" onClick={() => navigate("/dashboard", { replace: true })}>
+            {t('backToDashboard')}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Show loading state while projects are being fetched or ensuring project exists
   // (never block an already-bootstrapped or SWR-hydrated active route project).
   if (!isRouteProjectActive && (loading || isEnsuring)) {
@@ -421,37 +485,9 @@ export default function ProjectEditor() {
     );
   }
 
-  // Avoid immediate redirect: show a not-found screen after one refresh attempt
+  // Avoid immediate redirect: wait for initial load / ensure attempt before showing not-found
   if (!currentProject) {
-    if (!notFound) {
-      return <PageLoader />;
-    }
-
-    return (
-      <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex flex-col items-center justify-center gap-4">
-        <div className="text-[hsl(var(--text-primary))]">{t('projectNotFound')}</div>
-        <div className="flex gap-3">
-          <Button
-            className="max-md:min-h-11"
-            onClick={async () => {
-              attemptedRefreshRef.current = null;
-              setNotFound(false);
-              setIsEnsuring(true);
-              try {
-                await refreshProjects();
-              } finally {
-                setIsEnsuring(false);
-              }
-            }}
-          >
-            {t('tryAgain')}
-          </Button>
-          <Button variant="secondary" className="max-md:min-h-11" onClick={() => navigate("/dashboard", { replace: true })}>
-            {t('backToDashboard')}
-          </Button>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

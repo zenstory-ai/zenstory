@@ -3845,4 +3845,119 @@ describe("ChatPanel starter cards in a work's first chat", () => {
       mockAgentStreamState.isStreaming = false
     }
   })
+
+  it('invalidates an in-flight Load earlier messages request when startRound sends a new message (P1-2)', async () => {
+    const { workbenchBootstrapQueryKey } = await import('../../lib/workbenchBootstrap')
+    const seededClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    seededClient.setQueryData(workbenchBootstrapQueryKey('test-user', 'project-1'), {
+      userId: 'test-user',
+      projectId: 'project-1',
+      requestedFileId: null,
+      startedAt: Date.now(),
+      promise: Promise.resolve({
+        data: {
+          project: { id: 'project-1', name: '测试作品' },
+          files: [],
+          initial_file: null,
+          chat_session: null,
+          recent_messages: [
+            {
+              id: 'boot-msg-1',
+              session_id: 'session-boot',
+              role: 'assistant' as const,
+              content: '已有最新回复',
+              created_at: '2026-11-26T08:00:00Z',
+            },
+          ],
+          has_more_messages: true,
+        },
+        usedFallback: false,
+        fileTreeReady: true,
+        chatReady: true,
+        initialFileStatus: 'missing',
+      }),
+      settled: true,
+      fileTreeConsumed: false,
+      chatConsumed: false,
+    })
+
+    let resolveOlder!: (messages: unknown[]) => void
+    vi.mocked(getRecentMessages).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveOlder = resolve }) as never,
+    )
+
+    rtlRender(<QueryClientProvider client={seededClient}><ChatPanel /></QueryClientProvider>)
+
+    const loadEarlierBtn = await screen.findByTestId('chat-load-earlier-messages')
+    fireEvent.click(loadEarlierBtn)
+
+    await waitFor(() => {
+      expect(vi.mocked(getRecentMessages)).toHaveBeenCalledWith('project-1', 51)
+    })
+
+    // User sends a new message while Load earlier messages is still in flight; startRound runs
+    // and sendLockRef clears after setTimeout(0) (simulating a fast round completion/error).
+    await act(async () => {
+      await lastMessageInputProps().onSend('刚发出的新指令', [])
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    await waitFor(() => {
+      const props = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ content: string }> }
+      expect(props.messages?.map((m) => m.content)).toEqual(['已有最新回复', '刚发出的新指令'])
+    })
+
+    // Stale in-flight Load earlier response finally resolves without the new user message -> MUST be ignored!
+    await act(async () => {
+      resolveOlder([
+        {
+          id: 'older-msg-0',
+          session_id: 'session-boot',
+          role: 'user',
+          content: '更早的旧消息',
+          created_at: '2026-11-26T07:00:00Z',
+        },
+        {
+          id: 'boot-msg-1',
+          session_id: 'session-boot',
+          role: 'assistant',
+          content: '已有最新回复',
+          created_at: '2026-11-26T08:00:00Z',
+        },
+      ])
+      await Promise.resolve()
+    })
+
+    const afterLateProps = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ content: string }> }
+    expect(afterLateProps.messages?.map((m) => m.content)).toEqual(['已有最新回复', '刚发出的新指令'])
+
+    // Subsequent click on Load earlier messages merges older history by prepending while preserving the new user message!
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      {
+        id: 'older-msg-0',
+        session_id: 'session-boot',
+        role: 'user',
+        content: '更早的旧消息',
+        created_at: '2026-11-26T07:00:00Z',
+      },
+      {
+        id: 'boot-msg-1',
+        session_id: 'session-boot',
+        role: 'assistant',
+        content: '已有最新回复',
+        created_at: '2026-11-26T08:00:00Z',
+      },
+    ] as never)
+
+    fireEvent.click(screen.getByTestId('chat-load-earlier-messages'))
+
+    await waitFor(() => {
+      const mergedProps = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ content: string }> }
+      expect(mergedProps.messages?.map((m) => m.content)).toEqual([
+        '更早的旧消息',
+        '已有最新回复',
+        '刚发出的新指令',
+      ])
+    })
+  })
 })

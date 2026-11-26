@@ -1729,6 +1729,42 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const isHistoryLoadBlockedRef = useRef(isHistoryLoadBlocked);
   isHistoryLoadBlockedRef.current = isHistoryLoadBlocked;
 
+function mergeEarlierHistoryMessages(
+  fetchedHistory: Message[],
+  currentMessages: Message[],
+): Message[] {
+  if (currentMessages.length === 0) return fetchedHistory;
+  if (fetchedHistory.length === 0) return currentMessages;
+
+  const currentKeys = new Set<string>();
+  for (const msg of currentMessages) {
+    currentKeys.add(msg.id);
+    if (msg.backendMessageId) {
+      currentKeys.add(msg.backendMessageId);
+    }
+  }
+
+  const firstOverlapIndex = fetchedHistory.findIndex(
+    (msg) =>
+      currentKeys.has(msg.id) ||
+      (msg.backendMessageId ? currentKeys.has(msg.backendMessageId) : false),
+  );
+
+  const earlierCandidates =
+    firstOverlapIndex === -1
+      ? fetchedHistory
+      : fetchedHistory.slice(0, firstOverlapIndex);
+
+  const earlierMessages = earlierCandidates.filter(
+    (msg) =>
+      !currentKeys.has(msg.id) &&
+      !(msg.backendMessageId && currentKeys.has(msg.backendMessageId)),
+  );
+
+  if (earlierMessages.length === 0) return currentMessages;
+  return [...earlierMessages, ...currentMessages];
+}
+
   const handleLoadEarlierMessages = useCallback(async () => {
     const projectId = currentProjectIdRef.current;
     if (
@@ -1767,7 +1803,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         ? olderMessages.slice(olderMessages.length - targetLimit)
         : olderMessages;
       shouldAutoScrollRef.current = false;
-      setMessages(mapBackendHistoryMessages(displayedMessages));
+      const mappedEarlier = mapBackendHistoryMessages(displayedMessages);
+      setMessages((prev) => mergeEarlierHistoryMessages(mappedEarlier, prev));
       historyLimitRef.current = targetLimit;
       setHasMoreHistory(hasMore);
       if (container) {
@@ -2008,6 +2045,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     setTimeout(() => {
       sendLockRef.current = false;
     }, 0);
+
+    // Invalidate any in-flight history / "Load earlier messages" request so it cannot
+    // race with or clobber this newly started round.
+    historyRequestSeqRef.current += 1;
+    setIsLoadingMoreHistory(false);
 
     // Clear AI suggestions when user sends a message (and drop any still in flight)
     suggestionRequestSeqRef.current += 1;

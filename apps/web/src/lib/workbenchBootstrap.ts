@@ -4,7 +4,7 @@ import type { ProjectBootstrapResponse } from "./api";
 import { ApiError } from "./apiClient";
 import { getRecentMessages } from "./chatApi";
 import { logger } from "./logger";
-import { writeWorkbenchSwr } from "./workbenchSwrCache";
+import { readWorkbenchSwr, writeWorkbenchSwr } from "./workbenchSwrCache";
 import type { File } from "../types";
 
 export function isProjectBootstrapAvailable(): boolean {
@@ -17,11 +17,18 @@ export function isProjectBootstrapAvailable(): boolean {
 export const BOOTSTRAP_DEFAULT_CHAT_LIMIT = 15;
 export const BOOTSTRAP_HANDOFF_MAX_AGE_MS = 15_000;
 export const WORKBENCH_FRESH_FILE_EVENT = "zenstory:workbench-fresh-file";
+export const WORKBENCH_BOOTSTRAP_FAILED_EVENT = "zenstory:workbench-bootstrap-failed";
 
 export interface WorkbenchFreshFileDetail {
   userId: string;
   projectId: string;
   file: File;
+}
+
+export interface WorkbenchBootstrapFailedDetail {
+  userId: string;
+  projectId: string;
+  fileId: string;
 }
 
 export interface ProjectBootstrapResult {
@@ -59,6 +66,54 @@ export function isBootstrapEndpointMissingError(error: unknown): boolean {
 export function dispatchWorkbenchFreshFile(detail: WorkbenchFreshFileDetail): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent<WorkbenchFreshFileDetail>(WORKBENCH_FRESH_FILE_EVENT, { detail }));
+}
+
+export function dispatchWorkbenchBootstrapFailed(detail: WorkbenchBootstrapFailedDetail): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<WorkbenchBootstrapFailedDetail>(WORKBENCH_BOOTSTRAP_FAILED_EVENT, { detail }),
+  );
+}
+
+function workbenchSwrSyncRequiredKey(userId: string, projectId: string, fileId: string) {
+  return ["workbench-swr-sync-required", userId, projectId, fileId] as const;
+}
+
+export function markWorkbenchSwrSyncRequired(
+  queryClient: QueryClient | undefined,
+  userId: string | null | undefined,
+  projectId: string | null | undefined,
+  fileId: string | null | undefined,
+): void {
+  if (!queryClient || !userId || !projectId || !fileId) return;
+  queryClient.setQueryData<number>(workbenchSwrSyncRequiredKey(userId, projectId, fileId), Date.now());
+}
+
+export function consumeWorkbenchSwrSyncRequired(
+  queryClient: QueryClient | undefined,
+  userId: string | null | undefined,
+  projectId: string | null | undefined,
+  fileId: string | null | undefined,
+): boolean {
+  if (!queryClient || !userId || !projectId || !fileId) return false;
+  const key = workbenchSwrSyncRequiredKey(userId, projectId, fileId);
+  const markedAt = queryClient.getQueryData<number>(key);
+  if (typeof markedAt !== "number") return false;
+  queryClient.removeQueries({ queryKey: key, exact: true });
+  return true;
+}
+
+export function clearWorkbenchSwrSyncRequired(
+  queryClient: QueryClient | undefined,
+  userId: string | null | undefined,
+  projectId: string | null | undefined,
+  fileId: string | null | undefined,
+): void {
+  if (!queryClient || !userId || !projectId || !fileId) return;
+  queryClient.removeQueries({
+    queryKey: workbenchSwrSyncRequiredKey(userId, projectId, fileId),
+    exact: true,
+  });
 }
 
 export function isValidProjectBootstrapResponse(
@@ -216,16 +271,31 @@ export function startProjectBootstrap(
     }
   }
 
+  clearWorkbenchSwrSyncRequired(queryClient, userId, projectId, fileId);
+
   let entry: BootstrapHandoffEntry | null = null;
   const settledPromise = fetchProjectBootstrapWithFallback(projectId, { fileId, chatLimit })
     .then((result) => {
       if (entry) entry.settled = true;
       // Persist user-scoped SWR cache only when the entry still belongs to the active query key.
       if (!queryClient || !entry || queryClient.getQueryData<BootstrapHandoffEntry>(key) === entry) {
+        const existingSwr = readWorkbenchSwr(userId, projectId);
+        let nextInitialFile = result.data.initial_file;
+        if (
+          existingSwr?.initial_file &&
+          nextInitialFile &&
+          existingSwr.initial_file.id === nextInitialFile.id
+        ) {
+          const existingMs = Date.parse(existingSwr.initial_file.updated_at);
+          const incomingMs = Date.parse(nextInitialFile.updated_at);
+          if (Number.isFinite(existingMs) && Number.isFinite(incomingMs) && existingMs > incomingMs) {
+            nextInitialFile = existingSwr.initial_file;
+          }
+        }
         writeWorkbenchSwr(userId, projectId, {
           project: result.data.project,
           files: result.data.files,
-          initial_file: result.data.initial_file,
+          initial_file: nextInitialFile,
         });
       }
       return result;

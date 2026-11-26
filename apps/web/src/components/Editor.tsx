@@ -67,7 +67,17 @@ import type { DiffReviewState } from "../types";
 import { FILE_REMOVED_EVENT, clearFileRemoved, isFileRemoved, notifyFileRemoved, setUnprotectedDeletedDraft, type FileRemovedDetail } from "../lib/fileRemovalEvents";
 import { clearLastOpenedFile } from "../lib/lastOpenedFile";
 import { consumePreloadedFile, peekPreloadedFile } from "../lib/preloadedFileCache";
-import { WORKBENCH_FRESH_FILE_EVENT, type WorkbenchFreshFileDetail } from "../lib/workbenchBootstrap";
+import {
+  WORKBENCH_BOOTSTRAP_FAILED_EVENT,
+  WORKBENCH_FRESH_FILE_EVENT,
+  consumeWorkbenchSwrSyncRequired,
+  type WorkbenchBootstrapFailedDetail,
+  type WorkbenchFreshFileDetail,
+} from "../lib/workbenchBootstrap";
+import {
+  invalidateWorkbenchSwrInitialFile,
+  updateWorkbenchSwrInitialFile,
+} from "../lib/workbenchSwrCache";
 
 /** Retry delays for re-reading the open file after an external write. */
 const SERVER_SYNC_RETRY_DELAYS_MS = [1000, 3000];
@@ -447,6 +457,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
         currentFile?.id !== selectedItem.id
           ? peekPreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id)
           : null;
+      const usedPreloaded = Boolean(preloaded);
       let data: File;
       if (preloaded) {
         // Yield a microtask before consuming so StrictMode double-mounts do not
@@ -476,9 +487,17 @@ const EditorComponent: React.FC<EditorProps> = () => {
         return;
       }
       clearFileRemoved(currentProjectId, data.id);
+      if (!usedPreloaded) {
+        updateWorkbenchSwrInitialFile(currentUserId, currentProjectId, data);
+      }
       initialLoadSyncSeqRef.current = { fileId: data.id, seq: serverReadSeq };
       currentFileRef.current = data;
       setFile(data);
+      if (usedPreloaded && consumeWorkbenchSwrSyncRequired(queryClient, currentUserId, currentProjectId, data.id)) {
+        // /bootstrap failed transiently before this SWR-painted Editor finished mounting:
+        // trigger an authoritative server sync (or surface serverSyncIssue if still unreachable).
+        void syncOpenFileFromServerRef.current();
+      }
       // New-user funnel: the author opened a file, or the AI finished writing the file the author
       // had open. The server counts it only when the file has an AI-written version, once per
       // account; failures are silent. An open made by the AI's own stream does not count, so the
@@ -650,7 +669,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setEditTitle(nextTitle);
     setEditContent(data.content || "");
     markServerBaseline(data);
-  }, [markServerBaseline]);
+    updateWorkbenchSwrInitialFile(currentUserId, data.project_id, data);
+  }, [currentUserId, markServerBaseline]);
 
   /**
    * Open the comparison for "the author has unsaved text written on an older
@@ -696,7 +716,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setFile(data);
     setEditTitle(nextTitle);
     markServerBaseline(data);
-  }, [markServerBaseline]);
+    updateWorkbenchSwrInitialFile(currentUserId, data.project_id, data);
+  }, [currentUserId, markServerBaseline]);
 
   /**
    * What SimpleEditor keeps locally when the author leaves (or the page
@@ -806,7 +827,10 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setFile(null);
     setLoading(false);
     setServerSyncIssue(null);
-    if (currentUserId) clearLastOpenedFile(currentUserId, currentProjectId);
+    if (currentUserId) {
+      clearLastOpenedFile(currentUserId, currentProjectId);
+      invalidateWorkbenchSwrInitialFile(currentUserId, currentProjectId, fileId);
+    }
     if (review?.fileId === fileId) exitDiffReview();
     setSelectedItem(null);
     toast.info(translateRef.current("editor:deletedFile.message"));
@@ -866,6 +890,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
    *   edits, replayed onto it, are the proposals.
    */
   const applyServerCopyToOpenFile = useCallback((data: File, syncSeq: number, generation: number) => {
+    if (!data) return;
     const fileId = data.id;
     const current = currentFileRef.current;
     if (
@@ -919,13 +944,14 @@ const EditorComponent: React.FC<EditorProps> = () => {
     currentFileRef.current = merged;
     setFile((prev) => (prev?.id === fileId ? merged : prev));
     setEditTitle(nextTitle);
+    updateWorkbenchSwrInitialFile(currentUserId, data.project_id, merged);
     trackEditorDraftRecoveryShown({
       surface: "conflict_review",
       isMobile: openContextRef.current.isMobile,
       reason: "external_edit",
     });
     toast.error(translateRef.current('editor:aiEditedWhileDirty'));
-  }, [adoptServerCopy, keepLocalOnServerCopy, openConflictReview]);
+  }, [adoptServerCopy, currentUserId, keepLocalOnServerCopy, openConflictReview]);
 
   const syncOpenFileFromServer = useCallback(async () => {
     const opened = currentFileRef.current;
@@ -991,9 +1017,29 @@ const EditorComponent: React.FC<EditorProps> = () => {
       const syncSeq = ++serverSyncSeqRef.current;
       applyServerCopyToOpenFile(detail.file, syncSeq, generation);
     };
+    const onBootstrapFailed = (event: Event) => {
+      const detail = (event as CustomEvent<WorkbenchBootstrapFailedDetail>).detail;
+      if (!detail || detail.userId !== currentUserId || detail.projectId !== activeProjectIdRef.current) {
+        return;
+      }
+      const current = currentFileRef.current;
+      if (!current || current.id !== detail.fileId || selectedIdRef.current !== detail.fileId) {
+        return;
+      }
+      consumeWorkbenchSwrSyncRequired(queryClient, currentUserId, detail.projectId, detail.fileId);
+      const loadedAt = initialLoadSyncSeqRef.current;
+      if (!loadedAt || loadedAt.fileId !== current.id || serverSyncSeqRef.current !== loadedAt.seq) {
+        return;
+      }
+      void syncOpenFileFromServerRef.current();
+    };
     window.addEventListener(WORKBENCH_FRESH_FILE_EVENT, onFreshFile);
-    return () => window.removeEventListener(WORKBENCH_FRESH_FILE_EVENT, onFreshFile);
-  }, [applyServerCopyToOpenFile, currentUserId]);
+    window.addEventListener(WORKBENCH_BOOTSTRAP_FAILED_EVENT, onBootstrapFailed);
+    return () => {
+      window.removeEventListener(WORKBENCH_FRESH_FILE_EVENT, onFreshFile);
+      window.removeEventListener(WORKBENCH_BOOTSTRAP_FAILED_EVENT, onBootstrapFailed);
+    };
+  }, [applyServerCopyToOpenFile, currentUserId, queryClient]);
 
   const retryServerSync = useCallback(() => {
     const fileId = currentFileRef.current?.id;
@@ -1161,7 +1207,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
             updated_at:
               typeof currentUpdatedAt === "string" ? currentUpdatedAt : prev.updated_at,
           });
-          if (openedFile?.id === targetFileId) currentFileRef.current = nextFile(openedFile);
+          if (openedFile?.id === targetFileId) {
+            const refreshedServerCopy = nextFile(openedFile);
+            currentFileRef.current = refreshedServerCopy;
+            updateWorkbenchSwrInitialFile(currentUserId, refreshedServerCopy.project_id, refreshedServerCopy);
+          }
           setFile((prev) => (prev?.id === targetFileId ? nextFile(prev) : prev));
           if (currentContent !== localContent) {
             // Only an editor that still shows this file may open the comparison;
@@ -1214,15 +1264,32 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
     // Update local state（同步 updated_at，作为下一次保存的并发令牌）
     const currentTargetFile = currentFileRef.current;
-    if (currentTargetFile?.id === targetFileId) {
+    const savedSnapshot: File | null = currentTargetFile?.id === targetFileId
+      ? {
+          ...currentTargetFile,
+          title: submission.title,
+          content: submission.content,
+          updated_at: updated?.updated_at ?? currentTargetFile.updated_at,
+        }
+      : updated && typeof updated.id === "string"
+        ? {
+            ...updated,
+            title: submission.title,
+            content: submission.content,
+          }
+        : null;
+    if (currentTargetFile?.id === targetFileId && savedSnapshot) {
       // Advance sync sequence so any slower in-flight /bootstrap snapshot is fenced out.
       serverSyncSeqRef.current += 1;
-      currentFileRef.current = {
-        ...currentTargetFile,
-        title: submission.title,
-        content: submission.content,
-        updated_at: updated?.updated_at ?? currentTargetFile.updated_at,
-      };
+      currentFileRef.current = savedSnapshot;
+    }
+    const savedProjectId = updated?.project_id ?? savedSnapshot?.project_id ?? currentProjectId;
+    if (currentUserId && savedProjectId) {
+      if (savedSnapshot) {
+        updateWorkbenchSwrInitialFile(currentUserId, savedProjectId, savedSnapshot);
+      } else {
+        invalidateWorkbenchSwrInitialFile(currentUserId, savedProjectId, targetFileId);
+      }
     }
     setFile((prev) => {
       if (prev?.id !== targetFileId) return prev;
@@ -1403,10 +1470,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
         ...(titleChanged ? { title: reviewedTitle } : {}),
         updated_at: updated?.updated_at ?? base.updated_at,
       };
+      serverSyncSeqRef.current += 1;
       currentFileRef.current = saved;
       setFile(saved);
       setEditContent(content);
       markServerBaseline(saved);
+      updateWorkbenchSwrInitialFile(currentUserId, projectId, saved);
       if (titleChanged && selectedItem?.id === fileId) {
         setSelectedItem({ ...selectedItem, title: reviewedTitle });
       }

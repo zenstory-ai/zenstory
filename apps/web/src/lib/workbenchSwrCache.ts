@@ -188,6 +188,86 @@ export function writeWorkbenchSwr(
   }
 }
 
+export function removeWorkbenchSwr(
+  userId: string | null | undefined,
+  projectId: string | null | undefined,
+): void {
+  if (!userId || !projectId) return;
+  const storage = getSessionStorage();
+  if (!storage) return;
+  try {
+    storage.removeItem(getWorkbenchSwrKey(userId, projectId));
+  } catch {
+    // Ignore storage access errors.
+  }
+}
+
+function updateTreeNodeTitleIterative(nodes: FileTreeNode[], fileId: string, title: string): FileTreeNode[] {
+  let changed = false;
+  const cloneNode = (node: FileTreeNode): FileTreeNode => ({
+    ...node,
+    children: node.children ? [...node.children] : [],
+  });
+  const rootCopy = nodes.map(cloneNode);
+  const stack: FileTreeNode[] = [...rootCopy];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (node.id === fileId && node.title !== title) {
+      node.title = title;
+      changed = true;
+    }
+    if (node.children && node.children.length > 0) {
+      node.children = node.children.map(cloneNode);
+      for (const child of node.children) {
+        stack.push(child);
+      }
+    }
+  }
+  return changed ? rootCopy : nodes;
+}
+
+export function updateWorkbenchSwrInitialFile(
+  userId: string | null | undefined,
+  projectId: string | null | undefined,
+  file: File | null,
+): void {
+  if (!userId || !projectId) return;
+  const existing = readWorkbenchSwr(userId, projectId);
+  if (!existing) return;
+
+  const validFile = file && isValidInitialFile(file, projectId) ? file : null;
+  const nextFiles = validFile
+    ? updateTreeNodeTitleIterative(existing.files, validFile.id, validFile.title)
+    : existing.files;
+
+  const wrote = writeWorkbenchSwr(
+    userId,
+    projectId,
+    {
+      project: existing.project,
+      files: nextFiles,
+      initial_file: validFile,
+    },
+    existing.cachedAt,
+  );
+  if (!wrote) {
+    // Never leave stale pre-save content behind if the updated entry cannot be stored.
+    removeWorkbenchSwr(userId, projectId);
+  }
+}
+
+export function invalidateWorkbenchSwrInitialFile(
+  userId: string | null | undefined,
+  projectId: string | null | undefined,
+  fileId?: string,
+): void {
+  if (!userId || !projectId) return;
+  const existing = readWorkbenchSwr(userId, projectId);
+  if (!existing || !existing.initial_file) return;
+  if (fileId && existing.initial_file.id !== fileId) return;
+  updateWorkbenchSwrInitialFile(userId, projectId, null);
+}
+
 export function clearWorkbenchSwrCache(): void {
   const storage = getSessionStorage();
   if (!storage) return;

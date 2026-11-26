@@ -1372,9 +1372,9 @@ def _delete_recursive(session: Session, file: File) -> list[File]:
 
 # ==================== File Tree ====================
 
-def _serialize_file_tree_json(root_items: list[dict[str, Any]]) -> str:
-    """Encode the existing tree shape without recursing through children."""
-    chunks = ['{"tree":[']
+def serialize_file_tree_array_json(root_items: list[dict[str, Any]]) -> str:
+    """Encode a list of file-tree nodes as a JSON array without recursing through children."""
+    chunks = ["["]
     stack: list[tuple[Iterator[dict[str, Any]], bool]] = [(iter(root_items), False)]
     while stack:
         siblings, has_previous = stack[-1]
@@ -1382,7 +1382,7 @@ def _serialize_file_tree_json(root_items: list[dict[str, Any]]) -> str:
             node = next(siblings)
         except StopIteration:
             stack.pop()
-            chunks.append("]}")
+            chunks.append("]" if not stack else "]}")
             continue
         if has_previous:
             chunks.append(",")
@@ -1394,6 +1394,11 @@ def _serialize_file_tree_json(root_items: list[dict[str, Any]]) -> str:
         chunks.append(',"children":[')
         stack.append((iter(node["children"]), False))
     return "".join(chunks)
+
+
+def _serialize_file_tree_json(root_items: list[dict[str, Any]]) -> str:
+    """Encode the existing tree shape without recursing through children."""
+    return f'{{"tree":{serialize_file_tree_array_json(root_items)}}}'
 
 
 def build_project_file_tree(
