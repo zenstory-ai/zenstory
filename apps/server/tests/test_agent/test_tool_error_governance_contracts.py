@@ -41,8 +41,8 @@ from agent.tools.file_ops.edit import (
 )
 from agent.tools.file_ops.project import ProjectOperations
 from agent.tools.tool_inputs import EditFileInput, validate_tool_input
-from agent.tools.tool_schemas import QUERY_FILES_TOOL
-from models import File, Project, PublicSkill, SkillResource, User
+from agent.tools.tool_schemas import EDIT_FILE_TOOL, QUERY_FILES_TOOL
+from models import File, Project, PublicSkill, SkillResource, User, UserSkill
 from services.features.activation_event_service import activation_event_service
 from services.features.file_version_service import FileVersionService
 
@@ -320,6 +320,78 @@ def test_edit_file_input_defaults_continue_on_error_true_for_multi_edit_batches(
     assert err is None and single_omitted is not None
     assert single_omitted.continue_on_error is False
 
+    # Coupled delete + insert/append/prepend batches stay atomic by default!
+    for insert_op in ("insert_after", "insert_before", "append", "prepend"):
+        coupled, err = validate_tool_input(
+            EditFileInput,
+            {
+                "id": "f-1",
+                "edits": [
+                    {"op": "delete", "old": "旧段落。"},
+                    {"op": insert_op, "anchor": "锚点。", "text": "旧段落。"},
+                ],
+            },
+            tool_name="edit_file",
+        )
+        assert err is None and coupled is not None
+        assert coupled.continue_on_error is False
+
+    # Explicit continue_on_error=True on coupled batch is still honored.
+    coupled_explicit_true, err = validate_tool_input(
+        EditFileInput,
+        {
+            "id": "f-1",
+            "continue_on_error": True,
+            "edits": [
+                {"op": "delete", "old": "旧段落。"},
+                {"op": "insert_after", "anchor": "锚点。", "text": "旧段落。"},
+            ],
+        },
+        tool_name="edit_file",
+    )
+    assert err is None and coupled_explicit_true is not None
+    assert coupled_explicit_true.continue_on_error is True
+
+    # JSON Schema omits conflicting static "default": false.
+    continue_schema = EDIT_FILE_TOOL["input_schema"]["properties"]["continue_on_error"]
+    assert continue_schema["type"] == "boolean"
+    assert "default" not in continue_schema
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_mcp_edit_file_coupled_delete_insert_rolls_back_atomically_by_default(db_session, owner_project):
+    user, project = owner_project
+    original = "　　第一段需要移动。\n\n　　第二段保持不动。"
+    chapter = _add_file(db_session, project, content=original)
+    req_ctx = AgentRequestContext(
+        session=db_session,
+        user_id=user.id,
+        project_id=project.id,
+        session_id="s-coupled-move",
+        read_snapshots={chapter.id: chapter.content},
+    )
+    try:
+        resp = _payload(
+            await mcp_tools.edit_file(
+                {
+                    "id": chapter.id,
+                    "edits": [
+                        {"op": "delete", "old": "　　第一段需要移动。\n\n"},
+                        {"op": "insert_after", "anchor": "完全不存在的目标锚点。", "text": "第一段需要移动。"},
+                    ],
+                },
+                request_context=req_ctx,
+            )
+        )
+    finally:
+        req_ctx.clear()
+
+    assert resp["status"] == "error"
+    assert resp["mutation_applied"] is False
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).content == original
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -454,6 +526,128 @@ def test_exact_only_unread_file_allows_deterministic_whitespace_newline_quote_ma
         )
     assert exc_merge.value.failed_edits[0]["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
 
+    # 5) Unread file normalized match preserves original \n\n paragraph separator when new uses \n!
+    sep_chapter = _add_file(db_session, project, title="空行保真", content="　　第一段。\n\n　　第二段。")
+    sep_ok = editor.edit_file(
+        sep_chapter.id,
+        [{"op": "replace", "old": "第一段。\n第二段。", "new": "第一段改。\n第二段改。"}],
+        exact_only=True,
+    )
+    assert sep_ok["edits_applied"] == 1
+    assert sep_ok["details"][0]["match_mode"] == "normalized_exact"
+    db_session.expire_all()
+    assert db_session.get(File, sep_chapter.id).content == "　　第一段改。\n\n　　第二段改。"
+
+
+@pytest.mark.unit
+def test_normalized_exact_preserves_boundary_newlines_and_inline_whitespace():
+    editor = FileEditor(session=None)
+
+    # Boundary newlines + indentation must be included in matched span (no orphaned indent or extra blank line).
+    applied: list[dict] = []
+    out = editor._apply_replace(
+        "上段。\n　　第一段。\n下段。",
+        {"op": "replace", "old": "\n  第一段。\n", "new": "\n  第一段改。\n"},
+        0,
+        applied,
+        [],
+    )
+    assert applied[0]["match_mode"] == "normalized_exact"
+    assert out == "上段。\n　　第一段改。\n下段。"
+
+    # Leading inline whitespace must consume existing tabs/spaces before the token.
+    applied_lead: list[dict] = []
+    out_lead = editor._apply_replace(
+        "Hello\t\tworld",
+        {"op": "replace", "old": "  world", "new": ", world"},
+        0,
+        applied_lead,
+        [],
+    )
+    assert applied_lead[0]["match_mode"] == "normalized_exact"
+    assert out_lead == "Hello, world"
+
+    # Trailing inline whitespace must consume existing tabs/spaces after the token.
+    applied_trail: list[dict] = []
+    out_trail = editor._apply_replace(
+        "Hello\t\tworld",
+        {"op": "replace", "old": "Hello  ", "new": "Hi "},
+        0,
+        applied_trail,
+        [],
+    )
+    assert applied_trail[0]["match_mode"] == "normalized_exact"
+    assert out_trail == "Hi world"
+
+
+@pytest.mark.unit
+def test_normalized_exact_symmetry_across_ops_and_range_read_occurrence():
+    editor = FileEditor(session=None)
+    content = "　　第1章。\n\n　　重复段。\n\n　　重复段。\n\n　　尾声。"
+    # Seen span only covers the beginning; unseen region still allows normalized_exact
+    # with occurrence=2 across replace, insert_after, and delete (no stricter than unread!).
+    seen_spans = [(0, 6)]
+
+    applied_rep: list[dict] = []
+    out_rep = editor._apply_replace(
+        content,
+        {"op": "replace", "old": "  重复段。", "new": "  第二处改。", "occurrence": 2},
+        0,
+        applied_rep,
+        [],
+        allowed_fuzzy_spans=seen_spans,
+    )
+    assert applied_rep[0]["match_mode"] == "normalized_exact"
+    assert applied_rep[0]["occurrence"] == 2
+    assert out_rep == "　　第1章。\n\n　　重复段。\n\n　　第二处改。\n\n　　尾声。"
+
+    applied_ins: list[dict] = []
+    out_ins = editor._apply_insert(
+        content,
+        {"op": "insert_after", "anchor": "重复段。\n尾声。", "text": "追加。", "occurrence": 1},
+        0,
+        applied_ins,
+        [],
+        after=True,
+        allowed_fuzzy_spans=seen_spans,
+    )
+    assert applied_ins[0]["match_mode"] == "normalized_exact"
+    assert out_ins.endswith("尾声。追加。")
+
+    applied_del: list[dict] = []
+    out_del = editor._apply_delete(
+        content,
+        {"op": "delete", "old": "  重复段。", "occurrence": 2},
+        0,
+        applied_del,
+        [],
+        allowed_fuzzy_spans=seen_spans,
+    )
+    assert applied_del[0]["match_mode"] == "normalized_exact"
+    assert out_del.count("重复段。") == 1
+
+
+@pytest.mark.unit
+def test_normalized_exact_replace_all_sets_truncated_warning_when_cap_hit(monkeypatch):
+    import agent.tools.file_ops.edit as edit_module
+
+    monkeypatch.setattr(edit_module, "REPLACE_ALL_MAX_FUZZY_MATCHES", 3)
+    editor = FileEditor(session=None)
+    content = "\n\n".join(["　　甲。\n\n　　乙。"] * 5)
+    applied: list[dict] = []
+    warnings: list[str] = []
+    editor._apply_replace(
+        content,
+        {"op": "replace", "old": "甲。\n乙。", "new": "丙。\n丁。", "replace_all": True},
+        0,
+        applied,
+        warnings,
+    )
+    assert applied[0]["match_mode"] == "normalized_exact"
+    assert applied[0]["count"] == 3
+    assert applied[0]["truncated"] is True
+    assert any("上限" in w for w in warnings)
+
 
 @pytest.mark.unit
 def test_keep_line_breaks_allows_single_vs_double_newline_even_for_short_anchors():
@@ -515,6 +709,19 @@ def test_apply_delete_uses_approximate_match_fallback_and_respects_paragraph_gua
         )
     assert exc.value.error_type == EDIT_ERROR_ANCHOR_NOT_FOUND
     assert "段落分隔" in str(exc.value) or "换行" in str(exc.value)
+
+    # Wrong subject / window-shrinking delete must NEVER leave orphaned fragments like "　　林舟\n\n"!
+    short_content = "　　林舟翻到腰酸，直起身靠着书架站了一会儿。\n\n　　楼下的街灯亮了起来。"
+    with pytest.raises(EditFileError) as exc_orphan:
+        editor._apply_delete(
+            short_content,
+            {"op": "delete", "old": "陈明翻到腰酸，直起身靠着书架站了一会儿。"},
+            0,
+            [],
+            [],
+        )
+    assert exc_orphan.value.error_type == EDIT_ERROR_ANCHOR_NOT_FOUND
+    assert "句子中间" in str(exc_orphan.value)
 
 
 @pytest.mark.asyncio
@@ -646,6 +853,29 @@ async def test_create_file_source_text_long_paste_98_percent_snap_saves_exact_au
     assert bad_skip["status"] == "error"
     assert bad_skip["error_type"] == "source_text_not_in_author_message"
 
+    # Embedded U+2028 / U+2029 inside a line must NOT break line alignment in long-paste snap!
+    u2028_lines = list(lines)
+    u2028_lines[12] = u2028_lines[12].replace("，", "\u2028")
+    u2028_paste = "\n".join(u2028_lines)
+    u2028_llm_copy = list(u2028_lines)
+    u2028_llm_copy[25] = u2028_llm_copy[25].replace("铜牌", "铜\ufffd")
+    u2028_ctx = AgentRequestContext(
+        session=MagicMock(),
+        user_id="u-1",
+        project_id="p-1",
+        session_id="s-1",
+        author_message=f"原样存下：\n\n{u2028_paste}",
+    )
+    with patch.object(u2028_ctx, "executor", return_value=executor):
+        u2028_ok = _payload(
+            await mcp_tools.create_file(
+                {"title": "含行分隔符设定", "file_type": "lore", "source_text": "\n".join(u2028_llm_copy)},
+                request_context=u2028_ctx,
+            )
+        )
+    assert u2028_ok["status"] == "success"
+    assert executor.create_file.call_args.kwargs["content"] == u2028_paste
+
 
 # ===========================================================================
 # Item 4: read_skill_resource during ui_action="natural_polish"
@@ -705,7 +935,38 @@ async def test_read_skill_resource_resolves_official_deai_skill_during_natural_p
     assert res_en["status"] == "success"
     assert res_en["data"]["content"] == "治理电报体与套词。"
 
-    # Ordinary turn (ui_action=None): unadded official skill remains unavailable!
+    # Active custom UserSkill with the same name must NOT shadow official "去AI味" during natural_polish!
+    custom_shadow = UserSkill(
+        user_id=user.id,
+        name=OFFICIAL_NATURAL_POLISH_SKILL_NAME,
+        description="用户自定义同名技能",
+        instructions="自定义说明",
+        is_active=True,
+    )
+    db_session.add(custom_shadow)
+    db_session.commit()
+    db_session.refresh(custom_shadow)
+    db_session.add(
+        SkillResource(
+            user_skill_id=custom_shadow.id,
+            path="references/表达.md",
+            content="自定义版本（不应覆盖官方）。",
+            size=13,
+        )
+    )
+    db_session.commit()
+
+    res_not_shadowed = _payload(
+        await mcp_tools.read_skill_resource(
+            {"name": "去AI味", "path": "references/表达.md"},
+            request_context=polish_ctx,
+        )
+    )
+    assert res_not_shadowed["status"] == "success"
+    assert res_not_shadowed["data"]["skill_id"] == official.id
+    assert res_not_shadowed["data"]["content"] == "治理电报体与套词。"
+
+    # Ordinary turn (ui_action=None): resolves user's own active custom skill, not unadded official!
     normal_ctx = AgentRequestContext(
         session=db_session,
         user_id=user.id,
@@ -713,6 +974,19 @@ async def test_read_skill_resource_resolves_official_deai_skill_during_natural_p
         session_id="s-normal",
         ui_action=None,
     )
+    normal_res = _payload(
+        await mcp_tools.read_skill_resource(
+            {"name": "去AI味", "path": "references/表达.md"},
+            request_context=normal_ctx,
+        )
+    )
+    assert normal_res["status"] == "success"
+    assert normal_res["data"]["skill_id"] == custom_shadow.id
+
+    # Without custom skill on ordinary turn, unadded official skill remains unavailable!
+    custom_shadow.is_active = False
+    db_session.add(custom_shadow)
+    db_session.commit()
     denied = _payload(
         await mcp_tools.read_skill_resource(
             {"name": "去AI味", "path": "references/表达.md"},

@@ -482,9 +482,11 @@ class EditFileInput(_ToolInputModel):
     )
     continue_on_error: CoercedBool = Field(
         default=False,
+        json_schema_extra=lambda schema: schema.pop("default", None),
         description=(
-            "多处独立修改（edits>1）默认按 continue_on_error=true 执行（跳过失败项，其余照常生效，failed_edits 列出待补项；"
-            "超过 30 处或后项依赖前项时拆分）；单条默认 false，显式传 false 时任一处失败整体回滚，整批都仍待修改。"
+            "多处独立修改（edits>1，且不含 delete+insert/append/prepend 耦合搬移）默认按 continue_on_error=true 执行"
+            "（跳过失败项，其余照常生效，failed_edits 列出待补项；超过 30 处或后项依赖前项时拆分）；"
+            "单条或含 delete 与 insert/append/prepend 耦合搬移时默认 false，显式传 false 时任一处失败整体回滚，整批都仍待修改。"
         ),
     )
 
@@ -505,7 +507,15 @@ class EditFileInput(_ToolInputModel):
             and isinstance(normalized.get("edits"), list)
             and len(normalized["edits"]) > 1
         ):
-            normalized["continue_on_error"] = True
+            ops = {
+                str(item.get("op") or "").strip().lower()
+                for item in normalized["edits"]
+                if isinstance(item, Mapping)
+            }
+            has_coupled_move = "delete" in ops and bool(
+                ops & {"insert_after", "insert_before", "append", "prepend"}
+            )
+            normalized["continue_on_error"] = not has_coupled_move
         return normalized
 
     @field_validator("id", mode="before")

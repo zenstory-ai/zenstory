@@ -662,6 +662,7 @@ SOURCE_TEXT_EXISTING_MISMATCH_ERROR_TYPE = "source_text_existing_mismatch"
 
 
 _LINE_BREAK_RE = re.compile(r"\r\n|\r|\n")
+_AUTHOR_LINE_ITER_RE = re.compile(r"[^\r\n]*(?:\r\n|\r|\n|$)")
 _CANONICAL_LINE_SEP = r"[ \t]*(?:\r\n|\r|\n)(?:[ \t]*(?:\r\n|\r|\n))*"
 _SOURCE_SNAP_MIN_CHARS = 500
 _SOURCE_SNAP_MIN_LINE_MATCH_RATIO = 0.98
@@ -718,15 +719,19 @@ def _match_long_paste_verbatim_snap(author_message: str, source_text: str) -> st
     if len(cand_lines) < 2:
         return None
 
-    # Extract non-blank lines from author_message with exact character offsets.
+    # Extract non-blank lines from author_message with exact character offsets,
+    # splitting strictly on \r\n / \r / \n (matching _LINE_BREAK_RE; str.splitlines
+    # would also split on \u2028/\u2029/\x0b and break line alignment).
     author_lines: list[tuple[int, int, str]] = []
-    offset = 0
-    for raw_line in author_message.splitlines(keepends=True):
+    for match in _AUTHOR_LINE_ITER_RE.finditer(author_message):
+        raw_line = match.group(0)
+        if not raw_line:
+            continue
         body = raw_line.rstrip("\r\n")
         if body.strip(" \t"):
             trimmed = body.rstrip(" \t")
-            author_lines.append((offset, offset + len(trimmed), trimmed))
-        offset += len(raw_line)
+            start = match.start()
+            author_lines.append((start, start + len(trimmed), trimmed))
     if len(author_lines) < len(cand_lines):
         return None
 
@@ -776,8 +781,9 @@ def _request_author_messages(req_ctx: AgentRequestContext) -> list[str]:
     messages: list[str] = []
     if isinstance(req_ctx.author_message, str):
         messages.append(req_ctx.author_message)
-    if isinstance(req_ctx.author_steering, (list, tuple)):
-        for msg in req_ctx.author_steering:
+    steering = req_ctx.author_steering
+    if isinstance(steering, (list, tuple)):
+        for msg in list(steering):
             if isinstance(msg, str):
                 messages.append(msg)
     return messages
@@ -2490,6 +2496,7 @@ def _resolve_skill_for_tool(
         skill_name_key,
         suggest_skill_names,
     )
+    from config.official_skill_translations import OFFICIAL_SKILL_EN
 
     user_id = req_ctx.user_id if req_ctx is not None else None
     if not user_id:
@@ -2497,11 +2504,12 @@ def _resolve_skill_for_tool(
     if not name:
         return None, [], _make_error("name is required", tool_name=tool_name)
 
-    skills = load_active_skills(session, user_id)
-    skill = find_active_skill(skills, name)
+    # During ui_action="natural_polish", ui_actions.py injects the official "去AI味"
+    # instructions directly. Resolve references against that official skill FIRST so a
+    # user's custom skill named "去AI味" cannot shadow its reference files, while still
+    # allowing explicit lookup of any other skill by name or ID below.
     if (
-        skill is None
-        and tool_name == "read_skill_resource"
+        tool_name == "read_skill_resource"
         and req_ctx is not None
         and req_ctx.ui_action == UI_ACTION_NATURAL_POLISH
     ):
@@ -2514,11 +2522,17 @@ def _resolve_skill_for_tool(
                 instructions=official.instructions or "",
                 source="added",
             )
+            official_en_entry = OFFICIAL_SKILL_EN.get(OFFICIAL_NATURAL_POLISH_SKILL_NAME)
+            official_en_name = official_en_entry[0] if official_en_entry else None
             if find_active_skill([official_active], name) is not None or (
                 official.name == OFFICIAL_NATURAL_POLISH_SKILL_NAME
-                and skill_name_key(name) == skill_name_key("Remove AI Tone")
+                and official_en_name is not None
+                and skill_name_key(name) == skill_name_key(official_en_name)
             ):
                 return official_active, [], None
+
+    skills = load_active_skills(session, user_id)
+    skill = find_active_skill(skills, name)
     if skill is None:
         available = suggest_skill_names(skills, name)
         hint = f"可用技能：{'、'.join(available)}" if available else "当前用户没有启用中的技能"
