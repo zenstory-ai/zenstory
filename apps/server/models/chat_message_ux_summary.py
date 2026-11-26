@@ -15,12 +15,13 @@ import weakref
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Column, ForeignKey, Index, String, event
+from sqlalchemy import Column, Index, String, event
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Field, SQLModel
 
+from .chat_message_archive import ChatMessageArchive
 from .entities import ChatMessage
 
 _UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter"})
@@ -246,7 +247,6 @@ class ChatMessageUxSummary(SQLModel, table=True):
     message_id: str = Field(
         sa_column=Column(
             String,
-            ForeignKey("chat_message.id", ondelete="CASCADE"),
             primary_key=True,
         ),
     )
@@ -284,7 +284,7 @@ def has_chat_message_ux_summary_table(connection: Any) -> bool:
     return exists
 
 
-def _upsert_summary_on_connection(connection: Any, target: ChatMessage) -> None:
+def _upsert_summary_on_connection(connection: Any, target: ChatMessage | ChatMessageArchive) -> None:
     if not target.id or not target.session_id or target.created_at is None:
         return
     if not has_chat_message_ux_summary_table(connection):
@@ -324,7 +324,12 @@ def _sync_ux_summary_after_insert(_mapper: Any, connection: Any, target: ChatMes
 
 
 @event.listens_for(ChatMessage, "after_update")
-def _sync_ux_summary_after_update(_mapper: Any, connection: Any, target: ChatMessage) -> None:
+@event.listens_for(ChatMessageArchive, "after_update")
+def _sync_ux_summary_after_update(
+    _mapper: Any,
+    connection: Any,
+    target: ChatMessage | ChatMessageArchive,
+) -> None:
     state = sa_inspect(target)
     # Partial load_only updates (e.g. historical query_files archival) intentionally leave
     # unrelated columns unloaded and never change UX card counts or round metadata.

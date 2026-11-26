@@ -14,7 +14,8 @@ from typing import Any
 from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc
-from models import ChatMessage, ChatSession
+from models import ChatMessage, ChatMessageArchive, ChatSession
+from models.chat_message_archive import has_chat_message_archive_table
 from services.infra.redis_client import delete_agent_wire_prefix_cache
 from utils.file_write_lock import acquire_file_write_lock
 from utils.logger import get_logger, log_with_context
@@ -74,8 +75,10 @@ def _verify_assistant_message(
     user_id: str,
     project_id: str,
     message_id: str,
-) -> ChatMessage | None:
-    message = session.get(ChatMessage, message_id)
+) -> ChatMessage | ChatMessageArchive | None:
+    message: ChatMessage | ChatMessageArchive | None = session.get(ChatMessage, message_id)
+    if message is None and has_chat_message_archive_table(session.connection()):
+        message = session.get(ChatMessageArchive, message_id)
     if message is None or message.role != "assistant" or not message.tool_calls:
         return None
     chat = session.get(ChatSession, message.session_id)
@@ -151,18 +154,28 @@ def _mutate_locked_card(
     from database import is_postgres
 
     try:
-        if _verify_assistant_message(
+        verified = _verify_assistant_message(
             session, user_id=user_id, project_id=project_id, message_id=message_id
-        ) is None:
+        )
+        if verified is None:
             return False
         lock_ctx = contextlib.nullcontext() if is_postgres else acquire_file_write_lock(message_id)
         with lock_ctx:
-            locked = session.exec(
-                select(ChatMessage)
-                .where(ChatMessage.id == message_id)
-                .with_for_update()
-                .execution_options(populate_existing=True)
-            ).first()
+            locked: ChatMessage | ChatMessageArchive | None = None
+            if isinstance(verified, ChatMessage):
+                locked = session.exec(
+                    select(ChatMessage)
+                    .where(ChatMessage.id == message_id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                ).first()
+            if locked is None and has_chat_message_archive_table(session.connection()):
+                locked = session.exec(
+                    select(ChatMessageArchive)
+                    .where(ChatMessageArchive.id == message_id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                ).first()
             if locked is None or not locked.tool_calls:
                 session.rollback()
                 return False
