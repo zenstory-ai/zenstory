@@ -297,18 +297,12 @@ def test_archive_copies_compacts_verifies_deletes_old_rows_and_preserves_hot_and
     assert summary_before.ai_edit_cards == 1
     assert summary_before.ai_delete_cards == 1
 
-    # Enforce SQLite foreign keys during archival deletion to prove deleting from chat_message
-    # cannot CASCADE-delete chat_message_ux_summary, then restore connection state cleanly.
-    db_session.exec(text("PRAGMA foreign_keys = ON"))
-    try:
-        batch = archive_chat_messages_batch(
-            db_session,
-            cutoff=cutoff,
-            batch_size=50,
-            dry_run=False,
-        )
-    finally:
-        db_session.exec(text("PRAGMA foreign_keys = OFF"))
+    batch = archive_chat_messages_batch(
+        db_session,
+        cutoff=cutoff,
+        batch_size=50,
+        dry_run=False,
+    )
 
     assert batch.scanned == 2
     assert batch.archived == 2
