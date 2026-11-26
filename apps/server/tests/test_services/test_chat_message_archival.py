@@ -391,8 +391,8 @@ def test_archive_idempotent_rerun_and_partial_verification_failure_never_deletes
     assert db_session.get(ChatMessage, m2.id) is not None
 
     # 2) Pre-insert m1 into archive (simulating an interrupted prior run where copy
-    #    committed before delete) -> idempotent re-run must skip conflict, verify both,
-    #    and delete both hot rows cleanly.
+    #    committed before delete) -> idempotent re-run must upsert via ON CONFLICT DO UPDATE,
+    #    verify both, and delete both hot rows cleanly.
     db_session.add(
         ChatMessageArchive(
             id=m1.id,
@@ -407,7 +407,7 @@ def test_archive_idempotent_rerun_and_partial_verification_failure_never_deletes
 
     ok_batch = archive_chat_messages_batch(db_session, cutoff=cutoff, batch_size=10, dry_run=False)
     assert ok_batch.scanned == 2
-    assert ok_batch.archived == 1  # only m2 was newly inserted; m1 hit ON CONFLICT DO NOTHING
+    assert ok_batch.archived == 2  # m1 upserted via ON CONFLICT DO UPDATE; m2 inserted
     assert ok_batch.deleted == 2
     db_session.expire_all()
     assert db_session.get(ChatMessage, m1.id) is None
@@ -1731,10 +1731,10 @@ def test_migration_postgres_lock_timeout_and_partial_feedback_index() -> None:
 
 
 @pytest.mark.integration
-def test_archive_warns_on_conflict_skip_and_vacuum_analyzes_archive_table(
+def test_archive_warns_and_preserves_hot_edits_on_conflict_and_vacuum_analyzes_archive_table(
     db_session: Session,
 ) -> None:
-    """P2 hygiene: warn when ON CONFLICT DO NOTHING skips rows, and ANALYZE chat_message_archive."""
+    """M4 + P2 hygiene: ON CONFLICT DO UPDATE preserves newer hot edits (feedback/undo), warns, and ANALYZE archive."""
     from unittest.mock import MagicMock
 
     from services.chat_message_archival import _run_postgres_vacuum_analyze
@@ -1743,11 +1743,31 @@ def test_archive_warns_on_conflict_skip_and_vacuum_analyzes_archive_table(
     cutoff = datetime(2026, 11, 19, 0, 0, 0)
     old_ts = cutoff - timedelta(days=3)
 
+    newer_meta = json.dumps(
+        {
+            "stop_reason": "end_turn",
+            "feedback": {"vote": "down", "preset": "off_topic", "comment": "热表新反馈"},
+        },
+        ensure_ascii=False,
+    )
+    newer_tools = json.dumps(
+        [
+            {
+                "id": "call-edit-m4",
+                "name": "edit_file",
+                "status": "success",
+                "result": {"id": "f-m4", "undo": {"before_version_number": 1, "undone": True}},
+            }
+        ],
+        ensure_ascii=False,
+    )
     msg = ChatMessage(
         id=f"dup-warn-{uuid4().hex[:6]}",
         session_id=chat.id,
-        role="user",
+        role="assistant",
         content="热表新内容",
+        tool_calls=newer_tools,
+        message_metadata=newer_meta,
         created_at=old_ts,
     )
     db_session.add(msg)
@@ -1755,8 +1775,20 @@ def test_archive_warns_on_conflict_skip_and_vacuum_analyzes_archive_table(
         ChatMessageArchive(
             id=msg.id,
             session_id=chat.id,
-            role="user",
+            role="assistant",
             content="冷表旧内容",
+            tool_calls=json.dumps(
+                [
+                    {
+                        "id": "call-edit-m4",
+                        "name": "edit_file",
+                        "status": "success",
+                        "result": {"id": "f-m4", "undo": {"before_version_number": 1, "undone": False}},
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            message_metadata=json.dumps({"stop_reason": "end_turn"}, ensure_ascii=False),
             created_at=old_ts,
             archived_at=cutoff,
         )
@@ -1767,12 +1799,21 @@ def test_archive_warns_on_conflict_skip_and_vacuum_analyzes_archive_table(
         batch = archive_chat_messages_batch(db_session, cutoff=cutoff, batch_size=10, dry_run=False)
 
     assert batch.scanned == 1
-    assert batch.archived == 0
+    assert batch.archived == 1
     assert batch.deleted == 1
     assert any(
-        call.args[1] == 30 and "ON CONFLICT DO NOTHING" in call.args[2]
+        call.args[1] == 30 and "ON CONFLICT DO UPDATE" in call.args[2]
         for call in mock_log.call_args_list
     )
+
+    # Newer hot content, feedback, and undo state MUST overwrite the stale archive row.
+    db_session.expire_all()
+    assert db_session.get(ChatMessage, msg.id) is None
+    archived = db_session.get(ChatMessageArchive, msg.id)
+    assert archived is not None
+    assert archived.content == "热表新内容"
+    assert json.loads(archived.message_metadata or "{}")["feedback"]["comment"] == "热表新反馈"
+    assert json.loads(archived.tool_calls or "[]")[0]["result"]["undo"]["undone"] is True
 
     # Verify PostgreSQL --vacuum-analyze executes BOTH VACUUM ANALYZE chat_message and ANALYZE chat_message_archive.
     executed_sql: list[str] = []
@@ -1791,3 +1832,687 @@ def test_archive_warns_on_conflict_skip_and_vacuum_analyzes_archive_table(
         "VACUUM ANALYZE chat_message",
         "ANALYZE chat_message_archive",
     ]
+
+
+# ---------------------------------------------------------------------------
+# 6. PR #488 Review Follow-up Regressions (H1, M1, M2, M3, L2, Codecov)
+# ---------------------------------------------------------------------------
+
+
+def _capture_archive_selects(db_session: Session):
+    """Context manager recording all SELECT statements touching chat_message_archive."""
+    import contextlib
+
+    from sqlalchemy import event
+
+    @contextlib.contextmanager
+    def _ctx():
+        archive_selects: list[str] = []
+
+        def _listener(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+            normalized = " ".join(statement.strip().lower().split())
+            if normalized.startswith("select ") and "from chat_message_archive" in normalized:
+                archive_selects.append(normalized)
+
+        engine = db_session.get_bind()
+        event.listen(engine, "before_cursor_execute", _listener)
+        try:
+            yield archive_selects
+        finally:
+            event.remove(engine, "before_cursor_execute", _listener)
+
+    return _ctx()
+
+
+def _is_full_row_cold_scan(sql: str) -> bool:
+    """True when a SELECT against chat_message_archive fetches heap/TOAST payload columns."""
+    return any(
+        col_name in sql
+        for col_name in (
+            "chat_message_archive.content",
+            "chat_message_archive.tool_calls",
+            "chat_message_archive.message_metadata",
+            "chat_message_archive.reasoning_content",
+        )
+    )
+
+
+@pytest.mark.integration
+def test_h1_load_loop_history_lazy_cold_watermark_runs_zero_full_cold_scans(
+    db_session: Session,
+) -> None:
+    """H1: hot-only and hot-compacted multi-week sessions execute ZERO full-row cold scans."""
+    # 1) Hot-only session: 0 full-row cold scans.
+    user, project, hot_chat = _seed_user_project_session(db_session)
+    base = datetime(2026, 11, 25, 10, 0, 0)
+    db_session.add_all(
+        [
+            ChatMessage(id="h1-hot-u1", session_id=hot_chat.id, role="user", content="热问题", created_at=base),
+            ChatMessage(
+                id="h1-hot-a1",
+                session_id=hot_chat.id,
+                role="assistant",
+                content="热回答",
+                message_metadata=json.dumps(
+                    {
+                        "engine": LOOP_ENGINE_METADATA_VALUE,
+                        "prompt_tokens": 500,
+                        "display_events": [{"type": "content", "content": "热回答"}],
+                    },
+                    ensure_ascii=False,
+                ),
+                created_at=base + timedelta(minutes=1),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    with _capture_archive_selects(db_session) as hot_only_sql:
+        hot_history = load_loop_history(
+            db_session,
+            project_id=project.id,
+            user_id=user.id,
+            chat_session_id=hot_chat.id,
+        )
+    assert [item["content"] for item in hot_history.items] == ["热问题", "热回答"]
+    assert [s for s in hot_only_sql if _is_full_row_cold_scan(s)] == []
+
+    # 2) Active multi-week session with cold rows AND a hot compaction anchor strictly newer
+    #    than the cold watermark: 0 full-row cold scans!
+    user2, proj2, multi_chat = _seed_user_project_session(db_session)
+    old_t = datetime(2026, 11, 1, 8, 0, 0)
+    hot_t = datetime(2026, 11, 25, 12, 0, 0)
+    db_session.add_all(
+        [
+            ChatMessageArchive(
+                id="h1-mw-c1",
+                session_id=multi_chat.id,
+                role="user",
+                content="三周前的冷问题",
+                created_at=old_t,
+                archived_at=old_t + timedelta(days=8),
+            ),
+            ChatMessageArchive(
+                id="h1-mw-c2",
+                session_id=multi_chat.id,
+                role="assistant",
+                content="三周前的冷回答",
+                created_at=old_t + timedelta(minutes=1),
+                archived_at=old_t + timedelta(days=8),
+            ),
+            ChatMessage(
+                id="h1-mw-h1",
+                session_id=multi_chat.id,
+                role="user",
+                content="昨天的问题",
+                created_at=hot_t,
+            ),
+            ChatMessage(
+                id="h1-mw-h2",
+                session_id=multi_chat.id,
+                role="assistant",
+                content="今天的压缩后回复",
+                message_metadata=json.dumps(
+                    {
+                        "engine": LOOP_ENGINE_METADATA_VALUE,
+                        "prompt_tokens": 900,
+                        "compaction": {
+                            "summary": "热表压缩摘要",
+                            "covers_through_message_id": "h1-mw-h1",
+                            "kept_author_messages": ["昨天的问题"],
+                        },
+                        "display_events": [{"type": "content", "content": "今天的压缩后回复"}],
+                    },
+                    ensure_ascii=False,
+                ),
+                created_at=hot_t + timedelta(minutes=1),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    with _capture_archive_selects(db_session) as compacted_sql:
+        compacted_history = load_loop_history(
+            db_session,
+            project_id=proj2.id,
+            user_id=user2.id,
+            chat_session_id=multi_chat.id,
+        )
+    assert compacted_history.compacted is True
+    assert compacted_history.last_message_id == "h1-mw-h2"
+    assert compacted_history.items[-1]["content"] == "今天的压缩后回复"
+    # Index-only watermark checked once; ZERO full-row cold scans!
+    assert len(compacted_sql) == 1
+    assert [s for s in compacted_sql if _is_full_row_cold_scan(s)] == []
+
+
+@pytest.mark.integration
+def test_m1_session_loader_written_files_and_read_snapshots_lazy_cold_fallback(
+    db_session: Session,
+) -> None:
+    """M1: SessionLoader.session_written_file_ids and session_read_snapshots lazily read archived sessions."""
+    from agent.core.session_loader import SessionLoader
+    from models.file_version import FileVersion
+
+    user, project, chat = _seed_user_project_session(db_session)
+    old_ts = datetime(2026, 11, 10, 9, 0, 0)
+    cutoff = datetime(2026, 11, 19, 0, 0, 0)
+
+    edited_content = "归档后依旧未改动的正文"
+    streamed_content = "流式创建的正文内容"
+    f_edit = File(
+        id=f"m1-edit-{uuid4().hex[:6]}",
+        project_id=project.id,
+        title="第一章",
+        file_type="draft",
+        content=edited_content,
+        updated_at=old_ts,
+    )
+    f_stream = File(
+        id=f"m1-stream-{uuid4().hex[:6]}",
+        project_id=project.id,
+        title="第二章",
+        file_type="draft",
+        content=streamed_content,
+        updated_at=old_ts + timedelta(seconds=30),
+    )
+    db_session.add_all([f_edit, f_stream])
+    db_session.flush()
+    db_session.add(
+        FileVersion(
+            file_id=f_stream.id,
+            project_id=project.id,
+            version_number=1,
+            content=streamed_content,
+            change_summary="AI 创建章节",
+            change_source="ai",
+        )
+    )
+
+    old_asst = ChatMessage(
+        id=f"m1-asst-{uuid4().hex[:6]}",
+        session_id=chat.id,
+        role="assistant",
+        content="已写完两章。",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "call-m1-edit",
+                    "name": "edit_file",
+                    "arguments": {"id": f_edit.id},
+                    "status": "success",
+                    "result": {
+                        "id": f_edit.id,
+                        "mutation_applied": True,
+                        "undo": {
+                            "before_version_number": 1,
+                            "expected_after_updated_at": old_ts.isoformat(),
+                            "expected_after_content_sha256": content_sha256(edited_content),
+                            "undone": False,
+                        },
+                    },
+                },
+                {
+                    "id": "call-m1-create",
+                    "name": "write_chapter",
+                    "arguments": {"chapter": 2, "title": "第二章"},
+                    "status": "success",
+                    "result": {
+                        "id": f_stream.id,
+                        "action": "created",
+                        "awaiting_body": True,
+                        "body_saved": True,
+                    },
+                },
+            ],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps(
+            {"engine": LOOP_ENGINE_METADATA_VALUE, "stop_reason": "end_turn"},
+            ensure_ascii=False,
+        ),
+        created_at=old_ts + timedelta(minutes=1),
+    )
+    db_session.add(old_asst)
+    db_session.commit()
+
+    # Archive the entire session (>7d).
+    res = archive_chat_messages_batch(db_session, cutoff=cutoff, batch_size=50, dry_run=False)
+    assert res.deleted == 1
+
+    loader = SessionLoader(project_id=project.id, user_id=user.id)
+
+    # 1) session_written_file_ids finds both archived files.
+    written_ids = loader.session_written_file_ids(
+        db_session,
+        chat_session_id=chat.id,
+        limit=10,
+        file_types=("draft",),
+    )
+    assert set(written_ids) == {f_edit.id, f_stream.id}
+
+    # 2) session_read_snapshots recovers both undo_write and streamed_create snapshots from archive.
+    snapshots = loader.session_read_snapshots(
+        db_session,
+        chat_session_id=chat.id,
+        limit=10,
+    )
+    assert snapshots == {
+        f_edit.id: edited_content,
+        f_stream.id: streamed_content,
+    }
+
+    # 3) Add a hot message with a compaction anchor & hot write: lazy watermark avoids full-row cold scans!
+    f_hot = File(
+        id=f"m1-hot-{uuid4().hex[:6]}",
+        project_id=project.id,
+        title="第三章",
+        file_type="draft",
+        content="热表新章节",
+        updated_at=cutoff + timedelta(hours=1),
+    )
+    db_session.add(f_hot)
+    db_session.add(
+        ChatMessage(
+            id=f"m1-hot-asst-{uuid4().hex[:6]}",
+            session_id=chat.id,
+            role="assistant",
+            content="热表已写第三章",
+            tool_calls=json.dumps(
+                [
+                    {
+                        "id": "call-m1-hot",
+                        "name": "edit_file",
+                        "arguments": {"id": f_hot.id},
+                        "status": "success",
+                        "result": {
+                            "id": f_hot.id,
+                            "mutation_applied": True,
+                            "undo": {
+                                "before_version_number": 1,
+                                "expected_after_updated_at": (cutoff + timedelta(hours=1)).isoformat(),
+                                "expected_after_content_sha256": content_sha256("热表新章节"),
+                                "undone": False,
+                            },
+                        },
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            message_metadata=json.dumps(
+                {
+                    "engine": LOOP_ENGINE_METADATA_VALUE,
+                    "compaction": {
+                        "summary": "压缩点",
+                        "covers_through_message_id": old_asst.id,
+                        "kept_author_messages": [],
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            created_at=cutoff + timedelta(hours=2),
+        )
+    )
+    db_session.commit()
+
+    with _capture_archive_selects(db_session) as written_sql:
+        top1_written = loader.session_written_file_ids(
+            db_session,
+            chat_session_id=chat.id,
+            limit=1,
+            file_types=("draft",),
+        )
+    assert top1_written == [f_hot.id]
+    assert [s for s in written_sql if _is_full_row_cold_scan(s)] == []
+
+    with _capture_archive_selects(db_session) as snap_sql:
+        hot_compacted_snaps = loader.session_read_snapshots(
+            db_session,
+            chat_session_id=chat.id,
+            limit=10,
+        )
+    assert hot_compacted_snaps == {f_hot.id: "热表新章节"}
+    assert [s for s in snap_sql if _is_full_row_cold_scan(s)] == []
+
+
+@pytest.mark.integration
+def test_m2_suggest_service_recent_chat_history_lazy_cold_fallback(
+    db_session: Session,
+) -> None:
+    """M2: SuggestService._get_recent_chat_history falls back lazily to chat_message_archive."""
+    from agent.suggest_service import CHAT_HISTORY_LIMIT, SuggestService
+
+    user, project, chat = _seed_user_project_session(db_session)
+    old_ts = datetime(2026, 11, 5, 9, 0, 0)
+    cutoff = datetime(2026, 11, 19, 0, 0, 0)
+
+    db_session.add_all(
+        [
+            ChatMessage(
+                id="m2-old-1",
+                session_id=chat.id,
+                role="user",
+                content="十天前我想写玄幻大纲",
+                created_at=old_ts,
+            ),
+            ChatMessage(
+                id="m2-old-2",
+                session_id=chat.id,
+                role="assistant",
+                content="好的，这是玄幻三幕大纲。",
+                created_at=old_ts + timedelta(minutes=1),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    res = archive_chat_messages_batch(db_session, cutoff=cutoff, batch_size=50, dry_run=False)
+    assert res.deleted == 2
+
+    svc = SuggestService()
+    archived_history = svc._get_recent_chat_history(db_session, project.id, user.id)
+    assert archived_history == [
+        {"role": "user", "content": "十天前我想写玄幻大纲"},
+        {"role": "assistant", "content": "好的，这是玄幻三幕大纲。"},
+    ]
+
+    # Add CHAT_HISTORY_LIMIT hot rows strictly newer than cold -> ZERO full-row cold scans!
+    for idx in range(CHAT_HISTORY_LIMIT):
+        db_session.add(
+            ChatMessage(
+                id=f"m2-hot-{idx}",
+                session_id=chat.id,
+                role="user" if idx % 2 == 0 else "assistant",
+                content=f"热对话-{idx}",
+                created_at=cutoff + timedelta(hours=1, minutes=idx),
+            )
+        )
+    db_session.commit()
+
+    with _capture_archive_selects(db_session) as suggest_sql:
+        hot_history = svc._get_recent_chat_history(db_session, project.id, user.id)
+    assert [m["content"] for m in hot_history] == [f"热对话-{i}" for i in range(CHAT_HISTORY_LIMIT)]
+    assert [s for s in suggest_sql if _is_full_row_cold_scan(s)] == []
+
+
+@pytest.mark.integration
+def test_m3_load_active_session_recent_messages_interleaved_hot_cold_never_hides_newer_cold(
+    db_session: Session,
+) -> None:
+    """M3: Older skipped hot rows cannot hide newer cold rows in /recent, and strictly-newer hot skips full cold scans."""
+    from api.chat import load_active_session_recent_messages
+
+    user, project, chat = _seed_user_project_session(db_session)
+    t0 = datetime(2026, 11, 10, 12, 0, 0)
+    archived_at = datetime(2026, 11, 20, 0, 0, 0)
+
+    # Simulate SKIP LOCKED leaving 3 older hot rows (t0, t1, t2) while newer cold rows (t3, t4)
+    # were archived, plus 1 fresh hot row (t5).
+    db_session.add_all(
+        [
+            ChatMessage(id="m3-h-old-0", session_id=chat.id, role="user", content="h0", created_at=t0),
+            ChatMessage(id="m3-h-old-1", session_id=chat.id, role="assistant", content="h1", created_at=t0 + timedelta(minutes=1)),
+            ChatMessage(id="m3-h-old-2", session_id=chat.id, role="user", content="h2", created_at=t0 + timedelta(minutes=2)),
+            ChatMessageArchive(
+                id="m3-c-new-3",
+                session_id=chat.id,
+                role="assistant",
+                content="c3",
+                created_at=t0 + timedelta(minutes=3),
+                archived_at=archived_at,
+            ),
+            ChatMessageArchive(
+                id="m3-c-new-4",
+                session_id=chat.id,
+                role="user",
+                content="c4",
+                created_at=t0 + timedelta(minutes=4),
+                archived_at=archived_at,
+            ),
+            ChatMessage(id="m3-h-new-5", session_id=chat.id, role="assistant", content="h5", created_at=t0 + timedelta(minutes=5)),
+        ]
+    )
+    db_session.commit()
+
+    # Case 1: len(hot) == 4 == limit + 1 (limit=3), yet c3 & c4 are NEWER than h0..h2!
+    _, msgs_3, has_more_3 = load_active_session_recent_messages(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        limit=3,
+    )
+    assert [m.id for m in msgs_3] == ["m3-c-new-3", "m3-c-new-4", "m3-h-new-5"]
+    assert has_more_3 is True
+
+    # Case 2: len(hot) == 3 == limit (delete h0 so hot=[h5, h2, h1]), still interleaved with c3, c4!
+    db_session.exec(text("DELETE FROM chat_message WHERE id = 'm3-h-old-0'"))
+    db_session.commit()
+    _, msgs_3b, has_more_3b = load_active_session_recent_messages(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        limit=3,
+    )
+    assert [m.id for m in msgs_3b] == ["m3-c-new-3", "m3-c-new-4", "m3-h-new-5"]
+    assert has_more_3b is True
+
+    # Case 3: Strictly newer hot rows (limit=2, hot has 3 rows > all cold) -> ZERO full-row cold scans!
+    db_session.exec(text("DELETE FROM chat_message WHERE id IN ('m3-h-old-1', 'm3-h-old-2')"))
+    db_session.add_all(
+        [
+            ChatMessage(id="m3-h-new-6", session_id=chat.id, role="user", content="h6", created_at=t0 + timedelta(minutes=6)),
+            ChatMessage(id="m3-h-new-7", session_id=chat.id, role="assistant", content="h7", created_at=t0 + timedelta(minutes=7)),
+        ]
+    )
+    db_session.commit()
+
+    with _capture_archive_selects(db_session) as recent_sql:
+        _, msgs_2, has_more_2 = load_active_session_recent_messages(
+            db_session,
+            project_id=project.id,
+            user_id=user.id,
+            limit=2,
+        )
+    assert [m.id for m in msgs_2] == ["m3-h-new-6", "m3-h-new-7"]
+    assert has_more_2 is True
+    assert [s for s in recent_sql if _is_full_row_cold_scan(s)] == []
+
+
+@pytest.mark.unit
+def test_l2_cli_guards_older_than_days_and_formatting_helpers() -> None:
+    """L2: CLI rejects --older-than-days 0 and validates positive/non-negative flags."""
+    from scripts.archive_old_chat_messages import _format_batch_line, _format_summary_line
+    from services.chat_message_archival import ArchiveBatchResult
+
+    parser = build_parser()
+    for bad_args in (
+        ["--older-than-days", "0"],
+        ["--older-than-days", "-1"],
+        ["--batch-size", "0"],
+        ["--max-batches", "0"],
+        ["--sleep-ms", "-1"],
+    ):
+        with pytest.raises(SystemExit):
+            parser.parse_args(bad_args)
+
+    batch_res = ArchiveBatchResult(
+        scanned=5,
+        archived=5,
+        deleted=5,
+        bytes_before=2000,
+        bytes_after=800,
+        has_more=False,
+    )
+    assert batch_res.bytes_saved == 1200
+    report = GradualArchivalReport(
+        dry_run=False,
+        batches_run=1,
+        total_scanned=5,
+        total_archived=5,
+        total_deleted=5,
+        total_bytes_before=2000,
+        total_bytes_after=800,
+        oldest_remaining_at=datetime(2026, 11, 20, 0, 0, 0),
+    )
+    batch_line = _format_batch_line(1, batch_res, report)
+    summary_line = _format_summary_line(report)
+    assert "bytes_saved=1200" in batch_line
+    assert "oldest_remaining_at=2026-11-20T00:00:00" in summary_line
+
+
+@pytest.mark.unit
+def test_archival_service_and_archive_model_edge_branches(db_session: Session) -> None:
+    """Cover validation guards, tz-aware cutoff, malformed JSON, empty helpers, generic/PG dialect paths, and callbacks."""
+    from datetime import UTC
+    from unittest.mock import MagicMock
+
+    from models.chat_message_archive import has_chat_message_archive_table
+    from services.chat_message_archival import (
+        ArchiveBatchResult,
+        _assert_ux_summary_fk_removed,
+        _compact_json_utf8,
+        _delete_hot_rows,
+        _ensure_assistant_ux_summaries,
+        _insert_ux_summary_rows_idempotent,
+        _resolve_cutoff_naive,
+        _run_postgres_vacuum_analyze,
+        _upsert_archive_rows,
+    )
+
+    # has_chat_message_archive_table defensive branches
+    assert has_chat_message_archive_table(None) is False
+    assert has_chat_message_archive_table(object()) is False
+    no_dialect_conn = MagicMock(dialect=None, engine=None)
+    assert has_chat_message_archive_table(no_dialect_conn) is False
+
+    # _compact_json_utf8 malformed JSON passthrough & _resolve_cutoff_naive branches
+    assert _compact_json_utf8("{invalid-json") == "{invalid-json"
+    tz_cutoff = datetime(2026, 11, 19, 8, 0, 0, tzinfo=UTC)
+    assert _resolve_cutoff_naive(older_than_days=7, cutoff=tz_cutoff) == datetime(2026, 11, 19, 8, 0, 0)
+    resolved_default = _resolve_cutoff_naive(older_than_days=7, cutoff=None)
+    assert resolved_default.tzinfo is None
+
+    # Empty input no-op guards
+    assert _upsert_archive_rows(db_session, []) == (0, 0)
+    assert _insert_ux_summary_rows_idempotent(db_session, []) == 0
+
+    # Validation errors on archive_chat_messages_batch & run_gradual_archival
+    with pytest.raises(ValueError, match="older_than_days"):
+        archive_chat_messages_batch(db_session, older_than_days=-1)
+    with pytest.raises(ValueError, match="batch_size"):
+        archive_chat_messages_batch(db_session, batch_size=0)
+    with patch("services.chat_message_archival.has_chat_message_archive_table", return_value=False):
+        with pytest.raises(RuntimeError, match="chat_message_archive"):
+            archive_chat_messages_batch(db_session)
+
+    with pytest.raises(ValueError, match="older_than_days"):
+        run_gradual_archival(db_session, older_than_days=-1)
+    with pytest.raises(ValueError, match="batch_size"):
+        run_gradual_archival(db_session, batch_size=0)
+    with pytest.raises(ValueError, match="max_batches"):
+        run_gradual_archival(db_session, max_batches=0)
+    with pytest.raises(ValueError, match="sleep_ms"):
+        run_gradual_archival(db_session, sleep_ms=-1)
+
+    # _assert_ux_summary_fk_removed / _ensure_assistant_ux_summaries when summary table is absent
+    fake_insp = MagicMock()
+    fake_insp.has_table.return_value = False
+    with patch("services.chat_message_archival.sa_inspect", return_value=fake_insp):
+        _assert_ux_summary_fk_removed(MagicMock())
+    with patch("services.chat_message_archival.has_chat_message_ux_summary_table", return_value=False):
+        assert _ensure_assistant_ux_summaries(db_session, []) == (True, 0, 0)
+
+    # _run_postgres_vacuum_analyze returns False on non-PG (SQLite)
+    assert _run_postgres_vacuum_analyze(db_session) is False
+
+    # _delete_hot_rows fallback when driver returns rowcount=None
+    fake_del_sess = MagicMock(spec=Session)
+    fake_del_sess.exec.return_value.rowcount = None
+    assert _delete_hot_rows(fake_del_sess, ["id-1", "id-2"]) == 2
+
+    # Generic (non-PG, non-SQLite) and PG dialect branches in _upsert_archive_rows & _insert_ux_summary_rows_idempotent
+    sample_archive_row = {
+        "id": "m-dialect-1",
+        "session_id": "s-1",
+        "role": "assistant",
+        "content": "hi",
+        "tool_calls": None,
+        "tool_call_id": None,
+        "reasoning_content": None,
+        "message_metadata": None,
+        "created_at": datetime(2026, 11, 1, 0, 0, 0),
+        "archived_at": datetime(2026, 11, 20, 0, 0, 0),
+    }
+    sample_summary_row = {
+        "message_id": "m-dialect-1",
+        "session_id": "s-1",
+        "created_at": datetime(2026, 11, 1, 0, 0, 0),
+        "round_category": "healthy",
+        "abnormal_reason": None,
+        "feedback_vote": None,
+        "feedback_preset": None,
+        "ai_edit_cards": 0,
+        "ai_edit_undone": 0,
+        "ai_delete_cards": 0,
+        "ai_delete_restored": 0,
+    }
+
+    # PostgreSQL dialect branch (rowcount=1 and rowcount=-1 fallback)
+    pg_sess = MagicMock(spec=Session)
+    pg_sess.get_bind.return_value.dialect.name = "postgresql"
+    pg_sess.exec.return_value.rowcount = 1
+    with patch("services.chat_message_archival._verify_archived_ids", return_value=set()):
+        assert _upsert_archive_rows(pg_sess, [sample_archive_row]) == (1, 0)
+    pg_sess.exec.return_value.rowcount = -1
+    with patch("services.chat_message_archival._verify_archived_ids", return_value={"m-dialect-1"}):
+        assert _upsert_archive_rows(pg_sess, [sample_archive_row]) == (1, 1)
+    pg_sess.exec.return_value.rowcount = 1
+    assert _insert_ux_summary_rows_idempotent(pg_sess, [sample_summary_row]) == 1
+
+    # Generic fallback dialect branch (update existing + insert missing)
+    gen_sess = MagicMock(spec=Session)
+    gen_sess.get_bind.return_value.dialect.name = "mysql"
+    row_new = {**sample_archive_row, "id": "m-dialect-2"}
+    with patch("services.chat_message_archival._verify_archived_ids", return_value={"m-dialect-1"}):
+        assert _upsert_archive_rows(gen_sess, [sample_archive_row, row_new]) == (2, 1)
+    gen_sess.exec.return_value.all.return_value = ["m-dialect-1"]
+    row_sum_new = {**sample_summary_row, "message_id": "m-dialect-2"}
+    assert _insert_ux_summary_rows_idempotent(gen_sess, [sample_summary_row, row_sum_new]) == 1
+
+    # PG FOR UPDATE SKIP LOCKED branch in archive_chat_messages_batch
+    pg_live_sess = MagicMock(spec=Session)
+    pg_live_sess.get_bind.return_value.dialect.name = "postgresql"
+    pg_live_sess.exec.return_value.all.return_value = []
+    pg_live_sess.exec.return_value.one.return_value = None
+    with (
+        patch("services.chat_message_archival.has_chat_message_archive_table", return_value=True),
+        patch("services.chat_message_archival._assert_ux_summary_fk_removed"),
+    ):
+        pg_empty = archive_chat_messages_batch(pg_live_sess, cutoff=datetime(2026, 11, 19), dry_run=False)
+    assert pg_empty.scanned == 0
+
+    # run_gradual_archival progress_callback, inter-batch sleep_ms > 0, and vacuum_analyze=True
+    progress_calls: list[int] = []
+    batch_seq = [
+        ArchiveBatchResult(scanned=2, archived=2, deleted=2, has_more=True),
+        ArchiveBatchResult(scanned=1, archived=1, deleted=1, has_more=False),
+    ]
+    with (
+        patch("services.chat_message_archival.archive_chat_messages_batch", side_effect=batch_seq),
+        patch("services.chat_message_archival.time.sleep") as mock_sleep,
+        patch("services.chat_message_archival._run_postgres_vacuum_analyze", return_value=True) as mock_vac,
+    ):
+        rep = run_gradual_archival(
+            db_session,
+            batch_size=2,
+            max_batches=5,
+            sleep_ms=25,
+            dry_run=False,
+            vacuum_analyze=True,
+            progress_callback=lambda b, _r, _rep: progress_calls.append(b),
+        )
+    assert progress_calls == [1, 2]
+    mock_sleep.assert_called_once_with(0.025)
+    mock_vac.assert_called_once()
+    assert rep.vacuum_analyzed is True
+    assert rep.total_deleted == 3

@@ -3,8 +3,9 @@
 Design invariants:
 1. Copy-and-verify-before-delete: a hot row is NEVER deleted until its exact ``id`` is
    verified present in ``chat_message_archive``.
-2. Idempotent: inserts use ``ON CONFLICT (id) DO NOTHING`` so interrupted or retried
-   batches never fail or duplicate rows.
+2. Authoritative upsert: inserts use ``ON CONFLICT (id) DO UPDATE`` so interrupted or
+   retried batches are idempotent AND newer hot edits (e.g. feedback or tool-card undo)
+   on dual-resident rows can never be silently dropped by a stale cold row.
 3. Compacted cold payload: before writing to ``chat_message_archive``, ``tool_calls``
    runs through ``archive_historical_tool_calls_json`` + compact UTF-8 JSON serialization,
    ``message_metadata`` is re-serialized as compact UTF-8 JSON, and duplicate
@@ -168,49 +169,85 @@ def _row_payload_bytes(
     )
 
 
-def _insert_archive_rows_idempotent(
+_ARCHIVE_UPSERT_COLUMNS: tuple[str, ...] = (
+    "session_id",
+    "role",
+    "content",
+    "tool_calls",
+    "tool_call_id",
+    "reasoning_content",
+    "message_metadata",
+    "created_at",
+    "archived_at",
+)
+
+
+def _upsert_archive_rows(
     session: Session,
     archive_rows: list[dict[str, Any]],
-) -> int:
-    """Insert compacted rows into ``chat_message_archive`` with ``ON CONFLICT (id) DO NOTHING``."""
+) -> tuple[int, int]:
+    """Upsert compacted hot rows into ``chat_message_archive`` via ``ON CONFLICT (id) DO UPDATE``.
+
+    Hot rows are always authoritative when an ``id`` pre-exists in ``chat_message_archive``,
+    preventing newer hot edits (e.g. feedback or undo) from being silently discarded.
+
+    Returns ``(written_count, overwritten_count)``.
+    """
     if not archive_rows:
-        return 0
+        return 0, 0
     dialect = _dialect_name(session)
-    inserted_total = 0
+    existing_ids = _verify_archived_ids(session, [row["id"] for row in archive_rows])
+    overwritten_count = len(existing_ids)
+    written_total = 0
 
     for idx in range(0, len(archive_rows), _INSERT_CHUNK_SIZE):
         chunk = archive_rows[idx : idx + _INSERT_CHUNK_SIZE]
         if dialect == "postgresql":
-            stmt = (
-                pg_insert(_ARCHIVE_TABLE)
-                .values(chunk)
-                .on_conflict_do_nothing(index_elements=["id"])
+            base_stmt = pg_insert(_ARCHIVE_TABLE).values(chunk)
+            stmt = base_stmt.on_conflict_do_update(
+                index_elements=["id"],
+                set_={
+                    col_name: getattr(base_stmt.excluded, col_name)
+                    for col_name in _ARCHIVE_UPSERT_COLUMNS
+                },
             )
             res = session.exec(stmt)  # type: ignore[arg-type]
             if res.rowcount is not None and res.rowcount >= 0:
-                inserted_total += int(res.rowcount)
+                written_total += int(res.rowcount)
+            else:
+                written_total += len(chunk)
         elif dialect == "sqlite":
-            stmt = (
-                sqlite_insert(_ARCHIVE_TABLE)
-                .values(chunk)
-                .on_conflict_do_nothing(index_elements=["id"])
+            base_stmt = sqlite_insert(_ARCHIVE_TABLE).values(chunk)
+            stmt = base_stmt.on_conflict_do_update(
+                index_elements=["id"],
+                set_={
+                    col_name: getattr(base_stmt.excluded, col_name)
+                    for col_name in _ARCHIVE_UPSERT_COLUMNS
+                },
             )
             res = session.exec(stmt)  # type: ignore[arg-type]
             if res.rowcount is not None and res.rowcount >= 0:
-                inserted_total += int(res.rowcount)
+                written_total += int(res.rowcount)
+            else:
+                written_total += len(chunk)
         else:
-            chunk_ids = [row["id"] for row in chunk]
-            existing = set(
-                session.exec(
-                    select(ChatMessageArchive.id).where(col(ChatMessageArchive.id).in_(chunk_ids))
-                ).all()
-            )
-            missing = [row for row in chunk if row["id"] not in existing]
+            missing: list[dict[str, Any]] = []
+            for row in chunk:
+                if row["id"] in existing_ids:
+                    update_values = {col_name: row[col_name] for col_name in _ARCHIVE_UPSERT_COLUMNS}
+                    session.exec(
+                        _ARCHIVE_TABLE.update()
+                        .where(_ARCHIVE_TABLE.c.id == row["id"])
+                        .values(**update_values)  # type: ignore[arg-type]
+                    )
+                    written_total += 1
+                else:
+                    missing.append(row)
             if missing:
                 session.exec(_ARCHIVE_TABLE.insert().values(missing))  # type: ignore[arg-type]
-                inserted_total += len(missing)
+                written_total += len(missing)
 
-    return inserted_total
+    return written_total, overwritten_count
 
 
 def _verify_archived_ids(session: Session, message_ids: list[str]) -> set[str]:
@@ -404,8 +441,9 @@ def archive_chat_messages_batch(
     """Archive one oldest batch of ``chat_message`` rows older than the retention cutoff.
 
     In ``dry_run=True`` mode, makes zero database writes and reports estimated compaction
-    byte counts. In live mode, copies with ``ON CONFLICT (id) DO NOTHING``, verifies every
-    batch ID exists in ``chat_message_archive``, and ONLY then deletes from ``chat_message``.
+    byte counts. In live mode, upserts with ``ON CONFLICT (id) DO UPDATE`` so authoritative
+    hot edits never get silently dropped, verifies every batch ID exists in
+    ``chat_message_archive``, and ONLY then deletes from ``chat_message``.
     """
     if older_than_days < 0:
         raise ValueError("older_than_days must be >= 0")
@@ -519,16 +557,16 @@ def archive_chat_messages_batch(
             last_cursor=last_cursor,
         )
 
-    # Phase 1: Idempotent copy into cold table.
-    inserted = _insert_archive_rows_idempotent(session, archive_payloads)
-    if inserted < len(batch):
+    # Phase 1: Authoritative upsert into cold table (overwriting any stale dual-resident row).
+    written, overwritten = _upsert_archive_rows(session, archive_payloads)
+    if overwritten > 0:
         log_with_context(
             logger,
             30,  # WARNING
-            "Archive insert skipped existing row(s) via ON CONFLICT DO NOTHING",
+            "Archive upsert overwrote pre-existing cold row(s) via ON CONFLICT DO UPDATE",
             scanned=len(batch),
-            inserted=inserted,
-            skipped=len(batch) - inserted,
+            written=written,
+            overwritten=overwritten,
         )
 
     # Phase 2a: Verify EVERY batch id exists in chat_message_archive before deleting anything.
@@ -609,7 +647,7 @@ def archive_chat_messages_batch(
 
     return ArchiveBatchResult(
         scanned=len(batch),
-        archived=inserted,
+        archived=written,
         deleted=deleted,
         bytes_before=bytes_before,
         bytes_after=bytes_after,

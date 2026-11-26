@@ -6,7 +6,7 @@ Gradual, copy-verify-delete archival CLI for moving >7d ``chat_message`` rows to
 Safety invariants:
 - Processes small short-transaction batches (default 500) with inter-batch throttling.
 - Copies compacted UTF-8 JSON rows into ``chat_message_archive`` with
-  ``ON CONFLICT (id) DO NOTHING``, verifies every ID exists in the archive table,
+  ``ON CONFLICT (id) DO UPDATE``, verifies every ID exists in the archive table,
   and ONLY then deletes those rows from hot ``chat_message``.
 - Never runs ``VACUUM FULL``; optional ``--vacuum-analyze`` (off by default) runs
   non-blocking ``VACUUM ANALYZE chat_message`` on PostgreSQL only.
@@ -65,9 +65,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--older-than-days",
-        type=_non_negative_int,
+        type=_positive_int,
         default=DEFAULT_OLDER_THAN_DAYS,
-        help=f"archive rows strictly older than this many days (default: {DEFAULT_OLDER_THAN_DAYS})",
+        help=f"archive rows strictly older than this many days (>= 1, default: {DEFAULT_OLDER_THAN_DAYS})",
     )
     parser.add_argument(
         "--batch-size",

@@ -687,6 +687,29 @@ def _fetch_message_page_desc(
     )
 
 
+def _fetch_cold_watermark(
+    session: Session,
+    *,
+    chat_session_id: str,
+) -> tuple[Any, Any] | None:
+    """Index-only probe on ``(session_id, created_at, id)`` for the newest archived row.
+
+    Omits the ``role`` filter so PostgreSQL can satisfy this with a 1-row Index Only Scan
+    on ``ix_chat_message_archive_session_created_at_id`` without heap or TOAST fetches.
+    """
+    from models import ChatMessageArchive
+
+    row = session.exec(
+        select(ChatMessageArchive.created_at, ChatMessageArchive.id)
+        .where(ChatMessageArchive.session_id == chat_session_id)
+        .order_by(desc(ChatMessageArchive.created_at), desc(ChatMessageArchive.id))
+        .limit(1)
+    ).first()
+    if row is None:
+        return None
+    return (row[0], row[1])
+
+
 def _iter_session_messages_desc(
     session: Session,
     *,
@@ -696,8 +719,13 @@ def _iter_session_messages_desc(
 
     Performs a lazy 2-way descending merge across hot ``ChatMessage`` and cold
     ``ChatMessageArchive`` (when present), deduplicating by ``id`` (preferring hot).
-    This guarantees chronological accuracy even if hot and cold rows are temporarily
-    interleaved (e.g. a hot row skipped by ``FOR UPDATE SKIP LOCKED`` during archival).
+
+    Cold full-row queries are deferred behind a 1-row index-only watermark check on
+    ``(session_id, created_at, id)``: hot-only sessions and active multi-week sessions
+    that stop at a hot compaction anchor strictly newer than the cold watermark never
+    execute ``SELECT * FROM chat_message_archive`` (zero cold TOAST detoasting), while
+    chronological order remains exact even if ``FOR UPDATE SKIP LOCKED`` transiently
+    leaves hot and cold rows interleaved.
     """
     from models import ChatMessage, ChatMessageArchive
     from models.chat_message_archive import has_chat_message_archive_table
@@ -711,6 +739,9 @@ def _iter_session_messages_desc(
     cold_idx = 0
     cold_cursor: tuple[Any, Any] | None = None
     cold_exhausted = not has_chat_message_archive_table(session)
+    cold_watermark: tuple[Any, Any] | None = None
+    cold_watermark_checked = False
+    cold_active = False
 
     seen_ids: set[str] = set()
 
@@ -727,6 +758,19 @@ def _iter_session_messages_desc(
                 hot_exhausted = True
         return hot_buf[hot_idx] if hot_idx < len(hot_buf) else None
 
+    def _ensure_cold_watermark() -> tuple[Any, Any] | None:
+        nonlocal cold_watermark, cold_watermark_checked, cold_exhausted
+        if not cold_watermark_checked:
+            cold_watermark_checked = True
+            if cold_exhausted:
+                return None
+            cold_watermark = _fetch_cold_watermark(
+                session, chat_session_id=chat_session_id
+            )
+            if cold_watermark is None:
+                cold_exhausted = True
+        return cold_watermark
+
     def _peek_cold() -> Any | None:
         nonlocal cold_buf, cold_idx, cold_cursor, cold_exhausted
         if cold_idx >= len(cold_buf) and not cold_exhausted:
@@ -742,7 +786,22 @@ def _iter_session_messages_desc(
 
     while True:
         hot_row = _peek_hot()
-        cold_row = _peek_cold()
+        if cold_active:
+            cold_row = _peek_cold()
+        elif cold_exhausted:
+            cold_row = None
+        else:
+            watermark = _ensure_cold_watermark()
+            if watermark is None:
+                cold_row = None
+            elif hot_row is None or (hot_row.created_at, hot_row.id) < watermark:
+                cold_active = True
+                cold_row = _peek_cold()
+            else:
+                # hot_row >= newest cold row: strictly newer (or identical id, hot wins),
+                # so defer full-row cold fetching until hot exhausts or reaches the watermark.
+                cold_row = None
+
         if hot_row is None and cold_row is None:
             break
         if cold_row is None:

@@ -286,58 +286,99 @@ def load_active_session_recent_messages(
     stmt = stmt.order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id)).limit(fetch_limit)
     hot_messages: list[ChatMessage | ChatMessageArchive] = list(session.exec(stmt).all())
 
-    # Transparent cold-archive fallback: only touch chat_message_archive when hot
-    # rows do not satisfy `limit + 1` (so exact-boundary hot == limit still probes
-    # cold for `has_more`) or when a targeted `message_id` is absent from hot.
-    need_cold = (message_id is not None and not hot_messages) or (
-        message_id is None and len(hot_messages) < fetch_limit
-    )
-    if need_cold and has_chat_message_archive_table(session.connection()):
-        cold_stmt = (
-            select(ChatMessageArchive)
-            .options(
-                load_only(
-                    ChatMessageArchive.id,
-                    ChatMessageArchive.session_id,
-                    ChatMessageArchive.role,
-                    ChatMessageArchive.content,
-                    ChatMessageArchive.tool_calls,
-                    ChatMessageArchive.message_metadata,
-                    ChatMessageArchive.created_at,
-                )
-            )
-            .where(ChatMessageArchive.session_id == chat_session.id)
-        )
+    # Transparent cold-archive fallback:
+    # - For targeted `message_id`, fall back to cold only when absent from hot.
+    # - For recent windows, use a 1-row index-only watermark on (session_id, created_at, id)
+    #   so hot-only and strictly-newer hot windows avoid full-row cold fetches, while
+    #   interleaved hot/cold windows (e.g. older hot row skipped by FOR UPDATE SKIP LOCKED)
+    #   still merge up to `fetch_limit` cold rows so newer cold rows are never hidden.
+    has_more = message_id is None and len(hot_messages) > limit
+    messages: list[ChatMessage | ChatMessageArchive] = list(reversed(hot_messages[:limit]))
+
+    if has_chat_message_archive_table(session.connection()):
         if message_id is not None:
-            cold_stmt = cold_stmt.where(ChatMessageArchive.id == message_id).limit(1)
-        else:
-            hot_ids = [msg.id for msg in hot_messages]
-            if hot_ids:
-                cold_stmt = cold_stmt.where(col(ChatMessageArchive.id).notin_(hot_ids))
-            cold_stmt = cold_stmt.order_by(
-                ChatMessageArchive.created_at.desc(), desc(ChatMessageArchive.id)
-            ).limit(fetch_limit - len(hot_messages))
-        cold_messages = list(session.exec(cold_stmt).all())
-        if cold_messages:
-            by_id: dict[str, ChatMessage | ChatMessageArchive] = {
-                msg.id: msg for msg in cold_messages
-            }
-            # Prefer hot row when an ID temporarily exists in both tables during archival.
-            for msg in hot_messages:
-                by_id[msg.id] = msg
-            merged_asc = sorted(by_id.values(), key=lambda msg: (msg.created_at, msg.id))
-            if message_id is not None:
+            if not hot_messages:
+                cold_stmt = (
+                    select(ChatMessageArchive)
+                    .options(
+                        load_only(
+                            ChatMessageArchive.id,
+                            ChatMessageArchive.session_id,
+                            ChatMessageArchive.role,
+                            ChatMessageArchive.content,
+                            ChatMessageArchive.tool_calls,
+                            ChatMessageArchive.message_metadata,
+                            ChatMessageArchive.created_at,
+                        )
+                    )
+                    .where(
+                        ChatMessageArchive.session_id == chat_session.id,
+                        ChatMessageArchive.id == message_id,
+                    )
+                    .limit(1)
+                )
+                cold_messages = list(session.exec(cold_stmt).all())
+                messages = cold_messages
                 has_more = False
-                messages = merged_asc
-            else:
-                has_more = len(merged_asc) > limit
-                messages = merged_asc[-limit:]
         else:
-            has_more = message_id is None and len(hot_messages) > limit
-            messages = list(reversed(hot_messages[:limit]))
-    else:
-        has_more = message_id is None and len(hot_messages) > limit
-        messages = list(reversed(hot_messages[:limit]))
+            watermark_row = session.exec(
+                select(ChatMessageArchive.created_at, ChatMessageArchive.id)
+                .where(ChatMessageArchive.session_id == chat_session.id)
+                .order_by(ChatMessageArchive.created_at.desc(), desc(ChatMessageArchive.id))
+                .limit(1)
+            ).first()
+            if watermark_row is not None:
+                cold_watermark = (watermark_row[0], watermark_row[1])
+                hot_ids = [msg.id for msg in hot_messages]
+                oldest_hot_key = (
+                    (hot_messages[-1].created_at, hot_messages[-1].id) if hot_messages else None
+                )
+                interleaved = oldest_hot_key is not None and cold_watermark > oldest_hot_key
+
+                if len(hot_messages) == limit and not interleaved:
+                    # Exact hot == limit boundary with all cold rows <= oldest hot row:
+                    # hot already holds the newest `limit` messages, so an index-only check
+                    # suffices to prove whether any distinct older cold row exists (`has_more`).
+                    older_cold_stmt = select(ChatMessageArchive.id).where(
+                        ChatMessageArchive.session_id == chat_session.id
+                    )
+                    if hot_ids:
+                        older_cold_stmt = older_cold_stmt.where(
+                            col(ChatMessageArchive.id).notin_(hot_ids)
+                        )
+                    has_more = session.exec(older_cold_stmt.limit(1)).first() is not None
+                elif len(hot_messages) < limit or interleaved:
+                    cold_stmt = (
+                        select(ChatMessageArchive)
+                        .options(
+                            load_only(
+                                ChatMessageArchive.id,
+                                ChatMessageArchive.session_id,
+                                ChatMessageArchive.role,
+                                ChatMessageArchive.content,
+                                ChatMessageArchive.tool_calls,
+                                ChatMessageArchive.message_metadata,
+                                ChatMessageArchive.created_at,
+                            )
+                        )
+                        .where(ChatMessageArchive.session_id == chat_session.id)
+                    )
+                    if hot_ids:
+                        cold_stmt = cold_stmt.where(col(ChatMessageArchive.id).notin_(hot_ids))
+                    cold_stmt = cold_stmt.order_by(
+                        ChatMessageArchive.created_at.desc(), desc(ChatMessageArchive.id)
+                    ).limit(fetch_limit)
+                    cold_messages = list(session.exec(cold_stmt).all())
+                    if cold_messages:
+                        by_id: dict[str, ChatMessage | ChatMessageArchive] = {
+                            msg.id: msg for msg in cold_messages
+                        }
+                        # Prefer hot row when an ID temporarily exists in both tables during archival.
+                        for msg in hot_messages:
+                            by_id[msg.id] = msg
+                        merged_asc = sorted(by_id.values(), key=lambda msg: (msg.created_at, msg.id))
+                        has_more = len(merged_asc) > limit
+                        messages = merged_asc[-limit:]
 
     serialized = [
         MessageResponse(
