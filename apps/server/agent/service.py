@@ -947,6 +947,21 @@ class AgentService:
                     slimmed_only_fids = _wire_prefix_slimmed_only_file_ids(history.items)
                     if slimmed_only_fids:
                         history.archived_file_ids.update(slimmed_only_fids)
+                    # Defense-in-depth: never allow prior full_file_hashes to emit an "unchanged"
+                    # pointer for any file whose history text is already archived/slimmed out.
+                    if history.archived_file_ids and isinstance(prior_context_fingerprints, dict):
+                        prior_hashes = prior_context_fingerprints.get("full_file_hashes")
+                        if isinstance(prior_hashes, dict) and any(
+                            fid in prior_hashes for fid in history.archived_file_ids
+                        ):
+                            prior_context_fingerprints = {
+                                **prior_context_fingerprints,
+                                "full_file_hashes": {
+                                    k: v
+                                    for k, v in prior_hashes.items()
+                                    if k not in history.archived_file_ids
+                                },
+                            }
         if cancel_event is not None and cancel_event.is_set():
             return history, LoopTurnContext(), selected_skills, system_prompt
         turn = build_loop_turn_context(
@@ -1777,6 +1792,31 @@ class AgentService:
                             if is_tool_archive_compaction(outcome.record):
                                 if outcome.archived_file_ids:
                                     stage1_archived_file_ids.update(outcome.archived_file_ids)
+                                # Stage 1 折叠了旧轮次的只读工具结果：若本轮 <turn_context> 对被归档文件做了
+                                # 指纹去重省略，立即恢复 full_text 避免模型上下文彻底失去正文；同时从
+                                # effective_context_fingerprints["full_file_hashes"] 驱逐被归档文件，
+                                # 防止下轮对已归档的 query_files 正文发出陈旧 unchanged 指针。
+                                current_full_ids = set(
+                                    (loop_turn.context_fingerprints or {}).get("_current_full_file_hashes") or ()
+                                )
+                                if outcome.archived_unidentified_query_files:
+                                    _restore_full_turn_context()
+                                elif outcome.archived_file_ids:
+                                    restored_for_stage1 = bool(
+                                        loop_turn.full_text and (outcome.archived_file_ids & current_full_ids)
+                                    )
+                                    if restored_for_stage1:
+                                        _restore_full_turn_context()
+                                    if effective_context_fingerprints and isinstance(
+                                        effective_context_fingerprints.get("full_file_hashes"), dict
+                                    ):
+                                        evict_ids = (
+                                            outcome.archived_file_ids - current_full_ids
+                                            if restored_for_stage1
+                                            else outcome.archived_file_ids
+                                        )
+                                        for fid in evict_ids:
+                                            effective_context_fingerprints["full_file_hashes"].pop(fid, None)
                                 # Stage 1 只折叠了旧轮次的只读工具结果：仅撤销被归档文件的跨轮快照结转；
                                 # 仅当存在未能提取具体 id 的 query_files 归档时才保守全撤，绝不因归档技能而误撤近期文件快照。
                                 if loop_turn.session_carried_snapshot_ids:
@@ -1871,6 +1911,7 @@ class AgentService:
                             if folded_history is not run_history:
                                 writing_state["history_items"] = folded_history
                                 run_history = folded_history
+                                _restore_full_turn_context()
                             bounded_history = bound_history_for_provider(
                                 loop_history, run_history, history_max_tokens
                             )

@@ -19,8 +19,8 @@ configuration:
   when the request names no effort.
 - stream / read timeouts:
   - Phase-1 first-event timeout (wait for the first meaningful output/terminal event;
-    ``0`` disables): ``MINIMAX_FIRST_EVENT_TIMEOUT_S`` (default 75),
-    ``DEEPSEEK_FIRST_EVENT_TIMEOUT_S`` (default 45). Setting this higher than
+    ``0`` disables): ``MINIMAX_FIRST_EVENT_TIMEOUT_S`` (default 95),
+    ``DEEPSEEK_FIRST_EVENT_TIMEOUT_S`` (default 65). Setting this higher than
     ``*_CLIENT_TIMEOUT_S`` (or ``0``) is still bounded on zero-byte TCP silence by
     ``httpx``'s ``read_timeout_s()``.
   - Phase-2 stream idle timeout (longest silence between meaningful events; ``0`` disables

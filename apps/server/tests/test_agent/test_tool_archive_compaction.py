@@ -2028,3 +2028,241 @@ def test_w3_p1_1_cold_replay_handles_reused_orig_call_ids_precisely(db_session: 
     assert outputs[f"h{a2.id}_0"].get("archived") is True
     assert outputs[f"h{a3.id}_0"].get("archived") is not True
     assert replayed.archived_file_ids == {"f-old"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_w3_stage1_tool_archive_restores_same_turn_and_evicts_next_turn_fingerprints(
+    db_session: Session,
+    fake_redis,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """P0-2 Path A × Stage 1 tool_archive:
+    1) Same-turn: when Ch1 was deduped via cached_file_hashes (populated from an earlier
+       query_files(Ch1)) and Stage 1 tool_archive archives that query_files(Ch1) on the
+       current turn, service MUST restore full_text so Ch1's full content is emitted to the model.
+    2) Next-turn: when Stage 1 archives Ch1 while focusing Ch2, stored wire_prefix_cache MUST
+       evict Ch1 from full_file_hashes (and _prepare_loop_turn filters history.archived_file_ids)
+       so Turn N+1 focusing Ch1 emits full text instead of a stale unchanged pointer.
+    """
+    from agent.core.message_manager import MessageManager
+    from agent.service import AgentService
+    from services.features.file_version_service import content_sha256
+
+    user, project, chat = _seed_user_project_chat(db_session, "stage1_fp_splitbrain")
+    ch1_body = "【第一章完整正文】雾港钟声响起，潮水拍打着青石阶，温梨推开了补纸斋的木门。" * 120
+    ch2_body = "【第二章完整正文】长街雨落，老周点亮了柜台上的煤油灯，翻开泛黄的账本。" * 40
+    ch1 = File(project_id=project.id, title="第1章 雾港", content=ch1_body, file_type="draft")
+    ch2 = File(project_id=project.id, title="第2章 长街", content=ch2_body, file_type="draft")
+    db_session.add_all([ch1, ch2])
+    db_session.commit()
+    db_session.refresh(ch1)
+    db_session.refresh(ch2)
+
+    base = utcnow().replace(tzinfo=None) - timedelta(minutes=10)
+    u_seed = ChatMessage(session_id=chat.id, role="user", content="先看第1章", created_at=base)
+    a_seed = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="已看完。",
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "prompt_tokens": 310_000}),
+        created_at=base + timedelta(seconds=5),
+    )
+    db_session.add_all([u_seed, a_seed])
+    db_session.commit()
+    db_session.refresh(a_seed)
+
+    service = AgentService()
+    system_prompt = MessageManager(project_id=project.id, user_id=user.id).build_system_prompt(
+        session=db_session, language="zh", skill_catalog=""
+    )
+    provider_key = "minimax:MiniMax-M3.1-Flash:primary"
+    tools_sha = wire_prefix_cache.tools_schema_sha256()
+
+    large_ch1_output = json.dumps(
+        {"status": "success", "data": [{"id": ch1.id, "title": ch1.title, "file_type": "draft", "content": ch1_body}]},
+        ensure_ascii=False,
+    )
+    wire_items = [
+        # Old Turn 1 (outside keep_recent_turns=3): only place where Ch1 full text lives!
+        {"role": "user", "content": "先看第1章"},
+        {"type": "function_call", "call_id": "call_q_ch1", "name": "query_files", "arguments": json.dumps({"id": ch1.id})},
+        {"type": "function_call_output", "call_id": "call_q_ch1", "output": large_ch1_output},
+        {"role": "assistant", "content": "已读完第1章。"},
+        # Recent 3 protected turns
+        {"role": "user", "content": "第2轮"},
+        {"role": "assistant", "content": "好2。"},
+        {"role": "user", "content": "第3轮"},
+        {"role": "assistant", "content": "好3。"},
+        {"role": "user", "content": "第4轮"},
+        {"role": "assistant", "content": "好4。"},
+    ]
+
+    fake_provider = SimpleNamespace(
+        name="minimax",
+        model="MiniMax-M3.1-Flash",
+        key_slot="primary",
+        uses_responses_api=False,
+        reasoning_effort_for=lambda _req: "default",
+    )
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_COMPACT_AT_TOKENS", 300_000)
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS", 1)
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_TOOL_ARCHIVE_MIN_OUTPUT_CHARS", 500)
+
+    def _seed_warm_cache(last_msg_id: str, *, archived_fids: list[str] | None = None) -> None:
+        assert wire_prefix_cache.store_wire_prefix(
+            session_id=chat.id,
+            project_id=project.id,
+            user_id=user.id,
+            last_assistant_message_id=last_msg_id,
+            system_prompt=system_prompt,
+            provider_key=provider_key,
+            tools_sha256=tools_sha,
+            reasoning_effort="default",
+            items=wire_items,
+            history_meta={
+                "last_prompt_tokens": 300_500,
+                "compacted": False,
+                "compaction_skipped_at_tokens": 0,
+                "compaction_skipped_reason": None,
+                "trailing_output_truncations": 0,
+                "archived_call_ids": [],
+                "archived_file_ids": list(archived_fids or []),
+                "author_messages": ["先看第1章", "第2轮", "第3轮", "第4轮"],
+            },
+            context_fingerprints={
+                "project_files_sha256": "",
+                "full_file_hashes": {ch1.id: content_sha256(ch1_body)},
+                "author_edits_sha256": "",
+            },
+        )
+
+    # --- Case 1: Same-turn Stage 1 archive while focusing Ch1 ---
+    _seed_warm_cache(a_seed.id)
+    captured_same_turn: list[str] = []
+
+    def fake_loop_same_turn(state, **_kwargs):
+        captured_same_turn.append(str(state.get("user_message") or ""))
+        state["run_items"] = [*state.get("history_items", []), {"role": "user", "content": "改第1章"}, {"role": "assistant", "content": "好的。"}]
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "好的。"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return _stream()
+
+    with (
+        patch("agent.service.llm_failover.aordered_providers", new=AsyncMock(return_value=[fake_provider])),
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop_same_turn),
+    ):
+        async for _chunk in service.process_stream(
+            project_id=project.id,
+            user_id=user.id,
+            message="改一下第1章",
+            session=db_session,
+            session_id=chat.id,
+            metadata={"current_file_id": ch1.id},
+        ):
+            pass
+
+    assert len(captured_same_turn) == 1
+    assert ch1_body in captured_same_turn[0]
+    assert "与本会话近期上下文中已提供的全文一致" not in captured_same_turn[0]
+
+    # --- Case 2: Next-turn Stage 1 archive while focusing Ch2, then Turn N+1 focuses Ch1 ---
+    latest_a = db_session.exec(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == chat.id, ChatMessage.role == "assistant")
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+    ).first()
+    assert latest_a is not None
+    _seed_warm_cache(latest_a.id)
+
+    def fake_loop_focus_ch2(state, **_kwargs):
+        state["run_meter"].last_served_provider_key = provider_key
+        state["run_meter"].last_served_reasoning_effort = "default"
+        state["run_meter"].last_prompt_tokens = 20_000
+        state["run_items"] = [
+            *state.get("history_items", []),
+            {"role": "user", "content": "看第2章"},
+            {"role": "assistant", "content": "已看第2章。"},
+        ]
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "已看第2章。"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return _stream()
+
+    with (
+        patch("agent.service.llm_failover.aordered_providers", new=AsyncMock(return_value=[fake_provider])),
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop_focus_ch2),
+    ):
+        async for _chunk in service.process_stream(
+            project_id=project.id,
+            user_id=user.id,
+            message="看第2章",
+            session=db_session,
+            session_id=chat.id,
+            metadata={"current_file_id": ch2.id},
+        ):
+            pass
+
+    # Stored wire_prefix_cache MUST have evicted ch1.id from full_file_hashes!
+    after_ch2_a = db_session.exec(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == chat.id, ChatMessage.role == "assistant")
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+    ).first()
+    assert after_ch2_a is not None
+    stored_entry = wire_prefix_cache.load_wire_prefix_entry(
+        session_id=chat.id,
+        project_id=project.id,
+        user_id=user.id,
+        last_message_id=after_ch2_a.id,
+        system_prompt=system_prompt,
+        provider_key=provider_key,
+        tools_sha256=tools_sha,
+        reasoning_effort="default",
+    )
+    assert stored_entry is not None
+    assert stored_entry.context_fingerprints is not None
+    assert ch1.id not in (stored_entry.context_fingerprints.get("full_file_hashes") or {})
+    assert stored_entry.history_meta is not None
+    assert ch1.id in (stored_entry.history_meta.get("archived_file_ids") or [])
+
+    # Turn N+1 focusing Ch1 MUST emit full Ch1 text (NOT unchanged pointer)!
+    _hist_next, turn_next, _sk, _sp = service._prepare_loop_turn(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+        selected_skill_ids=None,
+        message="回到第1章",
+        metadata={"current_file_id": ch1.id},
+        language="zh",
+        expected_provider_key=provider_key,
+        expected_tools_sha256=tools_sha,
+        expected_reasoning_effort="default",
+    )
+    assert ch1_body in turn_next.text
+    assert "与本会话近期上下文中已提供的全文一致" not in turn_next.text
+
+    # --- Case 3: Defense-in-depth in _prepare_loop_turn when a stale entry still has ch1 in full_file_hashes ---
+    _seed_warm_cache(after_ch2_a.id, archived_fids=[ch1.id])
+    _hist_def, turn_def, _sk, _sp = service._prepare_loop_turn(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+        selected_skill_ids=None,
+        message="再次回到第1章",
+        metadata={"current_file_id": ch1.id},
+        language="zh",
+        expected_provider_key=provider_key,
+        expected_tools_sha256=tools_sha,
+        expected_reasoning_effort="default",
+    )
+    assert ch1_body in turn_def.text
+    assert "与本会话近期上下文中已提供的全文一致" not in turn_def.text
